@@ -107,6 +107,13 @@ function isScheduleDraft(value: unknown): value is Omit<AutomationDraft, "taskId
   return record(value) && isAutomationDraft({ ...value, taskId: "view" });
 }
 
+const VIEW_EVENT_TYPES = new Set(["action.failed", "find.results", "shortcut.captured", "shortcut.unavailable"]);
+
+/** Whether an input is a command rather than something that happened, which is what may be carried to another computer. */
+export function isAppCommandType(type: string): boolean {
+  return Object.hasOwn(shapes, type) && !VIEW_EVENT_TYPES.has(type);
+}
+
 /** Every input field is checked before a visible view can reach the application reducer. */
 export function isWorkspaceViewInput(value: unknown): value is WorkspaceViewInput {
   if (!record(value) || typeof value.type !== "string" || !Object.hasOwn(shapes, value.type)) return false;
@@ -223,6 +230,11 @@ const shapes = {
   "remote.create-pairing-code": {  },
   "remote.revoke-device": { deviceId: text },
   "remote.refresh": {  },
+  "computers.discover": {  },
+  "computers.pair": { host: text, name: text, code: text },
+  "computers.cancel-pairing": {  },
+  "computers.forget": { id: text },
+  "computers.filter": { filter: text },
   "engine.read": { refresh: optionalBoolean },
   "engine.reload-settings": {},
   "engine.sign-in": { engine: isAgentEngine },

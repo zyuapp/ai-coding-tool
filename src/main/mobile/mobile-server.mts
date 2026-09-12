@@ -33,9 +33,16 @@ import {
 } from "../../domain/mobile.js";
 import { MOBILE_HEALTH_PATH, MOBILE_HEALTH_RESPONSE } from "./addresses.mjs";
 import type { PairingStore } from "./pairing.mjs";
+import { COMPUTER_PROTOCOL_VERSION, isComputerClientMessage, type ComputerClientMessage, type ComputerQuery, type ComputerServerMessage } from "../../contracts/computers.js";
+import type { WorkspaceCommandResult, WorkspaceInput } from "../../application/workspace-reducer.js";
+import type { WorkspaceUpdate } from "../../contracts/workspace-runtime.js";
+import { stringifyWorkspaceJson } from "../../application/workspace-json.js";
+import type { PairedDeviceKind } from "../../domain/mobile.js";
 
 /** Where the phone page talks back. Pairing happens on the same socket, as its first message. */
 const SOCKET_PATH = `${MOBILE_APP_PATH}/socket`;
+/** Where another computer talks, in the window's own inputs rather than the phone's. */
+export const WORKSPACE_SOCKET_PATH = `${MOBILE_APP_PATH}/workspace`;
 
 /** How long a socket that has said nothing is given to name itself before it is shown the door. */
 const AUTH_DEADLINE_MS = 10_000;
@@ -89,6 +96,8 @@ type AckOutcome = { ok: true } | { ok: false; message: string };
 /** One outbound message, kept as the text it was sent as so replaying it costs nothing. */
 type Buffered = { sequence: number; text: string };
 
+type ClientMessage = MobileClientMessage | ComputerClientMessage;
+
 type Session = MobileSession & {
   deviceName: string;
   socket: WebSocket | null;
@@ -109,7 +118,15 @@ type Session = MobileSession & {
 
 /** Every server message but the sequence the session stamps on it as it goes out. */
 type Unsequenced<T> = T extends unknown ? Omit<T, "sequence"> : never;
-type OutboundMessage = Unsequenced<MobileServerMessage>;
+type OutboundMessage = Unsequenced<MobileServerMessage> | Unsequenced<ComputerServerMessage>;
+
+/** The workspace as another computer reads and drives it: whole, and in the window's own inputs. */
+export type WorkspaceHooks = {
+  snapshot: () => WorkspaceUpdate;
+  subscribe: (listener: (update: WorkspaceUpdate) => void) => () => void;
+  input: (inputs: WorkspaceInput[]) => Promise<WorkspaceCommandResult & { revision: number }>;
+  query: (query: ComputerQuery) => Promise<unknown>;
+};
 
 export type MobileServerOptions = {
   devices: PairingStore;
@@ -124,6 +141,8 @@ export type MobileServerOptions = {
   query: (sessionId: string, query: MobileQuery) => Promise<unknown>;
   /** Something a phone did changed what settings should say. */
   onChange: () => void;
+  /** What another computer is handed. Absent on a host that takes no computers. */
+  workspace?: WorkspaceHooks;
   /** How long a dropped session is held for its phone. A test shortens it rather than wait five minutes. */
   sessionGraceMs?: number;
 };
@@ -152,6 +171,7 @@ export class MobileServer {
   private failure: string | null = null;
   /** Sockets that have connected but not yet said who they are. */
   private pending = 0;
+  private stopWorkspace: (() => void) | null = null;
 
   constructor(private readonly options: MobileServerOptions) {}
 
@@ -169,8 +189,8 @@ export class MobileServer {
   }
 
   sessionViews(): MobileSessionView[] {
-    return [...this.sessions.values()].map(({ id, deviceId, deviceName, startedAt, lastSeenAt, sequence, connection }) =>
-      ({ id, deviceId, deviceName, startedAt, lastSeenAt, sequence, connection }));
+    return [...this.sessions.values()].map(({ id, kind, deviceId, deviceName, startedAt, lastSeenAt, sequence, connection }) =>
+      ({ id, kind, deviceId, deviceName, startedAt, lastSeenAt, sequence, connection }));
   }
 
   async start(host: string): Promise<void> {
@@ -195,11 +215,18 @@ export class MobileServer {
     }
     this.heartbeat = setInterval(() => this.tick(), MOBILE_PING_INTERVAL_MS);
     this.heartbeat.unref?.();
+    this.stopWorkspace = this.options.workspace?.subscribe((update) => {
+      for (const session of this.sessions.values()) {
+        if (session.kind === "computer" && !session.awaitingSnapshot) this.emit(session, { kind: "workspace", update });
+      }
+    }) ?? null;
   }
 
   async stop(): Promise<void> {
     if (this.heartbeat) clearInterval(this.heartbeat);
     this.heartbeat = null;
+    this.stopWorkspace?.();
+    this.stopWorkspace = null;
     for (const session of this.sessions.values()) hangUp(session.socket, 1001, "The bridge was turned off.");
     this.sessions.clear();
     this.handled.clear();
@@ -219,7 +246,7 @@ export class MobileServer {
   /** What every phone should see now. Offline sessions are numbered too, so a resume replays them. */
   publish(update: MobileViewUpdate) {
     for (const session of this.sessions.values()) {
-      if (session.awaitingSnapshot) continue;
+      if (session.kind !== "phone" || session.awaitingSnapshot) continue;
       this.emit(session, update.kind === "snapshot" ? { kind: "snapshot", sessionId: session.id, build: this.build, view: update.view } : { kind: "patch", patch: update.patch });
     }
   }
@@ -245,7 +272,7 @@ export class MobileServer {
 
   private emit(session: Session, message: OutboundMessage) {
     session.sequence += 1;
-    const text = JSON.stringify({ ...message, sequence: session.sequence });
+    const text = stringifyWorkspaceJson({ ...message, sequence: session.sequence });
     session.buffer.push({ sequence: session.sequence, text });
     session.bufferBytes += text.length;
     while (session.buffer.length > MOBILE_EVENT_BUFFER || (session.bufferBytes > MOBILE_BUFFER_BYTES && session.buffer.length > 1)) {
@@ -256,9 +283,10 @@ export class MobileServer {
     write(session.socket, text);
   }
 
-  private openSession(deviceId: string, deviceName: string, at: number): Session {
+  private openSession(kind: PairedDeviceKind, deviceId: string, deviceName: string, at: number): Session {
     const session: Session = {
       id: randomUUID(),
+      kind,
       deviceId,
       deviceName,
       startedAt: at,
@@ -300,6 +328,13 @@ export class MobileServer {
 
   private async sendSnapshot(session: Session) {
     try {
+      if (session.kind === "computer") {
+        const workspace = this.options.workspace;
+        if (!workspace) throw new Error("This computer takes no other computers.");
+        session.awaitingSnapshot = false;
+        this.emit(session, { kind: "workspace", sessionId: session.id, update: workspace.snapshot() });
+        return;
+      }
       const view = await this.options.snapshot(session.id);
       session.awaitingSnapshot = false;
       this.emit(session, { kind: "snapshot", sessionId: session.id, build: this.build, view });
@@ -319,10 +354,11 @@ export class MobileServer {
   private upgrade(request: IncomingMessage, socket: Duplex, head: Buffer) {
     const sockets = this.sockets;
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
-    if (!sockets || url.pathname !== SOCKET_PATH) return refuseUpgrade(socket, "400 Bad Request");
+    const kind: PairedDeviceKind | null = url.pathname === SOCKET_PATH ? "phone" : url.pathname === WORKSPACE_SOCKET_PATH && this.options.workspace ? "computer" : null;
+    if (!sockets || !kind) return refuseUpgrade(socket, "400 Bad Request");
     if (!this.originAllowed(request)) return refuseUpgrade(socket, "403 Forbidden");
     if (this.pending >= MAX_PENDING_SOCKETS) return refuseUpgrade(socket, "503 Service Unavailable");
-    sockets.handleUpgrade(request, socket, head, (accepted) => this.accept(accepted, sourceOf(request)));
+    sockets.handleUpgrade(request, socket, head, (accepted) => this.accept(accepted, sourceOf(request), kind));
   }
 
   /**
@@ -343,7 +379,7 @@ export class MobileServer {
     return host !== null && origin === `${scheme}://${host}`;
   }
 
-  private accept(socket: WebSocket, source: string) {
+  private accept(socket: WebSocket, source: string, kind: PairedDeviceKind) {
     let session: Session | null = null;
     this.pending += 1;
     const named = () => {
@@ -355,16 +391,16 @@ export class MobileServer {
     socket.on("close", () => { if (!session) named(); else clearTimeout(deadline); });
     socket.on("error", () => socket.terminate());
     socket.on("message", (data) => {
-      const message = readClientMessage(data);
+      const message = readClientMessage(data, kind);
       if (!message) return refuse(socket, "unreadable", "That message could not be read.");
       if (session) {
         /** A session dropped while its socket lingers — revoked, or the bridge turned off — is over. */
         if (this.sessions.get(session.id) !== session) return;
         session.lastSeenAt = Date.now();
-        return this.onSessionMessage(session, message);
+        return session.kind === "computer" ? this.onComputerMessage(session, message as ComputerClientMessage) : this.onSessionMessage(session, message as MobileClientMessage);
       }
-      const opened = message.kind === "pair" ? this.onPair(socket, message, source)
-        : message.kind === "resume" ? this.onResume(socket, message)
+      const opened = message.kind === "pair" ? this.onPair(socket, message, source, kind)
+        : message.kind === "resume" ? this.onResume(socket, message, kind)
           : null;
       if (!opened) return;
       named();
@@ -406,6 +442,46 @@ export class MobileServer {
    * A read is answered once and never remembered: asking twice reads twice, which is harmless, and
    * a phone that lost the answer asks again itself. Too many at once are refused rather than queued.
    */
+  /**
+   * Another computer's inputs run one after another, so a send lands after the recall of what it
+   * carries, and are answered once, with the last one's result. A request already run is answered
+   * from what it decided, the way a phone's is.
+   */
+  private onComputerMessage(session: Session, message: ComputerClientMessage) {
+    const workspace = this.options.workspace;
+    if (!workspace || message.kind === "pair" || message.kind === "resume" || message.kind === "pong") return;
+    const { requestId } = message;
+    if (message.kind === "query") {
+      if (session.queries >= MAX_QUERIES_IN_FLIGHT) return this.emit(session, { kind: "answer", requestId, ok: false, message: "That computer is asking for too much at once." });
+      session.queries += 1;
+      workspace.query(message.query).then(
+        (result) => this.emit(session, { kind: "answer", requestId, ok: true, result }),
+        (error: unknown) => this.emit(session, { kind: "answer", requestId, ok: false, message: error instanceof Error ? error.message : String(error) }),
+      ).finally(() => { session.queries -= 1; });
+      return;
+    }
+    const handled = this.handled.get(session.deviceId);
+    if (!handled) return;
+    if (handled.has(requestId)) {
+      const settled = handled.get(requestId);
+      if (settled) this.emit(session, { kind: "result", requestId, result: { ...settled, revision: 0 } });
+      return;
+    }
+    handled.set(requestId, null);
+    this.trim(handled);
+    workspace.input(message.inputs).then(
+      (result) => {
+        if (handled.has(requestId)) handled.set(requestId, result.ok ? { ok: true } : { ok: false, message: result.message });
+        this.emit(session, { kind: "result", requestId, result });
+      },
+      (error: unknown) => {
+        const failed = { ok: false as const, message: error instanceof Error ? error.message : String(error) };
+        if (handled.has(requestId)) handled.set(requestId, failed);
+        this.emit(session, { kind: "result", requestId, result: { ...failed, revision: 0 } });
+      },
+    );
+  }
+
   private onQuery(session: Session, message: MobileQueryRequest) {
     const { requestId } = message;
     if (session.queries >= MAX_QUERIES_IN_FLIGHT) {
@@ -436,19 +512,16 @@ export class MobileServer {
     this.emit(session, outcome.ok ? { kind: "ack", requestId, ok: true } : { kind: "ack", requestId, ok: false, message: outcome.message });
   }
 
-  private onPair(socket: WebSocket, request: MobilePairRequest, source: string): Session | null {
-    if (request.version !== MOBILE_PROTOCOL_VERSION) {
-      refuse(socket, "version", "This phone page is a different version from the computer. Reload it.");
-      return null;
-    }
+  private onPair(socket: WebSocket, request: MobilePairRequest, source: string, kind: PairedDeviceKind): Session | null {
+    if (!versionAccepted(request.version, kind, socket)) return null;
     /** A code buys a device, so it is not spent on a socket that has already gone. */
     if (socket.readyState !== socket.OPEN) return null;
-    const outcome = this.options.devices.redeem(request.code, request.deviceName, source, Date.now());
+    const outcome = this.options.devices.redeem(request.code, request.deviceName, source, Date.now(), kind);
     if (!outcome.ok) {
       refuse(socket, outcome.code, outcome.message);
       return null;
     }
-    const session = this.openSession(outcome.device.id, outcome.device.name, Date.now());
+    const session = this.openSession(kind, outcome.device.id, outcome.device.name, Date.now());
     this.attach(session, socket);
     this.emit(session, { kind: "paired", deviceId: outcome.device.id, deviceName: outcome.device.name, token: outcome.token });
     /** A token nobody received is a device that will never connect, so it is taken back. */
@@ -466,15 +539,12 @@ export class MobileServer {
    * unknown tokens against the pairing bucket would let any peer that can reach the port lock the
    * real phone out, since a reverse proxy makes every phone the same source address.
    */
-  private onResume(socket: WebSocket, request: MobileResumeRequest): Session | null {
-    if (request.version !== MOBILE_PROTOCOL_VERSION) {
-      refuse(socket, "version", "This phone page is a different version from the computer. Reload it.");
-      return null;
-    }
+  private onResume(socket: WebSocket, request: MobileResumeRequest, kind: PairedDeviceKind): Session | null {
+    if (!versionAccepted(request.version, kind, socket)) return null;
     const now = Date.now();
     const device = this.options.devices.authenticate(request.token);
-    if (!device) {
-      refuse(socket, "unauthorized", "This phone is not paired with this computer.");
+    if (!device || device.kind !== kind) {
+      refuse(socket, "unauthorized", kind === "computer" ? "This computer is not paired with the other one." : "This phone is not paired with this computer.");
       return null;
     }
     this.options.devices.markSeen(device.id, now);
@@ -486,7 +556,7 @@ export class MobileServer {
       this.emit(held, { kind: "ping", at: now });
       return held;
     }
-    const session = this.openSession(device.id, device.name, now);
+    const session = this.openSession(kind, device.id, device.name, now);
     this.attach(session, socket);
     void this.sendSnapshot(session);
     return session;
@@ -612,10 +682,19 @@ function refuseUpgrade(socket: Duplex, status: string) {
   socket.destroy();
 }
 
-function readClientMessage(data: unknown): MobileClientMessage | null {
+function readClientMessage(data: unknown, kind: PairedDeviceKind): ClientMessage | null {
   const text = Buffer.isBuffer(data) ? data.toString("utf8") : Array.isArray(data) ? Buffer.concat(data).toString("utf8") : String(data);
   const parsed = parseJson(text);
+  if (kind === "computer") return isComputerClientMessage(parsed) ? parsed : null;
   return isMobileClientMessage(parsed) ? parsed : null;
+}
+
+/** Each kind of client speaks its own protocol, and one from another build is told to update rather than misread. */
+function versionAccepted(version: number, kind: PairedDeviceKind, socket: WebSocket) {
+  const expected = kind === "computer" ? COMPUTER_PROTOCOL_VERSION : MOBILE_PROTOCOL_VERSION;
+  if (version === expected) return true;
+  refuse(socket, "version", kind === "computer" ? "The other computer runs a different version of AI Coding Tool. Update both." : "This phone page is a different version from the computer. Reload it.");
+  return false;
 }
 
 function parseJson(text: string): unknown {

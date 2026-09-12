@@ -13,6 +13,7 @@ import {
   pairingLocked,
   registerPairingFailure,
   type PairedDevice,
+  type PairedDeviceKind,
   type PairedDeviceView,
   type PairingAttempts,
   type PairingCode,
@@ -49,6 +50,7 @@ function isStoredDevice(value: unknown): value is PairedDevice {
   if (!value || typeof value !== "object") return false;
   const device = value as Record<string, unknown>;
   return typeof device.id === "string" && device.id.length > 0
+    && (device.kind === "phone" || device.kind === "computer")
     && typeof device.name === "string"
     && typeof device.tokenHash === "string" && /^[0-9a-f]{64}$/.test(device.tokenHash)
     && typeof device.pairedAt === "number"
@@ -80,7 +82,9 @@ export class PairingStore {
       const parsed: unknown = JSON.parse(readFileSync(this.filePath, "utf8"));
       const stored = parsed as StoredDevices | null;
       if (!stored || !Array.isArray(stored.devices)) return [];
-      return stored.devices.filter(isStoredDevice).slice(0, MAX_PAIRED_DEVICES);
+      /** Devices written before computers could pair are phones, which is all there was. */
+      const devices = stored.devices.map((device: unknown) => device && typeof device === "object" && !("kind" in device) ? { ...(device as object), kind: "phone" } : device);
+      return devices.filter(isStoredDevice).slice(0, MAX_PAIRED_DEVICES);
     } catch {
       return [];
     }
@@ -128,7 +132,7 @@ export class PairingStore {
    * spending it would let anything that can reach the port cancel the user's pairing by guessing
    * once; the caller's failure count is what makes guessing not worth it.
    */
-  redeem(code: string, deviceName: string, source: string, at: number): PairingOutcome {
+  redeem(code: string, deviceName: string, source: string, at: number, kind: PairedDeviceKind = "phone"): PairingOutcome {
     const held = this.attempts.get(source);
     const attempts = held && !pairingAttemptsStale(held, at) ? held : noPairingAttempts();
     if (pairingLocked(attempts, at)) {
@@ -150,6 +154,7 @@ export class PairingStore {
     const token = randomBytes(32).toString("hex");
     const device: PairedDevice = {
       id: randomUUID(),
+      kind,
       name: readableName(deviceName),
       tokenHash: hashToken(token),
       pairedAt: at,

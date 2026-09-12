@@ -13,7 +13,7 @@ import {
 } from "../../domain/mobile.js";
 import { allowedOrigins, BIND_HOST, loopbackAddress, reachableAddresses, tailscaleAddress } from "./addresses.mjs";
 import { serveDevelopmentPairing } from "./development.mjs";
-import { MobileServer } from "./mobile-server.mjs";
+import { MobileServer, type WorkspaceHooks } from "./mobile-server.mjs";
 import { PairingStore } from "./pairing.mjs";
 import { MobileRelay } from "./session-host.mjs";
 import { readTailscale, startTailscaleServe, stopTailscaleServe, type TailscaleAction } from "./tailscale.mjs";
@@ -28,6 +28,8 @@ export type MobileHostOptions = {
   send(request: MobileRequest): boolean;
   /** What settings should now say. Called after anything at all moves. */
   onState(state: MobileServerState): void;
+  /** What another computer is handed and may drive. Absent on a host that takes no computers. */
+  workspace?: WorkspaceHooks;
   /**
    * How Tailscale is asked about and driven. The real one when absent, which is every caller but a
    * test: shelling out to whatever Tailscale the machine happens to be running makes a test answer
@@ -189,6 +191,7 @@ function makeServer() {
     command: (sessionId, command) => bridge.command(sessionId, command),
     query: (sessionId, query) => bridge.query(sessionId, query),
     onChange: announce,
+    ...(host().workspace ? { workspace: host().workspace } : {}),
   });
 }
 

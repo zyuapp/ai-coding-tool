@@ -9,7 +9,9 @@ import type { ActivitySections } from "../../application/thread-order";
 import type { AutomationView } from "../../domain/automation";
 import type { WorktreeGroup } from "../../application/workspace-state";
 import { SidebarActivity } from "./SidebarActivity";
-import { SidebarHeader, SidebarResizer } from "./SidebarChrome";
+import { ComputerSwitch, SidebarHeader, SidebarResizer } from "./SidebarChrome";
+import type { ThreadHost } from "../../application/computers";
+import type { ComputerFilter, ComputerLink } from "../../domain/computers";
 import { PROJECT_DRAG, RECENTS_DROPPABLE, SidebarProjects, useShownThreads } from "./SidebarProjects";
 import { useThreadRows } from "./SidebarThreadRow";
 import type { SnoozeHours } from "../../domain/thread-snooze";
@@ -35,6 +37,13 @@ export type ProjectSidebarProps = {
   worktreeGroups: WorktreeGroup[];
   /** The same threads ranked by what wants the user, which is what activity mode draws. */
   activityThreads: ActivitySections;
+  /** Which paired computer holds each thread and folder that is not this computer's own. */
+  threadHosts: Map<string, ThreadHost>;
+  projectHosts: Map<string, ThreadHost>;
+  computerLinks: ComputerLink[];
+  computerName: string;
+  computerFilter: ComputerFilter;
+  onSetComputerFilter: (filter: ComputerFilter) => void;
   mode: SidebarMode;
   sections: SidebarSections;
   openMenu: string | null;
@@ -69,6 +78,31 @@ export type ProjectSidebarProps = {
   onOpenSettings: () => void;
 };
 
+/**
+ * How wide every rail is: the most marks any one thread carries. Reserving a slot no thread fills
+ * only pushes the marks away from the titles. Every thread carries its engine mark, which also
+ * covers the one slot an action needs.
+ */
+function railSlotsFor(threads: Thread[], marks: Pick<ProjectSidebarProps, "blockedThreadIds" | "runningThreadIds" | "sideChatAttention" | "worktreeThreadIds" | "schedules">) {
+  return threads.reduce((widest, thread) => {
+    const status = marks.blockedThreadIds.has(thread.id) || marks.runningThreadIds.has(thread.id) || hasUnreadAttention(thread) || marks.sideChatAttention.has(thread.id);
+    return Math.max(widest, 1 + Number(Boolean(thread.role)) + Number(marks.worktreeThreadIds.has(thread.id)) + Number(marks.schedules.has(thread.id)) + Number(status));
+  }, 1);
+}
+
+/** One context carries both drags; `type` says which list the drop belongs to. */
+function dropHandler(onMoveProject: ProjectSidebarProps["onMoveProject"], onMoveThread: ProjectSidebarProps["onMoveThread"]) {
+  return ({ draggableId, type, source, destination }: DropResult) => {
+    if (!destination) return;
+    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
+    if (type === PROJECT_DRAG) return onMoveProject(draggableId, destination.index);
+    onMoveThread(draggableId, {
+      projectId: destination.droppableId === RECENTS_DROPPABLE ? null : destination.droppableId,
+      index: destination.index,
+    });
+  };
+}
+
 function groupedBy<T>(items: T[], keyFor: (item: T) => string | undefined): Map<string, T[]> {
   const grouped = new Map<string, T[]>();
   for (const item of items) {
@@ -94,6 +128,12 @@ export const ProjectSidebar = memo(function ProjectSidebar({
   worktreeThreadIds,
   worktreeGroups,
   activityThreads,
+  threadHosts,
+  projectHosts,
+  computerLinks,
+  computerName,
+  computerFilter,
+  onSetComputerFilter,
   mode,
   sections,
   openMenu,
@@ -140,6 +180,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
     schedules,
     worktreeThreadIds,
     worktreeGroups,
+    threadHosts,
     openMenu,
     formatTime,
     onSetOpenMenu,
@@ -152,36 +193,15 @@ export const ProjectSidebar = memo(function ProjectSidebar({
     onSetThreadRole,
   });
 
-  /**
-   * How wide every rail is: the most marks any one thread carries. Reserving a slot no thread fills
-   * only pushes the marks away from the titles.
-   */
-  const railSlots = [...orderedThreads, ...recentThreads].reduce((widest, thread) => Math.max(widest, markCount(thread)), 1);
-
-  /** Every thread carries its engine mark, which also covers the one slot an action needs. */
-  function markCount(thread: Thread) {
-    const status = blockedThreadIds.has(thread.id) || runningThreadIds.has(thread.id) || hasUnreadAttention(thread) || sideChatAttention.has(thread.id);
-    return 1 + Number(Boolean(thread.role)) + Number(worktreeThreadIds.has(thread.id)) + Number(schedules.has(thread.id)) + Number(status);
-  }
+  const railSlots = railSlotsFor([...orderedThreads, ...recentThreads], { blockedThreadIds, runningThreadIds, sideChatAttention, worktreeThreadIds, schedules });
 
   /** Stepping through threads from the keyboard is blind unless the list follows the one now open. */
   useLayoutEffect(() => {
     list.current?.querySelector<HTMLElement>(".task-row.active, .project-task-row.active")?.scrollIntoView({ block: "nearest" });
   }, [currentId]);
 
-  /** One context carries both drags; `type` says which list the drop belongs to. */
-  function finishDrag({ draggableId, type, source, destination }: DropResult) {
-    if (!destination) return;
-    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
-    if (type === PROJECT_DRAG) return onMoveProject(draggableId, destination.index);
-    onMoveThread(draggableId, {
-      projectId: destination.droppableId === RECENTS_DROPPABLE ? null : destination.droppableId,
-      index: destination.index,
-    });
-  }
-
   return (
-    <DragDropContext onDragEnd={finishDrag}>
+    <DragDropContext onDragEnd={dropHandler(onMoveProject, onMoveThread)}>
     <aside
       ref={list}
       className={`sidebar ${open ? "compact-open" : "hidden"}`}
@@ -189,6 +209,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
       style={{ "--row-slots": railSlots } as React.CSSProperties}
     >
       <SidebarHeader mode={mode} canGoBack={canGoBack} canGoForward={canGoForward} onSetMode={onSetMode} onGoBack={onGoBack} onGoForward={onGoForward} />
+      {computerLinks.length > 0 && <ComputerSwitch links={computerLinks} name={computerName} filter={computerFilter} onSetFilter={onSetComputerFilter} />}
       <button className="new-task-button" onClick={() => onNewThread()} aria-label="New task" data-tip="New task">
         {/** Two copies of one outline: the resting hairline, and the accent that draws over it on hover. */}
         <svg className="new-task-edge" aria-hidden="true" focusable="false">
@@ -216,6 +237,8 @@ export const ProjectSidebar = memo(function ProjectSidebar({
           currentId={currentId}
           draftProjectId={draftProjectId}
           expandedProjects={expandedProjects}
+          projectHosts={projectHosts}
+          threadHosts={threadHosts}
           sections={sections}
           shownThreads={shownThreads}
           openMenu={openMenu}

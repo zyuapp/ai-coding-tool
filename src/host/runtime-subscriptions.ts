@@ -99,6 +99,8 @@ export function subscribeWorkspaceRuntime(host: RuntimeSubscriptionHost) {
     };
   });
   stops.push(desktop.onOpenProject((workspace) => void host.dispatch({ type: "project.opened", workspace })));
+  stops.push(desktop.onComputersChanged((name, links) => void host.dispatch({ type: "computers.changed", name, links })));
+  stops.push(desktop.onComputerState((id, state) => void host.dispatch({ type: "computer.state", id, state })));
   return {
     stop: () => { for (const stop of stops) stop(); },
     flush: flushAll,

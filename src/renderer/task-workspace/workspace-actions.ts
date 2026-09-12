@@ -12,6 +12,7 @@ import type { SidebarMode, SidebarSection } from "../../domain/sidebar";
 import type { RunAttachment } from "../../domain/conversation";
 import type { ThreadDropTarget } from "../../domain/project";
 import type { ThemeMode } from "../../domain/theme";
+import type { ComputerFilter } from "../../domain/computers";
 import type { ReviewTarget } from "../../domain/review";
 import { systemPrefersDark } from "../theme";
 
@@ -144,5 +145,10 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     createRemotePairingCode: () => dispatch({ type: "remote.create-pairing-code" }),
     revokeRemoteDevice: (deviceId: string) => dispatch({ type: "remote.revoke-device", deviceId }),
     refreshRemote: () => dispatch({ type: "remote.refresh" }),
+    discoverComputers: () => dispatch({ type: "computers.discover" }),
+    pairComputer: (host: string, name: string, code: string) => dispatch({ type: "computers.pair", host, name, code }),
+    cancelComputerPairing: () => dispatch({ type: "computers.cancel-pairing" }),
+    forgetComputer: (id: string) => dispatch({ type: "computers.forget", id }),
+    setComputerFilter: (filter: ComputerFilter) => dispatch({ type: "computers.filter", filter }),
   };
 }

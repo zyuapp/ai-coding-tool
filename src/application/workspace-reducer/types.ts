@@ -1,5 +1,6 @@
 import type { ProjectEvent, RegisterProjectEffect } from "../project-commands.js";
 import type { RemoteEffect, RemoteEvent } from "../remote-commands.js";
+import type { ComputerEffect, ComputerEvent } from "../computer-commands.js";
 import type { EngineEffect, EngineEvent } from "../engine-access.js";
 import type { DesktopShortcutUnavailable, WorkspaceState } from "../workspace-state.js";
 import type { AppCommand } from "../../contracts/commands.js";
@@ -88,6 +89,7 @@ export type WorkspaceEvent =
   | { type: "find.results"; target: FindTarget; results: FindResults }
   /** What the main process says the phone bridge now is, after anything at all moved it. */
   | RemoteEvent
+  | ComputerEvent
   | EngineEvent;
 
 /** Work the reducer wants done outside itself. The renderer performs these; nothing else does. */
@@ -185,6 +187,7 @@ export type WorkspaceEffect =
   | { type: "announce-thread"; notice: ThreadNotice }
   /** A change to the phone bridge, which only the main process can actually make. */
   | RemoteEffect
+  | ComputerEffect
   | EngineEffect;
 
 export type WorkspaceInput = AppCommand | WorkspaceEvent;

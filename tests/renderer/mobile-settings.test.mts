@@ -29,6 +29,7 @@ function draw(remote: MobileServerState) {
     onCreatePairingCode: () => { calls.codes += 1; },
     onRevokeDevice: (id: string) => calls.revoked.push(id),
     onRefreshTailscale: () => { calls.refreshes += 1; },
+    computers: { found: [], searching: false, searchError: null, links: [], pairing: null, onDiscover() {}, onPair() {}, onCancelPairing() {}, onForget() {} },
   })));
   return calls;
 }
@@ -104,12 +105,12 @@ test("a code is asked for the moment a phone could scan one, and again once it r
 test("paired phones are listed once each, with what they are doing and a way to cut each one off", () => {
   const calls = draw(served({
     devices: [
-      { id: "device-1", name: "iPhone", pairedAt: 1, lastSeenAt: Date.now() },
-      { id: "device-2", name: "iPad", pairedAt: 1, lastSeenAt: null },
+      { id: "device-1", kind: "phone", name: "iPhone", pairedAt: 1, lastSeenAt: Date.now() },
+      { id: "device-2", kind: "phone", name: "iPad", pairedAt: 1, lastSeenAt: null },
     ],
     sessions: [
-      { id: "s1", deviceId: "device-1", startedAt: 1, lastSeenAt: 2, sequence: 9, connection: "offline", deviceName: "iPhone" },
-      { id: "s2", deviceId: "device-1", startedAt: 3, lastSeenAt: 4, sequence: 2, connection: "live", deviceName: "iPhone" },
+      { id: "s1", kind: "phone", deviceId: "device-1", startedAt: 1, lastSeenAt: 2, sequence: 9, connection: "offline", deviceName: "iPhone" },
+      { id: "s2", kind: "phone", deviceId: "device-1", startedAt: 3, lastSeenAt: 4, sequence: 2, connection: "live", deviceName: "iPhone" },
     ],
   }));
   assert.match(text(), /1 of 2 connected/);

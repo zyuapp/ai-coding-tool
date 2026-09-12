@@ -1,5 +1,40 @@
 import { LuChevronLeft as ChevronLeft, LuChevronRight as ChevronRight, LuInbox as Inbox } from "react-icons/lu";
+import type { ComputerFilter, ComputerLink } from "../../domain/computers";
 import type { SidebarMode } from "../../domain/sidebar";
+
+export type ComputerSwitchProps = {
+  links: ComputerLink[];
+  /** What this computer calls itself. */
+  name: string;
+  filter: ComputerFilter;
+  onSetFilter: (filter: ComputerFilter) => void;
+};
+
+/** Which computers' threads the lists below draw: every one, this one, or one paired computer. */
+export function ComputerSwitch({ links, name, filter, onSetFilter }: ComputerSwitchProps) {
+  const choices: Array<{ filter: ComputerFilter; label: string; offline?: boolean }> = [
+    { filter: "all", label: "All" },
+    { filter: "this", label: name || "This computer" },
+    ...links.map((link) => ({ filter: link.id, label: link.name, offline: link.status !== "connected" })),
+  ];
+  return (
+    <div className="computer-switch" role="radiogroup" aria-label="Computers">
+      {choices.map((choice) => (
+        <button
+          key={choice.filter}
+          type="button"
+          role="radio"
+          aria-checked={filter === choice.filter}
+          className={`computer-choice${filter === choice.filter ? " active" : ""}${choice.offline ? " offline" : ""}`}
+          title={choice.offline ? `${choice.label} is offline` : undefined}
+          onClick={() => onSetFilter(choice.filter)}
+        >
+          {choice.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export type SidebarHeaderProps = {
   mode: SidebarMode;

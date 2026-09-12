@@ -35,6 +35,17 @@ function HiddenThreadsNotice({ workspace }: { workspace: ReturnType<typeof useTa
   );
 }
 
+/** The paired computer whose thread is on screen, while its line is down. */
+function ComputerNotice({ workspace }: { workspace: ReturnType<typeof useTaskWorkspace> }) {
+  const computer = workspace.activeComputer;
+  if (!computer || computer.status === "connected") return null;
+  return (
+    <div className="storage-notice computer-notice" role="status">
+      <span>{computer.name} is {computer.status === "connecting" ? "connecting…" : "offline"}{computer.error ? ` (${computer.error})` : ""}. Its threads wait until it is back.</span>
+    </div>
+  );
+}
+
 export function App() {
   const workspace = useTaskWorkspace();
   const dispatchRef = useLatestDispatch(workspace.dispatch);
@@ -72,17 +83,10 @@ export function App() {
     void workspace.dispatch({ type: "annotation.add", taskId: chatId, quote });
   }
 
-  const openSettings = useCallback(() => {
-    void workspace.actions.setSettingsOpen(true);
-  }, [workspace.actions]);
+  const openSettings = useCallback(() => void workspace.actions.setSettingsOpen(true), [workspace.actions]);
+  const closeSettings = () => void workspace.actions.setSettingsOpen(false);
 
-  function closeSettings() {
-    void workspace.actions.setSettingsOpen(false);
-  }
-
-  const openWorkflow = useCallback((id: string) => {
-    void workspace.actions.openWorkflow(id);
-  }, [workspace.actions]);
+  const openWorkflow = useCallback((id: string) => void workspace.actions.openWorkflow(id), [workspace.actions]);
 
   const { panels: dockPanels, launchers: dockLaunchers } = buildDock({
     workspace,
@@ -178,6 +182,7 @@ export function App() {
         )}
 
         {!workspace.storageError && <HiddenThreadsNotice workspace={workspace} />}
+        <ComputerNotice workspace={workspace} />
 
         <WorkspaceConversation workspace={workspace} find={find} findBar={findBar} onAnnotateSide={annotateToSideChat} />
 

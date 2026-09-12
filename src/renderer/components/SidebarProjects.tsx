@@ -10,6 +10,7 @@ import { PopoverMenu } from "./PopoverMenu";
 import { RenameInput, useRenaming, type Renaming } from "./SidebarRename";
 import { ShowMore } from "./ShowMore";
 import type { ThreadRowRenderer } from "./SidebarThreadRow";
+import type { ThreadHost } from "../../application/computers";
 
 export const RECENTS_DROPPABLE = "recents";
 export const PROJECTS_DROPPABLE = "projects";
@@ -51,6 +52,8 @@ function visibleCount(projectThreads: Thread[], currentId: string | null, showAl
 
 type ProjectRowProps = {
   project: Project;
+  /** The paired computer the folder is on, for one that is not this computer's own. */
+  host: ThreadHost | undefined;
   index: number;
   threads: Thread[];
   /** A checkout is somewhere a thread can be started, not a list the sidebar draws. */
@@ -72,6 +75,7 @@ type ProjectRowProps = {
 
 function ProjectRow({
   project,
+  host,
   index,
   threads,
   checkouts,
@@ -122,6 +126,7 @@ function ProjectRow({
                 >
                   <span className="folder-icon"><FolderIcon /></span>
                   <span>{projectName(project)}</span>
+                  {host && <span className={`project-host${host.offline ? " offline" : ""}`}>{host.name}</span>}
                 </button>}
             <PopoverMenu
               id={`project:${project.id}`}
@@ -173,6 +178,8 @@ export type SidebarProjectsProps = {
   currentId: string | null;
   draftProjectId: string | null;
   expandedProjects: Set<string>;
+  projectHosts: Map<string, ThreadHost>;
+  threadHosts: Map<string, ThreadHost>;
   sections: SidebarSections;
   shownThreads: ShownThreads;
   openMenu: string | null;
@@ -197,6 +204,8 @@ export function SidebarProjects({
   currentId,
   draftProjectId,
   expandedProjects,
+  projectHosts,
+  threadHosts,
   sections,
   shownThreads,
   openMenu,
@@ -228,6 +237,7 @@ export function SidebarProjects({
               <ProjectRow
                 key={project.id}
                 project={project}
+                host={projectHosts.get(project.id)}
                 index={projectIndex}
                 threads={threadsByProject.get(project.id) ?? []}
                 checkouts={checkoutsByProject.get(project.id) ?? []}
@@ -272,7 +282,7 @@ export function SidebarProjects({
             {recentThreads.length === 0 && !snapshot.isDraggingOver && <p className="sidebar-empty">No chats</p>}
             {recentThreads.map((thread, index) => renderRow(thread, index, `task-row ${thread.id === currentId ? "active" : ""}`, <span className="task-row-text">
                 <span>{thread.title}</span>
-                <small>{formatTime(threadActivityAt(thread))}</small>
+                <small>{[threadHosts.get(thread.id)?.name, formatTime(threadActivityAt(thread))].filter(Boolean).join(" · ")}</small>
               </span>))}
             {provided.placeholder}
           </nav>

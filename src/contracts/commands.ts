@@ -1,3 +1,4 @@
+import type { ComputerFilter } from "../domain/computers.js";
 import type { AutomationDraft, AutomationPatch } from "../domain/automation.js";
 import type { SnoozeHours } from "../domain/thread-snooze.js";
 import type { ThreadRole } from "../domain/thread-role.js";
@@ -31,7 +32,7 @@ export type ReadingPoint = { anchor: string; depth: number } | null;
  * through the same door. Anything that reaches {@link AppCommand} from outside the window has to be
  * validated at that boundary first, the way `isRunCommand` guards the run channel.
  */
-export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ImageCommand | ImageViewCommand | CliCommand | ComputerUseAccessCommand | PlanUsageCommand | ProjectCommand | PullRequestCommand | RunControlCommand | ReviewCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | DiffCommand | FileCommand | ExternalAppCommand | TerminalCommand | RemoteCommand | EngineCommand | ViewCommand;
+export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ImageCommand | ImageViewCommand | CliCommand | ComputerUseAccessCommand | PlanUsageCommand | ProjectCommand | PullRequestCommand | RunControlCommand | ReviewCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | DiffCommand | FileCommand | ExternalAppCommand | TerminalCommand | RemoteCommand | ComputerCommand | EngineCommand | ViewCommand;
 
 /**
  * Asks GitHub about the pull request the checkout in front belongs to. Sent again whenever that
@@ -312,6 +313,23 @@ export type RemoteCommand =
   | { type: "remote.refresh" };
 
 /* ── End phone bridge ─────────────────────────────────────────────────────── */
+
+/* ── Computers ────────────────────────────────────────────────────────────── */
+
+/**
+ * Other computers running this app, reached over the tailnet the way a phone reaches this one.
+ * Pairing takes the code the other computer shows; from then on its threads are listed here.
+ */
+export type ComputerCommand =
+  /** Looks across the tailnet for computers running this app. */
+  | { type: "computers.discover" }
+  | { type: "computers.pair"; host: string; name: string; code: string }
+  | { type: "computers.cancel-pairing" }
+  | { type: "computers.forget"; id: string }
+  /** Which computers' threads the sidebar draws. */
+  | { type: "computers.filter"; filter: ComputerFilter };
+
+/* ── End computers ────────────────────────────────────────────────────────── */
 
 /**
  * Asks which engines can take a run, or signs the user in to one that asked for it. Either way the

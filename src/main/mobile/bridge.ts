@@ -3,6 +3,7 @@ import type { MobileResponse, MobileViewUpdate } from "../../contracts/mobile.js
 import type { MobileServerState } from "../../domain/mobile.js";
 import type { DesktopEvents } from "../desktop-events.js";
 import type * as MobileHost from "./mobile-host.mjs" with { "resolution-mode": "import" };
+import type { WorkspaceHooks } from "./mobile-server.mjs" with { "resolution-mode": "import" };
 
 /** What the bridge needs from the app: where to raise what a phone sends, and where files live. */
 export type MobileBridgeHost = {
@@ -11,6 +12,8 @@ export type MobileBridgeHost = {
   developmentRoot?: string;
   /** The built phone page. */
   staticRoot: string;
+  /** What another computer is handed and may drive. */
+  workspace: WorkspaceHooks;
 };
 
 let app: MobileBridgeHost | null = null;
@@ -61,6 +64,7 @@ export function startMobileBridge(options: MobileBridgeHost) {
       staticRoot: options.staticRoot,
       send: (request) => app === options && options.events.emit("mobile:request", request),
       onState: (state) => publishState(options, state),
+      workspace: options.workspace,
     });
   });
   return lifecycle;

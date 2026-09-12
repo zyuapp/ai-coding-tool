@@ -15,6 +15,7 @@ import { RenameInput, useRenaming } from "./SidebarRename";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
 import { ThreadRoleMark } from "./ThreadRoleMark";
 import type { ThreadRole } from "../../domain/thread-role";
+import type { ThreadHost } from "../../application/computers";
 
 /** What a row's trailing slot offers, if anything. Only one of them ever shows in a given list. */
 export type RowAction = "archive" | "dismiss" | "none";
@@ -49,14 +50,15 @@ function attentionMark(thread: Thread, sideChatWaiting: boolean) {
 }
 
 /**
- * What a row says under its title in activity mode: which folder it lives in, and when it last moved.
- * A row carrying something a run found says that instead — the headline is why the row is in Priority.
+ * What a row says under its title in activity mode: which computer and folder it lives in, and when
+ * it last moved. A row carrying something a run found says that instead — the headline is why the
+ * row is in Priority.
  */
-function activityMeta(thread: Thread, projects: Project[], formatTime: (value: number) => string) {
+function activityMeta(thread: Thread, host: ThreadHost | undefined, projects: Project[], formatTime: (value: number) => string) {
   const finding = newestUnreadFinding(thread);
   if (finding) return finding.headline;
   const project = projects.find((item) => item.id === thread.projectId);
-  return [project && projectName(project), formatTime(threadActivityAt(thread))].filter(Boolean).join(" · ");
+  return [host?.name, project && projectName(project), formatTime(threadActivityAt(thread))].filter(Boolean).join(" · ");
 }
 
 function ThreadSpinner() {
@@ -87,6 +89,8 @@ export type ThreadRowsOptions = {
   schedules: Map<string, AutomationView>;
   worktreeThreadIds: Set<string>;
   worktreeGroups: WorktreeGroup[];
+  /** Which paired computer holds each thread that is not this computer's own. */
+  threadHosts: Map<string, ThreadHost>;
   openMenu: string | null;
   formatTime: (value: number) => string;
   onSetOpenMenu: (menu: string | null) => void;
@@ -109,6 +113,7 @@ export function useThreadRows({
   schedules,
   worktreeThreadIds,
   worktreeGroups,
+  threadHosts,
   openMenu,
   formatTime,
   onSetOpenMenu,
@@ -197,12 +202,16 @@ export function useThreadRows({
     );
   };
 
+  /** A row on a computer that cannot be reached is drawn, greyed, and takes nothing. */
+  const offline = (thread: Thread) => threadHosts.get(thread.id)?.offline === true;
+
   /** The row itself, which is the same whether the list around it lets it be dragged or not. */
   const rowBody = (thread: Thread, className: string, content: React.ReactNode, action: RowAction, priority = false) => (
     <>
     <div
-      className={thread.role ? `${className} role-${thread.role}` : className}
-      onClick={() => onSelectThread(thread.id)}
+      className={`${thread.role ? `${className} role-${thread.role}` : className}${offline(thread) ? " offline" : ""}`}
+      aria-disabled={offline(thread) || undefined}
+      onClick={() => { if (!offline(thread)) onSelectThread(thread.id); }}
       onDoubleClick={(event) => threadNames.start(thread.id, event.currentTarget.closest(".task-entry"))}
       onContextMenu={(event) => {
         event.preventDefault();
@@ -238,8 +247,8 @@ export function useThreadRows({
     </>
   );
 
-  const selectOnEnter = (event: React.KeyboardEvent, threadId: string) => {
-    if (event.key === "Enter") onSelectThread(threadId);
+  const selectOnEnter = (event: React.KeyboardEvent, thread: Thread) => {
+    if (event.key === "Enter" && !offline(thread)) onSelectThread(thread.id);
   };
 
   const threadRow = (thread: Thread, index: number, className: string, content: React.ReactNode) => (
@@ -250,7 +259,7 @@ export function useThreadRows({
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          onKeyDown={(event) => selectOnEnter(event, thread.id)}
+          onKeyDown={(event) => selectOnEnter(event, thread)}
         >
           {rowBody(thread, className, content, "archive")}
         </div>
@@ -260,11 +269,11 @@ export function useThreadRows({
 
   /** Activity mode ranks its rows itself, so nothing there is dragged and no list places it. */
   const activityRow = (thread: Thread, action: RowAction, priority: boolean) => (
-    <div className="task-entry" key={thread.id} tabIndex={0} onKeyDown={(event) => selectOnEnter(event, thread.id)}>
+    <div className="task-entry" key={thread.id} tabIndex={0} onKeyDown={(event) => selectOnEnter(event, thread)}>
       {rowBody(thread, `task-row ${thread.id === currentId ? "active" : ""}`, (
         <span className="task-row-text">
           <span>{thread.title}</span>
-          <small>{activityMeta(thread, projects, formatTime)}</small>
+          <small>{activityMeta(thread, threadHosts.get(thread.id), projects, formatTime)}</small>
         </span>
       ), action, priority)}
     </div>

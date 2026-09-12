@@ -35,7 +35,7 @@ function workspace(overrides: Partial<WorkspaceState> = {}): WorkspaceState {
 }
 
 function session(id: string): MobileSessionView {
-  return { id, deviceId: "device-1", deviceName: "Phone", startedAt: NOW, lastSeenAt: NOW, sequence: 4, connection: "live" };
+  return { id, kind: "phone", deviceId: "device-1", deviceName: "Phone", startedAt: NOW, lastSeenAt: NOW, sequence: 4, connection: "live" };
 }
 
 function remoteState(overrides: Partial<MobileServerState> = {}): MobileServerState {

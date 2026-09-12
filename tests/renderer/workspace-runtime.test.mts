@@ -14,6 +14,7 @@ const { createWorkspaceRuntime } = await import("../../src/host/workspace-runtim
 const { runWorkspaceEffect } = await import("../../src/host/workspace-effects.ts");
 const { subscribeWorkspaceRuntime } = await import("../../src/host/runtime-subscriptions.ts");
 const { answerMobileRequest } = await import("../../src/host/mobile-bridge.ts");
+const { noComputers } = await import("../../src/host/no-computers.ts");
 
 const messages: ConversationMessage[] = [{ id: "message", kind: "user", text: "persisted text", at: 1 }];
 
@@ -56,7 +57,7 @@ test("the runtime persists snooze, restores its timer and files it back into Pri
   vi.mocked(runWorkspaceEffect).mockImplementation(async (effect, host) => {
     if (effect.type === "schedule-snooze-expiry") host.scheduleSnoozeExpiry(effect.at);
   });
-  let runtime = createWorkspaceRuntime({ desktop: window.desktop, storage: localStorage });
+  let runtime = createWorkspaceRuntime({ desktop: { ...window.desktop, ...noComputers }, storage: localStorage });
   try {
     await runtime.start();
     await runtime.dispatch({ type: "task.snooze", taskId: "selected", hours: 1 });
@@ -64,7 +65,7 @@ test("the runtime persists snooze, restores its timer and files it back into Pri
     const deadline = Date.now() + 3_600_000;
     assert.equal(saved.tasks[0].snoozedUntil, deadline);
     runtime.dispose();
-    runtime = createWorkspaceRuntime({ desktop: window.desktop, storage: localStorage });
+    runtime = createWorkspaceRuntime({ desktop: { ...window.desktop, ...noComputers }, storage: localStorage });
     await runtime.start();
     assert.equal(runtime.getState().threads[0].snoozedUntil, deadline);
     await vi.advanceTimersByTimeAsync(3_600_000);
@@ -79,7 +80,7 @@ test("starting the runtime twice shares its load and subscriptions", async () =>
   const loaded = Promise.withResolvers<LoadedTaskStore>();
   let reads = 0;
   window.desktop.loadTaskStore = () => { reads++; return loaded.promise; };
-  const runtime = createWorkspaceRuntime({ desktop: window.desktop, storage: localStorage });
+  const runtime = createWorkspaceRuntime({ desktop: { ...window.desktop, ...noComputers }, storage: localStorage });
   try {
     const first = runtime.start();
     const second = runtime.start();
@@ -104,7 +105,7 @@ test("the engine check started by subscriptions applies its result after startup
   vi.mocked(runWorkspaceEffect).mockImplementation(async (effect, host) => {
     if (effect.type === "engine.read") await systemEffects["engine.read"](effect, host);
   });
-  const runtime = createWorkspaceRuntime({ desktop: window.desktop, storage: localStorage });
+  const runtime = createWorkspaceRuntime({ desktop: { ...window.desktop, ...noComputers }, storage: localStorage });
   try {
     await runtime.start();
     assert.equal(runtime.getState().engineChecking, true);
@@ -119,7 +120,7 @@ test("the engine check started by subscriptions applies its result after startup
 });
 
 test("draft text survives a restart, cleared drafts stay cleared, and side chats stay temporary", async () => {
-  let runtime = createWorkspaceRuntime({ desktop: window.desktop, storage: localStorage });
+  let runtime = createWorkspaceRuntime({ desktop: { ...window.desktop, ...noComputers }, storage: localStorage });
   try {
     await runtime.start();
     await runtime.dispatch({ type: "view.set-prompt", taskId: "selected", prompt: "Unsent text" });
@@ -129,13 +130,13 @@ test("draft text survives a restart, cleared drafts stay cleared, and side chats
     await runtime.flush();
     assert.deepEqual(JSON.parse(localStorage.getItem("aicodingtool.draft-prompts.v1")!), { selected: "Unsent text", "draft:": "New task draft" });
     runtime.dispose();
-    runtime = createWorkspaceRuntime({ desktop: window.desktop, storage: localStorage });
+    runtime = createWorkspaceRuntime({ desktop: { ...window.desktop, ...noComputers }, storage: localStorage });
     await runtime.start();
     assert.deepEqual(runtime.getState().prompts, { selected: "Unsent text", "draft:": "New task draft" });
     await runtime.dispatch({ type: "view.set-prompt", taskId: "selected", prompt: "" });
     await runtime.flush();
     runtime.dispose();
-    runtime = createWorkspaceRuntime({ desktop: window.desktop, storage: localStorage });
+    runtime = createWorkspaceRuntime({ desktop: { ...window.desktop, ...noComputers }, storage: localStorage });
     await runtime.start();
     assert.deepEqual(runtime.getState().prompts, { "draft:": "New task draft" });
   } finally {
@@ -144,7 +145,7 @@ test("draft text survives a restart, cleared drafts stay cleared, and side chats
 });
 
 test("draft writes are coalesced and a refused write keeps text available for a quit retry", async () => {
-  const runtime = createWorkspaceRuntime({ desktop: window.desktop, storage: localStorage });
+  const runtime = createWorkspaceRuntime({ desktop: { ...window.desktop, ...noComputers }, storage: localStorage });
   const write = vi.spyOn(Object.getPrototypeOf(localStorage) as Storage, "setItem");
   try {
     await runtime.start();
@@ -173,7 +174,7 @@ test("draft writes are coalesced and a refused write keeps text available for a 
 test("a phone waits for hydrated command acceptance and receives the reducer's refusal", async () => {
   const loaded = Promise.withResolvers<ConversationMessage[]>();
   window.desktop.loadThreadMessages = () => loaded.promise;
-  const runtime = createWorkspaceRuntime({ desktop: window.desktop, storage: localStorage });
+  const runtime = createWorkspaceRuntime({ desktop: { ...window.desktop, ...noComputers }, storage: localStorage });
   try {
     await runtime.start();
     let replied = false;
@@ -196,7 +197,7 @@ test("preparation releases subsequent inputs before the first command's effects 
   const loaded = Promise.withResolvers<ConversationMessage[]>();
   const opened = Promise.withResolvers<void>();
   window.desktop.loadThreadMessages = () => loaded.promise;
-  const runtime = createWorkspaceRuntime({ desktop: window.desktop, storage: localStorage });
+  const runtime = createWorkspaceRuntime({ desktop: { ...window.desktop, ...noComputers }, storage: localStorage });
   try {
     await runtime.start();
     vi.mocked(runWorkspaceEffect).mockImplementation(async (effect) => {
@@ -223,7 +224,7 @@ test("disposing during startup hydration prevents its late response from writing
   window.desktop.loadThreadMessages = () => { loading.resolve(); return loaded.promise; };
   const writes = vi.fn(async () => {});
   window.desktop.persistTaskStore = writes;
-  const runtime = createWorkspaceRuntime({ desktop: window.desktop, storage: localStorage });
+  const runtime = createWorkspaceRuntime({ desktop: { ...window.desktop, ...noComputers }, storage: localStorage });
   const starting = runtime.start();
   await loading.promise;
   runtime.dispose();
@@ -237,7 +238,7 @@ test("an input waiting for old history cannot execute after the runtime restarts
   const loaded = Promise.withResolvers<ConversationMessage[]>();
   const loading = Promise.withResolvers<void>();
   window.desktop.loadThreadMessages = () => { loading.resolve(); return loaded.promise; };
-  const runtime = createWorkspaceRuntime({ desktop: window.desktop, storage: localStorage });
+  const runtime = createWorkspaceRuntime({ desktop: { ...window.desktop, ...noComputers }, storage: localStorage });
   try {
     await runtime.start();
     const oldCommand = runtime.execute({ type: "task.select", taskId: "cold" });
@@ -259,7 +260,7 @@ test("a damaged selected transcript leaves other threads and settings usable", a
     if (taskId === "selected") throw new Error("damaged transcript");
     return messages;
   };
-  const runtime = createWorkspaceRuntime({ desktop: window.desktop, storage: localStorage });
+  const runtime = createWorkspaceRuntime({ desktop: { ...window.desktop, ...noComputers }, storage: localStorage });
   try {
     await runtime.start();
     assert.equal(runtime.getState().storageError, null);
@@ -287,7 +288,7 @@ test("updates during initial backfill reach disk before startup and flush comple
       await firstWrite.promise;
     }
   };
-  const runtime = createWorkspaceRuntime({ desktop: window.desktop, storage: localStorage });
+  const runtime = createWorkspaceRuntime({ desktop: { ...window.desktop, ...noComputers }, storage: localStorage });
   try {
     const starting = runtime.start();
     await writing.promise;
@@ -311,7 +312,7 @@ test("a corrupt transcript does not discard later events and flush waits for the
     loading.resolve();
     return loaded.promise;
   };
-  const runtime = createWorkspaceRuntime({ desktop: window.desktop, storage: localStorage });
+  const runtime = createWorkspaceRuntime({ desktop: { ...window.desktop, ...noComputers }, storage: localStorage });
   try {
     await runtime.start();
     const arrived: string[] = [];
@@ -356,7 +357,7 @@ test("a batch waiting for history cannot apply remaining events after dispose an
   const loaded = Promise.withResolvers<ConversationMessage[]>();
   const loading = Promise.withResolvers<void>();
   window.desktop.loadThreadMessages = () => { loading.resolve(); return loaded.promise; };
-  const runtime = createWorkspaceRuntime({ desktop: window.desktop, storage: localStorage });
+  const runtime = createWorkspaceRuntime({ desktop: { ...window.desktop, ...noComputers }, storage: localStorage });
   try {
     await runtime.start();
     const batch = runtime.dispatch({ type: "agent.events", events: [
@@ -376,17 +377,18 @@ test("a batch waiting for history cannot apply remaining events after dispose an
 });
 
 test("a shutdown retry saves retained changes after a transient storage failure", async () => {
-  const runtime = createWorkspaceRuntime({ desktop: window.desktop, storage: localStorage });
+  const desktop = { ...window.desktop, ...noComputers };
+  const runtime = createWorkspaceRuntime({ desktop, storage: localStorage });
   try {
     await runtime.start();
     const failed = Promise.withResolvers<void>();
-    window.desktop.persistTaskStore = async () => { failed.resolve(); throw new Error("disk unavailable"); };
+    desktop.persistTaskStore = async () => { failed.resolve(); throw new Error("disk unavailable"); };
     await runtime.dispatch({ type: "task.rename", taskId: "selected", title: "Keep this title" });
     await failed.promise;
     await assert.rejects(runtime.flush(), /disk unavailable/);
     assert.equal(runtime.getState().writable, false);
     const writes: TaskStoreDelta[] = [];
-    window.desktop.persistTaskStore = async (delta) => { writes.push(delta); };
+    desktop.persistTaskStore = async (delta) => { writes.push(delta); };
     await runtime.flush();
     assert.equal(runtime.getState().storageError, null);
     assert.equal(runtime.getState().writable, true);

@@ -1,4 +1,5 @@
 import { ipcMain, shell, type IpcMainInvokeEvent } from "electron";
+import type { ComputerQuery } from "../contracts/computers.js";
 import type { CreateWorktreeRequest, ReleaseWorktreeRequest } from "../contracts/ipc.js";
 import type { PullRequestAnswer } from "../domain/pull-request.js";
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
@@ -8,6 +9,8 @@ import type { WorktreeService } from "./workspace/worktrees.mjs" with { "resolut
 export type WorkspaceIpcHost = {
   workspaces: () => WorkspaceService;
   worktrees: () => WorktreeService;
+  /** Where a checkout that lives on a paired computer is read from, or null for one of this computer's own. */
+  elsewhere?: (workspaceId: string) => ((query: ComputerQuery) => Promise<unknown>) | null;
 };
 
 function worktreeRequest(value: unknown) {
@@ -28,6 +31,8 @@ async function readChangedFiles(host: WorkspaceIpcHost, workspaceId: string) {
 export function registerWorkspaceIpc(host: WorkspaceIpcHost, trusted: (event: IpcMainInvokeEvent) => boolean) {
   ipcMain.handle("workspace:branches", async (event, workspaceId: unknown) => {
     if (!trusted(event)) return { status: "error", message: "Untrusted IPC sender." } as const;
+    const elsewhere = typeof workspaceId === "string" ? host.elsewhere?.(workspaceId) : null;
+    if (elsewhere) return elsewhere({ kind: "branches", workspaceId: workspaceId as string });
     try {
       const resolution = await host.workspaces().resolve(worktreePath(workspaceId));
       if (resolution.status !== "available") throw new Error(`Workspace is unavailable (${resolution.reason}).`);
@@ -131,6 +136,8 @@ export function registerWorkspaceIpc(host: WorkspaceIpcHost, trusted: (event: Ip
     if (previousPath !== undefined && (typeof previousPath !== "string" || previousPath.length === 0 || previousPath.length > 4_096)) return { status: "error", message: "Invalid path." } as const;
     const { isDiffRange } = await import("../domain/diff.js");
     if (!isDiffRange(range)) return { status: "error", message: "Invalid comparison." } as const;
+    const elsewhere = host.elsewhere?.(workspaceId);
+    if (elsewhere) return elsewhere({ kind: "diff-patch", workspaceId, range, path: filePath, ...(previousPath === undefined ? {} : { previousPath }), ignoreWhitespace: ignoreWhitespace === true });
     try {
       const { diffPatch } = await import("./workspace/git-diff.mjs");
       return await diffPatch(workspaceId, range, filePath, host.workspaces(), previousPath, ignoreWhitespace === true);

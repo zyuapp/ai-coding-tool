@@ -103,13 +103,17 @@ export type MobilePairingOffer = {
   url: string;
 };
 
+/** What paired with this computer: a phone's page, or another computer running this app. */
+export type PairedDeviceKind = "phone" | "computer";
+
 /**
- * A phone that has paired. Only the hash of its token is kept, so the file this is stored in cannot
+ * A device that has paired. Only the hash of its token is kept, so the file this is stored in cannot
  * be read back into a working credential.
  */
 export type PairedDevice = {
   id: string;
-  /** What the phone called itself when it paired. Shown in settings so the user can tell them apart. */
+  kind: PairedDeviceKind;
+  /** What the device called itself when it paired. Shown in settings so the user can tell them apart. */
   name: string;
   /** Hex SHA-256 of the device token. The token itself is shown once, to the phone, and never stored. */
   tokenHash: string;
@@ -128,6 +132,7 @@ export function deviceView(device: PairedDevice): PairedDeviceView {
 /** One phone's live connection. It outlives a dropped socket long enough for that phone to resume. */
 export type MobileSession = {
   id: string;
+  kind: PairedDeviceKind;
   deviceId: string;
   startedAt: number;
   lastSeenAt: number;

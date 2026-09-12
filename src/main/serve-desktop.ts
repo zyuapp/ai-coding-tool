@@ -1,3 +1,4 @@
+import { noComputers } from "../host/no-computers.js";
 import type { RuntimeDesktop } from "../host/runtime-desktop.js";
 import type * as MobileHost from "./mobile/mobile-host.mjs" with { "resolution-mode": "import" };
 import { serviceDesktop, type ServiceDesktopHost } from "./service-desktop.js";
@@ -73,5 +74,5 @@ export function createServeDesktop(host: ServeDesktopHost): RuntimeDesktop {
       enable: async () => ({ accessibility: false, screenRecording: false }),
     },
   });
-  return { ...services, ...headlessDesktop(host) };
+  return { ...services, ...headlessDesktop(host), ...noComputers };
 }

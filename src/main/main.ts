@@ -8,7 +8,7 @@ import { ATTACHMENT_SCHEME, attachmentName } from "../application/attachments.js
 import { MESSAGE_IMAGE_SCHEME } from "../domain/message-artifacts.js";
 import { messageImageResponse, preserveMessageImages, useMessageImageStore } from "./message-image-store.js";
 import { downloadImage } from "./image-download.js";
-import { isAutomationAck, isShortcutOverrides, isThreadResponse, isWindowTheme, type AvailableCommand, type BrowserPageEvent, type ComputerUsePermission, type WindowTheme } from "../contracts/ipc.js";
+import { isShortcutOverrides, isWindowTheme, type AvailableCommand, type BrowserPageEvent, type ComputerUsePermission, type WindowTheme } from "../contracts/ipc.js";
 import { isAutomationDraft, isAutomationPatch } from "../domain/automation.js";
 import { isAgentEngine, type AgentEngine } from "../domain/agent-engine.js";
 import { isCaptureOptions } from "../domain/capture.js";
@@ -25,6 +25,9 @@ import { cliStatus, installCli, uninstallCli } from "./cli-install.js";
 import { computerUseForRun, computerUsePermissions, requestComputerUsePermission, resumeComputerUse, stopComputerUse } from "./computer-use-host.js";
 import type { NoticeHost } from "./desktop-notice.js";
 import { createDesktopEvents } from "./desktop-events.js";
+import { createComputerBridge } from "./computer-bridge.js";
+import type { ComputerLinks } from "./computers/computer-links.mjs" with { "resolution-mode": "import" };
+import { hostname } from "node:os";
 import { createJsonStorage } from "./json-storage.js";
 import { createRuntimeDesktop } from "./runtime-desktop.js";
 import { startKeyboardHost } from "./keyboard-host.js";
@@ -140,6 +143,13 @@ function engineAccessHost() {
   return engineAccess ??= import("./agent/engine-services.mjs").then(({ EngineAccessHost }) => new EngineAccessHost());
 }
 
+let computerLinks: ComputerLinks | null = null;
+
+function getComputerLinks() {
+  if (!computerLinks) throw new Error("Computers are not ready.");
+  return computerLinks;
+}
+
 const workspaceRuntime = createWorkspaceRuntimeHost({
   view: () => window,
   trusted: trustedSender,
@@ -161,8 +171,17 @@ const workspaceRuntime = createWorkspaceRuntimeHost({
     engineAccess: engineAccessHost,
     worktreesRoots: () => [WORKTREES_ROOT, ...legacyWorktreesRoots(app.getPath("userData"))],
     restart: () => requestRestart(),
+    computers: getComputerLinks,
   }),
 });
+
+const computerBridge = createComputerBridge({
+  runtime: workspaceRuntime,
+  workspaces: getWorkspaceService,
+  commands: readCommands,
+  links: () => computerLinks,
+});
+const workspaceHooks = computerBridge.hooks;
 
 async function readCommands(workspaceId: string, engine: AgentEngine): Promise<AvailableCommand[]> {
   const resolution = await getWorkspaceService().resolve(workspaceId);
@@ -363,7 +382,7 @@ async function createWindow() {
   });
   await window.loadFile(path.join(__dirname, "../../renderer/index.html"));
   if (createdWindow.isDestroyed() || quitState !== "running") return;
-  await startMobileBridge({ events, userData: app.getPath("userData"), staticRoot: path.join(__dirname, "../../mobile"), ...(!app.isPackaged ? { developmentRoot: app.getAppPath() } : {}) })
+  await startMobileBridge({ events, workspace: workspaceHooks, userData: app.getPath("userData"), staticRoot: path.join(__dirname, "../../mobile"), ...(!app.isPackaged ? { developmentRoot: app.getAppPath() } : {}) })
     .catch((error) => console.error("Could not start the phone bridge:", error));
 }
 
@@ -428,6 +447,14 @@ app.whenReady().then(async () => {
   await workspaceRuntime.start();
   runtimeListening = true;
   void flushProjectOpens();
+  const { createComputerLinks } = await import("./computers/computer-links.mjs");
+  computerLinks = createComputerLinks({
+    file: path.join(userData, "computers.v1.json"),
+    deviceName: hostname().replace(/\.local$/, ""),
+    onChanged: (links) => { events.emit("computers:changed", { name: hostname().replace(/\.local$/, ""), links }); },
+    onState: (id, state) => { events.emit("computer:state", { id, state }); },
+  });
+  computerLinks.start();
   await createWindow();
   const launchPath = projectPathFromArgv(process.argv);
   if (launchPath) openProjectPath(launchPath);
@@ -472,6 +499,7 @@ async function finishShutdown() {
     automationScheduler?.stop();
     runs.clearPendingStarts();
     runs.killAgent();
+    computerLinks?.stop();
     await stopMobileBridge().catch((error) => console.error("Could not stop the phone bridge:", error));
     await stopComputerUse().catch((error) => console.error("Could not stop computer use:", error));
     await workspaceRuntime.flush();
@@ -490,7 +518,7 @@ async function finishShutdown() {
       if (process.platform === "darwin") lockAwake = startLockAwake(powerMonitor, powerSaveBlocker);
       await automationScheduler?.start().catch((failure) => console.error("Could not restart schedules:", failure));
       if (window && !window.isDestroyed()) {
-        await startMobileBridge({ events, userData: app.getPath("userData"), staticRoot: path.join(__dirname, "../../mobile"), ...(!app.isPackaged ? { developmentRoot: app.getAppPath() } : {}) })
+        await startMobileBridge({ events, workspace: workspaceHooks, userData: app.getPath("userData"), staticRoot: path.join(__dirname, "../../mobile"), ...(!app.isPackaged ? { developmentRoot: app.getAppPath() } : {}) })
           .catch((failure) => console.error("Could not restart the phone bridge:", failure));
       }
     }
@@ -560,6 +588,8 @@ ipcMain.handle("workspace:commands", async (event, workspaceId: unknown, engine:
   if (!trustedSender(event)) return { status: "error", message: "Untrusted IPC sender." } as const;
   if (typeof workspaceId !== "string" || workspaceId.length === 0 || workspaceId.length > 256) return { status: "error", message: "Invalid workspace ID." } as const;
   if (!isAgentEngine(engine)) return { status: "error", message: "Invalid engine." } as const;
+  const remote = computerBridge.elsewhere(workspaceId);
+  if (remote) return remote({ kind: "commands", workspaceId, engine }).catch((error: unknown) => ({ status: "error", message: error instanceof Error ? error.message : String(error) } as const));
   try {
     return { status: "available", commands: await readCommands(workspaceId, engine) } as const;
   } catch (error) {
@@ -690,11 +720,6 @@ ipcMain.handle("automation:run-now", (event, taskId: unknown) => {
   return getAutomationScheduler().runNow(taskId);
 });
 
-ipcMain.on("automation:ack", (event, ack: unknown) => {
-  if (!trustedSender(event) || !isAutomationAck(ack)) return;
-  runs.acknowledgeAutomation(ack.runId, ack.started);
-});
-
 ipcMain.on("theme:set", (event, theme: unknown) => {
   if (!trustedSender(event) || !isWindowTheme(theme)) return;
   if (theme.variant === windowTheme.variant && theme.canvas === windowTheme.canvas && Boolean(theme.follow) === Boolean(windowTheme.follow)) return;
@@ -733,11 +758,6 @@ ipcMain.on("window:focus", (event) => {
 });
 
 serveExternalApps(trustedSender);
-
-ipcMain.on("thread:answer", (event, response: unknown) => {
-  if (!trustedSender(event) || !isThreadResponse(response)) return;
-  runs.answerThread(response);
-});
 
 registerBrowserIpc(trustedSender);
 
@@ -809,4 +829,4 @@ ipcMain.handle("attachment:save", async (event, data: unknown, original: unknown
   return file;
 });
 
-registerWorkspaceIpc({ workspaces: getWorkspaceService, worktrees: getWorktreeService }, trustedSender);
+registerWorkspaceIpc({ workspaces: getWorkspaceService, worktrees: getWorktreeService, elsewhere: computerBridge.elsewhere }, trustedSender);

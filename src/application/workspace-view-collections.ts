@@ -1,5 +1,7 @@
 import type { AutomationView } from "../domain/automation.js";
 import type { Thread } from "../domain/thread.js";
+import { remoteCollections, type PairedComputer } from "./computers.js";
+import type { ComputerLink } from "../domain/computers.js";
 import { sidebarLists } from "./sidebar-lists.js";
 import { unreadView } from "./thread-attention.js";
 import { busyThreadIds, blockedThreadIds, sideChatIds, type WorkspaceState, type WorktreeGroup } from "./workspace-state.js";
@@ -57,9 +59,47 @@ const busy = selector(
 
 const blocked = selector((state) => [state.activeRuns], blockedThreadIds, sameIds);
 
+/** The paired computers' threads, gathered once per change to any of them. */
+const remote = selector(
+  (state) => [state.computers.paired, state.computers.filter],
+  (state) => remoteCollections(state.computers),
+);
+
+function linkOf({ id, name, host, status, error, pairedAt }: PairedComputer): ComputerLink {
+  return { id, name, host, status, error, pairedAt };
+}
+
+function sameLinks(before: ComputerLink[], next: ComputerLink[]) {
+  return before.length === next.length && before.every((link, index) => {
+    const other = next[index]!;
+    return link.id === other.id && link.name === other.name && link.host === other.host && link.status === other.status && link.error === other.error;
+  });
+}
+
+/** The paired computers without their states, which the chrome draws and which move only when a line does. */
+const links = selector((state) => [state.computers.paired], (state) => state.computers.paired.map(linkOf), sameLinks);
+
+function union(own: Set<string>, others: Set<string>) {
+  if (!others.size) return own;
+  return new Set([...own, ...others]);
+}
+
+/** Every computer's running and blocked threads together, which is what the rows of a merged list read. */
+const everyBusy = selector((state) => [busy(state), remote(state)], (state) => union(busy(state), remote(state).busy), sameIds);
+const everyBlocked = selector((state) => [blocked(state), remote(state)], (state) => union(blocked(state), remote(state).blocked), sameIds);
+
+/** The sidebar draws every computer's threads together, filed under every computer's folders. */
 const sidebar = selector(
-  (state) => [threadLists(state).visibleThreads, state.projects, busy(state), blocked(state), state.sidebarMode, state.sections, state.expandedProjects],
-  (state) => sidebarLists(state, state.projects, threadLists(state).visibleThreads, busy(state), blocked(state)),
+  (state) => [threadLists(state).visibleThreads, state.projects, everyBusy(state), everyBlocked(state), remote(state), state.sidebarMode, state.sections, state.expandedProjects],
+  (state) => {
+    const others = remote(state);
+    /** A filter naming one paired computer leaves this computer's own out. */
+    const own = state.computers.filter === "all" || state.computers.filter === "this";
+    const projects = others.projects.length ? [...(own ? state.projects : []), ...others.projects] : own ? state.projects : [];
+    const visible = own ? threadLists(state).visibleThreads : [];
+    const threads = others.threads.length ? [...visible, ...others.threads] : visible;
+    return sidebarLists(state, projects, threads, everyBusy(state), everyBlocked(state));
+  },
 );
 
 const managed = selector(
@@ -90,8 +130,11 @@ const groups = selector(
 );
 
 const attention = selector(
-  (state) => [state.threads, state.sideChats],
-  (state) => unreadView(state, threadLists(state).listedThreads),
+  (state) => [state.threads, state.sideChats, remote(state)],
+  (state) => {
+    const own = unreadView(state, threadLists(state).listedThreads);
+    return { ...own, unreadCount: own.unreadCount + remote(state).unreadCount };
+  },
 );
 
 const schedules = selector(
@@ -107,6 +150,10 @@ export function workspaceViewCollections(state: WorkspaceState) {
     lists: sidebar(state),
     busy: busy(state),
     blocked: blocked(state),
+    everyBusy: everyBusy(state),
+    everyBlocked: everyBlocked(state),
+    remote: remote(state),
+    computerLinks: links(state),
     managedWorktrees: managed(state),
     worktreeSettings: settings(state),
     worktreeGroups: groups(state),

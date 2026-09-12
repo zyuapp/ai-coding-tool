@@ -3,6 +3,7 @@
  * and what a schedule turned away says for itself. A function belongs here when it needs the whole
  * workspace or has to tell the desktop.
  */
+import { threadOnScreen } from "./thread-attention.js";
 import type { AutomationFire } from "../contracts/ipc.js";
 import type { FindingReport } from "../contracts/threads.js";
 import { isNews, withFinding } from "../domain/attention.js";
@@ -55,7 +56,7 @@ export function raisedFinding(state: WorkspaceState, report: FindingReport & { t
   if (!thread) return { state, effects: [] };
   const raised = isNews(thread, report.key);
   /** A thread the user is watching cannot have missed it. */
-  const seen = state.focused && state.currentId === report.taskId;
+  const seen = state.focused && threadOnScreen(state, report.taskId);
   const next = withNotifiedRun(state, report.taskId, report, Date.now(), seen);
   return { state: next, effects: raised ? announced(state, thread, report.headline) : [] };
 }
@@ -81,7 +82,7 @@ export function declinedTick(state: WorkspaceState, fire: AutomationFire, thread
   if (said) return { state, effects: acked };
   const headline = `This automation has not been able to run since ${new Date(automation.lastRunAt ?? automation.createdAt).toLocaleString()}`;
   const report = { headline, key };
-  const seen = state.focused && state.currentId === thread.id;
+  const seen = state.focused && threadOnScreen(state, thread.id);
   return {
     state: updateThread(state, thread.id, (item) => withFinding(item, report, Date.now(), seen)),
     effects: [...acked, ...announced(state, thread, headline)],

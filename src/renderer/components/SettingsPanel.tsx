@@ -12,6 +12,7 @@ import { GeneralSettings } from "./GeneralSettings";
 import type { AgentEngine, EngineReadiness } from "../../domain/agent-engine";
 import type { SettingsSection } from "../../domain/settings-section";
 import { MobileSettings } from "./MobileSettings";
+import type { ComputerSettingsProps } from "./ComputerSettings";
 import type { MobileServerState } from "../../domain/mobile";
 import { SettingFocus } from "./SettingRow";
 import { ShortcutSettings } from "./ShortcutSettings";
@@ -73,7 +74,7 @@ function SettingsNav({ section, onSelect, onRefreshEngines, onRefreshWorktrees, 
         onRefreshRemote();
       }}>
         <Smartphone size={17} aria-hidden="true" />
-        <span>Phone</span>
+        <span>Devices</span>
       </button>
       <button className={section === "archive" ? "active" : ""} type="button" aria-current={section === "archive" ? "page" : undefined} onClick={() => onSelect("archive")}>
         <Archive size={17} aria-hidden="true" />
@@ -104,6 +105,24 @@ function SettingsSidebar({ section, backRef, onClose, onSelect, onRefreshEngines
       <SettingsNav section={section} onSelect={onSelect} onRefreshEngines={onRefreshEngines} onRefreshWorktrees={onRefreshWorktrees} onRefreshRemote={onRefreshRemote} />
     </aside>
   );
+}
+
+/** The two destructive asks the sheet confirms, each taking the focus and handing it back to the button that asked. */
+function useConfirmations() {
+  const [confirmingClear, setConfirmingClear] = useState(false);
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
+  const clearArchive = useRef<HTMLButtonElement>(null);
+  const clearBrowser = useRef<HTMLButtonElement>(null);
+  const confirmation = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (confirmingClear || confirmingSignOut) confirmation.current?.focus();
+  }, [confirmingClear, confirmingSignOut]);
+  function cancelConfirmation(browser: boolean) {
+    if (browser) setConfirmingSignOut(false);
+    else setConfirmingClear(false);
+    requestAnimationFrame(() => (browser ? clearBrowser : clearArchive).current?.focus());
+  }
+  return { confirmingClear, setConfirmingClear, confirmingSignOut, setConfirmingSignOut, clearArchive, clearBrowser, confirmation, cancelConfirmation };
 }
 
 /** The page the sheet shows and the control it marks, both re-aimed whenever something outside names one. */
@@ -195,7 +214,12 @@ export type SettingsPanelProps = {
   onCreateRemotePairingCode: () => void;
   onRevokeRemoteDevice: (deviceId: string) => void;
   onRefreshRemote: () => void;
+  /** The other computers, as the Devices page draws them. Absent where a test has none. */
+  computers?: ComputerSettingsProps;
 };
+
+/** A Devices page with no computers to speak of, for a caller with nothing to say about them. */
+const NO_COMPUTER_SETTINGS: ComputerSettingsProps = { found: [], searching: false, searchError: null, links: [], pairing: null, onDiscover() {}, onPair() {}, onCancelPairing() {}, onForget() {} };
 
 export function SettingsPanel({
   onClose,
@@ -252,25 +276,12 @@ export function SettingsPanel({
   onCreateRemotePairingCode,
   onRevokeRemoteDevice,
   onRefreshRemote,
+  computers = NO_COMPUTER_SETTINGS,
 }: SettingsPanelProps) {
   const { section, found, choosePage } = useSettingsPlace(initialSection, initialSetting);
-  const [confirmingClear, setConfirmingClear] = useState(false);
-  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
+  const { confirmingClear, setConfirmingClear, confirmingSignOut, setConfirmingSignOut, clearArchive, clearBrowser, confirmation, cancelConfirmation } = useConfirmations();
   const back = useRef<HTMLButtonElement>(null);
-  const clearArchive = useRef<HTMLButtonElement>(null);
-  const clearBrowser = useRef<HTMLButtonElement>(null);
-  const confirmation = useRef<HTMLButtonElement>(null);
   useFocusReturn(back);
-
-  useEffect(() => {
-    if (confirmingClear || confirmingSignOut) confirmation.current?.focus();
-  }, [confirmingClear, confirmingSignOut]);
-
-  function cancelConfirmation(browser: boolean) {
-    if (browser) setConfirmingSignOut(false);
-    else setConfirmingClear(false);
-    requestAnimationFrame(() => (browser ? clearBrowser : clearArchive).current?.focus());
-  }
 
   return (
     <SettingFocus value={found}>
@@ -351,6 +362,7 @@ export function SettingsPanel({
           onCreatePairingCode={onCreateRemotePairingCode}
           onRevokeDevice={onRevokeRemoteDevice}
           onRefreshTailscale={onRefreshRemote}
+          computers={computers}
         />
       )}
 

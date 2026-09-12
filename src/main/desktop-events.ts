@@ -1,4 +1,6 @@
+import type { WorkspaceState } from "../application/workspace-state.js";
 import type { AgentEvent, AutomationFire, BrowserFindEvent, BrowserPageEvent } from "../contracts/ipc.js";
+import type { ComputerLink } from "../domain/computers.js";
 import type { MobileRequest } from "../contracts/mobile.js";
 import type { ThreadRequest } from "../contracts/threads.js";
 import type { AutomationView } from "../domain/automation.js";
@@ -18,6 +20,8 @@ export type DesktopEventMap = {
   "browser:find": BrowserFindEvent;
   "terminal:event": TerminalUpdate;
   "workspace:open-project": WorkspaceRecord;
+  "computers:changed": { name: string; links: ComputerLink[] };
+  "computer:state": { id: string; state: WorkspaceState };
 };
 
 export type DesktopEvents = ReturnType<typeof createDesktopEvents>;

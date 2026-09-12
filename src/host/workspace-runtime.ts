@@ -1,5 +1,6 @@
 import { emptyWorkspaceState, sideChatIds, stateFromData, type WorkspaceState } from "../application/workspace-state.js";
 import { unreadView } from "../application/thread-attention.js";
+import { remoteUnreadCount } from "../application/computers.js";
 import { reduce, type WorkspaceInput } from "../application/workspace-reducer.js";
 import { executeWorkspaceInput, type WorkspaceExecution } from "../application/workspace-execution.js";
 import type { KeyValueStorage } from "../application/task-store.js";
@@ -63,9 +64,9 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
     state = next;
     if (next.prompts !== previous.prompts) drafts.changed();
     releaseThreadWaiters(waiters, next);
-    if (badgeCount === -1 || next.threads !== previous.threads || next.sideChats !== previous.sideChats) {
+    if (badgeCount === -1 || next.threads !== previous.threads || next.sideChats !== previous.sideChats || next.computers.paired !== previous.computers.paired) {
       const forked = sideChatIds(next);
-      const count = unreadView(next, next.threads.filter((thread) => !forked.has(thread.id))).unreadCount;
+      const count = unreadView(next, next.threads.filter((thread) => !forked.has(thread.id))).unreadCount + remoteUnreadCount(next.computers);
       if (count !== badgeCount) desktop.setBadgeCount(count);
       badgeCount = count;
     }

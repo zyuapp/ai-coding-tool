@@ -14,7 +14,7 @@ export const SETTINGS_PAGE_LABELS: Record<SettingsSection, string> = {
   shortcuts: "Shortcuts",
   "computer-use": "Computer use",
   browser: "Browser",
-  phone: "Phone",
+  phone: "Devices",
   archive: "Archived threads",
 };
 
@@ -28,7 +28,7 @@ const PAGE_KEYWORDS: Record<SettingsSection, string> = {
   shortcuts: "keyboard keys binding keystroke rebind",
   "computer-use": "accessibility screen recording permissions automation apps",
   browser: "session cookies sign out sites origins clear data",
-  phone: "mobile remote pairing tailscale device qr",
+  phone: "mobile phone computer remote pairing tailscale device qr serve",
   archive: "archived deleted restore threads trash",
 };
 

@@ -30,6 +30,12 @@ export function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
       worktreeThreadIds={workspace.worktreeThreadIds}
       worktreeGroups={workspace.worktreeGroups}
       activityThreads={workspace.activityThreads}
+      threadHosts={workspace.threadHosts}
+      projectHosts={workspace.projectHosts}
+      computerLinks={workspace.computerLinks}
+      computerName={workspace.computerName}
+      computerFilter={workspace.computerFilter}
+      onSetComputerFilter={workspace.actions.setComputerFilter}
       mode={workspace.sidebarMode}
       sections={workspace.sections}
       openMenu={workspace.openMenu}

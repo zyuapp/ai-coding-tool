@@ -5,6 +5,7 @@ import { reduce, type WorkspaceInput } from "../../application/workspace-reducer
 import { VIEW_PREFERENCES_KEY } from "../../application/view-preferences";
 import { DRAFT_PROMPTS_KEY } from "../../host/draft-persistence";
 import { createWorkspaceRuntime } from "../../host/workspace-runtime";
+import { noComputers } from "../../host/no-computers";
 import type { WorkspaceSurfaceEffect } from "../../contracts/workspace-runtime";
 import { clearTerminalSearch, disposeTerminalView, searchTerminalView } from "./terminal-views";
 import { errorMessage } from "../../host/errors";
@@ -47,7 +48,7 @@ function storedValues(): Record<string, string> {
 /** Embedders without a process bridge host the same runtime in their own environment. */
 export function createWorkspaceConnection() {
   const bridge = window.workspace;
-  if (!bridge) return createWorkspaceRuntime({ desktop: window.desktop, storage: localStorage, viewportWidth: window.innerWidth, surface: performSurface, frame: nextFrame });
+  if (!bridge) return createWorkspaceRuntime({ desktop: { ...window.desktop, ...noComputers }, storage: localStorage, viewportWidth: window.innerWidth, surface: performSurface, frame: nextFrame });
   let state = emptyWorkspaceState();
   let displayed = state;
   let revision = -1;

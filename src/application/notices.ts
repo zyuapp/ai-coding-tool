@@ -2,6 +2,7 @@
  * What the workspace puts on the desktop when a thread needs the user. The window decides whether
  * the user is somewhere it has to be reached; this only decides whether there is anything to say.
  */
+import type { ThreadNotice } from "../contracts/ipc.js";
 import type { Thread } from "../domain/thread.js";
 import type { WorkspaceEffect } from "./workspace-reducer.js";
 import type { WorkspaceState } from "./workspace-state.js";
@@ -18,6 +19,11 @@ function noticeTitle(state: NoticeState, thread: Thread): string {
 
 /** A line a thread wants in front of the user, kept back entirely while notifications are turned off. */
 export function announced(state: NoticeState, thread: Thread, headline: string): WorkspaceEffect[] {
+  return announcedNotice(state, { taskId: thread.id, title: noticeTitle(state, thread), headline });
+}
+
+/** A notice already worded, such as one for a thread on another computer, under the same switch. */
+export function announcedNotice(state: Pick<NoticeState, "notifications">, notice: ThreadNotice): WorkspaceEffect[] {
   if (!state.notifications) return [];
-  return [{ type: "announce-thread", notice: { taskId: thread.id, title: noticeTitle(state, thread), headline } }];
+  return [{ type: "announce-thread", notice }];
 }

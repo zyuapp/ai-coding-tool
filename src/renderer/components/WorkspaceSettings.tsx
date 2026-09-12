@@ -54,6 +54,14 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
       onClearBrowserData={() => void workspace.actions.clearBrowserData()}
       onCaptureShortcut={(action) => void workspace.actions.captureShortcut(action)}
       onSetShortcut={(action, binding) => void workspace.actions.setShortcut(action, binding)}
+      computers={{
+        found: workspace.computersFound, searching: workspace.computersSearching, searchError: workspace.computersSearchError,
+        links: workspace.computerLinks, pairing: workspace.computerPairing,
+        onDiscover: () => void workspace.actions.discoverComputers(),
+        onPair: (host, name, code) => void workspace.actions.pairComputer(host, name, code),
+        onCancelPairing: () => void workspace.actions.cancelComputerPairing(),
+        onForget: (id) => void workspace.actions.forgetComputer(id),
+      }}
       onResetShortcuts={() => void workspace.actions.resetShortcuts()} onSetRemoteEnabled={(enabled) => void workspace.actions.setRemoteEnabled(enabled)} onCreateRemotePairingCode={() => void workspace.actions.createRemotePairingCode()} onRevokeRemoteDevice={(deviceId) => void workspace.actions.revokeRemoteDevice(deviceId)} onRefreshRemote={() => void workspace.actions.refreshRemote()}
     />
   );

@@ -1,5 +1,6 @@
 import { app, dialog, shell, type BrowserWindow } from "electron";
-import type { RuntimeDesktop } from "../host/runtime-desktop.js";
+import type { ComputerDesktop, RuntimeDesktop } from "../host/runtime-desktop.js";
+import type { ComputerLinks } from "./computers/computer-links.mjs" with { "resolution-mode": "import" };
 import { computerUsePermissions, requestComputerUsePermission } from "./computer-use-host.js";
 import { announceThread, type NoticeHost } from "./desktop-notice.js";
 import { downloadImage } from "./image-download.js";
@@ -19,7 +20,21 @@ export type RuntimeDesktopHost = Omit<ServiceDesktopHost, "openUrl" | "computerU
   updates: UpdateHost;
   keyboard: KeyboardBridge;
   restart: () => void;
+  computers: () => ComputerLinks;
 };
+
+/** The other computers, held by the links this process keeps open to them. */
+function computerDesktop(host: RuntimeDesktopHost): ComputerDesktop {
+  const { events } = host;
+  return {
+    discoverComputers: () => host.computers().discover(),
+    pairComputer: (address, name, code) => host.computers().pair(address, name, code),
+    forgetComputer: (id) => host.computers().forget(id),
+    sendToComputer: (id, inputs) => host.computers().send(id, inputs),
+    onComputersChanged: (listener) => events.on("computers:changed", ({ name, links }) => listener(name, links)),
+    onComputerState: (listener) => events.on("computer:state", ({ id, state }) => listener(id, state)),
+  };
+}
 
 /** The browser panel, whose pages live in this process beside the window they are shown in. */
 function panelDesktop(host: RuntimeDesktopHost) {
@@ -112,5 +127,5 @@ export function createRuntimeDesktop(host: RuntimeDesktopHost): RuntimeDesktop {
     openUrl: (url) => shell.openExternal(url),
     computerUse: { permissions: computerUsePermissions, enable: requestComputerUsePermission },
   });
-  return { ...services, ...panelDesktop(host), ...windowDesktop(host) };
+  return { ...services, ...panelDesktop(host), ...windowDesktop(host), ...computerDesktop(host) };
 }

@@ -34,6 +34,10 @@ export { EMPTY_DIFF, diffFor, diffMatches, foldedOnLoad, retainedViews, withDiff
 export type { DiffState } from "./workspace-diff.js";
 import type { AutomationView } from "../domain/automation.js";
 import { emptyMobileServerState, type MobileServerState } from "../domain/mobile.js";
+import { activeComputer, NO_COMPUTERS, type ComputersState } from "./computers.js";
+import { overlaidView } from "./workspace-view-overlay.js";
+import { projectEditorView, worktreeMoveView } from "./workspace-dialogs.js";
+export type { ProjectEditorView, WorktreeMoveView } from "./workspace-dialogs.js";
 import type { BrowserApproval } from "../domain/browser.js";
 import type { FindResults, FindTarget } from "../domain/find.js";
 import { shortcutSettings, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
@@ -374,6 +378,8 @@ export type WorkspaceState = {
   remote: MobileServerState;
   /** True while main is reading Tailscale, which the Phone page says out loud. */
   remoteChecking: boolean;
+  /** The computers this one is paired with, each mirrored here as it changes there. Session-only. */
+  computers: ComputersState;
   focused: boolean;
 } & RunTransitionState & {
   /** `hiddenThreads` counts the threads on disk this build cannot read, which stay there untouched. */
@@ -386,40 +392,6 @@ export type WorkspaceState = {
   /** Whether the stored threads have answered. Until they have, there is nothing to say is empty. */
   restored: boolean;
 };
-
-/** The folder editor as the dialog draws it: the folder being edited, and how the last save went. */
-export type ProjectEditorView = { project: Project; checkouts: number; saving: boolean; error: string | null };
-
-function projectEditorView(state: WorkspaceState): ProjectEditorView | null {
-  const edit = state.projectEdit;
-  const project = edit && state.projects.find((item) => item.id === edit.projectId);
-  if (!edit || !project) return null;
-  const checkouts = state.worktrees.filter((worktree) => worktree.projectId === project.id).length;
-  return { project, checkouts, saving: edit.saving, error: edit.error };
-}
-
-/** The pending move as the confirmation draws it: where it goes, and what the thread is holding. */
-export type WorktreeMoveView = {
-  worktree: boolean;
-  /** Uncommitted files in the checkout the thread is leaving, which the move commits first. */
-  changes: number;
-  /** Threads left in the worktree once this one goes, so the text can say whether it stays. */
-  others: number;
-};
-
-function worktreeMoveView(state: WorkspaceState): WorktreeMoveView | null {
-  const move = state.worktreeMove;
-  const thread = move && state.threads.find((item) => item.id === move.taskId);
-  if (!move || !thread) return null;
-  const workspaceId = threadWorkspaceId(state, thread);
-  const environment = workspaceId ? state.environments[workspaceId] : undefined;
-  const worktree = worktreeFor(state, thread);
-  return {
-    worktree: move.worktree,
-    changes: environment?.status === "available" ? environment.files.length : 0,
-    others: worktree ? Math.max(worktreeClaimants(state, worktree.id).length - 1, 0) : 0,
-  };
-}
 
 export function withoutWorktreeRoot(state: Pick<WorkspaceState, "deletingWorktrees">, root: string) {
   return state.deletingWorktrees.filter((item) => item !== root);
@@ -514,6 +486,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     lastRunIds: {},
     remote: emptyMobileServerState(),
     remoteChecking: false,
+    computers: NO_COMPUTERS,
     focused: true,
     activeRuns: {},
     runStatuses: {},
@@ -674,7 +647,13 @@ export function waitFor(state: WorkspaceState, currentThread: Thread | undefined
 }
 
 /** Composer drafts live per thread, with one draft per project for the not-yet-created thread. */
-export function promptKey(state: Pick<WorkspaceState, "currentId" | "draftProjectId">) {
+/**
+ * Which composer the window is typing into. While a paired computer's thread is on screen it is that
+ * thread's, so the draft typed for it stays keyed to it here and never travels as keystrokes.
+ */
+export function promptKey(state: Pick<WorkspaceState, "currentId" | "draftProjectId"> & { computers?: WorkspaceState["computers"] }): string {
+  const remote = state.computers ? activeComputer({ computers: state.computers })?.state : undefined;
+  if (remote) return promptKey({ currentId: remote.currentId, draftProjectId: remote.draftProjectId });
   return state.currentId ?? `draft:${state.draftProjectId ?? ""}`;
 }
 
@@ -770,6 +749,14 @@ export function threadSlots(state: WorkspaceState): string[] {
 
 /** Everything the UI reads, derived in one place so components never reach into raw state. */
 export function deriveView(state: WorkspaceState) {
+  const own = deriveOwnView(state);
+  const remote = activeComputer(state)?.state;
+  return remote ? overlaidView(state, own, remote, deriveOwnView) : own;
+}
+
+export type OwnWorkspaceView = ReturnType<typeof deriveOwnView>;
+
+function deriveOwnView(state: WorkspaceState) {
   const currentThread = state.threads.find((thread) => thread.id === state.currentId);
   const draftWorktree = worktreeById(state, state.draftWorktreeId ?? undefined);
   const currentProject = currentThread
@@ -810,8 +797,8 @@ export function deriveView(state: WorkspaceState) {
     runActive: Boolean(currentRun),
     question: currentRun?.questions?.[0],
     queuedMessages: (state.currentId ? state.queuedMessages[state.currentId] : undefined) ?? NO_QUEUED,
-    runningThreadIds: busy,
-    blockedThreadIds: blocked,
+    runningThreadIds: collections.everyBusy,
+    blockedThreadIds: collections.everyBlocked,
     approval: currentRun?.status === "awaiting-approval" ? state.approvals[currentRun.runId] as ApprovalView | undefined : undefined,
     backgroundProcesses: (state.currentId ? state.backgroundProcesses[state.currentId] : undefined) ?? [],
     /** The workflow this thread's panel is on, which outlives a move to another thread and back. */
@@ -901,6 +888,17 @@ export function deriveView(state: WorkspaceState) {
     jump: jumpView(state, busy),
     remote: state.remote,
     remoteChecking: state.remoteChecking,
+    /** The paired computers as the chrome draws them, and the one whose thread is on screen. */
+    computerLinks: collections.computerLinks,
+    activeComputer: collections.computerLinks.find((link) => link.id === state.computers.active) ?? null,
+    computerName: state.computers.name,
+    computerFilter: state.computers.filter,
+    computerPairing: state.computers.pairing,
+    computersFound: state.computers.found,
+    computersSearching: state.computers.searching,
+    computersSearchError: state.computers.searchError,
+    threadHosts: collections.remote.threadHosts,
+    projectHosts: collections.remote.projectHosts,
     canGoBack: reachableVisit(state, -1) !== null,
     canGoForward: reachableVisit(state, 1) !== null,
     sideChats: reusedSideChats(dockSideChats(state, owner).flatMap((chat) => sideChatView(state, chat))),
