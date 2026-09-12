@@ -1,4 +1,5 @@
 import type { WorkspaceEffect } from "../../application/workspace-reducer";
+import { attachmentEffects } from "./attachment-effects";
 import { projectEffects } from "./project-effects";
 import { runEffects } from "./run-effects";
 import { surfaceEffects } from "./surface-effects";
@@ -6,7 +7,7 @@ import { systemEffects } from "./system-effects";
 import type { EffectHandler, EffectHandlers, EffectHost } from "./effect-host";
 
 /** Every effect the reducer can describe, each with the one handler that carries it out. */
-const handlers: EffectHandlers = { ...runEffects, ...projectEffects, ...surfaceEffects, ...systemEffects };
+const handlers: EffectHandlers = { ...attachmentEffects, ...runEffects, ...projectEffects, ...surfaceEffects, ...systemEffects };
 
 /**
  * Performs one effect the reducer described. Nothing here decides anything: each effect is carried out

@@ -1,6 +1,7 @@
 /** What the platform lets the app see and operate, and what the settings page is doing about it. */
 import { settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
+import { sameComputerUsePermissions } from "../../domain/computer-use.js";
 import type { WorkspaceState } from "../workspace-state.js";
 
 type ComputerUseInput = Extract<WorkspaceInput, {
@@ -26,6 +27,12 @@ export function reduceComputerUse(state: WorkspaceState, input: ComputerUseInput
     case "computer-use.permissions": {
       /** A full set is only worth a restart to a window that sent the user off to grant one. */
       const restartRequired = access.restartRequired || (access.requested && input.permissions.accessibility && input.permissions.screenRecording);
+      /** The poll asks every second; an answer that says what the last one said leaves the window alone. */
+      const unchanged = access.permissions !== null
+        && sameComputerUsePermissions(access.permissions, input.permissions)
+        && restartRequired === access.restartRequired
+        && !(input.enabling && access.busy !== null);
+      if (unchanged) return settled(state);
       return settled({
         ...state,
         computerUsePermissions: {

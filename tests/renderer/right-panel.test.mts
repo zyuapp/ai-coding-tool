@@ -1,5 +1,6 @@
 import { seedTaskWithSubagent } from "../support/subagents.mts";
 import { fakeDesktop } from "../support/desktop-api.mts";
+import { outbox } from "../support/composer-outbox.mts";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import React, { act } from "react";
@@ -119,7 +120,7 @@ test("a side chat composes with everything the main composer has", async () => {
     onPasteRemove() {},
     onFilesAdd() {}, onFileRecall() {}, onFileRemove() {}, onImageRecall() {},
     onImageRemove() {},
-    onSend() {},
+    outbox: outbox(),
     onCancel() {},
     onDecide(_approval, allow) { decisions.push(allow); },
     onPolicyChange(policy) { policies.push(policy); },

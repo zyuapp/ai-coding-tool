@@ -13,7 +13,7 @@ import type { AgentEngine } from "../../domain/agent-engine.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
 import type { BrowserAction, BrowserPermissions } from "../../domain/browser.js";
 import type { CaptureOptions } from "../../domain/capture.js";
-import type { ConversationMessage } from "../../domain/conversation.js";
+import type { ConversationMessage, OutgoingAttachment, RunAttachment } from "../../domain/conversation.js";
 import type { DiffRange } from "../../domain/diff.js";
 import type { FindResults, FindTarget } from "../../domain/find.js";
 import type { SubagentActivity } from "../../domain/run.js";
@@ -67,6 +67,9 @@ export type WorkspaceEvent =
   /** What a shell did. Its output is not here: that goes straight to the view and never becomes state. */
   | { type: "terminal.updated"; update: TerminalUpdate }
   | { type: "subagent.activity.loaded"; taskId: string; subagentId: string; activity: SubagentActivity[] }
+  /** The composer's images, now on disk, and the ids of the ones the strip can let go of. */
+  | { type: "attachments.saved"; taskId?: string; steer?: boolean; ids: string[]; attachments: RunAttachment[] }
+  | { type: "attachments.failed"; taskId?: string; message: string }
   /** The applications this machine has, as the main process last found them. */
   | { type: "apps.listed"; apps: InstalledApp[] }
   /** What the platform lets the app see and operate, and whether an enable was waiting on it. */
@@ -115,6 +118,8 @@ export type WorkspaceEffect =
   | { type: "start-run"; command: StartRunCommand }
   | { type: "send-run-command"; command: CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand }
   | { type: "refresh-environment"; workspaceId: string; taskId?: string; runId?: string }
+  /** Writes a composer's images out, then sends the message they ride, in that order. */
+  | { type: "send-attachments"; taskId?: string; steer?: boolean; attachments: OutgoingAttachment[] }
   | { type: "read-pull-request"; workspaceId: string; branch: string | null; read: number }
   | { type: "read-diff"; owner: string; workspaceId: string; range: DiffRange; ignoreWhitespace: boolean }
   /** Moves a checkout onto a branch, making it at that checkout's HEAD first when `create`. */

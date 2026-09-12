@@ -1,7 +1,7 @@
 import type { PendingQuestion, QuestionAddress } from "../../domain/agent-question";
 import { QuestionPrompt } from "./QuestionPrompt";
 import type { QueuedMessage, ReviewPicker as ReviewPickerState } from "../../application/workspace-state";
-import type { Annotation, AttachedFile, PastedText, RecalledMessage, RunAttachment, StagedImage } from "../../domain/conversation";
+import type { Annotation, AttachedFile, PastedText, RecalledMessage, StagedImage } from "../../domain/conversation";
 import { AnnotationRow } from "./AnnotationRow";
 import { FileRow } from "./FileRow";
 import { PasteRow } from "./PasteRow";
@@ -9,7 +9,7 @@ import type { ThreadHandleOption } from "../../domain/thread-handles";
 import type { AgentEngine, AgentModel, EngineReadiness } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import type { ContextUsage } from "../../domain/thread-run";
-import { AttachmentAnnotator, AttachmentStrip, useComposerAttachments } from "./ComposerAttachments";
+import { AttachmentAnnotator, AttachmentStrip, useComposerAttachments, type ComposerOutbox } from "./ComposerAttachments";
 import { ComposerSettings, EVERY_ENGINE_READY } from "./ComposerSettings";
 import { CommandMenu, ThreadMenu, menuActiveDescendant, menuControls, useComposerMenus, type ComposerAction } from "./ComposerMenus";
 import { ContextUsageMeter } from "./ContextUsageMeter";
@@ -108,7 +108,7 @@ export type ConversationComposerProps = {
   onSignIn?: (engine: AgentEngine) => void;
   /** Opens the Engines page. A surface without settings of its own leaves it out. */
   onOpenEngineSettings?: () => void;
-  onSend: (attachments: RunAttachment[], steer: boolean) => void;
+  outbox: ComposerOutbox;
   onSteerQueued: (messageId: string) => void;
   onDropQueued: (messageId: string) => void;
   onCancel: () => void;
@@ -169,7 +169,7 @@ export function ConversationComposer({
   onEngineRead = NOTHING,
   onSignIn = NOTHING,
   onOpenEngineSettings,
-  onSend,
+  outbox,
   onSteerQueued,
   onDropQueued,
   onCancel,
@@ -181,14 +181,14 @@ export function ConversationComposer({
     prompt, annotations, pastes, files, images, history, queuedMessages, caret,
     onPromptChange, onAnnotationRecall, onPasteRecall, onFileRecall, onImageRecall,
   });
-  const attachments = useComposerAttachments(images, onImageRemove);
+  const attachments = useComposerAttachments(images, outbox, onImageRemove);
   const nothingToSend = !prompt.trim() && attachments.items.length === 0 && annotations.length === 0 && pastes.length === 0 && files.length === 0;
 
   /** While a run is going the message joins the queue, so only steering needs the run to be active. */
   async function submit(steer = false) {
     if (attachments.sending || waiting || disabled || (steer && !runActive)) return;
     if (nothingToSend) return;
-    await attachments.send(onSend, steer);
+    attachments.send(steer);
   }
 
   return (

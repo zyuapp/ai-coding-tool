@@ -7,7 +7,8 @@ import type { FindView, SideChatView } from "../../application/workspace-state";
 import type { AgentEngine, AgentModel } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import type { ThreadHandleOption } from "../../domain/thread-handles";
-import type { Annotation, AnnotationAnchor, AttachedFile, PastedText, RunAttachment } from "../../domain/conversation";
+import type { Annotation, AnnotationAnchor, AttachedFile, PastedText } from "../../domain/conversation";
+import { attachmentSendFor, type AttachmentSendState } from "../../application/composer-attachments";
 import type { Project } from "../../domain/project";
 import type { Thread } from "../../domain/thread";
 
@@ -32,7 +33,6 @@ function chatHandlers(dispatch: Dispatch, chatId: string, images: SideChatView["
     onImageRecall: (paths: string[]) => void dispatch({ type: "image.recall", taskId: chatId, paths }),
     onImageRemove: (imageId: string) => void dispatch({ type: "image.remove", taskId: chatId, imageId }),
     onReadingPointMove: (point: ReadingPoint) => void dispatch({ type: "view.reading-point", taskId: chatId, point }),
-    onSend: (attachments: RunAttachment[], steer: boolean) => void dispatch({ type: "task.send", taskId: chatId, attachments, steer }),
     onCancel: () => void dispatch({ type: "run.cancel", taskId: chatId }),
     onDecide: ({ runId, approvalId }: { runId: string; approvalId: string }, allow: boolean) => void dispatch({ type: "run.decide", allow, taskId: chatId, runId, approvalId }),
     onPolicyChange: (policy: ExecutionPolicy) => void dispatch({ type: "task.set-policy", taskId: chatId, policy }),
@@ -49,9 +49,11 @@ function chatHandlers(dispatch: Dispatch, chatId: string, images: SideChatView["
  * One chat's tab. Memoized, and given only what the chat itself reads, so a run filling the main
  * thread with reports leaves it alone.
  */
-const DockSideChatTab = memo(function DockSideChatTab({ chat, dispatch, favoriteModels, engineLabel, sourceTitle, sourceContinued, project, threads, active, focusToken, find, findBar, onClose }: {
+const DockSideChatTab = memo(function DockSideChatTab({ chat, dispatch, attachmentSend, favoriteModels, engineLabel, sourceTitle, sourceContinued, project, threads, active, focusToken, find, findBar, onClose }: {
   chat: SideChatView;
   dispatch: Dispatch;
+  /** Where this chat's own images stand between its send and the run. */
+  attachmentSend: AttachmentSendState;
   favoriteModels: AgentModel[];
   engineLabel: string;
   sourceTitle: string;
@@ -71,6 +73,11 @@ const DockSideChatTab = memo(function DockSideChatTab({ chat, dispatch, favorite
   return (
     <div data-dock-tab={chat.id} hidden={!active}>
       <SideChat
+        outbox={{
+          state: attachmentSend,
+          send: (attachments, steer) => void dispatch({ type: "attachments.send", taskId: chat.id, attachments, steer }),
+          notice: (message) => void dispatch({ type: "attachments.notice", taskId: chat.id, message }),
+        }}
         onAnswerQuestion={(question) => void dispatch({ type: "question.answer", taskId: chat.id, runId: question.runId, requestId: question.requestId, questionId: question.questionId })}
         onQuestionAnswerChange={(question, text) => void dispatch({ type: "question.set-answer", taskId: chat.id, runId: question.runId, requestId: question.requestId, questionId: question.questionId, text })}
         chat={chat}
@@ -111,6 +118,7 @@ export function DockSideChats({ workspace, source, activeTab, find, findBar, foc
             key={chat.id}
             chat={chat}
             dispatch={workspace.dispatch}
+            attachmentSend={attachmentSendFor(workspace.attachmentSends, chat.id)}
             favoriteModels={workspace.favoriteModels}
             engineLabel={workspace.engineLabel}
             sourceTitle={source.title}

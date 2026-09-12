@@ -22,3 +22,12 @@ export type ComputerUseRunConfig =
   | { status: "available"; mcp: ComputerUseMcp }
   | { status: "setup-required" }
   | { status: "unavailable"; message: string };
+
+/** Whether two readings of the platform say the same thing, so a poll that brings no news changes nothing. */
+export function sameComputerUsePermissions(left: ComputerUsePermissions, right: ComputerUsePermissions) {
+  if (left.accessibility !== right.accessibility || left.screenRecording !== right.screenRecording) return false;
+  if (!left.linuxRuntime || !right.linuxRuntime) return left.linuxRuntime === right.linuxRuntime;
+  return left.linuxRuntime.status === right.linuxRuntime.status
+    && left.linuxRuntime.display === right.linuxRuntime.display
+    && left.linuxRuntime.message === right.linuxRuntime.message;
+}

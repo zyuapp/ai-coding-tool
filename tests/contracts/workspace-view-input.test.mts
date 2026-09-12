@@ -7,6 +7,8 @@ test("the view can send provider commands, attachments, and presentation reports
   const inputs: WorkspaceViewInput[] = [
     { type: "engine.reload-settings" },
     { type: "task.send", taskId: "thread", text: "Review the screenshot", attachments: [{ path: "/tmp/screenshot.png", labels: ["button", ""] }], steer: true },
+    { type: "attachments.send", attachments: [{ id: "image", source: "data:image/png;base64,AQID", annotations: [{ kind: "box", x: 0, y: 0, width: 0.5, height: 0.5, text: "Fix this" }] }], steer: true },
+    { type: "attachments.notice", taskId: "thread", message: null },
     { type: "task.set-policy", policy: "autonomous" },
     { type: "task.set-effort", engine: "codex", effort: "xhigh" },
     { type: "task.set-effort", engine: "claude", effort: "max" },
@@ -55,6 +57,8 @@ test("malformed fields and nested values are rejected before reaching the reduce
     { type: "task.select", taskId: 42 },
     { type: "task.send", text: null },
     { type: "task.send", attachments: [{ path: "/image", labels: [1] }] },
+    { type: "attachments.send", attachments: [{ id: "image", source: "data:image/png;base64,AQID", annotations: [{ kind: "circle", x: 0, y: 0, width: 1, height: 1, text: "" }] }] },
+    { type: "attachments.send" },
     { type: "task.send", attachments: new Array(2) },
     { type: "question.answer", taskId: "thread", runId: "run", requestId: "request" },
     { type: "question.set-answer", taskId: "thread", runId: "run", requestId: "request", questionId: "question", text: null },

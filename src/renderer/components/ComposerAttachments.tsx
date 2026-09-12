@@ -1,9 +1,10 @@
 import { LuX as X } from "react-icons/lu";
 import { useEffect, useRef, useState } from "react";
 import { markPrefix } from "../../application/attachments";
-import { MAX_ATTACHMENTS, type RunAttachment, type StagedImage } from "../../domain/conversation";
+import type { AttachmentSendState } from "../../application/composer-attachments";
+import { MAX_ATTACHMENTS, type OutgoingAttachment, type StagedImage } from "../../domain/conversation";
 import type { ScreenshotContext } from "../../domain/screenshot-context";
-import { ImageAnnotator, renderAnnotatedSource, type Annotation } from "./ImageAnnotator";
+import { ImageAnnotator, type Annotation } from "./ImageAnnotator";
 
 type Attachment = {
   id: string;
@@ -32,6 +33,14 @@ function readImage(file: File) {
   });
 }
 
+/** The one way a composer's message leaves, and where the images riding it stand. */
+export type ComposerOutbox = {
+  state: AttachmentSendState;
+  send: (attachments: OutgoingAttachment[], steer: boolean) => void;
+  /** What the strip itself has to say, which shares the one line the send's own failures use. */
+  notice: (message: string | null) => void;
+};
+
 export type ComposerAttachments = {
   items: Attachment[];
   error: string | null;
@@ -43,73 +52,57 @@ export type ComposerAttachments = {
   closeEditor: () => void;
   applyAnnotations: (attachmentId: string, annotations: Annotation[], rendered: string) => void;
   remove: (attachment: Attachment) => void;
-  send: (onSend: (attachments: RunAttachment[], steer: boolean) => void, steer: boolean) => Promise<void>;
+  send: (steer: boolean) => void;
 };
 
 /** The images riding the next send, whether they were pasted in or staged by the workspace. */
-export function useComposerAttachments(images: StagedImage[], onImageRemove?: (imageId: string) => void): ComposerAttachments {
+export function useComposerAttachments(images: StagedImage[], outbox: ComposerOutbox, onImageRemove?: (imageId: string) => void): ComposerAttachments {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [annotating, setAnnotating] = useState<string | null>(null);
-  const [attachmentError, setAttachmentError] = useState<string | null>(null);
-  const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(false);
+  const outgoing = useRef(outbox);
+  outgoing.current = outbox;
   /** Which staged images have already been read in, so a rerender never reads the same one twice. */
   const takenImages = useRef(new Set<string>());
 
   async function attachPasted(files: File[]) {
     const room = MAX_ATTACHMENTS - attachments.length;
     if (room <= 0) {
-      setAttachmentError(`You can attach up to ${MAX_ATTACHMENTS} images.`);
+      outbox.notice(`You can attach up to ${MAX_ATTACHMENTS} images.`);
       return;
     }
     try {
       const added = await Promise.all(files.slice(0, room).map(readImage));
       setAttachments((current) => [...current, ...added]);
-      setAttachmentError(files.length > room ? `Only the first ${room} image${room === 1 ? "" : "s"} were attached.` : null);
+      outbox.notice(files.length > room ? `Only the first ${room} image${room === 1 ? "" : "s"} were attached.` : null);
     } catch (error) {
-      setAttachmentError(error instanceof Error ? error.message : String(error));
+      outbox.notice(error instanceof Error ? error.message : String(error));
     }
   }
 
-  async function send(onSend: (attachments: RunAttachment[], steer: boolean) => void, steer: boolean) {
+  function send(steer: boolean) {
     if (loading || images.some((image) => takenImages.current.has(image.id) && !attachments.some((attachment) => attachment.id === image.id))) {
-      setAttachmentError("Wait for the screenshots to finish loading.");
+      outbox.notice("Wait for the screenshots to finish loading.");
       return;
     }
-    if (attachments.length === 0) {
-      onSend([], steer);
-      return;
-    }
-    /** Pasting and grabbing fill the same row from different sides, so the total is checked once here. */
-    if (attachments.length > MAX_ATTACHMENTS) {
-      setAttachmentError(`You can attach up to ${MAX_ATTACHMENTS} images.`);
-      return;
-    }
-    setSending(true);
-    try {
-      const saved = await Promise.all(attachments.map(async (attachment, at) => ({
-        /** A staged image is already on disk; only its annotations, drawn since, need writing back. */
-        path: attachment.path !== undefined && attachment.annotations.length === 0
-          ? attachment.path
-          : await window.desktop.saveAttachment(
-            (attachment.annotations.length === 0
-              ? attachment.source
-              : await renderAnnotatedSource(attachment.source, attachment.annotations, markPrefix(at, attachments.length))
-            ).replace(/^data:[^,]*,/, ""),
-            attachment.path,
-          ),
-        labels: attachment.annotations.filter((annotation) => annotation.kind === "box").map((annotation) => annotation.text),
-        ...(attachment.context ? { context: attachment.context } : {}),
-      })));
-      setAttachments([]);
-      setAttachmentError(null);
-      onSend(saved, steer);
-    } catch (error) {
-      setAttachmentError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setSending(false);
-    }
+    outbox.send(attachments.map((attachment) => ({
+      id: attachment.id,
+      source: attachment.source,
+      annotations: attachment.annotations,
+      ...(attachment.path === undefined ? {} : { path: attachment.path }),
+      ...(attachment.context ? { context: attachment.context } : {}),
+    })), steer);
   }
+
+  /** The images that are on disk and away belong to the message that carried them, not to the strip. */
+  const sent = outbox.state.sent;
+  useEffect(() => {
+    if (sent.length === 0) return;
+    setAttachments((current) => {
+      const kept = current.filter((attachment) => !sent.includes(attachment.id));
+      return kept.length === current.length ? current : kept;
+    });
+  }, [sent]);
 
   /**
    * The workspace holds staged images as paths; the composer needs their bytes to draw on them, so
@@ -144,11 +137,11 @@ export function useComposerAttachments(images: StagedImage[], onImageRemove?: (i
             .filter(({ image }) => !current.some((item) => item.id === image.id))
             .map(({ image, preview, context }) => ({ id: image.id, source: preview, preview, annotations: [], path: image.path, ...(context ? { context } : {}) })),
         ]);
-        setAttachmentError(null);
+        outgoing.current.notice(null);
       } catch (error) {
         if (cancelled) return;
         for (const image of arriving) takenImages.current.delete(image.id);
-        setAttachmentError(error instanceof Error ? error.message : String(error));
+        outgoing.current.notice(error instanceof Error ? error.message : String(error));
       } finally {
         settled = true;
         if (!cancelled) setLoading(false);
@@ -162,8 +155,8 @@ export function useComposerAttachments(images: StagedImage[], onImageRemove?: (i
 
   return {
     items: attachments,
-    error: attachmentError,
-    sending: sending || loading,
+    error: outbox.state.error,
+    sending: outbox.state.busy || loading,
     editing: attachments.find((attachment) => attachment.id === annotating),
     attachPasted,
     annotate: setAnnotating,

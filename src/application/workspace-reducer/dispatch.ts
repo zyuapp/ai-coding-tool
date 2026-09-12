@@ -2,6 +2,7 @@ import { reduceThreadCommands } from "./thread-commands.js";
 import { reduceWorktrees } from "./worktrees.js";
 import { reduceWorktreeMenu } from "./worktree-menu.js";
 import { reduceSending } from "./sending.js";
+import { reduceComposerAttachments } from "./composer-attachments.js";
 import { reduceProjectCommands } from "./projects.js";
 import { reduceCli } from "./cli.js";
 import { reduceComputerUse } from "./computer-use.js";
@@ -44,6 +45,9 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "worktree.created": case "worktree.failed": case "worktrees.loaded":
     case "worktrees.failed": case "worktree.released": case "worktree.release-failed": case "worktree.deleted":
       return reduceWorktrees(state, input);
+
+    case "attachments.send": case "attachments.saved": case "attachments.failed": case "attachments.notice":
+      return reduceComposerAttachments(state, input);
 
     case "task.send": case "question.answer": case "question.set-answer": case "task.steer-queued": case "task.drop-queued":
       return reduceSending(state, input);

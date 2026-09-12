@@ -1,5 +1,6 @@
 import React from "react";
 import type { ConversationComposerProps } from "../../src/renderer/components/ConversationComposer.tsx";
+import { outbox } from "./composer-outbox.mts";
 import "./renderer-dom.mts";
 
 const { ConversationComposer } = await import("../../src/renderer/components/ConversationComposer.tsx");
@@ -19,7 +20,7 @@ export function composer(props: Partial<ConversationComposerProps>) {
     onModeChange() {},
     onModelChange() {},
     onEffortChange() {}, fastMode: false, onFastModeChange() {},
-    onSend() {},
+    outbox: outbox(),
     onSteerQueued() {},
     onDropQueued() {},
     onCancel() {},

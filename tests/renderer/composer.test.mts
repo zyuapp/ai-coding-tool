@@ -4,6 +4,7 @@ import { test } from "vitest";
 import React, { act } from "react";
 
 import { settleUntil } from "../support/settle.mts";
+import { outbox, useSavingOutbox } from "../support/composer-outbox.mts";
 
 import type { PastedText, RunAttachment } from "../../src/domain/conversation.ts";
 
@@ -27,7 +28,7 @@ function renderConversationComposer(overrides: Partial<ConversationComposerProps
     onModeChange() {},
     onModelChange() {},
     onEffortChange() {}, fastMode: false, onFastModeChange() {},
-    onSend() {},
+    outbox: outbox(),
     onSteerQueued() {},
     onDropQueued() {},
     onCancel() {},
@@ -66,7 +67,7 @@ test("context usage stays within 100% when the window shrinks below the used tok
     queuedMessages: [],
     onSteerQueued() {},
     onDropQueued() {},
-    onSend() {},
+    outbox: outbox(),
     onCancel() {},
   }));
   await act(async () => {});
@@ -84,7 +85,7 @@ test("one outside pointer press dismisses the slash menu until the draft changes
     const [prompt, setPrompt] = React.useState("");
     return renderConversationComposer({
       prompt, folder: "/project", workspaceId: "workspace-1", mode: "confirm", engine: "claude", engineLabel: "Claude", model: "opus", effort: "medium", runActive: false,
-      onPromptChange: setPrompt, onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
+      onPromptChange: setPrompt, onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {},
     });
   }
   const view = await mount(React.createElement(Harness));
@@ -132,7 +133,7 @@ test("a slash action runs at once and clears the draft", async () => {
       queuedMessages: [],
       onSteerQueued() {},
       onDropQueued() {},
-      onSend: () => { sends += 1; },
+      outbox: outbox({ send: () => { sends += 1; } }),
       onCancel() {},
     });
   }
@@ -184,7 +185,7 @@ test("the up arrow recalls sent prompts and the down arrow walks back to the dra
       queuedMessages: [],
       onSteerQueued() {},
       onDropQueued() {},
-      onSend() {},
+      outbox: outbox(),
       onCancel() {},
     });
   }
@@ -241,7 +242,7 @@ test("a skill completes anywhere in the draft, where an action is not offered", 
       queuedMessages: [],
       onSteerQueued() {},
       onDropQueued() {},
-      onSend() {},
+      outbox: outbox(),
       onCancel() {},
     });
   }
@@ -293,7 +294,7 @@ test("the @ menu offers threads, keeps browsing in this project, and completes t
       queuedMessages: [],
       onSteerQueued() {},
       onDropQueued() {},
-      onSend() {},
+      outbox: outbox(),
       onCancel() {},
     });
   }
@@ -351,7 +352,7 @@ test("the side surface keeps the slash palette but never offers to fork a fork",
       queuedMessages: [],
       onSteerQueued() {},
       onDropQueued() {},
-      onSend() {},
+      outbox: outbox(),
       onCancel() {},
     });
   }
@@ -375,6 +376,7 @@ test("a pasted image becomes an attachment chip and is saved on send", async () 
   let sent: RunAttachment[] | null = null;
   function Harness() {
     const [prompt, setPrompt] = React.useState("");
+    const sending = useSavingOutbox((attachments) => { sent = attachments; });
     return renderConversationComposer({
       prompt,
       folder: "/project",
@@ -389,7 +391,7 @@ test("a pasted image becomes an attachment chip and is saved on send", async () 
       queuedMessages: [],
       onSteerQueued() {},
       onDropQueued() {},
-      onSend: (attachments) => { sent = attachments; },
+      outbox: sending,
       onCancel() {},
     });
   }
@@ -405,8 +407,8 @@ test("a pasted image becomes an attachment chip and is saved on send", async () 
   assert.equal(query<HTMLButtonElement>(view.container, 'button[aria-label="Send task"]').disabled, false);
 
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Send task"]').click(); });
+  await settleUntil(() => view.container.querySelectorAll(".attachment-chip").length === 0);
   assert.deepEqual(sent, [{ path: "/tmp/aicodingtool-attachments/pasted.png", labels: [] }]);
-  assert.equal(view.container.querySelectorAll(".attachment-chip").length, 0);
   await view.unmount();
 });
 
@@ -434,7 +436,7 @@ test("a long paste is held aside as a pill, and a short one lands in the draft",
       queuedMessages: [],
       onSteerQueued() {},
       onDropQueued() {},
-      onSend() {},
+      outbox: outbox(),
       onCancel() {},
     });
   }
@@ -480,7 +482,7 @@ test("the send button holds while the checkout a send needs is still being made"
     prompt: "Refactor the loader", folder: "/project", workspaceId: "workspace-1", mode: "confirm", engine: "claude", engineLabel: "Claude", model: "opus", effort: "medium",
     runActive: false, waiting, queuedMessages: [],
     onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSteerQueued() {}, onDropQueued() {},
-    onSend: () => { sent.push("sent"); }, onCancel() {},
+    outbox: outbox({ send: () => { sent.push("sent"); } }), onCancel() {},
   });
 
   const view = await mount(composer(true));

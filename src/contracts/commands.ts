@@ -11,7 +11,7 @@ import type { SidebarMode, SidebarSection } from "../domain/sidebar.js";
 import type { ThemeMode } from "../domain/theme.js";
 import type { AgentEngine, AgentModel } from "../domain/agent-engine.js";
 import type { AgentEffort, ExecutionPolicy, SubagentGroup } from "../domain/run.js";
-import type { Annotation, AnnotationAnchor, AttachedFile, AttachedFileDraft, PastedText, RunAttachment } from "../domain/conversation.js";
+import type { Annotation, AnnotationAnchor, AttachedFile, AttachedFileDraft, OutgoingAttachment, PastedText, RunAttachment } from "../domain/conversation.js";
 import type { ThreadDropTarget } from "../domain/project.js";
 import type { ReviewTarget } from "../domain/review.js";
 import type { WorktreeDestination } from "../domain/worktree.js";
@@ -126,6 +126,13 @@ export type TaskCommand =
    * the shared draft settings alone.
    */
   | { type: "task.send"; taskId?: string; project?: string; text?: string; attachments?: RunAttachment[]; steer?: boolean; worktree?: boolean; worktreeId?: string; model?: AgentModel; effort?: AgentEffort }
+  /**
+   * Sends the composer's message with the images in its strip, which are written out to disk first:
+   * the run is started only once they are all there, and a failure to write one stops the send.
+   */
+  | { type: "attachments.send"; taskId?: string; steer?: boolean; attachments: OutgoingAttachment[] }
+  /** What the composer's image strip has to say for itself, such as an image it could not read. */
+  | { type: "attachments.notice"; taskId?: string; message: string | null }
   /** Moves to the thread `delta` away in the sidebar, which is where the keyboard walks the list. */
   | { type: "task.steer-queued"; taskId?: string; messageId: string }
   | { type: "task.drop-queued"; taskId?: string; messageId: string };

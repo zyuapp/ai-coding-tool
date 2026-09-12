@@ -3,6 +3,7 @@ import { attachDroppedFiles, imageSources } from "../dropped-files";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import { capabilitiesFor, modelSupportsManualCompaction } from "../../domain/agent-engine";
 import { sentPrompts } from "../../domain/conversation";
+import { attachmentSendFor } from "../../application/composer-attachments";
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;
 
@@ -77,7 +78,11 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       onEngineRead={workspace.actions.readEngineStatus}
       onSignIn={workspace.actions.signInEngine}
       onOpenEngineSettings={() => void workspace.actions.openSettingsSection("engines")}
-      onSend={(attachments, steer) => void workspace.actions.sendPrompt(attachments, steer)}
+      outbox={{
+        state: attachmentSendFor(workspace.attachmentSends),
+        send: (attachments, steer) => void workspace.dispatch({ type: "attachments.send", attachments, ...(steer ? { steer } : {}) }),
+        notice: (message) => void workspace.dispatch({ type: "attachments.notice", message }),
+      }}
       onSteerQueued={workspace.actions.steerQueued}
       onDropQueued={workspace.actions.dropQueued}
       onCancel={workspace.actions.cancelRun}

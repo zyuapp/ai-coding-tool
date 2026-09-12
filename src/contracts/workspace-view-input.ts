@@ -6,7 +6,8 @@ import { isAgentEffort, isAgentEngine, isAgentModel } from "../domain/agent-engi
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft } from "../domain/automation.js";
 import { isCaptureOptions } from "../domain/capture.js";
 import { isScreenshotContext } from "../domain/screenshot-context.js";
-import type { Annotation, AnnotationAnchor, AttachedFile, AttachedFileDraft, PastedText, RunAttachment } from "../domain/conversation.js";
+import type { Annotation, AnnotationAnchor, AttachedFile, AttachedFileDraft, OutgoingAttachment, PastedText, RunAttachment } from "../domain/conversation.js";
+import type { ImageAnnotation } from "../domain/image-annotation.js";
 import { isDiffRange } from "../domain/diff.js";
 import { isCommitHash, isImageSource } from "../domain/message-artifacts.js";
 import type { FindTarget } from "../domain/find.js";
@@ -72,6 +73,8 @@ const runAttachment = object<RunAttachment>({ path: text, labels: array(text), c
 const pastedText = object<PastedText>({ id: text, text });
 const attachedFileDraft = object<AttachedFileDraft>({ path: text, name: text, folder: optional(literals(true)) });
 const attachedFile = object<AttachedFile>({ id: text, path: text, name: text, folder: optional(literals(true)) });
+const imageAnnotation = object<ImageAnnotation>({ kind: literals("box", "arrow"), x: number, y: number, width: number, height: number, text });
+const outgoingAttachment = object<OutgoingAttachment>({ id: text, source: text, annotations: array(imageAnnotation), path: optionalText, context: optional(isScreenshotContext) });
 const annotation = object<Annotation>({ id: text, quote: text, note: text, anchor: optional(isAnnotationAnchor) });
 
 function isAnnotationAnchor(value: unknown): value is AnnotationAnchor {
@@ -142,6 +145,8 @@ const shapes = {
   "task.move-worktree": { taskId: optionalText, destination: isWorktreeDestination },
   "task.set-branch": { branch: nullableText, create: optionalBoolean },
   "task.checkout-branch": { taskId: optionalText, branch: text, create: optionalBoolean },
+  "attachments.send": { taskId: optionalText, steer: optionalBoolean, attachments: array(outgoingAttachment) },
+  "attachments.notice": { taskId: optionalText, message: nullableText },
   "task.send": { taskId: optionalText, project: optionalText, text: optionalText, attachments: optional(array(runAttachment)), steer: optionalBoolean, worktree: optionalBoolean, worktreeId: optionalText, model: optional(isAgentModel), effort: optional(isAgentEffort) },
   "task.steer-queued": { taskId: optionalText, messageId: text },
   "task.drop-queued": { taskId: optionalText, messageId: text },

@@ -200,3 +200,15 @@ test("a refusal from the platform gives the row its controls back and says what 
   assert.equal(refused.state.computerUsePermissions.busy, null);
   assert.equal(refused.state.computerUsePermissions.error, "Not permitted.");
 });
+
+test("a poll that brings the same permissions leaves the window nothing to redraw", () => {
+  const permissions: ComputerUsePermissions = { accessibility: true, screenRecording: false };
+
+  const first = reduce(workspace(), { type: "computer-use.permissions", permissions });
+  const again = reduce(first.state, { type: "computer-use.permissions", permissions: { ...permissions } });
+  assert.equal(again.state, first.state, "the same answer is the same state");
+
+  const changed = reduce(again.state, { type: "computer-use.permissions", permissions: { accessibility: true, screenRecording: true } });
+  assert.notEqual(changed.state, first.state);
+  assert.deepEqual(changed.state.computerUsePermissions.permissions, { accessibility: true, screenRecording: true });
+});

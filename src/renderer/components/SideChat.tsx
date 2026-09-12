@@ -3,7 +3,7 @@ import { LuGitFork as GitFork, LuX as X } from "react-icons/lu";
 import { useRef, type ReactNode } from "react";
 import type { FindView, SideChatView } from "../../application/workspace-state";
 import type { ReadingPoint } from "../../contracts/commands";
-import { sentPrompts, type Annotation, type AnnotationAnchor, type AttachedFile, type PastedText, type RunAttachment } from "../../domain/conversation";
+import { sentPrompts, type Annotation, type AnnotationAnchor, type AttachedFile, type PastedText } from "../../domain/conversation";
 import type { Project } from "../../domain/project";
 import { defaultEffortFor, defaultModelFor, type AgentEngine, type AgentModel } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
@@ -11,9 +11,10 @@ import type { ThreadHandleOption } from "../../domain/thread-handles";
 import { ApprovalCard, type ApprovalCardProps } from "./ApprovalCard";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { ConversationComposer } from "./ConversationComposer";
+import type { ComposerOutbox } from "./ComposerAttachments";
 import { useFileDrop } from "../file-drop";
 
-export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findBar, sourceTitle, sourceContinued, project, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, onSend, onAnswerQuestion, onQuestionAnswerChange, onCancel, onDecide, onPolicyChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onFastModeChange, onSteerQueued, onDropQueued, onClose }: {
+export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findBar, sourceTitle, sourceContinued, project, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, outbox, onAnswerQuestion, onQuestionAnswerChange, onCancel, onDecide, onPolicyChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onFastModeChange, onSteerQueued, onDropQueued, onClose }: {
   chat: SideChatView;
   /** What the engine running this chat is called. */
   engineLabel: string;
@@ -46,7 +47,7 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
   onReadingPointMove?: (point: ReadingPoint) => void;
   onAnswerQuestion?: (question: QuestionAddress) => void;
   onQuestionAnswerChange?: (question: QuestionAddress, text: string) => void;
-  onSend: (attachments: RunAttachment[], steer: boolean) => void;
+  outbox: ComposerOutbox;
   onCancel: () => void;
   onDecide: ApprovalCardProps["onDecide"];
   onPolicyChange: (policy: ExecutionPolicy) => void;
@@ -142,7 +143,7 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
         onModelFavorite={onModelFavorite}
         onModelChange={onModelChange}
         onEffortChange={onEffortChange}
-        onSend={onSend}
+        outbox={outbox}
         onSteerQueued={onSteerQueued}
         onDropQueued={onDropQueued}
         onCancel={onCancel}

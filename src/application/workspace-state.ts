@@ -10,6 +10,7 @@ import type { PullRequestRead } from "../domain/pull-request.js";
 import { pullRequestFor } from "./pull-request-view.js";
 import { NO_CLI, type CliState } from "./cli-installation.js";
 import { NO_COMPUTER_USE_ACCESS, type ComputerUseAccessState } from "./computer-use-access.js";
+import type { AttachmentSendState } from "./composer-attachments.js";
 import { NO_PLAN_USAGE, type PlanUsageState } from "./plan-limits.js";
 import type { ReadingPoint } from "../contracts/commands.js";
 import type { ReviewTarget } from "../domain/review.js";
@@ -349,6 +350,8 @@ export type WorkspaceState = {
   environments: Record<string, ChangedFilesResult>;
   /** The pull request last read, for the checkout and branch it was read for. Session-only. */
   pullRequest: PullRequestRead | null;
+  /** Where each composer's images stand between its send and the run, keyed by the thread it sends to. */
+  attachmentSends: Record<string, AttachmentSendState>;
   /** The applications this machine has, or null before any list has asked for them. */
   installedApps: InstalledApp[] | null;
   /** The terminal command the app installs, as the settings page last read it. */
@@ -498,11 +501,8 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     openMenu: null,
     reviewPicker: null,
     environments: {},
-    pullRequest: null,
-    installedApps: null,
-    cli: NO_CLI,
-    planUsage: NO_PLAN_USAGE,
-    computerUsePermissions: NO_COMPUTER_USE_ACCESS,
+    pullRequest: null, attachmentSends: {},
+    installedApps: null, cli: NO_CLI, planUsage: NO_PLAN_USAGE, computerUsePermissions: NO_COMPUTER_USE_ACCESS,
     computerUseSetup: false,
     automations: [],
     pendingRuns: {},
@@ -842,10 +842,8 @@ export function deriveView(state: WorkspaceState) {
     environment,
     /** The pull request that checkout's work belongs to, drawn only while the answer is still its own. */
     pullRequest: pullRequestFor(state.pullRequest, workspaceId, environment),
-    installedApps: state.installedApps,
-    cli: state.cli,
-    planUsage: state.planUsage,
-    computerUsePermissions: state.computerUsePermissions,
+    attachmentSends: state.attachmentSends,
+    installedApps: state.installedApps, cli: state.cli, planUsage: state.planUsage, computerUsePermissions: state.computerUsePermissions,
     storageError: state.storageError, hiddenThreads: state.hiddenThreads,
     actionError: state.actionError,
     viewingImage: state.viewingImage,

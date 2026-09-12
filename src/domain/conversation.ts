@@ -81,6 +81,19 @@ export type RunAttachment = {
   labels: string[];
 };
 
+/**
+ * An image a composer is about to send, before anything of it is on disk: the pixels it was last
+ * drawn from, the marks drawn over them, and where a staged image already sits.
+ */
+export type OutgoingAttachment = {
+  id: string;
+  /** A data URL. The marks are drawn over it on the way out, so this stays what the user picked. */
+  source: string;
+  annotations: ImageAnnotation[];
+  path?: string;
+  context?: ScreenshotContext;
+};
+
 export function createConversationMessage(kind: ConversationMessage["kind"], text: string, detail?: string, attachments?: string[], annotations?: Annotation[], pastes?: PastedText[], files?: AttachedFile[]): ConversationMessage {
   return {
     id: crypto.randomUUID(),
@@ -128,3 +141,4 @@ export function sentPrompts(messages: ConversationMessage[]): RecalledMessage[] 
   return prompts;
 }
 import type { ScreenshotContext } from "./screenshot-context.js";
+import type { ImageAnnotation } from "./image-annotation.js";
