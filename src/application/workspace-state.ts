@@ -1,6 +1,7 @@
 import { sideChatView } from "./side-chat-view.js";
 import { worktreeMenuView, type WorktreeMenuSearch } from "./worktree-menu.js";
 import type { PendingQuestion } from "../domain/agent-question.js";
+import type { ThreadRole } from "../domain/thread-role.js";
 import { runStatusFor, workflowThreadIds, type ApprovalView, type RunTransitionState, type StreamingTail, type ThreadRunStatus } from "./thread-run-state.js";
 import { backfillProjectSortIndex } from "./project-order.js";
 import { sidebarLists } from "./sidebar-lists.js";
@@ -92,6 +93,7 @@ export type PendingRun = {
   /** Agent choices carried atomically by a new thread request instead of changing the shared draft. */
   model?: AgentModel;
   effort?: AgentEffort;
+  role?: ThreadRole;
   /** Composer only: which draft to clear once the run starts. */
   draftKey?: string;
   /** What the user typed, before attachments are appended. Titles a brand new thread. */

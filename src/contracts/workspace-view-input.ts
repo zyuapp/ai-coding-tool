@@ -149,7 +149,7 @@ const shapes = {
   "task.checkout-branch": { taskId: optionalText, branch: text, create: optionalBoolean },
   "attachments.send": { taskId: optionalText, steer: optionalBoolean, attachments: array(outgoingAttachment) },
   "attachments.notice": { taskId: optionalText, message: nullableText },
-  "task.send": { taskId: optionalText, project: optionalText, text: optionalText, attachments: optional(array(runAttachment)), steer: optionalBoolean, worktree: optionalBoolean, worktreeId: optionalText, model: optional(isAgentModel), effort: optional(isAgentEffort) },
+  "task.send": { taskId: optionalText, project: optionalText, text: optionalText, attachments: optional(array(runAttachment)), steer: optionalBoolean, worktree: optionalBoolean, worktreeId: optionalText, model: optional(isAgentModel), effort: optional(isAgentEffort), role: optional(isThreadRole) },
   "task.steer-queued": { taskId: optionalText, messageId: text },
   "task.drop-queued": { taskId: optionalText, messageId: text },
   "annotation.add": { taskId: optionalText, quote: text, note: optionalText, anchor: optional(isAnnotationAnchor) },

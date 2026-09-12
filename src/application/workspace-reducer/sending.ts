@@ -105,6 +105,7 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
         ...(namedWorktree ? { worktreeId: namedWorktree.id } : {}),
         ...(thread || input.model === undefined ? {} : { model: input.model }),
         ...(thread || input.effort === undefined ? {} : { effort: input.effort }),
+        ...(thread || input.role === undefined ? {} : { role: input.role }),
         ...(draftKey === undefined ? {} : { draftKey }),
         text,
         prompt: sentPrompt(text, pastes, annotations, attachments, files),

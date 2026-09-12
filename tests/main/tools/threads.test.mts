@@ -119,6 +119,21 @@ test("starting, messaging, archiving and stopping go through the command surface
   assert.deepEqual(bridge.calls.at(-1), ["command", { type: "run.cancel", taskId: "task-4" }]);
 });
 
+test("a thread's role is set when it starts, changed later, or taken off", async () => {
+  const bridge = fakeBridge();
+
+  await toolNamed(bridge, "start_thread").handler({ prompt: "Review the diff", role: "reviewer" }, {});
+  assert.deepEqual(bridge.calls.at(-1), ["command", { type: "task.send", text: "Review the diff", role: "reviewer" }]);
+
+  const given = await toolNamed(bridge, "set_thread_role").handler({ threadId: "task-2", role: "coordinator" }, {});
+  assert.deepEqual(bridge.calls.at(-1), ["command", { type: "task.set-role", taskId: "task-2", role: "coordinator" }]);
+  assert.match(textOf(given), /^Set the role of /);
+
+  const cleared = await toolNamed(bridge, "set_thread_role").handler({ threadId: "task-2", role: null }, {});
+  assert.deepEqual(bridge.calls.at(-1), ["command", { type: "task.set-role", taskId: "task-2", role: null }]);
+  assert.match(textOf(cleared), /^Took the role off /);
+});
+
 test("waiting reports what the thread said, or that it is still going", async () => {
   const bridge = fakeBridge();
 

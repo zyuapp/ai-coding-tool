@@ -125,10 +125,10 @@ export type TaskCommand =
    * always starts a new task, in `project` — its folder name, its path, or its id. `worktree` starts
    * that new task in a checkout of its own; `worktreeId` starts it in one the project already has,
    * and names the project itself, so a `project` that disagrees with it is refused. Naming one takes
-   * precedence over asking for a new one. `model` and `effort` apply only to a new task and leave
+   * precedence over asking for a new one. `model`, `effort` and `role` apply only to a new task and leave
    * the shared draft settings alone.
    */
-  | { type: "task.send"; taskId?: string; project?: string; text?: string; attachments?: RunAttachment[]; steer?: boolean; worktree?: boolean; worktreeId?: string; model?: AgentModel; effort?: AgentEffort }
+  | { type: "task.send"; taskId?: string; project?: string; text?: string; attachments?: RunAttachment[]; steer?: boolean; worktree?: boolean; worktreeId?: string; model?: AgentModel; effort?: AgentEffort; role?: ThreadRole }
   /**
    * Sends the composer's message with the images in its strip, which are written out to disk first:
    * the run is started only once they are all there, and a failure to write one stops the send.

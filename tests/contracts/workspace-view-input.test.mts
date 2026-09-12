@@ -11,6 +11,7 @@ test("the view can send provider commands, attachments, and presentation reports
     { type: "attachments.notice", taskId: "thread", message: null },
     { type: "task.set-policy", policy: "autonomous" },
     { type: "task.set-role", taskId: "thread", role: "reviewer" },
+    { type: "task.send", text: "Review this", role: "reviewer" },
     { type: "task.set-role", taskId: "thread", role: null },
     { type: "task.set-effort", engine: "codex", effort: "xhigh" },
     { type: "task.set-effort", engine: "claude", effort: "max" },

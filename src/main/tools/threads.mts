@@ -3,6 +3,7 @@ import { MAX_THREAD_WAIT_MS } from "../../contracts/ipc.js";
 import type { ThreadSummary, ThreadTranscript } from "../../contracts/threads.js";
 import { AGENT_ENGINES, isAgentEffort, isAgentModel, modelsFor, type AgentModel } from "../../domain/agent-engine.js";
 import type { AgentEffort } from "../../domain/run.js";
+import { THREAD_ROLES, type ThreadRole } from "../../domain/thread-role.js";
 import type { ThreadBridge } from "../agent/agent-provider.mjs";
 import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";
 
@@ -24,6 +25,10 @@ const modelIds = AGENT_ENGINES.flatMap((engine) => modelsFor(engine).map((model)
 const effortIds = [...new Set(AGENT_ENGINES.flatMap((engine) => modelsFor(engine).flatMap((model) => model.efforts.map((effort) => effort.id))))];
 const modelField = z.enum(modelIds as [AgentModel, ...AgentModel[]]).refine(isAgentModel).optional().describe(
   "Model for the new thread. Omit to inherit the calling thread's model.",
+);
+const roleIds = THREAD_ROLES.map((option) => option.role);
+const roleField = z.enum(roleIds as [ThreadRole, ...ThreadRole[]]).optional().describe(
+  "The part the new thread plays beside the others: coordinator, implementer, reviewer, or researcher. Shown on its row.",
 );
 const effortField = z.enum(effortIds as [AgentEffort, ...AgentEffort[]]).refine(isAgentEffort).optional().describe(
   "Effort for the new thread. Omit to inherit the calling thread's effort when the selected model supports it, otherwise use that engine's default.",
@@ -130,6 +135,7 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
       worktreeId: z.string().optional().describe("Start the thread in another worktree that already exists, as list_threads reports it. Omit both worktree fields to share this thread's checkout. Takes precedence over worktree."),
       model: modelField,
       effort: effortField,
+      role: roleField,
     },
     readOnly: false,
     run: ({ bridge, now }, args) => report(async () => {
@@ -140,6 +146,7 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
         ...(args.worktreeId ? { worktreeId: args.worktreeId } : args.worktree ? { worktree: true } : {}),
         ...(args.model ? { model: args.model } : {}),
         ...(args.effort ? { effort: args.effort } : {}),
+        ...(args.role ? { role: args.role } : {}),
       });
       return thread ? `Started ${describe(thread, now())}` : "The thread did not start.";
     }),
@@ -156,6 +163,19 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
     run: ({ bridge, now }, args) => report(async () => {
       const { thread } = await bridge.command({ type: "task.send", taskId: args.threadId, text: args.text, ...(args.steer ? { steer: true } : {}) });
       return thread ? `Sent to ${describe(thread, now())}` : "The message was not delivered.";
+    }),
+  }),
+  defineTool({
+    name: "set_thread_role",
+    description: "Give a thread its part beside the others, or take it off. The role shows on the thread's row and in list_threads; it changes nothing about what the thread may do.",
+    input: {
+      threadId: threadIdField,
+      role: z.enum(roleIds as [ThreadRole, ...ThreadRole[]]).nullable().describe("coordinator, implementer, reviewer, or researcher. null takes the role off."),
+    },
+    readOnly: false,
+    run: ({ bridge, now }, args) => report(async () => {
+      const { thread } = await bridge.command({ type: "task.set-role", taskId: args.threadId, role: args.role });
+      return thread ? `${args.role ? "Set the role of" : "Took the role off"} ${describe(thread, now())}` : "The thread's role was not changed.";
     }),
   }),
   defineTool({

@@ -17,6 +17,7 @@ import type { TerminalUpdate } from "../domain/terminal.js";
 import type { AttachedFileDraft } from "../domain/conversation.js";
 import { MAX_DETAIL, MAX_FINDING_KEY, MAX_HEADLINE } from "../domain/finding.js";
 import { capabilitiesFor, engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, modelSupportsManualCompaction, type AgentEngine, type AgentModel, type EngineStatus } from "../domain/agent-engine.js";
+import { isThreadRole } from "../domain/thread-role.js";
 import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, Continuation, ExecutionPolicy, RunStatus, SubagentActivity, SubagentReport, ToolIntent } from "../domain/run.js";
 import type { PlanUsage } from "../domain/plan-usage.js";
 import type { PullRequestAnswer } from "../domain/pull-request.js";
@@ -655,8 +656,7 @@ export function isExternalCommand(value: unknown): value is ExternalCommand {
   const command = value as Record<string, unknown>;
   const named = command.taskId === undefined || isString(command.taskId);
   if (command.type === "task.send") {
-    return named
-      && (command.project === undefined || isString(command.project))
+    return named && (command.project === undefined || isString(command.project))
       && isString(command.text, MAX_PROMPT_LENGTH)
       && command.attachments === undefined
       && (command.steer === undefined || typeof command.steer === "boolean")
@@ -664,11 +664,12 @@ export function isExternalCommand(value: unknown): value is ExternalCommand {
       /** An id, never a path: the reducer resolves it against the checkouts the app itself made. */
       && (command.worktreeId === undefined || isString(command.worktreeId))
       && (command.model === undefined || isAgentModel(command.model))
-      && (command.effort === undefined || isAgentEffort(command.effort))
-      /** Agent selection belongs to a thread being created, never one that already exists. */
-      && (command.taskId === undefined || command.model === undefined && command.effort === undefined);
+      && (command.effort === undefined || isAgentEffort(command.effort)) && (command.role === undefined || isThreadRole(command.role))
+      /** Agent selection and the role belong to a thread being created, never one that already exists. */
+      && (command.taskId === undefined || command.model === undefined && command.effort === undefined && command.role === undefined);
   }
   if (command.type === "task.archive") return isString(command.taskId);
+  if (command.type === "task.set-role") return isString(command.taskId) && (command.role === null || isThreadRole(command.role));
   if (command.type === "run.cancel") return named;
   if (typeof command.type === "string" && command.type.startsWith("browser.")) return isBrowserCommand(command);
   return false;
@@ -681,8 +682,7 @@ export function isBrowserAction(value: unknown): value is BrowserAction {
   const action = value as Record<string, unknown>;
   if (action.kind === "click") return isString(action.ref);
   if (action.kind === "type") {
-    return isString(action.ref)
-      && typeof action.text === "string" && action.text.length <= MAX_PROMPT_LENGTH
+    return isString(action.ref) && typeof action.text === "string" && action.text.length <= MAX_PROMPT_LENGTH
       && (action.submit === undefined || typeof action.submit === "boolean");
   }
   return false;

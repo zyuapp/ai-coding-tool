@@ -299,6 +299,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     model,
     effort,
     ...(capabilitiesFor(engine).fastMode ? { fastMode: state.draftFastMode } : {}),
+    ...(pending.role ? { role: pending.role } : {}),
     messages: [],
     continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: now() },

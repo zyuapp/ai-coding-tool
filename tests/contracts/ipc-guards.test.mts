@@ -270,6 +270,13 @@ test("the external command surface covers reading and writing threads, and nothi
   assert.equal(isExternalCommand({ type: "task.send", text: "Use mystery", model: "unknown" }), false);
   assert.equal(isExternalCommand({ type: "task.send", text: "Use Claude", effort: "impossible" }), false);
   assert.equal(isExternalCommand({ type: "task.send", taskId: "task-1", text: "Carry on", model: "sonnet" }), false, "a tool cannot change an existing thread's model while messaging it");
+  assert.equal(isExternalCommand({ type: "task.send", text: "Review this", role: "reviewer" }), true);
+  assert.equal(isExternalCommand({ type: "task.send", text: "Review this", role: "manager" }), false);
+  assert.equal(isExternalCommand({ type: "task.send", taskId: "task-1", text: "Carry on", role: "reviewer" }), false, "a role rides only on a thread being created; set_thread_role changes one that exists");
+  assert.equal(isExternalCommand({ type: "task.set-role", taskId: "task-1", role: "coordinator" }), true);
+  assert.equal(isExternalCommand({ type: "task.set-role", taskId: "task-1", role: null }), true);
+  assert.equal(isExternalCommand({ type: "task.set-role", taskId: "task-1", role: "manager" }), false);
+  assert.equal(isExternalCommand({ type: "task.set-role", role: "coordinator" }), false);
 
   assert.equal(isExternalCommand({ type: "task.send", text: "Look", attachments: [{ path: "/etc/passwd", labels: [] }] }), false);
   assert.equal(isExternalCommand({ type: "task.send", text: "Start here", worktreeId: "/worktrees/repo-wt1" }), true, "a path is only ever a string here; the reducer is what resolves it to a checkout the app made");

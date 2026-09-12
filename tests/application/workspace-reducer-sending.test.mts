@@ -546,3 +546,15 @@ test("fast mode stays a Codex preference when switching the draft to Claude", ()
   const thread = workspace({ threads: [task("claude")], currentId: "claude" });
   assert.equal(reduce(thread, { type: "task.set-fast-mode", fastMode: true }).state, thread);
 });
+
+test("a role named on a send belongs to the thread it creates, never to one that exists", () => {
+  const sending = reduce(workspace(), { type: "task.send", text: "Review the diff", attachments: [], role: "reviewer" });
+  assert.equal(sending.state.pendingRuns[effectAt(sending, "resolve-run-workspace").pendingId].role, "reviewer");
+  const started = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+  assert.equal(started.state.threads[0].role, "reviewer");
+
+  const taskId = started.state.threads[0].id;
+  const again = reduce(started.state, { type: "task.send", taskId, text: "Carry on", attachments: [], role: "coordinator" });
+  assert.ok(Object.values(again.state.pendingRuns).every((pending) => pending.role === undefined));
+  assert.equal(again.state.threads[0].role, "reviewer");
+});
