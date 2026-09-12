@@ -33,7 +33,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
       return reduceWorktreeMenu(state, input);
     case "task.new": case "task.select": case "task.dismiss": case "task.snooze": case "snoozes.elapsed":
     case "task.dismiss-all": case "task.archive": case "task.restore":
-    case "task.clear-archive": case "task.rename": case "title.suggested":
+    case "task.clear-archive": case "task.rename": case "task.set-role": case "title.suggested":
     case "task.fork": case "task.move": case "task.set-policy":
     case "task.set-model": case "task.set-effort": case "task.set-fast-mode":
       return reduceThreadCommands(state, input);

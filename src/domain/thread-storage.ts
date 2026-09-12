@@ -5,6 +5,7 @@ import { isProject, legacyProjectId, normalizeProjectRoot, type Project } from "
 import type { Continuation, ExecutionPolicy, Subagent } from "./run.js";
 import type { ContextUsage, ContinuationStatus, ThreadOutcome } from "./thread-run.js";
 import type { Thread } from "./thread.js";
+import { isThreadRole } from "./thread-role.js";
 import { isWorktree, type Worktree } from "./worktree.js";
 
 export const THREAD_STORE_VERSION = 2 as const;
@@ -365,6 +366,7 @@ function isThreadBase(value: unknown): value is StoredThread {
     nonEmptyString(value.id) &&
     nonEmptyString(value.title) &&
     (value.titleByUser === undefined || typeof value.titleByUser === "boolean") &&
+    (value.role === undefined || isThreadRole(value.role)) &&
     (value.projectId === undefined || nonEmptyString(value.projectId)) &&
     isExecutionPolicy(value.executionPolicy) &&
     isAgentEngine(value.engine) &&

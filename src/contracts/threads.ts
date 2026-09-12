@@ -2,6 +2,7 @@ import type { AppCommand } from "./commands.js";
 import type { BrowserInspection, BrowserInspectionResult, BrowserShot, BrowserSnapshot, BrowserTab } from "../domain/browser.js";
 import type { ConversationMessageKind } from "../domain/conversation.js";
 import type { TerminalSession, TerminalSnapshot } from "../domain/terminal.js";
+import type { ThreadRole } from "../domain/thread-role.js";
 
 export type TaskMessageKind = ConversationMessageKind;
 
@@ -37,6 +38,8 @@ export type ThreadFilter = {
 export type ThreadSummary = {
   id: string;
   title: string;
+  /** The part the user gave the thread, when they gave it one. */
+  role?: ThreadRole;
   projectId?: string;
   projectRoot?: string;
   /** The checkout the thread works in, when it works in one. Its id is what starts a thread there. */

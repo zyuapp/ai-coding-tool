@@ -5,6 +5,7 @@ import { OpenInMenu } from "./OpenInMenu";
 import { PopoverMenu } from "./PopoverMenu";
 import { RenameInput, useRenaming } from "./SidebarRename";
 import { threadMenuEntries } from "./thread-menu";
+import type { ThreadRole } from "../../domain/thread-role";
 
 export type WorkspaceHeaderProps = {
   currentThread?: Thread;
@@ -26,12 +27,13 @@ export type WorkspaceHeaderProps = {
   onRenameThread: (threadId: string, title: string) => void;
   onForkThread: (threadId: string, worktree: boolean) => void;
   onArchiveThread: (threadId: string) => void;
+  onSetThreadRole: (threadId: string, role: ThreadRole | null) => void;
   onToggleSidebar: () => void;
   onToggleSessionPanel: () => void;
   onToggleRightDock: () => void;
 };
 
-function ThreadHeading({ currentThread, folder, folderLabel, openMenu, onSetOpenMenu, onRenameThread, onForkThread, onArchiveThread }: Pick<WorkspaceHeaderProps, "currentThread" | "folder" | "folderLabel" | "openMenu" | "onSetOpenMenu" | "onRenameThread" | "onForkThread" | "onArchiveThread">) {
+function ThreadHeading({ currentThread, folder, folderLabel, openMenu, onSetOpenMenu, onRenameThread, onForkThread, onArchiveThread, onSetThreadRole }: Pick<WorkspaceHeaderProps, "currentThread" | "folder" | "folderLabel" | "openMenu" | "onSetOpenMenu" | "onRenameThread" | "onForkThread" | "onArchiveThread" | "onSetThreadRole">) {
   const name = useRenaming((threadId, value) => { if (value.trim()) onRenameThread(threadId, value); });
   return (
     <div className="thread-heading-line">
@@ -62,13 +64,14 @@ function ThreadHeading({ currentThread, folder, folderLabel, openMenu, onSetOpen
           onRename: () => name.start(currentThread.id),
           onFork: (worktree) => onForkThread(currentThread.id, worktree),
           onArchive: () => onArchiveThread(currentThread.id),
+          onSetRole: (role) => onSetThreadRole(currentThread.id, role),
         })}
       />}
     </div>
   );
 }
 
-export function WorkspaceHeader({ currentThread, folder, folderLabel, sidebarOpen, sessionPanelOpen, rightDockOpen, workingSubagents, openMenu, canOpenFolder, apps, onListApps, onSetOpenMenu, onOpenInApp, onRenameThread, onForkThread, onArchiveThread, onToggleSidebar, onToggleSessionPanel, onToggleRightDock }: WorkspaceHeaderProps) {
+export function WorkspaceHeader({ currentThread, folder, folderLabel, sidebarOpen, sessionPanelOpen, rightDockOpen, workingSubagents, openMenu, canOpenFolder, apps, onListApps, onSetOpenMenu, onOpenInApp, onRenameThread, onForkThread, onArchiveThread, onSetThreadRole, onToggleSidebar, onToggleSessionPanel, onToggleRightDock }: WorkspaceHeaderProps) {
   return (
     <header className={`topbar ${sidebarOpen ? "" : "traffic-inset"}`.trimEnd()}>
       <div className="task-heading">
@@ -92,6 +95,7 @@ export function WorkspaceHeader({ currentThread, folder, folderLabel, sidebarOpe
             onRenameThread={onRenameThread}
             onForkThread={onForkThread}
             onArchiveThread={onArchiveThread}
+            onSetThreadRole={onSetThreadRole}
           />
           {!folder && <p>Choose a project folder to begin</p>}
         </div>

@@ -46,7 +46,7 @@ export function renderProjectSidebar(overrides: Partial<ProjectSidebarProps>) {
     onSnoozeThread() {},
     onDismissAll() {},
     onRenameThread() {},
-    onMoveThread() {}, onForkThread() {},
+    onMoveThread() {}, onForkThread() {}, onSetThreadRole() {},
     onMoveProject() {},
     onOpenSettings() {},
     ...overrides,

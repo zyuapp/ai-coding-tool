@@ -152,7 +152,7 @@ export function App() {
           onOpenInApp={(appId) => void workspace.actions.openFolderInApp(appId)}
           onRenameThread={workspace.actions.renameThread}
           onForkThread={workspace.actions.forkThread}
-          onArchiveThread={workspace.actions.archiveThread}
+          onArchiveThread={workspace.actions.archiveThread} onSetThreadRole={workspace.actions.setThreadRole}
           onToggleSidebar={() => void workspace.actions.setSidebarOpen(!sidebarOpen)}
           onToggleSessionPanel={() => {
             void workspace.actions.setDockOpen(false);

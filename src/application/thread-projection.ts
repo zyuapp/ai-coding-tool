@@ -67,6 +67,7 @@ function projectThreadSummary(state: WorkspaceState, thread: Thread, activity: n
   return {
     id: thread.id,
     title: thread.title,
+    ...(thread.role ? { role: thread.role } : {}),
     ...(thread.projectId ? { projectId: thread.projectId } : {}),
     ...(project ? { projectRoot: project.root } : {}),
     ...(worktree ? { worktreeId: worktree.id, worktreeRoot: worktree.root } : {}),

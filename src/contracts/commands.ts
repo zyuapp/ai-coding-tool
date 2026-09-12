@@ -1,5 +1,6 @@
 import type { AutomationDraft, AutomationPatch } from "../domain/automation.js";
 import type { SnoozeHours } from "../domain/thread-snooze.js";
+import type { ThreadRole } from "../domain/thread-role.js";
 import type { ShortcutSurface } from "../domain/shortcuts.js";
 import type { BrowserAction } from "../domain/browser.js";
 import type { ComputerUsePermission } from "../domain/computer-use.js";
@@ -83,6 +84,8 @@ export type TaskCommand =
   | { type: "task.restore"; taskId: string }
   | { type: "task.clear-archive" }
   | { type: "task.rename"; taskId: string; title: string }
+  /** `null` takes the role off. */
+  | { type: "task.set-role"; taskId: string; role: ThreadRole | null }
   /** Takes the dot off a thread, which is the only thing that does. Opening the thread only dims it. */
   | { type: "task.dismiss"; taskId: string }
   | { type: "task.snooze"; taskId: string; hours: SnoozeHours }

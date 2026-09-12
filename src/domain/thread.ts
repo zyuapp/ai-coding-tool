@@ -2,6 +2,7 @@ import type { AgentEngine, AgentModel } from "./agent-engine.js";
 import type { ConversationMessage } from "./conversation.js";
 import type { AutomationFinding } from "./finding.js";
 import type { AgentEffort, Continuation, ExecutionPolicy } from "./run.js";
+import type { ThreadRole } from "./thread-role.js";
 import type { ChangeSnapshot, ContextUsage, ContinuationStatus, ThreadOutcome } from "./thread-run.js";
 
 /** The canonical conversation aggregate. Persisted property names stay unchanged for compatibility. */
@@ -10,6 +11,8 @@ export type Thread = {
   title: string;
   /** Set once the user names the thread themselves, so a suggested title never replaces it. */
   titleByUser?: boolean;
+  /** The part this thread plays beside the others, when the user has given it one. */
+  role?: ThreadRole;
   projectId?: string;
   executionPolicy: ExecutionPolicy;
   engine: AgentEngine;

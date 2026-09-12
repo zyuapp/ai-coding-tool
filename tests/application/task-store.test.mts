@@ -109,6 +109,7 @@ test("serializes and parses v2 data without changing it", () => {
   const migrated = migrateV1ToV2(legacyValues());
   assert.equal(migrated.ok, true);
   if (!migrated.ok) return;
+  migrated.data.tasks[0].role = "reviewer";
   migrated.data.tasks[0].subagents = [{
     id: "agent-1",
     description: "Inspect storage",
@@ -125,6 +126,8 @@ test("serializes and parses v2 data without changing it", () => {
   assert.deepEqual(parsed.data, migrated.data);
   assert.equal(parsed.sourceVersion, 2);
   assert.equal(parsed.preservedV1, null);
+  const unknownRole = validateThreadStoreData({ ...migrated.data, tasks: [{ ...migrated.data.tasks[0], role: "manager" }] });
+  assert.equal(unknownRole.ok && unknownRole.hiddenTasks, 1, "a role this build does not know hides the thread");
 });
 
 test("reads the established v2 field names without relying on this build's serializer", () => {

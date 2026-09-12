@@ -1,5 +1,6 @@
 import type { AppCommand } from "./commands.js";
 import { isSnoozeHours } from "../domain/thread-snooze.js";
+import { isThreadRole } from "../domain/thread-role.js";
 import type { WorkspaceEvent } from "../application/workspace-reducer.js";
 import { isBrowserAction } from "./ipc.js";
 import { isAgentEffort, isAgentEngine, isAgentModel } from "../domain/agent-engine.js";
@@ -132,6 +133,7 @@ const shapes = {
   "task.restore": { taskId: text },
   "task.clear-archive": {  },
   "task.rename": { taskId: text, title: text },
+  "task.set-role": { taskId: text, role: nullable(isThreadRole) },
   "task.dismiss": { taskId: text },
   "task.snooze": { taskId: text, hours: isSnoozeHours },
   "task.dismiss-all": {  },

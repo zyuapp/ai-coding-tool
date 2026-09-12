@@ -687,7 +687,7 @@ function sidebar(overrides: Partial<ProjectSidebarProps> = {}) {
     onNewThread() {}, onOpenFolder() {}, onToggleProject() {}, onRenameProject() {}, onEditProject() {}, onRemoveProject() {},
     onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
     onSelectThread() {}, onArchiveThread() {}, onRenameThread() {}, onDismissThread() {}, onSnoozeThread() {}, onDismissAll() {},
-    onMoveThread() {}, onForkThread() {}, onMoveProject() {}, onOpenSettings() {},
+    onMoveThread() {}, onForkThread() {}, onSetThreadRole() {}, onMoveProject() {}, onOpenSettings() {},
     ...overrides,
   });
 }

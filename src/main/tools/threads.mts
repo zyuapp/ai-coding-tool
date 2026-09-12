@@ -39,6 +39,7 @@ function elapsed(ms: number) {
 function describe(thread: ThreadSummary, at: number) {
   const parts = [
     `${thread.title} [${thread.id}]`,
+    ...(thread.role ? [`role ${thread.role}`] : []),
     thread.worktreeRoot ?? thread.projectRoot ?? "no project",
     ...(thread.worktreeId ? [`worktree ${thread.worktreeId}`] : []),
     thread.status,

@@ -13,6 +13,7 @@ import { SidebarHeader, SidebarResizer } from "./SidebarChrome";
 import { PROJECT_DRAG, RECENTS_DROPPABLE, SidebarProjects, useShownThreads } from "./SidebarProjects";
 import { useThreadRows } from "./SidebarThreadRow";
 import type { SnoozeHours } from "../../domain/thread-snooze";
+import type { ThreadRole } from "../../domain/thread-role";
 
 export type ProjectSidebarProps = {
   open: boolean;
@@ -63,6 +64,7 @@ export type ProjectSidebarProps = {
   onMoveThread: (threadId: string, target: ThreadDropTarget) => void;
   /** Copies the thread into a new one beside it, with a checkout of its own when `worktree`. */
   onForkThread: (threadId: string, worktree: boolean) => void;
+  onSetThreadRole: (threadId: string, role: ThreadRole | null) => void;
   onMoveProject: (projectId: string, index: number) => void;
   onOpenSettings: () => void;
 };
@@ -117,6 +119,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
   onRenameThread,
   onMoveThread,
   onForkThread,
+  onSetThreadRole,
   onMoveProject,
   onOpenSettings,
 }: ProjectSidebarProps) {
@@ -146,6 +149,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
     onSnoozeThread,
     onRenameThread,
     onForkThread,
+    onSetThreadRole,
   });
 
   /**
@@ -157,7 +161,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
   /** Every thread carries its engine mark, which also covers the one slot an action needs. */
   function markCount(thread: Thread) {
     const status = blockedThreadIds.has(thread.id) || runningThreadIds.has(thread.id) || hasUnreadAttention(thread) || sideChatAttention.has(thread.id);
-    return 1 + Number(worktreeThreadIds.has(thread.id)) + Number(schedules.has(thread.id)) + Number(status);
+    return 1 + Number(Boolean(thread.role)) + Number(worktreeThreadIds.has(thread.id)) + Number(schedules.has(thread.id)) + Number(status);
   }
 
   /** Stepping through threads from the keyboard is blind unless the list follows the one now open. */

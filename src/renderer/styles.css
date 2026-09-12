@@ -99,6 +99,12 @@
   --worktree-4: color-mix(in srgb, var(--p-ansi-cyan) 70%, var(--p-fg-2));
   --worktree-5: color-mix(in srgb, var(--p-ansi-bright-blue) 70%, var(--p-fg-2));
 
+  /** One colour per role a thread can play, mixed like the checkout marks so a role and a checkout sit level. */
+  --role-coordinator: color-mix(in srgb, var(--p-ansi-magenta) 70%, var(--p-fg-2));
+  --role-implementer: color-mix(in srgb, var(--p-ansi-blue) 70%, var(--p-fg-2));
+  --role-reviewer: color-mix(in srgb, var(--p-ansi-yellow) 70%, var(--p-fg-2));
+  --role-researcher: color-mix(in srgb, var(--p-ansi-cyan) 70%, var(--p-fg-2));
+
   --link-line: color-mix(in srgb, var(--p-link) 45%, var(--p-bg-5));
 
   /* Success */
@@ -2572,6 +2578,17 @@ pre {
 .worktree-mark.hue-4 { color: var(--worktree-4); }
 .worktree-mark.hue-5 { color: var(--worktree-5); }
 .task-engine { flex: none; color: var(--muted); }
+/**
+ * A role colours its row: the mark in the rail, and a hairline round the row so the eye groups
+ * threads by role before it reads a title. The active row's fill wins over the outline.
+ */
+.task-role { flex: none; color: var(--role-ink); }
+.role-coordinator { --role-ink: var(--role-coordinator); }
+.role-implementer { --role-ink: var(--role-implementer); }
+.role-reviewer { --role-ink: var(--role-reviewer); }
+.role-researcher { --role-ink: var(--role-researcher); }
+.project-task-row[class*="role-"], .task-row[class*="role-"] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--role-ink) 45%, transparent); }
+.project-task-row.active[class*="role-"], .task-row.active[class*="role-"] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--role-ink) 70%, transparent); }
 .subagent-section { border-top: 1px solid var(--line-soft); padding: 7px 12px 8px; }
 .subagent-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--quiet-strong); font-size: var(--text-control); font-weight: 580; }
 .subagent-heading .section-toggle { flex: 1; height: 26px; color: inherit; font-weight: inherit; }

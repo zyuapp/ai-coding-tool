@@ -13,6 +13,8 @@ import { threadMenuEntries } from "./thread-menu";
 import type { SnoozeHours } from "../../domain/thread-snooze";
 import { RenameInput, useRenaming } from "./SidebarRename";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
+import { ThreadRoleMark } from "./ThreadRoleMark";
+import type { ThreadRole } from "../../domain/thread-role";
 
 /** What a row's trailing slot offers, if anything. Only one of them ever shows in a given list. */
 export type RowAction = "archive" | "dismiss" | "none";
@@ -94,6 +96,7 @@ export type ThreadRowsOptions = {
   onSnoozeThread: (threadId: string, hours: SnoozeHours) => void;
   onRenameThread: (threadId: string, title: string) => void;
   onForkThread: (threadId: string, worktree: boolean) => void;
+  onSetThreadRole: (threadId: string, role: ThreadRole | null) => void;
 };
 
 /** Both lists draw the same row, so both of them ask this for one: only the placement differs. */
@@ -115,6 +118,7 @@ export function useThreadRows({
   onSnoozeThread,
   onRenameThread,
   onForkThread,
+  onSetThreadRole,
 }: ThreadRowsOptions) {
   const [threadMenuPosition, setThreadMenuPosition] = useState({ x: 0, y: 0 });
   const threadNames = useRenaming((threadId, value) => { if (value.trim()) onRenameThread(threadId, value); });
@@ -134,6 +138,7 @@ export function useThreadRows({
 
   /** The engine stays at the right edge, with status beside it, whatever other marks a row carries. */
   const rowMarks = (thread: Thread): React.ReactNode[] => [
+    thread.role && <ThreadRoleMark key="role" role={thread.role} size={13} />,
     worktreeThreadIds.has(thread.id) && <FolderSymlink key="worktree" className={worktreeMark(thread.id)} size={13} aria-label={worktreeLabel(thread.id)} />,
     schedules.has(thread.id) && <AlarmClock key="automation" className="task-automation" size={13} aria-label={scheduleLabel(schedules.get(thread.id)!)} />,
     blockedThreadIds.has(thread.id)
@@ -196,7 +201,7 @@ export function useThreadRows({
   const rowBody = (thread: Thread, className: string, content: React.ReactNode, action: RowAction, priority = false) => (
     <>
     <div
-      className={className}
+      className={thread.role ? `${className} role-${thread.role}` : className}
       onClick={() => onSelectThread(thread.id)}
       onDoubleClick={(event) => threadNames.start(thread.id, event.currentTarget.closest(".task-entry"))}
       onContextMenu={(event) => {
@@ -226,6 +231,7 @@ export function useThreadRows({
         onRename: () => threadNames.start(thread.id),
         onFork: (worktree) => onForkThread(thread.id, worktree),
         onArchive: () => onArchiveThread(thread.id),
+        onSetRole: (role) => onSetThreadRole(thread.id, role),
         ...(priority ? { onSnooze: (hours: SnoozeHours) => onSnoozeThread(thread.id, hours) } : {}),
       })}
     />}

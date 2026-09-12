@@ -19,7 +19,7 @@ import { capabilitiesFor, defaultModelFor, effortForModel, engineHasModel, model
 
 type ThreadCommandInput = Extract<WorkspaceInput, {
   type: "task.new" | "task.select" | "task.dismiss" | "task.dismiss-all" | "task.archive" | "task.snooze" | "snoozes.elapsed"
-    | "task.restore" | "task.clear-archive" | "task.rename" | "title.suggested" | "task.fork"
+    | "task.restore" | "task.clear-archive" | "task.rename" | "task.set-role" | "title.suggested" | "task.fork"
     | "task.move" | "task.set-policy" | "task.set-model" | "task.set-effort" | "task.set-fast-mode";
 }>;
 
@@ -160,6 +160,12 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
         state: updateThread(state, input.taskId, (thread) => ({ ...thread, title, titleByUser: true, updatedAt: now() })),
         effects: [labelThread(input.taskId, title)],
       };
+    }
+
+    case "task.set-role": {
+      const thread = state.threads.find((item) => item.id === input.taskId);
+      if (!thread || (thread.role ?? null) === input.role) return settled(state);
+      return settled(updateThread(state, input.taskId, ({ role: _previous, ...item }) => ({ ...item, ...(input.role ? { role: input.role } : {}), updatedAt: now() })));
     }
 
     /** A name the user typed outranks a suggested one, whenever the suggestion lands. */

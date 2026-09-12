@@ -237,3 +237,19 @@ test("an answer about a checkout the app no longer has is not kept", () => {
   const read = reduce(state, { type: "environment.updated", workspaceId: CHECKOUT, result: READ });
   assert.deepEqual(Object.keys(read.state.environments), [CHECKOUT]);
 });
+
+test("a role is given to a thread, swapped, and taken off again", () => {
+  const state = workspace({ threads: [task("task-a")] });
+
+  const reviewer = reduce(state, { type: "task.set-role", taskId: "task-a", role: "reviewer" });
+  assert.equal(reviewer.state.threads[0].role, "reviewer");
+  assert.deepEqual(reviewer.effects, []);
+  assert.equal(reduce(reviewer.state, { type: "task.set-role", taskId: "task-a", role: "reviewer" }).state, reviewer.state, "the same role again changes nothing");
+
+  const coordinator = reduce(reviewer.state, { type: "task.set-role", taskId: "task-a", role: "coordinator" });
+  assert.equal(coordinator.state.threads[0].role, "coordinator");
+
+  const cleared = reduce(coordinator.state, { type: "task.set-role", taskId: "task-a", role: null });
+  assert.equal("role" in cleared.state.threads[0], false, "taking the role off leaves no key behind");
+  assert.equal(reduce(state, { type: "task.set-role", taskId: "missing", role: "reviewer" }).state, state);
+});

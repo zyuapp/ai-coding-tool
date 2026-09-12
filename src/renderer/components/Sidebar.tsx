@@ -56,6 +56,7 @@ export function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
       onRenameThread={workspace.actions.renameThread}
       onMoveThread={workspace.actions.moveThread}
       onForkThread={workspace.actions.forkThread}
+      onSetThreadRole={workspace.actions.setThreadRole}
       onOpenSettings={onOpenSettings}
     />
   );

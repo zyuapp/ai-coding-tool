@@ -1,5 +1,6 @@
 import type { WorkspaceInput } from "../../application/workspace-reducer";
 import type { SnoozeHours } from "../../domain/thread-snooze";
+import type { ThreadRole } from "../../domain/thread-role";
 import type { AutomationDraft, AutomationPatch } from "../../domain/automation";
 import type { DiffMode, DiffRange } from "../../domain/diff";
 import type { FindResults, FindTarget } from "../../domain/find";
@@ -25,6 +26,7 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     restoreThread: (threadId: string) => dispatch({ type: "task.restore", taskId: threadId }),
     clearArchive: () => dispatch({ type: "task.clear-archive" }),
     renameThread: (threadId: string, title: string) => dispatch({ type: "task.rename", taskId: threadId, title }),
+    setThreadRole: (threadId: string, role: ThreadRole | null) => dispatch({ type: "task.set-role", taskId: threadId, role }),
     moveThread: (threadId: string, target: ThreadDropTarget) => dispatch({ type: "task.move", taskId: threadId, target }),
     forkThread: (threadId: string, worktree = false) => dispatch({ type: "task.fork", taskId: threadId, ...(worktree ? { worktree } : {}) }),
     toggleProject: (projectId: string) => dispatch({ type: "view.toggle-project", projectId }),
