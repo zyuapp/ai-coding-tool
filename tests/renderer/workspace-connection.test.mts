@@ -180,6 +180,33 @@ test("acknowledged typing stays visible until its revision arrives, including su
   }
 });
 
+test("text the workspace has published is drawn as it stands, without a replayed copy", async () => {
+  const bridge = transport();
+  const connection = createWorkspaceConnection();
+  const initial = { ...emptyWorkspaceState(), currentId: "thread", threads: [task("thread")] };
+  bridge.request.mockImplementationOnce(async () => { bridge.emit({ revision: 0, state: initial }); return { ok: true, revision: 0 }; });
+  try {
+    await connection.start();
+    let draws = 0;
+    const unsubscribe = connection.subscribe(() => { draws += 1; });
+    const acknowledged = Promise.withResolvers<WorkspaceResponse["result"]>();
+    bridge.request.mockReturnValueOnce(acknowledged.promise);
+    const typed = connection.dispatch({ type: "view.set-prompt", prompt: "h" });
+    assert.equal(draws, 1);
+    bridge.emit({ revision: 1, patches: [{ path: ["prompts", "thread"], value: "h" }] });
+    const published = connection.getState();
+    assert.equal(published.prompts.thread, "h");
+    assert.equal(draws, 2);
+    acknowledged.resolve({ ok: true, revision: 1 });
+    await typed;
+    assert.equal(connection.getState(), published, "settling an edit the revision already carries draws nothing new");
+    assert.equal(draws, 2);
+    unsubscribe();
+  } finally {
+    connection.dispose();
+  }
+});
+
 test("prompt and annotation edits keep the composer they were typed in across selection changes", async () => {
   const bridge = transport();
   const connection = createWorkspaceConnection();

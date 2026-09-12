@@ -1,7 +1,7 @@
 import { elementScroll, useVirtualizer } from "@tanstack/react-virtual";
 import type { IconType } from "react-icons";
 import { LuChevronDown as ChevronDown, LuFolderSymlink as FolderSymlink } from "react-icons/lu";
-import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { StreamingTail } from "../../application/thread-run-state";
 import type { FindView, ReadingPoint, ThreadWait } from "../../application/workspace-state";
 import type { AgentEngine } from "../../domain/agent-engine";
@@ -69,6 +69,7 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
   const artifactScope = useMemo(() => ({ root: folder, taskId: currentThread?.id }), [folder, currentThread?.id]);
   const timelineRef = useRef<HTMLDivElement>(null);
   const links = useMessageLinks();
+  const viewAttachment = useCallback((source: string) => links.openImage?.(source), [links.openImage]);
   const annotate = useAnnotationSelection({ onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide });
   const lastMessage = messages.at(-1);
   /** The answer being read out, whether it is still streaming or has already finished. */
@@ -132,18 +133,22 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
     <MessageArtifactScope.Provider value={artifactScope}>
     <div className="timeline" ref={timelineRef}>
       <div className="timeline-items" style={{ height: virtualizer.getTotalSize() }}>
-        {virtualizer.getVirtualItems().map((item) => (
-          <TimelineRow
-            key={item.key}
-            engine={engine}
-            group={groups[item.index]!}
-            index={item.index}
-            offset={item.start - scrollMargin}
-            measure={virtualizer.measureElement}
-            streamingTail={streamingTail}
-            onViewAttachment={(source) => links.openImage?.(source)}
-          />
-        ))}
+        {virtualizer.getVirtualItems().map((item) => {
+          const group = groups[item.index]!;
+          return (
+            <TimelineRow
+              key={item.key}
+              engine={engine}
+              group={group}
+              index={item.index}
+              offset={item.start - scrollMargin}
+              measure={virtualizer.measureElement}
+              /** Only the live turn reads the tail, so a settled row's props hold still while it streams. */
+              streamingTail={group.kind === "turn" && group.live ? streamingTail : null}
+              onViewAttachment={viewAttachment}
+            />
+          );
+        })}
       </div>
       <AnnotationMarkers markers={markers} annotations={annotations} noteReturn={annotate.noteReturn} onEdit={annotate.setNoting} />
       {waitingOn && (

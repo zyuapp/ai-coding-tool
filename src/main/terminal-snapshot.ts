@@ -23,6 +23,13 @@ function style(cell: IBufferCell) {
   return `\x1b[${codes.join(";")}m`;
 }
 
+/** The nine flag bits `style` renders, packed so a run of identical cells can be detected without allocating. */
+function flags(cell: IBufferCell) {
+  return (cell.isBold() ? 1 : 0) | (cell.isDim() ? 2 : 0) | (cell.isItalic() ? 4 : 0)
+    | (cell.isUnderline() ? 8 : 0) | (cell.isBlink() ? 16 : 0) | (cell.isInverse() ? 32 : 0)
+    | (cell.isInvisible() ? 64 : 0) | (cell.isStrikethrough() ? 128 : 0) | (cell.isOverline() ? 256 : 0);
+}
+
 function cursor(buffer: IBuffer, cols: number) {
   let col = Math.min(buffer.cursorX, cols - 1);
   if (buffer.cursorX < cols) return `\x1b[${buffer.cursorY + 1};${col + 1}H`;
@@ -49,11 +56,20 @@ function serializeBuffer(buffer: IBuffer, cols: number, budget: number) {
     }
     let data = "";
     let previousStyle = "";
+    let previousFgMode = -1, previousFgColor = -1, previousBgMode = -1, previousBgColor = -1, previousFlags = -1;
     for (let col = 0; col < width; col++) {
       if (!line.getCell(col, cell) || cell.getWidth() === 0) continue;
-      const attributes = style(cell);
-      if (attributes !== previousStyle) data += attributes;
-      previousStyle = attributes;
+      const fgMode = cell.getFgColorMode(), fgColor = cell.getFgColor();
+      const bgMode = cell.getBgColorMode(), bgColor = cell.getBgColor();
+      const cellFlags = flags(cell);
+      if (fgMode !== previousFgMode || fgColor !== previousFgColor || bgMode !== previousBgMode
+        || bgColor !== previousBgColor || cellFlags !== previousFlags) {
+        const attributes = style(cell);
+        if (attributes !== previousStyle) data += attributes;
+        previousStyle = attributes;
+        previousFgMode = fgMode; previousFgColor = fgColor;
+        previousBgMode = bgMode; previousBgColor = bgColor; previousFlags = cellFlags;
+      }
       data += cell.getChars() || " ";
     }
     if (size + data.length > budget) break;

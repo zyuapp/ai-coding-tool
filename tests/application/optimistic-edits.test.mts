@@ -52,6 +52,30 @@ test("an edit is held until the revision carrying it arrives, whatever order rep
   assert.equal(settled.state.prompts["draft:"], "Older");
 });
 
+test("an edit the state already reads is held without being replayed over it", () => {
+  const state = workspace({
+    currentId: "thread", threads: [task("thread", { title: "Renamed", titleByUser: true })],
+    prompts: { thread: "typed" }, jump: { query: "jump", index: 0 },
+    annotations: { thread: [{ id: "annotation", quote: "quoted", note: "noted" }] },
+    worktreeMenuSearch: { threads: "worktree", destinations: "" },
+    find: { target: { kind: "thread", taskId: "thread" }, query: "needle", index: 0, focus: 0 },
+  });
+  const caught = [
+    edit(state, { type: "view.set-prompt", prompt: "typed" }),
+    edit(state, { type: "task.rename", taskId: "thread", title: "Renamed" }),
+    edit(state, { type: "annotation.note", annotationId: "annotation", note: "noted" }),
+    edit(state, { type: "worktree.menu-search", list: "threads", query: "worktree" }),
+    edit(state, { type: "view.find-query", query: "needle" }),
+    edit(state, { type: "view.jump-query", query: "jump" }),
+  ];
+  for (const pending of caught) {
+    const view = applyOptimisticEdits(state, [pending], 0);
+    assert.equal(view.state, state, `${pending.input.type} redrew a state that already reads the same`);
+    assert.deepEqual(view.edits, [pending], "the edit is still held until its own revision arrives");
+  }
+  assert.notEqual(applyOptimisticEdits(state, [edit(state, { type: "view.set-prompt", prompt: "typing on" })], 0).state, state);
+});
+
 test("a search edit is held but not drawn once the find bar points somewhere else", () => {
   const searching = workspace({
     currentId: "thread", threads: [task("thread")],

@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { DiffSummaryResult } from "../../contracts/ipc";
 import type { DiffState, FindView } from "../../application/workspace-state";
 import type { FindResults } from "../../domain/find";
 import type { Annotation, AnnotationAnchor } from "../../domain/conversation";
 import { commentQuote, foldedForSize, rangeKey, type DiffFileSummary, type DiffRange } from "../../domain/diff";
+import type { PanelRow } from "../diff/panel-rows";
 import {
   anchoredDiffComments,
   colourRow,
@@ -17,6 +18,7 @@ import {
 import { useDrawnFiles, usePanelRows, usePinnedFile, useRoomForTwo, useSelectionSpan, useTickThrough } from "../diff/use-panel";
 import { useReadWholeReview, useReviewFind } from "../diff/use-review-find";
 import { useLazyColours } from "../diff/use-colours";
+import { DiffCommentEditor } from "./DiffCommentEditor";
 import { DiffToolbar, type DiffPickerActions } from "./DiffToolbar";
 import { PanelRowView, PinnedFileRow } from "./DiffRows";
 
@@ -100,6 +102,24 @@ function ReviewProgress({ files, viewed, additions, deletions }: {
   );
 }
 
+/**
+ * What a row is handed to act on, held at one identity: the panel is drawn again by anything the
+ * window does, and a row whose props have not moved is left alone rather than reconciled line by line.
+ */
+function useRowHandlers(
+  onSetCollapsed: (path: string, collapsed: boolean) => void,
+  onOpenFile: (path: string) => void,
+  onSetViewed: (path: string, viewed: boolean) => void,
+) {
+  const handlers = useRef({ onSetCollapsed, onOpenFile, onSetViewed });
+  handlers.current = { onSetCollapsed, onOpenFile, onSetViewed };
+  return {
+    onSetCollapsed: useCallback((path: string, fold: boolean) => handlers.current.onSetCollapsed(path, fold), []),
+    onOpenFile: useCallback((path: string) => handlers.current.onOpenFile(path), []),
+    onSetViewed: useCallback((path: string, tick: boolean) => handlers.current.onSetViewed(path, tick), []),
+  };
+}
+
 export function DiffPanel({
   diff,
   workspaceId,
@@ -157,7 +177,9 @@ export function DiffPanel({
   });
   const { pinned, sync: syncPinned } = usePinnedFile(scrollRef, rows, files, windowed, virtualizer);
 
-  useLazyColours(rows.length, windowed ? virtualizer : null, (index) => colourRow(rows[index], drawn));
+  /** A colouring pass fills its tokens in place, so the rows are handed a new map to read them from. */
+  const painted = useLazyColours(rows.length, windowed ? virtualizer : null, (index) => colourRow(rows[index], drawn));
+  const coloured = useMemo(() => new Map(drawn), [drawn, painted]);
 
   useReviewFind({
     find, files, versionOf, patchOf, patches, rows, collapsed, windowed, virtualizer, scrollRef, onSetCollapsed,
@@ -173,12 +195,12 @@ export function DiffPanel({
   useEffect(() => { setSelection(null); setNote(""); setEditing(null); }, [diff.range, diff.mode, workspaceId]);
   const quote = selection && span?.rows.length ? commentQuote(selection.path, span.rows, selectionSide(span.rows)) : null;
 
-  const selectByKey = (path: string, key: string, extend: boolean) => {
+  const selectByKey = useCallback((path: string, key: string, extend: boolean) => {
     if (editing) setNote("");
     setEditing(null);
     setSelection((current) => extend && current?.path === path ? { ...current, head: key } : { path, anchor: key, head: key });
-  };
-  const isSelected = (path: string, index: number | undefined) => index !== undefined && selection?.path === path && span !== null && index >= span.from && index <= span.to;
+  }, [editing]);
+  const selected = useMemo(() => selection && span ? { path: selection.path, from: span.from, to: span.to } : null, [selection, span]);
   const clear = () => { setSelection(null); setNote(""); setEditing(null); };
 
   const comment = () => {
@@ -188,39 +210,35 @@ export function DiffPanel({
     clear();
   };
 
-  const editComment = (comment: DiffComment) => {
+  const editComment = useCallback((comment: DiffComment) => {
     const anchor = comment.annotation.anchor;
     if (anchor?.kind !== "diff") return;
     setSelection({ path: anchor.path, anchor: anchor.start, head: anchor.end });
     setNote(comment.annotation.note);
     setEditing(comment.annotation.id);
+  }, []);
+
+  const removeComment = () => {
+    if (editing) onRemoveComment(editing);
+    clear();
   };
 
+  const rowHandlers = useRowHandlers(onSetCollapsed, onOpenFile, setViewed);
   const rowView = {
     collapsed,
     viewed: diff.viewed,
-    drawn,
+    drawn: coloured,
     comments: commentRows,
-    composer: {
-      quote,
-      note,
-      editing: editing !== null,
-      noteRef,
-      onNote: setNote,
-      onSubmit: comment,
-      onClear: clear,
-      onRemove: () => {
-        if (editing) onRemoveComment(editing);
-        clear();
-      },
-    },
-    isSelected,
+    selected,
     onSelect: selectByKey,
     onEditComment: editComment,
-    onSetCollapsed,
-    onOpenFile,
-    onSetViewed: setViewed,
+    ...rowHandlers,
   };
+
+  /** The composer is drawn where the review picked it up, and is the one row that is never held still. */
+  const drawRow = (row: PanelRow) => row.kind === "composer"
+    ? <DiffCommentEditor quote={quote} note={note} editing={editing !== null} noteRef={noteRef} onNote={setNote} onSubmit={comment} onClear={clear} onRemove={removeComment} />
+    : <PanelRowView row={row} {...rowView} />;
 
   const overBudget = useMemo(() => overDrawingBudget(files, collapsed), [files, collapsed]);
   const notice = panelNote({ result: diff.result, loading: diff.loading, workspaceId, settling, overBudget, ignoreWhitespace: diff.ignoreWhitespace });
@@ -246,7 +264,7 @@ export function DiffPanel({
 
       <div className="diff-scroll">
         <div className="diff-files" ref={scrollRef} onScroll={syncPinned} aria-label="Changed files">
-          {!windowed && rows.map((row) => <div key={row.key}><PanelRowView row={row} {...rowView} /></div>)}
+          {!windowed && rows.map((row) => <div key={row.key}>{drawRow(row)}</div>)}
           {windowed && (
             <div className="diff-window" style={{ height: virtualizer.getTotalSize() }}>
               {virtualizer.getVirtualItems().map((item) => rows[item.index] ? (
@@ -257,7 +275,7 @@ export function DiffPanel({
                   data-index={item.index}
                   style={{ transform: `translateY(${item.start}px)` }}
                 >
-                  <PanelRowView row={rows[item.index]} {...rowView} />
+                  {drawRow(rows[item.index])}
                 </div>
               ) : null)}
             </div>

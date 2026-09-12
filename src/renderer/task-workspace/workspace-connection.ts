@@ -66,7 +66,8 @@ export function createWorkspaceConnection() {
       try {
         const result = await bridge.request(edit?.input ?? input);
         if (requestedGeneration === generation && edit && edits.get(edit.key) === edit) {
-          if (result.ok) edits.set(edit.key, { ...edit, revision: result.revision });
+          /** An edit the published revision already carries is settled, so it is dropped, not stamped. */
+          if (result.ok && result.revision > revision) edits.set(edit.key, { ...edit, revision: result.revision });
           else edits.delete(edit.key);
           rebase();
         }

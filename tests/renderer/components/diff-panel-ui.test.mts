@@ -1,12 +1,35 @@
 import { dom, mount, query } from "../../support/renderer-dom.mts";
 import assert from "node:assert/strict";
-import { test, onTestFinished } from "vitest";
+import { test, onTestFinished, vi } from "vitest";
 
 import React, { act } from "react";
 
 import type { DiffPanelProps } from "../../../src/renderer/components/DiffPanel.tsx";
 import type { DiffState } from "../../../src/application/workspace-state.ts";
+import type { Annotation } from "../../../src/domain/conversation.ts";
 import type { DesktopAPI } from "../../../src/contracts/ipc.ts";
+import type { ThemedToken } from "../../../src/renderer/diff/highlight.ts";
+
+/** Reading a row's colours is what only a row does, so the count is how many rows have drawn. */
+const colouring = vi.hoisted(() => ({ reads: 0 }));
+
+vi.mock("../../../src/renderer/diff/highlight.ts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../src/renderer/diff/highlight.ts")>();
+  return {
+    ...actual,
+    fileTokens: (file: Parameters<typeof actual.fileTokens>[0]) => {
+      const drawn = actual.fileTokens(file);
+      const counted = new Proxy(drawn.tokens, {
+        get(target, property, receiver) {
+          if (property === "get") return (key: string) => { colouring.reads += 1; return target.get(key); };
+          const value = Reflect.get(target, property, receiver) as unknown;
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      }) as Map<string, ThemedToken[]>;
+      return { ...drawn, tokens: counted };
+    },
+  };
+});
 
 /** Named as the file it is, because a patch's own path is what picks the grammar that colours it. */
 const PATCH = [
@@ -196,4 +219,20 @@ test.each([false, true])("a patch opens with line numbers and syntax colours (sp
     await act(async () => { button.click(); });
   }
   assert.equal(view.container.querySelectorAll(".diff-line, .diff-split-row").length, 0, "the headers fold the patches away");
+});
+
+test("a review already drawn is left alone when the panel is drawn again around it", async () => {
+  const diff = diffState();
+  /** What the workspace holds still between renders: a review only redraws on its own state moving. */
+  const annotations: Annotation[] = [];
+  const view = await mount(panel({ diff, annotations }));
+  onTestFinished(() => view.unmount());
+  await settled(view.container);
+  /** Colouring runs a slice at a time, so the review is left to finish before anything is counted. */
+  for (let turn = 0; turn < 10; turn += 1) await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+
+  const drawnRows = colouring.reads;
+  assert.ok(drawnRows > 0, "every drawn row reads the colours of its line");
+  await view.render(panel({ diff, annotations, openMenu: "diff-range" }));
+  assert.equal(colouring.reads, drawnRows, "a panel drawn again over the same review draws none of its rows");
 });

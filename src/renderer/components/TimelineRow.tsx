@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { attachmentUrl } from "../../application/attachments";
 import type { StreamingTail } from "../../application/thread-run-state";
 import type { AgentEngine } from "../../domain/agent-engine";
@@ -55,7 +56,7 @@ type TimelineRowProps = {
   onViewAttachment: (source: string) => void;
 };
 
-export function TimelineRow({ engine, group, index, offset, measure, streamingTail, onViewAttachment }: TimelineRowProps) {
+export const TimelineRow = memo(function TimelineRow({ engine, group, index, offset, measure, streamingTail, onViewAttachment }: TimelineRowProps) {
   const message = group.kind === "message" ? group.message : null;
   return (
     <div
@@ -91,4 +92,4 @@ export function TimelineRow({ engine, group, index, offset, measure, streamingTa
       )}
     </div>
   );
-}
+});
