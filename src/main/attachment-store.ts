@@ -1,4 +1,3 @@
-import { app } from "electron";
 import { randomUUID } from "node:crypto";
 import { mkdir, open, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -7,8 +6,16 @@ import { isScreenshotContext, type ScreenshotContext } from "../domain/screensho
 
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 
+let directory: string | null = null;
+
+/** Where this host keeps attachments, named once by whoever knows the app's data folder. */
+export function useAttachmentsDirectory(userData: string) {
+  directory = path.join(userData, "attachments");
+}
+
 export function attachmentsDirectory() {
-  return path.join(app.getPath("userData"), "attachments");
+  if (!directory) throw new Error("The attachments directory has not been set.");
+  return directory;
 }
 
 /** A renderer may only name files this app wrote into the attachments directory; anything else is null. */

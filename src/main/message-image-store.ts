@@ -1,14 +1,29 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { app, nativeImage } from "electron";
 import { MAX_MESSAGE_IMAGES, isMessageImageFile } from "../domain/message-artifacts.js";
 import { readImageFile } from "./image-files.js";
 
-const MAX_PIXELS = 64_000_000;
 const MIME: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp" };
 const pending = new Map<string, Promise<string>>();
 let decodeQueue: Promise<unknown> = Promise.resolve();
+
+/** Where copies go, and how a preview is cut from one. A host with no image decoder keeps no previews. */
+export type MessageImageStore = {
+  directory: string;
+  thumbnail: (bytes: Buffer) => Buffer | null;
+};
+
+let store: MessageImageStore | null = null;
+
+export function useMessageImageStore(configured: MessageImageStore) {
+  store = configured;
+}
+
+function configured() {
+  if (!store) throw new Error("The message image store has not been set.");
+  return store;
+}
 
 function imageRequest(file: unknown, root: unknown, messageId: unknown) {
   if (typeof file !== "string" || file.length > 4096 || !isMessageImageFile(file) || /^[a-z][a-z\d+.-]*:\/\//i.test(file)
@@ -16,7 +31,7 @@ function imageRequest(file: unknown, root: unknown, messageId: unknown) {
     || typeof messageId !== "string" || !messageId || messageId.length > 256) throw new Error("Invalid image reference.");
   const extension = path.extname(file).slice(1).toLowerCase();
   const key = createHash("sha256").update(JSON.stringify([messageId, file])).digest("hex");
-  return { file, root, key, extension, directory: path.join(app.getPath("userData"), "message-images") };
+  return { file, root, key, extension, directory: configured().directory };
 }
 
 /** Only images referenced in replies are retained; browser captures that are never used stay temporary. */
@@ -26,13 +41,9 @@ async function copyImage(request: ReturnType<typeof imageRequest>) {
   const { openableFile } = await import("./path-policy.mjs");
   const source = await openableFile(request.root ? [request.root] : [], request.file);
   const bytes = await readImageFile(source);
-  const decoded = nativeImage.createFromBuffer(bytes);
-  const size = decoded.getSize();
-  if (decoded.isEmpty() || size.width * size.height > MAX_PIXELS) throw new Error("Image cannot be previewed.");
-  const scale = Math.min(1, 640 / size.width, 360 / size.height);
-  const thumbnail = decoded.resize({ width: Math.max(1, Math.round(size.width * scale)), height: Math.max(1, Math.round(size.height * scale)) }).toPNG();
+  const thumbnail = configured().thumbnail(bytes);
   await mkdir(request.directory, { recursive: true });
-  await writeFile(path.join(request.directory, `${request.key}-thumb.png`), thumbnail);
+  if (thumbnail) await writeFile(path.join(request.directory, `${request.key}-thumb.png`), thumbnail);
   const staging = `${destination}.tmp`;
   await writeFile(staging, bytes);
   await rename(staging, destination);

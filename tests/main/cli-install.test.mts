@@ -22,7 +22,7 @@ test("Linux CLI status, install, conflict detection, and uninstall use a user-wr
   const { configuration, installer } = await linuxInstaller();
   assert.deepEqual(await installer.status(), { state: "missing", path: configuration.installPath, onPath: true });
 
-  assert.deepEqual(await installer.install(), { state: "installed", path: configuration.installPath, onPath: true });
+  assert.deepEqual(await installer.install(), { state: "installed", path: configuration.installPath, onPath: true, current: true });
   assert.equal(await readFile(configuration.installPath, "utf8"), configuration.script);
   assert.equal((await stat(configuration.installPath)).mode & 0o777, 0o755);
 
@@ -40,14 +40,14 @@ test("Linux CLI install replaces a symlink itself without writing through it", a
 
   assert.deepEqual(await installer.status(), { state: "conflict", path: configuration.installPath, onPath: true });
   assert.equal((await lstat(configuration.installPath)).isSymbolicLink(), true);
-  assert.deepEqual(await installer.install(), { state: "installed", path: configuration.installPath, onPath: true });
+  assert.deepEqual(await installer.install(), { state: "installed", path: configuration.installPath, onPath: true, current: true });
   assert.equal((await lstat(configuration.installPath)).isFile(), true);
   assert.equal(await readFile(protectedFile, "utf8"), "user data");
 });
 
 test("Linux CLI status tells settings when the user-local bin folder is not on PATH", async () => {
   const { configuration, installer } = await linuxInstaller("/usr/bin:/bin");
-  assert.deepEqual(await installer.install(), { state: "installed", path: configuration.installPath, onPath: false });
+  assert.deepEqual(await installer.install(), { state: "installed", path: configuration.installPath, onPath: false, current: true });
 });
 
 test("unsupported platforms report status and refuse changes", async () => {

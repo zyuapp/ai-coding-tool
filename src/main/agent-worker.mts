@@ -17,7 +17,11 @@ type ParentPort = {
   postMessage(message: AgentEvent | AutomationRequest | ThreadRequest): void;
 };
 
-const parentPort = (process as typeof process & { parentPort: ParentPort }).parentPort;
+/** The utility process speaks through its parent port; a plain child process through its IPC channel. */
+const parentPort: ParentPort = (process as typeof process & { parentPort?: ParentPort }).parentPort ?? {
+  on: (_event, listener) => { process.on("message", (data) => listener({ data })); },
+  postMessage: (message) => { process.send?.(message); },
+};
 const automations = new AutomationChannel((request) => parentPort.postMessage(request));
 const threads = new ThreadChannel((request) => parentPort.postMessage(request));
 /** Both channels get the same tools; a side chat's automations are retired when its thread closes. */

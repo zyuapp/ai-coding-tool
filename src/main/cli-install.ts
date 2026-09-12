@@ -21,7 +21,8 @@ export function createCliInstaller(configuration: CliConfiguration | null, platf
     try {
       if (!(await lstat(configuration.installPath)).isFile()) return result("conflict");
       const contents = await readFile(configuration.installPath, "utf8");
-      return result(isCliScript(contents) ? "installed" : "conflict");
+      if (!isCliScript(contents)) return result("conflict");
+      return { ...result("installed"), current: contents === configuration.script };
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return result("missing");
       throw error;
@@ -100,7 +101,13 @@ async function elevate(command: string) {
   }
 }
 
-const runtimeInstaller = createCliInstaller(cliConfiguration(process.platform, homedir()), process.platform);
+/**
+ * What the installed script runs for `aic serve`: the AppImage that holds this app on Linux, else the
+ * binary itself. A source run names Electron's own binary, which holds no app to serve.
+ */
+const installedApp = process.env.APPIMAGE ?? process.execPath;
+
+const runtimeInstaller = createCliInstaller(cliConfiguration(process.platform, homedir(), installedApp), process.platform);
 export const cliStatus = runtimeInstaller.status;
 export const installCli = runtimeInstaller.install;
 export const uninstallCli = runtimeInstaller.uninstall;

@@ -4,8 +4,9 @@ export const CLI_COMMAND = "aic";
 export const CLI_INSTALL_PATH = "/usr/local/bin/aic";
 export const CLI_URL_SCHEME = "aicodingtool";
 
-/** Stamped into the script so an install can tell its own file from someone else's `aic`. */
-export const CLI_SCRIPT_MARKER = "# aic-cli v1";
+/** Stamped into the script so an install can tell its own file from someone else's `aic`. Older stamps still count as ours. */
+export const CLI_SCRIPT_MARKER = "# aic-cli v2";
+const CLI_SCRIPT_STAMP = "# aic-cli v";
 
 export type CliStatus = {
   /** `conflict` is a different `aic` already on the path, which an install would overwrite. */
@@ -13,13 +14,36 @@ export type CliStatus = {
   path: string;
   /** Linux shells can run the installed file by name only when its directory is present here. */
   onPath?: boolean;
+  /** Whether an installed script is the one this build writes. An older one still opens folders, but cannot serve. */
+  current?: boolean;
 };
 
-function cliScript(opener: readonly string[]) {
+/**
+ * Runs the app's own Node against the headless entry inside its package, on either platform's
+ * layout. The script has no way to name a file inside an AppImage, so the binary finds it itself.
+ */
+const SERVE_BOOTSTRAP = '(function(){var p=require("path"),f=require("fs"),d=p.dirname(process.execPath);var c=[p.join(d,"resources"),p.join(d,"..","Resources")];for(var i=0;i<c.length;i++){var s=p.join(c[i],"app.asar","dist","main","main","serve.js");if(f.existsSync(s))return require(s)}console.error("aic: could not find AI Coding Tool beside "+process.execPath);process.exit(1)})()';
+
+function shellQuote(value: string) {
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+/** What `aic serve` and `aic pair` run: the app itself as Node, or a refusal from an install that knows no app. */
+function serveLines(executable: string | null) {
+  if (!executable) return [`    printf '${CLI_COMMAND}: this install cannot serve. Install the command again from AI Coding Tool.\\n' >&2`, "    exit 1"];
+  return [`    exec env ELECTRON_RUN_AS_NODE=1 ${shellQuote(executable)} -e ${shellQuote(SERVE_BOOTSTRAP)} -- "$@"`];
+}
+
+function cliScript(opener: readonly string[], executable: string | null) {
   return [
     "#!/bin/sh",
     CLI_SCRIPT_MARKER,
-    "# Opens a folder as an AI Coding Tool project. Installed from AI Coding Tool settings.",
+    "# Opens a folder as an AI Coding Tool project, or serves the app headless. Installed from AI Coding Tool settings.",
+    'case "$1" in',
+    "  serve|pair)",
+    ...serveLines(executable),
+    "    ;;",
+    "esac",
     "target=$1",
     '[ -n "$target" ] || target=.',
     'if [ ! -d "$target" ]; then',
@@ -33,30 +57,33 @@ function cliScript(opener: readonly string[]) {
   ].join("\n");
 }
 
-/** Kept byte-for-byte compatible with existing macOS installs. */
-export const CLI_SCRIPT = cliScript([`exec open "${CLI_URL_SCHEME}://open?path=$encoded"`]);
+export const macCliScript = (executable: string | null) => cliScript([`exec open "${CLI_URL_SCHEME}://open?path=$encoded"`], executable);
 
-export const LINUX_CLI_SCRIPT = cliScript([
+export const linuxCliScript = (executable: string | null) => cliScript([
   `url="${CLI_URL_SCHEME}://open?path=$encoded"`,
   // Generic xdg-open can misread quoted desktop Exec paths and fall back to a browser.
   'if command -v gio >/dev/null 2>&1; then exec gio open "$url"; fi',
   'if command -v xdg-open >/dev/null 2>&1; then exec xdg-open "$url"; fi',
   `printf '${CLI_COMMAND}: could not find xdg-open or gio to open AI Coding Tool.\\n' >&2`,
   "exit 1",
-]);
+], executable);
 
 export type CliConfiguration = { installPath: string; script: string };
 
-/** The per-platform pieces of the terminal integration, kept together for future providers. */
-export function cliConfiguration(platform: string, homeDirectory: string): CliConfiguration | null {
-  if (platform === "darwin") return { installPath: CLI_INSTALL_PATH, script: CLI_SCRIPT };
+/**
+ * The per-platform pieces of the terminal integration, kept together for future providers. The
+ * executable is the app as installed on this machine, which `aic serve` runs as Node; an install
+ * that knows none, such as one written from a source checkout, refuses to serve.
+ */
+export function cliConfiguration(platform: string, homeDirectory: string, executable: string | null = null): CliConfiguration | null {
+  if (platform === "darwin") return { installPath: CLI_INSTALL_PATH, script: macCliScript(executable) };
   if (platform !== "linux" || !homeDirectory.startsWith("/")) return null;
   const home = homeDirectory.replace(/\/+$/, "") || "/";
-  return { installPath: `${home === "/" ? "" : home}/.local/bin/${CLI_COMMAND}`, script: LINUX_CLI_SCRIPT };
+  return { installPath: `${home === "/" ? "" : home}/.local/bin/${CLI_COMMAND}`, script: linuxCliScript(executable) };
 }
 
 export function isCliScript(contents: string) {
-  return contents.includes(CLI_SCRIPT_MARKER);
+  return contents.includes(CLI_SCRIPT_STAMP);
 }
 
 /** The folder a `aicodingtool://open?path=` URL names, or null when the URL is not one we wrote. */

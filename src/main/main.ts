@@ -6,7 +6,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { ATTACHMENT_SCHEME, attachmentName } from "../application/attachments.js";
 import { MESSAGE_IMAGE_SCHEME } from "../domain/message-artifacts.js";
-import { messageImageResponse, preserveMessageImages } from "./message-image-store.js";
+import { messageImageResponse, preserveMessageImages, useMessageImageStore } from "./message-image-store.js";
 import { downloadImage } from "./image-download.js";
 import { isAutomationAck, isShortcutOverrides, isThreadResponse, isWindowTheme, type AvailableCommand, type BrowserPageEvent, type ComputerUsePermission, type WindowTheme } from "../contracts/ipc.js";
 import { isAutomationDraft, isAutomationPatch } from "../domain/automation.js";
@@ -18,7 +18,8 @@ import type { WorktreeService } from "./workspace/worktrees.mjs" with { "resolut
 import type { AutomationScheduler } from "./automation/automation-scheduler.mjs" with { "resolution-mode": "import" };
 import type { TaskDatabaseService } from "./task-database-service.mjs" with { "resolution-mode": "import" };
 import type { EngineAccessHost } from "./agent/engine-services.mjs" with { "resolution-mode": "import" };
-import { attachmentsDirectory, readAttachmentContext, savedAttachmentPath, writeAttachment } from "./attachment-store.js";
+import { attachmentsDirectory, readAttachmentContext, savedAttachmentPath, useAttachmentsDirectory, writeAttachment } from "./attachment-store.js";
+import { messageThumbnail } from "./message-thumbnails.js";
 import { browserPageUrl, registerBrowserIpc } from "./browser-ipc.js";
 import { cliStatus, installCli, uninstallCli } from "./cli-install.js";
 import { computerUseForRun, computerUsePermissions, requestComputerUsePermission, resumeComputerUse, stopComputerUse } from "./computer-use-host.js";
@@ -54,6 +55,8 @@ app.setName(profile.name);
 mkdirSync(profile.userData, { recursive: true });
 app.setPath("userData", profile.userData);
 app.setPath("sessionData", profile.userData);
+useAttachmentsDirectory(app.getPath("userData"));
+useMessageImageStore({ directory: path.join(app.getPath("userData"), "message-images"), thumbnail: messageThumbnail });
 
 protocol.registerSchemesAsPrivileged([
   { scheme: ATTACHMENT_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },

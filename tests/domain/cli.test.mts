@@ -6,13 +6,16 @@ import path from "node:path";
 import { test } from "vitest";
 import {
   CLI_INSTALL_PATH,
-  CLI_SCRIPT,
-  LINUX_CLI_SCRIPT,
   cliConfiguration,
   isCliScript,
+  linuxCliScript,
+  macCliScript,
   projectPathFromArgv,
   projectPathFromUrl,
 } from "../../src/domain/cli.ts";
+
+const CLI_SCRIPT = macCliScript("/Applications/AI Coding Tool.app/Contents/MacOS/AI Coding Tool");
+const LINUX_CLI_SCRIPT = linuxCliScript("/home/me/Applications/AI-Coding-Tool.AppImage");
 
 function urlFor(root: string) {
   const encoded = Buffer.from(root, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_");
@@ -40,14 +43,17 @@ test("finds the URL among launch arguments", () => {
 
 test("the installed script is recognisable as ours and opens the folder it is given", () => {
   assert.ok(isCliScript(CLI_SCRIPT));
+  assert.ok(isCliScript("#!/bin/sh\n# aic-cli v1\n"), "a script from before serve is still ours");
   assert.ok(!isCliScript("#!/bin/sh\necho hi\n"));
   assert.ok(CLI_SCRIPT.startsWith("#!/bin/sh\n"));
   assert.match(CLI_SCRIPT, /exec open "aicodingtool:\/\/open\?path=\$encoded"/);
+  assert.match(CLI_SCRIPT, /ELECTRON_RUN_AS_NODE=1 '\/Applications\/AI Coding Tool.app\/Contents\/MacOS\/AI Coding Tool' -e/);
+  assert.match(macCliScript(null), /this install cannot serve/);
   assert.equal(CLI_INSTALL_PATH, "/usr/local/bin/aic");
 });
 
 test("Linux installs in the user's local bin and opens the URL through the desktop", () => {
-  assert.deepEqual(cliConfiguration("linux", "/home/me"), {
+  assert.deepEqual(cliConfiguration("linux", "/home/me", "/home/me/Applications/AI-Coding-Tool.AppImage"), {
     installPath: "/home/me/.local/bin/aic",
     script: LINUX_CLI_SCRIPT,
   });
@@ -88,7 +94,25 @@ test.for([
 });
 
 test("CLI platform configuration preserves macOS and rejects unsupported systems", () => {
-  assert.deepEqual(cliConfiguration("darwin", "/Users/me"), { installPath: "/usr/local/bin/aic", script: CLI_SCRIPT });
+  assert.deepEqual(cliConfiguration("darwin", "/Users/me", "/Applications/AI Coding Tool.app/Contents/MacOS/AI Coding Tool"), { installPath: "/usr/local/bin/aic", script: CLI_SCRIPT });
   assert.equal(cliConfiguration("win32", "C:\\Users\\me"), null);
   assert.equal(cliConfiguration("linux", "relative/home"), null);
+});
+
+test("the command hands serve and pair to the app running as Node, with the arguments intact", { skip: process.platform === "win32" }, async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "aic-serve-script-"));
+  t.onTestFinished(() => rm(root, { recursive: true, force: true }));
+  const app = path.join(root, "app '$(false)");
+  const command = path.join(root, "aic");
+  const seen = path.join(root, "seen");
+  await writeFile(app, `#!/bin/sh\nprintf '%s\\n' "$ELECTRON_RUN_AS_NODE" "$@" > "${seen}"\n`, { mode: 0o755 });
+  await writeFile(command, linuxCliScript(app), { mode: 0o755 });
+  const result = spawnSync(command, ["serve", "--port", "0"], { encoding: "utf8" });
+  assert.ifError(result.error);
+  assert.equal(result.status, 0, result.stderr);
+  const lines = (await readFile(seen, "utf8")).trimEnd().split("\n");
+  assert.equal(lines[0], "1");
+  assert.equal(lines[1], "-e");
+  assert.match(lines[2] ?? "", /app\.asar/);
+  assert.deepEqual(lines.slice(3), ["--", "serve", "--port", "0"]);
 });

@@ -21,8 +21,9 @@ vi.mock("electron", () => ({
 }));
 
 const { downloadImage } = await import("../../src/main/image-download.ts");
-const { writeAttachment } = await import("../../src/main/attachment-store.ts");
-const { preserveMessageImage } = await import("../../src/main/message-image-store.ts");
+const { useAttachmentsDirectory, writeAttachment } = await import("../../src/main/attachment-store.ts");
+const { preserveMessageImage, useMessageImageStore } = await import("../../src/main/message-image-store.ts");
+const { messageThumbnail } = await import("../../src/main/message-thumbnails.ts");
 const owner = {} as BrowserWindow;
 const original = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 
@@ -31,6 +32,8 @@ beforeEach(async () => {
   host.destination = path.join(host.root, "download.png");
   host.canceled = false;
   host.dialogs = [];
+  useAttachmentsDirectory(host.root);
+  useMessageImageStore({ directory: path.join(host.root, "message-images"), thumbnail: messageThumbnail });
 });
 afterEach(async () => { await rm(host.root, { recursive: true, force: true }); });
 

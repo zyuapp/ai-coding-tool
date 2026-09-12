@@ -50,6 +50,7 @@ export function GeneralSettings({ cli: { status, busy, error }, onReadCli, onSet
 
         <SettingRow id="general.cli" status={status?.state === "installed"} description={cliDescription(status)}>
           {!status && !error && <em>Checking…</em>}
+          {status?.state === "installed" && status.current === false && <button type="button" disabled={busy} onClick={() => onSetCliInstalled(true)}>{busy ? "Updating…" : "Update"}</button>}
           {status?.state === "installed" && <button type="button" disabled={busy} onClick={() => onSetCliInstalled(false)}>{busy ? "Removing…" : "Uninstall"}</button>}
           {(status?.state === "missing" || status?.state === "conflict") && (
             <button type="button" disabled={busy} onClick={() => onSetCliInstalled(true)}>
