@@ -166,6 +166,9 @@ export type LabelThreadCommand = { type: "label"; taskId: string; title: string 
 
 export type RunCommand = ReloadAgentSettingsCommand | StartRunCommand | CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand;
 
+/** The same commands as the agent process reads them: a start arrives already resolved against its workspace. */
+export type InternalRunCommand = Exclude<RunCommand, StartRunCommand> | InternalStartRunCommand;
+
 /** The scheduler owns the run ID so it can correlate the renderer's run back to the tick that asked for it. */
 export type AutomationFire = {
   automationId: string;
@@ -604,10 +607,9 @@ export function isRunCommand(value: unknown): value is RunCommand {
   return false;
 }
 
-export function isInternalRunCommand(value: unknown): value is ReloadAgentSettingsCommand | InternalStartRunCommand | CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand {
-  if (!value || typeof value !== "object") return false;
-  const command = value as Record<string, unknown>;
-  if (command.type === "start") return isStartCommand(command, true);
+export function isInternalRunCommand(value: unknown): value is InternalRunCommand {
+  const command = value as Record<string, unknown> | null;
+  if (command?.type === "start") return isStartCommand(command, true);
   return isRunCommand(value);
 }
 

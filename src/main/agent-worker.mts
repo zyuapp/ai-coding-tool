@@ -1,4 +1,4 @@
-import { isAutomationResponse, isInternalRunCommand, isThreadResponse, type AgentEvent, type AutomationRequest } from "../contracts/ipc.js";
+import { isAutomationResponse, isInternalRunCommand, isThreadResponse, type AgentEvent, type AutomationRequest, type InternalRunCommand } from "../contracts/ipc.js";
 import type { ThreadRequest } from "../contracts/threads.js";
 import { ClaudeAgentProvider } from "./agent/claude-agent-provider.mjs";
 import { AutomationChannel } from "./agent/automation-channel.mjs";
@@ -78,6 +78,24 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
   });
 }
 
+/** A command names a thread rather than a channel, so it is offered to each until one owns the run. */
+function whichever(act: (coordinator: RunCoordinator) => boolean) {
+  Object.values(coordinators).some(act);
+}
+
+type RunCommandHandlers = { [Type in InternalRunCommand["type"]]: (command: Extract<InternalRunCommand, { type: Type }>) => void };
+
+const runCommands: RunCommandHandlers = {
+  "reload-settings": () => void reloadSettings(),
+  start: (command) => coordinators[command.channel].start(command),
+  cancel: (command) => whichever((coordinator) => coordinator.cancel(command.taskId, command.runId)),
+  "answer-question": (command) => whichever((coordinator) => coordinator.answerQuestion(command.taskId, command.runId, command.requestId, command.questionId, command.text)),
+  steer: (command) => whichever((coordinator) => coordinator.steer(command.taskId, command.runId, command.messageId, command.prompt)),
+  "stop-process": (command) => whichever((coordinator) => coordinator.stopProcess(command.taskId, command.processId)),
+  label: (command) => whichever((coordinator) => coordinator.labelThread(command.taskId, command.title)),
+  approval: (command) => whichever((coordinator) => coordinator.decideApproval(command.taskId, command.runId, command.approvalId, command.allow)),
+};
+
 parentPort.on("message", ({ data }) => {
   if (isAutomationResponse(data)) {
     automations.settle(data);
@@ -88,12 +106,5 @@ parentPort.on("message", ({ data }) => {
     return;
   }
   if (!isInternalRunCommand(data)) return;
-  if (data.type === "reload-settings") void reloadSettings();
-  else if (data.type === "start") coordinators[data.channel].start(data);
-  else if (data.type === "cancel") Object.values(coordinators).some((coordinator) => coordinator.cancel(data.taskId, data.runId));
-  else if (data.type === "answer-question") Object.values(coordinators).some((coordinator) => coordinator.answerQuestion(data.taskId, data.runId, data.requestId, data.questionId, data.text));
-  else if (data.type === "steer") Object.values(coordinators).some((coordinator) => coordinator.steer(data.taskId, data.runId, data.messageId, data.prompt));
-  else if (data.type === "stop-process") Object.values(coordinators).some((coordinator) => coordinator.stopProcess(data.taskId, data.processId));
-  else if (data.type === "label") Object.values(coordinators).some((coordinator) => coordinator.labelThread(data.taskId, data.title));
-  else Object.values(coordinators).some((coordinator) => coordinator.decideApproval(data.taskId, data.runId, data.approvalId, data.allow));
+  (runCommands[data.type] as (command: InternalRunCommand) => void)(data);
 });

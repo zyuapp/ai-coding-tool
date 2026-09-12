@@ -33,6 +33,7 @@ import { adoptLoginShellPath } from "./login-path.js";
 import { startLockAwake, type LockAwake } from "./lock-awake.js";
 import { createWorkspaceRuntimeHost } from "./workspace-runtime-host.js";
 import { startRunHost } from "./run-host.js";
+import { forkAgentProcess } from "./agent-process.js";
 import { appPluginPath } from "./app-plugin-path.js";
 import { registerTerminalIpc } from "./terminal-ipc.js";
 import { checkForUpdates, type UpdateHost } from "./updates.js";
@@ -111,6 +112,7 @@ const runs = startRunHost({
   scheduler: getAutomationScheduler,
   trusted: trustedSender,
   computerUseForRun,
+  agent: forkAgentProcess,
 });
 
 const keyboard = startKeyboardHost({ window: () => window, reveal: revealWindow });
