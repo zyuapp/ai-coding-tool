@@ -44,7 +44,7 @@ function loadXterm() {
  * A module that failed to load stays failed for the life of the window however often it is asked for,
  * so it is fetched while the app is idle rather than at the moment a terminal is opened.
  */
-if (typeof window !== "undefined" && !window.workspace?.owner && "requestIdleCallback" in window) {
+if (typeof window !== "undefined" && "requestIdleCallback" in window) {
   window.requestIdleCallback(() => void loadXterm().catch(() => undefined));
 }
 

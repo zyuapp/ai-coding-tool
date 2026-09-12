@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { createRuntimeHistory } from "../../src/renderer/task-workspace/runtime-history.ts";
-import { drainLatestPersistence, persistenceDelta, persistenceState, type PersistenceQueue } from "../../src/renderer/task-workspace/workspace-persistence.ts";
+import { createRuntimeHistory } from "../../src/host/runtime-history.ts";
+import { drainLatestPersistence, persistenceDelta, persistenceState, type PersistenceQueue } from "../../src/host/workspace-persistence.ts";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import type { ConversationMessage } from "../../src/domain/conversation.ts";
 import { heldWorktree, task, workspace } from "../application/workspace-reducer-fixtures.mts";

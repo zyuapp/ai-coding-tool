@@ -1,9 +1,9 @@
-import { findTargetFor, reachableVisit, type WorkspaceState } from "../../application/workspace-state";
-import { shortcutCommands, type WorkspaceInput } from "../../application/workspace-reducer";
-import { findThread, resolveScope, threadSummaries } from "../../application/thread-projection";
-import type { ConversationMessage } from "../../domain/conversation";
-import type { ThreadFilter, ThreadRequest } from "../../contracts/threads";
-import { adoptPersistedMessages, type PersistenceQueue } from "./workspace-persistence";
+import { findTargetFor, reachableVisit, type WorkspaceState } from "../application/workspace-state.js";
+import { shortcutCommands, type WorkspaceInput } from "../application/workspace-reducer.js";
+import { findThread, resolveScope, threadSummaries } from "../application/thread-projection.js";
+import type { ConversationMessage } from "../domain/conversation.js";
+import type { ThreadFilter, ThreadRequest } from "../contracts/threads.js";
+import { adoptPersistedMessages, type PersistenceQueue } from "./workspace-persistence.js";
 
 export type HistoryHost = {
   state(): WorkspaceState;

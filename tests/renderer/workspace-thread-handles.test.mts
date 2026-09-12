@@ -19,10 +19,10 @@ test("thread handles follow membership, queued work, and project edits when only
     threads: [task("reader", { projectId: "project-a" }), task("a", { projectId: "project-a" }), task("b", { projectId: "project-b" })],
   };
   window.workspace = {
-    owner: false,
     request: async (input) => { if (!input) listener?.({ revision, state }); return { ok: true, revision }; },
+    migrate: async () => {},
     onUpdate: (next) => { listener = next; return () => { listener = undefined; }; },
-    onSurface: () => () => {}, onRequest: () => () => {}, respond() {}, publish() {}, ready() {}, surface() {},
+    onSurface: () => () => {},
   } satisfies WorkspaceBridge;
   let latest: ReturnType<typeof useTaskWorkspace> | undefined;
   function Harness() { latest = useTaskWorkspace(); return null; }

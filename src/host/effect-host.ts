@@ -1,6 +1,8 @@
-import type { WorkspaceEffect, WorkspaceInput } from "../../application/workspace-reducer";
-import type { DesktopAPI } from "../../contracts/ipc";
-import { errorMessage } from "./errors";
+import type { WorkspaceEffect, WorkspaceInput } from "../application/workspace-reducer.js";
+import type { WorkspaceSurfaceEffect } from "../contracts/workspace-runtime.js";
+import type { KeyValueStorage } from "../application/task-store.js";
+import type { RuntimeDesktop } from "./runtime-desktop.js";
+import { errorMessage } from "./errors.js";
 
 export type EnvironmentRefreshEffect = Extract<WorkspaceEffect, { type: "refresh-environment" }>;
 
@@ -10,9 +12,13 @@ export type EnvironmentRefreshes = { current: Map<string, EnvironmentRefreshEffe
 /** What performing an effect takes: the door back into the reducer, and the desktop it acts on. */
 export type EffectHost = {
   dispatch: (input: WorkspaceInput) => Promise<void>;
-  desktop: DesktopAPI;
+  desktop: RuntimeDesktop;
+  /** Where the view preferences are written, which is the host's to keep. */
+  storage: KeyValueStorage;
   environmentRefreshes: EnvironmentRefreshes;
   scheduleSnoozeExpiry: (at: number | null) => void;
+  /** Carries an effect to the window's own views. Absent where there is no window, which drops it. */
+  surface?: ((effect: WorkspaceSurfaceEffect) => void) | undefined;
 };
 
 /** What one effect takes to be carried out. */

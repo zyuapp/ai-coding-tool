@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import type { IpcMainEvent } from "electron";
 import type { AgentEvent, AutomationFire, RunEvent, StartRunCommand } from "../../src/contracts/ipc.ts";
 import type { Automation } from "../../src/domain/automation.ts";
 import type { AgentMessage, StartAgentProcess } from "../../src/main/agent-process.ts";
@@ -9,7 +8,6 @@ import type { AutomationScheduler } from "../../src/main/automation/automation-s
 import type { WorkspaceService } from "../../src/main/workspace/workspace-service.mts";
 
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
-const ipcEvent = {} as IpcMainEvent;
 
 type FakeAgent = {
   posted: AgentMessage[];
@@ -32,10 +30,11 @@ function agentProcesses() {
 
 function harness() {
   const sent: Array<{ channel: string; event: unknown }> = [];
-  const window = { isDestroyed: () => false, webContents: { send: (channel: string, event: unknown) => { sent.push({ channel, event }); } } };
   const agents = agentProcesses();
   const host: RunHost = {
-    window: () => window as unknown as ReturnType<RunHost["window"]>,
+    publish: (event) => { sent.push({ channel: "run:event", event }); },
+    fire: (fire) => { sent.push({ channel: "automation:fire", event: fire }); return true; },
+    ask: (request) => { sent.push({ channel: "thread:request", event: request }); return true; },
     running: () => true,
     workspaces: () => ({
       resolve: (id: string) => Promise.resolve(id === "workspace-1"
@@ -43,7 +42,6 @@ function harness() {
         : { status: "unavailable", workspace: { id, root: "/tmp/gone", kind: "project" }, reason: "missing" }),
     }) as unknown as WorkspaceService,
     scheduler: () => ({}) as unknown as AutomationScheduler,
-    trusted: () => true,
     computerUseForRun: () => Promise.resolve({ status: "unavailable" as const, message: "test" }),
     agent: agents.start,
   };
@@ -59,7 +57,7 @@ function startCommand(taskId: string, runId: string, overrides: Partial<StartRun
 test("a start reaches the agent process once its workspace resolves, carrying what the run needs", async () => {
   const { agents, bridge } = harness();
 
-  bridge.handleRunCommand(ipcEvent, startCommand("task-1", "run-1"));
+  bridge.handleRunCommand(startCommand("task-1", "run-1"));
   assert.equal(agents.started.length, 0, "nothing is forked while the workspace is still being resolved");
   await tick();
 
@@ -76,11 +74,11 @@ test("a start reaches the agent process once its workspace resolves, carrying wh
 test("a start dropped before it is dispatched never reaches an agent process", async () => {
   const { agents, bridge, statuses } = harness();
 
-  bridge.handleRunCommand(ipcEvent, startCommand("task-1", "run-cancelled"));
-  bridge.handleRunCommand(ipcEvent, { type: "cancel", taskId: "task-1", runId: "run-cancelled" });
-  bridge.handleRunCommand(ipcEvent, startCommand("task-2", "run-old"));
-  bridge.handleRunCommand(ipcEvent, startCommand("task-2", "run-new"));
-  bridge.handleRunCommand(ipcEvent, startCommand("task-3", "run-missing", { workspaceId: "workspace-gone" }));
+  bridge.handleRunCommand(startCommand("task-1", "run-cancelled"));
+  bridge.handleRunCommand({ type: "cancel", taskId: "task-1", runId: "run-cancelled" });
+  bridge.handleRunCommand(startCommand("task-2", "run-old"));
+  bridge.handleRunCommand(startCommand("task-2", "run-new"));
+  bridge.handleRunCommand(startCommand("task-3", "run-missing", { workspaceId: "workspace-gone" }));
   await tick();
 
   assert.deepEqual(statuses("run-cancelled"), ["cancelled"]);
@@ -91,7 +89,7 @@ test("a start dropped before it is dispatched never reaches an agent process", a
 
 test("only a run's next word reaches the renderer, and its terminal status is its last", async () => {
   const { agents, bridge, events } = harness();
-  bridge.handleRunCommand(ipcEvent, startCommand("task-1", "run-1"));
+  bridge.handleRunCommand(startCommand("task-1", "run-1"));
   await tick();
   const agent = agents.started[0];
   assert.ok(agent);
@@ -114,7 +112,7 @@ test("only a run's next word reaches the renderer, and its terminal status is it
 
 test("an agent process exit fails its live runs and takes their work off the panel", async () => {
   const { agents, bridge, events, statuses } = harness();
-  bridge.handleRunCommand(ipcEvent, startCommand("task-1", "run-1"));
+  bridge.handleRunCommand(startCommand("task-1", "run-1"));
   await tick();
   const agent = agents.started[0];
   assert.ok(agent);
@@ -145,7 +143,7 @@ test("a scheduled tick waits for the run the renderer started, and skips one it 
   const fire = sent.filter((entry) => entry.channel === "automation:fire").at(-1)?.event as AutomationFire;
   assert.equal(fire.runNumber, 4);
   bridge.acknowledgeAutomation(fire.runId, true);
-  bridge.handleRunCommand(ipcEvent, startCommand("task-1", fire.runId));
+  bridge.handleRunCommand(startCommand("task-1", fire.runId));
   await tick();
   const agent = agents.started[0];
   assert.ok(agent);
@@ -157,7 +155,7 @@ test("a scheduled tick waits for the run the renderer started, and skips one it 
 
 test("a request no guard can read is refused rather than dropped", async () => {
   const { agents, bridge } = harness();
-  bridge.handleRunCommand(ipcEvent, startCommand("task-1", "run-1"));
+  bridge.handleRunCommand(startCommand("task-1", "run-1"));
   await tick();
   const agent = agents.started[0];
   assert.ok(agent);

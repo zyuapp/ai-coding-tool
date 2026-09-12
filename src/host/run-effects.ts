@@ -1,13 +1,13 @@
-import { errorMessage } from "./errors";
-import { saveViewPreferences } from "./local-view-preferences";
-import { resolveRunWorkspace } from "./resolve-run-workspace";
-import { messageImages } from "../message-images";
-import type { EffectHandlers } from "./effect-host";
+import { errorMessage } from "./errors.js";
+import { saveViewPreferences } from "./view-preferences-store.js";
+import { resolveRunWorkspace } from "./resolve-run-workspace.js";
+import { messageImages } from "../application/message-images.js";
+import type { EffectHandlers } from "./effect-host.js";
 
 /** What a run takes to start, what it is told while it runs, what is read back about it, and what its messages leave behind. */
 export const runEffects = {
-  "persist-preferences": (effect) => {
-    saveViewPreferences(effect.preferences);
+  "persist-preferences": (effect, host) => {
+    saveViewPreferences(host.storage, effect.preferences);
   },
 
   "load-subagent-activity": async (effect, { dispatch, desktop }) => {

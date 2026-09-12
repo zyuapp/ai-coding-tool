@@ -2,6 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { TestContext } from "vitest";
+import type { WorkspaceUpdate } from "../../src/contracts/workspace-runtime.js";
 import { fakeElectron } from "./electron-app-stub.mjs";
 import { fakePlugins } from "./electron-vite-plugins.mjs";
 import type { Callback } from "./electron-window-stub.mjs";
@@ -29,7 +30,7 @@ export const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
 export async function waitFor(predicate: () => unknown, description = "transport state") {
   const deadline = Date.now() + 2_000;
   while (Date.now() < deadline) {
-    if (predicate()) return;
+    if (await predicate()) return;
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
   throw new Error(`Timed out waiting for ${description}`);
@@ -103,7 +104,15 @@ export async function startMainProcess(t: TestContext | null, prefix: string, op
     mobileHost,
     trusted: { sender: window.webContents },
     untrusted: { sender: {} },
-    sentOn: <T = unknown,>(channel: string) => [...window.webContents.sent, ...records.runtimeViews.flatMap((view) => view.webContents.sent)].filter((entry) => entry.channel === channel).map((entry) => entry.event as T),
+    sentOn: <T = unknown,>(channel: string) => window.webContents.sent.filter((entry) => entry.channel === channel).map((entry) => entry.event as T),
+    /** Asks the host for a whole snapshot, the way a window that has just opened does, and reads it back. */
+    runtimeState: async (sender: { sender: unknown } = { sender: windows[0]?.webContents }) => {
+      const request = registered<(event: { sender: unknown }, input?: unknown) => Promise<unknown>>(records.handlers, "workspace-runtime:request");
+      await request(sender);
+      const shown = windows[0]?.webContents.sent.filter((entry) => entry.channel === "workspace-runtime:update").at(-1)?.event as WorkspaceUpdate | undefined;
+      if (!shown || !("state" in shown)) throw new Error("The host published no snapshot.");
+      return shown.state;
+    },
   };
 }
 

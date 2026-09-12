@@ -65,6 +65,7 @@ export function fakeWindows(onAllClosed: () => void = () => {}) {
       on: (name: string, listener: Callback) => this.webContents.listeners.set(name, listener),
       setWindowOpenHandler: (handler: WindowOpenHandler) => { this.webContents.windowOpenHandler = handler; },
       getZoomFactor: () => 1,
+      focus() {},
     };
     /** Views live in exactly one window, the way Electron parents them. */
     children: FakeWebContentsView[] = [];

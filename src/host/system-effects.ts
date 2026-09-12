@@ -1,12 +1,12 @@
-import { WORKSPACE_ERRORS } from "../../application/workspace-reducer";
-import type { RemoteEffect } from "../../application/remote-commands";
-import type { EngineStatus } from "../../domain/agent-engine";
-import type { CliStatus } from "../../domain/cli";
-import type { ComputerUsePermissions } from "../../domain/computer-use";
-import type { PlanUsage } from "../../domain/plan-usage";
-import { errorMessage, reportedMessage } from "./errors";
-import { runRemoteEffect } from "./mobile-bridge";
-import { reportFailure, type EffectHandlers, type EffectHost } from "./effect-host";
+import { WORKSPACE_ERRORS } from "../application/workspace-reducer.js";
+import type { RemoteEffect } from "../application/remote-commands.js";
+import type { EngineStatus } from "../domain/agent-engine.js";
+import type { CliStatus } from "../domain/cli.js";
+import type { ComputerUsePermissions } from "../domain/computer-use.js";
+import type { PlanUsage } from "../domain/plan-usage.js";
+import { errorMessage, reportedMessage } from "./errors.js";
+import { runRemoteEffect } from "./mobile-bridge.js";
+import { reportFailure, type EffectHandlers, type EffectHost } from "./effect-host.js";
 
 /** The bridge's own settings, each of which answers with the whole of what the bridge is doing. */
 const changeBridge = async (effect: RemoteEffect, { dispatch, desktop }: EffectHost) => {

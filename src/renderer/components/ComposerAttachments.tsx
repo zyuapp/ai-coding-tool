@@ -5,6 +5,7 @@ import type { AttachmentSendState } from "../../application/composer-attachments
 import { MAX_ATTACHMENTS, type OutgoingAttachment, type StagedImage } from "../../domain/conversation";
 import type { ScreenshotContext } from "../../domain/screenshot-context";
 import { ImageAnnotator, type Annotation } from "./ImageAnnotator";
+import { renderAnnotatedSource } from "../annotate/marks";
 
 type Attachment = {
   id: string;
@@ -80,18 +81,36 @@ export function useComposerAttachments(images: StagedImage[], outbox: ComposerOu
     }
   }
 
+  /**
+   * A marked image leaves with its marks drawn in. Each mark's letter follows the image's place in
+   * the send, which is only settled here, so the marks are drawn as the images go out.
+   */
+  function leaving(attachment: Attachment, source: string): OutgoingAttachment {
+    return {
+      id: attachment.id,
+      source,
+      annotations: attachment.annotations,
+      ...(attachment.path === undefined ? {} : { path: attachment.path }),
+      ...(attachment.context ? { context: attachment.context } : {}),
+    };
+  }
+
   function send(steer: boolean) {
     if (loading || images.some((image) => takenImages.current.has(image.id) && !attachments.some((attachment) => attachment.id === image.id))) {
       outbox.notice("Wait for the screenshots to finish loading.");
       return;
     }
-    outbox.send(attachments.map((attachment) => ({
-      id: attachment.id,
-      source: attachment.source,
-      annotations: attachment.annotations,
-      ...(attachment.path === undefined ? {} : { path: attachment.path }),
-      ...(attachment.context ? { context: attachment.context } : {}),
-    })), steer);
+    if (attachments.every((attachment) => attachment.annotations.length === 0)) {
+      outbox.send(attachments.map((attachment) => leaving(attachment, attachment.source)), steer);
+      return;
+    }
+    void Promise.all(attachments.map(async (attachment, at) => leaving(
+      attachment,
+      attachment.annotations.length === 0 ? attachment.source : await renderAnnotatedSource(attachment.source, attachment.annotations, markPrefix(at, attachments.length)),
+    ))).then(
+      (marked) => outgoing.current.send(marked, steer),
+      (error: unknown) => outgoing.current.notice(error instanceof Error ? error.message : String(error)),
+    );
   }
 
   /** The images that are on disk and away belong to the message that carried them, not to the strip. */

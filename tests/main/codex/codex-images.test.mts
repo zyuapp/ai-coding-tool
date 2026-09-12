@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterEach, beforeEach, test } from "vitest";
 import { codexImageOutput } from "../../../src/main/codex/codex-images.mts";
 import type { ImageGenerationItem } from "../../../src/main/codex/protocol/ImageGenerationItem.ts";
-import { messageImages } from "../../../src/renderer/message-images.ts";
+import { messageImages } from "../../../src/application/message-images.ts";
 
 const host = { root: "" };
 

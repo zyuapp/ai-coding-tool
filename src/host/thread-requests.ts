@@ -1,15 +1,16 @@
-import { browserPermissions } from "../../application/workspace-reducer";
-import { browserTarget, dockFor, dockOwner, terminalTarget, type WorkspaceState } from "../../application/workspace-state";
-import { findThread, resolveScope, threadBusy, threadSummaries, threadSummary, threadTranscript, threadWaitResult } from "../../application/thread-projection";
-import { isNews, unreadFindings } from "../../domain/attention";
-import { scheduledRun } from "../../application/run-testimony";
-import type { WorkspaceInput } from "../../application/workspace-reducer";
-import type { WorkspaceExecution } from "../../application/workspace-execution";
-import type { AppCommand } from "../../contracts/commands";
-import type { FindingReport, FindingResult, ThreadRequest, ThreadResponse } from "../../contracts/threads";
-import { terminalLineLimit } from "../../domain/terminal";
-import { errorMessage } from "./errors";
-import { defaultEffortFor, defaultModelFor, effortForModel, engineForModel, modelHasEffort, modelTakesEffort } from "../../domain/agent-engine";
+import { browserPermissions } from "../application/workspace-reducer.js";
+import { browserTarget, dockFor, dockOwner, terminalTarget, type WorkspaceState } from "../application/workspace-state.js";
+import { findThread, resolveScope, threadBusy, threadSummaries, threadSummary, threadTranscript, threadWaitResult } from "../application/thread-projection.js";
+import { isNews, unreadFindings } from "../domain/attention.js";
+import { scheduledRun } from "../application/run-testimony.js";
+import type { WorkspaceInput } from "../application/workspace-reducer.js";
+import type { WorkspaceExecution } from "../application/workspace-execution.js";
+import type { AppCommand } from "../contracts/commands.js";
+import type { FindingReport, FindingResult, ThreadRequest, ThreadResponse } from "../contracts/threads.js";
+import { terminalLineLimit } from "../domain/terminal.js";
+import { errorMessage } from "./errors.js";
+import type { RuntimeDesktop } from "./runtime-desktop.js";
+import { defaultEffortFor, defaultModelFor, effortForModel, engineForModel, modelHasEffort, modelTakesEffort } from "../domain/agent-engine.js";
 
 /** How much page text a read returns when the caller does not say. */
 const DEFAULT_PAGE_TEXT = 4_000;
@@ -18,7 +19,7 @@ const DEFAULT_PAGE_TEXT = 4_000;
 export type ThreadWaiter = {
   threadId: string;
   settle: (state: WorkspaceState) => void;
-  timer: number;
+  timer: ReturnType<typeof setTimeout>;
 };
 
 export type ThreadWaiterList = { current: ThreadWaiter[] };
@@ -26,6 +27,7 @@ export type ThreadWaiterList = { current: ThreadWaiter[] };
 /** The runtime state and the command execution that answers each tool request. */
 export type ThreadRequestHost = {
   state: () => WorkspaceState;
+  desktop: Pick<RuntimeDesktop, "configureBrowserPermissions" | "captureBrowserPage" | "inspectBrowserPage" | "readBrowserPage" | "readTerminal">;
   dispatch: (input: WorkspaceInput) => Promise<void> | void;
   execute: (command: AppCommand) => WorkspaceExecution;
   waiters: ThreadWaiterList;
@@ -42,7 +44,7 @@ export function releaseThreadWaiters(waiters: ThreadWaiterList, state: Workspace
       pending?.push(waiter);
     } else {
       pending ??= waiting.slice(0, index);
-      window.clearTimeout(waiter.timer);
+      clearTimeout(waiter.timer);
       waiter.settle(state);
     }
   }
@@ -83,7 +85,7 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
         const waiter: ThreadWaiter = {
           threadId,
           settle: (state) => resolve(ok(threadWaitResult(state, threadId, false))),
-          timer: window.setTimeout(() => {
+          timer: setTimeout(() => {
             host.waiters.current = host.waiters.current.filter((item) => item !== waiter);
             resolve(ok(threadWaitResult(host.state(), threadId, true)));
           }, request.timeoutMs),
@@ -99,17 +101,17 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
       if (request.read.op === "tabs") return ok({ kind: "tabs", tabs: dock.browserTabs });
       const tab = browserTarget(dock, request.read.tabId);
       if (!tab) return ok({ kind: "no-tab" });
-      await window.desktop.configureBrowserPermissions(browserPermissions(host.state()));
+      await host.desktop.configureBrowserPermissions(browserPermissions(host.state()));
       if (request.read.op === "screenshot") {
-        const shot = await window.desktop.captureBrowserPage(tab.id, request.read.fullPage === true, request.read.timeoutMs, request.taskId);
+        const shot = await host.desktop.captureBrowserPage(tab.id, request.read.fullPage === true, request.read.timeoutMs, request.taskId);
         return shot ? ok({ kind: "shot", shot }) : ok({ kind: "no-tab" });
       }
       if (request.read.op === "console" || request.read.op === "network" || request.read.op === "wait") {
         const { tabId: _tabId, ...inspection } = request.read;
-        const inspected = await window.desktop.inspectBrowserPage(tab.id, inspection, request.taskId);
+        const inspected = await host.desktop.inspectBrowserPage(tab.id, inspection, request.taskId);
         return inspected ? ok(inspected) : ok({ kind: "no-tab" });
       }
-      const snapshot = await window.desktop.readBrowserPage(tab.id, request.read.textLimit ?? DEFAULT_PAGE_TEXT, request.read.timeoutMs, request.taskId);
+      const snapshot = await host.desktop.readBrowserPage(tab.id, request.read.textLimit ?? DEFAULT_PAGE_TEXT, request.read.timeoutMs, request.taskId);
       return snapshot ? ok({ kind: "snapshot", snapshot }) : ok({ kind: "no-tab" });
     }
     if (request.op === "terminal") {
@@ -118,7 +120,7 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
       if (request.read.op === "terminals") return ok({ kind: "terminals", terminals: dock.terminals });
       const terminal = terminalTarget(dock, request.read.terminalId, request.taskId);
       if (!terminal) return ok({ kind: "no-terminal" });
-      const text = await window.desktop.readTerminal(terminal.id, {
+      const text = await host.desktop.readTerminal(terminal.id, {
         lines: terminalLineLimit(request.read.lines),
         ...(request.read.match ? { match: request.read.match } : {}),
       });

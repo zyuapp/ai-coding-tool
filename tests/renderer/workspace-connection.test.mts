@@ -5,7 +5,7 @@ import { emptyWorkspaceState } from "../../src/application/workspace-state.ts";
 import type { WorkspaceBridge, WorkspaceUpdate, WorkspaceResponse } from "../../src/contracts/workspace-runtime.ts";
 import { task } from "../application/workspace-reducer-fixtures.mts";
 
-vi.mock("../../src/renderer/task-workspace/workspace-runtime.ts", () => ({ createWorkspaceRuntime: vi.fn() }));
+vi.mock("../../src/host/workspace-runtime.ts", () => ({ createWorkspaceRuntime: vi.fn() }));
 vi.mock("../../src/renderer/task-workspace/terminal-views.ts", () => ({ clearTerminalSearch: vi.fn(), disposeTerminalView: vi.fn(), searchTerminalView: vi.fn() }));
 const { createWorkspaceConnection } = await import("../../src/renderer/task-workspace/workspace-connection.ts");
 

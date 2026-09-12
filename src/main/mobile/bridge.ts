@@ -1,11 +1,12 @@
-import { ipcMain, powerSaveBlocker, type BrowserWindow, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
-import { isMobileResponse, type MobileRequest, type MobileViewUpdate } from "../../contracts/mobile.js";
+import { powerSaveBlocker } from "electron";
+import type { MobileResponse, MobileViewUpdate } from "../../contracts/mobile.js";
 import type { MobileServerState } from "../../domain/mobile.js";
+import type { DesktopEvents } from "../desktop-events.js";
 import type * as MobileHost from "./mobile-host.mjs" with { "resolution-mode": "import" };
 
-/** What the bridge needs from the app: the window that holds workspace state, and where files live. */
+/** What the bridge needs from the app: where to raise what a phone sends, and where files live. */
 export type MobileBridgeHost = {
-  window: () => Pick<BrowserWindow, "webContents" | "isDestroyed"> | null;
+  events: DesktopEvents;
   userData: string;
   developmentRoot?: string;
   /** The built phone page. */
@@ -24,18 +25,9 @@ async function loaded() {
   return host;
 }
 
-function send(owner: MobileBridgeHost, request: MobileRequest) {
-  if (app !== owner) return false;
-  const window = owner.window();
-  if (!window || window.isDestroyed()) return false;
-  window.webContents.send("mobile:request", request);
-  return true;
-}
-
 function publishState(owner: MobileBridgeHost, state: MobileServerState) {
   if (app !== owner) return;
-  const window = owner.window();
-  if (window && !window.isDestroyed()) window.webContents.send("mobile:changed", state);
+  owner.events.emit("mobile:changed", state);
   keepAwake(state.sessions.length > 0);
 }
 
@@ -67,7 +59,7 @@ export function startMobileBridge(options: MobileBridgeHost) {
       userData: options.userData,
       developmentRoot: options.developmentRoot,
       staticRoot: options.staticRoot,
-      send: (request) => send(options, request),
+      send: (request) => app === options && options.events.emit("mobile:request", request),
       onState: (state) => publishState(options, state),
     });
   });
@@ -88,43 +80,13 @@ async function readyHost() {
   return loaded();
 }
 
-function setting(value: unknown) {
-  if (typeof value !== "boolean") throw new Error("Invalid phone bridge setting.");
-  return value;
-}
-
-function deviceId(value: unknown) {
-  if (typeof value !== "string" || !value || value.length > 256) throw new Error("Invalid device ID.");
-  return value;
-}
-
-/** The window's own derivation of what a phone sees, so only its shape is worth checking. */
-function isViewUpdate(value: unknown): value is MobileViewUpdate {
-  if (!value || typeof value !== "object") return false;
-  const update = value as Record<string, unknown>;
-  if (update.kind === "snapshot") return Boolean(update.view) && typeof update.view === "object";
-  return update.kind === "patch" && Boolean(update.patch) && typeof update.patch === "object";
-}
-
-/**
- * Settings reads and changes the bridge; the window answers what a phone asked and pushes what a
- * phone should see. Only the app's own window may do any of it.
- */
-export function serveMobileBridge(trusted: (event: IpcMainEvent | IpcMainInvokeEvent) => boolean) {
-  const guard = (event: IpcMainInvokeEvent) => {
-    if (!trusted(event)) throw new Error("Untrusted IPC sender.");
-  };
-  ipcMain.handle("mobile:state", async (event) => { guard(event); return (await readyHost()).mobileState(); });
-  ipcMain.handle("mobile:set-enabled", async (event, enabled: unknown) => { guard(event); return (await readyHost()).setMobileEnabled(setting(enabled)); });
-  ipcMain.handle("mobile:pair-code", async (event) => { guard(event); return (await readyHost()).createMobilePairingCode(); });
-  ipcMain.handle("mobile:revoke", async (event, id: unknown) => { guard(event); return (await readyHost()).revokeMobileDevice(deviceId(id)); });
-  ipcMain.handle("mobile:tailscale-refresh", async (event) => { guard(event); return (await readyHost()).refreshTailscale(); });
-  ipcMain.on("mobile:answer", (event, response: unknown) => {
-    if (!trusted(event) || !isMobileResponse(response)) return;
-    host?.answerMobileRequest(response);
-  });
-  ipcMain.on("mobile:publish", (event, update: unknown) => {
-    if (!trusted(event) || !isViewUpdate(update)) return;
-    host?.publishMobileView(update);
-  });
-}
+/** The runtime reads and changes the bridge, answers what a phone asked, and pushes what a phone should see. */
+export const mobileBridge = {
+  state: async () => (await readyHost()).mobileState(),
+  setEnabled: async (enabled: boolean) => (await readyHost()).setMobileEnabled(enabled),
+  createPairingCode: async () => (await readyHost()).createMobilePairingCode(),
+  revokeDevice: async (deviceId: string) => (await readyHost()).revokeMobileDevice(deviceId),
+  refreshTailscale: async () => (await readyHost()).refreshTailscale(),
+  answer: (response: MobileResponse) => host?.answerMobileRequest(response),
+  publish: (update: MobileViewUpdate) => host?.publishMobileView(update),
+};

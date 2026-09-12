@@ -20,11 +20,11 @@ import { threadActivityAt, type Thread } from "../../src/domain/thread.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
 import type { AutomationPanelProps } from "../../src/renderer/components/AutomationPanel.tsx";
 import type { ProjectSidebarProps } from "../../src/renderer/components/ProjectSidebar.tsx";
-import type { ThreadRequestHost } from "../../src/renderer/task-workspace/thread-requests.ts";
+import type { ThreadRequestHost } from "../../src/host/thread-requests.ts";
 import { executeWorkspaceInput } from "../../src/application/workspace-execution.ts";
 
 const { AutomationPanel, automationMeta, lastRunLabel } = await import("../../src/renderer/components/AutomationPanel.tsx");
-const { answerThreadRequest } = await import("../../src/renderer/task-workspace/thread-requests.ts");
+const { answerThreadRequest } = await import("../../src/host/thread-requests.ts");
 const { ProjectSidebar } = await import("../../src/renderer/components/ProjectSidebar.tsx");
 
 function activeRun(overrides: Partial<ActiveRun> = {}): ActiveRun {
@@ -340,6 +340,7 @@ function toolHost(initial: WorkspaceState): ToolHost {
   let state = initial;
   return {
     state: () => state,
+    desktop: {} as ThreadRequestHost["desktop"],
     dispatch: (input: WorkspaceInput) => { state = reduce(state, input).state; },
     execute: (input) => executeWorkspaceInput(input, {
       state: () => state,

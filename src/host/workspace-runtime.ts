@@ -1,34 +1,39 @@
-import { emptyWorkspaceState, sideChatIds, stateFromData, type WorkspaceState } from "../../application/workspace-state";
-import { unreadView } from "../../application/thread-attention";
-import { reduce, type WorkspaceInput } from "../../application/workspace-reducer";
-import { executeWorkspaceInput, type WorkspaceExecution } from "../../application/workspace-execution";
-import { createLocalTaskStore, createDraftPersistence } from "./local-task-store";
-import { loadViewPreferences } from "./local-view-preferences";
-import { createRuntimeInputs } from "./runtime-inputs";
-import { createSnoozeTimer } from "./snooze-timer";
-import { createRuntimeHistory } from "./runtime-history";
-import { errorMessage } from "./errors";
-import { releaseThreadWaiters, type ThreadWaiter } from "./thread-requests";
-import { nextMobileUpdate, noMobileView } from "./mobile-bridge";
-import type { EnvironmentRefreshEffect } from "./effect-host";
-import { runWorkspaceEffect } from "./workspace-effects";
-import { subscribeWorkspaceRuntime } from "./runtime-subscriptions";
-import { drainLatestPersistence, hasPersistenceChanges, persistedStoreState, persistenceState, type PersistenceQueue } from "./workspace-persistence";
+import { emptyWorkspaceState, sideChatIds, stateFromData, type WorkspaceState } from "../application/workspace-state.js";
+import { unreadView } from "../application/thread-attention.js";
+import { reduce, type WorkspaceInput } from "../application/workspace-reducer.js";
+import { executeWorkspaceInput, type WorkspaceExecution } from "../application/workspace-execution.js";
+import type { KeyValueStorage } from "../application/task-store.js";
+import { createTaskStore, createDraftPersistence } from "./draft-persistence.js";
+import { loadViewPreferences } from "./view-preferences-store.js";
+import { createRuntimeInputs } from "./runtime-inputs.js";
+import { createSnoozeTimer } from "./snooze-timer.js";
+import { createRuntimeHistory } from "./runtime-history.js";
+import { errorMessage } from "./errors.js";
+import { releaseThreadWaiters, type ThreadWaiter } from "./thread-requests.js";
+import { nextMobileUpdate, noMobileView } from "./mobile-bridge.js";
+import type { EnvironmentRefreshEffect } from "./effect-host.js";
+import { runWorkspaceEffect } from "./workspace-effects.js";
+import { subscribeWorkspaceRuntime } from "./runtime-subscriptions.js";
+import type { WorkspaceRuntimeHost } from "./runtime-desktop.js";
+import { drainLatestPersistence, hasPersistenceChanges, persistedStoreState, persistenceState, type PersistenceQueue } from "./workspace-persistence.js";
 
-function initialState(): WorkspaceState {
-  const loaded = createLocalTaskStore().load();
+export type { RuntimeDesktop, WorkspaceRuntimeHost } from "./runtime-desktop.js";
+
+function initialState(storage: KeyValueStorage, viewportWidth: number | undefined): WorkspaceState {
+  const loaded = createTaskStore(storage).load();
   const state = loaded.ok ? stateFromData(loaded.data) : emptyWorkspaceState(loaded.errors.join(" "));
-  return reduce(state, { type: "preferences.loaded", preferences: loadViewPreferences() }).state;
+  return reduce(state, { type: "preferences.loaded", preferences: loadViewPreferences(storage, viewportWidth) }).state;
 }
 
-/** State, effects and durability have one lifetime, independent of React subscriptions. */
-export function createWorkspaceRuntime() {
-  let state = initialState();
+/** State, effects and durability have one lifetime, independent of whatever displays them. */
+export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
+  const { desktop } = host;
+  let state = initialState(host.storage, host.viewportWidth);
   let persistenceReady = false;
   let started: Promise<void> | null = null;
   let subscriptions: ReturnType<typeof subscribeWorkspaceRuntime> | null = null;
   const effectsInFlight = new Set<Promise<unknown>>();
-  let refreshTimer: number | undefined;
+  let refreshTimer: ReturnType<typeof setInterval> | undefined;
   let refreshInputs: unknown[] = [];
   let generation = 0;
   let disposed = false;
@@ -38,9 +43,9 @@ export function createWorkspaceRuntime() {
   const waiters = { current: [] as ThreadWaiter[] };
   const environmentRefreshes = { current: new Map<string, EnvironmentRefreshEffect | null>() };
   const mobileView = noMobileView();
-  const drafts = createDraftPersistence(() => state, dispatch);
+  const drafts = createDraftPersistence(host.storage, () => state, dispatch);
   const snoozeTimer = createSnoozeTimer((at) => { void dispatch({ type: "snoozes.elapsed", at }); });
-  const history = createRuntimeHistory({ state: () => state, load: (taskId) => window.desktop.loadThreadMessages(taskId), dispatch: (input) => rawExecute(input).completed.then(() => undefined), persistence });
+  const history = createRuntimeHistory({ state: () => state, load: (taskId) => desktop.loadThreadMessages(taskId), dispatch: (input) => rawExecute(input).completed.then(() => undefined), persistence });
   const inputs = createRuntimeInputs({
     generation: () => generation,
     active: (current) => !disposed && generation === current,
@@ -61,11 +66,11 @@ export function createWorkspaceRuntime() {
     if (badgeCount === -1 || next.threads !== previous.threads || next.sideChats !== previous.sideChats) {
       const forked = sideChatIds(next);
       const count = unreadView(next, next.threads.filter((thread) => !forked.has(thread.id))).unreadCount;
-      if (count !== badgeCount) window.desktop.setBadgeCount(count);
+      if (count !== badgeCount) desktop.setBadgeCount(count);
       badgeCount = count;
     }
     const update = nextMobileUpdate(mobileView, next, Date.now());
-    if (update) window.desktop.publishMobileView(update);
+    if (update) desktop.publishMobileView(update);
     for (const listener of listeners) listener();
     if (started) refreshEnvironment();
     if (next.currentId !== previous.currentId && next.currentId) {
@@ -76,7 +81,7 @@ export function createWorkspaceRuntime() {
     if (!persistenceReady || !next.writable || next.storageError || (input.type === "subagent.activity.loaded" || input.type === "store.thread-loaded")) return;
     if (!hasPersistenceChanges(persistenceState(previous), persistenceState(next))) return;
     persistence.pending = persistenceState(next);
-    void drainLatestPersistence(persistence, window.desktop.persistTaskStore).catch(storageFailed);
+    void drainLatestPersistence(persistence, desktop.persistTaskStore).catch(storageFailed);
   }
 
   function storageFailed(error: unknown) {
@@ -91,7 +96,7 @@ export function createWorkspaceRuntime() {
       active: () => !disposed && generation === executionGeneration,
       commit,
       prepare: async (input) => { for (const taskId of history.needed(input)) await history.hydrate(taskId); },
-      perform: (effect, dispatch) => runWorkspaceEffect(effect, { dispatch, desktop: window.desktop, environmentRefreshes, scheduleSnoozeExpiry: snoozeTimer.schedule }),
+      perform: (effect, dispatch) => runWorkspaceEffect(effect, { dispatch, desktop, storage: host.storage, environmentRefreshes, scheduleSnoozeExpiry: snoozeTimer.schedule, surface: host.surface }),
     });
     effectsInFlight.add(execution.completed);
     void execution.completed.finally(() => effectsInFlight.delete(execution.completed));
@@ -108,14 +113,14 @@ export function createWorkspaceRuntime() {
     const inputs = [state.currentId, state.draftProjectId, thread?.worktreeId, state.projects, run];
     if (inputs.every((value, index) => value === refreshInputs[index])) return;
     refreshInputs = inputs;
-    if (refreshTimer !== undefined) window.clearInterval(refreshTimer);
+    if (refreshTimer !== undefined) clearInterval(refreshTimer);
     void dispatch({ type: "view.refresh-environment" });
-    refreshTimer = window.setInterval(() => void dispatch({ type: "view.refresh-environment" }), run ? 2_000 : 15_000);
+    refreshTimer = setInterval(() => void dispatch({ type: "view.refresh-environment" }), run ? 2_000 : 15_000);
   }
 
   async function initialize(currentGeneration: number) {
     try {
-      const data = await window.desktop.loadTaskStore();
+      const data = await desktop.loadTaskStore();
       if (disposed || generation !== currentGeneration) return;
       persistence.persisted = data ? persistedStoreState(data) : null;
       if (data) await dispatch({ type: "store.loaded", data, hiddenTasks: data.hiddenTasks });
@@ -125,7 +130,7 @@ export function createWorkspaceRuntime() {
       if (disposed || generation !== currentGeneration) return;
       persistence.pending = persistenceState(state);
       persistenceReady = true;
-      await drainLatestPersistence(persistence, window.desktop.persistTaskStore);
+      await drainLatestPersistence(persistence, desktop.persistTaskStore);
     } catch (error) {
       if (!disposed && generation === currentGeneration) storageFailed(error);
     }
@@ -136,12 +141,14 @@ export function createWorkspaceRuntime() {
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     execute: inputs.execute,
     dispatch,
+    /** Reads the stored drafts again, for text that arrived in storage after the start. */
+    restoreDrafts: () => drafts.restore(),
     start() {
       if (started) return started;
       disposed = false;
       // Subscriptions can start effects immediately; their replies belong to this generation.
       generation += 1;
-      subscriptions = subscribeWorkspaceRuntime({ state: () => state, dispatch, execute: inputs.execute, waiters, prepareThreadRequest: history.prepareThreadRequest });
+      subscriptions = subscribeWorkspaceRuntime({ state: () => state, dispatch, execute: inputs.execute, waiters, prepareThreadRequest: history.prepareThreadRequest, desktop, frame: host.frame });
       started = initialize(generation);
       refreshEnvironment();
       return started;
@@ -155,18 +162,18 @@ export function createWorkspaceRuntime() {
       if (state.storageError) {
         if (!persistence.pending) throw new Error(state.storageError);
         persistence.pending = persistenceState(state);
-        await drainLatestPersistence(persistence, window.desktop.persistTaskStore);
+        await drainLatestPersistence(persistence, desktop.persistTaskStore);
         persistenceReady = true;
         await rawExecute({ type: "store.persisted" }).completed;
         persistence.pending = persistenceState(state);
       }
-      await drainLatestPersistence(persistence, window.desktop.persistTaskStore);
+      await drainLatestPersistence(persistence, desktop.persistTaskStore);
     },
     dispose() {
       disposed = true;
       subscriptions?.stop();
       subscriptions = null;
-      if (refreshTimer !== undefined) window.clearInterval(refreshTimer);
+      if (refreshTimer !== undefined) clearInterval(refreshTimer);
       drafts.dispose();
       snoozeTimer.dispose();
       started = null;
@@ -178,3 +185,5 @@ export function createWorkspaceRuntime() {
     },
   };
 }
+
+export type WorkspaceRuntime = ReturnType<typeof createWorkspaceRuntime>;

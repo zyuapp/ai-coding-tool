@@ -1,18 +1,16 @@
-import { errorMessage } from "./errors";
-import { markPrefix } from "../../application/attachments";
-import { renderAnnotatedSource } from "../annotate/marks";
-import type { OutgoingAttachment, RunAttachment } from "../../domain/conversation";
-import type { DesktopAPI } from "../../contracts/ipc";
-import type { EffectHandlers } from "./effect-host";
+import { errorMessage } from "./errors.js";
+import type { OutgoingAttachment, RunAttachment } from "../domain/conversation.js";
+import type { RuntimeDesktop } from "./runtime-desktop.js";
+import type { EffectHandlers } from "./effect-host.js";
 
-/** A staged image is already on disk; only the marks drawn on it since need writing back. */
-async function written(attachment: OutgoingAttachment, at: number, total: number, desktop: DesktopAPI): Promise<RunAttachment> {
-  const marked = attachment.annotations.length === 0
-    ? attachment.source
-    : await renderAnnotatedSource(attachment.source, attachment.annotations, markPrefix(at, total));
+/**
+ * A staged image that carries no marks is already on disk. One that does arrives with the marks
+ * already drawn into its source by the composer that drew them, so only the file needs writing.
+ */
+async function written(attachment: OutgoingAttachment, desktop: RuntimeDesktop): Promise<RunAttachment> {
   const path = attachment.path !== undefined && attachment.annotations.length === 0
     ? attachment.path
-    : await desktop.saveAttachment(marked.replace(/^data:[^,]*,/, ""), attachment.path);
+    : await desktop.saveAttachment(attachment.source.replace(/^data:[^,]*,/, ""), attachment.path);
   return {
     path,
     labels: attachment.annotations.filter((annotation) => annotation.kind === "box").map((annotation) => annotation.text),
@@ -25,7 +23,7 @@ export const attachmentEffects = {
   "send-attachments": async ({ taskId, steer, attachments }, { dispatch, desktop }) => {
     const composer = taskId === undefined ? {} : { taskId };
     try {
-      const saved = await Promise.all(attachments.map((attachment, at) => written(attachment, at, attachments.length, desktop)));
+      const saved = await Promise.all(attachments.map((attachment) => written(attachment, desktop)));
       const ids = attachments.map((attachment) => attachment.id);
       await dispatch({ type: "attachments.saved", ...composer, ...(steer ? { steer } : {}), ids, attachments: saved });
     } catch (error) {

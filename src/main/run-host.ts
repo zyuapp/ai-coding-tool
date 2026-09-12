@@ -1,6 +1,5 @@
-import type { BrowserWindow, IpcMainEvent } from "electron";
 import { randomUUID } from "node:crypto";
-import { isAgentSettingsReloadEvent, isAutomationRequest, isBackgroundEvent, isGoalEvent, isRunCommand, isRunEvent, isSubagentEvent, isThreadRequest, isWorkflowEvent, unreadableRequest, type AgentEvent, type AutomationRequest, type AutomationResponse, type BackgroundEvent, type RunCommand, type RunEvent, type StartRunCommand, type SubagentEvent } from "../contracts/ipc.js";
+import { isAgentSettingsReloadEvent, isAutomationRequest, isBackgroundEvent, isGoalEvent, isRunCommand, isRunEvent, isSubagentEvent, isThreadRequest, isWorkflowEvent, unreadableRequest, type AgentEvent, type AutomationFire, type AutomationRequest, type AutomationResponse, type BackgroundEvent, type RunCommand, type RunEvent, type StartRunCommand, type SubagentEvent } from "../contracts/ipc.js";
 import type { ThreadRequest, ThreadResponse } from "../contracts/threads.js";
 import type { Automation, AutomationRunStatus, TickKind } from "../domain/automation.js";
 import type { AutomationScheduler } from "./automation/automation-scheduler.mjs" with { "resolution-mode": "import" };
@@ -9,13 +8,17 @@ import type { AgentProcess, StartAgentProcess } from "./agent-process.js";
 import { isTerminalStatus, RunLedger } from "./run-ledger.js";
 import { automationFire, AUTOMATION_SETTLE_TIMEOUT, settledWithin } from "./run-routing.js";
 
-/** What the agent process needs from main: the window it reports to, and the services a run resolves against. */
+/** What the agent process needs from main: the runtime it reports to, and the services a run resolves against. */
 export type RunHost = {
-  window: () => Pick<BrowserWindow, "webContents" | "isDestroyed"> | null;
+  /** Hands the runtime what a run reported. */
+  publish: (event: AgentEvent) => void;
+  /** Hands the runtime a scheduled tick, or reports that nothing is there to take it. */
+  fire: (fire: AutomationFire) => boolean;
+  /** Hands the runtime a tool's question about threads, or reports that nothing is there to answer it. */
+  ask: (request: ThreadRequest) => boolean;
   running: () => boolean;
   workspaces: () => WorkspaceService;
   scheduler: () => AutomationScheduler;
-  trusted: (event: IpcMainEvent) => boolean;
   computerUseForRun: typeof import("./computer-use-host.js").computerUseForRun;
   /** How the process itself is started, so what main does with it can be driven without one. */
   agent: StartAgentProcess;
@@ -23,7 +26,10 @@ export type RunHost = {
 
 export type RunBridge = {
   dispatchAutomation: (automation: Automation, tick: TickKind) => Promise<AutomationRunStatus>;
-  handleRunCommand: (event: IpcMainEvent, payload: unknown) => void;
+  /** A command from outside the process, read defensively before anything acts on it. */
+  handleRunCommand: (payload: unknown) => void;
+  /** A command the runtime built itself. */
+  submit: (command: RunCommand) => void;
   acknowledgeAutomation: (runId: string, started: boolean) => void;
   answerThread: (response: ThreadResponse) => void;
   killAgent: () => void;
@@ -90,8 +96,7 @@ class AgentRunHost {
   constructor(private readonly host: RunHost) {}
 
   private send(event: AgentEvent) {
-    const window = this.host.window();
-    if (window && !window.isDestroyed()) window.webContents.send("run:event", event);
+    this.host.publish(event);
   }
 
   private publishRun(event: RunEvent) {
@@ -121,10 +126,8 @@ class AgentRunHost {
     this.send(event);
   }
 
-  /** Hands the tick to the renderer, which owns the transcript, then waits for that run to settle. */
+  /** Hands the tick to the runtime, which owns the transcript, then waits for that run to settle. */
   async dispatchAutomation(automation: Automation, tick: TickKind): Promise<AutomationRunStatus> {
-    const window = this.host.window();
-    if (!window || window.isDestroyed()) return "skipped";
     const runId = randomUUID();
     const dispatch: AutomationDispatchState = {};
     this.automationDispatches.set(runId, dispatch);
@@ -135,7 +138,7 @@ class AgentRunHost {
       const started = await new Promise<boolean>((resolve) => {
         dispatch.acknowledge = resolve;
         setTimeout(() => resolve(false), AUTOMATION_ACK_TIMEOUT).unref?.();
-        window.webContents.send("automation:fire", fire);
+        if (!this.host.fire(fire)) resolve(false);
       });
       return started ? await settledWithin(settled, AUTOMATION_SETTLE_TIMEOUT) : "skipped";
     } finally {
@@ -175,13 +178,8 @@ class AgentRunHost {
     this.agent?.post(response);
   }
 
-  /** The window owns workspace state, so thread requests are relayed to it rather than answered here. */
+  /** The runtime owns workspace state, so thread requests are relayed to it rather than answered here. */
   private relayThread(request: ThreadRequest) {
-    const window = this.host.window();
-    if (!window || window.isDestroyed()) {
-      this.agent?.post({ type: "thread.response", requestId: request.requestId, ok: false, message: "The AI Coding Tool window is not open." });
-      return;
-    }
     const patience = request.op === "wait"
       ? request.timeoutMs + THREAD_WAIT_SLACK
       : request.op === "browser" && (request.read.op === "snapshot" || request.read.op === "screenshot" || request.read.op === "wait")
@@ -193,7 +191,10 @@ class AgentRunHost {
     }, patience);
     timer.unref?.();
     this.threadRequests.set(request.requestId, timer);
-    window.webContents.send("thread:request", request);
+    if (this.host.ask(request)) return;
+    clearTimeout(timer);
+    this.threadRequests.delete(request.requestId);
+    this.agent?.post({ type: "thread.response", requestId: request.requestId, ok: false, message: "AI Coding Tool is not running its workspace." });
   }
 
   answerThread(response: ThreadResponse) {
@@ -305,8 +306,13 @@ class AgentRunHost {
     }
   }
 
-  handleRunCommand(event: IpcMainEvent, payload: unknown) {
-    if (!this.host.running() || !this.host.trusted(event) || !isRunCommand(payload)) return;
+  handleRunCommand(payload: unknown) {
+    if (!isRunCommand(payload)) return;
+    this.submit(payload);
+  }
+
+  submit(payload: RunCommand) {
+    if (!this.host.running()) return;
     if (payload.type === "reload-settings") {
       if (!this.agent) return this.send({ type: "engine.settings-reload-status", status: "reloaded" });
       return this.postCommand(payload);
@@ -341,7 +347,8 @@ export function startRunHost(host: RunHost): RunBridge {
   const runs = new AgentRunHost(host);
   return {
     dispatchAutomation: (automation, tick) => runs.dispatchAutomation(automation, tick),
-    handleRunCommand: (event, payload) => runs.handleRunCommand(event, payload),
+    handleRunCommand: (payload) => runs.handleRunCommand(payload),
+    submit: (command) => runs.submit(command),
     acknowledgeAutomation: (runId, started) => runs.acknowledgeAutomation(runId, started),
     answerThread: (response) => runs.answerThread(response),
     killAgent: () => runs.killAgent(),

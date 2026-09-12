@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { deriveView, promptKey } from "../../application/workspace-state";
+import { viewPreferences, writeViewPreferences } from "../../application/view-preferences";
 import type { ThreadHandleOption } from "../../domain/thread-handles";
 import { threadHandleOptions } from "../../application/thread-projection";
 import type { WorkspaceInput } from "../../application/workspace-reducer";
@@ -80,6 +81,12 @@ export function useTaskWorkspace() {
   useEffect(() => {
     applyTypography({ uiFont: view.uiFont, monoFont: view.monoFont, readingSize: view.readingSize, terminalSize: view.terminalSize });
   }, [view.uiFont, view.monoFont, view.readingSize, view.terminalSize]);
+
+  /** The window's own copy of what it paints with, read before the host has answered at the next launch. */
+  useEffect(() => {
+    if (!state.restored) return;
+    writeViewPreferences(localStorage, viewPreferences(state));
+  }, [state.restored, view.theme, view.themeMode, view.uiFont, view.monoFont, view.readingSize, view.terminalSize]);
 
   return {
     ...view,

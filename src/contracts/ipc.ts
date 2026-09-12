@@ -365,24 +365,6 @@ export type DesktopShortcutRefusal = { binding: string; reason: "taken" } | { bi
 /** What a thread wants in front of the user: the thread a click lands on, the name it is shown under, and the line itself. */
 export type ThreadNotice = { taskId: string; title: string; headline: string };
 
-/** Longer than any line a notification shows, and still bounded. */
-const MAX_HEADLINE_LENGTH = 1_000;
-
-/** Notices arrive from the window like any other outside command, so main reads them defensively. */
-export function isThreadNotice(value: unknown): value is ThreadNotice {
-  if (!value || typeof value !== "object") return false;
-  const notice = value as Record<string, unknown>;
-  return isString(notice.taskId) && isString(notice.title, MAX_HEADLINE_LENGTH) && isString(notice.headline, MAX_HEADLINE_LENGTH);
-}
-
-/** More unseen threads than the app keeps, so a count above it says the window is confused. */
-const MAX_BADGE_COUNT = 9_999;
-
-/** The count arrives from the window like any other outside command, so main reads it defensively. */
-export function isBadgeCount(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= MAX_BADGE_COUNT;
-}
-
 /** How many bindings a window may send. Far more than the app has actions, and still bounded. */
 const MAX_SHORTCUTS = 200;
 

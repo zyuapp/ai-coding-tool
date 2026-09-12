@@ -1,13 +1,13 @@
-import { diffMobileView, projectMobileView } from "../../application/mobile-projection";
-import type { WorkspaceState } from "../../application/workspace-state";
-import type { WorkspaceExecution } from "../../application/workspace-execution";
-import type { WorkspaceEffect, WorkspaceInput } from "../../application/workspace-reducer";
-import type { AppCommand } from "../../contracts/commands";
-import { isMobileCommand, isMobileQuery, isMobileRequest, type MobileQuery, type MobileRequest, type MobileResponse, type MobileView, type MobileViewUpdate } from "../../contracts/mobile";
-import type { DesktopAPI } from "../../contracts/ipc";
-import type { MobileServerState } from "../../domain/mobile";
-import { threadWorkspaceId } from "../../application/thread-location";
-import { errorMessage } from "./errors";
+import { diffMobileView, projectMobileView } from "../application/mobile-projection.js";
+import type { WorkspaceState } from "../application/workspace-state.js";
+import type { WorkspaceExecution } from "../application/workspace-execution.js";
+import type { WorkspaceEffect, WorkspaceInput } from "../application/workspace-reducer.js";
+import type { AppCommand } from "../contracts/commands.js";
+import { isMobileCommand, isMobileQuery, isMobileRequest, type MobileQuery, type MobileRequest, type MobileResponse, type MobileView, type MobileViewUpdate } from "../contracts/mobile.js";
+import type { RuntimeDesktop } from "./runtime-desktop.js";
+import type { MobileServerState } from "../domain/mobile.js";
+import { threadWorkspaceId } from "../application/thread-location.js";
+import { errorMessage } from "./errors.js";
 
 /** What a phone is refused with when it sends something outside the surface open to it. */
 export const MOBILE_REFUSED = "That command is not one a phone may send.";
@@ -16,7 +16,7 @@ export const MOBILE_REFUSED = "That command is not one a phone may send.";
 export const MOBILE_NO_CHECKOUT = "This thread has no checkout to review.";
 
 /** The reads a phone's queries are answered from. Content only; state never travels this way. */
-export type MobileBridgeReader = Pick<DesktopAPI, "diffSummary" | "diffPatch">;
+export type MobileBridgeReader = Pick<RuntimeDesktop, "diffSummary" | "diffPatch">;
 
 /** The runtime state and the command execution that answers each phone request. */
 export type MobileBridgeHost = {
@@ -99,7 +99,7 @@ export function nextMobileUpdate(held: MobileViewHolder, state: WorkspaceState, 
 export type RemoteEffect = Extract<WorkspaceEffect, { type: `remote.${string}` }>;
 
 /** Each one answers with the whole bridge state, so the reducer never infers what a change did to it. */
-export async function runRemoteEffect(effect: RemoteEffect, desktop: DesktopAPI): Promise<MobileServerState> {
+export async function runRemoteEffect(effect: RemoteEffect, desktop: RuntimeDesktop): Promise<MobileServerState> {
   switch (effect.type) {
     case "remote.set-enabled": return desktop.setMobileEnabled(effect.enabled);
     /** The offer the QR draws is read back from the bridge state, which is all settings draws. */
@@ -110,7 +110,7 @@ export async function runRemoteEffect(effect: RemoteEffect, desktop: DesktopAPI)
 }
 
 /** What main pushes about the bridge, and the phone messages it forwards for the window to answer. */
-export function subscribeToMobile(host: MobileBridgeHost, desktop: DesktopAPI): () => void {
+export function subscribeToMobile(host: MobileBridgeHost, desktop: RuntimeDesktop): () => void {
   void desktop.mobileState()
     .then((remote) => host.dispatch({ type: "remote.changed", remote }))
     .catch((error) => host.dispatch({ type: "action.failed", message: errorMessage(error) }));

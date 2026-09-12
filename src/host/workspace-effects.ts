@@ -1,10 +1,10 @@
-import type { WorkspaceEffect } from "../../application/workspace-reducer";
-import { attachmentEffects } from "./attachment-effects";
-import { projectEffects } from "./project-effects";
-import { runEffects } from "./run-effects";
-import { surfaceEffects } from "./surface-effects";
-import { systemEffects } from "./system-effects";
-import type { EffectHandler, EffectHandlers, EffectHost } from "./effect-host";
+import type { WorkspaceEffect } from "../application/workspace-reducer.js";
+import { attachmentEffects } from "./attachment-effects.js";
+import { projectEffects } from "./project-effects.js";
+import { runEffects } from "./run-effects.js";
+import { surfaceEffects } from "./surface-effects.js";
+import { systemEffects } from "./system-effects.js";
+import type { EffectHandler, EffectHandlers, EffectHost } from "./effect-host.js";
 
 /** Every effect the reducer can describe, each with the one handler that carries it out. */
 const handlers: EffectHandlers = { ...attachmentEffects, ...runEffects, ...projectEffects, ...surfaceEffects, ...systemEffects };

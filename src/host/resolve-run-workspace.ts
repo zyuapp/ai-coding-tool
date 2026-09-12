@@ -1,5 +1,5 @@
-import { WORKSPACE_ERRORS, type WorkspaceEffect, type WorkspaceEvent } from "../../application/workspace-reducer";
-import type { DesktopAPI } from "../../contracts/ipc";
+import { WORKSPACE_ERRORS, type WorkspaceEffect, type WorkspaceEvent } from "../application/workspace-reducer.js";
+import type { DesktopAPI } from "../contracts/ipc.js";
 
 type ResolveEffect = Extract<WorkspaceEffect, { type: "resolve-run-workspace" }>;
 

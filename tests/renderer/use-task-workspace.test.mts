@@ -461,8 +461,8 @@ test("workspace hook runs tasks concurrently with per-task composer state", asyn
 });
 
 test("resolving a run hands back the workspace the reducer named, kind and all", async () => {
-  const { resolveRunWorkspace } = await import("../../src/renderer/task-workspace/resolve-run-workspace.ts");
-  type ResolveDesktop = import("../../src/renderer/task-workspace/resolve-run-workspace.ts").ResolveDesktop;
+  const { resolveRunWorkspace } = await import("../../src/host/resolve-run-workspace.ts");
+  type ResolveDesktop = import("../../src/host/resolve-run-workspace.ts").ResolveDesktop;
   const worktree: WorkspaceRecord = { id: "worktree-1", kind: "worktree", root: "/worktrees/repo-wt1" };
   const desktop: ResolveDesktop = {
     createBranch: async () => { throw new Error("no branch should be made"); },
@@ -478,8 +478,8 @@ test("resolving a run hands back the workspace the reducer named, kind and all",
 });
 
 test("resolving a run reports what the branch or the worktree could not do", async () => {
-  const { resolveRunWorkspace } = await import("../../src/renderer/task-workspace/resolve-run-workspace.ts");
-  type ResolveDesktop = import("../../src/renderer/task-workspace/resolve-run-workspace.ts").ResolveDesktop;
+  const { resolveRunWorkspace } = await import("../../src/host/resolve-run-workspace.ts");
+  type ResolveDesktop = import("../../src/host/resolve-run-workspace.ts").ResolveDesktop;
   const calls: Array<[string, string, string]> = [];
   const desktop: ResolveDesktop = {
     createBranch: async (workspaceId: string, branch: string) => { calls.push(["create", workspaceId, branch]); },
@@ -508,8 +508,8 @@ test("resolving a run reports what the branch or the worktree could not do", asy
 });
 
 test("resolving a run through the picker insists on the same folder", async () => {
-  const { resolveRunWorkspace } = await import("../../src/renderer/task-workspace/resolve-run-workspace.ts");
-  type ResolveDesktop = import("../../src/renderer/task-workspace/resolve-run-workspace.ts").ResolveDesktop;
+  const { resolveRunWorkspace } = await import("../../src/host/resolve-run-workspace.ts");
+  type ResolveDesktop = import("../../src/host/resolve-run-workspace.ts").ResolveDesktop;
   const desktop: ResolveDesktop = {
     createBranch: async () => {},
     checkoutBranch: async () => {},

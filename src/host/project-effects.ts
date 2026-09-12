@@ -1,5 +1,5 @@
-import { errorMessage } from "./errors";
-import type { EffectHandlers, EffectHost, EnvironmentRefreshEffect } from "./effect-host";
+import { errorMessage } from "./errors.js";
+import type { EffectHandlers, EffectHost, EnvironmentRefreshEffect } from "./effect-host.js";
 
 /** One Git scan per checkout. A tick during a slow scan replaces the one follow-up still needed. */
 async function refreshEnvironment(first: EnvironmentRefreshEffect, host: EffectHost) {

@@ -1,6 +1,17 @@
 import type { Plugin } from "vite";
 import { MOBILE_HOST_MODULE } from "./mobile-host-stub.mjs";
 
+/**
+ * Every engine ready, so the runtime lets a run start, and engine work that answers with nothing:
+ * the real module runs the engines' own commands, which a test machine need not have.
+ */
+const ENGINE_SERVICES_MODULE = `
+const ready = { claude: { access: "ready" }, codex: { access: "ready" } };
+const services = { commands: async () => [], suggestTitle: async () => null, planUsage: async () => ({ status: "unavailable", message: "Not in a test." }) };
+export const engineServices = { claude: services, codex: services };
+export class EngineAccessHost { async read() { return ready; } async signIn() { return ready; } }
+`;
+
 /** Both fakes are reached through globals, so the modules under test import them like the real ones. */
 export function fakePlugins(computerUse: boolean, updater = false): Plugin[] {
   const plugins: Plugin[] = [{
@@ -18,6 +29,15 @@ export function fakePlugins(computerUse: boolean, updater = false): Plugin[] {
     },
     load(id) {
       if (id === "\0fake-mobile-host") return MOBILE_HOST_MODULE;
+    },
+  }, {
+    name: "fake-engine-services",
+    enforce: "pre",
+    resolveId(id, importer) {
+      if (id === "./agent/engine-services.mjs" && (importer?.endsWith("/src/main/main.ts") || importer?.endsWith("/src/main/runtime-desktop.ts"))) return "\0fake-engine-services";
+    },
+    load(id) {
+      if (id === "\0fake-engine-services") return ENGINE_SERVICES_MODULE;
     },
   }];
   if (updater) {

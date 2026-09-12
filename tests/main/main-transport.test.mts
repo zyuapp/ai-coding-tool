@@ -5,7 +5,8 @@ import path from "node:path";
 import { runInNewContext } from "node:vm";
 import { test, afterAll, beforeAll } from "vitest";
 import { registered, startMainProcess, tick, waitFor, type MainHarness } from "../support/electron-harness.mjs";
-import type { AgentEvent, ChangedFilesResult, RunEvent, ShortcutInvocation, StartRunCommand } from "../../src/contracts/ipc.js";
+import type { ChangedFilesResult, ShortcutInvocation, StartRunCommand } from "../../src/contracts/ipc.js";
+import type { WorkspaceCommandResult, WorkspaceInput } from "../../src/application/workspace-reducer.js";
 import type { ThreadRequest } from "../../src/contracts/threads.js";
 import type { BrowserBounds, BrowserInspectionResult, BrowserSnapshot } from "../../src/domain/browser.js";
 import { cliConfiguration, type CliStatus } from "../../src/domain/cli.js";
@@ -13,7 +14,7 @@ import type { KeyInput } from "../../src/domain/shortcuts.js";
 import type { WorkspaceRecord } from "../../src/domain/workspace.js";
 
 let main: MainHarness;
-beforeAll(async () => { main = await startMainProcess(null, "aicodingtool-main-"); });
+beforeAll(async () => { main = await startMainProcess(null, "aicodingtool-main-", { computerUse: { computerUseForRun: async () => ({ status: "unavailable", message: "test" }), computerUsePermissions: async () => ({ accessibility: false, screenRecording: false }), requestComputerUsePermission: async () => ({ accessibility: false, screenRecording: false }), stopComputerUse: async () => {}, resumeComputerUse: () => {} } }); });
 afterAll(async () => { await main?.dispose(); });
 
 type Registered = (...args: never[]) => unknown;
@@ -58,11 +59,23 @@ test("the main window sends ordinary web links to the default browser", async ()
   assert.deepEqual(main.externalUrls, ["https://example.com/docs"], "non-web targets stay closed");
 });
 
-test("main transport validates, correlates, cancels, supersedes per task, and fails runs", async () => {
-  const { userData, agents, trusted, untrusted } = main;
+/** Starts a thread through the runtime, the way the window does, and waits for its run to reach an agent process. */
+async function startThread(text: string) {
+  const request = handler<(event: IpcEvent, input?: WorkspaceInput) => Promise<WorkspaceCommandResult>>("workspace-runtime:request");
+  await request(main.trusted, { type: "task.new" });
+  await request(main.trusted, { type: "view.set-prompt", prompt: text });
+  const sent = await request(main.trusted, { type: "task.send", attachments: [] });
+  assert.ok(sent.ok && sent.taskId, sent.ok ? "" : sent.message);
+  const taskId = sent.taskId;
+  await waitFor(() => main.agents.some((agent) => agent.messages.some((message) => message.type === "start" && message.taskId === taskId)), "the run reaching the agent");
+  const agent = main.agents.findLast((each) => each.messages.some((message) => message.type === "start" && message.taskId === taskId))!;
+  const start = agent.messages.findLast((message) => message.type === "start" && message.taskId === taskId) as StartRunCommand & { workspaceRoot: string; projectless: boolean };
+  return { taskId, agent, start };
+}
 
-  const runCommand = listener<(event: IpcEvent, payload: unknown) => void>("run:command");
-  const forkedBefore = agents.length;
+test("main serves the window's files and refuses what is not its own", async () => {
+  const { userData, trusted, untrusted } = main;
+
   const saveAttachment = handler<(event: IpcEvent, data: unknown) => Promise<string>>("attachment:save");
   const saved = await saveAttachment(trusted, Buffer.from([1, 2, 3]).toString("base64"));
   const downloadImage = handler<(event: IpcEvent, source: unknown) => Promise<void>>("image:download");
@@ -81,134 +94,67 @@ test("main transport validates, correlates, cancels, supersedes per task, and fa
   const projectless = await projectlessWorkspace(trusted);
   assert.equal((await changedFiles(untrusted, projectless.id)).status, "error");
   assert.equal((await changedFiles(trusted, "")).status, "error");
+});
 
-  const command = (taskId: string, runId: string): StartRunCommand => ({
-    type: "start",
-    channel: "main",
-    taskId,
-    title: "Work",
-    runId,
-    prompt: "work",
-    workspaceId: projectless.id,
-    policy: "confirm",
-    engine: "claude",
-    model: "opus",
-    effort: "high",
-  });
-  runCommand(untrusted, command("ignored", "ignored"));
-  runCommand(trusted, command("cancelled", "run-cancelled"));
-  runCommand(trusted, { type: "cancel", taskId: "cancelled", runId: "run-cancelled" });
-  await tick();
-  assert.equal(agents.length, forkedBefore, "a run cancelled before dispatch does not start the agent process");
-
-  runCommand(trusted, command("concurrent-a", "run-concurrent-a"));
-  runCommand(trusted, command("concurrent-b", "run-concurrent-b"));
-  runCommand(trusted, { type: "label", taskId: "concurrent-a", title: "Renamed during startup" });
-  await waitFor(() => ["run-concurrent-a", "run-concurrent-b"].every((runId) => agents[0]?.messages.some((message) => message.runId === runId)));
-  assert.equal(agents[0].args[0], path.join(userData, "generated-images"));
-  assert.match(agents[0].args[1] ?? "", /app-plugin$/, "the worker is told where the app's plugin is");
-  assert.equal(agents[0].messages.find((message) => message.runId === "run-concurrent-a")?.title, "Renamed during startup");
-  assert.equal(agents[0].messages.find((message) => message.runId === "run-concurrent-b")?.title, "Work");
-
-  runCommand(trusted, command("resubmitted", "run-old"));
-  runCommand(trusted, command("resubmitted", "run-new"));
-  await waitFor(() => agents[0].messages.some((message) => message.runId === "run-new"));
-  assert.equal(agents[0].messages.some((message) => message.runId === "run-old"), false);
-  assert.equal(agents[0].messages.some((message) => message.runId === "run-new"), true);
-
-  runCommand(trusted, { ...command("missing", "run-missing"), workspaceId: "unknown" });
-  const sent = () => main.sentOn<RunEvent>("run:event");
-  const statusesFor = (runId: string) => sent().flatMap((event) => event.runId === runId && event.type === "run.status" ? [event.status] : []);
-  await waitFor(() => sent().some((event) => event.runId === "run-missing" && event.type === "run.status" && event.status === "failed"));
-  assert.deepEqual(statusesFor("run-cancelled"), ["cancelled"]);
-  assert.deepEqual(statusesFor("run-old"), ["cancelled"]);
-  assert.deepEqual(statusesFor("run-missing"), ["failed"]);
+test("a run the runtime starts reaches one agent process, and what the process reports comes back as state", async () => {
+  const { userData } = main;
+  const { taskId, agent, start } = await startThread("Inspect the checkout");
+  assert.equal(start.channel, "main");
+  assert.equal(agent.args[0], path.join(userData, "generated-images"));
+  assert.match(agent.args[1] ?? "", /app-plugin$/, "the worker is told where the app's plugin is");
+  assert.equal(start.projectless, true);
+  const state = () => main.runtimeState();
 
   /** No run gates the set, and the thread keeps it until the agent process that holds the work dies. */
   const shell = { id: "bash-1", kind: "shell", description: "npm run dev" };
-  agents[0].emit("message", { type: "background.changed", taskId: "concurrent-a", processes: [shell] });
-  agents[0].emit("message", { type: "background.changed", taskId: "concurrent-b", processes: [] });
-  await tick();
-  const backgroundFor = (taskId: string) => main.sentOn<AgentEvent>("run:event")
-    .flatMap((event) => event.type === "background.changed" && event.taskId === taskId ? [event.processes] : []);
-  assert.deepEqual(backgroundFor("concurrent-a"), [[shell]]);
+  agent.emit("message", { type: "run.started", taskId, runId: start.runId, sequence: 1 });
+  agent.emit("message", { type: "background.changed", taskId, processes: [shell] });
+  agent.emit("message", { type: "subagent.started", taskId, id: "child-live", description: "Inspect", sessionScoped: true });
+  agent.emit("message", { type: "subagent.started", taskId, id: "child-idle", description: "Review", sessionScoped: true });
+  agent.emit("message", { type: "subagent.status", taskId, id: "child-idle", status: "idle" });
+  agent.emit("message", { type: "subagent.started", taskId, id: "invalid", description: "Invalid", sessionScoped: false });
+  await waitFor(async () => (await state()).subagents[taskId]?.length === 2, "the two children the process could describe");
+  assert.deepEqual((await state()).backgroundProcesses[taskId], [shell]);
 
-  agents[0].emit("message", { type: "subagent.started", taskId: "concurrent-a", id: "child-live", description: "Inspect", sessionScoped: true });
-  agents[0].emit("message", { type: "subagent.started", taskId: "concurrent-a", id: "child-idle", description: "Review", sessionScoped: true });
-  agents[0].emit("message", { type: "subagent.status", taskId: "concurrent-a", id: "child-idle", status: "idle" });
-  agents[0].emit("message", { type: "subagent.started", taskId: "concurrent-a", id: "invalid", description: "Invalid", sessionScoped: false });
-  await tick();
-  const subagentsFor = (taskId: string) => main.sentOn<AgentEvent>("run:event")
-    .filter((event) => "taskId" in event && event.type.startsWith("subagent.") && event.taskId === taskId);
-  assert.deepEqual(subagentsFor("concurrent-a").map((event) => event.type), ["subagent.started", "subagent.started", "subagent.status"]);
+  const runtimeRequest = handler<(event: IpcEvent, input?: WorkspaceInput) => Promise<WorkspaceCommandResult>>("workspace-runtime:request");
+  await runtimeRequest(main.trusted, { type: "engine.reload-settings" });
+  assert.equal(agent.messages.at(-1)?.type, "reload-settings");
+  agent.emit("message", { type: "engine.settings-reload-status", status: "invalid" });
+  agent.emit("message", { type: "engine.settings-reload-status", status: "pending" });
+  await waitFor(async () => (await state()).agentSettingsReload === "pending", "the reload being reported");
+  agent.emit("message", { type: "engine.settings-reload-status", status: "reloaded" });
+  await waitFor(async () => (await state()).agentSettingsReload === "reloaded", "the reload finishing");
+  await runtimeRequest(main.trusted, { type: "engine.reload-settings" });
+  agent.emit("exit", 9);
+  await waitFor(async () => (await state()).agentSettingsReload === "failed", "a worker exit releasing the pending UI");
+  const after = await state();
+  assert.equal(after.threads.find((thread) => thread.id === taskId)?.outcome, "failed");
+  assert.deepEqual(after.backgroundProcesses[taskId] ?? [], [], "the processes died with the agent process, and nothing is left to say so");
+  assert.deepEqual(after.subagents[taskId]?.map((subagent) => [subagent.id, subagent.status]), [["child-live", "stopped"], ["child-idle", "idle"]], "the process crash settles only the child whose turn was live");
 
-  const reloadEvents = () => main.sentOn<AgentEvent>("run:event").filter((event) => event.type === "engine.settings-reload-status");
-  const beforeReload = agents[0].messages.length;
-  runCommand(untrusted, { type: "reload-settings" });
-  assert.equal(agents[0].messages.length, beforeReload);
-  runCommand(trusted, { type: "reload-settings" });
-  assert.equal(agents[0].messages.at(-1)?.type, "reload-settings");
-  agents[0].emit("message", { type: "engine.settings-reload-status", status: "invalid" });
-  assert.equal(reloadEvents().length, 0);
-  agents[0].emit("message", { type: "engine.settings-reload-status", status: "pending" });
-  assert.equal(reloadEvents().at(-1)?.status, "pending");
-  agents[0].emit("message", { type: "engine.settings-reload-status", status: "reloaded" });
-  assert.equal(reloadEvents().at(-1)?.status, "reloaded");
-  runCommand(trusted, { type: "reload-settings" });
-  agents[0].emit("exit", 9);
-  assert.equal(reloadEvents().at(-1)?.status, "failed", "a worker exit releases the pending UI");
-  assert.deepEqual(statusesFor("run-new"), ["failed"]);
-  assert.deepEqual(backgroundFor("concurrent-a"), [[shell], []], "the processes died with the agent process, and nothing is left to say so");
-  assert.deepEqual(backgroundFor("concurrent-b"), [[]], "a thread with nothing running is not told twice");
-  assert.deepEqual(subagentsFor("concurrent-a").at(-1), {
-    type: "subagent.finished",
-    taskId: "concurrent-a",
-    id: "child-live",
-    status: "stopped",
-    summary: "The agent process stopped before this subagent finished.",
-  }, "the process crash settles only the child whose turn was live");
-
-  runCommand(trusted, command("post", "run-post"));
-  await waitFor(() => agents[1]?.messages.some((message) => message.runId === "run-post"));
-  agents[1].throwOnPost = true;
-  runCommand(trusted, { type: "reload-settings" });
-  assert.equal(reloadEvents().at(-1)?.status, "failed", "a send failure releases the pending UI");
-  runCommand(trusted, { type: "cancel", taskId: "post", runId: "run-post" });
-  assert.equal(sent().some((event) => event.runId === "run-post" && event.type === "run.status" && event.status === "failed"), true);
-  agents[1].throwOnPost = false;
+  const next = await startThread("After the crash");
+  next.agent.throwOnPost = true;
+  await runtimeRequest(main.trusted, { type: "engine.reload-settings" });
+  await waitFor(async () => (await state()).agentSettingsReload === "failed", "a send failure releasing the pending UI");
+  await runtimeRequest(main.trusted, { type: "run.cancel", taskId: next.taskId });
+  await waitFor(async () => (await state()).threads.find((thread) => thread.id === next.taskId)?.outcome === "failed", "a cancel the process could not take failing the run");
+  next.agent.throwOnPost = false;
 });
 
-test("thread requests are relayed to the window and only its answers reach the agent", async () => {
-  const { agents, trusted, untrusted } = main;
-  const runCommand = listener<(event: IpcEvent, payload: unknown) => void>("run:command");
-  const workspace = await handler<(event: IpcEvent) => Promise<WorkspaceRecord>>("workspace:projectless")(trusted);
-  runCommand(trusted, {
-    type: "start", channel: "main", taskId: "task-caller", title: "Work", runId: "run-relay",
-    prompt: "work", workspaceId: workspace.id, policy: "confirm", engine: "claude", model: "opus", effort: "high",
-  } satisfies StartRunCommand);
-  const carrying = () => agents.find((process) => process.messages.some((message) => message.runId === "run-relay"));
-  await waitFor(carrying);
-  const agent = carrying();
-  assert.ok(agent);
-  const request: ThreadRequest = { type: "thread.request", requestId: "request-1", taskId: "task-caller", op: "list" };
+test("a tool's question about threads is answered by the runtime, and one nobody can read is refused", async () => {
+  const { taskId, agent } = await startThread("Ask about threads");
+  const request: ThreadRequest = { type: "thread.request", requestId: "request-1", taskId, op: "list" };
 
-  agent.emit("message", { type: "thread.request", requestId: "malformed", taskId: "task-caller", op: "list", limit: -1 });
+  agent.emit("message", { type: "thread.request", requestId: "malformed", taskId, op: "list", limit: -1 });
   agent.emit("message", request);
-  await tick();
-  const relayed = main.sentOn<ThreadRequest>("thread:request");
-  assert.deepEqual(relayed, [request], "only the valid request reached the window");
-
-  const answer = listener<(event: IpcEvent, response: unknown) => void>("thread:answer");
-  answer(untrusted, { type: "thread.response", requestId: "request-1", ok: true, result: [] });
-  answer(trusted, { type: "thread.response", requestId: "unknown", ok: true, result: [] });
-  answer(trusted, { type: "thread.response", requestId: "request-1", ok: true, result: [{ id: "task-1" }] });
-  answer(trusted, { type: "thread.response", requestId: "request-1", ok: true, result: [{ id: "task-1" }] });
-
-  const answered = agent.messages.filter((message) => message.type === "thread.response");
+  await waitFor(() => agent.messages.filter((message) => message.type === "thread.response").length === 2, "both answers");
+  const answered = agent.messages.filter((message) => message.type === "thread.response") as Array<{ requestId: string; ok: boolean; result?: Array<{ id: string }> }>;
   const refused = answered.find((message) => message.requestId === "malformed");
   assert.ok(refused);
   assert.equal(refused.ok, false, "a request no guard could read is refused rather than dropped, which would hang its tool call");
-  assert.deepEqual(answered.filter((message) => message.requestId === "request-1").map((message) => message.result), [[{ id: "task-1" }]], "an answer settles its request once");
+  const listed = answered.find((message) => message.requestId === "request-1");
+  assert.ok(listed?.ok);
+  assert.ok(listed.result?.some((thread) => thread.id === taskId), "the runtime answers with the threads it holds");
 });
 
 test("a bound keystroke is taken from the window's menu and handed to whatever is in front", async () => {
@@ -273,34 +219,24 @@ test("a folder the aic command names is registered and handed to the window that
   const { trusted, untrusted } = main;
   const folder = await realpath(await mkdtemp(path.join(os.tmpdir(), "aicodingtool-cli-open-")));
   const url = `aicodingtool://open?path=${Buffer.from(folder, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_")}`;
-  const opened = () => main.sentOn<WorkspaceRecord>("workspace:open-project");
+  const opened = async () => (await main.runtimeState()).projects;
   const openUrl = appListener<(event: { preventDefault(): void }, url: string) => void>("open-url");
   const secondInstance = appListener<(event: unknown, argv: string[]) => void>("second-instance");
-  const readyForProject = listener<(event: IpcEvent) => void>("workspace:open-project-ready");
   const cliStatus = handler<(event: IpcEvent) => Promise<CliStatus>>("cli:status");
   const installCli = handler<(event: IpcEvent) => Promise<CliStatus>>("cli:install");
   const uninstallCli = handler<(event: IpcEvent) => Promise<CliStatus>>("cli:uninstall");
   try {
     openUrl({ preventDefault() {} }, url);
-    await tick();
-    assert.deepEqual(opened(), [], "the folder waits while the window is still coming up");
-
-    readyForProject(untrusted);
-    await tick();
-    assert.deepEqual(opened(), [], "only the window's own renderer can ask for it");
-
-    readyForProject({ sender: main.runtimeViews[0].webContents });
-    await waitFor(() => opened().length === 1);
-    assert.equal(opened()[0].root, folder);
-    assert.equal(opened()[0].kind, "project");
+    await waitFor(async () => (await opened()).length === 1, "the folder landing in the runtime");
+    assert.equal((await opened())[0].root, folder);
 
     secondInstance({}, ["/Applications/AI Coding Tool.app", url]);
-    await waitFor(() => opened().length === 2);
-    assert.equal(opened()[1].id, opened()[0].id, "the same folder keeps the workspace it already had");
+    await tick();
+    assert.equal((await opened()).length, 1, "the same folder keeps the project it already had");
 
     openUrl({ preventDefault() {} }, "aicodingtool://open?path=bm90LWFic29sdXRl");
     await tick();
-    assert.equal(opened().length, 2, "a URL that names no absolute folder opens nothing");
+    assert.equal((await opened()).length, 1, "a URL that names no absolute folder opens nothing");
 
     await assert.rejects(cliStatus(untrusted));
     assert.equal((await cliStatus(trusted)).path, cliConfiguration(process.platform, os.homedir())?.installPath ?? "/usr/local/bin/aic");
@@ -438,7 +374,7 @@ test("the app menu sends help actions through the window command path", async ()
   assert.ok(viewer, "licenses open inside the app without an external text editor");
   assert.equal(viewer.visible, true);
   assert.equal(viewer.menuBarVisible, false);
-  await openLicenses({ sender: main.runtimeViews[0].webContents });
+  await openLicenses(main.trusted);
   assert.equal(main.windows.filter((window) => window.loadedURL === viewer.loadedURL).length, 1);
   assert.equal(viewer.focused, true, "another click brings the existing reader forward");
   viewer.close();

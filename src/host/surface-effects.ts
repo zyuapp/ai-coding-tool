@@ -1,13 +1,4 @@
-import type { WorkspaceSurfaceEffect } from "../../contracts/workspace-runtime";
-import { clearTerminalSearch, disposeTerminalView, searchTerminalView } from "./terminal-views";
-import { reportFailure, type EffectHandlers } from "./effect-host";
-
-/** A panel the window does not own is held by the window that does, so what it is told travels there. */
-function heldElsewhere(effect: WorkspaceSurfaceEffect): boolean {
-  if (!window.workspace?.owner) return false;
-  window.workspace.surface(effect);
-  return true;
-}
+import { reportFailure, type EffectHandlers } from "./effect-host.js";
 
 /** The panels that hold something of their own: pages, shells, and the files opened out of them. */
 export const surfaceEffects = {
@@ -52,7 +43,7 @@ export const surfaceEffects = {
 
   /** The view outlives the panel, so the shell going is the only thing that takes it away. */
   "terminal.close": (effect, host) => {
-    if (!heldElsewhere(effect)) disposeTerminalView(effect.terminalId);
+    host.surface?.(effect);
     return reportFailure(host, host.desktop.closeTerminal(effect.terminalId));
   },
 
@@ -62,13 +53,7 @@ export const surfaceEffects = {
 
   "focus-browser": (effect, host) => reportFailure(host, host.desktop.focusBrowserTab(effect.tabId)),
 
-  "find-in-terminal": (effect) => {
-    if (heldElsewhere(effect)) return;
-    searchTerminalView(effect.terminalId, effect.query, effect.forward);
-  },
+  "find-in-terminal": (effect, host) => { host.surface?.(effect); },
 
-  "stop-find-in-terminal": (effect) => {
-    if (heldElsewhere(effect)) return;
-    clearTerminalSearch(effect.terminalId);
-  },
+  "stop-find-in-terminal": (effect, host) => { host.surface?.(effect); },
 } satisfies Partial<EffectHandlers>;

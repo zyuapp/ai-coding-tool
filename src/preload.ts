@@ -185,25 +185,13 @@ const api: DesktopAPI = {
 contextBridge.exposeInMainWorld("desktop", api);
 
 const workspace: import("./contracts/workspace-runtime").WorkspaceBridge = {
-  owner: process.argv.includes("--workspace-runtime"),
-  request: (input) => {
-    if (input === undefined) ipcRenderer.send("workspace-view:ready");
-    return ipcRenderer.invoke("workspace-runtime:request", input);
-  },
+  request: (input) => ipcRenderer.invoke("workspace-runtime:request", input),
+  migrate: (values) => ipcRenderer.invoke("workspace-runtime:migrate", values),
   onUpdate: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, update: import("./contracts/workspace-runtime").WorkspaceUpdate) => listener(update);
     ipcRenderer.on("workspace-runtime:update", handler);
     return () => ipcRenderer.removeListener("workspace-runtime:update", handler);
   },
-  onRequest: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, request: import("./contracts/workspace-runtime").WorkspaceRequest) => listener(request);
-    ipcRenderer.on("workspace-runtime:request", handler);
-    return () => ipcRenderer.removeListener("workspace-runtime:request", handler);
-  },
-  respond: (response) => ipcRenderer.send("workspace-runtime:response", response),
-  publish: (update) => ipcRenderer.send("workspace-runtime:update", update),
-  ready: () => ipcRenderer.send("workspace-runtime:ready"),
-  surface: (effect) => ipcRenderer.send("workspace-runtime:surface", effect),
   onSurface: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, effect: import("./contracts/workspace-runtime").WorkspaceSurfaceEffect) => listener(effect);
     ipcRenderer.on("workspace-runtime:surface", handler);

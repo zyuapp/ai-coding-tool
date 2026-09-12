@@ -3,7 +3,7 @@ import { test } from "vitest";
 import { reduce, type WorkspaceEffect, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { executeWorkspaceInput } from "../../src/application/workspace-execution.ts";
 import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
-import { answerMobileRequest, MOBILE_NO_CHECKOUT, MOBILE_REFUSED, nextMobileUpdate, noMobileView, type MobileBridgeHost } from "../../src/renderer/task-workspace/mobile-bridge.ts";
+import { answerMobileRequest, MOBILE_NO_CHECKOUT, MOBILE_REFUSED, nextMobileUpdate, noMobileView, type MobileBridgeHost } from "../../src/host/mobile-bridge.ts";
 import { emptyMobileServerState, type MobileServerState, type MobileSessionView } from "../../src/domain/mobile.ts";
 import type { MobileRequest, MobileView } from "../../src/contracts/mobile.ts";
 import type { ConversationMessage } from "../../src/domain/conversation.ts";

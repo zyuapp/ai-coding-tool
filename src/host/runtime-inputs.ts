@@ -1,7 +1,7 @@
-import { agentEventInput } from "../../application/workspace-reducer";
-import type { WorkspaceInput } from "../../application/workspace-reducer";
-import type { WorkspaceExecution } from "../../application/workspace-execution";
-import { errorMessage } from "./errors";
+import { agentEventInput } from "../application/workspace-reducer.js";
+import type { WorkspaceInput } from "../application/workspace-reducer.js";
+import type { WorkspaceExecution } from "../application/workspace-execution.js";
+import { errorMessage } from "./errors.js";
 
 type RuntimeInputHost = {
   generation(): number;

@@ -22,7 +22,10 @@ import { attachmentsDirectory, readAttachmentContext, savedAttachmentPath, write
 import { browserPageUrl, registerBrowserIpc } from "./browser-ipc.js";
 import { cliStatus, installCli, uninstallCli } from "./cli-install.js";
 import { computerUseForRun, computerUsePermissions, requestComputerUsePermission, resumeComputerUse, stopComputerUse } from "./computer-use-host.js";
-import { serveBadgeCount, serveThreadNotices, type NoticeHost } from "./desktop-notice.js";
+import type { NoticeHost } from "./desktop-notice.js";
+import { createDesktopEvents } from "./desktop-events.js";
+import { createJsonStorage } from "./json-storage.js";
+import { createRuntimeDesktop } from "./runtime-desktop.js";
 import { startKeyboardHost } from "./keyboard-host.js";
 import { openInEditor } from "./open-in-editor.js";
 import { serveExternalApps } from "./open-in-app.js";
@@ -41,7 +44,7 @@ import { appProfile } from "./user-data.js";
 import { rememberedPlacement, watchWindowPlacement } from "./window-placement.js";
 import { windowFrameOptions } from "./platform-capabilities.js";
 import { registerWorkspaceIpc } from "./workspace-ipc.js";
-import { serveMobileBridge, startMobileBridge, stopMobileBridge } from "./mobile/bridge.js";
+import { startMobileBridge, stopMobileBridge } from "./mobile/bridge.js";
 import * as browser from "./browser-host.js";
 import * as terminal from "./terminal-host.js";
 
@@ -84,11 +87,12 @@ const pendingMenuCommands: string[] = [];
 let rendererListening = false;
 let runtimeListening = false;
 
-const workspaceRuntime = createWorkspaceRuntimeHost(() => window);
-
 function trustedSender(event: IpcMainEvent | IpcMainInvokeEvent) {
-  return workspaceRuntime.trusted(event) || Boolean(window && !window.isDestroyed() && event.sender === window.webContents);
+  return Boolean(window && !window.isDestroyed() && event.sender === window.webContents);
 }
+
+/** Everything main pushes at the runtime, raised in this process rather than sent to a window. */
+const events = createDesktopEvents();
 
 function getAutomationScheduler() {
   if (!automationScheduler) throw new Error("Automation scheduler is not ready.");
@@ -106,16 +110,56 @@ function getWorktreeService() {
 }
 
 const runs = startRunHost({
-  window: workspaceRuntime.owner,
+  publish: (event) => { events.emit("run:event", event); },
+  fire: (fire) => events.emit("automation:fire", fire),
+  ask: (request) => events.emit("thread:request", request),
   running: () => quitState === "running",
   workspaces: getWorkspaceService,
   scheduler: getAutomationScheduler,
-  trusted: trustedSender,
   computerUseForRun,
   agent: forkAgentProcess,
 });
 
 const keyboard = startKeyboardHost({ window: () => window, reveal: revealWindow });
+
+/** Where a thread's notice goes when the window is not the place the user is looking. */
+const noticeHost: NoticeHost = { window: () => window, reveal: revealWindow };
+
+const updateHost: UpdateHost = {
+  window: () => window,
+  onInstall: () => { updateRestartScheduled = true; },
+};
+
+let engineAccess: Promise<EngineAccessHost> | null = null;
+
+/** Made on first ask, since an engine it asks is a process of its own. */
+function engineAccessHost() {
+  return engineAccess ??= import("./agent/engine-services.mjs").then(({ EngineAccessHost }) => new EngineAccessHost());
+}
+
+const workspaceRuntime = createWorkspaceRuntimeHost({
+  view: () => window,
+  trusted: trustedSender,
+  storage: createJsonStorage(path.join(app.getPath("userData"), "window.v1.json")),
+  desktop: createRuntimeDesktop({
+    window: () => window,
+    notices: noticeHost,
+    updates: updateHost,
+    events,
+    keyboard,
+    runs,
+    workspaces: getWorkspaceService,
+    worktrees: getWorktreeService,
+    taskDatabase: () => {
+      if (!taskDatabase) throw new Error("Task database is not ready.");
+      return taskDatabase;
+    },
+    scheduler: getAutomationScheduler,
+    engineAccess: engineAccessHost,
+    worktreesRoots: () => [WORKTREES_ROOT, ...legacyWorktreesRoots(app.getPath("userData"))],
+    restart: () => requestRestart(),
+  }),
+});
 
 async function readCommands(workspaceId: string, engine: AgentEngine): Promise<AvailableCommand[]> {
   const resolution = await getWorkspaceService().resolve(workspaceId);
@@ -208,7 +252,7 @@ async function flushProjectOpens() {
     const root = pendingProjectOpens.shift()!;
     try {
       const registration = await getWorkspaceService().registerProject(root);
-      workspaceRuntime.owner()?.webContents.send("workspace:open-project", registration.workspace);
+      events.emit("workspace:open-project", registration.workspace);
     } catch (error) {
       console.error("Could not open the folder the aic command named:", error);
     }
@@ -279,21 +323,15 @@ async function createWindow() {
     window.setMenuBarVisibility(false);
   }
   browser.startBrowserHost(window, {
-    onPage: (event: BrowserPageEvent) => {
-      workspaceRuntime.owner()?.webContents.send("browser:event", event);
-    },
-    onFind: (tabId, results) => {
-      workspaceRuntime.owner()?.webContents.send("browser:find", { tabId, ...results });
-    },
+    onPage: (event: BrowserPageEvent) => { events.emit("browser:event", event); },
+    onFind: (tabId, results) => { events.emit("browser:find", { tabId, ...results }); },
     onKey: (input) => keyboard.handleKey(input, "browser"),
   });
   terminal.startTerminalHost({
     onData: (event) => {
       if (window && !window.isDestroyed()) window.webContents.send("terminal:data", event);
     },
-    onUpdate: (update) => {
-      workspaceRuntime.owner()?.webContents.send("terminal:event", update);
-    },
+    onUpdate: (update) => { events.emit("terminal:event", update); },
   });
   /** The window owns no menu shortcut the app wants back; preventing it here is what frees ⌘W. */
   window.webContents.on("before-input-event", (event, input) => {
@@ -322,14 +360,9 @@ async function createWindow() {
   });
   await window.loadFile(path.join(__dirname, "../../renderer/index.html"));
   if (createdWindow.isDestroyed() || quitState !== "running") return;
-  await startMobileBridge({ window: workspaceRuntime.owner, userData: app.getPath("userData"), staticRoot: path.join(__dirname, "../../mobile"), ...(!app.isPackaged ? { developmentRoot: app.getAppPath() } : {}) })
+  await startMobileBridge({ events, userData: app.getPath("userData"), staticRoot: path.join(__dirname, "../../mobile"), ...(!app.isPackaged ? { developmentRoot: app.getAppPath() } : {}) })
     .catch((error) => console.error("Could not start the phone bridge:", error));
 }
-
-const updateHost: UpdateHost = {
-  window: () => window,
-  onInstall: () => { updateRestartScheduled = true; },
-};
 
 /**
  * Worktrees live outside app data: the path has no space in it for a project's own tooling to trip
@@ -373,9 +406,7 @@ app.whenReady().then(async () => {
   });
   const { AutomationScheduler: AutomationSchedulerConstructor } = await import("./automation/automation-scheduler.mjs");
   automationScheduler = new AutomationSchedulerConstructor(taskDatabase, runs.dispatchAutomation, {
-    onChange: (automations) => {
-      workspaceRuntime.owner()?.webContents.send("automation:changed", automations);
-    },
+    onChange: (automations) => { events.emit("automation:changed", automations); },
   });
   await automationScheduler.start();
   protocol.handle(ATTACHMENT_SCHEME, async (request) => {
@@ -392,6 +423,8 @@ app.whenReady().then(async () => {
     onOpenSourceLicenses: () => sendMenuCommand("app.open-source-licenses"),
   });
   await workspaceRuntime.start();
+  runtimeListening = true;
+  void flushProjectOpens();
   await createWindow();
   const launchPath = projectPathFromArgv(process.argv);
   if (launchPath) openProjectPath(launchPath);
@@ -454,7 +487,7 @@ async function finishShutdown() {
       if (process.platform === "darwin") lockAwake = startLockAwake(powerMonitor, powerSaveBlocker);
       await automationScheduler?.start().catch((failure) => console.error("Could not restart schedules:", failure));
       if (window && !window.isDestroyed()) {
-        await startMobileBridge({ window: workspaceRuntime.owner, userData: app.getPath("userData"), staticRoot: path.join(__dirname, "../../mobile"), ...(!app.isPackaged ? { developmentRoot: app.getAppPath() } : {}) })
+        await startMobileBridge({ events, userData: app.getPath("userData"), staticRoot: path.join(__dirname, "../../mobile"), ...(!app.isPackaged ? { developmentRoot: app.getAppPath() } : {}) })
           .catch((failure) => console.error("Could not restart the phone bridge:", failure));
       }
     }
@@ -497,13 +530,6 @@ ipcMain.handle("workspace:register", async (event, root: unknown) => {
 ipcMain.handle("workspace:projectless", async (event) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   return (await getWorkspaceService().getProjectless()).workspace;
-});
-
-/** The window says when it can take a folder, so one the CLI named before it was up is not lost. */
-ipcMain.on("workspace:open-project-ready", (event) => {
-  if (!workspaceRuntime.trusted(event)) return;
-  runtimeListening = true;
-  void flushProjectOpens();
 });
 
 ipcMain.on("workspace-view:ready", (event) => {
@@ -552,13 +578,6 @@ ipcMain.handle("task-title:suggest", async (event, text: unknown, attachments: u
     return null;
   }
 });
-
-let engineAccess: Promise<EngineAccessHost> | null = null;
-
-/** Made on first ask, since an engine it asks is a process of its own. */
-function engineAccessHost() {
-  return engineAccess ??= import("./agent/engine-services.mjs").then(({ EngineAccessHost }) => new EngineAccessHost());
-}
 
 ipcMain.handle("engine:status", async (event, refresh: unknown) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
@@ -634,7 +653,10 @@ ipcMain.handle("subagent-activity:load", (event, taskId: string, subagentId: str
   return taskDatabase.subagentActivity(taskId, subagentId);
 });
 
-ipcMain.on("run:command", runs.handleRunCommand);
+ipcMain.on("run:command", (event, payload: unknown) => {
+  if (!trustedSender(event)) return;
+  runs.handleRunCommand(payload);
+});
 
 ipcMain.handle("automation:list", (event) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
@@ -707,12 +729,7 @@ ipcMain.on("window:focus", (event) => {
   window.webContents.focus();
 });
 
-/** Where a thread's notice goes when the window is not the place the user is looking. */
-const noticeHost: NoticeHost = { window: () => window, reveal: revealWindow };
-serveThreadNotices(noticeHost, trustedSender);
-serveBadgeCount(trustedSender);
 serveExternalApps(trustedSender);
-serveMobileBridge(trustedSender);
 
 ipcMain.on("thread:answer", (event, response: unknown) => {
   if (!trustedSender(event) || !isThreadResponse(response)) return;

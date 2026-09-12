@@ -4,7 +4,7 @@ import { executeWorkspaceInput, type WorkspaceExecutionHost } from "../../src/ap
 import type { WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { DRAFT_DOCK, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import { EMPTY_DIFF } from "../../src/application/workspace-diff.ts";
-import { answerThreadRequest, type ThreadRequestHost } from "../../src/renderer/task-workspace/thread-requests.ts";
+import { answerThreadRequest, type ThreadRequestHost } from "../../src/host/thread-requests.ts";
 import { MAX_ATTACHED_FILES, MAX_ATTACHMENTS } from "../../src/domain/conversation.ts";
 import { PROJECT, task, workspace } from "./workspace-reducer-fixtures.mts";
 
@@ -17,6 +17,7 @@ function driver(initial: WorkspaceState, perform: WorkspaceExecutionHost["perfor
   };
   const host: ThreadRequestHost = {
     state: () => state,
+    desktop: {} as ThreadRequestHost["desktop"],
     dispatch: async (input) => { await executeWorkspaceInput(input, execution).completed; },
     execute: (input) => executeWorkspaceInput(input, execution),
     waiters: { current: [] },

@@ -1,9 +1,9 @@
-import { sideChatIds, type WorkspaceState } from "../../application/workspace-state.js";
-import type { PersistedSubagent, PersistedTask, TaskStoreDelta } from "../../contracts/ipc.js";
-import type { Subagent, SubagentActivity } from "../../domain/run.js";
-import type { Thread } from "../../domain/thread.js";
-import { firstChangedMessage } from "../../domain/conversation-updates.js";
-import type { ThreadStoreData } from "../../domain/thread-storage.js";
+import { sideChatIds, type WorkspaceState } from "../application/workspace-state.js";
+import type { PersistedSubagent, PersistedTask, TaskStoreDelta } from "../contracts/ipc.js";
+import type { Subagent, SubagentActivity } from "../domain/run.js";
+import type { Thread } from "../domain/thread.js";
+import { firstChangedMessage } from "../domain/conversation-updates.js";
+import type { ThreadStoreData } from "../domain/thread-storage.js";
 
 function persistedTask(thread: Thread): PersistedTask {
   const { messages: _messages, historySummary: _historySummary, ...record } = thread;

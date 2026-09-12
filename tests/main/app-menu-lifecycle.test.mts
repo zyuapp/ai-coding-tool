@@ -20,7 +20,7 @@ test("a help-menu command reopens a window and waits until its renderer is liste
   const reopened = main.windows[0];
   assert.equal(reopened.menuBarVisible, process.platform !== "linux");
   assert.equal(reopened.menuBarAutoHide, false);
-  assert.equal(reopened.webContents.sent.length, 0, "the command does not race the renderer subscription");
+  assert.equal(reopened.webContents.sent.filter((entry) => entry.channel === "window:shortcut").length, 0, "the command does not race the renderer subscription");
 
   const ready = registered<(event: IpcEvent) => void>(main.listeners, "workspace-view:ready");
   ready({ sender: reopened.webContents });

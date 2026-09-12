@@ -6,7 +6,7 @@ import { Copyable } from "./CopyButton";
 import { MermaidBlock } from "./MermaidBlock";
 import { ContextMenu } from "./PopoverMenu";
 import { isCommitHash, messageImagePath, messageImageUrl } from "../../domain/message-artifacts";
-import { messageImages, type MessageImage } from "../message-images";
+import { messageImages, type MessageImage } from "../../application/message-images";
 
 const APP_HREF = /^aicodingtool:/i;
 const WEB_HREF = /^https?:/i;
