@@ -165,7 +165,7 @@ test("main transport validates, correlates, cancels, supersedes per task, and fa
     taskId: "concurrent-a",
     id: "child-live",
     status: "stopped",
-    summary: "Codex stopped before this subagent finished.",
+    summary: "The agent process stopped before this subagent finished.",
   }, "the process crash settles only the child whose turn was live");
 
   runCommand(trusted, command("post", "run-post"));

@@ -1,6 +1,6 @@
 import type { CanUseTool, Query, SDKActiveGoalMessage, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { claudeEffort, contextWindowLimit, modelTakesEffort, type AgentModel, type ClaudeEffort } from "../../domain/agent-engine.js";
-import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
+import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, SubagentReport, ToolIntent } from "../../domain/run.js";
 import type { BackgroundReport, WorkflowReport } from "../../contracts/ipc.js";
 import { continuationOf, type AgentTurn, type ProviderEvent, type ProviderResult, type ProviderRunInput, type SteerQueue, type ToolDecision } from "./agent-provider.mjs";
 import { SIDE_CHAT_BOUNDARY } from "./side-chat-instructions.mjs";
@@ -98,12 +98,10 @@ type Stream = {
   model?: AgentModel;
   streamedText: Map<string, MarkdownBuffer>;
   activeMainStreamId?: string;
-  subagentIds: Set<string>;
-  subagentByToolUse: Map<string, string>;
 };
 
 function openStream(emit: (event: ProviderEvent) => void, model?: AgentModel): Stream {
-  return { emit, ...(model === undefined ? {} : { model }), streamedText: new Map(), subagentIds: new Set(), subagentByToolUse: new Map() };
+  return { emit, ...(model === undefined ? {} : { model }), streamedText: new Map() };
 }
 
 /**
@@ -147,6 +145,11 @@ export class ClaudeSession {
   private reportWorkflow: (report: WorkflowReport) => void = () => {};
   /** Where those tasks report. Taken when the session opens: a shell or a monitor belongs to the thread, not to a run. */
   private reportBackground: (report: BackgroundReport) => void = () => {};
+  /** Where subagents report. Taken when the session opens: one launched in the background outlives the turn that launched it. */
+  private reportSubagent: (report: SubagentReport) => void = () => {};
+  /** The subagents still running here, by task id, and by the tool call that launched each. */
+  private readonly subagentIds = new Set<string>();
+  private readonly subagentByToolUse = new Map<string, string>();
   private reportGoal: ProviderRunInput["reportGoal"] = () => {};
   private hasGoal = false;
   /** Every background task the agent process last reported live, by id. Replaced whole, so it holds nothing that has stopped. */
@@ -179,6 +182,7 @@ export class ClaudeSession {
     this.effort = effortFlag(seed);
     this.reportWorkflow = seed.reportWorkflow;
     this.reportBackground = seed.reportBackground;
+    this.reportSubagent = seed.reportSubagent;
     this.reportGoal = seed.reportGoal;
     this.beginAgentTurn = seed.beginAgentTurn;
     /** The agent process reports nothing at startup, so a fresh one starts the thread's set empty. */
@@ -254,6 +258,10 @@ export class ClaudeSession {
     if (this.hasGoal) this.reportGoal({ type: "goal.changed", goal: null });
     this.hasGoal = false;
     this.endAgentTurn({ status: "cancelled" });
+    /** The session ending is the end of the subagents it holds: their own notification can no longer come. */
+    for (const id of this.subagentIds) this.reportSubagent({ type: "subagent.finished", id, status: "stopped", summary: "The session ended before this subagent finished." });
+    this.subagentIds.clear();
+    this.subagentByToolUse.clear();
     /** The session ending is the end of the workflows it holds: their own notification can no longer come. */
     for (const id of this.workflowIds) this.reportWorkflow({ type: "workflow.finished", id, status: "stopped", summary: "" });
     this.workflowIds.clear();
@@ -353,10 +361,8 @@ export class ClaudeSession {
    * for is given a run of its own rather than dropped.
    */
   private streamFor(message: SDKMessage): Stream | null {
-    if ((message.type === "assistant" || message.type === "stream_event") && message.parent_tool_use_id) {
-      const stream = this.turn?.stream ?? this.agentTurn?.stream;
-      return stream?.subagentByToolUse.has(message.parent_tool_use_id) ? stream : null;
-    }
+    /** What a subagent says is its own: recognized, it was already reported as activity; unrecognized, it belongs nowhere. */
+    if ((message.type === "assistant" || message.type === "stream_event") && message.parent_tool_use_id) return null;
     if (this.turn) return this.turn.stream;
     if (this.agentTurn) return this.agentTurn.stream;
     if (message.type !== "assistant" && message.type !== "stream_event") return null;
@@ -412,6 +418,7 @@ export class ClaudeSession {
       this.reportBackground({ type: "background.changed", processes: backgroundProcesses(message.tasks) });
     }
     if (this.receiveWorkflow(message)) return;
+    if (this.receiveSubagent(message)) return;
     const stream = this.streamFor(message);
     if (!stream) return;
     if (message.type === "system" && message.subtype === "init") {
@@ -429,35 +436,6 @@ export class ClaudeSession {
         compacting: message.status === "compacting",
         ...(message.compact_result === "failed" ? { error: message.compact_error ?? "Context compaction failed." } : {}),
       });
-    } else if (message.type === "system" && message.subtype === "task_started" && message.subagent_type) {
-      stream.subagentIds.add(message.task_id);
-      if (message.tool_use_id) stream.subagentByToolUse.set(message.tool_use_id, message.task_id);
-      stream.emit({
-        type: "subagent.started",
-        id: message.task_id,
-        description: message.description,
-        agentType: message.subagent_type,
-      });
-    } else if (message.type === "system" && message.subtype === "task_progress" && (message.subagent_type || stream.subagentIds.has(message.task_id))) {
-      stream.emit({
-        type: "subagent.progress",
-        id: message.task_id,
-        description: message.description,
-        ...(message.last_tool_name ? { lastToolName: message.last_tool_name } : {}),
-        ...(message.summary ? { summary: message.summary } : {}),
-        totalTokens: message.usage.total_tokens,
-      });
-    } else if (message.type === "system" && message.subtype === "task_notification" && stream.subagentIds.has(message.task_id)) {
-      stream.emit({
-        type: "subagent.finished",
-        id: message.task_id,
-        status: message.status === "completed" ? "completed" : message.status,
-        summary: message.summary,
-      });
-      stream.subagentIds.delete(message.task_id);
-      for (const [toolUseId, subagentId] of stream.subagentByToolUse) {
-        if (subagentId === message.task_id) stream.subagentByToolUse.delete(toolUseId);
-      }
     } else if (message.type === "stream_event" && !message.parent_tool_use_id && message.event.type === "message_start") {
       stream.activeMainStreamId = message.event.message.id;
       stream.streamedText.set(stream.activeMainStreamId, openMarkdownBuffer());
@@ -469,17 +447,6 @@ export class ClaudeSession {
         stream.emit({ type: "assistant-tail", messageId: stream.activeMainStreamId, text: buffered.text });
       }
     } else if (message.type === "assistant") {
-      const subagentId = message.parent_tool_use_id ? stream.subagentByToolUse.get(message.parent_tool_use_id) : undefined;
-      if (subagentId) {
-        for (const block of message.message.content) {
-          if (block.type === "text" && block.text.trim()) {
-            stream.emit({ type: "subagent.activity", id: subagentId, activityId: `${message.uuid}:text`, kind: "text", text: block.text });
-          } else if (block.type === "tool_use") {
-            stream.emit({ type: "subagent.activity", id: subagentId, activityId: block.id, kind: "tool", title: toolDisplayName(block.name, block.input), text: JSON.stringify(block.input, null, 2) });
-          }
-        }
-        return;
-      }
       const streamId = message.message.id;
       const streamed = stream.streamedText.get(streamId);
       if (streamed !== undefined) {
@@ -515,6 +482,49 @@ export class ClaudeSession {
       }
       this.conclude({ status: "succeeded" });
     }
+  }
+
+  /** Whether the message belonged to a subagent. Read before the stream guard, so one running in the background reports between turns too. */
+  private receiveSubagent(message: SDKMessage) {
+    if (message.type === "assistant" && message.parent_tool_use_id) {
+      const id = this.subagentByToolUse.get(message.parent_tool_use_id);
+      if (!id) return false;
+      for (const block of message.message.content) {
+        if (block.type === "text" && block.text.trim()) {
+          this.reportSubagent({ type: "subagent.activity", id, activityId: `${message.uuid}:text`, kind: "text", text: block.text });
+        } else if (block.type === "tool_use") {
+          this.reportSubagent({ type: "subagent.activity", id, activityId: block.id, kind: "tool", title: toolDisplayName(block.name, block.input), text: JSON.stringify(block.input, null, 2) });
+        }
+      }
+      return true;
+    }
+    if (message.type !== "system") return false;
+    if (message.subtype === "task_started" && message.subagent_type) {
+      this.subagentIds.add(message.task_id);
+      if (message.tool_use_id) this.subagentByToolUse.set(message.tool_use_id, message.task_id);
+      this.reportSubagent({ type: "subagent.started", id: message.task_id, description: message.description, agentType: message.subagent_type, sessionScoped: true });
+      return true;
+    }
+    if (message.subtype === "task_progress" && (message.subagent_type || this.subagentIds.has(message.task_id))) {
+      this.reportSubagent({
+        type: "subagent.progress",
+        id: message.task_id,
+        description: message.description,
+        ...(message.last_tool_name ? { lastToolName: message.last_tool_name } : {}),
+        ...(message.summary ? { summary: message.summary } : {}),
+        totalTokens: message.usage.total_tokens,
+      });
+      return true;
+    }
+    if (message.subtype === "task_notification" && this.subagentIds.has(message.task_id)) {
+      this.subagentIds.delete(message.task_id);
+      for (const [toolUseId, id] of this.subagentByToolUse) {
+        if (id === message.task_id) this.subagentByToolUse.delete(toolUseId);
+      }
+      this.reportSubagent({ type: "subagent.finished", id: message.task_id, status: message.status === "completed" ? "completed" : message.status, summary: message.summary });
+      return true;
+    }
+    return false;
   }
 
   /** Whether the message belonged to a workflow. Read before the stream guard, so a workflow reports between turns too. */

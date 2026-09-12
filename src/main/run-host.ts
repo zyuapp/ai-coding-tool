@@ -245,7 +245,7 @@ function startAgent(host: RunHost) {
       for (const taskId of backgroundThreads) sendToRenderer(host, { type: "background.changed", taskId, processes: [] });
       backgroundThreads.clear();
       for (const [taskId, ids] of liveSubagents) {
-        for (const id of ids) sendToRenderer(host, { type: "subagent.finished", taskId, id, status: "stopped", summary: "Codex stopped before this subagent finished." });
+        for (const id of ids) sendToRenderer(host, { type: "subagent.finished", taskId, id, status: "stopped", summary: "The agent process stopped before this subagent finished." });
       }
     }
     sessionSubagents.clear();
