@@ -1,33 +1,10 @@
-import { emptyWorkspaceState, promptKey, type WorkspaceState } from "../../application/workspace-state";
+import { emptyWorkspaceState } from "../../application/workspace-state";
+import { applyOptimisticEdits, optimisticEdit, type OptimisticEdit } from "../../application/optimistic-edits";
 import { applyWorkspacePatches } from "../../application/workspace-patches";
-import type { WorkspaceInput } from "../../application/workspace-reducer";
-import { reduce } from "../../application/workspace-reducer";
+import { reduce, type WorkspaceInput } from "../../application/workspace-reducer";
 import { createWorkspaceRuntime } from "./workspace-runtime";
 import { clearTerminalSearch, disposeTerminalView, searchTerminalView } from "./terminal-views";
 import { errorMessage } from "./errors";
-import { sameFindTarget, type FindTarget } from "../../domain/find";
-
-type TextInput = Extract<WorkspaceInput, { type: "view.set-prompt" | "task.rename" | "worktree.menu-search" | "view.find-query" | "view.jump-query" | "annotation.note" }>;
-type TextEdit = { key: string; input: TextInput; findTarget?: FindTarget; revision?: number };
-
-/** Text edits name the field visible when they were typed, even if selection changes in transit. */
-function localTextEdit(state: WorkspaceState, input: WorkspaceInput): TextEdit | null {
-  switch (input.type) {
-    case "view.set-prompt":
-    case "annotation.note": {
-      const taskId = input.taskId ?? promptKey(state);
-      const key = [input.type, taskId];
-      if (input.type === "annotation.note") key.push(input.annotationId);
-      return { key: JSON.stringify(key), input: { ...input, taskId } };
-    }
-    case "task.rename": return { key: JSON.stringify([input.type, input.taskId]), input };
-    case "worktree.menu-search": return { key: JSON.stringify([input.type, input.list]), input };
-    case "view.jump-query": return { key: input.type, input };
-    case "view.find-query":
-      return state.find ? { key: input.type, input, findTarget: state.find.target } : null;
-    default: return null;
-  }
-}
 
 /** Embedders without a process bridge host the same runtime in their own environment. */
 export function createWorkspaceConnection() {
@@ -43,29 +20,20 @@ export function createWorkspaceConnection() {
   let started: Promise<void> | null = null;
   let snapshot: Promise<void> | null = null;
   const listeners = new Set<() => void>();
-  const edits = new Map<string, TextEdit>();
+  const edits = new Map<string, OptimisticEdit>();
 
   function notify() { for (const listener of listeners) listener(); }
   function rebase(error?: string) {
-    let next = state;
-    for (const edit of edits.values()) {
-      // Command replies and state patches can arrive in either order across Electron IPC.
-      if (edit.revision !== undefined && edit.revision <= revision) {
-        edits.delete(edit.key);
-        continue;
-      }
-      if (edit.findTarget && (!next.find || !sameFindTarget(edit.findTarget, next.find.target))) continue;
-      next = reduce(next, edit.input).state;
+    const view = applyOptimisticEdits(state, edits.values(), revision);
+    if (view.edits.length !== edits.size) {
+      edits.clear();
+      for (const edit of view.edits) edits.set(edit.key, edit);
     }
+    let next = view.state;
     if (error !== undefined) next = reduce(next, { type: "action.failed", message: error }).state;
     if (next === displayed) return;
     displayed = next;
     notify();
-  }
-  function finishEdit(edit: TextEdit | null) {
-    if (!edit || edits.get(edit.key) !== edit) return false;
-    edits.delete(edit.key);
-    return true;
   }
   function failed(error: unknown) {
     rebase(errorMessage(error));
@@ -89,7 +57,7 @@ export function createWorkspaceConnection() {
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     async dispatch(input: WorkspaceInput) {
       const requestedGeneration = generation;
-      const edit = localTextEdit(displayed, input);
+      const edit = optimisticEdit(displayed, input);
       if (edit) {
         edits.delete(edit.key);
         edits.set(edit.key, edit);
@@ -98,13 +66,13 @@ export function createWorkspaceConnection() {
       try {
         const result = await bridge.request(edit?.input ?? input);
         if (requestedGeneration === generation && edit && edits.get(edit.key) === edit) {
-          edit.revision = result.revision;
-          if (!result.ok) finishEdit(edit);
+          if (result.ok) edits.set(edit.key, { ...edit, revision: result.revision });
+          else edits.delete(edit.key);
           rebase();
         }
       } catch (error) {
         if (requestedGeneration === generation) {
-          finishEdit(edit);
+          if (edit && edits.get(edit.key) === edit) edits.delete(edit.key);
           failed(error);
         }
       }
