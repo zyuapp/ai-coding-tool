@@ -60,6 +60,19 @@
   --code-surface: var(--p-bg-4);
   --code-ink: var(--p-ansi-white);
 
+  --syntax-comment: var(--p-syntax-comment);
+  --syntax-string: var(--p-syntax-string);
+  --syntax-number: var(--p-ansi-yellow);
+  --syntax-constant: var(--p-ansi-yellow);
+  --syntax-keyword: var(--p-ansi-magenta);
+  --syntax-operator: var(--p-link);
+  --syntax-function: var(--p-ansi-blue);
+  --syntax-type: var(--p-ansi-cyan);
+  --syntax-variable: var(--p-ansi-white);
+  --syntax-tag: var(--p-ansi-red);
+  --syntax-attribute: var(--p-ansi-yellow);
+  --syntax-punctuation: var(--p-syntax-punctuation);
+
   --diff-add-surface: color-mix(in srgb, var(--p-success) 12%, var(--p-bg-0));
   --diff-add-gutter: color-mix(in srgb, var(--p-success) 18%, var(--p-bg-1));
   --diff-del-surface: color-mix(in srgb, var(--p-danger) 12%, var(--p-bg-0));

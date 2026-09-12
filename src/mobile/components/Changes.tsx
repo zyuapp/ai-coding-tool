@@ -2,13 +2,14 @@ import { LuChevronDown as ChevronDown, LuChevronRight as ChevronRight, LuFileMin
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DiffPatchResult, DiffSummaryResult } from "../../contracts/ipc";
 import type { MobileQuery, MobileThreadView } from "../../contracts/mobile";
-import { diffRows, fileFingerprint, parseFilePatch, rangeKey, UNCOMMITTED, type DiffFileSummary, type DiffRange, type DiffRow } from "../../domain/diff";
+import { diffRows, fileFingerprint, languageForPath, parseFilePatch, rangeKey, UNCOMMITTED, type DiffFileSummary, type DiffRange, type DiffRow } from "../../domain/diff";
+import { ensureLanguage, fileTokens, type FileTokens, type ThemedToken } from "../../renderer/diff/highlight";
 
 /** A patch drawn whole would take a phone with it, so a long one is cut here until asked for. */
 const ROW_CAP = 1_500;
 
 type Summary = { status: "reading" } | DiffSummaryResult;
-type Patch = { status: "reading" } | { status: "available"; rows: DiffRow[] } | Exclude<DiffPatchResult, { status: "available" }>;
+type Patch = { status: "reading" } | { status: "available"; rows: DiffRow[]; colours: FileTokens } | Exclude<DiffPatchResult, { status: "available" }>;
 
 /** What a comparison the phone cannot draw has to say for itself, or null when it has files to show. */
 function summaryNote(summary: Summary): string | null {
@@ -33,13 +34,13 @@ function splitPath(path: string) {
   return cut === -1 ? { folder: "", name: path } : { folder: path.slice(0, cut + 1), name: path.slice(cut + 1) };
 }
 
-function Line({ row }: { row: DiffRow }) {
+function Line({ row, tokens }: { row: DiffRow; tokens: ThemedToken[] | undefined }) {
   if (row.kind === "hunk") return <div className="diff-line hunk"><code>{row.text}</code></div>;
   return (
     <div className={`diff-line ${row.kind}`}>
       <span className="diff-gutter" aria-hidden="true">{row.oldLine ?? ""}</span>
       <span className="diff-gutter" aria-hidden="true">{row.newLine ?? ""}</span>
-      <code>{row.text || " "}</code>
+      <code>{tokens ? tokens.map((token, index) => <span key={index} style={{ color: token.color }}>{token.content}</span>) : row.text || " "}</code>
     </div>
   );
 }
@@ -53,7 +54,12 @@ function PatchBody({ patch }: { patch: Patch }) {
   const hidden = patch.rows.length - rows.length;
   return (
     <div className="diff-body">
-      {rows.map((row) => <Line key={row.key} row={row} />)}
+      {rows.map((row) => {
+        /** Only colour hunks being drawn; the shared cache keeps repeat renders cheap. */
+        const hunk = patch.colours.hunkOf.get(row.key);
+        if (hunk !== undefined) patch.colours.colour(hunk);
+        return <Line key={row.key} row={row} tokens={patch.colours.tokens.get(row.key)} />;
+      })}
       {hidden > 0 && <button type="button" className="diff-more" onClick={() => setWhole(true)}>Show {hidden} more {hidden === 1 ? "line" : "lines"}</button>}
     </div>
   );
@@ -129,10 +135,15 @@ export function Changes({ thread, live, query }: {
       asked.current.add(held);
       setPatches((current) => new Map(current).set(held, { status: "reading" }));
       const settle = (patch: Patch) => { if (!gone.current) setPatches((current) => new Map(current).set(held, patch)); };
-      query({ kind: "diff-patch", taskId, range, path: file.path, ...(file.previousPath ? { previousPath: file.previousPath } : {}) }).then(
-        (result) => {
+      Promise.all([
+        query({ kind: "diff-patch", taskId, range, path: file.path, ...(file.previousPath ? { previousPath: file.previousPath } : {}) }),
+        ensureLanguage(languageForPath(file.path)),
+      ]).then(
+        ([result]) => {
           const read = result as DiffPatchResult;
-          settle(read.status === "available" ? { status: "available", rows: diffRows(parseFilePatch(read.patch, file.path)) } : read);
+          if (read.status !== "available") { settle(read); return; }
+          const parsed = parseFilePatch(read.patch, file.path);
+          settle({ status: "available", rows: diffRows(parsed), colours: fileTokens(parsed) });
         },
         (error: unknown) => {
           /** A refused read is forgotten, so opening the file again asks again. */

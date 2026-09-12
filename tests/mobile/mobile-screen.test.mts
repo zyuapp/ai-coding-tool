@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client";
 import { MOBILE_PROTOCOL_VERSION, type MobileClientMessage, type MobileView } from "../../src/contracts/mobile.ts";
 import { MOBILE_CREDENTIAL_KEY, MOBILE_FOLDED_KEY } from "../../src/mobile/client/storage.ts";
 import { App } from "../../src/mobile/App.tsx";
+import { ensureLanguage } from "../../src/renderer/diff/highlight.ts";
 
 const CODE = "K7M2P9QX";
 const BUILD = "b7f0c1d2e3a4b5c6";
@@ -427,9 +428,17 @@ test("a thread's changes are read from the Mac on demand, and a file opens to it
   click(".diff-file-row");
   const patch = queries(line).at(-1)!;
   assert.deepEqual(patch.query, { kind: "diff-patch", taskId: "t1", range: { kind: "uncommitted" }, path: "src/a.ts" });
-  await act(async () => line.onmessage?.({ data: JSON.stringify({ kind: "answer", sequence: 3, requestId: patch.requestId, ok: true, result: { status: "available", patch: "--- a/src/a.ts\n+++ b/src/a.ts\n@@ -1 +1 @@\n-old\n+new\n" } }) }));
+  await act(async () => {
+    line.onmessage?.({ data: JSON.stringify({ kind: "answer", sequence: 3, requestId: patch.requestId, ok: true, result: { status: "available", patch: "--- a/src/a.ts\n+++ b/src/a.ts\n@@ -1 +1 @@\n-const label = 'old';\n+const label = 'new';\n" } }) });
+    await ensureLanguage("typescript");
+  });
   assert.deepEqual([...document.querySelectorAll(".diff-line")].map((node) => node.className), ["diff-line hunk", "diff-line delete", "diff-line add"]);
-  assert.equal(document.querySelector(".diff-line.add code")?.textContent, "new");
+  assert.equal(document.querySelector(".diff-line.add code")?.textContent, "const label = 'new';");
+  for (const kind of ["add", "delete"]) {
+    const tokens = [...document.querySelectorAll<HTMLSpanElement>(`.diff-line.${kind} code span`)];
+    assert.equal(tokens.find((token) => token.textContent === "const")?.style.color, "var(--syntax-keyword)");
+    assert.ok(tokens.some((token) => token.style.color === "var(--syntax-string)"), "strings have their own colour on both sides");
+  }
 
   click('.changes-toolbar .segmented button[aria-checked="false"]');
   assert.deepEqual(queries(line).at(-1)!.query, { kind: "diff-summary", taskId: "t1", range: { kind: "branches", base: "HEAD", compare: null } });
