@@ -5,7 +5,12 @@ import { runStatusFor, type ApprovalView, type RunTransitionState, type Streamin
 import { backfillProjectSortIndex } from "./project-order.js";
 import { sidebarLists } from "./sidebar-lists.js";
 import { backfillSortIndex } from "./thread-order.js";
-import type { ChangedFilesResult, DesktopShortcutRefusal } from "../contracts/ipc.js";
+import type { ChangedFilesResult, DesktopShortcutRefusal, InstalledApp } from "../contracts/ipc.js";
+import type { PullRequestRead } from "../domain/pull-request.js";
+import { pullRequestFor } from "./pull-request-view.js";
+import { NO_CLI, type CliState } from "./cli-installation.js";
+import { NO_COMPUTER_USE_ACCESS, type ComputerUseAccessState } from "./computer-use-access.js";
+import { NO_PLAN_USAGE, type PlanUsageState } from "./plan-limits.js";
 import type { ReadingPoint } from "../contracts/commands.js";
 import type { ReviewTarget } from "../domain/review.js";
 import type { ActiveGoal } from "../domain/goal.js";
@@ -342,6 +347,16 @@ export type WorkspaceState = {
    * what was last read while a new scan runs. Session-only, and never persisted.
    */
   environments: Record<string, ChangedFilesResult>;
+  /** The pull request last read, for the checkout and branch it was read for. Session-only. */
+  pullRequest: PullRequestRead | null;
+  /** The applications this machine has, or null before any list has asked for them. */
+  installedApps: InstalledApp[] | null;
+  /** The terminal command the app installs, as the settings page last read it. */
+  cli: CliState;
+  /** What each provider says about the plan the user is signed in on. */
+  planUsage: PlanUsageState;
+  /** What the platform lets the app see and operate, as settings last read it. */
+  computerUsePermissions: ComputerUseAccessState;
   computerUseSetup: boolean;
   automations: AutomationView[];
   pendingRuns: Record<string, PendingRun>;
@@ -483,6 +498,11 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     openMenu: null,
     reviewPicker: null,
     environments: {},
+    pullRequest: null,
+    installedApps: null,
+    cli: NO_CLI,
+    planUsage: NO_PLAN_USAGE,
+    computerUsePermissions: NO_COMPUTER_USE_ACCESS,
     computerUseSetup: false,
     automations: [],
     pendingRuns: {},
@@ -820,6 +840,12 @@ export function deriveView(state: WorkspaceState) {
     /** What the composer calls the checkout a draft starts in, when the user picked one. */
     draftWorktreeName: draftWorktree ? worktreeName(draftWorktree) : null,
     environment,
+    /** The pull request that checkout's work belongs to, drawn only while the answer is still its own. */
+    pullRequest: pullRequestFor(state.pullRequest, workspaceId, environment),
+    installedApps: state.installedApps,
+    cli: state.cli,
+    planUsage: state.planUsage,
+    computerUsePermissions: state.computerUsePermissions,
     storageError: state.storageError, hiddenThreads: state.hiddenThreads,
     actionError: state.actionError,
     viewingImage: state.viewingImage,

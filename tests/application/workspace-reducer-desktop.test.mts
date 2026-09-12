@@ -3,6 +3,7 @@ import { test } from "vitest";
 import { reduce, WORKSPACE_ERRORS } from "../../src/application/workspace-reducer.ts";
 import { dock, task, workspace } from "./workspace-reducer-fixtures.mts";
 import { EMPTY_DOCK } from "../../src/application/workspace-dock.ts";
+import type { InstalledApp } from "../../src/contracts/ipc.ts";
 
 test("closing the visible window releases terminal records while browser URLs reopen on mount", () => {
   const state = workspace({ currentId: "task-1", threads: [task("task-1")], docks: {
@@ -160,4 +161,16 @@ test("⌘W closes the terminal in front, then the dock behind it", () => {
   assert.equal(dock(closedShell.state).tab, "home", "nothing is left in the dock but the picker");
 
   assert.equal(dock(reduce(closedShell.state, { type: "view.close-tab" }).state).open, false);
+});
+
+test("the applications this machine has are read on asking and kept while the next read runs", () => {
+  const apps: InstalledApp[] = [{ id: "cursor", label: "Cursor", kind: "editor", icon: null }];
+
+  const asked = reduce(workspace(), { type: "app.list" });
+  assert.deepEqual(asked.effects, [{ type: "app.list" }]);
+  assert.equal(asked.state.installedApps, null);
+
+  const listed = reduce(asked.state, { type: "apps.listed", apps });
+  assert.deepEqual(listed.state.installedApps, apps);
+  assert.deepEqual(reduce(listed.state, { type: "app.list" }).state.installedApps, apps, "the list a menu draws stays while the next scan runs");
 });

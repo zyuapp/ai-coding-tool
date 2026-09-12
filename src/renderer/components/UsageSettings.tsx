@@ -1,5 +1,6 @@
 import { LuRefreshCw as RefreshCw } from "react-icons/lu";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
+import type { PlanUsageState } from "../../application/plan-limits";
 import { AGENT_ENGINES, engineLabel, type AgentEngine } from "../../domain/agent-engine";
 import { barShare, formatReset, formatShare, planLabel, type PlanUsage } from "../../domain/plan-usage";
 
@@ -16,31 +17,14 @@ function UsageBar({ share }: { share: number | null }) {
   );
 }
 
-export function UsageSettings({ timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone }: { timeZone?: string }) {
-  const [reports, setReports] = useState<Partial<Record<AgentEngine, PlanUsage>>>({});
-  const [reading, setReading] = useState<AgentEngine[]>([]);
-  const generation = useRef(0);
+export type UsageSettingsProps = {
+  usage: PlanUsageState;
+  onRefresh: () => void;
+  timeZone?: string;
+};
 
-  const refresh = useCallback(() => {
-    const current = ++generation.current;
-    setReading([...AGENT_ENGINES]);
-    for (const engine of AGENT_ENGINES) {
-      void window.desktop.planUsage(engine)
-        .catch((cause): PlanUsage => ({ status: "unavailable", message: cause instanceof Error ? cause.message : String(cause) }))
-        .then((usage) => {
-          if (generation.current !== current) return;
-          setReports((seen) => ({ ...seen, [engine]: usage }));
-          setReading((engines) => engines.filter((item) => item !== engine));
-        });
-    }
-  }, []);
-
-  useEffect(() => {
-    refresh();
-    return () => {
-      generation.current += 1;
-    };
-  }, [refresh]);
+export function UsageSettings({ usage: { reports, reading }, onRefresh, timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone }: UsageSettingsProps) {
+  useEffect(() => { onRefresh(); }, []);
 
   return (
     <section className="settings-group" aria-labelledby="plan-limits-heading" aria-live="polite">
@@ -50,7 +34,7 @@ export function UsageSettings({ timeZone = Intl.DateTimeFormat().resolvedOptions
           <p>Usage and reset times reported by each provider.</p>
         </div>
         <div className="settings-group-action">
-          <button type="button" disabled={reading.length > 0} onClick={refresh}>
+          <button type="button" disabled={reading.length > 0} onClick={onRefresh}>
             <RefreshCw size={13} aria-hidden="true" className={reading.length > 0 ? "spinning" : ""} />
             <span>{reading.length > 0 ? "Reading…" : "Refresh"}</span>
           </button>

@@ -105,6 +105,16 @@ export const projectEffects = {
 
   "refresh-environment": (effect, host) => refreshEnvironment(effect, host),
 
+  /** A checkout GitHub cannot be asked about keeps the answer it has; the next ask tries again. */
+  "read-pull-request": async (effect, { dispatch, desktop }) => {
+    try {
+      const answer = await desktop.pullRequest(effect.workspaceId);
+      await dispatch({ type: "pull-request.answered", workspaceId: effect.workspaceId, branch: effect.branch, read: effect.read, answer });
+    } catch {
+      return;
+    }
+  },
+
   "read-diff": async (effect, { dispatch, desktop }) => {
     try {
       const result = await desktop.diffSummary(effect.workspaceId, effect.range, effect.ignoreWhitespace);

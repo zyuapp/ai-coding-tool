@@ -1,5 +1,7 @@
 import { SessionPanel } from "./SessionPanel";
 import { SessionLocationMenu } from "./SessionLocationMenu";
+import { branchOf } from "../../application/pull-request-view";
+import { usePullRequestReads } from "../task-workspace/pull-request-reads";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;
@@ -11,12 +13,15 @@ export function WorkspaceSession({ workspace, onInspectSubagent, onOpenPanel, on
   onOpenPanel: (id: string) => void;
   onOpenWorkflow: (id: string) => void;
 }) {
+  /** Threads sharing a checkout share a workspace, so the pull request is read again per thread too. */
+  usePullRequestReads(workspace.workspaceId, branchOf(workspace.environment), workspace.currentThread?.id, workspace.pullRequest, workspace.actions.readPullRequest);
+
   return (
     <SessionPanel
       environment={workspace.environment}
       hasProject={Boolean(workspace.folder)}
       {...(workspace.workspaceId ? { workspaceId: workspace.workspaceId } : {})}
-      {...(workspace.currentThread ? { threadId: workspace.currentThread.id } : {})}
+      pullRequest={workspace.pullRequest}
       locationRow={workspace.worktreeMenu && <SessionLocationMenu view={workspace.worktreeMenu} openMenu={workspace.openMenu} dispatch={workspace.dispatch} />}
       openMenu={workspace.openMenu}
       onSetOpenMenu={workspace.actions.setOpenMenu}

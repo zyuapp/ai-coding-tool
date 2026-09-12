@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { workspace, preferences, effectAt, run } from "./workspace-reducer-fixtures.mts";
+import type { ComputerUsePermissions } from "../../src/domain/computer-use.ts";
+import type { PlanUsage } from "../../src/domain/plan-usage.ts";
 import { OPEN_SUBAGENT_GROUPS, type SubagentGroup } from "../../src/domain/run.ts";
 import { OPEN_SIDEBAR_SECTIONS, type SidebarSection } from "../../src/domain/sidebar.ts";
 
@@ -131,4 +133,70 @@ test("agent settings reload is transient, waits for the worker, and can be retri
   const failed = reduce(asked.state, { type: "engine.settings-reload-status", status: "failed", message: "Worker unavailable" });
   assert.equal(failed.state.actionError, "Worker unavailable");
   assert.deepEqual(reduce(failed.state, { type: "engine.reload-settings" }).effects, [{ type: "engine.reload-settings" }]);
+});
+
+test("installing the terminal command holds the row while it runs and reports what stopped it", () => {
+  const installing = reduce(workspace(), { type: "cli.install" });
+  assert.deepEqual(installing.effects, [{ type: "cli.install" }]);
+  assert.equal(installing.state.cli.busy, true);
+
+  const installed = reduce(installing.state, { type: "cli.read-status", status: { state: "installed", path: "/usr/local/bin/aic" } });
+  assert.deepEqual(installed.state.cli, { status: { state: "installed", path: "/usr/local/bin/aic" }, busy: false, error: null });
+
+  const refused = reduce(reduce(installed.state, { type: "cli.uninstall" }).state, { type: "cli.failed", message: "Cancelled." });
+  assert.equal(refused.state.cli.busy, false, "a refusal gives the row its controls back");
+  assert.equal(refused.state.cli.error, "Cancelled.");
+  assert.deepEqual(refused.state.cli.status, { state: "installed", path: "/usr/local/bin/aic" }, "what the command did not stop being is left alone");
+
+  assert.equal(reduce(refused.state, { type: "cli.install" }).state.cli.error, null, "trying again clears what stopped the last try");
+});
+
+test("plan limits keep what each provider said while the next read runs, and drop an overtaken answer", () => {
+  const claude: PlanUsage = { status: "available", subscription: "max", windows: [] };
+  const reading = reduce(workspace(), { type: "usage.read" });
+  assert.deepEqual(reading.effects, [{ type: "read-plan-usage", engine: "claude", read: 1 }, { type: "read-plan-usage", engine: "codex", read: 1 }]);
+  assert.deepEqual(reading.state.planUsage.reading, ["claude", "codex"]);
+
+  const answered = reduce(reading.state, { type: "usage.reported", engine: "claude", read: 1, usage: claude });
+  assert.deepEqual(answered.state.planUsage.reading, ["codex"], "a provider that has answered is no longer being read");
+  assert.deepEqual(answered.state.planUsage.reports.claude, claude);
+
+  const again = reduce(answered.state, { type: "usage.read" });
+  assert.deepEqual(again.state.planUsage.reports.claude, claude, "the page keeps what it shows while the next read runs");
+
+  const late = reduce(again.state, { type: "usage.reported", engine: "claude", read: 1, usage: { status: "not-applicable" } });
+  assert.deepEqual(late.state.planUsage.reports.claude, claude, "the answer to the read the refresh replaced says nothing");
+});
+
+test("asking the platform for a permission holds the row until its own dialog answers", () => {
+  const granted: ComputerUsePermissions = { accessibility: true, screenRecording: true };
+
+  const polled = reduce(workspace(), { type: "computer-use.read" });
+  assert.deepEqual(polled.effects, [{ type: "computer-use.read" }]);
+
+  const asking = reduce(polled.state, { type: "computer-use.enable", permission: "accessibility" });
+  assert.equal(asking.state.computerUsePermissions.busy, "accessibility");
+  assert.deepEqual(asking.effects, [{ type: "computer-use.enable", permission: "accessibility" }]);
+
+  const meanwhile = reduce(asking.state, { type: "computer-use.permissions", permissions: { accessibility: false, screenRecording: false } });
+  assert.equal(meanwhile.state.computerUsePermissions.busy, "accessibility", "a poll during the dialog does not give the row back");
+
+  const answered = reduce(meanwhile.state, { type: "computer-use.permissions", permissions: granted, enabling: true });
+  assert.equal(answered.state.computerUsePermissions.busy, null);
+  assert.equal(answered.state.computerUsePermissions.restartRequired, true, "a full set the user was sent to grant is worth a restart");
+});
+
+test("permissions that were already in place are not taken as a restart the user has to make", () => {
+  const found = reduce(workspace(), { type: "computer-use.permissions", permissions: { accessibility: true, screenRecording: true } });
+
+  assert.equal(found.state.computerUsePermissions.restartRequired, false);
+});
+
+test("a refusal from the platform gives the row its controls back and says what happened", () => {
+  const asking = reduce(workspace(), { type: "computer-use.enable", permission: "screenRecording" });
+
+  const refused = reduce(asking.state, { type: "computer-use.failed", message: "Not permitted.", enabling: true });
+
+  assert.equal(refused.state.computerUsePermissions.busy, null);
+  assert.equal(refused.state.computerUsePermissions.error, "Not permitted.");
 });

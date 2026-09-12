@@ -6,7 +6,7 @@ import type { ThemeMode } from "../../domain/theme";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { ArchiveSettings } from "./ArchiveSettings";
 import { BrowserSettings } from "./BrowserSettings";
-import { ComputerUseSettings, useComputerUsePermissions } from "./ComputerUseSettings";
+import { ComputerUseSettings } from "./ComputerUseSettings";
 import { EngineSettings, type EngineSettingsProps } from "./EngineSettings";
 import { GeneralSettings } from "./GeneralSettings";
 import type { AgentEngine, EngineReadiness } from "../../domain/agent-engine";
@@ -17,7 +17,11 @@ import { SettingFocus } from "./SettingRow";
 import { ShortcutSettings } from "./ShortcutSettings";
 import { UsageSettings } from "./UsageSettings";
 import { useFocusReturn } from "../focus";
+import type { CliState } from "../../application/cli-installation";
+import type { ComputerUseAccessState } from "../../application/computer-use-access";
+import type { PlanUsageState } from "../../application/plan-limits";
 import type { DesktopShortcutUnavailable } from "../../application/workspace-state";
+import type { ComputerUsePermission } from "../../contracts/ipc";
 import type { WorktreeSettingsPage } from "../../application/worktree-settings";
 import type { WorktreeCommand } from "../../contracts/commands";
 import { WorktreeSettings } from "./WorktreeSettings";
@@ -122,6 +126,17 @@ export type SettingsPanelProps = {
   worktreeSettings: WorktreeSettingsPage;
   worktreeManagementError: string | null;
   worktreeManagementNotice: string | null;
+  /** The terminal command the app installs, and the two things settings can do about it. */
+  cli: CliState;
+  onReadCli: () => void;
+  onSetCliInstalled: (installed: boolean) => void;
+  /** The plan limits each provider reports, and the ask that reads them again. */
+  planUsage: PlanUsageState;
+  onReadPlanUsage: () => void;
+  /** What the platform lets the app see and operate, and the two things settings can do about it. */
+  computerUseAccess: ComputerUseAccessState;
+  onEnableComputerUse: (permission: ComputerUsePermission) => void;
+  onRestartForComputerUse: () => void;
   /** The theme in effect, by id, and the ground the user asked for. */
   theme: string;
   themeMode: ThemeMode;
@@ -187,6 +202,8 @@ export function SettingsPanel({
   initialSection = "general",
   initialSetting = null,
   archivedThreads,
+  cli, onReadCli, onSetCliInstalled, planUsage, onReadPlanUsage,
+  computerUseAccess, onEnableComputerUse, onRestartForComputerUse,
   worktreeSettings,
   worktreeManagementError,
   worktreeManagementNotice,
@@ -255,7 +272,6 @@ export function SettingsPanel({
     requestAnimationFrame(() => (browser ? clearBrowser : clearArchive).current?.focus());
   }
 
-  const computerUsePermissions = useComputerUsePermissions();
   return (
     <SettingFocus value={found}>
     <section
@@ -296,7 +312,7 @@ export function SettingsPanel({
           <p>How AI Coding Tool answers from outside its own window.</p>
         </div>
 
-        <GeneralSettings chromeBrowser={chromeBrowser} onSetChromeBrowser={onSetChromeBrowser} conciseReplies={conciseReplies} onSetConciseReplies={onSetConciseReplies} notifications={notifications} onSetNotifications={onSetNotifications} onCheckForUpdates={onCheckForUpdates} onOpenSourceLicenses={onOpenSourceLicenses} />
+        <GeneralSettings cli={cli} onReadCli={onReadCli} onSetCliInstalled={onSetCliInstalled} chromeBrowser={chromeBrowser} onSetChromeBrowser={onSetChromeBrowser} conciseReplies={conciseReplies} onSetConciseReplies={onSetConciseReplies} notifications={notifications} onSetNotifications={onSetNotifications} onCheckForUpdates={onCheckForUpdates} onOpenSourceLicenses={onOpenSourceLicenses} />
       </main>
       )}
 
@@ -307,7 +323,7 @@ export function SettingsPanel({
           <p>Plan limits across your signed-in accounts.</p>
         </div>
 
-        <UsageSettings />
+        <UsageSettings usage={planUsage} onRefresh={onReadPlanUsage} />
       </main>
       )}
 
@@ -341,7 +357,7 @@ export function SettingsPanel({
       {section === "archive" && <ArchiveSettings archivedThreads={archivedThreads} confirming={confirmingClear} confirmationRef={confirmation} clearRef={clearArchive}
         onRestoreThread={onRestoreThread} onClearArchive={onClearArchive} onStartConfirm={() => setConfirmingClear(true)} onCancelConfirm={() => cancelConfirmation(false)} />}
 
-      {section === "computer-use" && <ComputerUseSettings computerUse={computerUse} onSetComputerUse={onSetComputerUse} {...computerUsePermissions} />}
+      {section === "computer-use" && <ComputerUseSettings computerUse={computerUse} onSetComputerUse={onSetComputerUse} access={computerUseAccess} onEnable={onEnableComputerUse} onRestart={onRestartForComputerUse} />}
     </section>
     </SettingFocus>
   );

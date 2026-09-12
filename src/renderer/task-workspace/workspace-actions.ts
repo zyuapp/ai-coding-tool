@@ -4,6 +4,7 @@ import type { AutomationDraft, AutomationPatch } from "../../domain/automation";
 import type { DiffMode, DiffRange } from "../../domain/diff";
 import type { FindResults, FindTarget } from "../../domain/find";
 import type { AgentEngine, AgentModel } from "../../domain/agent-engine";
+import type { ComputerUsePermission } from "../../domain/computer-use";
 import type { AgentEffort, ExecutionPolicy, SubagentGroup } from "../../domain/run";
 import type { SettingsSection } from "../../domain/settings-section";
 import type { SidebarMode, SidebarSection } from "../../domain/sidebar";
@@ -71,6 +72,14 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     moveWorktreeClose: () => dispatch({ type: "view.move-worktree", worktree: null }),
     setBranch: (branch: string | null, create?: boolean) => dispatch({ type: "task.set-branch", branch, ...(create ? { create } : {}) }),
     checkoutBranch: (branch: string, create?: boolean) => dispatch({ type: "task.checkout-branch", branch, ...(create ? { create } : {}) }),
+    readPullRequest: () => dispatch({ type: "pull-request.read" }),
+    listApps: () => dispatch({ type: "app.list" }),
+    readCli: () => dispatch({ type: "cli.read" }),
+    readPlanUsage: () => dispatch({ type: "usage.read" }),
+    readComputerUse: () => dispatch({ type: "computer-use.read" }),
+    enableComputerUse: (permission: ComputerUsePermission) => dispatch({ type: "computer-use.enable", permission }),
+    restartForComputerUse: () => dispatch({ type: "computer-use.restart" }),
+    setCliInstalled: (installed: boolean) => dispatch({ type: installed ? "cli.install" : "cli.uninstall" }),
     refreshWorktrees: () => dispatch({ type: "worktree.refresh" }),
     revealWorktree: (root: string) => dispatch({ type: "worktree.reveal", root }),
     sendPrompt: (attachments: RunAttachment[] = [], steer = false) => dispatch({ type: "task.send", attachments, ...(steer ? { steer } : {}) }),

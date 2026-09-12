@@ -1,7 +1,10 @@
 import { WORKSPACE_ERRORS } from "../../application/workspace-reducer";
 import type { RemoteEffect } from "../../application/remote-commands";
 import type { EngineStatus } from "../../domain/agent-engine";
-import { errorMessage } from "./errors";
+import type { CliStatus } from "../../domain/cli";
+import type { ComputerUsePermissions } from "../../domain/computer-use";
+import type { PlanUsage } from "../../domain/plan-usage";
+import { errorMessage, reportedMessage } from "./errors";
 import { runRemoteEffect } from "./mobile-bridge";
 import { reportFailure, type EffectHandlers, type EffectHost } from "./effect-host";
 
@@ -20,6 +23,24 @@ async function readEngines(ask: () => Promise<EngineStatus>, { dispatch }: Effec
     await dispatch({ type: "engine.status", status: await ask() });
   } catch (error) {
     await dispatch({ type: "engine.failed", message: errorMessage(error) });
+  }
+}
+
+/** Where the terminal command stands, after reading it or after changing it. */
+async function readCli(ask: () => Promise<CliStatus>, { dispatch }: EffectHost) {
+  try {
+    await dispatch({ type: "cli.read-status", status: await ask() });
+  } catch (error) {
+    await dispatch({ type: "cli.failed", message: reportedMessage(error) });
+  }
+}
+
+/** What the platform allows, whether it was asked outright or after the user was sent to grant one. */
+async function readComputerUse(ask: () => Promise<ComputerUsePermissions>, { dispatch }: EffectHost, enabling?: true) {
+  try {
+    await dispatch({ type: "computer-use.permissions", permissions: await ask(), ...(enabling ? { enabling } : {}) });
+  } catch (error) {
+    await dispatch({ type: "computer-use.failed", message: reportedMessage(error), ...(enabling ? { enabling } : {}) });
   }
 }
 
@@ -76,6 +97,25 @@ export const systemEffects = {
     try { desktop.send({ type: "reload-settings" }); }
     catch (error) { await dispatch({ type: "engine.settings-reload-status", status: "failed", message: errorMessage(error) }); }
   },
+
+  "computer-use.read": (_effect, host) => readComputerUse(() => host.desktop.computerUsePermissions(), host),
+
+  "computer-use.enable": (effect, host) => readComputerUse(() => host.desktop.enableComputerUse(effect.permission), host, true),
+
+  "computer-use.restart": (_effect, { desktop }) => {
+    desktop.restartForComputerUse();
+  },
+
+  "read-plan-usage": async (effect, { dispatch, desktop }) => {
+    const usage = await desktop.planUsage(effect.engine).catch((cause): PlanUsage => ({ status: "unavailable", message: reportedMessage(cause) }));
+    await dispatch({ type: "usage.reported", engine: effect.engine, read: effect.read, usage });
+  },
+
+  "cli.read": (_effect, host) => readCli(() => host.desktop.cliStatus(), host),
+
+  "cli.install": (_effect, host) => readCli(() => host.desktop.installCli(), host),
+
+  "cli.uninstall": (_effect, host) => readCli(() => host.desktop.uninstallCli(), host),
 
   "engine.read": (effect, host) => readEngines(() => host.desktop.engineStatus(effect.refresh), host),
 

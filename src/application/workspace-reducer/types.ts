@@ -3,6 +3,10 @@ import type { RemoteEffect, RemoteEvent } from "../remote-commands.js";
 import type { EngineEffect, EngineEvent } from "../engine-access.js";
 import type { DesktopShortcutUnavailable, WorkspaceState } from "../workspace-state.js";
 import type { AppCommand } from "../../contracts/commands.js";
+import type { InstalledApp } from "../../contracts/ipc.js";
+import type { CliStatus } from "../../domain/cli.js";
+import type { ComputerUsePermission, ComputerUsePermissions } from "../../domain/computer-use.js";
+import type { PlanUsage } from "../../domain/plan-usage.js";
 import type { AgentEvent, AnswerQuestionCommand, ApprovalDecisionCommand, AutomationAck, AutomationFire, BrowserPageEvent, CancelRunCommand, ChangedFilesResult, CreatedWorktree, DiffSummaryResult, LabelThreadCommand, RunEvent, StartRunCommand, SteerRunCommand, StopProcessCommand, ThreadEvent, ThreadNotice, WorktreeSnapshotResult } from "../../contracts/ipc.js";
 import type { ViewPreferences } from "../../contracts/preferences.js";
 import type { AgentEngine } from "../../domain/agent-engine.js";
@@ -17,6 +21,7 @@ import type { ShortcutOverrides } from "../../domain/shortcuts.js";
 import type { ThreadStoreData } from "../../domain/thread-storage.js";
 import type { TerminalUpdate } from "../../domain/terminal.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
+import type { PullRequestAnswer } from "../../domain/pull-request.js";
 import type { ManagedWorktree } from "../../domain/worktree.js";
 
 /** Things that happened: replies to effects, and pushes from the main process. */
@@ -53,6 +58,8 @@ export type WorkspaceEvent =
   | { type: "worktree.release-failed"; taskId: string; message: string }
   | { type: "worktree.deleted"; worktreeId: string; root: string; snapshot: WorktreeSnapshotResult; missingOnly?: boolean }
   | { type: "environment.updated"; workspaceId: string; taskId?: string; runId?: string; result: ChangedFilesResult }
+  /** What GitHub says about a checkout, named by the ask it answers so an overtaken one is dropped. */
+  | { type: "pull-request.answered"; workspaceId: string; branch: string | null; read: number; answer: PullRequestAnswer }
   /** A comparison's file list, named by the dock that asked so a slow read cannot land in another. */
   | { type: "diff.loaded"; owner: string; workspaceId: string; range: DiffRange; result: DiffSummaryResult }
   /** What a page in the browser panel did. Main watches the page; the reducer keeps the record. */
@@ -60,6 +67,16 @@ export type WorkspaceEvent =
   /** What a shell did. Its output is not here: that goes straight to the view and never becomes state. */
   | { type: "terminal.updated"; update: TerminalUpdate }
   | { type: "subagent.activity.loaded"; taskId: string; subagentId: string; activity: SubagentActivity[] }
+  /** The applications this machine has, as the main process last found them. */
+  | { type: "apps.listed"; apps: InstalledApp[] }
+  /** What the platform lets the app see and operate, and whether an enable was waiting on it. */
+  | { type: "computer-use.permissions"; permissions: ComputerUsePermissions; enabling?: true }
+  | { type: "computer-use.failed"; message: string; enabling?: true }
+  /** What one provider says about its plan, named by the read it answers. */
+  | { type: "usage.reported"; engine: AgentEngine; read: number; usage: PlanUsage }
+  /** Where the terminal command stands after a read, an install or a removal, or why none could happen. */
+  | { type: "cli.read-status"; status: CliStatus }
+  | { type: "cli.failed"; message: string }
   /** The keystroke settings were waiting for, or null when the user pressed Escape instead. */
   | { type: "shortcut.captured"; binding: string | null }
   /** An expected platform limitation for a desktop-wide shortcut, shown with that setting. */
@@ -98,6 +115,7 @@ export type WorkspaceEffect =
   | { type: "start-run"; command: StartRunCommand }
   | { type: "send-run-command"; command: CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand }
   | { type: "refresh-environment"; workspaceId: string; taskId?: string; runId?: string }
+  | { type: "read-pull-request"; workspaceId: string; branch: string | null; read: number }
   | { type: "read-diff"; owner: string; workspaceId: string; range: DiffRange; ignoreWhitespace: boolean }
   /** Moves a checkout onto a branch, making it at that checkout's HEAD first when `create`. */
   | { type: "checkout-branch"; workspaceId: string; branch: string; create?: boolean }
@@ -123,6 +141,14 @@ export type WorkspaceEffect =
   | { type: "browser.clear-data" }
   /** A file the desktop opens for the reader. `roots` are the checkouts to look for it in, nearest first. */
   | { type: "file.open"; roots: string[]; path: string; line: number | null }
+  | { type: "app.list" }
+  | { type: "computer-use.read" }
+  | { type: "computer-use.enable"; permission: ComputerUsePermission }
+  | { type: "computer-use.restart" }
+  | { type: "read-plan-usage"; engine: AgentEngine; read: number }
+  | { type: "cli.read" }
+  | { type: "cli.install" }
+  | { type: "cli.uninstall" }
   /** The thread's checkout, opened in another application on the machine. */
   | { type: "app.open-folder"; root: string; appId: string }
   | { type: "app.check-for-updates" }

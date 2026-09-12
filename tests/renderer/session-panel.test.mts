@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import React, { act } from "react";
 
+import type { InstalledApp } from "../../src/contracts/ipc.ts";
+import { NO_PULL_REQUEST } from "../../src/domain/pull-request.ts";
 import { OPEN_SUBAGENT_GROUPS, type BackgroundProcess, type Subagent, type SubagentActivity } from "../../src/domain/run.ts";
 import type { Thread } from "../../src/domain/thread.ts";
 
@@ -21,6 +23,7 @@ function renderSessionPanel(overrides: Partial<SessionPanelProps>) {
   return React.createElement(SessionPanel, {
     environment: null,
     hasProject: false,
+    pullRequest: NO_PULL_REQUEST,
     openMenu: null,
     subagents: [],
     subagentGroups: OPEN_SUBAGENT_GROUPS,
@@ -293,6 +296,8 @@ test("workspace header keeps session summary and right panel controls separate",
     workingSubagents: 2,
     openMenu: null,
     canOpenFolder: true,
+    apps: null,
+    onListApps: () => {},
     onSetOpenMenu: () => {},
     onOpenInApp: () => {},
     onRenameThread: () => {},
@@ -318,27 +323,36 @@ test("workspace header keeps session summary and right panel controls separate",
 });
 
 test("the open-in list groups the applications this machine has, and hands one the folder", async () => {
-  window.desktop = fakeDesktop();
   const chosen: string[] = [];
   let menu: string | null = null;
-  const view = await mount(React.createElement(OpenInMenu, {
+  let lists = 0;
+  const apps: InstalledApp[] = [
+    { id: "cursor", label: "Cursor", kind: "editor", icon: "data:image/png;base64,AAA" },
+    { id: "terminal", label: "Terminal", kind: "terminal", icon: null },
+    { id: "finder", label: "Finder", kind: "files", icon: null },
+  ];
+  const openIn = (found: InstalledApp[] | null) => React.createElement(OpenInMenu, {
     openMenu: menu,
     onSetOpenMenu: (next: string | null) => { menu = next; },
     enabled: true,
+    apps: found,
+    onListApps: () => { lists += 1; },
     onOpenInApp: (appId: string) => chosen.push(appId),
-  }));
+  });
+  const view = await mount(openIn(null));
   const trigger = () => query<HTMLButtonElement>(view.container, ".open-in .session-toggle");
 
   assert.equal(trigger().getAttribute("aria-expanded"), "false");
+  assert.equal(lists, 0, "a list nobody has opened is not worth a scan");
   await act(async () => { trigger().click(); });
   assert.equal(menu, "workspace:open-in");
 
-  await view.render(React.createElement(OpenInMenu, {
-    openMenu: menu,
-    onSetOpenMenu: (next: string | null) => { menu = next; },
-    enabled: true,
-    onOpenInApp: (appId: string) => chosen.push(appId),
-  }));
+  await view.render(openIn(null));
+  await act(async () => {});
+  assert.equal(lists, 1, "opening the list asks the machine what it has");
+  assert.match(view.container.textContent, /Looking for applications…/);
+
+  await view.render(openIn(apps));
   await act(async () => {});
 
   assert.deepEqual([...view.container.querySelectorAll(".open-in-group")].map((group) => group.textContent), ["Editors", "Terminals", "Files"]);
@@ -355,7 +369,7 @@ test("the open-in list groups the applications this machine has, and hands one t
 
 test("the open-in button waits for a folder to hand over", async () => {
   window.desktop = fakeDesktop();
-  const view = await mount(React.createElement(OpenInMenu, { openMenu: null, onSetOpenMenu: () => {}, enabled: false, onOpenInApp: () => {} }));
+  const view = await mount(React.createElement(OpenInMenu, { openMenu: null, onSetOpenMenu: () => {}, enabled: false, apps: null, onListApps: () => {}, onOpenInApp: () => {} }));
 
   assert.equal(query<HTMLButtonElement>(view.container, ".open-in .session-toggle").disabled, true);
   await view.unmount();

@@ -2,6 +2,7 @@ import type { AutomationDraft, AutomationPatch } from "../domain/automation.js";
 import type { SnoozeHours } from "../domain/thread-snooze.js";
 import type { ShortcutSurface } from "../domain/shortcuts.js";
 import type { BrowserAction } from "../domain/browser.js";
+import type { ComputerUsePermission } from "../domain/computer-use.js";
 import type { CaptureOptions } from "../domain/capture.js";
 import type { DiffMode, DiffRange } from "../domain/diff.js";
 import type { FindTarget } from "../domain/find.js";
@@ -29,7 +30,34 @@ export type ReadingPoint = { anchor: string; depth: number } | null;
  * through the same door. Anything that reaches {@link AppCommand} from outside the window has to be
  * validated at that boundary first, the way `isRunCommand` guards the run channel.
  */
-export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ImageCommand | ImageViewCommand | ProjectCommand | RunControlCommand | ReviewCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | DiffCommand | FileCommand | ExternalAppCommand | TerminalCommand | RemoteCommand | EngineCommand | ViewCommand;
+export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ImageCommand | ImageViewCommand | CliCommand | ComputerUseAccessCommand | PlanUsageCommand | ProjectCommand | PullRequestCommand | RunControlCommand | ReviewCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | DiffCommand | FileCommand | ExternalAppCommand | TerminalCommand | RemoteCommand | EngineCommand | ViewCommand;
+
+/**
+ * Asks GitHub about the pull request the checkout in front belongs to. Sent again whenever that
+ * checkout, its branch or the thread reading it changes, and on a slow poll until the answer settles.
+ */
+export type PullRequestCommand = { type: "pull-request.read" };
+
+/**
+ * The terminal command the app installs. Reading says whether it is there; installing and removing
+ * answer with where it stands afterwards.
+ */
+/**
+ * What the platform lets the app see and operate. Reading asks the platform; enabling sends the user
+ * to its own permission dialog; restarting is what a newly complete set needs to take effect.
+ */
+export type ComputerUseAccessCommand =
+  | { type: "computer-use.read" }
+  | { type: "computer-use.enable"; permission: ComputerUsePermission }
+  | { type: "computer-use.restart" };
+
+/** The plan limits every provider reports, read again whenever the Usage page asks for them. */
+export type PlanUsageCommand = { type: "usage.read" };
+
+export type CliCommand =
+  | { type: "cli.read" }
+  | { type: "cli.install" }
+  | { type: "cli.uninstall" };
 
 /** The diff panel. Which comparison it shows, which file is open, and which files are ticked off. */
 export type DiffCommand =
@@ -237,6 +265,8 @@ export type FileCommand =
  * so it never appears in `ExternalCommand`: a run has the folder already.
  */
 export type ExternalAppCommand =
+  /** The applications this machine has, read again whenever a list of them is opened. */
+  | { type: "app.list" }
   | { type: "app.open-folder"; appId: string }
   /** Asks the updater to look now, from the notice about threads a newer version wrote. */
   | { type: "app.check-for-updates" }

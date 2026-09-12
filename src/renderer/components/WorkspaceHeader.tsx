@@ -1,4 +1,5 @@
 import { LuPanelLeft as PanelLeft, LuPanelRight as PanelRight, LuSlidersHorizontal as SlidersHorizontal } from "react-icons/lu";
+import type { InstalledApp } from "../../contracts/ipc";
 import type { Thread } from "../../domain/thread";
 import { OpenInMenu } from "./OpenInMenu";
 import { PopoverMenu } from "./PopoverMenu";
@@ -18,6 +19,9 @@ export type WorkspaceHeaderProps = {
   /** False while the thread has no checkout to hand over, such as a worktree still being made. */
   canOpenFolder: boolean;
   onSetOpenMenu: (menu: string | null) => void;
+  /** The applications this machine has, for the menu that hands the checkout to one. */
+  apps: InstalledApp[] | null;
+  onListApps: () => void;
   onOpenInApp: (appId: string) => void;
   onRenameThread: (threadId: string, title: string) => void;
   onForkThread: (threadId: string, worktree: boolean) => void;
@@ -64,7 +68,7 @@ function ThreadHeading({ currentThread, folder, folderLabel, openMenu, onSetOpen
   );
 }
 
-export function WorkspaceHeader({ currentThread, folder, folderLabel, sidebarOpen, sessionPanelOpen, rightDockOpen, workingSubagents, openMenu, canOpenFolder, onSetOpenMenu, onOpenInApp, onRenameThread, onForkThread, onArchiveThread, onToggleSidebar, onToggleSessionPanel, onToggleRightDock }: WorkspaceHeaderProps) {
+export function WorkspaceHeader({ currentThread, folder, folderLabel, sidebarOpen, sessionPanelOpen, rightDockOpen, workingSubagents, openMenu, canOpenFolder, apps, onListApps, onSetOpenMenu, onOpenInApp, onRenameThread, onForkThread, onArchiveThread, onToggleSidebar, onToggleSessionPanel, onToggleRightDock }: WorkspaceHeaderProps) {
   return (
     <header className={`topbar ${sidebarOpen ? "" : "traffic-inset"}`.trimEnd()}>
       <div className="task-heading">
@@ -93,7 +97,7 @@ export function WorkspaceHeader({ currentThread, folder, folderLabel, sidebarOpe
         </div>
       </div>
       <div className="workspace-controls">
-        <OpenInMenu openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} enabled={canOpenFolder} onOpenInApp={onOpenInApp} />
+        <OpenInMenu openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} enabled={canOpenFolder} apps={apps} onListApps={onListApps} onOpenInApp={onOpenInApp} />
         <button
           className={`session-toggle ${sessionPanelOpen ? "active" : ""}`}
           type="button"

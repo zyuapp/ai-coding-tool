@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import type { CliState } from "../../application/cli-installation";
 import { CLI_COMMAND, CLI_INSTALL_PATH, type CliStatus } from "../../domain/cli";
 import { SettingRow } from "./SettingRow";
 
@@ -17,6 +18,10 @@ function cliDescription(status: CliStatus | null) {
 }
 
 export type GeneralSettingsProps = {
+  /** The terminal command: where it stands, whether it is being changed, and what stopped the last try. */
+  cli: CliState;
+  onReadCli: () => void;
+  onSetCliInstalled: (installed: boolean) => void;
   /** Whether runs reach the user's own Chrome through the Claude in Chrome extension. */
   chromeBrowser: boolean;
   onSetChromeBrowser: (enabled: boolean) => void;
@@ -30,30 +35,8 @@ export type GeneralSettingsProps = {
   onOpenSourceLicenses: () => void;
 };
 
-export function GeneralSettings({ chromeBrowser, onSetChromeBrowser, conciseReplies, onSetConciseReplies, notifications, onSetNotifications, onCheckForUpdates, onOpenSourceLicenses }: GeneralSettingsProps) {
-  const [cli, setCli] = useState<CliStatus | null>(null);
-  const [cliBusy, setCliBusy] = useState(false);
-  const [cliError, setCliError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    window.desktop.cliStatus()
-      .then((status) => { if (!cancelled) setCli(status); })
-      .catch((cause) => { if (!cancelled) setCliError(cause instanceof Error ? cause.message : String(cause)); });
-    return () => { cancelled = true; };
-  }, []);
-
-  async function changeCli(install: boolean) {
-    setCliBusy(true);
-    setCliError(null);
-    try {
-      setCli(await (install ? window.desktop.installCli() : window.desktop.uninstallCli()));
-    } catch (cause) {
-      setCliError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setCliBusy(false);
-    }
-  }
+export function GeneralSettings({ cli: { status, busy, error }, onReadCli, onSetCliInstalled, chromeBrowser, onSetChromeBrowser, conciseReplies, onSetConciseReplies, notifications, onSetNotifications, onCheckForUpdates, onOpenSourceLicenses }: GeneralSettingsProps) {
+  useEffect(() => { onReadCli(); }, []);
 
   return (
     <>
@@ -65,17 +48,17 @@ export function GeneralSettings({ chromeBrowser, onSetChromeBrowser, conciseRepl
           </div>
         </div>
 
-        <SettingRow id="general.cli" status={cli?.state === "installed"} description={cliDescription(cli)}>
-          {!cli && !cliError && <em>Checking…</em>}
-          {cli?.state === "installed" && <button type="button" disabled={cliBusy} onClick={() => void changeCli(false)}>{cliBusy ? "Removing…" : "Uninstall"}</button>}
-          {(cli?.state === "missing" || cli?.state === "conflict") && (
-            <button type="button" disabled={cliBusy} onClick={() => void changeCli(true)}>
-              {cliBusy ? "Installing…" : cli.state === "conflict" ? "Replace it" : "Install"}
+        <SettingRow id="general.cli" status={status?.state === "installed"} description={cliDescription(status)}>
+          {!status && !error && <em>Checking…</em>}
+          {status?.state === "installed" && <button type="button" disabled={busy} onClick={() => onSetCliInstalled(false)}>{busy ? "Removing…" : "Uninstall"}</button>}
+          {(status?.state === "missing" || status?.state === "conflict") && (
+            <button type="button" disabled={busy} onClick={() => onSetCliInstalled(true)}>
+              {busy ? "Installing…" : status.state === "conflict" ? "Replace it" : "Install"}
             </button>
           )}
         </SettingRow>
 
-        {cliError && <p className="settings-error" role="alert">{cliError}</p>}
+        {error && <p className="settings-error" role="alert">{error}</p>}
       </section>
 
       <section className="settings-group" aria-labelledby="notifications-heading">

@@ -35,6 +35,9 @@ function renderSettingsPanel(overrides: SettingsTestOverrides) {
   return React.createElement(SettingsPanel, {
     onClose() {},
     archivedThreads: [], worktreeSettings: deriveView(emptyWorkspaceState()).worktreeSettings, worktreeManagementError: null, worktreeManagementNotice: null,
+    cli: deriveView(emptyWorkspaceState()).cli, onReadCli() {}, onSetCliInstalled() {},
+    planUsage: deriveView(emptyWorkspaceState()).planUsage, onReadPlanUsage() {},
+    computerUseAccess: deriveView(emptyWorkspaceState()).computerUsePermissions, onEnableComputerUse() {}, onRestartForComputerUse() {},
     theme: "aicodingtool-dark",
     themeMode: "auto",
     uiFont: "system",
@@ -96,9 +99,9 @@ test("the general section installs the aic command and takes it back", async () 
     installCli: async () => { calls.push("install"); status = { state: "installed", path: "/usr/local/bin/aic" }; return status; },
     uninstallCli: async () => { calls.push("uninstall"); status = { state: "missing", path: "/usr/local/bin/aic" }; return status; },
   });
-  const view = await mount(renderSettingsPanel({ onClose() {}, archivedThreads: [], theme: "aicodingtool-dark", allowedOrigins: [], shortcuts: [], captureSound: true, captureFocus: true, capturingShortcut: null, onSetTheme() {}, onRestoreThread() {}, onClearArchive() {}, onClearBrowserData() {}, onSetCaptureOptions() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
-  await act(async () => {});
-  const button = () => query<HTMLButtonElement>(view.container, ".setting-row-action button");
+  const view = await mount(React.createElement(App));
+  await openSettingsPage(view, "General");
+  const button = () => query<HTMLButtonElement>(view.container, '[data-setting="general.cli"] button');
   assert.match(view.container.textContent, /Terminal command/);
   assert.equal(button().textContent, "Install");
 
@@ -116,8 +119,8 @@ test("the Linux command explains when its user-local bin folder is not on PATH",
   window.desktop = fakeDesktop({
     cliStatus: async () => ({ state: "installed", path: "/home/me/.local/bin/aic", onPath: false }),
   });
-  const view = await mount(renderSettingsPanel({ onClose() {} }));
-  await act(async () => {});
+  const view = await mount(React.createElement(App));
+  await openSettingsPage(view, "General");
 
   assert.match(view.container.textContent, /Add its folder to PATH to run aic by name/);
   await view.unmount();
@@ -125,12 +128,12 @@ test("the Linux command explains when its user-local bin folder is not on PATH",
 
 test("an install the password prompt refuses is reported, not swallowed", async () => {
   window.desktop = fakeDesktop({ installCli: async () => { throw new Error("Cancelled."); } });
-  const view = await mount(renderSettingsPanel({ onClose() {}, archivedThreads: [], theme: "aicodingtool-dark", allowedOrigins: [], shortcuts: [], captureSound: true, captureFocus: true, capturingShortcut: null, onSetTheme() {}, onRestoreThread() {}, onClearArchive() {}, onClearBrowserData() {}, onSetCaptureOptions() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
-  await act(async () => {});
-  await act(async () => { query<HTMLButtonElement>(view.container, ".setting-row-action button").click(); });
+  const view = await mount(React.createElement(App));
+  await openSettingsPage(view, "General");
+  await act(async () => { query<HTMLButtonElement>(view.container, '[data-setting="general.cli"] button').click(); });
 
   assert.match(query(view.container, ".settings-error").textContent, /Cancelled/);
-  assert.equal(query(view.container, ".setting-row-action button").textContent, "Install");
+  assert.equal(query(view.container, '[data-setting="general.cli"] button').textContent, "Install");
   await view.unmount();
 });
 
@@ -149,8 +152,8 @@ test("computer-use settings refresh permissions", async () => {
     ][checks++]),
     restartForComputerUse: () => { restarted = true; },
   });
-  const view = await mount(renderSettingsPanel({ onClose() {}, initialSection: "computer-use", archivedThreads: [], allowedOrigins: [], shortcuts: [], capturingShortcut: null, onRestoreThread() {}, onClearArchive() {}, onClearBrowserData() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
-  await act(async () => {});
+  const view = await mount(React.createElement(App));
+  await openSettingsPage(view, "Computer use");
   assert.match(view.container.textContent, /Accessibility/);
   assert.match(view.container.textContent, /Setup required/);
   assert.match(view.container.textContent, /Enable Accessibility/);
@@ -183,21 +186,8 @@ test("Linux computer-use settings show runtime capability without macOS permissi
       },
     }),
   });
-  const view = await mount(renderSettingsPanel({
-    onClose() {},
-    initialSection: "computer-use",
-    archivedThreads: [],
-    allowedOrigins: [],
-    shortcuts: [],
-    capturingShortcut: null,
-    onRestoreThread() {},
-    onClearArchive() {},
-    onClearBrowserData() {},
-    onCaptureShortcut() {},
-    onSetShortcut() {},
-    onResetShortcuts() {},
-  }));
-  await act(async () => {});
+  const view = await mount(React.createElement(App));
+  await openSettingsPage(view, "Computer use");
 
   assert.match(view.container.textContent, /Linux runtime/);
   assert.match(view.container.textContent, /Compositor-dependent/);
@@ -207,7 +197,8 @@ test("Linux computer-use settings show runtime capability without macOS permissi
 
 test("computer-use settings stay platform-neutral while Linux capability is loading", async () => {
   window.desktop = fakeDesktop({ platform: "linux", computerUsePermissions: async () => new Promise<never>(() => undefined) });
-  const view = await mount(renderSettingsPanel({ onClose() {}, initialSection: "computer-use" }));
+  const view = await mount(React.createElement(App));
+  await openSettingsPage(view, "Computer use");
 
   assert.match(view.container.textContent, /Platform setup.*Checking what this computer can use/s);
   assert.doesNotMatch(view.container.textContent, /macOS permissions|Enable Accessibility|Enable Screen Recording/);
@@ -276,8 +267,8 @@ test("the usage section draws every provider and reports one that cannot answer"
     },
   };
   window.desktop = fakeDesktop({ planUsage: async (engine) => answer[engine] });
-  const view = await mount(renderSettingsPanel({ onClose() {}, archivedThreads: [], theme: "aicodingtool-dark", allowedOrigins: [], shortcuts: [], captureSound: true, captureFocus: true, capturingShortcut: null, onSetTheme() {}, onRestoreThread() {}, onClearArchive() {}, onClearBrowserData() {}, onSetCaptureOptions() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
-  await act(async () => { item([...view.container.querySelectorAll<HTMLButtonElement>(".settings-sidebar nav button")].find((button) => button.textContent === "Usage")).click(); });
+  const view = await mount(React.createElement(App));
+  await openSettingsPage(view, "Usage");
 
   assert.match(view.container.textContent, /Max plan/);
   assert.match(view.container.textContent, /Pro plan/);
@@ -305,8 +296,8 @@ test("the usage section draws every provider and reports one that cannot answer"
 
 test("a usage read that rejects reports instead of breaking the panel", async () => {
   window.desktop = fakeDesktop({ planUsage: async () => { throw new Error("Untrusted IPC sender."); } });
-  const view = await mount(renderSettingsPanel({ onClose() {}, archivedThreads: [], theme: "aicodingtool-dark", allowedOrigins: [], shortcuts: [], captureSound: true, captureFocus: true, capturingShortcut: null, onSetTheme() {}, onRestoreThread() {}, onClearArchive() {}, onClearBrowserData() {}, onSetCaptureOptions() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
-  await act(async () => { item([...view.container.querySelectorAll<HTMLButtonElement>(".settings-sidebar nav button")].find((button) => button.textContent === "Usage")).click(); });
+  const view = await mount(React.createElement(App));
+  await openSettingsPage(view, "Usage");
 
   assert.match(query(view.container, ".settings-error").textContent, /Untrusted IPC sender/);
   await view.unmount();

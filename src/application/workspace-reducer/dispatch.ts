@@ -3,6 +3,10 @@ import { reduceWorktrees } from "./worktrees.js";
 import { reduceWorktreeMenu } from "./worktree-menu.js";
 import { reduceSending } from "./sending.js";
 import { reduceProjectCommands } from "./projects.js";
+import { reduceCli } from "./cli.js";
+import { reduceComputerUse } from "./computer-use.js";
+import { reducePlanUsage } from "./plan-usage.js";
+import { reducePullRequests } from "./pull-requests.js";
 import { reduceRuns } from "./runs.js";
 import { reduceAutomations } from "./automations.js";
 import { reduceSideChats } from "./side-chats.js";
@@ -63,6 +67,19 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "side-chat.open": case "side-chat.close":
       return reduceSideChats(state, input);
 
+    case "pull-request.read": case "pull-request.answered":
+      return reducePullRequests(state, input);
+
+    case "computer-use.read": case "computer-use.enable": case "computer-use.restart":
+    case "computer-use.permissions": case "computer-use.failed":
+      return reduceComputerUse(state, input);
+
+    case "usage.read": case "usage.reported":
+      return reducePlanUsage(state, input);
+
+    case "cli.read": case "cli.install": case "cli.uninstall": case "cli.read-status": case "cli.failed":
+      return reduceCli(state, input);
+
     case "view.refresh-environment": case "diff.toggle": case "diff.refresh": case "diff.open-commit":
     case "diff.set-mode": case "diff.set-range": case "diff.set-collapsed": case "diff.set-viewed":
     case "diff.set-split": case "diff.set-ignore-whitespace": case "diff.loaded": case "environment.updated":
@@ -105,7 +122,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "browser.updated":
       return reduceBrowser(state, input);
 
-    case "image.open": case "image.close": case "image.download": case "file.open": case "app.open-folder": case "app.check-for-updates": case "app.open-source-licenses": case "terminal.open":
+    case "image.open": case "image.close": case "image.download": case "file.open": case "app.list": case "apps.listed": case "app.open-folder": case "app.check-for-updates": case "app.open-source-licenses": case "terminal.open":
     case "terminal.select": case "terminal.close": case "terminal.input":
     case "terminal.resize": case "terminal.updated": case "view.closed": case "view.mounted":
       return reduceDesktop(state, input);

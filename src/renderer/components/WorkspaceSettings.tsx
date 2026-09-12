@@ -1,16 +1,27 @@
 import { SettingsPanel } from "./SettingsPanel";
+import { useComputerUseReads } from "../task-workspace/computer-use-reads";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;
 
 /** The settings sheet with every preference it reads and every command its controls dispatch. */
 export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace; onClose: () => void }) {
+  useComputerUseReads(workspace.computerUsePermissions, workspace.actions.readComputerUse);
+
   return (
     <SettingsPanel
       onClose={onClose}
       initialSection={workspace.settingsSection ?? "general"}
       initialSetting={workspace.settingsFocus}
       archivedThreads={workspace.archivedThreads}
+      cli={workspace.cli}
+      onReadCli={() => void workspace.actions.readCli()}
+      onSetCliInstalled={(installed) => void workspace.actions.setCliInstalled(installed)}
+      planUsage={workspace.planUsage}
+      onReadPlanUsage={() => void workspace.actions.readPlanUsage()}
+      computerUseAccess={workspace.computerUsePermissions}
+      onEnableComputerUse={(permission) => void workspace.actions.enableComputerUse(permission)}
+      onRestartForComputerUse={() => void workspace.actions.restartForComputerUse()}
       worktreeSettings={workspace.worktreeSettings} worktreeManagementError={workspace.worktreeManagementError} worktreeManagementNotice={workspace.worktreeManagementNotice}
       theme={workspace.theme}
       themeMode={workspace.themeMode}

@@ -148,7 +148,7 @@ export function App() {
           workingSubagents={workingSubagents}
           openMenu={workspace.openMenu}
           canOpenFolder={Boolean(workspace.folder) && workspace.location?.kind !== "creating"}
-          onSetOpenMenu={workspace.actions.setOpenMenu}
+          onSetOpenMenu={workspace.actions.setOpenMenu} apps={workspace.installedApps} onListApps={() => void workspace.actions.listApps()}
           onOpenInApp={(appId) => void workspace.actions.openFolderInApp(appId)}
           onRenameThread={workspace.actions.renameThread}
           onForkThread={workspace.actions.forkThread}
