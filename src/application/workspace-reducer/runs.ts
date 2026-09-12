@@ -12,7 +12,7 @@ import { threadOnScreen } from "../thread-attention.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, threadWorkspaceRoot, worktreeById, worktreeFor } from "../thread-location.js";
 import { DRAFT_DOCK, type PendingRun, type WorkspaceState } from "../workspace-state.js";
 import type { CreatedWorktree } from "../../contracts/ipc.js";
-import { defaultEffortFor, defaultModelFor, effortForModel, engineForModel, engineHasEffort, modelSupportsManualCompaction } from "../../domain/agent-engine.js";
+import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel, engineForModel, engineHasEffort, modelSupportsManualCompaction } from "../../domain/agent-engine.js";
 import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
 import { createConversationMessage } from "../../domain/conversation.js";
 import type { Thread } from "../../domain/thread.js";
@@ -64,7 +64,7 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
     case "run.compact": {
       const taskId = targetId(state, input.taskId);
       const thread = state.threads.find((item) => item.id === taskId);
-      if (!thread || !modelSupportsManualCompaction(thread.engine, thread.model ?? defaultModelFor(thread.engine)) || thread.continuation?.provider !== "codex" || !thread.contextUsage || threadBusy(state, thread.id)) return settled(state);
+      if (!thread || !modelSupportsManualCompaction(thread.engine, thread.model ?? defaultModelFor(thread.engine)) || thread.continuation?.provider !== thread.engine || !thread.contextUsage || threadBusy(state, thread.id)) return settled(state);
       if (state.creatingWorktrees.includes(thread.id)) return rejected(state, WORKTREE_CREATING_ERROR);
       if (leavingThreadIds(state).has(thread.id)) return rejected(state, WORKTREE_RELEASING_ERROR);
       const project = projectFor(state, thread);
@@ -240,7 +240,7 @@ function restoreCompactionTestimony(state: WorkspaceState, taskId: string, befor
 
 function startCompaction(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord): WorkspaceTransition {
   const thread = pending.taskId ? state.threads.find((item) => item.id === pending.taskId) : undefined;
-  if (!thread || !modelSupportsManualCompaction(thread.engine, thread.model ?? defaultModelFor(thread.engine)) || thread.continuation?.provider !== "codex" || !thread.contextUsage || state.activeRuns[thread.id]) return settled(state);
+  if (!thread || !modelSupportsManualCompaction(thread.engine, thread.model ?? defaultModelFor(thread.engine)) || thread.continuation?.provider !== thread.engine || !thread.contextUsage || state.activeRuns[thread.id]) return settled(state);
   const command = {
     ...startRunCommand(state, thread, pending.runId, "", workspace.id),
     operation: { type: "compact" as const, preTokens: thread.contextUsage.tokens },
@@ -250,8 +250,8 @@ function startCompaction(state: WorkspaceState, pending: PendingRun, workspace: 
 
 function reviewableThread(state: WorkspaceState, taskId: string | null) {
   const thread = state.threads.find((item) => item.id === taskId);
-  return thread?.engine === "codex"
-    && thread.continuation?.provider === "codex"
+  return thread && capabilitiesFor(thread.engine).review
+    && thread.continuation?.provider === thread.engine
     && threadWorkspaceId(state, thread)
     && !threadBusy(state, thread.id)
     ? thread
@@ -292,7 +292,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     engine,
     model,
     effort,
-    ...(engine === "codex" ? { fastMode: state.draftFastMode } : {}),
+    ...(capabilitiesFor(engine).fastMode ? { fastMode: state.draftFastMode } : {}),
     messages: [],
     continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: now() },

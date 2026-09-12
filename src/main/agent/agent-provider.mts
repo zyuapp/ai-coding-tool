@@ -99,7 +99,7 @@ export type ProviderRunInput = {
   engine: AgentEngine;
   model: AgentModel;
   effort: AgentEffort;
-  /** Codex only. Absent means standard speed. */
+  /** Read only by an engine whose capabilities include fast mode. Absent means standard speed. */
   fastMode?: boolean;
   operation?: RunOperation;
   /** Read by the Claude engine alone; any other engine leaves it unopened. */

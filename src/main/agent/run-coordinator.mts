@@ -1,6 +1,7 @@
 import { isQuestionRequest, type QuestionAnswers, type QuestionRequest } from "../../domain/agent-question.js";
 import { randomUUID } from "node:crypto";
 import type { AgentEvent, BackgroundReport, GoalReport, InternalStartRunCommand, RunEvent, WorkflowReport } from "../../contracts/ipc.js";
+import { capabilitiesFor } from "../../domain/agent-engine.js";
 import type { SubagentReport, ToolIntent } from "../../domain/run.js";
 import type { AgentProvider, AgentTurn, AutomationBridge, FindingBridge, ProviderEvent, BrowserBridge, TerminalBridge, ThreadBridge, ToolDecision } from "./agent-provider.mjs";
 import { SteerChannel } from "./steer-channel.mjs";
@@ -147,7 +148,7 @@ export class RunCoordinator {
         engine: command.engine,
         model: command.model,
         effort: command.effort,
-        ...(command.engine === "codex" ? { fastMode: command.fastMode ?? false } : {}),
+        ...(capabilitiesFor(command.engine).fastMode ? { fastMode: command.fastMode ?? false } : {}),
         operation: command.operation,
         claude: command.claude,
         continuation: command.continuation,

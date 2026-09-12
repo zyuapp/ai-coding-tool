@@ -1,7 +1,7 @@
 import { ConversationComposer, type ComposerAction } from "./ConversationComposer";
 import { attachDroppedFiles, imageSources } from "../dropped-files";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
-import { modelSupportsManualCompaction } from "../../domain/agent-engine";
+import { capabilitiesFor, modelSupportsManualCompaction } from "../../domain/agent-engine";
 import { sentPrompts } from "../../domain/conversation";
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;
@@ -10,14 +10,14 @@ type Workspace = ReturnType<typeof useTaskWorkspace>;
 export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace; actions: ComposerAction[] }) {
   const thread = workspace.currentThread;
   const compact = thread && modelSupportsManualCompaction(thread.engine, workspace.model)
-    && thread.continuation?.provider === "codex"
+    && thread.continuation?.provider === thread.engine
     && thread.contextUsage !== undefined
     && !workspace.runActive
     && workspace.waitingOn === null
     ? [{ name: "compact", description: "Compact the current chat's context.", run: workspace.actions.compactContext }]
     : [];
-  const review = thread?.engine === "codex"
-    && thread.continuation?.provider === "codex"
+  const review = thread && capabilitiesFor(thread.engine).review
+    && thread.continuation?.provider === thread.engine
     && workspace.workspaceId
     && !workspace.runActive
     && workspace.waitingOn === null

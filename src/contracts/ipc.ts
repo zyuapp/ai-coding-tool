@@ -16,7 +16,7 @@ import type { ActiveGoal } from "../domain/goal.js";
 import type { TerminalUpdate } from "../domain/terminal.js";
 import type { AttachedFileDraft } from "../domain/conversation.js";
 import { MAX_DETAIL, MAX_FINDING_KEY, MAX_HEADLINE } from "../domain/finding.js";
-import { engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, modelSupportsManualCompaction, type AgentEngine, type AgentModel, type EngineStatus } from "../domain/agent-engine.js";
+import { capabilitiesFor, engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, modelSupportsManualCompaction, type AgentEngine, type AgentModel, type EngineStatus } from "../domain/agent-engine.js";
 import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, Continuation, ExecutionPolicy, RunStatus, SubagentActivity, SubagentReport, ToolIntent } from "../domain/run.js";
 import type { PlanUsage } from "../domain/plan-usage.js";
 import type { PullRequestAnswer } from "../domain/pull-request.js";
@@ -75,7 +75,7 @@ export type StartRunCommand = {
   engine: AgentEngine;
   model: AgentModel;
   effort: AgentEffort;
-  /** Codex only. Absent means standard speed. */
+  /** Read only by an engine whose capabilities include fast mode. Absent means standard speed. */
   fastMode?: boolean;
   operation?: RunOperation;
   claude?: ClaudeRunSettings;
@@ -620,19 +620,20 @@ function isClaudeRunSettings(value: unknown): value is ClaudeRunSettings {
 function isStartCommand(command: Record<string, unknown>, internal: boolean) {
   if (!isString(command.title, MAX_TITLE_LENGTH)) return false;
   const operation = command.operation as Record<string, unknown> | undefined;
+  /** An operation is work the engine performs itself, so only a catalogue that offers it may ask. */
   const compact = operation?.type === "compact"
     && typeof operation.preTokens === "number" && Number.isFinite(operation.preTokens) && operation.preTokens >= 0
-    && command.engine === "codex" && command.prompt === "" && isAgentModel(command.model) && modelSupportsManualCompaction(command.engine, command.model)
-    && isContinuation(command.continuation) && command.continuation.provider === "codex"
+    && command.prompt === "" && isAgentEngine(command.engine) && isAgentModel(command.model) && modelSupportsManualCompaction(command.engine, command.model)
+    && isContinuation(command.continuation) && command.continuation.provider === command.engine
     && command.forkContinuation === undefined;
   const review = operation?.type === "review"
     && isReviewTarget(operation.target)
-    && command.channel === "main" && command.engine === "codex" && command.prompt === ""
-    && isContinuation(command.continuation) && command.continuation.provider === "codex"
+    && command.channel === "main" && command.prompt === "" && isAgentEngine(command.engine) && capabilitiesFor(command.engine).review
+    && isContinuation(command.continuation) && command.continuation.provider === command.engine
     && (command.forkContinuation === undefined || command.forkContinuation === true);
   const operationOnly = compact || review;
   const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && (operationOnly ? isBlankable(command.prompt, MAX_PROMPT_LENGTH) : isString(command.prompt, MAX_PROMPT_LENGTH)) && isString(command.workspaceId) && isPolicy(command.policy) && isAgentEngine(command.engine) && isAgentModel(command.model) && engineHasModel(command.engine, command.model) && isAgentEffort(command.effort) && engineHasEffort(command.engine, command.effort) && (command.operation === undefined || operationOnly) && (command.claude === undefined || isClaudeRunSettings(command.claude)) && (command.computerUseTools === undefined || command.computerUseTools === false) && (command.browserTools === undefined || command.browserTools === false) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation))) && (command.unattended === undefined || command.unattended === true);
-  if (!base || !(command.fastMode === undefined || command.engine === "codex" && typeof command.fastMode === "boolean")) return false;
+  if (!base || !(command.fastMode === undefined || isAgentEngine(command.engine) && capabilitiesFor(command.engine).fastMode && typeof command.fastMode === "boolean")) return false;
   if (!internal) return !["workspaceRoot", "projectless", "computerUse", "cwd", "folder", "sessionId", "mode", "requestId"].some((key) => key in command);
   return isString(command.workspaceRoot, 4_096) && typeof command.projectless === "boolean" && isComputerUseRunConfig(command.computerUse);
 }

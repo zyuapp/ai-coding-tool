@@ -15,7 +15,7 @@ import { withoutOutcome } from "../../domain/attention.js";
 import { browserOrigin, type BrowserTab } from "../../domain/browser.js";
 import { DEFAULT_BRANCH_RANGE, modeForRange, type DiffRange } from "../../domain/diff.js";
 import { searchesItself, type FindTarget } from "../../domain/find.js";
-import { defaultEffortFor, defaultModelFor, effortForModel } from "../../domain/agent-engine.js";
+import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel } from "../../domain/agent-engine.js";
 import type { RunStatus } from "../../domain/run.js";
 import { createConversationMessage, type Annotation, type AttachedFile, type PastedText, type RunAttachment } from "../../domain/conversation.js";
 import type { Project } from "../../domain/project.js";
@@ -382,7 +382,7 @@ export function startRunCommand(state: WorkspaceState, thread: Thread, runId: st
     engine: thread.engine,
     model: thread.model ?? defaultModelFor(thread.engine),
     effort: effortForModel(thread.model ?? defaultModelFor(thread.engine), thread.effort ?? defaultEffortFor(thread.engine)),
-    ...(thread.engine === "codex" ? { fastMode: thread.fastMode ?? false } : {}),
+    ...(capabilitiesFor(thread.engine).fastMode ? { fastMode: thread.fastMode ?? false } : {}),
     ...(claude ? { claude } : {}),
     ...(state.computerUse ? {} : { computerUseTools: false as const }), ...(state.browserTools ? {} : { browserTools: false as const }),
     ...(thread.continuation ? { continuation: thread.continuation } : {}),

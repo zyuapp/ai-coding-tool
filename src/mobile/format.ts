@@ -1,5 +1,5 @@
 import type { MobileMessage, MobileRunStatus, MobileThreadEntry, MobileThreadSettings } from "../contracts/mobile";
-import { effortForModel, modelsFor, type AgentEngine } from "../domain/agent-engine";
+import { capabilitiesFor, effortForModel, modelsFor, type AgentEngine } from "../domain/agent-engine";
 import { POLICIES } from "../domain/run";
 import { toolFamily, type ToolFamily } from "../domain/tool-call";
 
@@ -88,7 +88,7 @@ export function settingsSummary(settings: MobileThreadSettings): { mode: string;
   const spec = modelsFor(settings.engine).find((candidate) => candidate.id === settings.model);
   return {
     mode: POLICIES[settings.policy].label,
-    model: `${spec?.label ?? settings.model}${settings.engine === "codex" && settings.fastMode ? " · Fast" : ""}`,
+    model: `${spec?.label ?? settings.model}${capabilitiesFor(settings.engine).fastMode && settings.fastMode ? " · Fast" : ""}`,
     effort:
       spec?.efforts.find((candidate) => candidate.id === effortForModel(settings.model, settings.effort))?.label ?? null,
   };
