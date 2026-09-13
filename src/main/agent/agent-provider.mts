@@ -8,7 +8,7 @@ import type { AgentEffort, Continuation, ExecutionPolicy, SubagentReport, ToolIn
 /** The window's workspace, reachable from the run: reads are projections, writes are commands. */
 export type ThreadBridge = {
   list(query: ThreadListQuery): Promise<ThreadSummary[]>;
-  read(threadId: string, limit?: number): Promise<ThreadTranscript>;
+  read(threadId: string, limit?: number, computer?: string): Promise<ThreadTranscript>;
   wait(threadId: string, timeoutMs: number): Promise<ThreadWaitResult>;
   command(command: ExternalCommand): Promise<ThreadCommandResult>;
 };

@@ -4,6 +4,7 @@ import { findThread, resolveScope, threadSummaries } from "../application/thread
 import type { ConversationMessage } from "../domain/conversation.js";
 import type { ThreadFilter, ThreadRequest } from "../contracts/threads.js";
 import { adoptPersistedMessages, type PersistenceQueue } from "./workspace-persistence.js";
+import { resolveThreadRead } from "./thread-reads.js";
 
 export type HistoryHost = {
   state(): WorkspaceState;
@@ -131,13 +132,18 @@ export function createRuntimeHistory(host: HistoryHost) {
       reads.clear();
     },
     async prepareThreadRequest(request: ThreadRequest) {
-      if (request.op === "read" || request.op === "wait") {
+      if ((request.op === "read" || request.op === "list") && request.computer && !["this", "all"].includes(request.computer)) return;
+      if (request.op === "read") {
+        const match = resolveThreadRead(host.state(), request.threadId, request.computer);
+        if (!match.computer) await hydrate(match.thread.id);
+      }
+      if (request.op === "wait") {
         const thread = findThread(host.state(), request.threadId);
         if (thread) await hydrate(thread.id);
       }
       if (request.op !== "list" || !request.search?.trim()) return;
       const state = host.state();
-      const scope = resolveScope(state, request.taskId, request.project);
+      const scope = resolveScope(state, request.taskId, request.project ?? (request.computer === "all" ? "all" : undefined));
       if ("error" in scope) return;
       const filter: ThreadFilter = { scope };
       if (request.archived !== undefined) filter.archived = request.archived;

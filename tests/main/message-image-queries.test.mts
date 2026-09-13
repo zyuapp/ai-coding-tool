@@ -9,6 +9,7 @@ import { MAX_IMAGE_BYTES } from "../../src/main/image-files.ts";
 import { useMessageImageStore } from "../../src/main/message-image-store.ts";
 
 const host: ComputerQueryHost = {
+  threads: async () => { throw new Error("An image does not need a thread query."); },
   workspaces: () => { throw new Error("Images do not need a checkout."); },
   commands: async () => { throw new Error("Images do not need an engine."); },
 };

@@ -99,6 +99,21 @@ test("reading a thread says what it left out rather than dumping the transcript"
   assert.match(textOf(read), /\[user\] how do we do it/);
 });
 
+test("thread tools carry computer selectors through the channel and label remote results", async () => {
+  const posted: ThreadRequest[] = [];
+  const channel = new ThreadChannel((request) => posted.push(request));
+  const bridge = channel.bridgeFor("caller");
+  const remote = summary({ computer: { id: "linux", name: "Linux", offline: true } });
+  const listing = toolNamed(bridge, "list_threads").handler({ computer: "all", limit: 2 }, {});
+  assert.deepEqual(posted[0], { type: "thread.request", requestId: posted[0].requestId, taskId: "caller", op: "list", computer: "all", limit: 2 });
+  channel.settle({ type: "thread.response", requestId: posted[0].requestId, ok: true, result: [remote] });
+  assert.match(textOf(await listing), /computer Linux \[linux\] \(offline, cached\)/);
+  const reading = toolNamed(bridge, "read_thread").handler({ threadId: "task-1", computer: "linux", limit: 1 }, {});
+  assert.deepEqual(posted[1], { type: "thread.request", requestId: posted[1].requestId, taskId: "caller", op: "read", threadId: "task-1", computer: "linux", limit: 1 });
+  channel.settle({ type: "thread.response", requestId: posted[1].requestId, ok: true, result: { thread: remote, messages: [], omitted: 0 } });
+  assert.match(textOf(await reading), /computer Linux/);
+});
+
 test("starting, messaging, archiving and stopping go through the command surface", async () => {
   const bridge = fakeBridge();
 
@@ -160,7 +175,7 @@ test("a refused request comes back as a tool error the model can correct", async
 
 test("the channel scopes each bridge to the thread that is running and times a lost answer out", async () => {
   const posted: ThreadRequest[] = [];
-  const channel = new ThreadChannel((request) => posted.push(request), 10);
+  const channel = new ThreadChannel((request) => posted.push(request), 10, 10);
   const bridge = channel.bridgeFor("task-caller");
 
   const listing = bridge.list({ project: "current", limit: 3 });

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { REMOTE_THREAD_READ_TIMEOUT_MS } from "../../contracts/threads.js";
 import type { BrowserRead, BrowserReadResult, BrowserWrite, ExternalCommand, FindingReport, FindingResult, TerminalRead, TerminalReadResult, ThreadCommandResult, ThreadListQuery, ThreadRequest, ThreadResponse, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
 import type { BrowserBridge, FindingBridge, TerminalBridge, ThreadBridge } from "./agent-provider.mjs";
 
@@ -26,12 +27,13 @@ export class ThreadChannel {
   constructor(
     private readonly post: (request: ThreadRequest) => void,
     private readonly timeout = REQUEST_TIMEOUT,
+    private readonly remoteTimeout = REMOTE_THREAD_READ_TIMEOUT_MS,
   ) {}
 
   bridgeFor(taskId: string): ThreadBridge {
     return {
-      list: (query: ThreadListQuery) => this.request({ taskId, op: "list", ...query }) as Promise<ThreadSummary[]>,
-      read: (threadId: string, limit?: number) => this.request({ taskId, op: "read", threadId, ...(limit === undefined ? {} : { limit }) }) as Promise<ThreadTranscript>,
+      list: (query: ThreadListQuery) => this.request({ taskId, op: "list", ...query }, query.computer && query.computer !== "this" ? this.remoteTimeout : this.timeout) as Promise<ThreadSummary[]>,
+      read: (threadId: string, limit?: number, computer?: string) => this.request({ taskId, op: "read", threadId, ...(limit === undefined ? {} : { limit }), ...(computer === undefined ? {} : { computer }) }, computer === "this" ? this.timeout : this.remoteTimeout) as Promise<ThreadTranscript>,
       wait: (threadId: string, timeoutMs: number) => this.request({ taskId, op: "wait", threadId, timeoutMs }, timeoutMs + WAIT_SLACK) as Promise<ThreadWaitResult>,
       command: (command: ExternalCommand) => this.request({ taskId, op: "command", command }) as Promise<ThreadCommandResult>,
     };

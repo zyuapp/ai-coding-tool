@@ -17,6 +17,7 @@ import { runWorkspaceEffect } from "./workspace-effects.js";
 import { subscribeWorkspaceRuntime } from "./runtime-subscriptions.js";
 import type { WorkspaceRuntimeHost } from "./runtime-desktop.js";
 import { drainLatestPersistence, hasPersistenceChanges, persistedStoreState, persistenceState, type PersistenceQueue } from "./workspace-persistence.js";
+import { localThreadReader } from "./thread-reads.js";
 
 export type { RuntimeDesktop, WorkspaceRuntimeHost } from "./runtime-desktop.js";
 
@@ -104,9 +105,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
     return execution;
   }
 
-  function dispatch(input: WorkspaceInput): Promise<void> {
-    return inputs.execute(input).completed.then(() => undefined);
-  }
+  function dispatch(input: WorkspaceInput): Promise<void> { return inputs.execute(input).completed.then(() => undefined); }
 
   function refreshEnvironment() {
     const thread = state.threads.find((item) => item.id === state.currentId);
@@ -142,6 +141,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     execute: inputs.execute,
     dispatch,
+    queryThreads: localThreadReader(() => state, history.prepareThreadRequest, () => subscriptions?.flush(), () => disposed),
     /** Reads the stored drafts again, for text that arrived in storage after the start. */
     restoreDrafts: () => drafts.restore(),
     start() {

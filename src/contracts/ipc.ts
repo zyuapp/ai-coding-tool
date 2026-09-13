@@ -735,6 +735,7 @@ export function isThreadRequest(value: unknown): value is ThreadRequest {
   if (!value || typeof value !== "object") return false;
   const request = value as Record<string, unknown>;
   if (request.type !== "thread.request" || !isString(request.requestId) || !isString(request.taskId)) return false;
+  if (request.computer !== undefined && !isString(request.computer)) return false;
   if (request.op === "list") {
     return (request.project === undefined || isString(request.project, 4_096))
       && (request.archived === undefined || typeof request.archived === "boolean")

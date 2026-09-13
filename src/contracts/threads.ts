@@ -6,6 +6,9 @@ import type { ThreadRole } from "../domain/thread-role.js";
 
 export type TaskMessageKind = ConversationMessageKind;
 
+/** A paired query can spend 30 seconds on the wire before reporting a lost connection. */
+export const REMOTE_THREAD_READ_TIMEOUT_MS = 40_000;
+
 /** Which threads a query covers: everything, one project, or the threads that belong to no project. */
 export type ProjectScope =
   | { kind: "all" }
@@ -14,6 +17,7 @@ export type ProjectScope =
 
 /** What a caller may narrow a listing by. `project` is resolved against the caller's own thread. */
 export type ThreadListQuery = {
+  computer?: string;
   project?: string;
   archived?: boolean;
   idleForMs?: number;
@@ -36,6 +40,8 @@ export type ThreadFilter = {
 };
 
 export type ThreadSummary = {
+  /** Present for a thread held by a paired computer; offline rows are cached summaries. */
+  computer?: { id: string; name: string; offline: boolean };
   id: string;
   title: string;
   /** The part the user gave the thread, when they gave it one. */
@@ -119,7 +125,7 @@ export type ThreadRequest = {
   taskId: string;
 } & (
   | ({ op: "list" } & ThreadListQuery)
-  | { op: "read"; threadId: string; limit?: number }
+  | { op: "read"; threadId: string; limit?: number; computer?: string }
   | { op: "wait"; threadId: string; timeoutMs: number }
   | { op: "command"; command: ExternalCommand }
   | { op: "browser"; read: BrowserRead }
