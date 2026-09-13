@@ -329,10 +329,11 @@ button, select { color: inherit; }
   align-items: center;
   /** The window's traffic lights own the left of this strip, so everything here stays to the right. */
   justify-content: flex-end;
-  gap: 10px;
+  gap: 12px;
   -webkit-app-region: drag;
 }
 .thread-nav, .sidebar-modes { display: flex; align-items: center; gap: 1px; -webkit-app-region: no-drag; }
+.sidebar-modes { gap: 6px; }
 .thread-nav-button.active { background: var(--surface-active); color: var(--ink-dim); }
 .thread-nav-button {
   width: 26px;
