@@ -195,7 +195,7 @@ test("starting a terminal that already runs keeps the shell it has", async (t) =
 
 
 test("remote reads wait for output, recover resized screens, and settle when a shell is closed", async (t) => {
-  host();
+  const { data } = host();
   t.onTestFinished(() => stopTerminalHost());
   startTerminal("remote", process.cwd());
   writeTerminal("remote", "printf 'remote-%s\\n' ready\r");
@@ -211,11 +211,14 @@ test("remote reads wait for output, recover resized screens, and settle when a s
   assert.ok(next.sequence > first.sequence);
   assert.ok(!next.data.includes("remote-ready"));
   resizeTerminal("remote", 100, 30);
+  const sizeEvent = data.at(-1);
+  assert.deepEqual(sizeEvent?.size, { cols: 100, rows: 30 }, "the local viewer follows a remote resize too");
   const resized = await readTerminalOutput("remote", next.sequence);
   assert.ok(resized);
   assert.equal(resized.kind, "snapshot");
   assert.equal(resized.cols, 100);
   assert.equal(resized.rows, 30);
+  assert.ok(resized.sequence >= sizeEvent!.sequence);
   const closing = readTerminalOutput("remote", resized.sequence);
   closeTerminal("remote");
   assert.equal(await closing, null);

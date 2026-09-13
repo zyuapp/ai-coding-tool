@@ -402,3 +402,20 @@ test("remote terminals stay with their host across selection changes and reconne
   const gone = reduce(dropped, { type: "computers.changed", name: "This Mac", links: [] });
   assert.equal(gone.state.computers.active, null);
 });
+
+test("an offline terminal keeps shortcuts and attention on the computer still on screen", () => {
+  const remote = reduce(remoteState, { type: "terminal.open" }).state;
+  const local = task("local", { projectId: "p-local", outcomeUnread: true });
+  const state = withComputers(workspace({
+    projects: [{ id: "p-local", root: "/mac/app", workspaceId: "ws-local" }],
+    threads: [local], currentId: "local", focused: false,
+  }), [paired("linux", remote, { status: "offline" })], { active: "linux" });
+  const fresh = reduce(state, { type: "view.shortcut", action: "thread.new", surface: "any" });
+  assert.equal(fresh.result?.ok, false, "the offline remote project refuses a new thread");
+  assert.equal(fresh.state.currentId, "local");
+  assert.equal(fresh.state.computers.active, "linux");
+  const focused = reduce(state, { type: "view.set-focused", focused: true });
+  assert.equal(focused.state.focused, true);
+  assert.equal(focused.state.threads[0].outcomeUnread, true, "the hidden local thread has not been read");
+  assert.equal(focused.effects.some((effect) => effect.type === "computer.forward"), false);
+});

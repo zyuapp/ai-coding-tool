@@ -2,10 +2,7 @@ import { ipcMain, type IpcMainInvokeEvent } from "electron";
 import { terminalLineLimit } from "../domain/terminal.js";
 import * as terminal from "./terminal-host.js";
 import { isComputerQuery, type ComputerQuery } from "../contracts/computers.js";
-import { isTerminalOutputRead } from "../contracts/terminal.js";
-
-const MAX_TERMINAL_INPUT = 64 * 1024;
-const MAX_TERMINAL_DIMENSION = 1_000;
+import { isTerminalDimension, isTerminalOutputRead, MAX_TERMINAL_INPUT } from "../contracts/terminal.js";
 
 function terminalId(value: unknown) {
   if (typeof value !== "string" || !value || value.length > 256) throw new Error("Invalid terminal ID.");
@@ -13,7 +10,7 @@ function terminalId(value: unknown) {
 }
 
 function terminalDimension(value: unknown) {
-  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > MAX_TERMINAL_DIMENSION) throw new Error("Invalid terminal size.");
+  if (!isTerminalDimension(value)) throw new Error("Invalid terminal size.");
   return value;
 }
 

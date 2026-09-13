@@ -10,8 +10,8 @@ export type TerminalText = {
   matched?: number;
 };
 
-/** A flush of everything the shell printed since the last one. */
-export type TerminalDataEvent = { terminalId: string; data: string; sequence: number };
+/** Output and grid changes share a sequence, so every viewer follows the shell's current size. */
+export type TerminalDataEvent = { terminalId: string; data: string; sequence: number; size?: { cols: number; rows: number } };
 
 /** Resolved screen contents and the last live-output flush included in them. */
 export type TerminalScreenSnapshot = { data: string; cols: number; rows: number; sequence: number };

@@ -162,7 +162,10 @@ function terminalRecord(terminalId: string, computerId?: string): TerminalView {
       view.terminal?.resize(snapshot.cols, snapshot.rows);
       view.terminal?.write(snapshot.data);
     },
-    (data) => view.terminal?.write(data),
+    (data, size) => {
+      /** Resize after earlier bytes are parsed, before later output is drawn at the new grid. */
+      view.terminal?.write(data, size ? () => view.terminal?.resize(size.cols, size.rows) : undefined);
+    },
   );
   const view: TerminalView = { container, terminal: null, fit: null, search: null, output, opened: false, computerId };
   if (computerId) {

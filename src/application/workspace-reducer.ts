@@ -132,7 +132,7 @@ export function escapeCommands(state: WorkspaceState): AppCommand[] {
  * there, in that project; its chat draft names no project, so a new one from it starts here.
  */
 function currentProjectId(state: WorkspaceState): string | undefined {
-  const shown = activeComputer(state)?.state ?? state;
+  const shown = selectedComputer(state)?.state ?? state;
   const thread = shown.threads.find((item) => item.id === shown.currentId);
   return (shown.currentId ? thread?.projectId : shown.draftProjectId) ?? undefined;
 }

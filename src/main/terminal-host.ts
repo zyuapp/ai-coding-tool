@@ -132,6 +132,7 @@ export function resizeTerminal(terminalId: string, cols: number, rows: number) {
   session.pty?.resize(cols, rows);
   session.sequence += 1;
   session.output?.reset();
+  publishData({ terminalId, data: "", sequence: session.sequence, size: { cols, rows } });
 }
 
 export function closeTerminal(terminalId: string) {
@@ -167,7 +168,6 @@ export async function readTerminalOutput(terminalId: string, after?: number): Pr
   if (!session) return null;
   if (after !== undefined && (!Number.isSafeInteger(after) || after < 0)) throw new Error("Invalid terminal sequence.");
   session.output ??= new TerminalOutputBuffer();
-  flush(session);
   if (after === session.sequence) await session.output.wait();
   if (sessions.get(terminalId) !== session) return null;
   const data = after === undefined ? null : session.output.read(after, session.sequence);

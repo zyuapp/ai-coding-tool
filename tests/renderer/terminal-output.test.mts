@@ -2,8 +2,29 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { TerminalOutput } from "../../src/renderer/task-workspace/terminal-output.ts";
 import type { TerminalScreenSnapshot } from "../../src/contracts/ipc.ts";
+import { Terminal } from "@xterm/headless";
 
 const snapshot = (sequence: number, data = "snapshot"): TerminalScreenSnapshot => ({ sequence, data, cols: 80, rows: 24 });
+
+test("a resize from another viewer is ordered between earlier and later output", async () => {
+  const terminal = new Terminal({ cols: 80, rows: 24, allowProposedApi: true });
+  const output = new TerminalOutput(async () => snapshot(1, ""), () => {}, (data, size) => {
+    terminal.write(data, size ? () => terminal.resize(size.cols, size.rows) : undefined);
+  });
+  try {
+    output.push({ terminalId: "t", sequence: 1, data: "", size: { cols: 5, rows: 2 } });
+    output.push({ terminalId: "t", sequence: 2, data: "before\r\n" });
+    output.push({ terminalId: "t", sequence: 3, data: "", size: { cols: 10, rows: 4 } });
+    output.push({ terminalId: "t", sequence: 4, data: "abcdefghijkl" });
+    await output.start();
+    await new Promise<void>((resolve) => terminal.write("", resolve));
+    assert.equal(terminal.cols, 10);
+    assert.equal(terminal.rows, 4);
+    assert.equal(terminal.buffer.active.getLine(0)?.translateToString(true), "before");
+    assert.equal(terminal.buffer.active.getLine(1)?.translateToString(true), "abcdefghij");
+    assert.equal(terminal.buffer.active.getLine(2)?.translateToString(true), "kl");
+  } finally { output.dispose(); terminal.dispose(); }
+});
 
 test("a reload restores output once and orders newer live chunks after its snapshot", async () => {
   const reply = Promise.withResolvers<TerminalScreenSnapshot | null>();
