@@ -30,7 +30,7 @@
     "serve": "npm run build && node --disable-warning=ExperimentalWarning dist/main/main/serve.js --dev"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.3.269",
+    "@anthropic-ai/claude-agent-sdk": "^0.3.270",
     "@lydell/node-pty": "^1.2.0-beta.15",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@trycua/cua-driver": "0.28.0",
