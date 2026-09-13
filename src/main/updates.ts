@@ -1,5 +1,7 @@
 import { app, dialog, shell, type BrowserWindow } from "electron";
 import type { AppUpdater } from "electron-updater";
+import { homedir } from "node:os";
+import { registerAppImageUpdateRepair } from "./appimage-update.js";
 import { automaticUpdatesAvailable, manualUpdateRecovery } from "./platform-capabilities.js";
 
 const RELEASES_URL = "https://github.com/zyuapp/ai-coding-tool/releases/latest";
@@ -22,6 +24,9 @@ let userChecks = 0;
 async function updaterFor(host: UpdateHost) {
   if (updater) return updater;
   const { autoUpdater } = (await import("electron-updater")).default;
+  if (process.platform === "linux" && process.env.APPIMAGE) {
+    registerAppImageUpdateRepair(autoUpdater, { appImage: process.env.APPIMAGE, home: homedir(), dataHome: process.env.XDG_DATA_HOME });
+  }
   autoUpdater.autoDownload = false;
   autoUpdater.on("error", (error) => {
     console.error("Update error:", error);
