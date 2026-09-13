@@ -1,4 +1,5 @@
 import type { AppCommand } from "./commands.js";
+import { isTerminalDimension, MAX_TERMINAL_INPUT } from "./terminal.js";
 import { isSnoozeHours } from "../domain/thread-snooze.js";
 import { isThreadRole } from "../domain/thread-role.js";
 import type { WorkspaceEvent } from "../application/workspace-reducer.js";
@@ -236,8 +237,8 @@ const shapes = {
   "terminal.open": { cwd: optionalText },
   "terminal.select": { terminalId: text },
   "terminal.close": { terminalId: text },
-  "terminal.input": { terminalId: text, data: text },
-  "terminal.resize": { terminalId: text, cols: number, rows: number },
+  "terminal.input": { terminalId: text, data: (value): value is string => typeof value === "string" && value.length <= MAX_TERMINAL_INPUT },
+  "terminal.resize": { terminalId: text, cols: isTerminalDimension, rows: isTerminalDimension },
   "remote.set-enabled": { enabled: boolean },
   "remote.create-pairing-code": {  },
   "remote.revoke-device": { deviceId: text },

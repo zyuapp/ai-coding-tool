@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test, afterAll, beforeAll } from "vitest";
-import { closeTerminal, readTerminal, startTerminal, startTerminalHost, stopTerminalHost, terminalSnapshot, writeTerminal } from "../../src/main/terminal-host.ts";
+import { closeTerminal, readTerminal, startTerminal, startTerminalHost, stopTerminalHost, terminalSnapshot, readTerminalOutput, resizeTerminal, writeTerminal } from "../../src/main/terminal-host.ts";
 import type { TerminalDataEvent, TerminalText } from "../../src/contracts/ipc.ts";
 import type { TerminalUpdate } from "../../src/domain/terminal.ts";
 import { Terminal } from "@xterm/headless";
@@ -191,4 +191,34 @@ test("starting a terminal that already runs keeps the shell it has", async (t) =
   startTerminal("terminal-7", process.cwd());
 
   assert.match(lines(await readTerminal("terminal-7", { lines: 100 })), /first-run/);
+});
+
+
+test("remote reads wait for output, recover resized screens, and settle when a shell is closed", async (t) => {
+  host();
+  t.onTestFinished(() => stopTerminalHost());
+  startTerminal("remote", process.cwd());
+  writeTerminal("remote", "printf 'remote-%s\\n' ready\r");
+  await until(async () => lines(await readTerminal("remote", { lines: 100 })).includes("remote-ready"), "initial remote output");
+  const first = await readTerminalOutput("remote");
+  assert.ok(first);
+  assert.equal(first.kind, "snapshot");
+  const pending = readTerminalOutput("remote", first.sequence);
+  writeTerminal("remote", "printf 'new-%s\\n' output\r");
+  const next = await pending;
+  assert.ok(next);
+  assert.equal(next.kind, "output");
+  assert.ok(next.sequence > first.sequence);
+  assert.ok(!next.data.includes("remote-ready"));
+  resizeTerminal("remote", 100, 30);
+  const resized = await readTerminalOutput("remote", next.sequence);
+  assert.ok(resized);
+  assert.equal(resized.kind, "snapshot");
+  assert.equal(resized.cols, 100);
+  assert.equal(resized.rows, 30);
+  const closing = readTerminalOutput("remote", resized.sequence);
+  closeTerminal("remote");
+  assert.equal(await closing, null);
+  assert.throws(() => resizeTerminal("remote", Infinity, -1), /Invalid terminal size/);
+  assert.throws(() => writeTerminal("remote", "x".repeat(65_537)), /Invalid terminal input/);
 });

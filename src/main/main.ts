@@ -768,7 +768,7 @@ ipcMain.handle("file:open", async (event, roots: unknown, candidate: unknown, li
   await openInEditor(await openableFile(roots, candidate), typeof line === "number" ? line : null);
 });
 
-registerTerminalIpc(trustedSender);
+registerTerminalIpc(trustedSender, (id, query) => getComputerLinks().query(id, query));
 
 /** Hands back an image this app wrote, for a composer that has to draw on it rather than show it. */
 ipcMain.handle("attachment:read", async (event, file: unknown) => {

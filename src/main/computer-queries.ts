@@ -1,6 +1,7 @@
 import { opendir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
+import { readTerminalOutput } from "./terminal-host.js";
 import { isComputerQuery } from "../contracts/computers.js";
 import { readSavedAttachment } from "./attachment-store.js";
 import { readMessageImage } from "./message-image-store.js";
@@ -16,6 +17,7 @@ export type ComputerQueryHost = {
 
 /** Answers one of another computer's reads the way the window's own desktop would. */
 export async function answerComputerQuery(query: ComputerQuery, host: ComputerQueryHost): Promise<unknown> {
+  if (query.kind === "terminal-output") return readTerminalOutput(query.terminalId, query.after);
   if (query.kind === "directories") return listDirectories(query.prefix);
   if (query.kind === "attachment") return readSavedAttachment(query.name);
   if (query.kind === "message-image") {

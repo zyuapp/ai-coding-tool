@@ -138,6 +138,7 @@ const api: DesktopAPI = {
   closeTerminal: (terminalId: string) => ipcRenderer.invoke("terminal:close", terminalId),
   readTerminal: (terminalId: string, options: TerminalReadOptions) => ipcRenderer.invoke("terminal:read", terminalId, options),
   terminalSnapshot: (terminalId: string) => ipcRenderer.invoke("terminal:snapshot", terminalId),
+  readRemoteTerminal: (computerId: string, terminalId: string, after?: number) => ipcRenderer.invoke("terminal:remote-read", computerId, terminalId, after),
   onTerminalData: (listener: (event: TerminalDataEvent) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: TerminalDataEvent) => listener(payload);
     ipcRenderer.on("terminal:data", handler);

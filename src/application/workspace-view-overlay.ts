@@ -37,9 +37,10 @@ export function overlaidView(state: WorkspaceState, own: OwnWorkspaceView, remot
     images: imagesFor(state, key),
     files: filesFor(state, key),
     attachmentSends: state.attachmentSends,
+    /** Terminal search runs in this window's xterm, using the output it has received. */
+    find: own.find?.target.kind === "terminal" ? own.find : shown.find?.target.kind === "terminal" ? null : shown.find,
     readingPoint: shown.currentThread ? state.readingPoints[shown.currentThread.id] ?? null : null,
-    /** A panel needs the shell or the page beside it, which are on the other computer. */
-    terminals: [],
+    /** Browser surfaces still belong to the host's native window. */
     browserTabs: [],
     browserApproval: null,
     /** A delete confirmed here may name the other computer's checkout, which only its list has. */
@@ -48,4 +49,3 @@ export function overlaidView(state: WorkspaceState, own: OwnWorkspaceView, remot
     actionErrorPage: state.actionError ? state.actionErrorPage : shown.actionErrorPage,
   };
 }
-

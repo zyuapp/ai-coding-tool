@@ -29,12 +29,13 @@ import { diffFor, type DiffState } from "./workspace-diff.js";
 import { jumpView } from "./workspace-jump.js";
 import { workspaceViewCollections } from "./workspace-view-collections.js";
 import { findView } from "./workspace-find.js";
+export { findTargetFor } from "./workspace-find.js";
 export type { FindView } from "./workspace-find.js";
 export { EMPTY_DIFF, diffFor, diffMatches, foldedOnLoad, retainedViews, withDiff } from "./workspace-diff.js";
 export type { DiffState } from "./workspace-diff.js";
 import type { AutomationView } from "../domain/automation.js";
 import { emptyMobileServerState, type MobileServerState } from "../domain/mobile.js";
-import { activeComputer, NO_COMPUTERS, type ComputersState } from "./computers.js";
+import { selectedComputer, NO_COMPUTERS, type ComputersState } from "./computers.js";
 import { overlaidView } from "./workspace-view-overlay.js";
 import { NO_PROJECT_ADD, type ProjectAddWorkspaceState } from "./project-add.js";
 import { workspaceDialogsView } from "./workspace-dialogs.js";
@@ -654,7 +655,7 @@ export function waitFor(state: WorkspaceState, currentThread: Thread | undefined
  * thread's, so the draft typed for it stays keyed to it here and never travels as keystrokes.
  */
 export function promptKey(state: Pick<WorkspaceState, "currentId" | "draftProjectId"> & { computers?: WorkspaceState["computers"] }): string {
-  const remote = state.computers ? activeComputer({ computers: state.computers })?.state : undefined;
+  const remote = state.computers ? selectedComputer({ computers: state.computers })?.state : undefined;
   if (remote) return promptKey({ currentId: remote.currentId, draftProjectId: remote.draftProjectId });
   return state.currentId ?? `draft:${state.draftProjectId ?? ""}`;
 }
@@ -682,28 +683,6 @@ export function recordVisit(state: WorkspaceState, threadId: string): WorkspaceS
   const history = state.history.slice(0, state.historyIndex + 1);
   if (history[history.length - 1] !== threadId) history.push(threadId);
   return { ...state, history, historyIndex: history.length - 1 };
-}
-
-/**
- * What ⌘F searches: the page when the keystroke came from one and the dock is showing it, else the
- * dock view holding the keys — a shell, a side chat's thread, the review, a panel — else the thread
- * being read. A keystroke is the only thing that knows about the page, because a page swallows it.
- */
-export function findTargetFor(state: WorkspaceState, surface: ShortcutSurface): FindTarget {
-  const { owner, dock } = frontDock(state);
-  /** The page holding the keys is the one the dock is showing, which a run's page never is. */
-  const page = dock.browserTabs.find((tab) => tab.id === dock.tab);
-  if (surface === "browser" && page) return { kind: "browser", tabId: page.id };
-  const thread: FindTarget = { kind: "thread", taskId: state.currentId };
-  const tab = state.keyboardTab;
-  if (!tab) return thread;
-  switch (dockTabKind(state, owner, tab)) {
-    case "browser": return { kind: "browser", tabId: tab };
-    case "terminal": return { kind: "terminal", terminalId: tab };
-    case "side-chat": return { kind: "thread", taskId: tab };
-    case "panel": return tab === DIFF_PANEL ? { kind: "review", owner } : { kind: "panel", owner, panel: tab };
-    case "picker": return thread;
-  }
 }
 
 /** Each chat's view outlives the derive that built it, so a report elsewhere never redraws one. */
@@ -752,7 +731,7 @@ export function threadSlots(state: WorkspaceState): string[] {
 /** Everything the UI reads, derived in one place so components never reach into raw state. */
 export function deriveView(state: WorkspaceState) {
   const own = deriveOwnView(state);
-  const remote = activeComputer(state)?.state;
+  const remote = selectedComputer(state)?.state;
   return remote ? overlaidView(state, own, remote, deriveOwnView) : own;
 }
 

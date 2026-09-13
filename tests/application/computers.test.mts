@@ -157,12 +157,12 @@ test("a line that comes back is told nothing until one of its threads is selecte
 
 test("what only this computer's panels can do is refused for a thread elsewhere, and so are attachments that only carry paths", () => {
   const state = withComputers(workspace(), [paired("linux", remoteState)], { active: "linux" });
-  assert.deepEqual(routeInput(state, { type: "terminal.open" }), { kind: "refuse", message: PANEL_ELSEWHERE });
+  assert.deepEqual(effectOf(reduce(state, { type: "terminal.open" }), "computer.forward"), { type: "computer.forward", id: "linux", inputs: [{ type: "terminal.open" }] });
   assert.deepEqual(routeInput(state, { type: "browser.new-tab" }), { kind: "refuse", message: PANEL_ELSEWHERE });
   assert.deepEqual(routeInput(state, { type: "file.open", path: "src/app.ts" }), { kind: "refuse", message: FILES_ELSEWHERE });
   assert.deepEqual(routeInput(state, { type: "app.open-folder", appId: "cursor" }), { kind: "refuse", message: FILES_ELSEWHERE });
   assert.deepEqual(routeInput(state, { type: "task.send", attachments: [{ path: "/tmp/shot.png", labels: [] }] }), { kind: "refuse", message: ATTACHMENTS_ELSEWHERE });
-  assert.equal(reduce(state, { type: "terminal.open" }).result?.ok, false);
+  assert.equal(reduce(state, { type: "terminal.open" }).result?.ok, true);
 });
 
 test("the window's own affairs stay here whichever computer is on screen, and events are never carried", () => {
@@ -373,4 +373,32 @@ test("a forward the line refused is the window's error once, and housekeeping th
   assert.deepEqual(raised, []);
   await computerEffects["computer.forward"]({ type: "computer.forward", id: "linux", inputs: [{ type: "view.set-focused", focused: true }, { type: "task.select", taskId: "remote-thread" }] }, host);
   assert.deepEqual(raised, [{ type: "action.failed", message: "That computer cannot be reached right now." }]);
+});
+
+
+test("remote terminals stay with their host across selection changes and reconnects", () => {
+  const opened = reduce(remoteState, { type: "terminal.open" }).state;
+  const terminal = deriveView(opened).terminals[0];
+  const focused = reduce(opened, { type: "view.dock-keys", tab: terminal.id }).state;
+  const state = withComputers(workspace(), [paired("linux", focused)], { active: "linux" });
+  assert.equal(deriveView(state).terminals[0].id, terminal.id);
+  const command = { type: "terminal.input", terminalId: terminal.id, data: "pwd\r" } as const;
+  const home = { ...state, computers: { ...state.computers, active: null } };
+  assert.deepEqual(effectOf(reduce(home, command), "computer.forward"), { type: "computer.forward", id: "linux", inputs: [command] });
+  const dropped = reduce(state, { type: "computers.changed", name: "This Mac", links: [link("linux", { status: "offline" })] }).state;
+  assert.equal(dropped.computers.active, "linux");
+  assert.equal(deriveView(dropped).terminals[0].id, terminal.id);
+  assert.equal(deriveView(dropped).activeComputer?.status, "offline");
+  assert.equal(reduce(dropped, command).result?.ok, false);
+  assert.equal(reduce(dropped, { type: "terminal.open" }).result?.ok, false);
+  const back = reduce(dropped, { type: "computers.changed", name: "This Mac", links: [link("linux")] });
+  assert.deepEqual(back.effects, [], "reconnection never replays keyboard input");
+  assert.equal(deriveView(back.state).terminals[0].id, terminal.id);
+  const search = reduce(back.state, { type: "view.find-open" });
+  assert.deepEqual(search.state.find?.target, { kind: "terminal", terminalId: terminal.id });
+  const query = reduce(search.state, { type: "view.find-query", query: "hello" });
+  assert.equal(effectOf(query, "find-in-terminal").terminalId, terminal.id);
+  assert.equal(deriveView(query.state).find?.query, "hello");
+  const gone = reduce(dropped, { type: "computers.changed", name: "This Mac", links: [] });
+  assert.equal(gone.state.computers.active, null);
 });

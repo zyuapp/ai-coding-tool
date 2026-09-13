@@ -15,6 +15,7 @@ import { MAIN_COMPOSER } from "./composer-attachments.js";
 import { annotationsFor, filesFor, pastesFor } from "./composer-drafts.js";
 import { blockedThreadIds, busyThreadIds, promptKey, sideChatIds, type WorkspaceState } from "./workspace-state.js";
 import type { WorkspaceInput } from "./workspace-reducer.js";
+import { frontDock } from "./workspace-dock.js";
 
 /** A paired computer as this one holds it: the link, and the last state it published. */
 export type PairedComputer = ComputerLink & { state: WorkspaceState | null };
@@ -40,6 +41,27 @@ export function activeComputer(state: Pick<WorkspaceState, "computers">): Paired
   const { active, paired } = state.computers;
   const computer = active === null ? null : paired.find((computer) => computer.id === active) ?? null;
   return computer?.status === "connected" ? computer : null;
+}
+
+/** The selected host may stay on screen offline while its terminal waits to reconnect. */
+export function selectedComputer(state: Pick<WorkspaceState, "computers">): PairedComputer | null {
+  const computer = state.computers.paired.find((computer) => computer.id === state.computers.active);
+  if (!computer) return null;
+  if (computer.status === "connected") return computer;
+  const dock = computer.state ? frontDock(computer.state).dock : null;
+  return dock?.open && dock.terminals.some((terminal) => terminal.id === dock.tab) ? computer : null;
+}
+
+const terminalIds = new WeakMap<WorkspaceState["docks"], Set<string>>();
+
+/** Keystrokes must not scan every thread's dock. Output leaves these records unchanged. */
+function holdsTerminal(state: Pick<WorkspaceState, "docks">, id: string): boolean {
+  let ids = terminalIds.get(state.docks);
+  if (!ids) {
+    ids = new Set(Object.values(state.docks).flatMap((dock) => dock.terminals.map((terminal) => terminal.id)));
+    terminalIds.set(state.docks, ids);
+  }
+  return ids.has(id);
 }
 
 /** Why a paired computer takes nothing: the fault its line reported, else that it is away. */
@@ -108,9 +130,9 @@ export function leavesComputer(input: WorkspaceInput): boolean {
 const LOCAL_PREFIXES = ["computer-use.", "cli.", "engine.", "remote.", "computers.", "app.list", "app.check-for-updates", "app.open-source-licenses", "worktree.", "annotation.", "paste.", "image.", "file.", "view.set-theme", "view.set-ui", "view.set-mono", "view.set-reading", "view.set-terminal", "view.set-sidebar", "view.set-session", "view.set-capture", "view.set-chrome", "view.set-concise", "view.set-computer", "view.set-browser", "view.set-notifications", "view.set-settings", "view.set-shortcut", "view.reset-shortcuts", "view.capture-shortcut", "view.dismiss-", "view.set-section", "view.set-subagent", "view.set-model-favorite", "view.set-menu", "view.go-", "view.mounted", "view.closed", "view.toggle-project", "view.edit-project", "view.add-project-", "view.move-worktree", "view.jump-", "view.find-", "view.focus-composer", "view.system-scheme", "view.set-prompt", "view.reading-point", "view.refresh-environment", "usage.", "project.open", "attachments.notice"] as const;
 
 /** Commands that only this computer's own panels can carry out. */
-const PANEL_PREFIXES = ["terminal.", "browser."] as const;
+const PANEL_PREFIXES = ["browser."] as const;
 
-export const PANEL_ELSEWHERE = "The terminal and browser panels open only for threads on this computer.";
+export const PANEL_ELSEWHERE = "The browser panel opens only for threads on this computer.";
 export const ATTACHMENTS_ELSEWHERE = "Files and folders attached by local path cannot be sent to another computer.";
 export const FILES_ELSEWHERE = "That folder is on another computer, so it cannot be opened here.";
 
@@ -177,8 +199,14 @@ export function routeInput(state: WorkspaceState, input: WorkspaceInput): InputR
     return toward(computer, (holder) => forwarded(holder, [{ type: "project.add", root: input.root }]));
   }
   if (!state.computers.paired.length || !isAppCommandType(input.type)) return LOCAL;
-  const active = activeComputer(state);
+  const active = selectedComputer(state);
   const type = input.type;
+  /** A delayed resize or keystroke follows its shell, even after another thread is selected. */
+  if (type.startsWith("terminal.") && "terminalId" in input) {
+    if (holdsTerminal(state, input.terminalId)) return LOCAL;
+    const holder = state.computers.paired.find((computer) => computer.state && holdsTerminal(computer.state, input.terminalId));
+    return holder ? toward(holder, (computer) => forwarded(computer, [input])) : { kind: "refuse", message: "That terminal is no longer available." };
+  }
   if (type === "task.new") {
     const computer = computerOfProject(state, input.projectId) ?? computerOfWorktree(state, input.worktreeId);
     return toward(computer, (holder) => selecting(state, holder, [input]));
@@ -188,7 +216,7 @@ export function routeInput(state: WorkspaceState, input: WorkspaceInput): InputR
   }
   if (type === "task.dismiss-all") return LOCAL;
   /** Whether the user is looking is this window's to know and the other computer's to act on. */
-  if (type === "view.set-focused") return active ? forwarded(active, [input], { also: true }) : LOCAL;
+  if (type === "view.set-focused") return active?.status === "connected" ? forwarded(active, [input], { also: true }) : LOCAL;
   if (type === "project.move" || type === "project.edit" || type === "project.remove") {
     return toward(computerOfProject(state, input.projectId), (holder) => forwarded(holder, [input]));
   }
@@ -292,4 +320,3 @@ export function remoteUnreadCount(computers: ComputersState): number {
   }
   return count;
 }
-

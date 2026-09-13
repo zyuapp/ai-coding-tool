@@ -3,6 +3,7 @@ import type { SearchAddon } from "@xterm/addon-search";
 import type { Terminal } from "@xterm/xterm";
 import type { FindResults } from "../../domain/find.js";
 import { TerminalOutput } from "./terminal-output.js";
+import { RemoteTerminalOutput } from "./remote-terminal-output.js";
 
 /**
  * The views the terminal panel draws into. They live outside React because a shell outlives the panel:
@@ -21,6 +22,8 @@ type TerminalView = {
   search: SearchAddon | null;
   output: TerminalOutput;
   opened: boolean;
+  computerId?: string;
+  remote?: RemoteTerminalOutput;
 };
 
 const views = new Map<string, TerminalView>();
@@ -147,9 +150,10 @@ export function repaintTerminalViews() {
 }
 
 /** The record of a view, which exists before xterm does so output has somewhere to wait. */
-function terminalRecord(terminalId: string): TerminalView {
+function terminalRecord(terminalId: string, computerId?: string): TerminalView {
   const existing = views.get(terminalId);
-  if (existing) return existing;
+  if (existing && existing.computerId === computerId) return existing;
+  if (existing) disposeTerminalView(terminalId);
   const container = document.createElement("div");
   container.className = "terminal-surface";
   const output = new TerminalOutput(
@@ -160,19 +164,30 @@ function terminalRecord(terminalId: string): TerminalView {
     },
     (data) => view.terminal?.write(data),
   );
-  const view: TerminalView = { container, terminal: null, fit: null, search: null, output, opened: false };
+  const view: TerminalView = { container, terminal: null, fit: null, search: null, output, opened: false, computerId };
+  if (computerId) {
+    view.remote = new RemoteTerminalOutput(
+      (after) => window.desktop.readRemoteTerminal(computerId, terminalId, after),
+      (read) => new Promise<void>((resolve) => {
+        if (!view.terminal) { resolve(); return; }
+        if (read.kind === "snapshot") view.terminal.reset();
+        view.terminal.resize(read.cols, read.rows);
+        view.terminal.write(read.data, resolve);
+      }),
+    );
+  }
   views.set(terminalId, view);
   return view;
 }
 
-async function terminalView(terminalId: string): Promise<TerminalView> {
-  const view = terminalRecord(terminalId);
-  if (view.terminal) { await view.output.start(); return view; }
+async function terminalView(terminalId: string, computerId?: string): Promise<TerminalView> {
+  const view = terminalRecord(terminalId, computerId);
+  if (view.terminal) { if (!view.remote) await view.output.start(); return view; }
   const { Terminal, FitAddon, SearchAddon } = await loadXterm();
   const font = terminalFont();
   /** Another caller may have raced ahead, or the terminal may be gone by now. */
   if (views.get(terminalId) !== view) return view;
-  if (view.terminal) { await view.output.start(); return view; }
+  if (view.terminal) { if (!view.remote) await view.output.start(); return view; }
   const terminal = new Terminal({
     allowProposedApi: true,
     scrollback: SCROLLBACK_LINES,
@@ -185,19 +200,21 @@ async function terminalView(terminalId: string): Promise<TerminalView> {
   const search = new SearchAddon();
   terminal.loadAddon(search);
   search.onDidChangeResults(({ resultIndex, resultCount }) => publishFind(terminalId, { matches: resultCount, index: Math.max(0, resultIndex) }));
-  terminal.onData((data) => publishInput(terminalId, data));
+  terminal.onData((data) => { if (!view.remote || view.remote.live) publishInput(terminalId, data); });
   view.terminal = terminal;
   view.fit = fit;
   view.search = search;
-  await view.output.start();
+  if (!view.remote) await view.output.start();
   return view;
 }
 
 /** Draws the view into its container the first time it is shown; a later show only re-attaches it. */
-export async function showTerminalView(terminalId: string, parent: HTMLElement) {
-  const view = await terminalView(terminalId);
+export async function showTerminalView(terminalId: string, parent: HTMLElement, computerId?: string, onStatus: (error: string | null) => void = () => {}, stillVisible: () => boolean = () => true) {
+  const view = await terminalView(terminalId, computerId);
+  if (!stillVisible()) return;
   if (!view.terminal || views.get(terminalId) !== view) return;
   parent.appendChild(view.container);
+  view.remote?.start(onStatus);
   if (view.opened) return;
   view.terminal.open(view.container);
   view.opened = true;
@@ -241,13 +258,16 @@ export function focusTerminalView(terminalId: string) {
 }
 
 export function hideTerminalView(terminalId: string) {
-  views.get(terminalId)?.container.remove();
+  const view = views.get(terminalId);
+  if (view?.remote) { disposeTerminalView(terminalId); return; }
+  view?.container.remove();
 }
 
 export function disposeTerminalView(terminalId: string) {
   const view = views.get(terminalId);
   if (!view) return;
   views.delete(terminalId);
+  view.remote?.stop();
   view.output.dispose();
   view.container.remove();
   view.terminal?.dispose();
@@ -257,6 +277,7 @@ export function disposeTerminalView(terminalId: string) {
 if (typeof window !== "undefined" && "desktop" in window) {
   window.desktop.onTerminalData((event) => {
     const { terminalId } = event;
+    if (views.get(terminalId)?.remote) return;
     const view = terminalRecord(terminalId);
     view.output.push(event);
     /** A failed import or snapshot is retried when the panel is next shown. */

@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { TerminalSession } from "../../domain/terminal";
+import type { ComputerLink } from "../../domain/computers";
 import { fitTerminalView, focusTerminalView, hideTerminalView, onTerminalInput, showTerminalView } from "../task-workspace/terminal-views";
 
 export type TerminalPanelProps = {
   terminal: TerminalSession;
+  computer?: Pick<ComputerLink, "id" | "name" | "status" | "error"> | null;
   /** False whenever something else is over the panel, so a hidden terminal keeps the size it had. */
   visible: boolean;
   /** Bumped whenever something asks the shell to take the keyboard. */
@@ -14,7 +16,7 @@ export type TerminalPanelProps = {
   onResize: (terminalId: string, cols: number, rows: number) => void;
 };
 
-export function TerminalPanel({ terminal, visible, focusToken = 0, find, onInput, onResize }: TerminalPanelProps) {
+export function TerminalPanel({ terminal, computer, visible, focusToken = 0, find, onInput, onResize }: TerminalPanelProps) {
   const viewport = useRef<HTMLDivElement>(null);
   /**
    * Held in a ref rather than named as a dependency: showing a view moves its element into the
@@ -24,6 +26,9 @@ export function TerminalPanel({ terminal, visible, focusToken = 0, find, onInput
   const resized = useRef(onResize);
   /** Why the panel is empty. Drawing is the view's, not the workspace's, so the reason is the panel's too. */
   const [drawError, setDrawError] = useState<string | null>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const computerId = computer?.id;
+  const connected = !computer || computer.status === "connected";
 
   useEffect(() => onTerminalInput(onInput), [onInput]);
 
@@ -35,7 +40,8 @@ export function TerminalPanel({ terminal, visible, focusToken = 0, find, onInput
 
   useEffect(() => {
     const element = viewport.current;
-    if (!element || !visible) return;
+    if (!element || !visible || !connected) return;
+    let mounted = true;
     const measure = () => {
       const box = element.getBoundingClientRect();
       if (box.width < 1 || box.height < 1) return;
@@ -43,26 +49,29 @@ export function TerminalPanel({ terminal, visible, focusToken = 0, find, onInput
       if (size) resized.current(terminal.id, size.cols, size.rows);
     };
     /** xterm arrives asynchronously, so the first focus and fit wait for the view to be drawn. */
-    void showTerminalView(terminal.id, element).then(
+    void showTerminalView(terminal.id, element, computerId, setConnectionError, () => mounted).then(
       () => {
+        if (!mounted) return;
         setDrawError(null);
         focusTerminalView(terminal.id);
         measure();
       },
-      (error: unknown) => setDrawError(error instanceof Error ? error.message : String(error)),
+      (error: unknown) => { if (mounted) setDrawError(error instanceof Error ? error.message : String(error)); },
     );
     const observer = new ResizeObserver(measure);
     observer.observe(element);
     return () => {
+      mounted = false;
       observer.disconnect();
       hideTerminalView(terminal.id);
     };
-  }, [terminal.id, visible]);
+  }, [terminal.id, visible, computerId, connected]);
 
   return (
     <section className="terminal-panel" aria-label="Terminal">
       <p className="terminal-status">
-        <span>{terminal.cwd}</span>
+        <span>{computer ? `${computer.name} · ${terminal.cwd}` : terminal.cwd}</span>
+        {computer && (!connected || connectionError) && <em role="status">{!connected ? computer.error ?? "Disconnected — reconnecting…" : connectionError}</em>}
         {terminal.status === "exited" && <em>{terminal.error ?? `exited${terminal.exitCode === undefined ? "" : ` (${terminal.exitCode})`}`}</em>}
       </p>
 

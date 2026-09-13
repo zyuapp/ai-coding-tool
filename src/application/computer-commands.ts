@@ -6,6 +6,7 @@ import { annotationsFor, imagesFor, pastesFor, withAnnotations, withImages, with
 import { announcedNotice } from "./notices.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./workspace-reducer.js";
 import type { WorkspaceState } from "./workspace-state.js";
+import { frontDock } from "./workspace-dock.js";
 
 /** What the host process says about the paired computers: who is paired, and what each one's workspace now is. */
 export type ComputerEvent =
@@ -116,7 +117,11 @@ export function reduceComputers(state: WorkspaceState, input: ComputerInput): Wo
       const paired = linked(state, input.links);
       /** A pairing that now shows up as a link is done; one that went away, or whose line dropped, takes the screen with it. */
       const pairing = computers.pairing && paired.some((computer) => computer.host === computers.pairing?.host) ? null : computers.pairing;
-      const active = computers.active !== null && paired.some((computer) => computer.id === computers.active && computer.status === "connected") ? computers.active : null;
+      /** Keep a visible terminal selected through disconnection so it restores the same shell. */
+      const selected = paired.find((computer) => computer.id === computers.active);
+      const dock = selected?.state ? frontDock(selected.state).dock : null;
+      const terminalVisible = dock?.open && dock.terminals.some((terminal) => terminal.id === dock.tab);
+      const active = selected && (selected.status === "connected" || terminalVisible) ? selected.id : null;
       const filter = computers.filter === "all" || computers.filter === "this" || paired.some((computer) => computer.id === computers.filter) ? computers.filter : "all";
       return settled(withComputers(state, { name: input.name, paired, pairing, active, filter }));
     }

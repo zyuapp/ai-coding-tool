@@ -103,6 +103,8 @@ export async function startServe(options: { userData: string; packaged: boolean;
   });
 
   const events = createDesktopEvents();
+  const terminal = await import("./terminal-host.js");
+  terminal.startTerminalHost({ onData: () => {}, onUpdate: (update) => { events.emit("terminal:event", update); } });
   let running = true;
   let scheduler: AutomationScheduler | null = null;
   const runs = startRunHost({
@@ -140,7 +142,7 @@ export async function startServe(options: { userData: string; packaged: boolean;
   const runtime = createWorkspaceRuntime({ desktop, storage: createJsonStorage(path.join(userData, "window.v1.json")) });
   const publisher = createRuntimePublisher(runtime);
   await runtime.start();
-  /** Neither panel exists here, so no run is handed tools for them. */
+  /** Browser and computer-use surfaces need a desktop; shells can be viewed from a paired computer. */
   await runtime.dispatch({ type: "view.set-browser-tools", enabled: false });
   await runtime.dispatch({ type: "view.set-computer-use", enabled: false });
 
@@ -200,6 +202,7 @@ export async function startServe(options: { userData: string; packaged: boolean;
     port: () => mobile.mobileState().port,
     stop: () => stopping ??= (async () => {
       running = false;
+      terminal.stopTerminalHost();
       await publisher.flush().catch((error) => say(`Could not save the workspace: ${error instanceof Error ? error.message : String(error)}`));
       scheduler?.stop();
       runs.clearPendingStarts();

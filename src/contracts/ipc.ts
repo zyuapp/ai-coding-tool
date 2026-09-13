@@ -30,6 +30,7 @@ import type { MobileDesktopAPI } from "./mobile.js";
 import type { ImageDesktopAPI } from "./images.js";
 import type { LoadedTaskStore, TaskStoreDelta } from "./task-store.js";
 import type { TerminalDataEvent, TerminalReadOptions, TerminalScreenSnapshot, TerminalStartOptions, TerminalText } from "./terminal.js";
+import type { TerminalOutputRead } from "./terminal.js";
 export type { TerminalDataEvent, TerminalReadOptions, TerminalScreenSnapshot, TerminalStartOptions, TerminalText } from "./terminal.js";
 export type { LoadedTaskStore, PersistedSubagent, PersistedTask, TaskStoreDelta } from "./task-store.js";
 export type { ComputerUseMcp, ComputerUsePermission, ComputerUsePermissions, ComputerUseRunConfig } from "../domain/computer-use.js";
@@ -319,13 +320,14 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   openFolderInApp(appId: string, root: string): Promise<void>;
   /** The terminal panel's shells live in main; the window owns the record of them. */
   startTerminal(terminalId: string, options: TerminalStartOptions): Promise<void>;
-  /** What the user typed. Nothing outside the window reaches this: a run may read a terminal, never drive one. */
+  /** User input from this window or a paired computer. A run may read a terminal, never drive one. */
   writeTerminal(terminalId: string, data: string): Promise<void>;
   resizeTerminal(terminalId: string, cols: number, rows: number): Promise<void>;
   closeTerminal(terminalId: string): Promise<void>;
   /** The lines the terminal holds, cooked to plain text. Null when that terminal is gone. */
   readTerminal(terminalId: string, options: TerminalReadOptions): Promise<TerminalText | null>;
   terminalSnapshot(terminalId: string): Promise<TerminalScreenSnapshot | null>;
+  readRemoteTerminal(computerId: string, terminalId: string, after?: number): Promise<TerminalOutputRead | null>;
   /** Output, coalesced and delivered straight to the view. It is never workspace state. */
   onTerminalData(listener: (event: TerminalDataEvent) => void): () => void;
   onTerminalEvent(listener: (update: TerminalUpdate) => void): () => void;

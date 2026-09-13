@@ -5,7 +5,7 @@ import { shownPageEffects } from "./workspace-reducer/browser-tabs.js";
 import { prunedWorkflowPanels, TAKE_KEYS } from "./workspace-reducer/dock-tabs.js";
 import { prunedFind } from "./workspace-reducer/find.js";
 import { rejected, settled } from "./workspace-reducer/shared.js";
-import { activeComputer, leavesComputer, routeInput, type InputRoute } from "./computers.js";
+import { activeComputer, selectedComputer, leavesComputer, routeInput, type InputRoute } from "./computers.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
 import { dockFor, dockOwner, findTargetFor, keyboardTerminalId, recordVisit, threadSlots, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
@@ -204,8 +204,9 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
      * The shell that already has the keyboard is one the user is done with, so it goes away instead.
      */
     case "terminal.focus": {
-      if (keyboardTerminalId(state)) return [{ type: "view.set-dock-open", open: false }, { type: "view.focus-composer" }];
-      const latest = dockFor(state, dockOwner(state)).terminals.at(-1);
+      const shown = selectedComputer(state)?.state ?? state;
+      if (keyboardTerminalId(shown)) return [{ type: "view.set-dock-open", open: false }, { type: "view.focus-composer" }];
+      const latest = dockFor(shown, dockOwner(shown)).terminals.at(-1);
       return [...leaving, latest ? { type: "terminal.select", terminalId: latest.id } : { type: "terminal.open" }];
     }
     case "tab.close": return [{ type: "view.close-tab" }];

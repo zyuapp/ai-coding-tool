@@ -122,6 +122,7 @@ export function DockContent({ workspace, panels, launchers, activeTab, find, fin
         <div data-dock-tab={shownTerminal.id}>
           <TerminalPanel
             terminal={shownTerminal}
+            computer={workspace.activeComputer}
             focusToken={focusTokenFor(shownTerminal.id)}
             {...(find?.target.kind === "terminal" && find.target.terminalId === shownTerminal.id ? { find: findBar } : {})}
             visible={dockOpen && !settingsVisible}

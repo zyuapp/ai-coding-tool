@@ -23,6 +23,7 @@ export const COMPUTER_SEND_TOO_LARGE = "This message is too large to send to ano
 
 /** Reads that are content rather than state, which the window asks its own desktop for. */
 export type ComputerQuery =
+  | { kind: "terminal-output"; terminalId: string; after?: number }
   | { kind: "directories"; prefix: string }
   | { kind: "attachment"; name: string }
   | { kind: "message-image"; path: string; root: string; message: string; thumbnail?: boolean }
@@ -81,6 +82,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function isComputerQuery(value: unknown): value is ComputerQuery {
   if (!isRecord(value)) return false;
+  if (value.kind === "terminal-output") return isString(value.terminalId)
+    && (value.after === undefined || (Number.isSafeInteger(value.after) && (value.after as number) >= 0));
   if (value.kind === "attachment") return isString(value.name) && /^[A-Za-z0-9-]+\.png$/.test(value.name);
   if (value.kind === "message-image") return isMessageImageReference(value.path, value.root, value.message)
     && (value.thumbnail === undefined || typeof value.thumbnail === "boolean");
