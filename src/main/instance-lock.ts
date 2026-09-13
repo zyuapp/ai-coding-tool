@@ -1,4 +1,4 @@
-import { existsSync, linkSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, linkSync, readFileSync, readlinkSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { hostname } from "node:os";
 import path from "node:path";
 
@@ -81,12 +81,27 @@ function takeTurn(turn: string): boolean {
     return false;
   }
   if (!Number.isInteger(holder) || holder <= 0 || alive(holder)) return false;
-  rmSync(turn, { force: true });
+  /** Moved aside rather than removed: of two starters finding the same dead turn, the second's move finds nothing there. */
+  const aside = `${turn}.${process.pid}`;
+  try {
+    renameSync(turn, aside);
+  } catch {
+    return false;
+  }
+  rmSync(aside, { force: true });
   try {
     symlinkSync(String(process.pid), turn);
     return true;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    return false;
+  }
+}
+
+function holdsTurn(turn: string): boolean {
+  try {
+    return readlinkSync(turn) === String(process.pid);
+  } catch {
     return false;
   }
 }
@@ -99,11 +114,12 @@ function reclaim(userData: string, lock: string): boolean {
   const turn = `${lock}.reclaim`;
   if (!takeTurn(turn)) return false;
   try {
-    if (servingProcess(userData) !== null) return false;
+    /** Looked at again on the turn: what was seen before it was taken may have moved since. */
+    if (servingProcess(userData) !== null || !holdsTurn(turn)) return false;
     rmSync(lock, { force: true });
     return claim(lock);
   } finally {
-    rmSync(turn, { force: true });
+    if (holdsTurn(turn)) rmSync(turn, { force: true });
   }
 }
 
