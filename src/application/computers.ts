@@ -174,8 +174,7 @@ export function routeInput(state: WorkspaceState, input: WorkspaceInput): InputR
     if (!input.computerId || input.computerId === "this") return LOCAL;
     const computer = state.computers.paired.find((item) => item.id === input.computerId);
     if (!computer) return { kind: "refuse", message: "That computer is no longer paired." };
-    if (computer.status !== "connected") return { kind: "refuse", message: computer.error ?? `${computer.name} is offline.` };
-    return forwarded(computer, [{ type: "project.add", root: input.root }]);
+    return toward(computer, (holder) => forwarded(holder, [{ type: "project.add", root: input.root }]));
   }
   if (!state.computers.paired.length || !isAppCommandType(input.type)) return LOCAL;
   const active = activeComputer(state);

@@ -54,6 +54,9 @@ export function reduceProjectAdd(state: WorkspaceState, input: Input): Workspace
   const add = state.projectAdd;
   switch (input.type) {
     case "project.open":
+      if ((state.computers.filter === "all" || state.computers.filter === "this") && !state.computers.paired.some((computer) => computer.status === "connected")) {
+        return settled(state, [{ type: "pick-project" }]);
+      }
       return changed(state, { request: 0, computerId: state.computers.filter === "all" ? "this" : state.computers.filter, root: "", suggestions: [], selected: -1, saving: false, error: null }, false);
     case "project.add":
       return settled(state, [{ type: "add-project", root: input.root }]);

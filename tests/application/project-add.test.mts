@@ -15,6 +15,35 @@ function workspace() {
   return state;
 }
 
+test("opening a local project uses the native picker unless a connected computer needs a device choice", () => {
+  for (const filter of ["all", "this"]) {
+    const state = emptyWorkspaceState();
+    state.computers = { ...state.computers, filter };
+    assert.deepEqual(reduce(state, { type: "project.open" }).effects, [{ type: "pick-project" }]);
+    for (const status of ["offline", "connecting", "connected"] as const) {
+      state.computers.paired = [{ ...workspace().computers.paired[0]!, status }];
+      const opened = reduce(state, { type: "project.open" });
+      if (status === "connected") {
+        assert.deepEqual(opened.effects, []);
+        assert.equal(opened.state.projectAdd?.computerId, "this");
+      } else {
+        assert.deepEqual(opened.effects, [{ type: "pick-project" }]);
+        assert.equal(opened.state.projectAdd, null);
+      }
+    }
+  }
+});
+
+test("a filter naming a paired computer opens the dialog even when that computer is down", () => {
+  for (const status of ["offline", "connecting", "connected"] as const) {
+    const state = workspace();
+    state.computers.paired[0] = { ...state.computers.paired[0]!, status };
+    const opened = reduce(state, { type: "project.open" });
+    assert.deepEqual(opened.effects, []);
+    assert.equal(opened.state.projectAdd?.computerId, "linux");
+  }
+});
+
 test("add defaults to the filtered device and explicit path commands route even with no projects", () => {
   const state = workspace();
   const opened = reduce(state, { type: "project.open" });
@@ -27,11 +56,19 @@ test("add defaults to the filtered device and explicit path commands route even 
   const route = routeInput(state, { type: "project.add", root: "~/app", computerId: "linux" });
   assert.equal(route.kind, "computer");
   if (route.kind === "computer") assert.deepEqual(route.inputs, [{ type: "project.add", root: "~/app" }]);
+  assert.deepEqual(reduce(state, { type: "project.add", root: "~/app", computerId: "linux" }).effects, [
+    { type: "computer.forward", id: "linux", inputs: [{ type: "project.add", root: "~/app" }] },
+  ]);
   assert.deepEqual(routeInput(state, { type: "project.add", root: "/local" }), { kind: "local" });
   assert.equal(routeInput(emptyWorkspaceState(), { type: "project.add", root: "/app", computerId: "forgotten" }).kind, "refuse");
   const offline = workspace();
   offline.computers.paired[0] = { ...offline.computers.paired[0]!, status: "offline", error: "Connection refused" };
   assert.deepEqual(routeInput(offline, { type: "project.add", root: "/app", computerId: "linux" }), { kind: "refuse", message: "Connection refused" });
+  const refused = reduce(offline, { type: "project.add", root: "/app", computerId: "linux" });
+  assert.deepEqual(refused.effects, []);
+  assert.deepEqual(refused.result, { ok: false, message: "Connection refused" });
+  offline.computers.paired[0] = { ...offline.computers.paired[0]!, error: null };
+  assert.deepEqual(routeInput(offline, { type: "project.add", root: "/app", computerId: "linux" }), { kind: "refuse", message: "Linux is offline." });
 });
 
 test("directory replies and picker replies cannot overwrite a newer device, path or dialog", () => {
