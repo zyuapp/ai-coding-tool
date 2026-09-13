@@ -1291,7 +1291,9 @@ button, select { color: inherit; }
 .thread-start-project-label { display: flex; align-items: center; gap: 8px; }
 .thread-start-project-label > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .thread-start-project-label > .host-mark { max-width: 140px; }
-.thread-start-git > .thread-start-field > button { max-width: min(220px, 100%); }
+/** Cap the field too, so a truncated branch leaves no empty space before Worktree. */
+.thread-start-git > .thread-start-field { max-width: 220px; }
+.thread-start-git > .thread-start-field > button { max-width: 100%; }
 /** A checkout of its own is a switch on the branch, so it presses in rather than carrying a box. */
 .empty-state .thread-start .thread-start-toggle { color: var(--quiet-strong); }
 .empty-state .thread-start .thread-start-toggle[aria-pressed="true"],
