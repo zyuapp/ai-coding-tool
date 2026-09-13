@@ -10,7 +10,8 @@ import { moveListFocus, useDismissibleLayer } from "../focus";
 export function matchProjects(projects: Project[], query: string, projectHosts?: ReadonlyMap<string, ThreadHost>) {
   const needle = query.trim().toLowerCase();
   if (!needle) return projects;
-  return projects.filter((project) => `${projectName(project)} ${project.root} ${projectHosts?.get(project.id)?.name ?? "This computer"}`.toLowerCase().includes(needle));
+  const localHostName = projects.some((project) => projectHosts?.has(project.id)) ? "This computer" : "";
+  return projects.filter((project) => `${projectName(project)} ${project.root} ${projectHosts?.get(project.id)?.name ?? localHostName}`.toLowerCase().includes(needle));
 }
 
 /** Keep each computer's project order, with this computer before the paired computers by name. */
@@ -100,14 +101,15 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
   /** A chat has no project, so there is nothing left for it to answer. */
   if (!project) return null;
   const host = projectHosts?.get(project.id);
+  const showComputers = projects.some((item) => projectHosts?.has(item.id));
 
   return (
     <div className="thread-start" aria-label="How this thread starts">
       <div className={`thread-start-field ${projectsOpen ? "open" : ""}`} ref={projectRef}>
-        <button ref={projectTrigger} type="button" aria-label={`${projectName(project)} on ${host?.name ?? "This computer"}`} aria-haspopup="listbox" aria-expanded={projectsOpen} onClick={() => { setProjectQuery(""); setProjectsOpen(!projectsOpen); }}>
+        <button ref={projectTrigger} type="button" aria-label={showComputers ? `${projectName(project)} on ${host?.name ?? "This computer"}` : "Project"} aria-haspopup="listbox" aria-expanded={projectsOpen} onClick={() => { setProjectQuery(""); setProjectsOpen(!projectsOpen); }}>
           <FolderGit2 size={14} />
           <span>{projectName(project)}</span>
-          <span className={`project-host${host?.offline ? " offline" : ""}`}>{host?.name ?? "This computer"}</span>
+          {showComputers && <span className={`project-host${host?.offline ? " offline" : ""}`}>{host?.name ?? "This computer"}</span>}
           <ChevronDown size={14} />
         </button>
         {projectsOpen && <div className="thread-start-popover" onKeyDown={moveListFocus}>
@@ -125,14 +127,14 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
           <div role="listbox" aria-label="Projects">
             {matched.length === 0 && <p className="thread-start-empty">No project matches</p>}
             {groupProjects(matched, projectHosts).map(({ host, projects: grouped }) => (
-              <div key={host ? `remote:${host.id}` : "local"} role="group" aria-label={host?.name ?? "This computer"}>
-                <div className="thread-start-group-heading" aria-hidden="true">{host?.name ?? "This computer"}</div>
+              <div key={host ? `remote:${host.id}` : "local"} role={showComputers ? "group" : undefined} aria-label={showComputers ? host?.name ?? "This computer" : undefined}>
+                {showComputers && <div className="thread-start-group-heading" aria-hidden="true">{host?.name ?? "This computer"}</div>}
                 {grouped.map((item) => (
                   <button
                     key={item.id}
                     type="button"
                     role="option"
-                    aria-label={`${projectName(item)} on ${host?.name ?? "This computer"}`}
+                    aria-label={showComputers ? `${projectName(item)} on ${host?.name ?? "This computer"}` : undefined}
                     aria-selected={item.id === projectId}
                     onClick={() => {
                       setProjectsOpen(false);
@@ -140,7 +142,6 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
                     }}
                   >
                     <span>{projectName(item)}</span>
-                    <span className={`project-host${host?.offline ? " offline" : ""}`}>{host?.name ?? "This computer"}</span>
                     {item.id === projectId && <Check size={14} />}
                   </button>
                 ))}

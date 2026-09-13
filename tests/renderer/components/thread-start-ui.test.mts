@@ -33,8 +33,8 @@ test("the start options say where a thread begins, and searching narrows the bra
   });
 
   const view = await mount(options(null, false));
-  const project = query<HTMLButtonElement>(view.container, 'button[aria-label="ai-coding-tool on This computer"]');
-  assert.match(project.textContent, /ai-coding-tool/, "the project the thread starts in is filled in already");
+  const project = query<HTMLButtonElement>(view.container, 'button[aria-label="Project"]');
+  assert.equal(project.textContent, "ai-coding-tool", "a local-only picker names just the selected project");
   assert.match(query(view.container, 'button[aria-label="Starting branch"]').textContent, /main/, "and so is the branch the checkout is on");
   const worktreeToggle = query<HTMLButtonElement>(view.container, ".thread-start-toggle");
   assert.equal(worktreeToggle.textContent, "Worktree");
@@ -44,13 +44,14 @@ test("the start options say where a thread begins, and searching narrows the bra
   await act(async () => { project.click(); });
   const projectSearch = query<HTMLInputElement>(view.container, 'input[aria-label="Search projects"]');
   assert.equal(document.activeElement, projectSearch, "the project search takes focus when it opens");
-  assert.deepEqual([...view.container.querySelectorAll('[role="option"]')].map((option) => option.getAttribute("aria-label")), ["ai-coding-tool on This computer", "just-speak on This computer"]);
+  assert.deepEqual([...view.container.querySelectorAll('[role="option"]')].map((option) => option.textContent), ["ai-coding-tool", "just-speak"]);
+  assert.equal(query(view.container, '[role="listbox"]').textContent, "ai-coding-tooljust-speak", "local-only projects form a plain list");
   await act(async () => {
     item(Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")).set!.call(projectSearch, "speak");
     projectSearch.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true }));
   });
   const projectOptions = [...view.container.querySelectorAll<HTMLButtonElement>('[role="option"]')];
-  assert.deepEqual(projectOptions.map((option) => option.getAttribute("aria-label")), ["just-speak on This computer"], "searching narrows the projects");
+  assert.deepEqual(projectOptions.map((option) => option.textContent), ["just-speak"], "searching narrows the projects");
   await act(async () => { item(projectOptions[0]).click(); });
   assert.deepEqual([...chosen.project], ["project-b"]);
 
@@ -204,7 +205,10 @@ test("a project search keeps what the query names, by name, path, and computer",
   assert.deepEqual(matchProjects(projects, "SPEAK").map((project) => project.id), ["b"], "case never decides a match");
   assert.deepEqual(matchProjects(projects, "just").map((project) => project.id), ["b"], "the path is matched as well as the name");
   assert.deepEqual(matchProjects(projects, "nope"), []);
+  assert.deepEqual(matchProjects(projects, "this"), [], "local-only searches match project names and paths");
+  assert.deepEqual(matchProjects(projects, "this", new Map()), []);
   const projectHosts = new Map([["b", { id: "studio", name: "Studio Mac", offline: false }]]);
+  assert.deepEqual(matchProjects(projects.slice(0, 1), "this", projectHosts), [], "hosts for projects outside the picker do not add search terms");
   assert.deepEqual(matchProjects(projects, "  STUDIO  ", projectHosts).map((project) => project.id), ["b"]);
   assert.deepEqual(matchProjects(projects, "This computer", projectHosts).map((project) => project.id), ["a"]);
   assert.deepEqual(matchProjects(projects, "speaker", projectHosts).map((project) => project.id), ["b"]);
@@ -242,9 +246,8 @@ test("the project picker labels and groups duplicate repository names by compute
   assert.deepEqual(rows().map((row) => row.getAttribute("aria-label")), [
     "shared on This computer", "another on This computer", "shared on Air", "shared on Studio Mac", "second on Studio Mac",
   ], "groups preserve each computer's project order despite interleaving in the input");
-  assert.deepEqual(rows().map((row) => query(row, ".project-host").textContent), ["This computer", "This computer", "Air", "Studio Mac", "Studio Mac"]);
+  assert.deepEqual(rows().map((row) => row.textContent), ["shared", "another", "shared", "shared", "second"], "headings identify the computer once for each group");
   assert.equal(rows().filter((row) => row.getAttribute("aria-selected") === "true")[0]?.getAttribute("aria-label"), "shared on Studio Mac");
-  assert.equal(query(view.container, '[role="option"][aria-label="shared on Studio Mac"] .project-host').classList.contains("offline"), true);
   await act(async () => {
     item(rows()[1]).focus();
     item(rows()[1]).dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowDown" }));
@@ -271,6 +274,11 @@ test("the project picker labels and groups duplicate repository names by compute
   assert.equal(query(view.container, 'button[aria-label="shared on Air"] .project-host').textContent, "Air");
   await view.render(options("local-one"));
   assert.equal(query(view.container, 'button[aria-label="shared on This computer"] .project-host').textContent, "This computer");
+  await view.render(React.cloneElement(options("local-one"), { projects: projects.filter((project) => !projectHosts.has(project.id)) }));
+  const localTrigger = query<HTMLButtonElement>(view.container, 'button[aria-label="Project"]');
+  assert.equal(localTrigger.textContent, "shared", "hosts outside the picker leave its local-only presentation plain");
+  await act(async () => { localTrigger.click(); });
+  assert.equal(query(view.container, '[role="listbox"]').textContent, "sharedanother");
   await view.unmount();
 });
 
