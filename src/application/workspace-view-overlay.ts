@@ -1,5 +1,6 @@
 import { annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-drafts.js";
 import { promptKey, type OwnWorkspaceView, type WorkspaceState } from "./workspace-state.js";
+import type { WorktreeMenuState } from "./worktree-menu.js";
 
 /**
  * Everything the window paints from its own state whichever computer's thread is on screen: the
@@ -20,8 +21,9 @@ const OWN_VIEW_KEYS = [
 type OwnView = Pick<OwnWorkspaceView, (typeof OWN_VIEW_KEYS)[number]>;
 
 /** The window over a paired computer's thread: that computer's view of it, under this window's own chrome and drafts. */
-export function overlaidView(state: WorkspaceState, own: OwnWorkspaceView, remote: WorkspaceState, derive: (state: WorkspaceState) => OwnWorkspaceView) {
-  const shown = derive(remote);
+export function overlaidView(state: WorkspaceState, own: OwnWorkspaceView, remote: WorkspaceState, derive: (state: WorkspaceState, window: WorktreeMenuState) => OwnWorkspaceView) {
+  /** The location menu opens and is searched here, over the other computer's threads and checkouts. */
+  const shown = derive(remote, state);
   const kept = {} as OwnView;
   for (const key of OWN_VIEW_KEYS) (kept as Record<string, unknown>)[key] = own[key];
   const key = promptKey(remote);
@@ -40,6 +42,8 @@ export function overlaidView(state: WorkspaceState, own: OwnWorkspaceView, remot
     terminals: [],
     browserTabs: [],
     browserApproval: null,
+    /** A delete confirmed here may name the other computer's checkout, which only its list has. */
+    worktreeDeleteConfirmation: own.worktreeDeleteConfirmation ?? shown.managedWorktrees?.find((item) => item.root === state.worktreeSettings.confirming && !item.deleting) ?? null,
     actionError: state.actionError ?? shown.actionError,
     actionErrorPage: state.actionError ? state.actionErrorPage : shown.actionErrorPage,
   };

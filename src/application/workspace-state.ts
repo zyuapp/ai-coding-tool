@@ -1,5 +1,5 @@
 import { sideChatView } from "./side-chat-view.js";
-import { worktreeMenuView, type WorktreeMenuSearch } from "./worktree-menu.js";
+import { worktreeMenuView, type WorktreeMenuSearch, type WorktreeMenuState } from "./worktree-menu.js";
 import type { PendingQuestion } from "../domain/agent-question.js";
 import type { ThreadRole } from "../domain/thread-role.js";
 import { runStatusFor, workflowThreadIds, type ApprovalView, type RunTransitionState, type StreamingTail, type ThreadRunStatus } from "./thread-run-state.js";
@@ -756,7 +756,8 @@ export function deriveView(state: WorkspaceState) {
 
 export type OwnWorkspaceView = ReturnType<typeof deriveOwnView>;
 
-function deriveOwnView(state: WorkspaceState) {
+/** `window` is whose menu the location row draws: this window's when the thread is a paired computer's. */
+function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state) {
   const currentThread = state.threads.find((thread) => thread.id === state.currentId);
   const draftWorktree = worktreeById(state, state.draftWorktreeId ?? undefined);
   const currentProject = currentThread
@@ -820,7 +821,7 @@ function deriveOwnView(state: WorkspaceState) {
     worktreeManagementError: state.worktreeManagementError,
     worktreeManagementNotice: state.worktreeManagementNotice,
     location: locationOf(state, currentThread),
-    worktreeMenu: worktreeMenuView(state, currentThread, visibleThreads, busy, blocked),
+    worktreeMenu: worktreeMenuView(state, currentThread, visibleThreads, busy, blocked, window),
     worktreeDeleteConfirmation: managedWorktrees?.find((item) => item.root === state.worktreeSettings.confirming && !item.deleting) ?? null,
     waitingOn: waitFor(state, currentThread),
     /** The checkout the current thread works in, which is what Git is read from and moved. */

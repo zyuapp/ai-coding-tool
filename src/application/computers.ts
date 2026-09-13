@@ -62,6 +62,13 @@ function computerOfWorktree(state: Pick<WorkspaceState, "computers" | "worktrees
   return state.computers.paired.find((computer) => computer.state?.worktrees.some((worktree) => worktree.id === worktreeId)) ?? null;
 }
 
+/** The paired computer whose checkout is at a root, or null for one of this computer's own or one nobody holds. */
+function computerOfWorktreeRoot(state: Pick<WorkspaceState, "computers" | "worktrees" | "managedWorktrees">, root: string | undefined): PairedComputer | null {
+  const holds = (held: Pick<WorkspaceState, "worktrees" | "managedWorktrees">) => held.worktrees.some((worktree) => worktree.root === root) || Boolean(held.managedWorktrees?.some((worktree) => worktree.root === root));
+  if (root === undefined || holds(state)) return null;
+  return state.computers.paired.find((computer) => computer.state && holds(computer.state)) ?? null;
+}
+
 /**
  * Where a command goes: this computer's reducer, a paired computer's, or nowhere with a reason.
  * `select` puts the computer on screen; `also` applies the command here as well; `draftKey` names
@@ -160,6 +167,12 @@ export function routeInput(state: WorkspaceState, input: WorkspaceInput): InputR
     const named = type === "file.open" ? computerOfThread(state, input.taskId) : null;
     const elsewhere = named ?? (type === "file.open" && input.taskId !== undefined ? null : active);
     return elsewhere ? { kind: "refuse", message: FILES_ELSEWHERE } : LOCAL;
+  }
+  /** The location menu opens and is searched here; the checkouts it offers, and what it moves or deletes, are the holder's. */
+  if (type === "worktree.menu-open") return input.list === "destinations" && active ? forwarded(active, [input], { also: true }) : LOCAL;
+  if (type === "worktree.delete") {
+    const computer = input.root !== undefined ? computerOfWorktreeRoot(state, input.root) : input.taskId !== undefined ? computerOfThread(state, input.taskId) : active;
+    return computer ? forwarded(computer, [input]) : LOCAL;
   }
   if (LOCAL_PREFIXES.some((prefix) => type.startsWith(prefix))) return LOCAL;
   const named = "taskId" in input ? computerOfThread(state, input.taskId) : null;
