@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFile, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -13,9 +13,13 @@ type IpcEvent = { sender: unknown };
 
 const entry = path.join(process.cwd(), "dist", "main", "main", "serve.js");
 
+/** What the served host was named in the app that shares its data folder, which is what it tells the computers that pair with it. */
+const SERVED_NAME = "Build box";
+
 /** A headless host on this machine's loopback, the way a test can have one without a tailnet. */
 async function servedHost(t: { onTestFinished(callback: () => void | Promise<void>): void }) {
   const userData = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-served-"));
+  await writeFile(path.join(userData, "computers.v1.json"), JSON.stringify({ version: 1, name: SERVED_NAME, computers: [] }));
   const child = spawn(process.execPath, ["--disable-warning=ExperimentalWarning", entry, "serve", "--dev", "--local", "--user-data", userData, "--port", "0"], { stdio: ["ignore", "pipe", "pipe"] });
   let output = "";
   child.stdout.on("data", (chunk: Buffer) => { output += chunk.toString(); });
@@ -49,8 +53,8 @@ test.skipIf(!existsSync(entry))("the app pairs with a served host by its code an
 
   await request({ type: "computers.pair", host: served.host, name: "linux-box", code: await served.code() });
   await waitFor(async () => (await state()).computers.paired[0]?.status === "connected", "the line coming up");
+  await waitFor(async () => (await state()).computers.paired[0]?.name === SERVED_NAME, "the served host's own name replacing the one it was paired under");
   const paired = (await state()).computers.paired[0]!;
-  assert.equal(paired.name, "linux-box");
   assert.equal((await state()).computers.pairing, null, "the card closes once the computer is paired");
   await waitFor(async () => (await state()).computers.paired[0]?.state?.restored === true, "the served host's workspace arriving");
   assert.deepEqual((await state()).computers.paired[0]?.state?.threads, [], "a fresh host has no threads yet");
