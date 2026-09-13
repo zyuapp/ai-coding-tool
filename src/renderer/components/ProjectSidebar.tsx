@@ -9,7 +9,7 @@ import type { ActivitySections } from "../../application/thread-order";
 import type { AutomationView } from "../../domain/automation";
 import type { WorktreeGroup } from "../../application/workspace-state";
 import { SidebarActivity } from "./SidebarActivity";
-import { ComputerSwitch, SidebarHeader, SidebarResizer } from "./SidebarChrome";
+import { SidebarHeader, SidebarResizer } from "./SidebarChrome";
 import type { ThreadHost } from "../../application/computers";
 import type { ComputerFilter, ComputerLink } from "../../domain/computers";
 import { PROJECT_DRAG, RECENTS_DROPPABLE, SidebarProjects, useShownThreads } from "./SidebarProjects";
@@ -209,8 +209,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
       inert={inactive || !open}
       style={{ "--row-slots": railSlots } as React.CSSProperties}
     >
-      <SidebarHeader mode={mode} canGoBack={canGoBack} canGoForward={canGoForward} onSetMode={onSetMode} onGoBack={onGoBack} onGoForward={onGoForward} />
-      {computerLinks.length > 0 && <ComputerSwitch links={computerLinks} name={computerName} filter={computerFilter} onSetFilter={onSetComputerFilter} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />}
+      <SidebarHeader mode={mode} canGoBack={canGoBack} canGoForward={canGoForward} onSetMode={onSetMode} onGoBack={onGoBack} onGoForward={onGoForward} computerLinks={computerLinks} computerName={computerName} computerFilter={computerFilter} onSetComputerFilter={onSetComputerFilter} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />
       <button className="new-task-button" onClick={() => onNewThread()} aria-label="New task" data-tip="New task">
         {/** Two copies of one outline: the resting hairline, and the accent that draws over it on hover. */}
         <svg className="new-task-edge" aria-hidden="true" focusable="false">
