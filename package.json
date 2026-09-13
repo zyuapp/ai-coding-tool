@@ -1,6 +1,6 @@
 {
   "name": "ai-coding-tool",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "license": "MIT",
   "author": "Zhuocheng Yu",
@@ -22,14 +22,13 @@
     "prepare:electron": "install-electron",
     "prepare:cua": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/prepare-cua-driver.mts",
     "start": "npm run prepare:electron && npm run prepare:cua && npm run build && electron .",
-    "serve": "npm run build && node --disable-warning=ExperimentalWarning dist/main/main/serve.js serve --dev --installed",
+    "serve": "npm run build && node --disable-warning=ExperimentalWarning dist/main/main/serve.js --dev",
     "serve:pair": "node --disable-warning=ExperimentalWarning dist/main/main/serve.js pair --dev --installed",
     "start:mobile": "npm run prepare:electron && node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/start-mobile.mts",
     "package:mac": "npm run prepare:electron && npm run prepare:cua && npm run build && electron-builder --mac --arm64 --publish never",
     "package:linux": "npm run prepare:electron && npm run prepare:cua && npm run build && electron-builder --linux --publish never",
     "generate:codex-protocol": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/generate-codex-protocol.mts",
-    "generate:claude-baseline": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/generate-claude-baseline.mts",
-    "serve": "npm run build && node --disable-warning=ExperimentalWarning dist/main/main/serve.js --dev"
+    "generate:claude-baseline": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/generate-claude-baseline.mts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.270",
