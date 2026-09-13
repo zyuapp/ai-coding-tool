@@ -1,4 +1,4 @@
-import { existsSync, linkSync, readFileSync, readlinkSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, linkSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { hostname } from "node:os";
 import path from "node:path";
 
@@ -62,33 +62,8 @@ export function desktopOpen(userData: string): boolean {
   return alive(pid);
 }
 
-/**
- * The turn to clear a dead server's lock: a link naming the starter that has it, made in one step.
- * A starter keeps its turn as long as it lives, however long it takes; only a turn a starter died
- * holding is taken over, and that starter cannot come back to finish it.
- */
+/** The turn to clear a dead server's lock: a link naming the starter that has it, made in one step. */
 function takeTurn(turn: string): boolean {
-  try {
-    symlinkSync(String(process.pid), turn);
-    return true;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-  }
-  let holder: number;
-  try {
-    holder = Number(readlinkSync(turn));
-  } catch {
-    return false;
-  }
-  if (!Number.isInteger(holder) || holder <= 0 || alive(holder)) return false;
-  /** Moved aside rather than removed: of two starters finding the same dead turn, the second's move finds nothing there. */
-  const aside = `${turn}.${process.pid}`;
-  try {
-    renameSync(turn, aside);
-  } catch {
-    return false;
-  }
-  rmSync(aside, { force: true });
   try {
     symlinkSync(String(process.pid), turn);
     return true;
@@ -98,9 +73,11 @@ function takeTurn(turn: string): boolean {
   }
 }
 
-function holdsTurn(turn: string): boolean {
+/** Whether the starter holding the turn is dead. Its turn is never taken over: nothing can be, safely, without an OS lock. */
+function turnAbandoned(turn: string): boolean {
   try {
-    return readlinkSync(turn) === String(process.pid);
+    const holder = Number(readlinkSync(turn));
+    return Number.isInteger(holder) && holder > 0 && !alive(holder);
   } catch {
     return false;
   }
@@ -114,12 +91,11 @@ function reclaim(userData: string, lock: string): boolean {
   const turn = `${lock}.reclaim`;
   if (!takeTurn(turn)) return false;
   try {
-    /** Looked at again on the turn: what was seen before it was taken may have moved since. */
-    if (servingProcess(userData) !== null || !holdsTurn(turn)) return false;
+    if (servingProcess(userData) !== null) return false;
     rmSync(lock, { force: true });
     return claim(lock);
   } finally {
-    if (holdsTurn(turn)) rmSync(turn, { force: true });
+    rmSync(turn, { force: true });
   }
 }
 
@@ -129,7 +105,10 @@ export function claimServeLock(userData: string): () => void {
   const lock = path.join(userData, SERVE_LOCK);
   if (!claim(lock) && (servingProcess(userData) !== null || !reclaim(userData, lock))) {
     const holder = servingProcess(userData);
-    throw new Error(holder === null ? "Another AI Coding Tool is starting to serve from this folder." : `AI Coding Tool is already serving from this folder (process ${holder}).`);
+    if (holder !== null) throw new Error(`AI Coding Tool is already serving from this folder (process ${holder}).`);
+    const turn = `${lock}.reclaim`;
+    if (turnAbandoned(turn)) throw new Error(`A server starting from this folder died before it finished. Remove ${turn} and try again.`);
+    throw new Error("Another AI Coding Tool is starting to serve from this folder.");
   }
   return () => {
     if (holderOf(lock) === process.pid) rmSync(lock, { force: true });

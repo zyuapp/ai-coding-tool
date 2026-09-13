@@ -45,16 +45,18 @@ test("a serve lock stands while its process lives, and one a dead process left i
   assert.equal(existsSync(path.join(userData, "serve.lock")), false);
 });
 
-test("a dead server's lock is cleared by one starter at a time, and only a turn a starter died holding is taken over", async (t) => {
+test("a dead server's lock is cleared by one starter at a time, and a turn a starter died holding is left for the user", async (t) => {
   const userData = await folder(t);
   const lock = path.join(userData, "serve.lock");
   await writeFile(lock, "999999");
   const turn = `${lock}.reclaim`;
   const starter = bystander(t);
   await symlink(String(starter.pid), turn);
-  assert.throws(() => claimServeLock(userData), /starting to serve from this folder/);
+  assert.throws(() => claimServeLock(userData), /Another AI Coding Tool is starting to serve/);
   assert.equal(await readlink(turn), String(starter.pid), "a living starter keeps its turn, however long it takes");
   await ended(starter);
+  assert.throws(() => claimServeLock(userData), new RegExp(`died before it finished\\. Remove ${turn.replaceAll(".", "\\.")} and try again`));
+  await rm(turn);
   const release = claimServeLock(userData);
   assert.equal(existsSync(turn), false);
   assert.equal(holder(lock), process.pid);
