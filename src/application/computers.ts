@@ -62,13 +62,25 @@ function computerOfWorktree(state: Pick<WorkspaceState, "computers" | "worktrees
   return state.computers.paired.find((computer) => computer.state?.worktrees.some((worktree) => worktree.id === worktreeId)) ?? null;
 }
 
-/** Where a command goes: this computer's reducer, a paired computer's, or nowhere with a reason. */
+/**
+ * Where a command goes: this computer's reducer, a paired computer's, or nowhere with a reason.
+ * `select` puts the computer on screen; `also` applies the command here as well; `draftKey` names
+ * the draft a send carries, cleared here once the other computer has taken it.
+ */
 export type InputRoute =
   | { kind: "local" }
-  | { kind: "computer"; computer: PairedComputer; inputs: WorkspaceInput[]; select?: true }
+  | { kind: "computer"; computer: PairedComputer; inputs: WorkspaceInput[]; select?: true; also?: true; draftKey?: string }
   | { kind: "refuse"; message: string };
 
 const LOCAL = { kind: "local" } as const;
+
+/** Commands that move this window to one of its own threads, which takes a paired computer's thread off screen. */
+const LEAVING_TYPES = new Set(["task.select", "worktree.open-thread", "view.jump-choose", "task.new", "view.go-back", "view.go-forward"]);
+
+/** Whether a command routed here means the window is leaving the paired computer it was showing. */
+export function leavesComputer(input: WorkspaceInput): boolean {
+  return LEAVING_TYPES.has(input.type);
+}
 
 /** Commands that stay on this computer whatever thread is on screen: the window, its settings, and its drafts. */
 const LOCAL_PREFIXES = ["computer-use.", "cli.", "engine.", "remote.", "computers.", "app.list", "app.check-for-updates", "app.open-source-licenses", "worktree.", "annotation.", "paste.", "image.", "file.", "view.set-theme", "view.set-ui", "view.set-mono", "view.set-reading", "view.set-terminal", "view.set-sidebar", "view.set-session", "view.set-capture", "view.set-chrome", "view.set-concise", "view.set-computer", "view.set-browser", "view.set-notifications", "view.set-settings", "view.set-shortcut", "view.reset-shortcuts", "view.capture-shortcut", "view.dismiss-", "view.set-section", "view.set-subagent", "view.set-model-favorite", "view.set-menu", "view.go-", "view.mounted", "view.closed", "view.toggle-project", "view.edit-project", "view.move-worktree", "view.jump-", "view.find-", "view.focus-composer", "view.system-scheme", "view.set-prompt", "view.reading-point", "view.refresh-environment", "usage.", "project.open", "attachments.notice"] as const;
@@ -80,26 +92,32 @@ export const PANEL_ELSEWHERE = "The terminal and browser panels open only for th
 export const ATTACHMENTS_ELSEWHERE = "Images and files cannot be sent to a thread on another computer yet.";
 export const FILES_ELSEWHERE = "That folder is on another computer, so it cannot be opened here.";
 
-function forwarded(computer: PairedComputer, inputs: WorkspaceInput[], select?: true): InputRoute {
-  return { kind: "computer", computer, inputs, ...(select ? { select } : {}) };
+function forwarded(computer: PairedComputer, inputs: WorkspaceInput[], options: { select?: true; also?: true; draftKey?: string } = {}): InputRoute {
+  return { kind: "computer", computer, inputs, ...options };
 }
 
-/** A send carries the draft this computer holds for the thread, so the thread's own computer never sees a keystroke. */
+/**
+ * A send carries the draft this computer holds for the thread: the text and what rides with it
+ * are put into the other computer's own composer for that thread, and its send reads them from
+ * there, so it composes the message exactly as it would have typed there. The draft stays here
+ * until that computer has taken it.
+ */
 function forwardedSend(state: WorkspaceState, computer: PairedComputer, command: Extract<AppCommand, { type: "task.send" }>): InputRoute {
   if (command.attachments?.length) return { kind: "refuse", message: ATTACHMENTS_ELSEWHERE };
   const remote = computer.state;
-  const key = command.taskId ?? (remote ? promptKey(remote) : undefined);
-  if (key === undefined) return { kind: "refuse", message: "That computer has not answered yet." };
+  if (!remote) return { kind: "refuse", message: "That computer has not answered yet." };
+  /** The thread the send is for: the one named, else the one that computer has open, else its draft. */
+  const key = command.taskId ?? promptKey(remote);
+  const target = key.startsWith("draft:") ? {} : { taskId: key };
   const text = command.text ?? state.prompts[key] ?? "";
-  const inputs: WorkspaceInput[] = [];
-  const target = command.taskId === undefined ? {} : { taskId: command.taskId };
+  const inputs: WorkspaceInput[] = [{ type: "view.set-prompt", taskId: key, prompt: text }];
   const annotations = annotationsFor(state, key);
   const pastes = pastesFor(state, key);
-  if (annotations.length) inputs.push({ type: "annotation.recall", ...target, annotations });
-  if (pastes.length) inputs.push({ type: "paste.recall", ...target, pastes });
-  const { attachments: _none, ...rest } = command;
-  inputs.push({ ...rest, text });
-  return forwarded(computer, inputs);
+  if (annotations.length) inputs.push({ type: "annotation.recall", taskId: key, annotations });
+  if (pastes.length) inputs.push({ type: "paste.recall", taskId: key, pastes });
+  const { attachments: _none, text: _typed, taskId: _named, ...rest } = command;
+  inputs.push({ ...rest, ...target });
+  return forwarded(computer, inputs, { draftKey: key });
 }
 
 /**
@@ -112,14 +130,15 @@ export function routeInput(state: WorkspaceState, input: WorkspaceInput): InputR
   const type = input.type;
   if (type === "task.new") {
     const computer = computerOfProject(state, input.projectId) ?? computerOfWorktree(state, input.worktreeId);
-    return computer ? forwarded(computer, [input], true) : LOCAL;
+    return computer ? forwarded(computer, [input], { select: true }) : LOCAL;
   }
   if (type === "task.select" || type === "worktree.open-thread" || type === "view.jump-choose") {
     const computer = computerOfThread(state, input.taskId);
-    return computer ? forwarded(computer, [{ type: "task.select", taskId: input.taskId }], true) : LOCAL;
+    return computer ? forwarded(computer, [{ type: "task.select", taskId: input.taskId }], { select: true }) : LOCAL;
   }
   if (type === "task.dismiss-all") return LOCAL;
-  if (type === "view.set-focused") return active ? forwarded(active, [input]) : LOCAL;
+  /** Whether the user is looking is this window's to know and the other computer's to act on. */
+  if (type === "view.set-focused") return active ? forwarded(active, [input], { also: true }) : LOCAL;
   if (type === "project.move" || type === "project.edit" || type === "project.remove") {
     const computer = computerOfProject(state, input.projectId);
     return computer ? forwarded(computer, [input]) : LOCAL;
@@ -234,7 +253,8 @@ export function remoteNotices(before: WorkspaceState | null, after: WorkspaceSta
   for (const thread of after.threads) {
     const was = previous.get(thread.id);
     if (was === thread || onScreen(thread.id)) continue;
-    const settled = thread.outcomeUnread && !was?.outcomeUnread && thread.outcome;
+    /** A run that settled since the last state, whether or not that computer thought it was being watched. */
+    const settled = thread.outcome && (before.activeRuns[thread.id] !== undefined && after.activeRuns[thread.id] === undefined || (thread.outcomeUnread && !was?.outcomeUnread));
     const finding = thread.findings?.at(-1);
     const found = finding && !finding.read && finding !== was?.findings?.at(-1);
     if (found) notices.push({ taskId: thread.id, title: thread.title, headline: finding.headline });

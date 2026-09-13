@@ -27,11 +27,15 @@ export const computerEffects = {
     }
   },
 
-  /** What the other computer refused comes back as this window's own error, since it is the one that asked. */
+  /**
+   * What the other computer refused comes back as this window's own error, since it is the one that
+   * asked. A draft a send carried is let go of only once that computer has taken it.
+   */
   "computer.forward": async (effect, { dispatch, desktop }) => {
     try {
       const result = await desktop.sendToComputer(effect.id, effect.inputs);
       if (!result.ok) await dispatch({ type: "action.failed", message: result.message });
+      else if (effect.draftKey !== undefined) await dispatch({ type: "computers.forwarded", draftKey: effect.draftKey });
     } catch (error) {
       await dispatch({ type: "action.failed", message: errorMessage(error) });
     }

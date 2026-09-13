@@ -12,6 +12,7 @@ import {
   macCliScript,
   projectPathFromArgv,
   projectPathFromUrl,
+  SERVE_BOOTSTRAP,
 } from "../../src/domain/cli.ts";
 
 const CLI_SCRIPT = macCliScript("/Applications/AI Coding Tool.app/Contents/MacOS/AI Coding Tool");
@@ -115,4 +116,20 @@ test("the command hands serve and pair to the app running as Node, with the argu
   assert.equal(lines[1], "-e");
   assert.match(lines[2] ?? "", /app\.asar/);
   assert.deepEqual(lines.slice(3), ["--", "serve", "--port", "0"]);
+});
+
+test("the bootstrap finds the serve entry beside the app binary and starts it as the command", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "aic-bootstrap-"));
+  t.onTestFinished(() => rm(root, { recursive: true, force: true }));
+  const entry = path.join(root, "resources", "app.asar", "dist", "main", "main", "serve.js");
+  await mkdir(path.dirname(entry), { recursive: true });
+  await writeFile(entry, "exports.cli = function () { console.log(JSON.stringify(['started', ...process.argv.slice(1)])); };\n");
+  const binary = path.join(root, "app");
+  await writeFile(binary, `process.execPath = ${JSON.stringify(binary)};\n`);
+  const started = spawnSync(process.execPath, ["-r", binary, "-e", SERVE_BOOTSTRAP, "--", "serve", "--port", "0"], { encoding: "utf8" });
+  assert.equal(started.status, 0, started.stderr);
+  assert.deepEqual(JSON.parse(started.stdout.trim()), ["started", "serve", "--port", "0"]);
+  const alone = spawnSync(process.execPath, ["-e", SERVE_BOOTSTRAP, "--", "serve"], { encoding: "utf8" });
+  assert.equal(alone.status, 1);
+  assert.match(alone.stderr, /could not find AI Coding Tool beside/);
 });

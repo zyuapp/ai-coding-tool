@@ -4,10 +4,9 @@ import { shownPageEffects } from "./workspace-reducer/browser-tabs.js";
 import { prunedWorkflowPanels, TAKE_KEYS } from "./workspace-reducer/dock-tabs.js";
 import { prunedFind } from "./workspace-reducer/find.js";
 import { rejected, settled } from "./workspace-reducer/shared.js";
-import { routeInput, type InputRoute } from "./computers.js";
-import { withAnnotations, withPastes } from "./composer-drafts.js";
-import type { WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
-import { dockFor, dockOwner, findTargetFor, keyboardTerminalId, promptKey, recordVisit, threadSlots, type WorkspaceState } from "./workspace-state.js";
+import { activeComputer, leavesComputer, routeInput, type InputRoute } from "./computers.js";
+import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
+import { dockFor, dockOwner, findTargetFor, keyboardTerminalId, recordVisit, threadSlots, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type { AgentEvent } from "../contracts/ipc.js";
 import { slotShortcutIndex, type ShortcutSurface } from "../domain/shortcuts.js";
@@ -34,8 +33,11 @@ export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceT
   }
   const route = routeInput(state, input);
   if (route.kind === "refuse") return rejected(state, route.message);
-  if (route.kind === "computer") return forwarded(state, route);
-  const applied = reconcileSnoozes(state, apply(state, input), input);
+  if (route.kind === "computer" && !route.also) return forwarded(state, route);
+  const carried = route.kind === "computer" ? [forwardEffect(route)] : [];
+  const left = leavingComputer(state, input);
+  const applied = reconcileSnoozes(left, apply(left, input), input);
+  applied.effects = [...leftBehind(state, left), ...carried, ...applied.effects];
   const transition = { ...applied, state: prunedWorkflowPanels(prunedFind(applied.state)) };
   if (transition.state.browserOrigins !== state.browserOrigins || (input.type === "task.set-policy" && transition.state !== state) || input.type === "store.loaded" || input.type === "preferences.loaded" || transition.effects.some((effect) => ["browser.open", "browser.navigate", "browser.act", "browser.history", "browser.reload"].includes(effect.type))) {
     transition.effects = [{ type: "browser.permissions", permissions: browserPermissions(transition.state) }, ...transition.effects];
@@ -52,20 +54,34 @@ export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceT
   return { ...transition, state: landed, effects: [...transition.effects, ...shownPageEffects(landed), ...(landed.focused ? TAKE_KEYS : [])] };
 }
 
+function forwardEffect(route: Extract<InputRoute, { kind: "computer" }>): WorkspaceEffect {
+  return { type: "computer.forward", id: route.computer.id, inputs: route.inputs, ...(route.draftKey === undefined ? {} : { draftKey: route.draftKey }) };
+}
+
+/** A command that moves this window to one of its own threads takes the paired computer off screen. */
+function leavingComputer(state: WorkspaceState, input: WorkspaceInput): WorkspaceState {
+  if (state.computers.active === null || !leavesComputer(input)) return state;
+  return { ...state, computers: { ...state.computers, active: null } };
+}
+
+/**
+ * A computer whose thread the window has just left is told to open nothing, so a run that settles
+ * there afterwards is marked unseen, which is what this window announces and counts.
+ */
+function leftBehind(before: WorkspaceState, after: WorkspaceState): WorkspaceEffect[] {
+  const left = activeComputer(before);
+  if (!left || after.computers.active === left.id) return [];
+  return [{ type: "computer.forward", id: left.id, inputs: [{ type: "task.new" }] }];
+}
+
 /**
  * A command on its way to the computer holding its thread. Selecting one of that computer's threads
- * puts that computer on screen; sending to one hands over the draft typed here and clears it.
+ * puts that computer on screen; a send carries the draft typed here, which stays until it is taken.
  */
 function forwarded(state: WorkspaceState, route: Extract<InputRoute, { kind: "computer" }>): WorkspaceTransition {
   let next = state;
   if (route.select) next = { ...next, computers: { ...next.computers, active: route.computer.id }, actionError: null };
-  const send = route.inputs.find((input) => input.type === "task.send");
-  if (send && route.computer.state) {
-    const key = send.taskId ?? promptKey(route.computer.state);
-    const { [key]: _sent, ...prompts } = next.prompts;
-    next = withPastes(withAnnotations({ ...next, prompts }, key, []), key, []);
-  }
-  return { state: next, effects: [{ type: "computer.forward", id: route.computer.id, inputs: route.inputs }], result: { ok: true } };
+  return { state: next, effects: [...leftBehind(state, next), forwardEffect(route)], result: { ok: true } };
 }
 
 /** Which channel a report arrived on: a run's own, or the thread's, which outlives every run. */

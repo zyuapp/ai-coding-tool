@@ -22,7 +22,8 @@ export type CliStatus = {
  * Runs the app's own Node against the headless entry inside its package, on either platform's
  * layout. The script has no way to name a file inside an AppImage, so the binary finds it itself.
  */
-const SERVE_BOOTSTRAP = '(function(){var p=require("path"),f=require("fs"),d=p.dirname(process.execPath);var c=[p.join(d,"resources"),p.join(d,"..","Resources")];for(var i=0;i<c.length;i++){var s=p.join(c[i],"app.asar","dist","main","main","serve.js");if(f.existsSync(s))return require(s)}console.error("aic: could not find AI Coding Tool beside "+process.execPath);process.exit(1)})()';
+/** Run by the app binary as Node: finds the packaged serve entry beside it and starts it as the command. */
+export const SERVE_BOOTSTRAP = '(function(){var p=require("path"),f=require("fs"),d=p.dirname(process.execPath);var c=[p.join(d,"resources"),p.join(d,"..","Resources")];for(var i=0;i<c.length;i++){var s=p.join(c[i],"app.asar","dist","main","main","serve.js");if(f.existsSync(s))return require(s).cli()}console.error("aic: could not find AI Coding Tool beside "+process.execPath);process.exit(1)})()';
 
 function shellQuote(value: string) {
   return `'${value.replaceAll("'", "'\\''")}'`;

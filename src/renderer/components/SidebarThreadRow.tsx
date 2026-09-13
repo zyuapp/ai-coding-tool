@@ -103,6 +103,40 @@ export type ThreadRowsOptions = {
   onSetThreadRole: (threadId: string, role: ThreadRole | null) => void;
 };
 
+/**
+ * What can be done to a thread from its row. Activity mode offers dismissing on a priority row
+ * - a thread still asking has nothing to dismiss - and nothing on the others, rather than two
+ * different icons in one view; archiving a thread there is on its menu.
+ */
+function rowActionButtons(thread: Thread, action: RowAction, scheduled: boolean, onDismiss: (threadId: string) => void, onArchive: (threadId: string) => void): React.ReactNode[] {
+  return [
+    action === "dismiss" && <button
+      key="dismiss"
+      className="row-action task-dismiss"
+      type="button"
+      aria-label={scheduled ? `Dismiss ${thread.title}, which keeps running on its schedule` : `Dismiss ${thread.title}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onDismiss(thread.id);
+      }}
+    >
+      <Check size={13} aria-hidden="true" />
+    </button>,
+    action === "archive" && <button
+      key="archive"
+      className="row-action task-archive"
+      type="button"
+      aria-label={`Archive ${thread.title}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onArchive(thread.id);
+      }}
+    >
+      <Archive size={13} aria-hidden="true" />
+    </button>,
+  ].filter(Boolean);
+}
+
 /** Both lists draw the same row, so both of them ask this for one: only the placement differs. */
 export function useThreadRows({
   projects,
@@ -154,37 +188,7 @@ export function useThreadRows({
     <ThreadEngineIcon key="engine" engine={thread.engine} className="task-engine" size={13} />,
   ].filter(Boolean);
 
-  /**
-   * What can be done to a thread from its row. Activity mode offers dismissing on a priority row
-   * - a thread still asking has nothing to dismiss - and nothing on the others, rather than two
-   * different icons in one view; archiving a thread there is on its menu.
-   */
-  const rowActions = (thread: Thread, action: RowAction): React.ReactNode[] => [
-    action === "dismiss" && <button
-      key="dismiss"
-      className="row-action task-dismiss"
-      type="button"
-      aria-label={schedules.has(thread.id) ? `Dismiss ${thread.title}, which keeps running on its schedule` : `Dismiss ${thread.title}`}
-      onClick={(event) => {
-        event.stopPropagation();
-        onDismissThread(thread.id);
-      }}
-    >
-      <Check size={13} aria-hidden="true" />
-    </button>,
-    action === "archive" && <button
-      key="archive"
-      className="row-action task-archive"
-      type="button"
-      aria-label={`Archive ${thread.title}`}
-      onClick={(event) => {
-        event.stopPropagation();
-        onArchiveThread(thread.id);
-      }}
-    >
-      <Archive size={13} aria-hidden="true" />
-    </button>,
-  ].filter(Boolean);
+  const rowActions = (thread: Thread, action: RowAction) => rowActionButtons(thread, action, schedules.has(thread.id), onDismissThread, onArchiveThread);
 
   /**
    * Every thread row ends in the same rail: two layers of icons over one set of slots, the marks it
@@ -206,15 +210,18 @@ export function useThreadRows({
   const offline = (thread: Thread) => threadHosts.get(thread.id)?.offline === true;
 
   /** The row itself, which is the same whether the list around it lets it be dragged or not. */
-  const rowBody = (thread: Thread, className: string, content: React.ReactNode, action: RowAction, priority = false) => (
+  const rowBody = (thread: Thread, className: string, content: React.ReactNode, action: RowAction, priority = false) => {
+    const away = offline(thread);
+    return (
     <>
     <div
-      className={`${thread.role ? `${className} role-${thread.role}` : className}${offline(thread) ? " offline" : ""}`}
-      aria-disabled={offline(thread) || undefined}
-      onClick={() => { if (!offline(thread)) onSelectThread(thread.id); }}
-      onDoubleClick={(event) => threadNames.start(thread.id, event.currentTarget.closest(".task-entry"))}
+      className={`${thread.role ? `${className} role-${thread.role}` : className}${away ? " offline" : ""}`}
+      aria-disabled={away || undefined}
+      onClick={away ? undefined : () => onSelectThread(thread.id)}
+      onDoubleClick={away ? undefined : (event) => threadNames.start(thread.id, event.currentTarget.closest(".task-entry"))}
       onContextMenu={(event) => {
         event.preventDefault();
+        if (away) return;
         threadNames.row.current = event.currentTarget.closest(".task-entry");
         setThreadMenuPosition({ x: event.clientX, y: event.clientY });
         onSetOpenMenu(`task:${thread.id}`);
@@ -230,7 +237,7 @@ export function useThreadRows({
             onCommit={(value) => threadNames.commit(thread.id, value)}
             onCancel={threadNames.cancel}
           />
-        : <>{content}{threadRail(thread, action)}</>}
+        : <>{content}{threadRail(thread, away ? "none" : action)}</>}
     </div>
     {openMenu === `task:${thread.id}` && <ContextMenu
       at={threadMenuPosition}
@@ -245,14 +252,15 @@ export function useThreadRows({
       })}
     />}
     </>
-  );
+    );
+  };
 
   const selectOnEnter = (event: React.KeyboardEvent, thread: Thread) => {
     if (event.key === "Enter" && !offline(thread)) onSelectThread(thread.id);
   };
 
   const threadRow = (thread: Thread, index: number, className: string, content: React.ReactNode) => (
-    <Draggable draggableId={thread.id} index={index} key={thread.id}>
+    <Draggable draggableId={thread.id} index={index} key={thread.id} isDragDisabled={offline(thread)}>
       {(provided: DraggableProvided, snapshot) => (
         <div
           className={`task-entry ${snapshot.isDragging ? "is-dragging" : ""}`}

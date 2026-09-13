@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -9,6 +9,7 @@ import { forkAgentProcessNode } from "./agent-process-node.js";
 import { appPluginPath } from "./app-plugin-path.js";
 import { useAttachmentsDirectory } from "./attachment-store.js";
 import { createDesktopEvents } from "./desktop-events.js";
+import { claimServeLock } from "./instance-lock.js";
 import { createJsonStorage } from "./json-storage.js";
 import { useMessageImageStore } from "./message-image-store.js";
 import { startRunHost } from "./run-host.js";
@@ -62,25 +63,6 @@ function packagedResources() {
   return null;
 }
 
-/** A second server on the same data would write over the first, as would the desktop app itself. */
-function claimInstance(userData: string) {
-  const lock = path.join(userData, "serve.lock");
-  const holder = existsSync(lock) ? Number(readFileSync(lock, "utf8")) : NaN;
-  if (Number.isInteger(holder) && holder !== process.pid && alive(holder)) throw new Error(`AI Coding Tool is already serving from this folder (process ${holder}).`);
-  if (existsSync(path.join(userData, "SingletonLock"))) throw new Error("The desktop app is open on this data folder. Quit it before serving, or serve from another machine.");
-  writeFileSync(lock, String(process.pid));
-  return () => rmSync(lock, { force: true });
-}
-
-function alive(pid: number) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 function pairingLine(offer: MobilePairingOffer) {
   return `Pair with code ${offer.code} (expires in ${Math.round((offer.expiresAt - Date.now()) / 60_000)} minutes) or open ${offer.url}`;
 }
@@ -96,7 +78,7 @@ const NO_TAILSCALE = {
 export async function startServe(options: { userData: string; packaged: boolean; resources: string | null; port?: number; local?: boolean; say: (line: string) => void }) {
   const { userData, say } = options;
   mkdirSync(userData, { recursive: true });
-  const release = claimInstance(userData);
+  const release = claimServeLock(userData);
   useAttachmentsDirectory(userData);
   useMessageImageStore({ directory: path.join(userData, "message-images"), thumbnail: () => null });
   const { PRIVATE_CODEX_HOME_ENV } = await import("./codex/codex-home.mjs");
@@ -253,9 +235,12 @@ async function main() {
   for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) process.once(signal, () => stop(signal));
 }
 
-if (require.main === module) {
-  main().catch((error) => {
+/** The command as a process: what stops it is said plainly and becomes the exit code. */
+export function cli() {
+  main().catch((error: unknown) => {
     console.error(error instanceof Error ? error.message : error);
     process.exit(1);
   });
 }
+
+if (require.main === module) cli();

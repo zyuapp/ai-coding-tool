@@ -73,3 +73,29 @@ test("a sidebar with no paired computer draws no switch", async () => {
     await view.unmount();
   }
 });
+
+test("an unreachable computer's row offers nothing: no rename, no menu, no archive", async () => {
+  const menus: (string | null)[] = [];
+  const here = task("here", { title: "Local work" });
+  const elsewhere = task("elsewhere", { title: "Unreachable work" });
+  const view = await mount(renderProjectSidebar({
+    mode: "projects",
+    recentThreads: [here, elsewhere],
+    threadHosts: new Map([["elsewhere", gone]]),
+    computerLinks: [{ id: "old", name: "old-laptop", host: "old.tail.ts.net", status: "offline", error: "Timed out", pairedAt: 1 }],
+    onSetOpenMenu: (menu) => menus.push(menu),
+  }));
+  try {
+    const rows = [...view.container.querySelectorAll<HTMLElement>(".task-row")];
+    assert.equal(rows[0]!.querySelector(".task-archive") !== null, true, "a row here can be archived");
+    assert.equal(rows[1]!.querySelector(".row-action"), null);
+    await act(async () => { rows[1]!.dispatchEvent(new dom.window.MouseEvent("dblclick", { bubbles: true })); });
+    assert.equal(view.container.querySelector(".task-rename"), null);
+    await act(async () => { rows[1]!.dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true })); });
+    assert.deepEqual(menus, []);
+    await act(async () => { rows[0]!.dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true })); });
+    assert.deepEqual(menus, ["task:here"]);
+  } finally {
+    await view.unmount();
+  }
+});

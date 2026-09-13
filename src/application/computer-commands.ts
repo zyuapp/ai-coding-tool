@@ -1,6 +1,7 @@
 import type { ComputerCommand } from "../contracts/commands.js";
 import type { ComputerLink, DiscoveredComputer } from "../domain/computers.js";
 import { remoteNotices, type PairedComputer } from "./computers.js";
+import { withAnnotations, withPastes } from "./composer-drafts.js";
 import { announcedNotice } from "./notices.js";
 import { threadOnScreen } from "./thread-attention.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./workspace-reducer.js";
@@ -12,21 +13,29 @@ export type ComputerEvent =
   | { type: "computers.found"; found: DiscoveredComputer[] }
   | { type: "computers.search-failed"; message: string }
   | { type: "computers.pair-failed"; message: string }
-  /** A paired computer's whole state as it now stands, or null once its line is down and its last state is stale. */
-  | { type: "computer.state"; id: string; state: WorkspaceState };
+  /** A paired computer's whole state as it now stands. */
+  | { type: "computer.state"; id: string; state: WorkspaceState }
+  /** A paired computer took the draft a send carried, so this window lets go of it. */
+  | { type: "computers.forwarded"; draftKey: string };
 
 /** The host process holds the lines and the tokens, so every command here is described and never done. */
 export type ComputerEffect =
   | { type: "computer.discover" }
   | { type: "computer.pair"; host: string; name: string; code: string }
   | { type: "computer.forget"; id: string }
-  /** Inputs on their way to the computer that holds the thread they are about. */
-  | { type: "computer.forward"; id: string; inputs: WorkspaceInput[] };
+  /** Inputs on their way to the computer that holds the thread they are about. `draftKey` names the draft a send carries. */
+  | { type: "computer.forward"; id: string; inputs: WorkspaceInput[]; draftKey?: string };
 
 export type ComputerInput = ComputerCommand | ComputerEvent;
 
 export function isComputerInput(input: { type: string }): input is ComputerInput {
   return input.type.startsWith("computers.") || input.type === "computer.state";
+}
+
+/** The draft a paired computer has taken: its text and what rode with it are let go of here. */
+function withoutDraft(state: WorkspaceState, key: string): WorkspaceState {
+  const { [key]: _taken, ...prompts } = state.prompts;
+  return withPastes(withAnnotations({ ...state, prompts }, key, []), key, []);
 }
 
 function withComputers(state: WorkspaceState, computers: Partial<WorkspaceState["computers"]>): WorkspaceState {
@@ -73,6 +82,8 @@ export function reduceComputers(state: WorkspaceState, input: ComputerInput): Wo
     }
     case "computers.filter":
       return settled(withComputers(state, { filter: input.filter }));
+    case "computers.forwarded":
+      return settled(withoutDraft(state, input.draftKey));
     case "computers.changed": {
       const paired = linked(state, input.links);
       /** A pairing that now shows up as a link is done; one that went away takes the screen with it. */

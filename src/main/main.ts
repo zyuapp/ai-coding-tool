@@ -42,6 +42,7 @@ import { createWorkspaceRuntimeHost } from "./workspace-runtime-host.js";
 import { startRunHost } from "./run-host.js";
 import { forkAgentProcess } from "./agent-process.js";
 import { appPluginPath } from "./app-plugin-path.js";
+import { servingProcess } from "./instance-lock.js";
 import { registerTerminalIpc } from "./terminal-ipc.js";
 import { checkForUpdates, type UpdateHost } from "./updates.js";
 import { appProfile } from "./user-data.js";
@@ -71,6 +72,12 @@ const singleInstance = app.requestSingleInstanceLock();
 if (!singleInstance) {
   console.log(`${profile.name} is already running. Bringing that window forward instead of starting a second one.`);
   app.exit(0);
+}
+/** `aic serve` on this data would write over what the window writes, so one of them yields. */
+const serving = singleInstance ? servingProcess(app.getPath("userData")) : null;
+if (serving !== null) {
+  dialog.showErrorBox(`${profile.name} is already serving`, `\`aic serve\` is running from this data folder (process ${serving}). Stop it before opening the app.`);
+  app.exit(1);
 }
 /** Only the installed app claims the scheme; a run from source would hand it to the bare Electron binary. */
 if (app.isPackaged) app.setAsDefaultProtocolClient(CLI_URL_SCHEME);
