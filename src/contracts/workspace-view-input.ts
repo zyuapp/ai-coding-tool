@@ -155,7 +155,7 @@ const shapes = {
   "task.set-role": { taskId: text, role: nullable(isThreadRole) },
   "task.dismiss": { taskId: text },
   "task.snooze": { taskId: text, hours: isSnoozeHours },
-  "task.dismiss-all": {  },
+  "task.dismiss-all": { localOnly: optionalBoolean },
   "task.move": { taskId: text, target: dropTarget },
   "task.fork": { taskId: optionalText, worktree: optionalBoolean },
   "task.set-policy": { taskId: optionalText, policy: policy },

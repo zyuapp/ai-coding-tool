@@ -90,8 +90,8 @@ export type TaskCommand =
   /** Takes the dot off a thread, which is the only thing that does. Opening the thread only dims it. */
   | { type: "task.dismiss"; taskId: string }
   | { type: "task.snooze"; taskId: string; hours: SnoozeHours }
-  /** The same for every dotted thread the user has already looked at, leaving the unseen ones alone. */
-  | { type: "task.dismiss-all" }
+  /** Dismisses Priority in the sidebar's computer filter. Forwarded requests stop at the receiving computer. */
+  | { type: "task.dismiss-all"; localOnly?: boolean }
   | { type: "task.move"; taskId: string; target: TaskDropTarget }
   /**
    * Copies a thread into a new one beside it, carrying its conversation and its session. The copy

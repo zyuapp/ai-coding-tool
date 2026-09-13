@@ -216,6 +216,7 @@ export function routeInput(state: WorkspaceState, input: WorkspaceInput): InputR
   if (type === "task.select" || type === "worktree.open-thread" || type === "view.jump-choose") {
     return toward(computerOfThread(state, input.taskId), (holder) => selecting(state, holder, [{ type: "task.select", taskId: input.taskId }]));
   }
+  /** The reducer distributes this action across the computers shown in the sidebar. */
   if (type === "task.dismiss-all") return LOCAL;
   /** Whether the user is looking is this window's to know and the other computer's to act on. */
   if (type === "view.set-focused") return active?.status === "connected" ? forwarded(active, [input], { also: true }) : LOCAL;

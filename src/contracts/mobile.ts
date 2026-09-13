@@ -332,7 +332,7 @@ function isThreadCommand(command: Record<string, unknown>, named: boolean) {
     case "task.dismiss":
       return isString(command.taskId);
     case "task.dismiss-all":
-      return true;
+      return command.localOnly === undefined || typeof command.localOnly === "boolean";
     case "task.rename":
       return isString(command.taskId) && isBlankable(command.title, MAX_TITLE_LENGTH);
     case "task.fork":

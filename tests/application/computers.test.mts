@@ -8,7 +8,7 @@ import { ATTACHMENTS_ELSEWHERE, FILES_ELSEWHERE, PANEL_ELSEWHERE, routeInput, co
 import { reduce, type WorkspaceEffect, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { ComputerLink } from "../../src/domain/computers.ts";
-import { effectOf, task, workspace } from "./workspace-reducer-fixtures.mts";
+import { activeRun, effectOf, task, workspace } from "./workspace-reducer-fixtures.mts";
 
 const link = (id: string, overrides: Partial<ComputerLink> = {}): ComputerLink => ({ id, name: id, host: `${id}.tail.ts.net`, status: "connected", error: null, pairedAt: 1, ...overrides });
 
@@ -28,6 +28,81 @@ const remoteState = workspace({
 function withComputers(state: WorkspaceState, computers: PairedComputer[], extra: Partial<WorkspaceState["computers"]> = {}): WorkspaceState {
   return { ...state, computers: { ...state.computers, name: "This Mac", paired: computers, ...extra } };
 }
+
+test("dismiss all clears local and remote Priority with one scoped request per computer", () => {
+  const computers = ["claude", "codex"].map((engine) => {
+    const threads = Array.from({ length: 40 }, (_, index) => task(`${engine}-${index}`, {
+      engine: engine as "claude" | "codex", outcome: "finished", outcomeUnread: true,
+      findings: [{ id: `finding-${index}`, headline: "Review", key: `issue-${index}`, at: 1 }],
+    }));
+    return paired(engine, workspace({ threads, currentId: threads[0].id, sidebarMode: "activity" }), { capabilities: COMPUTER_CAPABILITIES });
+  });
+  const state = withComputers(workspace({ threads: [task("local", { outcome: "finished" })], currentId: "local" }), computers, { active: "codex" });
+  const dismissed = reduce(state, { type: "task.dismiss-all" });
+  assert.equal(dismissed.state.threads[0].outcome, undefined);
+  assert.equal(dismissed.state.currentId, "local");
+  assert.equal(dismissed.state.computers, state.computers, "remote state waits for its host's update");
+  const forwards = dismissed.effects.filter((effect) => effect.type === "computer.forward");
+  assert.equal(forwards.length, 2);
+  for (const effect of forwards) {
+    assert.deepEqual(effect.inputs, [{ type: "task.dismiss-all", localOnly: true }]);
+    const computer = computers.find((item) => item.id === effect.id)!;
+    const remote = reduce(computer.state!, effect.inputs[0]);
+    assert.equal(remote.state.currentId, computer.state!.currentId);
+    assert.ok(remote.state.threads.every((thread) => !thread.outcome && !thread.findings && thread.handledIssues?.length === 1));
+    const refreshed = { ...dismissed.state, computers: { ...dismissed.state.computers, paired: [{ ...computer, state: remote.state }] } };
+    assert.deepEqual(deriveView(refreshed).activityThreads.priority, []);
+  }
+});
+
+test("dismiss all follows the sidebar's computer filter", () => {
+  const computers = ["one", "two"].map((id) => paired(id, workspace({ threads: [task(id, { outcome: "failed" })] })));
+  for (const filter of ["this", "one", "all"] as const) {
+    const state = withComputers(workspace({ threads: [task("local", { outcome: "finished" })] }), computers, { filter, active: "two" });
+    const dismissed = reduce(state, { type: "task.dismiss-all" });
+    assert.equal(dismissed.state.threads[0].outcome, filter === "one" ? "finished" : undefined);
+    assert.deepEqual(dismissed.effects.filter((effect) => effect.type === "computer.forward").map((effect) => effect.id), filter === "this" ? [] : filter === "one" ? ["one"] : ["one", "two"]);
+  }
+});
+
+test("a forwarded dismissal stays on its host regardless of its filter or paired computers", () => {
+  const threads = [task("done", { outcome: "finished" }), task("busy", { outcome: "finished" }), task("blocked"),
+    task("archived", { outcome: "finished", archivedAt: 1 }), task("snoozed", { outcome: "finished", snoozedUntil: Date.now() + 3_600_000 }),
+    task("chat", { outcome: "finished" })];
+  const state = withComputers(workspace({
+    threads, currentId: "done", sidebarMode: "activity",
+    activeRuns: { busy: activeRun("busy", "r1"), blocked: activeRun("blocked", "r2", { status: "awaiting-approval" }) },
+    sideChats: [{ id: "chat", sourceThreadId: "done", error: null }],
+  }), [paired("other", workspace({ threads: [task("elsewhere", { outcome: "finished" })] }))], { filter: "other", active: "other" });
+  const dismissed = reduce(state, { type: "task.dismiss-all", localOnly: true });
+  assert.equal(dismissed.state.threads[0].outcome, undefined);
+  assert.deepEqual(dismissed.state.threads.slice(1), threads.slice(1));
+  assert.equal(dismissed.state.activeRuns, state.activeRuns);
+  assert.equal(dismissed.state.computers, state.computers);
+  assert.equal(dismissed.state.currentId, "done");
+  assert.equal(dismissed.effects.some((effect) => effect.type === "computer.forward"), false);
+});
+
+test("dismiss all reports unavailable computers while still reaching available ones", () => {
+  const remote = workspace({ threads: [task("remote", { outcome: "finished" })] });
+  const computers = [paired("offline", remote, { status: "offline" }), paired("unsupported", remote, { capabilities: [] }),
+    paired("online", remote), paired("quiet", workspace(), { status: "offline" })];
+  const state = withComputers(workspace({ threads: [task("local", { outcome: "finished" })] }), computers);
+  const dismissed = reduce(state, { type: "task.dismiss-all" });
+  assert.equal(dismissed.state.threads[0].outcome, undefined);
+  assert.equal(dismissed.state.computers, state.computers);
+  assert.equal(dismissed.result?.ok, false);
+  assert.match(dismissed.state.actionError!, /offline is offline/);
+  assert.match(dismissed.state.actionError!, /unsupported:/);
+  assert.doesNotMatch(dismissed.state.actionError!, /quiet/);
+  assert.deepEqual(dismissed.effects.filter((effect) => effect.type === "computer.forward").map((effect) => effect.id), ["online"]);
+});
+
+test("dismiss all uses the original local-only command on hosts predating its scope field", () => {
+  const older = COMPUTER_CAPABILITIES.filter((name) => name !== "command:task.dismiss-all:localOnly");
+  const state = withComputers(workspace(), [paired("older", workspace({ threads: [task("remote", { outcome: "finished" })] }), { capabilities: older })]);
+  assert.deepEqual(effectOf(reduce(state, { type: "task.dismiss-all" }), "computer.forward").inputs, [{ type: "task.dismiss-all" }]);
+});
 
 test("with no computer paired every command stays where it is", () => {
   const state = workspace({ threads: [task("local")] });
