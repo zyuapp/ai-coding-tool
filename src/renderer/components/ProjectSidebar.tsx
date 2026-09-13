@@ -209,7 +209,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
       style={{ "--row-slots": railSlots } as React.CSSProperties}
     >
       <SidebarHeader mode={mode} canGoBack={canGoBack} canGoForward={canGoForward} onSetMode={onSetMode} onGoBack={onGoBack} onGoForward={onGoForward} />
-      {computerLinks.length > 0 && <ComputerSwitch links={computerLinks} name={computerName} filter={computerFilter} onSetFilter={onSetComputerFilter} />}
+      {computerLinks.length > 0 && <ComputerSwitch links={computerLinks} name={computerName} filter={computerFilter} onSetFilter={onSetComputerFilter} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />}
       <button className="new-task-button" onClick={() => onNewThread()} aria-label="New task" data-tip="New task">
         {/** Two copies of one outline: the resting hairline, and the accent that draws over it on hover. */}
         <svg className="new-task-edge" aria-hidden="true" focusable="false">

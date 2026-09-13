@@ -5,6 +5,8 @@ import { useDismissibleLayer } from "../focus";
 
 export type MenuItem = {
   label: string;
+  className?: string;
+  title?: string;
   onSelect?: () => void;
   disabled?: boolean;
   danger?: boolean;
@@ -80,7 +82,7 @@ type MenuListProps = {
 };
 
 /** Choosing an item always closes the menu, so no item has to remember to. */
-function MenuList({ entries, onClose, className, style, menuRef, autoFocus, onLeave }: MenuListProps) {
+export function MenuList({ entries, onClose, className, style, menuRef, autoFocus, onLeave }: MenuListProps) {
   /** Which item's own list is open, and whether the keyboard asked for it, which is what focuses it. */
   const [sub, setSub] = useState<{ index: number; focus: boolean } | null>(null);
   const buttons = useRef<Array<HTMLButtonElement | null>>([]);
@@ -165,7 +167,8 @@ function MenuList({ entries, onClose, className, style, menuRef, autoFocus, onLe
               aria-checked={entry.checked}
               aria-haspopup={nested ? "menu" : undefined}
               aria-expanded={nested ? sub?.index === index : undefined}
-              className={entry.danger ? "danger-menu-item" : undefined}
+              className={[entry.danger ? "danger-menu-item" : "", entry.className].filter(Boolean).join(" ") || undefined}
+              title={entry.title}
               disabled={entry.disabled}
               /** The pointer highlights what it is over, which is the same highlight the keyboard moves. */
               onMouseEnter={(event) => {

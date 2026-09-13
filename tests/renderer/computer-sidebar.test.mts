@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { act } from "react";
+import { act, createElement, useState } from "react";
 import type { ComputerFilter } from "../../src/domain/computers.ts";
 import { task } from "../application/workspace-reducer-fixtures.mts";
 import { dom, mount, query } from "../support/renderer-dom.mts";
@@ -79,23 +79,83 @@ test("rows on a paired computer carry its name, and rows on one that cannot be r
 
 test("the switch names every computer and narrows the lists to the one chosen", async () => {
   const filters: ComputerFilter[] = [];
+  function Sidebar() {
+    const [openMenu, onSetOpenMenu] = useState<string | null>(null);
+    const [computerFilter, setFilter] = useState<ComputerFilter>("all");
+    return renderProjectSidebar({
+      computerName: "My Mac",
+      computerLinks: [
+        { id: "linux", name: "linux-box", host: "linux.tail.ts.net", status: "connected", error: null, pairedAt: 1 },
+        { id: "old", name: "old-laptop", host: "old.tail.ts.net", status: "offline", error: "Timed out", pairedAt: 1 },
+      ],
+      computerFilter,
+      onSetComputerFilter: (filter) => { filters.push(filter); setFilter(filter); },
+      openMenu,
+      onSetOpenMenu,
+    });
+  }
+  const view = await mount(createElement(Sidebar));
+  try {
+    const trigger = query<HTMLButtonElement>(view.container, ".computer-switch-trigger");
+    const choicesInMenu = () => [...view.container.querySelectorAll<HTMLButtonElement>('[role="menuitemcheckbox"]')];
+    const press = async (target: HTMLElement, key: string) => {
+      await act(async () => { target.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key, bubbles: true })); });
+    };
+    assert.equal(trigger.textContent, "All");
+    assert.equal(trigger.getAttribute("aria-haspopup"), "menu");
+    assert.equal(trigger.getAttribute("aria-expanded"), "false");
+    await act(async () => { trigger.click(); });
+    assert.equal(trigger.getAttribute("aria-expanded"), "true");
+    const choices = choicesInMenu();
+    assert.deepEqual(choices.map((choice) => choice.textContent), ["All", "My Mac", "linux-box", "old-laptop"]);
+    assert.deepEqual(choices.map((choice) => choice.getAttribute("aria-checked")), ["true", "false", "false", "false"]);
+    assert.equal(choices[3]!.classList.contains("offline"), true);
+    assert.equal(choices[3]!.title, "old-laptop is offline");
+    assert.equal(choices[3]!.disabled, false);
+    await act(async () => { choices[2]!.click(); });
+    assert.equal(trigger.textContent, "linux-box");
+    assert.equal(trigger.getAttribute("aria-expanded"), "false");
+    await press(trigger, "ArrowDown");
+    assert.equal(choicesInMenu()[2]!.getAttribute("aria-checked"), "true");
+    const menu = query<HTMLElement>(view.container, '[role="menu"]');
+    assert.equal(document.activeElement, menu);
+    await press(menu, "ArrowDown");
+    await press(menu, "ArrowDown");
+    assert.equal(document.activeElement, choicesInMenu()[1]);
+    await act(async () => { (document.activeElement as HTMLButtonElement).click(); });
+    assert.equal(trigger.textContent, "My Mac");
+    await act(async () => { trigger.click(); });
+    await act(async () => { choicesInMenu()[3]!.click(); });
+    assert.equal(trigger.textContent, "old-laptop");
+    assert.equal(trigger.title, "old-laptop is offline");
+    await act(async () => { trigger.click(); });
+    await act(async () => { choicesInMenu()[0]!.click(); });
+    assert.deepEqual(filters, ["linux", "this", "old", "all"]);
+    assert.equal(trigger.textContent, "All");
+    await act(async () => { trigger.click(); });
+    await press(query(view.container, '[role="menu"]'), "Escape");
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    assert.equal(trigger.getAttribute("aria-expanded"), "false");
+    assert.equal(document.activeElement, trigger, "Escape returns focus to the switch");
+    await act(async () => { trigger.click(); });
+    await act(async () => { document.body.dispatchEvent(new dom.window.Event("pointerdown", { bubbles: true })); });
+    assert.equal(trigger.getAttribute("aria-expanded"), "false");
+    await act(async () => { trigger.click(); });
+    await act(async () => { query<HTMLElement>(view.container, ".new-task-button").focus(); });
+    assert.equal(trigger.getAttribute("aria-expanded"), "false", "leaving the menu with focus dismisses it");
+  } finally {
+    await view.unmount();
+  }
+});
+
+test("the switch falls back to This computer when this computer has no name", async () => {
   const view = await mount(renderProjectSidebar({
-    computerName: "My Mac",
-    computerLinks: [
-      { id: "linux", name: "linux-box", host: "linux.tail.ts.net", status: "connected", error: null, pairedAt: 1 },
-      { id: "old", name: "old-laptop", host: "old.tail.ts.net", status: "offline", error: "Timed out", pairedAt: 1 },
-    ],
-    computerFilter: "all",
-    onSetComputerFilter: (filter) => filters.push(filter),
+    computerName: "",
+    computerFilter: "this",
+    computerLinks: [{ id: "linux", name: "linux-box", host: "linux.tail.ts.net", status: "connected", error: null, pairedAt: 1 }],
   }));
   try {
-    const choices = [...view.container.querySelectorAll<HTMLButtonElement>(".computer-choice")];
-    assert.deepEqual(choices.map((choice) => choice.textContent), ["All", "My Mac", "linux-box", "old-laptop"]);
-    assert.equal(choices[0]!.getAttribute("aria-checked"), "true");
-    assert.equal(choices[3]!.classList.contains("offline"), true);
-    await act(async () => { choices[2]!.click(); });
-    await act(async () => { choices[1]!.click(); });
-    assert.deepEqual(filters, ["linux", "this"]);
+    assert.equal(query(view.container, ".computer-switch-trigger").textContent, "This computer");
   } finally {
     await view.unmount();
   }
