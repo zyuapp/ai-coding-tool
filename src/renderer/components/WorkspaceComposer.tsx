@@ -4,20 +4,22 @@ import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import { capabilitiesFor, modelSupportsManualCompaction } from "../../domain/agent-engine";
 import { sentPrompts } from "../../domain/conversation";
 import { attachmentSendFor } from "../../application/composer-attachments";
+import { useCommandControls } from "./CommandControl";
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;
 
 /** The composer for the thread on screen, with every command its controls dispatch. */
 export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace; actions: ComposerAction[] }) {
   const thread = workspace.currentThread;
-  const compact = thread && modelSupportsManualCompaction(thread.engine, workspace.model)
+  const controls = useCommandControls();
+  const compact = controls.available({ type: "run.compact" }) && thread && modelSupportsManualCompaction(thread.engine, workspace.model)
     && thread.continuation?.provider === thread.engine
     && thread.contextUsage !== undefined
     && !workspace.runActive
     && workspace.waitingOn === null
     ? [{ name: "compact", description: "Compact the current chat's context.", run: workspace.actions.compactContext }]
     : [];
-  const review = thread && capabilitiesFor(thread.engine).review
+  const review = controls.available({ type: "review.open" }) && thread && capabilitiesFor(thread.engine).review
     && thread.continuation?.provider === thread.engine
     && workspace.workspaceId
     && !workspace.runActive
@@ -26,6 +28,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
     : [];
   return (
     <ConversationComposer
+      taskId={thread?.id}
       disabled={!workspace.restored && !thread}
       focusToken={workspace.composerFocus}
       images={workspace.images}

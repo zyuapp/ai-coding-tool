@@ -101,6 +101,7 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
       </div>
       {chat.error && <p className="side-chat-error" role="alert">{chat.error}</p>}
       <ConversationComposer
+        taskId={chat.thread.id}
         focusToken={focusToken}
         prompt={chat.prompt}
         folder={project?.root ?? ""}

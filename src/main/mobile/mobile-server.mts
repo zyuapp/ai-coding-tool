@@ -1,3 +1,5 @@
+import { COMPUTER_CAPABILITIES, REMOTE_UNSUPPORTED, supportsComputerCommand, supportsComputerQuery } from "../../contracts/computer-capabilities.js";
+import type { AppCommand } from "../../contracts/commands.js";
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream, readFileSync } from "node:fs";
 import { stat } from "node:fs/promises";
@@ -250,6 +252,10 @@ export class MobileServer {
     for (const session of this.sessions.values()) this.sendName(session);
   }
 
+  private sendCapabilities(session: Session) {
+    if (session.kind === "computer") this.emit(session, { kind: "capabilities", capabilities: COMPUTER_CAPABILITIES });
+  }
+
   private sendName(session: Session) {
     const name = this.options.workspace?.name?.();
     if (session.kind === "computer" && name) this.emit(session, { kind: "name", name });
@@ -430,6 +436,15 @@ export class MobileServer {
     socket.on("error", () => socket.terminate());
     socket.on("message", (data) => {
       const message = readClientMessage(data, kind);
+      if (!message && session?.kind === "computer" && this.sessions.get(session.id) === session) {
+        const rejected = rejectedComputerRequest(data);
+        if (rejected) {
+          session.transfers.delete(rejected.requestId);
+          return this.emit(session, rejected.kind === "input"
+            ? { kind: "result", requestId: rejected.requestId, result: { ok: false, message: REMOTE_UNSUPPORTED, revision: 0 } }
+            : { kind: "answer", requestId: rejected.requestId, ok: false, message: REMOTE_UNSUPPORTED });
+        }
+      }
       if (!message) return refuse(socket, "unreadable", kind === "computer"
         ? "The remote computer could not read this request. Updating AI Coding Tool on the remote computer may help."
         : "That message could not be read.");
@@ -491,6 +506,14 @@ export class MobileServer {
     const workspace = this.options.workspace;
     if (!workspace || message.kind === "pair" || message.kind === "resume" || message.kind === "pong") return;
     const { requestId } = message;
+    if (message.kind === "input" && message.inputs.some((input) => !supportsComputerCommand(COMPUTER_CAPABILITIES, input as AppCommand))) {
+      session.transfers.delete(requestId);
+      return this.emit(session, { kind: "result", requestId, result: { ok: false, message: REMOTE_UNSUPPORTED, revision: 0 } });
+    }
+    if (message.kind === "query" && !supportsComputerQuery(COMPUTER_CAPABILITIES, message.query)) {
+      session.transfers.delete(requestId);
+      return this.emit(session, { kind: "answer", requestId, ok: false, message: REMOTE_UNSUPPORTED });
+    }
     if (message.kind === "transfer") {
       if (!session.transfers.has(requestId) && session.transfers.size < MAX_COMMANDS_IN_FLIGHT) session.transfers.set(requestId, Date.now() + COMPUTER_TRANSFER_TIMEOUT_MS);
       return;
@@ -578,6 +601,7 @@ export class MobileServer {
       this.options.devices.revoke(outcome.device.id);
       return null;
     }
+    this.sendCapabilities(session);
     this.sendName(session);
     void this.sendSnapshot(session);
     return session;
@@ -603,11 +627,13 @@ export class MobileServer {
       for (const entry of held.buffer) if (entry.sequence > request.lastSequence) write(socket, entry.text);
       /** A phone with nothing to catch up on is still owed a frame, or it waits for the next tick to call itself live. */
       this.emit(held, { kind: "ping", at: now });
+      this.sendCapabilities(held);
       this.sendName(held);
       return held;
     }
     const session = this.openSession(kind, device.id, device.name, now);
     this.attach(session, socket);
+    this.sendCapabilities(session);
     this.sendName(session);
     void this.sendSnapshot(session);
     return session;
@@ -740,6 +766,15 @@ function readClientMessage(data: unknown, kind: PairedDeviceKind): ClientMessage
   const parsed = parseJson(text);
   if (kind === "computer") return isComputerClientMessage(parsed) ? parsed : null;
   return isMobileClientMessage(parsed) ? parsed : null;
+}
+
+/** Only an authenticated socket gets a correlated refusal; no rejected payload reaches the reducer. */
+function rejectedComputerRequest(data: WebSocket.RawData): { kind: "input" | "query"; requestId: string } | null {
+  try {
+    const value = JSON.parse(data.toString()) as Record<string, unknown> | null;
+    if (!value || (value.kind !== "input" && value.kind !== "query") || typeof value.requestId !== "string" || !value.requestId || value.requestId.length > 256) return null;
+    return { kind: value.kind, requestId: value.requestId };
+  } catch { return null; }
 }
 
 /** Computers connect best effort across versions; a stale phone page can reload from its host. */

@@ -2,8 +2,13 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSPropert
 import { createPortal } from "react-dom";
 import { LuCheck as Check, LuChevronRight as ChevronRight, LuEllipsis as Ellipsis } from "react-icons/lu";
 import { useDismissibleLayer } from "../focus";
+import { useCommandControls } from "./CommandControl";
+import type { AppCommand } from "../../contracts/commands";
+import { REMOTE_UNSUPPORTED } from "../../contracts/computer-capabilities";
 
 export type MenuItem = {
+  /** Declaring the operation gives every menu the same remote availability as command dispatch. */
+  command?: AppCommand;
   label: string;
   className?: string;
   title?: string;
@@ -82,7 +87,10 @@ type MenuListProps = {
 };
 
 /** Choosing an item always closes the menu, so no item has to remember to. */
-export function MenuList({ entries, onClose, className, style, menuRef, autoFocus, onLeave }: MenuListProps) {
+export function MenuList({ entries: supplied, onClose, className, style, menuRef, autoFocus, onLeave }: MenuListProps) {
+  const controls = useCommandControls();
+  const entries = supplied.map((entry) => entry !== "separator" && entry.command && !controls.available(entry.command)
+    ? { ...entry, disabled: true, title: REMOTE_UNSUPPORTED } : entry);
   /** Which item's own list is open, and whether the keyboard asked for it, which is what focuses it. */
   const [sub, setSub] = useState<{ index: number; focus: boolean } | null>(null);
   const buttons = useRef<Array<HTMLButtonElement | null>>([]);
@@ -172,6 +180,7 @@ export function MenuList({ entries, onClose, className, style, menuRef, autoFocu
               disabled={entry.disabled}
               /** The pointer highlights what it is over, which is the same highlight the keyboard moves. */
               onMouseEnter={(event) => {
+                if (entry.disabled) { setSub(null); return; }
                 if (nested) openSubmenu(index, false);
                 else setSub(null);
                 event.currentTarget.focus();
@@ -179,7 +188,8 @@ export function MenuList({ entries, onClose, className, style, menuRef, autoFocu
               onClick={() => {
                 if (nested) return openSubmenu(index, true);
                 onClose();
-                entry.onSelect?.();
+                if (entry.onSelect) entry.onSelect();
+                else if (entry.command) controls.dispatch(entry.command);
               }}
             >
               <span className="menu-tick" aria-hidden="true">{entry.checked && <Check size={12} />}</span>

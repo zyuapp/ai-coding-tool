@@ -119,6 +119,13 @@ export function isAppCommandType(type: string): boolean {
   return Object.hasOwn(shapes, type) && !VIEW_EVENT_TYPES.has(type);
 }
 
+/** The wire advertises the same actions and fields this validator accepts. New optional fields
+ * become capabilities automatically; a changed meaning needs a new field or command name. */
+export function workspaceCommandDefinitions(): ReadonlyArray<{ type: AppCommand["type"]; fields: readonly string[] }> {
+  return Object.entries(shapes).filter(([type]) => isAppCommandType(type))
+    .map(([type, fields]) => ({ type: type as AppCommand["type"], fields: Object.keys(fields) }));
+}
+
 /** Every input field is checked before a visible view can reach the application reducer. */
 export function isWorkspaceViewInput(value: unknown): value is WorkspaceViewInput {
   if (!record(value) || typeof value.type !== "string" || !Object.hasOwn(shapes, value.type)) return false;

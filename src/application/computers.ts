@@ -1,3 +1,4 @@
+import { REMOTE_UNSUPPORTED, supportsComputerCommand } from "../contracts/computer-capabilities.js";
 /**
  * Threads that live on other computers. Each paired computer's whole workspace state is mirrored
  * here as it changes there, so its threads can be listed beside this computer's own and one of
@@ -107,7 +108,7 @@ function computerOfWorktreeRoot(state: Pick<WorkspaceState, "computers" | "workt
 export type InputRoute =
   | { kind: "local" }
   | { kind: "computer"; computer: PairedComputer; inputs: WorkspaceInput[]; select?: true; also?: true; draft?: SentDraft }
-  | { kind: "refuse"; message: string };
+  | { kind: "refuse"; message: string; reason?: "unsupported" };
 
 /** The draft a send carried, whole, so what is typed or changed after it went can be told apart and stays. */
 export type SentDraft = {
@@ -137,6 +138,7 @@ export const ATTACHMENTS_ELSEWHERE = "Files and folders attached by local path c
 export const FILES_ELSEWHERE = "That folder is on another computer, so it cannot be opened here.";
 
 function forwarded(computer: PairedComputer, inputs: WorkspaceInput[], options: { select?: true; also?: true; draft?: SentDraft } = {}): InputRoute {
+  if (inputs.some((input) => !supportsComputerCommand(computer.capabilities, input as AppCommand))) return { kind: "refuse", reason: "unsupported", message: REMOTE_UNSUPPORTED };
   return { kind: "computer", computer, inputs, ...options };
 }
 
@@ -240,6 +242,25 @@ export function routeInput(state: WorkspaceState, input: WorkspaceInput): InputR
     if (type === "task.send" || type === "attachments.send") return forwardedSend(state, holder, input);
     return forwarded(holder, [input]);
   });
+}
+
+/** Only missing capabilities hide controls. Ordinary refusals still reach dispatch and explain
+ * themselves, including offline hosts and drafts carrying local file paths. */
+export function computerCommandAvailable(state: WorkspaceState, command: AppCommand): boolean {
+  const route = routeInput(state, command);
+  return route.kind !== "refuse" || route.reason !== "unsupported";
+}
+
+/** Streaming state does not change which commands a host knows. Keep capability subscribers still
+ * until host selection or an advertised list changes; controls read current state when invoked. */
+export function createComputerCapabilitySnapshot() {
+  let previous: { active: string | null; links: Pick<ComputerLink, "id" | "capabilities" | "status">[] } | undefined;
+  return (computers: ComputersState) => {
+    if (previous && previous.active === computers.active && previous.links.length === computers.paired.length
+      && previous.links.every((link, index) => link.id === computers.paired[index]?.id && link.status === computers.paired[index]?.status && link.capabilities === computers.paired[index]?.capabilities)) return previous;
+    previous = { active: computers.active, links: computers.paired.map(({ id, status, capabilities }) => ({ id, status, capabilities })) };
+    return previous;
+  };
 }
 
 /** The threads a paired computer would list, as it would list them: its own, less the ones it has filed away. */

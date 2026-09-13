@@ -1,9 +1,10 @@
+import { COMPUTER_CAPABILITIES } from "../../src/contracts/computer-capabilities.ts";
 import { executeWorkspaceInput } from "../../src/application/workspace-execution.ts";
 import { computerEffects } from "../../src/host/computer-effects.ts";
 import type { EffectHost } from "../../src/host/effect-host.ts";
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { ATTACHMENTS_ELSEWHERE, FILES_ELSEWHERE, PANEL_ELSEWHERE, routeInput, type PairedComputer } from "../../src/application/computers.ts";
+import { ATTACHMENTS_ELSEWHERE, FILES_ELSEWHERE, PANEL_ELSEWHERE, routeInput, computerCommandAvailable, createComputerCapabilitySnapshot, type PairedComputer } from "../../src/application/computers.ts";
 import { reduce, type WorkspaceEffect, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { ComputerLink } from "../../src/domain/computers.ts";
@@ -428,4 +429,55 @@ test("an offline terminal keeps shortcuts and attention on the computer still on
   assert.equal(focused.state.focused, true);
   assert.equal(focused.state.threads[0].outcomeUnread, true, "the hidden local thread has not been read");
   assert.equal(focused.effects.some((effect) => effect.type === "computer.forward"), false);
+});
+
+
+test("advertised support blocks a whole remote batch before it changes selection or sends drafts", () => {
+  const limited = COMPUTER_CAPABILITIES.filter((name) => !name.startsWith("command:annotation.recall") && name !== "command:task.send:role");
+  const state = withComputers(workspace({ prompts: { "remote-thread": "keep me" } }), [paired("linux", remoteState, { capabilities: limited })], { active: "linux" });
+  assert.equal(routeInput(state, { type: "task.send" }).kind, "refuse");
+  assert.equal(routeInput(state, { type: "task.send", text: "direct", role: "reviewer" }).kind, "refuse");
+  assert.equal(routeInput(state, { type: "task.send", text: "direct" }).kind, "computer");
+  const rejected = reduce(state, { type: "task.send" });
+  assert.equal(rejected.state.prompts["remote-thread"], "keep me");
+  assert.equal(rejected.effects.some((effect) => effect.type === "computer.forward"), false);
+  assert.equal(routeInput(state, { type: "view.set-theme", theme: "catppuccin-latte" }).kind, "local");
+});
+
+test("a capability refresh replaces the paired link even when its status and name are unchanged", () => {
+  const first = paired("linux", remoteState, { capabilities: [] });
+  const state = withComputers(workspace(), [first]);
+  const changed = reduce(state, { type: "computers.changed", name: "Mac", links: [{ ...link("linux"), capabilities: COMPUTER_CAPABILITIES }] }).state;
+  assert.equal(changed.computers.paired[0]?.state, remoteState);
+  assert.equal(changed.computers.paired[0]?.capabilities, COMPUTER_CAPABILITIES);
+  assert.equal(routeInput(changed, { type: "task.select", taskId: "remote-thread" }).kind, "computer");
+});
+
+
+test("ordinary remote refusals keep their explanations instead of masquerading as missing capabilities", () => {
+  const connected = paired("linux", remoteState, { capabilities: COMPUTER_CAPABILITIES });
+  const state = withComputers(workspace(), [connected], { active: "linux" });
+  const files = { ...state, files: { "remote-thread": [{ id: "file", name: "local", path: "/local/file" }] } };
+  const send = { type: "attachments.send", attachments: [] } as const;
+  assert.equal(computerCommandAvailable(files, { ...send, attachments: [] }), true);
+  assert.deepEqual(routeInput(files, { ...send, attachments: [] }), { kind: "refuse", message: ATTACHMENTS_ELSEWHERE });
+  const offline = withComputers(state, [{ ...connected, status: "offline" }]);
+  const archive = { type: "task.archive", taskId: "remote-thread" } as const;
+  assert.equal(computerCommandAvailable(offline, archive), true);
+  assert.deepEqual(routeInput(offline, archive), { kind: "refuse", message: "linux is offline." });
+  const limited = withComputers(state, [{ ...connected, capabilities: [] }]);
+  assert.equal(computerCommandAvailable(limited, archive), false);
+});
+
+test("streaming updates preserve the capability context while discovery and connection changes invalidate it", () => {
+  const snapshot = createComputerCapabilitySnapshot();
+  const computer = paired("linux", remoteState, { capabilities: COMPUTER_CAPABILITIES });
+  const computers = { ...workspace().computers, paired: [computer], active: "linux" };
+  const first = snapshot(computers);
+  const streamed = { ...computers, paired: [{ ...computer, state: { ...remoteState, composerFocus: 1 } }] };
+  assert.equal(snapshot(streamed), first);
+  const offline = snapshot({ ...streamed, paired: [{ ...computer, status: "offline" }] });
+  assert.notEqual(offline, first);
+  const refreshed = snapshot({ ...computers, paired: [{ ...computer, capabilities: [] }] });
+  assert.notEqual(refreshed, first);
 });

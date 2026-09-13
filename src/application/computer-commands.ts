@@ -69,7 +69,7 @@ function linked(state: WorkspaceState, links: ComputerLink[]): PairedComputer[] 
   const held = new Map(state.computers.paired.map((computer) => [computer.id, computer]));
   return links.map((link) => {
     const known = held.get(link.id);
-    if (known && known.status === link.status && known.error === link.error && known.name === link.name && known.host === link.host) return known;
+    if (known && known.status === link.status && known.error === link.error && known.name === link.name && known.host === link.host && known.capabilities === link.capabilities) return known;
     return { ...link, state: known?.state ?? null };
   });
 }

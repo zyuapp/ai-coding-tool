@@ -1,3 +1,4 @@
+import { CommandButton } from "./CommandControl";
 import { useEffect, useState } from "react";
 import { LuAlarmClock as AlarmClock, LuPause as Pause, LuPlay as Play, LuRotateCw as RotateCw, LuTrash2 as Trash2 } from "react-icons/lu";
 import type { AutomationPatch, AutomationView } from "../../domain/automation";
@@ -137,12 +138,12 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
         </p>
 
         <div className="automation-actions">
-          <button type="button" disabled={!dirty} onClick={() => onUpdate({ schedule, prompt, ...(surfaceWhen === (automation.surfaceWhen ?? "") ? {} : { surfaceWhen }) })}>Save</button>
-          <button type="button" onClick={() => onUpdate({ paused: !automation.paused })} aria-label={automation.paused ? "Resume automation" : "Pause automation"}>
+          <CommandButton command={{ type: "automation.update", patch: { schedule, prompt, ...(surfaceWhen === (automation.surfaceWhen ?? "") ? {} : { surfaceWhen }) } }} type="button" disabled={!dirty} onClick={() => onUpdate({ schedule, prompt, ...(surfaceWhen === (automation.surfaceWhen ?? "") ? {} : { surfaceWhen }) })}>Save</CommandButton>
+          <CommandButton command={{ type: "automation.update", patch: { paused: !automation.paused } }} type="button" onClick={() => onUpdate({ paused: !automation.paused })} aria-label={automation.paused ? "Resume automation" : "Pause automation"}>
             {automation.paused ? <Play size={14} /> : <Pause size={14} />}
-          </button>
-          <button type="button" onClick={onRunNow} aria-label="Run automation now"><RotateCw size={14} /></button>
-          <button type="button" className="automation-remove" onClick={onDelete} aria-label="Remove automation"><Trash2 size={14} /></button>
+          </CommandButton>
+          <CommandButton command={{ type: "automation.run-now" }} type="button" onClick={onRunNow} aria-label="Run automation now"><RotateCw size={14} /></CommandButton>
+          <CommandButton command={{ type: "automation.delete" }} type="button" className="automation-remove" onClick={onDelete} aria-label="Remove automation"><Trash2 size={14} /></CommandButton>
         </div>
       </div>
     </section>
