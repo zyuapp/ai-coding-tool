@@ -908,7 +908,13 @@ button, select { color: inherit; }
 .task-heading h1 > span { overflow: hidden; text-overflow: ellipsis; }
 .heading-project { flex: 0 1 auto; min-width: 4ch; color: var(--muted-soft); font-weight: 500; }
 .task-heading h1 > .heading-host { flex: 0 1 auto; min-width: 4ch; font-size: inherit; font-weight: 500; color: var(--muted-soft); }
-.task-heading h1 > .heading-host > svg { width: 15px; height: 15px; }
+/* Match the heading's visual weight and compensate for the font's lower optical center. */
+.task-heading h1 > .heading-host > svg,
+.thread-heading-menu > .menu-trigger > svg {
+  width: 19px;
+  height: 19px;
+  transform: translateY(1px);
+}
 .heading-separator { flex: none; color: var(--quiet-soft); font-weight: 400; }
 .heading-thread { flex: 0 1 auto; min-width: 6ch; }
 .task-heading p {
