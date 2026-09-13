@@ -106,11 +106,13 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
 
   return (
     <div className="thread-start" aria-label="How this thread starts">
-      <div className={`thread-start-field ${projectsOpen ? "open" : ""}`} ref={projectRef}>
+      <div className={`thread-start-field thread-start-project ${projectsOpen ? "open" : ""}`} ref={projectRef}>
         <button ref={projectTrigger} type="button" aria-label={showComputers ? `${projectName(project)} on ${host?.name ?? "This computer"}` : "Project"} aria-haspopup="listbox" aria-expanded={projectsOpen} onClick={() => { setProjectQuery(""); setProjectsOpen(!projectsOpen); }}>
           <FolderGit2 size={14} />
-          <span>{projectName(project)}</span>
-          {showComputers && <HostMark name={host?.name ?? "This computer"} offline={host?.offline} />}
+          <span className="thread-start-project-label">
+            <span>{projectName(project)}</span>
+            {showComputers && <HostMark name={host?.name ?? "This computer"} offline={host?.offline} />}
+          </span>
           <ChevronDown size={14} />
         </button>
         {projectsOpen && <div className="thread-start-popover" onKeyDown={moveListFocus}>
@@ -152,41 +154,43 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
         </div>}
       </div>
 
-      {/** A checkout that already exists is entered as it stands, so there is no branch left to pick
-        *  and no second checkout to ask for. Clearing it puts the thread back in the project. */}
-      {startsInWorktree ? (
-        <div className="thread-start-worktree">
-          <FolderSymlink size={15} />
-          <span>{startsInWorktree}</span>
-          <button type="button" aria-label={`Leave ${startsInWorktree}`} onClick={() => onSetWorktree(false)}><X size={13} /></button>
+      <div className="thread-start-git">
+        {/** A checkout that already exists is entered as it stands, so there is no branch left to pick
+          *  and no second checkout to ask for. Clearing it puts the thread back in the project. */}
+        {startsInWorktree ? (
+          <div className="thread-start-worktree">
+            <FolderSymlink size={15} />
+            <span>{startsInWorktree}</span>
+            <button type="button" aria-label={`Leave ${startsInWorktree}`} onClick={() => onSetWorktree(false)}><X size={13} /></button>
+          </div>
+        ) : (<>
+        <div className={`thread-start-field ${branchesOpen ? "open" : ""}`} ref={branchRef}>
+          <button ref={branchTrigger} type="button" aria-label="Starting branch" aria-haspopup="listbox" aria-expanded={branchesOpen} disabled={!workspaceId} onClick={() => setBranchesOpen(!branchesOpen)}>
+            <GitBranch size={14} />
+            <span>{selected ?? (branches?.status === "error" ? "No branches" : "Current branch")}</span>
+            {branch?.create && <small>new</small>}
+            <ChevronDown size={14} />
+          </button>
+          {branchesOpen && (
+            <BranchMenu
+              menuRef={branchMenu}
+              branches={branches}
+              selected={selected}
+              onPick={(name, create) => {
+                setBranchesOpen(false);
+                /** The branch the checkout is already on asks for nothing, so nothing is moved onto it. */
+                onSelectBranch(!create && name === current ? null : name, create);
+              }}
+            />
+          )}
         </div>
-      ) : (<>
-      <div className={`thread-start-field ${branchesOpen ? "open" : ""}`} ref={branchRef}>
-        <button ref={branchTrigger} type="button" aria-label="Starting branch" aria-haspopup="listbox" aria-expanded={branchesOpen} disabled={!workspaceId} onClick={() => setBranchesOpen(!branchesOpen)}>
-          <GitBranch size={14} />
-          <span>{selected ?? (branches?.status === "error" ? "No branches" : "Current branch")}</span>
-          {branch?.create && <small>new</small>}
-          <ChevronDown size={14} />
-        </button>
-        {branchesOpen && (
-          <BranchMenu
-            menuRef={branchMenu}
-            branches={branches}
-            selected={selected}
-            onPick={(name, create) => {
-              setBranchesOpen(false);
-              /** The branch the checkout is already on asks for nothing, so nothing is moved onto it. */
-              onSelectBranch(!create && name === current ? null : name, create);
-            }}
-          />
-        )}
-      </div>
 
-      <button type="button" className="thread-start-toggle" aria-pressed={worktree} onClick={() => onSetWorktree(!worktree)}>
-        <FolderSymlink size={14} />
-        <span>Worktree</span>
-      </button>
-      </>)}
+        <button type="button" className="thread-start-toggle" aria-pressed={worktree} onClick={() => onSetWorktree(!worktree)}>
+          <FolderSymlink size={14} />
+          <span>Worktree</span>
+        </button>
+        </>)}
+      </div>
     </div>
   );
 }

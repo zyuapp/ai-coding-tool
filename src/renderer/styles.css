@@ -1234,7 +1234,7 @@ button, select { color: inherit; }
   text-align: center;
 }
 /** The transcript's own empty state centres on the transcript rather than lifting off its floor. */
-.conversation > .empty-state { padding-bottom: 0; }
+.conversation > .empty-state { grid-template-columns: minmax(0, 1fr); padding-bottom: 0; }
 .conversation > .empty-state .empty-glyph {
   width: 46px;
   height: 46px;
@@ -1248,31 +1248,21 @@ button, select { color: inherit; }
 .conversation > .empty-state .empty-glyph svg { width: 21px; height: 21px; }
 .conversation > .empty-state h2 { margin: 20px 0 7px; color: var(--ink); font-size: var(--text-hero); letter-spacing: -0.03em; }
 .conversation > .empty-state p { max-width: 372px; color: var(--muted-soft); font-size: var(--text-control); line-height: 1.6; }
-/** Project, branch and checkout are one decision, so they sit in one track rather than three apart. */
+/** Give the project and its computer their own space above the Git options. */
 .thread-start {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0;
+  gap: 8px;
+  width: 320px;
+  max-width: 100%;
+  min-width: 0;
   margin-top: 26px;
-  border: 1px solid var(--line-soft);
-  border-radius: 999px;
-  padding: 3px;
-  background: var(--surface-input);
 }
-.thread-start > * { position: relative; }
-.thread-start > * + *::before {
-  content: "";
-  position: absolute;
-  top: 8px;
-  bottom: 8px;
-  left: -1px;
-  width: 1px;
-  background: var(--line);
-}
-/** A hairline beside the control under the pointer would cut across its hover pill. */
-.thread-start > *:hover::before,
-.thread-start > *:hover + *::before { background: transparent; }
-.thread-start-field { position: relative; }
+.thread-start-field { position: relative; min-width: 0; max-width: 100%; }
+.thread-start-project { width: 100%; }
+.thread-start-git { display: flex; align-items: center; justify-content: center; gap: 4px; max-width: 100%; }
+.thread-start-git > .thread-start-toggle { flex: none; }
 /** The empty state gives its buttons a filled pill; these controls carry only a hover wash. */
 .empty-state .thread-start button {
   margin: 0;
@@ -1291,6 +1281,20 @@ button, select { color: inherit; }
 }
 .empty-state .thread-start button:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-soft); }
 .empty-state .thread-start button:disabled { opacity: 0.45; cursor: default; }
+.empty-state .thread-start-project > button {
+  width: 100%;
+  max-width: none;
+  gap: 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  padding: 10px 13px;
+  background: var(--surface-input);
+  text-align: left;
+}
+.thread-start-project-label { display: flex; flex: 1; flex-direction: column; gap: 3px; }
+.thread-start-project-label > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.thread-start-project-label > .host-mark { font-size: var(--text-meta); }
+.thread-start-git > .thread-start-field > button { max-width: min(220px, 100%); }
 /** A checkout of its own is a switch on the branch, so it presses in rather than carrying a box. */
 .empty-state .thread-start .thread-start-toggle { color: var(--quiet-strong); }
 .empty-state .thread-start .thread-start-toggle[aria-pressed="true"],
@@ -1320,12 +1324,12 @@ button, select { color: inherit; }
 .thread-start-popover {
   position: absolute;
   z-index: 20;
-  top: 36px;
+  top: calc(100% + 6px);
   left: 0;
   /** The field it hangs off is narrow, so the list takes its own width rather than wrapping names. */
   width: max-content;
   min-width: 220px;
-  max-width: 340px;
+  max-width: min(340px, calc(100vw - 64px));
   max-height: 280px;
   overflow: auto;
   border: 1px solid var(--line-mid);
@@ -1352,7 +1356,6 @@ button, select { color: inherit; }
   white-space: nowrap;
 }
 .empty-state .thread-start-popover button:hover { background: var(--surface-menu-hover); }
-.thread-start-field > button > .host-mark { flex: none; margin-left: auto; max-width: 110px; }
 .thread-start-group-heading {
   padding: 8px 13px 4px;
   color: var(--quiet);
