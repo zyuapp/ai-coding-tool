@@ -266,7 +266,7 @@ button, select { color: inherit; }
 /** Suppress Chromium’s native outline too; the rules below supply keyboard focus appearance. */
 :root[data-focus-appearance="quiet"] :focus { outline: none; }
 :where(button, input, textarea, select, summary, a[href], [role="button"], [tabindex]:not([tabindex="-1"])):focus-visible:where(:root:not([data-focus-appearance="quiet"]) *),
-:where(.agent-search, .font-select-search, .review-search, .thread-jump-search, .branch-menu-field, .thread-start-search-field, .model-search, .size-stepper):has(input:focus-visible):where(:root:not([data-focus-appearance="quiet"]) *),
+:where(.agent-search, .font-select-search, .review-search, .thread-jump-search, .picker-search-field, .model-search, .size-stepper):has(input:focus-visible):where(:root:not([data-focus-appearance="quiet"]) *),
 :where(.diff-comment):has(textarea:focus-visible):where(:root:not([data-focus-appearance="quiet"]) *) {
   outline: 2px solid var(--focus-ring);
   /** Keep the indicator inside rows and controls whose parents clip overflow. */
@@ -1268,7 +1268,7 @@ button, select { color: inherit; }
 .thread-start-git { display: flex; align-items: center; justify-content: center; gap: 4px; max-width: 100%; }
 .thread-start-git > .thread-start-toggle { flex: none; }
 /** The empty state gives its buttons a filled pill; these controls carry only a hover wash. */
-.empty-state .thread-start button {
+.empty-state .thread-start :where(.thread-start-field, .thread-start-git, .thread-start-worktree) > button {
   margin: 0;
   display: flex;
   align-items: center;
@@ -1283,8 +1283,8 @@ button, select { color: inherit; }
   font-size: var(--text-control);
   font-weight: 480;
 }
-.empty-state .thread-start button:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-soft); }
-.empty-state .thread-start button:disabled { opacity: 0.45; cursor: default; }
+.empty-state .thread-start :where(.thread-start-field, .thread-start-git, .thread-start-worktree) > button:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-soft); }
+.empty-state .thread-start :where(.thread-start-field, .thread-start-git, .thread-start-worktree) > button:disabled { opacity: 0.45; cursor: default; }
 .empty-state .thread-start-project > button {
   max-width: 100%;
   text-align: left;
@@ -1320,50 +1320,8 @@ button, select { color: inherit; }
   text-transform: uppercase;
 }
 .thread-start-field > button > svg { flex: none; color: var(--quiet-strong); }
-.thread-start-popover svg { flex: none; color: var(--quiet-strong); }
-.thread-start-popover {
-  position: absolute;
-  z-index: 20;
-  top: calc(100% + 6px);
-  left: 0;
-  /** The field it hangs off is narrow, so the list takes its own width rather than wrapping names. */
-  width: max-content;
-  min-width: 220px;
-  max-width: min(340px, calc(100vw - 64px));
-  max-height: 280px;
-  overflow: auto;
-  border: 1px solid var(--line-mid);
-  border-radius: 10px;
-  padding: 5px;
-  background: var(--surface-menu);
-  box-shadow: var(--shadow-popover);
-  text-align: left;
-}
-.empty-state .thread-start-popover button {
-  width: 100%;
-  max-width: none;
-  justify-content: space-between;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  font-weight: 450;
-}
-/** A name too long for the list is cut off; it is never worth a second line. */
-.thread-start-popover button > span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.empty-state .thread-start-popover button:hover { background: var(--surface-menu-hover); }
-.thread-start-group-heading {
-  padding: 8px 13px 4px;
-  color: var(--quiet);
-  font-size: var(--text-meta);
-  font-weight: 500;
-}
-/** The branch list, wherever it hangs: the empty state's start options, and the session panel. */
-.branch-menu {
+/** Compact pickers share their surface, search field, and option geometry. */
+.picker-popover {
   position: absolute;
   z-index: 20;
   max-height: min(280px, var(--branch-menu-room, 100vh));
@@ -1375,14 +1333,16 @@ button, select { color: inherit; }
   box-shadow: var(--shadow-popover);
   text-align: left;
 }
-.branch-menu button {
+.picker-popover .picker-option {
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   text-align: left;
   width: 100%;
+  max-width: none;
   min-height: 32px;
+  margin: 0;
   border: 0;
   border-radius: 6px;
   padding: 0 8px;
@@ -1394,55 +1354,57 @@ button, select { color: inherit; }
   cursor: pointer;
 }
 /** The mark keeps its column whether or not it is drawn, so the names stay on one edge. */
-.branch-menu-mark { display: grid; place-items: center; }
-.branch-menu button[aria-selected="true"] { color: var(--ink); }
-.branch-menu button:hover { background: var(--surface-menu-hover); color: var(--ink-soft); }
-/** The option that is not a branch is set apart from the branches under it. */
-.branch-menu button.branch-menu-extra { border-bottom: 1px solid var(--line-soft); }
-/** A grouped list already names what follows, so the rule under the extra would say it twice. */
-.branch-menu.grouped button.branch-menu-extra { border-bottom: 0; }
+.picker-mark { display: grid; place-items: center; }
+.picker-option[aria-selected="true"], .picker-option[aria-checked="true"] { color: var(--ink); }
+.picker-option:hover:not(:disabled) { background: var(--surface-menu-hover); color: var(--ink-soft); }
 /** A name too long for the list is cut off; it is never worth a second line. */
-.branch-menu button > span {
+.picker-label {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.branch-menu svg { flex: none; color: var(--quiet-strong); }
-/** Placed against a row it does not sit inside, so a panel that scrolls or crops cannot clip it. */
-.branch-menu.anchored { position: fixed; z-index: 1000; }
-.thread-start-field .branch-menu {
-  top: 43px;
+.picker-popover svg { flex: none; color: var(--quiet-strong); }
+.picker-search-field { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; border: 1px solid var(--line-mid); border-radius: 7px; padding: 0 8px; background: var(--surface-input); color: var(--quiet); }
+.picker-search-field .picker-search {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 6px 0;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: var(--text-control);
+}
+.picker-search-field .picker-search:focus { outline: 0; }
+.thread-start-field > .picker-popover {
+  top: calc(100% + 6px);
   left: 0;
   /** The field it hangs off is narrow, so the list takes its own width rather than wrapping names. */
   width: max-content;
   min-width: 220px;
-  max-width: 340px;
+  max-width: min(340px, calc(100vw - 64px));
 }
+.thread-start-group-heading {
+  padding: 8px 8px 4px;
+  color: var(--quiet);
+  font-size: var(--text-meta);
+  font-weight: 500;
+}
+/** The option that is not a branch is set apart from the branches under it. */
+.branch-menu button.branch-menu-extra { border-bottom: 1px solid var(--line-soft); }
+/** A grouped list already names what follows, so the rule under the extra would say it twice. */
+.branch-menu.grouped button.branch-menu-extra { border-bottom: 0; }
+/** Placed against a row it does not sit inside, so a panel that scrolls or crops cannot clip it. */
+.branch-menu.anchored { position: fixed; z-index: 1000; min-width: 260px; }
 /** Titled the way the command menu is, since both are a list a keyboard walks. */
 .branch-menu-title { display: flex; align-items: center; gap: 8px; padding: 4px 8px 8px; color: var(--quiet-strong); font-size: var(--text-meta); font-weight: 600; letter-spacing: 0.02em; }
 .branch-menu-title kbd { margin-left: auto; color: var(--quiet-soft); font: 11px/1 var(--mono); }
 /** Groups say what a name is, so `origin/main` is never mistaken for a branch the checkout holds. */
 .branch-menu-group { padding: 8px 8px 3px; color: var(--quiet-soft); font-size: var(--text-badge); letter-spacing: 0.06em; text-transform: uppercase; }
 .branch-menu-group:first-child { padding-top: 3px; }
-.branch-menu-field, .thread-start-search-field { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; border: 1px solid var(--line-mid); border-radius: 7px; padding: 0 8px; background: var(--surface-input); color: var(--quiet); }
-.branch-menu-field > svg, .thread-start-search-field > svg { flex: none; }
-.branch-menu-field .branch-menu-search, .thread-start-search-field .thread-start-search { margin: 0; border: 0; border-radius: 0; padding: 6px 0; background: none; }
-.branch-menu-field .branch-menu-search:focus, .thread-start-search-field .thread-start-search:focus { outline: 0; }
-/** A list anchored to a narrow trigger still needs room for a ref, and must stay inside the window. */
-.branch-menu.anchored { min-width: 260px; }
-
-.branch-menu-search, .thread-start-search {
-  width: 100%;
-  margin-bottom: 4px;
-  border: 1px solid var(--line-mid);
-  border-radius: 7px;
-  padding: 6px 8px;
-  background: var(--surface-input);
-  color: var(--ink-soft);
-  font: inherit;
-  font-size: var(--text-control);
-}
 .branch-menu-empty, .thread-start-empty { padding: 8px; color: var(--quiet); font-size: var(--text-meta); }
 /** A checkout the user picked reads as a chip, not a control: the only choice left is to leave it. */
 .thread-start-worktree {

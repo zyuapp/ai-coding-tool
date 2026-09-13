@@ -1,11 +1,12 @@
-import { LuCheck as Check, LuChevronDown as ChevronDown, LuFolderGit2 as FolderGit2, LuFolderSymlink as FolderSymlink, LuGitBranch as GitBranch, LuSearch as Search, LuX as X } from "react-icons/lu";
+import { LuChevronDown as ChevronDown, LuFolderGit2 as FolderGit2, LuFolderSymlink as FolderSymlink, LuGitBranch as GitBranch, LuX as X } from "react-icons/lu";
 import { useRef, useState } from "react";
 import type { DraftBranch } from "../../application/workspace-state";
 import type { ThreadHost } from "../../application/computers";
 import { HostMark } from "./HostMark";
 import { BranchMenu, useBranches } from "./BranchMenu";
 import { projectName, type Project } from "../../domain/project";
-import { moveListFocus, useDismissibleLayer } from "../focus";
+import { useDismissibleLayer } from "../focus";
+import { PickerOption, PickerPopover, PickerSearch } from "./Picker";
 
 /** Which projects a typed query keeps, matched on the name, path, and computer shown. */
 export function matchProjects(projects: Project[], query: string, projectHosts?: ReadonlyMap<string, ThreadHost>) {
@@ -115,43 +116,30 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
           </span>
           <ChevronDown size={14} />
         </button>
-        {projectsOpen && <div className="thread-start-popover" onKeyDown={moveListFocus}>
-          <label className="thread-start-search-field">
-            <Search size={13} aria-hidden="true" />
-            <input
-              className="thread-start-search"
-              aria-label="Search projects"
-              placeholder="Search projects"
-              autoFocus
-              value={projectQuery}
-              onInput={(event) => setProjectQuery(event.currentTarget.value)}
-            />
-          </label>
+        {projectsOpen && <PickerPopover className="thread-start-popover">
+          <PickerSearch label="Search projects" value={projectQuery} onChange={setProjectQuery} />
           <div role="listbox" aria-label="Projects">
             {matched.length === 0 && <p className="thread-start-empty">No project matches</p>}
             {groupProjects(matched, projectHosts).map(({ host, projects: grouped }) => (
               <div key={host ? `remote:${host.id}` : "local"} role={showComputers ? "group" : undefined} aria-label={showComputers ? host?.name ?? "This computer" : undefined}>
                 {showComputers && <div className="thread-start-group-heading" aria-hidden="true"><HostMark name={host?.name ?? "This computer"} offline={host?.offline} /></div>}
                 {grouped.map((item) => (
-                  <button
+                  <PickerOption
                     key={item.id}
-                    type="button"
-                    role="option"
                     aria-label={showComputers ? `${projectName(item)} on ${host?.name ?? "This computer"}` : undefined}
-                    aria-selected={item.id === projectId}
+                    selected={item.id === projectId}
                     onClick={() => {
                       setProjectsOpen(false);
                       onSelectProject(item.id);
                     }}
                   >
-                    <span>{projectName(item)}</span>
-                    {item.id === projectId && <Check size={14} />}
-                  </button>
+                    {projectName(item)}
+                  </PickerOption>
                 ))}
               </div>
             ))}
           </div>
-        </div>}
+        </PickerPopover>}
       </div>
 
       <div className="thread-start-git">
