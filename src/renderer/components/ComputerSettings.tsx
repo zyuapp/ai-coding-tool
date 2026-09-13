@@ -41,7 +41,7 @@ function CodeEntry({ pairing, onPair, onCancel }: { pairing: ComputerPairing; on
           value={code}
           disabled={pairing.busy}
           placeholder="XXXXXXXX"
-          onChange={(event) => setCode(event.target.value)}
+          onInput={(event) => setCode(event.currentTarget.value)}
         />
       </label>
       <div className="computer-code-actions">
@@ -49,6 +49,34 @@ function CodeEntry({ pairing, onPair, onCancel }: { pairing: ComputerPairing; on
         <button type="button" onClick={onCancel} disabled={pairing.busy}>Cancel</button>
       </div>
       {pairing.error && <p className="settings-error" role="alert">{pairing.error}</p>}
+    </form>
+  );
+}
+
+/** A computer the tailnet does not list, named by address: the same pairing, with the code shown by that address. */
+function AddressEntry({ pairing, onPair }: { pairing: ComputerPairing | null; onPair: (host: string) => void }) {
+  const [host, setHost] = useState("");
+  const typed = host.trim();
+  return (
+    <form
+      className="computer-address"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (typed) onPair(typed);
+      }}
+    >
+      <label>
+        <span>Or pair by address</span>
+        <input
+          autoComplete="off"
+          spellCheck={false}
+          value={host}
+          placeholder="host:port"
+          disabled={pairing?.busy}
+          onInput={(event) => setHost(event.currentTarget.value)}
+        />
+      </label>
+      <button type="submit" disabled={!typed || (pairing !== null && pairing.busy)}>Pair</button>
     </form>
   );
 }
@@ -99,6 +127,14 @@ export function ComputerSettings({ found, searching, searchError, links, pairing
           </div>
         </div>
       ))}
+
+      <div className="setting-row" data-address>
+        <span className="setting-status blank"><Monitor size={13} /></span>
+        <div>
+          <AddressEntry pairing={pairing} onPair={(host) => onPair(host, host, "")} />
+          {pairing && !offered.some((computer) => computer.host === pairing.host) && <CodeEntry pairing={pairing} onPair={(code) => onPair(pairing.host, pairing.name, code)} onCancel={onCancelPairing} />}
+        </div>
+      </div>
 
       {searchError && <p className="settings-error" role="alert">{searchError}</p>}
       {!searchError && !searching && offered.length === 0 && links.length === 0 && <p className="settings-empty">No other computer on your tailnet is serving AI Coding Tool.</p>}
