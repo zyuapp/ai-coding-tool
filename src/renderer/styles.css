@@ -907,7 +907,9 @@ button, select { color: inherit; }
 /* Both crumbs shrink, so a long project and a long title each give ground before the row clips. */
 .task-heading h1 > span { overflow: hidden; text-overflow: ellipsis; }
 .heading-project { flex: 0 1 auto; min-width: 4ch; color: var(--muted-soft); font-weight: 500; }
-.task-heading h1 > .heading-host { flex: 0 1 auto; min-width: 4ch; font-size: inherit; font-weight: 500; color: var(--muted-soft); }
+/* Use the name's text baseline for the crumb, keeping the icon out of baseline calculation. */
+.task-heading h1 > .heading-host { flex: 0 1 auto; align-items: baseline; min-width: 4ch; font-size: inherit; font-weight: 500; color: var(--muted-soft); }
+.task-heading h1 > .heading-host > svg { align-self: center; }
 /* Match the heading's visual weight and compensate for the font's lower optical center. */
 .task-heading h1 > .heading-host > svg,
 .thread-heading-menu > .menu-trigger > svg {
