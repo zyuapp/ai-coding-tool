@@ -59,7 +59,14 @@ export function createCliInstaller(configuration: CliConfiguration | null, platf
     return status();
   }
 
-  return { status, install, uninstall };
+  /** Repair only our existing launcher; startup must respect an uninstall or another command. */
+  async function refresh(): Promise<CliStatus> {
+    const current = await status();
+    if (current.state !== "installed" || current.current) return current;
+    return install();
+  }
+
+  return { status, install, uninstall, refresh };
 }
 
 function shellQuote(value: string) {
@@ -111,3 +118,4 @@ const runtimeInstaller = createCliInstaller(cliConfiguration(process.platform, h
 export const cliStatus = runtimeInstaller.status;
 export const installCli = runtimeInstaller.install;
 export const uninstallCli = runtimeInstaller.uninstall;
+export const refreshCli = runtimeInstaller.refresh;

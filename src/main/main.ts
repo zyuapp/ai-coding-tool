@@ -20,7 +20,7 @@ import type { EngineAccessHost } from "./agent/engine-services.mjs" with { "reso
 import { readAttachmentContext, savedAttachmentPath, useAttachmentsDirectory, writeAttachment } from "./attachment-store.js";
 import { messageThumbnail } from "./message-thumbnails.js";
 import { browserPageUrl, registerBrowserIpc } from "./browser-ipc.js";
-import { cliStatus, installCli, uninstallCli } from "./cli-install.js";
+import { cliStatus, installCli, uninstallCli, refreshCli } from "./cli-install.js";
 import { computerUseForRun, computerUsePermissions, requestComputerUsePermission, resumeComputerUse, stopComputerUse } from "./computer-use-host.js";
 import type { NoticeHost } from "./desktop-notice.js";
 import { createDesktopEvents } from "./desktop-events.js";
@@ -407,6 +407,10 @@ function legacyWorktreesRoots(userData: string) {
 
 app.whenReady().then(async () => {
   if (!singleInstance) return;
+  // Development Electron has no packaged app to serve and must not replace the installed launcher.
+  if (app.isPackaged) {
+    void refreshCli().catch((error) => console.error("Could not refresh the aic command:", error));
+  }
   if (process.platform === "darwin") lockAwake = startLockAwake(powerMonitor, powerSaveBlocker);
   /** Started before the app spawns anything, and awaited before the first thing that needs it. */
   const searchPath = adoptLoginShellPath();

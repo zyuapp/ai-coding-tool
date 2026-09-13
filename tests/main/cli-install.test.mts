@@ -55,7 +55,48 @@ test("unsupported platforms report status and refuse changes", async () => {
   assert.deepEqual(await installer.status(), { state: "unsupported", path: "/usr/local/bin/aic" });
   await assert.rejects(installer.install(), /macOS or Linux/);
   await assert.rejects(installer.uninstall(), /macOS or Linux/);
+  assert.equal((await installer.refresh()).state, "unsupported");
 });
+
+for (const platform of ["linux", "darwin"]) {
+  test(`${platform} refresh repairs a launcher after the installed app moves, without rewriting a current one`, async () => {
+    const { configuration } = await linuxInstaller();
+    const old = cliConfiguration(platform, os.homedir(), "/old/app");
+    const next = cliConfiguration(platform, os.homedir(), "/new/app");
+    assert.ok(old && next);
+    const previous = createCliInstaller({ ...old, installPath: configuration.installPath }, platform);
+    const updated = createCliInstaller({ ...next, installPath: configuration.installPath }, platform);
+    await previous.install();
+    assert.equal((await updated.status()).current, false);
+    assert.equal((await updated.refresh()).current, true);
+    assert.equal(await readFile(configuration.installPath, "utf8"), next.script);
+    const before = await stat(configuration.installPath);
+    await updated.refresh();
+    const after = await stat(configuration.installPath);
+    assert.equal(after.ino, before.ino);
+    assert.equal(after.mtimeMs, before.mtimeMs);
+  });
+
+  test(`${platform} refresh leaves absent, unrelated, and symlinked commands alone`, async () => {
+    const { configuration } = await linuxInstaller();
+    const installer = createCliInstaller(configuration, platform);
+    assert.equal((await installer.refresh()).state, "missing");
+    await assert.rejects(lstat(configuration.installPath), { code: "ENOENT" });
+    await mkdir(path.dirname(configuration.installPath), { recursive: true });
+    await writeFile(configuration.installPath, "another command");
+    assert.equal((await installer.refresh()).state, "conflict");
+    assert.equal(await readFile(configuration.installPath, "utf8"), "another command");
+    await rm(configuration.installPath);
+    const other = `${configuration.installPath}-other`;
+    await writeFile(other, "# aic-cli v1\n");
+    await symlink(other, configuration.installPath);
+    assert.equal((await installer.refresh()).state, "conflict");
+    assert.equal((await lstat(configuration.installPath)).isSymbolicLink(), true);
+    assert.equal(await readFile(other, "utf8"), "# aic-cli v1\n");
+    await installer.uninstall();
+    assert.equal((await installer.refresh()).state, "missing");
+  });
+}
 
 test.skipIf(process.platform !== "darwin")("elevated CLI command uses exact embedded bytes and replaces destination symlinks", async () => {
   const { cliInstallCommand } = await import("../../src/main/cli-install.ts");
