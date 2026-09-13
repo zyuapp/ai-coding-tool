@@ -1,3 +1,4 @@
+import { readSavedAttachment } from "./attachment-store.js";
 import type { ComputerQuery } from "../contracts/computers.js";
 import type { AgentEngine } from "../domain/agent-engine.js";
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
@@ -10,6 +11,7 @@ export type ComputerQueryHost = {
 
 /** Answers one of another computer's reads the way the window's own desktop would. */
 export async function answerComputerQuery(query: ComputerQuery, host: ComputerQueryHost): Promise<unknown> {
+  if (query.kind === "attachment") return readSavedAttachment(query.name);
   if (query.kind === "diff-patch") {
     const { diffPatch } = await import("./workspace/git-diff.mjs");
     return diffPatch(query.workspaceId, query.range, query.path, host.workspaces(), query.previousPath, query.ignoreWhitespace === true);

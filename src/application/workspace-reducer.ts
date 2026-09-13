@@ -1,3 +1,4 @@
+import { attachmentSendFor } from "./composer-attachments.js";
 import { apply } from "./workspace-reducer/dispatch.js";
 import { reconcileSnoozes } from "./thread-snooze.js";
 import { shownPageEffects } from "./workspace-reducer/browser-tabs.js";
@@ -80,6 +81,12 @@ function leftBehind(before: WorkspaceState, after: WorkspaceState): WorkspaceEff
  */
 function forwarded(state: WorkspaceState, route: Extract<InputRoute, { kind: "computer" }>): WorkspaceTransition {
   let next = state;
+  const attachments = route.draft?.attachments;
+  if (attachments) {
+    const send = attachmentSendFor(state.attachmentSends, attachments.key);
+    if (send.busy) return settled(state);
+    next = { ...next, attachmentSends: { ...next.attachmentSends, [attachments.key]: { ...send, busy: true, error: null } } };
+  }
   if (route.select) next = { ...next, computers: { ...next.computers, active: route.computer.id }, actionError: null };
   return { state: next, effects: [...leftBehind(state, next), forwardEffect(route)], result: { ok: true } };
 }

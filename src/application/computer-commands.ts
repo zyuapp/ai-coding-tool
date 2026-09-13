@@ -2,7 +2,7 @@ import type { ComputerCommand } from "../contracts/commands.js";
 import type { ThreadNotice } from "../contracts/ipc.js";
 import type { ComputerLink, DiscoveredComputer } from "../domain/computers.js";
 import type { PairedComputer, SentDraft } from "./computers.js";
-import { annotationsFor, pastesFor, withAnnotations, withPastes } from "./composer-drafts.js";
+import { annotationsFor, imagesFor, pastesFor, withAnnotations, withImages, withPastes } from "./composer-drafts.js";
 import { announcedNotice } from "./notices.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./workspace-reducer.js";
 import type { WorkspaceState } from "./workspace-state.js";
@@ -43,7 +43,13 @@ function withoutSent(state: WorkspaceState, draft: SentDraft): WorkspaceState {
   const prompts = kept ? { ...rest, [key]: kept } : rest;
   const annotations = annotationsFor(state, key).filter((annotation) => !draft.annotations.some((sent) => sent.id === annotation.id && sent.note === annotation.note));
   const pastes = pastesFor(state, key).filter((paste) => !draft.pastes.some((sent) => sent.id === paste.id));
-  return withPastes(withAnnotations({ ...state, prompts }, key, annotations), key, pastes);
+  let next = withPastes(withAnnotations({ ...state, prompts }, key, annotations), key, pastes);
+  if (draft.attachments) {
+    const { key: composer, ids } = draft.attachments;
+    next = withImages(next, key, imagesFor(next, key).filter((image) => !ids.includes(image.id)));
+    next = { ...next, attachmentSends: { ...next.attachmentSends, [composer]: { busy: false, error: null, sent: ids } } };
+  }
+  return next;
 }
 
 function withComputers(state: WorkspaceState, computers: Partial<WorkspaceState["computers"]>): WorkspaceState {

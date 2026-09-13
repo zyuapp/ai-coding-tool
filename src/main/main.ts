@@ -4,9 +4,10 @@ import { readFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { ATTACHMENT_SCHEME, attachmentName } from "../application/attachments.js";
+import { ATTACHMENT_SCHEME } from "../application/attachments.js";
 import { MESSAGE_IMAGE_SCHEME } from "../domain/message-artifacts.js";
 import { messageImageResponse, preserveMessageImages, useMessageImageStore } from "./message-image-store.js";
+import { attachmentResponse } from "./attachment-response.js";
 import { downloadImage } from "./image-download.js";
 import { isShortcutOverrides, isWindowTheme, type AvailableCommand, type BrowserPageEvent, type ComputerUsePermission, type WindowTheme } from "../contracts/ipc.js";
 import { isAutomationDraft, isAutomationPatch } from "../domain/automation.js";
@@ -18,7 +19,7 @@ import type { WorktreeService } from "./workspace/worktrees.mjs" with { "resolut
 import type { AutomationScheduler } from "./automation/automation-scheduler.mjs" with { "resolution-mode": "import" };
 import type { TaskDatabaseService } from "./task-database-service.mjs" with { "resolution-mode": "import" };
 import type { EngineAccessHost } from "./agent/engine-services.mjs" with { "resolution-mode": "import" };
-import { attachmentsDirectory, readAttachmentContext, savedAttachmentPath, useAttachmentsDirectory, writeAttachment } from "./attachment-store.js";
+import { readAttachmentContext, savedAttachmentPath, useAttachmentsDirectory, writeAttachment } from "./attachment-store.js";
 import { messageThumbnail } from "./message-thumbnails.js";
 import { browserPageUrl, registerBrowserIpc } from "./browser-ipc.js";
 import { cliStatus, installCli, uninstallCli } from "./cli-install.js";
@@ -438,11 +439,11 @@ app.whenReady().then(async () => {
     onChange: (automations) => { events.emit("automation:changed", automations); },
   });
   await automationScheduler.start();
-  protocol.handle(ATTACHMENT_SCHEME, async (request) => {
-    const name = attachmentName(decodeURIComponent(new URL(request.url).pathname));
-    if (!/^[A-Za-z0-9-]+\.png$/.test(name)) return new Response("Not found", { status: 404 });
-    return net.fetch(pathToFileURL(path.join(attachmentsDirectory(), name)).toString());
-  });
+  protocol.handle(ATTACHMENT_SCHEME, (request) => attachmentResponse(request.url, {
+    state: () => workspaceRuntime.runtime.getState(),
+    query: (id, query) => getComputerLinks().query(id, query),
+    fetch: (url) => net.fetch(url),
+  }));
   protocol.handle(MESSAGE_IMAGE_SCHEME, (request) => messageImageResponse(request.url));
   if (!app.isPackaged) app.dock?.setIcon(icon);
   keyboard.claimDesktopShortcut();

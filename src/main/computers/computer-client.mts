@@ -1,3 +1,4 @@
+import { MAX_ATTACHMENT_BYTES } from "../../domain/conversation.js";
 import { randomUUID } from "node:crypto";
 import WebSocket from "ws";
 import { applyWorkspacePatches } from "../../application/workspace-patches.js";
@@ -5,9 +6,8 @@ import { parseWorkspaceJson, stringifyWorkspaceJson } from "../../application/wo
 import type { WorkspaceCommandResult, WorkspaceInput } from "../../application/workspace-reducer.js";
 import type { WorkspaceState } from "../../application/workspace-state.js";
 import type { ThreadNotice } from "../../contracts/ipc.js";
-import { COMPUTER_PROTOCOL_VERSION, isComputerServerMessage, type ComputerClientMessage, type ComputerQuery, type ComputerServerMessage } from "../../contracts/computers.js";
+import { COMPUTER_PROTOCOL_VERSION, COMPUTER_TRANSFER_TIMEOUT_MS, COMPUTER_SEND_TOO_LARGE, MAX_COMPUTER_MESSAGE_BYTES, isComputerServerMessage, type ComputerClientMessage, type ComputerQuery, type ComputerServerMessage } from "../../contracts/computers.js";
 import type { ComputerStatus } from "../../domain/computers.js";
-import { MOBILE_DEAD_AFTER_MS } from "../../domain/mobile.js";
 import { WORKSPACE_SOCKET_PATH } from "../mobile/mobile-server.mjs";
 
 /** How long a dial may sit unanswered before the next try. */
@@ -75,6 +75,33 @@ function readServerMessage(data: unknown): ComputerServerMessage | null {
   }
 }
 
+/** Checks the encoded envelope before sending so an oversized request cannot kill the link. */
+function requestPayload(message: ComputerClientMessage): string | null {
+  if (message.kind === "input" && message.inputs.some((input) => input.type === "attachments.send" && input.attachments.some((attachment) => attachment.source.replace(/^data:[^,]*,/, "").length > MAX_ATTACHMENT_BYTES))) return null;
+  const payload = stringifyWorkspaceJson(message);
+  return Buffer.byteLength(payload) > MAX_COMPUTER_MESSAGE_BYTES ? null : payload;
+}
+
+function requestTimeout(message: ComputerClientMessage): number {
+  const transferring = message.kind === "input" ? message.inputs.some((input) => input.type === "attachments.send" && input.attachments.length > 0) : message.kind === "query" && message.query.kind === "attachment";
+  return transferring ? COMPUTER_TRANSFER_TIMEOUT_MS : REQUEST_TIMEOUT_MS;
+}
+
+function ask<T>(socket: WebSocket | null, status: ComputerStatus, held: Map<string, Waiting<T>>, message: ComputerClientMessage & { requestId: string }): Promise<T> {
+  if (socket?.readyState !== WebSocket.OPEN || status !== "connected") return Promise.reject(new Error(COMPUTER_OFFLINE));
+  const payload = requestPayload(message);
+  if (payload === null) return Promise.reject(new Error(COMPUTER_SEND_TOO_LARGE));
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      held.delete(message.requestId);
+      reject(new Error("That computer did not answer in time."));
+    }, requestTimeout(message));
+    timer.unref?.();
+    held.set(message.requestId, { resolve, reject, timer });
+    socket!.send(payload);
+  });
+}
+
 /**
  * One line to a paired computer. It dials, pairs or resumes, mirrors the other computer's state as
  * it arrives, and carries inputs there. A dropped line is dialled again on a growing pause; a line
@@ -107,7 +134,7 @@ export function createComputerClient(options: ComputerClientOptions) {
 
   function watch() {
     if (watchdog) clearTimeout(watchdog);
-    watchdog = setTimeout(() => socket?.terminate(), MOBILE_DEAD_AFTER_MS);
+    watchdog = setTimeout(() => socket?.terminate(), COMPUTER_TRANSFER_TIMEOUT_MS);
     watchdog.unref?.();
   }
 
@@ -208,25 +235,13 @@ export function createComputerClient(options: ComputerClientOptions) {
     socket = dialled;
   }
 
-  function ask<T>(held: Map<string, Waiting<T>>, message: ComputerClientMessage & { requestId: string }): Promise<T> {
-    if (socket?.readyState !== WebSocket.OPEN || status !== "connected") return Promise.reject(new Error(COMPUTER_OFFLINE));
-    return new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        held.delete(message.requestId);
-        reject(new Error("That computer did not answer in time."));
-      }, REQUEST_TIMEOUT_MS);
-      timer.unref?.();
-      held.set(message.requestId, { resolve, reject, timer });
-      write(message);
-    });
-  }
 
   open();
   return {
     get status() { return status; },
     get state() { return replica; },
-    send: (inputs: WorkspaceInput[]) => ask(results, { kind: "input", requestId: randomUUID(), inputs }),
-    query: (query: ComputerQuery) => ask(answers, { kind: "query", requestId: randomUUID(), query }),
+    send: (inputs: WorkspaceInput[]) => ask(socket, status, results, { kind: "input", requestId: randomUUID(), inputs }),
+    query: (query: ComputerQuery) => ask(socket, status, answers, { kind: "query", requestId: randomUUID(), query }),
     stop() {
       stopped = true;
       if (retry) clearTimeout(retry);

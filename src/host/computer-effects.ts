@@ -34,10 +34,13 @@ export const computerEffects = {
   "computer.forward": async (effect, { dispatch, desktop }) => {
     try {
       const result = await desktop.sendToComputer(effect.id, effect.inputs);
-      if (!result.ok) await dispatch({ type: "action.failed", message: result.message });
-      else if (effect.draft) await dispatch({ type: "computers.forwarded", draft: effect.draft });
+      if (!result.ok) throw new Error(result.message);
+      if (effect.draft) await dispatch({ type: "computers.forwarded", draft: effect.draft });
     } catch (error) {
-      await dispatch({ type: "action.failed", message: errorMessage(error) });
+      const composer = effect.draft?.attachments?.key;
+      await dispatch(composer === undefined
+        ? { type: "action.failed", message: errorMessage(error) }
+        : { type: "attachments.failed", ...(composer ? { taskId: composer } : {}), message: errorMessage(error) });
     }
   },
 } satisfies Partial<EffectHandlers>;

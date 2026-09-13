@@ -1,7 +1,10 @@
+import { executeWorkspaceInput } from "../../src/application/workspace-execution.ts";
+import { computerEffects } from "../../src/host/computer-effects.ts";
+import type { EffectHost } from "../../src/host/effect-host.ts";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { ATTACHMENTS_ELSEWHERE, FILES_ELSEWHERE, PANEL_ELSEWHERE, routeInput, type PairedComputer } from "../../src/application/computers.ts";
-import { reduce } from "../../src/application/workspace-reducer.ts";
+import { reduce, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { ComputerLink } from "../../src/domain/computers.ts";
 import { effectOf, task, workspace } from "./workspace-reducer-fixtures.mts";
@@ -150,7 +153,7 @@ test("a line to the computer on screen that comes back is told again whether any
   assert.equal(still.effects.length, 0, "a line that stayed up is told nothing");
 });
 
-test("what only this computer's panels can do is refused for a thread elsewhere, and so are attachments", () => {
+test("what only this computer's panels can do is refused for a thread elsewhere, and so are attachments that only carry paths", () => {
   const state = withComputers(workspace(), [paired("linux", remoteState)], { active: "linux" });
   assert.deepEqual(routeInput(state, { type: "terminal.open" }), { kind: "refuse", message: PANEL_ELSEWHERE });
   assert.deepEqual(routeInput(state, { type: "browser.new-tab" }), { kind: "refuse", message: PANEL_ELSEWHERE });
@@ -241,4 +244,66 @@ test("the paired computers as the host reports them keep the states already held
   assert.equal(gone.computers.active, null);
   assert.equal(gone.computers.filter, "all");
   assert.equal(reduce(state, { type: "computers.pair-failed", message: "Wrong code" }).state.computers.pairing?.error, "Wrong code");
+});
+
+test("images cross to their holder as bytes and only the acknowledged strip is cleared", () => {
+  for (const taskId of [undefined, "remote-thread"]) {
+    const sentImage = { id: "shot", path: "/mac/shot.png", source: "data:image/png;base64,AQID", annotations: [] };
+    const laterImage = { id: "later", path: "/mac/later.png", label: "Later" };
+    const state = withComputers(workspace({ prompts: { "remote-thread": "Look here" }, images: { "remote-thread": [{ id: "shot", path: sentImage.path, label: "Shot" }, laterImage] } }), [paired("linux", remoteState)], { active: "linux" });
+    const sending = reduce(state, { type: "attachments.send", ...(taskId ? { taskId } : {}), steer: true, attachments: [sentImage] });
+    const forward = effectOf(sending, "computer.forward");
+    assert.deepEqual(forward.inputs, [
+      { type: "view.set-prompt", taskId: "remote-thread", prompt: "Look here" },
+      { type: "annotation.recall", taskId: "remote-thread", annotations: [] },
+      { type: "paste.recall", taskId: "remote-thread", pastes: [] },
+      { type: "attachments.send", taskId: "remote-thread", steer: true, attachments: [{ id: "shot", source: sentImage.source, annotations: [] }] },
+    ]);
+    assert.deepEqual(forward.draft?.attachments, { key: taskId ?? "", ids: ["shot"] });
+    assert.deepEqual(sending.state.attachmentSends[taskId ?? ""], { busy: true, error: null, sent: [] });
+    assert.deepEqual(reduce(sending.state, { type: "attachments.send", ...(taskId ? { taskId } : {}), attachments: [sentImage] }).effects, [], "a second click cannot duplicate the transfer");
+    assert.deepEqual(sending.state.images, state.images);
+    const failed = reduce(sending.state, { type: "attachments.failed", ...(taskId ? { taskId } : {}), message: "The holder refused" }).state;
+    assert.deepEqual(failed.attachmentSends[taskId ?? ""], { busy: false, error: "The holder refused", sent: [] });
+    assert.deepEqual(failed.images, state.images);
+    const acknowledged = reduce(failed, { type: "computers.forwarded", draft: forward.draft! }).state;
+    assert.deepEqual(acknowledged.attachmentSends[taskId ?? ""], { busy: false, error: null, sent: ["shot"] });
+    assert.deepEqual(acknowledged.images["remote-thread"], [laterImage]);
+    let holder = remoteState;
+    for (const input of forward.inputs.slice(0, -1)) holder = reduce(holder, input).state;
+    const save = effectOf(reduce(holder, forward.inputs.at(-1)!), "send-attachments");
+    assert.deepEqual(save.attachments, [{ id: "shot", source: sentImage.source, annotations: [] }]);
+  }
+});
+
+test("file and folder chips stay here when an image or text send targets another computer", () => {
+  for (const folder of [undefined, true] as const) {
+    const state = withComputers(workspace({ files: { "remote-thread": [{ id: "file", path: "/mac/local", name: "local", ...(folder ? { folder } : {}) }] } }), [paired("linux", remoteState)], { active: "linux" });
+    for (const input of [{ type: "task.send" }, { type: "attachments.send", attachments: [] }] satisfies WorkspaceInput[]) {
+      assert.deepEqual(routeInput(state, input), { kind: "refuse", message: ATTACHMENTS_ELSEWHERE });
+      assert.deepEqual(reduce(state, input).state.files, state.files);
+    }
+    assert.equal(routeInput(state, { type: "task.send", text: "independent agent send" }).kind, "computer");
+  }
+});
+
+
+test("a refused transfer or dropped link releases the composer and preserves its draft for retry", async () => {
+  for (const disconnected of [false, true]) {
+    let state = withComputers(workspace({ prompts: { "remote-thread": "Keep me" } }), [paired("linux", remoteState)], { active: "linux" });
+    const execution = executeWorkspaceInput({ type: "attachments.send", attachments: [{ id: "shot", source: "data:image/png;base64,AQID", annotations: [] }] }, {
+      state: () => state,
+      commit: (next) => { state = next; },
+      perform: async (effect, dispatch) => {
+        if (effect.type !== "computer.forward") return;
+        await computerEffects["computer.forward"](effect, { dispatch, desktop: { sendToComputer: async () => {
+          if (disconnected) throw new Error("Transfer failed");
+          return { ok: false, message: "Transfer failed" };
+        } } } as unknown as EffectHost);
+      },
+    });
+    assert.deepEqual(await execution.completed, { ok: false, message: "Transfer failed" });
+    assert.equal(state.prompts["remote-thread"], "Keep me");
+    assert.deepEqual(state.attachmentSends[""], { busy: false, error: "Transfer failed", sent: [] });
+  }
 });

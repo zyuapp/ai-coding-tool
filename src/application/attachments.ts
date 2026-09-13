@@ -40,6 +40,7 @@ export function attachmentName(filePath: string) {
   return filePath.split(/[\\/]/).pop() ?? "";
 }
 
-export function attachmentUrl(filePath: string) {
-  return `${ATTACHMENT_SCHEME}://file/${encodeURIComponent(attachmentName(filePath))}`;
+export function attachmentUrl(filePath: string, taskId?: string) {
+  const query = taskId === undefined ? "" : `?${new URLSearchParams({ taskId })}`;
+  return `${ATTACHMENT_SCHEME}://file/${encodeURIComponent(attachmentName(filePath))}${query}`;
 }

@@ -34,7 +34,7 @@ import {
 import { MOBILE_HEALTH_PATH, MOBILE_HEALTH_RESPONSE } from "./addresses.mjs";
 import type { PairingStore } from "./pairing.mjs";
 import type { ThreadNotice } from "../../contracts/ipc.js";
-import { COMPUTER_PROTOCOL_VERSION, isComputerClientMessage, type ComputerClientMessage, type ComputerQuery, type ComputerServerMessage } from "../../contracts/computers.js";
+import { COMPUTER_PROTOCOL_VERSION, COMPUTER_TRANSFER_TIMEOUT_MS, MAX_COMPUTER_MESSAGE_BYTES, isComputerClientMessage, type ComputerClientMessage, type ComputerQuery, type ComputerServerMessage } from "../../contracts/computers.js";
 import type { WorkspaceCommandResult, WorkspaceInput } from "../../application/workspace-reducer.js";
 import type { WorkspaceUpdate } from "../../contracts/workspace-runtime.js";
 import { stringifyWorkspaceJson } from "../../application/workspace-json.js";
@@ -49,8 +49,8 @@ export const WORKSPACE_SOCKET_PATH = `${MOBILE_APP_PATH}/workspace`;
 const AUTH_DEADLINE_MS = 10_000;
 /** How long a dropped session waits to be resumed before its buffer is thrown away. */
 const SESSION_GRACE_MS = 5 * 60 * 1_000;
-/** Bigger than the longest prompt a phone can hold, and still bounded. */
-const MAX_SOCKET_MESSAGE = 2 * 1024 * 1024;
+/** The shared socket also carries a computer's complete attachment send. */
+const MAX_SOCKET_MESSAGE = MAX_COMPUTER_MESSAGE_BYTES;
 /** How many settled request IDs a device remembers. Comfortably more than a phone's own outbox holds. */
 const MAX_HANDLED_REQUESTS = 256;
 /** How many of a device's commands may be waiting on the window at once. */
@@ -589,7 +589,7 @@ export class MobileServer {
     let moved = false;
     for (const session of [...this.sessions.values()]) {
       if (session.socket) {
-        if (now - session.lastSeenAt > MOBILE_DEAD_AFTER_MS) {
+        if (now - session.lastSeenAt > (session.kind === "computer" ? COMPUTER_TRANSFER_TIMEOUT_MS : MOBILE_DEAD_AFTER_MS)) {
           session.socket.terminate();
           continue;
         }

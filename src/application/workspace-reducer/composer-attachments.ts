@@ -31,7 +31,7 @@ export function reduceComposerAttachments(state: WorkspaceState, input: Attachme
       if (send.busy) return settled(state);
       /** Pasting and grabbing fill the same strip from different sides, so the total is checked once here. */
       if (input.attachments.length > MAX_ATTACHMENTS) {
-        return settled(withSend(state, input.taskId, { ...send, error: `You can attach up to ${MAX_ATTACHMENTS} images.` }));
+        return settled(withSend(state, input.taskId, { ...send, error: `You can attach up to ${MAX_ATTACHMENTS} images.` }), [], { ok: false, message: `You can attach up to ${MAX_ATTACHMENTS} images.` });
       }
       if (input.attachments.length === 0) return sent(state, input, [], input.steer);
       return settled(
@@ -49,7 +49,7 @@ export function reduceComposerAttachments(state: WorkspaceState, input: Attachme
       return sent(withSend(state, input.taskId, { busy: false, error: null, sent: input.ids }), input, input.attachments, input.steer);
 
     case "attachments.failed":
-      return settled(withSend(state, input.taskId, { ...send, busy: false, error: input.message }));
+      return settled(withSend(state, input.taskId, { ...send, busy: false, error: input.message }), [], { ok: false, message: input.message });
 
     case "attachments.notice":
       if (send.error === input.message) return settled(state);

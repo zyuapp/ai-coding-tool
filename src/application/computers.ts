@@ -11,7 +11,8 @@ import { hasUnreadAttention } from "../domain/attention.js";
 import type { ComputerFilter, ComputerLink, ComputerPairing, DiscoveredComputer } from "../domain/computers.js";
 import type { Project } from "../domain/project.js";
 import type { Thread } from "../domain/thread.js";
-import { annotationsFor, pastesFor } from "./composer-drafts.js";
+import { MAIN_COMPOSER } from "./composer-attachments.js";
+import { annotationsFor, filesFor, pastesFor } from "./composer-drafts.js";
 import { blockedThreadIds, busyThreadIds, promptKey, sideChatIds, type WorkspaceState } from "./workspace-state.js";
 import type { WorkspaceInput } from "./workspace-reducer.js";
 
@@ -80,7 +81,11 @@ export type InputRoute =
   | { kind: "refuse"; message: string };
 
 /** The draft a send carried, whole, so what is typed or changed after it went can be told apart and stays. */
-export type SentDraft = { key: string; prompt: string; pastes: PastedText[]; annotations: Annotation[] };
+export type SentDraft = {
+  key: string; prompt: string; pastes: PastedText[]; annotations: Annotation[];
+  /** The sending strip: the main composer or a named side chat, independent of the thread's draft key. */
+  attachments?: { key: string; ids: string[] };
+};
 
 const LOCAL = { kind: "local" } as const;
 
@@ -99,7 +104,7 @@ const LOCAL_PREFIXES = ["computer-use.", "cli.", "engine.", "remote.", "computer
 const PANEL_PREFIXES = ["terminal.", "browser."] as const;
 
 export const PANEL_ELSEWHERE = "The terminal and browser panels open only for threads on this computer.";
-export const ATTACHMENTS_ELSEWHERE = "Images and files cannot be sent to a thread on another computer yet.";
+export const ATTACHMENTS_ELSEWHERE = "Files and folders attached by local path cannot be sent to another computer.";
 export const FILES_ELSEWHERE = "That folder is on another computer, so it cannot be opened here.";
 
 function forwarded(computer: PairedComputer, inputs: WorkspaceInput[], options: { select?: true; also?: true; draft?: SentDraft } = {}): InputRoute {
@@ -117,25 +122,32 @@ function selecting(state: WorkspaceState, computer: PairedComputer, inputs: Work
  * refused leaves nothing behind for the next, and its send reads them from there. The draft stays
  * here until that computer has taken it. A send with text of its own goes as it is.
  */
-function forwardedSend(state: WorkspaceState, computer: PairedComputer, command: Extract<AppCommand, { type: "task.send" }>): InputRoute {
-  if (command.attachments?.length) return { kind: "refuse", message: ATTACHMENTS_ELSEWHERE };
+function forwardedSend(state: WorkspaceState, computer: PairedComputer, command: Extract<AppCommand, { type: "task.send" | "attachments.send" }>): InputRoute {
+  if (command.type === "task.send" && command.attachments?.length) return { kind: "refuse", message: ATTACHMENTS_ELSEWHERE };
   const remote = computer.state;
   if (!remote) return { kind: "refuse", message: "That computer has not answered yet." };
-  const { attachments: _none, ...rest } = command;
-  if (rest.text !== undefined) return forwarded(computer, [rest]);
+  const { attachments: _attachments, ...rest } = command;
+  if (rest.type === "task.send" && rest.text !== undefined) return forwarded(computer, [rest]);
   /** The thread the send is for: the one named, else the one that computer has open, else its draft. */
   const key = command.taskId ?? promptKey(remote);
+  if (filesFor(state, key).length) return { kind: "refuse", message: ATTACHMENTS_ELSEWHERE };
   const prompt = state.prompts[key] ?? "";
   const annotations = annotationsFor(state, key);
   const pastes = pastesFor(state, key);
   const { taskId: _named, ...send } = rest;
+  const outgoing = command.type === "attachments.send"
+    ? { ...send, type: "attachments.send" as const, attachments: command.attachments.map(({ path: _local, ...attachment }) => attachment) }
+    : { ...send, type: "task.send" as const };
   const inputs: WorkspaceInput[] = [
     { type: "view.set-prompt", taskId: key, prompt },
     { type: "annotation.recall", taskId: key, annotations },
     { type: "paste.recall", taskId: key, pastes },
-    { ...send, ...(key.startsWith("draft:") ? {} : { taskId: key }) },
+    { ...outgoing, ...(key.startsWith("draft:") ? {} : { taskId: key }) },
   ];
-  const draft: SentDraft = { key, prompt, pastes, annotations };
+  const draft: SentDraft = {
+    key, prompt, pastes, annotations,
+    ...(command.type === "attachments.send" ? { attachments: { key: command.taskId ?? MAIN_COMPOSER, ids: command.attachments.map((attachment) => attachment.id) } } : {}),
+  };
   return forwarded(computer, inputs, { draft });
 }
 
@@ -179,11 +191,7 @@ export function routeInput(state: WorkspaceState, input: WorkspaceInput): InputR
   const computer = named ?? ("taskId" in input && input.taskId !== undefined ? null : active);
   if (!computer) return LOCAL;
   if (PANEL_PREFIXES.some((prefix) => type.startsWith(prefix))) return { kind: "refuse", message: PANEL_ELSEWHERE };
-  if (type === "task.send") return forwardedSend(state, computer, input);
-  if (type === "attachments.send") {
-    if (input.attachments.length) return { kind: "refuse", message: ATTACHMENTS_ELSEWHERE };
-    return forwardedSend(state, computer, { type: "task.send", ...(input.taskId === undefined ? {} : { taskId: input.taskId }), ...(input.steer ? { steer: input.steer } : {}) });
-  }
+  if (type === "task.send" || type === "attachments.send") return forwardedSend(state, computer, input);
   return forwarded(computer, [input]);
 }
 

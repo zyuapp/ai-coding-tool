@@ -1,9 +1,10 @@
-import { memo } from "react";
+import { memo, useContext } from "react";
 import { attachmentUrl } from "../../application/attachments";
 import type { StreamingTail } from "../../application/thread-run-state";
 import type { AgentEngine } from "../../domain/agent-engine";
 import type { ConversationMessage } from "../../domain/conversation";
 import { timeSteps, toSegments, type TimelineGroup } from "../timeline/grouping";
+import { MessageArtifactScope } from "./MarkdownMessage";
 import { AnnotationRow } from "./AnnotationRow";
 import { CopyButton } from "./CopyButton";
 import { FileRow } from "./FileRow";
@@ -18,6 +19,7 @@ const clockTime = (at: number) => (clockFormatter ??= new Intl.DateTimeFormat(un
 const fullMoment = (at: number) => (momentFormatter ??= new Intl.DateTimeFormat(undefined, { dateStyle: "full", timeStyle: "medium" })).format(at);
 
 function UserMessage({ message, onView }: { message: ConversationMessage; onView: (source: string) => void }) {
+  const { taskId } = useContext(MessageArtifactScope);
   return (
     <article className="message user">
       <div className="message-stack">
@@ -30,9 +32,9 @@ function UserMessage({ message, onView }: { message: ConversationMessage; onView
               <button
                 type="button" key={file} className="message-attachment"
                 aria-label={`View screenshot ${index + 1}`}
-                onClick={() => onView(attachmentUrl(file))}
+                onClick={() => onView(attachmentUrl(file, taskId))}
               >
-                <img src={attachmentUrl(file)} alt="" />
+                <img src={attachmentUrl(file, taskId)} alt="" />
               </button>
             ))}
           </div>

@@ -1,3 +1,5 @@
+import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS } from "../../../src/domain/conversation.ts";
+import { COMPUTER_SEND_TOO_LARGE } from "../../../src/contracts/computers.ts";
 import assert from "node:assert/strict";
 import type { ThreadNotice } from "../../../src/contracts/ipc.ts";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -163,4 +165,20 @@ test("the links keep the token on disk with the computer's name, and a forgotten
   assert.deepEqual(links.links(), []);
   assert.deepEqual(JSON.parse(await readFile(path.join(folder, "computers.v1.json"), "utf8")).computers, []);
   await assert.rejects(links.send(id, [{ type: "task.new" }]), /no longer paired/);
+});
+
+
+test("a strip larger than the old socket cap crosses intact, and oversize images leave the link usable", async (t) => {
+  const served = await host(t);
+  const mac = client({ url: served.url, credential: { code: served.mint() } });
+  t.onTestFinished(() => mac.link.stop());
+  await until(() => mac.link.status === "connected", "the connection");
+  const attachments = Array.from({ length: MAX_ATTACHMENTS }, (_, id) => ({ id: String(id), source: `data:image/png;base64,${"A".repeat(512 * 1024)}`, annotations: [] }));
+  assert.equal((await mac.link.send([{ type: "attachments.send", attachments }])).ok, true);
+  assert.deepEqual(served.inputs, [{ type: "attachments.send", attachments }]);
+  await assert.rejects(mac.link.send([{ type: "attachments.send", attachments: [{ id: "oversize", source: `data:image/png;base64,${"A".repeat(MAX_ATTACHMENT_BYTES + 1)}`, annotations: [] }] }]), { message: COMPUTER_SEND_TOO_LARGE });
+  assert.equal(served.inputs.length, 1, "the oversized payload never reaches the socket");
+  assert.equal(mac.link.status, "connected");
+  assert.equal((await mac.link.send([{ type: "task.send", text: "still connected" }])).ok, true);
+  assert.deepEqual(await mac.link.query({ kind: "attachment", name: "shot.png" }), { status: "available", patch: "patch for attachment" });
 });

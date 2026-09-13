@@ -1,3 +1,4 @@
+import { MAX_ATTACHMENTS, MAX_ATTACHMENT_BYTES } from "../domain/conversation.js";
 import type { WorkspaceCommandResult, WorkspaceInput } from "../application/workspace-reducer.js";
 import { isWorkspaceViewInput } from "./workspace-view-input.js";
 import { isAgentEngine, type AgentEngine } from "../domain/agent-engine.js";
@@ -13,8 +14,15 @@ import type { WorkspaceUpdate } from "./workspace-runtime.js";
  */
 export const COMPUTER_PROTOCOL_VERSION = 1;
 
+/** A complete image strip, plus room for the prompt, annotations, and wire envelope. */
+export const MAX_COMPUTER_MESSAGE_BYTES = MAX_ATTACHMENTS * MAX_ATTACHMENT_BYTES + 2 * 1024 * 1024;
+/** Transfers share a socket with heartbeats, which wait behind large frames. */
+export const COMPUTER_TRANSFER_TIMEOUT_MS = 5 * 60_000;
+export const COMPUTER_SEND_TOO_LARGE = "This message is too large to send to another computer. Use smaller images or send fewer attachments.";
+
 /** Reads that are content rather than state, which the window asks its own desktop for. */
 export type ComputerQuery =
+  | { kind: "attachment"; name: string }
   | { kind: "diff-patch"; workspaceId: string; range: DiffRange; path: string; previousPath?: string; ignoreWhitespace?: boolean }
   | { kind: "branches"; workspaceId: string }
   | { kind: "commands"; workspaceId: string; engine: AgentEngine };
@@ -60,7 +68,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function isComputerQuery(value: unknown): value is ComputerQuery {
-  if (!isRecord(value) || !isString(value.workspaceId)) return false;
+  if (!isRecord(value)) return false;
+  if (value.kind === "attachment") return isString(value.name) && /^[A-Za-z0-9-]+\.png$/.test(value.name);
+  if (!isString(value.workspaceId)) return false;
   if (value.kind === "branches") return true;
   if (value.kind === "commands") return isAgentEngine(value.engine);
   return value.kind === "diff-patch" && isDiffRange(value.range) && isString(value.path, MAX_PATH_LENGTH)

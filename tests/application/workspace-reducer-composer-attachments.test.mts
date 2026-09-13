@@ -43,6 +43,7 @@ test("more images than one message may carry stop the send and say so", () => {
 
   const refused = reduce(drafted(), { type: "attachments.send", attachments: tooMany });
 
+  assert.equal(refused.result?.ok, false);
   assert.deepEqual(refused.effects, []);
   assert.equal(attachmentSendFor(refused.state.attachmentSends).error, `You can attach up to ${MAX_ATTACHMENTS} images.`);
   assert.deepEqual(refused.state.pendingRuns, {});
@@ -62,6 +63,7 @@ test("an image that could not be written stops the send and gives the composer b
 
   const failed = reduce(sending.state, { type: "attachments.failed", message: "The disk is full." });
 
+  assert.deepEqual(failed.result, { ok: false, message: "The disk is full." });
   const send = attachmentSendFor(failed.state.attachmentSends);
   assert.equal(send.busy, false);
   assert.equal(send.error, "The disk is full.");
