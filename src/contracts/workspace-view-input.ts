@@ -30,6 +30,8 @@ function record(value: unknown): value is Record<string, unknown> {
 }
 
 const text: Validator<string> = (value): value is string => typeof value === "string" && value.length <= 16_000_000;
+const pathText: Validator<string> = (value): value is string => typeof value === "string" && value.length <= 4096 && !value.includes("\0");
+const deviceId: Validator<string> = (value): value is string => typeof value === "string" && value.length > 0 && value.length <= 256;
 const boolean: Validator<boolean> = (value): value is boolean => typeof value === "boolean";
 const number: Validator<number> = (value): value is number => typeof value === "number" && Number.isFinite(value);
 
@@ -172,6 +174,14 @@ const shapes = {
   "image.remove": { taskId: optionalText, imageId: text },
   "image.recall": { taskId: optionalText, paths: array(text) },
   "project.open": {  },
+  "project.add": { root: (value): value is string => pathText(value) && value.trim().length > 0, computerId: optional(deviceId) },
+  "view.add-project-close": {},
+  "view.add-project-device": { computerId: deviceId },
+  "view.add-project-path": { root: pathText },
+  "view.add-project-pick": {},
+  "view.add-project-submit": {},
+  "view.add-project-key": { key: literals("ArrowUp", "ArrowDown", "Tab", "Enter", "Escape") },
+  "view.add-project-accept": { index: (value): value is number => number(value) && Number.isInteger(value) && value >= 0 && value < 20 },
   "project.move": { projectId: text, index: number },
   "project.edit": { projectId: text, name: optional(nullableText), root: optionalText },
   "project.remove": { projectId: text },

@@ -163,6 +163,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
   onMoveProject,
   onOpenSettings,
 }: ProjectSidebarProps) {
+  const selectedComputer = computerLinks.find((link) => link.id === computerFilter);
   const list = useRef<HTMLElement>(null);
   const shownThreads = useShownThreads();
   let timeFormatter: Intl.DateTimeFormat | undefined;
@@ -220,6 +221,11 @@ export const ProjectSidebar = memo(function ProjectSidebar({
       </button>
 
       <div className="sidebar-scroll">
+        {projects.length === 0 && computerFilter !== "all" && <div className="sidebar-project-empty">
+          {selectedComputer && selectedComputer.status !== "connected"
+            ? <p role="alert">{selectedComputer.error ?? `${selectedComputer.name} is offline.`}</p>
+            : <><p>{selectedComputer?.name ?? (computerName || "This computer")} has no projects yet</p><button type="button" onClick={onOpenFolder}>Add project</button></>}
+        </div>}
         {mode === "activity" && <SidebarActivity
           activityThreads={activityThreads}
           sections={sections}

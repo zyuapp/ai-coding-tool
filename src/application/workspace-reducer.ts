@@ -116,6 +116,7 @@ function combineTransitions(previous: WorkspaceTransition, next: WorkspaceTransi
  * the surface holding the caret, so Esc in a side chat stops that chat and never the main thread.
  */
 export function escapeCommands(state: WorkspaceState): AppCommand[] {
+  if (state.projectAdd) return [{ type: "view.add-project-key", key: "Escape" }];
   if (state.viewingImage) return [{ type: "image.close" }];
   if (state.jump) return [{ type: "view.jump-close" }];
   if (state.openMenu !== null) return [{ type: "view.set-menu", menu: null }];

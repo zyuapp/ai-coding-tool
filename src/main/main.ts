@@ -553,17 +553,6 @@ ipcMain.handle("workspace:open", async (event) => {
   return registration.workspace;
 });
 
-/**
- * A folder the user typed rather than picked. Everything the picker guarantees has to be checked
- * here instead: that it is a directory, and that it is theirs rather than a checkout the app made.
- */
-ipcMain.handle("workspace:register", async (event, root: unknown) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  const { projectFolder } = await import("./project-folder.mjs");
-  const folder = await projectFolder(root, [WORKTREES_ROOT, ...legacyWorktreesRoots(app.getPath("userData"))]);
-  return (await getWorkspaceService().registerProject(folder)).workspace;
-});
-
 ipcMain.handle("workspace:projectless", async (event) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   return (await getWorkspaceService().getProjectless()).workspace;
@@ -835,4 +824,4 @@ ipcMain.handle("attachment:save", async (event, data: unknown, original: unknown
   return file;
 });
 
-registerWorkspaceIpc({ workspaces: getWorkspaceService, worktrees: getWorktreeService, elsewhere: computerBridge.elsewhere }, trustedSender);
+registerWorkspaceIpc({ workspaces: getWorkspaceService, worktrees: getWorktreeService, elsewhere: computerBridge.elsewhere, worktreesRoots: () => [WORKTREES_ROOT, ...legacyWorktreesRoots(app.getPath("userData"))], computerQuery: (id, query) => getComputerLinks().query(id, query) }, trustedSender);

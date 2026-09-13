@@ -176,6 +176,14 @@ export type ImageViewCommand = { type: "image.open"; source: string } | { type: 
 
 export type ProjectCommand =
   | { type: "project.open" }
+  | { type: "project.add"; root: string; computerId?: string }
+  | { type: "view.add-project-close" }
+  | { type: "view.add-project-device"; computerId: string }
+  | { type: "view.add-project-path"; root: string }
+  | { type: "view.add-project-pick" }
+  | { type: "view.add-project-submit" }
+  | { type: "view.add-project-key"; key: "ArrowUp" | "ArrowDown" | "Tab" | "Enter" | "Escape" }
+  | { type: "view.add-project-accept"; index: number }
   /** `index` counts the folders in the sidebar with the moved one already taken out. */
   | { type: "project.move"; projectId: string; index: number }
   /**

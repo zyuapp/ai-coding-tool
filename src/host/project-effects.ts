@@ -1,6 +1,8 @@
 import { errorMessage } from "./errors.js";
 import type { EffectHandlers, EffectHost, EnvironmentRefreshEffect } from "./effect-host.js";
 
+const directoryRequests = new WeakMap<object, object>();
+
 /** One Git scan per checkout. A tick during a slow scan replaces the one follow-up still needed. */
 async function refreshEnvironment(first: EnvironmentRefreshEffect, host: EffectHost) {
   const { dispatch, environmentRefreshes } = host;
@@ -28,6 +30,39 @@ async function refreshEnvironment(first: EnvironmentRefreshEffect, host: EffectH
 
 /** The project's folder, its checkouts, and what Git says about them. */
 export const projectEffects = {
+  "add-project": async (effect, { dispatch, desktop }) => {
+    try {
+      const workspace = await desktop.registerProject(effect.root);
+      await dispatch({ type: "project.added", workspace, ...(effect.request === undefined ? {} : { request: effect.request }) });
+    } catch (error) {
+      await dispatch({ type: "project.add-finished", ...(effect.request === undefined ? {} : { request: effect.request }), error: errorMessage(error) });
+    }
+  },
+
+  "project-add.pick": async (effect, { dispatch, desktop }) => {
+    try {
+      const workspace = await desktop.openFolder();
+      await dispatch({ type: "project.path-picked", request: effect.request, ...(workspace ? { root: workspace.root } : {}) });
+    } catch (error) {
+      await dispatch({ type: "project.path-picked", request: effect.request, error: errorMessage(error) });
+    }
+  },
+
+  "project-add.directories": async (effect, { dispatch, desktop }) => {
+    const pending = {};
+    directoryRequests.set(desktop, pending);
+    await new Promise((resolve) => setTimeout(resolve, 180));
+    if (directoryRequests.get(desktop) !== pending) return;
+    try {
+      const directories = await desktop.directories(effect.prefix, effect.computerId);
+      await dispatch({ type: "project.directories", request: effect.request, directories });
+    } catch (error) {
+      await dispatch({ type: "project.directories", request: effect.request, directories: [], error: errorMessage(error) });
+    } finally {
+      if (directoryRequests.get(desktop) === pending) directoryRequests.delete(desktop);
+    }
+  },
+
   "pick-project": async (_effect, { dispatch, desktop }) => {
     try {
       const workspace = await desktop.openFolder();

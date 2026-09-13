@@ -1,3 +1,4 @@
+import { queryDirectories } from "./computer-queries.js";
 import { app, dialog, shell, type BrowserWindow } from "electron";
 import type { ComputerDesktop, RuntimeDesktop } from "../host/runtime-desktop.js";
 import type { ComputerLinks } from "./computers/computer-links.mjs" with { "resolution-mode": "import" };
@@ -70,6 +71,7 @@ function panelDesktop(host: RuntimeDesktopHost) {
 function windowDesktop(host: RuntimeDesktopHost) {
   const { events } = host;
   return {
+    directories: (prefix, computerId) => queryDirectories(prefix, computerId, (id, query) => host.computers().query(id, query)),
     openFolder: async () => {
       const window = host.window();
       const options = { properties: ["openDirectory", "createDirectory"] as const, title: "Open a project folder" };

@@ -29,7 +29,7 @@ export type ComputerEffect =
   | { type: "computer.rename"; name: string }
   | { type: "computer.label"; id: string; name: string }
   /** Inputs on their way to the computer that holds the thread they are about, with the draft a send carries. */
-  | { type: "computer.forward"; id: string; inputs: WorkspaceInput[]; draft?: SentDraft };
+  | { type: "computer.forward"; id: string; inputs: WorkspaceInput[]; projectAddRequest?: number; draft?: SentDraft };
 
 export type ComputerInput = ComputerCommand | ComputerEvent;
 

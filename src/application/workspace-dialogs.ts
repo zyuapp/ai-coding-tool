@@ -36,3 +36,7 @@ export function worktreeMoveView(state: WorkspaceState): WorktreeMoveView | null
   };
 }
 
+/** Dialogs always describe the window that opened them, including over a remote thread. */
+export function workspaceDialogsView(state: WorkspaceState) {
+  return { projectAdd: state.projectAdd, projectEditor: projectEditorView(state), worktreeMove: worktreeMoveView(state) };
+}

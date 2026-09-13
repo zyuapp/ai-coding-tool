@@ -105,7 +105,7 @@ export function leavesComputer(input: WorkspaceInput): boolean {
 }
 
 /** Commands that stay on this computer whatever thread is on screen: the window, its settings, and its drafts. */
-const LOCAL_PREFIXES = ["computer-use.", "cli.", "engine.", "remote.", "computers.", "app.list", "app.check-for-updates", "app.open-source-licenses", "worktree.", "annotation.", "paste.", "image.", "file.", "view.set-theme", "view.set-ui", "view.set-mono", "view.set-reading", "view.set-terminal", "view.set-sidebar", "view.set-session", "view.set-capture", "view.set-chrome", "view.set-concise", "view.set-computer", "view.set-browser", "view.set-notifications", "view.set-settings", "view.set-shortcut", "view.reset-shortcuts", "view.capture-shortcut", "view.dismiss-", "view.set-section", "view.set-subagent", "view.set-model-favorite", "view.set-menu", "view.go-", "view.mounted", "view.closed", "view.toggle-project", "view.edit-project", "view.move-worktree", "view.jump-", "view.find-", "view.focus-composer", "view.system-scheme", "view.set-prompt", "view.reading-point", "view.refresh-environment", "usage.", "project.open", "attachments.notice"] as const;
+const LOCAL_PREFIXES = ["computer-use.", "cli.", "engine.", "remote.", "computers.", "app.list", "app.check-for-updates", "app.open-source-licenses", "worktree.", "annotation.", "paste.", "image.", "file.", "view.set-theme", "view.set-ui", "view.set-mono", "view.set-reading", "view.set-terminal", "view.set-sidebar", "view.set-session", "view.set-capture", "view.set-chrome", "view.set-concise", "view.set-computer", "view.set-browser", "view.set-notifications", "view.set-settings", "view.set-shortcut", "view.reset-shortcuts", "view.capture-shortcut", "view.dismiss-", "view.set-section", "view.set-subagent", "view.set-model-favorite", "view.set-menu", "view.go-", "view.mounted", "view.closed", "view.toggle-project", "view.edit-project", "view.add-project-", "view.move-worktree", "view.jump-", "view.find-", "view.focus-composer", "view.system-scheme", "view.set-prompt", "view.reading-point", "view.refresh-environment", "usage.", "project.open", "attachments.notice"] as const;
 
 /** Commands that only this computer's own panels can carry out. */
 const PANEL_PREFIXES = ["terminal.", "browser."] as const;
@@ -170,6 +170,13 @@ function forwardedSend(state: WorkspaceState, computer: PairedComputer, command:
  * thread on screen goes to the computer showing it; the window's own affairs stay here.
  */
 export function routeInput(state: WorkspaceState, input: WorkspaceInput): InputRoute {
+  if (input.type === "project.add") {
+    if (!input.computerId || input.computerId === "this") return LOCAL;
+    const computer = state.computers.paired.find((item) => item.id === input.computerId);
+    if (!computer) return { kind: "refuse", message: "That computer is no longer paired." };
+    if (computer.status !== "connected") return { kind: "refuse", message: computer.error ?? `${computer.name} is offline.` };
+    return forwarded(computer, [{ type: "project.add", root: input.root }]);
+  }
   if (!state.computers.paired.length || !isAppCommandType(input.type)) return LOCAL;
   const active = activeComputer(state);
   const type = input.type;

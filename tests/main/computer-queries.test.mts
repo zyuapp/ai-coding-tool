@@ -1,12 +1,12 @@
 import { MAX_ATTACHMENT_BYTES } from "../../src/domain/conversation.ts";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, mkdir, symlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { test } from "vitest";
 import { attachmentName, attachmentUrl } from "../../src/application/attachments.ts";
 import { isComputerQuery } from "../../src/contracts/computers.ts";
-import { answerComputerQuery, type ComputerQueryHost } from "../../src/main/computer-queries.ts";
+import { answerComputerQuery, queryDirectories, type ComputerQueryHost } from "../../src/main/computer-queries.ts";
 import { attachmentResponse } from "../../src/main/attachment-response.ts";
 import { attachmentsDirectory, useAttachmentsDirectory, writeAttachment, readSavedAttachment } from "../../src/main/attachment-store.ts";
 import { task, workspace } from "../application/workspace-reducer-fixtures.mts";
@@ -75,4 +75,44 @@ test("saving and reading an attachment use the decoded byte limit including base
   assert.equal(response.status, 200);
   assert.equal((await response.arrayBuffer()).byteLength, MAX_ATTACHMENT_BYTES);
   await assert.rejects(writeAttachment(Buffer.alloc(MAX_ATTACHMENT_BYTES + 1).toString("base64")), /too large/);
+});
+
+
+test("directory queries share local and remote results, expand home and exclude files and unrequested hidden folders", async (t) => {
+  const folder = await mkdtemp(path.join(os.tmpdir(), "aic-directories-"));
+  t.onTestFinished(() => rm(folder, { recursive: true, force: true }));
+  await Promise.all(["work", "world", ".hidden"].map((name) => mkdir(path.join(folder, name))));
+  await writeFile(path.join(folder, "word.txt"), "file");
+  await symlink(path.join(folder, "work"), path.join(folder, "work-link"));
+  await symlink(path.join(folder, "missing"), path.join(folder, "wrong-link"));
+  const prefix = `${folder}/wo`;
+  const expected = ["work", "work-link", "world"].map((name) => `${folder}/${name}/`).sort((a, b) => a.localeCompare(b));
+  assert.deepEqual(await answerComputerQuery({ kind: "directories", prefix }, host), expected);
+  assert.deepEqual(await queryDirectories(prefix, "this"), expected);
+  const queries: unknown[] = [];
+  assert.deepEqual(await queryDirectories(prefix, "linux", async (id, query) => {
+    queries.push([id, query]);
+    return answerComputerQuery(query, host);
+  }), expected);
+  assert.deepEqual(queries, [["linux", { kind: "directories", prefix }]]);
+  assert.deepEqual(await queryDirectories(`${folder}/.`), [`${folder}/.hidden/`]);
+  assert.equal((await queryDirectories(`${folder}/`)).includes(`${folder}/.hidden/`), false);
+  assert.deepEqual(await queryDirectories(`${folder}/missing/`), []);
+  assert.deepEqual(await queryDirectories(`${folder}/word.txt/`), []);
+  assert.deepEqual(await queryDirectories("relative/path"), []);
+  assert.deepEqual(await queryDirectories("~/"), await queryDirectories(`${os.homedir()}/`));
+  assert.deepEqual(await queryDirectories("~"), await queryDirectories(`${os.homedir()}/`));
+});
+
+test("directory scans and untrusted queries and answers are bounded", async (t) => {
+  const folder = await mkdtemp(path.join(os.tmpdir(), "aic-directory-limit-"));
+  t.onTestFinished(() => rm(folder, { recursive: true, force: true }));
+  await Promise.all(Array.from({ length: 30 }, (_, i) => mkdir(path.join(folder, `dir-${i}`))));
+  assert.equal((await queryDirectories(`${folder}/`)).length, 20);
+  for (const prefix of [42, "x".repeat(4097), "bad\0path"]) assert.equal(isComputerQuery({ kind: "directories", prefix }), false);
+  await assert.rejects(queryDirectories("bad\0path"), /Invalid directory query/);
+  await assert.rejects(queryDirectories("/", "linux"), /unavailable/);
+  await assert.rejects(queryDirectories("/", "linux", async () => { throw new Error("Connection refused"); }), /Connection refused/);
+  await assert.rejects(queryDirectories("/", "linux", async () => Array(21).fill("/")), /Invalid directory response/);
+  await assert.rejects(queryDirectories("/", "linux", async () => [42]), /Invalid directory response/);
 });

@@ -3,6 +3,7 @@ import { reduceWorktrees } from "./worktrees.js";
 import { reduceWorktreeMenu } from "./worktree-menu.js";
 import { reduceSending } from "./sending.js";
 import { reduceComposerAttachments } from "./composer-attachments.js";
+import { reduceProjectAdd } from "../project-add.js";
 import { reduceProjectCommands } from "./projects.js";
 import { reduceCli } from "./cli.js";
 import { reduceComputerUse } from "./computer-use.js";
@@ -54,7 +55,13 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "task.send": case "question.answer": case "question.set-answer": case "task.steer-queued": case "task.drop-queued":
       return reduceSending(state, input);
 
-    case "project.open": case "project.opened": case "project.edit":
+    case "project.open": case "project.add": case "project.added": case "project.add-finished":
+    case "project.directories": case "project.path-picked":
+    case "view.add-project-close": case "view.add-project-device": case "view.add-project-path":
+    case "view.add-project-pick": case "view.add-project-submit": case "view.add-project-key": case "view.add-project-accept":
+      return reduceProjectAdd(state, input);
+
+    case "project.opened": case "project.edit":
     case "project.registered": case "project.register-failed": case "project.move":
     case "view.edit-project": case "view.toggle-project": case "project.remove":
       return reduceProjectCommands(state, input);

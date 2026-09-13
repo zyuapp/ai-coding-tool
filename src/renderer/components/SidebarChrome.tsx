@@ -43,7 +43,7 @@ export function ComputerSwitch({ links, name, filter, onSetFilter, openMenu, onS
       <button
         ref={trigger}
         type="button"
-        className="computer-switch-trigger"
+        className={`computer-switch-trigger${selected.offline ? " offline" : ""}`}
         aria-label={`Computers: ${selected.label}`}
         aria-haspopup="menu"
         aria-expanded={open}

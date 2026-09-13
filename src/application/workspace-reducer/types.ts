@@ -37,6 +37,7 @@ export type WorkspaceEvent =
   | { type: "preferences.loaded"; preferences: ViewPreferences }
   | { type: "store.failed"; message: string }
   | { type: "action.failed"; message: string }
+  | import("../project-add.js").ProjectAddEvent
   | ProjectEvent
   | { type: "run.event"; event: RunEvent }
   /** Work that reports to its thread rather than to a run, which may be long over by then. */
@@ -96,6 +97,7 @@ export type WorkspaceEvent =
 export type WorkspaceEffect =
   | { type: "schedule-snooze-expiry"; at: number | null }
   | { type: "pick-project" }
+  | import("../project-add.js").ProjectAddEffect
   | RegisterProjectEffect
   | { type: "persist-preferences"; preferences: ViewPreferences }
   | {

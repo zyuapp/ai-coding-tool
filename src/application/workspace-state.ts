@@ -36,7 +36,8 @@ import type { AutomationView } from "../domain/automation.js";
 import { emptyMobileServerState, type MobileServerState } from "../domain/mobile.js";
 import { activeComputer, NO_COMPUTERS, type ComputersState } from "./computers.js";
 import { overlaidView } from "./workspace-view-overlay.js";
-import { projectEditorView, worktreeMoveView } from "./workspace-dialogs.js";
+import { NO_PROJECT_ADD, type ProjectAddWorkspaceState } from "./project-add.js";
+import { workspaceDialogsView } from "./workspace-dialogs.js";
 export type { ProjectEditorView, WorktreeMoveView } from "./workspace-dialogs.js";
 import type { BrowserApproval } from "../domain/browser.js";
 import type { FindResults, FindTarget } from "../domain/find.js";
@@ -225,7 +226,7 @@ export type ReviewPicker = {
   step: "targets" | "base" | "commit" | "custom";
 };
 
-export type WorkspaceState = {
+export type WorkspaceState = ProjectAddWorkspaceState & {
   threads: Thread[];
   /** Native goals live only as long as this app session. */
   goals: Record<string, ActiveGoal>;
@@ -434,6 +435,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     images: {},
     files: {},
     expandedProjects: new Set(),
+    ...NO_PROJECT_ADD,
     projectEdit: null,
     worktreeMove: null,
     sections: OPEN_SIDEBAR_SECTIONS,
@@ -843,8 +845,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state)
     restored: state.restored,
     computerUseSetup: state.computerUseSetup,
     expandedProjects: state.expandedProjects,
-    projectEditor: projectEditorView(state),
-    worktreeMove: worktreeMoveView(state),
+    ...workspaceDialogsView(state),
     sections: state.sections,
     subagentGroups: state.subagentGroups,
     theme: state.theme,

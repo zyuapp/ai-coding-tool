@@ -1,3 +1,4 @@
+import { queryDirectories } from "./computer-queries.js";
 import { ipcMain, shell, type IpcMainInvokeEvent } from "electron";
 import type { ComputerQuery } from "../contracts/computers.js";
 import type { CreateWorktreeRequest, ReleaseWorktreeRequest } from "../contracts/ipc.js";
@@ -8,6 +9,8 @@ import type { WorktreeService } from "./workspace/worktrees.mjs" with { "resolut
 /** The services a checkout question is answered from, taken late so neither has to exist yet. */
 export type WorkspaceIpcHost = {
   workspaces: () => WorkspaceService;
+  worktreesRoots: () => string[];
+  computerQuery: (id: string, query: ComputerQuery) => Promise<unknown>;
   worktrees: () => WorktreeService;
   /** Where a checkout that lives on a paired computer is read from, or null for one of this computer's own. */
   elsewhere?: (workspaceId: string) => ((query: ComputerQuery) => Promise<unknown>) | null;
@@ -29,6 +32,17 @@ async function readChangedFiles(host: WorkspaceIpcHost, workspaceId: string) {
 }
 
 export function registerWorkspaceIpc(host: WorkspaceIpcHost, trusted: (event: IpcMainInvokeEvent) => boolean) {
+  ipcMain.handle("workspace:directories", async (event, prefix: string, computerId?: string) => {
+    if (!trusted(event)) throw new Error("Untrusted IPC sender.");
+    return queryDirectories(prefix, computerId, host.computerQuery);
+  });
+
+  ipcMain.handle("workspace:register", async (event, root: unknown) => {
+    if (!trusted(event)) throw new Error("Untrusted IPC sender.");
+    const { projectFolder } = await import("./project-folder.mjs");
+    return (await host.workspaces().registerProject(await projectFolder(root, host.worktreesRoots()))).workspace;
+  });
+
   ipcMain.handle("workspace:branches", async (event, workspaceId: unknown) => {
     if (!trusted(event)) return { status: "error", message: "Untrusted IPC sender." } as const;
     const elsewhere = typeof workspaceId === "string" ? host.elsewhere?.(workspaceId) : null;

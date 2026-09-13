@@ -14,6 +14,7 @@ import type { AutomationDraft, AutomationPatch, AutomationView } from "./domain/
 const api: DesktopAPI = {
   platform: process.platform === "darwin" ? "macos" : process.platform === "linux" ? "linux" : "other",
   openFolder: () => ipcRenderer.invoke("workspace:open"),
+  directories: (prefix: string, computerId?: string) => ipcRenderer.invoke("workspace:directories", prefix, computerId),
   registerProject: (root: string) => ipcRenderer.invoke("workspace:register", root),
   onOpenProject: (listener: (workspace: WorkspaceRecord) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: WorkspaceRecord) => listener(payload);

@@ -218,6 +218,7 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   openFolder(): Promise<WorkspaceRecord | null>;
   /** Opens a folder named by path rather than picked, refusing anything that is not one to work in. */
   registerProject(root: string): Promise<WorkspaceRecord>;
+  directories(prefix: string, computerId?: string): Promise<string[]>;
   /** A folder the `aic` terminal command named, already registered as a workspace. */
   onOpenProject(listener: (workspace: WorkspaceRecord) => void): () => void;
   /** Whether the `aic` terminal command is installed, and the path it takes. */

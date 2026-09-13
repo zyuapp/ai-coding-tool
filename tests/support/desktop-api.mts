@@ -83,6 +83,7 @@ export function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
   let unsubscribed = false;
   const api: DesktopAPI = {
     ...gitDesktop, ...mobileDesktopStub, ...engineDesktopStub, openFolder: async () => null,
+    directories: async () => [],
     registerProject: async (root) => ({ id: root, kind: "project", root }),
     onOpenProject: (next) => { openProject = next; return () => {}; },
     onOpenThread: (next) => { openThread = next; return () => {}; },

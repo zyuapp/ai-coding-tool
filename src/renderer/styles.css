@@ -3971,7 +3971,7 @@ button.setting-hint:hover { color: var(--ink); }
 .project-edit-panel h2 { margin: 0; color: var(--ink); font-size: var(--text-control); font-weight: 600; }
 .project-edit-field { display: flex; flex-direction: column; gap: 6px; }
 .project-edit-field > span { color: var(--quiet); font-size: var(--text-meta); }
-.project-edit-field input {
+.project-edit-field input, .project-edit-field select {
   width: 100%;
   min-width: 0;
   height: 30px;
@@ -4209,7 +4209,7 @@ button.setting-hint:hover { color: var(--ink); }
 .computer-switch-trigger > svg { flex-shrink: 0; }
 .computer-switch-menu { top: calc(100% + 4px); left: 0; right: auto; min-width: 100%; max-width: min(320px, calc(100vw - 28px)); }
 .computer-switch-menu button.offline { color: var(--quiet); }
-.computer-switch-menu .offline .menu-label::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: currentColor; vertical-align: middle; }
+.computer-switch-trigger.offline > span::before, .computer-switch-menu .offline .menu-label::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: currentColor; vertical-align: middle; }
 .task-row.offline, .project-task-row.offline { opacity: 0.45; cursor: default; }
 .task-row.offline:hover, .project-task-row.offline:hover { background: transparent; }
 .computer-notice { background: var(--wash); }
@@ -4223,3 +4223,10 @@ button.setting-hint:hover { color: var(--ink); }
 .computer-name label { display: grid; gap: 4px; color: var(--quiet-strong); font-size: var(--text-meta); }
 .computer-name input { width: 24ch; border: 1px solid var(--line); border-radius: 7px; padding: 5px 9px; background: var(--wash); color: var(--ink); font: var(--text-control)/1.4 var(--ui-font); }
 .computer-rename { width: 24ch; max-width: 100%; height: 24px; border: 1px solid var(--line-strong); border-radius: 6px; padding: 0 6px; background: var(--surface-input); color: var(--ink); font: inherit; font-size: var(--text-control); }
+
+.project-directory-options { max-height: 200px; overflow: auto; border: 1px solid var(--line-mid); border-radius: 8px; padding: 4px; }
+.project-directory-options button { display: block; width: 100%; padding: 6px 8px; text-align: left; overflow-wrap: anywhere; background: transparent; border: 0; border-radius: 4px; color: var(--ink-soft); font: inherit; font-size: var(--text-meta); }
+.project-directory-options button:hover, .project-directory-options button[aria-selected="true"] { background: var(--control); color: var(--ink); }
+.sidebar-project-empty { padding: 12px; color: var(--quiet); font-size: var(--text-meta); overflow-wrap: anywhere; }
+.sidebar-project-empty p { margin: 0 0 8px; }
+.sidebar-project-empty button { border: 0; background: transparent; color: var(--ink); padding: 0; font: inherit; cursor: pointer; }

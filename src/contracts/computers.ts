@@ -23,6 +23,7 @@ export const COMPUTER_SEND_TOO_LARGE = "This message is too large to send to ano
 
 /** Reads that are content rather than state, which the window asks its own desktop for. */
 export type ComputerQuery =
+  | { kind: "directories"; prefix: string }
   | { kind: "attachment"; name: string }
   | { kind: "message-image"; path: string; root: string; message: string; thumbnail?: boolean }
   | { kind: "diff-patch"; workspaceId: string; range: DiffRange; path: string; previousPath?: string; ignoreWhitespace?: boolean }
@@ -83,6 +84,7 @@ export function isComputerQuery(value: unknown): value is ComputerQuery {
   if (value.kind === "attachment") return isString(value.name) && /^[A-Za-z0-9-]+\.png$/.test(value.name);
   if (value.kind === "message-image") return isMessageImageReference(value.path, value.root, value.message)
     && (value.thumbnail === undefined || typeof value.thumbnail === "boolean");
+  if (value.kind === "directories") return typeof value.prefix === "string" && value.prefix.length <= MAX_PATH_LENGTH && !value.prefix.includes("\0");
   if (!isString(value.workspaceId)) return false;
   if (value.kind === "branches") return true;
   if (value.kind === "commands") return isAgentEngine(value.engine);

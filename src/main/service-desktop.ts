@@ -1,3 +1,4 @@
+import { queryDirectories } from "./computer-queries.js";
 import type { AgentEngine } from "../domain/agent-engine.js";
 import type { ComputerUsePermission, ComputerUsePermissions } from "../domain/computer-use.js";
 import { terminalLineLimit } from "../domain/terminal.js";
@@ -49,6 +50,7 @@ function workspaceDesktop(host: ServiceDesktopHost) {
     return resolution.workspace.root;
   }
   return {
+    directories: (prefix, computerId) => queryDirectories(prefix, computerId),
     registerProject: async (root) => {
       const { projectFolder } = await import("./project-folder.mjs");
       return (await host.workspaces().registerProject(await projectFolder(root, host.worktreesRoots()))).workspace;

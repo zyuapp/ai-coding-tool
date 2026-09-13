@@ -51,10 +51,15 @@ export const computerEffects = {
     try {
       const result = await desktop.sendToComputer(effect.id, effect.inputs);
       if (!result.ok) throw new Error(result.message);
+      if (effect.projectAddRequest !== undefined) await dispatch({ type: "project.add-finished", request: effect.projectAddRequest });
       if (effect.draft) await dispatch({ type: "computers.forwarded", draft: effect.draft });
     } catch (error) {
       /** Whether anyone here is looking is told anew when the thread is next selected, so a line that dropped it is no error. */
       if (effect.inputs.every((input) => input.type === "view.set-focused")) return;
+      if (effect.projectAddRequest !== undefined) {
+        await dispatch({ type: "project.add-finished", request: effect.projectAddRequest, error: errorMessage(error) });
+        return;
+      }
       const composer = effect.draft?.attachments?.key;
       await dispatch(composer === undefined
         ? { type: "action.failed", message: errorMessage(error) }
