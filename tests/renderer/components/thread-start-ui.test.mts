@@ -124,6 +124,27 @@ test("the mode is chat or work, and a chat is left with nothing else to answer",
   await view.unmount();
 });
 
+test("the drafted project is shown wherever it sits in the list, and work starts in the first one offered", async () => {
+  const { ThreadModeSwitch, ThreadStartOptions } = await import("../../../src/renderer/components/ThreadStartOptions.tsx");
+  window.desktop = fakeDesktop();
+  const chosen: Array<string | undefined> = [];
+  const projects = [{ id: "local", root: "/mac/ai-coding-tool" }, { id: "remote", root: "/linux/just-speak" }];
+  const view = await mount(React.createElement(ThreadStartOptions, {
+    projects,
+    projectId: "remote",
+    branch: null,
+    worktree: false,
+    onSelectProject() {},
+    onSelectBranch() {},
+    onSetWorktree() {},
+  }));
+  assert.match(query(view.container, ".thread-start-field button").textContent, /just-speak/, "a draft in a later project still names it");
+  await view.render(React.createElement(ThreadModeSwitch, { projects, projectId: null, onSelectProject: (id) => { chosen.push(id); } }));
+  await act(async () => { item([...view.container.querySelectorAll<HTMLButtonElement>('[role="radio"]')][1]).click(); });
+  assert.deepEqual(chosen, ["local"], "work starts in the first project offered, which the view puts on this computer");
+  await view.unmount();
+});
+
 test("a branch the repository does not have is offered as one to create", async () => {
   const { ThreadStartOptions } = await import("../../../src/renderer/components/ThreadStartOptions.tsx");
   window.desktop = fakeDesktop();

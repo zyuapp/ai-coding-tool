@@ -6,7 +6,7 @@ import { promptKey, type OwnWorkspaceView, type WorkspaceState } from "./workspa
  * chrome, the settings, and the lists that merge every computer's threads.
  */
 const OWN_VIEW_KEYS = [
-  "unreadCount", "sideChatAttention", "threads", "orderedThreads", "threadsByProject", "projects", "activityThreads", "recentThreads", "threadSlots",
+  "unreadCount", "sideChatAttention", "threads", "orderedThreads", "threadsByProject", "projects", "startProjects", "activityThreads", "recentThreads", "threadSlots",
   "runningThreadIds", "blockedThreadIds", "worktreeThreadIds", "worktreeGroups", "schedules", "archivedThreads",
   "managedWorktrees", "worktreeSettings", "worktreeManagementError", "worktreeManagementNotice", "worktreeDeleteConfirmation",
   "installedApps", "cli", "planUsage", "computerUsePermissions", "computerUseSetup", "storageError", "hiddenThreads", "restored", "viewingImage",

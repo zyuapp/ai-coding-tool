@@ -1,6 +1,8 @@
 import type { AutomationView } from "../domain/automation.js";
 import type { Thread } from "../domain/thread.js";
 import { remoteCollections, type PairedComputer } from "./computers.js";
+import type { Project } from "../domain/project.js";
+import { orderProjects } from "./project-order.js";
 import type { ComputerLink } from "../domain/computers.js";
 import { sidebarLists } from "./sidebar-lists.js";
 import { unreadView } from "./thread-attention.js";
@@ -102,6 +104,20 @@ const sidebar = selector(
   },
 );
 
+/**
+ * Every computer's projects, this one's first, for a draft to start in. The sidebar's filter narrows
+ * what is listed, never where a thread may begin, so the draft's own project is always among these.
+ */
+const startProjects = selector(
+  (state) => [state.projects, state.computers.paired],
+  (state) => {
+    const own = orderProjects(state.projects);
+    const others: Project[] = [];
+    for (const computer of state.computers.paired) if (computer.state) others.push(...orderProjects(computer.state.projects));
+    return others.length ? [...own, ...others] : own;
+  },
+);
+
 const managed = selector(
   (state) => [state.managedWorktrees, state.projects, state.worktrees, state.threads, state.deletingWorktrees, state.releasingWorktrees, busy(state)],
   (state) => worktreeSettingsViews(state, busy(state)),
@@ -148,6 +164,7 @@ export function workspaceViewCollections(state: WorkspaceState) {
     ...threadLists(state),
     ...attention(state),
     lists: sidebar(state),
+    startProjects: startProjects(state),
     busy: busy(state),
     blocked: blocked(state),
     everyBusy: everyBusy(state),

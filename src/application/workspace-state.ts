@@ -775,6 +775,7 @@ function deriveOwnView(state: WorkspaceState) {
     sideChatAttention: collections.sideChatAttention,
     unreadCount: collections.unreadCount,
     ...lists,
+    startProjects: collections.startProjects,
     threads: listedThreads,
     archivedThreads: collections.archivedThreads,
     currentThread,

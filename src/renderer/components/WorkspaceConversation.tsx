@@ -22,7 +22,7 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
       {mine && findBar}
       {!workspace.currentThread && (
         <ThreadModeSwitch
-          projects={workspace.projects}
+          projects={workspace.startProjects}
           projectId={workspace.currentProject?.id ?? null}
           onSelectProject={workspace.actions.newThread}
         />
@@ -46,7 +46,7 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
           restored={workspace.restored}
           startOptions={!workspace.currentThread && (
             <ThreadStartOptions
-              projects={workspace.projects}
+              projects={workspace.startProjects}
               projectId={workspace.currentProject?.id ?? null}
               {...(workspace.currentProject?.workspaceId ? { workspaceId: workspace.currentProject.workspaceId } : {})}
               branch={workspace.draftBranch}
