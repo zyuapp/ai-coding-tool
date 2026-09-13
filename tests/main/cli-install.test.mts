@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { lstat, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, test } from "vitest";
@@ -59,6 +59,25 @@ test("unsupported platforms report status and refuse changes", async () => {
 });
 
 for (const platform of ["linux", "darwin"]) {
+  test.skipIf(process.getuid?.() === 0)(`${platform} refresh silently preserves a stale launcher when its directory is protected`, async () => {
+    const { configuration } = await linuxInstaller();
+    const installer = createCliInstaller(configuration, platform);
+    await installer.install();
+    const stale = "#!/bin/sh\n# aic-cli v1\n";
+    await writeFile(configuration.installPath, stale);
+    const directory = path.dirname(configuration.installPath);
+    await chmod(directory, 0o555);
+    try {
+      const before = await installer.status();
+      assert.equal(before.current, false);
+      assert.deepEqual(await installer.refresh(), before);
+      assert.equal(await readFile(configuration.installPath, "utf8"), stale);
+    } finally {
+      await chmod(directory, 0o755);
+    }
+    assert.equal((await installer.install()).current, true, "Settings can still explicitly update the launcher");
+  });
+
   test(`${platform} refresh repairs a launcher after the installed app moves, without rewriting a current one`, async () => {
     const { configuration } = await linuxInstaller();
     const old = cliConfiguration(platform, os.homedir(), "/old/app");

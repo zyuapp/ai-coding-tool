@@ -29,7 +29,7 @@ export function createCliInstaller(configuration: CliConfiguration | null, platf
     }
   }
 
-  async function install(): Promise<CliStatus> {
+  async function writeInstall(allowElevation: boolean): Promise<CliStatus> {
     const target = requireSupported(configuration);
     try {
       await mkdir(path.dirname(target.installPath), { recursive: true });
@@ -42,10 +42,14 @@ export function createCliInstaller(configuration: CliConfiguration | null, platf
         await rm(staged, { force: true }).catch(() => undefined);
       }
     } catch (error) {
-      if (!isPermissionError(error) || platform !== "darwin") throw error;
+      if (!allowElevation || !isPermissionError(error) || platform !== "darwin") throw error;
       await elevate(cliInstallCommand(target));
     }
     return status();
+  }
+
+  function install(): Promise<CliStatus> {
+    return writeInstall(true);
   }
 
   async function uninstall(): Promise<CliStatus> {
@@ -63,7 +67,13 @@ export function createCliInstaller(configuration: CliConfiguration | null, platf
   async function refresh(): Promise<CliStatus> {
     const current = await status();
     if (current.state !== "installed" || current.current) return current;
-    return install();
+    try {
+      return await writeInstall(false);
+    } catch (error) {
+      // Only an explicit Settings action may ask for administrator permission.
+      if (isPermissionError(error)) return current;
+      throw error;
+    }
   }
 
   return { status, install, uninstall, refresh };
