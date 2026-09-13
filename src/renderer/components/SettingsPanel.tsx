@@ -219,7 +219,7 @@ export type SettingsPanelProps = {
 };
 
 /** A Devices page with no computers to speak of, for a caller with nothing to say about them. */
-const NO_COMPUTER_SETTINGS: ComputerSettingsProps = { found: [], searching: false, searchError: null, links: [], pairing: null, onDiscover() {}, onPair() {}, onCancelPairing() {}, onForget() {} };
+const NO_COMPUTER_SETTINGS: ComputerSettingsProps = { found: [], searching: false, searchError: null, name: "", links: [], pairing: null, onDiscover() {}, onPair() {}, onCancelPairing() {}, onForget() {}, onRename() {}, onLabel() {} };
 
 export function SettingsPanel({
   onClose,

@@ -5,6 +5,8 @@ export const noComputers: ComputerDesktop = {
   discoverComputers: async () => [],
   pairComputer: async () => { throw new Error("This computer cannot pair with others."); },
   forgetComputer: async () => {},
+  renameComputer: async () => {},
+  labelComputer: async () => {},
   sendToComputer: async () => ({ ok: false, message: "This computer holds no other computer's threads." }),
   onComputersChanged: () => () => {},
   onComputerState: () => () => {},

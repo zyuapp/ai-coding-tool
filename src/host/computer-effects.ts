@@ -27,6 +27,22 @@ export const computerEffects = {
     }
   },
 
+  "computer.rename": async (effect, { dispatch, desktop }) => {
+    try {
+      await desktop.renameComputer(effect.name);
+    } catch (error) {
+      await dispatch({ type: "action.failed", message: errorMessage(error) });
+    }
+  },
+
+  "computer.label": async (effect, { dispatch, desktop }) => {
+    try {
+      await desktop.labelComputer(effect.id, effect.name);
+    } catch (error) {
+      await dispatch({ type: "action.failed", message: errorMessage(error) });
+    }
+  },
+
   /**
    * What the other computer refused comes back as this window's own error, since it is the one that
    * asked. A draft a send carried is let go of only once that computer has taken it.

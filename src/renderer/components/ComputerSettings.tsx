@@ -1,17 +1,24 @@
 import { LuCheck as Check, LuMonitor as Monitor, LuRefreshCw as RefreshCw } from "react-icons/lu";
 import { useEffect, useState } from "react";
-import type { ComputerLink, ComputerPairing, DiscoveredComputer } from "../../domain/computers";
+import { MAX_COMPUTER_NAME, type ComputerLink, type ComputerPairing, type DiscoveredComputer } from "../../domain/computers";
+import { RenameInput, useRenaming } from "./SidebarRename";
 
 export type ComputerSettingsProps = {
   found: DiscoveredComputer[];
   searching: boolean;
   searchError: string | null;
+  /** What this computer calls itself to the others. */
+  name: string;
   links: ComputerLink[];
   pairing: ComputerPairing | null;
   onDiscover: () => void;
   onPair: (host: string, name: string, code: string) => void;
   onCancelPairing: () => void;
   onForget: (id: string) => void;
+  /** What this computer will call itself. Empty goes back to the machine's own name. */
+  onRename: (name: string) => void;
+  /** What this computer will call a paired one. Empty goes back to what that computer calls itself. */
+  onLabel: (id: string, name: string) => void;
 };
 
 function statusLabel(link: ComputerLink): string {
@@ -81,12 +88,51 @@ function AddressEntry({ pairing, onPair }: { pairing: ComputerPairing | null; on
   );
 }
 
+/** What this computer calls itself, kept as it is typed and given once the field is left or Enter is pressed. */
+function NameEntry({ name, onRename }: { name: string; onRename: (name: string) => void }) {
+  const [draft, setDraft] = useState(name);
+  useEffect(() => setDraft(name), [name]);
+  const commit = () => {
+    const typed = draft.trim();
+    if (typed === name) return setDraft(name);
+    if (!typed) setDraft(name);
+    onRename(typed);
+  };
+  return (
+    <form
+      className="computer-name"
+      onSubmit={(event) => {
+        event.preventDefault();
+        commit();
+      }}
+    >
+      <label>
+        <span>Name</span>
+        <input
+          autoComplete="off"
+          spellCheck={false}
+          maxLength={MAX_COMPUTER_NAME}
+          value={draft}
+          onInput={(event) => setDraft(event.currentTarget.value)}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key !== "Escape") return;
+            event.preventDefault();
+            setDraft(name);
+          }}
+        />
+      </label>
+    </form>
+  );
+}
+
 /**
  * Other computers running this app on the tailnet, and the ones this computer already pairs with.
  * Pairing takes the code the other computer shows; from then on its threads sit in the sidebar.
  */
-export function ComputerSettings({ found, searching, searchError, links, pairing, onDiscover, onPair, onCancelPairing, onForget }: ComputerSettingsProps) {
+export function ComputerSettings({ found, searching, searchError, name, links, pairing, onDiscover, onPair, onCancelPairing, onForget, onRename, onLabel }: ComputerSettingsProps) {
   useEffect(() => { onDiscover(); }, []);
+  const labels = useRenaming(onLabel);
   const paired = new Set(links.map((link) => link.host));
   const offered = found.filter((computer) => !paired.has(computer.host));
   return (
@@ -101,14 +147,31 @@ export function ComputerSettings({ found, searching, searchError, links, pairing
         </div>
       </div>
 
+      <div className="setting-row" data-this-computer>
+        <span className="setting-status granted"><Check size={13} /></span>
+        <div>
+          <NameEntry name={name} onRename={onRename} />
+        </div>
+      </div>
+
       {links.map((link) => (
         <div className="setting-row" key={link.id} data-computer={link.id}>
           <span className={`setting-status ${link.status === "connected" ? "granted" : "blank"}`}>{link.status === "connected" ? <Check size={13} /> : <Monitor size={13} />}</span>
           <div>
-            <strong>{link.name}</strong>
+            {labels.editing === link.id
+              ? <RenameInput
+                  inputRef={labels.input}
+                  className="computer-rename"
+                  label={`Rename ${link.name}`}
+                  value={link.name}
+                  onCommit={(value) => labels.commit(link.id, value)}
+                  onCancel={labels.cancel}
+                />
+              : <strong onDoubleClick={(event) => labels.start(link.id, event.currentTarget.closest(".setting-row"))}>{link.name}</strong>}
             <p className={`phone-device-state${link.status === "connected" ? " live" : ""}`}>{link.host} · {statusLabel(link)}</p>
           </div>
           <div className="setting-row-action">
+            <button type="button" disabled={labels.editing === link.id} onClick={(event) => labels.start(link.id, event.currentTarget.closest(".setting-row"))}>Rename</button>
             <button className="danger" type="button" onClick={() => onForget(link.id)}>Remove</button>
           </div>
         </div>

@@ -151,6 +151,9 @@ function engineAccessHost() {
   return engineAccess ??= import("./agent/engine-services.mjs").then(({ EngineAccessHost }) => new EngineAccessHost());
 }
 
+/** What this computer calls itself until the user picks a name: the machine's own. */
+const machineName = () => hostname().replace(/\.local$/, "");
+
 let computerLinks: ComputerLinks | null = null;
 
 function getComputerLinks() {
@@ -188,6 +191,7 @@ const computerBridge = createComputerBridge({
   workspaces: getWorkspaceService,
   commands: readCommands,
   links: () => computerLinks,
+  name: () => computerLinks?.name() ?? machineName(),
 });
 const workspaceHooks = computerBridge.hooks;
 
@@ -458,8 +462,8 @@ app.whenReady().then(async () => {
   const { createComputerLinks } = await import("./computers/computer-links.mjs");
   computerLinks = createComputerLinks({
     file: path.join(userData, "computers.v1.json"),
-    deviceName: hostname().replace(/\.local$/, ""),
-    onChanged: (links) => { events.emit("computers:changed", { name: hostname().replace(/\.local$/, ""), links }); },
+    deviceName: machineName(),
+    onChanged: (links) => { events.emit("computers:changed", { name: getComputerLinks().name(), links }); },
     onState: (id, state) => { events.emit("computer:state", { id, state }); },
     onNotice: (id, notice) => { events.emit("computer:notice", { id, notice }); },
   });

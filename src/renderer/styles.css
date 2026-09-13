@@ -4211,3 +4211,6 @@ button.setting-hint:hover { color: var(--ink); }
 .computer-address { display: flex; align-items: end; gap: 8px; }
 .computer-address label { display: grid; gap: 4px; color: var(--quiet-strong); font-size: var(--text-meta); }
 .computer-address input { width: 24ch; border: 1px solid var(--line); border-radius: 7px; padding: 5px 9px; background: var(--wash); color: var(--ink); font: var(--text-control)/1.4 var(--mono); }
+.computer-name label { display: grid; gap: 4px; color: var(--quiet-strong); font-size: var(--text-meta); }
+.computer-name input { width: 24ch; border: 1px solid var(--line); border-radius: 7px; padding: 5px 9px; background: var(--wash); color: var(--ink); font: var(--text-control)/1.4 var(--ui-font); }
+.computer-rename { width: 24ch; max-width: 100%; height: 24px; border: 1px solid var(--line-strong); border-radius: 6px; padding: 0 6px; background: var(--surface-input); color: var(--ink); font: inherit; font-size: var(--text-control); }

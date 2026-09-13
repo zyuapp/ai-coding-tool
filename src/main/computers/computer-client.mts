@@ -40,6 +40,8 @@ export type ComputerClientOptions = {
   onState: (state: WorkspaceState) => void;
   /** A notice that computer raised for this one to put on its desktop. */
   onNotice?: (notice: ThreadNotice) => void;
+  /** What that computer calls itself, as the line opens and whenever it changes. */
+  onName?: (name: string) => void;
 };
 
 type Waiting<T> = { resolve: (value: T) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> };
@@ -214,6 +216,8 @@ export function createComputerClient(options: ComputerClientOptions) {
       dropped(message.message, fatal);
     } else if (message.kind === "notice") {
       options.onNotice?.(message.notice);
+    } else if (message.kind === "name") {
+      options.onName?.(message.name);
     } else if (message.kind === "ping") {
       write({ kind: "pong", at: message.at });
     }

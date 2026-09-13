@@ -1,6 +1,6 @@
 import type { ComputerCommand } from "../contracts/commands.js";
 import type { ThreadNotice } from "../contracts/ipc.js";
-import type { ComputerLink, DiscoveredComputer } from "../domain/computers.js";
+import { MAX_COMPUTER_NAME, type ComputerLink, type DiscoveredComputer } from "../domain/computers.js";
 import type { PairedComputer, SentDraft } from "./computers.js";
 import { annotationsFor, imagesFor, pastesFor, withAnnotations, withImages, withPastes } from "./composer-drafts.js";
 import { announcedNotice } from "./notices.js";
@@ -25,6 +25,9 @@ export type ComputerEffect =
   | { type: "computer.discover" }
   | { type: "computer.pair"; host: string; name: string; code: string }
   | { type: "computer.forget"; id: string }
+  /** What this computer will call itself, or a paired one, from now on. Empty goes back to the default. */
+  | { type: "computer.rename"; name: string }
+  | { type: "computer.label"; id: string; name: string }
   /** Inputs on their way to the computer that holds the thread they are about, with the draft a send carries. */
   | { type: "computer.forward"; id: string; inputs: WorkspaceInput[]; draft?: SentDraft };
 
@@ -93,6 +96,17 @@ export function reduceComputers(state: WorkspaceState, input: ComputerInput): Wo
       const active = computers.active === input.id ? null : computers.active;
       const filter = computers.filter === input.id ? "all" : computers.filter;
       return settled(withComputers(state, { active, filter }), [{ type: "computer.forget", id: input.id }]);
+    }
+    /** The name shows at once when there is one; an empty one is the host's to fill in and announce. */
+    case "computers.rename": {
+      const name = input.name.trim().slice(0, MAX_COMPUTER_NAME);
+      return settled(name ? withComputers(state, { name }) : state, [{ type: "computer.rename", name }]);
+    }
+    case "computers.label": {
+      if (!computers.paired.some((computer) => computer.id === input.id)) return settled(state);
+      const name = input.name.trim().slice(0, MAX_COMPUTER_NAME);
+      const paired = name ? computers.paired.map((computer) => computer.id === input.id ? { ...computer, name } : computer) : computers.paired;
+      return settled(withComputers(state, { paired }), [{ type: "computer.label", id: input.id, name }]);
     }
     case "computers.filter":
       return settled(withComputers(state, { filter: input.filter }));

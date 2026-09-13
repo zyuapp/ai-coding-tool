@@ -4,14 +4,18 @@ import path from "node:path";
 import type { WorkspaceCommandResult, WorkspaceInput } from "../../application/workspace-reducer.js";
 import type { WorkspaceState } from "../../application/workspace-state.js";
 import type { ComputerQuery } from "../../contracts/computers.js";
-import type { ComputerLink, ComputerStatus, DiscoveredComputer } from "../../domain/computers.js";
+import { MAX_COMPUTER_NAME, type ComputerLink, type ComputerStatus, type DiscoveredComputer } from "../../domain/computers.js";
 import { createComputerClient, type ComputerClient, type ComputerClientOptions } from "./computer-client.mjs";
 import { discoverComputers } from "./discovery.mjs";
 
-/** A computer this one has paired with, as kept on disk: the token is what gets this computer back in. */
-type StoredComputer = { id: string; name: string; host: string; token: string; pairedAt: number };
+/**
+ * A computer this one has paired with, as kept on disk: the token is what gets this computer back
+ * in, `name` is what that computer calls itself, and `label` is what the user here calls it instead.
+ */
+type StoredComputer = { id: string; name: string; label?: string; host: string; token: string; pairedAt: number };
 
-type Stored = { version: 1; computers: StoredComputer[] };
+/** `name` is what this computer calls itself when the user chose one; absent, it goes by the machine's. */
+type Stored = { version: 1; name?: string; computers: StoredComputer[] };
 
 type Held = StoredComputer & { client: ComputerClient; status: ComputerStatus; error: string | null };
 
@@ -20,7 +24,7 @@ const PAIRING_TIMEOUT_MS = 20_000;
 
 export type ComputerLinksOptions = {
   file: string;
-  /** What this computer calls itself to the others. */
+  /** What this computer calls itself to the others until the user chooses a name. */
   deviceName: string;
   onChanged: (links: ComputerLink[]) => void;
   onState: (id: string, state: WorkspaceState) => void;
@@ -33,16 +37,26 @@ export type ComputerLinksOptions = {
 function isStoredComputer(value: unknown): value is StoredComputer {
   if (!value || typeof value !== "object") return false;
   const record = value as Record<string, unknown>;
-  return typeof record.id === "string" && typeof record.name === "string" && typeof record.host === "string" && typeof record.token === "string" && typeof record.pairedAt === "number";
+  return typeof record.id === "string" && typeof record.name === "string" && (record.label === undefined || typeof record.label === "string")
+    && typeof record.host === "string" && typeof record.token === "string" && typeof record.pairedAt === "number";
 }
 
-function readStored(file: string): StoredComputer[] {
+function readStored(file: string): Pick<Stored, "name" | "computers"> {
   try {
     const parsed = JSON.parse(readFileSync(file, "utf8")) as Stored | null;
-    return Array.isArray(parsed?.computers) ? parsed.computers.filter(isStoredComputer) : [];
+    return {
+      ...(typeof parsed?.name === "string" && parsed.name ? { name: parsed.name } : {}),
+      computers: Array.isArray(parsed?.computers) ? parsed.computers.filter(isStoredComputer) : [],
+    };
   } catch {
-    return [];
+    return { computers: [] };
   }
+}
+
+/** A name as it is kept: trimmed and cut to length, so an empty one is no name at all. */
+function chosen(name: string): string | undefined {
+  const trimmed = name.trim().slice(0, MAX_COMPUTER_NAME);
+  return trimmed || undefined;
 }
 
 /**
@@ -52,17 +66,27 @@ function readStored(file: string): StoredComputer[] {
 export function createComputerLinks(options: ComputerLinksOptions) {
   const held = new Map<string, Held>();
   const connect = options.connect ?? createComputerClient;
+  const stored = readStored(options.file);
+  let ownName = stored.name;
 
   function write() {
-    const stored: Stored = { version: 1, computers: [...held.values()].map(({ id, name, host, token, pairedAt }) => ({ id, name, host, token, pairedAt })) };
+    const stored: Stored = {
+      version: 1,
+      ...(ownName ? { name: ownName } : {}),
+      computers: [...held.values()].map(({ id, name, label, host, token, pairedAt }) => ({ id, name, ...(label ? { label } : {}), host, token, pairedAt })),
+    };
     mkdirSync(path.dirname(options.file), { recursive: true });
     const staging = `${options.file}.tmp`;
     writeFileSync(staging, JSON.stringify(stored), { mode: 0o600 });
     renameSync(staging, options.file);
   }
 
+  function currentName(): string {
+    return ownName ?? options.deviceName;
+  }
+
   function links(): ComputerLink[] {
-    return [...held.values()].map(({ id, name, host, status, error, pairedAt }) => ({ id, name, host, status, error, pairedAt }));
+    return [...held.values()].map(({ id, name, label, host, status, error, pairedAt }) => ({ id, name: label ?? name, host, status, error, pairedAt }));
   }
 
   function announce() {
@@ -88,6 +112,14 @@ export function createComputerLinks(options: ComputerLinksOptions) {
         onPaired: () => {},
         onState: (state) => options.onState(computer.id, state),
         onNotice: (notice) => options.onNotice(computer.id, notice),
+        /** What that computer now calls itself is kept, under whatever the user here calls it. */
+        onName: (announced) => {
+          const current = held.get(computer.id);
+          if (!current || current.name === announced) return;
+          current.name = announced;
+          write();
+          announce();
+        },
       }),
     };
     held.set(computer.id, entry);
@@ -96,10 +128,31 @@ export function createComputerLinks(options: ComputerLinksOptions) {
 
   return {
     start() {
-      for (const computer of readStored(options.file)) hold(computer);
+      for (const computer of stored.computers) hold(computer);
       announce();
     },
+    name: currentName,
     links,
+    /** What this computer calls itself from now on. Empty goes back to the machine's own name. */
+    rename(next: string) {
+      const chosenName = chosen(next);
+      if (chosenName === ownName) return;
+      ownName = chosenName;
+      write();
+      announce();
+    },
+    /** What the user here calls a paired computer. Empty, or its own name, goes back to what it announces. */
+    label(id: string, next: string) {
+      const computer = held.get(id);
+      if (!computer) return;
+      const chosenLabel = chosen(next);
+      const label = chosenLabel === computer.name ? undefined : chosenLabel;
+      if (label === computer.label) return;
+      if (label === undefined) delete computer.label;
+      else computer.label = label;
+      write();
+      announce();
+    },
     discover: () => (options.discover ?? discoverComputers)(),
     /** Trades the code for a token over a line of its own, then opens the computer's line with the token. */
     async pair(host: string, name: string, code: string) {
@@ -110,7 +163,7 @@ export function createComputerLinks(options: ComputerLinksOptions) {
       const timer = setTimeout(() => fail(new Error("The other computer did not answer the code in time.")), PAIRING_TIMEOUT_MS);
       const client = connect({
         host,
-        deviceName: options.deviceName,
+        deviceName: currentName(),
         credential: { code },
         onStatus: (status, error) => { if (status === "offline") fail(new Error(error ?? "The other computer could not be reached.")); },
         onPaired: (deviceId, _deviceName, token) => settle({ deviceId, token }),

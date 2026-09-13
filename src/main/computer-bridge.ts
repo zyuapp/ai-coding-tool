@@ -14,6 +14,8 @@ export type ComputerBridgeHost = {
   commands: (workspaceId: string, engine: AgentEngine) => Promise<AvailableCommand[]>;
   /** The lines to the paired computers, once they are up. */
   links: () => ComputerLinks | null;
+  /** What this computer calls itself to the computers it hands the workspace to. */
+  name: () => string;
 };
 
 /** Both ends of the computer-to-computer line: what a paired computer is handed here, and where one of its checkouts is read from. */
@@ -21,6 +23,7 @@ export function createComputerBridge(host: ComputerBridgeHost) {
   const { publisher } = host.runtime;
   /** What a paired computer is handed: this workspace whole, driven in the window's own inputs. */
   const hooks: WorkspaceHooks = {
+    name: host.name,
     snapshot: () => publisher.snapshot(),
     subscribe: (listener) => publisher.subscribe(listener),
     input: async (inputs) => {

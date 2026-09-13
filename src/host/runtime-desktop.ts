@@ -13,6 +13,10 @@ export type ComputerDesktop = {
   /** Trades the code the other computer shows for a token of this computer's own, and opens the line. */
   pairComputer(host: string, name: string, code: string): Promise<void>;
   forgetComputer(id: string): Promise<void>;
+  /** What this computer calls itself to the others from now on, told to every computer on the line. */
+  renameComputer(name: string): Promise<void>;
+  /** What this computer calls a paired one, kept here whatever that computer announces. */
+  labelComputer(id: string, name: string): Promise<void>;
   /** Carries inputs to a paired computer's own reducer, answering with what it said. */
   sendToComputer(id: string, inputs: WorkspaceInput[]): Promise<WorkspaceCommandResult>;
   /** The paired computers and where each line stands, pushed whenever any of it moves. */

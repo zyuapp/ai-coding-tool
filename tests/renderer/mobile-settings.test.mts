@@ -29,7 +29,7 @@ function draw(remote: MobileServerState) {
     onCreatePairingCode: () => { calls.codes += 1; },
     onRevokeDevice: (id: string) => calls.revoked.push(id),
     onRefreshTailscale: () => { calls.refreshes += 1; },
-    computers: { found: [], searching: false, searchError: null, links: [], pairing: null, onDiscover() {}, onPair() {}, onCancelPairing() {}, onForget() {} },
+    computers: { found: [], searching: false, searchError: null, name: "zhuo-mac", links: [], pairing: null, onDiscover() {}, onPair() {}, onCancelPairing() {}, onForget() {}, onRename() {}, onLabel() {} },
   })));
   return calls;
 }

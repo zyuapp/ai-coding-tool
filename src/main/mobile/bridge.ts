@@ -91,6 +91,7 @@ export const mobileBridge = {
   createPairingCode: async () => (await readyHost()).createMobilePairingCode(),
   revokeDevice: async (deviceId: string) => (await readyHost()).revokeMobileDevice(deviceId),
   refreshTailscale: async () => (await readyHost()).refreshTailscale(),
+  announceName: async () => (await readyHost()).announceComputerName(),
   answer: (response: MobileResponse) => host?.answerMobileRequest(response),
   publish: (update: MobileViewUpdate) => host?.publishMobileView(update),
 };

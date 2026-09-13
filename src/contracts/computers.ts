@@ -45,6 +45,8 @@ export type ComputerServerMessage = Sequenced & (
   | { kind: "error"; code: MobileErrorCode; message: string }
   /** What that computer would have put on its own desktop, for this one to put on its own. */
   | { kind: "notice"; notice: ThreadNotice }
+  /** What that computer calls itself, sent as the line opens and again whenever it changes. */
+  | { kind: "name"; name: string }
   | { kind: "ping"; at: number }
 );
 
@@ -105,6 +107,7 @@ export function isComputerServerMessage(value: unknown): value is ComputerServer
   }
   if (value.kind === "error") return typeof value.code === "string" && typeof value.message === "string";
   if (value.kind === "notice") return isRecord(value.notice) && isString(value.notice.taskId) && typeof value.notice.title === "string" && typeof value.notice.headline === "string";
+  if (value.kind === "name") return isString(value.name, MAX_DEVICE_NAME_LENGTH);
   if (value.kind === "ping") return isCount(value.at);
   return false;
 }

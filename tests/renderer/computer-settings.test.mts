@@ -9,12 +9,15 @@ function settings(overrides: Partial<ComputerSettingsProps>) {
     found: [],
     searching: false,
     searchError: null,
+    name: "zhuo-mac",
     links: [],
     pairing: null,
     onDiscover() {},
     onPair() {},
     onCancelPairing() {},
     onForget() {},
+    onRename() {},
+    onLabel() {},
     ...overrides,
   });
 }

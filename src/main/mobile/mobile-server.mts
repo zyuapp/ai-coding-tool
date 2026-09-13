@@ -133,6 +133,8 @@ type OutboundMessage = Unsequenced<MobileServerMessage> | Unsequenced<ComputerSe
 
 /** The workspace as another computer reads and drives it: whole, and in the window's own inputs. */
 export type WorkspaceHooks = {
+  /** What this computer calls itself to the computers it hands the workspace to. Absent, it stays what they paired it as. */
+  name?: () => string;
   snapshot: () => WorkspaceUpdate;
   subscribe: (listener: (update: WorkspaceUpdate) => void) => () => void;
   input: (inputs: WorkspaceInput[]) => Promise<WorkspaceCommandResult & { revision: number }>;
@@ -239,6 +241,16 @@ export class MobileServer {
     for (const session of this.sessions.values()) {
       if (session.kind === "computer" && !session.awaitingSnapshot) this.emit(session, { kind: "notice", notice });
     }
+  }
+
+  /** What this computer now calls itself, told to every computer on the line. */
+  announceName() {
+    for (const session of this.sessions.values()) this.sendName(session);
+  }
+
+  private sendName(session: Session) {
+    const name = this.options.workspace?.name?.();
+    if (session.kind === "computer" && name) this.emit(session, { kind: "name", name });
   }
 
   async stop(): Promise<void> {
@@ -551,6 +563,7 @@ export class MobileServer {
       this.options.devices.revoke(outcome.device.id);
       return null;
     }
+    this.sendName(session);
     void this.sendSnapshot(session);
     return session;
   }
@@ -575,10 +588,12 @@ export class MobileServer {
       for (const entry of held.buffer) if (entry.sequence > request.lastSequence) write(socket, entry.text);
       /** A phone with nothing to catch up on is still owed a frame, or it waits for the next tick to call itself live. */
       this.emit(held, { kind: "ping", at: now });
+      this.sendName(held);
       return held;
     }
     const session = this.openSession(kind, device.id, device.name, now);
     this.attach(session, socket);
+    this.sendName(session);
     void this.sendSnapshot(session);
     return session;
   }

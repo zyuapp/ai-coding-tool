@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, hostname } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { emptyTailscaleState, type MobilePairingOffer, type MobileServerState } from "../domain/mobile.js";
@@ -148,6 +148,7 @@ export async function startServe(options: { userData: string; packaged: boolean;
     ...(options.port === undefined ? {} : { port: options.port }),
     ...(options.local ? { tailscale: NO_TAILSCALE } : {}),
     workspace: {
+      name: () => hostname().replace(/\.local$/, ""),
       snapshot: () => publisher.snapshot(),
       subscribe: (listener) => publisher.subscribe(listener),
       input: async (inputs) => {

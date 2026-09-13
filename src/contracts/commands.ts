@@ -326,6 +326,10 @@ export type ComputerCommand =
   | { type: "computers.pair"; host: string; name: string; code: string }
   | { type: "computers.cancel-pairing" }
   | { type: "computers.forget"; id: string }
+  /** What this computer calls itself to the others. Empty goes back to the machine's own name. */
+  | { type: "computers.rename"; name: string }
+  /** What this computer calls a paired one. Empty goes back to what that computer calls itself. */
+  | { type: "computers.label"; id: string; name: string }
   /** Which computers' threads the sidebar draws. */
   | { type: "computers.filter"; filter: ComputerFilter };
 

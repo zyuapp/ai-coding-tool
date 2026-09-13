@@ -234,6 +234,8 @@ const shapes = {
   "computers.pair": { host: text, name: text, code: text },
   "computers.cancel-pairing": {  },
   "computers.forget": { id: text },
+  "computers.rename": { name: text },
+  "computers.label": { id: text, name: text },
   "computers.filter": { filter: text },
   "engine.read": { refresh: optionalBoolean },
   "engine.reload-settings": {},

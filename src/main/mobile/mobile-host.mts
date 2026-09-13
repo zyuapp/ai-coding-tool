@@ -386,6 +386,11 @@ export function noticeComputers(notice: ThreadNotice): void {
   server?.notice(notice);
 }
 
+/** Tells the computers on the line what this one now calls itself. */
+export function announceComputerName(): void {
+  server?.announceName();
+}
+
 export function publishMobileView(update: MobileViewUpdate): void {
   server?.publish(update);
 }
