@@ -1,6 +1,7 @@
 import { LuPanelLeft as PanelLeft, LuPanelRight as PanelRight, LuSlidersHorizontal as SlidersHorizontal } from "react-icons/lu";
 import type { InstalledApp } from "../../contracts/ipc";
 import type { Thread } from "../../domain/thread";
+import { HostMark } from "./HostMark";
 import { OpenInMenu } from "./OpenInMenu";
 import { PopoverMenu } from "./PopoverMenu";
 import { RenameInput, useRenaming } from "./SidebarRename";
@@ -12,6 +13,8 @@ export type WorkspaceHeaderProps = {
   folder: string;
   /** What the folder is called, which is the project's name rather than the directory's. */
   folderLabel: string;
+  /** The paired computer the thread lives on, for one that is not this computer's own. */
+  host?: { name: string; offline: boolean } | null;
   sidebarOpen: boolean;
   sessionPanelOpen: boolean;
   rightDockOpen: boolean;
@@ -33,11 +36,15 @@ export type WorkspaceHeaderProps = {
   onToggleRightDock: () => void;
 };
 
-function ThreadHeading({ currentThread, folder, folderLabel, openMenu, onSetOpenMenu, onRenameThread, onForkThread, onArchiveThread, onSetThreadRole }: Pick<WorkspaceHeaderProps, "currentThread" | "folder" | "folderLabel" | "openMenu" | "onSetOpenMenu" | "onRenameThread" | "onForkThread" | "onArchiveThread" | "onSetThreadRole">) {
+function ThreadHeading({ currentThread, folder, folderLabel, host, openMenu, onSetOpenMenu, onRenameThread, onForkThread, onArchiveThread, onSetThreadRole }: Pick<WorkspaceHeaderProps, "currentThread" | "folder" | "folderLabel" | "host" | "openMenu" | "onSetOpenMenu" | "onRenameThread" | "onForkThread" | "onArchiveThread" | "onSetThreadRole">) {
   const name = useRenaming((threadId, value) => { if (value.trim()) onRenameThread(threadId, value); });
   return (
     <div className="thread-heading-line">
-      <h1 title={folder || undefined}>
+      <h1 title={host ? `${folder} on ${host.name}` : folder || undefined}>
+        {host && <>
+          <HostMark name={host.name} offline={host.offline} className="heading-host" />
+          <span className="heading-separator" aria-hidden="true">/</span>
+        </>}
         {folder && <>
           <span className="heading-project">{folderLabel}</span>
           <span className="heading-separator" aria-hidden="true">/</span>
@@ -71,7 +78,7 @@ function ThreadHeading({ currentThread, folder, folderLabel, openMenu, onSetOpen
   );
 }
 
-export function WorkspaceHeader({ currentThread, folder, folderLabel, sidebarOpen, sessionPanelOpen, rightDockOpen, workingSubagents, openMenu, canOpenFolder, apps, onListApps, onSetOpenMenu, onOpenInApp, onRenameThread, onForkThread, onArchiveThread, onSetThreadRole, onToggleSidebar, onToggleSessionPanel, onToggleRightDock }: WorkspaceHeaderProps) {
+export function WorkspaceHeader({ currentThread, folder, folderLabel, host, sidebarOpen, sessionPanelOpen, rightDockOpen, workingSubagents, openMenu, canOpenFolder, apps, onListApps, onSetOpenMenu, onOpenInApp, onRenameThread, onForkThread, onArchiveThread, onSetThreadRole, onToggleSidebar, onToggleSessionPanel, onToggleRightDock }: WorkspaceHeaderProps) {
   return (
     <header className={`topbar ${sidebarOpen ? "" : "traffic-inset"}`.trimEnd()}>
       <div className="task-heading">
@@ -90,6 +97,7 @@ export function WorkspaceHeader({ currentThread, folder, folderLabel, sidebarOpe
             currentThread={currentThread}
             folder={folder}
             folderLabel={folderLabel}
+            host={host}
             openMenu={openMenu}
             onSetOpenMenu={onSetOpenMenu}
             onRenameThread={onRenameThread}

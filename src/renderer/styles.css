@@ -905,6 +905,8 @@ button, select { color: inherit; }
 /* Both crumbs shrink, so a long project and a long title each give ground before the row clips. */
 .task-heading h1 > span { overflow: hidden; text-overflow: ellipsis; }
 .heading-project { flex: 0 1 auto; min-width: 4ch; color: var(--muted-soft); font-weight: 500; }
+.task-heading h1 > .heading-host { flex: 0 1 auto; min-width: 4ch; font-size: inherit; font-weight: 500; color: var(--muted-soft); }
+.task-heading h1 > .heading-host > svg { width: 15px; height: 15px; }
 .heading-separator { flex: none; color: var(--quiet-soft); font-weight: 400; }
 .heading-thread { flex: 0 1 auto; min-width: 6ch; }
 .task-heading p {

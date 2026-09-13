@@ -455,3 +455,32 @@ test("the session panel lists a workflow as a process and opens its panel", asyn
   assert.equal(view.container.querySelector('button[aria-label="Stop review-changes"]'), null, "a workflow that ended keeps its row without a stop");
   await view.unmount();
 });
+
+test("the heading names the paired computer a thread lives on, ahead of its folder", async () => {
+  const props = {
+    currentThread: {
+      id: "remote-thread", title: "What is in this repo", engine: "claude", executionPolicy: "confirm", messages: [],
+      continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+    } satisfies Thread,
+    folder: "/home/me/just-speak-linux",
+    folderLabel: "just-speak-linux",
+    sidebarOpen: false, sessionPanelOpen: false, rightDockOpen: false, workingSubagents: 0, openMenu: null, canOpenFolder: true, apps: null,
+    onListApps: () => {}, onSetOpenMenu: () => {}, onOpenInApp: () => {}, onRenameThread: () => {}, onForkThread: () => {}, onSetThreadRole: () => {}, onArchiveThread: () => {},
+    onToggleSidebar: () => {}, onToggleSessionPanel: () => {}, onToggleRightDock: () => {},
+  };
+  const local = await mount(React.createElement(WorkspaceHeader, props));
+  assert.equal(local.container.querySelector(".heading-host"), null, "a thread here carries no computer");
+  await local.unmount();
+
+  const remote = await mount(React.createElement(WorkspaceHeader, { ...props, host: { name: "zyuapp", offline: false } }));
+  const mark = query(remote.container, ".task-heading h1 > .heading-host");
+  assert.equal(mark.textContent, "zyuapp");
+  assert.equal(mark.nextElementSibling?.className, "heading-separator");
+  assert.equal(mark.nextElementSibling?.nextElementSibling?.textContent, "just-speak-linux");
+  assert.equal(query(remote.container, ".task-heading h1").getAttribute("title"), "/home/me/just-speak-linux on zyuapp");
+  await remote.unmount();
+
+  const away = await mount(React.createElement(WorkspaceHeader, { ...props, host: { name: "zyuapp", offline: true } }));
+  assert.equal(query(away.container, ".heading-host").classList.contains("offline"), true);
+  await away.unmount();
+});
