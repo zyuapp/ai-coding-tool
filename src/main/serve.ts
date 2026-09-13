@@ -27,6 +27,8 @@ export type ServeArguments = {
   command: "serve" | "pair";
   /** A source checkout's own data folder, apart from the installed app's. */
   dev: boolean;
+  /** A source checkout serving the installed app's data folder and checkouts, as `aic serve` would. */
+  installed: boolean;
   /** A data folder named outright, which a test uses so nothing it does lands in the user's. */
   userData?: string;
   /** The port to ask for; 0 takes whatever is free. */
@@ -36,11 +38,12 @@ export type ServeArguments = {
 };
 
 export function parseServeArguments(argv: readonly string[]): ServeArguments {
-  const parsed: ServeArguments = { command: "serve", dev: false, local: false };
+  const parsed: ServeArguments = { command: "serve", dev: false, installed: false, local: false };
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index]!;
     if (argument === "serve" || argument === "pair") parsed.command = argument;
     else if (argument === "--dev") parsed.dev = true;
+    else if (argument === "--installed") parsed.installed = true;
     else if (argument === "--local") parsed.local = true;
     else if (argument === "--user-data") parsed.userData = argv[++index];
     else if (argument === "--port") parsed.port = Number(argv[++index]);
@@ -75,7 +78,7 @@ const NO_TAILSCALE = {
   stop: async () => ({ ok: true as const }),
 };
 
-export async function startServe(options: { userData: string; packaged: boolean; resources: string | null; port?: number; local?: boolean; say: (line: string) => void }) {
+export async function startServe(options: { userData: string; packaged: boolean; installed?: boolean; resources: string | null; port?: number; local?: boolean; say: (line: string) => void }) {
   const { userData, say } = options;
   mkdirSync(userData, { recursive: true });
   const release = claimServeLock(userData);
@@ -87,7 +90,7 @@ export async function startServe(options: { userData: string; packaged: boolean;
   const appPath = options.resources ? path.join(options.resources, "app.asar") : path.resolve(__dirname, "..", "..", "..");
   setAppPluginRoot(appPluginPath(options.packaged, options.resources ?? "", appPath));
 
-  const worktreesRoot = appProfile(appDataPath(), homedir(), options.packaged).worktreesRoot;
+  const worktreesRoot = appProfile(appDataPath(), homedir(), options.packaged || options.installed === true).worktreesRoot;
   const legacyRoots = [path.join(userData, "worktrees")].filter((root) => root !== worktreesRoot);
   const { WorkspaceService } = await import("./workspace/workspace-service.mjs");
   const workspaces: WorkspaceService = new WorkspaceService({ registryPath: path.join(userData, "workspaces.v1.json"), projectlessRoot: path.join(userData, "projectless") });
@@ -216,7 +219,7 @@ export async function startServe(options: { userData: string; packaged: boolean;
 async function main() {
   const arguments_ = parseServeArguments(process.argv.slice(1));
   const packaged = !arguments_.dev;
-  const userData = arguments_.userData ?? appProfile(appDataPath(), homedir(), packaged).userData;
+  const userData = arguments_.userData ?? appProfile(appDataPath(), homedir(), packaged || arguments_.installed).userData;
   if (arguments_.command === "pair") {
     const { requestPairing } = await import("./mobile/development.mjs");
     const offer = await requestPairing(path.join(userData, "serve.sock")).catch((error: unknown) => {
@@ -225,7 +228,7 @@ async function main() {
     console.log(pairingLine(offer));
     return;
   }
-  const served = await startServe({ userData, packaged, resources: packagedResources(), port: arguments_.port, local: arguments_.local, say: (line) => console.log(line) });
+  const served = await startServe({ userData, packaged, installed: arguments_.installed, resources: packagedResources(), port: arguments_.port, local: arguments_.local, say: (line) => console.log(line) });
   console.log(`AI Coding Tool is serving from ${userData}. Press Ctrl+C to stop.`);
   const stop = (signal: string) => {
     console.log(`Stopping (${signal})…`);
