@@ -2,6 +2,7 @@ import { LuCheck as Check, LuChevronDown as ChevronDown, LuFolderGit2 as FolderG
 import { useRef, useState } from "react";
 import type { DraftBranch } from "../../application/workspace-state";
 import type { ThreadHost } from "../../application/computers";
+import { HostMark } from "./HostMark";
 import { BranchMenu, useBranches } from "./BranchMenu";
 import { projectName, type Project } from "../../domain/project";
 import { moveListFocus, useDismissibleLayer } from "../focus";
@@ -109,7 +110,7 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
         <button ref={projectTrigger} type="button" aria-label={showComputers ? `${projectName(project)} on ${host?.name ?? "This computer"}` : "Project"} aria-haspopup="listbox" aria-expanded={projectsOpen} onClick={() => { setProjectQuery(""); setProjectsOpen(!projectsOpen); }}>
           <FolderGit2 size={14} />
           <span>{projectName(project)}</span>
-          {showComputers && <span className={`project-host${host?.offline ? " offline" : ""}`}>{host?.name ?? "This computer"}</span>}
+          {showComputers && <HostMark name={host?.name ?? "This computer"} offline={host?.offline} />}
           <ChevronDown size={14} />
         </button>
         {projectsOpen && <div className="thread-start-popover" onKeyDown={moveListFocus}>
@@ -128,7 +129,7 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
             {matched.length === 0 && <p className="thread-start-empty">No project matches</p>}
             {groupProjects(matched, projectHosts).map(({ host, projects: grouped }) => (
               <div key={host ? `remote:${host.id}` : "local"} role={showComputers ? "group" : undefined} aria-label={showComputers ? host?.name ?? "This computer" : undefined}>
-                {showComputers && <div className="thread-start-group-heading" aria-hidden="true">{host?.name ?? "This computer"}</div>}
+                {showComputers && <div className="thread-start-group-heading" aria-hidden="true"><HostMark name={host?.name ?? "This computer"} offline={host?.offline} /></div>}
                 {grouped.map((item) => (
                   <button
                     key={item.id}

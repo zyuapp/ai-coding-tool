@@ -487,6 +487,17 @@ button, select { color: inherit; }
 .folder-chevron { color: var(--quiet); font-size: 14px; }
 
 .project-list { display: grid; gap: 2px; }
+/** Folders sit under the computer that holds them once more than this one is listed, as the project picker groups them. */
+.computer-group { display: grid; gap: 2px; }
+.computer-group + .computer-group { margin-top: 10px; }
+.computer-heading { display: flex; align-items: center; min-height: 22px; padding: 0 10px 2px; }
+.computer-heading > .host-mark { min-width: 0; }
+/** A computer, wherever it is named: a small screen ahead of the name, set a step quieter than what it labels. */
+.host-mark { display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 100%; vertical-align: -1px; color: var(--quiet); font-size: var(--text-meta); font-weight: 500; }
+.host-mark > svg { flex: none; }
+.host-mark > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.host-mark.offline { color: var(--quiet-soft); }
+.task-row-text .host-mark { font: inherit; color: inherit; vertical-align: -2px; }
 .project-group { min-width: 0; }
 .project-row {
   position: relative;
@@ -521,8 +532,6 @@ button, select { color: inherit; }
   font-size: var(--text-control);
   letter-spacing: -0.012em;
 }
-.project-main:has(> .project-host) { grid-template-columns: 19px minmax(0, 1fr) auto; }
-.project-main > .project-host { margin-left: 0; white-space: nowrap; }
 .project-main > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project-main .folder-icon svg { width: 19px; height: 19px; }
 .project-new,
@@ -1333,12 +1342,7 @@ button, select { color: inherit; }
   white-space: nowrap;
 }
 .empty-state .thread-start-popover button:hover { background: var(--surface-menu-hover); }
-.thread-start-field > button > .project-host,
-.thread-start-popover button > .project-host {
-  flex: none;
-  margin-left: auto;
-  max-width: 110px;
-}
+.thread-start-field > button > .host-mark { flex: none; margin-left: auto; max-width: 110px; }
 .thread-start-group-heading {
   padding: 8px 13px 4px;
   color: var(--quiet);
@@ -4199,8 +4203,6 @@ button.setting-hint:hover { color: var(--ink); }
 .computer-switch-menu { top: calc(100% + 4px); left: 0; right: auto; min-width: 100%; max-width: min(320px, calc(100vw - 28px)); }
 .computer-switch-menu button.offline { color: var(--quiet); }
 .computer-switch-menu .offline .menu-label::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: currentColor; vertical-align: middle; }
-.project-host { margin-left: 6px; color: var(--quiet); font-size: var(--text-meta); font-weight: 500; }
-.project-host.offline { opacity: 0.6; }
 .task-row.offline, .project-task-row.offline { opacity: 0.45; cursor: default; }
 .task-row.offline:hover, .project-task-row.offline:hover { background: transparent; }
 .computer-notice { background: var(--wash); }

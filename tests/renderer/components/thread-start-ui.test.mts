@@ -237,12 +237,12 @@ test("the project picker labels and groups duplicate repository names by compute
   });
   const view = await mount(options("studio-one"));
   const trigger = query<HTMLButtonElement>(view.container, 'button[aria-label="shared on Studio Mac"]');
-  assert.equal(query(trigger, ".project-host.offline").textContent, "Studio Mac");
+  assert.equal(query(trigger, ".host-mark.offline").textContent, "Studio Mac");
   await act(async () => { trigger.click(); });
   const groups = () => [...view.container.querySelectorAll('[role="group"]')];
   const rows = () => [...view.container.querySelectorAll<HTMLButtonElement>('[role="option"]')];
   assert.deepEqual(groups().map((group) => group.getAttribute("aria-label")), ["This computer", "Air", "Studio Mac"]);
-  assert.deepEqual([...view.container.querySelectorAll(".thread-start-group-heading")].map((heading) => heading.textContent), ["This computer", "Air", "Studio Mac"]);
+  assert.deepEqual([...view.container.querySelectorAll(".thread-start-group-heading .host-mark")].map((heading) => heading.textContent), ["This computer", "Air", "Studio Mac"]);
   assert.deepEqual(rows().map((row) => row.getAttribute("aria-label")), [
     "shared on This computer", "another on This computer", "shared on Air", "shared on Studio Mac", "second on Studio Mac",
   ], "groups preserve each computer's project order despite interleaving in the input");
@@ -271,9 +271,9 @@ test("the project picker labels and groups duplicate repository names by compute
   assert.deepEqual(chosen, ["air-one"], "the duplicate repository name still selects the correct project id");
   assert.equal(trigger.getAttribute("aria-expanded"), "false");
   await view.render(options("air-one"));
-  assert.equal(query(view.container, 'button[aria-label="shared on Air"] .project-host').textContent, "Air");
+  assert.equal(query(view.container, 'button[aria-label="shared on Air"] .host-mark').textContent, "Air");
   await view.render(options("local-one"));
-  assert.equal(query(view.container, 'button[aria-label="shared on This computer"] .project-host').textContent, "This computer");
+  assert.equal(query(view.container, 'button[aria-label="shared on This computer"] .host-mark').textContent, "This computer");
   await view.render(React.cloneElement(options("local-one"), { projects: projects.filter((project) => !projectHosts.has(project.id)) }));
   const localTrigger = query<HTMLButtonElement>(view.container, 'button[aria-label="Project"]');
   assert.equal(localTrigger.textContent, "shared", "hosts outside the picker leave its local-only presentation plain");

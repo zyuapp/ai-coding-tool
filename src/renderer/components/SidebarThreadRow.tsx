@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Draggable, type DraggableProvided } from "@hello-pangea/dnd";
 import { LuAlarmClock as AlarmClock, LuArchive as Archive, LuCheck as Check, LuFolderSymlink as FolderSymlink } from "react-icons/lu";
 import { projectName, type Project } from "../../domain/project";
@@ -16,6 +16,7 @@ import { ThreadEngineIcon } from "./ThreadEngineIcon";
 import { ThreadRoleMark } from "./ThreadRoleMark";
 import type { ThreadRole } from "../../domain/thread-role";
 import type { ThreadHost } from "../../application/computers";
+import { HostMark } from "./HostMark";
 
 /** What a row's trailing slot offers, if anything. Only one of them ever shows in a given list. */
 export type RowAction = "archive" | "dismiss" | "none";
@@ -58,7 +59,14 @@ function activityMeta(thread: Thread, host: ThreadHost | undefined, projects: Pr
   const finding = newestUnreadFinding(thread);
   if (finding) return finding.headline;
   const project = projects.find((item) => item.id === thread.projectId);
-  return [host?.name, project && projectName(project), formatTime(threadActivityAt(thread))].filter(Boolean).join(" · ");
+  return hostMeta(host, ...[project && projectName(project), formatTime(threadActivityAt(thread))].filter((part): part is string => Boolean(part)));
+}
+
+/** A row's meta line: the computer it lives on, marked as one, ahead of whatever else the line says. */
+export function hostMeta(host: ThreadHost | undefined, ...parts: string[]): ReactNode {
+  const rest = parts.join(" · ");
+  if (!host) return rest;
+  return <><HostMark name={host.name} offline={host.offline} />{rest && ` · ${rest}`}</>;
 }
 
 function ThreadSpinner() {

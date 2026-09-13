@@ -9,8 +9,9 @@ import type { WorktreeGroup } from "../../application/workspace-state";
 import { PopoverMenu } from "./PopoverMenu";
 import { RenameInput, useRenaming, type Renaming } from "./SidebarRename";
 import { ShowMore } from "./ShowMore";
-import type { ThreadRowRenderer } from "./SidebarThreadRow";
+import { hostMeta, type ThreadRowRenderer } from "./SidebarThreadRow";
 import type { ThreadHost } from "../../application/computers";
+import { HostMark } from "./HostMark";
 
 export const RECENTS_DROPPABLE = "recents";
 export const PROJECTS_DROPPABLE = "projects";
@@ -121,12 +122,11 @@ function ProjectRow({
                   className="project-main"
                   onClick={() => onToggleProject(project.id)}
                   onDoubleClick={(event) => renaming.start(project.id, event.currentTarget.closest(".project-row"))}
-                  title={project.root}
+                  title={host ? `${project.root} on ${host.name}${host.offline ? " (offline)" : ""}` : project.root}
                   aria-expanded={expanded}
                 >
                   <span className="folder-icon"><FolderIcon /></span>
                   <span>{projectName(project)}</span>
-                  {host && <span className={`project-host${host.offline ? " offline" : ""}`}>{host.name}</span>}
                 </button>}
             <PopoverMenu
               id={`project:${project.id}`}
@@ -169,8 +169,25 @@ function ProjectRow({
   );
 }
 
+/**
+ * The folders each computer holds, in the order the list gives them: this computer's first, then
+ * each paired computer's together. A folder keeps its place in the whole list, which is what a drag reports.
+ */
+function computerGroups(projects: Project[], projectHosts: Map<string, ThreadHost>) {
+  const groups: Array<{ host: ThreadHost | undefined; from: number; projects: Project[] }> = [];
+  projects.forEach((project, index) => {
+    const host = projectHosts.get(project.id);
+    const last = groups.at(-1);
+    if (last && last.host?.id === host?.id) last.projects.push(project);
+    else groups.push({ host, from: index, projects: [project] });
+  });
+  return groups;
+}
+
 export type SidebarProjectsProps = {
   projects: Project[];
+  /** What this computer calls itself, which heads its own folders once a paired computer's are listed too. */
+  computerName: string;
   /** The threads each project holds, in the order the folder lists them. */
   threadsByProject: Map<string, Thread[]>;
   checkoutsByProject: Map<string, WorktreeGroup[]>;
@@ -198,6 +215,7 @@ export type SidebarProjectsProps = {
 
 export function SidebarProjects({
   projects,
+  computerName,
   threadsByProject,
   checkoutsByProject,
   recentThreads,
@@ -221,6 +239,9 @@ export function SidebarProjects({
   onRemoveProject,
 }: SidebarProjectsProps) {
   const projectNames = useRenaming(onRenameProject);
+  /** Headings only once a paired computer's folders sit beside this computer's own. */
+  const showComputers = projects.some((project) => projectHosts.has(project.id));
+  const localName = computerName || "This computer";
 
   return (
     <>
@@ -233,28 +254,33 @@ export function SidebarProjects({
       {sections.projects && <Droppable droppableId={PROJECTS_DROPPABLE} type={PROJECT_DRAG}>
         {(list) => (
           <nav className="project-list" aria-label="Projects" ref={list.innerRef} {...list.droppableProps}>
-            {projects.map((project, projectIndex) => (
-              <ProjectRow
-                key={project.id}
-                project={project}
-                host={projectHosts.get(project.id)}
-                index={projectIndex}
-                threads={threadsByProject.get(project.id) ?? []}
-                checkouts={checkoutsByProject.get(project.id) ?? []}
-                expanded={expandedProjects.has(project.id)}
-                showAll={shownThreads.has(project.id)}
-                current={draftProjectId === project.id}
-                currentId={currentId}
-                openMenu={openMenu}
-                renaming={projectNames}
-                renderRow={renderRow}
-                onToggleShowAll={() => shownThreads.toggle(project.id)}
-                onSetOpenMenu={onSetOpenMenu}
-                onNewThread={onNewThread}
-                onToggleProject={onToggleProject}
-                onEditProject={onEditProject}
-                onRemoveProject={onRemoveProject}
-              />
+            {computerGroups(projects, projectHosts).map(({ host, from, projects: held }) => (
+              <div key={host?.id ?? "local"} className="computer-group" role={showComputers ? "group" : undefined} aria-label={showComputers ? host?.name ?? localName : undefined}>
+                {showComputers && <div className="computer-heading" aria-hidden="true"><HostMark name={host?.name ?? localName} offline={host?.offline} /></div>}
+                {held.map((project, offset) => (
+                  <ProjectRow
+                    key={project.id}
+                    project={project}
+                    host={host}
+                    index={from + offset}
+                    threads={threadsByProject.get(project.id) ?? []}
+                    checkouts={checkoutsByProject.get(project.id) ?? []}
+                    expanded={expandedProjects.has(project.id)}
+                    showAll={shownThreads.has(project.id)}
+                    current={draftProjectId === project.id}
+                    currentId={currentId}
+                    openMenu={openMenu}
+                    renaming={projectNames}
+                    renderRow={renderRow}
+                    onToggleShowAll={() => shownThreads.toggle(project.id)}
+                    onSetOpenMenu={onSetOpenMenu}
+                    onNewThread={onNewThread}
+                    onToggleProject={onToggleProject}
+                    onEditProject={onEditProject}
+                    onRemoveProject={onRemoveProject}
+                  />
+                ))}
+              </div>
             ))}
             {list.placeholder}
           </nav>
@@ -282,7 +308,7 @@ export function SidebarProjects({
             {recentThreads.length === 0 && !snapshot.isDraggingOver && <p className="sidebar-empty">No chats</p>}
             {recentThreads.map((thread, index) => renderRow(thread, index, `task-row ${thread.id === currentId ? "active" : ""}`, <span className="task-row-text">
                 <span>{thread.title}</span>
-                <small>{[threadHosts.get(thread.id)?.name, formatTime(threadActivityAt(thread))].filter(Boolean).join(" · ")}</small>
+                <small>{hostMeta(threadHosts.get(thread.id), formatTime(threadActivityAt(thread)))}</small>
               </span>))}
             {provided.placeholder}
           </nav>

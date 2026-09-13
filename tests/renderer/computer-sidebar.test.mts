@@ -9,38 +9,47 @@ import { renderProjectSidebar } from "../support/sidebar.mts";
 const linux = { id: "linux", name: "linux-box", offline: false };
 const gone = { id: "old", name: "old-laptop", offline: true };
 
-test("project computer badges follow the folder name inside its button", async () => {
+test("folders sit under the computer that holds them, this computer's first, and each row stays its own button", async () => {
   const toggled: string[] = [];
   const projects = [
     { id: "local", root: "/local/app", name: "Local app" },
     { id: "remote", root: "/linux/app", name: "A long remote project name" },
+    { id: "remote-two", root: "/linux/other", name: "Other" },
     { id: "offline", root: "/old/app", name: "Offline app" },
   ];
-  const hosts = [undefined, linux, gone];
   const view = await mount(renderProjectSidebar({
     projects,
-    projectHosts: new Map([["remote", linux], ["offline", gone]]),
+    computerName: "My Mac",
+    projectHosts: new Map([["remote", linux], ["remote-two", linux], ["offline", gone]]),
     onToggleProject: (id) => toggled.push(id),
   }));
   try {
+    const groups = [...view.container.querySelectorAll<HTMLElement>(".project-list .computer-group")];
+    assert.deepEqual(groups.map((group) => group.getAttribute("aria-label")), ["My Mac", "linux-box", "old-laptop"]);
+    assert.deepEqual(groups.map((group) => query(group, ".computer-heading .host-mark").textContent), ["My Mac", "linux-box", "old-laptop"]);
+    assert.deepEqual(groups.map((group) => query(group, ".computer-heading .host-mark").classList.contains("offline")), [false, false, true]);
+    assert.equal(query(groups[2]!, ".host-mark").title, "old-laptop is offline");
+    assert.deepEqual(groups.map((group) => [...group.querySelectorAll(".project-main")].map((button) => button.textContent)), [
+      ["Local app"], ["A long remote project name", "Other"], ["Offline app"],
+    ], "a row carries the folder name alone");
     const buttons = [...view.container.querySelectorAll<HTMLButtonElement>(".project-main")];
-    assert.equal(buttons.length, projects.length);
-    for (const [index, button] of buttons.entries()) {
-      const name = query(button, ":scope > span:nth-child(2)");
-      assert.equal(name.textContent, projects[index]!.name);
-      const host = hosts[index];
-      if (!host) {
-        assert.equal(button.querySelector(".project-host"), null);
-        continue;
-      }
-      const badge = query(button, ":scope > .project-host");
-      assert.equal(name.nextElementSibling, badge);
-      assert.equal(badge.closest("button"), button);
-      assert.equal(badge.textContent, host.name);
-      assert.equal(badge.classList.contains("offline"), host.offline);
-      await act(async () => { badge.click(); });
-    }
-    assert.deepEqual(toggled, ["remote", "offline"]);
+    assert.deepEqual(buttons.map((button) => button.title), ["/local/app", "/linux/app on linux-box", "/linux/other on linux-box", "/old/app on old-laptop (offline)"]);
+    for (const button of buttons.slice(1)) await act(async () => { button.click(); });
+    assert.deepEqual(toggled, ["remote", "remote-two", "offline"]);
+  } finally {
+    await view.unmount();
+  }
+});
+
+test("folders all on this computer carry no computer heading", async () => {
+  const view = await mount(renderProjectSidebar({
+    projects: [{ id: "local", root: "/local/app", name: "Local app" }],
+    computerName: "My Mac",
+  }));
+  try {
+    assert.equal(view.container.querySelector(".computer-heading"), null);
+    assert.equal(query(view.container, ".computer-group").getAttribute("role"), null);
+    assert.equal(query(view.container, ".project-main").textContent, "Local app");
   } finally {
     await view.unmount();
   }
@@ -67,6 +76,9 @@ test("rows on a paired computer carry its name, and rows on one that cannot be r
       `linux-box · app · ${rows[1]!.querySelector("small")!.textContent!.split(" · ").at(-1)}`,
       `old-laptop · ${rows[2]!.querySelector("small")!.textContent!.split(" · ").at(-1)}`,
     ]);
+    assert.equal(rows[0]!.querySelector(".host-mark"), null);
+    assert.equal(query(rows[1]!, "small > .host-mark").textContent, "linux-box");
+    assert.equal(query(rows[2]!, "small > .host-mark").classList.contains("offline"), true);
     assert.equal(rows[2]!.classList.contains("offline"), true);
     assert.equal(rows[2]!.getAttribute("aria-disabled"), "true");
     await act(async () => { rows[2]!.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true })); });
@@ -214,4 +226,20 @@ test("a row whose computer goes away takes back the menu it had open", async () 
   } finally {
     await view.unmount();
   }
+});
+
+test("an empty device offers adding a project, while an offline device shows its link error and trigger dot", async () => {
+  let added = 0;
+  const link = { id: "linux", name: "zyuapp", host: "linux", pairedAt: 1, status: "connected" as const, error: null };
+  const props = { computerLinks: [link], computerFilter: "linux", onOpenFolder: () => { added += 1; } };
+  const view = await mount(renderProjectSidebar(props));
+  try {
+    assert.equal(query(view.container, ".sidebar-project-empty p").textContent, "zyuapp has no projects yet");
+    await act(async () => query(view.container, ".sidebar-project-empty button").click());
+    assert.equal(added, 1);
+    await view.render(renderProjectSidebar({ ...props, computerLinks: [{ ...link, status: "offline", error: "Connection refused" }] }));
+    assert.equal(query(view.container, ".sidebar-project-empty [role='alert']").textContent, "Connection refused");
+    assert.ok(query(view.container, ".computer-switch-trigger").classList.contains("offline"));
+    assert.equal(view.container.querySelector(".sidebar-project-empty button"), null);
+  } finally { await view.unmount(); }
 });

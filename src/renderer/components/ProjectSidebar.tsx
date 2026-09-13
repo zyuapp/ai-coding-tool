@@ -231,6 +231,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
 
         {mode === "projects" && <SidebarProjects
           projects={projects}
+          computerName={computerName}
           threadsByProject={threadsByProject}
           checkoutsByProject={checkoutsByProject}
           recentThreads={recentThreads}
