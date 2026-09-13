@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { CommandControlsProvider } from "./components/CommandControl";
 import { LuX as X } from "react-icons/lu";
 import { MessageLinkProvider } from "./components/MarkdownMessage";
 import { AttachmentViewer } from "./components/AttachmentViewer";
@@ -119,7 +120,7 @@ export function App() {
   const messageLinks = useMessageLinks(dispatchRef);
 
   return (
-    <MessageLinkProvider actions={messageLinks}>
+    <CommandControlsProvider value={workspace.commandControls}><MessageLinkProvider actions={messageLinks}>
     {workspace.viewingImage && <AttachmentViewer key={workspace.viewingImage} source={workspace.viewingImage} onClose={() => void workspace.dispatch({ type: "image.close" })} onDownload={() => void workspace.dispatch({ type: "image.download" })} />}
     <DiagramViewerHost>
     <main className="app-shell">
@@ -207,6 +208,6 @@ export function App() {
       <TooltipLayer />
     </main>
     </DiagramViewerHost>
-    </MessageLinkProvider>
+    </MessageLinkProvider></CommandControlsProvider>
   );
 }

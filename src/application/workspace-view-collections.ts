@@ -92,7 +92,7 @@ const everyBlocked = selector((state) => [blocked(state), remote(state)], (state
 
 /** The sidebar draws every computer's threads together, filed under every computer's folders. */
 const sidebar = selector(
-  (state) => [threadLists(state).visibleThreads, state.projects, everyBusy(state), everyBlocked(state), remote(state), state.sidebarMode, state.sections, state.expandedProjects],
+  (state) => [threadLists(state).visibleThreads, state.projects, everyBusy(state), everyBlocked(state), remote(state), state.computers.filter, state.sidebarMode, state.sections, state.expandedProjects],
   (state) => {
     const others = remote(state);
     /** A filter naming one paired computer leaves this computer's own out. */
@@ -100,7 +100,7 @@ const sidebar = selector(
     const projects = others.projects.length ? [...(own ? state.projects : []), ...others.projects] : own ? state.projects : [];
     const visible = own ? threadLists(state).visibleThreads : [];
     const threads = others.threads.length ? [...visible, ...others.threads] : visible;
-    return sidebarLists(state, projects, threads, everyBusy(state), everyBlocked(state));
+    return sidebarLists(state, projects, threads, everyBusy(state), everyBlocked(state), others.projectHosts);
   },
 );
 

@@ -1,7 +1,10 @@
+import { COMPUTER_CAPABILITIES, REMOTE_UNSUPPORTED, supportsComputerCommand, supportsComputerQuery, type ComputerCapabilities } from "../../contracts/computer-capabilities.js";
+import { isAppCommandType, isWorkspaceViewInput } from "../../contracts/workspace-view-input.js";
+import type { AppCommand } from "../../contracts/commands.js";
+import { createRemoteWorkspaceReplica } from "../../application/remote-workspace.js";
 import { MAX_ATTACHMENT_ENCODED_BYTES } from "../../domain/conversation.js";
 import { randomUUID } from "node:crypto";
 import WebSocket from "ws";
-import { applyWorkspacePatches } from "../../application/workspace-patches.js";
 import { parseWorkspaceJson, stringifyWorkspaceJson } from "../../application/workspace-json.js";
 import type { WorkspaceCommandResult, WorkspaceInput } from "../../application/workspace-reducer.js";
 import type { WorkspaceState } from "../../application/workspace-state.js";
@@ -39,6 +42,7 @@ export type ComputerClientOptions = {
   /** The token the other computer handed out, which is all that gets this one back in. */
   onPaired: (deviceId: string, deviceName: string, token: string) => void;
   onState: (state: WorkspaceState) => void;
+  onCapabilities?: (capabilities: ComputerCapabilities) => void;
   /** A notice that computer raised for this one to put on its desktop. */
   onNotice?: (notice: ThreadNotice) => void;
   /** What that computer calls itself, as the line opens and whenever it changes. */
@@ -113,8 +117,9 @@ export function createComputerClient(options: ComputerClientOptions) {
   let credential = options.credential;
   let sessionId: string | undefined;
   let lastSequence = 0;
-  let revision = -1;
-  let replica: WorkspaceState | null = null;
+  let displayed: WorkspaceState | null = null;
+  let capabilities: ComputerCapabilities;
+  const applyUpdate = createRemoteWorkspaceReplica();
   let attempt = 0;
   let stopped = false;
   let retry: ReturnType<typeof setTimeout> | null = null;
@@ -183,29 +188,18 @@ export function createComputerClient(options: ComputerClientOptions) {
       options.onPaired(message.deviceId, message.deviceName, message.token);
     } else if (message.kind === "workspace") {
       if (message.sessionId) sessionId = message.sessionId;
-      const { update } = message;
-      if ("state" in update) {
-        replica = update.state;
-      } else if (replica && update.revision === revision + 1) {
-        try {
-          replica = applyWorkspacePatches(replica, update.patches);
-        } catch {
-          sessionId = undefined;
-          socket?.terminate();
-          return;
-        }
-      } else if (update.revision <= revision) {
-        return;
-      } else {
-        /** A difference from a state this side never saw: start over on a fresh session. */
-        sessionId = undefined;
-        socket?.terminate();
+      try {
+        const next = applyUpdate(message.update);
+        if (next === "resync") { sessionId = undefined; socket?.terminate(); return; }
+        if (!next) return;
+        displayed = next;
+      } catch {
+        dropped("This computer sent workspace data this app cannot read. Updating AI Coding Tool may help.", true);
         return;
       }
-      revision = update.revision;
       attempt = 0;
       if (status !== "connected") report("connected");
-      options.onState(replica);
+      options.onState(displayed);
     } else if (message.kind === "result") {
       const waiting = results.get(message.requestId);
       if (!waiting) return;
@@ -224,6 +218,9 @@ export function createComputerClient(options: ComputerClientOptions) {
       dropped(message.message, fatal);
     } else if (message.kind === "notice") {
       options.onNotice?.(message.notice);
+    } else if (message.kind === "capabilities") {
+      capabilities = message.capabilities;
+      options.onCapabilities?.(capabilities);
     } else if (message.kind === "name") {
       options.onName?.(message.name);
     } else if (message.kind === "ping") {
@@ -238,6 +235,8 @@ export function createComputerClient(options: ComputerClientOptions) {
       open: () => {
         if (socket !== dialled) return;
         lastHeardAt = Date.now();
+        capabilities = undefined;
+        options.onCapabilities?.(undefined);
         watch();
         if ("token" in credential) write({ kind: "resume", version: COMPUTER_PROTOCOL_VERSION, token: credential.token, ...(sessionId ? { sessionId } : {}), lastSequence });
         else write({ kind: "pair", version: COMPUTER_PROTOCOL_VERSION, code: credential.code, deviceName: options.deviceName });
@@ -252,9 +251,16 @@ export function createComputerClient(options: ComputerClientOptions) {
   open();
   return {
     get status() { return status; },
-    get state() { return replica; },
-    send: (inputs: WorkspaceInput[]) => ask(socket, status, results, { kind: "input", requestId: randomUUID(), inputs }, transfer),
-    query: (query: ComputerQuery) => ask(socket, status, answers, { kind: "query", requestId: randomUUID(), query }, transfer),
+    get state() { return displayed; },
+    send: (inputs: WorkspaceInput[]) => {
+      if (inputs.some((input) => !isWorkspaceViewInput(input) || !isAppCommandType(input.type)
+        || !supportsComputerCommand(COMPUTER_CAPABILITIES, input as AppCommand)
+        || !supportsComputerCommand(capabilities, input as AppCommand))) return Promise.reject(new Error(REMOTE_UNSUPPORTED));
+      return ask(socket, status, results, { kind: "input", requestId: randomUUID(), inputs }, transfer);
+    },
+    query: (query: ComputerQuery) => supportsComputerQuery(capabilities, query)
+      ? ask(socket, status, answers, { kind: "query", requestId: randomUUID(), query }, transfer)
+      : Promise.reject(new Error(REMOTE_UNSUPPORTED)),
     stop() {
       stopped = true;
       if (retry) clearTimeout(retry);

@@ -153,10 +153,10 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
 
   /** One click opens the thing itself: a launcher makes a tab rather than a panel that holds tabs. */
   const launchers: DockLauncher[] = [
-    ...panels.flatMap(({ id, title, description, command, icon }) => command ? [{ id, title, description, command, icon, open: () => onOpenPanel(id) }] : []),
-    { id: "browser", title: "Browser", description: "Browse in one session the whole app shares", command: "browser", icon: Globe, open: () => void workspace.actions.newBrowserTab() },
-    { id: "terminal", title: "Terminal", description: `Run a shell here and let ${workspace.engineLabel} read what it prints`, command: "terminal", icon: SquareTerminal, disabled: !workspace.currentFolder, open: () => void workspace.actions.openTerminal() },
-    { id: "side-chat", title: "Side chat", description: "Start a focused conversation from this task", command: "side", icon: GitFork, disabled: !workspace.currentThread, open: onAddSideChat },
+    ...panels.flatMap(({ id, title, description, command, icon }) => command ? [{ id, title, description, command, icon, disabled: !workspace.commandControls.available({ type: "view.open-dock-panel", panel: id }), open: () => onOpenPanel(id) }] : []),
+    { id: "browser", title: "Browser", description: "Browse in one session the whole app shares", command: "browser", icon: Globe, disabled: !workspace.commandControls.available({ type: "browser.new-tab" }), open: () => void workspace.actions.newBrowserTab() },
+    { id: "terminal", title: "Terminal", description: `Run a shell here and let ${workspace.engineLabel} read what it prints`, command: "terminal", icon: SquareTerminal, disabled: !workspace.currentFolder || !workspace.commandControls.available({ type: "terminal.open" }), open: () => void workspace.actions.openTerminal() },
+    { id: "side-chat", title: "Side chat", description: "Start a focused conversation from this task", command: "side", icon: GitFork, disabled: !workspace.currentThread || !workspace.commandControls.available({ type: "side-chat.open", chatId: "new" }), open: onAddSideChat },
   ];
 
   return { panels, launchers };

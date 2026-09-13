@@ -3,9 +3,11 @@ import { reduceWorktrees } from "./worktrees.js";
 import { retireAutomations } from "./automations.js";
 import { TAKE_KEYS, disposeDocks, focusDockTab, showDockTab } from "./dock-tabs.js";
 import { closeSideChats } from "./side-chats.js";
-import { now, settled, targetId } from "./shared.js";
+import { now, rejected, settled, targetId } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { focusComposer } from "../composer-drafts.js";
+import { offlineMessage, shownComputers } from "../computers.js";
+import { REMOTE_UNSUPPORTED, supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import { forkedThreads } from "../thread-fork.js";
 import { activitySections, moveThread as moveThreadInList } from "../thread-order.js";
 import { pruneDeletedThreads } from "../thread-pruning.js";
@@ -54,6 +56,32 @@ function priorityNeighbour(state: WorkspaceState, taskId: string): string | unde
   const index = priority.findIndex((thread) => thread.id === taskId);
   if (index === -1) return undefined;
   return (priority[index + 1] ?? priority[index - 1])?.id;
+}
+
+/** Dismisses the listed computers' Priority; each host owns its changes and reports them back. */
+function dismissPriority(state: WorkspaceState, localOnly = false): WorkspaceTransition {
+  const own = localOnly || state.computers.filter === "all" || state.computers.filter === "this";
+  const dotted = new Set(own ? dismissableThreads(priorityThreads(state)).map((thread) => thread.id) : []);
+  const next = dotted.size ? { ...state, threads: dismissed(state.threads, dotted) } : state;
+  if (localOnly) return settled(next);
+  const effects: WorkspaceEffect[] = [];
+  const errors: string[] = [];
+  for (const computer of shownComputers(state.computers)) {
+    if (!computer.state || !dismissableThreads(priorityThreads(computer.state)).length) continue;
+    if (computer.status !== "connected") {
+      errors.push(offlineMessage(computer));
+      continue;
+    }
+    const scoped = { type: "task.dismiss-all", localOnly: true } as const;
+    /** Older hosts already dismiss only their own threads and do not know the scope field. */
+    const command = supportsComputerCommand(computer.capabilities, scoped) ? scoped : { type: "task.dismiss-all" } as const;
+    if (!supportsComputerCommand(computer.capabilities, command)) {
+      errors.push(`${computer.name}: ${REMOTE_UNSUPPORTED}`);
+      continue;
+    }
+    effects.push({ type: "computer.forward", id: computer.id, inputs: [command] });
+  }
+  return errors.length ? rejected(next, errors.join("\n"), effects) : settled(next, effects);
 }
 
 export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommandInput): WorkspaceTransition {
@@ -110,11 +138,8 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
       return settled(successor ? landOnThread(filed, successor) : filed);
     }
 
-    case "task.dismiss-all": {
-      /** Only what the button offers: the Priority rows. A thread still working has yet to show what it found. */
-      const dotted = new Set(dismissableThreads(priorityThreads(state)).map((thread) => thread.id));
-      return settled(dotted.size ? { ...state, threads: dismissed(state.threads, dotted) } : state);
-    }
+    case "task.dismiss-all":
+      return dismissPriority(state, input.localOnly);
 
     /** Archiving a running thread cancels its run; its checkout stays until the user removes it. */
     case "task.archive": {

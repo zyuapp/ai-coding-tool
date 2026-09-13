@@ -1,5 +1,6 @@
 import { annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-drafts.js";
-import { promptKey, type OwnWorkspaceView, type WorkspaceState } from "./workspace-state.js";
+import { promptKey, type OwnWorkspaceView, type SideChatView, type WorkspaceState } from "./workspace-state.js";
+import { heldViews } from "./view-reuse.js";
 import type { WorktreeMenuState } from "./worktree-menu.js";
 
 /**
@@ -20,6 +21,19 @@ const OWN_VIEW_KEYS = [
 
 type OwnView = Pick<OwnWorkspaceView, (typeof OWN_VIEW_KEYS)[number]>;
 
+const reusedSideChats = heldViews<SideChatView>();
+
+/** Main and side composers both read the drafts typed in this window. */
+function localDraft(state: WorkspaceState, key: string) {
+  return {
+    prompt: state.prompts[key] ?? "",
+    annotations: annotationsFor(state, key),
+    pastes: pastesFor(state, key),
+    images: imagesFor(state, key),
+    files: filesFor(state, key),
+  };
+}
+
 /** The window over a paired computer's thread: that computer's view of it, under this window's own chrome and drafts. */
 export function overlaidView(state: WorkspaceState, own: OwnWorkspaceView, remote: WorkspaceState, derive: (state: WorkspaceState, window: WorktreeMenuState) => OwnWorkspaceView) {
   /** The location menu opens and is searched here, over the other computer's threads and checkouts. */
@@ -31,11 +45,8 @@ export function overlaidView(state: WorkspaceState, own: OwnWorkspaceView, remot
     ...shown,
     ...kept,
     /** Drafts stay where they are typed, so the other computer never hears a keystroke. */
-    prompt: state.prompts[key] ?? "",
-    annotations: annotationsFor(state, key),
-    pastes: pastesFor(state, key),
-    images: imagesFor(state, key),
-    files: filesFor(state, key),
+    ...localDraft(state, key),
+    sideChats: reusedSideChats(shown.sideChats.map((chat) => ({ ...chat, ...localDraft(state, chat.id) }))),
     attachmentSends: state.attachmentSends,
     /** Terminal search runs in this window's xterm, using the output it has received. */
     find: own.find?.target.kind === "terminal" ? own.find : shown.find?.target.kind === "terminal" ? null : shown.find,

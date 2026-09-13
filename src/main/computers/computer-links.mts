@@ -17,7 +17,7 @@ type StoredComputer = { id: string; name: string; label?: string; host: string; 
 /** `name` is what this computer calls itself when the user chose one; absent, it goes by the machine's. */
 type Stored = { version: 1; name?: string; computers: StoredComputer[] };
 
-type Held = StoredComputer & { client: ComputerClient; status: ComputerStatus; error: string | null };
+type Held = StoredComputer & { capabilities?: readonly string[]; client: ComputerClient; status: ComputerStatus; error: string | null };
 
 /** How long a pairing may wait on the other computer's answer. */
 const PAIRING_TIMEOUT_MS = 20_000;
@@ -91,7 +91,7 @@ export function createComputerLinks(options: ComputerLinksOptions) {
   }
 
   function links(): ComputerLink[] {
-    return [...held.values()].map(({ id, name, label, host, status, error, pairedAt }) => ({ id, name: label ?? name, host, status, error, pairedAt }));
+    return [...held.values()].map(({ id, name, label, host, status, error, pairedAt, capabilities }) => ({ id, name: label ?? name, host, status, error, pairedAt, capabilities }));
   }
 
   function announce() {
@@ -115,6 +115,12 @@ export function createComputerLinks(options: ComputerLinksOptions) {
           announce();
         },
         onPaired: () => {},
+        onCapabilities: (capabilities) => {
+          const current = held.get(computer.id);
+          if (!current) return;
+          current.capabilities = capabilities;
+          announce();
+        },
         onState: (state) => options.onState(computer.id, state),
         onNotice: (notice) => options.onNotice(computer.id, notice),
         /** What that computer now calls itself is kept, under whatever the user here calls it. */

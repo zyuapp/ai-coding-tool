@@ -1,3 +1,4 @@
+import { CommandButton } from "./CommandControl";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Draggable, type DraggableProvided } from "@hello-pangea/dnd";
 import { LuAlarmClock as AlarmClock, LuArchive as Archive, LuCheck as Check, LuFolderSymlink as FolderSymlink } from "react-icons/lu";
@@ -118,7 +119,7 @@ export type ThreadRowsOptions = {
  */
 function rowActionButtons(thread: Thread, action: RowAction, scheduled: boolean, onDismiss: (threadId: string) => void, onArchive: (threadId: string) => void): React.ReactNode[] {
   return [
-    action === "dismiss" && <button
+    action === "dismiss" && <CommandButton command={{ type: "task.dismiss", taskId: thread.id }}
       key="dismiss"
       className="row-action task-dismiss"
       type="button"
@@ -129,8 +130,8 @@ function rowActionButtons(thread: Thread, action: RowAction, scheduled: boolean,
       }}
     >
       <Check size={13} aria-hidden="true" />
-    </button>,
-    action === "archive" && <button
+    </CommandButton>,
+    action === "archive" && <CommandButton command={{ type: "task.archive", taskId: thread.id }}
       key="archive"
       className="row-action task-archive"
       type="button"
@@ -141,7 +142,7 @@ function rowActionButtons(thread: Thread, action: RowAction, scheduled: boolean,
       }}
     >
       <Archive size={13} aria-hidden="true" />
-    </button>,
+    </CommandButton>,
   ].filter(Boolean);
 }
 

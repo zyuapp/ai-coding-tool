@@ -10,6 +10,7 @@ import { applyTypography } from "../typography";
 import { workspaceActions } from "./workspace-actions";
 import { useWorkspaceSubscriptions } from "./workspace-subscriptions";
 import { createWorkspaceConnection } from "./workspace-connection";
+import { computerCommandAvailable, createComputerCapabilitySnapshot } from "../../application/computers";
 
 export type { ApprovalView } from "../../application/thread-run-state";
 
@@ -34,6 +35,12 @@ export function useTaskWorkspace() {
   const dispatchCommand = useCallback((command: AppCommand) => runtime.dispatch(command), []);
   const dispatchInput = useCallback((input: WorkspaceInput) => runtime.dispatch(input), []);
   const actions = useMemo(() => workspaceActions(dispatchInput), [dispatchInput]);
+  const capabilitySnapshot = useMemo(createComputerCapabilitySnapshot, []);
+  const capabilityRevision = capabilitySnapshot(state.computers);
+  const commandControls = useMemo(() => ({
+    available: (command: AppCommand) => computerCommandAvailable(runtime.getState(), command),
+    dispatch: dispatchCommand,
+  }), [capabilityRevision, dispatchCommand]);
 
   /**
    * The `@` menu's threads, per draft, since which threads are in scope depends on the draft. The
@@ -95,5 +102,6 @@ export function useTaskWorkspace() {
     /** The one door into the application. The named actions below are shorthand for the same commands. */
     dispatch: dispatchCommand,
     actions,
+    commandControls,
   };
 }

@@ -1,12 +1,12 @@
 import { MAX_ATTACHMENTS, MAX_ATTACHMENT_ENCODED_BYTES } from "../domain/conversation.js";
 import { isMessageImageReference } from "../domain/message-artifacts.js";
 import type { WorkspaceCommandResult, WorkspaceInput } from "../application/workspace-reducer.js";
-import { isWorkspaceViewInput } from "./workspace-view-input.js";
+import { isAppCommandType, isWorkspaceViewInput } from "./workspace-view-input.js";
 import { isAgentEngine, type AgentEngine } from "../domain/agent-engine.js";
 import { isDiffRange, type DiffRange } from "../domain/diff.js";
 import type { ThreadNotice } from "./ipc.js";
 import type { MobileErrorCode } from "./mobile.js";
-import type { WorkspaceUpdate } from "./workspace-runtime.js";
+import type { WorkspacePatch } from "./workspace-runtime.js";
 
 /**
  * How one computer running this app drives another. It is the phone's line with the phone's
@@ -45,12 +45,15 @@ export function isComputerTransfer(message: ComputerClientMessage): boolean {
     : message.kind === "query" && (message.query.kind === "attachment" || message.query.kind === "message-image");
 }
 
+/** Data from an independently updated host is decoded before becoming this build's workspace state. */
+export type ComputerWorkspaceUpdate = { revision: number; state: unknown } | { revision: number; patches: WorkspacePatch[] };
+
 type Sequenced = { sequence: number };
 
 export type ComputerServerMessage = Sequenced & (
   | { kind: "paired"; deviceId: string; deviceName: string; token: string }
   /** The whole state on arrival, named with the session a resume will ask for, then the difference each time it moves. */
-  | { kind: "workspace"; sessionId?: string; update: WorkspaceUpdate }
+  | { kind: "workspace"; sessionId?: string; update: ComputerWorkspaceUpdate }
   | { kind: "result"; requestId: string; result: WorkspaceCommandResult & { revision: number } }
   | ({ kind: "answer"; requestId: string } & ({ ok: true; result: unknown } | { ok: false; message: string }))
   | { kind: "error"; code: MobileErrorCode; message: string }
@@ -58,6 +61,7 @@ export type ComputerServerMessage = Sequenced & (
   | { kind: "notice"; notice: ThreadNotice }
   /** What that computer calls itself, sent as the line opens and again whenever it changes. */
   | { kind: "name"; name: string }
+  | { kind: "capabilities"; capabilities: readonly string[] }
   | { kind: "ping"; at: number }
 );
 
@@ -80,20 +84,26 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+/** Every query and field has one validator, also used to advertise what this host understands. */
+const queryShapes = {
+  "terminal-output": { terminalId: isString, after: (v) => v === undefined || Number.isSafeInteger(v) && (v as number) >= 0 },
+  directories: { prefix: (v) => typeof v === "string" && v.length <= MAX_PATH_LENGTH && !v.includes("\0") },
+  attachment: { name: (v) => isString(v) && /^[A-Za-z0-9-]+\.png$/.test(v) },
+  "message-image": { path: (v) => typeof v === "string", root: (v) => typeof v === "string", message: (v) => typeof v === "string", thumbnail: (v) => v === undefined || typeof v === "boolean" },
+  "diff-patch": { workspaceId: isString, range: isDiffRange, path: (v) => isString(v, MAX_PATH_LENGTH), previousPath: (v) => v === undefined || isString(v, MAX_PATH_LENGTH), ignoreWhitespace: (v) => v === undefined || typeof v === "boolean" },
+  branches: { workspaceId: isString },
+  commands: { workspaceId: isString, engine: isAgentEngine },
+} satisfies { [Kind in ComputerQuery["kind"]]: { [Field in keyof Omit<Extract<ComputerQuery, { kind: Kind }>, "kind">]-?: (value: unknown) => boolean } };
+
+export function computerQueryDefinitions(): ReadonlyArray<{ kind: ComputerQuery["kind"]; fields: readonly string[] }> {
+  return Object.entries(queryShapes).map(([kind, fields]) => ({ kind: kind as ComputerQuery["kind"], fields: Object.keys(fields) }));
+}
+
 export function isComputerQuery(value: unknown): value is ComputerQuery {
-  if (!isRecord(value)) return false;
-  if (value.kind === "terminal-output") return isString(value.terminalId)
-    && (value.after === undefined || (Number.isSafeInteger(value.after) && (value.after as number) >= 0));
-  if (value.kind === "attachment") return isString(value.name) && /^[A-Za-z0-9-]+\.png$/.test(value.name);
-  if (value.kind === "message-image") return isMessageImageReference(value.path, value.root, value.message)
-    && (value.thumbnail === undefined || typeof value.thumbnail === "boolean");
-  if (value.kind === "directories") return typeof value.prefix === "string" && value.prefix.length <= MAX_PATH_LENGTH && !value.prefix.includes("\0");
-  if (!isString(value.workspaceId)) return false;
-  if (value.kind === "branches") return true;
-  if (value.kind === "commands") return isAgentEngine(value.engine);
-  return value.kind === "diff-patch" && isDiffRange(value.range) && isString(value.path, MAX_PATH_LENGTH)
-    && (value.previousPath === undefined || isString(value.previousPath, MAX_PATH_LENGTH))
-    && (value.ignoreWhitespace === undefined || typeof value.ignoreWhitespace === "boolean");
+  if (!isRecord(value) || typeof value.kind !== "string" || !Object.hasOwn(queryShapes, value.kind)) return false;
+  const fields = queryShapes[value.kind as ComputerQuery["kind"]];
+  if (!Object.entries(fields).every(([key, check]) => check(value[key]))) return false;
+  return value.kind !== "message-image" || isMessageImageReference(value.path, value.root, value.message);
 }
 
 /** What another computer sends is the security boundary, so every field of it is read defensively. */
@@ -105,7 +115,7 @@ export function isComputerClientMessage(value: unknown): value is ComputerClient
   }
   if (value.kind === "transfer") return isString(value.requestId);
   if (value.kind === "input") {
-    return isString(value.requestId) && Array.isArray(value.inputs) && value.inputs.length > 0 && value.inputs.length <= MAX_INPUTS && value.inputs.every(isWorkspaceViewInput);
+    return isString(value.requestId) && Array.isArray(value.inputs) && value.inputs.length > 0 && value.inputs.length <= MAX_INPUTS && value.inputs.every((input) => isWorkspaceViewInput(input) && isAppCommandType(input.type));
   }
   if (value.kind === "query") return isString(value.requestId) && isComputerQuery(value.query);
   if (value.kind === "pong") return isCount(value.at);
@@ -124,6 +134,7 @@ export function isComputerServerMessage(value: unknown): value is ComputerServer
   }
   if (value.kind === "error") return typeof value.code === "string" && typeof value.message === "string";
   if (value.kind === "notice") return isRecord(value.notice) && isString(value.notice.taskId) && typeof value.notice.title === "string" && typeof value.notice.headline === "string";
+  if (value.kind === "capabilities") return Array.isArray(value.capabilities) && value.capabilities.length <= 4096 && value.capabilities.every((name) => typeof name === "string" && name.length > 0 && name.length <= 256);
   if (value.kind === "name") return isString(value.name, MAX_DEVICE_NAME_LENGTH);
   if (value.kind === "ping") return isCount(value.at);
   return false;

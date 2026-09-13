@@ -13,18 +13,18 @@ export function threadMenuEntries(thread: Thread, actions: {
   onSetRole: (role: ThreadRole | null) => void;
 }): MenuEntry[] {
   return [
-    { label: "Rename", onSelect: actions.onRename },
-    ...(actions.onSnooze ? [{ label: "Snooze", items: SNOOZE_OPTIONS.map(({ label, hours }) => ({ label, onSelect: () => actions.onSnooze!(hours) })) }] : []),
+    { label: "Rename", command: { type: "task.rename", taskId: thread.id, title: thread.title }, onSelect: actions.onRename },
+    ...(actions.onSnooze ? [{ label: "Snooze", items: SNOOZE_OPTIONS.map(({ label, hours }) => ({ label, command: { type: "task.snooze" as const, taskId: thread.id, hours }, onSelect: () => actions.onSnooze!(hours) })) }] : []),
     { label: "Role", items: [
-      ...THREAD_ROLES.map(({ role, label }) => ({ label, checked: thread.role === role, onSelect: () => actions.onSetRole(role) })),
-      { label: "None", checked: thread.role === undefined, onSelect: () => actions.onSetRole(null) },
+      ...THREAD_ROLES.map(({ role, label }) => ({ label, command: { type: "task.set-role" as const, taskId: thread.id, role }, checked: thread.role === role, onSelect: () => actions.onSetRole(role) })),
+      { label: "None", command: { type: "task.set-role", taskId: thread.id, role: null }, checked: thread.role === undefined, onSelect: () => actions.onSetRole(null) },
     ] },
     "separator",
     { label: "Copy link", onSelect: () => void navigator.clipboard?.writeText(threadLink(thread.id)) },
     "separator",
-    { label: "Fork", onSelect: () => actions.onFork(false) },
-    { label: "Fork into a new worktree", onSelect: () => actions.onFork(true) },
+    { label: "Fork", command: { type: "task.fork", taskId: thread.id, worktree: false }, onSelect: () => actions.onFork(false) },
+    { label: "Fork into a new worktree", command: { type: "task.fork", taskId: thread.id, worktree: true }, onSelect: () => actions.onFork(true) },
     "separator",
-    { label: "Archive", danger: true, onSelect: actions.onArchive },
+    { label: "Archive", command: { type: "task.archive", taskId: thread.id }, danger: true, onSelect: actions.onArchive },
   ];
 }

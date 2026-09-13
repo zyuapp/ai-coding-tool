@@ -1,3 +1,4 @@
+import { stringifyWorkspaceJson } from "../../../src/application/workspace-json.ts";
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -36,7 +37,7 @@ test.each(["idle", "send", "query", "message-image", "overlap", "timeout"])("cli
     peer = socket;
     socket.on("message", (data) => {
       const message = JSON.parse(String(data)) as ComputerClientMessage;
-      if (message.kind === "resume") socket.send(JSON.stringify({ kind: "workspace", sequence: 1, update: { revision: 0, state: emptyWorkspaceState() } }));
+      if (message.kind === "resume") socket.send(stringifyWorkspaceJson({ kind: "workspace", sequence: 1, update: { revision: 0, state: emptyWorkspaceState() } }));
       if (message.kind === "input" || message.kind === "query") requests.push(message);
     });
   });

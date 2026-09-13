@@ -2,12 +2,47 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { act, createElement, useState } from "react";
 import type { ComputerFilter } from "../../src/domain/computers.ts";
-import { task } from "../application/workspace-reducer-fixtures.mts";
+import { task, workspace } from "../application/workspace-reducer-fixtures.mts";
+import { deriveView } from "../../src/application/workspace-state.ts";
 import { dom, mount, query } from "../support/renderer-dom.mts";
 import { renderProjectSidebar } from "../support/sidebar.mts";
 
 const linux = { id: "linux", name: "linux-box", offline: false };
 const gone = { id: "old", name: "old-laptop", offline: true };
+
+test("overlapping project orders stay grouped and repeated filter changes replace the visible rows", async () => {
+  const projects = (host: string) => [
+    { id: `${host}-b`, root: `/${host}/b`, sortIndex: 1 },
+    { id: `${host}-a`, root: `/${host}/a`, sortIndex: 0 },
+  ];
+  const held = (host: string) => workspace({
+    projects: projects(host),
+    threads: projects(host).map((project) => task(`${project.id}-thread`, { projectId: project.id })),
+  });
+  const state = held("mac");
+  state.sidebarMode = "projects";
+  state.expandedProjects = new Set(["mac-a", "mac-b", "linux-a", "linux-b", "old-a", "old-b"]);
+  state.computers = { ...state.computers, name: "My Mac", paired: [linux, gone].map((host) => ({
+    id: host.id, name: host.name, host: `${host.id}.ts.net`, status: host.offline ? "offline" : "connected",
+    error: null, pairedAt: 1, state: held(host.id),
+  })) };
+  const view = await mount(renderProjectSidebar({}));
+  try {
+    for (const filter of ["all", "this", "linux", "old", "all", "this", "all"] as const) {
+      const projected = deriveView({ ...state, computers: { ...state.computers, filter } });
+      const hosts = filter === "all" ? ["mac", "linux", "old"] : [filter === "this" ? "mac" : filter];
+      const ids = hosts.flatMap((host) => [`${host}-a`, `${host}-b`]);
+      assert.deepEqual(projected.projects.map((project) => project.id), ids);
+      await view.render(renderProjectSidebar({ ...projected, mode: "projects" }));
+      const groups = [...view.container.querySelectorAll(".computer-group")];
+      assert.equal(groups.length, hosts.length);
+      assert.deepEqual([...view.container.querySelectorAll(".project-group")].map((row) => row.getAttribute("data-rfd-draggable-id")), ids);
+      assert.deepEqual([...view.container.querySelectorAll(".project-task-row > span:first-child")].map((row) => row.textContent), ids.map((id) => `${id}-thread`));
+    }
+  } finally {
+    await view.unmount();
+  }
+});
 
 test("folders sit under the computer that holds them, this computer's first, and each row stays its own button", async () => {
   const toggled: string[] = [];

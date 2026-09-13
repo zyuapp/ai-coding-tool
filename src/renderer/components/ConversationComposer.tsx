@@ -21,6 +21,8 @@ import type { ReviewTarget } from "../../domain/review";
 import { ReviewPicker } from "./ReviewPicker";
 import { GoalBar } from "./GoalBar";
 import type { ActiveGoal } from "../../domain/goal";
+import { CommandButton, useCommandControls } from "./CommandControl";
+import type { AppCommand } from "../../contracts/commands";
 
 const NOTHING = () => {};
 
@@ -37,6 +39,7 @@ function sendLabel(surface: "main" | "side", runActive: boolean) {
 }
 
 export type ConversationComposerProps = {
+  taskId?: string;
   prompt: string;
   folder: string;
   workspaceId?: string;
@@ -116,6 +119,7 @@ export type ConversationComposerProps = {
 };
 
 export function ConversationComposer({
+  taskId,
   prompt,
   folder,
   workspaceId,
@@ -183,11 +187,14 @@ export function ConversationComposer({
   });
   const attachments = useComposerAttachments(images, outbox, onImageRemove);
   const nothingToSend = !prompt.trim() && attachments.items.length === 0 && annotations.length === 0 && pastes.length === 0 && files.length === 0;
+  const controls = useCommandControls();
+  const sendCommand: AppCommand = { type: "attachments.send", taskId, attachments: attachments.items };
 
   /** While a run is going the message joins the queue, so only steering needs the run to be active. */
   async function submit(steer = false) {
     if (attachments.sending || waiting || disabled || (steer && !runActive)) return;
     if (nothingToSend) return;
+    if (!controls.available({ ...sendCommand, ...(steer ? { steer } : {}) })) return;
     attachments.send(steer);
   }
 
@@ -233,17 +240,17 @@ export function ConversationComposer({
           rows={2}
         />
         <div className="composer-bar">
-          <ComposerSettings mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} fastMode={fastMode} onFastModeChange={onFastModeChange} onModeChange={onModeChange} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
+          <ComposerSettings taskId={taskId} mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} fastMode={fastMode} onFastModeChange={onFastModeChange} onModeChange={onModeChange} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
           <div className="composer-actions">
             {contextUsage && <ContextUsageMeter usage={contextUsage} />}
-            <button
+            <CommandButton command={runActive ? { type: "run.cancel", taskId } : sendCommand}
               className={`send-button ${runActive ? "running" : ""}`}
               disabled={!runActive && (disabled || attachments.sending || waiting || nothingToSend)}
               onClick={runActive ? onCancel : () => void submit()}
               aria-label={sendLabel(surface, runActive)}
             >
               {runActive ? <span className="stop-glyph" /> : "↑"}
-            </button>
+            </CommandButton>
           </div>
         </div>
       </div>

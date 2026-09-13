@@ -24,6 +24,8 @@ export type ComputerLink = {
   /** Why the line is down, when the last attempt could say. */
   error: string | null;
   pairedAt: number;
+  /** Absent on older hosts, which retain best-effort command support. Never persisted. */
+  capabilities?: readonly string[];
 };
 
 /** The pairing Settings has open: which computer, whether the code is on its way, and what the last one earned. */

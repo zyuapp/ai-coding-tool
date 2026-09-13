@@ -95,7 +95,10 @@ function dropHandler(onMoveProject: ProjectSidebarProps["onMoveProject"], onMove
   return ({ draggableId, type, source, destination }: DropResult) => {
     if (!destination) return;
     if (destination.droppableId === source.droppableId && destination.index === source.index) return;
-    if (type === PROJECT_DRAG) return onMoveProject(draggableId, destination.index);
+    if (type.startsWith(`${PROJECT_DRAG}:`)) {
+      if (destination.droppableId === source.droppableId) onMoveProject(draggableId, destination.index);
+      return;
+    }
     onMoveThread(draggableId, {
       projectId: destination.droppableId === RECENTS_DROPPABLE ? null : destination.droppableId,
       index: destination.index,

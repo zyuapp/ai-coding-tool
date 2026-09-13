@@ -1,15 +1,17 @@
+import { createRemoteWorkspaceReader } from "../../../src/application/remote-workspace.ts";
+import { COMPUTER_CAPABILITIES, REMOTE_UNSUPPORTED, type ComputerCapabilities } from "../../../src/contracts/computer-capabilities.ts";
 import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_ENCODED_BYTES, MAX_ATTACHMENTS } from "../../../src/domain/conversation.ts";
 import { COMPUTER_PROTOCOL_VERSION, COMPUTER_SEND_TOO_LARGE, type ComputerServerMessage } from "../../../src/contracts/computers.ts";
 import assert from "node:assert/strict";
 import { once } from "node:events";
-import WebSocket from "ws";
+import WebSocket, { WebSocketServer } from "ws";
 import type { ThreadNotice } from "../../../src/contracts/ipc.ts";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { test } from "vitest";
 import { emptyWorkspaceState, type WorkspaceState } from "../../../src/application/workspace-state.ts";
-import { parseWorkspaceJson } from "../../../src/application/workspace-json.ts";
+import { parseWorkspaceJson, stringifyWorkspaceJson } from "../../../src/application/workspace-json.ts";
 import type { WorkspaceInput } from "../../../src/application/workspace-reducer.ts";
 import type { WorkspaceUpdate } from "../../../src/contracts/workspace-runtime.ts";
 import type { ComputerStatus } from "../../../src/domain/computers.ts";
@@ -145,7 +147,7 @@ test.for([COMPUTER_PROTOCOL_VERSION - 1, COMPUTER_PROTOCOL_VERSION + 1])("a comp
   const paired = await first.waitFor("paired");
   const snapshot = await first.waitFor("workspace");
   assert.ok("state" in snapshot.update);
-  assert.equal(snapshot.update.state.threads[0]?.title, "First");
+  assert.equal(createRemoteWorkspaceReader()(snapshot.update.state).threads[0]?.title, "First");
   assert.equal(served.devices.list()[0]?.kind, "computer");
   first.socket.close();
   await once(first.socket, "close");
@@ -166,9 +168,10 @@ test.for([COMPUTER_PROTOCOL_VERSION - 1, COMPUTER_PROTOCOL_VERSION + 1])("a comp
   assert.ok(served.inputs.some((received) => received.type === "task.rename" && received.title === input.title));
 
   resumed.socket.send(JSON.stringify({ kind: "input", requestId: "invalid", inputs: [{ type: "task.rename", taskId: "first", title: 42 }] }));
-  const error = await resumed.waitFor("error");
-  assert.equal(error.code, "unreadable");
-  assert.match(error.message, /Updating AI Coding Tool on the remote computer may help/);
+  const error = await until(() => resumed.messages.find((message) => message.kind === "result" && message.requestId === "invalid"), "a correlated rejection");
+  assert.ok(error.kind === "result" && !error.result.ok);
+  assert.equal(error.result.message, REMOTE_UNSUPPORTED);
+  assert.equal(resumed.socket.readyState, WebSocket.OPEN);
   assert.deepEqual(served.inputs.filter((received) => received.type === "task.rename"), [input]);
 });
 
@@ -248,3 +251,97 @@ test("a full strip of images just under the decoded byte limit crosses intact", 
   for (const image of sent.attachments) assert.equal(image.source, attachments[0]!.source);
   assert.equal(mac.link.status, "connected");
 }, 30_000);
+
+
+test("capabilities arrive on pairing and every resume; unfamiliar actions and fields get correlated refusals", async (t) => {
+  const served = await host(t);
+  const socket = new WebSocket(served.url);
+  const messages: ComputerServerMessage[] = [];
+  socket.on("message", (data) => messages.push(parseWorkspaceJson(String(data)) as ComputerServerMessage));
+  t.onTestFinished(() => socket.close());
+  await once(socket, "open");
+  socket.send(JSON.stringify({ kind: "pair", version: 999, code: served.mint(), deviceName: "Future client" }));
+  await until(() => messages.some((message) => message.kind === "workspace"), "the snapshot");
+  assert.deepEqual(messages.find((message) => message.kind === "capabilities")?.capabilities, COMPUTER_CAPABILITIES);
+  for (const [requestId, payload] of [
+    ["unknown", { kind: "input", inputs: [{ type: "future.command" }] }],
+    ["field", { kind: "input", inputs: [{ type: "task.rename", taskId: "first", title: "ignored", future: true }] }],
+    ["event", { kind: "input", inputs: [{ type: "action.failed", message: "injected" }] }],
+    ["query", { kind: "query", query: { kind: "future-query" } }],
+    ["query-field", { kind: "query", query: { kind: "branches", workspaceId: "ws", future: true } }],
+  ] as const) {
+    socket.send(JSON.stringify({ ...payload, requestId }));
+    const answer = await until(() => messages.find((message) => "requestId" in message && message.requestId === requestId), "the rejected request");
+    assert.ok(answer.kind === "result" ? !answer.result.ok : answer.kind === "answer" && !answer.ok);
+  }
+  assert.equal(served.inputs.length, 0);
+  socket.send(JSON.stringify({ kind: "input", requestId: "works", inputs: [{ type: "task.rename", taskId: "first", title: "still connected" }] }));
+  await until(() => served.inputs.length === 1, "a supported command following the refusals");
+
+  const paired = messages.find((message) => message.kind === "paired")!;
+  const snapshot = messages.find((message) => message.kind === "workspace")!;
+  socket.close();
+  await once(socket, "close");
+  const resumed = new WebSocket(served.url);
+  const updates: ComputerServerMessage[] = [];
+  resumed.on("message", (data) => updates.push(parseWorkspaceJson(String(data)) as ComputerServerMessage));
+  t.onTestFinished(() => resumed.close());
+  await once(resumed, "open");
+  resumed.send(JSON.stringify({ kind: "resume", version: 999, token: paired.token, sessionId: snapshot.sessionId, lastSequence: snapshot.sequence }));
+  await until(() => updates.some((message) => message.kind === "ping"), "the resume");
+  await until(() => updates.some((message) => message.kind === "capabilities"), "refreshed capabilities");
+});
+
+
+test.for([false, true])("a client reads old state and uses advertised support when present (%s)", async (advertise, t) => {
+  const server = new WebSocketServer({ host: "127.0.0.1", port: 0 });
+  await once(server, "listening");
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  let peer: WebSocket | undefined;
+  const received: string[] = [];
+  const limited = COMPUTER_CAPABILITIES.filter((name) => !name.startsWith("command:task.snooze") && !name.startsWith("query:directories"));
+  let sequence = 0;
+  let generation = 0;
+  const send = (message: object) => peer!.send(stringifyWorkspaceJson({ ...message, sequence: ++sequence }));
+  server.on("connection", (socket) => {
+    peer = socket;
+    socket.on("message", (data) => {
+      const message = JSON.parse(String(data));
+      if (message.kind === "pair" || message.kind === "resume") {
+        generation++;
+        if (advertise) send({ kind: "capabilities", capabilities: generation === 1 ? [...limited, "future:capability"] : COMPUTER_CAPABILITIES });
+        send({ kind: "workspace", sessionId: "session", update: { revision: generation, state: { threads: [task("old")], currentId: "old", projects: [] } } });
+      } else if (message.kind === "input") {
+        received.push(message.inputs[0].type);
+        send({ kind: "result", requestId: message.requestId, result: { ok: true, revision: generation } });
+      }
+    });
+  });
+  const capabilities: ComputerCapabilities[] = [];
+  const mac = client({ url: `ws://127.0.0.1:${address.port}`, credential: { token: "legacy" }, onCapabilities: (value) => capabilities.push(value) });
+  t.onTestFinished(async () => {
+    mac.link.stop();
+    for (const socket of server.clients) socket.terminate();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+  const first = await until(() => mac.states[0], "the older snapshot");
+  assert.deepEqual(first.sideChats, []);
+  assert.ok(first.expandedProjects instanceof Set);
+  const snooze = { type: "task.snooze", taskId: "old", hours: 1 } as const;
+  if (advertise) {
+    await assert.rejects(mac.link.send([snooze]), /unavailable/);
+    await assert.rejects(mac.link.query({ kind: "directories", prefix: "/" }), /unavailable/);
+    assert.deepEqual(received, []);
+  } else {
+    await mac.link.send([snooze]);
+    assert.deepEqual(received, ["task.snooze"]);
+  }
+  await mac.link.send([{ type: "task.rename", taskId: "old", title: "works" }]);
+  send({ kind: "workspace", update: { revision: 2, patches: [{ path: ["sideChats"], value: [] }, { path: ["composerFocus"], value: 3 }] } });
+  await until(() => mac.states.at(-1)?.composerFocus === 3, "patching the original replica");
+  peer!.terminate();
+  await until(() => generation === 2 && mac.states.length >= 3, "reconnecting");
+  await mac.link.send([snooze]);
+  if (advertise) assert.deepEqual(capabilities.at(-1), COMPUTER_CAPABILITIES);
+});

@@ -1,13 +1,14 @@
+import { COMPUTER_CAPABILITIES } from "../../src/contracts/computer-capabilities.ts";
 import { executeWorkspaceInput } from "../../src/application/workspace-execution.ts";
 import { computerEffects } from "../../src/host/computer-effects.ts";
 import type { EffectHost } from "../../src/host/effect-host.ts";
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { ATTACHMENTS_ELSEWHERE, FILES_ELSEWHERE, PANEL_ELSEWHERE, routeInput, type PairedComputer } from "../../src/application/computers.ts";
+import { ATTACHMENTS_ELSEWHERE, FILES_ELSEWHERE, PANEL_ELSEWHERE, routeInput, computerCommandAvailable, createComputerCapabilitySnapshot, type PairedComputer } from "../../src/application/computers.ts";
 import { reduce, type WorkspaceEffect, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { ComputerLink } from "../../src/domain/computers.ts";
-import { effectOf, task, workspace } from "./workspace-reducer-fixtures.mts";
+import { activeRun, effectOf, task, workspace } from "./workspace-reducer-fixtures.mts";
 
 const link = (id: string, overrides: Partial<ComputerLink> = {}): ComputerLink => ({ id, name: id, host: `${id}.tail.ts.net`, status: "connected", error: null, pairedAt: 1, ...overrides });
 
@@ -27,6 +28,140 @@ const remoteState = workspace({
 function withComputers(state: WorkspaceState, computers: PairedComputer[], extra: Partial<WorkspaceState["computers"]> = {}): WorkspaceState {
   return { ...state, computers: { ...state.computers, name: "This Mac", paired: computers, ...extra } };
 }
+
+test("remote side chats display local drafts through typing, host updates, and send acknowledgement", () => {
+  const chatId = "remote-chat";
+  let remote = reduce(remoteState, { type: "side-chat.open", chatId }).state;
+  remote = reduce(remote, { type: "view.set-prompt", taskId: chatId, prompt: "Host draft" }).state;
+  let state = withComputers(workspace({ prompts: { "remote-thread": "Main draft" } }), [paired("linux", remote)], { active: "linux" });
+  assert.equal(deriveView(state).sideChats[0].prompt, "", "the host's draft belongs to its own window");
+  for (const prompt of ["H", "Hello", "", "Send this"]) {
+    const typed = reduce(state, { type: "view.set-prompt", taskId: chatId, prompt });
+    assert.deepEqual(typed.effects, [], "keystrokes stay local");
+    state = typed.state;
+    assert.equal(deriveView(state).sideChats[0].prompt, prompt);
+    assert.equal(deriveView(state).prompt, "Main draft");
+  }
+  state = reduce(state, { type: "paste.add", taskId: chatId, text: "Local log" }).state;
+  state = reduce(state, { type: "annotation.recall", taskId: chatId, annotations: [{ id: "note", quote: "Selected text", note: "Local comment" }] }).state;
+  remote = { ...remote, activeRuns: { [chatId]: activeRun(chatId, "remote-run") } };
+  state = reduce(state, { type: "computer.state", id: "linux", state: remote }).state;
+  const chat = deriveView(state).sideChats[0];
+  assert.equal(chat.prompt, "Send this");
+  assert.equal(chat.running, true, "run status still comes from the host");
+  assert.equal(chat.thread, remote.threads.find((thread) => thread.id === chatId));
+  assert.equal(chat.pastes, state.pastes[chatId]);
+  assert.equal(chat.annotations, state.annotations[chatId]);
+  const sent = reduce(state, { type: "attachments.send", taskId: chatId, attachments: [] });
+  const forward = effectOf(sent, "computer.forward");
+  assert.equal(forward.id, "linux");
+  assert.deepEqual(forward.inputs[0], { type: "view.set-prompt", taskId: chatId, prompt: "Send this" });
+  assert.equal(deriveView(sent.state).sideChats[0].prompt, "Send this", "the draft stays until acknowledged");
+  const taken = deriveView(reduce(sent.state, { type: "computers.forwarded", draft: forward.draft! }).state);
+  assert.equal(taken.sideChats[0].prompt, "");
+  assert.deepEqual(taken.sideChats[0].pastes, []);
+  assert.deepEqual(taken.sideChats[0].annotations, []);
+  assert.equal(taken.prompt, "Main draft");
+});
+
+test("remote side chat attachment drafts are isolated and unrelated edits preserve their views", () => {
+  let remote = reduce(remoteState, { type: "side-chat.open", chatId: "chat-one" }).state;
+  remote = reduce(remote, { type: "side-chat.open", chatId: "chat-two" }).state;
+  remote = reduce(remote, { type: "image.recall", taskId: "chat-two", paths: ["/linux/host.png"] }).state;
+  let state = withComputers(workspace(), [paired("linux", remote)], { active: "linux" });
+  state = reduce(state, { type: "image.recall", taskId: "chat-one", paths: ["/mac/local.png"] }).state;
+  state = reduce(state, { type: "file.recall", taskId: "chat-one", files: [{ id: "file", name: "local.ts", path: "/mac/local.ts" }] }).state;
+  const before = deriveView(state).sideChats;
+  assert.equal(before[0].images, state.images["chat-one"]);
+  assert.equal(before[0].files, state.files["chat-one"]);
+  assert.deepEqual(before[1].images, []);
+  assert.deepEqual(before[1].files, []);
+  state = reduce(state, { type: "view.set-prompt", prompt: "Main edit" }).state;
+  assert.equal(deriveView(state).sideChats, before);
+  state = reduce(state, { type: "view.set-prompt", taskId: "chat-one", prompt: "Side edit" }).state;
+  const after = deriveView(state).sideChats;
+  assert.equal(after[0].prompt, "Side edit");
+  assert.equal(after[1], before[1]);
+  state = reduce(state, { type: "image.remove", taskId: "chat-one", imageId: after[0].images[0].id }).state;
+  state = reduce(state, { type: "file.detach", taskId: "chat-one", fileId: "file" }).state;
+  assert.deepEqual(deriveView(state).sideChats[0].images, []);
+  assert.deepEqual(deriveView(state).sideChats[0].files, []);
+});
+
+test("dismiss all clears local and remote Priority with one scoped request per computer", () => {
+  const computers = ["claude", "codex"].map((engine) => {
+    const threads = Array.from({ length: 40 }, (_, index) => task(`${engine}-${index}`, {
+      engine: engine as "claude" | "codex", outcome: "finished", outcomeUnread: true,
+      findings: [{ id: `finding-${index}`, headline: "Review", key: `issue-${index}`, at: 1 }],
+    }));
+    return paired(engine, workspace({ threads, currentId: threads[0].id, sidebarMode: "activity" }), { capabilities: COMPUTER_CAPABILITIES });
+  });
+  const state = withComputers(workspace({ threads: [task("local", { outcome: "finished" })], currentId: "local" }), computers, { active: "codex" });
+  const dismissed = reduce(state, { type: "task.dismiss-all" });
+  assert.equal(dismissed.state.threads[0].outcome, undefined);
+  assert.equal(dismissed.state.currentId, "local");
+  assert.equal(dismissed.state.computers, state.computers, "remote state waits for its host's update");
+  const forwards = dismissed.effects.filter((effect) => effect.type === "computer.forward");
+  assert.equal(forwards.length, 2);
+  for (const effect of forwards) {
+    assert.deepEqual(effect.inputs, [{ type: "task.dismiss-all", localOnly: true }]);
+    const computer = computers.find((item) => item.id === effect.id)!;
+    const remote = reduce(computer.state!, effect.inputs[0]);
+    assert.equal(remote.state.currentId, computer.state!.currentId);
+    assert.ok(remote.state.threads.every((thread) => !thread.outcome && !thread.findings && thread.handledIssues?.length === 1));
+    const refreshed = { ...dismissed.state, computers: { ...dismissed.state.computers, paired: [{ ...computer, state: remote.state }] } };
+    assert.deepEqual(deriveView(refreshed).activityThreads.priority, []);
+  }
+});
+
+test("dismiss all follows the sidebar's computer filter", () => {
+  const computers = ["one", "two"].map((id) => paired(id, workspace({ threads: [task(id, { outcome: "failed" })] })));
+  for (const filter of ["this", "one", "all"] as const) {
+    const state = withComputers(workspace({ threads: [task("local", { outcome: "finished" })] }), computers, { filter, active: "two" });
+    const dismissed = reduce(state, { type: "task.dismiss-all" });
+    assert.equal(dismissed.state.threads[0].outcome, filter === "one" ? "finished" : undefined);
+    assert.deepEqual(dismissed.effects.filter((effect) => effect.type === "computer.forward").map((effect) => effect.id), filter === "this" ? [] : filter === "one" ? ["one"] : ["one", "two"]);
+  }
+});
+
+test("a forwarded dismissal stays on its host regardless of its filter or paired computers", () => {
+  const threads = [task("done", { outcome: "finished" }), task("busy", { outcome: "finished" }), task("blocked"),
+    task("archived", { outcome: "finished", archivedAt: 1 }), task("snoozed", { outcome: "finished", snoozedUntil: Date.now() + 3_600_000 }),
+    task("chat", { outcome: "finished" })];
+  const state = withComputers(workspace({
+    threads, currentId: "done", sidebarMode: "activity",
+    activeRuns: { busy: activeRun("busy", "r1"), blocked: activeRun("blocked", "r2", { status: "awaiting-approval" }) },
+    sideChats: [{ id: "chat", sourceThreadId: "done", error: null }],
+  }), [paired("other", workspace({ threads: [task("elsewhere", { outcome: "finished" })] }))], { filter: "other", active: "other" });
+  const dismissed = reduce(state, { type: "task.dismiss-all", localOnly: true });
+  assert.equal(dismissed.state.threads[0].outcome, undefined);
+  assert.deepEqual(dismissed.state.threads.slice(1), threads.slice(1));
+  assert.equal(dismissed.state.activeRuns, state.activeRuns);
+  assert.equal(dismissed.state.computers, state.computers);
+  assert.equal(dismissed.state.currentId, "done");
+  assert.equal(dismissed.effects.some((effect) => effect.type === "computer.forward"), false);
+});
+
+test("dismiss all reports unavailable computers while still reaching available ones", () => {
+  const remote = workspace({ threads: [task("remote", { outcome: "finished" })] });
+  const computers = [paired("offline", remote, { status: "offline" }), paired("unsupported", remote, { capabilities: [] }),
+    paired("online", remote), paired("quiet", workspace(), { status: "offline" })];
+  const state = withComputers(workspace({ threads: [task("local", { outcome: "finished" })] }), computers);
+  const dismissed = reduce(state, { type: "task.dismiss-all" });
+  assert.equal(dismissed.state.threads[0].outcome, undefined);
+  assert.equal(dismissed.state.computers, state.computers);
+  assert.equal(dismissed.result?.ok, false);
+  assert.match(dismissed.state.actionError!, /offline is offline/);
+  assert.match(dismissed.state.actionError!, /unsupported:/);
+  assert.doesNotMatch(dismissed.state.actionError!, /quiet/);
+  assert.deepEqual(dismissed.effects.filter((effect) => effect.type === "computer.forward").map((effect) => effect.id), ["online"]);
+});
+
+test("dismiss all uses the original local-only command on hosts predating its scope field", () => {
+  const older = COMPUTER_CAPABILITIES.filter((name) => name !== "command:task.dismiss-all:localOnly");
+  const state = withComputers(workspace(), [paired("older", workspace({ threads: [task("remote", { outcome: "finished" })] }), { capabilities: older })]);
+  assert.deepEqual(effectOf(reduce(state, { type: "task.dismiss-all" }), "computer.forward").inputs, [{ type: "task.dismiss-all" }]);
+});
 
 test("with no computer paired every command stays where it is", () => {
   const state = workspace({ threads: [task("local")] });
@@ -211,6 +346,16 @@ test("a draft may start in any computer's project whatever the sidebar filter sh
   const overlaid = deriveView(withComputers(state, [paired("linux", drafting)], { active: "linux", filter: "this" }));
   assert.equal(overlaid.currentProject?.id, "remote-project");
   assert.ok(overlaid.startProjects.some((project) => project.id === "remote-project"), "a draft on the other computer is offered its own project too");
+});
+
+test("filter changes update local lists even when neither selection has remote collections", () => {
+  const state = workspace({ projects: [{ id: "local", root: "/local" }], threads: [task("local-chat")] });
+  for (const filter of ["this", "missing", "all", "missing", "this"] as const) {
+    const view = deriveView({ ...state, computers: { ...state.computers, filter } });
+    const own = filter !== "missing";
+    assert.deepEqual(view.projects.map((project) => project.id), own ? ["local"] : []);
+    assert.deepEqual(view.recentThreads.map((thread) => thread.id), own ? ["local-chat"] : []);
+  }
 });
 
 test("with a paired computer on screen the conversation is its own, under this window's chrome and drafts", () => {
@@ -418,4 +563,55 @@ test("an offline terminal keeps shortcuts and attention on the computer still on
   assert.equal(focused.state.focused, true);
   assert.equal(focused.state.threads[0].outcomeUnread, true, "the hidden local thread has not been read");
   assert.equal(focused.effects.some((effect) => effect.type === "computer.forward"), false);
+});
+
+
+test("advertised support blocks a whole remote batch before it changes selection or sends drafts", () => {
+  const limited = COMPUTER_CAPABILITIES.filter((name) => !name.startsWith("command:annotation.recall") && name !== "command:task.send:role");
+  const state = withComputers(workspace({ prompts: { "remote-thread": "keep me" } }), [paired("linux", remoteState, { capabilities: limited })], { active: "linux" });
+  assert.equal(routeInput(state, { type: "task.send" }).kind, "refuse");
+  assert.equal(routeInput(state, { type: "task.send", text: "direct", role: "reviewer" }).kind, "refuse");
+  assert.equal(routeInput(state, { type: "task.send", text: "direct" }).kind, "computer");
+  const rejected = reduce(state, { type: "task.send" });
+  assert.equal(rejected.state.prompts["remote-thread"], "keep me");
+  assert.equal(rejected.effects.some((effect) => effect.type === "computer.forward"), false);
+  assert.equal(routeInput(state, { type: "view.set-theme", theme: "catppuccin-latte" }).kind, "local");
+});
+
+test("a capability refresh replaces the paired link even when its status and name are unchanged", () => {
+  const first = paired("linux", remoteState, { capabilities: [] });
+  const state = withComputers(workspace(), [first]);
+  const changed = reduce(state, { type: "computers.changed", name: "Mac", links: [{ ...link("linux"), capabilities: COMPUTER_CAPABILITIES }] }).state;
+  assert.equal(changed.computers.paired[0]?.state, remoteState);
+  assert.equal(changed.computers.paired[0]?.capabilities, COMPUTER_CAPABILITIES);
+  assert.equal(routeInput(changed, { type: "task.select", taskId: "remote-thread" }).kind, "computer");
+});
+
+
+test("ordinary remote refusals keep their explanations instead of masquerading as missing capabilities", () => {
+  const connected = paired("linux", remoteState, { capabilities: COMPUTER_CAPABILITIES });
+  const state = withComputers(workspace(), [connected], { active: "linux" });
+  const files = { ...state, files: { "remote-thread": [{ id: "file", name: "local", path: "/local/file" }] } };
+  const send = { type: "attachments.send", attachments: [] } as const;
+  assert.equal(computerCommandAvailable(files, { ...send, attachments: [] }), true);
+  assert.deepEqual(routeInput(files, { ...send, attachments: [] }), { kind: "refuse", message: ATTACHMENTS_ELSEWHERE });
+  const offline = withComputers(state, [{ ...connected, status: "offline" }]);
+  const archive = { type: "task.archive", taskId: "remote-thread" } as const;
+  assert.equal(computerCommandAvailable(offline, archive), true);
+  assert.deepEqual(routeInput(offline, archive), { kind: "refuse", message: "linux is offline." });
+  const limited = withComputers(state, [{ ...connected, capabilities: [] }]);
+  assert.equal(computerCommandAvailable(limited, archive), false);
+});
+
+test("streaming updates preserve the capability context while discovery and connection changes invalidate it", () => {
+  const snapshot = createComputerCapabilitySnapshot();
+  const computer = paired("linux", remoteState, { capabilities: COMPUTER_CAPABILITIES });
+  const computers = { ...workspace().computers, paired: [computer], active: "linux" };
+  const first = snapshot(computers);
+  const streamed = { ...computers, paired: [{ ...computer, state: { ...remoteState, composerFocus: 1 } }] };
+  assert.equal(snapshot(streamed), first);
+  const offline = snapshot({ ...streamed, paired: [{ ...computer, status: "offline" }] });
+  assert.notEqual(offline, first);
+  const refreshed = snapshot({ ...computers, paired: [{ ...computer, capabilities: [] }] });
+  assert.notEqual(refreshed, first);
 });
