@@ -47,6 +47,7 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
           startOptions={!workspace.currentThread && (
             <ThreadStartOptions
               projects={workspace.startProjects}
+              projectHosts={workspace.projectHosts}
               projectId={workspace.currentProject?.id ?? null}
               {...(workspace.currentProject?.workspaceId ? { workspaceId: workspace.currentProject.workspaceId } : {})}
               branch={workspace.draftBranch}

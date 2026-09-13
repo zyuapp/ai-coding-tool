@@ -1333,6 +1333,18 @@ button, select { color: inherit; }
   white-space: nowrap;
 }
 .empty-state .thread-start-popover button:hover { background: var(--surface-menu-hover); }
+.thread-start-field > button > .project-host,
+.thread-start-popover button > .project-host {
+  flex: none;
+  margin-left: auto;
+  max-width: 110px;
+}
+.thread-start-group-heading {
+  padding: 8px 13px 4px;
+  color: var(--quiet);
+  font-size: var(--text-meta);
+  font-weight: 500;
+}
 /** The branch list, wherever it hangs: the empty state's start options, and the session panel. */
 .branch-menu {
   position: absolute;

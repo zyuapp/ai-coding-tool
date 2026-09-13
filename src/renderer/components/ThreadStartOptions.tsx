@@ -1,15 +1,36 @@
 import { LuCheck as Check, LuChevronDown as ChevronDown, LuFolderGit2 as FolderGit2, LuFolderSymlink as FolderSymlink, LuGitBranch as GitBranch, LuSearch as Search, LuX as X } from "react-icons/lu";
 import { useRef, useState } from "react";
 import type { DraftBranch } from "../../application/workspace-state";
+import type { ThreadHost } from "../../application/computers";
 import { BranchMenu, useBranches } from "./BranchMenu";
 import { projectName, type Project } from "../../domain/project";
 import { moveListFocus, useDismissibleLayer } from "../focus";
 
-/** Which projects a typed query keeps, matched on the name shown and on the path behind it. */
-export function matchProjects(projects: Project[], query: string) {
+/** Which projects a typed query keeps, matched on the name, path, and computer shown. */
+export function matchProjects(projects: Project[], query: string, projectHosts?: ReadonlyMap<string, ThreadHost>) {
   const needle = query.trim().toLowerCase();
   if (!needle) return projects;
-  return projects.filter((project) => `${projectName(project)} ${project.root}`.toLowerCase().includes(needle));
+  return projects.filter((project) => `${projectName(project)} ${project.root} ${projectHosts?.get(project.id)?.name ?? "This computer"}`.toLowerCase().includes(needle));
+}
+
+/** Keep each computer's project order, with this computer before the paired computers by name. */
+function groupProjects(projects: Project[], projectHosts?: ReadonlyMap<string, ThreadHost>) {
+  const groups = new Map<string | null, { host: ThreadHost | undefined; projects: Project[] }>();
+  for (const project of projects) {
+    const host = projectHosts?.get(project.id);
+    const id = host?.id ?? null;
+    let group = groups.get(id);
+    if (!group) {
+      group = { host, projects: [] };
+      groups.set(id, group);
+    }
+    group.projects.push(project);
+  }
+  return [...groups.values()].sort((a, b) => {
+    if (!a.host) return -1;
+    if (!b.host) return 1;
+    return a.host.name.localeCompare(b.host.name) || a.host.id.localeCompare(b.host.id);
+  });
 }
 
 export type ThreadModeSwitchProps = {
@@ -37,6 +58,7 @@ export function ThreadModeSwitch({ projects, projectId, onSelectProject }: Threa
 
 export type ThreadStartOptionsProps = {
   projects: Project[];
+  projectHosts?: ReadonlyMap<string, ThreadHost>;
   projectId: string | null;
   /** The project's registered workspace, which is what the branches are read from. */
   workspaceId?: string;
@@ -56,7 +78,7 @@ export type ThreadStartOptionsProps = {
  * from, and whether it gets a checkout of its own. Nothing here touches disk — the first message does
  * that.
  */
-export function ThreadStartOptions({ projects, projectId, workspaceId, branch, worktree, startsInWorktree, onSelectProject, onSelectBranch, onSetWorktree }: ThreadStartOptionsProps) {
+export function ThreadStartOptions({ projects, projectHosts, projectId, workspaceId, branch, worktree, startsInWorktree, onSelectProject, onSelectBranch, onSetWorktree }: ThreadStartOptionsProps) {
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [projectQuery, setProjectQuery] = useState("");
   const [branchesOpen, setBranchesOpen] = useState(false);
@@ -68,7 +90,7 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
   useDismissibleLayer(projectsOpen, [projectRef], () => setProjectsOpen(false), projectTrigger);
   useDismissibleLayer(branchesOpen, [branchRef, branchMenu], () => setBranchesOpen(false), branchTrigger);
   const project = projects.find((item) => item.id === projectId);
-  const matched = matchProjects(projects, projectQuery);
+  const matched = matchProjects(projects, projectQuery, projectHosts);
   const branches = useBranches(workspaceId);
 
   const current = branches?.status === "available" ? branches.current : null;
@@ -77,13 +99,15 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
 
   /** A chat has no project, so there is nothing left for it to answer. */
   if (!project) return null;
+  const host = projectHosts?.get(project.id);
 
   return (
     <div className="thread-start" aria-label="How this thread starts">
       <div className={`thread-start-field ${projectsOpen ? "open" : ""}`} ref={projectRef}>
-        <button ref={projectTrigger} type="button" aria-label="Project" aria-haspopup="listbox" aria-expanded={projectsOpen} onClick={() => { setProjectQuery(""); setProjectsOpen(!projectsOpen); }}>
+        <button ref={projectTrigger} type="button" aria-label={`${projectName(project)} on ${host?.name ?? "This computer"}`} aria-haspopup="listbox" aria-expanded={projectsOpen} onClick={() => { setProjectQuery(""); setProjectsOpen(!projectsOpen); }}>
           <FolderGit2 size={14} />
           <span>{projectName(project)}</span>
+          <span className={`project-host${host?.offline ? " offline" : ""}`}>{host?.name ?? "This computer"}</span>
           <ChevronDown size={14} />
         </button>
         {projectsOpen && <div className="thread-start-popover" onKeyDown={moveListFocus}>
@@ -100,20 +124,27 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
           </label>
           <div role="listbox" aria-label="Projects">
             {matched.length === 0 && <p className="thread-start-empty">No project matches</p>}
-            {matched.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                role="option"
-                aria-selected={item.id === projectId}
-                onClick={() => {
-                  setProjectsOpen(false);
-                  onSelectProject(item.id);
-                }}
-              >
-                <span>{projectName(item)}</span>
-                {item.id === projectId && <Check size={14} />}
-              </button>
+            {groupProjects(matched, projectHosts).map(({ host, projects: grouped }) => (
+              <div key={host ? `remote:${host.id}` : "local"} role="group" aria-label={host?.name ?? "This computer"}>
+                <div className="thread-start-group-heading" aria-hidden="true">{host?.name ?? "This computer"}</div>
+                {grouped.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="option"
+                    aria-label={`${projectName(item)} on ${host?.name ?? "This computer"}`}
+                    aria-selected={item.id === projectId}
+                    onClick={() => {
+                      setProjectsOpen(false);
+                      onSelectProject(item.id);
+                    }}
+                  >
+                    <span>{projectName(item)}</span>
+                    <span className={`project-host${host?.offline ? " offline" : ""}`}>{host?.name ?? "This computer"}</span>
+                    {item.id === projectId && <Check size={14} />}
+                  </button>
+                ))}
+              </div>
             ))}
           </div>
         </div>}
