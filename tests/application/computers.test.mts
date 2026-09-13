@@ -145,12 +145,14 @@ test("whether the window is looking is kept here and told to the computer on scr
   assert.equal(home.threads[0]?.outcomeUnread, undefined);
 });
 
-test("a line to the computer on screen that comes back is told again whether anyone is looking", () => {
-  const state = withComputers(workspace({ focused: false }), [paired("linux", remoteState, { status: "offline" })], { active: "linux" });
+test("a line that comes back is told nothing until one of its threads is selected again", () => {
+  const state = withComputers(workspace({ focused: false }), [paired("linux", remoteState, { status: "offline" })]);
   const back = reduce(state, { type: "computers.changed", name: "This Mac", links: [link("linux")] });
-  assert.deepEqual(effectOf(back, "computer.forward"), { type: "computer.forward", id: "linux", inputs: [{ type: "view.set-focused", focused: false }] });
-  const still = reduce(back.state, { type: "computers.changed", name: "This Mac", links: [link("linux")] });
-  assert.equal(still.effects.length, 0, "a line that stayed up is told nothing");
+  assert.equal(back.effects.length, 0);
+  assert.equal(back.state.computers.active, null);
+  const chosen = reduce(back.state, { type: "task.select", taskId: "remote-thread" });
+  assert.equal(chosen.state.computers.active, "linux");
+  assert.deepEqual(effectOf(chosen, "computer.forward").inputs[0], { type: "view.set-focused", focused: false });
 });
 
 test("what only this computer's panels can do is refused for a thread elsewhere, and so are attachments that only carry paths", () => {
@@ -239,6 +241,8 @@ test("the paired computers as the host reports them keep the states already held
   const still = reduce(state, { type: "computers.changed", name: "This Mac", links: [link("linux", { status: "offline", error: "Timed out" })] }).state;
   assert.equal(still.computers.paired[0]?.state, remoteState, "the last state stays while the line is down");
   assert.equal(still.computers.paired[0]?.status, "offline");
+  assert.equal(still.computers.active, null, "a line that dropped takes the screen with it");
+  assert.equal(still.computers.filter, "linux", "the sidebar's filter is the user's and stays");
   assert.equal(still.computers.pairing, null, "a pairing that shows up as a link is done");
   const gone = reduce(state, { type: "computers.changed", name: "This Mac", links: [] }).state;
   assert.equal(gone.computers.active, null);
@@ -306,4 +310,67 @@ test("a refused transfer or dropped link releases the composer and preserves its
     assert.equal(state.prompts["remote-thread"], "Keep me");
     assert.deepEqual(state.attachmentSends[""], { busy: false, error: "Transfer failed", sent: [] });
   }
+});
+
+test("a paired computer whose line drops leaves the screen, and the window's own work goes nowhere near it", () => {
+  const local = task("local", { projectId: "p-local" });
+  const shown = withComputers(workspace({ projects: [{ id: "p-local", root: "/mac/app", workspaceId: "ws-local" }], threads: [local], currentId: "local" }), [paired("linux", remoteState)], { active: "linux" });
+  const dropped = reduce(shown, { type: "computers.changed", name: "This Mac", links: [link("linux", { status: "offline", error: "The other computer runs a different version of AI Coding Tool. Update both." })] });
+  assert.equal(dropped.state.computers.active, null, "a line that dropped takes the screen with it");
+  assert.equal(dropped.state.computers.paired[0]?.state, remoteState, "what it published stays for the sidebar");
+  assert.deepEqual(dropped.effects, [], "nothing is told to a line that is down");
+  const view = deriveView(dropped.state);
+  assert.equal(view.currentThread?.id, "local", "the window shows its own thread again");
+  assert.equal(view.activeComputer, null);
+  assert.deepEqual(view.startProjects.map((project) => project.id), ["p-local"], "a draft cannot start on a computer that is away");
+  const own: WorkspaceInput[] = [
+    { type: "view.set-focused", focused: true },
+    { type: "task.new" },
+    { type: "task.set-branch", branch: "main" },
+    { type: "task.send", attachments: [], text: "hello" },
+    { type: "run.cancel" },
+    { type: "file.open", path: "src/app.ts" },
+  ];
+  for (const input of own) assert.deepEqual(routeInput(dropped.state, input), { kind: "local" }, input.type);
+  const sent = reduce(dropped.state, { type: "task.send", attachments: [], text: "hello" });
+  assert.equal(sent.effects.some((effect) => effect.type === "computer.forward"), false);
+  assert.equal(sent.state.actionError, null);
+});
+
+test("a command that names a thread or project on a computer that is away is refused with why, once", () => {
+  const away = paired("linux", remoteState, { status: "offline", error: "The other computer runs a different version of AI Coding Tool. Update both." });
+  const state = withComputers(workspace({ threads: [task("local")] }), [away]);
+  const why = { kind: "refuse", message: away.error };
+  assert.deepEqual(routeInput(state, { type: "task.select", taskId: "remote-thread" }), why);
+  assert.deepEqual(routeInput(state, { type: "task.new", projectId: "remote-project" }), why);
+  assert.deepEqual(routeInput(state, { type: "run.cancel", taskId: "remote-thread" }), why);
+  assert.deepEqual(routeInput(state, { type: "task.send", attachments: [], taskId: "remote-thread" }), why);
+  assert.deepEqual(routeInput(state, { type: "project.remove", projectId: "remote-project" }), why);
+  const refused = reduce(state, { type: "task.select", taskId: "remote-thread" });
+  assert.equal(refused.state.computers.active, null, "a computer that cannot take the selection is not put on screen");
+  assert.equal(refused.state.actionError, away.error);
+  assert.deepEqual(refused.effects, []);
+  const nameless = withComputers(state, [paired("linux", remoteState, { status: "connecting" })]);
+  assert.deepEqual(routeInput(nameless, { type: "task.select", taskId: "remote-thread" }), { kind: "refuse", message: "linux is offline." });
+});
+
+test("a computer on screen that is not connected counts as none: the window paints and routes its own", () => {
+  const local = task("local");
+  const state = withComputers(workspace({ threads: [local], currentId: "local", prompts: { local: "mine" } }), [paired("linux", remoteState, { status: "offline" })], { active: "linux" });
+  assert.equal(deriveView(state).currentThread?.id, "local");
+  assert.equal(deriveView(state).prompt, "mine", "the draft is the window's own, not the other computer's");
+  assert.deepEqual(routeInput(state, { type: "task.send", attachments: [], text: "hello" }), { kind: "local" });
+  assert.deepEqual(routeInput(state, { type: "view.set-focused", focused: false }), { kind: "local" });
+  const home = reduce(state, { type: "task.new" });
+  assert.equal(home.state.computers.active, null);
+  assert.equal(home.effects.some((effect) => effect.type === "computer.forward"), false, "a line that is down is not told the window left");
+});
+
+test("a forward the line refused is the window's error once, and housekeeping the line refused is no error at all", async () => {
+  const raised: WorkspaceInput[] = [];
+  const host = { dispatch: async (input: WorkspaceInput) => { raised.push(input); }, desktop: { sendToComputer: async () => { throw new Error("That computer cannot be reached right now."); } } } as unknown as EffectHost;
+  await computerEffects["computer.forward"]({ type: "computer.forward", id: "linux", inputs: [{ type: "view.set-focused", focused: true }] }, host);
+  assert.deepEqual(raised, []);
+  await computerEffects["computer.forward"]({ type: "computer.forward", id: "linux", inputs: [{ type: "view.set-focused", focused: true }, { type: "task.select", taskId: "remote-thread" }] }, host);
+  assert.deepEqual(raised, [{ type: "action.failed", message: "That computer cannot be reached right now." }]);
 });

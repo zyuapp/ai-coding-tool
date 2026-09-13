@@ -107,13 +107,14 @@ const sidebar = selector(
 /**
  * Every computer's projects, this one's first, for a draft to start in. The sidebar's filter narrows
  * what is listed, never where a thread may begin, so the draft's own project is always among these.
+ * A computer whose line is down takes no thread, so its projects wait with it.
  */
 const startProjects = selector(
   (state) => [state.projects, state.computers.paired],
   (state) => {
     const own = orderProjects(state.projects);
     const others: Project[] = [];
-    for (const computer of state.computers.paired) if (computer.state) others.push(...orderProjects(computer.state.projects));
+    for (const computer of state.computers.paired) if (computer.state && computer.status === "connected") others.push(...orderProjects(computer.state.projects));
     return others.length ? [...own, ...others] : own;
   },
 );

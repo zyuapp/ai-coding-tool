@@ -35,17 +35,6 @@ function HiddenThreadsNotice({ workspace }: { workspace: ReturnType<typeof useTa
   );
 }
 
-/** The paired computer whose thread is on screen, while its line is down. */
-function ComputerNotice({ workspace }: { workspace: ReturnType<typeof useTaskWorkspace> }) {
-  const computer = workspace.activeComputer;
-  if (!computer || computer.status === "connected") return null;
-  return (
-    <div className="storage-notice computer-notice" role="status">
-      <span>{computer.name} is {computer.status === "connecting" ? "connecting…" : "offline"}{computer.error ? ` (${computer.error})` : ""}. Its threads wait until it is back.</span>
-    </div>
-  );
-}
-
 export function App() {
   const workspace = useTaskWorkspace();
   const dispatchRef = useLatestDispatch(workspace.dispatch);
@@ -167,22 +156,23 @@ export function App() {
             void workspace.actions.setDockOpen(!rightDockOpen);
           }}
         />
-        {(workspace.storageError || workspace.actionError) && (
-          <div className="storage-error" role="alert">
-            <span>{workspace.storageError || workspace.actionError}</span>
-            {!workspace.storageError && errorPage && (
-              <button className="storage-error-link" type="button" onClick={() => void workspace.actions.openSettingsSection(errorPage)}>Open settings</button>
-            )}
-            {!workspace.storageError && (
-              <button type="button" aria-label="Dismiss error" onClick={() => void workspace.dispatch({ type: "view.dismiss-action-error" })}>
-                <X size={15} aria-hidden="true" />
-              </button>
-            )}
-          </div>
-        )}
-
-        {!workspace.storageError && <HiddenThreadsNotice workspace={workspace} />}
-        <ComputerNotice workspace={workspace} />
+        {/** Every banner takes a row of its own, so none is drawn over another. */}
+        <div className="workspace-banners">
+          {(workspace.storageError || workspace.actionError) && (
+            <div className="storage-error" role="alert">
+              <span>{workspace.storageError || workspace.actionError}</span>
+              {!workspace.storageError && errorPage && (
+                <button className="storage-error-link" type="button" onClick={() => void workspace.actions.openSettingsSection(errorPage)}>Open settings</button>
+              )}
+              {!workspace.storageError && (
+                <button type="button" aria-label="Dismiss error" onClick={() => void workspace.dispatch({ type: "view.dismiss-action-error" })}>
+                  <X size={15} aria-hidden="true" />
+                </button>
+              )}
+            </div>
+          )}
+          {!workspace.storageError && <HiddenThreadsNotice workspace={workspace} />}
+        </div>
 
         <WorkspaceConversation workspace={workspace} find={find} findBar={findBar} onAnnotateSide={annotateToSideChat} />
 

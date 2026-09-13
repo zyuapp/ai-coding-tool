@@ -114,15 +114,11 @@ export function reduceComputers(state: WorkspaceState, input: ComputerInput): Wo
       return settled(withoutSent(state, input.draft));
     case "computers.changed": {
       const paired = linked(state, input.links);
-      /** A pairing that now shows up as a link is done; one that went away takes the screen with it. */
+      /** A pairing that now shows up as a link is done; one that went away, or whose line dropped, takes the screen with it. */
       const pairing = computers.pairing && paired.some((computer) => computer.host === computers.pairing?.host) ? null : computers.pairing;
-      const active = computers.active !== null && paired.some((computer) => computer.id === computers.active) ? computers.active : null;
+      const active = computers.active !== null && paired.some((computer) => computer.id === computers.active && computer.status === "connected") ? computers.active : null;
       const filter = computers.filter === "all" || computers.filter === "this" || paired.some((computer) => computer.id === computers.filter) ? computers.filter : "all";
-      /** A line to the computer on screen that has come back is told again whether anyone here is looking. */
-      const was = computers.paired.find((computer) => computer.id === active)?.status;
-      const back = active !== null && was !== "connected" && paired.find((computer) => computer.id === active)?.status === "connected";
-      const effects: WorkspaceEffect[] = back ? [{ type: "computer.forward", id: active, inputs: [{ type: "view.set-focused", focused: state.focused }] }] : [];
-      return settled(withComputers(state, { name: input.name, paired, pairing, active, filter }), effects);
+      return settled(withComputers(state, { name: input.name, paired, pairing, active, filter }));
     }
     case "computer.state": {
       const computer = computers.paired.find((item) => item.id === input.id);

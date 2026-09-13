@@ -35,9 +35,16 @@ export type ComputersState = {
 
 export const NO_COMPUTERS: ComputersState = { name: "", found: [], searching: false, searchError: null, paired: [], pairing: null, active: null, filter: "all" };
 
+/** The paired computer whose thread is on screen, while its line is up. One whose line is down shows nothing and takes nothing. */
 export function activeComputer(state: Pick<WorkspaceState, "computers">): PairedComputer | null {
   const { active, paired } = state.computers;
-  return active === null ? null : paired.find((computer) => computer.id === active) ?? null;
+  const computer = active === null ? null : paired.find((computer) => computer.id === active) ?? null;
+  return computer?.status === "connected" ? computer : null;
+}
+
+/** Why a paired computer takes nothing: the fault its line reported, else that it is away. */
+export function offlineMessage(computer: ComputerLink): string {
+  return computer.error ?? `${computer.name} is offline.`;
 }
 
 /** The paired computer holding a thread, or null for one of this computer's own or one nobody holds. */
@@ -111,6 +118,13 @@ function forwarded(computer: PairedComputer, inputs: WorkspaceInput[], options: 
   return { kind: "computer", computer, inputs, ...options };
 }
 
+/** A command bound for the computer holding what it names, which only a line that is up can carry. */
+function toward(computer: PairedComputer | null, route: (computer: PairedComputer) => InputRoute): InputRoute {
+  if (!computer) return LOCAL;
+  if (computer.status !== "connected") return { kind: "refuse", message: offlineMessage(computer) };
+  return route(computer);
+}
+
 /** Puts a computer on screen: it is told first whether anyone here is looking, which is what its unread marks go by. */
 function selecting(state: WorkspaceState, computer: PairedComputer, inputs: WorkspaceInput[]): InputRoute {
   return forwarded(computer, [{ type: "view.set-focused", focused: state.focused }, ...inputs], { select: true });
@@ -161,18 +175,16 @@ export function routeInput(state: WorkspaceState, input: WorkspaceInput): InputR
   const type = input.type;
   if (type === "task.new") {
     const computer = computerOfProject(state, input.projectId) ?? computerOfWorktree(state, input.worktreeId);
-    return computer ? selecting(state, computer, [input]) : LOCAL;
+    return toward(computer, (holder) => selecting(state, holder, [input]));
   }
   if (type === "task.select" || type === "worktree.open-thread" || type === "view.jump-choose") {
-    const computer = computerOfThread(state, input.taskId);
-    return computer ? selecting(state, computer, [{ type: "task.select", taskId: input.taskId }]) : LOCAL;
+    return toward(computerOfThread(state, input.taskId), (holder) => selecting(state, holder, [{ type: "task.select", taskId: input.taskId }]));
   }
   if (type === "task.dismiss-all") return LOCAL;
   /** Whether the user is looking is this window's to know and the other computer's to act on. */
   if (type === "view.set-focused") return active ? forwarded(active, [input], { also: true }) : LOCAL;
   if (type === "project.move" || type === "project.edit" || type === "project.remove") {
-    const computer = computerOfProject(state, input.projectId);
-    return computer ? forwarded(computer, [input]) : LOCAL;
+    return toward(computerOfProject(state, input.projectId), (holder) => forwarded(holder, [input]));
   }
   /** A file or folder is opened on the machine that has it, which is not this one. */
   if (type === "file.open" || type === "app.open-folder") {
@@ -184,15 +196,16 @@ export function routeInput(state: WorkspaceState, input: WorkspaceInput): InputR
   if (type === "worktree.menu-open") return input.list === "destinations" && active ? forwarded(active, [input], { also: true }) : LOCAL;
   if (type === "worktree.delete") {
     const computer = input.root !== undefined ? computerOfWorktreeRoot(state, input.root) : input.taskId !== undefined ? computerOfThread(state, input.taskId) : active;
-    return computer ? forwarded(computer, [input]) : LOCAL;
+    return toward(computer, (holder) => forwarded(holder, [input]));
   }
   if (LOCAL_PREFIXES.some((prefix) => type.startsWith(prefix))) return LOCAL;
   const named = "taskId" in input ? computerOfThread(state, input.taskId) : null;
   const computer = named ?? ("taskId" in input && input.taskId !== undefined ? null : active);
-  if (!computer) return LOCAL;
-  if (PANEL_PREFIXES.some((prefix) => type.startsWith(prefix))) return { kind: "refuse", message: PANEL_ELSEWHERE };
-  if (type === "task.send" || type === "attachments.send") return forwardedSend(state, computer, input);
-  return forwarded(computer, [input]);
+  return toward(computer, (holder) => {
+    if (PANEL_PREFIXES.some((prefix) => type.startsWith(prefix))) return { kind: "refuse", message: PANEL_ELSEWHERE };
+    if (type === "task.send" || type === "attachments.send") return forwardedSend(state, holder, input);
+    return forwarded(holder, [input]);
+  });
 }
 
 /** The threads a paired computer would list, as it would list them: its own, less the ones it has filed away. */

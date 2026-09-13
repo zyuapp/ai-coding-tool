@@ -2260,12 +2260,23 @@ pre {
 }
 .queued-drop:hover { background: var(--surface-raised); color: var(--ink); }
 
-.storage-error {
+/** The banners under the header, each on a row of its own. Empty, it takes no clicks from what is under it. */
+.workspace-banners {
   position: absolute;
   z-index: 8;
   top: 78px;
   left: 22px;
   right: 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  pointer-events: none;
+}
+.workspace-banners > * { pointer-events: auto; }
+
+.storage-error {
+  align-self: stretch;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2287,12 +2298,8 @@ pre {
  * info tone rather than the error's, and it is sized to its words so it holds one line at any width.
  */
 .storage-notice {
-  position: absolute;
-  z-index: 8;
-  top: 78px;
-  left: 22px;
   width: max-content;
-  max-width: calc(100% - 44px);
+  max-width: 100%;
   display: flex;
   align-items: center;
   gap: 10px;
