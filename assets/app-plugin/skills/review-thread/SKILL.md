@@ -67,7 +67,7 @@ Reply to the user with one line linking the reviewer as `[Review: <title>](aicod
 
 ## 3. Wait and judge
 
-Call `wait_for_thread` with `timeoutSeconds` 900. While it answers "Still working", call it again; do not poll `read_thread`.
+Call `wait_for_thread` with `timeoutSeconds` 900. While it answers "Still working", call it again; do not poll `read_thread`. If the wait is interrupted or errors, call it again: the loop ends only on an approval or the user's word.
 
 When the verdict arrives:
 
@@ -88,7 +88,7 @@ Delta to review: `git diff <previous sha>` and the working tree.
 Verify the fixes, review the delta, and reply in the same shape.
 ```
 
-Return to step 3. Stop after three rounds even without approval.
+Return to step 3. Keep going until the reviewer answers `approved`; there is no round limit. Never end your turn with a `changes-requested` verdict on the table: fixing it and sending the next round is your work, not the user's to prompt. Stop early only when the user says to, or when every remaining finding is one you reject and the reviewer has kept it for two rounds running; then say so in step 5 and let the user decide.
 
 ## 5. Finish
 
