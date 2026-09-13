@@ -1,4 +1,4 @@
-import { MAX_ATTACHMENTS, MAX_ATTACHMENT_BYTES } from "../domain/conversation.js";
+import { MAX_ATTACHMENTS, MAX_ATTACHMENT_ENCODED_BYTES } from "../domain/conversation.js";
 import type { WorkspaceCommandResult, WorkspaceInput } from "../application/workspace-reducer.js";
 import { isWorkspaceViewInput } from "./workspace-view-input.js";
 import { isAgentEngine, type AgentEngine } from "../domain/agent-engine.js";
@@ -12,10 +12,10 @@ import type { WorkspaceUpdate } from "./workspace-runtime.js";
  * projection taken out: a computer is handed the whole workspace state and speaks in the window's
  * own inputs, so anything the window can do there, it can do from here.
  */
-export const COMPUTER_PROTOCOL_VERSION = 1;
+export const COMPUTER_PROTOCOL_VERSION = 2;
 
 /** A complete image strip, plus room for the prompt, annotations, and wire envelope. */
-export const MAX_COMPUTER_MESSAGE_BYTES = MAX_ATTACHMENTS * MAX_ATTACHMENT_BYTES + 2 * 1024 * 1024;
+export const MAX_COMPUTER_MESSAGE_BYTES = MAX_ATTACHMENTS * MAX_ATTACHMENT_ENCODED_BYTES + 2 * 1024 * 1024;
 /** Transfers share a socket with heartbeats, which wait behind large frames. */
 export const COMPUTER_TRANSFER_TIMEOUT_MS = 5 * 60_000;
 export const COMPUTER_SEND_TOO_LARGE = "This message is too large to send to another computer. Use smaller images or send fewer attachments.";
@@ -32,7 +32,13 @@ export type ComputerResumeRequest = { kind: "resume"; version: number; token: st
 /** Inputs run one after another by the other computer's reducer, answered once by the last one's result. */
 export type ComputerInputRequest = { kind: "input"; requestId: string; inputs: WorkspaceInput[] };
 export type ComputerQueryRequest = { kind: "query"; requestId: string; query: ComputerQuery };
-export type ComputerClientMessage = ComputerPairRequest | ComputerResumeRequest | ComputerInputRequest | ComputerQueryRequest | { kind: "pong"; at: number };
+/** A transfer announcement precedes the large frame so its upload also gets the longer deadline. */
+export type ComputerClientMessage = ComputerPairRequest | ComputerResumeRequest | ComputerInputRequest | ComputerQueryRequest | { kind: "transfer"; requestId: string } | { kind: "pong"; at: number };
+
+/** Requests that need the transfer deadline rather than the ordinary request deadline. */
+export function isComputerTransfer(message: ComputerClientMessage): boolean {
+  return message.kind === "input" ? message.inputs.some((input) => input.type === "attachments.send" && input.attachments.length > 0) : message.kind === "query" && message.query.kind === "attachment";
+}
 
 type Sequenced = { sequence: number };
 
@@ -87,6 +93,7 @@ export function isComputerClientMessage(value: unknown): value is ComputerClient
   if (value.kind === "resume") {
     return isCount(value.version) && isString(value.token, MAX_TOKEN_LENGTH) && (value.sessionId === undefined || isString(value.sessionId)) && isCount(value.lastSequence);
   }
+  if (value.kind === "transfer") return isString(value.requestId);
   if (value.kind === "input") {
     return isString(value.requestId) && Array.isArray(value.inputs) && value.inputs.length > 0 && value.inputs.length <= MAX_INPUTS && value.inputs.every(isWorkspaceViewInput);
   }

@@ -7,7 +7,7 @@ import { isAgentEffort, isAgentEngine, isAgentModel } from "../domain/agent-engi
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft } from "../domain/automation.js";
 import { isCaptureOptions } from "../domain/capture.js";
 import { isScreenshotContext } from "../domain/screenshot-context.js";
-import type { Annotation, AnnotationAnchor, AttachedFile, AttachedFileDraft, OutgoingAttachment, PastedText, RunAttachment } from "../domain/conversation.js";
+import { MAX_ATTACHMENT_ENCODED_BYTES, type Annotation, type AnnotationAnchor, type AttachedFile, type AttachedFileDraft, type OutgoingAttachment, type PastedText, type RunAttachment } from "../domain/conversation.js";
 import type { ImageAnnotation } from "../domain/image-annotation.js";
 import { isDiffRange } from "../domain/diff.js";
 import { isCommitHash, isImageSource } from "../domain/message-artifacts.js";
@@ -75,7 +75,9 @@ const pastedText = object<PastedText>({ id: text, text });
 const attachedFileDraft = object<AttachedFileDraft>({ path: text, name: text, folder: optional(literals(true)) });
 const attachedFile = object<AttachedFile>({ id: text, path: text, name: text, folder: optional(literals(true)) });
 const imageAnnotation = object<ImageAnnotation>({ kind: literals("box", "arrow"), x: number, y: number, width: number, height: number, text });
-const outgoingAttachment = object<OutgoingAttachment>({ id: text, source: text, annotations: array(imageAnnotation), path: optionalText, context: optional(isScreenshotContext) });
+/** Image data URLs need the encoded byte budget plus room for their MIME prefix. */
+const attachmentSource: Validator<string> = (value): value is string => typeof value === "string" && value.length <= MAX_ATTACHMENT_ENCODED_BYTES + 256;
+const outgoingAttachment = object<OutgoingAttachment>({ id: text, source: attachmentSource, annotations: array(imageAnnotation), path: optionalText, context: optional(isScreenshotContext) });
 const annotation = object<Annotation>({ id: text, quote: text, note: text, anchor: optional(isAnnotationAnchor) });
 
 function isAnnotationAnchor(value: unknown): value is AnnotationAnchor {

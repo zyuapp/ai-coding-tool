@@ -3,7 +3,7 @@ import { pathToFileURL } from "node:url";
 import { computerOfThread } from "../application/computers.js";
 import type { WorkspaceState } from "../application/workspace-state.js";
 import type { ComputerQuery } from "../contracts/computers.js";
-import { MAX_ATTACHMENT_BYTES } from "../domain/conversation.js";
+import { MAX_ATTACHMENT_ENCODED_BYTES } from "../domain/conversation.js";
 import { attachmentsDirectory, isSavedAttachmentName } from "./attachment-store.js";
 
 type AttachmentResponseHost = {
@@ -21,7 +21,7 @@ export async function attachmentResponse(source: string, host: AttachmentRespons
     const computer = computerOfThread(host.state(), url.searchParams.get("taskId") ?? undefined);
     if (!computer) return await host.fetch(pathToFileURL(path.join(attachmentsDirectory(), name)).toString());
     const data = await host.query(computer.id, { kind: "attachment", name });
-    if (typeof data !== "string" || data.length === 0 || data.length > MAX_ATTACHMENT_BYTES || !/^[A-Za-z0-9+/]+={0,2}$/.test(data)) throw new Error("Invalid attachment bytes.");
+    if (typeof data !== "string" || data.length === 0 || data.length > MAX_ATTACHMENT_ENCODED_BYTES || !/^[A-Za-z0-9+/]+={0,2}$/.test(data)) throw new Error("Invalid attachment bytes.");
     return new Response(Buffer.from(data, "base64"), { headers: { "Content-Type": "image/png" } });
   } catch {
     return new Response("Attachment is unavailable", { status: 404 });

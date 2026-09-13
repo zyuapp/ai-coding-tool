@@ -1,3 +1,4 @@
+import { MAX_ATTACHMENT_BYTES } from "../../src/domain/conversation.ts";
 import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -7,7 +8,7 @@ import { attachmentName, attachmentUrl } from "../../src/application/attachments
 import { isComputerQuery } from "../../src/contracts/computers.ts";
 import { answerComputerQuery, type ComputerQueryHost } from "../../src/main/computer-queries.ts";
 import { attachmentResponse } from "../../src/main/attachment-response.ts";
-import { attachmentsDirectory, useAttachmentsDirectory, writeAttachment } from "../../src/main/attachment-store.ts";
+import { attachmentsDirectory, useAttachmentsDirectory, writeAttachment, readSavedAttachment } from "../../src/main/attachment-store.ts";
 import { task, workspace } from "../application/workspace-reducer-fixtures.mts";
 
 const host: ComputerQueryHost = {
@@ -56,4 +57,22 @@ test("attachment queries return the holder's saved bytes and reject arbitrary pa
   assert.equal(queries.length, 1);
   assert.equal((await attachmentResponse(attachmentUrl(saved, "remote"), { ...responseHost, query: async () => { throw new Error("Offline"); } })).status, 404);
   assert.equal(localReads.length, 1, "an offline holder never falls back to a local image of the same name");
+});
+
+
+test("saving and reading an attachment use the decoded byte limit including base64 padding", async (t) => {
+  const folder = await mkdtemp(path.join(os.tmpdir(), "aic-attachment-limit-"));
+  t.onTestFinished(() => rm(folder, { recursive: true, force: true }));
+  useAttachmentsDirectory(folder);
+  const data = Buffer.alloc(MAX_ATTACHMENT_BYTES, 7).toString("base64");
+  const saved = await writeAttachment(data);
+  assert.equal(await readSavedAttachment(attachmentName(saved)), data);
+  const state = workspace();
+  state.computers.paired = [{ id: "holder", name: "Linux", host: "linux", pairedAt: 1, status: "connected", error: null, state: workspace({ threads: [task("remote")] }) }];
+  const response = await attachmentResponse(attachmentUrl(saved, "remote"), {
+    state: () => state, query: async () => data, fetch: async () => { throw new Error("Expected remote read"); },
+  });
+  assert.equal(response.status, 200);
+  assert.equal((await response.arrayBuffer()).byteLength, MAX_ATTACHMENT_BYTES);
+  await assert.rejects(writeAttachment(Buffer.alloc(MAX_ATTACHMENT_BYTES + 1).toString("base64")), /too large/);
 });

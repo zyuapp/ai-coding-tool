@@ -23,8 +23,10 @@ export type PastedText = {
 /** How many images one message may carry. */
 export const MAX_ATTACHMENTS = 6;
 
-/** Maximum base64 payload length accepted for one saved attachment. */
+/** Maximum decoded size of one saved attachment. */
 export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+/** Base64 encodes each group of up to three bytes as four characters, including padding. */
+export const MAX_ATTACHMENT_ENCODED_BYTES = Math.ceil(MAX_ATTACHMENT_BYTES / 3) * 4;
 
 /** How many files or folders one message may name. */
 export const MAX_ATTACHED_FILES = 10;

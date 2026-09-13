@@ -34,7 +34,7 @@ import {
 import { MOBILE_HEALTH_PATH, MOBILE_HEALTH_RESPONSE } from "./addresses.mjs";
 import type { PairingStore } from "./pairing.mjs";
 import type { ThreadNotice } from "../../contracts/ipc.js";
-import { COMPUTER_PROTOCOL_VERSION, COMPUTER_TRANSFER_TIMEOUT_MS, MAX_COMPUTER_MESSAGE_BYTES, isComputerClientMessage, type ComputerClientMessage, type ComputerQuery, type ComputerServerMessage } from "../../contracts/computers.js";
+import { COMPUTER_PROTOCOL_VERSION, COMPUTER_TRANSFER_TIMEOUT_MS, MAX_COMPUTER_MESSAGE_BYTES, isComputerTransfer, isComputerClientMessage, type ComputerClientMessage, type ComputerQuery, type ComputerServerMessage } from "../../contracts/computers.js";
 import type { WorkspaceCommandResult, WorkspaceInput } from "../../application/workspace-reducer.js";
 import type { WorkspaceUpdate } from "../../contracts/workspace-runtime.js";
 import { stringifyWorkspaceJson } from "../../application/workspace-json.js";
@@ -115,6 +115,8 @@ type Session = MobileSession & {
   expiresAt: number | null;
   /** Reads waiting on the window. A read is never resent, so nothing about it is remembered once answered. */
   queries: number;
+  /** Upload announcements and attachment requests still being handled or written to the socket. */
+  transfers: Map<string, number>;
 };
 
 /**
@@ -301,7 +303,7 @@ export class MobileServer {
     this.sessions.delete(session.id);
   }
 
-  private emit(session: Session, message: OutboundMessage) {
+  private emit(session: Session, message: OutboundMessage, sent?: () => void) {
     session.sequence += 1;
     const text = stringifyWorkspaceJson({ ...message, sequence: session.sequence });
     session.buffer.push({ sequence: session.sequence, text });
@@ -311,7 +313,7 @@ export class MobileServer {
       if (!dropped) break;
       session.bufferBytes -= dropped.text.length;
     }
-    write(session.socket, text);
+    write(session.socket, text, sent);
   }
 
   private openSession(kind: PairedDeviceKind, deviceId: string, deviceName: string, at: number): Session {
@@ -330,6 +332,7 @@ export class MobileServer {
       awaitingSnapshot: true,
       expiresAt: null,
       queries: 0,
+      transfers: new Map(),
     };
     this.sessions.set(session.id, session);
     if (!this.handled.has(deviceId)) this.handled.set(deviceId, new Map());
@@ -345,12 +348,14 @@ export class MobileServer {
   private attach(session: Session, socket: WebSocket) {
     if (session.socket && session.socket !== socket) hangUp(session.socket, 4002, "This phone connected again.");
     session.socket = socket;
+    session.transfers.clear();
     session.connection = "live";
     session.expiresAt = null;
     session.lastSeenAt = Date.now();
     socket.on("close", () => {
       if (session.socket !== socket) return;
       session.socket = null;
+      session.transfers.clear();
       session.connection = "offline";
       session.expiresAt = Date.now() + (this.options.sessionGraceMs ?? SESSION_GRACE_MS);
       /** With the line to the computer that was looking gone, nothing here is being watched. */
@@ -484,12 +489,20 @@ export class MobileServer {
     const workspace = this.options.workspace;
     if (!workspace || message.kind === "pair" || message.kind === "resume" || message.kind === "pong") return;
     const { requestId } = message;
+    if (message.kind === "transfer") {
+      if (!session.transfers.has(requestId) && session.transfers.size < MAX_COMMANDS_IN_FLIGHT) session.transfers.set(requestId, Date.now() + COMPUTER_TRANSFER_TIMEOUT_MS);
+      return;
+    }
+    const transferring = isComputerTransfer(message);
+    if (!transferring) session.transfers.delete(requestId);
+    if (transferring && !session.transfers.has(requestId)) session.transfers.set(requestId, Date.now() + COMPUTER_TRANSFER_TIMEOUT_MS);
+    const sent = () => { session.transfers.delete(requestId); };
     if (message.kind === "query") {
-      if (session.queries >= MAX_QUERIES_IN_FLIGHT) return this.emit(session, { kind: "answer", requestId, ok: false, message: "That computer is asking for too much at once." });
+      if (session.queries >= MAX_QUERIES_IN_FLIGHT) return this.emit(session, { kind: "answer", requestId, ok: false, message: "That computer is asking for too much at once." }, sent);
       session.queries += 1;
       workspace.query(message.query).then(
-        (result) => this.emit(session, { kind: "answer", requestId, ok: true, result }),
-        (error: unknown) => this.emit(session, { kind: "answer", requestId, ok: false, message: error instanceof Error ? error.message : String(error) }),
+        (result) => this.emit(session, { kind: "answer", requestId, ok: true, result }, sent),
+        (error: unknown) => this.emit(session, { kind: "answer", requestId, ok: false, message: error instanceof Error ? error.message : String(error) }, sent),
       ).finally(() => { session.queries -= 1; });
       return;
     }
@@ -497,7 +510,7 @@ export class MobileServer {
     if (!handled) return;
     if (handled.has(requestId)) {
       const settled = handled.get(requestId);
-      if (settled) this.emit(session, { kind: "result", requestId, result: { ...settled, revision: 0 } });
+      if (settled) this.emit(session, { kind: "result", requestId, result: { ...settled, revision: 0 } }, sent);
       return;
     }
     handled.set(requestId, null);
@@ -505,12 +518,12 @@ export class MobileServer {
     workspace.input(message.inputs).then(
       (result) => {
         if (handled.has(requestId)) handled.set(requestId, result.ok ? { ok: true } : { ok: false, message: result.message });
-        this.emit(session, { kind: "result", requestId, result });
+        this.emit(session, { kind: "result", requestId, result }, sent);
       },
       (error: unknown) => {
         const failed = { ok: false as const, message: error instanceof Error ? error.message : String(error) };
         if (handled.has(requestId)) handled.set(requestId, failed);
-        this.emit(session, { kind: "result", requestId, result: { ...failed, revision: 0 } });
+        this.emit(session, { kind: "result", requestId, result: { ...failed, revision: 0 } }, sent);
       },
     );
   }
@@ -604,7 +617,8 @@ export class MobileServer {
     let moved = false;
     for (const session of [...this.sessions.values()]) {
       if (session.socket) {
-        if (now - session.lastSeenAt > (session.kind === "computer" ? COMPUTER_TRANSFER_TIMEOUT_MS : MOBILE_DEAD_AFTER_MS)) {
+        for (const [id, deadline] of session.transfers) if (deadline <= now) session.transfers.delete(id);
+        if (!session.transfers.size && now - session.lastSeenAt > MOBILE_DEAD_AFTER_MS) {
           session.socket.terminate();
           continue;
         }
@@ -691,8 +705,9 @@ function readPath(pathname: string) {
   }
 }
 
-function write(socket: WebSocket | null, text: string) {
-  if (socket && socket.readyState === socket.OPEN) socket.send(text);
+function write(socket: WebSocket | null, text: string, sent?: () => void) {
+  if (socket && socket.readyState === socket.OPEN) socket.send(text, sent);
+  else sent?.();
 }
 
 /**

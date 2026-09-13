@@ -1,4 +1,4 @@
-import { MAX_ATTACHMENT_BYTES } from "../../domain/conversation.js";
+import { MAX_ATTACHMENT_ENCODED_BYTES } from "../../domain/conversation.js";
 import { randomUUID } from "node:crypto";
 import WebSocket from "ws";
 import { applyWorkspacePatches } from "../../application/workspace-patches.js";
@@ -6,7 +6,8 @@ import { parseWorkspaceJson, stringifyWorkspaceJson } from "../../application/wo
 import type { WorkspaceCommandResult, WorkspaceInput } from "../../application/workspace-reducer.js";
 import type { WorkspaceState } from "../../application/workspace-state.js";
 import type { ThreadNotice } from "../../contracts/ipc.js";
-import { COMPUTER_PROTOCOL_VERSION, COMPUTER_TRANSFER_TIMEOUT_MS, COMPUTER_SEND_TOO_LARGE, MAX_COMPUTER_MESSAGE_BYTES, isComputerServerMessage, type ComputerClientMessage, type ComputerQuery, type ComputerServerMessage } from "../../contracts/computers.js";
+import { COMPUTER_PROTOCOL_VERSION, COMPUTER_TRANSFER_TIMEOUT_MS, COMPUTER_SEND_TOO_LARGE, MAX_COMPUTER_MESSAGE_BYTES, isComputerTransfer, isComputerServerMessage, type ComputerClientMessage, type ComputerQuery, type ComputerServerMessage } from "../../contracts/computers.js";
+import { MOBILE_DEAD_AFTER_MS } from "../../domain/mobile.js";
 import type { ComputerStatus } from "../../domain/computers.js";
 import { WORKSPACE_SOCKET_PATH } from "../mobile/mobile-server.mjs";
 
@@ -79,29 +80,27 @@ function readServerMessage(data: unknown): ComputerServerMessage | null {
 
 /** Checks the encoded envelope before sending so an oversized request cannot kill the link. */
 function requestPayload(message: ComputerClientMessage): string | null {
-  if (message.kind === "input" && message.inputs.some((input) => input.type === "attachments.send" && input.attachments.some((attachment) => attachment.source.replace(/^data:[^,]*,/, "").length > MAX_ATTACHMENT_BYTES))) return null;
+  if (message.kind === "input" && message.inputs.some((input) => input.type === "attachments.send" && input.attachments.some((attachment) => attachment.source.replace(/^data:[^,]*,/, "").length > MAX_ATTACHMENT_ENCODED_BYTES))) return null;
   const payload = stringifyWorkspaceJson(message);
   return Buffer.byteLength(payload) > MAX_COMPUTER_MESSAGE_BYTES ? null : payload;
 }
 
-function requestTimeout(message: ComputerClientMessage): number {
-  const transferring = message.kind === "input" ? message.inputs.some((input) => input.type === "attachments.send" && input.attachments.length > 0) : message.kind === "query" && message.query.kind === "attachment";
-  return transferring ? COMPUTER_TRANSFER_TIMEOUT_MS : REQUEST_TIMEOUT_MS;
-}
-
-function ask<T>(socket: WebSocket | null, status: ComputerStatus, held: Map<string, Waiting<T>>, message: ComputerClientMessage & { requestId: string }): Promise<T> {
+function ask<T>(socket: WebSocket | null, status: ComputerStatus, held: Map<string, Waiting<T>>, message: ComputerClientMessage & { requestId: string }, transfer: (id: string, pending: boolean) => void): Promise<T> {
   if (socket?.readyState !== WebSocket.OPEN || status !== "connected") return Promise.reject(new Error(COMPUTER_OFFLINE));
   const payload = requestPayload(message);
   if (payload === null) return Promise.reject(new Error(COMPUTER_SEND_TOO_LARGE));
+  const transferring = isComputerTransfer(message);
+  if (transferring) transfer(message.requestId, true);
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
       held.delete(message.requestId);
       reject(new Error("That computer did not answer in time."));
-    }, requestTimeout(message));
+    }, transferring ? COMPUTER_TRANSFER_TIMEOUT_MS : REQUEST_TIMEOUT_MS);
     timer.unref?.();
     held.set(message.requestId, { resolve, reject, timer });
+    if (transferring) socket!.send(stringifyWorkspaceJson({ kind: "transfer", requestId: message.requestId }));
     socket!.send(payload);
-  });
+  }).finally(() => { if (transferring) transfer(message.requestId, false); });
 }
 
 /**
@@ -123,6 +122,8 @@ export function createComputerClient(options: ComputerClientOptions) {
   let status: ComputerStatus = "connecting";
   const results = new Map<string, Waiting<WorkspaceCommandResult>>();
   const answers = new Map<string, Waiting<unknown>>();
+  const transfers = new Set<string>();
+  let lastHeardAt = Date.now();
   const url = options.url ?? computerSocketUrl(options.host);
 
   function report(next: ComputerStatus, error: string | null = null) {
@@ -136,8 +137,14 @@ export function createComputerClient(options: ComputerClientOptions) {
 
   function watch() {
     if (watchdog) clearTimeout(watchdog);
-    watchdog = setTimeout(() => socket?.terminate(), COMPUTER_TRANSFER_TIMEOUT_MS);
+    const deadline = transfers.size ? COMPUTER_TRANSFER_TIMEOUT_MS : MOBILE_DEAD_AFTER_MS;
+    watchdog = setTimeout(() => socket?.terminate(), Math.max(0, lastHeardAt + deadline - Date.now()));
     watchdog.unref?.();
+  }
+
+  function transfer(id: string, pending: boolean) {
+    if (pending) transfers.add(id); else transfers.delete(id);
+    if (socket) watch();
   }
 
   function refuseAll(message: string) {
@@ -169,6 +176,7 @@ export function createComputerClient(options: ComputerClientOptions) {
 
   function receive(message: ComputerServerMessage) {
     lastSequence = message.sequence;
+    lastHeardAt = Date.now();
     watch();
     if (message.kind === "paired") {
       credential = { token: message.token };
@@ -229,6 +237,7 @@ export function createComputerClient(options: ComputerClientOptions) {
     const dialled: WebSocket = dial(url, {
       open: () => {
         if (socket !== dialled) return;
+        lastHeardAt = Date.now();
         watch();
         if ("token" in credential) write({ kind: "resume", version: COMPUTER_PROTOCOL_VERSION, token: credential.token, ...(sessionId ? { sessionId } : {}), lastSequence });
         else write({ kind: "pair", version: COMPUTER_PROTOCOL_VERSION, code: credential.code, deviceName: options.deviceName });
@@ -244,8 +253,8 @@ export function createComputerClient(options: ComputerClientOptions) {
   return {
     get status() { return status; },
     get state() { return replica; },
-    send: (inputs: WorkspaceInput[]) => ask(socket, status, results, { kind: "input", requestId: randomUUID(), inputs }),
-    query: (query: ComputerQuery) => ask(socket, status, answers, { kind: "query", requestId: randomUUID(), query }),
+    send: (inputs: WorkspaceInput[]) => ask(socket, status, results, { kind: "input", requestId: randomUUID(), inputs }, transfer),
+    query: (query: ComputerQuery) => ask(socket, status, answers, { kind: "query", requestId: randomUUID(), query }, transfer),
     stop() {
       stopped = true;
       if (retry) clearTimeout(retry);

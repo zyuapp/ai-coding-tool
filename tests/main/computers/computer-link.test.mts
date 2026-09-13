@@ -1,4 +1,4 @@
-import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS } from "../../../src/domain/conversation.ts";
+import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_ENCODED_BYTES, MAX_ATTACHMENTS } from "../../../src/domain/conversation.ts";
 import { COMPUTER_SEND_TOO_LARGE } from "../../../src/contracts/computers.ts";
 import assert from "node:assert/strict";
 import type { ThreadNotice } from "../../../src/contracts/ipc.ts";
@@ -176,9 +176,25 @@ test("a strip larger than the old socket cap crosses intact, and oversize images
   const attachments = Array.from({ length: MAX_ATTACHMENTS }, (_, id) => ({ id: String(id), source: `data:image/png;base64,${"A".repeat(512 * 1024)}`, annotations: [] }));
   assert.equal((await mac.link.send([{ type: "attachments.send", attachments }])).ok, true);
   assert.deepEqual(served.inputs, [{ type: "attachments.send", attachments }]);
-  await assert.rejects(mac.link.send([{ type: "attachments.send", attachments: [{ id: "oversize", source: `data:image/png;base64,${"A".repeat(MAX_ATTACHMENT_BYTES + 1)}`, annotations: [] }] }]), { message: COMPUTER_SEND_TOO_LARGE });
+  await assert.rejects(mac.link.send([{ type: "attachments.send", attachments: [{ id: "oversize", source: `data:image/png;base64,${"A".repeat(MAX_ATTACHMENT_ENCODED_BYTES + 1)}`, annotations: [] }] }]), { message: COMPUTER_SEND_TOO_LARGE });
   assert.equal(served.inputs.length, 1, "the oversized payload never reaches the socket");
   assert.equal(mac.link.status, "connected");
   assert.equal((await mac.link.send([{ type: "task.send", text: "still connected" }])).ok, true);
   assert.deepEqual(await mac.link.query({ kind: "attachment", name: "shot.png" }), { status: "available", patch: "patch for attachment" });
 });
+
+
+test("a full strip of images just under the decoded byte limit crosses intact", async (t) => {
+  const served = await host(t);
+  const mac = client({ url: served.url, credential: { code: served.mint() } });
+  t.onTestFinished(() => mac.link.stop());
+  await until(() => mac.link.status === "connected", "the connection");
+  const data = Buffer.alloc(MAX_ATTACHMENT_BYTES - 1, 7).toString("base64");
+  const attachments = Array.from({ length: MAX_ATTACHMENTS }, (_, id) => ({ id: String(id), source: `data:image/png;base64,${data}`, annotations: [] }));
+  assert.equal((await mac.link.send([{ type: "attachments.send", attachments }])).ok, true);
+  const sent = served.inputs[0];
+  assert.ok(sent?.type === "attachments.send");
+  assert.equal(sent.attachments.length, MAX_ATTACHMENTS);
+  for (const image of sent.attachments) assert.equal(image.source, attachments[0]!.source);
+  assert.equal(mac.link.status, "connected");
+}, 30_000);

@@ -3,7 +3,7 @@ import { mkdir, open, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { attachmentName } from "../application/attachments.js";
 import { isScreenshotContext, type ScreenshotContext } from "../domain/screenshot-context.js";
-import { MAX_ATTACHMENT_BYTES } from "../domain/conversation.js";
+import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_ENCODED_BYTES } from "../domain/conversation.js";
 
 let directory: string | null = null;
 
@@ -27,7 +27,7 @@ export async function readSavedAttachment(name: string): Promise<string> {
   const handle = await open(path.join(attachmentsDirectory(), name), "r");
   try {
     const metadata = await handle.stat();
-    if (!metadata.isFile() || metadata.size === 0 || Math.ceil(metadata.size / 3) * 4 > MAX_ATTACHMENT_BYTES) throw new Error("Attachment is empty or too large.");
+    if (!metadata.isFile() || metadata.size === 0 || metadata.size > MAX_ATTACHMENT_BYTES) throw new Error("Attachment is empty or too large.");
     return (await handle.readFile()).toString("base64");
   } finally {
     await handle.close();
@@ -44,10 +44,10 @@ export function savedAttachmentPath(file: string) {
 
 /** Puts base64 PNG bytes in the attachments directory under a name of this app's own making. */
 export async function writeAttachment(data: string, context?: ScreenshotContext | null) {
-  if (data.length === 0 || data.length > MAX_ATTACHMENT_BYTES) throw new Error("Attachment is empty or too large.");
+  if (data.length === 0 || data.length > MAX_ATTACHMENT_ENCODED_BYTES) throw new Error("Attachment is empty or too large.");
   if (!/^[A-Za-z0-9+/]+={0,2}$/.test(data)) throw new Error("Attachment payload is not base64.");
   const bytes = Buffer.from(data, "base64");
-  if (bytes.byteLength === 0) throw new Error("Attachment is empty or too large.");
+  if (bytes.byteLength === 0 || bytes.byteLength > MAX_ATTACHMENT_BYTES) throw new Error("Attachment is empty or too large.");
   const directory = attachmentsDirectory();
   await mkdir(directory, { recursive: true });
   const file = path.join(directory, `${randomUUID()}.png`);
