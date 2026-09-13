@@ -497,7 +497,9 @@ button, select { color: inherit; }
 .host-mark > svg { flex: none; }
 .host-mark > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .host-mark.offline { color: var(--quiet-soft); }
-.task-row-text .host-mark { font: inherit; color: inherit; vertical-align: -2px; }
+/** In a row's meta line the mark runs inline with the text, so the glyph sits on the same line as the words around it. */
+.task-row-text .host-mark { display: inline; font: inherit; color: inherit; vertical-align: baseline; }
+.task-row-text .host-mark > svg { margin-right: 4px; vertical-align: -2px; }
 .project-group { min-width: 0; }
 .project-row {
   position: relative;
