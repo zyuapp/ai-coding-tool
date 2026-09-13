@@ -1,4 +1,4 @@
-import { existsSync, linkSync, mkdirSync, readFileSync, readlinkSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, linkSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { hostname } from "node:os";
 import path from "node:path";
 
@@ -6,8 +6,7 @@ import path from "node:path";
 const SERVE_LOCK = "serve.lock";
 /** The lock the desktop app holds on its data folder: a link to `<host>-<pid>`, left behind by a crash. */
 const APP_LOCK = "SingletonLock";
-/** How long a starter has the turn to clear a dead server's lock before the turn is taken as abandoned. */
-const RECLAIM_TURN_MS = 10_000;
+
 
 function alive(pid: number) {
   try {
@@ -64,26 +63,47 @@ export function desktopOpen(userData: string): boolean {
 }
 
 /**
- * Clears a dead server's lock and takes it, one starter at a time: the folder made here is the turn,
- * so a starter that arrives while another has it neither clears that one's fresh lock nor waits.
- * A turn a starter died holding is taken over once it is old.
+ * The turn to clear a dead server's lock: a link naming the starter that has it, made in one step.
+ * A starter keeps its turn as long as it lives, however long it takes; only a turn a starter died
+ * holding is taken over, and that starter cannot come back to finish it.
+ */
+function takeTurn(turn: string): boolean {
+  try {
+    symlinkSync(String(process.pid), turn);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+  }
+  let holder: number;
+  try {
+    holder = Number(readlinkSync(turn));
+  } catch {
+    return false;
+  }
+  if (!Number.isInteger(holder) || holder <= 0 || alive(holder)) return false;
+  rmSync(turn, { force: true });
+  try {
+    symlinkSync(String(process.pid), turn);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    return false;
+  }
+}
+
+/**
+ * Clears a dead server's lock and takes it, one starter at a time, so a starter that arrives while
+ * another has the turn neither clears that one's fresh lock nor waits.
  */
 function reclaim(userData: string, lock: string): boolean {
   const turn = `${lock}.reclaim`;
-  try {
-    mkdirSync(turn);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-    if (statSync(turn).mtimeMs > Date.now() - RECLAIM_TURN_MS) return false;
-    rmSync(turn, { recursive: true, force: true });
-    return reclaim(userData, lock);
-  }
+  if (!takeTurn(turn)) return false;
   try {
     if (servingProcess(userData) !== null) return false;
     rmSync(lock, { force: true });
     return claim(lock);
   } finally {
-    rmSync(turn, { recursive: true, force: true });
+    rmSync(turn, { force: true });
   }
 }
 
