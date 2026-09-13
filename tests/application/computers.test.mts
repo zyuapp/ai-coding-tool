@@ -97,18 +97,36 @@ test("a send starting a thread in a folder elsewhere names the folder and carrie
   ]);
 });
 
-test("moving to a thread here takes the paired computer off screen and tells it to open nothing", () => {
+test("moving to a thread here takes the paired computer off screen and tells it nobody is looking, leaving its own composer alone", () => {
   const state = withComputers(workspace({ threads: [task("local")] }), [paired("linux", remoteState), paired("other", { ...remoteState, threads: [task("far", { projectId: "remote-project" })] })], { active: "linux" });
   const home = reduce(state, { type: "task.select", taskId: "local" });
   assert.equal(home.state.computers.active, null);
   assert.equal(home.state.currentId, "local");
-  assert.deepEqual(home.effects.filter((effect) => effect.type === "computer.forward"), [{ type: "computer.forward", id: "linux", inputs: [{ type: "task.new" }] }]);
+  const away = [{ type: "computer.forward", id: "linux", inputs: [{ type: "view.set-focused", focused: false }] }];
+  assert.deepEqual(home.effects.filter((effect) => effect.type === "computer.forward"), away);
   const fresh = reduce(state, { type: "task.new" });
   assert.equal(fresh.state.computers.active, null);
-  assert.deepEqual(effectOf(fresh, "computer.forward"), { type: "computer.forward", id: "linux", inputs: [{ type: "task.new" }] });
+  assert.deepEqual(effectOf(fresh, "computer.forward"), away[0]);
+  const theirs = reduce(remoteState, away[0]!.inputs[0]!).state;
+  assert.equal(theirs.currentId, "remote-thread", "the other computer's window stays on the thread its user had open");
+  assert.equal(theirs.focused, false);
   const across = reduce(state, { type: "task.select", taskId: "far" });
   assert.equal(across.state.computers.active, "other");
   assert.deepEqual(across.effects.filter((effect) => effect.type === "computer.forward").map((effect) => effect.type === "computer.forward" && effect.id), ["linux", "other"]);
+});
+
+test("a new thread starts where the user is looking: on the paired computer's screen, in its project", () => {
+  const local = workspace({ projects: [{ id: "p-local", root: "/mac/app", workspaceId: "ws-local" }], threads: [task("local", { projectId: "p-local" })], currentId: "local" });
+  const state = withComputers(local, [paired("linux", remoteState)], { active: "linux" });
+  const fresh = reduce(state, { type: "view.shortcut", action: "thread.new", surface: "any" });
+  assert.equal(fresh.state.computers.active, "linux", "the new thread is that computer's, so it stays on screen");
+  assert.equal(fresh.state.currentId, "local", "this computer's own thread is untouched");
+  assert.deepEqual(effectOf(fresh, "computer.forward"), { type: "computer.forward", id: "linux", inputs: [{ type: "view.set-focused", focused: true }, { type: "task.new", projectId: "remote-project" }] });
+  const chatting = withComputers(local, [paired("linux", { ...remoteState, currentId: null, draftProjectId: null })], { active: "linux" });
+  const chat = reduce(chatting, { type: "view.shortcut", action: "thread.new", surface: "any" });
+  assert.equal(chat.state.computers.active, null, "a chat has no project to start on the other computer, so it starts here");
+  assert.equal(chat.state.currentId, null);
+  assert.equal(chat.state.draftProjectId, null, "as a chat, not in the project this computer's last thread was in");
 });
 
 test("whether the window is looking is kept here and told to the computer on screen, and only what is on screen is read", () => {
@@ -170,6 +188,24 @@ test("the sidebar lists every computer's threads, tagged, and the filter narrows
   const narrowed = deriveView({ ...state, computers: { ...state.computers, filter: "this" } });
   assert.deepEqual(narrowed.activityThreads.threads.map((thread) => thread.id), ["local"]);
   assert.deepEqual(deriveView({ ...state, computers: { ...state.computers, filter: "linux" } }).activityThreads.threads.map((thread) => thread.id), ["remote-thread"]);
+});
+
+test("a draft may start in any computer's project whatever the sidebar filter shows, this computer's first", () => {
+  const state = withComputers(
+    workspace({ projects: [{ id: "local-b", root: "/mac/b", sortIndex: 1 }, { id: "local-a", root: "/mac/a", sortIndex: 0 }], draftProjectId: "local-a" }),
+    [paired("linux", remoteState)],
+  );
+  for (const filter of ["all", "this", "linux"] as const) {
+    const view = deriveView({ ...state, computers: { ...state.computers, filter } });
+    assert.deepEqual(view.startProjects.map((project) => project.id), ["local-a", "local-b", "remote-project"], `filter ${filter}`);
+    assert.equal(view.startProjects.find((project) => project.id === view.currentProject?.id)?.id, "local-a", "the drafted project is always offered");
+  }
+  const remoteOnly = deriveView({ ...state, projects: [], draftProjectId: null, computers: { ...state.computers, filter: "this" } });
+  assert.deepEqual(remoteOnly.startProjects.map((project) => project.id), ["remote-project"], "with nothing here, work can still start elsewhere");
+  const drafting = { ...remoteState, currentId: null, draftProjectId: "remote-project" };
+  const overlaid = deriveView(withComputers(state, [paired("linux", drafting)], { active: "linux", filter: "this" }));
+  assert.equal(overlaid.currentProject?.id, "remote-project");
+  assert.ok(overlaid.startProjects.some((project) => project.id === "remote-project"), "a draft on the other computer is offered its own project too");
 });
 
 test("with a paired computer on screen the conversation is its own, under this window's chrome and drafts", () => {

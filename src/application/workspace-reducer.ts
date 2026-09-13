@@ -65,13 +65,13 @@ function leavingComputer(state: WorkspaceState, input: WorkspaceInput): Workspac
 }
 
 /**
- * A computer whose thread the window has just left is told to open nothing, so a run that settles
- * there afterwards is marked unseen, which is what this window announces and counts.
+ * A computer whose thread the window has just left is told nobody here is looking any more, which
+ * is what its unread marks go by. What its own window shows is its user's, so that is left as it is.
  */
 function leftBehind(before: WorkspaceState, after: WorkspaceState): WorkspaceEffect[] {
   const left = activeComputer(before);
   if (!left || after.computers.active === left.id) return [];
-  return [{ type: "computer.forward", id: left.id, inputs: [{ type: "task.new" }] }];
+  return [{ type: "computer.forward", id: left.id, inputs: [{ type: "view.set-focused", focused: false }] }];
 }
 
 /**
@@ -118,10 +118,15 @@ export function escapeCommands(state: WorkspaceState): AppCommand[] {
   return [chat ? { type: "run.cancel", taskId: chat.id } : { type: "run.cancel" }];
 }
 
-/** The project a new thread starts in: the one the current thread is in, else the one being drafted. */
+/**
+ * The project a new thread starts in: the one the thread on screen is in, else the one being drafted.
+ * With a paired computer's thread on screen that is its thread or draft, so the new thread starts
+ * there, in that project; its chat draft names no project, so a new one from it starts here.
+ */
 function currentProjectId(state: WorkspaceState): string | undefined {
-  const thread = state.threads.find((item) => item.id === state.currentId);
-  return (state.currentId ? thread?.projectId : state.draftProjectId) ?? undefined;
+  const shown = activeComputer(state)?.state ?? state;
+  const thread = shown.threads.find((item) => item.id === shown.currentId);
+  return (shown.currentId ? thread?.projectId : shown.draftProjectId) ?? undefined;
 }
 
 /**
