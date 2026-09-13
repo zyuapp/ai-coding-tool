@@ -55,7 +55,7 @@ export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceT
 }
 
 function forwardEffect(route: Extract<InputRoute, { kind: "computer" }>): WorkspaceEffect {
-  return { type: "computer.forward", id: route.computer.id, inputs: route.inputs, ...(route.draftKey === undefined ? {} : { draftKey: route.draftKey }) };
+  return { type: "computer.forward", id: route.computer.id, inputs: route.inputs, ...(route.draft ? { draft: route.draft } : {}) };
 }
 
 /** A command that moves this window to one of its own threads takes the paired computer off screen. */

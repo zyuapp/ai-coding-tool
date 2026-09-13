@@ -69,8 +69,11 @@ function computerOfWorktree(state: Pick<WorkspaceState, "computers" | "worktrees
  */
 export type InputRoute =
   | { kind: "local" }
-  | { kind: "computer"; computer: PairedComputer; inputs: WorkspaceInput[]; select?: true; also?: true; draftKey?: string }
+  | { kind: "computer"; computer: PairedComputer; inputs: WorkspaceInput[]; select?: true; also?: true; draft?: SentDraft }
   | { kind: "refuse"; message: string };
+
+/** The draft a send carried, with what rode with it by id, so what is typed after it went stays. */
+export type SentDraft = { key: string; prompt: string; pastes: string[]; annotations: string[] };
 
 const LOCAL = { kind: "local" } as const;
 
@@ -92,32 +95,41 @@ export const PANEL_ELSEWHERE = "The terminal and browser panels open only for th
 export const ATTACHMENTS_ELSEWHERE = "Images and files cannot be sent to a thread on another computer yet.";
 export const FILES_ELSEWHERE = "That folder is on another computer, so it cannot be opened here.";
 
-function forwarded(computer: PairedComputer, inputs: WorkspaceInput[], options: { select?: true; also?: true; draftKey?: string } = {}): InputRoute {
+function forwarded(computer: PairedComputer, inputs: WorkspaceInput[], options: { select?: true; also?: true; draft?: SentDraft } = {}): InputRoute {
   return { kind: "computer", computer, inputs, ...options };
 }
 
+/** Puts a computer on screen: it is told first whether anyone here is looking, which is what its unread marks go by. */
+function selecting(state: WorkspaceState, computer: PairedComputer, inputs: WorkspaceInput[]): InputRoute {
+  return forwarded(computer, [{ type: "view.set-focused", focused: state.focused }, ...inputs], { select: true });
+}
+
 /**
- * A send carries the draft this computer holds for the thread: the text and what rides with it
- * are put into the other computer's own composer for that thread, and its send reads them from
- * there, so it composes the message exactly as it would have typed there. The draft stays here
- * until that computer has taken it.
+ * A composer send carries the draft this computer holds for the thread: the text and what rides
+ * with it are put into the other computer's own composer for that thread, whole, so a send it
+ * refused leaves nothing behind for the next, and its send reads them from there. The draft stays
+ * here until that computer has taken it. A send with text of its own goes as it is.
  */
 function forwardedSend(state: WorkspaceState, computer: PairedComputer, command: Extract<AppCommand, { type: "task.send" }>): InputRoute {
   if (command.attachments?.length) return { kind: "refuse", message: ATTACHMENTS_ELSEWHERE };
   const remote = computer.state;
   if (!remote) return { kind: "refuse", message: "That computer has not answered yet." };
+  const { attachments: _none, ...rest } = command;
+  if (rest.text !== undefined) return forwarded(computer, [rest]);
   /** The thread the send is for: the one named, else the one that computer has open, else its draft. */
   const key = command.taskId ?? promptKey(remote);
-  const target = key.startsWith("draft:") ? {} : { taskId: key };
-  const text = command.text ?? state.prompts[key] ?? "";
-  const inputs: WorkspaceInput[] = [{ type: "view.set-prompt", taskId: key, prompt: text }];
+  const prompt = state.prompts[key] ?? "";
   const annotations = annotationsFor(state, key);
   const pastes = pastesFor(state, key);
-  if (annotations.length) inputs.push({ type: "annotation.recall", taskId: key, annotations });
-  if (pastes.length) inputs.push({ type: "paste.recall", taskId: key, pastes });
-  const { attachments: _none, text: _typed, taskId: _named, ...rest } = command;
-  inputs.push({ ...rest, ...target });
-  return forwarded(computer, inputs, { draftKey: key });
+  const { taskId: _named, ...send } = rest;
+  const inputs: WorkspaceInput[] = [
+    { type: "view.set-prompt", taskId: key, prompt },
+    { type: "annotation.recall", taskId: key, annotations },
+    { type: "paste.recall", taskId: key, pastes },
+    { ...send, ...(key.startsWith("draft:") ? {} : { taskId: key }) },
+  ];
+  const draft: SentDraft = { key, prompt, pastes: pastes.map((paste) => paste.id), annotations: annotations.map((annotation) => annotation.id) };
+  return forwarded(computer, inputs, { draft });
 }
 
 /**
@@ -130,11 +142,11 @@ export function routeInput(state: WorkspaceState, input: WorkspaceInput): InputR
   const type = input.type;
   if (type === "task.new") {
     const computer = computerOfProject(state, input.projectId) ?? computerOfWorktree(state, input.worktreeId);
-    return computer ? forwarded(computer, [input], { select: true }) : LOCAL;
+    return computer ? selecting(state, computer, [input]) : LOCAL;
   }
   if (type === "task.select" || type === "worktree.open-thread" || type === "view.jump-choose") {
     const computer = computerOfThread(state, input.taskId);
-    return computer ? forwarded(computer, [{ type: "task.select", taskId: input.taskId }], { select: true }) : LOCAL;
+    return computer ? selecting(state, computer, [{ type: "task.select", taskId: input.taskId }]) : LOCAL;
   }
   if (type === "task.dismiss-all") return LOCAL;
   /** Whether the user is looking is this window's to know and the other computer's to act on. */
@@ -253,8 +265,7 @@ export function remoteNotices(before: WorkspaceState | null, after: WorkspaceSta
   for (const thread of after.threads) {
     const was = previous.get(thread.id);
     if (was === thread || onScreen(thread.id)) continue;
-    /** A run that settled since the last state, whether or not that computer thought it was being watched. */
-    const settled = thread.outcome && (before.activeRuns[thread.id] !== undefined && after.activeRuns[thread.id] === undefined || (thread.outcomeUnread && !was?.outcomeUnread));
+    const settled = thread.outcomeUnread && !was?.outcomeUnread && thread.outcome;
     const finding = thread.findings?.at(-1);
     const found = finding && !finding.read && finding !== was?.findings?.at(-1);
     if (found) notices.push({ taskId: thread.id, title: thread.title, headline: finding.headline });

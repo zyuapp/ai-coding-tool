@@ -15,9 +15,28 @@ function loadDraftPrompts(storage: KeyValueStorage): Record<string, string> {
   return prompts as Record<string, string>;
 }
 
-function saveDraftPrompts(storage: KeyValueStorage, state: Pick<WorkspaceState, "prompts" | "sideChats">): void {
+type DraftState = Pick<WorkspaceState, "prompts" | "sideChats" | "projects" | "threads" | "computers">;
+
+/**
+ * Whose drafts are known: this computer's folders and threads, and every paired computer's once
+ * each has answered. Until then a draft may belong to a computer yet to answer, so none is nobody's.
+ */
+function draftOwners(state: DraftState): Set<string> | null {
+  const remotes = state.computers.paired.map((computer) => computer.state);
+  if (remotes.some((remote) => !remote)) return null;
+  const owners = new Set(["draft:"]);
+  for (const held of [state, ...remotes as WorkspaceState[]]) {
+    for (const project of held.projects) owners.add(`draft:${project.id}`);
+    for (const thread of held.threads) owners.add(thread.id);
+  }
+  return owners;
+}
+
+function saveDraftPrompts(storage: KeyValueStorage, state: DraftState): void {
   const temporary = sideChatIds(state);
-  storage.setItem(DRAFT_PROMPTS_KEY, JSON.stringify(Object.fromEntries(Object.entries(state.prompts).filter(([owner]) => !temporary.has(owner)))));
+  const owners = draftOwners(state);
+  const kept = Object.entries(state.prompts).filter(([owner]) => !temporary.has(owner) && (owners === null || owners.has(owner)));
+  storage.setItem(DRAFT_PROMPTS_KEY, JSON.stringify(Object.fromEntries(kept)));
 }
 
 /** Save text off the typing path, and synchronously finish the last write before quitting. */
@@ -31,19 +50,12 @@ export function createDraftPersistence(storage: KeyValueStorage, state: () => Wo
     if (ready) saveDraftPrompts(storage, state());
   }
   return {
-    /**
-     * Every draft comes back but one for a folder that is gone. A draft keyed by a thread id is kept
-     * whether or not the thread is here, since the thread may be on a paired computer that has yet
-     * to answer.
-     */
+    /** Every draft comes back; one nobody owns is dropped at the next save, once every paired computer has answered. */
     async restore() {
       const current = ++generation;
-      const initial = state();
-      const folders = new Set(["draft:", ...initial.projects.map((project) => `draft:${project.id}`)]);
       for (const [taskId, prompt] of Object.entries(loadDraftPrompts(storage))) {
         if (current !== generation) return;
-        const kept = taskId.startsWith("draft:") ? folders.has(taskId) : true;
-        if (kept && !(taskId in state().prompts)) await dispatch({ type: "view.set-prompt", taskId, prompt });
+        if (!(taskId in state().prompts)) await dispatch({ type: "view.set-prompt", taskId, prompt });
       }
       if (current === generation) ready = true;
     },

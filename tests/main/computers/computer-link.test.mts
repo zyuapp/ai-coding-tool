@@ -107,6 +107,10 @@ test("a computer trades the code for a token, is handed the workspace whole, and
   const refused = await mac.link.send([{ type: "task.rename", taskId: "first", title: "refuse" }]);
   assert.equal(refused.ok === false && refused.message, "Refused by the host");
   assert.deepEqual(await mac.link.query({ kind: "branches", workspaceId: "ws" }), { status: "available", patch: "patch for branches" });
+
+  mac.link.stop();
+  await until(() => served.inputs.some((input) => input.type === "view.set-focused"), "the host told nobody is looking once the line dropped");
+  assert.deepEqual(served.inputs.at(-1), { type: "view.set-focused", focused: false });
 });
 
 test("a wrong code, a stale token, and another version are refused for good; a dropped line is dialled again", async (t) => {

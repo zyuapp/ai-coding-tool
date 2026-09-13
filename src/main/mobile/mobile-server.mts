@@ -333,6 +333,8 @@ export class MobileServer {
       session.socket = null;
       session.connection = "offline";
       session.expiresAt = Date.now() + (this.options.sessionGraceMs ?? SESSION_GRACE_MS);
+      /** With the line to the computer that was looking gone, nothing here is being watched. */
+      if (session.kind === "computer") void this.options.workspace?.input([{ type: "view.set-focused", focused: false }]).catch(() => undefined);
       this.options.onChange();
     });
   }

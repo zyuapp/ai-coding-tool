@@ -35,7 +35,7 @@ export const computerEffects = {
     try {
       const result = await desktop.sendToComputer(effect.id, effect.inputs);
       if (!result.ok) await dispatch({ type: "action.failed", message: result.message });
-      else if (effect.draftKey !== undefined) await dispatch({ type: "computers.forwarded", draftKey: effect.draftKey });
+      else if (effect.draft) await dispatch({ type: "computers.forwarded", draft: effect.draft });
     } catch (error) {
       await dispatch({ type: "action.failed", message: errorMessage(error) });
     }

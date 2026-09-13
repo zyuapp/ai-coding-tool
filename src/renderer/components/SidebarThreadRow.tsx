@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Draggable, type DraggableProvided } from "@hello-pangea/dnd";
 import { LuAlarmClock as AlarmClock, LuArchive as Archive, LuCheck as Check, LuFolderSymlink as FolderSymlink } from "react-icons/lu";
 import { projectName, type Project } from "../../domain/project";
@@ -162,6 +162,14 @@ export function useThreadRows({
   const [threadMenuPosition, setThreadMenuPosition] = useState({ x: 0, y: 0 });
   const threadNames = useRenaming((threadId, value) => { if (value.trim()) onRenameThread(threadId, value); });
 
+  /** A row on a computer that cannot be reached is drawn, greyed, and takes nothing. */
+  const offline = (thread: Thread | string) => threadHosts.get(typeof thread === "string" ? thread : thread.id)?.offline === true;
+  /** A row whose computer went away takes back what it was offering: a name being typed, or its menu. */
+  useEffect(() => {
+    if (threadNames.editing !== null && offline(threadNames.editing)) threadNames.cancel();
+    if (openMenu?.startsWith("task:") && offline(openMenu.slice("task:".length))) onSetOpenMenu(null);
+  });
+
   const checkouts = new Map(worktreeGroups.flatMap(({ worktree, threads }) =>
     threads.map((thread) => [thread.id, worktree] as const)));
   /** A thread's own mark names its checkout, which is what one flat list leaves it to say. */
@@ -206,9 +214,6 @@ export function useThreadRows({
     );
   };
 
-  /** A row on a computer that cannot be reached is drawn, greyed, and takes nothing. */
-  const offline = (thread: Thread) => threadHosts.get(thread.id)?.offline === true;
-
   /** The row itself, which is the same whether the list around it lets it be dragged or not. */
   const rowBody = (thread: Thread, className: string, content: React.ReactNode, action: RowAction, priority = false) => {
     const away = offline(thread);
@@ -228,7 +233,7 @@ export function useThreadRows({
       }}
       title={thread.title}
     >
-      {threadNames.editing === thread.id
+      {threadNames.editing === thread.id && !away
         ? <RenameInput
             inputRef={threadNames.input}
             className="task-rename"
@@ -239,7 +244,7 @@ export function useThreadRows({
           />
         : <>{content}{threadRail(thread, away ? "none" : action)}</>}
     </div>
-    {openMenu === `task:${thread.id}` && <ContextMenu
+    {openMenu === `task:${thread.id}` && !away && <ContextMenu
       at={threadMenuPosition}
       returnFocus={threadNames.row}
       onClose={() => onSetOpenMenu(null)}

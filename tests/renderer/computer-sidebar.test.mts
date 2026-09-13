@@ -99,3 +99,22 @@ test("an unreachable computer's row offers nothing: no rename, no menu, no archi
     await view.unmount();
   }
 });
+
+test("a row whose computer goes away takes back the menu it had open", async () => {
+  const menus: (string | null)[] = [];
+  const elsewhere = task("elsewhere", { title: "Unreachable work" });
+  const view = await mount(renderProjectSidebar({
+    mode: "projects",
+    recentThreads: [elsewhere],
+    threadHosts: new Map([["elsewhere", gone]]),
+    computerLinks: [{ id: "old", name: "old-laptop", host: "old.tail.ts.net", status: "offline", error: "Timed out", pairedAt: 1 }],
+    openMenu: "task:elsewhere",
+    onSetOpenMenu: (menu) => menus.push(menu),
+  }));
+  try {
+    assert.equal(view.container.querySelector("[role=menu]"), null);
+    assert.deepEqual(menus, [null]);
+  } finally {
+    await view.unmount();
+  }
+});

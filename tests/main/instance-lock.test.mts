@@ -41,6 +41,15 @@ test("a serve lock stands while its process lives, and one a dead process left i
   assert.equal(existsSync(path.join(userData, "serve.lock")), false);
 });
 
+test("a server lets go of its own lock only, never one another took over", async (t) => {
+  const userData = await folder(t);
+  const release = claimServeLock(userData);
+  const other = bystander(t);
+  await writeFile(path.join(userData, "serve.lock"), String(other.pid));
+  release();
+  assert.equal(servingProcess(userData), other.pid, "the other server's lock stands");
+});
+
 test("the desktop app's own lock keeps a server off its data only while the app runs", async (t) => {
   const userData = await folder(t);
   assert.equal(desktopOpen(userData), false);

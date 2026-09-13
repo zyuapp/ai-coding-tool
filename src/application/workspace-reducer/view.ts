@@ -7,6 +7,7 @@ import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./typ
 import { reduceSettings, stopCapture } from "./settings.js";
 import { reduceThreadCommands } from "./thread-commands.js";
 import { projectFor } from "../thread-location.js";
+import { activeComputer } from "../computers.js";
 import { busyThreadIds, dockHoldsTab, findTargetFor, reachableVisit, type FindState, type WorkspaceState } from "../workspace-state.js";
 import { jumpView } from "../workspace-jump.js";
 import { refreshEngines } from "../engine-access.js";
@@ -54,7 +55,8 @@ export function reduceView(state: WorkspaceState, input: ViewInput): WorkspaceTr
     case "view.set-focused": {
       if (!input.focused) return settled({ ...state, focused: false, capturingShortcut: null }, stopCapture(state));
       const asked = refreshEngines({ ...state, focused: true });
-      return settled(readAttention(asked.state, state.currentId), [...refreshEnvironment(state), ...asked.effects]);
+      /** With a paired computer's thread on screen, none of this computer's own has been looked at. */
+      return settled(readAttention(asked.state, activeComputer(state) ? null : state.currentId), [...refreshEnvironment(state), ...asked.effects]);
     }
 
     /** A tab the dock in front is not holding is nobody holding the keyboard, which the picker reports too. */

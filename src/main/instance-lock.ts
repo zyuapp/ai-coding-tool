@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, linkSync, readFileSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
 import { hostname } from "node:os";
 import path from "node:path";
 
@@ -16,12 +16,34 @@ function alive(pid: number) {
   }
 }
 
+function holderOf(lock: string): number | null {
+  try {
+    const holder = Number(readFileSync(lock, "utf8"));
+    return Number.isInteger(holder) && holder > 0 ? holder : null;
+  } catch {
+    return null;
+  }
+}
+
 /** The process serving from this folder, or null when none is; a lock a dead one left counts for nothing. */
 export function servingProcess(userData: string): number | null {
-  const lock = path.join(userData, SERVE_LOCK);
-  if (!existsSync(lock)) return null;
-  const holder = Number(readFileSync(lock, "utf8"));
-  return Number.isInteger(holder) && holder !== process.pid && alive(holder) ? holder : null;
+  const holder = holderOf(path.join(userData, SERVE_LOCK));
+  return holder !== null && holder !== process.pid && alive(holder) ? holder : null;
+}
+
+/** Whole and in one step: the lock is a link to a file already holding the process id, which fails if one stands. */
+function claim(lock: string): boolean {
+  const staging = `${lock}.${process.pid}`;
+  writeFileSync(staging, String(process.pid));
+  try {
+    linkSync(staging, lock);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    return false;
+  } finally {
+    rmSync(staging, { force: true });
+  }
 }
 
 /** Whether the desktop app has this folder open. A lock naming a dead process here is one a crash left. */
@@ -41,10 +63,16 @@ export function desktopOpen(userData: string): boolean {
 
 /** Takes the folder for a server. A second server, or the desktop app, on the same data would write over it. */
 export function claimServeLock(userData: string): () => void {
-  const holder = servingProcess(userData);
-  if (holder !== null) throw new Error(`AI Coding Tool is already serving from this folder (process ${holder}).`);
   if (desktopOpen(userData)) throw new Error("The desktop app is open on this data folder. Quit it before serving, or serve from another machine.");
   const lock = path.join(userData, SERVE_LOCK);
-  writeFileSync(lock, String(process.pid));
-  return () => rmSync(lock, { force: true });
+  if (!claim(lock)) {
+    const holder = servingProcess(userData);
+    if (holder !== null) throw new Error(`AI Coding Tool is already serving from this folder (process ${holder}).`);
+    /** A dead server's lock is cleared and the claim made once more; losing that one to another starter is final. */
+    rmSync(lock, { force: true });
+    if (!claim(lock)) throw new Error("Another AI Coding Tool is starting to serve from this folder.");
+  }
+  return () => {
+    if (holderOf(lock) === process.pid) rmSync(lock, { force: true });
+  };
 }
