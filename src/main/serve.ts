@@ -121,6 +121,7 @@ export async function startServe(options: { userData: string; packaged: boolean;
 
   let engineAccess: Promise<EngineAccessHost> | null = null;
   const mobile = await import("./mobile/mobile-host.mjs");
+  const { storedComputerName } = await import("./computers/computer-links.mjs");
   const desktop = createServeDesktop({
     events,
     runs,
@@ -148,7 +149,7 @@ export async function startServe(options: { userData: string; packaged: boolean;
     ...(options.port === undefined ? {} : { port: options.port }),
     ...(options.local ? { tailscale: NO_TAILSCALE } : {}),
     workspace: {
-      name: () => hostname().replace(/\.local$/, ""),
+      name: () => storedComputerName(path.join(userData, "computers.v1.json"), hostname().replace(/\.local$/, "")),
       snapshot: () => publisher.snapshot(),
       subscribe: (listener) => publisher.subscribe(listener),
       input: async (inputs) => {

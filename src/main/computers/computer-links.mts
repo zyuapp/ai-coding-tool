@@ -53,6 +53,11 @@ function readStored(file: string): Pick<Stored, "name" | "computers"> {
   }
 }
 
+/** What this computer calls itself, as kept in the links file, or the machine's own name when none was chosen. */
+export function storedComputerName(file: string, fallback: string): string {
+  return readStored(file).name ?? fallback;
+}
+
 /** A name as it is kept: trimmed and cut to length, so an empty one is no name at all. */
 function chosen(name: string): string | undefined {
   const trimmed = name.trim().slice(0, MAX_COMPUTER_NAME);
