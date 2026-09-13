@@ -29,6 +29,65 @@ function withComputers(state: WorkspaceState, computers: PairedComputer[], extra
   return { ...state, computers: { ...state.computers, name: "This Mac", paired: computers, ...extra } };
 }
 
+test("remote side chats display local drafts through typing, host updates, and send acknowledgement", () => {
+  const chatId = "remote-chat";
+  let remote = reduce(remoteState, { type: "side-chat.open", chatId }).state;
+  remote = reduce(remote, { type: "view.set-prompt", taskId: chatId, prompt: "Host draft" }).state;
+  let state = withComputers(workspace({ prompts: { "remote-thread": "Main draft" } }), [paired("linux", remote)], { active: "linux" });
+  assert.equal(deriveView(state).sideChats[0].prompt, "", "the host's draft belongs to its own window");
+  for (const prompt of ["H", "Hello", "", "Send this"]) {
+    const typed = reduce(state, { type: "view.set-prompt", taskId: chatId, prompt });
+    assert.deepEqual(typed.effects, [], "keystrokes stay local");
+    state = typed.state;
+    assert.equal(deriveView(state).sideChats[0].prompt, prompt);
+    assert.equal(deriveView(state).prompt, "Main draft");
+  }
+  state = reduce(state, { type: "paste.add", taskId: chatId, text: "Local log" }).state;
+  state = reduce(state, { type: "annotation.recall", taskId: chatId, annotations: [{ id: "note", quote: "Selected text", note: "Local comment" }] }).state;
+  remote = { ...remote, activeRuns: { [chatId]: activeRun(chatId, "remote-run") } };
+  state = reduce(state, { type: "computer.state", id: "linux", state: remote }).state;
+  const chat = deriveView(state).sideChats[0];
+  assert.equal(chat.prompt, "Send this");
+  assert.equal(chat.running, true, "run status still comes from the host");
+  assert.equal(chat.thread, remote.threads.find((thread) => thread.id === chatId));
+  assert.equal(chat.pastes, state.pastes[chatId]);
+  assert.equal(chat.annotations, state.annotations[chatId]);
+  const sent = reduce(state, { type: "attachments.send", taskId: chatId, attachments: [] });
+  const forward = effectOf(sent, "computer.forward");
+  assert.equal(forward.id, "linux");
+  assert.deepEqual(forward.inputs[0], { type: "view.set-prompt", taskId: chatId, prompt: "Send this" });
+  assert.equal(deriveView(sent.state).sideChats[0].prompt, "Send this", "the draft stays until acknowledged");
+  const taken = deriveView(reduce(sent.state, { type: "computers.forwarded", draft: forward.draft! }).state);
+  assert.equal(taken.sideChats[0].prompt, "");
+  assert.deepEqual(taken.sideChats[0].pastes, []);
+  assert.deepEqual(taken.sideChats[0].annotations, []);
+  assert.equal(taken.prompt, "Main draft");
+});
+
+test("remote side chat attachment drafts are isolated and unrelated edits preserve their views", () => {
+  let remote = reduce(remoteState, { type: "side-chat.open", chatId: "chat-one" }).state;
+  remote = reduce(remote, { type: "side-chat.open", chatId: "chat-two" }).state;
+  remote = reduce(remote, { type: "image.recall", taskId: "chat-two", paths: ["/linux/host.png"] }).state;
+  let state = withComputers(workspace(), [paired("linux", remote)], { active: "linux" });
+  state = reduce(state, { type: "image.recall", taskId: "chat-one", paths: ["/mac/local.png"] }).state;
+  state = reduce(state, { type: "file.recall", taskId: "chat-one", files: [{ id: "file", name: "local.ts", path: "/mac/local.ts" }] }).state;
+  const before = deriveView(state).sideChats;
+  assert.equal(before[0].images, state.images["chat-one"]);
+  assert.equal(before[0].files, state.files["chat-one"]);
+  assert.deepEqual(before[1].images, []);
+  assert.deepEqual(before[1].files, []);
+  state = reduce(state, { type: "view.set-prompt", prompt: "Main edit" }).state;
+  assert.equal(deriveView(state).sideChats, before);
+  state = reduce(state, { type: "view.set-prompt", taskId: "chat-one", prompt: "Side edit" }).state;
+  const after = deriveView(state).sideChats;
+  assert.equal(after[0].prompt, "Side edit");
+  assert.equal(after[1], before[1]);
+  state = reduce(state, { type: "image.remove", taskId: "chat-one", imageId: after[0].images[0].id }).state;
+  state = reduce(state, { type: "file.detach", taskId: "chat-one", fileId: "file" }).state;
+  assert.deepEqual(deriveView(state).sideChats[0].images, []);
+  assert.deepEqual(deriveView(state).sideChats[0].files, []);
+});
+
 test("dismiss all clears local and remote Priority with one scoped request per computer", () => {
   const computers = ["claude", "codex"].map((engine) => {
     const threads = Array.from({ length: 40 }, (_, index) => task(`${engine}-${index}`, {
