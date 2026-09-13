@@ -1,12 +1,15 @@
 import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_ENCODED_BYTES, MAX_ATTACHMENTS } from "../../../src/domain/conversation.ts";
-import { COMPUTER_SEND_TOO_LARGE } from "../../../src/contracts/computers.ts";
+import { COMPUTER_PROTOCOL_VERSION, COMPUTER_SEND_TOO_LARGE, type ComputerServerMessage } from "../../../src/contracts/computers.ts";
 import assert from "node:assert/strict";
+import { once } from "node:events";
+import WebSocket from "ws";
 import type { ThreadNotice } from "../../../src/contracts/ipc.ts";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { test } from "vitest";
 import { emptyWorkspaceState, type WorkspaceState } from "../../../src/application/workspace-state.ts";
+import { parseWorkspaceJson } from "../../../src/application/workspace-json.ts";
 import type { WorkspaceInput } from "../../../src/application/workspace-reducer.ts";
 import type { WorkspaceUpdate } from "../../../src/contracts/workspace-runtime.ts";
 import type { ComputerStatus } from "../../../src/domain/computers.ts";
@@ -122,7 +125,54 @@ test("a computer trades the code for a token, is handed the workspace whole, and
   assert.deepEqual(served.inputs.at(-1), { type: "view.set-focused", focused: false });
 });
 
-test("a wrong code, a stale token, and another version are refused for good; a dropped line is dialled again", async (t) => {
+test.for([COMPUTER_PROTOCOL_VERSION - 1, COMPUTER_PROTOCOL_VERSION + 1])("a computer on protocol %i pairs, resumes, receives workspace updates, and sends validated commands", async (version, t) => {
+  const served = await host(t);
+  function connect() {
+    const socket = new WebSocket(served.url);
+    const messages: ComputerServerMessage[] = [];
+    socket.on("message", (data) => messages.push(parseWorkspaceJson(String(data)) as ComputerServerMessage));
+    t.onTestFinished(() => socket.close());
+    return {
+      socket,
+      messages,
+      waitFor: <K extends ComputerServerMessage["kind"]>(kind: K) =>
+        until(() => messages.find((message): message is Extract<ComputerServerMessage, { kind: K }> => message.kind === kind), `the ${kind} message`),
+    };
+  }
+  const first = connect();
+  await once(first.socket, "open");
+  first.socket.send(JSON.stringify({ kind: "pair", version, code: served.mint(), deviceName: "Another version" }));
+  const paired = await first.waitFor("paired");
+  const snapshot = await first.waitFor("workspace");
+  assert.ok("state" in snapshot.update);
+  assert.equal(snapshot.update.state.threads[0]?.title, "First");
+  assert.equal(served.devices.list()[0]?.kind, "computer");
+  first.socket.close();
+  await once(first.socket, "close");
+
+  const resumed = connect();
+  await once(resumed.socket, "open");
+  resumed.socket.send(JSON.stringify({ kind: "resume", version, token: paired.token, sessionId: snapshot.sessionId, lastSequence: snapshot.sequence }));
+  await resumed.waitFor("ping");
+  served.publish({ threads: [task("first", { title: "Changed remotely" })] });
+  const update = await resumed.waitFor("workspace");
+  assert.deepEqual(update.update, { revision: 1, patches: [{ path: ["threads"], value: [task("first", { title: "Changed remotely" })] }] });
+
+  const input = { type: "task.rename", taskId: "first", title: "Changed from another version" };
+  resumed.socket.send(JSON.stringify({ kind: "input", requestId: "rename", inputs: [input] }));
+  const result = await resumed.waitFor("result");
+  assert.equal(result.requestId, "rename");
+  assert.deepEqual(result.result, { ok: true, revision: 1 });
+  assert.ok(served.inputs.some((received) => received.type === "task.rename" && received.title === input.title));
+
+  resumed.socket.send(JSON.stringify({ kind: "input", requestId: "invalid", inputs: [{ type: "task.rename", taskId: "first", title: 42 }] }));
+  const error = await resumed.waitFor("error");
+  assert.equal(error.code, "unreadable");
+  assert.match(error.message, /Updating AI Coding Tool on the remote computer may help/);
+  assert.deepEqual(served.inputs.filter((received) => received.type === "task.rename"), [input]);
+});
+
+test("a wrong code and a stale token are refused for good", async (t) => {
   const served = await host(t);
   served.mint();
   const wrong = client({ url: served.url, credential: { code: "NOTTHECODE" } });

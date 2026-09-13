@@ -34,7 +34,7 @@ import {
 import { MOBILE_HEALTH_PATH, MOBILE_HEALTH_RESPONSE } from "./addresses.mjs";
 import type { PairingStore } from "./pairing.mjs";
 import type { ThreadNotice } from "../../contracts/ipc.js";
-import { COMPUTER_PROTOCOL_VERSION, COMPUTER_TRANSFER_TIMEOUT_MS, MAX_COMPUTER_MESSAGE_BYTES, isComputerTransfer, isComputerClientMessage, type ComputerClientMessage, type ComputerQuery, type ComputerServerMessage } from "../../contracts/computers.js";
+import { COMPUTER_TRANSFER_TIMEOUT_MS, MAX_COMPUTER_MESSAGE_BYTES, isComputerTransfer, isComputerClientMessage, type ComputerClientMessage, type ComputerQuery, type ComputerServerMessage } from "../../contracts/computers.js";
 import type { WorkspaceCommandResult, WorkspaceInput } from "../../application/workspace-reducer.js";
 import type { WorkspaceUpdate } from "../../contracts/workspace-runtime.js";
 import { stringifyWorkspaceJson } from "../../application/workspace-json.js";
@@ -430,7 +430,9 @@ export class MobileServer {
     socket.on("error", () => socket.terminate());
     socket.on("message", (data) => {
       const message = readClientMessage(data, kind);
-      if (!message) return refuse(socket, "unreadable", "That message could not be read.");
+      if (!message) return refuse(socket, "unreadable", kind === "computer"
+        ? "The remote computer could not read this request. Updating AI Coding Tool on the remote computer may help."
+        : "That message could not be read.");
       if (session) {
         /** A session dropped while its socket lingers — revoked, or the bridge turned off — is over. */
         if (this.sessions.get(session.id) !== session) return;
@@ -740,11 +742,10 @@ function readClientMessage(data: unknown, kind: PairedDeviceKind): ClientMessage
   return isMobileClientMessage(parsed) ? parsed : null;
 }
 
-/** Each kind of client speaks its own protocol, and one from another build is told to update rather than misread. */
+/** Computers connect best effort across versions; a stale phone page can reload from its host. */
 function versionAccepted(version: number, kind: PairedDeviceKind, socket: WebSocket) {
-  const expected = kind === "computer" ? COMPUTER_PROTOCOL_VERSION : MOBILE_PROTOCOL_VERSION;
-  if (version === expected) return true;
-  refuse(socket, "version", kind === "computer" ? "The other computer runs a different version of AI Coding Tool. Update both." : "This phone page is a different version from the computer. Reload it.");
+  if (kind === "computer" || version === MOBILE_PROTOCOL_VERSION) return true;
+  refuse(socket, "version", "This phone page is a different version from the computer. Reload it.");
   return false;
 }
 
