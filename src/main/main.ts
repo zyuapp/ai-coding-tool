@@ -1,13 +1,11 @@
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain, nativeTheme, net, powerMonitor, powerSaveBlocker, protocol, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, nativeTheme, powerMonitor, powerSaveBlocker, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { mkdirSync, readFileSync } from "node:fs";
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { ATTACHMENT_SCHEME } from "../application/attachments.js";
-import { MESSAGE_IMAGE_SCHEME } from "../domain/message-artifacts.js";
-import { messageImageResponse, preserveMessageImages, useMessageImageStore } from "./message-image-store.js";
-import { attachmentResponse } from "./attachment-response.js";
+import { preserveMessageImages, useMessageImageStore } from "./message-image-store.js";
+import { handleImageProtocols, registerImageSchemes } from "./image-protocols.js";
 import { downloadImage } from "./image-download.js";
 import { isShortcutOverrides, isWindowTheme, type AvailableCommand, type BrowserPageEvent, type ComputerUsePermission, type WindowTheme } from "../contracts/ipc.js";
 import { isAutomationDraft, isAutomationPatch } from "../domain/automation.js";
@@ -63,10 +61,7 @@ app.setPath("sessionData", profile.userData);
 useAttachmentsDirectory(app.getPath("userData"));
 useMessageImageStore({ directory: path.join(app.getPath("userData"), "message-images"), thumbnail: messageThumbnail });
 
-protocol.registerSchemesAsPrivileged([
-  { scheme: ATTACHMENT_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
-  { scheme: MESSAGE_IMAGE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
-]);
+registerImageSchemes();
 
 /** The `aic` command opens a folder in the app that is already running, never a second one. */
 const singleInstance = app.requestSingleInstanceLock();
@@ -443,12 +438,10 @@ app.whenReady().then(async () => {
     onChange: (automations) => { events.emit("automation:changed", automations); },
   });
   await automationScheduler.start();
-  protocol.handle(ATTACHMENT_SCHEME, (request) => attachmentResponse(request.url, {
+  handleImageProtocols({
     state: () => workspaceRuntime.runtime.getState(),
     query: (id, query) => getComputerLinks().query(id, query),
-    fetch: (url) => net.fetch(url),
-  }));
-  protocol.handle(MESSAGE_IMAGE_SCHEME, (request) => messageImageResponse(request.url));
+  });
   if (!app.isPackaged) app.dock?.setIcon(icon);
   keyboard.claimDesktopShortcut();
   await searchPath;

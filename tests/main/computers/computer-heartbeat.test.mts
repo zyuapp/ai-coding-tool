@@ -24,8 +24,9 @@ async function until(check: () => boolean) {
 
 const input = { type: "attachments.send" as const, attachments: [{ id: "shot", source: "data:image/png;base64,AQID", annotations: [] }] };
 const query = { kind: "attachment" as const, name: "shot.png" };
+const messageImageQuery = { kind: "message-image" as const, path: "/tmp/shot.png", root: "", message: "reply" };
 
-test.each(["idle", "send", "query", "overlap", "timeout"])("client heartbeat uses the normal deadline outside a pending transfer: %s", async (mode) => {
+test.each(["idle", "send", "query", "message-image", "overlap", "timeout"])("client heartbeat uses the normal deadline outside a pending transfer: %s", async (mode) => {
   vi.useFakeTimers();
   const server = new WebSocketServer({ host: "127.0.0.1", port: 0 });
   await once(server, "listening");
@@ -45,7 +46,7 @@ test.each(["idle", "send", "query", "overlap", "timeout"])("client heartbeat use
   try {
     await until(() => client.status === "connected");
     const pending = [];
-    if (mode !== "idle") pending.push((mode === "send" ? client.send([input]) : client.query(query)).catch(() => undefined));
+    if (mode !== "idle") pending.push((mode === "send" ? client.send([input]) : client.query(mode === "message-image" ? messageImageQuery : query)).catch(() => undefined));
     if (mode === "overlap") pending.push(client.send([input]).catch(() => undefined));
     if (pending.length) await until(() => requests.length === pending.length);
     await vi.advanceTimersByTimeAsync(MOBILE_DEAD_AFTER_MS);
@@ -77,7 +78,7 @@ test.each(["idle", "send", "query", "overlap", "timeout"])("client heartbeat use
   }
 });
 
-test.each(["idle", "send", "query", "abandoned"])("holder heartbeat extends only an active transfer, including its upload: %s", async (mode) => {
+test.each(["idle", "send", "query", "message-image", "abandoned"])("holder heartbeat extends only an active transfer, including its upload: %s", async (mode) => {
   vi.useFakeTimers();
   const folder = await mkdtemp(path.join(os.tmpdir(), "aic-heartbeat-"));
   const devices = new PairingStore(path.join(folder, "devices.json"));
@@ -115,7 +116,7 @@ test.each(["idle", "send", "query", "abandoned"])("holder heartbeat extends only
       await vi.advanceTimersByTimeAsync(COMPUTER_TRANSFER_TIMEOUT_MS);
       return await until(() => socket.readyState === WebSocket.CLOSED);
     }
-    socket.send(JSON.stringify(mode === "send" ? { kind: "input", requestId: "image", inputs: [input] } : { kind: "query", requestId: "image", query }));
+    socket.send(JSON.stringify(mode === "send" ? { kind: "input", requestId: "image", inputs: [input] } : { kind: "query", requestId: "image", query: mode === "message-image" ? messageImageQuery : query }));
     await until(() => received);
     await vi.advanceTimersByTimeAsync(MOBILE_DEAD_AFTER_MS + MOBILE_PING_INTERVAL_MS);
     assert.equal(socket.readyState, WebSocket.OPEN, "the attachment request is still pending");

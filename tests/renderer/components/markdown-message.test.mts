@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import React, { act } from "react";
 import type { MessageLinkActions } from "../../../src/renderer/components/MarkdownMessage.tsx";
+import { isImageSource } from "../../../src/domain/message-artifacts.ts";
 
 import { dom, mount, query } from "../../support/renderer-dom.mts";
 
@@ -93,16 +94,21 @@ test("an old reply previews image links, preserves its text, and enlarges in the
   const opened: string[] = [];
   const text = "Verified. [Screenshot](</tmp/old shot.png>)\n\n[Another][shot]\n\n[shot]: /tmp/second.png";
   const view = await mount(React.createElement(MessageLinkProvider, { actions: { openImage: (source) => opened.push(source) },
-    children: React.createElement(MarkdownMessage, { messageId: "old-message", children: text }) }));
+    children: React.createElement(MessageArtifactScope.Provider, { value: { root: "/linux/repo", taskId: "remote-thread" } },
+      React.createElement(MarkdownMessage, { messageId: "old-message", children: text })) }));
   const images = [...view.container.querySelectorAll("img")];
   assert.equal(images.length, 2);
   const thumbnail = new URL(images[0].src);
   assert.equal(thumbnail.searchParams.get("path"), "/tmp/old shot.png");
   assert.equal(thumbnail.searchParams.get("message"), "old-message");
   assert.equal(thumbnail.searchParams.get("thumbnail"), "1");
+  assert.equal(thumbnail.searchParams.get("taskId"), "remote-thread");
+  assert.equal(thumbnail.searchParams.get("root"), "/linux/repo");
   assert.equal(images[0].getAttribute("loading"), "lazy");
   await act(async () => query<HTMLButtonElement>(view.container, '[aria-label="Enlarge Screenshot"]').click());
   assert.equal(new URL(opened[0]).searchParams.has("thumbnail"), false);
+  assert.equal(new URL(opened[0]).searchParams.get("taskId"), "remote-thread");
+  assert.equal(isImageSource(opened[0]), true);
   await act(async () => query<HTMLAnchorElement>(view.container, "a").click());
   assert.equal(opened[1], opened[0]);
   await act(async () => images[1].dispatchEvent(new dom.window.Event("error")));

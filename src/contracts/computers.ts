@@ -1,4 +1,5 @@
 import { MAX_ATTACHMENTS, MAX_ATTACHMENT_ENCODED_BYTES } from "../domain/conversation.js";
+import { isMessageImageReference } from "../domain/message-artifacts.js";
 import type { WorkspaceCommandResult, WorkspaceInput } from "../application/workspace-reducer.js";
 import { isWorkspaceViewInput } from "./workspace-view-input.js";
 import { isAgentEngine, type AgentEngine } from "../domain/agent-engine.js";
@@ -23,6 +24,7 @@ export const COMPUTER_SEND_TOO_LARGE = "This message is too large to send to ano
 /** Reads that are content rather than state, which the window asks its own desktop for. */
 export type ComputerQuery =
   | { kind: "attachment"; name: string }
+  | { kind: "message-image"; path: string; root: string; message: string; thumbnail?: boolean }
   | { kind: "diff-patch"; workspaceId: string; range: DiffRange; path: string; previousPath?: string; ignoreWhitespace?: boolean }
   | { kind: "branches"; workspaceId: string }
   | { kind: "commands"; workspaceId: string; engine: AgentEngine };
@@ -37,7 +39,8 @@ export type ComputerClientMessage = ComputerPairRequest | ComputerResumeRequest 
 
 /** Requests that need the transfer deadline rather than the ordinary request deadline. */
 export function isComputerTransfer(message: ComputerClientMessage): boolean {
-  return message.kind === "input" ? message.inputs.some((input) => input.type === "attachments.send" && input.attachments.length > 0) : message.kind === "query" && message.query.kind === "attachment";
+  return message.kind === "input" ? message.inputs.some((input) => input.type === "attachments.send" && input.attachments.length > 0)
+    : message.kind === "query" && (message.query.kind === "attachment" || message.query.kind === "message-image");
 }
 
 type Sequenced = { sequence: number };
@@ -78,6 +81,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function isComputerQuery(value: unknown): value is ComputerQuery {
   if (!isRecord(value)) return false;
   if (value.kind === "attachment") return isString(value.name) && /^[A-Za-z0-9-]+\.png$/.test(value.name);
+  if (value.kind === "message-image") return isMessageImageReference(value.path, value.root, value.message)
+    && (value.thumbnail === undefined || typeof value.thumbnail === "boolean");
   if (!isString(value.workspaceId)) return false;
   if (value.kind === "branches") return true;
   if (value.kind === "commands") return isAgentEngine(value.engine);
