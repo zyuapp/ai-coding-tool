@@ -521,6 +521,8 @@ button, select { color: inherit; }
   font-size: var(--text-control);
   letter-spacing: -0.012em;
 }
+.project-main:has(> .project-host) { grid-template-columns: 19px minmax(0, 1fr) auto; }
+.project-main > .project-host { margin-left: 0; white-space: nowrap; }
 .project-main > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project-main .folder-icon svg { width: 19px; height: 19px; }
 .project-new,

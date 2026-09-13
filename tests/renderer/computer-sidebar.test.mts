@@ -9,6 +9,43 @@ import { renderProjectSidebar } from "../support/sidebar.mts";
 const linux = { id: "linux", name: "linux-box", offline: false };
 const gone = { id: "old", name: "old-laptop", offline: true };
 
+test("project computer badges follow the folder name inside its button", async () => {
+  const toggled: string[] = [];
+  const projects = [
+    { id: "local", root: "/local/app", name: "Local app" },
+    { id: "remote", root: "/linux/app", name: "A long remote project name" },
+    { id: "offline", root: "/old/app", name: "Offline app" },
+  ];
+  const hosts = [undefined, linux, gone];
+  const view = await mount(renderProjectSidebar({
+    projects,
+    projectHosts: new Map([["remote", linux], ["offline", gone]]),
+    onToggleProject: (id) => toggled.push(id),
+  }));
+  try {
+    const buttons = [...view.container.querySelectorAll<HTMLButtonElement>(".project-main")];
+    assert.equal(buttons.length, projects.length);
+    for (const [index, button] of buttons.entries()) {
+      const name = query(button, ":scope > span:nth-child(2)");
+      assert.equal(name.textContent, projects[index]!.name);
+      const host = hosts[index];
+      if (!host) {
+        assert.equal(button.querySelector(".project-host"), null);
+        continue;
+      }
+      const badge = query(button, ":scope > .project-host");
+      assert.equal(name.nextElementSibling, badge);
+      assert.equal(badge.closest("button"), button);
+      assert.equal(badge.textContent, host.name);
+      assert.equal(badge.classList.contains("offline"), host.offline);
+      await act(async () => { badge.click(); });
+    }
+    assert.deepEqual(toggled, ["remote", "offline"]);
+  } finally {
+    await view.unmount();
+  }
+});
+
 test("rows on a paired computer carry its name, and rows on one that cannot be reached are greyed and take nothing", async () => {
   const selected: string[] = [];
   const here = task("here", { title: "Local work" });
