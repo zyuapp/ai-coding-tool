@@ -30,7 +30,16 @@ test("runtime notices cover the proprietary SDK, direct dependencies, and bundle
     assert.ok(packages.has(id), `Missing runtime notice for ${id}`);
   }
 
-  assert.ok(![...packages].some((name) => name.includes("claude-agent-sdk-darwin-arm64")));
+  for (const prefix of [
+    "@anthropic-ai/claude-agent-sdk-darwin-",
+    "@anthropic-ai/claude-agent-sdk-linux-",
+    "@anthropic-ai/claude-agent-sdk-win32-",
+    "@lydell/node-pty-darwin-",
+    "@lydell/node-pty-linux-",
+    "@lydell/node-pty-win32-",
+  ]) {
+    assert.ok(![...packages].some((name) => name.startsWith(prefix)), `Platform package leaked into notices: ${prefix}`);
+  }
 });
 
 test("CUA release metadata supplies a source commit and archive checksum", () => {

@@ -28,8 +28,19 @@ const excludedPackages = new Set([
   "@ubjs/core",
   "@ubjs/node",
   "@ubjs/node-darwin-arm64",
-  "@anthropic-ai/claude-agent-sdk-darwin-arm64",
 ]);
+const platformPackagePrefixes = [
+  "@anthropic-ai/claude-agent-sdk-darwin-",
+  "@anthropic-ai/claude-agent-sdk-linux-",
+  "@anthropic-ai/claude-agent-sdk-win32-",
+  "@lydell/node-pty-darwin-",
+  "@lydell/node-pty-linux-",
+  "@lydell/node-pty-win32-",
+];
+
+function excludedPackage(name) {
+  return excludedPackages.has(name) || platformPackagePrefixes.some((prefix) => name.startsWith(prefix));
+}
 const pinnedSourceReportNeedles = new Map([
   ["CUA-RUST-DEPENDENCIES.html", () => [
     `CUA Driver ${CUA_DRIVER_VERSION} for macOS arm64`,
@@ -121,7 +132,7 @@ async function licenseText(directory, manifest) {
 export async function runtimeLicenseEntries() {
   const queue = [];
   for (const name of [...Object.keys(project.dependencies ?? {}), ...fontPackages]) {
-    if (excludedPackages.has(name)) continue;
+    if (excludedPackage(name)) continue;
     const directory = await resolvePackage(name, root);
     if (!directory) throw new Error(`${name} is declared for the app but is not installed.`);
     queue.push(directory);
@@ -134,7 +145,7 @@ export async function runtimeLicenseEntries() {
     if (visitedDirectories.has(directory)) continue;
     visitedDirectories.add(directory);
     const manifest = JSON.parse(await readFile(path.join(directory, "package.json"), "utf8"));
-    if (excludedPackages.has(manifest.name)) continue;
+    if (excludedPackage(manifest.name)) continue;
     const relative = path.relative(root, directory).split(path.sep).join("/");
     const locked = lock.packages?.[relative];
     if (locked?.version !== manifest.version) {
@@ -151,7 +162,7 @@ export async function runtimeLicenseEntries() {
     }
     const dependencies = { ...manifest.dependencies, ...manifest.optionalDependencies };
     for (const name of Object.keys(dependencies)) {
-      if (excludedPackages.has(name)) continue;
+      if (excludedPackage(name)) continue;
       const dependency = await resolvePackage(name, directory);
       if (dependency) queue.push(dependency);
     }
