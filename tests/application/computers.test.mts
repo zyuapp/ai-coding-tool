@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { ATTACHMENTS_ELSEWHERE, FILES_ELSEWHERE, PANEL_ELSEWHERE, remoteNotices, routeInput, type PairedComputer } from "../../src/application/computers.ts";
+import { ATTACHMENTS_ELSEWHERE, FILES_ELSEWHERE, PANEL_ELSEWHERE, routeInput, type PairedComputer } from "../../src/application/computers.ts";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { ComputerLink } from "../../src/domain/computers.ts";
@@ -49,14 +49,16 @@ test("a send to the thread on screen puts the draft typed here into that compute
   state = reduce(state, { type: "view.set-prompt", prompt: "Fix the header" }).state;
   assert.equal(state.prompts["remote-thread"], "Fix the header", "the draft is keyed by the other computer's open thread");
   state = reduce(state, { type: "paste.add", text: "some log" }).state;
+  const annotations = [{ id: "a1", quote: "header", note: "first thought" }, { id: "a2", quote: "footer", note: "second" }];
+  state = reduce(state, { type: "annotation.recall", annotations }).state;
   const sent = reduce(state, { type: "task.send", attachments: [], steer: true });
   const forward = effectOf(sent, "computer.forward");
   assert.equal(forward.id, "linux");
   const pastes = sent.state.pastes["remote-thread"]!;
-  assert.deepEqual(forward.draft, { key: "remote-thread", prompt: "Fix the header", pastes: [pastes[0]!.id], annotations: [] });
+  assert.deepEqual(forward.draft, { key: "remote-thread", prompt: "Fix the header", pastes, annotations });
   assert.deepEqual(forward.inputs, [
     { type: "view.set-prompt", taskId: "remote-thread", prompt: "Fix the header" },
-    { type: "annotation.recall", taskId: "remote-thread", annotations: [] },
+    { type: "annotation.recall", taskId: "remote-thread", annotations },
     { type: "paste.recall", taskId: "remote-thread", pastes },
     { type: "task.send", taskId: "remote-thread", steer: true },
   ]);
@@ -67,9 +69,11 @@ test("a send to the thread on screen puts the draft typed here into that compute
   /** What is typed while the send is on its way is not the send's to take. */
   let meanwhile = reduce(sent.state, { type: "view.set-prompt", prompt: "Fix the header and the footer" }).state;
   meanwhile = reduce(meanwhile, { type: "paste.add", text: "later log" }).state;
+  meanwhile = reduce(meanwhile, { type: "annotation.note", annotationId: "a1", note: "second thought" }).state;
   const later = reduce(meanwhile, { type: "computers.forwarded", draft: forward.draft! }).state;
   assert.equal(later.prompts["remote-thread"], "and the footer");
   assert.deepEqual(later.pastes["remote-thread"]?.map((paste) => paste.text), ["later log"]);
+  assert.deepEqual(later.annotations["remote-thread"], [{ id: "a1", quote: "header", note: "second thought" }], "a note changed since is not the one that went");
 });
 
 test("a send with text of its own goes as it is, and a refused send leaves the draft here", () => {
@@ -178,18 +182,16 @@ test("with a paired computer on screen the conversation is its own, under this w
   assert.deepEqual(view.terminals, [], "no panel of the other computer is drawn here");
 });
 
-test("a run settling on a paired computer while this window shows something else is announced, once", () => {
-  const before = remoteState;
+test("a notice a paired computer raised is carried to this desktop as one of its own, under the same switch", () => {
+  const notice = { taskId: "remote-thread", title: "Remote work", headline: "The run finished." };
+  const state = withComputers(workspace(), [paired("linux", remoteState)]);
+  const carried = reduce(state, { type: "computer.notice", id: "linux", notice });
+  assert.deepEqual(carried.effects, [{ type: "announce-thread", notice }]);
+  assert.deepEqual(reduce(state, { type: "computer.notice", id: "stranger", notice }).effects, [], "a computer not paired has no say here");
+  assert.deepEqual(reduce({ ...state, notifications: false }, { type: "computer.notice", id: "linux", notice }).effects, [], "notifications off here are off for every computer");
   const finished = { ...remoteState, threads: [{ ...remoteThread, outcome: "finished" as const, outcomeUnread: true as const }] };
-  const notices = remoteNotices(before, finished, () => false);
-  assert.deepEqual(notices, [{ taskId: "remote-thread", title: "Remote work", headline: "The run finished." }]);
-  assert.deepEqual(remoteNotices(finished, finished, () => false), [], "a state that did not move says nothing");
-  assert.deepEqual(remoteNotices(before, finished, () => true), [], "a thread on screen has been seen");
-  const quiet = { ...remoteState, threads: [{ ...remoteThread, outcome: "failed" as const }] };
-  assert.deepEqual(remoteNotices(remoteState, quiet, () => false), [], "an outcome that computer did not mark unseen is not news");
-  const state = withComputers(workspace(), [paired("linux", before)]);
   const applied = reduce(state, { type: "computer.state", id: "linux", state: finished });
-  assert.equal(effectOf(applied, "announce-thread").notice.title, "Remote work");
+  assert.deepEqual(applied.effects, [], "a state moving says nothing of itself; the notice is that computer's to raise");
   assert.equal(applied.state.computers.paired[0]?.state, finished);
 });
 

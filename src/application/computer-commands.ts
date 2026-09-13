@@ -1,9 +1,9 @@
 import type { ComputerCommand } from "../contracts/commands.js";
+import type { ThreadNotice } from "../contracts/ipc.js";
 import type { ComputerLink, DiscoveredComputer } from "../domain/computers.js";
-import { remoteNotices, type PairedComputer, type SentDraft } from "./computers.js";
+import type { PairedComputer, SentDraft } from "./computers.js";
 import { annotationsFor, pastesFor, withAnnotations, withPastes } from "./composer-drafts.js";
 import { announcedNotice } from "./notices.js";
-import { threadOnScreen } from "./thread-attention.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./workspace-reducer.js";
 import type { WorkspaceState } from "./workspace-state.js";
 
@@ -15,6 +15,8 @@ export type ComputerEvent =
   | { type: "computers.pair-failed"; message: string }
   /** A paired computer's whole state as it now stands. */
   | { type: "computer.state"; id: string; state: WorkspaceState }
+  /** What a paired computer would have put on its own desktop: it judged the run news, this one only carries it. */
+  | { type: "computer.notice"; id: string; notice: ThreadNotice }
   /** A paired computer took the draft a send carried, so this window lets go of it. */
   | { type: "computers.forwarded"; draft: SentDraft };
 
@@ -29,7 +31,7 @@ export type ComputerEffect =
 export type ComputerInput = ComputerCommand | ComputerEvent;
 
 export function isComputerInput(input: { type: string }): input is ComputerInput {
-  return input.type.startsWith("computers.") || input.type === "computer.state";
+  return input.type.startsWith("computers.") || input.type === "computer.state" || input.type === "computer.notice";
 }
 
 /** What a paired computer has taken is let go of here; what was typed after it went stays. */
@@ -39,8 +41,8 @@ function withoutSent(state: WorkspaceState, draft: SentDraft): WorkspaceState {
   const kept = typed === draft.prompt ? "" : typed.startsWith(draft.prompt) ? typed.slice(draft.prompt.length).trimStart() : typed;
   const { [key]: _sent, ...rest } = state.prompts;
   const prompts = kept ? { ...rest, [key]: kept } : rest;
-  const annotations = annotationsFor(state, key).filter((annotation) => !draft.annotations.includes(annotation.id));
-  const pastes = pastesFor(state, key).filter((paste) => !draft.pastes.includes(paste.id));
+  const annotations = annotationsFor(state, key).filter((annotation) => !draft.annotations.some((sent) => sent.id === annotation.id && sent.note === annotation.note));
+  const pastes = pastesFor(state, key).filter((paste) => !draft.pastes.some((sent) => sent.id === paste.id));
   return withPastes(withAnnotations({ ...state, prompts }, key, annotations), key, pastes);
 }
 
@@ -105,10 +107,9 @@ export function reduceComputers(state: WorkspaceState, input: ComputerInput): Wo
     case "computer.state": {
       const computer = computers.paired.find((item) => item.id === input.id);
       if (!computer) return settled(state);
-      const next = withComputers(state, { paired: computers.paired.map((item) => item === computer ? { ...item, state: input.state } : item) });
-      const onScreen = (taskId: string) => computers.active === computer.id && state.focused && threadOnScreen({ ...input.state, computers: { active: null } }, taskId);
-      const effects = remoteNotices(computer.state, input.state, onScreen).flatMap((notice) => announcedNotice(state, notice));
-      return settled(next, effects);
+      return settled(withComputers(state, { paired: computers.paired.map((item) => item === computer ? { ...item, state: input.state } : item) }));
     }
+    case "computer.notice":
+      return settled(state, computers.paired.some((computer) => computer.id === input.id) ? announcedNotice(state, input.notice) : []);
   }
 }

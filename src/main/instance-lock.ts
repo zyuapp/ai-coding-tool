@@ -1,4 +1,4 @@
-import { existsSync, linkSync, readFileSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, linkSync, mkdirSync, readFileSync, readlinkSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { hostname } from "node:os";
 import path from "node:path";
 
@@ -6,6 +6,8 @@ import path from "node:path";
 const SERVE_LOCK = "serve.lock";
 /** The lock the desktop app holds on its data folder: a link to `<host>-<pid>`, left behind by a crash. */
 const APP_LOCK = "SingletonLock";
+/** How long a starter has the turn to clear a dead server's lock before the turn is taken as abandoned. */
+const RECLAIM_TURN_MS = 10_000;
 
 function alive(pid: number) {
   try {
@@ -61,16 +63,37 @@ export function desktopOpen(userData: string): boolean {
   return alive(pid);
 }
 
+/**
+ * Clears a dead server's lock and takes it, one starter at a time: the folder made here is the turn,
+ * so a starter that arrives while another has it neither clears that one's fresh lock nor waits.
+ * A turn a starter died holding is taken over once it is old.
+ */
+function reclaim(userData: string, lock: string): boolean {
+  const turn = `${lock}.reclaim`;
+  try {
+    mkdirSync(turn);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    if (statSync(turn).mtimeMs > Date.now() - RECLAIM_TURN_MS) return false;
+    rmSync(turn, { recursive: true, force: true });
+    return reclaim(userData, lock);
+  }
+  try {
+    if (servingProcess(userData) !== null) return false;
+    rmSync(lock, { force: true });
+    return claim(lock);
+  } finally {
+    rmSync(turn, { recursive: true, force: true });
+  }
+}
+
 /** Takes the folder for a server. A second server, or the desktop app, on the same data would write over it. */
 export function claimServeLock(userData: string): () => void {
   if (desktopOpen(userData)) throw new Error("The desktop app is open on this data folder. Quit it before serving, or serve from another machine.");
   const lock = path.join(userData, SERVE_LOCK);
-  if (!claim(lock)) {
+  if (!claim(lock) && (servingProcess(userData) !== null || !reclaim(userData, lock))) {
     const holder = servingProcess(userData);
-    if (holder !== null) throw new Error(`AI Coding Tool is already serving from this folder (process ${holder}).`);
-    /** A dead server's lock is cleared and the claim made once more; losing that one to another starter is final. */
-    rmSync(lock, { force: true });
-    if (!claim(lock)) throw new Error("Another AI Coding Tool is starting to serve from this folder.");
+    throw new Error(holder === null ? "Another AI Coding Tool is starting to serve from this folder." : `AI Coding Tool is already serving from this folder (process ${holder}).`);
   }
   return () => {
     if (holderOf(lock) === process.pid) rmSync(lock, { force: true });

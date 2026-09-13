@@ -1,4 +1,5 @@
 import type { WorkspaceState } from "../application/workspace-state.js";
+import type { ThreadNotice } from "../contracts/ipc.js";
 import type { AgentEvent, AutomationFire, BrowserFindEvent, BrowserPageEvent } from "../contracts/ipc.js";
 import type { ComputerLink } from "../domain/computers.js";
 import type { MobileRequest } from "../contracts/mobile.js";
@@ -22,6 +23,7 @@ export type DesktopEventMap = {
   "workspace:open-project": WorkspaceRecord;
   "computers:changed": { name: string; links: ComputerLink[] };
   "computer:state": { id: string; state: WorkspaceState };
+  "computer:notice": { id: string; notice: ThreadNotice };
 };
 
 export type DesktopEvents = ReturnType<typeof createDesktopEvents>;

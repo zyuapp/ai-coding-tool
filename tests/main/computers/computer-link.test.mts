@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import type { ThreadNotice } from "../../../src/contracts/ipc.ts";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -61,6 +62,7 @@ async function host(t: { onTestFinished(callback: () => void | Promise<void>): v
     folder,
     devices,
     inputs,
+    notice: (notice: ThreadNotice) => server.notice(notice),
     url: `ws://127.0.0.1:${server.port}${WORKSPACE_SOCKET_PATH}`,
     mint: () => devices.mint(Date.now()).code,
     /** Moves the host's state and tells every computer, as the runtime's publisher would. */
@@ -76,6 +78,7 @@ async function host(t: { onTestFinished(callback: () => void | Promise<void>): v
 function client(options: Partial<ComputerClientOptions> & Pick<ComputerClientOptions, "url" | "credential">) {
   const statuses: Array<[ComputerStatus, string | null]> = [];
   const states: WorkspaceState[] = [];
+  const notices: ThreadNotice[] = [];
   let paired: { deviceId: string; token: string } | null = null;
   const link = createComputerClient({
     host: "other.tail.ts.net",
@@ -83,9 +86,10 @@ function client(options: Partial<ComputerClientOptions> & Pick<ComputerClientOpt
     onStatus: (status, error) => statuses.push([status, error]),
     onPaired: (deviceId, _name, token) => { paired = { deviceId, token }; },
     onState: (state) => states.push(state),
+    onNotice: (notice) => notices.push(notice),
     ...options,
   });
-  return { link, statuses, states, paired: () => paired };
+  return { link, statuses, states, notices, paired: () => paired };
 }
 
 test("a computer trades the code for a token, is handed the workspace whole, and drives it in the window's inputs", async (t) => {
@@ -107,6 +111,9 @@ test("a computer trades the code for a token, is handed the workspace whole, and
   const refused = await mac.link.send([{ type: "task.rename", taskId: "first", title: "refuse" }]);
   assert.equal(refused.ok === false && refused.message, "Refused by the host");
   assert.deepEqual(await mac.link.query({ kind: "branches", workspaceId: "ws" }), { status: "available", patch: "patch for branches" });
+  served.notice({ taskId: "first", title: "First", headline: "The run finished." });
+  await until(() => mac.notices[0], "the notice crossing");
+  assert.deepEqual(mac.notices, [{ taskId: "first", title: "First", headline: "The run finished." }]);
 
   mac.link.stop();
   await until(() => served.inputs.some((input) => input.type === "view.set-focused"), "the host told nobody is looking once the line dropped");
@@ -136,6 +143,7 @@ test("the links keep the token on disk with the computer's name, and a forgotten
     deviceName: "This Mac",
     onChanged: (held) => changes.push(held.map((link) => `${link.name}:${link.status}`)),
     onState: (id, state) => states.set(id, state),
+    onNotice: () => {},
     connect: (options) => createComputerClient({ ...options, url: served.url }),
   });
   t.onTestFinished(() => links.stop());

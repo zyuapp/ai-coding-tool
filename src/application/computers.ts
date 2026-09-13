@@ -6,7 +6,7 @@
  */
 import type { AppCommand } from "../contracts/commands.js";
 import { isAppCommandType } from "../contracts/workspace-view-input.js";
-import type { ThreadNotice } from "../contracts/ipc.js";
+import type { Annotation, PastedText } from "../domain/conversation.js";
 import { hasUnreadAttention } from "../domain/attention.js";
 import type { ComputerFilter, ComputerLink, ComputerPairing, DiscoveredComputer } from "../domain/computers.js";
 import type { Project } from "../domain/project.js";
@@ -72,8 +72,8 @@ export type InputRoute =
   | { kind: "computer"; computer: PairedComputer; inputs: WorkspaceInput[]; select?: true; also?: true; draft?: SentDraft }
   | { kind: "refuse"; message: string };
 
-/** The draft a send carried, with what rode with it by id, so what is typed after it went stays. */
-export type SentDraft = { key: string; prompt: string; pastes: string[]; annotations: string[] };
+/** The draft a send carried, whole, so what is typed or changed after it went can be told apart and stays. */
+export type SentDraft = { key: string; prompt: string; pastes: PastedText[]; annotations: Annotation[] };
 
 const LOCAL = { kind: "local" } as const;
 
@@ -128,7 +128,7 @@ function forwardedSend(state: WorkspaceState, computer: PairedComputer, command:
     { type: "paste.recall", taskId: key, pastes },
     { ...send, ...(key.startsWith("draft:") ? {} : { taskId: key }) },
   ];
-  const draft: SentDraft = { key, prompt, pastes: pastes.map((paste) => paste.id), annotations: annotations.map((annotation) => annotation.id) };
+  const draft: SentDraft = { key, prompt, pastes, annotations };
   return forwarded(computer, inputs, { draft });
 }
 
@@ -253,23 +253,3 @@ export function remoteUnreadCount(computers: ComputersState): number {
   return count;
 }
 
-/**
- * What a paired computer's new state says that the user has not heard: a thread there that just
- * settled with a verdict, or just found something, while this window shows something else. The
- * computer that ran the thread has no desktop to say it on, so this one does.
- */
-export function remoteNotices(before: WorkspaceState | null, after: WorkspaceState, onScreen: (taskId: string) => boolean): ThreadNotice[] {
-  if (!before || before.threads === after.threads) return [];
-  const previous = new Map(before.threads.map((thread) => [thread.id, thread]));
-  const notices: ThreadNotice[] = [];
-  for (const thread of after.threads) {
-    const was = previous.get(thread.id);
-    if (was === thread || onScreen(thread.id)) continue;
-    const settled = thread.outcomeUnread && !was?.outcomeUnread && thread.outcome;
-    const finding = thread.findings?.at(-1);
-    const found = finding && !finding.read && finding !== was?.findings?.at(-1);
-    if (found) notices.push({ taskId: thread.id, title: thread.title, headline: finding.headline });
-    else if (settled) notices.push({ taskId: thread.id, title: thread.title, headline: thread.outcome === "failed" ? "The run failed." : thread.outcome === "stopped" ? "The run stopped." : "The run finished." });
-  }
-  return notices;
-}

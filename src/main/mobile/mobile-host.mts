@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync } from "node:fs";
+import type { ThreadNotice } from "../../contracts/ipc.js";
 import path from "node:path";
 import type { MobileRequest, MobileResponse, MobileViewUpdate } from "../../contracts/mobile.js";
 import {
@@ -378,6 +379,11 @@ async function serveIfReady() {
   const delay = TAILSCALE_RETRY_MS[Math.min(tailscaleAttempts, TAILSCALE_RETRY_MS.length - 1)]!;
   tailscaleAttempts += 1;
   scheduleServe(delay);
+}
+
+/** Hands a notice to the computers on the line; with no server up there is no one to hand it to. */
+export function noticeComputers(notice: ThreadNotice): void {
+  server?.notice(notice);
 }
 
 export function publishMobileView(update: MobileViewUpdate): void {

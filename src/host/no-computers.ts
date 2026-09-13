@@ -8,4 +8,5 @@ export const noComputers: ComputerDesktop = {
   sendToComputer: async () => ({ ok: false, message: "This computer holds no other computer's threads." }),
   onComputersChanged: () => () => {},
   onComputerState: () => () => {},
+  onComputerNotice: () => () => {},
 };

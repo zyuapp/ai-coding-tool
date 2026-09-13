@@ -1,4 +1,5 @@
 import type { KeyValueStorage } from "../application/task-store.js";
+import type { ThreadNotice } from "../contracts/ipc.js";
 import type { WorkspaceCommandResult, WorkspaceInput } from "../application/workspace-reducer.js";
 import type { WorkspaceState } from "../application/workspace-state.js";
 import type { DesktopAPI } from "../contracts/ipc.js";
@@ -18,6 +19,8 @@ export type ComputerDesktop = {
   onComputersChanged(listener: (name: string, links: ComputerLink[]) => void): () => void;
   /** A paired computer's whole state, pushed as it changes there. */
   onComputerState(listener: (id: string, state: WorkspaceState) => void): () => void;
+  /** A notice a paired computer raised, which this desktop carries as one of its own. */
+  onComputerNotice(listener: (id: string, notice: ThreadNotice) => void): () => void;
 };
 
 /**

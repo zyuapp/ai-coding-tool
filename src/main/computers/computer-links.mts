@@ -1,4 +1,5 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import type { ThreadNotice } from "../../contracts/ipc.js";
 import path from "node:path";
 import type { WorkspaceCommandResult, WorkspaceInput } from "../../application/workspace-reducer.js";
 import type { WorkspaceState } from "../../application/workspace-state.js";
@@ -23,6 +24,7 @@ export type ComputerLinksOptions = {
   deviceName: string;
   onChanged: (links: ComputerLink[]) => void;
   onState: (id: string, state: WorkspaceState) => void;
+  onNotice: (id: string, notice: ThreadNotice) => void;
   /** How a line is opened. The real client unless a test dials a server of its own. */
   connect?: (options: ComputerClientOptions) => ComputerClient;
   discover?: () => Promise<DiscoveredComputer[]>;
@@ -85,6 +87,7 @@ export function createComputerLinks(options: ComputerLinksOptions) {
         },
         onPaired: () => {},
         onState: (state) => options.onState(computer.id, state),
+        onNotice: (notice) => options.onNotice(computer.id, notice),
       }),
     };
     held.set(computer.id, entry);

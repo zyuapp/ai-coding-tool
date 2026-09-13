@@ -33,6 +33,7 @@ import {
 } from "../../domain/mobile.js";
 import { MOBILE_HEALTH_PATH, MOBILE_HEALTH_RESPONSE } from "./addresses.mjs";
 import type { PairingStore } from "./pairing.mjs";
+import type { ThreadNotice } from "../../contracts/ipc.js";
 import { COMPUTER_PROTOCOL_VERSION, isComputerClientMessage, type ComputerClientMessage, type ComputerQuery, type ComputerServerMessage } from "../../contracts/computers.js";
 import type { WorkspaceCommandResult, WorkspaceInput } from "../../application/workspace-reducer.js";
 import type { WorkspaceUpdate } from "../../contracts/workspace-runtime.js";
@@ -231,6 +232,13 @@ export class MobileServer {
         if (session.kind === "computer" && !session.awaitingSnapshot) this.emit(session, { kind: "workspace", update: handed });
       }
     }) ?? null;
+  }
+
+  /** A notice this workspace raised, handed to every computer on the line, which puts it on its own desktop. */
+  notice(notice: ThreadNotice) {
+    for (const session of this.sessions.values()) {
+      if (session.kind === "computer" && !session.awaitingSnapshot) this.emit(session, { kind: "notice", notice });
+    }
   }
 
   async stop(): Promise<void> {

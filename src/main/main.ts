@@ -460,6 +460,7 @@ app.whenReady().then(async () => {
     deviceName: hostname().replace(/\.local$/, ""),
     onChanged: (links) => { events.emit("computers:changed", { name: hostname().replace(/\.local$/, ""), links }); },
     onState: (id, state) => { events.emit("computer:state", { id, state }); },
+    onNotice: (id, notice) => { events.emit("computer:notice", { id, notice }); },
   });
   computerLinks.start();
   await createWindow();

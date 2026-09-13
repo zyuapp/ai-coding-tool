@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync } from "node:fs";
-import { mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { existsSync, readFileSync } from "node:fs";
+import { mkdir, mkdtemp, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { test } from "vitest";
@@ -12,6 +12,10 @@ function bystander(t: { onTestFinished: (fn: () => void) => void }): ChildProces
   const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 60_000)"], { stdio: "ignore" });
   t.onTestFinished(() => { child.kill(); });
   return child;
+}
+
+function holder(lock: string) {
+  return Number(readFileSync(lock, "utf8"));
 }
 
 async function ended(child: ChildProcess) {
@@ -39,6 +43,22 @@ test("a serve lock stands while its process lives, and one a dead process left i
   assert.equal(existsSync(path.join(userData, "serve.lock")), true);
   release();
   assert.equal(existsSync(path.join(userData, "serve.lock")), false);
+});
+
+test("a dead server's lock is cleared by one starter at a time, and a turn left by a dead starter is taken over", async (t) => {
+  const userData = await folder(t);
+  const lock = path.join(userData, "serve.lock");
+  await writeFile(lock, "999999");
+  const turn = `${lock}.reclaim`;
+  await mkdir(turn);
+  assert.throws(() => claimServeLock(userData), /starting to serve from this folder/);
+  assert.equal(existsSync(turn), true, "the other starter's turn is left to it");
+  const old = new Date(Date.now() - 60_000);
+  await utimes(turn, old, old);
+  const release = claimServeLock(userData);
+  assert.equal(existsSync(turn), false);
+  assert.equal(holder(lock), process.pid);
+  release();
 });
 
 test("a server lets go of its own lock only, never one another took over", async (t) => {

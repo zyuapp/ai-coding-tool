@@ -2,6 +2,7 @@ import type { WorkspaceCommandResult, WorkspaceInput } from "../application/work
 import { isWorkspaceViewInput } from "./workspace-view-input.js";
 import { isAgentEngine, type AgentEngine } from "../domain/agent-engine.js";
 import { isDiffRange, type DiffRange } from "../domain/diff.js";
+import type { ThreadNotice } from "./ipc.js";
 import type { MobileErrorCode } from "./mobile.js";
 import type { WorkspaceUpdate } from "./workspace-runtime.js";
 
@@ -34,6 +35,8 @@ export type ComputerServerMessage = Sequenced & (
   | { kind: "result"; requestId: string; result: WorkspaceCommandResult & { revision: number } }
   | ({ kind: "answer"; requestId: string } & ({ ok: true; result: unknown } | { ok: false; message: string }))
   | { kind: "error"; code: MobileErrorCode; message: string }
+  /** What that computer would have put on its own desktop, for this one to put on its own. */
+  | { kind: "notice"; notice: ThreadNotice }
   | { kind: "ping"; at: number }
 );
 
@@ -91,6 +94,7 @@ export function isComputerServerMessage(value: unknown): value is ComputerServer
     return (value.ok === true && "result" in value) || (value.ok === false && typeof value.message === "string");
   }
   if (value.kind === "error") return typeof value.code === "string" && typeof value.message === "string";
+  if (value.kind === "notice") return isRecord(value.notice) && isString(value.notice.taskId) && typeof value.notice.title === "string" && typeof value.notice.headline === "string";
   if (value.kind === "ping") return isCount(value.at);
   return false;
 }

@@ -59,7 +59,7 @@ function headlessDesktop(host: ServeDesktopHost) {
     setShortcutCapture: nothing,
     closeWindow: nothing,
     focusWindow: nothing,
-    announceThread: nothing,
+    announceThread: (notice) => host.mobile().noticeComputers(notice),
     setBadgeCount: nothing,
   } satisfies Partial<RuntimeDesktop>;
 }

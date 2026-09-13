@@ -4,6 +4,7 @@ import { applyWorkspacePatches } from "../../application/workspace-patches.js";
 import { parseWorkspaceJson, stringifyWorkspaceJson } from "../../application/workspace-json.js";
 import type { WorkspaceCommandResult, WorkspaceInput } from "../../application/workspace-reducer.js";
 import type { WorkspaceState } from "../../application/workspace-state.js";
+import type { ThreadNotice } from "../../contracts/ipc.js";
 import { COMPUTER_PROTOCOL_VERSION, isComputerServerMessage, type ComputerClientMessage, type ComputerQuery, type ComputerServerMessage } from "../../contracts/computers.js";
 import type { ComputerStatus } from "../../domain/computers.js";
 import { MOBILE_DEAD_AFTER_MS } from "../../domain/mobile.js";
@@ -37,6 +38,8 @@ export type ComputerClientOptions = {
   /** The token the other computer handed out, which is all that gets this one back in. */
   onPaired: (deviceId: string, deviceName: string, token: string) => void;
   onState: (state: WorkspaceState) => void;
+  /** A notice that computer raised for this one to put on its desktop. */
+  onNotice?: (notice: ThreadNotice) => void;
 };
 
 type Waiting<T> = { resolve: (value: T) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> };
@@ -182,6 +185,8 @@ export function createComputerClient(options: ComputerClientOptions) {
     } else if (message.kind === "error") {
       const fatal = message.code === "unauthorized" || message.code === "version" || message.code === "expired-code" || message.code === "rate-limited";
       dropped(message.message, fatal);
+    } else if (message.kind === "notice") {
+      options.onNotice?.(message.notice);
     } else if (message.kind === "ping") {
       write({ kind: "pong", at: message.at });
     }
