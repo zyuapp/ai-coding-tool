@@ -213,6 +213,16 @@ test("a draft may start in any computer's project whatever the sidebar filter sh
   assert.ok(overlaid.startProjects.some((project) => project.id === "remote-project"), "a draft on the other computer is offered its own project too");
 });
 
+test("filter changes update local lists even when neither selection has remote collections", () => {
+  const state = workspace({ projects: [{ id: "local", root: "/local" }], threads: [task("local-chat")] });
+  for (const filter of ["this", "missing", "all", "missing", "this"] as const) {
+    const view = deriveView({ ...state, computers: { ...state.computers, filter } });
+    const own = filter !== "missing";
+    assert.deepEqual(view.projects.map((project) => project.id), own ? ["local"] : []);
+    assert.deepEqual(view.recentThreads.map((thread) => thread.id), own ? ["local-chat"] : []);
+  }
+});
+
 test("with a paired computer on screen the conversation is its own, under this window's chrome and drafts", () => {
   const state = withComputers(workspace({ theme: "catppuccin-mocha", prompts: { "remote-thread": "typed here" } }), [paired("linux", remoteState)], { active: "linux" });
   const view = deriveView(state);

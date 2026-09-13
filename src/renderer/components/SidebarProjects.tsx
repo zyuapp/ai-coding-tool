@@ -171,15 +171,15 @@ function ProjectRow({
 
 /**
  * The folders each computer holds, in the order the list gives them: this computer's first, then
- * each paired computer's together. A folder keeps its place in the whole list, which is what a drag reports.
+ * each paired computer's together. Each computer has its own drag list and project indices.
  */
 function computerGroups(projects: Project[], projectHosts: Map<string, ThreadHost>) {
-  const groups: Array<{ host: ThreadHost | undefined; from: number; projects: Project[] }> = [];
-  projects.forEach((project, index) => {
+  const groups: Array<{ host: ThreadHost | undefined; projects: Project[] }> = [];
+  projects.forEach((project) => {
     const host = projectHosts.get(project.id);
     const last = groups.at(-1);
     if (last && last.host?.id === host?.id) last.projects.push(project);
-    else groups.push({ host, from: index, projects: [project] });
+    else groups.push({ host, projects: [project] });
   });
   return groups;
 }
@@ -251,41 +251,39 @@ export function SidebarProjects({
         </button>
         <button className="section-action add-project" onClick={onOpenFolder} aria-label="Add project">＋</button>
       </div>
-      {sections.projects && <Droppable droppableId={PROJECTS_DROPPABLE} type={PROJECT_DRAG}>
-        {(list) => (
-          <nav className="project-list" aria-label="Projects" ref={list.innerRef} {...list.droppableProps}>
-            {computerGroups(projects, projectHosts).map(({ host, from, projects: held }) => (
-              <div key={host?.id ?? "local"} className="computer-group" role={showComputers ? "group" : undefined} aria-label={showComputers ? host?.name ?? localName : undefined}>
-                {showComputers && <div className="computer-heading" aria-hidden="true"><HostMark name={host?.name ?? localName} offline={host?.offline} /></div>}
-                {held.map((project, offset) => (
-                  <ProjectRow
-                    key={project.id}
-                    project={project}
-                    host={host}
-                    index={from + offset}
-                    threads={threadsByProject.get(project.id) ?? []}
-                    checkouts={checkoutsByProject.get(project.id) ?? []}
-                    expanded={expandedProjects.has(project.id)}
-                    showAll={shownThreads.has(project.id)}
-                    current={draftProjectId === project.id}
-                    currentId={currentId}
-                    openMenu={openMenu}
-                    renaming={projectNames}
-                    renderRow={renderRow}
-                    onToggleShowAll={() => shownThreads.toggle(project.id)}
-                    onSetOpenMenu={onSetOpenMenu}
-                    onNewThread={onNewThread}
-                    onToggleProject={onToggleProject}
-                    onEditProject={onEditProject}
-                    onRemoveProject={onRemoveProject}
-                  />
-                ))}
-              </div>
-            ))}
-            {list.placeholder}
-          </nav>
-        )}
-      </Droppable>}
+      {sections.projects && <nav className="project-list" aria-label="Projects">
+        {computerGroups(projects, projectHosts).map(({ host, projects: held }) => (
+          <Droppable key={host?.id ?? "local"} droppableId={`${PROJECTS_DROPPABLE}:${host?.id ?? "this"}`} type={`${PROJECT_DRAG}:${host?.id ?? "this"}`}>
+            {(list) => <div className="computer-group" role={showComputers ? "group" : undefined} aria-label={showComputers ? host?.name ?? localName : undefined} ref={list.innerRef} {...list.droppableProps}>
+              {showComputers && <div className="computer-heading" aria-hidden="true"><HostMark name={host?.name ?? localName} offline={host?.offline} /></div>}
+              {held.map((project, offset) => (
+                <ProjectRow
+                  key={project.id}
+                  project={project}
+                  host={host}
+                  index={offset}
+                  threads={threadsByProject.get(project.id) ?? []}
+                  checkouts={checkoutsByProject.get(project.id) ?? []}
+                  expanded={expandedProjects.has(project.id)}
+                  showAll={shownThreads.has(project.id)}
+                  current={draftProjectId === project.id}
+                  currentId={currentId}
+                  openMenu={openMenu}
+                  renaming={projectNames}
+                  renderRow={renderRow}
+                  onToggleShowAll={() => shownThreads.toggle(project.id)}
+                  onSetOpenMenu={onSetOpenMenu}
+                  onNewThread={onNewThread}
+                  onToggleProject={onToggleProject}
+                  onEditProject={onEditProject}
+                  onRemoveProject={onRemoveProject}
+                />
+              ))}
+              {list.placeholder}
+            </div>}
+          </Droppable>
+        ))}
+      </nav>}
 
       <div className="section-heading recents-heading">
         <button className="section-toggle" onClick={() => onSetSectionOpen("recents", !sections.recents)} aria-expanded={sections.recents}>
