@@ -3,12 +3,59 @@ import { test } from "vitest";
 import { act, createElement, useState } from "react";
 import type { ComputerFilter } from "../../src/domain/computers.ts";
 import { task, workspace } from "../application/workspace-reducer-fixtures.mts";
-import { deriveView } from "../../src/application/workspace-state.ts";
+import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { worktreeHue } from "../../src/domain/worktree.ts";
 import { dom, mount, query } from "../support/renderer-dom.mts";
 import { renderProjectSidebar } from "../support/sidebar.mts";
 
 const linux = { id: "linux", name: "linux-box", offline: false };
 const gone = { id: "old", name: "old-laptop", offline: true };
+
+test("remote worktree marks keep their names and colors across sidebar modes, filters, and host updates", async () => {
+  const held = (host: string) => workspace({
+    projects: [{ id: `${host}-project`, root: `/${host}/app` }],
+    threads: ["claude", "codex"].map((engine) => task(`${host}-${engine}`, {
+      engine: engine as "claude" | "codex", projectId: `${host}-project`, worktreeId: `${host}-wt`,
+    })),
+    currentId: `${host}-codex`,
+    worktrees: [{ id: `${host}-wt`, name: `${host} checkout`, projectId: `${host}-project`, root: `/${host}/wt`, workspaceId: `${host}-ws`, baseCommit: "abc", createdAt: 1, lastUsedAt: 1 }],
+  });
+  const local = held("mac");
+  const remote = held("linux");
+  let state: WorkspaceState = { ...local, expandedProjects: new Set(["mac-project", "linux-project"]), computers: {
+    ...local.computers, paired: [{ id: "linux", name: "Linux", host: "linux.ts.net", status: "connected", error: null, pairedAt: 1, state: remote }],
+  } };
+  const view = await mount(renderProjectSidebar({}));
+  try {
+    for (const active of [null, "linux"]) for (const mode of ["activity", "projects"] as const) for (const filter of ["all", "this", "linux"] as const) {
+      const projected = deriveView({ ...state, sidebarMode: mode, computers: { ...state.computers, active, filter } });
+      await view.render(renderProjectSidebar({ ...projected, mode }));
+      const hosts = filter === "all" ? ["mac", "linux"] : [filter === "this" ? "mac" : filter];
+      for (const host of hosts) {
+        const marks = view.container.querySelectorAll(`.task-worktree[aria-label="Works in ${host} checkout"]`);
+        assert.ok(marks.length >= 2, `${mode}/${filter}/${active}: both engines show ${host}'s checkout`);
+        for (const mark of marks) assert.ok(mark.classList.contains(`hue-${worktreeHue(`${host}-wt`)}`));
+      }
+      if (filter === "this") assert.equal(view.container.querySelector('.task-worktree[aria-label="Works in linux checkout"]'), null);
+    }
+    const renderRemote = async () => {
+      const projected = deriveView({ ...state, computers: { ...state.computers, active: "linux", filter: "linux" } });
+      await view.render(renderProjectSidebar({ ...projected, mode: "projects" }));
+    };
+    state = { ...state, computers: { ...state.computers, paired: [{ ...state.computers.paired[0], state: { ...remote, worktrees: [{ ...remote.worktrees[0], name: "Renamed checkout" }] } }] } };
+    await renderRemote();
+    assert.ok(view.container.querySelector('.task-worktree[aria-label="Works in Renamed checkout"]'));
+    const offline = deriveView({ ...state, computers: { ...state.computers, paired: [{ ...state.computers.paired[0], status: "offline" }] } });
+    await view.render(renderProjectSidebar({ ...offline, mode: "projects" }));
+    assert.ok(view.container.querySelector('.task-worktree[aria-label="Works in Renamed checkout"]'), "the cached checkout stays marked while its host is offline");
+    state = { ...state, computers: { ...state.computers, paired: [{ ...state.computers.paired[0], state: { ...remote, worktrees: [] } }] } };
+    await renderRemote();
+    assert.ok(view.container.querySelector('.task-worktree[aria-label="Works in a worktree"]'), "a claim still shows its mark before checkout metadata arrives");
+    state = { ...state, computers: { ...state.computers, paired: [{ ...state.computers.paired[0], state: { ...remote, threads: remote.threads.map((thread) => ({ ...thread, worktreeId: undefined })) } }] } };
+    await renderRemote();
+    assert.equal(view.container.querySelector(".task-worktree"), null, "leaving the checkout removes the marks");
+  } finally { await view.unmount(); }
+});
 
 test("overlapping project orders stay grouped and repeated filter changes replace the visible rows", async () => {
   const projects = (host: string) => [

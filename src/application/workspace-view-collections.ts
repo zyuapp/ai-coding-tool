@@ -89,6 +89,7 @@ function union(own: Set<string>, others: Set<string>) {
 /** Every computer's running and blocked threads together, which is what the rows of a merged list read. */
 const everyBusy = selector((state) => [busy(state), remote(state)], (state) => union(busy(state), remote(state).busy), sameIds);
 const everyBlocked = selector((state) => [blocked(state), remote(state)], (state) => union(blocked(state), remote(state).blocked), sameIds);
+const everyWorktree = selector((state) => [threadLists(state).worktreeThreadIds, remote(state)], (state) => union(threadLists(state).worktreeThreadIds, remote(state).worktreeThreadIds), sameIds);
 
 /** The sidebar draws every computer's threads together, filed under every computer's folders. */
 const sidebar = selector(
@@ -130,7 +131,7 @@ const settings = selector(
 );
 
 const groups = selector(
-  (state) => [sidebar(state).orderedThreads, state.worktrees],
+  (state) => [sidebar(state).orderedThreads, state.worktrees, remote(state)],
   (state) => {
     const byWorktree = new Map<string, Thread[]>();
     for (const thread of sidebar(state).orderedThreads) {
@@ -142,7 +143,7 @@ const groups = selector(
       }
       threads.push(thread);
     }
-    return state.worktrees.map((worktree): WorktreeGroup => ({ worktree, threads: byWorktree.get(worktree.id) ?? [] }));
+    return [...state.worktrees, ...remote(state).worktrees].map((worktree): WorktreeGroup => ({ worktree, threads: byWorktree.get(worktree.id) ?? [] }));
   },
 );
 
@@ -163,6 +164,7 @@ const schedules = selector(
 export function workspaceViewCollections(state: WorkspaceState) {
   return {
     ...threadLists(state),
+    worktreeThreadIds: everyWorktree(state),
     ...attention(state),
     lists: sidebar(state),
     startProjects: startProjects(state),
