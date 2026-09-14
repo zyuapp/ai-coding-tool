@@ -44,10 +44,10 @@ const CLAUDE_MODELS = [
 const CODEX_CONTEXT_WINDOW = 272_000;
 
 const CODEX_MODELS = [
-  { id: "gpt-6-astra", label: "Astra", description: "Most capable model for complex, demanding work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA },
+  { id: "gpt-6-astra", label: "Astra", description: "Most capable model for complex, demanding work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA, manualCompaction: true },
   { id: "gpt-5.6-sol", label: "Sol", description: "Strong coding model for everyday work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA, manualCompaction: true },
-  { id: "gpt-5.6-terra", label: "Terra", description: "Balanced agentic coding model for everyday work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA },
-  { id: "gpt-5.6-luna", label: "Luna", description: "Efficient model for lightweight work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_MAX },
+  { id: "gpt-5.6-terra", label: "Terra", description: "Balanced agentic coding model for everyday work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA, manualCompaction: true },
+  { id: "gpt-5.6-luna", label: "Luna", description: "Efficient model for lightweight work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_MAX, manualCompaction: true },
 ] as const;
 
 export type AgentModel = (typeof CLAUDE_MODELS)[number]["id"] | (typeof CODEX_MODELS)[number]["id"];
@@ -55,7 +55,7 @@ export type AgentModel = (typeof CLAUDE_MODELS)[number]["id"] | (typeof CODEX_MO
 /**
  * Runs always request the widest context a model offers, so `contextWindow` is that ceiling. An
  * empty `efforts` is a model that takes no effort at all, which is drawn as no effort control.
- * `manualCompaction` is the model's own protocol command for compacting on request, which most
+ * `manualCompaction` is the model's own protocol command for compacting on request, which Claude
  * models do not offer.
  */
 export type ModelSpec = { id: AgentModel; label: string; description: string; contextWindow: number; efforts: readonly EffortSpec[]; manualCompaction?: boolean };

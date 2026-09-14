@@ -50,7 +50,7 @@ test("start commands carry the Claude engine's settings as one object", () => {
   assert.equal(isRunCommand({ ...command, claude: "Plain" }), false);
 });
 
-test("manual compaction is a validated Sol thread operation", () => {
+test("manual compaction is a validated Codex thread operation", () => {
   const compact = {
     ...command,
     engine: "codex",
@@ -60,7 +60,8 @@ test("manual compaction is a validated Sol thread operation", () => {
     operation: { type: "compact", preTokens: 125_000 },
   };
   assert.equal(isRunCommand(compact), true);
-  assert.equal(isRunCommand({ ...compact, model: "gpt-5.6-terra" }), false);
+  assert.equal(isRunCommand({ ...compact, model: "gpt-6-astra" }), true);
+  assert.equal(isRunCommand({ ...compact, engine: "claude", model: "opus", continuation: { provider: "claude", value: "session-1" } }), false);
   assert.equal(isRunCommand({ ...compact, prompt: "also answer" }), false);
   assert.equal(isRunCommand({ ...compact, continuation: { provider: "claude", value: "session-1" } }), false);
   assert.equal(isRunCommand({ ...compact, operation: { type: "compact", preTokens: -1 } }), false);

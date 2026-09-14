@@ -45,7 +45,8 @@ test("per-engine settings and operations are catalogue entries", () => {
 
 test("manual compaction belongs to the model and only through the engine that offers it", () => {
   assert.equal(modelSupportsManualCompaction("codex", "gpt-5.6-sol"), true);
-  assert.equal(modelSupportsManualCompaction("codex", "gpt-5.6-terra"), false);
+  assert.equal(modelSupportsManualCompaction("codex", "gpt-6-astra"), true);
+  assert.equal(modelSupportsManualCompaction("claude", "opus"), false);
   assert.equal(modelSupportsManualCompaction("claude", "gpt-5.6-sol"), false);
   for (const engine of engines) {
     for (const model of modelsFor(engine)) assert.equal(modelSupportsManualCompaction(engine, model.id), model.manualCompaction === true);

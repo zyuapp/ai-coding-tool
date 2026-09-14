@@ -37,7 +37,7 @@ test("a scheduled run starts with its own framing and acknowledges the tick", ()
   assert.deepEqual(sentPrompts(started.state.threads[0].messages), [], "a scheduled prompt is not one the composer offers back");
 });
 
-test("manual Sol compaction reuses the run lifecycle without becoming a task run", () => {
+test("manual Codex compaction reuses the run lifecycle without becoming a task run", () => {
   const state = workspace({
     threads: [task("task-a", {
       engine: "codex",
@@ -75,8 +75,8 @@ test("manual Sol compaction reuses the run lifecycle without becoming a task run
   assert.equal(finished.state.activeRuns["task-a"], undefined);
   assert.deepEqual(finished.effects, [], "context maintenance neither announces a finished task nor refreshes its checkout");
 
-  const terra = { ...state, threads: [{ ...state.threads[0], model: "gpt-5.6-terra" as const }] };
-  assert.deepEqual(reduce(terra, { type: "run.compact" }).effects, [], "the command stays specific to Sol");
+  const claude = { ...state, threads: [{ ...state.threads[0], engine: "claude" as const, model: "opus" as const, continuation: { provider: "claude" as const, value: "session-1" } }] };
+  assert.deepEqual(reduce(claude, { type: "run.compact" }).effects, [], "the command stays specific to models that compact on request");
 });
 
 test("a Codex review picker starts a native review without adding a user message", () => {
