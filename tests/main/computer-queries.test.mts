@@ -12,9 +12,28 @@ import { attachmentsDirectory, useAttachmentsDirectory, writeAttachment, readSav
 import { task, workspace } from "../application/workspace-reducer-fixtures.mts";
 
 const host: ComputerQueryHost = {
+  threads: async () => { throw new Error("An attachment does not need a thread."); },
   workspaces: () => { throw new Error("An attachment does not need a checkout."); },
   commands: async () => { throw new Error("An attachment does not need an engine."); },
 };
+
+test("paired thread queries validate bounded read-only inputs before reaching the runtime", async () => {
+  const queries: unknown[] = [];
+  const reader = { ...host, threads: async (query: Parameters<ComputerQueryHost["threads"]>[0]) => { queries.push(query); return "transcript"; } };
+  assert.equal(await answerComputerQuery({ kind: "thread-read", threadId: "thread", limit: 30 }, reader), "transcript");
+  assert.equal(await answerComputerQuery({ kind: "thread-list", project: "all", search: "needle", limit: 20 }, reader), "transcript");
+  assert.equal(queries.length, 2);
+  for (const query of [
+    { kind: "thread-read", threadId: "", limit: 30 },
+    { kind: "thread-read", threadId: "thread", limit: 201 },
+    { kind: "thread-list", search: "a".repeat(1_001) },
+    { kind: "thread-list", limit: -1 },
+    { kind: "thread-list", limit: 0.5 },
+    { kind: "thread-list", archived: "yes" },
+  ]) assert.equal(isComputerQuery(query), false);
+  await assert.rejects(answerComputerQuery({ kind: "thread-read", threadId: "thread", limit: 201 }, reader), /Invalid thread query/);
+  assert.equal(queries.length, 2);
+});
 
 test("attachment queries return the holder's saved bytes and reject arbitrary paths and missing files", async (t) => {
   const folder = await mkdtemp(path.join(os.tmpdir(), "aic-attachment-query-"));

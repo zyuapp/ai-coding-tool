@@ -37,6 +37,7 @@ function computerDesktop(host: RuntimeDesktopHost): ComputerDesktop {
     },
     labelComputer: async (id, name) => host.computers().label(id, name),
     sendToComputer: (id, inputs) => host.computers().send(id, inputs),
+    queryComputerThreads: (id, query) => host.computers().query(id, query),
     onComputersChanged: (listener) => events.on("computers:changed", ({ name, links }) => listener(name, links)),
     onComputerState: (listener) => events.on("computer:state", ({ id, state }) => listener(id, state)),
     onComputerNotice: (listener) => events.on("computer:notice", ({ id, notice }) => listener(id, notice)),

@@ -45,6 +45,7 @@ function describe(thread: ThreadSummary, at: number) {
   const parts = [
     `${thread.title} [${thread.id}]`,
     ...(thread.role ? [`role ${thread.role}`] : []),
+    ...(thread.computer ? [`computer ${thread.computer.name} [${thread.computer.id}]${thread.computer.offline ? " (offline, cached)" : ""}`] : []),
     thread.worktreeRoot ?? thread.projectRoot ?? "no project",
     ...(thread.worktreeId ? [`worktree ${thread.worktreeId}`] : []),
     thread.status,
@@ -77,8 +78,9 @@ async function report(work: () => Promise<string>) {
 export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
   defineTool({
     name: "list_threads",
-    description: "List the other AICodingTool threads, newest activity first. Use when the user asks what else is going on, points at recent or related work, or describes threads by age rather than by name.",
+    description: "List the other AICodingTool threads, newest activity first. Set computer to \"all\" to include paired computers. Use when the user asks what else is going on, points at recent or related work, or describes threads by age rather than by name.",
     input: {
+      computer: z.string().optional().describe('"this" (the default), "all" paired computers and this one, or a paired computer named by its name or ID. With "all" or a paired computer selected, project defaults to "all". Remote rows include their computer and whether it is offline.'),
       project: projectField,
       archived: z.boolean().optional().describe("List archived threads instead of active ones."),
       idleMinutes: z.number().optional().describe("Only threads that have done nothing for at least this many minutes."),
@@ -90,6 +92,7 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
     run: ({ bridge, now }, args) => report(async () => {
       const at = now();
       const threads = await bridge.list({
+        ...(args.computer === undefined ? {} : { computer: args.computer }),
         ...(args.project === undefined ? {} : { project: args.project }),
         ...(args.archived === undefined ? {} : { archived: args.archived }),
         ...(args.idleMinutes === undefined ? {} : { idleForMs: args.idleMinutes * MINUTE }),
@@ -102,13 +105,14 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
   }),
   defineTool({
     name: "read_thread",
-    description: "Read another thread's transcript when the request calls for fetching its contents. Use a known ID directly, including one supplied in app context or an aicodingtool://thread/<id> link. Use list_threads first only when the target is unknown.",
+    description: "Read another thread's transcript, including threads on paired computers. Use a known ID directly, including one supplied in app context or an aicodingtool://thread/<id> link. The app resolves its computer automatically. Use list_threads first only when the target is unknown.",
     input: {
       threadId: threadIdField,
+      computer: z.string().optional().describe('Optional computer name or ID, or "this" for local threads. Omit to resolve the thread across this computer and paired computers. Use to disambiguate matching threads.'),
       limit: z.number().optional().describe("How many of the newest messages to read. Defaults to 30."),
     },
     readOnly: true,
-    run: ({ bridge, now }, args) => report(async () => transcriptText(await bridge.read(args.threadId, args.limit), now())),
+    run: ({ bridge, now }, args) => report(async () => transcriptText(await bridge.read(args.threadId, args.limit, args.computer), now())),
   }),
   defineTool({
     name: "wait_for_thread",

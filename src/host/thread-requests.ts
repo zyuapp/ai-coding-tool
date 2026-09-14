@@ -1,6 +1,7 @@
 import { browserPermissions } from "../application/workspace-reducer.js";
 import { browserTarget, dockFor, dockOwner, terminalTarget, type WorkspaceState } from "../application/workspace-state.js";
-import { findThread, resolveScope, threadBusy, threadSummaries, threadSummary, threadTranscript, threadWaitResult } from "../application/thread-projection.js";
+import { findThread, threadBusy, threadSummary, threadWaitResult } from "../application/thread-projection.js";
+import { listAcrossComputers, readAcrossComputers } from "./thread-reads.js";
 import { isNews, unreadFindings } from "../domain/attention.js";
 import { scheduledRun } from "../application/run-testimony.js";
 import type { WorkspaceInput } from "../application/workspace-reducer.js";
@@ -27,7 +28,7 @@ export type ThreadWaiterList = { current: ThreadWaiter[] };
 /** The runtime state and the command execution that answers each tool request. */
 export type ThreadRequestHost = {
   state: () => WorkspaceState;
-  desktop: Pick<RuntimeDesktop, "configureBrowserPermissions" | "captureBrowserPage" | "inspectBrowserPage" | "readBrowserPage" | "readTerminal">;
+  desktop: Pick<RuntimeDesktop, "configureBrowserPermissions" | "captureBrowserPage" | "inspectBrowserPage" | "readBrowserPage" | "readTerminal" | "queryComputerThreads">;
   dispatch: (input: WorkspaceInput) => Promise<void> | void;
   execute: (command: AppCommand) => WorkspaceExecution;
   waiters: ThreadWaiterList;
@@ -60,20 +61,11 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
   const failed = (message: string): ThreadResponse => ({ type: "thread.response", requestId, ok: false, message });
   try {
     if (request.op === "list") {
-      const scope = resolveScope(host.state(), request.taskId, request.project);
-      if ("error" in scope) return failed(scope.error);
-      return ok(threadSummaries(host.state(), {
-        scope,
-        ...(request.archived === undefined ? {} : { archived: request.archived }),
-        ...(request.idleForMs === undefined ? {} : { idleForMs: request.idleForMs }),
-        ...(request.search === undefined ? {} : { search: request.search }),
-        ...(request.attachments === undefined ? {} : { attachments: request.attachments }),
-        ...(request.limit === undefined ? {} : { limit: request.limit }),
-      }, Date.now()));
+      const { type: _type, op: _op, taskId, requestId: _requestId, ...query } = request;
+      return ok(await listAcrossComputers(host, taskId, query));
     }
     if (request.op === "read") {
-      const transcript = threadTranscript(host.state(), request.threadId, request.limit);
-      return transcript ? ok(transcript) : failed(`No thread has the ID ${request.threadId}.`);
+      return ok(await readAcrossComputers(host, request.threadId, request.limit, request.computer));
     }
     if (request.op === "wait") {
       const thread = findThread(host.state(), request.threadId);

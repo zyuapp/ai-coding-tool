@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { isAgentSettingsReloadEvent, isAutomationRequest, isBackgroundEvent, isGoalEvent, isRunCommand, isRunEvent, isSubagentEvent, isThreadRequest, isWorkflowEvent, unreadableRequest, type AgentEvent, type AutomationFire, type AutomationRequest, type AutomationResponse, type BackgroundEvent, type RunCommand, type RunEvent, type StartRunCommand, type SubagentEvent } from "../contracts/ipc.js";
 import type { ThreadRequest, ThreadResponse } from "../contracts/threads.js";
+import { REMOTE_THREAD_READ_TIMEOUT_MS } from "../contracts/threads.js";
 import type { Automation, AutomationRunStatus, TickKind } from "../domain/automation.js";
 import type { AutomationScheduler } from "./automation/automation-scheduler.mjs" with { "resolution-mode": "import" };
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
@@ -184,7 +185,9 @@ class AgentRunHost {
       ? request.timeoutMs + THREAD_WAIT_SLACK
       : request.op === "browser" && (request.read.op === "snapshot" || request.read.op === "screenshot" || request.read.op === "wait")
         ? request.read.timeoutMs + THREAD_WAIT_SLACK
-        : THREAD_REQUEST_TIMEOUT;
+        : (request.op === "read" && request.computer !== "this") || (request.op === "list" && request.computer && request.computer !== "this")
+          ? REMOTE_THREAD_READ_TIMEOUT_MS
+          : THREAD_REQUEST_TIMEOUT;
     const timer = setTimeout(() => {
       this.threadRequests.delete(request.requestId);
       this.agent?.post({ type: "thread.response", requestId: request.requestId, ok: false, message: `AI Coding Tool did not answer the thread "${request.op}" request within ${patience}ms.` });

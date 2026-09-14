@@ -167,6 +167,7 @@ export async function startServe(options: { userData: string; packaged: boolean;
         return result;
       },
       query: (query) => answerComputerQuery(query, {
+        threads: runtime.queryThreads,
         workspaces: () => workspaces,
         commands: async (workspaceId, engine) => {
           const resolution = await workspaces.resolve(workspaceId);

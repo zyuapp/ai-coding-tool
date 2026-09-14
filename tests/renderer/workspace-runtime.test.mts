@@ -42,6 +42,25 @@ beforeEach(() => {
   } as unknown as DesktopAPI;
 });
 
+test("the runtime serves a paired transcript from disk without changing selection or exposing other threads", async () => {
+  const loads: string[] = [];
+  window.desktop.loadThreadMessages = async (id) => { loads.push(id); return messages; };
+  const runtime = createWorkspaceRuntime({ desktop: { ...window.desktop, ...noComputers }, storage: localStorage });
+  try {
+    await runtime.start();
+    const selected = runtime.getState().currentId;
+    const response = await runtime.queryThreads({ kind: "thread-read", threadId: "cold", limit: 1 });
+    assert.ok(!Array.isArray(response));
+    assert.equal(response.thread.id, "cold");
+    assert.deepEqual(response.messages, [{ kind: "user", text: "persisted text", at: 1 }]);
+    assert.deepEqual(loads, ["cold"]);
+    assert.equal(runtime.getState().currentId, selected);
+    const matches = await runtime.queryThreads({ kind: "thread-list", search: "persisted", limit: 1 });
+    assert.ok(Array.isArray(matches));
+    assert.deepEqual(matches.map((row) => row.id), ["cold"]);
+  } finally { runtime.dispose(); }
+});
+
 test("the runtime persists snooze, restores its timer and files it back into Priority at expiry", async () => {
   vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
   vi.setSystemTime(1_800_000_000_000);
