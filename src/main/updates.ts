@@ -166,15 +166,16 @@ async function reportManualLinuxUpdates(window: BrowserWindow | null) {
  * that id can only be installed by hand.
  */
 export async function reportUpdateFailure(window: BrowserWindow | null, error: Error, phase: "check" | "install" = "install") {
+  console.error(`Update ${phase} failed:`, error);
   if (!window || window.isDestroyed()) return;
   const result = await dialog.showMessageBox(window, {
     type: "warning",
     title: phase === "check" ? "Update check failed" : "Update failed",
     message: phase === "check" ? "AI Coding Tool could not check for updates." : "AI Coding Tool could not install the update.",
-    detail: `${error.message}\n\n${manualUpdateRecovery()}`,
-    buttons: ["Open downloads", "Later"],
+    detail: phase === "check" ? "Please try again in a moment." : manualUpdateRecovery(),
+    buttons: phase === "check" ? ["OK"] : ["Open downloads", "Later"],
     defaultId: 0,
-    cancelId: 1,
+    cancelId: phase === "check" ? 0 : 1,
   });
-  if (result.response === 0) await shell.openExternal(RELEASES_URL);
+  if (phase === "install" && result.response === 0) await shell.openExternal(RELEASES_URL);
 }

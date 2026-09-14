@@ -89,3 +89,22 @@ test("background failures stay quiet and a subsequent manual check can succeed",
   assert.deepEqual(stub.dialogs.map((dialog) => dialog.title), ["No update available"]);
   assert.equal(f.menu.enabled, true);
 });
+
+test("update errors show a short recovery message and keep raw HTTP diagnostics in logs", async () => {
+  await fixture();
+  const { reportUpdateFailure } = await import("../../src/main/updates.ts");
+  const window = { isDestroyed: () => false } as BrowserWindow;
+  const error = new Error('Cannot find latest-mac.yml: HttpError: 404\nHeaders: {"x-github-request-id":"request-id"}\n at createHttpError');
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    await reportUpdateFailure(window, error, "check");
+    await reportUpdateFailure(window, error, "install");
+    assert.deepEqual(stub.dialogs.map(({ title, detail }) => ({ title, detail })), [
+      { title: "Update check failed", detail: "Please try again in a moment." },
+      { title: "Update failed", detail: "Open downloads." },
+    ]);
+    assert.deepEqual(log.mock.calls, [["Update check failed:", error], ["Update install failed:", error]]);
+  } finally {
+    log.mockRestore();
+  }
+});

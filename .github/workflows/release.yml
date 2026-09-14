@@ -192,5 +192,10 @@ jobs:
             git push --atomic origin refs/remotes/release/main:refs/heads/main "refs/tags/$TAG"
           fi
           gh release view "$TAG" >/dev/null 2>&1 || \
-            gh release create "$TAG" --title "$TAG" --generate-notes --verify-tag
+            gh release create "$TAG" --title "$TAG" --generate-notes --verify-tag --draft
+          # A published release is complete. A retry must not replace its live assets.
+          if [ "$(gh release view "$TAG" --json isDraft --jq '.isDraft')" = "false" ]; then
+            exit 0
+          fi
           gh release upload "$TAG" release/* --clobber
+          gh release edit "$TAG" --draft=false --latest
