@@ -37,6 +37,12 @@ function fakeMenu() {
     Menu: {
       buildFromTemplate: (template: unknown) => template,
       setApplicationMenu: (menu: unknown) => { applicationMenu = menu; },
+      getApplicationMenu: () => ({
+        getMenuItemById: (id: string) => {
+          type Item = { id?: string; submenu?: Item[] };
+          return (applicationMenu as Item[] | null)?.flatMap((item) => item.submenu ?? []).find((item) => item.id === id);
+        },
+      }),
     },
   };
 }

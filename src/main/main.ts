@@ -32,7 +32,7 @@ import { createRuntimeDesktop } from "./runtime-desktop.js";
 import { startKeyboardHost } from "./keyboard-host.js";
 import { openInEditor } from "./open-in-editor.js";
 import { serveExternalApps } from "./open-in-app.js";
-import { installAppMenu } from "./app-menu.js";
+import { installAppMenu, setUpdateChecking } from "./app-menu.js";
 import { openSourceLicenses } from "./license-window.js";
 import { registerAppImageProtocol } from "./linux-protocol.js";
 import { adoptLoginShellPath } from "./login-path.js";
@@ -137,6 +137,7 @@ const noticeHost: NoticeHost = { window: () => window, reveal: revealWindow };
 const updateHost: UpdateHost = {
   window: () => window,
   onInstall: () => { updateRestartScheduled = true; },
+  onChecking: setUpdateChecking,
 };
 
 let engineAccess: Promise<EngineAccessHost> | null = null;
