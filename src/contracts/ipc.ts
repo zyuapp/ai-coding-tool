@@ -1,3 +1,4 @@
+import type { BrowserControl, BrowserFrame, BrowserViewport } from "./browser-control.js";
 import type { BranchesResult } from "./git.js";
 export type { BranchesResult } from "./git.js";
 import type { AgentSettingsReloadEvent, ReloadAgentSettingsCommand } from "./agent-settings.js";
@@ -288,8 +289,11 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   onThreadRequest(listener: (request: ThreadRequest) => void): () => void;
   answerThreadRequest(response: ThreadResponse): void;
   /** The browser panel's pages live in main; the window owns the record of them and their geometry. */
+  setRemoteBrowserViewport(tabId: string, viewport: BrowserViewport | null): Promise<void>;
+  controlBrowser(tabId: string, epoch: number, input: BrowserControl): Promise<void>;
+  readRemoteBrowserFrame(computerId: string | undefined, tabId: string): Promise<BrowserFrame | null>;
   configureBrowserPermissions(permissions: BrowserPermissions): Promise<void>;
-  openBrowserTab(tabId: string, url?: string, taskId?: string): Promise<void>;
+  openBrowserTab(tabId: string, url?: string, taskId?: string, offscreen?: boolean): Promise<void>;
   navigateBrowser(tabId: string, url: string, taskId?: string): Promise<void>;
   browserHistory(tabId: string, delta: -1 | 1, taskId?: string): Promise<void>;
   reloadBrowser(tabId: string, taskId?: string): Promise<void>;
@@ -723,7 +727,7 @@ export function isTerminalRead(value: unknown): value is TerminalRead {
 function isBrowserCommand(command: Record<string, unknown>) {
   if (!isString(command.taskId)) return false;
   const tabbed = command.tabId === undefined || isString(command.tabId);
-  if (command.type === "browser.open") return tabbed && isString(command.url, MAX_URL_LENGTH) && (command.newTab === undefined || typeof command.newTab === "boolean");
+  if (command.type === "browser.open") return tabbed && (command.offscreen === undefined || typeof command.offscreen === "boolean") && isString(command.url, MAX_URL_LENGTH) && (command.newTab === undefined || typeof command.newTab === "boolean");
   if (command.type === "browser.close-tab" || command.type === "browser.select-tab") return isString(command.tabId);
   if (command.type === "browser.go") return tabbed && (command.delta === 1 || command.delta === -1);
   if (command.type === "browser.reload") return tabbed;

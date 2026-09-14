@@ -3,11 +3,25 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { browserTarget, dockFor, dockOwner, type ThreadDock, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { viewPreferences } from "../../src/application/view-preferences.ts";
 
 /** The dock a thread was left in: the one on screen unless a thread is named. */
 function dock(state: WorkspaceState, owner?: string): ThreadDock {
   return dockFor(state, owner ?? dockOwner(state));
 }
+
+test("a remote copy preserves the native tab and retains its renderer across restoration", () => {
+  const native = reduce(workspace(), { type: "browser.open", url: "https://example.com" }).state;
+  const original = dock(native).browserTabs[0];
+  const copied = reduce(native, { type: "browser.open", url: original.url, newTab: true, offscreen: true });
+  assert.deepEqual(dock(copied.state).browserTabs[0], original);
+  assert.equal(dock(copied.state).browserTabs[1].offscreen, true);
+  assert.ok(copied.effects.some(effect => effect.type === "browser.open" && effect.offscreen));
+  const restored = reduce(workspace(), { type: "preferences.loaded", preferences: viewPreferences(copied.state) }).state;
+  assert.deepEqual(dock(restored).browserTabs.map(tab => [tab.url, tab.offscreen]), [[original.url, undefined], [original.url, true]]);
+  const selected = reduce(restored, { type: "browser.select-tab", tabId: dock(restored).browserTabs[1].id });
+  assert.ok(selected.effects.some(effect => effect.type === "browser.open" && effect.offscreen));
+});
 
 test("a run drives its own thread's dock, whichever thread the user is looking at", () => {
   const state = { ...workspace(), threads: [task("task-1"), task("task-2", { executionPolicy: "autonomous" })], currentId: "task-1", history: ["task-1"], historyIndex: 0 };

@@ -42,3 +42,6 @@ export function supportsComputerAction(capabilities: ComputerCapabilities, type:
 export function supportsComputerQuery(capabilities: ComputerCapabilities, query: ComputerQuery): boolean {
   return supports(capabilities, requirements(`query:${query.kind}`, query, "kind"));
 }
+
+/** Headless services have no page runtime, even though they understand workspace commands. */
+export const HEADLESS_COMPUTER_CAPABILITIES = COMPUTER_CAPABILITIES.filter((name) => !name.startsWith("command:browser.") && !name.startsWith("query:browser-frame"));

@@ -30,6 +30,7 @@ export const COMPUTER_SEND_TOO_LARGE = "This message is too large to send to ano
 /** Reads that are content rather than state, which the window asks its own desktop for. */
 export type ComputerQuery =
   | ComputerThreadQuery
+  | { kind: "browser-frame"; tabId: string }
   | { kind: "terminal-output"; terminalId: string; after?: number }
   | { kind: "directories"; prefix: string }
   | { kind: "attachment"; name: string }
@@ -102,6 +103,7 @@ const queryShapes = {
     attachments: (v) => v === undefined || typeof v === "boolean",
     limit: (v) => v === undefined || isCount(v) && v <= 200,
   },
+  "browser-frame": { tabId: isString },
   "terminal-output": { terminalId: isString, after: (v) => v === undefined || Number.isSafeInteger(v) && (v as number) >= 0 },
   directories: { prefix: (v) => typeof v === "string" && v.length <= MAX_PATH_LENGTH && !v.includes("\0") },
   attachment: { name: (v) => isString(v) && /^[A-Za-z0-9-]+\.png$/.test(v) },

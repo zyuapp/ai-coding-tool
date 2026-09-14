@@ -17,9 +17,13 @@ export const surfaceEffects = {
 
   "app.open-source-licenses": (_effect, host) => reportFailure(host, host.desktop.openSourceLicenses()),
 
+  "browser.viewport": (effect, host) => reportFailure(host, host.desktop.setRemoteBrowserViewport(effect.tabId, effect.viewport)),
+
+  "browser.control": (effect, host) => reportFailure(host, host.desktop.controlBrowser(effect.tabId, effect.epoch, effect.input)),
+
   "browser.permissions": (effect, host) => reportFailure(host, host.desktop.configureBrowserPermissions(effect.permissions)),
 
-  "browser.open": (effect, host) => reportFailure(host, host.desktop.openBrowserTab(effect.tabId, effect.url, effect.taskId)),
+  "browser.open": (effect, host) => reportFailure(host, host.desktop.openBrowserTab(effect.tabId, effect.url, effect.taskId, effect.offscreen)),
 
   "browser.navigate": (effect, host) => reportFailure(host, host.desktop.navigateBrowser(effect.tabId, effect.url, effect.taskId)),
 

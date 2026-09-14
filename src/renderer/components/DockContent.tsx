@@ -1,3 +1,4 @@
+import { RemoteBrowserSurface } from "./RemoteBrowserSurface";
 import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { BrowserPanel } from "./BrowserPanel";
 import { DockSideChats } from "./DockSideChat";
@@ -76,6 +77,26 @@ export function DockContent({ workspace, panels, launchers, activeTab, find, fin
 }) {
   const browserTab = workspace.browserTabs.find((tab) => tab.id === activeTab);
   const shownTerminal = workspace.terminals.find((terminal) => terminal.id === activeTab);
+  let browserSurface: ReactNode;
+  if (browserTab && (workspace.activeComputer || browserTab.offscreen)) {
+    if (!browserTab.url) {
+      browserSurface = <div className="browser-viewport"><div className="browser-empty"><h2>No page open</h2><p>Enter a web address above.</p></div></div>;
+    } else if (!browserTab.offscreen) {
+      browserSurface = <div className="browser-viewport"><div className="browser-empty">
+        <h2>This tab is open on the host</h2>
+        <p>Open a copy to control it here, using the host’s logins.</p>
+        <button className="primary" onClick={() => void workspace.actions.openBrowser(browserTab.url, true)}>Open a copy</button>
+      </div></div>;
+    } else {
+      browserSurface = <RemoteBrowserSurface
+        computerId={workspace.activeComputer?.id}
+        tabId={browserTab.id}
+        visible={dockOpen && !settingsVisible && (!workspace.activeComputer || workspace.activeComputer.status === "connected")}
+        focusToken={focusTokenFor(browserTab.id)}
+        dispatch={workspace.dispatch}
+      />;
+    }
+  }
   return (
     <div className="right-dock-content">
       <div className="right-dock-picker" hidden={activeTab !== "home"} aria-label="Choose a right panel">
@@ -103,11 +124,12 @@ export function DockContent({ workspace, panels, launchers, activeTab, find, fin
           onResults={(results) => { if (find) void workspace.actions.reportFind(find.target, results); }}
         />
       ))}
-      {/** A page is a native view main draws over the panel, so only the one on top is ever drawn. */}
+      {/** Only the selected browser tab draws, whether its page is native or remotely rendered. */}
       {browserTab && (
         <div data-dock-tab={browserTab.id}>
           <BrowserPanel
             tab={browserTab}
+            surface={browserSurface}
             focusToken={focusTokenFor(browserTab.id)}
             {...(find?.target.kind === "browser" && find.target.tabId === browserTab.id ? { find: findBar } : {})}
             approval={workspace.browserApproval?.tabId === browserTab.id ? workspace.browserApproval : null}

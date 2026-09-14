@@ -129,6 +129,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "view.open-workflow": case "view.close-dock-panel": case "view.select-dock-tab":
       return reduceDock(state, input);
 
+    case "browser.viewport": case "browser.control":
     case "browser.open": case "browser.new-tab": case "browser.decide":
     case "browser.select-tab": case "browser.close-tab": case "browser.go":
     case "browser.reload": case "browser.act": case "browser.clear-data":

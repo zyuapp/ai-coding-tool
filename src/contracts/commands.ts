@@ -1,3 +1,4 @@
+import type { BrowserControl, BrowserViewport } from "./browser-control.js";
 import type { ComputerFilter } from "../domain/computers.js";
 import type { AutomationDraft, AutomationPatch } from "../domain/automation.js";
 import type { SnoozeHours } from "../domain/thread-snooze.js";
@@ -252,9 +253,11 @@ export type AutomationCommand =
  * site is the consent that lets a run reach that origin afterwards.
  */
 export type BrowserCommand =
-  | { type: "browser.open"; taskId?: string; url: string; tabId?: string; newTab?: boolean }
+  | { type: "browser.viewport"; tabId: string; viewport: BrowserViewport | null }
+  | { type: "browser.control"; tabId: string; epoch: number; input: BrowserControl }
+  | { type: "browser.open"; offscreen?: boolean; taskId?: string; url: string; tabId?: string; newTab?: boolean }
   /** An empty tab, waiting for an address. Only the user opens one; a run always names a page. */
-  | { type: "browser.new-tab" }
+  | { type: "browser.new-tab"; offscreen?: boolean }
   | { type: "browser.close-tab"; taskId?: string; tabId: string }
   | { type: "browser.select-tab"; taskId?: string; tabId: string }
   | { type: "browser.go"; taskId?: string; tabId?: string; delta: -1 | 1 }

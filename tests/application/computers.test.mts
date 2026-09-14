@@ -1,3 +1,4 @@
+import { workspaceCommandDefinitions } from "../../src/contracts/workspace-view-input.ts";
 import { COMPUTER_CAPABILITIES } from "../../src/contracts/computer-capabilities.ts";
 import { executeWorkspaceInput } from "../../src/application/workspace-execution.ts";
 import { computerEffects } from "../../src/host/computer-effects.ts";
@@ -293,7 +294,7 @@ test("a line that comes back is told nothing until one of its threads is selecte
 test("what only this computer's panels can do is refused for a thread elsewhere, and so are attachments that only carry paths", () => {
   const state = withComputers(workspace(), [paired("linux", remoteState)], { active: "linux" });
   assert.deepEqual(effectOf(reduce(state, { type: "terminal.open" }), "computer.forward"), { type: "computer.forward", id: "linux", inputs: [{ type: "terminal.open" }] });
-  assert.deepEqual(routeInput(state, { type: "browser.new-tab" }), { kind: "refuse", message: PANEL_ELSEWHERE });
+  assert.deepEqual(routeInput(state, { type: "browser.new-tab" }), { kind: "refuse", reason: "unsupported", message: PANEL_ELSEWHERE });
   assert.deepEqual(routeInput(state, { type: "file.open", path: "src/app.ts" }), { kind: "refuse", message: FILES_ELSEWHERE });
   assert.deepEqual(routeInput(state, { type: "app.open-folder", appId: "cursor" }), { kind: "refuse", message: FILES_ELSEWHERE });
   assert.deepEqual(routeInput(state, { type: "task.send", attachments: [{ path: "/tmp/shot.png", labels: [] }] }), { kind: "refuse", message: ATTACHMENTS_ELSEWHERE });
@@ -614,4 +615,30 @@ test("streaming updates preserve the capability context while discovery and conn
   assert.notEqual(offline, first);
   const refreshed = snapshot({ ...computers, paired: [{ ...computer, capabilities: [] }] });
   assert.notEqual(refreshed, first);
+});
+
+
+test("remote browsers expose their tabs and approvals and route input by the tab's owner", () => {
+  const remote = reduce(remoteState, { type: "browser.open", url: "http://localhost:3000" }).state;
+  const tab = remote.docks["remote-thread"].browserTabs[0];
+  const capabilities = ["query:browser-frame", ...workspaceCommandDefinitions().flatMap(({ type, fields }) => [`command:${type}`, ...fields.map((field) => `command:${type}:${field}`)])];
+  const approval = { approvalId: "allow", tabId: tab.id, taskId: "remote-thread", url: "https://example.com" };
+  const computer = paired("linux", { ...remote, browserApproval: approval }, { capabilities });
+  const state = withComputers(workspace(), [computer], { active: "linux" });
+  assert.deepEqual(deriveView(state).browserTabs, [tab]);
+  assert.deepEqual(deriveView(state).browserApproval, approval);
+  for (const command of [{ type: "browser.new-tab" }, { type: "browser.open", url: tab.url, newTab: true }] as const) {
+    const opening = routeInput(state, command);
+    assert.ok(opening.kind === "computer");
+    assert.deepEqual(opening.inputs, [{ ...command, offscreen: true }], "new remote pages use an offscreen renderer");
+  }
+  const input = { type: "browser.control" as const, tabId: tab.id, epoch: 1, input: { kind: "text" as const, text: "hello" } };
+  assert.equal(routeInput(state, input).kind, "computer");
+  const local = { ...state, computers: { ...state.computers, active: null } };
+  const routed = routeInput(local, input);
+  assert.equal(routed.kind, "computer", "late input follows its tab after selecting a local thread");
+  const closing = { type: "browser.viewport" as const, tabId: tab.id, viewport: null };
+  assert.equal(routeInput(local, closing).kind, "computer");
+  assert.equal(routeInput(state, { ...input, tabId: "gone" }).kind, "refuse", "a stale tab never falls back to the active host");
+  assert.equal(deriveView(withComputers(workspace(), [paired("linux", remote)], { active: "linux" })).browserTabs.length, 0, "older hosts do not expose an unusable surface");
 });

@@ -1,5 +1,7 @@
 /** One page the browser panel holds open. The reducer owns this record; the view itself lives in main. */
 export type BrowserTab = {
+  /** Uses a surface that can be viewed while the host window is hidden. */
+  offscreen?: boolean;
   id: string;
   url: string;
   title: string;

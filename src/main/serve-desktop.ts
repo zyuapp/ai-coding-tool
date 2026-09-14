@@ -34,6 +34,8 @@ function headlessDesktop(host: ServeDesktopHost) {
     onMobileRequest: (listener) => events.on("mobile:request", listener),
     answerMobileRequest: (response) => host.mobile().answerMobileRequest(response),
     publishMobileView: (update) => host.mobile().publishMobileView(update),
+    setRemoteBrowserViewport: needsDesktop("The browser panel"),
+    controlBrowser: needsDesktop("The browser panel"),
     configureBrowserPermissions: async () => {},
     openBrowserTab: needsDesktop("The browser panel"),
     navigateBrowser: needsDesktop("The browser panel"),

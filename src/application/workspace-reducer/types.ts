@@ -1,3 +1,4 @@
+import type { BrowserControl, BrowserViewport } from "../../contracts/browser-control.js";
 import type { ProjectEvent, RegisterProjectEffect } from "../project-commands.js";
 import type { RemoteEffect, RemoteEvent } from "../remote-commands.js";
 import type { ComputerEffect, ComputerEvent } from "../computer-commands.js";
@@ -138,8 +139,10 @@ export type WorkspaceEffect =
   | { type: "automation.run-now"; taskId: string }
   | { type: "automation.ack"; ack: AutomationAck }
   /** The browser panel's pages. `open` is idempotent: a tab that already has a view keeps it. */
+  | { type: "browser.viewport"; tabId: string; viewport: BrowserViewport | null }
+  | { type: "browser.control"; tabId: string; epoch: number; input: BrowserControl }
   | { type: "browser.permissions"; permissions: BrowserPermissions }
-  | { type: "browser.open"; taskId?: string; tabId: string; url?: string }
+  | { type: "browser.open"; offscreen?: boolean; taskId?: string; tabId: string; url?: string }
   | { type: "browser.navigate"; taskId?: string; tabId: string; url: string }
   | { type: "browser.history"; taskId?: string; tabId: string; delta: -1 | 1 }
   | { type: "browser.reload"; taskId?: string; tabId: string }

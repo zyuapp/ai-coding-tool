@@ -30,6 +30,8 @@ export class FakeWebContentsView {
     setWindowOpenHandler: (handler: WindowOpenHandler) => { this.webContents.windowOpenHandler = handler; },
     close: () => { this.destroyed = true; },
     reload() {},
+    setBackgroundThrottling(_enabled: boolean) {},
+    setFrameRate(_rate: number) {},
     isLoading: () => false,
     getURL: () => "",
     getTitle: () => "",
@@ -38,6 +40,7 @@ export class FakeWebContentsView {
     executeJavaScript: async (_script: string): Promise<unknown> => "",
   };
   constructor(options: unknown) { this.options = options; }
+  getBounds() { return this.bounds ?? { x: 0, y: 0, width: 0, height: 0 }; }
   setBounds(bounds: BrowserBounds) { this.bounds = bounds; }
   setVisible(visible: boolean) { this.visible = visible; }
   setBackgroundColor() {}

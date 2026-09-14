@@ -8,26 +8,30 @@ import { browserTarget, dockFor, dockOwner, ownerOfBrowserTab, withDock, type Wo
 import { browserOrigin, browserUrl } from "../../domain/browser.js";
 
 type BrowserInput = Extract<WorkspaceInput, {
-  type: "browser.open" | "browser.new-tab" | "browser.decide" | "browser.select-tab" | "browser.close-tab"
+  type: "browser.viewport" | "browser.control" | "browser.open" | "browser.new-tab" | "browser.decide" | "browser.select-tab" | "browser.close-tab"
     | "browser.go" | "browser.reload" | "browser.act" | "browser.clear-data" | "browser.updated";
 }>;
 
 export function reduceBrowser(state: WorkspaceState, input: BrowserInput): WorkspaceTransition {
   switch (input.type) {
+    case "browser.viewport":
+    case "browser.control":
+      return ownerOfBrowserTab(state, input.tabId) ? settled(state, [input]) : rejected(state, BROWSER_TAB_ERROR);
+
     case "browser.open": {
-      const owner = dockOwner(state, input.taskId);
+      const owner = (input.tabId ? ownerOfBrowserTab(state, input.tabId) : undefined) ?? dockOwner(state, input.taskId);
       const url = browserUrl(input.url);
       if (!url) return rejected(state, BROWSER_URL_ERROR);
       const byUser = input.taskId === undefined;
       if (!byUser && !browserAllowed(state, input.taskId!, url)) return askToBrowse(state, owner, url, input.taskId!, input.tabId, input.newTab === true);
-      return loadBrowserPage(state, owner, url, input.tabId, input.newTab === true, byUser, input.taskId);
+      return loadBrowserPage(state, owner, url, input.tabId, input.newTab === true, byUser, input.taskId, input.offscreen);
     }
 
     case "browser.new-tab": {
       const owner = dockOwner(state);
-      const { state: opened, tab } = withBlankTab(state, owner);
+      const { state: opened, tab } = withBlankTab(state, owner, input.offscreen);
       const focused = focusDockTab(opened, owner, tab.id);
-      return settled(focused.state, [{ type: "browser.open", tabId: tab.id }, { type: "browser.show", tabId: tab.id }, ...focused.effects]);
+      return settled(focused.state, [{ type: "browser.open", tabId: tab.id, ...(tab.offscreen ? { offscreen: true } : {}) }, { type: "browser.show", tabId: tab.id }, ...focused.effects]);
     }
 
     case "browser.decide": {

@@ -1,3 +1,4 @@
+import { captureRemoteFrame } from "./browser-host.js";
 import { computerOfWorkspace } from "../application/computers.js";
 import type { ComputerQuery } from "../contracts/computers.js";
 import type { AvailableCommand } from "../contracts/ipc.js";
@@ -37,6 +38,7 @@ export function createComputerBridge(host: ComputerBridgeHost) {
     },
     query: (query) => answerComputerQuery(query, {
       threads: host.runtime.runtime.queryThreads,
+      browserFrame: captureRemoteFrame,
       workspaces: host.workspaces,
       commands: async (workspaceId, engine) => {
         try {

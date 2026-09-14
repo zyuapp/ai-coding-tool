@@ -18,11 +18,15 @@ function urlList(value: unknown): string[] | undefined {
 }
 
 /** The pages a thread's dock reopens. A thread whose entry is unreadable simply reopens none. */
-function urlsByThread(value: unknown): Record<string, string[]> | undefined {
+function urlsByThread(value: unknown): ViewPreferences["browserTabs"] {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
-  const threads: Record<string, string[]> = {};
+  const threads: NonNullable<ViewPreferences["browserTabs"]> = {};
   for (const [owner, urls] of Object.entries(value as Record<string, unknown>).slice(0, MAX_REMEMBERED)) {
-    const list = urlList(urls);
+    const list = Array.isArray(urls) ? urls.slice(0, MAX_REMEMBERED).flatMap((item): Array<string | { url: string; offscreen: true }> => {
+      if (typeof item === "string") return urlList([item]) ?? [];
+      if (item && typeof item === "object" && item.offscreen === true && urlList([item.url])?.length) return [{ url: item.url, offscreen: true }];
+      return [];
+    }).slice(0, MAX_REMEMBERED) : undefined;
     if (list?.length) threads[owner] = list;
   }
   return threads;
@@ -120,10 +124,10 @@ export function writeViewPreferences(storage: KeyValueStorage, preferences: View
 /** The slice of state that survives a restart, gathered here so persisting it stays one decision. */
 export function viewPreferences(state: WorkspaceState): ViewPreferences {
   /** Only a thread that will still be there reopens its pages, so a dock nothing owns stops being written. */
-  const browserTabs: Record<string, string[]> = {}, threadIds = new Set(state.threads.map((thread) => thread.id));
+  const browserTabs: NonNullable<ViewPreferences["browserTabs"]> = {}, threadIds = new Set(state.threads.map((thread) => thread.id));
   for (const [owner, dock] of Object.entries(state.docks)) {
     if (owner !== DRAFT_DOCK && !threadIds.has(owner)) continue;
-    const urls = dock.browserTabs.map((tab) => tab.url).filter(Boolean);
+    const urls = dock.browserTabs.filter((tab) => tab.url).map((tab) => tab.offscreen ? { url: tab.url, offscreen: true as const } : tab.url);
     if (urls.length) browserTabs[owner] = urls;
   }
   return {

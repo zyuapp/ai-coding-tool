@@ -13,6 +13,7 @@ import type { WorkspaceService } from "./workspace/workspace-service.mjs" with {
 export type ComputerQueryHost = {
   threads: (query: ComputerThreadQuery) => Promise<unknown>;
   workspaces: () => WorkspaceService;
+  browserFrame?: (tabId: string) => Promise<unknown>;
   commands: (workspaceId: string, engine: AgentEngine) => Promise<unknown>;
 };
 
@@ -21,6 +22,10 @@ export async function answerComputerQuery(query: ComputerQuery, host: ComputerQu
   if (query.kind === "thread-read" || query.kind === "thread-list") {
     if (!isComputerQuery(query)) throw new Error("Invalid thread query.");
     return host.threads(query);
+  }
+  if (query.kind === "browser-frame") {
+    if (!host.browserFrame) throw new Error("The browser panel needs the desktop app.");
+    return host.browserFrame(query.tabId);
   }
   if (query.kind === "terminal-output") return readTerminalOutput(query.terminalId, query.after);
   if (query.kind === "directories") return listDirectories(query.prefix);

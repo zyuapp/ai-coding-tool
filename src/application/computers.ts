@@ -132,13 +132,17 @@ export function leavesComputer(input: WorkspaceInput): boolean {
 const LOCAL_PREFIXES = ["computer-use.", "cli.", "engine.", "remote.", "computers.", "app.list", "app.check-for-updates", "app.open-source-licenses", "worktree.", "annotation.", "paste.", "image.", "file.", "view.set-theme", "view.set-ui", "view.set-mono", "view.set-reading", "view.set-terminal", "view.set-sidebar", "view.set-session", "view.set-capture", "view.set-chrome", "view.set-concise", "view.set-computer", "view.set-browser", "view.set-notifications", "view.set-settings", "view.set-shortcut", "view.reset-shortcuts", "view.capture-shortcut", "view.dismiss-", "view.set-section", "view.set-subagent", "view.set-model-favorite", "view.set-menu", "view.go-", "view.mounted", "view.closed", "view.toggle-project", "view.edit-project", "view.add-project-", "view.move-worktree", "view.jump-", "view.find-", "view.focus-composer", "view.system-scheme", "view.set-prompt", "view.reading-point", "view.refresh-environment", "usage.", "project.open", "attachments.notice"] as const;
 
 /** Commands that only this computer's own panels can carry out. */
-const PANEL_PREFIXES = ["browser."] as const;
+export function supportsRemoteBrowser(computer: Pick<ComputerLink, "capabilities"> | null): boolean {
+  return computer?.capabilities?.includes("query:browser-frame") === true;
+}
 
 export const PANEL_ELSEWHERE = "The browser panel opens only for threads on this computer.";
 export const ATTACHMENTS_ELSEWHERE = "Files and folders attached by local path cannot be sent to another computer.";
 export const FILES_ELSEWHERE = "That folder is on another computer, so it cannot be opened here.";
 
 function forwarded(computer: PairedComputer, inputs: WorkspaceInput[], options: { select?: true; also?: true; draft?: SentDraft } = {}): InputRoute {
+  inputs = inputs.map((input) => input.type === "browser.new-tab" || (input.type === "browser.open" && (!input.tabId || input.newTab))
+    ? { ...input, offscreen: true } : input);
   if (inputs.some((input) => !supportsComputerCommand(computer.capabilities, input as AppCommand))) return { kind: "refuse", reason: "unsupported", message: REMOTE_UNSUPPORTED };
   return { kind: "computer", computer, inputs, ...options };
 }
@@ -205,6 +209,14 @@ export function routeInput(state: WorkspaceState, input: WorkspaceInput): InputR
   const active = selectedComputer(state);
   const type = input.type;
   /** A delayed resize or keystroke follows its shell, even after another thread is selected. */
+  // Browser input follows the named tab even when its panel has since been unmounted.
+  if (type.startsWith("browser.") && "tabId" in input && input.tabId) {
+    const hasTab = (workspace: WorkspaceState) => Object.values(workspace.docks).some((dock) => dock.browserTabs.some((tab) => tab.id === input.tabId));
+    if (hasTab(state)) return LOCAL;
+    const holder = state.computers.paired.find((computer) => computer.state && hasTab(computer.state));
+    if (holder) return toward(holder, (computer) => supportsRemoteBrowser(computer) ? forwarded(computer, [input]) : { kind: "refuse", reason: "unsupported", message: PANEL_ELSEWHERE });
+    if (type === "browser.control" || type === "browser.viewport") return { kind: "refuse", message: "That browser tab is no longer available." };
+  }
   if (type.startsWith("terminal.") && "terminalId" in input) {
     if (holdsTerminal(state, input.terminalId)) return LOCAL;
     const holder = state.computers.paired.find((computer) => computer.state && holdsTerminal(computer.state, input.terminalId));
@@ -240,7 +252,7 @@ export function routeInput(state: WorkspaceState, input: WorkspaceInput): InputR
   const named = "taskId" in input ? computerOfThread(state, input.taskId) : null;
   const computer = named ?? ("taskId" in input && input.taskId !== undefined ? null : active);
   return toward(computer, (holder) => {
-    if (PANEL_PREFIXES.some((prefix) => type.startsWith(prefix))) return { kind: "refuse", message: PANEL_ELSEWHERE };
+    if (type.startsWith("browser.") && !supportsRemoteBrowser(holder)) return { kind: "refuse", reason: "unsupported", message: PANEL_ELSEWHERE };
     if (type === "task.send" || type === "attachments.send") return forwardedSend(state, holder, input);
     return forwarded(holder, [input]);
   });

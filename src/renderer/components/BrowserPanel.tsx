@@ -6,6 +6,7 @@ import { NativeSurface } from "./NativeSurface";
 
 export type BrowserPanelProps = {
   tab: BrowserTab;
+  surface?: ReactNode;
   /** The navigation this page is waiting on the user to answer, when it has one. */
   approval: BrowserApproval | null;
   /** Bumped whenever something asks this tab to take the keyboard. */
@@ -18,7 +19,7 @@ export type BrowserPanelProps = {
   onDecide: (approvalId: string, allow: boolean) => void;
 };
 
-export function BrowserPanel({ tab, approval, focusToken = 0, find, onOpen, onGo, onReload, onDecide }: BrowserPanelProps) {
+export function BrowserPanel({ surface, tab, approval, focusToken = 0, find, onOpen, onGo, onReload, onDecide }: BrowserPanelProps) {
   const addressInput = useRef<HTMLInputElement>(null);
   const [address, setAddress] = useState(tab.url);
   const [editing, setEditing] = useState(false);
@@ -36,7 +37,7 @@ export function BrowserPanel({ tab, approval, focusToken = 0, find, onOpen, onGo
   /** A tab asked for is one to read; a tab with no page yet is one to type an address into. */
   useEffect(() => {
     if (!focusToken) return;
-    if (tab.url) void window.desktop.focusBrowserTab(tab.id);
+    if (tab.url) { if (!surface) void window.desktop.focusBrowserTab(tab.id); }
     else addressInput.current?.focus({ preventScroll: true });
     /** Only a fresh request moves the keys, so the page this tab lands on later leaves them where they are. */
   }, [focusToken]);
@@ -83,7 +84,8 @@ export function BrowserPanel({ tab, approval, focusToken = 0, find, onOpen, onGo
         </div>
       )}
 
-      <NativeSurface className="browser-viewport" report={(box) => void window.desktop.setBrowserBounds(box)}>
+      {surface && tab.error && <p className="browser-error" role="status">{tab.error}</p>}
+      {surface ?? <NativeSurface className="browser-viewport" report={(box) => void window.desktop.setBrowserBounds(box)}>
         {!tab.url && (
           <div className="browser-empty">
             <span className="agent-orb"><Globe size={17} /></span>
@@ -92,7 +94,7 @@ export function BrowserPanel({ tab, approval, focusToken = 0, find, onOpen, onGo
           </div>
         )}
         {tab.error && <p className="browser-error">{tab.error}</p>}
-      </NativeSurface>
+      </NativeSurface>}
     </section>
   );
 }

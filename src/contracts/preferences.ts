@@ -43,6 +43,6 @@ export type ViewPreferences = {
   /** Only the bindings that differ from the defaults; an action bound to nothing is stored as null. */
   shortcuts?: ShortcutOverrides;
   /** The pages each thread's dock reopens, keyed by thread id, and the origins a run may reach without asking again. */
-  browserTabs?: Record<string, string[]>;
+  browserTabs?: Record<string, Array<string | { url: string; offscreen: true }>>;
   browserOrigins?: string[];
 };

@@ -1,3 +1,5 @@
+import { isBrowserControl, isBrowserViewport, isBrowserFrame } from "../contracts/browser-control.js";
+import type { ComputerQuery } from "../contracts/computers.js";
 import { ipcMain, type IpcMainInvokeEvent } from "electron";
 import { isBrowserAction, isBrowserBounds, isBrowserRead } from "../contracts/ipc.js";
 import type { BrowserInspection } from "../domain/browser.js";
@@ -23,7 +25,25 @@ function browserTaskId(value: unknown) {
   return value === undefined ? undefined : browserTabId(value);
 }
 
-export function registerBrowserIpc(trusted: (event: IpcMainInvokeEvent) => boolean) {
+export function registerBrowserIpc(trusted: (event: IpcMainInvokeEvent) => boolean, query?: (computerId: string, query: ComputerQuery) => Promise<unknown>) {
+  ipcMain.handle("browser:remote-frame", async (event, computerId: unknown, tabId: unknown) => {
+    if (!trusted(event)) throw new Error("Untrusted IPC sender.");
+    if (computerId === undefined) return browser.captureRemoteFrame(browserTabId(tabId));
+    if (!query) throw new Error("Remote browser is unavailable.");
+    const result = await query(browserTabId(computerId), { kind: "browser-frame", tabId: browserTabId(tabId) });
+    if (!isBrowserFrame(result)) throw new Error("Invalid browser frame.");
+    return result;
+  });
+  ipcMain.handle("browser:remote-viewport", (event, tabId: unknown, viewport: unknown) => {
+    if (!trusted(event)) throw new Error("Untrusted IPC sender.");
+    if (viewport !== null && !isBrowserViewport(viewport)) throw new Error("Invalid browser viewport.");
+    return browser.setRemoteViewport(browserTabId(tabId), viewport);
+  });
+  ipcMain.handle("browser:control", (event, tabId: unknown, epoch: unknown, input: unknown) => {
+    if (!trusted(event)) throw new Error("Untrusted IPC sender.");
+    if (typeof epoch !== "number" || !Number.isSafeInteger(epoch) || epoch < 0 || !isBrowserControl(input)) throw new Error("Invalid browser input.");
+    return browser.controlPage(browserTabId(tabId), epoch, input);
+  });
   ipcMain.handle("browser:permissions", (event, permissions: unknown) => {
     if (!trusted(event)) throw new Error("Untrusted IPC sender.");
     if (!permissions || typeof permissions !== "object" || !("origins" in permissions) || !("autonomousTaskIds" in permissions)
@@ -31,9 +51,10 @@ export function registerBrowserIpc(trusted: (event: IpcMainInvokeEvent) => boole
       || !Array.isArray(permissions.autonomousTaskIds) || !permissions.autonomousTaskIds.every((id) => typeof id === "string" && id.length > 0 && id.length <= 256)) throw new Error("Invalid browser permissions.");
     browser.configurePermissions({ origins: permissions.origins, autonomousTaskIds: permissions.autonomousTaskIds });
   });
-  ipcMain.handle("browser:open", (event, tabId: unknown, url: unknown, taskId: unknown) => {
+  ipcMain.handle("browser:open", (event, tabId: unknown, url: unknown, taskId: unknown, offscreen: unknown) => {
     if (!trusted(event)) throw new Error("Untrusted IPC sender.");
-    browser.openTab(browserTabId(tabId), url === undefined ? undefined : browserPageUrl(url), browserTaskId(taskId));
+    if (offscreen !== undefined && typeof offscreen !== "boolean") throw new Error("Invalid browser surface.");
+    browser.openTab(browserTabId(tabId), url === undefined ? undefined : browserPageUrl(url), browserTaskId(taskId), offscreen);
   });
 
   ipcMain.handle("browser:navigate", (event, tabId: unknown, url: unknown, taskId: unknown) => {

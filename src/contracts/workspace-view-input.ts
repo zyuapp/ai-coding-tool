@@ -1,3 +1,4 @@
+import { isBrowserControl, isBrowserViewport } from "./browser-control.js";
 import type { AppCommand } from "./commands.js";
 import { isTerminalDimension, MAX_TERMINAL_INPUT } from "./terminal.js";
 import { isSnoozeHours } from "../domain/thread-snooze.js";
@@ -221,8 +222,10 @@ const shapes = {
   "automation.update": { taskId: optionalText, patch: isAutomationPatch },
   "automation.delete": { taskId: optionalText },
   "automation.run-now": { taskId: optionalText },
-  "browser.open": { taskId: optionalText, url: text, tabId: optionalText, newTab: optionalBoolean },
-  "browser.new-tab": {  },
+  "browser.viewport": { tabId: deviceId, viewport: (v): v is import("./browser-control.js").BrowserViewport | null => v === null || isBrowserViewport(v) },
+  "browser.control": { tabId: deviceId, epoch: (v): v is number => typeof v === "number" && Number.isSafeInteger(v) && v >= 0, input: isBrowserControl },
+  "browser.open": { offscreen: optionalBoolean, taskId: optionalText, url: text, tabId: optionalText, newTab: optionalBoolean },
+  "browser.new-tab": { offscreen: optionalBoolean },
   "browser.close-tab": { taskId: optionalText, tabId: text },
   "browser.select-tab": { taskId: optionalText, tabId: text },
   "browser.go": { taskId: optionalText, tabId: optionalText, delta: step },

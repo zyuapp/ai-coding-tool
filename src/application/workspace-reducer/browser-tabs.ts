@@ -19,7 +19,7 @@ export function patchBrowserTab(state: WorkspaceState, owner: string, tabId: str
  * own load takes the panel: a run leaves the dock on whatever tab it was showing, open or closed,
  * and its page loads parked out of sight.
  */
-export function loadBrowserPage(state: WorkspaceState, owner: string, url: string, tabId: string | undefined, newTab: boolean, byUser: boolean, taskId?: string): WorkspaceTransition {
+export function loadBrowserPage(state: WorkspaceState, owner: string, url: string, tabId: string | undefined, newTab: boolean, byUser: boolean, taskId?: string, offscreen = false): WorkspaceTransition {
   const origin = browserOrigin(url);
   const allowing = byUser && origin && !state.browserOrigins.includes(origin);
   const remembered = allowing ? { ...state, browserOrigins: [...state.browserOrigins, origin] } : state;
@@ -35,12 +35,12 @@ export function loadBrowserPage(state: WorkspaceState, owner: string, url: strin
       ...navigating.effects,
     ]);
   }
-  const tab: BrowserTab = { id: crypto.randomUUID(), url, title: "", loading: true, canGoBack: false, canGoForward: false };
+  const tab: BrowserTab = { ...(offscreen ? { offscreen: true } : {}), id: crypto.randomUUID(), url, title: "", loading: true, canGoBack: false, canGoForward: false };
   const surfaced = byUser ? showDockTab(cleared, owner, tab.id) : cleared;
   const shown = withDock(surfaced, owner, { browserTabs: [...dockFor(cleared, owner).browserTabs, tab], browserTabId: tab.id });
   const opened = byUser ? focusDockTab(shown, owner, tab.id) : settled(shown);
   return settled(opened.state, [
-    { type: "browser.open", tabId: tab.id, url, ...(taskId ? { taskId } : {}) },
+    { type: "browser.open", tabId: tab.id, url, ...(tab.offscreen ? { offscreen: true } : {}), ...(taskId ? { taskId } : {}) },
     /** The panel draws one page, so a tab nobody is looking at never claims it. */
     ...(byUser ? [{ type: "browser.show" as const, tabId: tab.id }] : []),
     ...persistView(opened.state),
@@ -49,8 +49,8 @@ export function loadBrowserPage(state: WorkspaceState, owner: string, url: strin
 }
 
 /** A page waiting for an address. It is a dock tab of its own from the moment it exists. */
-export function withBlankTab(state: WorkspaceState, owner: string) {
-  const tab: BrowserTab = { id: crypto.randomUUID(), url: "", title: "", loading: false, canGoBack: false, canGoForward: false };
+export function withBlankTab(state: WorkspaceState, owner: string, offscreen = false) {
+  const tab: BrowserTab = { ...(offscreen ? { offscreen: true } : {}), id: crypto.randomUUID(), url: "", title: "", loading: false, canGoBack: false, canGoForward: false };
   const opened = withDock(showDockTab(state, owner, tab.id), owner, { browserTabs: [...dockFor(state, owner).browserTabs, tab], browserTabId: tab.id });
   return { state: opened, tab };
 }
@@ -109,7 +109,7 @@ export function browserAllowed(state: WorkspaceState, taskId: string, url: strin
 export function browserEffectsForTab(state: WorkspaceState, owner: string, dockTab: string): WorkspaceEffect[] {
   const tab = dockFor(state, owner).browserTabs.find((page) => page.id === dockTab);
   if (!tab) return [];
-  return [{ type: "browser.open", tabId: tab.id, ...(tab.url ? { url: tab.url } : {}) }, { type: "browser.show", tabId: tab.id }];
+  return [{ type: "browser.open", tabId: tab.id, ...(tab.offscreen ? { offscreen: true } : {}), ...(tab.url ? { url: tab.url } : {}) }, { type: "browser.show", tabId: tab.id }];
 }
 
 /**

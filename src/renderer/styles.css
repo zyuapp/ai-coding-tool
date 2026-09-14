@@ -4203,3 +4203,9 @@ button.setting-hint:hover { color: var(--ink); }
 .sidebar-project-empty { padding: 12px; color: var(--quiet); font-size: var(--text-meta); overflow-wrap: anywhere; }
 .sidebar-project-empty p { margin: 0 0 8px; }
 .sidebar-project-empty button { border: 0; background: transparent; color: var(--ink); padding: 0; font: inherit; cursor: pointer; }
+
+/* Remote pages share the native panel's space; only their pixels cross the connection. */
+.remote-browser-viewport { display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+.remote-browser-viewport canvas { display: block; flex: none; touch-action: none; }
+.remote-browser-keyboard { position: absolute; top: 0; left: 0; width: 1px; height: 1px; padding: 0; opacity: 0; resize: none; pointer-events: none; }
+.remote-browser-status { position: absolute; bottom: 12px; left: 12px; right: 12px; margin: 0; padding: 8px 12px; border-radius: 8px; background: var(--surface-menu); color: var(--ink); font-size: 12px; pointer-events: none; }

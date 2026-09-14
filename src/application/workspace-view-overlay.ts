@@ -1,3 +1,4 @@
+import { selectedComputer, supportsRemoteBrowser } from "./computers.js";
 import { annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-drafts.js";
 import { promptKey, type OwnWorkspaceView, type SideChatView, type WorkspaceState } from "./workspace-state.js";
 import { heldViews } from "./view-reuse.js";
@@ -51,9 +52,8 @@ export function overlaidView(state: WorkspaceState, own: OwnWorkspaceView, remot
     /** Terminal search runs in this window's xterm, using the output it has received. */
     find: own.find?.target.kind === "terminal" ? own.find : shown.find?.target.kind === "terminal" ? null : shown.find,
     readingPoint: shown.currentThread ? state.readingPoints[shown.currentThread.id] ?? null : null,
-    /** Browser surfaces still belong to the host's native window. */
-    browserTabs: [],
-    browserApproval: null,
+    browserTabs: supportsRemoteBrowser(selectedComputer(state)) ? shown.browserTabs : [],
+    browserApproval: supportsRemoteBrowser(selectedComputer(state)) ? shown.browserApproval : null,
     /** A delete confirmed here may name the other computer's checkout, which only its list has. */
     worktreeDeleteConfirmation: own.worktreeDeleteConfirmation ?? shown.managedWorktrees?.find((item) => item.root === state.worktreeSettings.confirming && !item.deleting) ?? null,
     actionError: state.actionError ?? shown.actionError,

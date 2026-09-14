@@ -137,6 +137,7 @@ type OutboundMessage = Unsequenced<MobileServerMessage> | Unsequenced<ComputerSe
 
 /** The workspace as another computer reads and drives it: whole, and in the window's own inputs. */
 export type WorkspaceHooks = {
+  capabilities?: readonly string[];
   /** What this computer calls itself to the computers it hands the workspace to. Absent, it stays what they paired it as. */
   name?: () => string;
   snapshot: () => WorkspaceUpdate;
@@ -253,7 +254,7 @@ export class MobileServer {
   }
 
   private sendCapabilities(session: Session) {
-    if (session.kind === "computer") this.emit(session, { kind: "capabilities", capabilities: COMPUTER_CAPABILITIES });
+    if (session.kind === "computer") this.emit(session, { kind: "capabilities", capabilities: this.options.workspace?.capabilities ?? COMPUTER_CAPABILITIES });
   }
 
   private sendName(session: Session) {
@@ -506,11 +507,11 @@ export class MobileServer {
     const workspace = this.options.workspace;
     if (!workspace || message.kind === "pair" || message.kind === "resume" || message.kind === "pong") return;
     const { requestId } = message;
-    if (message.kind === "input" && message.inputs.some((input) => !supportsComputerCommand(COMPUTER_CAPABILITIES, input as AppCommand))) {
+    if (message.kind === "input" && message.inputs.some((input) => !supportsComputerCommand(workspace.capabilities ?? COMPUTER_CAPABILITIES, input as AppCommand))) {
       session.transfers.delete(requestId);
       return this.emit(session, { kind: "result", requestId, result: { ok: false, message: REMOTE_UNSUPPORTED, revision: 0 } });
     }
-    if (message.kind === "query" && !supportsComputerQuery(COMPUTER_CAPABILITIES, message.query)) {
+    if (message.kind === "query" && !supportsComputerQuery(workspace.capabilities ?? COMPUTER_CAPABILITIES, message.query)) {
       session.transfers.delete(requestId);
       return this.emit(session, { kind: "answer", requestId, ok: false, message: REMOTE_UNSUPPORTED });
     }

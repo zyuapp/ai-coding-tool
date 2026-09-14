@@ -1,3 +1,4 @@
+import { createRemoteBrowserControl, serializeBrowserPage, type RemoteBrowserTab } from "./browser-control-host.js";
 import { mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -44,7 +45,7 @@ const NETWORK_IDLE_MS = 500;
 
 type NavigationOwner = { id: string; taskId?: string };
 
-type Tab = NavigationOwner & {
+type Tab = NavigationOwner & RemoteBrowserTab & {
   view: WebContentsView;
   /** Whether the window is drawing this page. Only the page on screen is ever a child of it. */
   shown: boolean;
@@ -58,6 +59,10 @@ type Tab = NavigationOwner & {
 };
 
 const tabs = new Map<string, Tab>();
+const remoteBrowser = createRemoteBrowserControl((id) => tabs.get(id), layout);
+export const setRemoteViewport = remoteBrowser.setRemoteViewport;
+export const captureRemoteFrame = remoteBrowser.captureRemoteFrame;
+export const controlPage = remoteBrowser.controlPage;
 const popups = new Map<number, { owner: NavigationOwner; window: BrowserWindow }>();
 let host: BrowserWindow | null = null;
 let publish: (event: BrowserPageEvent) => void = () => undefined;
@@ -291,17 +296,20 @@ function parkingWindow(): BaseWindow | null {
  * navigating inside a window takes the keyboard off whatever there had it, drawn or not, so a run
  * browsing in the background is parked out of the app's window rather than hidden inside it.
  */
-function layout(tab: Tab) {
+function layout(tab: RemoteBrowserTab) {
   if (!host || host.isDestroyed()) return;
-  const shown = tab.id === activeId && bounds !== null;
+  const shown = !tab.offscreen && tab.id === activeId && bounds !== null && (!tab.remote || (host.isVisible() && !host.isMinimized()));
   const home = shown ? host : parkingWindow();
   if (!home) return;
   if (shown !== tab.shown) {
     home.contentView.addChildView(tab.view);
     tab.shown = shown;
   }
-  tab.view.setVisible(shown);
-  tab.view.setBounds(shown && bounds ? inWindow(bounds) : parked);
+  tab.view.setVisible(shown || !!tab.remote);
+  const box = shown && bounds ? inWindow(bounds) : tab.remote ? { x: 0, y: 0, ...tab.remote.viewport } : parked;
+  const old = tab.view.getBounds();
+  if (old.width !== box.width || old.height !== box.height) tab.epoch += 1;
+  tab.view.setBounds(box);
 }
 
 /**
@@ -319,13 +327,15 @@ function inWindow(box: BrowserBounds): Rectangle {
 }
 
 /** Idempotent: a tab that already has a view keeps it, so showing a tab never reloads its page. */
-export function openTab(tabId: string, url?: string, taskId?: string) {
+export function openTab(tabId: string, url?: string, taskId?: string, offscreen = false) {
   if (tabs.get(tabId)) return;
   if (!host || host.isDestroyed()) return;
   const view = new WebContentsView({
-    webPreferences: { partition: PARTITION, contextIsolation: true, nodeIntegration: false, sandbox: true, webviewTag: false },
+    webPreferences: { offscreen, partition: PARTITION, contextIsolation: true, nodeIntegration: false, sandbox: true, webviewTag: false },
   });
+  if (offscreen) view.webContents.setFrameRate(8);
   const tab: Tab = {
+    offscreen,
     id: tabId,
     taskId,
     epoch: 0,
@@ -398,6 +408,10 @@ function watchNavigation(contents: Electron.WebContents, owner: NavigationOwner)
     if (isMainFrame && !allowNavigation(owner, url)) event.preventDefault();
   });
   contents.setWindowOpenHandler(({ url }) => {
+    if (tabs.get(owner.id)?.offscreen) {
+      report(owner.id, { error: "This page tried to open a separate window. Open the site in a native tab on the host to continue." });
+      return { action: "deny" };
+    }
     if (!allowNavigation(owner, url)) return { action: "deny" };
     const childOwner = { ...owner };
     return {
@@ -483,6 +497,7 @@ export function closeTab(tabId: string) {
   }
   const home = tab.shown ? host : parking;
   if (home && !home.isDestroyed()) home.contentView.removeChildView(tab.view);
+  if (tab.remote) clearTimeout(tab.remote.timer);
   tab.view.webContents.close();
 }
 
@@ -667,6 +682,10 @@ function pngSize(bytes: Buffer) {
  * the length of the capture. The parking window is never shown, so this puts nothing on screen.
  */
 async function drawPage(tab: Tab, fullPage: boolean) {
+  return serializeBrowserPage(tab, () => drawPageNow(tab, fullPage));
+}
+
+async function drawPageNow(tab: Tab, fullPage: boolean) {
   const debug = tab.view.webContents.debugger;
   /** The debugger takes one client at a time, so one already attached is left as it was found. */
   const borrowed = !debug.isAttached();

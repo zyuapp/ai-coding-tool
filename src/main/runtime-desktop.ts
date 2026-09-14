@@ -48,8 +48,10 @@ function computerDesktop(host: RuntimeDesktopHost): ComputerDesktop {
 function panelDesktop(host: RuntimeDesktopHost) {
   const { events } = host;
   return {
+    setRemoteBrowserViewport: (tabId, viewport) => browser.setRemoteViewport(tabId, viewport),
+    controlBrowser: (tabId, epoch, input) => browser.controlPage(tabId, epoch, input),
     configureBrowserPermissions: async (permissions) => browser.configurePermissions(permissions),
-    openBrowserTab: async (tabId, url, taskId) => browser.openTab(tabId, url, taskId),
+    openBrowserTab: async (tabId, url, taskId, offscreen) => browser.openTab(tabId, url, taskId, offscreen),
     navigateBrowser: async (tabId, url, taskId) => browser.navigate(tabId, url, taskId),
     browserHistory: async (tabId, delta, taskId) => browser.goHistory(tabId, delta, taskId),
     reloadBrowser: async (tabId, taskId) => browser.reload(tabId, taskId),

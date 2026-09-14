@@ -48,6 +48,7 @@ export type RuntimeDesktop = Pick<DesktopAPI,
   | "onThreadRequest" | "answerThreadRequest"
   | "mobileState" | "setMobileEnabled" | "createMobilePairingCode" | "revokeMobileDevice" | "refreshTailscale"
   | "onMobileState" | "onMobileRequest" | "answerMobileRequest" | "publishMobileView"
+  | "setRemoteBrowserViewport" | "controlBrowser"
   | "configureBrowserPermissions" | "openBrowserTab" | "navigateBrowser" | "browserHistory" | "reloadBrowser"
   | "closeBrowserTab" | "showBrowserTab" | "actInBrowser" | "readBrowserPage" | "inspectBrowserPage"
   | "captureBrowserPage" | "clearBrowserData" | "onBrowserEvent" | "findInPage" | "stopFindInPage"

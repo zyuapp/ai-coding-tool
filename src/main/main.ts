@@ -758,7 +758,7 @@ ipcMain.on("window:focus", (event) => {
 
 serveExternalApps(trustedSender);
 
-registerBrowserIpc(trustedSender);
+registerBrowserIpc(trustedSender, (id, query) => getComputerLinks().query(id, query));
 
 /** Bigger than any file anyone reads, and still small enough that no editor chokes on the argument. */
 const MAX_FILE_LINE = 10_000_000;

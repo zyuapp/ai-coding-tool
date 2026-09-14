@@ -1,3 +1,4 @@
+import { HEADLESS_COMPUTER_CAPABILITIES } from "../contracts/computer-capabilities.js";
 import { existsSync, mkdirSync } from "node:fs";
 import { homedir, hostname } from "node:os";
 import path from "node:path";
@@ -154,6 +155,7 @@ export async function startServe(options: { userData: string; packaged: boolean;
     ...(options.port === undefined ? {} : { port: options.port }),
     ...(options.local ? { tailscale: NO_TAILSCALE } : {}),
     workspace: {
+      capabilities: HEADLESS_COMPUTER_CAPABILITIES,
       name: () => storedComputerName(path.join(userData, "computers.v1.json"), hostname().replace(/\.local$/, "")),
       snapshot: () => publisher.snapshot(),
       subscribe: (listener) => publisher.subscribe(listener),

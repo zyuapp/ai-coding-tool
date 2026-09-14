@@ -32,8 +32,8 @@ export function reduceStore(state: WorkspaceState, input: StoreInput): Workspace
       const docks = { ...state.docks };
       for (const [owner, urls] of Object.entries(input.preferences.browserTabs ?? {})) {
         const browserTabs = urls.flatMap((url): BrowserTab[] => {
-          const loadable = browserUrl(url);
-          return loadable ? [{ id: crypto.randomUUID(), url: loadable, title: "", loading: false, canGoBack: false, canGoForward: false }] : [];
+          const loadable = browserUrl(typeof url === "string" ? url : url.url);
+          return loadable ? [{ ...(typeof url !== "string" && url.offscreen ? { offscreen: true } : {}), id: crypto.randomUUID(), url: loadable, title: "", loading: false, canGoBack: false, canGoForward: false }] : [];
         });
         if (browserTabs.length) docks[owner] = { ...dockFor(state, owner), browserTabs, browserTabId: browserTabs[0].id };
       }
