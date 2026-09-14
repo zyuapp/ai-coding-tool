@@ -265,14 +265,14 @@ export function createComputerCapabilitySnapshot() {
   };
 }
 
-/** The threads a paired computer would list, as it would list them: its own, less the ones it has filed away. */
+/** The threads a reachable paired computer would list, less the ones it has filed away. */
 export type RemoteThreads = { computer: PairedComputer; visible: Thread[]; busy: Set<string>; blocked: Set<string> };
 
 const remoteThreadCache = new WeakMap<WorkspaceState, Omit<RemoteThreads, "computer">>();
 
 function remoteThreads(computer: PairedComputer): RemoteThreads | null {
   const remote = computer.state;
-  if (!remote) return null;
+  if (computer.status !== "connected" || !remote) return null;
   let held = remoteThreadCache.get(remote);
   if (!held) {
     const forked = sideChatIds(remote);

@@ -6,7 +6,7 @@ import { closeSideChats } from "./side-chats.js";
 import { now, rejected, settled, targetId } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { focusComposer } from "../composer-drafts.js";
-import { offlineMessage, shownComputers } from "../computers.js";
+import { shownComputers } from "../computers.js";
 import { REMOTE_UNSUPPORTED, supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import { forkedThreads } from "../thread-fork.js";
 import { activitySections, moveThread as moveThreadInList } from "../thread-order.js";
@@ -67,11 +67,7 @@ function dismissPriority(state: WorkspaceState, localOnly = false): WorkspaceTra
   const effects: WorkspaceEffect[] = [];
   const errors: string[] = [];
   for (const computer of shownComputers(state.computers)) {
-    if (!computer.state || !dismissableThreads(priorityThreads(computer.state)).length) continue;
-    if (computer.status !== "connected") {
-      errors.push(offlineMessage(computer));
-      continue;
-    }
+    if (computer.status !== "connected" || !computer.state || !dismissableThreads(priorityThreads(computer.state)).length) continue;
     const scoped = { type: "task.dismiss-all", localOnly: true } as const;
     /** Older hosts already dismiss only their own threads and do not know the scope field. */
     const command = supportsComputerCommand(computer.capabilities, scoped) ? scoped : { type: "task.dismiss-all" } as const;
