@@ -1,4 +1,4 @@
-import type { CanUseTool, Query, SDKActiveGoalMessage, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
+import type { CanUseTool, HookCallback, Options, Query, SDKActiveGoalMessage, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { claudeEffort, contextWindowLimit, modelTakesEffort, type AgentModel, type ClaudeEffort } from "../../domain/agent-engine.js";
 import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, SubagentMetadata, SubagentReport, ToolIntent } from "../../domain/run.js";
 import type { WorkflowReport } from "../../contracts/ipc.js";
@@ -123,7 +123,7 @@ type Owing = { owed: number };
 /** One turn a run asked for: the stream that answers it, and the promise the answer settles. */
 type Turn = Owing & SessionTurn & { stream: Stream };
 
-export type SessionOpener = (prompt: AsyncIterable<SDKUserMessage>, canUseTool: CanUseTool) => Query;
+export type SessionOpener = (prompt: AsyncIterable<SDKUserMessage>, canUseTool: CanUseTool, hooks: Options["hooks"]) => Query;
 
 /**
  * One live Claude session, kept across turns. The agent process, its MCP servers, and everything it
@@ -155,6 +155,7 @@ export class ClaudeSession {
   private readonly subagentByToolUse = new Map<string, string>();
   /** Launch input and child replies can arrive before task_started connects their tool id to a task. */
   private readonly subagentMetadata = new Map<string, SubagentMetadata>();
+  private readonly subagentEfforts = new Map<string, string>();
   private reportGoal: ProviderRunInput["reportGoal"] = () => {};
   private hasGoal = false;
   /** What the agent process left running here: a shell, a monitor, or a task of its own. */
@@ -197,7 +198,10 @@ export class ClaudeSession {
     this.background.openWith(seed.reportBackground);
     this.reportGoal({ type: "goal.changed", goal: null });
     this.hasGoal = false;
-    this.query = opener(this.stream(), this.canUseTool);
+    this.query = opener(this.stream(), this.canUseTool, {
+      PreToolUse: [{ hooks: [this.receiveSubagentEffort] }],
+      SubagentStop: [{ hooks: [this.receiveSubagentEffort] }],
+    });
     void this.pump();
   }
 
@@ -245,6 +249,7 @@ export class ClaudeSession {
     this.subagentIds.clear();
     this.subagentByToolUse.clear();
     this.subagentMetadata.clear();
+    this.subagentEfforts.clear();
     /** The session ending is the end of the workflows it holds: their own notification can no longer come. */
     for (const id of this.workflowIds) this.reportWorkflow({ type: "workflow.finished", id, status: "stopped", summary: "" });
     this.workflowIds.clear();
@@ -459,6 +464,17 @@ export class ClaudeSession {
     }
   }
 
+  /** Hooks report the child's effective effort, including model downgrades and agent-definition overrides. */
+  private receiveSubagentEffort: HookCallback = async (input) => {
+    const id = input.agent_id;
+    const effort = input.effort?.level;
+    if (this.ended || !id || !effort || this.subagentEfforts.get(id) === effort) return {};
+    this.subagentEfforts.set(id, effort);
+    if (this.subagentIds.has(id)) this.reportSubagent({ type: "subagent.metadata", id, effort });
+    if (this.subagentEfforts.size > 1_000) this.subagentEfforts.delete(this.subagentEfforts.keys().next().value!);
+    return {};
+  };
+
   /** The child reply identifies its actual model; the parent's settings cannot account for agent-definition overrides. */
   private receiveSubagentMetadata(message: SDKMessage) {
     const remember = (toolId: string, metadata: SubagentMetadata) => {
@@ -508,6 +524,7 @@ export class ClaudeSession {
         ...(message.subagent_type ? { agentType: message.subagent_type } : {}), sessionScoped: true,
         ...(message.tool_use_id ? this.subagentMetadata.get(message.tool_use_id) : {}),
         ...(message.prompt !== undefined ? { prompt: message.prompt } : {}),
+        ...(this.subagentEfforts.has(message.task_id) ? { effort: this.subagentEfforts.get(message.task_id) } : {}),
       });
       return true;
     }
@@ -524,6 +541,7 @@ export class ClaudeSession {
     }
     if (message.subtype === "task_notification" && this.subagentIds.has(message.task_id)) {
       this.subagentIds.delete(message.task_id);
+      this.subagentEfforts.delete(message.task_id);
       for (const [toolUseId, id] of this.subagentByToolUse) {
         if (id === message.task_id) {
           this.subagentByToolUse.delete(toolUseId);

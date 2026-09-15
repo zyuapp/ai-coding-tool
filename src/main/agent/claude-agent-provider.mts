@@ -1,4 +1,4 @@
-import { query, type CanUseTool, type McpServerConfig, type ModelInfo, type Query, type SDKUserMessage, type SlashCommand } from "@anthropic-ai/claude-agent-sdk";
+import { query, type CanUseTool, type McpServerConfig, type ModelInfo, type Options, type Query, type SDKUserMessage, type SlashCommand } from "@anthropic-ai/claude-agent-sdk";
 import { claudeEffort, modelTakesEffort, modelsFor, type AgentModel } from "../../domain/agent-engine.js";
 import { engineBinaryPath } from "./engine-binary.mjs";
 import { continuationOf, type AgentProvider, type ProviderResult, type ProviderRunInput } from "./agent-provider.mjs";
@@ -170,7 +170,7 @@ export class ClaudeAgentProvider implements AgentProvider {
     const key = sessionKey(input);
     return this.pool.execute(input, key, {
       open: ({ ended, rested }) => new ClaudeSession(key, ended, rested),
-      start: (session) => session.open((prompt, canUseTool) => this.queryFactory(this.options(input, prompt, canUseTool)), input),
+      start: (session) => session.open((prompt, canUseTool, hooks) => this.queryFactory(this.options(input, prompt, canUseTool, hooks)), input),
     });
   }
 
@@ -191,7 +191,7 @@ export class ClaudeAgentProvider implements AgentProvider {
     this.pool.closeAll();
   }
 
-  private options(input: ProviderRunInput, prompt: AsyncIterable<SDKUserMessage>, canUseTool: CanUseTool) {
+  private options(input: ProviderRunInput, prompt: AsyncIterable<SDKUserMessage>, canUseTool: CanUseTool, hooks: Options["hooks"]) {
     const continuation = continuationOf(input);
     const mcpServers: Record<string, McpServerConfig> = {};
     if (input.computerUse.status === "available") {
@@ -221,6 +221,7 @@ export class ClaudeAgentProvider implements AgentProvider {
         forwardSubagentText: true,
         includePartialMessages: true,
         canUseTool,
+        hooks,
       },
     };
   }

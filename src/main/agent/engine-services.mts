@@ -17,12 +17,13 @@ export type EngineServices = {
   planUsage(): Promise<PlanUsage>;
   /** Whether this engine can take a run on this machine, and what would fix it when it cannot. */
   readiness(): Promise<EngineReadiness>;
-  subagentMetadata?(id: string): Promise<SubagentMetadata>;
+  subagentMetadata?(id: string, sessionId?: string): Promise<SubagentMetadata>;
   signIn?(openUrl: OpenUrl): Promise<EngineAccess>;
 };
 
 export const engineServices: Record<AgentEngine, EngineServices> = {
   claude: {
+    subagentMetadata: async (id, sessionId) => (await import("./claude-subagent-metadata.mjs")).readClaudeSubagentMetadata(id, sessionId),
     commands: async ({ workspaceRoot, projectless }) => (await import("./claude-agent-provider.mjs")).discoverClaudeCommands(workspaceRoot, projectless),
     suggestTitle: async (text, images) => (await import("./title-writer.mjs")).suggestTaskTitle(text, images),
     planUsage: async () => (await import("./plan-usage.mjs")).readPlanUsage(),

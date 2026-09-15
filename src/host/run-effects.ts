@@ -21,7 +21,7 @@ export const runEffects = {
   },
 
   "load-subagent-metadata": async (effect, { dispatch, desktop }) => {
-    const metadata = await desktop.loadSubagentMetadata(effect.engine, effect.subagentId).catch(() => ({}));
+    const metadata = await desktop.loadSubagentMetadata(effect.engine, effect.subagentId, effect.sessionId).catch(() => ({}));
     const event = { ...metadata, type: "subagent.metadata" as const, taskId: effect.taskId, id: effect.subagentId };
     if (isSubagentEvent(event) && (event.model || event.effort)) await dispatch({ type: "thread.event", event });
   },

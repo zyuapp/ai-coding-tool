@@ -87,7 +87,7 @@ const ENGINES: Record<AgentEngine, EngineSpec> = {
     models: CLAUDE_MODELS,
     defaultModel: "opus",
     defaultEffort: "high",
-    capabilities: { fastMode: false, workflows: true, subagents: true, subagentMetadata: false, review: false },
+    capabilities: { fastMode: false, workflows: true, subagents: true, subagentMetadata: true, review: false },
   },
   codex: {
     label: "Codex",

@@ -686,11 +686,11 @@ ipcMain.handle("subagent-activity:load", (event, taskId: string, subagentId: str
   return taskDatabase.subagentActivity(taskId, subagentId);
 });
 
-ipcMain.handle("subagent-metadata:load", async (event, engine: unknown, subagentId: unknown) => {
+ipcMain.handle("subagent-metadata:load", async (event, engine: unknown, subagentId: unknown, sessionId: unknown) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  if (!isAgentEngine(engine) || typeof subagentId !== "string" || !subagentId || subagentId.length > 200) throw new Error("Invalid subagent metadata request.");
+  if (!isAgentEngine(engine) || typeof subagentId !== "string" || !subagentId || subagentId.length > 200 || (sessionId !== undefined && (typeof sessionId !== "string" || sessionId.length > 200))) throw new Error("Invalid subagent metadata request.");
   const { engineServices } = await import("./agent/engine-services.mjs");
-  return engineServices[engine].subagentMetadata?.(subagentId) ?? {};
+  return engineServices[engine].subagentMetadata?.(subagentId, sessionId) ?? {};
 });
 
 ipcMain.on("run:command", (event, payload: unknown) => {

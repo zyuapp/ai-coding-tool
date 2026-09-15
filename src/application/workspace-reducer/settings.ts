@@ -37,9 +37,10 @@ function inspectSubagent(state: WorkspaceState, taskId: string | null, subagentI
   if (!subagent || !taskId) return settled(state);
   const effects: WorkspaceEffect[] = [];
   if (!subagent.activity.length) effects.push({ type: "load-subagent-activity", taskId, subagentId });
-  const engine = state.threads.find((thread) => thread.id === taskId)?.engine;
+  const thread = state.threads.find((thread) => thread.id === taskId);
+  const engine = thread?.engine;
   if (engine && capabilitiesFor(engine).subagentMetadata && (!subagent.model || !subagent.effort)) {
-    effects.push({ type: "load-subagent-metadata", taskId, subagentId, engine });
+    effects.push({ type: "load-subagent-metadata", taskId, subagentId, engine, sessionId: thread?.continuation?.value });
   }
   return settled(state, effects);
 }

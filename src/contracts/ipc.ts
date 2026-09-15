@@ -276,7 +276,7 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   persistTaskStore(delta: TaskStoreDelta): Promise<void>;
   /** A stored subagent's activity, which the store leaves behind until someone opens that subagent. */
   loadSubagentActivity(taskId: string, subagentId: string): Promise<SubagentActivity[]>;
-  loadSubagentMetadata(engine: AgentEngine, subagentId: string): Promise<import("../domain/run.js").SubagentMetadata>;
+  loadSubagentMetadata(engine: AgentEngine, subagentId: string, sessionId?: string): Promise<import("../domain/run.js").SubagentMetadata>;
   listAutomations(): Promise<AutomationView[]>;
   saveAutomation(draft: AutomationDraft): Promise<AutomationView>;
   updateAutomation(taskId: string, patch: AutomationPatch): Promise<AutomationView>;

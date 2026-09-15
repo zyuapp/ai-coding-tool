@@ -110,3 +110,31 @@ test("Claude takes the delegated prompt from task_started and the model from the
   assert.deepEqual(reported[1], { type: "subagent.metadata", id: "child", model: "claude-haiku" });
   await live.end();
 });
+
+test("Claude captures effective child effort from hooks across launch order and completion", async () => {
+  const reported: SubagentReport[] = [];
+  const live = await liveTurn({ effort: "max", reportSubagent: (report) => reported.push(report) });
+  const hooks = live.capture.options!.options!.hooks!;
+  const preTool = hooks.PreToolUse![0].hooks[0];
+  const stopped = hooks.SubagentStop![0].hooks[0];
+  const base = { session_id: "session", transcript_path: "/tmp/transcript", cwd: "/tmp", hook_event_name: "PreToolUse" as const, tool_name: "Read", tool_input: {}, tool_use_id: "read" };
+  const options = { signal: new AbortController().signal };
+  assert.deepEqual(await preTool({ ...base, effort: { level: "max" } }, undefined, options), {});
+  await preTool({ ...base, agent_id: "child", effort: { level: "medium" } }, undefined, options);
+  assert.equal(reported.length, 0);
+  live.capture.emit!({ type: "system", subtype: "task_started", task_id: "child", tool_use_id: "launch", subagent_type: "general-purpose", description: "Explore" });
+  await tick();
+  assert.equal(reported[0].type === "subagent.started" && reported[0].effort, "medium");
+  await preTool({ ...base, agent_id: "child", effort: { level: "medium" } }, undefined, options);
+  assert.equal(reported.length, 1);
+  for (const effort of ["low", "high", "xhigh", "max", "64"]) {
+    await preTool({ ...base, agent_id: "child", effort: { level: effort } }, undefined, options);
+    assert.deepEqual(reported.at(-1), { type: "subagent.metadata", id: "child", effort });
+  }
+  await stopped({ session_id: "session", transcript_path: "/tmp/transcript", cwd: "/tmp", hook_event_name: "SubagentStop", agent_id: "child", agent_type: "general-purpose", agent_transcript_path: "/tmp/child", stop_hook_active: false, effort: { level: "medium" } }, undefined, options);
+  assert.deepEqual(reported.at(-1), { type: "subagent.metadata", id: "child", effort: "medium" });
+  await live.end();
+  const count = reported.length;
+  await preTool({ ...base, agent_id: "child", effort: { level: "max" } }, undefined, options);
+  assert.equal(reported.length, count);
+});
