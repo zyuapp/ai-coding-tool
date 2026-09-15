@@ -1,6 +1,6 @@
 import type { CanUseTool, Query, SDKActiveGoalMessage, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { claudeEffort, contextWindowLimit, modelTakesEffort, type AgentModel, type ClaudeEffort } from "../../domain/agent-engine.js";
-import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, SubagentReport, ToolIntent } from "../../domain/run.js";
+import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, SubagentMetadata, SubagentReport, ToolIntent } from "../../domain/run.js";
 import type { WorkflowReport } from "../../contracts/ipc.js";
 import { continuationOf, type AgentTurn, type ProviderEvent, type ProviderResult, type ProviderRunInput, type SteerQueue, type ToolDecision } from "./agent-provider.mjs";
 import { SIDE_CHAT_BOUNDARY } from "./side-chat-instructions.mjs";
@@ -153,6 +153,8 @@ export class ClaudeSession {
   /** The subagents still running here, by task id, and by the tool call that launched each. */
   private readonly subagentIds = new Set<string>();
   private readonly subagentByToolUse = new Map<string, string>();
+  /** Launch input and child replies can arrive before task_started connects their tool id to a task. */
+  private readonly subagentMetadata = new Map<string, SubagentMetadata>();
   private reportGoal: ProviderRunInput["reportGoal"] = () => {};
   private hasGoal = false;
   /** What the agent process left running here: a shell, a monitor, or a task of its own. */
@@ -242,6 +244,7 @@ export class ClaudeSession {
     for (const id of this.subagentIds) this.reportSubagent({ type: "subagent.finished", id, status: "stopped", summary: "The session ended before this subagent finished." });
     this.subagentIds.clear();
     this.subagentByToolUse.clear();
+    this.subagentMetadata.clear();
     /** The session ending is the end of the workflows it holds: their own notification can no longer come. */
     for (const id of this.workflowIds) this.reportWorkflow({ type: "workflow.finished", id, status: "stopped", summary: "" });
     this.workflowIds.clear();
@@ -389,6 +392,7 @@ export class ClaudeSession {
       this.background.replace(backgroundProcesses(message.tasks), message.tasks.map((task) => task.task_id));
     }
     if (this.receiveWorkflow(message)) return;
+    this.receiveSubagentMetadata(message);
     if (this.receiveSubagent(message)) return;
     const stream = this.streamFor(message);
     if (!stream) return;
@@ -455,6 +459,32 @@ export class ClaudeSession {
     }
   }
 
+  /** The child reply identifies its actual model; the parent's settings cannot account for agent-definition overrides. */
+  private receiveSubagentMetadata(message: SDKMessage) {
+    const remember = (toolId: string, metadata: SubagentMetadata) => {
+      const previous = this.subagentMetadata.get(toolId);
+      if (Object.entries(metadata).every(([key, value]) => previous?.[key as keyof SubagentMetadata] === value)) return;
+      this.subagentMetadata.set(toolId, { ...previous, ...metadata });
+      const id = this.subagentByToolUse.get(toolId);
+      if (id) this.reportSubagent({ type: "subagent.metadata", id, ...metadata });
+      /** Calls that fail before task_started have no finish event to release them. */
+      if (this.subagentMetadata.size > 1_000) this.subagentMetadata.delete(this.subagentMetadata.keys().next().value!);
+    };
+    if (message.type === "assistant") {
+      for (const block of message.message.content) {
+        if (block.type !== "tool_use" || (block.name !== "Agent" && block.name !== "Task")) continue;
+        const input = block.input as Record<string, unknown> | null;
+        if (input && typeof input.prompt === "string") remember(block.id, { prompt: input.prompt });
+      }
+      if (message.parent_tool_use_id && message.message.model && message.message.model !== SYNTHETIC_MODEL) {
+        remember(message.parent_tool_use_id, { model: message.message.model });
+      }
+    } else if (message.type === "stream_event" && message.parent_tool_use_id && message.event.type === "message_start") {
+      const model = message.event.message.model;
+      if (model && model !== SYNTHETIC_MODEL) remember(message.parent_tool_use_id, { model });
+    }
+  }
+
   /** Whether the message belonged to a subagent. Read before the stream guard, so one running in the background reports between turns too. */
   private receiveSubagent(message: SDKMessage) {
     if (message.type === "assistant" && message.parent_tool_use_id) {
@@ -473,7 +503,12 @@ export class ClaudeSession {
     if (message.subtype === "task_started" && message.subagent_type) {
       this.subagentIds.add(message.task_id);
       if (message.tool_use_id) this.subagentByToolUse.set(message.tool_use_id, message.task_id);
-      this.reportSubagent({ type: "subagent.started", id: message.task_id, description: message.description, agentType: message.subagent_type, sessionScoped: true });
+      this.reportSubagent({
+        type: "subagent.started", id: message.task_id, description: message.description,
+        ...(message.subagent_type ? { agentType: message.subagent_type } : {}), sessionScoped: true,
+        ...(message.tool_use_id ? this.subagentMetadata.get(message.tool_use_id) : {}),
+        ...(message.prompt !== undefined ? { prompt: message.prompt } : {}),
+      });
       return true;
     }
     if (message.subtype === "task_progress" && (message.subagent_type || this.subagentIds.has(message.task_id))) {
@@ -490,7 +525,10 @@ export class ClaudeSession {
     if (message.subtype === "task_notification" && this.subagentIds.has(message.task_id)) {
       this.subagentIds.delete(message.task_id);
       for (const [toolUseId, id] of this.subagentByToolUse) {
-        if (id === message.task_id) this.subagentByToolUse.delete(toolUseId);
+        if (id === message.task_id) {
+          this.subagentByToolUse.delete(toolUseId);
+          this.subagentMetadata.delete(toolUseId);
+        }
       }
       this.reportSubagent({ type: "subagent.finished", id: message.task_id, status: message.status === "completed" ? "completed" : message.status, summary: message.summary });
       return true;

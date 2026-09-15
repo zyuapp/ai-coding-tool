@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import type { SubagentReport } from "../../../src/domain/run.ts";
+import { isSubagentEvent } from "../../../src/contracts/ipc.ts";
 import type { ProviderEvent } from "../../../src/main/agent/agent-provider.mts";
 import type { NotificationParams } from "../../../src/main/codex/app-server-client.mts";
 import { CodexSubagents } from "../../../src/main/codex/codex-subagents.mts";
@@ -64,6 +65,59 @@ const command = (id: string): ThreadItem => ({
 });
 
 const message = (id: string, text: string): ThreadItem => ({ type: "agentMessage", id, text, phase: "final_answer", memoryCitation: null, delivery: null, questions: null });
+
+test("Codex captures model and effort from the child and the full prompt from child input", () => {
+  const reports: SubagentReport[] = [];
+  const tracker = new CodexSubagents((report) => reports.push(report));
+  tracker.setRootThreadId(rootId);
+  const prompt = "  Inspect carefully.\n\n" + "Keep every instruction.\n".repeat(10_000);
+  const input: ThreadItem = { type: "userMessage", id: "input", clientId: null, content: [{ type: "text", text: prompt, text_elements: [] }] };
+  tracker.itemStarted(itemStarted("child", "turn", input));
+  const child = spawnedThread("child", "Inspect carefully", "reviewer", "reviewer", "/root/reviewer");
+  child.thread.model = "gpt-5.6-sol";
+  child.thread.reasoningEffort = "xhigh";
+  tracker.threadStarted(child);
+  const started = reports.find((report) => report.type === "subagent.started");
+  assert.equal(started?.prompt, prompt);
+  assert.equal(started?.model, "gpt-5.6-sol");
+  assert.equal(started?.effort, "xhigh");
+  assert.equal(started?.description, prompt.trim().slice(0, 100_000));
+  assert.equal(isSubagentEvent({ ...started, taskId: "task" }), true, "a long prompt must still pass the event boundary");
+  tracker.itemCompleted(itemCompleted("child", "turn", input));
+  tracker.itemStarted(itemStarted("child", "turn-2", { ...input, id: "followup", content: [{ type: "text", text: "Follow up", text_elements: [] }] }));
+  assert.equal(reports.filter((report) => report.type === "subagent.metadata").length, 0, "follow-ups do not replace the original assignment");
+});
+
+test("Codex enriches a discovered child with collaboration input, then authoritative thread settings", () => {
+  const reports: SubagentReport[] = [];
+  const tracker = new CodexSubagents((report) => reports.push(report));
+  tracker.setRootThreadId(rootId);
+  tracker.itemStarted(itemStarted(rootId, "turn", activity("discover", "child", "/root/reviewer")));
+  tracker.itemCompleted(itemCompleted(rootId, "turn", {
+    type: "collabAgentToolCall", id: "spawn", tool: "spawnAgent", status: "completed", senderThreadId: rootId,
+    receiverThreadIds: ["child"], prompt: "  Full\nassignment  ", model: "gpt-5.6-sol", reasoningEffort: "high", agentsStates: {},
+  }));
+  const child = spawnedThread("child", "Review", "reviewer", "reviewer", "/root/reviewer");
+  child.thread.model = "gpt-6-astra";
+  child.thread.reasoningEffort = "xhigh";
+  tracker.threadStarted(child);
+  const details = reports.filter((report) => report.type === "subagent.metadata");
+  assert.deepEqual(details.at(-1), { type: "subagent.metadata", id: "child", prompt: "  Full\nassignment  ", model: "gpt-6-astra", effort: "xhigh" });
+});
+
+test("MultiAgentV2 discovery exposes child settings without treating its preview as a plaintext prompt", () => {
+  const reports: SubagentReport[] = [];
+  const tracker = new CodexSubagents((report) => reports.push(report));
+  tracker.setRootThreadId(rootId);
+  tracker.itemStarted(itemStarted(rootId, "turn", activity("discover", "child", "/root/reviewer")));
+  const child = spawnedThread("child", "", "Mencius", "reviewer", "/root/reviewer");
+  child.thread.model = "gpt-6-astra";
+  child.thread.reasoningEffort = "high";
+  tracker.threadStarted(child);
+  const metadata = reports.filter((report) => report.type === "subagent.metadata");
+  assert.deepEqual(metadata.at(-1), { type: "subagent.metadata", id: "child", model: "gpt-6-astra", effort: "high" });
+  assert.equal(reports.some((report) => "prompt" in report), false, "encrypted NEW_TASK bodies are not available on the app-server event path");
+});
 
 test("child-first traffic is buffered, both discovery paths merge, and root self-activity is rejected", () => {
   const reports: SubagentReport[] = [];

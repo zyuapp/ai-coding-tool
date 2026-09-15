@@ -832,6 +832,12 @@ export function isSubagentEvent(value: unknown): value is SubagentEvent {
   if (!value || typeof value !== "object") return false;
   const event = value as Record<string, unknown>;
   if (!isString(event.taskId) || !isString(event.id)) return false;
+  if (event.type === "subagent.started" || event.type === "subagent.metadata") {
+    if (!(event.model === undefined || isString(event.model))
+      || !(event.effort === undefined || isString(event.effort))
+      || !(event.prompt === undefined || typeof event.prompt === "string")) return false;
+    if (event.type === "subagent.metadata") return true;
+  }
   if (event.type === "subagent.started") {
     return isString(event.description, 100_000)
       && (event.agentType === undefined || isString(event.agentType))

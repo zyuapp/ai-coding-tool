@@ -183,7 +183,7 @@ export class RunCoordinator {
 
   private handleProviderEvent(active: ActiveRun, event: ProviderEvent) {
     if (!this.isCurrent(active) || active.terminal) return;
-    if (event.type === "subagent.started" || event.type === "subagent.status" || event.type === "subagent.progress" || event.type === "subagent.activity" || event.type === "subagent.finished") {
+    if (event.type === "subagent.started" || event.type === "subagent.metadata" || event.type === "subagent.status" || event.type === "subagent.progress" || event.type === "subagent.activity" || event.type === "subagent.finished") {
       this.reportSubagent(active.taskId, event);
       return;
     }

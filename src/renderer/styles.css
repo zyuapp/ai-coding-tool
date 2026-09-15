@@ -2438,6 +2438,15 @@ pre {
 .inspector-scroll { min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
 .subagent-inspector .agent-detail-heading { padding: 26px 24px 22px; }
 .subagent-inspector .agent-detail-heading h2 { font-size: var(--text-heading); }
+.agent-details { padding: 0 24px 18px; border-bottom: 1px solid var(--line-soft); }
+.agent-configuration { display: grid; gap: 8px; margin: 0 0 16px; font-size: var(--text-control); }
+.agent-configuration > div { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 12px; }
+.agent-configuration dt { color: var(--quiet); }
+.agent-configuration dd { margin: 0; color: var(--ink-soft); overflow-wrap: anywhere; }
+.agent-prompt { font-size: var(--text-control); color: var(--ink-soft); }
+.agent-prompt summary { cursor: pointer; }
+.agent-prompt pre { margin: 12px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; line-height: 1.6; }
+.agent-prompt p { margin: 12px 0 0; color: var(--quiet); }
 .subagent-inspector .agent-summary { padding: 18px 24px; }
 .subagent-inspector .agent-activity { padding: 22px 24px 32px; }
 .agent-activity-items { position: relative; width: 100%; display: grid; }

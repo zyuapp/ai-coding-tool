@@ -1,6 +1,6 @@
 import type { PendingQuestion } from "../domain/agent-question.js";
 import type { BackgroundEvent, RunEvent, ThreadEvent, WorkflowEvent } from "../contracts/ipc.js";
-import type { BackgroundProcess, Subagent, SubagentReport } from "../domain/run.js";
+import type { BackgroundProcess, Subagent, SubagentMetadata, SubagentReport } from "../domain/run.js";
 import type { Workflow } from "../domain/workflow.js";
 import type { ActiveGoal } from "../domain/goal.js";
 import { createConversationMessage, createFailureMessage } from "../domain/conversation.js";
@@ -212,11 +212,26 @@ function updateSubagent<T extends RunTransitionState>(state: T, threadId: string
 
 /** Shared subagent state changes, whether a run carries them or a session reports them later. */
 function applySubagentReport<T extends RunTransitionState>(state: T, threadId: string, event: SubagentReport): T {
+  const metadata = (details: SubagentMetadata): SubagentMetadata => ({
+    ...(details.model !== undefined ? { model: details.model } : {}),
+    ...(details.effort !== undefined ? { effort: details.effort } : {}),
+    ...(details.prompt !== undefined ? { prompt: details.prompt } : {}),
+  });
+  if (event.type === "subagent.metadata") {
+    return updateSubagent(state, threadId, event.id, (existing) => ({
+      ...(existing ?? { id: event.id, description: "Subagent", status: "working" as const, startedAt: now(), activity: [] }),
+      ...metadata(event),
+      ...(existing?.prompt !== undefined ? { prompt: existing.prompt } : {}),
+    }));
+  }
   if (event.type === "subagent.started") {
     return updateSubagent(state, threadId, event.id, (existing) => {
       const { finishedAt: _finishedAt, lastToolName: _lastToolName, ...preserved } = existing ?? {};
       return {
         ...preserved,
+        ...metadata(event),
+        /** Resuming a child may repeat started with a new message; Prompt remains its original assignment. */
+        ...(existing?.prompt !== undefined ? { prompt: existing.prompt } : {}),
         id: event.id,
         description: event.description,
         ...(event.agentType ? { agentType: event.agentType } : {}),
@@ -299,6 +314,7 @@ function applySubagentReport<T extends RunTransitionState>(state: T, threadId: s
 export function applyThreadEvent<T extends RunTransitionState>(state: T, event: ThreadEvent): T {
   switch (event.type) {
     case "subagent.started":
+    case "subagent.metadata":
     case "subagent.status":
     case "subagent.progress":
     case "subagent.activity":

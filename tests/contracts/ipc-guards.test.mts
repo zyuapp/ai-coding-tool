@@ -186,6 +186,15 @@ test("subagent event guard validates thread-scoped lifecycle reports", () => {
   for (const event of invalid) assert.equal(isSubagentEvent(event), false, JSON.stringify(event));
 });
 
+test("subagent metadata validates models and effort while preserving long complete prompts", () => {
+  const details = { model: "gpt-6-astra", effort: "xhigh", prompt: "Instructions\n".repeat(20_000) };
+  for (const type of ["subagent.started", "subagent.metadata"]) {
+    const event = { type, taskId: "task-1", id: "child", description: "Review", ...details };
+    assert.equal(isSubagentEvent(event), true);
+    for (const key of ["model", "effort", "prompt"]) assert.equal(isSubagentEvent({ ...event, [key]: 42 }), false);
+  }
+});
+
 test("workflow events name a thread instead of a run", () => {
   const started = { type: "workflow.started", taskId: "task-1", id: "wf-1", name: "review-changes", description: "Review changed files" };
   assert.equal(isWorkflowEvent(started), true);

@@ -1,4 +1,4 @@
-import type { SubagentReport } from "../../domain/run.js";
+import type { SubagentMetadata, SubagentReport } from "../../domain/run.js";
 import type { NotificationParams } from "./app-server-client.mjs";
 import type { ThreadItem } from "./protocol/v2/ThreadItem.js";
 
@@ -12,6 +12,8 @@ type Child = {
   lifecycle: ChildLifecycle;
   active: boolean;
   prompt?: string;
+  model?: string;
+  effort?: string;
   preview?: string;
   nickname?: string;
   role?: string;
@@ -188,6 +190,8 @@ export class CodexSubagents {
       if (!spawn && !this.shouldSuppress(thread.id)) return false;
       const child = this.child(thread.id);
       this.mergeMetadata(child, {
+        model: nonempty(thread.model),
+        effort: nonempty(thread.reasoningEffort),
         preview: nonempty(thread.preview),
         nickname: spawn?.nickname ?? nonempty(thread.agentNickname),
         role: spawn?.role ?? nonempty(thread.agentRole),
@@ -341,7 +345,11 @@ export class CodexSubagents {
     for (const receiver of item.receiverThreadIds) {
       if (receiver === this.rootThreadId || this.ignoredThreads.has(receiver)) continue;
       const child = this.child(receiver);
-      if (item.tool === "spawnAgent" && item.prompt) this.mergeMetadata(child, { prompt: nonempty(item.prompt) });
+      if (item.tool === "spawnAgent") this.mergeMetadata(child, {
+        ...(item.prompt !== null ? { prompt: item.prompt } : {}),
+        model: child.model ?? nonempty(item.model),
+        effort: child.effort ?? nonempty(item.reasoningEffort),
+      });
       const state = item.agentsStates[receiver];
       if (!state) continue;
       if (state.status === "pendingInit" || state.status === "running") this.setLifecycle(child, "working", state.message ?? undefined);
@@ -352,6 +360,12 @@ export class CodexSubagents {
   }
 
   private receiveChildItem(child: Child, item: ThreadItem, started: boolean) {
+    /** Older protocols expose plain input. MultiAgentV2's encrypted NEW_TASK messages do not expose a prompt. */
+    if (item.type === "userMessage") {
+      const text = item.content.filter((part) => part.type === "text").map((part) => part.text).join("\n");
+      if (text && child.prompt === undefined) this.mergeMetadata(child, { prompt: text });
+      return;
+    }
     if (item.type === "exitedReviewMode") {
       if (started) return;
       const text = item.review.trim();
@@ -413,18 +427,33 @@ export class CodexSubagents {
   }
 
   private description(child: Child) {
-    return child.prompt ?? child.preview ?? child.nickname ?? pathLeaf(child.path) ?? child.role ?? "Subagent";
+    /** The roster's existing title stays searchable; its transport limit must not truncate the separate prompt. */
+    return (nonempty(child.prompt) ?? child.preview ?? child.nickname ?? pathLeaf(child.path) ?? child.role ?? "Subagent").slice(0, 100_000);
   }
 
-  private mergeMetadata(child: Child, metadata: { prompt?: string; preview?: string; nickname?: string; role?: string; path?: string }) {
+  private mergeMetadata(child: Child, metadata: SubagentMetadata & { preview?: string; nickname?: string; role?: string; path?: string }) {
     const before = this.description(child);
     const role = child.role;
+    const changed = child.prompt === undefined && metadata.prompt !== undefined
+      || metadata.model !== undefined && child.model !== metadata.model
+      || metadata.effort !== undefined && child.effort !== metadata.effort;
     child.prompt ??= metadata.prompt;
+    if (metadata.model !== undefined) child.model = metadata.model;
+    if (metadata.effort !== undefined) child.effort = metadata.effort;
     child.preview ??= metadata.preview;
     child.nickname ??= metadata.nickname;
     child.role ??= metadata.role;
     child.path ??= metadata.path;
     if (child.discovered && (this.description(child) !== before || child.role !== role)) this.emitProgress(child);
+    if (child.discovered && changed) this.report({ type: "subagent.metadata", id: child.id, ...this.metadata(child) });
+  }
+
+  private metadata(child: Child): SubagentMetadata {
+    return {
+      ...(child.prompt !== undefined ? { prompt: child.prompt } : {}),
+      ...(child.model !== undefined ? { model: child.model } : {}),
+      ...(child.effort !== undefined ? { effort: child.effort } : {}),
+    };
   }
 
   private discover(child: Child) {
@@ -434,6 +463,7 @@ export class CodexSubagents {
       type: "subagent.started",
       id: child.id,
       description: this.description(child),
+      ...this.metadata(child),
       ...(child.role ? { agentType: child.role } : {}),
       sessionScoped: true,
     });

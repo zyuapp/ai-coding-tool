@@ -182,7 +182,7 @@ test("SQLite task storage keeps subagent activity in rows of its own", async () 
     lastChangeSnapshot: { files: [], capturedAt: 1 },
     updatedAt: 2,
   };
-  const subagent: PersistedSubagent = { id: "agent-1", description: "Explore", status: "working", startedAt: 1 };
+  const subagent: PersistedSubagent = { id: "agent-1", description: "Explore", status: "working", startedAt: 1, model: "claude-sonnet", effort: "high", prompt: "  Exact\nprompt  " };
   try {
     database.persist({
       tasks: [{
@@ -204,6 +204,9 @@ test("SQLite task storage keeps subagent activity in rows of its own", async () 
     const loaded = loadDatabase(database);
     assert.deepEqual(loaded.tasks[0].subagents![0].activity, []);
     assert.equal(loaded.tasks[0].subagents![0].status, "completed");
+    assert.equal(loaded.tasks[0].subagents![0].model, subagent.model);
+    assert.equal(loaded.tasks[0].subagents![0].effort, subagent.effort);
+    assert.equal(loaded.tasks[0].subagents![0].prompt, subagent.prompt);
     assert.deepEqual(database.subagentActivity("task-1", "agent-1").map((item) => item.id), ["activity-1", "activity-2"]);
     assert.equal(JSON.parse((new DatabaseSync(file).prepare("SELECT data FROM tasks WHERE id = 'task-1'").get() as { data: string }).data).subagents, undefined);
   } finally {

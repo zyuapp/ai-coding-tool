@@ -186,6 +186,11 @@ export function isAgentEffort(value: unknown): value is AgentEffort {
   return typeof value === "string" && EFFORT_IDS.has(value);
 }
 
+/** Reported provider values use the same names as the picker, while unfamiliar efforts remain readable. */
+export function effortLabel(value: string) {
+  return isAgentEffort(value) ? EFFORTS[value].label : value;
+}
+
 export function engineHasModel(engine: AgentEngine, model: AgentModel) {
   return ENGINES[engine].models.some((spec) => spec.id === model);
 }

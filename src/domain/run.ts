@@ -34,9 +34,17 @@ export type SubagentLiveStatus = "working" | "idle";
 export type SubagentTerminalStatus = "completed" | "failed" | "stopped";
 export type SubagentStatus = SubagentLiveStatus | SubagentTerminalStatus;
 
+/** Details reported by the provider; absent fields were not supplied, never inferred from the parent. */
+export type SubagentMetadata = {
+  model?: string;
+  effort?: string;
+  prompt?: string;
+};
+
 /** Provider-neutral updates for one delegated agent, before the owning thread is attached for transport. */
 export type SubagentReport =
-  | { type: "subagent.started"; id: string; description: string; agentType?: string; sessionScoped?: true }
+  | ({ type: "subagent.started"; id: string; description: string; agentType?: string; sessionScoped?: true } & SubagentMetadata)
+  | ({ type: "subagent.metadata"; id: string } & SubagentMetadata)
   | { type: "subagent.status"; id: string; status: SubagentLiveStatus; summary?: string }
   | { type: "subagent.progress"; id: string; description: string; agentType?: string; lastToolName?: string; summary?: string; totalTokens: number }
   | { type: "subagent.activity"; id: string; activityId: string; kind: "text" | "tool"; title?: string; text: string }
@@ -64,7 +72,7 @@ export type SubagentActivity = {
   at: number;
 };
 
-export type Subagent = {
+export type Subagent = SubagentMetadata & {
   id: string;
   description: string;
   agentType?: string;
