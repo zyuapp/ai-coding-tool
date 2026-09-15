@@ -92,8 +92,6 @@ let updateRestartScheduled = false;
 let reopenArgs: string[] | null = null;
 /** Folders the `aic` command named, held until the window is up and listening for them. */
 const pendingProjectOpens: string[] = [];
-const pendingMenuCommands: string[] = [];
-let rendererListening = false;
 let runtimeListening = false;
 
 function trustedSender(event: IpcMainEvent | IpcMainInvokeEvent) {
@@ -290,20 +288,14 @@ async function flushProjectOpens() {
   revealWindow();
 }
 
-function flushMenuCommands() {
-  if (!rendererListening || !window || window.isDestroyed()) return;
-  while (pendingMenuCommands.length) window.webContents.send("window:shortcut", { action: pendingMenuCommands.shift()!, surface: "any" });
-}
-
-/** A menu remains usable after macOS closes the last window, so its command waits for the next renderer. */
-function sendMenuCommand(action: string) {
-  pendingMenuCommands.push(action);
-  if (!window || window.isDestroyed()) {
-    void createWindow().then(revealWindow).catch((error) => console.error("Could not reopen the app window:", error));
-    return;
-  }
-  revealWindow();
-  flushMenuCommands();
+/** Menu actions use the same runtime as buttons; a closed window is reopened to show their result. */
+function sendMenuCommand(type: "app.check-for-updates" | "app.open-source-licenses") {
+  void (async () => {
+    if (!window || window.isDestroyed()) await createWindow();
+    revealWindow();
+    const result = await workspaceRuntime.dispatch({ type });
+    if (!result.ok) throw new Error(result.message);
+  })().catch((error) => console.error("App menu command failed:", error));
 }
 
 function openProjectPath(root: string) {
@@ -379,7 +371,6 @@ async function createWindow() {
   if (placement.maximized && !placement.fullScreen) window.maximize();
   watchWindowPlacement(window);
   window.on("closed", () => {
-    rendererListening = false;
     void stopMobileBridge().catch((error) => console.error("Could not stop the phone bridge:", error));
     browser.stopBrowserHost();
     terminal.stopTerminalHost();
@@ -450,10 +441,6 @@ app.whenReady().then(async () => {
   if (!app.isPackaged) app.dock?.setIcon(icon);
   keyboard.claimDesktopShortcut();
   await searchPath;
-  installAppMenu({
-    onCheckForUpdates: () => sendMenuCommand("app.check-for-updates"),
-    onOpenSourceLicenses: () => sendMenuCommand("app.open-source-licenses"),
-  });
   await workspaceRuntime.start();
   runtimeListening = true;
   void flushProjectOpens();
@@ -467,6 +454,10 @@ app.whenReady().then(async () => {
   });
   computerLinks.start();
   await createWindow();
+  installAppMenu({
+    onCheckForUpdates: () => sendMenuCommand("app.check-for-updates"),
+    onOpenSourceLicenses: () => sendMenuCommand("app.open-source-licenses"),
+  });
   const launchPath = projectPathFromArgv(process.argv);
   if (launchPath) openProjectPath(launchPath);
   void checkForUpdates(updateHost).catch((error) => console.error("Update check failed:", error));
@@ -561,12 +552,6 @@ ipcMain.handle("workspace:open", async (event) => {
 ipcMain.handle("workspace:projectless", async (event) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   return (await getWorkspaceService().getProjectless()).workspace;
-});
-
-ipcMain.on("workspace-view:ready", (event) => {
-  if (!trustedSender(event)) return;
-  rendererListening = true;
-  flushMenuCommands();
 });
 
 ipcMain.handle("cli:status", async (event) => {

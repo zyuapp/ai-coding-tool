@@ -339,8 +339,9 @@ test("a page keeps bounded developer diagnostics and waits for page conditions",
 
 type MenuEntry = { label?: string; role?: string; type?: string; submenu?: MenuEntry[]; click?: () => void };
 
-test("the app menu sends help actions through the window command path", async () => {
-  listener<(event: IpcEvent) => void>("workspace-view:ready")(main.trusted);
+test("the app menu runs help actions through the runtime without a renderer", async () => {
+  assert.equal(main.window.menuBarVisible, process.platform !== "linux");
+  assert.equal(main.window.menuBarAutoHide, false, "Alt cannot bring back the Linux menu strip");
   const menu = main.applicationMenu() as MenuEntry[] | null;
   assert.ok(menu, "the app sets its own menu");
   const appMenu = menu.find((entry) => entry.label === "AI Coding Tool");
@@ -359,17 +360,18 @@ test("the app menu sends help actions through the window command path", async ()
 
   const check = menu.flatMap((entry) => entry.submenu ?? []).find((entry) => entry.label === "Check for Updates…");
   assert.ok(check?.click);
+  const dialogsBefore = main.messageBoxes.length;
   check.click();
-  assert.deepEqual(main.sentOn<ShortcutInvocation>("window:shortcut").at(-1), { action: "app.check-for-updates", surface: "any" });
+  await waitFor(() => main.messageBoxes.length > dialogsBefore, "the menu update check showing a dialog");
+  assert.equal(main.messageBoxes.at(-1)?.message, "This copy of AI Coding Tool runs from source.");
 
   const licenses = menu.flatMap((entry) => entry.submenu ?? []).find((entry) => entry.label === "Open Source Licenses…");
   assert.ok(licenses?.click);
   licenses.click();
-  assert.deepEqual(main.sentOn<ShortcutInvocation>("window:shortcut").at(-1), { action: "app.open-source-licenses", surface: "any" });
+  await waitFor(() => main.windows.some((window) => window.loadedURL === "aicodingtool-licenses://notices/" && window.visible), "the menu opening licenses");
 
   const openLicenses = handler<(event: IpcEvent) => Promise<void>>("licenses:open");
   await assert.rejects(openLicenses(main.untrusted));
-  await openLicenses(main.trusted);
   const viewer = main.windows.find((window) => window.loadedURL === "aicodingtool-licenses://notices/");
   assert.ok(viewer, "licenses open inside the app without an external text editor");
   assert.equal(viewer.visible, true);

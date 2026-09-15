@@ -1,32 +1,30 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import type { ShortcutInvocation } from "../../src/contracts/ipc.js";
-import { registered, startMainProcess, waitFor } from "../support/electron-harness.mjs";
+import { startMainProcess, waitFor } from "../support/electron-harness.mjs";
 
 type MenuEntry = { label?: string; submenu?: MenuEntry[]; click?: () => void };
-type IpcEvent = { sender: unknown };
 
-test("a help-menu command reopens a window and waits until its renderer is listening", async (context) => {
+test.skipIf(process.platform !== "darwin")("help-menu commands reopen a closed window and show their results without a renderer", async (context) => {
   const main = await startMainProcess(context, "aicodingtool-menu-lifecycle-");
-  assert.equal(main.window.menuBarVisible, process.platform !== "linux");
-  assert.equal(main.window.menuBarAutoHide, false, "Alt cannot bring back the Linux menu strip");
   const menu = main.applicationMenu() as MenuEntry[] | null;
-  const licenses = menu?.flatMap((entry) => entry.submenu ?? []).find((entry) => entry.label === "Open Source Licenses…");
-  assert.ok(licenses?.click);
+  for (const label of ["Check for Updates…", "Open Source Licenses…"]) {
+    const command = menu?.flatMap((entry) => entry.submenu ?? []).find((entry) => entry.label === label);
+    assert.ok(command?.click);
+    const previousWindow = main.windows[0]!;
+    previousWindow.close();
+    const dialogsBefore = main.messageBoxes.length;
+    command.click();
+    await waitFor(() => main.windows.some((window) => window !== previousWindow && window.visible), "replacement app window");
+    const reopened = main.windows[0]!;
+    assert.equal(reopened.menuBarVisible, true);
+    assert.equal(reopened.menuBarAutoHide, false);
 
-  main.window.destroy();
-  licenses.click();
-  await waitFor(() => main.windows.length === 1, "replacement app window");
-  const reopened = main.windows[0];
-  assert.equal(reopened.menuBarVisible, process.platform !== "linux");
-  assert.equal(reopened.menuBarAutoHide, false);
-  assert.equal(reopened.webContents.sent.filter((entry) => entry.channel === "window:shortcut").length, 0, "the command does not race the renderer subscription");
-
-  const ready = registered<(event: IpcEvent) => void>(main.listeners, "workspace-view:ready");
-  ready({ sender: reopened.webContents });
-  await waitFor(() => reopened.webContents.sent.some((entry) => entry.channel === "window:shortcut"), "queued menu command");
-  assert.deepEqual(
-    reopened.webContents.sent.find((entry) => entry.channel === "window:shortcut")?.event,
-    { action: "app.open-source-licenses", surface: "any" } satisfies ShortcutInvocation,
-  );
+    if (label === "Check for Updates…") {
+      await waitFor(() => main.messageBoxes.length > dialogsBefore, "the update check showing its result");
+      assert.equal(main.messageBoxes.at(-1)?.message, "This copy of AI Coding Tool runs from source.");
+    } else {
+      await waitFor(() => main.windows.some((window) => window.loadedURL === "aicodingtool-licenses://notices/" && window.visible), "the menu opening licenses");
+      main.windows.find((window) => window.loadedURL === "aicodingtool-licenses://notices/")!.close();
+    }
+  }
 });
