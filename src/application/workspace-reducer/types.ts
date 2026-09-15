@@ -132,6 +132,7 @@ export type WorkspaceEffect =
   | { type: "preserve-message-images"; text: string; root: string; messageId: string }
   | { type: "image.download"; source: string }
   | { type: "load-subagent-activity"; taskId: string; subagentId: string }
+  | { type: "load-subagent-metadata"; taskId: string; subagentId: string; engine: AgentEngine }
   | { type: "automation.save"; draft: AutomationDraft }
   | { type: "automation.update"; taskId: string; patch: AutomationPatch }
   | { type: "automation.delete"; taskId: string }

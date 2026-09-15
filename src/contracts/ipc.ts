@@ -276,6 +276,7 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   persistTaskStore(delta: TaskStoreDelta): Promise<void>;
   /** A stored subagent's activity, which the store leaves behind until someone opens that subagent. */
   loadSubagentActivity(taskId: string, subagentId: string): Promise<SubagentActivity[]>;
+  loadSubagentMetadata(engine: AgentEngine, subagentId: string): Promise<import("../domain/run.js").SubagentMetadata>;
   listAutomations(): Promise<AutomationView[]>;
   saveAutomation(draft: AutomationDraft): Promise<AutomationView>;
   updateAutomation(taskId: string, patch: AutomationPatch): Promise<AutomationView>;
@@ -843,10 +844,8 @@ export function isSubagentEvent(value: unknown): value is SubagentEvent {
       && (event.agentType === undefined || isString(event.agentType))
       && (event.sessionScoped === undefined || event.sessionScoped === true);
   }
-  if (event.type === "subagent.status") {
-    return (event.status === "working" || event.status === "idle")
-      && (event.summary === undefined || isString(event.summary, 100_000));
-  }
+  if (event.type === "subagent.status") return (event.status === "working" || event.status === "idle")
+    && (event.summary === undefined || isString(event.summary, 100_000));
   if (event.type === "subagent.progress") {
     return isString(event.description, 100_000)
       && (event.agentType === undefined || isString(event.agentType))

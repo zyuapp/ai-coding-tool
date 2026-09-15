@@ -1,6 +1,7 @@
 import type { SubagentMetadata, SubagentReport } from "../../domain/run.js";
 import type { NotificationParams } from "./app-server-client.mjs";
 import type { ThreadItem } from "./protocol/v2/ThreadItem.js";
+import type { Thread } from "./protocol/v2/Thread.js";
 
 type ChildLifecycle = "unknown" | "working" | "idle" | "failed" | "stopped";
 
@@ -14,6 +15,8 @@ type Child = {
   prompt?: string;
   model?: string;
   effort?: string;
+  metadataReads?: number;
+  metadataPending?: boolean;
   preview?: string;
   nickname?: string;
   role?: string;
@@ -123,12 +126,15 @@ export class CodexSubagents {
   private readonly ignoredThreads = new Set<string>();
   private readonly liveTurnsByThread = new Map<string, string>();
   private readonly pendingItems = new Map<string, PendingItem>();
+  private readonly metadataQueue = new Set<Child>();
+  private readingMetadata = 0;
   private activeChildren = 0;
   private closed = false;
 
   constructor(
     private readonly report: (event: SubagentReport) => void,
     private readonly onBusyChanged: (busy: boolean) => void = () => {},
+    private readonly readMetadata?: (threadId: string) => Promise<Pick<Thread, "id" | "model" | "reasoningEffort">>,
   ) {}
 
   /** Anything closing the app-server process would cut short. */
@@ -225,6 +231,7 @@ export class CodexSubagents {
       this.liveTurnsByThread.set(params.threadId, params.turn.id);
       const child = this.child(params.threadId);
       this.setLifecycle(child, "working");
+      this.requestMetadata(child);
       return true;
     });
   }
@@ -306,6 +313,7 @@ export class CodexSubagents {
     this.pendingItems.clear();
     this.ignoredThreads.clear();
     this.children.clear();
+    this.metadataQueue.clear();
     this.activeChildren = 0;
     this.changedBusy(wasBusy);
   }
@@ -322,6 +330,7 @@ export class CodexSubagents {
       const child = this.child(threadId);
       if (started) this.pendingItems.set(item.id, { threadId, item });
       this.receiveChildItem(child, item, started);
+      this.requestMetadata(child);
       if (!started) this.pendingItems.delete(item.id);
       return true;
     });
@@ -457,7 +466,11 @@ export class CodexSubagents {
   }
 
   private discover(child: Child) {
-    if (child.discovered || this.closed) return;
+    if (this.closed) return;
+    if (child.discovered) {
+      this.requestMetadata(child);
+      return;
+    }
     child.discovered = true;
     this.report({
       type: "subagent.started",
@@ -474,6 +487,46 @@ export class CodexSubagents {
     if (child.totalTokens > 0 || child.lastToolName || child.summary) this.emitProgress(child);
     for (const activity of child.bufferedActivity) this.report(activity);
     child.bufferedActivity = [];
+    this.requestMetadata(child);
+  }
+
+  /** V2 can announce only subAgentActivity. Read the child's settings without loading its transcript. */
+  private requestMetadata(child: Child) {
+    if (!this.readMetadata || this.closed || !child.discovered || child.metadataPending
+      || (child.model !== undefined && child.effort !== undefined) || (child.metadataReads ?? 0) >= 3) return;
+    child.metadataPending = true;
+    this.metadataQueue.add(child);
+    this.drainMetadata();
+  }
+
+  /** A large spawn batch must not flood the app-server with simultaneous reads. */
+  private drainMetadata() {
+    while (!this.closed && this.readingMetadata < 4 && this.metadataQueue.size) {
+      const child = this.metadataQueue.values().next().value!;
+      this.metadataQueue.delete(child);
+      if (this.children.get(child.id) !== child) continue;
+      this.readingMetadata += 1;
+      void this.loadMetadata(child);
+    }
+  }
+
+  private async loadMetadata(child: Child) {
+    child.metadataReads = (child.metadataReads ?? 0) + 1;
+    try {
+      const thread = await this.readMetadata!(child.id);
+      if (this.closed || thread.id !== child.id || this.children.get(child.id) !== child) return;
+      /** A thread/started notification received during the read has fresher settings. */
+      this.mergeMetadata(child, {
+        model: child.model ?? nonempty(thread.model),
+        effort: child.effort ?? nonempty(thread.reasoningEffort),
+      });
+    } catch {
+      /** Discovery can beat persistence. Later child activity retries, at most three times per child. */
+    } finally {
+      child.metadataPending = false;
+      this.readingMetadata -= 1;
+      this.drainMetadata();
+    }
   }
 
   private setLifecycle(child: Child, lifecycle: Exclude<ChildLifecycle, "unknown">, summary?: string) {

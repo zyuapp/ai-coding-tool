@@ -146,6 +146,7 @@ function storeDesktop(host: ServiceDesktopHost) {
     loadThreadMessages: (taskId) => host.taskDatabase().loadThreadMessages(taskId),
     persistTaskStore: (delta) => host.taskDatabase().persist(delta),
     loadSubagentActivity: (taskId, subagentId) => host.taskDatabase().subagentActivity(taskId, subagentId),
+    loadSubagentMetadata: async (engine, subagentId) => (await import("./agent/engine-services.mjs")).engineServices[engine].subagentMetadata?.(subagentId) ?? {},
     listAutomations: async () => host.scheduler().list(),
     saveAutomation: (draft) => host.scheduler().save(draft),
     updateAutomation: (taskId, patch) => host.scheduler().update(taskId, patch),

@@ -206,12 +206,14 @@ test("workspace hook reads a stored subagent's activity only when it is opened",
     subagents: [{ id: "agent-1", description: "Explore", status: "completed", startedAt: 1, finishedAt: 2, activity: [] }],
   };
   const asked: Array<[string, string]> = [];
+  let metadataReads = 0;
   const desktop = fakeDesktop({
     loadTaskStore: async () => ({ version: 2, hiddenTasks: 0, projects: [project], worktrees: [], tasks: [task], lastFolder: project.root }),
     loadSubagentActivity: async (taskId, subagentId) => {
       asked.push([taskId, subagentId]);
       return [{ id: "activity-1", kind: "text", text: "Reading", at: 1 }];
     },
+    loadSubagentMetadata: async () => { metadataReads += 1; return {}; },
   });
   const workspace = await mountWorkspace(desktop);
   await act(async () => {});
@@ -223,7 +225,34 @@ test("workspace hook reads a stored subagent's activity only when it is opened",
 
   await act(async () => { await workspace.get().actions.inspectSubagent("agent-1"); });
   assert.equal(asked.length, 1);
+  assert.equal(metadataReads, 0, "Claude inspection does not start a Codex metadata reader");
   assert.ok(desktop.persisted.flatMap((delta) => delta.tasks).every((change) => !change.activity));
+  await workspace.view.unmount();
+});
+
+test("opening a saved Codex child recovers and persists settings without rerunning it", async () => {
+  const project = { id: "project-1", root: "/project", workspaceId: "workspace-1" };
+  const stored: StoredThread = {
+    id: "task-1", title: "Task", projectId: project.id, engine: "codex", executionPolicy: "confirm", messages: [],
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+    subagents: [{ id: "ui-smoke", description: "ui_smoke", status: "completed", startedAt: 1, finishedAt: 2, activity: [] }],
+  };
+  const reads: string[] = [];
+  const desktop = fakeDesktop({
+    loadTaskStore: async () => ({ version: 2, hiddenTasks: 0, projects: [project], worktrees: [], tasks: [stored], lastFolder: project.root }),
+    loadSubagentMetadata: async (engine, id) => { assert.equal(engine, "codex"); reads.push(id); return { model: "gpt-5.6-sol", effort: "medium" }; },
+  });
+  const workspace = await mountWorkspace(desktop);
+  await act(async () => {});
+  assert.deepEqual(reads, []);
+  await act(async () => { await workspace.get().actions.inspectSubagent("ui-smoke"); });
+  assert.deepEqual(reads, ["ui-smoke"]);
+  assert.equal(workspace.get().subagents[0].model, "gpt-5.6-sol");
+  assert.equal(workspace.get().subagents[0].effort, "medium");
+  assert.equal(workspace.get().subagents[0].status, "completed");
+  await act(async () => { await workspace.get().actions.inspectSubagent("ui-smoke"); });
+  assert.equal(reads.length, 1);
+  assert.ok(desktop.persisted.flatMap((delta) => delta.tasks).some((change) => change.subagents?.some(({ subagent }) => subagent.model === "gpt-5.6-sol" && subagent.effort === "medium")));
   await workspace.view.unmount();
 });
 

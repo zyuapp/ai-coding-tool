@@ -1,6 +1,7 @@
 import type { AvailableCommand } from "../../contracts/ipc.js";
 import { AGENT_ENGINES, engineNeedsAttention, type AgentEngine, type EngineAccess, type EngineReadiness, type EngineStatus } from "../../domain/agent-engine.js";
 import type { PlanUsage } from "../../domain/plan-usage.js";
+import type { SubagentMetadata } from "../../domain/run.js";
 
 type Workspace = { workspaceRoot: string; projectless: boolean };
 
@@ -16,6 +17,7 @@ export type EngineServices = {
   planUsage(): Promise<PlanUsage>;
   /** Whether this engine can take a run on this machine, and what would fix it when it cannot. */
   readiness(): Promise<EngineReadiness>;
+  subagentMetadata?(id: string): Promise<SubagentMetadata>;
   signIn?(openUrl: OpenUrl): Promise<EngineAccess>;
 };
 
@@ -38,6 +40,7 @@ export const engineServices: Record<AgentEngine, EngineServices> = {
     planUsage: async () => (await import("../codex/codex-plan-usage.mjs")).readCodexPlanUsage(),
     readiness: async () => (await import("./engine-readiness.mjs")).readCodexReadiness(),
     signIn: async (openUrl) => (await import("../codex/codex-account.mjs")).signInToCodex(openUrl),
+    subagentMetadata: async (id) => (await import("../codex/codex-subagent-metadata.mjs")).readCodexSubagentMetadata(id),
   },
 };
 

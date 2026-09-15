@@ -6,7 +6,7 @@ import type { ProviderEvent } from "../../../src/main/agent/agent-provider.mts";
 import type { NotificationParams } from "../../../src/main/codex/app-server-client.mts";
 import { CodexSubagents } from "../../../src/main/codex/codex-subagents.mts";
 import type { ThreadItem } from "../../../src/main/codex/protocol/v2/ThreadItem.ts";
-import { completeTurn, harness, input, opened, sentBy } from "../../support/codex-client.mjs";
+import { completeTurn, harness, input, opened, sentBy, tick } from "../../support/codex-client.mjs";
 
 const rootId = "thread-1";
 
@@ -185,6 +185,78 @@ test("child messages, tools, cumulative usage, resume, and terminal errors becom
   assert.deepEqual(reports.filter((report) => report.type === "subagent.status").map((report) => report.status), ["idle", "working"]);
   assert.deepEqual(reports.at(-1), { type: "subagent.finished", id: "child-a", status: "failed", summary: "failed" });
   assert.deepEqual(tracker.liveTurns, []);
+});
+
+test("V2 discovery fetches child settings through the session without a thread/started notification", async () => {
+  const reports: SubagentReport[] = [];
+  const codex = harness({ "thread/read": (params: { threadId: string }) => ({ thread: { id: params.threadId, model: "gpt-5.6-sol", reasoningEffort: "medium" } }) });
+  const running = codex.provider.execute(input({ model: "gpt-6-astra", effort: "high", reportSubagent: (report) => reports.push(report) }));
+  const client = await opened(codex);
+  await sentBy(client, "turn/start");
+  client.notify("item/started", itemStarted(rootId, "turn-1", activity("discover", "ui-smoke", "/root/ui_smoke")));
+  await tick();
+  assert.deepEqual(client.calls("thread/read"), [{ threadId: "ui-smoke", includeTurns: false }]);
+  assert.deepEqual(reports.find((report) => report.type === "subagent.metadata"), { type: "subagent.metadata", id: "ui-smoke", model: "gpt-5.6-sol", effort: "medium" });
+  client.notify("item/completed", itemCompleted(rootId, "turn-1", activity("discover", "ui-smoke", "/root/ui_smoke", "completed")));
+  client.notify("item/started", itemStarted("ui-smoke", "child-turn", command("command")));
+  await tick();
+  assert.equal(client.calls("thread/read").length, 1, "known settings are not fetched for each activity item");
+  completeTurn(client);
+  await running;
+  codex.provider.closeAll();
+});
+
+test("metadata reads retry after early persistence failures and never change lifecycle", async () => {
+  const reports: SubagentReport[] = [];
+  let reads = 0;
+  const tracker = new CodexSubagents((report) => reports.push(report), undefined, async (id) => {
+    reads += 1;
+    if (reads === 1) throw new Error("thread not persisted yet");
+    return { id, model: "gpt-5.6-sol", reasoningEffort: "medium" };
+  });
+  tracker.setRootThreadId(rootId);
+  tracker.itemStarted(itemStarted(rootId, "turn", activity("discover", "child", "/root/child")));
+  await tick();
+  assert.equal(reports.some((report) => report.type === "subagent.finished"), false);
+  tracker.itemCompleted(itemCompleted(rootId, "turn", activity("completed", "child", "/root/child", "completed")));
+  await tick();
+  assert.equal(reads, 2);
+  assert.equal(reports.at(-1)?.type, "subagent.metadata");
+  assert.equal(tracker.busy, false);
+});
+
+test("metadata reads are bounded, do not overwrite newer notifications, and stop when the session closes", async () => {
+  const reports: SubagentReport[] = [];
+  const pending: Array<{ id: string; resolve: (value: { id: string; model: string; reasoningEffort: "medium" }) => void }> = [];
+  const tracker = new CodexSubagents((report) => reports.push(report), undefined, (id) => new Promise((resolve) => pending.push({ id, resolve })));
+  tracker.setRootThreadId(rootId);
+  for (let index = 0; index < 12; index += 1) tracker.itemStarted(itemStarted(rootId, "turn", activity(`discover-${index}`, `child-${index}`, `/root/child-${index}`)));
+  assert.equal(pending.length, 4);
+  const newer = spawnedThread("child-0", "", "", "", "/root/child-0");
+  newer.thread.model = "gpt-6-astra";
+  newer.thread.reasoningEffort = "high";
+  tracker.threadStarted(newer);
+  pending[0].resolve({ id: pending[0].id, model: "gpt-5.6-sol", reasoningEffort: "medium" });
+  await tick();
+  assert.equal(pending.length, 5);
+  assert.deepEqual(reports.filter((report) => report.type === "subagent.metadata" && report.id === "child-0").at(-1), { type: "subagent.metadata", id: "child-0", model: "gpt-6-astra", effort: "high" });
+  tracker.close();
+  const count = reports.length;
+  for (const item of pending.slice(1)) item.resolve({ id: item.id, model: "gpt-5.6-sol", reasoningEffort: "medium" });
+  await tick();
+  assert.equal(reports.length, count);
+  assert.equal(pending.length, 5, "closing drops queued reads");
+});
+
+test("metadata reads stop retrying unsupported settings after three attempts", async () => {
+  let reads = 0;
+  const tracker = new CodexSubagents(() => {}, undefined, async (id) => { reads += 1; return { id, model: null, reasoningEffort: null }; });
+  tracker.setRootThreadId(rootId);
+  for (let index = 0; index < 8; index += 1) {
+    tracker.itemStarted(itemStarted(rootId, "turn", activity(`discover-${index}`, "child", "/root/child")));
+    await tick();
+  }
+  assert.equal(reads, 3);
 });
 
 test("the session isolates child traffic from the parent and cancellation interrupts child and root turns independently", async () => {

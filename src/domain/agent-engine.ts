@@ -67,6 +67,8 @@ export type EngineCapabilities = {
   fastMode: boolean;
   workflows: boolean;
   subagents: boolean;
+  /** Can recover a saved subagent's settings without running it again. */
+  subagentMetadata: boolean;
   /** Reviewing the thread's changes is work the engine performs itself, not a prompt it is sent. */
   review: boolean;
 };
@@ -85,14 +87,14 @@ const ENGINES: Record<AgentEngine, EngineSpec> = {
     models: CLAUDE_MODELS,
     defaultModel: "opus",
     defaultEffort: "high",
-    capabilities: { fastMode: false, workflows: true, subagents: true, review: false },
+    capabilities: { fastMode: false, workflows: true, subagents: true, subagentMetadata: false, review: false },
   },
   codex: {
     label: "Codex",
     models: CODEX_MODELS,
     defaultModel: "gpt-5.6-sol",
     defaultEffort: "high",
-    capabilities: { fastMode: true, workflows: false, subagents: true, review: true },
+    capabilities: { fastMode: true, workflows: false, subagents: true, subagentMetadata: true, review: true },
   },
 };
 

@@ -64,6 +64,7 @@ const api: DesktopAPI = {
   loadThreadMessages: (taskId) => ipcRenderer.invoke("task-store:messages", taskId),
   persistTaskStore: (delta) => ipcRenderer.invoke("task-store:persist", delta),
   loadSubagentActivity: (taskId: string, subagentId: string) => ipcRenderer.invoke("subagent-activity:load", taskId, subagentId),
+  loadSubagentMetadata: (engine: AgentEngine, subagentId: string) => ipcRenderer.invoke("subagent-metadata:load", engine, subagentId),
   listAutomations: () => ipcRenderer.invoke("automation:list"),
   saveAutomation: (draft: AutomationDraft) => ipcRenderer.invoke("automation:save", draft),
   updateAutomation: (taskId: string, patch: AutomationPatch) => ipcRenderer.invoke("automation:update", taskId, patch),

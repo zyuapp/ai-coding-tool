@@ -39,8 +39,8 @@ test("a foreign model uses the engine's default context window", () => {
 });
 
 test("per-engine settings and operations are catalogue entries", () => {
-  assert.deepEqual(capabilitiesFor("codex"), { fastMode: true, workflows: false, subagents: true, review: true });
-  assert.deepEqual(capabilitiesFor("claude"), { fastMode: false, workflows: true, subagents: true, review: false });
+  assert.deepEqual(capabilitiesFor("codex"), { fastMode: true, workflows: false, subagents: true, subagentMetadata: true, review: true });
+  assert.deepEqual(capabilitiesFor("claude"), { fastMode: false, workflows: true, subagents: true, subagentMetadata: false, review: false });
 });
 
 test("manual compaction belongs to the model and only through the engine that offers it", () => {

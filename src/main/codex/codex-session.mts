@@ -425,7 +425,7 @@ export class CodexSession {
     const skills = this.skills = new CodexSkills(client, seed.workspaceRoot);
     const subagents = this.subagents = new CodexSubagents(seed.reportSubagent, (busy) => {
       if (!busy && !this.answering) this.onRested();
-    });
+    }, async (threadId) => (await client.request("thread/read", { threadId, includeTurns: false })).thread);
     client.on("thread/started", (params) => { subagents.threadStarted(params); });
     client.on("thread/status/changed", (params) => { subagents.threadStatusChanged(params); });
     client.on("thread/closed", (params) => { subagents.threadClosed(params); });
