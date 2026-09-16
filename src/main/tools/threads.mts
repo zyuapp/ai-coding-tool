@@ -28,7 +28,7 @@ const modelField = z.enum(modelIds as [AgentModel, ...AgentModel[]]).refine(isAg
 );
 const roleIds = THREAD_ROLES.map((option) => option.role);
 const roleField = z.enum(roleIds as [ThreadRole, ...ThreadRole[]]).optional().describe(
-  "The part the new thread plays beside the others: coordinator, implementer, reviewer, or researcher. Shown on its row.",
+  "The part the new thread plays beside the others: coordinator, implementer, reviewer, or researcher. Set reviewer for review threads; they stay in Threads unless awaiting the user's approval.",
 );
 const effortField = z.enum(effortIds as [AgentEffort, ...AgentEffort[]]).refine(isAgentEffort).optional().describe(
   "Effort for the new thread. Omit to inherit the calling thread's effort when the selected model supports it, otherwise use that engine's default.",

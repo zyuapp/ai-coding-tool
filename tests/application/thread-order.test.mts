@@ -128,6 +128,25 @@ test("a thread carrying a verdict ranks in Priority only while it is idle", () =
   assert.deepEqual(activitySections(threads, new Set(["done"]), new Set()).running.map((item) => item.id), ["done"]);
 });
 
+test.each(["claude", "codex"] as const)("%s reviewers stay in Threads until approval is needed", (engine) => {
+  const threads = [
+    task("working", { engine, role: "reviewer" }),
+    task("finished", { engine, role: "reviewer", outcome: "finished", outcomeUnread: true }),
+    task("failed", { engine, role: "reviewer", outcome: "failed" }),
+    task("findings", { engine, role: "reviewer", findings: [{ id: "finding", headline: "Needs a fix", at: 1 }] }),
+    task("approval", { engine, role: "reviewer" }),
+    task("implementer", { engine, role: "implementer" }),
+  ];
+  const busy = new Set(["working", "approval", "implementer"]);
+  const sections = activitySections(threads, busy, new Set(["approval"]));
+
+  assert.deepEqual(sections.threads.map((item) => item.id), ["working", "finished", "failed", "findings"]);
+  assert.deepEqual(sections.priority.map((item) => item.id), ["approval"]);
+  assert.deepEqual(sections.running.map((item) => item.id), ["implementer"]);
+  assert.deepEqual(activitySections(threads, busy, new Set()).threads.map((item) => item.id), ["working", "finished", "failed", "findings", "approval"], "answering the approval returns the reviewer to Threads while it continues working");
+  assert.equal(sections.threads[1].outcome, "finished", "filing the row does not discard its verdict");
+});
+
 test("activity dates a thread by what it last did, not by every write to it", () => {
   const threads = [
     task("stale-run", { createdAt: 1, runEndedAt: 50, updatedAt: 99 }),

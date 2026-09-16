@@ -28,7 +28,7 @@ Do not edit anything while a review round is running. The reviewer reads the wor
 
 ## 2. Start the reviewer
 
-Call `start_thread` once. Pass `model` and `effort` only when arguments named them. Do not pass `worktree` or `worktreeId`; the new thread starts in this thread's checkout. The prompt must stand alone. Use this template:
+Call `start_thread` once with `role: "reviewer"`, so the review stays in Threads unless it needs the user's approval. Pass `model` and `effort` only when arguments named them. Do not pass `worktree` or `worktreeId`; the new thread starts in this thread's checkout. The prompt must stand alone. Use this template:
 
 ```
 You are the reviewer for another AICodingTool thread's work. Review only; never edit, commit, stash, or run formatters. Read the repository's AGENTS.md or CLAUDE.md first.
