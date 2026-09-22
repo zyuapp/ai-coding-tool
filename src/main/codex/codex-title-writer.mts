@@ -11,7 +11,7 @@ import { toml } from "./codex-config.mjs";
 /** Runs the Codex binary once with `args`, feeding `input` on stdin, and resolves when it has exited. */
 export type CodexExec = (args: readonly string[], input: string, cwd: string) => Promise<void>;
 
-const TITLE_MODEL = "gpt-5.6-luna";
+const TITLE_MODEL = "gpt-6-luna";
 const EXEC_TIMEOUT_MS = 60_000;
 
 const TITLE_SCHEMA = {

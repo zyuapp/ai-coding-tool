@@ -6,13 +6,13 @@ import { FakeCodexClient, tick } from "../../support/codex-client.mjs";
 test("inspecting a saved child reads settings without resuming or loading turns", async () => {
   const clients: FakeCodexClient[] = [];
   const read = () => readCodexSubagentMetadata("ui-smoke", (command) => {
-    const client = new FakeCodexClient(command, { "thread/read": () => ({ thread: { id: "ui-smoke", model: "gpt-5.6-sol", reasoningEffort: "medium" } }) });
+    const client = new FakeCodexClient(command, { "thread/read": () => ({ thread: { id: "ui-smoke", model: "gpt-6-sol", reasoningEffort: "medium" } }) });
     clients.push(client);
     return client;
   });
   const first = read();
   assert.equal(read(), first, "concurrent inspections share the request");
-  assert.deepEqual(await first, { model: "gpt-5.6-sol", effort: "medium" });
+  assert.deepEqual(await first, { model: "gpt-6-sol", effort: "medium" });
   assert.deepEqual(clients[0].calls("thread/read"), [{ threadId: "ui-smoke", includeTurns: false }]);
   assert.equal(clients[0].closed, true);
   assert.equal(clients[0].calls("thread/resume").length, 0);
@@ -51,7 +51,7 @@ test("inspecting many saved children limits simultaneous app-server reads", asyn
     "thread/read": () => new Promise((resolve) => {
       active += 1;
       peak = Math.max(peak, active);
-      pending.push(() => { active -= 1; resolve({ thread: { id: `batch-${index}`, model: "gpt-5.6-sol", reasoningEffort: "medium" } }); });
+      pending.push(() => { active -= 1; resolve({ thread: { id: `batch-${index}`, model: "gpt-6-sol", reasoningEffort: "medium" } }); });
     }),
   })));
   await tick();

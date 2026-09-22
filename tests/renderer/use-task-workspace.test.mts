@@ -240,19 +240,19 @@ test("opening a saved Codex child recovers and persists settings without rerunni
   const reads: string[] = [];
   const desktop = fakeDesktop({
     loadTaskStore: async () => ({ version: 2, hiddenTasks: 0, projects: [project], worktrees: [], tasks: [stored], lastFolder: project.root }),
-    loadSubagentMetadata: async (engine, id) => { assert.equal(engine, "codex"); reads.push(id); return { model: "gpt-5.6-sol", effort: "medium" }; },
+    loadSubagentMetadata: async (engine, id) => { assert.equal(engine, "codex"); reads.push(id); return { model: "gpt-6-sol", effort: "medium" }; },
   });
   const workspace = await mountWorkspace(desktop);
   await act(async () => {});
   assert.deepEqual(reads, []);
   await act(async () => { await workspace.get().actions.inspectSubagent("ui-smoke"); });
   assert.deepEqual(reads, ["ui-smoke"]);
-  assert.equal(workspace.get().subagents[0].model, "gpt-5.6-sol");
+  assert.equal(workspace.get().subagents[0].model, "gpt-6-sol");
   assert.equal(workspace.get().subagents[0].effort, "medium");
   assert.equal(workspace.get().subagents[0].status, "completed");
   await act(async () => { await workspace.get().actions.inspectSubagent("ui-smoke"); });
   assert.equal(reads.length, 1);
-  assert.ok(desktop.persisted.flatMap((delta) => delta.tasks).some((change) => change.subagents?.some(({ subagent }) => subagent.model === "gpt-5.6-sol" && subagent.effort === "medium")));
+  assert.ok(desktop.persisted.flatMap((delta) => delta.tasks).some((change) => change.subagents?.some(({ subagent }) => subagent.model === "gpt-6-sol" && subagent.effort === "medium")));
   await workspace.view.unmount();
 });
 

@@ -40,7 +40,7 @@ test("a thread that has an engine offers only its models, and says a new thread 
   assert.equal(query(modelMenu, ".setting-value").textContent, "Terra");
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   assert.equal(query(modelMenu, ".model-results-heading > span").textContent, "Codex");
-  assert.deepEqual([...modelMenu.querySelectorAll("button.model-choice strong")].map((item) => item.textContent), ["Astra", "Sol 6", "Luna 6", "Sol", "Terra", "Luna"]);
+  assert.deepEqual([...modelMenu.querySelectorAll("button.model-choice strong")].map((item) => item.textContent), ["Astra", "Sol", "Terra", "Luna"]);
   const claudeFilter = [...modelMenu.querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((button) => button.textContent?.includes("Claude"))!;
   await act(async () => { claudeFilter.click(); });
   assert.equal(query(modelMenu, ".setting-hint").textContent, "Start a new thread to use Claude");
@@ -72,7 +72,7 @@ test("an engine that is signed out is greyed and inert, and its one sign-in butt
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   assert.equal(reads, 1, "opening the menu asks which engines can be picked");
   const codex = query(modelMenu, "[role=group][aria-label=Codex]");
-  assert.deepEqual([...codex.querySelectorAll(".model-choice")].map((option) => (option as HTMLButtonElement).disabled), [true, true, true, true, true, true]);
+  assert.deepEqual([...codex.querySelectorAll(".model-choice")].map((option) => (option as HTMLButtonElement).disabled), [true, true, true, true]);
   assert.equal(query(codex, ".setting-hint").textContent, "Sign in to use Codex");
   await act(async () => { query<HTMLButtonElement>(codex, ".model-choice").click(); });
   assert.equal(chosen.length, 0, "a greyed model is not chosen");
@@ -190,7 +190,7 @@ test("an idle Sol thread offers compact as an app slash command", async () => {
       actions: [],
     });
   };
-  const view = await mount(render("gpt-5.6-sol"));
+  const view = await mount(render("gpt-6-sol"));
   const textarea = query<HTMLTextAreaElement>(view.container, "textarea");
   await act(async () => {
     textarea.focus();
@@ -302,7 +302,7 @@ test("the review picker reads branches from the thread's worktree", async () => 
 test("clearing a goal targets its existing thread", async () => {
   window.desktop = composerDesktop();
   const currentThread: Thread = {
-    id: "task-goal", title: "Goal", engine: "codex", model: "gpt-5.6-sol", executionPolicy: "confirm",
+    id: "task-goal", title: "Goal", engine: "codex", model: "gpt-6-sol", executionPolicy: "confirm",
     messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
   };
   const derived = deriveView({
@@ -345,7 +345,7 @@ test("the effort menu offers what the model takes, and is gone for a model that 
   };
 
   assert.equal((await efforts("codex", "gpt-6-astra"))?.[0], "Ultra");
-  const luna = await efforts("codex", "gpt-5.6-luna");
+  const luna = await efforts("codex", "gpt-6-luna");
   assert.ok(luna && luna.length > 1);
   assert.equal(luna[0], "Max");
   assert.equal(luna.at(-1), "Low");

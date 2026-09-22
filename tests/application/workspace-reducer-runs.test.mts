@@ -41,10 +41,10 @@ test("manual Codex compaction reuses the run lifecycle without becoming a task r
   const state = workspace({
     threads: [task("task-a", {
       engine: "codex",
-      model: "gpt-5.6-sol",
+      model: "gpt-6-sol",
       continuation: { provider: "codex", value: "thread-1" },
       continuationStatus: "available",
-      contextUsage: { tokens: 125_000, limit: 272_000, model: "gpt-5.6-sol" },
+      contextUsage: { tokens: 125_000, limit: 272_000, model: "gpt-6-sol" },
       outcome: "finished",
       runEndedAt: 5,
     })],

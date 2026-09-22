@@ -124,7 +124,7 @@ test("a fork whose run dies before it names a session forks the inherited one ag
 test("a fork of a thread whose session was lost carries the conversation and starts a fresh one", () => {
   const before = workspace({
     threads: [task("first", {
-      engine: "codex", model: "gpt-5.6-sol",
+      engine: "codex", model: "gpt-6-sol",
       messages: [{ id: "m1", kind: "user", text: "Have a look", at: 5 }],
       continuation: { provider: "codex", value: "thread-1" }, continuationStatus: "available",
     })],
@@ -148,7 +148,7 @@ test("a fork of a thread whose session was lost carries the conversation and sta
   const sending = reduce(run(state, [{ type: "view.set-prompt", taskId: fork.id, prompt: "Keep going" }]), { type: "task.send", taskId: fork.id });
   const command = effectOf(reduce(sending.state, { type: "run.resolved", pendingId: effectOf(sending, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } }), "start-run").command;
   assert.equal(command.engine, "codex");
-  assert.equal(command.model, "gpt-5.6-sol");
+  assert.equal(command.model, "gpt-6-sol");
   assert.equal(command.continuation, undefined, "the copy starts a thread of its own rather than continuing the lost one");
   assert.equal("forkContinuation" in command, false);
 });

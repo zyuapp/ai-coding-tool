@@ -259,17 +259,17 @@ test("only a thread the send just created is named, from what the user typed and
 });
 
 test("choosing another engine's model moves the draft onto that engine, but never a thread that has a message", () => {
-  const drafted = reduce(workspace({ draftEngine: "codex", draftModel: "gpt-5.6-sol", draftEffort: "ultra" }), { type: "task.set-model", engine: "claude", model: "sonnet" }).state;
+  const drafted = reduce(workspace({ draftEngine: "codex", draftModel: "gpt-6-sol", draftEffort: "ultra" }), { type: "task.set-model", engine: "claude", model: "sonnet" }).state;
   assert.equal(drafted.draftEngine, "claude");
   assert.equal(drafted.draftModel, "sonnet");
   assert.equal(drafted.draftEffort, "max", "an effort the new model lacks drops to the nearest one below");
-  assert.equal(reduce(workspace({ draftEffort: "low" }), { type: "task.set-model", engine: "codex", model: "gpt-5.6-sol" }).state.draftEffort, "low", "an effort both models offer stays");
+  assert.equal(reduce(workspace({ draftEffort: "low" }), { type: "task.set-model", engine: "codex", model: "gpt-6-sol" }).state.draftEffort, "low", "an effort both models offer stays");
   assert.equal(deriveView(drafted).engineLocked, false, "a draft may still choose either engine");
 
   const thread = task("task-a", { model: "opus", messages: [{ id: "m1", kind: "user", text: "Have a look", at: 5 }] });
   const state = workspace({ threads: [thread], currentId: "task-a" });
   assert.equal(deriveView(state).engineLocked, true);
-  const held = reduce(state, { type: "task.set-model", engine: "codex", model: "gpt-5.6-sol" }).state;
+  const held = reduce(state, { type: "task.set-model", engine: "codex", model: "gpt-6-sol" }).state;
   assert.equal(held, state, "a thread keeps the engine its first message went to");
   assert.equal(held.threads[0].engine, "claude");
   assert.equal(held.draftEngine, "claude", "nor does the draft move behind the thread's back");
@@ -371,7 +371,7 @@ test("an effort the engine does not offer changes neither the thread nor the dra
   assert.equal(reduce(draft, { type: "task.set-effort", engine: "codex", effort: "ultra" }).state, draft, "a Claude draft cannot borrow a Codex effort either");
   assert.equal(reduce(draft, { type: "task.set-effort", engine: "codex", effort: "low" }).state.draftEffort, "low", "an effort both engines offer lands on the draft");
 
-  const codexThread = workspace({ threads: [task("task-c", { engine: "codex", model: "gpt-5.6-sol", effort: "high" })], currentId: "task-c" });
+  const codexThread = workspace({ threads: [task("task-c", { engine: "codex", model: "gpt-6-sol", effort: "high" })], currentId: "task-c" });
   const raised = reduce(codexThread, { type: "task.set-effort", engine: "codex", effort: "ultra" }).state;
   assert.equal(raised.threads[0].effort, "ultra");
   assert.equal(raised.draftEffort, codexThread.draftEffort, "the Claude draft keeps its own effort");
@@ -513,7 +513,7 @@ test("a send that carries its own text is not a draft, so its @ is left alone", 
 
 test("Codex speed is remembered on the thread, inherited by forks, and sent with runs", () => {
   const drafted = run(workspace(), [
-    { type: "task.set-model", engine: "codex", model: "gpt-5.6-sol" },
+    { type: "task.set-model", engine: "codex", model: "gpt-6-sol" },
     { type: "task.set-fast-mode", fastMode: true },
     { type: "view.set-prompt", prompt: "Inspect the app" },
   ]);
@@ -537,7 +537,7 @@ test("Codex speed is remembered on the thread, inherited by forks, and sent with
 });
 
 test("fast mode stays a Codex preference when switching the draft to Claude", () => {
-  const codex = workspace({ draftEngine: "codex", draftModel: "gpt-5.6-sol", draftFastMode: true });
+  const codex = workspace({ draftEngine: "codex", draftModel: "gpt-6-sol", draftFastMode: true });
   const claude = reduce(codex, { type: "task.set-model", engine: "claude", model: "opus" }).state;
   assert.equal(deriveView(claude).fastMode, false);
   assert.equal(reduce(claude, { type: "task.set-fast-mode", fastMode: true }).state, claude);

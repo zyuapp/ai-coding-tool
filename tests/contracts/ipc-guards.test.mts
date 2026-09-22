@@ -63,7 +63,7 @@ test("manual compaction is a validated Codex thread operation", () => {
   const compact = {
     ...command,
     engine: "codex",
-    model: "gpt-5.6-sol",
+    model: "gpt-6-sol",
     prompt: "",
     continuation: { provider: "codex", value: "thread-1" },
     operation: { type: "compact", preTokens: 125_000 },
@@ -228,7 +228,7 @@ test("run guards enforce numeric and string boundaries", () => {
   assert.equal(isRunCommand({ ...command, model: "future-model" }), false);
   assert.equal(isRunCommand({ ...command, effort: "insane" }), false);
   assert.equal(isRunCommand({ ...command, effort: "ultra" }), false, "ultra belongs to Codex");
-  assert.equal(isRunCommand({ ...command, engine: "codex", model: "gpt-5.6-sol", effort: "ultra" }), true);
+  assert.equal(isRunCommand({ ...command, engine: "codex", model: "gpt-6-sol", effort: "ultra" }), true);
   for (const effort of ["low", "medium", "high", "xhigh", "max", "ultra"]) {
     assert.equal(isRunCommand({ ...command, engine: "codex", model: "gpt-6-astra", effort }), true);
   }
@@ -401,7 +401,7 @@ test("what a run reports about itself is bounded before it reaches the workspace
 });
 
 test("fast mode is a boolean setting carried only by Codex runs", () => {
-  const codex = { ...command, engine: "codex", model: "gpt-5.6-sol" };
+  const codex = { ...command, engine: "codex", model: "gpt-6-sol" };
   for (const fastMode of [undefined, false, true]) assert.equal(isRunCommand({ ...codex, fastMode }), true);
   for (const fastMode of [null, "true", 1]) assert.equal(isRunCommand({ ...codex, fastMode }), false);
   assert.equal(isRunCommand({ ...command, fastMode: true }), false);

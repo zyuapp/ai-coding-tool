@@ -671,6 +671,17 @@ test("duplicate checkout ids keep the first record before invalid projects are r
   assert.equal(result.data.tasks[1].worktreeEnteredAt, undefined);
 });
 
+test("a thread saved on a replaced model reads back on its successor", () => {
+  const migrated = migrateV1ToV2(legacyValues());
+  assert.equal(migrated.ok, true);
+  if (!migrated.ok) return;
+  const { continuation: _session, ...thread } = migrated.data.tasks[0];
+  const parsed = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...thread, continuationStatus: "none", engine: "codex", model: "gpt-5.6-luna" }] }));
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  assert.equal(parsed.data.tasks[0]?.model, "gpt-6-luna");
+});
+
 test("what a thread's runs found survives being written and read back, and a malformed one hides the thread", () => {
   const migrated = migrateV1ToV2(legacyValues());
   assert.equal(migrated.ok, true);

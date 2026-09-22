@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
+import { readViewPreferences, VIEW_PREFERENCES_KEY } from "../../src/application/view-preferences.ts";
 import { workspace, preferences, effectAt, run } from "./workspace-reducer-fixtures.mts";
 import type { ComputerUsePermissions } from "../../src/domain/computer-use.ts";
 import type { PlanUsage } from "../../src/domain/plan-usage.ts";
@@ -115,6 +116,11 @@ test("model favorites persist, restore, and ignore duplicate commands", () => {
   assert.deepEqual(reduce(restored, { type: "view.set-model-favorite", model: "opus", favorite: true }).effects, []);
   const removed = reduce(restored, { type: "view.set-model-favorite", model: "opus", favorite: false });
   assert.deepEqual(effectAt(removed, "persist-preferences").preferences.favoriteModels, []);
+});
+
+test("a favorite saved under a replaced model id restores as its successor", () => {
+  const storage = new Map<string, string>([[VIEW_PREFERENCES_KEY, JSON.stringify({ favoriteModels: ["gpt-5.6-sol", "gpt-6-sol", "gpt-5.6-luna"] })]]);
+  assert.deepEqual(readViewPreferences({ getItem: (key) => storage.get(key) ?? null, setItem: () => {} }).favoriteModels, ["gpt-6-sol", "gpt-6-luna"]);
 });
 
 test("agent settings reload is transient, waits for the worker, and can be retried after failure", () => {

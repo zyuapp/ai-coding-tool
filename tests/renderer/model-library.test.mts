@@ -39,7 +39,7 @@ test("the library filters providers, searches globally, pins without choosing, a
     setter.call(input, "sol");
     input.dispatchEvent(new Event("input", { bubbles: true }));
   });
-  assert.deepEqual([...menu.querySelectorAll(".model-choice strong")].map((node) => node.textContent), ["Sol 6", "Sol"]);
+  assert.deepEqual([...menu.querySelectorAll(".model-choice strong")].map((node) => node.textContent), ["Sol"]);
   await act(async () => { input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })); });
   assert.equal(document.activeElement, query(menu, ".model-choice"));
   await act(async () => { input.focus(); input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 0)); });
@@ -58,7 +58,7 @@ test("the Codex speed toggle follows effort and dispatches both speed changes", 
   const selected: boolean[] = [];
   const props = {
     mode: "confirm" as const, engine: "codex" as const, engineLabel: "Codex", engineLocked: true,
-    engineAccess: EVERY_ENGINE_READY, model: "gpt-5.6-sol" as const, effort: "high" as const,
+    engineAccess: EVERY_ENGINE_READY, model: "gpt-6-sol" as const, effort: "high" as const,
     fastMode: false, onFastModeChange: (fastMode: boolean) => { selected.push(fastMode); },
     onModeChange() {}, onModelChange() {}, onEffortChange() {}, onEngineRead() {}, onSignIn() {},
   };

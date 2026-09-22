@@ -1,4 +1,4 @@
-import { capabilitiesFor, engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, type AgentEngine } from "./agent-engine.js";
+import { capabilitiesFor, currentModel, engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, type AgentEngine } from "./agent-engine.js";
 import type { Annotation, AttachedFile, ConversationMessage, ConversationMessageKind, PastedText } from "./conversation.js";
 import type { AutomationFinding } from "./finding.js";
 import { isProject, legacyProjectId, normalizeProjectRoot, type Project } from "./project.js";
@@ -426,12 +426,15 @@ function dropRetiredSettings(value: unknown) {
 }
 
 /**
- * Threads written while a withdrawn message was called `quiet` and a handled issue a `silencedKeys` entry.
- * Whatever the thread already carries under the current name wins.
+ * Threads written while a withdrawn message was called `quiet`, a handled issue a `silencedKeys` entry,
+ * or a model had an id the catalogue has since replaced. Whatever the thread already carries under the
+ * current name wins.
  */
 function renamedFields(value: unknown) {
   if (!isRecord(value)) return value;
   let task = value;
+  const model = currentModel(task.model);
+  if (model !== task.model) task = { ...task, model };
   if (value.silencedKeys !== undefined) {
     const { silencedKeys: handled, ...renamed } = value;
     if (renamed.handledIssues === undefined) renamed.handledIssues = handled;

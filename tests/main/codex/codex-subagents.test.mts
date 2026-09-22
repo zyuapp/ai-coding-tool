@@ -74,12 +74,12 @@ test("Codex captures model and effort from the child and the full prompt from ch
   const input: ThreadItem = { type: "userMessage", id: "input", clientId: null, content: [{ type: "text", text: prompt, text_elements: [] }] };
   tracker.itemStarted(itemStarted("child", "turn", input));
   const child = spawnedThread("child", "Inspect carefully", "reviewer", "reviewer", "/root/reviewer");
-  child.thread.model = "gpt-5.6-sol";
+  child.thread.model = "gpt-6-sol";
   child.thread.reasoningEffort = "xhigh";
   tracker.threadStarted(child);
   const started = reports.find((report) => report.type === "subagent.started");
   assert.equal(started?.prompt, prompt);
-  assert.equal(started?.model, "gpt-5.6-sol");
+  assert.equal(started?.model, "gpt-6-sol");
   assert.equal(started?.effort, "xhigh");
   assert.equal(started?.description, prompt.trim().slice(0, 100_000));
   assert.equal(isSubagentEvent({ ...started, taskId: "task" }), true, "a long prompt must still pass the event boundary");
@@ -95,7 +95,7 @@ test("Codex enriches a discovered child with collaboration input, then authorita
   tracker.itemStarted(itemStarted(rootId, "turn", activity("discover", "child", "/root/reviewer")));
   tracker.itemCompleted(itemCompleted(rootId, "turn", {
     type: "collabAgentToolCall", id: "spawn", tool: "spawnAgent", status: "completed", senderThreadId: rootId,
-    receiverThreadIds: ["child"], prompt: "  Full\nassignment  ", model: "gpt-5.6-sol", reasoningEffort: "high", agentsStates: {},
+    receiverThreadIds: ["child"], prompt: "  Full\nassignment  ", model: "gpt-6-sol", reasoningEffort: "high", agentsStates: {},
   }));
   const child = spawnedThread("child", "Review", "reviewer", "reviewer", "/root/reviewer");
   child.thread.model = "gpt-6-astra";
@@ -189,14 +189,14 @@ test("child messages, tools, cumulative usage, resume, and terminal errors becom
 
 test("V2 discovery fetches child settings through the session without a thread/started notification", async () => {
   const reports: SubagentReport[] = [];
-  const codex = harness({ "thread/read": (params: { threadId: string }) => ({ thread: { id: params.threadId, model: "gpt-5.6-sol", reasoningEffort: "medium" } }) });
+  const codex = harness({ "thread/read": (params: { threadId: string }) => ({ thread: { id: params.threadId, model: "gpt-6-sol", reasoningEffort: "medium" } }) });
   const running = codex.provider.execute(input({ model: "gpt-6-astra", effort: "high", reportSubagent: (report) => reports.push(report) }));
   const client = await opened(codex);
   await sentBy(client, "turn/start");
   client.notify("item/started", itemStarted(rootId, "turn-1", activity("discover", "ui-smoke", "/root/ui_smoke")));
   await tick();
   assert.deepEqual(client.calls("thread/read"), [{ threadId: "ui-smoke", includeTurns: false }]);
-  assert.deepEqual(reports.find((report) => report.type === "subagent.metadata"), { type: "subagent.metadata", id: "ui-smoke", model: "gpt-5.6-sol", effort: "medium" });
+  assert.deepEqual(reports.find((report) => report.type === "subagent.metadata"), { type: "subagent.metadata", id: "ui-smoke", model: "gpt-6-sol", effort: "medium" });
   client.notify("item/completed", itemCompleted(rootId, "turn-1", activity("discover", "ui-smoke", "/root/ui_smoke", "completed")));
   client.notify("item/started", itemStarted("ui-smoke", "child-turn", command("command")));
   await tick();
@@ -212,7 +212,7 @@ test("metadata reads retry after early persistence failures and never change lif
   const tracker = new CodexSubagents((report) => reports.push(report), undefined, async (id) => {
     reads += 1;
     if (reads === 1) throw new Error("thread not persisted yet");
-    return { id, model: "gpt-5.6-sol", reasoningEffort: "medium" };
+    return { id, model: "gpt-6-sol", reasoningEffort: "medium" };
   });
   tracker.setRootThreadId(rootId);
   tracker.itemStarted(itemStarted(rootId, "turn", activity("discover", "child", "/root/child")));
@@ -236,13 +236,13 @@ test("metadata reads are bounded, do not overwrite newer notifications, and stop
   newer.thread.model = "gpt-6-astra";
   newer.thread.reasoningEffort = "high";
   tracker.threadStarted(newer);
-  pending[0].resolve({ id: pending[0].id, model: "gpt-5.6-sol", reasoningEffort: "medium" });
+  pending[0].resolve({ id: pending[0].id, model: "gpt-6-sol", reasoningEffort: "medium" });
   await tick();
   assert.equal(pending.length, 5);
   assert.deepEqual(reports.filter((report) => report.type === "subagent.metadata" && report.id === "child-0").at(-1), { type: "subagent.metadata", id: "child-0", model: "gpt-6-astra", effort: "high" });
   tracker.close();
   const count = reports.length;
-  for (const item of pending.slice(1)) item.resolve({ id: item.id, model: "gpt-5.6-sol", reasoningEffort: "medium" });
+  for (const item of pending.slice(1)) item.resolve({ id: item.id, model: "gpt-6-sol", reasoningEffort: "medium" });
   await tick();
   assert.equal(reports.length, count);
   assert.equal(pending.length, 5, "closing drops queued reads");
@@ -291,7 +291,7 @@ test("the session isolates child traffic from the parent and cancellation interr
     { threadId: rootId, turnId: "turn-1" },
   ]);
   assert.equal(providerEvents.some((event) => event.type === "assistant" || event.type === "assistant-tail" || event.type === "tool"), false);
-  assert.deepEqual(providerEvents.filter((event) => event.type === "usage"), [{ type: "usage", tokens: 9, limit: 272_000, model: "gpt-5.6-sol" }]);
+  assert.deepEqual(providerEvents.filter((event) => event.type === "usage"), [{ type: "usage", tokens: 9, limit: 272_000, model: "gpt-6-sol" }]);
   assert.equal(reports.some((report) => report.type === "subagent.activity" && report.kind === "tool"), true);
 
   completeTurn(client, "interrupted");

@@ -118,7 +118,7 @@ test("a slash skill anywhere in the prompt is sent as a native Codex skill", asy
       { type: "skill", name: "suggest-qa-plan", path: skill.path },
       { type: "text", text: "read the changes and /suggest-qa-plan", text_elements: [] },
     ],
-    model: "gpt-5.6-sol",
+    model: "gpt-6-sol",
     effort: "high",
     serviceTier: "default",
     approvalPolicy: "untrusted",

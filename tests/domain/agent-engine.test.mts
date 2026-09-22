@@ -17,7 +17,7 @@ test("every engine defaults to a model and an effort it offers", () => {
 
 test("models belong to their own engine and efforts may be shared", () => {
   assert.equal(engineHasModel("codex", "opus"), false);
-  assert.equal(engineHasModel("claude", "gpt-5.6-sol"), false);
+  assert.equal(engineHasModel("claude", "gpt-6-sol"), false);
   assert.equal(engineHasEffort("claude", "ultra"), false);
   assert.equal(engineHasEffort("codex", "ultra"), true);
   assert.equal(engineHasEffort("codex", "max"), true);
@@ -33,7 +33,7 @@ test("only catalogued ids pass the guards", () => {
 
 test("a foreign model uses the engine's default context window", () => {
   for (const engine of engines) {
-    const foreign = engine === "codex" ? "opus" : "gpt-5.6-sol";
+    const foreign = engine === "codex" ? "opus" : "gpt-6-sol";
     assert.equal(contextWindowLimit(engine, foreign), contextWindowLimit(engine, defaultModelFor(engine)));
   }
 });
@@ -44,10 +44,10 @@ test("per-engine settings and operations are catalogue entries", () => {
 });
 
 test("manual compaction belongs to the model and only through the engine that offers it", () => {
-  assert.equal(modelSupportsManualCompaction("codex", "gpt-5.6-sol"), true);
+  assert.equal(modelSupportsManualCompaction("codex", "gpt-6-sol"), true);
   assert.equal(modelSupportsManualCompaction("codex", "gpt-6-astra"), true);
   assert.equal(modelSupportsManualCompaction("claude", "opus"), false);
-  assert.equal(modelSupportsManualCompaction("claude", "gpt-5.6-sol"), false);
+  assert.equal(modelSupportsManualCompaction("claude", "gpt-6-sol"), false);
   for (const engine of engines) {
     for (const model of modelsFor(engine)) assert.equal(modelSupportsManualCompaction(engine, model.id), model.manualCompaction === true);
   }
