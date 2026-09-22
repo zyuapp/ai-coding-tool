@@ -23,6 +23,15 @@ test("steering failures require a message address and a bounded error", () => {
   assert.equal(isRunEvent({ ...event, messageId: undefined }), false);
 });
 
+test("retry notices carry a bounded reason and optional attempt counts", () => {
+  const event = { type: "run.retrying", taskId: "task-a", runId: "run-a", sequence: 1, message: "Claude is overloaded." };
+  assert.equal(isRunEvent(event), true);
+  assert.equal(isRunEvent({ ...event, attempt: 2, maxRetries: 10 }), true);
+  for (const message of [undefined, 123, "", "x".repeat(100_001)]) assert.equal(isRunEvent({ ...event, message }), false);
+  assert.equal(isRunEvent({ ...event, attempt: -1 }), false);
+  assert.equal(isRunEvent({ ...event, maxRetries: "10" }), false);
+});
+
 test("external start commands carry only a workspace ID", () => {
   assert.equal(isRunCommand(command), true);
   assert.equal(isRunCommand({ ...command, workspaceRoot: "/tmp/project" }), false);

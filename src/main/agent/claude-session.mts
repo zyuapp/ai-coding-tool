@@ -1,4 +1,4 @@
-import type { CanUseTool, HookCallback, Options, Query, SDKActiveGoalMessage, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
+import type { CanUseTool, HookCallback, Options, Query, SDKActiveGoalMessage, SDKAPIRetryMessage, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { claudeEffort, contextWindowLimit, modelTakesEffort, type AgentModel, type ClaudeEffort } from "../../domain/agent-engine.js";
 import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, SubagentMetadata, SubagentReport, ToolIntent } from "../../domain/run.js";
 import type { WorkflowReport } from "../../contracts/ipc.js";
@@ -31,6 +31,14 @@ function toolReach(toolName: string): ToolReach {
 
 /** The model the agent process stamps on replies it produced itself: slash commands, interrupts, error notices. */
 const SYNTHETIC_MODEL = "<synthetic>";
+
+/** Why a request is being retried, in the user's terms. */
+function retryReason(message: SDKAPIRetryMessage): string {
+  if (message.error === "overloaded") return "Claude is overloaded.";
+  if (message.error === "rate_limit") return "Claude is rate limited.";
+  if (message.error_status === null) return "Cannot reach Claude.";
+  return `Claude API error ${message.error_status}.`;
+}
 
 /** How long an interrupted turn has to come back with a result before the session is given up on. */
 const INTERRUPT_GRACE_MS = 10_000;
@@ -410,6 +418,8 @@ export class ClaudeSession {
         preTokens: message.compact_metadata.pre_tokens,
         ...(message.compact_metadata.post_tokens === undefined ? {} : { postTokens: message.compact_metadata.post_tokens }),
       });
+    } else if (message.type === "system" && message.subtype === "api_retry") {
+      stream.emit({ type: "retry", message: retryReason(message), attempt: message.attempt, maxRetries: message.max_retries });
     } else if (message.type === "system" && message.subtype === "status" && (message.status === "compacting" || message.compact_result)) {
       stream.emit({
         type: "compaction-status",

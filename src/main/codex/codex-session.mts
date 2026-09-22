@@ -22,6 +22,7 @@ import type { GrantedPermissionProfile } from "./protocol/v2/GrantedPermissionPr
 import type { RequestPermissionProfile } from "./protocol/v2/RequestPermissionProfile.js";
 import type { SandboxPolicy } from "./protocol/v2/SandboxPolicy.js";
 import type { ThreadItem } from "./protocol/v2/ThreadItem.js";
+import type { TurnError } from "./protocol/v2/TurnError.js";
 import type { ThreadGoal } from "./protocol/v2/ThreadGoal.js";
 
 /** What the session asks of its connection. The real client fits; a scripted one can stand in for it. */
@@ -75,6 +76,16 @@ function firstLine(message: string) {
 }
 
 /** What went wrong, without the method the server was answering when it did. */
+/** Why the server is retrying a request, in the user's terms. */
+function retryReason(error: TurnError): string {
+  const info = error.codexErrorInfo;
+  if (info === "serverOverloaded") return "Codex is overloaded.";
+  if (info === "rateLimitExceeded") return "Codex is rate limited.";
+  if (info === "internalServerError") return "Codex API error.";
+  if (isRecord(info) && ("httpConnectionFailed" in info || "responseStreamConnectionFailed" in info || "responseStreamDisconnected" in info)) return "Cannot reach Codex.";
+  return firstLine(error.message);
+}
+
 function reasonOf(error: unknown) {
   if (error instanceof AppServerError) return firstLine(error.message.slice(error.method.length + 2));
   return firstLine(error instanceof Error ? error.message : String(error));
@@ -458,7 +469,9 @@ export class CodexSession {
       if (!subagents.tokenUsageUpdated(params) && params.threadId === this.threadId) this.receiveUsage(params.tokenUsage.last.totalTokens, params.tokenUsage.modelContextWindow);
     });
     client.on("error", (params) => {
-      if (!subagents.error(params) && params.threadId === this.threadId && this.turn && !params.willRetry) this.turn.failure = params.error.message;
+      if (subagents.error(params) || params.threadId !== this.threadId || !this.turn) return;
+      if (params.willRetry) this.turn.input.emit({ type: "retry", message: retryReason(params.error) });
+      else this.turn.failure = params.error.message;
     });
     client.on("turn/completed", (params) => {
       const child = subagents.turnCompleted(params);

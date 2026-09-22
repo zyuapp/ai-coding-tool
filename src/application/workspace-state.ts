@@ -50,7 +50,7 @@ import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, READING_SIZE, TERMINAL_SIZE } from 
 import type { Workflow } from "../domain/workflow.js";
 import { DEFAULT_ENGINE, DEFAULT_MODEL, byEngine, capabilitiesFor, defaultEffortFor, defaultModelFor, engineLabel, type AgentEngine, type AgentModel, type EngineCapabilities, type EngineReadiness, type EngineStatus } from "../domain/agent-engine.js";
 import { engineReadinessOf } from "./engine-access.js";
-import { DEFAULT_EFFORT, OPEN_SUBAGENT_GROUPS, type AgentEffort, type ExecutionPolicy, type Subagent, type SubagentGroups } from "../domain/run.js";
+import { DEFAULT_EFFORT, OPEN_SUBAGENT_GROUPS, type AgentEffort, type ExecutionPolicy, type RetryNotice, type Subagent, type SubagentGroups } from "../domain/run.js";
 import { annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-drafts.js";
 import type { Annotation, AttachedFile, PastedText, StagedImage } from "../domain/conversation.js";
 import { legacyProjectId, projectName, type Project } from "../domain/project.js";
@@ -168,6 +168,7 @@ export type SideChatView = SideChat & {
   files: AttachedFile[];
   running: boolean;
   compacting: boolean;
+  retrying: RetryNotice | null;
   status: ThreadRunStatus;
   streamingTail: StreamingTail | null;
   queuedMessages: QueuedMessage[];
@@ -777,6 +778,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state)
     files: filesFor(state, promptKey(state)),
     status: currentRun ? "running" as const : runStatusFor(state, state.currentId),
     compacting: currentRun?.status === "compacting",
+    retrying: currentRun?.retry ?? null,
     runActive: Boolean(currentRun),
     question: currentRun?.questions?.[0],
     queuedMessages: (state.currentId ? state.queuedMessages[state.currentId] : undefined) ?? NO_QUEUED,

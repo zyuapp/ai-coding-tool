@@ -18,7 +18,7 @@ import type { AttachedFileDraft } from "../domain/conversation.js";
 import { MAX_DETAIL, MAX_FINDING_KEY, MAX_HEADLINE } from "../domain/finding.js";
 import { capabilitiesFor, engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, modelSupportsManualCompaction, type AgentEngine, type AgentModel, type EngineStatus } from "../domain/agent-engine.js";
 import { isThreadRole } from "../domain/thread-role.js";
-import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, Continuation, ExecutionPolicy, RunStatus, SubagentActivity, SubagentReport, ToolIntent } from "../domain/run.js";
+import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, Continuation, ExecutionPolicy, RetryNotice, RunStatus, SubagentActivity, SubagentReport, ToolIntent } from "../domain/run.js";
 import type { PlanUsage } from "../domain/plan-usage.js";
 import type { PullRequestAnswer } from "../domain/pull-request.js";
 import { shortcutAction, shortcutProblem, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
@@ -29,8 +29,7 @@ import { isReviewTarget, type ReviewTarget } from "../domain/review.js";
 import type { MobileDesktopAPI } from "./mobile.js";
 import type { ImageDesktopAPI } from "./images.js";
 import type { LoadedTaskStore, TaskStoreDelta } from "./task-store.js";
-import type { TerminalDataEvent, TerminalReadOptions, TerminalScreenSnapshot, TerminalStartOptions, TerminalText } from "./terminal.js";
-import type { TerminalOutputRead } from "./terminal.js";
+import type { TerminalDataEvent, TerminalOutputRead, TerminalReadOptions, TerminalScreenSnapshot, TerminalStartOptions, TerminalText } from "./terminal.js";
 export type { TerminalDataEvent, TerminalReadOptions, TerminalScreenSnapshot, TerminalStartOptions, TerminalText } from "./terminal.js";
 export type { LoadedTaskStore, PersistedSubagent, PersistedTask, TaskStoreDelta } from "./task-store.js";
 export type { ComputerUseMcp, ComputerUsePermission, ComputerUsePermissions, ComputerUseRunConfig } from "../domain/computer-use.js";
@@ -446,6 +445,7 @@ export type RunEvent =
   | (RunEventBase & { type: "assistant.tail"; messageId: string; text: string })
   | (RunEventBase & { type: "context.usage"; tokens: number; limit: number; model: string })
   | (RunEventBase & { type: "context.compaction-status"; compacting: boolean; error?: string })
+  | (RunEventBase & { type: "run.retrying" } & RetryNotice)
   | (RunEventBase & { type: "context.compacted"; trigger: "manual" | "auto"; preTokens: number; postTokens?: number })
   | (RunEventBase & { type: "tool.intent"; intent: ToolIntent })
   | (RunEventBase & { type: "computer-use.setup-required" })
@@ -810,6 +810,7 @@ export function isRunEvent(value: unknown): value is RunEvent {
   if (event.type === "assistant.delta") return isString(event.messageId) && typeof event.text === "string" && (event.append === undefined || event.append === true) && (event.artifact === undefined || event.artifact === true);
   if (event.type === "assistant.tail") return isString(event.messageId) && typeof event.text === "string" && event.text.length <= MAX_PROMPT_LENGTH;
   if (event.type === "context.usage") return typeof event.tokens === "number" && Number.isFinite(event.tokens) && event.tokens >= 0 && typeof event.limit === "number" && Number.isFinite(event.limit) && event.limit > 0 && isString(event.model);
+  if (event.type === "run.retrying") return isString(event.message, 100_000) && (event.attempt === undefined || isCount(event.attempt)) && (event.maxRetries === undefined || isCount(event.maxRetries));
   if (event.type === "context.compaction-status") return typeof event.compacting === "boolean" && (event.error === undefined || isString(event.error, 100_000));
   if (event.type === "context.compacted") return (event.trigger === "manual" || event.trigger === "auto") && typeof event.preTokens === "number" && Number.isFinite(event.preTokens) && event.preTokens >= 0 && (event.postTokens === undefined || (typeof event.postTokens === "number" && Number.isFinite(event.postTokens) && event.postTokens >= 0));
   if (event.type === "tool.intent") return isIntent(event.intent);

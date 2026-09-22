@@ -30,6 +30,13 @@ export type ToolIntent = {
 
 export type RunStatus = "running" | "awaiting-approval" | "succeeded" | "failed" | "cancelled";
 
+/** The engine's request failed and it is trying again on its own. `message` says why in the user's terms. */
+export type RetryNotice = {
+  message: string;
+  attempt?: number;
+  maxRetries?: number;
+};
+
 export type SubagentLiveStatus = "working" | "idle";
 export type SubagentTerminalStatus = "completed" | "failed" | "stopped";
 export type SubagentStatus = SubagentLiveStatus | SubagentTerminalStatus;

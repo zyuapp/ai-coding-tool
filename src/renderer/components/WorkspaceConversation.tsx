@@ -36,6 +36,7 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
           folder={workspace.folder}
           status={workspace.status}
           compacting={workspace.compacting}
+          retrying={workspace.retrying}
           waitingOn={workspace.waitingOn}
           streamingTail={workspace.streamingTail}
           readingPoint={workspace.readingPoint}

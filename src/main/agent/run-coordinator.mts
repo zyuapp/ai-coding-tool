@@ -194,6 +194,7 @@ export class RunCoordinator {
     }
     if (event.type === "assistant-tail") this.queueTail(active, event.messageId, event.text);
     if (event.type === "usage") this.publish(active, { type: "context.usage", tokens: event.tokens, limit: event.limit, model: event.model });
+    if (event.type === "retry") this.publish(active, { type: "run.retrying", message: event.message, ...(event.attempt === undefined ? {} : { attempt: event.attempt }), ...(event.maxRetries === undefined ? {} : { maxRetries: event.maxRetries }) });
     if (event.type === "compaction-status") this.publish(active, { type: "context.compaction-status", compacting: event.compacting, ...(event.error === undefined ? {} : { error: event.error }) });
     if (event.type === "compaction") this.publish(active, { type: "context.compacted", trigger: event.trigger, preTokens: event.preTokens, ...(event.postTokens === undefined ? {} : { postTokens: event.postTokens }) });
     if (event.type === "tool") this.publish(active, { type: "tool.intent", intent: event.intent });

@@ -98,6 +98,7 @@ test("a side chat composes with everything the main composer has", async () => {
       error: null,
       thread: chatThread,
       compacting: false,
+      retrying: null,
       status: "running",
       streamingTail: null,
       queuedMessages: [],

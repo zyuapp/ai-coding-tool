@@ -3,7 +3,7 @@ import type { BackgroundReport, ClaudeRunSettings, ComputerUseRunConfig, RunChan
 import type { BrowserRead, BrowserReadResult, BrowserWrite, ExternalCommand, FindingReport, FindingResult, TerminalRead, TerminalReadResult, ThreadCommandResult, ThreadListQuery, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
 import type { AgentEngine, AgentModel } from "../../domain/agent-engine.js";
-import type { AgentEffort, Continuation, ExecutionPolicy, SubagentReport, ToolIntent } from "../../domain/run.js";
+import type { AgentEffort, Continuation, ExecutionPolicy, RetryNotice, SubagentReport, ToolIntent } from "../../domain/run.js";
 
 /** The window's workspace, reachable from the run: reads are projections, writes are commands. */
 export type ThreadBridge = {
@@ -59,6 +59,7 @@ export type ProviderEvent =
   /** `model` is the id the engine reported on the wire, not an AgentModel. */
   | { type: "usage"; tokens: number; limit: number; model: string }
   | { type: "compaction-status"; compacting: boolean; error?: string }
+  | ({ type: "retry" } & RetryNotice)
   | { type: "compaction"; trigger: "manual" | "auto"; preTokens: number; postTokens?: number }
   | { type: "tool"; intent: ToolIntent }
   | { type: "computer-use.setup-required" }

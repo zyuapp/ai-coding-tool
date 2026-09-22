@@ -1,6 +1,6 @@
 import type { PendingQuestion } from "../domain/agent-question.js";
 import type { BackgroundEvent, RunEvent, ThreadEvent, WorkflowEvent } from "../contracts/ipc.js";
-import type { BackgroundProcess, Subagent, SubagentMetadata, SubagentReport } from "../domain/run.js";
+import type { BackgroundProcess, RetryNotice, Subagent, SubagentMetadata, SubagentReport } from "../domain/run.js";
 import type { Workflow } from "../domain/workflow.js";
 import type { ActiveGoal } from "../domain/goal.js";
 import { createConversationMessage, createFailureMessage } from "../domain/conversation.js";
@@ -13,7 +13,9 @@ export type ActiveRun = RunProvenance & {
   runId: string;
   sequence: number;
   questions?: PendingQuestion[];
-  status: "running" | "compacting" | "awaiting-approval";
+  status: "running" | "compacting" | "retrying" | "awaiting-approval";
+  /** Set while the engine retries a failed request. Any other event from the run clears it. */
+  retry?: RetryNotice;
   /** Whether this run has said it found something worth surfacing. */
   notified: boolean;
   /** Whether the run answered for itself with either tool. Answering neither is what surfaces a quiet tick. */
@@ -396,10 +398,23 @@ function applyRunFinished<T extends RunTransitionState>(state: T, event: Extract
   return next;
 }
 
+/** A run that hears anything from its engine other than another retry notice is through the retry. */
+function throughRetry(run: ActiveRun, event: RunEvent): ActiveRun {
+  if (run.status !== "retrying" || event.type === "run.retrying" || event.type === "queued.delivered" || event.type === "queued.steer-failed") return run;
+  const { retry: _retry, ...through } = run;
+  return { ...through, status: "running" };
+}
+
 export function applyRunEvent<T extends RunTransitionState>(state: T, event: RunEvent): T {
-  const active = state.activeRuns[event.taskId];
-  if (!active || event.runId !== active.runId || event.sequence <= active.sequence) return state;
+  const found = state.activeRuns[event.taskId];
+  if (!found || event.runId !== found.runId || event.sequence <= found.sequence) return state;
+  const active = throughRetry(found, event);
   const withSequence = withActiveRun(state, event.taskId, { ...active, sequence: event.sequence });
+
+  if (event.type === "run.retrying") {
+    const retry: RetryNotice = { message: event.message, ...(event.attempt === undefined ? {} : { attempt: event.attempt }), ...(event.maxRetries === undefined ? {} : { maxRetries: event.maxRetries }) };
+    return withActiveRun(withSequence, event.taskId, { ...active, sequence: event.sequence, status: "retrying", retry });
+  }
 
   if (event.type === "run.started") {
     /** A workflow the last run left running is still going; the ones that ended are that run's history. */

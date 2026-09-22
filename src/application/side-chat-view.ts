@@ -22,6 +22,7 @@ export function sideChatView(state: WorkspaceState, chat: SideChat): SideChatVie
     running: Boolean(active),
     question: active?.questions?.[0],
     compacting: active?.status === "compacting",
+    retrying: active?.retry ?? null,
     status: active ? "running" : runStatusFor(state, chat.id),
     streamingTail: state.streamingTails[chat.id] ?? null,
     queuedMessages: state.queuedMessages[chat.id] ?? NO_QUEUED,

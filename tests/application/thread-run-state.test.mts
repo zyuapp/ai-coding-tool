@@ -295,6 +295,22 @@ test("a continuation the engine no longer has is dropped, so the thread starts o
   assert.equal(lost.threads[0].continuationStatus, "invalid");
 });
 
+test("a retried request shows as retrying until the run hears anything else", () => {
+  const retrying = applyRunEvent(state(), { type: "run.retrying", taskId: "task-a", runId: "run-a", sequence: 1, message: "Claude is overloaded.", attempt: 2, maxRetries: 10 });
+  assert.equal(retrying.activeRuns["task-a"].status, "retrying");
+  assert.deepEqual(retrying.activeRuns["task-a"].retry, { message: "Claude is overloaded.", attempt: 2, maxRetries: 10 });
+
+  const again = applyRunEvent(retrying, { type: "run.retrying", taskId: "task-a", runId: "run-a", sequence: 2, message: "Claude is overloaded.", attempt: 3, maxRetries: 10 });
+  assert.equal(again.activeRuns["task-a"].retry?.attempt, 3);
+
+  const delivered = applyRunEvent(again, { type: "queued.delivered", taskId: "task-a", runId: "run-a", sequence: 3, messageId: "queued-1" });
+  assert.equal(delivered.activeRuns["task-a"].status, "retrying");
+
+  const through = applyRunEvent(delivered, { type: "assistant.delta", taskId: "task-a", runId: "run-a", sequence: 4, messageId: "message-1", text: "hello" });
+  assert.equal(through.activeRuns["task-a"].status, "running");
+  assert.equal("retry" in through.activeRuns["task-a"], false);
+});
+
 test("streamed Markdown blocks append without injected newlines", () => {
   const first = applyRunEvent(state(), { type: "assistant.delta", taskId: "task-a", runId: "run-a", sequence: 1, messageId: "message-1", text: "## Title\n\n", append: true });
   const second = applyRunEvent(first, { type: "assistant.delta", taskId: "task-a", runId: "run-a", sequence: 2, messageId: "message-1", text: "Paragraph.", append: true });
