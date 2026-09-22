@@ -17,7 +17,7 @@ import type { WorktreeService } from "./workspace/worktrees.mjs" with { "resolut
 import type { AutomationScheduler } from "./automation/automation-scheduler.mjs" with { "resolution-mode": "import" };
 import type { TaskDatabaseService } from "./task-database-service.mjs" with { "resolution-mode": "import" };
 import type { EngineAccessHost } from "./agent/engine-services.mjs" with { "resolution-mode": "import" };
-import { readAttachmentContext, savedAttachmentPath, useAttachmentsDirectory, writeAttachment } from "./attachment-store.js";
+import { attachmentsDirectory, readAttachmentContext, savedAttachmentPath, useAttachmentsDirectory, writeAttachment } from "./attachment-store.js";
 import { messageThumbnail } from "./message-thumbnails.js";
 import { browserPageUrl, registerBrowserIpc } from "./browser-ipc.js";
 import { cliStatus, installCli, uninstallCli, refreshCli } from "./cli-install.js";
@@ -29,6 +29,7 @@ import type { ComputerLinks } from "./computers/computer-links.mjs" with { "reso
 import { hostname } from "node:os";
 import { createJsonStorage } from "./json-storage.js";
 import { createRuntimeDesktop } from "./runtime-desktop.js";
+import { attachmentNames, ORPHAN_ATTACHMENT_MIN_AGE_MS, retireLegacyCodexHome, sweepOrphanAttachments } from "./user-data-sweep.js";
 import { startKeyboardHost } from "./keyboard-host.js";
 import { openInEditor } from "./open-in-editor.js";
 import { serveExternalApps } from "./open-in-app.js";
@@ -58,6 +59,8 @@ app.setName(profile.name);
 mkdirSync(profile.userData, { recursive: true });
 app.setPath("userData", profile.userData);
 app.setPath("sessionData", profile.userData);
+/** The browser panel's page cache otherwise grows with the free disk, well past a gigabyte. */
+app.commandLine.appendSwitch("disk-cache-size", String(256 * 1024 * 1024));
 useAttachmentsDirectory(app.getPath("userData"));
 useMessageImageStore({ directory: path.join(app.getPath("userData"), "message-images"), thumbnail: messageThumbnail });
 
@@ -393,6 +396,14 @@ async function createWindow() {
 const WORKTREES_ROOT = profile.worktreesRoot;
 
 /** Where the app kept worktrees before, still its own: listed and manually removable, never created in. */
+/** Housekeeping the window never waits for: retired data goes to the Trash, unused attachments go. */
+async function sweepUserData(userData: string, database: TaskDatabaseService) {
+  if (await retireLegacyCodexHome(userData, (target) => shell.trashItem(target))) console.log("Moved the retired Codex home to the Trash.");
+  const referenced = attachmentNames(await database.attachmentPaths());
+  const swept = await sweepOrphanAttachments(attachmentsDirectory(), referenced, { now: Date.now(), minAgeMs: ORPHAN_ATTACHMENT_MIN_AGE_MS });
+  if (swept.files) console.log(`Removed ${swept.files} unused attachment file(s), ${Math.round(swept.bytes / 1024 / 1024)} MB.`);
+}
+
 function legacyWorktreesRoots(userData: string) {
   return [path.join(userData, "worktrees")].filter((root) => root !== WORKTREES_ROOT);
 }
@@ -461,6 +472,7 @@ app.whenReady().then(async () => {
   const launchPath = projectPathFromArgv(process.argv);
   if (launchPath) openProjectPath(launchPath);
   void checkForUpdates(updateHost).catch((error) => console.error("Update check failed:", error));
+  void sweepUserData(userData, taskDatabase).catch((error) => console.error("Could not sweep unused app data:", error));
   app.on("activate", () => {
     if (queueReopen()) return;
     if (BrowserWindow.getAllWindows().length === 0) void createWindow();

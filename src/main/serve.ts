@@ -7,12 +7,13 @@ import { createRuntimePublisher } from "../host/runtime-publisher.js";
 import { createWorkspaceRuntime } from "../host/workspace-runtime.js";
 import { forkAgentProcessNode } from "./agent-process-node.js";
 import { appPluginPath } from "./app-plugin-path.js";
-import { useAttachmentsDirectory } from "./attachment-store.js";
+import { attachmentsDirectory, useAttachmentsDirectory } from "./attachment-store.js";
 import { createDesktopEvents } from "./desktop-events.js";
 import { claimServeLock } from "./instance-lock.js";
 import { createJsonStorage } from "./json-storage.js";
 import { useMessageImageStore } from "./message-image-store.js";
 import { startRunHost } from "./run-host.js";
+import { attachmentNames, ORPHAN_ATTACHMENT_MIN_AGE_MS, sweepOrphanAttachments } from "./user-data-sweep.js";
 import { createServeDesktop } from "./serve-desktop.js";
 import { answerComputerQuery } from "./computer-queries.js";
 import { appProfile } from "./user-data.js";
@@ -189,6 +190,10 @@ export async function startServe(options: { userData: string; packaged: boolean;
       if (state.error) say(`Bridge: ${state.error}`);
     },
   });
+  void taskDatabase.attachmentPaths()
+    .then((paths) => sweepOrphanAttachments(attachmentsDirectory(), attachmentNames(paths), { now: Date.now(), minAgeMs: ORPHAN_ATTACHMENT_MIN_AGE_MS }))
+    .then((swept) => { if (swept.files) say(`Removed ${swept.files} unused attachment file(s), ${Math.round(swept.bytes / 1024 / 1024)} MB.`); })
+    .catch((error: unknown) => console.error("Could not sweep unused attachments:", error));
   const stopPairingSocket = await servePairingSocket(path.join(userData, "serve.sock"), () => mobile.createMobilePairingCode());
   await mobile.setMobileEnabled(true);
   const state = mobile.mobileState();

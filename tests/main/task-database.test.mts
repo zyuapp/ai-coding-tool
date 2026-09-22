@@ -423,3 +423,22 @@ test("SQLite task storage keeps what a thread's runs found, and which of its mes
     await rm(directory, { recursive: true });
   }
 });
+
+test("SQLite task storage names every image its messages still carry, once each", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "aicodingtool-task-database-"));
+  const database = new TaskDatabase(path.join(directory, "tasks.sqlite"));
+  const task: PersistedTask = { ...summaryTask, id: "task-1", engine: "claude" };
+  try {
+    database.persist({ tasks: [{ task, messages: [
+      { index: 0, message: { id: "first", kind: "user", text: "Look", attachments: ["/data/attachments/a.png", "/data/attachments/b.png"], at: 10 } },
+      { index: 1, message: { id: "second", kind: "user", text: "Again", attachments: ["/data/attachments/a.png"], at: 11 } },
+      { index: 2, message: { id: "third", kind: "assistant", text: "Seen", at: 12 } },
+    ] }] });
+    assert.deepEqual(database.attachmentPaths().sort(), ["/data/attachments/a.png", "/data/attachments/b.png"]);
+    database.persist({ removedTasks: ["task-1"], tasks: [] });
+    assert.deepEqual(database.attachmentPaths(), []);
+  } finally {
+    database.close();
+    await rm(directory, { recursive: true });
+  }
+});

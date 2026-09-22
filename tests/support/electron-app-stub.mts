@@ -118,6 +118,7 @@ export function fakeElectron(userData: string) {
       getAppPath: () => process.cwd(),
       getPath: () => userData,
       setPath() {},
+      commandLine: { appendSwitch() {} },
       whenReady: () => Promise.resolve(),
       on: (name: string, listener: Callback) => appListeners.set(name, listener),
       requestSingleInstanceLock: () => true,
@@ -177,6 +178,7 @@ export function fakeElectron(userData: string) {
     shell: {
       openExternal: async (url: string) => { externalUrls.push(url); },
       openPath: async (file: string) => { openedPaths.push(file); return ""; },
+      trashItem: async () => {},
     },
     session: {
       defaultSession: { setPermissionRequestHandler() {} },

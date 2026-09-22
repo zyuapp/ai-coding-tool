@@ -27,6 +27,7 @@ function execute(request: TaskDatabaseRequest): unknown {
     case "flush": return;
     case "load": return database.load(request.input);
     case "messages": return database.loadThreadMessages(request.input.taskId);
+    case "attachments": return database.attachmentPaths();
     case "activity": return database.subagentActivity(request.input.taskId, request.input.subagentId);
     case "persist": return database.persist(request.input);
     case "automations": return database.listAutomations();
