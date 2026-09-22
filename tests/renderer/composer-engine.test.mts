@@ -40,7 +40,7 @@ test("a thread that has an engine offers only its models, and says a new thread 
   assert.equal(query(modelMenu, ".setting-value").textContent, "Terra");
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   assert.equal(query(modelMenu, ".model-results-heading > span").textContent, "Codex");
-  assert.deepEqual([...modelMenu.querySelectorAll("button.model-choice strong")].map((item) => item.textContent), ["Astra", "Sol", "Terra", "Luna"]);
+  assert.deepEqual([...modelMenu.querySelectorAll("button.model-choice strong")].map((item) => item.textContent), ["Astra", "Sol 6", "Luna 6", "Sol", "Terra", "Luna"]);
   const claudeFilter = [...modelMenu.querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((button) => button.textContent?.includes("Claude"))!;
   await act(async () => { claudeFilter.click(); });
   assert.equal(query(modelMenu, ".setting-hint").textContent, "Start a new thread to use Claude");
@@ -72,7 +72,7 @@ test("an engine that is signed out is greyed and inert, and its one sign-in butt
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   assert.equal(reads, 1, "opening the menu asks which engines can be picked");
   const codex = query(modelMenu, "[role=group][aria-label=Codex]");
-  assert.deepEqual([...codex.querySelectorAll(".model-choice")].map((option) => (option as HTMLButtonElement).disabled), [true, true, true, true]);
+  assert.deepEqual([...codex.querySelectorAll(".model-choice")].map((option) => (option as HTMLButtonElement).disabled), [true, true, true, true, true, true]);
   assert.equal(query(codex, ".setting-hint").textContent, "Sign in to use Codex");
   await act(async () => { query<HTMLButtonElement>(codex, ".model-choice").click(); });
   assert.equal(chosen.length, 0, "a greyed model is not chosen");

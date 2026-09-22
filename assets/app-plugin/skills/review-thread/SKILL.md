@@ -12,7 +12,7 @@ Run a review loop with a separate AICodingTool thread. The reviewer reads and ju
 
 The words after `/review-thread`, in any order:
 
-- An engine (`claude`, `codex`) or a model id (`fable`, `opus`, `sonnet`, `haiku`, `gpt-6-astra`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`). An engine alone means that engine's default model. Omitted: the reviewer inherits this thread's model.
+- An engine (`claude`, `codex`) or a model id (`fable`, `opus`, `sonnet`, `haiku`, `gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`). An engine alone means that engine's default model. Omitted: the reviewer inherits this thread's model.
 - An effort (`low`, `medium`, `high`, `xhigh`, `max`, `ultra`). Omitted: the reviewer inherits this thread's effort.
 - Everything else is review focus, passed to the reviewer verbatim.
 

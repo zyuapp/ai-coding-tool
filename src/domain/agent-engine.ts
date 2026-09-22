@@ -45,6 +45,8 @@ const CODEX_CONTEXT_WINDOW = 272_000;
 
 const CODEX_MODELS = [
   { id: "gpt-6-astra", label: "Astra", description: "Most capable model for complex, demanding work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA, manualCompaction: true },
+  { id: "gpt-6-sol", label: "Sol 6", description: "Strong GPT-6 coding model for everyday work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA, manualCompaction: true },
+  { id: "gpt-6-luna", label: "Luna 6", description: "Efficient GPT-6 model for lightweight work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_MAX, manualCompaction: true },
   { id: "gpt-5.6-sol", label: "Sol", description: "Strong coding model for everyday work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA, manualCompaction: true },
   { id: "gpt-5.6-terra", label: "Terra", description: "Balanced agentic coding model for everyday work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA, manualCompaction: true },
   { id: "gpt-5.6-luna", label: "Luna", description: "Efficient model for lightweight work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_MAX, manualCompaction: true },
