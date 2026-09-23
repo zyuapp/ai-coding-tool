@@ -17,7 +17,7 @@ test("a side chat ignores foreign conversation events while its fork is opening"
   })).then((result) => { settled = true; return result; });
   const client = await opened(codex);
   await sentBy(client, "thread/fork");
-  const item: ThreadItem = { type: "mcpToolCall", id: "main-tool", server: "aicodingtool", tool: "read_thread", arguments: {}, status: "inProgress", appContext: null, pluginId: null, readOnlyHint: true, result: null, error: null, durationMs: null };
+  const item: ThreadItem = { type: "mcpToolCall", id: "main-tool", server: "aicodingtool", tool: "read_thread", arguments: {}, status: "inProgress", appContext: null, mcpAppUi: null, pluginId: null, readOnlyHint: true, result: null, error: null, durationMs: null };
   client.notify("item/started", { threadId: "main-thread", turnId: "main-turn", item, startedAtMs: 1 });
   client.notify("item/completed", { threadId: "main-thread", turnId: "main-turn", item: { ...item, status: "completed" }, completedAtMs: 2 });
   client.notify("turn/completed", { threadId: "main-thread", turn: { id: "main-turn", status: "completed", items: [], itemsView: "summary", error: null, startedAt: 1, completedAt: 2, durationMs: 1000 } });

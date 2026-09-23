@@ -33,7 +33,7 @@ const fileChange = (id: string, ...paths: string[]): ThreadItem => ({
 });
 
 const mcpCall = (id: string, server: string, tool: string, args: unknown): ThreadItem => ({
-  type: "mcpToolCall", id, server, tool, status: "inProgress", arguments: args as never, appContext: null, pluginId: null, readOnlyHint: null, result: null, error: null, durationMs: null,
+  type: "mcpToolCall", id, server, tool, status: "inProgress", arguments: args as never, appContext: null, mcpAppUi: null, pluginId: null, readOnlyHint: null, result: null, error: null, durationMs: null,
 });
 
 const agentMessage = (id: string, text: string): ThreadItem => ({ type: "agentMessage", id, text, phase: "final_answer", memoryCitation: null, delivery: null, questions: null });
