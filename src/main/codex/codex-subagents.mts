@@ -125,6 +125,8 @@ export class CodexSubagents {
   private readonly children = new Map<string, Child>();
   private readonly ignoredThreads = new Set<string>();
   private readonly liveTurnsByThread = new Map<string, string>();
+  /** Children asked to stop before they had a turn to interrupt. */
+  private readonly heldStops = new Set<string>();
   private readonly pendingItems = new Map<string, PendingItem>();
   private readonly metadataQueue = new Set<Child>();
   private readingMetadata = 0;
@@ -147,9 +149,24 @@ export class CodexSubagents {
     return [...this.liveTurnsByThread].map(([threadId, turnId]) => ({ threadId, turnId }));
   }
 
-  liveTurn(threadId: string): CodexChildTurn | undefined {
+  /**
+   * The turn a stop of this child interrupts now, or "held" when it has none: a working child's stop
+   * then waits for the turn it starts next. Undefined when no reported child has this id.
+   */
+  stop(threadId: string): CodexChildTurn | "held" | undefined {
+    const child = this.children.get(threadId);
+    if (!child?.discovered) return undefined;
     const turnId = this.liveTurnsByThread.get(threadId);
-    return turnId ? { threadId, turnId } : undefined;
+    if (turnId) return { threadId, turnId };
+    if (child.active) this.heldStops.add(threadId);
+    return "held";
+  }
+
+  /** The turn just started by a child whose stop was held for it. */
+  takeHeldStop(threadId: string): CodexChildTurn | undefined {
+    const turnId = this.liveTurnsByThread.get(threadId);
+    if (!turnId || !this.heldStops.delete(threadId)) return undefined;
+    return { threadId, turnId };
   }
 
   setRootThreadId(threadId: string) {
@@ -159,6 +176,7 @@ export class CodexSubagents {
     if (this.children.get(threadId)?.active) this.activeChildren -= 1;
     this.children.delete(threadId);
     this.liveTurnsByThread.delete(threadId);
+    this.heldStops.delete(threadId);
     for (const [itemId, pending] of this.pendingItems) {
       if (pending.threadId === threadId) this.pendingItems.delete(itemId);
     }
@@ -542,6 +560,7 @@ export class CodexSubagents {
     if (child.active !== wasActive) this.activeChildren += child.active ? 1 : -1;
     if (lifecycle !== "working") {
       this.liveTurnsByThread.delete(child.id);
+      this.heldStops.delete(child.id);
       this.dropPendingItems(child.id);
     }
     child.statusSummary = lifecycle === "working" ? summary : undefined;

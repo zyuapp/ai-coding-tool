@@ -172,7 +172,8 @@ test("child messages, tools, cumulative usage, resume, and terminal errors becom
   tracker.tokenUsageUpdated(usage("child-a", "child-turn-2", 120, 0));
   tracker.error({ threadId: "child-a", turnId: "child-turn", willRetry: false, error: { message: "stale failure", codexErrorInfo: null, additionalDetails: null, misalignment: null } });
   assert.deepEqual(tracker.liveTurns, [{ threadId: "child-a", turnId: "child-turn-2" }]);
-  assert.deepEqual(tracker.liveTurn("child-a"), { threadId: "child-a", turnId: "child-turn-2" });
+  assert.deepEqual(tracker.stop("child-a"), { threadId: "child-a", turnId: "child-turn-2" });
+  assert.equal(tracker.stop("stranger"), undefined, "an id no child has is left for a terminal");
   tracker.error({ threadId: "child-a", turnId: "child-turn-2", willRetry: true, error: { message: "retry", codexErrorInfo: null, additionalDetails: null, misalignment: null } });
   tracker.error({ threadId: "child-a", turnId: "child-turn-2", willRetry: false, error: { message: "failed", codexErrorInfo: null, additionalDetails: null, misalignment: null } });
 
@@ -186,7 +187,9 @@ test("child messages, tools, cumulative usage, resume, and terminal errors becom
   assert.deepEqual(reports.filter((report) => report.type === "subagent.status").map((report) => report.status), ["idle", "working"]);
   assert.deepEqual(reports.at(-1), { type: "subagent.finished", id: "child-a", status: "failed", summary: "failed" });
   assert.deepEqual(tracker.liveTurns, []);
-  assert.equal(tracker.liveTurn("child-a"), undefined);
+  assert.equal(tracker.stop("child-a"), "held");
+  tracker.turnStarted(turn("child-a", "child-turn-3"));
+  assert.equal(tracker.takeHeldStop("child-a"), undefined, "a child that was not working holds no stop for its next turn");
 });
 
 test("V2 discovery fetches child settings through the session without a thread/started notification", async () => {
@@ -312,5 +315,24 @@ test("stopping a Codex subagent interrupts its live turn after the parent turn h
   await sentBy(client, "turn/interrupt");
   assert.deepEqual(client.calls("turn/interrupt"), [{ threadId: "child-a", turnId: "child-turn" }]);
   assert.equal(client.calls("thread/backgroundTerminals/terminate").length, 0);
+  codex.provider.closeAll();
+});
+
+test("a Codex subagent stopped before its first turn is interrupted as soon as that turn starts", async () => {
+  const codex = harness();
+  const { client } = await runTurn(codex, {}, (client) => {
+    client.notify("item/started", itemStarted(rootId, "turn-1", activity("discover", "child-a", "/root/reviewer")));
+  });
+
+  assert.equal(codex.provider.stopProcess("task-1", "child-a"), true);
+  await tick();
+  assert.equal(client.calls("turn/interrupt").length, 0);
+  assert.equal(client.calls("thread/backgroundTerminals/terminate").length, 0, "a child's stop never reaches the terminals");
+  client.notify("turn/started", turn("child-a", "child-turn"));
+  await sentBy(client, "turn/interrupt");
+  assert.deepEqual(client.calls("turn/interrupt"), [{ threadId: "child-a", turnId: "child-turn" }]);
+  client.notify("turn/started", turn("child-a", "child-turn-2"));
+  await tick();
+  assert.equal(client.calls("turn/interrupt").length, 1, "a held stop is spent once");
   codex.provider.closeAll();
 });

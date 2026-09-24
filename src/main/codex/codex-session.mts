@@ -280,9 +280,9 @@ export class CodexSession {
     const client = this.client;
     const threadId = this.threadId;
     if (!client || !threadId) return;
-    const child = this.subagents?.liveTurn(processId);
+    const child = this.subagents?.stop(processId);
     if (child) {
-      void client.request("turn/interrupt", child).catch(() => {});
+      if (child !== "held") void client.request("turn/interrupt", child).catch(() => {});
       return;
     }
     void client.request("thread/backgroundTerminals/terminate", { threadId, processId })
@@ -446,7 +446,10 @@ export class CodexSession {
     client.on("thread/status/changed", (params) => { subagents.threadStatusChanged(params); });
     client.on("thread/closed", (params) => { subagents.threadClosed(params); });
     client.on("turn/started", (params) => {
-      if (!subagents.turnStarted(params) && params.threadId === this.threadId && this.turn && this.goalActive) this.turn.turnId = params.turn.id;
+      if (subagents.turnStarted(params)) {
+        const held = subagents.takeHeldStop(params.threadId);
+        if (held) void client.request("turn/interrupt", held).catch(() => {});
+      } else if (params.threadId === this.threadId && this.turn && this.goalActive) this.turn.turnId = params.turn.id;
     });
     client.on("thread/goal/updated", (params) => {
       if (params.threadId === this.threadId) this.reportCodexGoal(params.goal);
