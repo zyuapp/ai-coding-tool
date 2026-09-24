@@ -5,11 +5,11 @@ import { crewDecisions, crewLead, crewMemberIds, crewMembers, deliveryLabel, isC
 import type { Thread } from "../domain/thread.js";
 import { wantsAttention } from "../domain/attention.js";
 
-/** What a send carries for a coordinator: the thread it starts works under it with this brief, or its run delivers this many waiting notes. */
+/** What a send carries for a coordinator: the thread it starts works under it with this brief, or its run delivers these waiting notes. */
 export type CrewSend = {
   coordinatorId?: string;
   brief?: ThreadBrief;
-  notes?: number;
+  notes?: string[];
 };
 
 /** What a send that starts a thread carries for a coordinator, if anything. */
@@ -56,7 +56,11 @@ function excerpt(text: string) {
 export function turnNote(thread: Thread, status: "succeeded" | "failed" | "cancelled", at: number): CrewNote {
   const ended = status === "succeeded" ? "ended its turn" : status === "failed" ? "failed" : "was stopped";
   const reply = lastReply(thread);
-  return { threadId: thread.id, text: `"${thread.title}" ${ended}.${reply ? ` It last said: ${excerpt(reply)}` : ""}`, at };
+  return crewNote(thread.id, `"${thread.title}" ${ended}.${reply ? ` It last said: ${excerpt(reply)}` : ""}`, at);
+}
+
+export function crewNote(threadId: string, text: string, at: number): CrewNote {
+  return { id: crypto.randomUUID(), threadId, text, at };
 }
 
 /** One line per thread working under the coordinator, as it stands right now. */
@@ -76,8 +80,8 @@ function roster(state: WorkspaceState, leadId: string): string[] {
  * What a coordinator's run is told beyond its prompt: the news it has not heard yet, and where each of
  * its threads stands. Notes the prompt already carries are left out.
  */
-export function crewContext(state: WorkspaceState, lead: Thread, carried = 0): string {
-  const notes = (lead.crewNotes ?? []).slice(carried);
+export function crewContext(state: WorkspaceState, lead: Thread, carried: readonly string[] = []): string {
+  const notes = (lead.crewNotes ?? []).filter((note) => !carried.includes(note.id));
   const lines = roster(state, lead.id);
   const own = openDecisions(lead).map((decision) => `- ${decision.question}`);
   const sections = [
@@ -173,6 +177,8 @@ export function crewView(threads: readonly Thread[], thread: Thread | undefined,
     return members.length || decisions.length ? { ...NO_CREW, members, decisions, brief: thread.brief ?? null } : NO_CREW;
   }
   const lead = crewLead(threads, thread) ?? null;
-  if (!lead && !thread.brief) return NO_CREW;
-  return { ...NO_CREW, lead, brief: thread.brief ?? null, asking: Boolean(lead && openDecisions(thread).length) };
+  /** A thread that left its coordinator with a decision still open is where that decision is answered now. */
+  const decisions = lead ? [] : openDecisions(thread).map((decision) => ({ thread, decision }));
+  if (!lead && !thread.brief && !decisions.length) return NO_CREW;
+  return { ...NO_CREW, lead, decisions, brief: thread.brief ?? null, asking: Boolean(lead && openDecisions(thread).length) };
 }

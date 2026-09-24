@@ -4,6 +4,7 @@ import { reduce } from "../../src/application/workspace-reducer.ts";
 import { crewSections, CREW_UPDATE_DETAIL } from "../../src/application/crew.ts";
 import { deriveView } from "../../src/application/workspace-state.ts";
 import type { ThreadBrief } from "../../src/domain/crew.ts";
+import { THREAD_STORE_VERSION } from "../../src/domain/thread-storage.ts";
 import { task, workspace, activeRun, effectAt, effectOf, correlatedRunEvent, required } from "./workspace-reducer-fixtures.mts";
 
 const PROJECTLESS = { id: "projectless", kind: "projectless" as const, root: "/tmp" };
@@ -92,8 +93,7 @@ test("a decision is put to the user at once and its answer reaches the thread th
 
   const answered = reduce(raised.state, { type: "decision.answer", taskId: "worker", decisionId: decision.id, answer: "Tokens" });
   assert.equal(answered.state.threads[1].decisions?.[0].answer, "Tokens");
-  const sent = required(Object.values(answered.state.pendingRuns)[0]);
-  assert.equal(sent.taskId, "worker");
+  const sent = required(Object.values(answered.state.pendingRuns).find((pending) => pending.taskId === "worker"));
   assert.match(sent.text, /The user decided "Tokens or overrides\?": Tokens/);
 
   const stray = reduce(workspace({ threads: [task("alone")] }), { type: "crew.decision-raised", taskId: "alone", request: { question: "Q?", options: [] } });
@@ -119,4 +119,44 @@ test("dismissing a coordinator files away what its threads finished with", () =>
   const state = workspace({ threads: [lead(), task("worker", { parentId: "lead", outcome: "finished" })] });
   const dismissed = reduce(state, { type: "task.dismiss", taskId: "lead" });
   assert.equal(dismissed.state.threads[1].outcome, undefined);
+});
+
+test("a report or a decision wakes a free coordinator without waiting for the thread's turn to end", () => {
+  const state = workspace({ threads: [lead(), task("worker", { parentId: "lead" })], activeRuns: { worker: activeRun("worker", "run-w") } });
+  const reported = reduce(state, { type: "crew.reported", taskId: "worker", state: "blocked", summary: "Needs the signing cert" });
+  assert.equal(required(Object.values(reported.state.pendingRuns)[0]).taskId, "lead");
+  const raised = reduce(state, { type: "crew.decision-raised", taskId: "worker", request: { question: "Ship?", options: [] } });
+  assert.equal(required(Object.values(raised.state.pendingRuns)[0]).taskId, "lead");
+});
+
+test("notes waiting when the app closed are delivered once the store is back", () => {
+  const waiting = lead("lead", { crewNotes: [{ id: "n1", threadId: "worker", text: "\"Fix login\" ended its turn.", at: 1 }] });
+  const loaded = reduce(workspace(), { type: "store.loaded", data: { version: THREAD_STORE_VERSION, tasks: [waiting, task("worker", { parentId: "lead" })], projects: [], worktrees: [], lastFolder: null } });
+  assert.equal(required(Object.values(loaded.state.pendingRuns)[0]).taskId, "lead");
+});
+
+test("a run hears exactly the notes it carried and those that arrived since, even past the cap", () => {
+  const notes = Array.from({ length: 50 }, (_, index) => ({ id: `n${index}`, threadId: "worker", text: `note ${index}`, at: index }));
+  const state = workspace({ threads: [lead("lead", { crewNotes: notes }), task("worker", { parentId: "lead" })] });
+  const sending = reduce(state, { type: "task.send", taskId: "lead", text: "Status?" });
+  const pendingId = effectAt(sending, "resolve-run-workspace").pendingId;
+  const late = reduce(sending.state, { type: "crew.reported", taskId: "worker", state: "done", summary: "late news" });
+  const started = reduce(late.state, { type: "run.resolved", pendingId, workspace: PROJECTLESS });
+  assert.match(effectAt(started, "start-run").command.prompt, /late news/, "a note that pushed an old one out is still heard");
+  assert.equal(started.state.threads[0].crewNotes, undefined);
+});
+
+test("an answer that cannot be sent leaves the decision open, and an overlong one is refused", () => {
+  const decisions = [{ id: "d1", question: "Ship?", options: [], raisedAt: 1 }];
+  const state = workspace({ threads: [lead(), task("worker", { parentId: "lead", decisions })], creatingWorktrees: ["worker"] });
+  const refused = reduce(state, { type: "decision.answer", taskId: "worker", decisionId: "d1", answer: "Yes" });
+  assert.equal(refused.result?.ok, false);
+  assert.equal(refused.state.threads[1].decisions?.[0].answer, undefined);
+  const long = reduce({ ...state, creatingWorktrees: [] }, { type: "decision.answer", taskId: "worker", decisionId: "d1", answer: "x".repeat(4_001) });
+  assert.equal(long.result?.ok, false);
+});
+
+test("a thread that leaves its coordinator with a decision open is where it is answered", () => {
+  const state = workspace({ threads: [lead(), task("worker", { decisions: [{ id: "d1", question: "Ship?", options: [], raisedAt: 1 }] })], currentId: "worker" });
+  assert.equal(deriveView(state).crew.decisions.length, 1);
 });

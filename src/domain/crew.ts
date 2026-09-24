@@ -54,6 +54,7 @@ export type Decision = {
 
 /** Something a coordinator has yet to hear about one of its threads. */
 export type CrewNote = {
+  id: string;
   threadId: string;
   text: string;
   at: number;
@@ -149,9 +150,9 @@ export function withCrewNote(lead: Thread, note: CrewNote): Thread {
   return { ...lead, crewNotes: [...lead.crewNotes ?? [], note].slice(-MAX_NOTES) };
 }
 
-/** Takes off the notes a delivery carried, leaving any that arrived after it set off. */
-export function withoutCrewNotes(lead: Thread, delivered: number): Thread {
-  const rest = (lead.crewNotes ?? []).slice(delivered);
+/** Takes off the notes a run heard, leaving any that arrived after it set off. */
+export function withoutCrewNotes(lead: Thread, heard: ReadonlySet<string>): Thread {
+  const rest = (lead.crewNotes ?? []).filter((note) => !heard.has(note.id));
   if (rest.length) return { ...lead, crewNotes: rest };
   const { crewNotes: _delivered, ...thread } = lead;
   return thread;
@@ -213,5 +214,5 @@ export function isDecision(value: unknown): value is Decision {
 }
 
 export function isCrewNote(value: unknown): value is CrewNote {
-  return isRecord(value) && text(value.threadId, 200) && typeof value.text === "string" && finite(value.at);
+  return isRecord(value) && text(value.id, 200) && text(value.threadId, 200) && typeof value.text === "string" && finite(value.at);
 }

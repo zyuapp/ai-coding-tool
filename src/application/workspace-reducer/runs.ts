@@ -309,7 +309,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   /** A coordinator's run hears everything its threads said since the last one, so none of it is waiting any more. */
   const coordinating = isCoordinator(located);
   const context = coordinating ? crewContext(state, located, pending.crew?.notes) : "";
-  const heard = coordinating && located.crewNotes ? withoutCrewNotes(located, located.crewNotes.length) : located;
+  const heard = coordinating && located.crewNotes ? withoutCrewNotes(located, new Set(located.crewNotes.map((note) => note.id))) : located;
   const updated = { ...heard, messages: [...heard.messages, ...arrival, message], updatedAt: now() };
   const brief = pending.crew?.brief;
   const prompt = `${pending.prompt}${brief ? `\n\n${briefPrompt(brief)}` : ""}${context}`;

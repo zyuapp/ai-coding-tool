@@ -3,12 +3,12 @@ import { queuedFor, resolveWorkspaceEffect, threadBusy, withPending } from "./ru
 import { reduceSending } from "./sending.js";
 import { now, rejected, settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { CREW_UPDATE_DETAIL, crewUpdate, turnNote } from "../crew.js";
+import { CREW_UPDATE_DETAIL, crewNote, crewUpdate, turnNote } from "../crew.js";
 import { announced } from "../notices.js";
 import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
-import { canJoinCrew, crewLead, isCoordinator, openDecisions, withAnswer, withCrewNote, withDecision } from "../../domain/crew.js";
+import { canJoinCrew, crewLead, isCoordinator, MAX_ANSWER, openDecisions, withAnswer, withCrewNote, withDecision } from "../../domain/crew.js";
 
 type CrewInput = Extract<WorkspaceInput, {
   type: "task.set-coordinator" | "decision.answer" | "view.set-crew-open" | "crew.reported" | "crew.decision-raised";
@@ -37,9 +37,12 @@ export function reduceCrew(state: WorkspaceState, input: CrewInput): WorkspaceTr
       const decision = thread && openDecisions(thread).find((item) => item.id === input.decisionId);
       const answer = input.answer.trim();
       if (!thread || !decision || !answer) return settled(state);
-      const answered = updateThread(state, thread.id, (item) => withAnswer(item, decision.id, answer, now()));
-      if (thread.archivedAt !== undefined) return settled(answered);
-      return reduceSending(answered, { type: "task.send", taskId: thread.id, text: `The user decided "${decision.question}": ${answer}` });
+      if (answer.length > MAX_ANSWER) return rejected(state, `An answer can be at most ${MAX_ANSWER.toLocaleString()} characters.`);
+      const answered = (next: WorkspaceState) => updateThread(next, thread.id, (item) => withAnswer(item, decision.id, answer, now()));
+      if (thread.archivedAt !== undefined) return settled(answered(state));
+      /** A decision only closes once its answer is on its way, so one that could not be sent can be answered again. */
+      const sent = reduceSending(state, { type: "task.send", taskId: thread.id, text: `The user decided "${decision.question}": ${answer}` });
+      return sent.result?.ok === false ? sent : { ...sent, state: answered(sent.state) };
     }
 
     case "view.set-crew-open": {
@@ -59,7 +62,7 @@ export function reduceCrew(state: WorkspaceState, input: CrewInput): WorkspaceTr
       const at = now();
       const reported = updateThread(state, thread.id, (item) => ({ ...item, report: { state: input.state, summary: input.summary, at } }));
       if (input.state === "working") return settled(reported);
-      return settled(updateThread(reported, lead.id, (item) => withCrewNote(item, { threadId: thread.id, text: `"${thread.title}" reported ${input.state}: ${input.summary}`, at })));
+      return deliverCrewNotes(updateThread(reported, lead.id, (item) => withCrewNote(item, crewNote(thread.id, `"${thread.title}" reported ${input.state}: ${input.summary}`, at))), lead.id);
     }
 
     /** The user is told at once; the coordinator hears it with the rest when the thread's turn ends. */
@@ -75,9 +78,11 @@ export function reduceCrew(state: WorkspaceState, input: CrewInput): WorkspaceTr
         options: input.request.options,
         raisedAt: at,
       };
-      let next = updateThread(state, thread.id, (item) => withDecision(item, decision));
-      if (lead !== thread) next = updateThread(next, lead.id, (item) => withCrewNote(item, { threadId: thread.id, text: `"${thread.title}" asked the user to decide: ${decision.question}`, at }));
-      return settled(next, announced(next, lead, `Needs you: ${decision.question}`));
+      const raised = updateThread(state, thread.id, (item) => withDecision(item, decision));
+      if (lead === thread) return settled(raised, announced(raised, lead, `Needs you: ${decision.question}`));
+      const noted = updateThread(raised, lead.id, (item) => withCrewNote(item, crewNote(thread.id, `"${thread.title}" asked the user to decide: ${decision.question}`, at)));
+      const woken = deliverCrewNotes(noted, lead.id);
+      return settled(woken.state, [...announced(noted, lead, `Needs you: ${decision.question}`), ...woken.effects]);
     }
   }
 }
@@ -98,6 +103,14 @@ export function settleCrew(state: WorkspaceState, taskId: string, status: "succe
   return isCoordinator(thread) && status !== "cancelled" ? deliverCrewNotes(state, thread.id) : settled(state);
 }
 
+/** What a restored workspace owes its coordinators: the notes that were waiting when the app last closed. */
+export function deliverRestoredNotes(state: WorkspaceState): WorkspaceTransition {
+  return state.threads.filter((thread) => thread.crewNotes?.length).reduce<WorkspaceTransition>((transition, lead) => {
+    const delivered = deliverCrewNotes(transition.state, lead.id);
+    return { state: delivered.state, effects: [...transition.effects, ...delivered.effects] };
+  }, settled(state));
+}
+
 /** Wakes a free coordinator with its waiting notes. The notes stay until its run actually starts. */
 export function deliverCrewNotes(state: WorkspaceState, leadId: string): WorkspaceTransition {
   const lead = state.threads.find((item) => item.id === leadId);
@@ -115,7 +128,7 @@ export function deliverCrewNotes(state: WorkspaceState, leadId: string): Workspa
     prompt: update.prompt,
     detail: CREW_UPDATE_DETAIL,
     attachments: [],
-    crew: { notes: notes.length },
+    crew: { notes: notes.map((note) => note.id) },
   };
   return settled(withPending(state, pending), [resolveWorkspaceEffect(pending.id, lead, project, worktreeFor(state, lead), false)]);
 }
