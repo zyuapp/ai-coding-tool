@@ -32,6 +32,8 @@ const OUTCOME_LABELS: Record<ThreadOutcome, string> = {
 
 const BLOCKED_LABEL = "Needs approval";
 
+const MEMBER_BLOCKED_LABEL = "A thread needs your approval";
+
 const SIDE_CHAT_LABEL = "A side chat is waiting";
 
 /** The mark says the thread runs on a schedule; whether that schedule is well is the part worth hearing. */
@@ -63,8 +65,9 @@ function decisionLabel(count: number) {
  * it last moved. A row carrying something a run found says that instead — the headline is why the
  * row is in Priority.
  */
-function activityMeta(thread: Thread, host: ThreadHost | undefined, projects: Project[], formatTime: (value: number) => string, decisions: number) {
+function activityMeta(thread: Thread, host: ThreadHost | undefined, projects: Project[], formatTime: (value: number) => string, decisions: number, memberBlocked: boolean) {
   if (decisions) return decisionLabel(decisions);
+  if (memberBlocked) return MEMBER_BLOCKED_LABEL;
   const finding = newestUnreadFinding(thread);
   if (finding) return finding.headline;
   const project = projects.find((item) => item.id === thread.projectId);
@@ -245,13 +248,16 @@ export function useThreadRows({
   };
 
   /** The engine stays at the right edge, with status beside it, whatever other marks a row carries. */
+  /** A coordinator's row stands for its threads, so it shows the approval or the work they have going. */
+  const membersIn = (thread: Thread, ids: Set<string>) => (crew.crews.get(thread.id) ?? []).some((member) => ids.has(member.id));
+
   const rowMarks = (thread: Thread): React.ReactNode[] => [
     thread.role && <ThreadRoleMark key="role" role={thread.role} size={13} />,
     worktreeThreadIds.has(thread.id) && <FolderSymlink key="worktree" className={worktreeMark(thread.id)} size={13} aria-label={worktreeLabel(thread.id)} />,
     schedules.has(thread.id) && <AlarmClock key="automation" className="task-automation" size={13} aria-label={scheduleLabel(schedules.get(thread.id)!)} />,
-    blockedThreadIds.has(thread.id)
-      ? <span key="status" className="task-attention approval" aria-label={BLOCKED_LABEL} />
-      : runningThreadIds.has(thread.id)
+    blockedThreadIds.has(thread.id) || membersIn(thread, blockedThreadIds)
+      ? <span key="status" className="task-attention approval" aria-label={blockedThreadIds.has(thread.id) ? BLOCKED_LABEL : MEMBER_BLOCKED_LABEL} />
+      : runningThreadIds.has(thread.id) || membersIn(thread, runningThreadIds)
         ? <ThreadSpinner key="status" />
         : attentionMark(thread, sideChatAttention.has(thread.id), decisionCount(thread, crew.crews)),
     <ThreadEngineIcon key="engine" engine={thread.engine} className="task-engine" size={13} />,
@@ -361,7 +367,7 @@ export function useThreadRows({
       {rowBody(thread, `task-row ${thread.id === currentId ? "active" : ""}`, (
         <span className="task-row-text">
           <span>{thread.title}</span>
-          <small>{activityMeta(thread, threadHosts.get(thread.id), projects, formatTime, decisionCount(thread, crew.crews))}</small>
+          <small>{activityMeta(thread, threadHosts.get(thread.id), projects, formatTime, decisionCount(thread, crew.crews), membersIn(thread, blockedThreadIds))}</small>
         </span>
       ), action, priority)}
       </div>
