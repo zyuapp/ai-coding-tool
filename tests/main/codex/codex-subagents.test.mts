@@ -304,8 +304,13 @@ test("the session isolates child traffic from the parent and cancellation interr
   codex.provider.closeAll();
 });
 
-test("stopping a Codex subagent interrupts its live turn after the parent turn has ended", async () => {
-  const codex = harness();
+test("stopping a Codex subagent interrupts its live turn after the parent turn has ended, and ends its commands", async () => {
+  const codex = harness({
+    "thread/backgroundTerminals/list": (params: { threadId: string }) => ({
+      data: params.threadId === "child-a" ? [{ itemId: "item-1", processId: "child-process", command: "sleep 120", cwd: "/tmp/project", osPid: 101, cpuPercent: 0, rssKb: 1024n }] : [],
+      nextCursor: null,
+    }),
+  });
   const { client } = await runTurn(codex, {}, (client) => {
     client.notify("item/started", itemStarted(rootId, "turn-1", activity("discover", "child-a", "/root/reviewer")));
     client.notify("turn/started", turn("child-a", "child-turn"));
@@ -314,7 +319,8 @@ test("stopping a Codex subagent interrupts its live turn after the parent turn h
   assert.equal(codex.provider.stopProcess("task-1", "child-a"), true);
   await sentBy(client, "turn/interrupt");
   assert.deepEqual(client.calls("turn/interrupt"), [{ threadId: "child-a", turnId: "child-turn" }]);
-  assert.equal(client.calls("thread/backgroundTerminals/terminate").length, 0);
+  await sentBy(client, "thread/backgroundTerminals/terminate");
+  assert.deepEqual(client.calls("thread/backgroundTerminals/terminate"), [{ threadId: "child-a", processId: "child-process" }]);
   codex.provider.closeAll();
 });
 

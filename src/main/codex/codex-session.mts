@@ -282,7 +282,7 @@ export class CodexSession {
     if (!client || !threadId) return;
     const child = this.subagents?.stop(processId);
     if (child) {
-      if (child !== "held") void client.request("turn/interrupt", child).catch(() => {});
+      if (child !== "held") void client.request("turn/interrupt", child).catch(() => {}).then(() => this.terminateTerminals(client, processId));
       return;
     }
     void client.request("thread/backgroundTerminals/terminate", { threadId, processId })
@@ -664,6 +664,25 @@ export class CodexSession {
     if (completed.status === "completed") this.turns.settle({ status: "succeeded" });
     else if (completed.status === "interrupted") this.turns.settle({ status: "cancelled" });
     else if (completed.status === "failed") this.turns.settle({ status: "failed", message: completed.error?.message ?? turn.failure ?? "Codex could not finish the turn." });
+  }
+
+  /** Interrupting a child's turn leaves the commands it started running, so its stop ends them too. */
+  private async terminateTerminals(client: CodexClient, threadId: string) {
+    const processIds: string[] = [];
+    const cursors = new Set<string>();
+    let cursor: string | null = null;
+    try {
+      do {
+        const page: { data: BackgroundTerminal[]; nextCursor: string | null } = await client.request("thread/backgroundTerminals/list", { threadId, cursor, limit: 100 });
+        processIds.push(...page.data.map((terminal) => terminal.processId));
+        cursor = page.nextCursor;
+        if (cursor && cursors.has(cursor)) break;
+        if (cursor) cursors.add(cursor);
+      } while (cursor);
+    } catch {
+      return;
+    }
+    await Promise.all(processIds.map((processId) => client.request("thread/backgroundTerminals/terminate", { threadId, processId }).catch(() => {})));
   }
 
   /** Reads every page because the Session Panel treats each provider report as the complete set. */
