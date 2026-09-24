@@ -7,12 +7,14 @@
   left: 0;
   right: 0;
   padding: 10px clamp(20px, 4vw, 64px) 12px;
-  background: linear-gradient(var(--canvas) 70%, var(--canvas-fade));
+  background: linear-gradient(var(--canvas) calc(100% - 12px), var(--canvas-fade));
   pointer-events: none;
 }
 .crew-head > * { pointer-events: auto; }
+.workspace.summary-open .crew-head { padding-right: calc(clamp(20px, 4vw, 64px) + 282px); }
 .work-area.crew-strip-on .conversation { padding-top: 118px; }
 .work-area.crew-bar-on .conversation { padding-top: 96px; }
+.work-area.crew-brief-on .conversation { padding-top: 64px; }
 
 .crew-strip {
   display: flex;
@@ -79,7 +81,7 @@
   font-weight: 600;
   cursor: pointer;
 }
-.crew-brief { border-top: 1px solid var(--line-soft); }
+.crew-bar-line + .crew-brief { border-top: 1px solid var(--line-soft); }
 .crew-brief summary { padding: 7px 12px; color: var(--muted); cursor: pointer; }
 .crew-brief dl { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 6px 12px; margin: 0; padding: 2px 12px 11px; }
 .crew-brief dt { color: var(--quiet); font-size: var(--text-meta); padding-top: 1px; }
@@ -122,11 +124,12 @@
 .decision-foot button:disabled { opacity: 0.4; cursor: default; }
 
 /* The sidebar's fold on a coordinator's row, and the threads nested under it. */
+.task-entry:has(> .crew-toggle) > .task-row { padding-left: 28px; }
 .task-entry > .crew-toggle {
   position: absolute;
   z-index: 1;
   top: 8px;
-  left: -2px;
+  left: 8px;
   width: 14px;
   height: 18px;
   display: grid;
@@ -138,12 +141,12 @@
   color: var(--quiet);
   cursor: pointer;
 }
-.project-task-row ~ .crew-toggle, .task-entry:has(> .project-task-row) > .crew-toggle { top: 6px; left: 18px; }
+.task-entry:has(> .project-task-row) > .crew-toggle { top: 6px; left: 18px; }
 .task-entry > .crew-toggle:hover { color: var(--ink); background: var(--wash); }
 .task-entry > .crew-toggle svg { transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1); }
 .task-entry > .crew-toggle.open svg { transform: rotate(90deg); }
 .crew-rows { position: relative; margin-left: 18px; padding-left: 6px; }
 .crew-rows::before { content: ""; position: absolute; top: 4px; bottom: 8px; left: 0; width: 1px; background: var(--line-mid); }
-.task-entry:has(> .project-task-row) > .crew-rows { margin-left: 40px; }
+.task-group:has(> .task-entry > .project-task-row) > .crew-rows { margin-left: 40px; }
 .crew-rows .task-row { padding-top: 4px; padding-bottom: 4px; }
 .crew-rows .task-row-text > span { font-size: var(--text-menu); }

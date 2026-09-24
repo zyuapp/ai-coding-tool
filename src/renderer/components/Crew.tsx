@@ -13,6 +13,7 @@ const STATUS_LABELS: Record<CrewMemberStatus, string> = {
   blocked: "Blocked",
   done: "Done",
   failed: "Failed",
+  finished: "Finished its turn",
   idle: "Idle",
 };
 
@@ -44,13 +45,13 @@ export function CrewStrip({ members, onSelect }: { members: CrewMemberView[]; on
 export function CrewBar({ lead, brief, asking, onSelect }: { lead: Thread | null; brief: ThreadBrief | null; asking: boolean; onSelect: (threadId: string) => void }) {
   return (
     <div className={`crew-bar ${asking ? "asking" : ""}`}>
-      <div className="crew-bar-line">
-        {lead && <span className="crew-bar-lead">Works under <button type="button" onClick={() => onSelect(lead.id)}>{lead.title}</button></span>}
-        {asking && lead && <>
+      {lead && <div className="crew-bar-line">
+        <span className="crew-bar-lead">Works under <button type="button" onClick={() => onSelect(lead.id)}>{lead.title}</button></span>
+        {asking && <>
           <span className="crew-bar-asking">A decision is waiting on you</span>
           <button type="button" className="crew-bar-answer" onClick={() => onSelect(lead.id)}>Answer</button>
         </>}
-      </div>
+      </div>}
       {brief && (
         <details className="crew-brief">
           <summary>Brief</summary>

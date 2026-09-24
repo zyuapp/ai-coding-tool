@@ -134,7 +134,7 @@ export function crewSections(threads: Thread[], busy: Set<string>, blocked: Set<
 }
 
 /** Where a thread under a coordinator stands, in the words its card shows. */
-export type CrewMemberStatus = "approval" | "asking" | "working" | "blocked" | "done" | "failed" | "idle";
+export type CrewMemberStatus = "approval" | "asking" | "working" | "blocked" | "done" | "failed" | "finished" | "idle";
 
 export type CrewMemberView = {
   thread: Thread;
@@ -161,11 +161,13 @@ const NO_CREW: CrewView = { members: [], decisions: [], lead: null, brief: null,
 
 export function crewMemberStatus(thread: Thread, busy: Set<string>, blocked: Set<string>): CrewMemberView {
   const question = openDecisions(thread)[0]?.question;
-  if (blocked.has(thread.id)) return { thread, status: "approval", summary: "Needs your approval" };
+  if (blocked.has(thread.id)) return { thread, status: "approval", summary: null };
   if (question) return { thread, status: "asking", summary: question };
   if (busy.has(thread.id)) return { thread, status: "working", summary: thread.report?.state === "working" ? thread.report.summary : null };
   if (thread.report && thread.report.state !== "working") return { thread, status: thread.report.state, summary: thread.report.summary };
   if (thread.outcome === "failed") return { thread, status: "failed", summary: null };
+  /** A thread that ended its turn without reporting has still finished it, which says more than idle. */
+  if (thread.outcome === "finished") return { thread, status: "finished", summary: null };
   return { thread, status: "idle", summary: null };
 }
 

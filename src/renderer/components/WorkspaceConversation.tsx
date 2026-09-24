@@ -22,7 +22,7 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
   const strip = crew.members.length > 0;
   const bar = !strip && (crew.lead !== null || crew.brief !== null);
   return (
-    <div className={`work-area ${strip ? "crew-strip-on" : bar ? "crew-bar-on" : ""}`}>
+    <div className={`work-area ${strip ? "crew-strip-on" : bar ? (crew.lead ? "crew-bar-on" : "crew-brief-on") : ""}`}>
       {mine && findBar}
       {(strip || bar) && <div className="crew-head">
         {strip

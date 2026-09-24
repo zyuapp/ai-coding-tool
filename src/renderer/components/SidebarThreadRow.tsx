@@ -329,23 +329,24 @@ export function useThreadRows({
 
   /** A thread under a coordinator, drawn beneath its row. */
   const memberRow = (member: Thread) => (
-    <div className="task-entry" key={member.id} tabIndex={0} onKeyDown={(event) => { event.stopPropagation(); selectOnEnter(event, member); }}>
+    <div className="task-entry" key={member.id} tabIndex={0} onKeyDown={(event) => selectOnEnter(event, member)}>
       {rowBody(member, `task-row crew-row ${member.id === currentId ? "active" : ""}`, <span className="task-row-text"><span>{member.title}</span></span>, "none")}
     </div>
   );
 
+  /** A coordinator's threads move with its row, but only the row itself takes the drag. */
   const threadRow = (thread: Thread, index: number, className: string, content: React.ReactNode) => (
     <Draggable draggableId={thread.id} index={index} key={thread.id} isDragDisabled={offline(thread)}>
       {(provided: DraggableProvided, snapshot) => (
-        <div
-          className={`task-entry ${snapshot.isDragging ? "is-dragging" : ""}`}
-          ref={provided.innerRef}
-          {...provided.draggableProps}
-          {...provided.dragHandleProps}
-          onKeyDown={(event) => selectOnEnter(event, thread)}
-        >
-          <CrewToggle thread={thread} crew={crew} />
-          {rowBody(thread, className, content, "archive")}
+        <div className="task-group" ref={provided.innerRef} {...provided.draggableProps}>
+          <div
+            className={`task-entry ${snapshot.isDragging ? "is-dragging" : ""}`}
+            {...provided.dragHandleProps}
+            onKeyDown={(event) => selectOnEnter(event, thread)}
+          >
+            <CrewToggle thread={thread} crew={crew} />
+            {rowBody(thread, className, content, "archive")}
+          </div>
           <CrewRows thread={thread} crew={crew} renderMember={memberRow} />
         </div>
       )}
@@ -354,7 +355,8 @@ export function useThreadRows({
 
   /** Activity mode ranks its rows itself, so nothing there is dragged and no list places it. */
   const activityRow = (thread: Thread, action: RowAction, priority: boolean) => (
-    <div className="task-entry" key={thread.id} tabIndex={0} onKeyDown={(event) => selectOnEnter(event, thread)}>
+    <div className="task-group" key={thread.id}>
+      <div className="task-entry" tabIndex={0} onKeyDown={(event) => selectOnEnter(event, thread)}>
       <CrewToggle thread={thread} crew={crew} />
       {rowBody(thread, `task-row ${thread.id === currentId ? "active" : ""}`, (
         <span className="task-row-text">
@@ -362,6 +364,7 @@ export function useThreadRows({
           <small>{activityMeta(thread, threadHosts.get(thread.id), projects, formatTime, decisionCount(thread, crew.crews))}</small>
         </span>
       ), action, priority)}
+      </div>
       <CrewRows thread={thread} crew={crew} renderMember={memberRow} />
     </div>
   );
