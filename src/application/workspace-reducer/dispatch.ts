@@ -1,5 +1,6 @@
 import { reduceThreadCommands } from "./thread-commands.js";
 import { reduceWorktrees } from "./worktrees.js";
+import { reduceCrew } from "./crew.js";
 import { reduceWorktreeMenu } from "./worktree-menu.js";
 import { reduceSending } from "./sending.js";
 import { reduceComposerAttachments } from "./composer-attachments.js";
@@ -40,6 +41,9 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "task.fork": case "task.move": case "task.set-policy":
     case "task.set-model": case "task.set-effort": case "task.set-fast-mode":
       return reduceThreadCommands(state, input);
+
+    case "task.set-coordinator": case "decision.answer": case "view.set-crew-open": case "crew.reported": case "crew.decision-raised":
+      return reduceCrew(state, input);
 
     case "view.move-worktree": case "task.set-worktree": case "task.move-worktree": case "task.set-branch": case "task.checkout-branch":
     case "worktree.refresh": case "worktree.reveal": case "worktree.delete":

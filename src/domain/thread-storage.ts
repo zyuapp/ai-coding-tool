@@ -6,6 +6,7 @@ import type { Continuation, ExecutionPolicy, Subagent } from "./run.js";
 import type { ContextUsage, ContinuationStatus, ThreadOutcome } from "./thread-run.js";
 import type { Thread } from "./thread.js";
 import { isThreadRole } from "./thread-role.js";
+import { isCrewNote, isCrewReport, isDecision, isThreadBrief } from "./crew.js";
 import { isWorktree, type Worktree } from "./worktree.js";
 
 export const THREAD_STORE_VERSION = 2 as const;
@@ -367,6 +368,11 @@ function isThreadBase(value: unknown): value is StoredThread {
     nonEmptyString(value.title) &&
     (value.titleByUser === undefined || typeof value.titleByUser === "boolean") &&
     (value.role === undefined || isThreadRole(value.role)) &&
+    (value.parentId === undefined || nonEmptyString(value.parentId)) &&
+    (value.brief === undefined || isThreadBrief(value.brief)) &&
+    (value.report === undefined || isCrewReport(value.report)) &&
+    (value.decisions === undefined || Array.isArray(value.decisions) && value.decisions.every(isDecision)) &&
+    (value.crewNotes === undefined || Array.isArray(value.crewNotes) && value.crewNotes.every(isCrewNote)) &&
     (value.projectId === undefined || nonEmptyString(value.projectId)) &&
     isExecutionPolicy(value.executionPolicy) &&
     isAgentEngine(value.engine) &&

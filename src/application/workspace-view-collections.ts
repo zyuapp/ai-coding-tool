@@ -5,6 +5,8 @@ import type { Project } from "../domain/project.js";
 import { orderProjects } from "./project-order.js";
 import type { ComputerLink } from "../domain/computers.js";
 import { sidebarLists } from "./sidebar-lists.js";
+import { crewView } from "./crew.js";
+import { isCoordinator } from "../domain/crew.js";
 import { unreadView } from "./thread-attention.js";
 import { busyThreadIds, blockedThreadIds, sideChatIds, type WorkspaceState, type WorktreeGroup } from "./workspace-state.js";
 import { worktreeSettingsPage, worktreeSettingsViews } from "./worktree-settings.js";
@@ -60,6 +62,15 @@ const busy = selector(
 );
 
 const blocked = selector((state) => [state.activeRuns], blockedThreadIds, sameIds);
+
+/** The threads that can take others under them, for the menu that moves a thread under one. */
+const coordinators = selector((state) => [threadLists(state).listedThreads], (state) => threadLists(state).listedThreads.filter((thread) => isCoordinator(thread)));
+
+/** The open thread's crew: a coordinator's threads and open decisions, or a thread's coordinator and brief. */
+const crew = selector(
+  (state) => [state.threads, state.currentId, busy(state), blocked(state)],
+  (state) => crewView(state.threads, state.threads.find((thread) => thread.id === state.currentId), busy(state), blocked(state)),
+);
 
 /** The paired computers' threads, gathered once per change to any of them. */
 const remote = selector(
@@ -178,5 +189,7 @@ export function workspaceViewCollections(state: WorkspaceState) {
     worktreeSettings: settings(state),
     worktreeGroups: groups(state),
     schedules: schedules(state),
+    coordinators: coordinators(state),
+    crew: crew(state),
   };
 }

@@ -1,5 +1,6 @@
 import type { QuestionAnswers, QuestionRequest } from "../../domain/agent-question.js";
 import type { BackgroundReport, ClaudeRunSettings, ComputerUseRunConfig, RunChannel, RunOperation, WorkflowReport } from "../../contracts/ipc.js";
+import type { CrewRole, CrewState, DecisionRequest } from "../../domain/crew.js";
 import type { BrowserRead, BrowserReadResult, BrowserWrite, ExternalCommand, FindingReport, FindingResult, TerminalRead, TerminalReadResult, ThreadCommandResult, ThreadListQuery, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
 import type { AgentEngine, AgentModel } from "../../domain/agent-engine.js";
@@ -11,6 +12,12 @@ export type ThreadBridge = {
   read(threadId: string, limit?: number, computer?: string): Promise<ThreadTranscript>;
   wait(threadId: string, timeoutMs: number): Promise<ThreadWaitResult>;
   command(command: ExternalCommand): Promise<ThreadCommandResult>;
+};
+
+/** What a thread in a coordinator's crew says for itself, answered by the window that keeps it. */
+export type CrewBridge = {
+  report(state: CrewState, summary: string): Promise<FindingResult>;
+  decide(request: DecisionRequest): Promise<FindingResult>;
 };
 
 /**
@@ -111,6 +118,9 @@ export type ProviderRunInput = {
   /** Only alongside `automations`: the two tools that use it live on the automation surface. */
   findings?: FindingBridge;
   threads?: ThreadBridge;
+  /** The part the run plays beside a coordinator, and the tools that come with it. */
+  crewRole?: CrewRole;
+  crew?: CrewBridge;
   browser?: BrowserBridge;
   terminal?: TerminalBridge;
   steering: SteerQueue;

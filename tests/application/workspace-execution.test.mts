@@ -179,3 +179,31 @@ test("a started thread keeps its successful result when its carried diff refresh
   assert.deepEqual(await host.execute({ type: "diff.refresh" }).completed, { ok: false, message: "diff unavailable" });
   assert.deepEqual(await host.execute({ type: "view.refresh-environment" }).completed, { ok: false, message: "git unavailable" });
 });
+
+test("a coordinator's new thread needs a brief and works under it", async () => {
+  const host = driver(workspace({ threads: [task("lead", { role: "coordinator" })] }), async (effect, dispatch) => {
+    if (effect.type === "resolve-run-workspace") await dispatch({ type: "run.resolved", pendingId: effect.pendingId, workspace: { id: "scratch", kind: "projectless", root: "/scratch" } });
+  });
+  const bare = await answerThreadRequest(host, { type: "thread.request", requestId: "r1", taskId: "lead", op: "command", command: { type: "task.send", text: "Fix it" } });
+  assert.equal(bare.ok, false);
+  if (!bare.ok) assert.match(bare.message, /brief/);
+
+  const brief = { intent: "fix it", doneWhen: "it works", delivers: "commit" as const };
+  const briefed = await answerThreadRequest(host, { type: "thread.request", requestId: "r2", taskId: "lead", op: "command", command: { type: "task.send", text: "Fix it", brief } });
+  assert.equal(briefed.ok, true);
+  const worker = host.state().threads.find((thread) => thread.id !== "lead");
+  assert.equal(worker?.parentId, "lead");
+  assert.deepEqual(worker?.brief, brief);
+});
+
+test("only a thread in a crew reports or raises decisions", async () => {
+  const host = driver(workspace({ threads: [task("lead", { role: "coordinator" }), task("worker", { parentId: "lead" }), task("alone")] }));
+  const alone = await answerThreadRequest(host, { type: "thread.request", requestId: "r1", taskId: "alone", op: "report", state: "done", summary: "Done" });
+  assert.deepEqual(alone.ok && (alone.result as { recorded: boolean }).recorded, false);
+  const reported = await answerThreadRequest(host, { type: "thread.request", requestId: "r2", taskId: "worker", op: "report", state: "done", summary: "PR #42" });
+  assert.deepEqual(reported.ok && (reported.result as { recorded: boolean }).recorded, true);
+  assert.equal(host.state().threads[1].report?.summary, "PR #42");
+  const decided = await answerThreadRequest(host, { type: "thread.request", requestId: "r3", taskId: "lead", op: "decision", request: { question: "Ship it?", options: [] } });
+  assert.deepEqual(decided.ok && (decided.result as { recorded: boolean }).recorded, true, "a coordinator can put a choice to the user too");
+  assert.equal(host.state().threads[0].decisions?.length, 1);
+});

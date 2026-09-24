@@ -4,6 +4,7 @@ import type { ThreadSummary, ThreadTranscript } from "../../contracts/threads.js
 import { AGENT_ENGINES, isAgentEffort, isAgentModel, modelsFor, type AgentModel } from "../../domain/agent-engine.js";
 import type { AgentEffort } from "../../domain/run.js";
 import { THREAD_ROLES, type ThreadRole } from "../../domain/thread-role.js";
+import { DELIVERIES, MAX_BRIEF_FIELD, type Delivery } from "../../domain/crew.js";
 import type { ThreadBridge } from "../agent/agent-provider.mjs";
 import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";
 
@@ -140,12 +141,17 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
       model: modelField,
       effort: effortField,
       role: roleField,
+      intent: z.string().max(MAX_BRIEF_FIELD).optional().describe("Part of the brief a coordinator must give: the user's own words for this piece of work."),
+      doneWhen: z.string().max(MAX_BRIEF_FIELD).optional().describe("Part of the brief a coordinator must give: what finished looks like, checkably."),
+      delivers: z.enum(DELIVERIES.map((delivery) => delivery.id) as [Delivery, ...Delivery[]]).optional().describe("Part of the brief a coordinator must give: pull-request, commit, or report (knowledge only, no code changes)."),
     },
     readOnly: false,
     run: ({ bridge, now }, args) => report(async () => {
+      const { intent, doneWhen, delivers } = args;
       const { thread } = await bridge.command({
         type: "task.send",
         text: args.prompt,
+        ...(intent && doneWhen && delivers ? { brief: { intent, doneWhen, delivers } } : {}),
         ...(args.project ? { project: args.project } : {}),
         ...(args.worktreeId ? { worktreeId: args.worktreeId } : args.worktree ? { worktree: true } : {}),
         ...(args.model ? { model: args.model } : {}),
@@ -171,7 +177,7 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
   }),
   defineTool({
     name: "set_thread_role",
-    description: "Give a thread its part beside the others, or take it off. The role shows on the thread's row and in list_threads; it changes nothing about what the thread may do.",
+    description: "Give a thread its part beside the others, or take it off. The role shows on the thread's row and in list_threads. A coordinator changes no files itself and delegates to threads it starts; the other roles change nothing about what the thread may do.",
     input: {
       threadId: threadIdField,
       role: z.enum(roleIds as [ThreadRole, ...ThreadRole[]]).nullable().describe("coordinator, implementer, reviewer, or researcher. null takes the role off."),

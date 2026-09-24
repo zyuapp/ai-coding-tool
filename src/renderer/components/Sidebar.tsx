@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { ProjectSidebar } from "./ProjectSidebar";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 
@@ -12,6 +12,9 @@ export function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
   const renameProject = useCallback((projectId: string, name: string) => {
     void workspace.actions.editProject(projectId, { name });
   }, [workspace.actions]);
+
+  const { crews, closedCrews, coordinators, actions } = workspace;
+  const sidebarCrew = useMemo(() => ({ crews, closedCrews, coordinators, onSetCoordinator: actions.setCoordinator, onSetCrewOpen: actions.setCrewOpen }), [crews, closedCrews, coordinators, actions]);
 
   return (
     <ProjectSidebar
@@ -63,6 +66,7 @@ export function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
       onMoveThread={workspace.actions.moveThread}
       onForkThread={workspace.actions.forkThread}
       onSetThreadRole={workspace.actions.setThreadRole}
+      sidebarCrew={sidebarCrew}
       onOpenSettings={onOpenSettings}
     />
   );

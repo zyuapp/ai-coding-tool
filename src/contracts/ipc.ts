@@ -4,7 +4,7 @@ import type { AgentSettingsReloadEvent, ReloadAgentSettingsCommand } from "./age
 export { isAgentSettingsReloadEvent, type AgentSettingsReloadEvent, type ReloadAgentSettingsCommand } from "./agent-settings.js";
 import { isQuestionRequest, type QuestionRequest } from "../domain/agent-question.js";
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationPatch, type AutomationRunStatus, type AutomationView } from "../domain/automation.js";
-import type { BrowserRead, ExternalCommand, FindingReport, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
+import type { BrowserRead, ExternalCommand, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
 import type { BrowserAction, BrowserPermissions, BrowserBounds, BrowserInspection, BrowserInspectionResult, BrowserShot, BrowserSnapshot } from "../domain/browser.js";
 import type { CaptureOptions } from "../domain/capture.js";
 import type { ComputerUsePermission, ComputerUsePermissions, ComputerUseRunConfig } from "../domain/computer-use.js";
@@ -15,9 +15,9 @@ import type { FindResults } from "../domain/find.js";
 import type { ActiveGoal } from "../domain/goal.js";
 import type { TerminalUpdate } from "../domain/terminal.js";
 import type { AttachedFileDraft } from "../domain/conversation.js";
-import { MAX_DETAIL, MAX_FINDING_KEY, MAX_HEADLINE } from "../domain/finding.js";
 import { capabilitiesFor, engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, modelSupportsManualCompaction, type AgentEngine, type AgentModel, type EngineStatus } from "../domain/agent-engine.js";
 import { isThreadRole } from "../domain/thread-role.js";
+import { isThreadBrief, type CrewRole } from "../domain/crew.js";
 import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, Continuation, ExecutionPolicy, RetryNotice, RunStatus, SubagentActivity, SubagentReport, ToolIntent } from "../domain/run.js";
 import type { PlanUsage } from "../domain/plan-usage.js";
 import type { PullRequestAnswer } from "../domain/pull-request.js";
@@ -88,6 +88,8 @@ export type StartRunCommand = {
   forkContinuation?: boolean;
   /** Set only by a scheduled tick: nobody is present, so an approval nobody answers is denied for them. */
   unattended?: true;
+  /** Gives the run the tools and instructions for its part beside a coordinator. */
+  crewRole?: CrewRole;
 };
 
 export type CreateWorktreeRequest = {
@@ -502,15 +504,15 @@ export const MAX_THREAD_WAIT_MS = 15 * 60 * 1_000;
 export const MAX_BROWSER_WAIT_MS = 2 * 60 * 1_000;
 const MAX_PROMPT_LENGTH = 1_000_000, MAX_TITLE_LENGTH = 64;
 
-function isString(value: unknown, maxLength = MAX_ID_LENGTH): value is string {
+export function isString(value: unknown, maxLength = MAX_ID_LENGTH): value is string {
   return typeof value === "string" && value.length > 0 && value.length <= maxLength;
 }
 
-function isBlankable(value: unknown, maxLength: number): value is string {
+export function isBlankable(value: unknown, maxLength: number): value is string {
   return typeof value === "string" && value.length <= maxLength;
 }
 
-function isCount(value: unknown): value is number {
+export function isCount(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
@@ -621,7 +623,7 @@ function isStartCommand(command: Record<string, unknown>, internal: boolean) {
     && isContinuation(command.continuation) && command.continuation.provider === command.engine
     && (command.forkContinuation === undefined || command.forkContinuation === true);
   const operationOnly = compact || review;
-  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && (operationOnly ? isBlankable(command.prompt, MAX_PROMPT_LENGTH) : isString(command.prompt, MAX_PROMPT_LENGTH)) && isString(command.workspaceId) && isPolicy(command.policy) && isAgentEngine(command.engine) && isAgentModel(command.model) && engineHasModel(command.engine, command.model) && isAgentEffort(command.effort) && engineHasEffort(command.engine, command.effort) && (command.operation === undefined || operationOnly) && (command.claude === undefined || isClaudeRunSettings(command.claude)) && (command.computerUseTools === undefined || command.computerUseTools === false) && (command.browserTools === undefined || command.browserTools === false) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation))) && (command.unattended === undefined || command.unattended === true);
+  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && (operationOnly ? isBlankable(command.prompt, MAX_PROMPT_LENGTH) : isString(command.prompt, MAX_PROMPT_LENGTH)) && isString(command.workspaceId) && isPolicy(command.policy) && isAgentEngine(command.engine) && isAgentModel(command.model) && engineHasModel(command.engine, command.model) && isAgentEffort(command.effort) && engineHasEffort(command.engine, command.effort) && (command.operation === undefined || operationOnly) && (command.claude === undefined || isClaudeRunSettings(command.claude)) && (command.computerUseTools === undefined || command.computerUseTools === false) && (command.browserTools === undefined || command.browserTools === false) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation))) && (command.unattended === undefined || command.unattended === true) && (command.crewRole === undefined || command.crewRole === "coordinator" || command.crewRole === "member");
   if (!base || !(command.fastMode === undefined || isAgentEngine(command.engine) && capabilitiesFor(command.engine).fastMode && typeof command.fastMode === "boolean")) return false;
   if (!internal) return !["workspaceRoot", "projectless", "computerUse", "cwd", "folder", "sessionId", "mode", "requestId"].some((key) => key in command);
   return isString(command.workspaceRoot, 4_096) && typeof command.projectless === "boolean" && isComputerUseRunConfig(command.computerUse);
@@ -651,8 +653,10 @@ export function isExternalCommand(value: unknown): value is ExternalCommand {
       && (command.worktreeId === undefined || isString(command.worktreeId))
       && (command.model === undefined || isAgentModel(command.model))
       && (command.effort === undefined || isAgentEffort(command.effort)) && (command.role === undefined || isThreadRole(command.role))
-      /** Agent selection and the role belong to a thread being created, never one that already exists. */
-      && (command.taskId === undefined || command.model === undefined && command.effort === undefined && command.role === undefined);
+      /** Only the window says which coordinator a thread works under: the one that started it. */
+      && (command.brief === undefined || isThreadBrief(command.brief)) && command.coordinatorId === undefined
+      /** Agent selection, the role and the brief belong to a thread being created, never one that already exists. */
+      && (command.taskId === undefined || command.model === undefined && command.effort === undefined && command.role === undefined && command.brief === undefined);
   }
   if (command.type === "task.archive") return isString(command.taskId);
   if (command.type === "task.set-role") return isString(command.taskId) && (command.role === null || isThreadRole(command.role));
@@ -730,38 +734,6 @@ function isBrowserCommand(command: Record<string, unknown>) {
   if (command.type === "browser.reload") return tabbed;
   if (command.type === "browser.act") return tabbed && isBrowserAction(command.action);
   return false;
-}
-
-export function isThreadRequest(value: unknown): value is ThreadRequest {
-  if (!value || typeof value !== "object") return false;
-  const request = value as Record<string, unknown>;
-  if (request.type !== "thread.request" || !isString(request.requestId) || !isString(request.taskId)) return false;
-  if (request.computer !== undefined && !isString(request.computer)) return false;
-  if (request.op === "list") {
-    return (request.project === undefined || isString(request.project, 4_096))
-      && (request.archived === undefined || typeof request.archived === "boolean")
-      && (request.idleForMs === undefined || isCount(request.idleForMs))
-      && (request.search === undefined || isString(request.search, 1_000))
-      && (request.attachments === undefined || typeof request.attachments === "boolean")
-      && (request.limit === undefined || isCount(request.limit));
-  }
-  if (request.op === "read") return isString(request.threadId) && (request.limit === undefined || isCount(request.limit));
-  if (request.op === "wait") return isString(request.threadId) && isCount(request.timeoutMs) && request.timeoutMs <= MAX_THREAD_WAIT_MS;
-  if (request.op === "command") return isExternalCommand(request.command);
-  if (request.op === "browser") return isBrowserRead(request.read);
-  if (request.op === "terminal") return isTerminalRead(request.read);
-  if (request.op === "notify") return isFindingReport(request.report);
-  if (request.op === "nothing-to-report") return isString(request.checked, MAX_HEADLINE);
-  return false;
-}
-
-export function isFindingReport(value: unknown): value is FindingReport {
-  if (!value || typeof value !== "object") return false;
-  const report = value as Record<string, unknown>;
-  return isString(report.headline, MAX_HEADLINE)
-    /** An optional the caller sent empty says the same as one it left out, and is no reason to drop the call. */
-    && (report.detail === undefined || isBlankable(report.detail, MAX_DETAIL))
-    && (report.key === undefined || isBlankable(report.key, MAX_FINDING_KEY));
 }
 
 /**

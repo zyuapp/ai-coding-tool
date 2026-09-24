@@ -1,6 +1,7 @@
 import { CodexQuestions } from "./codex-questions.mjs";
 import { contextWindowLimit } from "../../domain/agent-engine.js";
 import type { BackgroundProcess, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
+import type { CrewRole } from "../../domain/crew.js";
 import { continuationOf, type ProviderResult, type ProviderRunInput } from "../agent/agent-provider.mjs";
 import { grantsTool } from "../agent/approval-grant.mjs";
 import { appendCompleteMarkdown, openMarkdownBuffer, type MarkdownBuffer } from "../agent/markdown-buffer.mjs";
@@ -39,8 +40,17 @@ type CodexSandbox = "read-only" | "workspace-write" | "danger-full-access";
 
 export type CodexPolicy = { approvalPolicy: AskForApproval; sandbox: CodexSandbox; approvalsReviewer: ApprovalsReviewer };
 
-/** Codex has no plan mode, so a plan run is held to what a confirm run may do. */
-export function codexPolicy(policy: ExecutionPolicy): CodexPolicy {
+/**
+ * Codex has no plan mode, so a plan run is held to what a confirm run may do. A coordinator changes
+ * nothing itself: its shell is read-only, and every escalation out of that comes to the app, which
+ * refuses it.
+ */
+export function codexPolicy(policy: ExecutionPolicy, crewRole?: CrewRole): CodexPolicy {
+  const granted = policyGrants(policy);
+  return crewRole === "coordinator" ? { ...granted, sandbox: "read-only", approvalsReviewer: "user" } : granted;
+}
+
+function policyGrants(policy: ExecutionPolicy): CodexPolicy {
   switch (policy) {
     case "confirm":
     case "plan":
@@ -321,7 +331,7 @@ export class CodexSession {
       const keepGoing = await this.beginGoal(turn, client, threadId, goal);
       if (!keepGoing) return;
     }
-    const policy = codexPolicy(turn.input.policy);
+    const policy = codexPolicy(turn.input.policy, turn.input.crewRole);
     let started: { turn: { id: string } };
     try {
       const prompt = goal?.type === "set" ? goal.objective : turn.input.prompt;
@@ -493,8 +503,8 @@ export class CodexSession {
     await skills.refresh(true);
     const account = await client.request("account/read", { refreshToken: false });
     if (!account.account) throw new OpenFailure(SIGN_IN);
-    const policy = codexPolicy(seed.policy);
-    const settings = { cwd: seed.workspaceRoot, model: seed.model, serviceTier: seed.fastMode ? "priority" : "default", approvalPolicy: policy.approvalPolicy, sandbox: policy.sandbox, approvalsReviewer: policy.approvalsReviewer, config: { model_reasoning_effort: seed.effort }, developerInstructions: codexInstructions(seed.channel) };
+    const policy = codexPolicy(seed.policy, seed.crewRole);
+    const settings = { cwd: seed.workspaceRoot, model: seed.model, serviceTier: seed.fastMode ? "priority" : "default", approvalPolicy: policy.approvalPolicy, sandbox: policy.sandbox, approvalsReviewer: policy.approvalsReviewer, config: { model_reasoning_effort: seed.effort }, developerInstructions: codexInstructions(seed.channel, seed.crewRole) };
     const continuation = continuationOf(seed);
     const started = continuation === undefined
       ? await client.request("thread/start", settings)
@@ -714,9 +724,10 @@ export class CodexSession {
   }
 
   /** Whether the run allows what the server is asking. Nothing is allowed on a session with no run to ask. */
-  private async allowed(intent: ToolIntent) {
+  private async allowed(intent: ToolIntent, workspace = true) {
     const turn = this.turn;
     if (!turn) return false;
+    if (workspace && turn.input.crewRole === "coordinator") return false;
     if (grantsTool("workspace", turn.input)) return true;
     return await turn.input.authorize(intent) === "allow";
   }
@@ -790,7 +801,7 @@ export class CodexSession {
           name: toolNamed(params.message) ?? "mcp_tool_call",
           input: isRecord(meta.tool_params) ? meta.tool_params : {},
         };
-        void this.allowed(intent).then((allow) => request.respond(allow ? { action: "accept", content: {}, _meta: null } : { action: "decline", content: null, _meta: null }));
+        void this.allowed(intent, false).then((allow) => request.respond(allow ? { action: "accept", content: {}, _meta: null } : { action: "decline", content: null, _meta: null }));
         return;
       }
       default:

@@ -2,6 +2,7 @@ import type { ComputerFilter } from "../domain/computers.js";
 import type { AutomationDraft, AutomationPatch } from "../domain/automation.js";
 import type { SnoozeHours } from "../domain/thread-snooze.js";
 import type { ThreadRole } from "../domain/thread-role.js";
+import type { ThreadBrief } from "../domain/crew.js";
 import type { ShortcutSurface } from "../domain/shortcuts.js";
 import type { BrowserAction } from "../domain/browser.js";
 import type { ComputerUsePermission } from "../domain/computer-use.js";
@@ -87,6 +88,10 @@ export type TaskCommand =
   | { type: "task.rename"; taskId: string; title: string }
   /** `null` takes the role off. */
   | { type: "task.set-role"; taskId: string; role: ThreadRole | null }
+  /** Moves a thread under a coordinator, or out from under one with `null`. */
+  | { type: "task.set-coordinator"; taskId: string; coordinatorId: string | null }
+  /** Answers a choice a thread put to the user. The answer reaches that thread as a message. */
+  | { type: "decision.answer"; taskId: string; decisionId: string; answer: string }
   /** Takes the dot off a thread, which is the only thing that does. Opening the thread only dims it. */
   | { type: "task.dismiss"; taskId: string }
   | { type: "task.snooze"; taskId: string; hours: SnoozeHours }
@@ -127,9 +132,10 @@ export type TaskCommand =
    * that new task in a checkout of its own; `worktreeId` starts it in one the project already has,
    * and names the project itself, so a `project` that disagrees with it is refused. Naming one takes
    * precedence over asking for a new one. `model`, `effort` and `role` apply only to a new task and leave
-   * the shared draft settings alone.
+   * the shared draft settings alone, as do `coordinatorId`, which starts it under that coordinator, and
+   * the `brief` it is handed.
    */
-  | { type: "task.send"; taskId?: string; project?: string; text?: string; attachments?: RunAttachment[]; steer?: boolean; worktree?: boolean; worktreeId?: string; model?: AgentModel; effort?: AgentEffort; role?: ThreadRole }
+  | { type: "task.send"; taskId?: string; project?: string; text?: string; attachments?: RunAttachment[]; steer?: boolean; worktree?: boolean; worktreeId?: string; model?: AgentModel; effort?: AgentEffort; role?: ThreadRole; coordinatorId?: string; brief?: ThreadBrief }
   /**
    * Sends the composer's message with the images in its strip, which are written out to disk first:
    * the run is started only once they are all there, and a failure to write one stops the send.
@@ -357,6 +363,8 @@ export type EngineCommand =
 export type ViewCommand =
   /** A restored desktop view has installed the listeners needed by its input preferences. */
   | { type: "view.mounted" }
+  /** Folds a coordinator's threads away under its row in the sidebar, or opens them again. */
+  | { type: "view.set-crew-open"; taskId: string; open: boolean }
   | { type: "view.set-prompt"; taskId?: string; prompt: string }
   /**
    * Where a thread was left reading: the message held at the top of its view and how far into it,

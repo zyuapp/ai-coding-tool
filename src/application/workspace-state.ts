@@ -5,6 +5,7 @@ import type { ThreadRole } from "../domain/thread-role.js";
 import { backgroundThreadIds, runStatusFor, workflowThreadIds, type ApprovalView, type RunTransitionState, type StreamingTail, type ThreadRunStatus } from "./thread-run-state.js";
 import { backfillProjectSortIndex } from "./project-order.js";
 import { sidebarLists } from "./sidebar-lists.js";
+import type { CrewSend } from "./crew.js";
 import { backfillSortIndex } from "./thread-order.js";
 import type { ChangedFilesResult, DesktopShortcutRefusal, InstalledApp } from "../contracts/ipc.js";
 import type { PullRequestRead } from "../domain/pull-request.js";
@@ -100,6 +101,7 @@ export type PendingRun = {
   model?: AgentModel;
   effort?: AgentEffort;
   role?: ThreadRole;
+  crew?: CrewSend;
   /** Composer only: which draft to clear once the run starts. */
   draftKey?: string;
   /** What the user typed, before attachments are appended. Titles a brand new thread. */
@@ -283,6 +285,8 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   /** Files and folders waiting in each composer, keyed the way `prompts` is. */
   files: Record<string, AttachedFile[]>;
   expandedProjects: Set<string>;
+  /** Coordinators whose threads the sidebar has folded away. Every other coordinator shows its threads. */
+  closedCrews: Set<string>;
   /** The folder the editor is open on, if any, and what came back the last time it tried to save. */
   projectEdit: ProjectEdit | null;
   /** The move the confirmation is open on: the thread asked to move, and where it would go. */
@@ -437,6 +441,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     images: {},
     files: {},
     expandedProjects: new Set(),
+    closedCrews: new Set(),
     ...NO_PROJECT_ADD,
     projectEdit: null,
     worktreeMove: null,
@@ -770,6 +775,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state)
     threads: listedThreads,
     archivedThreads: collections.archivedThreads,
     currentThread,
+    crew: collections.crew, coordinators: collections.coordinators,
     goal: state.currentId ? state.goals[state.currentId] ?? null : null,
     currentProject,
     folder: currentProject?.root ?? "",
@@ -834,6 +840,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state)
     restored: state.restored,
     computerUseSetup: state.computerUseSetup,
     expandedProjects: state.expandedProjects,
+    closedCrews: state.closedCrews,
     ...workspaceDialogsView(state),
     sections: state.sections,
     subagentGroups: state.subagentGroups,

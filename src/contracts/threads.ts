@@ -3,6 +3,7 @@ import type { BrowserInspection, BrowserInspectionResult, BrowserShot, BrowserSn
 import type { ConversationMessageKind } from "../domain/conversation.js";
 import type { TerminalSession, TerminalSnapshot } from "../domain/terminal.js";
 import type { ThreadRole } from "../domain/thread-role.js";
+import type { CrewState, DecisionRequest } from "../domain/crew.js";
 
 export type TaskMessageKind = ConversationMessageKind;
 
@@ -132,6 +133,8 @@ export type ThreadRequest = {
   | { op: "terminal"; read: TerminalRead }
   | { op: "notify"; report: FindingReport }
   | { op: "nothing-to-report"; checked: string }
+  | { op: "report"; state: CrewState; summary: string }
+  | { op: "decision"; request: DecisionRequest }
 );
 
 /** What a scheduled run says it found. The window keeps it; the run only reports it. */

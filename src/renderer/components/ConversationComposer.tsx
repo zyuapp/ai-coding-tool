@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { PendingQuestion, QuestionAddress } from "../../domain/agent-question";
 import { QuestionPrompt } from "./QuestionPrompt";
 import type { QueuedMessage, ReviewPicker as ReviewPickerState } from "../../application/workspace-state";
@@ -73,6 +74,8 @@ export type ConversationComposerProps = {
   onQuestionAnswerChange?: (question: QuestionAddress, text: string) => void;
   onAnswerQuestion?: (question: QuestionAddress) => void;
   goal?: ActiveGoal | null;
+  /** The decisions waiting on the user, drawn above the composer of the coordinator they reach. */
+  decisions?: ReactNode;
   queuedMessages: QueuedMessage[];
   /** Annotations waiting to ride the next send, drafted from selections in the transcript. */
   annotations?: Annotation[];
@@ -178,6 +181,7 @@ export function ConversationComposer({
   onDropQueued,
   onCancel,
   onGoalClear = NOTHING,
+  decisions,
 }: ConversationComposerProps) {
   const caret = useComposerCaret(focusToken);
   const menus = useComposerMenus({ prompt, caret, actions, threads, workspaceId, engine, enabled: true, onPromptChange });
@@ -201,6 +205,7 @@ export function ConversationComposer({
   return (
     <footer className={`composer-wrap ${surface}`}>
       {surface === "main" && goal && <GoalBar goal={goal} onClear={onGoalClear} />}
+      {surface === "main" && decisions}
       {question && <QuestionPrompt question={question} answer={question.answer ?? ""} disabled={disabled || waiting} onAnswerChange={(text) => onQuestionAnswerChange(question, text)} onSubmit={() => onAnswerQuestion(question)} />}
       <QueuedRow messages={queuedMessages} surface={surface} onSteer={onSteerQueued} onDrop={onDropQueued} />
       <div className="composer">

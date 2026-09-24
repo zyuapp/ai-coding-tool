@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { AgentEvent, BackgroundReport, GoalReport, InternalStartRunCommand, RunEvent, WorkflowReport } from "../../contracts/ipc.js";
 import { capabilitiesFor } from "../../domain/agent-engine.js";
 import type { SubagentReport, ToolIntent } from "../../domain/run.js";
-import type { AgentProvider, AgentTurn, AutomationBridge, FindingBridge, ProviderEvent, BrowserBridge, TerminalBridge, ThreadBridge, ToolDecision } from "./agent-provider.mjs";
+import type { AgentProvider, AgentTurn, AutomationBridge, CrewBridge, FindingBridge, ProviderEvent, BrowserBridge, TerminalBridge, ThreadBridge, ToolDecision } from "./agent-provider.mjs";
 import { SteerChannel } from "./steer-channel.mjs";
 
 type PendingApproval = {
@@ -42,6 +42,7 @@ type CoordinatorOptions = {
   automations?: (taskId: string, currentRunId: () => string) => AutomationBridge;
   findings?: (taskId: string) => FindingBridge;
   threads?: (taskId: string) => ThreadBridge;
+  crew?: (taskId: string) => CrewBridge;
   browser?: (taskId: string) => BrowserBridge;
   terminal?: (taskId: string) => TerminalBridge;
   tailIntervalMs?: number;
@@ -160,6 +161,7 @@ export class RunCoordinator {
         }),
         findings: this.options.findings?.(command.taskId),
         threads: this.options.threads?.(command.taskId),
+        ...(command.crewRole ? { crewRole: command.crewRole, crew: this.options.crew?.(command.taskId) } : {}),
         browser: command.browserTools === false ? undefined : this.options.browser?.(command.taskId),
         terminal: this.options.terminal?.(command.taskId),
         steering: active.steering,

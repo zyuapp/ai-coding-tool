@@ -1,5 +1,6 @@
 /** A run's life: the checkout it resolves to, what it reports, and how it ends. */
 import { ack } from "./automations.js";
+import { settleCrew } from "./crew.js";
 import { readDiffFrom } from "./diff-reads.js";
 import { handOverDraftDock } from "./dock-tabs.js";
 import { WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
@@ -21,6 +22,8 @@ import type { CreatedWorktree } from "../../contracts/ipc.js";
 import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel, engineForModel, engineHasEffort, modelSupportsManualCompaction } from "../../domain/agent-engine.js";
 import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
 import { createConversationMessage } from "../../domain/conversation.js";
+import { canJoinCrew, isCoordinator, withoutCrewNotes } from "../../domain/crew.js";
+import { briefPrompt, crewContext } from "../crew.js";
 import type { Thread } from "../../domain/thread.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
 
@@ -175,7 +178,8 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
         : [];
       if (event.type !== "run.status" || event.status === "running" || event.status === "awaiting-approval") return settled(next, [...environment, ...said]);
       const drained = drainQueue(next, event.taskId, event.status);
-      return settled(drained.state, [...environment, ...said, ...drained.effects]);
+      const crewed = settleCrew(drained.state, event.taskId, event.status);
+      return settled(crewed.state, [...environment, ...said, ...drained.effects, ...crewed.effects]);
     }
 
     case "thread.event": {
@@ -282,6 +286,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     effort,
     ...(capabilitiesFor(engine).fastMode ? { fastMode: state.draftFastMode } : {}),
     ...(pending.role ? { role: pending.role } : {}),
+    ...(pending.crew?.brief ? { brief: pending.crew.brief } : {}),
     messages: [],
     continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: now() },
@@ -290,15 +295,24 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     updatedAt: now(),
   };
   if (created && !created.name) created.name = thread.title;
-  const message = createConversationMessage("user", pending.text, undefined, pending.attachments, pending.annotations, pending.pastes, pending.files);
+  /** A thread a coordinator starts works under it from its first run. */
+  const lead = existing ? undefined : state.threads.find((item) => item.id === pending.crew?.coordinatorId);
+  const joined = lead && canJoinCrew(thread, lead) ? { ...thread, parentId: lead.id } : thread;
+  const message = createConversationMessage("user", pending.text, pending.detail, pending.attachments, pending.annotations, pending.pastes, pending.files);
   /** Only a thread that was somewhere else is arriving; one already in this checkout has said so. */
   const arrival = arriving && existing?.worktreeId !== arriving.id
     ? [createConversationMessage("system", `Moved into a worktree at ${arriving.root}`, `Detached at ${arriving.baseCommit.slice(0, 7)}`)]
     : [];
-  const located = arriving ? { ...thread, worktreeId: arriving.id, worktreeEnteredAt: thread.worktreeEnteredAt ?? now() } : thread;
+  const located = arriving ? { ...joined, worktreeId: arriving.id, worktreeEnteredAt: joined.worktreeEnteredAt ?? now() } : joined;
   /** A copied thread forks the session it inherited until a session of its own comes back to continue. */
   const inherited = located.inheritedContinuation;
-  const updated = { ...located, messages: [...located.messages, ...arrival, message], updatedAt: now() };
+  /** A coordinator's run hears everything its threads said since the last one, so none of it is waiting any more. */
+  const coordinating = isCoordinator(located);
+  const context = coordinating ? crewContext(state, located, pending.crew?.notes) : "";
+  const heard = coordinating && located.crewNotes ? withoutCrewNotes(located, located.crewNotes.length) : located;
+  const updated = { ...heard, messages: [...heard.messages, ...arrival, message], updatedAt: now() };
+  const brief = pending.crew?.brief;
+  const prompt = `${pending.prompt}${brief ? `\n\n${briefPrompt(brief)}` : ""}${context}`;
   const threads = existing ? state.threads.map((item) => item.id === thread.id ? updated : item) : [updated, ...state.threads];
   /** Only a thread the user's own send just created needs looking at; anything else leaves them where they are. */
   const focusing = !existing && pending.draftKey !== undefined;
@@ -310,7 +324,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     : started;
   const titling: WorkspaceEffect[] = existing || (!pending.text && pending.attachments.length === 0) ? [] : [{ type: "suggest-title", taskId: thread.id, engine: thread.engine, text: pending.text, attachments: pending.attachments }];
   const command = {
-    ...startRunCommand(state, updated, pending.runId, pending.prompt, workspace.id),
+    ...startRunCommand({ ...state, threads }, updated, pending.runId, prompt, workspace.id),
     ...((entering || inherited) && updated.continuation ? { forkContinuation: true as const } : {}),
     ...sideChannelFor(state, updated),
   };

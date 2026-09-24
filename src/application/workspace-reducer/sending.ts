@@ -13,6 +13,7 @@ import { findProject } from "../../domain/project.js";
 import { expandThreadHandles } from "../../domain/thread-handles.js";
 import { withoutSnooze } from "../../domain/thread-snooze.js";
 import { updateThread } from "../thread-run-state.js";
+import { crewSendOf } from "../crew.js";
 
 type SendInput = Extract<WorkspaceInput, {
   type: "task.send" | "question.answer" | "question.set-answer" | "task.steer-queued" | "task.drop-queued";
@@ -106,6 +107,7 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
         ...(thread || input.model === undefined ? {} : { model: input.model }),
         ...(thread || input.effort === undefined ? {} : { effort: input.effort }),
         ...(thread || input.role === undefined ? {} : { role: input.role }),
+        ...(thread ? {} : crewSendOf(input)),
         ...(draftKey === undefined ? {} : { draftKey }),
         text,
         prompt: sentPrompt(text, pastes, annotations, attachments, files),

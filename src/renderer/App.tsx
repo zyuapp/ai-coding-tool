@@ -148,6 +148,7 @@ export function App() {
           onRenameThread={workspace.actions.renameThread}
           onForkThread={workspace.actions.forkThread}
           onArchiveThread={workspace.actions.archiveThread} onSetThreadRole={workspace.actions.setThreadRole}
+          coordinators={workspace.coordinators} onSetCoordinator={workspace.actions.setCoordinator}
           onToggleSidebar={() => void workspace.actions.setSidebarOpen(!sidebarOpen)}
           onToggleSessionPanel={() => {
             void workspace.actions.setDockOpen(false);

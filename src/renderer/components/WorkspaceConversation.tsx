@@ -1,6 +1,7 @@
 import { useRef, type ReactNode } from "react";
 import { ApprovalCard } from "./ApprovalCard";
 import { ConversationTimeline } from "./ConversationTimeline";
+import { CrewBar, CrewStrip } from "./Crew";
 import { ThreadModeSwitch, ThreadStartOptions } from "./ThreadStartOptions";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import type { FindView } from "../../application/workspace-state";
@@ -17,9 +18,17 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
   const transcriptRef = useRef<HTMLDivElement>(null);
   /** A side chat is a thread too, so the main transcript only claims the bar when it is the one named. */
   const mine = find?.target.kind === "thread" && find.target.taskId === (workspace.currentThread?.id ?? null) ? find : null;
+  const { crew } = workspace;
+  const strip = crew.members.length > 0;
+  const bar = !strip && (crew.lead !== null || crew.brief !== null);
   return (
-    <div className="work-area">
+    <div className={`work-area ${strip ? "crew-strip-on" : bar ? "crew-bar-on" : ""}`}>
       {mine && findBar}
+      {(strip || bar) && <div className="crew-head">
+        {strip
+          ? <CrewStrip members={crew.members} onSelect={workspace.actions.selectThread} />
+          : <CrewBar lead={crew.lead} brief={crew.brief} asking={crew.asking} onSelect={workspace.actions.selectThread} />}
+      </div>}
       {!workspace.currentThread && (
         <ThreadModeSwitch
           projects={workspace.startProjects}

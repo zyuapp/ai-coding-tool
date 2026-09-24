@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { isAutomationAck, isAutomationRequest, isAutomationResponse, isBackgroundEvent, isExternalCommand, isGoalEvent, isInternalRunCommand, isRunCommand, isRunEvent, isSubagentEvent, isThreadRequest, isThreadResponse, isWorkflowEvent } from "../../src/contracts/ipc.ts";
+import { isAutomationAck, isAutomationRequest, isAutomationResponse, isBackgroundEvent, isExternalCommand, isGoalEvent, isInternalRunCommand, isRunCommand, isRunEvent, isSubagentEvent, isThreadResponse, isWorkflowEvent } from "../../src/contracts/ipc.ts";
+import { isThreadRequest } from "../../src/contracts/thread-requests.ts";
 
 const command = {
   type: "start",
@@ -405,4 +406,18 @@ test("fast mode is a boolean setting carried only by Codex runs", () => {
   for (const fastMode of [undefined, false, true]) assert.equal(isRunCommand({ ...codex, fastMode }), true);
   for (const fastMode of [null, "true", 1]) assert.equal(isRunCommand({ ...codex, fastMode }), false);
   assert.equal(isRunCommand({ ...command, fastMode: true }), false);
+});
+
+test("crew requests and briefs are checked at the boundary, and only the window names a coordinator", () => {
+  const request = { type: "thread.request", requestId: "r1", taskId: "task-1" };
+  assert.equal(isThreadRequest({ ...request, op: "report", state: "done", summary: "PR #42" }), true);
+  assert.equal(isThreadRequest({ ...request, op: "report", state: "finished", summary: "PR #42" }), false);
+  assert.equal(isThreadRequest({ ...request, op: "decision", request: { question: "Ship?", options: [{ label: "Yes", recommended: true }] } }), true);
+  assert.equal(isThreadRequest({ ...request, op: "decision", request: { question: "Ship?", options: [{ label: "" }] } }), false);
+
+  const brief = { intent: "fix it", doneWhen: "it works", delivers: "pull-request" };
+  assert.equal(isExternalCommand({ type: "task.send", text: "Fix", brief }), true);
+  assert.equal(isExternalCommand({ type: "task.send", text: "Fix", brief: { ...brief, delivers: "merge" } }), false);
+  assert.equal(isExternalCommand({ type: "task.send", taskId: "task-1", text: "Fix", brief }), false, "a brief belongs to a thread being started");
+  assert.equal(isExternalCommand({ type: "task.send", text: "Fix", coordinatorId: "lead" }), false);
 });

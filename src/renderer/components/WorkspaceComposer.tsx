@@ -1,4 +1,5 @@
 import { ConversationComposer, type ComposerAction } from "./ConversationComposer";
+import { DecisionCard } from "./Crew";
 import { attachDroppedFiles, imageSources } from "../dropped-files";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import { capabilitiesFor, modelSupportsManualCompaction } from "../../domain/agent-engine";
@@ -51,6 +52,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       onQuestionAnswerChange={(question, text) => { if (thread) void workspace.dispatch({ type: "question.set-answer", taskId: thread.id, runId: question.runId, requestId: question.requestId, questionId: question.questionId, text }); }}
       onAnswerQuestion={(question) => { if (thread) void workspace.dispatch({ type: "question.answer", taskId: thread.id, runId: question.runId, requestId: question.requestId, questionId: question.questionId }); }}
       goal={workspace.goal}
+      decisions={workspace.crew.decisions.length > 0 && <DecisionCard decisions={workspace.crew.decisions} onAnswer={workspace.actions.answerDecision} onSelect={workspace.actions.selectThread} />}
       waiting={workspace.waitingOn !== null}
       queuedMessages={workspace.queuedMessages}
       annotations={workspace.annotations}

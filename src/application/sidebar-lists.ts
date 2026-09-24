@@ -1,5 +1,7 @@
 import { orderProjects } from "./project-order.js";
-import { activitySections, orderThreads, slotThreadIds } from "./thread-order.js";
+import { orderThreads, slotThreadIds } from "./thread-order.js";
+import { crewSections } from "./crew.js";
+import { crewMemberIds } from "../domain/crew.js";
 import { SLOT_COUNT } from "../domain/shortcuts.js";
 import type { Project } from "../domain/project.js";
 import type { SidebarMode, SidebarSections } from "../domain/sidebar.js";
@@ -34,18 +36,24 @@ export function sidebarLists(
   projectHosts?: ReadonlyMap<string, ThreadHost>,
 ) {
   const orderedThreads = orderThreads(visibleThreads);
+  /** A thread working under a coordinator is drawn under that coordinator's row, in no list of its own. */
+  const members = crewMemberIds(visibleThreads);
+  const crews = new Map<string, Thread[]>();
   const threadsByProject = new Map<string, Thread[]>();
-  for (const thread of orderedThreads) if (thread.projectId)
-    threadsByProject.get(thread.projectId)?.push(thread) ?? threadsByProject.set(thread.projectId, [thread]);
+  for (const thread of orderedThreads) {
+    if (members.has(thread.id)) crews.get(thread.parentId!)?.push(thread) ?? crews.set(thread.parentId!, [thread]);
+    else if (thread.projectId) threadsByProject.get(thread.projectId)?.push(thread) ?? threadsByProject.set(thread.projectId, [thread]);
+  }
   const ordered = orderSidebarProjects(projects, projectHosts);
   /** The same threads ranked by what wants the user, which is the sidebar's other shape. */
-  const activityThreads = activitySections(visibleThreads, busy, blocked);
+  const activityThreads = crewSections(visibleThreads, busy, blocked);
   /** Ranked and stamped by when each chat last did something, so a tick that surfaced nothing moves none of them. */
-  const recentThreads = visibleThreads.filter((thread) => !thread.projectId).sort((a, b) => threadActivityAt(b) - threadActivityAt(a));
+  const recentThreads = visibleThreads.filter((thread) => !thread.projectId && !members.has(thread.id)).sort((a, b) => threadActivityAt(b) - threadActivityAt(a));
   return {
     projects: ordered,
     orderedThreads,
     threadsByProject,
+    crews,
     activityThreads,
     recentThreads,
     /** The threads ⌘1 through ⌘9 reach, in the order they are drawn. */

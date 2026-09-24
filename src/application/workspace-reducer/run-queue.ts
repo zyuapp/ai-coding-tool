@@ -11,6 +11,7 @@ import { projectFor, threadWorkspaceId, worktreeFor } from "../thread-location.j
 import { withPrompt, type DraftBranch, type PendingRun, type QueuedMessage, type SideChat, type WorkspaceState } from "../workspace-state.js";
 import type { ClaudeRunSettings, StartRunCommand } from "../../contracts/ipc.js";
 import { withoutOutcome } from "../../domain/attention.js";
+import { crewRole } from "../crew.js";
 import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel } from "../../domain/agent-engine.js";
 import type { RunStatus } from "../../domain/run.js";
 import { createConversationMessage, type Annotation, type AttachedFile, type PastedText, type RunAttachment } from "../../domain/conversation.js";
@@ -80,6 +81,7 @@ function claudeRunSettings(state: WorkspaceState): ClaudeRunSettings | undefined
 
 export function startRunCommand(state: WorkspaceState, thread: Thread, runId: string, prompt: string, workspaceId: string, policy = thread.executionPolicy): StartRunCommand {
   const claude = claudeRunSettings(state);
+  const crew = crewRole(state.threads, thread);
   return {
     type: "start",
     channel: "main",
@@ -97,6 +99,7 @@ export function startRunCommand(state: WorkspaceState, thread: Thread, runId: st
     ...(state.computerUse ? {} : { computerUseTools: false as const }), ...(state.browserTools ? {} : { browserTools: false as const }),
     ...(thread.continuation ? { continuation: thread.continuation } : {}),
     ...(thread.continuation && thread.inheritedContinuation ? { forkContinuation: true as const } : {}),
+    ...(crew ? { crewRole: crew } : {}),
   };
 }
 

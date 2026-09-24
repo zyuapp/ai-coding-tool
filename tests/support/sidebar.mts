@@ -21,6 +21,7 @@ export function renderProjectSidebar(overrides: Partial<ProjectSidebarProps>) {
     sideChatAttention: new Set<string>(),
     schedules: new Map<string, AutomationView>(),
     worktreeGroups: [],
+    sidebarCrew: { crews: new Map(), closedCrews: new Set<string>(), coordinators: [], onSetCoordinator() {}, onSetCrewOpen() {} },
     worktreeThreadIds: new Set<string>(),
     activityThreads: { priority: [], running: [], threads: [] },
     threadHosts: new Map(),

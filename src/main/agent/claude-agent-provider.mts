@@ -7,6 +7,7 @@ import { claudeMcpServer } from "./claude-mcp-host.mjs";
 import { claudePermissionMode, ClaudeSession } from "./claude-session.mjs";
 import { grantsTool } from "./approval-grant.mjs";
 import { runTools } from "./run-tools.mjs";
+import { COORDINATOR_WITHHELD_TOOLS, crewInstructions } from "./crew-instructions.mjs";
 import { SessionPool } from "./session-pool.mjs";
 import { SIDE_CHAT_INSTRUCTIONS } from "./side-chat-instructions.mjs";
 import { APP_PLUGIN_NAME, appPluginRoot, unqualifiedSkillName } from "../app-plugin.mjs";
@@ -158,6 +159,7 @@ function sessionKey(input: ProviderRunInput) {
     Boolean(input.automations),
     Boolean(input.findings),
     Boolean(input.threads),
+    input.crewRole ?? null,
     Boolean(input.browser),
     Boolean(input.terminal),
   ]);
@@ -203,7 +205,7 @@ export class ClaudeAgentProvider implements AgentProvider {
       options: {
         cwd: input.workspaceRoot,
         pathToClaudeCodeExecutable: claudeExecutable(),
-        disallowedTools: withheldTools(input.channel),
+        disallowedTools: [...withheldTools(input.channel), ...(input.crewRole === "coordinator" ? COORDINATOR_WITHHELD_TOOLS : [])],
         resume: continuation,
         ...(input.forkContinuation && continuation ? { forkSession: true } : {}),
         permissionMode: claudePermissionMode(input.policy),
@@ -213,7 +215,7 @@ export class ClaudeAgentProvider implements AgentProvider {
         betas: ["context-1m-2025-08-07" as const],
         ...(input.claude?.chromeBrowser ? { extraArgs: { chrome: null } } : {}),
         ...(Object.keys(mcpServers).length ? { mcpServers } : {}),
-        systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append: [...(input.computerUse.status === "unavailable" ? [] : [computerUseInstructions]), linkInstructions, ...(input.automations ? [automationInstructions] : []), ...(input.threads ? [threadInstructions] : []), ...(input.browser ? [browserInstructions] : []), ...(input.claude?.chromeBrowser ? [chromeInstructions] : []), ...(input.claude?.conciseReplies ? [conciseInstructions] : []), ...(input.channel === "side" ? [SIDE_CHAT_INSTRUCTIONS] : [])].join("\n\n") },
+        systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append: [...(input.computerUse.status === "unavailable" ? [] : [computerUseInstructions]), linkInstructions, ...(input.automations ? [automationInstructions] : []), ...(input.threads ? [threadInstructions] : []), ...crewInstructions(input.crewRole), ...(input.browser ? [browserInstructions] : []), ...(input.claude?.chromeBrowser ? [chromeInstructions] : []), ...(input.claude?.conciseReplies ? [conciseInstructions] : []), ...(input.channel === "side" ? [SIDE_CHAT_INSTRUCTIONS] : [])].join("\n\n") },
         settingSources: (input.projectless ? ["user"] : ["user", "project", "local"]) as ("user" | "project" | "local")[],
         ...(input.claude?.conciseReplies ? { settings: { outputStyle: "Concise" } } : {}),
         skills: "all" as const,
