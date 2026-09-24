@@ -136,11 +136,12 @@ test("notes waiting when the app closed are delivered once the store is back", (
 });
 
 test("a run hears exactly the notes it carried and those that arrived since, even past the cap", () => {
-  const notes = Array.from({ length: 50 }, (_, index) => ({ id: `n${index}`, threadId: "worker", text: `note ${index}`, at: index }));
-  const state = workspace({ threads: [lead("lead", { crewNotes: notes }), task("worker", { parentId: "lead" })] });
-  const sending = reduce(state, { type: "task.send", taskId: "lead", text: "Status?" });
-  const pendingId = effectAt(sending, "resolve-run-workspace").pendingId;
-  const late = reduce(sending.state, { type: "crew.reported", taskId: "worker", state: "done", summary: "late news" });
+  const notes = Array.from({ length: 49 }, (_, index) => ({ id: `n${index}`, threadId: "worker", text: `note ${index}`, at: index }));
+  const state = workspace({ threads: [lead("lead", { crewNotes: notes }), task("worker", { parentId: "lead" })], activeRuns: { worker: activeRun("worker", "run-w") } });
+  const woken = reduce(state, correlatedRunEvent("worker", "run-w", 1, { type: "run.status", status: "succeeded" }));
+  const pendingId = effectOf(woken, "resolve-run-workspace").pendingId;
+  assert.equal(woken.state.pendingRuns[pendingId]?.crew?.notes?.length, 50, "the wake carries a full list of notes");
+  const late = reduce(woken.state, { type: "crew.reported", taskId: "worker", state: "done", summary: "late news" });
   const started = reduce(late.state, { type: "run.resolved", pendingId, workspace: PROJECTLESS });
   assert.match(effectAt(started, "start-run").command.prompt, /late news/, "a note that pushed an old one out is still heard");
   assert.equal(started.state.threads[0].crewNotes, undefined);
