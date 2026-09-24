@@ -4,6 +4,7 @@ import { reduce, type WorkspaceInput } from "../../src/application/workspace-red
 import { deriveView } from "../../src/application/workspace-state.ts";
 import type { AutomationFire } from "../../src/contracts/ipc.ts";
 import { sentPrompts } from "../../src/domain/conversation.ts";
+import type { Subagent } from "../../src/domain/run.ts";
 import type { Workflow } from "../../src/domain/workflow.ts";
 import { task, workspace, activeRun, effectAt, required, correlatedRunEvent, run, running, type RunEventPayload } from "./workspace-reducer-fixtures.mts";
 
@@ -511,6 +512,26 @@ test("stopping a workflow reaches the thread's session after the run that starte
   assert.deepEqual(reduce(stopping.state, { type: "run.stop-process", processId: "wf-1" }).effects, [], "a stop already on its way is not repeated");
   const ended = workspace({ threads: [task("task-a")], currentId: "task-a", workflows: { "task-a": [{ ...workflow, status: "completed" }] } });
   assert.deepEqual(reduce(ended, { type: "run.stop-process", processId: "wf-1" }).effects, [], "a workflow that already ended has nothing to stop");
+});
+
+test("stopping a subagent reaches the thread's session and clears once it stops working", () => {
+  const subagent: Subagent = { id: "agent-1", description: "Review", sessionScoped: true, status: "working", startedAt: 1, activity: [] };
+  const state = workspace({ threads: [task("task-a")], currentId: "task-a", subagents: { "task-a": [subagent] } });
+
+  const stopping = reduce(state, { type: "run.stop-process", processId: "agent-1" });
+  assert.deepEqual(stopping.effects, [
+    { type: "send-run-command", command: { type: "stop-process", taskId: "task-a", processId: "agent-1" } },
+  ]);
+  assert.equal(stopping.state.subagents["task-a"][0].stopping, true);
+  assert.deepEqual(reduce(stopping.state, { type: "run.stop-process", processId: "agent-1" }).effects, [], "a stop already on its way is not repeated");
+
+  const stopped = reduce(stopping.state, { type: "thread.event", event: { type: "subagent.finished", taskId: "task-a", id: "agent-1", status: "stopped", summary: "Stopped" } });
+  assert.equal(stopped.state.subagents["task-a"][0].status, "stopped");
+  assert.equal(stopped.state.subagents["task-a"][0].stopping, undefined);
+  assert.deepEqual(reduce(stopped.state, { type: "run.stop-process", processId: "agent-1" }).effects, [], "a subagent that already stopped has nothing to stop");
+
+  const idle = reduce(stopping.state, { type: "thread.event", event: { type: "subagent.status", taskId: "task-a", id: "agent-1", status: "idle" } });
+  assert.equal(idle.state.subagents["task-a"][0].stopping, undefined, "an interrupted child that goes idle is no longer stopping");
 });
 
 test("approval decisions cannot move to a newer run or prompt or a different task", () => {

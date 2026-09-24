@@ -188,6 +188,12 @@ export function workflowThreadIds(state: Pick<RunTransitionState, "workflows">):
   return Object.entries(state.workflows).filter(([, workflows]) => workflows.some((workflow) => workflow.status === "running")).map(([threadId]) => threadId);
 }
 
+/** The threads whose session still has a shell, a monitor or a subagent working after the run that started it. */
+export function backgroundThreadIds(state: Pick<RunTransitionState, "backgroundProcesses" | "subagents">): string[] {
+  const working = Object.entries(state.subagents).filter(([, subagents]) => subagents.some((subagent) => subagent.status === "working")).map(([threadId]) => threadId);
+  return [...Object.keys(state.backgroundProcesses), ...working];
+}
+
 export function runStatusFor(state: RunTransitionState, threadId: string | null): ThreadRunStatus {
   return threadId ? state.runStatuses[threadId] ?? "idle" : "idle";
 }
@@ -228,7 +234,7 @@ function applySubagentReport<T extends RunTransitionState>(state: T, threadId: s
   }
   if (event.type === "subagent.started") {
     return updateSubagent(state, threadId, event.id, (existing) => {
-      const { finishedAt: _finishedAt, lastToolName: _lastToolName, ...preserved } = existing ?? {};
+      const { finishedAt: _finishedAt, lastToolName: _lastToolName, stopping: _stopping, ...preserved } = existing ?? {};
       return {
         ...preserved,
         ...metadata(event),
@@ -257,7 +263,7 @@ function applySubagentReport<T extends RunTransitionState>(state: T, threadId: s
         const { finishedAt: _finishedAt, lastToolName: _lastToolName, ...preserved } = base;
         return { ...preserved, status: "working", ...(event.summary ? { summary: event.summary } : {}) };
       }
-      const { finishedAt: _finishedAt, ...preserved } = base;
+      const { finishedAt: _finishedAt, stopping: _stopping, ...preserved } = base;
       return { ...preserved, status: "idle", ...(event.summary ? { summary: event.summary } : {}) };
     });
   }
@@ -299,17 +305,10 @@ function applySubagentReport<T extends RunTransitionState>(state: T, threadId: s
       };
     });
   }
-  return updateSubagent(state, threadId, event.id, (existing) => ({
-    ...(existing ?? {
-      id: event.id,
-      description: "Subagent",
-      startedAt: now(),
-      activity: [],
-    }),
-    status: event.status,
-    summary: event.summary || existing?.summary,
-    finishedAt: now(),
-  }));
+  return updateSubagent(state, threadId, event.id, (existing) => {
+    const { stopping: _stopping, ...base } = existing ?? { id: event.id, description: "Subagent", startedAt: now(), activity: [] };
+    return { ...base, status: event.status, summary: event.summary || existing?.summary, finishedAt: now() };
+  });
 }
 
 /** What the agent process reports about work that outlives the run that started it. */

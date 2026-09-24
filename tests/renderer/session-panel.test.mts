@@ -235,25 +235,39 @@ test("the subagent search keeps what the query names, and the status keeps its o
 test("subagent details show provider metadata and the exact expandable prompt", async () => {
   const prompt = "  First instruction\n\n" + "Keep this line.\n".repeat(1_000) + "  Last instruction  ";
   const subagent: Subagent = { ...subagents[0], model: "gpt-6-astra", effort: "xhigh", prompt };
-  const view = await mount(React.createElement(SubagentInspector, { subagent, onClose() {} }));
+  const view = await mount(React.createElement(SubagentInspector, { subagent, onClose() {}, onStop() {} }));
   assert.deepEqual([...view.container.querySelectorAll(".agent-configuration dd")].map((node) => node.textContent), ["gpt-6-astra", "Extra high"]);
   const details = query<HTMLDetailsElement>(view.container, ".agent-prompt");
   assert.equal(details.open, false);
   await act(async () => { query<HTMLElement>(details, "summary").click(); });
   assert.equal(details.open, true);
   assert.equal(query(details, "pre").textContent, prompt);
-  await view.render(React.createElement(SubagentInspector, { subagent: subagents[0], onClose() {} }));
+  await view.render(React.createElement(SubagentInspector, { subagent: subagents[0], onClose() {}, onStop() {} }));
   assert.deepEqual([...view.container.querySelectorAll(".agent-configuration dd")].map((node) => node.textContent), ["Not reported", "Not reported"]);
   assert.equal(query(view.container, ".agent-prompt p").textContent, "Not reported");
-  await view.render(React.createElement(SubagentInspector, { subagent, finding: true, onClose() {} }));
+  await view.render(React.createElement(SubagentInspector, { subagent, finding: true, onClose() {}, onStop() {} }));
   assert.equal(query<HTMLDetailsElement>(view.container, ".agent-prompt").open, true);
+  await view.unmount();
+});
+
+test("a working subagent can be stopped from its details, once", async () => {
+  const stopped: string[] = [];
+  const subagent: Subagent = { id: "agent-1", description: "Review", status: "working", startedAt: 1, activity: [] };
+  const view = await mount(React.createElement(SubagentInspector, { subagent, onClose() {}, onStop: (id: string) => { stopped.push(id); } }));
+  await act(async () => { query<HTMLButtonElement>(view.container, ".workflow-stop").click(); });
+  assert.deepEqual(stopped, ["agent-1"]);
+  await view.render(React.createElement(SubagentInspector, { subagent: { ...subagent, stopping: true }, onClose() {}, onStop() {} }));
+  assert.equal(query<HTMLButtonElement>(view.container, ".workflow-stop").disabled, true);
+  assert.equal(query(view.container, ".workflow-stop").textContent, "Stopping");
+  await view.render(React.createElement(SubagentInspector, { subagent: { ...subagent, status: "completed" }, onClose() {}, onStop() {} }));
+  assert.equal(view.container.querySelector(".workflow-stop"), null);
   await view.unmount();
 });
 
 test("expanding a tall prompt keeps the beginning of a virtual activity log reachable", async () => {
   const subagent: Subagent = { ...subagents[0], prompt: "Long prompt", activity: Array.from({ length: 60 }, (_, index) => ({ id: `step-${index}`, kind: "text", text: `Step ${index}`, at: index })) };
   const heights = rowHeights((node) => node.classList?.contains("agent-activity-row") ? 40 : 0);
-  const view = await mount(React.createElement(SubagentInspector, { subagent, onClose() {} }));
+  const view = await mount(React.createElement(SubagentInspector, { subagent, onClose() {}, onStop() {} }));
   const scroll = query(view.container, ".inspector-scroll");
   sizeOf(scroll, 360, 400);
   const log = query(view.container, ".agent-activity-items");
@@ -278,7 +292,7 @@ test("subagent inspector renders activity and closes", async () => {
   };
   /** The log is windowed, and a virtualiser reads every height off the element, which jsdom reports at nothing. */
   const measuredRows = rowHeights((node) => node.classList?.contains("agent-activity-row") ? 40 : 0);
-  const view = await mount(React.createElement(SubagentInspector, { subagent, onClose: () => { closed = true; } }));
+  const view = await mount(React.createElement(SubagentInspector, { subagent, onClose: () => { closed = true; }, onStop() {} }));
   sizeOf(query(view.container, ".inspector-scroll"), 360, 720);
   await pumpResizeObservers();
 
@@ -304,7 +318,7 @@ test("a search reading the inspector gets the whole log, drawn open", async () =
     ] satisfies SubagentActivity[],
   };
   const measuredRows = rowHeights((node) => node.classList?.contains("agent-activity-row") ? 40 : 0);
-  const view = await mount(React.createElement(SubagentInspector, { subagent, finding: true, onClose() {} }));
+  const view = await mount(React.createElement(SubagentInspector, { subagent, finding: true, onClose() {}, onStop() {} }));
   sizeOf(query(view.container, ".inspector-scroll"), 360, 720);
   await pumpResizeObservers();
 

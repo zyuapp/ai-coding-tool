@@ -23,11 +23,12 @@ function activityItem(item: SubagentActivity, finding: boolean) {
   );
 }
 
-export function SubagentInspector({ subagent, finding = false, onClose }: {
+export function SubagentInspector({ subagent, finding = false, onClose, onStop }: {
   subagent: Subagent;
   /** Whether a search is reading this view: it reads what was drawn, so while one is open the whole log is. */
   finding?: boolean;
   onClose: () => void;
+  onStop: (id: string) => void;
 }) {
   const [limit, setLimit] = useState(TAIL);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -77,6 +78,11 @@ export function SubagentInspector({ subagent, finding = false, onClose }: {
               <h2>{subagent.description}</h2>
               <span className={`agent-status ${subagent.status}`}><StatusIcon status={subagent.status} />{statusLabel(subagent.status)}</span>
             </div>
+            {subagent.status === "working" && (
+              <button className="workflow-stop" type="button" disabled={subagent.stopping} onClick={() => onStop(subagent.id)}>
+                {subagent.stopping ? "Stopping" : "Stop"}
+              </button>
+            )}
           </div>
           <div className="agent-details">
             <dl className="agent-configuration">

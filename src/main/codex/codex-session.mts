@@ -275,11 +275,16 @@ export class CodexSession {
     this.record.label(title);
   }
 
-  /** Stops one terminal owned by this thread, then republishes what the server still has. */
+  /** Stops one subagent turn or terminal owned by this thread; a terminal's stop republishes what the server still has. */
   stopProcess(processId: string) {
     const client = this.client;
     const threadId = this.threadId;
     if (!client || !threadId) return;
+    const child = this.subagents?.liveTurn(processId);
+    if (child) {
+      void client.request("turn/interrupt", child).catch(() => {});
+      return;
+    }
     void client.request("thread/backgroundTerminals/terminate", { threadId, processId })
       .then(() => this.refreshBackgroundProcesses())
       .catch(() => this.refreshBackgroundProcesses());

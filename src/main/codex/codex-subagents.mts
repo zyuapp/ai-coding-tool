@@ -147,6 +147,11 @@ export class CodexSubagents {
     return [...this.liveTurnsByThread].map(([threadId, turnId]) => ({ threadId, turnId }));
   }
 
+  liveTurn(threadId: string): CodexChildTurn | undefined {
+    const turnId = this.liveTurnsByThread.get(threadId);
+    return turnId ? { threadId, turnId } : undefined;
+  }
+
   setRootThreadId(threadId: string) {
     const wasBusy = this.busy;
     this.rootThreadId = threadId;

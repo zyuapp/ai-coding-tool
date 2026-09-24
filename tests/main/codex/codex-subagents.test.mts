@@ -6,7 +6,7 @@ import type { ProviderEvent } from "../../../src/main/agent/agent-provider.mts";
 import type { NotificationParams } from "../../../src/main/codex/app-server-client.mts";
 import { CodexSubagents } from "../../../src/main/codex/codex-subagents.mts";
 import type { ThreadItem } from "../../../src/main/codex/protocol/v2/ThreadItem.ts";
-import { completeTurn, harness, input, opened, sentBy, tick } from "../../support/codex-client.mjs";
+import { completeTurn, harness, input, opened, sentBy, tick, turn as runTurn } from "../../support/codex-client.mjs";
 
 const rootId = "thread-1";
 
@@ -172,6 +172,7 @@ test("child messages, tools, cumulative usage, resume, and terminal errors becom
   tracker.tokenUsageUpdated(usage("child-a", "child-turn-2", 120, 0));
   tracker.error({ threadId: "child-a", turnId: "child-turn", willRetry: false, error: { message: "stale failure", codexErrorInfo: null, additionalDetails: null, misalignment: null } });
   assert.deepEqual(tracker.liveTurns, [{ threadId: "child-a", turnId: "child-turn-2" }]);
+  assert.deepEqual(tracker.liveTurn("child-a"), { threadId: "child-a", turnId: "child-turn-2" });
   tracker.error({ threadId: "child-a", turnId: "child-turn-2", willRetry: true, error: { message: "retry", codexErrorInfo: null, additionalDetails: null, misalignment: null } });
   tracker.error({ threadId: "child-a", turnId: "child-turn-2", willRetry: false, error: { message: "failed", codexErrorInfo: null, additionalDetails: null, misalignment: null } });
 
@@ -185,6 +186,7 @@ test("child messages, tools, cumulative usage, resume, and terminal errors becom
   assert.deepEqual(reports.filter((report) => report.type === "subagent.status").map((report) => report.status), ["idle", "working"]);
   assert.deepEqual(reports.at(-1), { type: "subagent.finished", id: "child-a", status: "failed", summary: "failed" });
   assert.deepEqual(tracker.liveTurns, []);
+  assert.equal(tracker.liveTurn("child-a"), undefined);
 });
 
 test("V2 discovery fetches child settings through the session without a thread/started notification", async () => {
@@ -296,5 +298,19 @@ test("the session isolates child traffic from the parent and cancellation interr
 
   completeTurn(client, "interrupted");
   assert.deepEqual(await running, { status: "cancelled" });
+  codex.provider.closeAll();
+});
+
+test("stopping a Codex subagent interrupts its live turn after the parent turn has ended", async () => {
+  const codex = harness();
+  const { client } = await runTurn(codex, {}, (client) => {
+    client.notify("item/started", itemStarted(rootId, "turn-1", activity("discover", "child-a", "/root/reviewer")));
+    client.notify("turn/started", turn("child-a", "child-turn"));
+  });
+
+  assert.equal(codex.provider.stopProcess("task-1", "child-a"), true);
+  await sentBy(client, "turn/interrupt");
+  assert.deepEqual(client.calls("turn/interrupt"), [{ threadId: "child-a", turnId: "child-turn" }]);
+  assert.equal(client.calls("thread/backgroundTerminals/terminate").length, 0);
   codex.provider.closeAll();
 });

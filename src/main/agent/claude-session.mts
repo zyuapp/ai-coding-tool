@@ -240,7 +240,7 @@ export class ClaudeSession {
     await this.drainSteering(turn.input.steering, (event) => turn.input.emit(event), () => this.turn === turn ? turn : null);
   }
 
-  /** Kills one background process of this session: a shell, a monitor, or a workflow. */
+  /** Kills one task of this session: a shell, a monitor, a workflow, or a subagent. */
   stopProcess(processId: string) {
     void this.query?.stopTask(processId)?.catch?.(() => {});
   }

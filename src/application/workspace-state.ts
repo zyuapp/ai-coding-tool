@@ -2,7 +2,7 @@ import { sideChatView } from "./side-chat-view.js";
 import { worktreeMenuView, type WorktreeMenuSearch, type WorktreeMenuState } from "./worktree-menu.js";
 import type { PendingQuestion } from "../domain/agent-question.js";
 import type { ThreadRole } from "../domain/thread-role.js";
-import { runStatusFor, workflowThreadIds, type ApprovalView, type RunTransitionState, type StreamingTail, type ThreadRunStatus } from "./thread-run-state.js";
+import { backgroundThreadIds, runStatusFor, workflowThreadIds, type ApprovalView, type RunTransitionState, type StreamingTail, type ThreadRunStatus } from "./thread-run-state.js";
 import { backfillProjectSortIndex } from "./project-order.js";
 import { sidebarLists } from "./sidebar-lists.js";
 import { backfillSortIndex } from "./thread-order.js";
@@ -508,6 +508,13 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
   };
 }
 
+/** No session outlives the app, so a subagent stored mid-work stopped with it. */
+function restoredSubagent(subagent: Subagent): Subagent {
+  if (subagent.status !== "working") return subagent;
+  const { stopping: _stopping, ...stopped } = subagent;
+  return { ...stopped, status: "stopped" };
+}
+
 export function stateFromData(data: ThreadStoreData, storageError: string | null = null): WorkspaceState {
   const projects = data.lastFolder && !data.projects.some((project) => project.root === data.lastFolder)
     ? [...data.projects, { id: legacyProjectId(data.lastFolder), root: data.lastFolder }]
@@ -515,7 +522,7 @@ export function stateFromData(data: ThreadStoreData, storageError: string | null
   const stored = retainedThreads(data.tasks, Date.now());
   const subagents: Record<string, Subagent[]> = {};
   const threads = stored.map(({ subagents: delegated, ...thread }) => {
-    if (delegated?.length) subagents[thread.id] = delegated;
+    if (delegated?.length) subagents[thread.id] = delegated.map(restoredSubagent);
     return thread;
   });
   const firstThread = threads[0];
@@ -629,6 +636,7 @@ export function busyThreadIds(state: WorkspaceState): Set<string> {
   for (const pending of Object.values(state.pendingRuns)) if (pending.taskId) busy.add(pending.taskId);
   for (const taskId of state.creatingWorktrees) busy.add(taskId);
   for (const taskId of workflowThreadIds(state)) busy.add(taskId);
+  for (const taskId of backgroundThreadIds(state)) busy.add(taskId);
   /** A checkout on its way out is ground about to move, so every thread standing on it waits. */
   for (const taskId of leavingThreadIds(state)) busy.add(taskId);
   return busy;

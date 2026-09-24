@@ -13,7 +13,7 @@ import { announced } from "../notices.js";
 import { pasteTitle } from "../pastes.js";
 import { outcomeFor, settledHeadline, whyRunSurfaces, withSettledTick } from "../run-testimony.js";
 import { nextSortIndex } from "../thread-order.js";
-import { applyRunEvent, applyThreadEvent, ATTENDED_RUN, threadMark, updateThread, withBackgroundProcesses, withWorkflows, type ThreadMark } from "../thread-run-state.js";
+import { applyRunEvent, applyThreadEvent, ATTENDED_RUN, threadMark, updateThread, withBackgroundProcesses, withSubagents, withWorkflows, type ThreadMark } from "../thread-run-state.js";
 import { threadOnScreen } from "../thread-attention.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, threadWorkspaceRoot, worktreeById, worktreeFor } from "../thread-location.js";
 import { DRAFT_DOCK, type PendingRun, type WorkspaceState } from "../workspace-state.js";
@@ -96,26 +96,8 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       return settled(state, [{ type: "send-run-command", command: { type: "cancel", taskId: active.taskId, runId: active.runId } }]);
     }
 
-    /** The kill is the agent process's to make; the row only says a stop is on its way. */
-    case "run.stop-process": {
-      const taskId = targetId(state, input.taskId);
-      if (!taskId) return settled(state);
-      const stop: WorkspaceEffect[] = [{ type: "send-run-command", command: { type: "stop-process", taskId, processId: input.processId } }];
-      const processes = state.backgroundProcesses[taskId] ?? [];
-      const target = processes.find((process) => process.id === input.processId);
-      if (target) {
-        const marked = processes.map((process) => process.id === target.id ? { ...process, stopping: true } : process);
-        return target.stopping ? settled(state) : settled(withBackgroundProcesses(state, taskId, marked), stop);
-      }
-      /** A workflow is a task of the agent process like any other, so the same stop reaches it. */
-      const workflows = state.workflows[taskId] ?? [];
-      const workflow = workflows.find((candidate) => candidate.id === input.processId);
-      if (!workflow || workflow.stopping || workflow.status !== "running") return settled(state);
-      return settled(
-        withWorkflows(state, taskId, workflows.map((candidate) => candidate.id === workflow.id ? { ...candidate, stopping: true } : candidate)),
-        stop,
-      );
-    }
+    case "run.stop-process":
+      return stopProcess(state, input);
 
     case "run.decide": {
       const active = state.activeRuns[input.taskId];
@@ -342,6 +324,37 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     pending.draftKey ? clearedDraft(reviewing.state, pending.draftKey) : reviewing.state,
     [{ type: "start-run", command }, ...titling, ...reviewing.effects],
     { ok: true, taskId: thread.id },
+  );
+}
+
+/** The kill is the agent process's to make; the row only says a stop is on its way. */
+function stopProcess(state: WorkspaceState, input: Extract<RunInput, { type: "run.stop-process" }>): WorkspaceTransition {
+  const taskId = targetId(state, input.taskId);
+  if (!taskId) return settled(state);
+  const stop: WorkspaceEffect[] = [{ type: "send-run-command", command: { type: "stop-process", taskId, processId: input.processId } }];
+  const processes = state.backgroundProcesses[taskId] ?? [];
+  const target = processes.find((process) => process.id === input.processId);
+  if (target) {
+    const marked = processes.map((process) => process.id === target.id ? { ...process, stopping: true } : process);
+    return target.stopping ? settled(state) : settled(withBackgroundProcesses(state, taskId, marked), stop);
+  }
+  /** A workflow is a task of the agent process like any other, so the same stop reaches it. */
+  const workflows = state.workflows[taskId] ?? [];
+  const workflow = workflows.find((candidate) => candidate.id === input.processId);
+  if (workflow) {
+    if (workflow.stopping || workflow.status !== "running") return settled(state);
+    return settled(
+      withWorkflows(state, taskId, workflows.map((candidate) => candidate.id === workflow.id ? { ...candidate, stopping: true } : candidate)),
+      stop,
+    );
+  }
+  /** So is a subagent the session is still running. */
+  const subagents = state.subagents[taskId] ?? [];
+  const subagent = subagents.find((candidate) => candidate.id === input.processId);
+  if (!subagent || subagent.stopping || subagent.status !== "working") return settled(state);
+  return settled(
+    withSubagents(state, taskId, subagents.map((candidate) => candidate.id === subagent.id ? { ...candidate, stopping: true as const } : candidate)),
+    stop,
   );
 }
 

@@ -330,6 +330,16 @@ test("the sidebar lists every computer's threads, tagged, and the filter narrows
   assert.deepEqual(deriveView({ ...state, computers: { ...state.computers, filter: "linux" } }).activityThreads.threads.map((thread) => thread.id), ["remote-thread"]);
 });
 
+test("a paired computer's thread with background work left after its run stays running", () => {
+  const finished = { ...remoteThread, outcome: "finished" as const };
+  const remote: WorkspaceState = { ...remoteState, threads: [finished], backgroundProcesses: { "remote-thread": [{ id: "watch", kind: "monitor", description: "CI" }] } };
+  const view = deriveView(withComputers(workspace({ sidebarMode: "activity" }), [paired("linux", remote)]));
+  assert.deepEqual(view.activityThreads.running.map((thread) => thread.id), ["remote-thread"]);
+  assert.equal(view.runningThreadIds.has("remote-thread"), true);
+  const settled = deriveView(withComputers(workspace({ sidebarMode: "activity" }), [paired("linux", { ...remote, backgroundProcesses: {} })]));
+  assert.deepEqual(settled.activityThreads.priority.map((thread) => thread.id), ["remote-thread"]);
+});
+
 test("remote lists and attention follow connection changes while preserving threads for reconnection", () => {
   const local = task("local", { outcome: "finished", outcomeUnread: true });
   const remote: WorkspaceState = { ...remoteState, threads: ["claude", "codex"].map((engine) => ({

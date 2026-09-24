@@ -2437,7 +2437,8 @@ pre {
 }
 .inspector-header button:hover { background: var(--surface-hover); color: var(--ink-dim); }
 .inspector-scroll { min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
-.subagent-inspector .agent-detail-heading { padding: 26px 24px 22px; }
+.subagent-inspector .agent-detail-heading { grid-template-columns: 36px minmax(0, 1fr) auto; padding: 26px 24px 22px; }
+.subagent-inspector .agent-detail-heading .workflow-stop { align-self: start; margin-top: 2px; }
 .subagent-inspector .agent-detail-heading h2 { font-size: var(--text-heading); }
 .agent-details { padding: 0 24px 18px; border-bottom: 1px solid var(--line-soft); }
 .agent-configuration { display: grid; gap: 8px; margin: 0 0 16px; font-size: var(--text-control); }

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView, stateFromData, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import type { Subagent } from "../../src/domain/run.ts";
 import { activeRun, automation, task, workspace } from "./workspace-reducer-fixtures.mts";
 
 function populated(): WorkspaceState {
@@ -82,6 +83,36 @@ test("project names, schedules, and worktree settings update independently of th
   const settings = deriveView({ ...state, worktreeSettings: { ...state.worktreeSettings, expandedThreads: ["wt"] } });
   assert.deepEqual(settings.worktreeSettings.expandedThreads, ["wt"]);
   assert.equal(settings.threads, before.threads);
+});
+
+test("a shell, a monitor, or a working subagent left after its run keeps the thread working", () => {
+  const idle = { ...populated(), activeRuns: {} };
+  const subagent: Subagent = { id: "agent", description: "Review", sessionScoped: true, status: "working", startedAt: 1, activity: [] };
+  const held: Partial<WorkspaceState>[] = [
+    { backgroundProcesses: { current: [{ id: "bash", kind: "shell", description: "npm run dev" }] } },
+    { backgroundProcesses: { current: [{ id: "watch", kind: "monitor", description: "CI" }] } },
+    { subagents: { current: [subagent] } },
+  ];
+  for (const work of held) {
+    const running = deriveView({ ...idle, ...work });
+    assert.deepEqual([...running.runningThreadIds], ["current"]);
+    assert.deepEqual(running.activityThreads.running.map((thread) => thread.id), ["current"]);
+  }
+  for (const status of ["idle", "completed", "failed", "stopped"] as const) {
+    assert.deepEqual([...deriveView({ ...idle, subagents: { current: [{ ...subagent, status }] } }).runningThreadIds], [], `a ${status} subagent is not work`);
+  }
+  assert.deepEqual([...deriveView({ ...idle, backgroundProcesses: {} }).runningThreadIds], []);
+});
+
+test("a subagent stored mid-work comes back stopped, since its session did not survive", () => {
+  const done: Subagent = { id: "done", description: "Review", sessionScoped: true, status: "completed", startedAt: 1, activity: [] };
+  const working: Subagent = { ...done, id: "agent", status: "working", stopping: true };
+  const state = stateFromData({ version: 2, tasks: [{ ...task("current"), subagents: [working, done] }], projects: [], worktrees: [], lastFolder: null });
+  assert.deepEqual(state.subagents.current?.map(({ id, status, stopping }) => ({ id, status, stopping })), [
+    { id: "agent", status: "stopped", stopping: undefined },
+    { id: "done", status: "completed", stopping: undefined },
+  ]);
+  assert.deepEqual([...deriveView(state).runningThreadIds], []);
 });
 
 test("a workflow left running after its run marks the thread as working", () => {

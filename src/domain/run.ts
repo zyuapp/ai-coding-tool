@@ -86,6 +86,8 @@ export type Subagent = SubagentMetadata & {
   /** A session-owned agent can continue after the parent run returns. */
   sessionScoped?: true;
   status: SubagentStatus;
+  /** Set from the moment a stop is asked for until the subagent stops working. */
+  stopping?: true;
   lastToolName?: string;
   summary?: string;
   totalTokens?: number;
