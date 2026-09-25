@@ -330,14 +330,19 @@ test("the sidebar lists every computer's threads, tagged, and the filter narrows
   assert.deepEqual(deriveView({ ...state, computers: { ...state.computers, filter: "linux" } }).activityThreads.threads.map((thread) => thread.id), ["remote-thread"]);
 });
 
-test("a paired computer's thread with background work left after its run stays running", () => {
+test("a paired computer's finished thread follows its working subagents while background processes remain", () => {
   const finished = { ...remoteThread, outcome: "finished" as const };
   const remote: WorkspaceState = { ...remoteState, threads: [finished], backgroundProcesses: { "remote-thread": [{ id: "watch", kind: "monitor", description: "CI" }] } };
   const view = deriveView(withComputers(workspace({ sidebarMode: "activity" }), [paired("linux", remote)]));
-  assert.deepEqual(view.activityThreads.running.map((thread) => thread.id), ["remote-thread"]);
-  assert.equal(view.runningThreadIds.has("remote-thread"), true);
-  const settled = deriveView(withComputers(workspace({ sidebarMode: "activity" }), [paired("linux", { ...remote, backgroundProcesses: {} })]));
+  assert.deepEqual(view.activityThreads.priority.map((thread) => thread.id), ["remote-thread"]);
+  assert.equal(view.runningThreadIds.has("remote-thread"), false);
+  const delegated: WorkspaceState = { ...remote, subagents: { "remote-thread": [{ id: "agent", description: "Review", status: "working", startedAt: 1, activity: [] }] } };
+  const running = deriveView(withComputers(workspace({ sidebarMode: "activity" }), [paired("linux", delegated)]));
+  assert.deepEqual(running.activityThreads.running.map((thread) => thread.id), ["remote-thread"]);
+  assert.equal(running.runningThreadIds.has("remote-thread"), true);
+  const settled = deriveView(withComputers(workspace({ sidebarMode: "activity" }), [paired("linux", remote)]));
   assert.deepEqual(settled.activityThreads.priority.map((thread) => thread.id), ["remote-thread"]);
+  assert.equal(settled.runningThreadIds.has("remote-thread"), false);
 });
 
 test("remote lists and attention follow connection changes while preserving threads for reconnection", () => {

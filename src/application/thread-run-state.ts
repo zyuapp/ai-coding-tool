@@ -188,10 +188,9 @@ export function workflowThreadIds(state: Pick<RunTransitionState, "workflows">):
   return Object.entries(state.workflows).filter(([, workflows]) => workflows.some((workflow) => workflow.status === "running")).map(([threadId]) => threadId);
 }
 
-/** The threads whose session still has a shell, a monitor or a subagent working after the run that started it. */
-export function backgroundThreadIds(state: Pick<RunTransitionState, "backgroundProcesses" | "subagents">): string[] {
-  const working = Object.entries(state.subagents).filter(([, subagents]) => subagents.some((subagent) => subagent.status === "working")).map(([threadId]) => threadId);
-  return [...Object.keys(state.backgroundProcesses), ...working];
+/** Working subagents keep their thread running; background shells and monitors only keep its session alive. */
+export function workingSubagentThreadIds(state: Pick<RunTransitionState, "subagents">): string[] {
+  return Object.entries(state.subagents).filter(([, subagents]) => subagents.some((subagent) => subagent.status === "working")).map(([threadId]) => threadId);
 }
 
 export function runStatusFor(state: RunTransitionState, threadId: string | null): ThreadRunStatus {

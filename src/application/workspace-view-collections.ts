@@ -53,7 +53,7 @@ const threadLists = selector(
 
 const busy = selector(
   (state) => [
-    state.activeRuns, state.pendingRuns, state.creatingWorktrees, state.releasingWorktrees, state.deletingWorktrees, state.workflows, state.backgroundProcesses, state.subagents,
+    state.activeRuns, state.pendingRuns, state.creatingWorktrees, state.releasingWorktrees, state.deletingWorktrees, state.workflows, state.subagents,
     state.deletingWorktrees.length ? state.threads : null,
     state.deletingWorktrees.length ? state.worktrees : null,
   ],
