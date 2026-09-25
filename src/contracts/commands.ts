@@ -2,7 +2,7 @@ import type { ComputerFilter } from "../domain/computers.js";
 import type { AutomationDraft, AutomationPatch } from "../domain/automation.js";
 import type { SnoozeHours } from "../domain/thread-snooze.js";
 import type { ThreadRole } from "../domain/thread-role.js";
-import type { ThreadBrief } from "../domain/crew.js";
+import type { ThreadBrief } from "../domain/coordination.js";
 import type { ShortcutSurface } from "../domain/shortcuts.js";
 import type { BrowserAction } from "../domain/browser.js";
 import type { ComputerUsePermission } from "../domain/computer-use.js";
@@ -364,7 +364,7 @@ export type ViewCommand =
   /** A restored desktop view has installed the listeners needed by its input preferences. */
   | { type: "view.mounted" }
   /** Folds a coordinator's threads away under its row in the sidebar, or opens them again. */
-  | { type: "view.set-crew-open"; taskId: string; open: boolean }
+  | { type: "view.set-coordination-open"; taskId: string; open: boolean }
   | { type: "view.set-prompt"; taskId?: string; prompt: string }
   /**
    * Where a thread was left reading: the message held at the top of its view and how far into it,

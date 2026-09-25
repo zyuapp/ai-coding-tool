@@ -1,7 +1,7 @@
 /** The guards a thread tool request has to pass on its way from the agent process to the window. */
 import { isBlankable, isBrowserRead, isCount, isExternalCommand, isString, isTerminalRead, MAX_THREAD_WAIT_MS } from "./ipc.js";
 import type { FindingReport, ThreadRequest } from "./threads.js";
-import { isCrewState, isDecisionRequest, MAX_SUMMARY } from "../domain/crew.js";
+import { isCoordinationState, isDecisionRequest, MAX_SUMMARY } from "../domain/coordination.js";
 import { MAX_DETAIL, MAX_FINDING_KEY, MAX_HEADLINE } from "../domain/finding.js";
 
 export function isThreadRequest(value: unknown): value is ThreadRequest {
@@ -24,7 +24,7 @@ export function isThreadRequest(value: unknown): value is ThreadRequest {
   if (request.op === "terminal") return isTerminalRead(request.read);
   if (request.op === "notify") return isFindingReport(request.report);
   if (request.op === "nothing-to-report") return isString(request.checked, MAX_HEADLINE);
-  if (request.op === "report") return isCrewState(request.state) && isString(request.summary, MAX_SUMMARY);
+  if (request.op === "report") return isCoordinationState(request.state) && isString(request.summary, MAX_SUMMARY);
   if (request.op === "decision") return isDecisionRequest(request.request);
   return false;
 }

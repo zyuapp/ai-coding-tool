@@ -9,7 +9,7 @@ import type { WorkspaceExecution } from "../application/workspace-execution.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type { FindingReport, FindingResult, ThreadRequest, ThreadResponse } from "../contracts/threads.js";
 import { terminalLineLimit } from "../domain/terminal.js";
-import { crewLead, isCoordinator, type CrewState, type DecisionRequest } from "../domain/crew.js";
+import { coordinatorOf, isCoordinator, type CoordinationState, type DecisionRequest } from "../domain/coordination.js";
 import { errorMessage } from "./errors.js";
 import type { RuntimeDesktop } from "./runtime-desktop.js";
 import { defaultEffortFor, defaultModelFor, effortForModel, engineForModel, modelHasEffort, modelTakesEffort } from "../domain/agent-engine.js";
@@ -229,10 +229,10 @@ const BRIEF_REQUIRED = "A coordinator hands every thread it starts a brief: pass
 const NO_COORDINATOR = "This thread works under no coordinator, so there is no one to report to and nothing was recorded. Say it in your reply instead.";
 
 /** A thread under a coordinator saying where its work stands. Its coordinator hears it when this turn ends. */
-async function reportToCoordinator(host: ThreadRequestHost, threadId: string, state: CrewState, summary: string): Promise<FindingResult> {
+async function reportToCoordinator(host: ThreadRequestHost, threadId: string, state: CoordinationState, summary: string): Promise<FindingResult> {
   const thread = host.state().threads.find((item) => item.id === threadId);
-  if (!crewLead(host.state().threads, thread)) return { recorded: false, note: NO_COORDINATOR };
-  await host.dispatch({ type: "crew.reported", taskId: threadId, state, summary });
+  if (!coordinatorOf(host.state().threads, thread)) return { recorded: false, note: NO_COORDINATOR };
+  await host.dispatch({ type: "coordination.reported", taskId: threadId, state, summary });
   if (state === "working") return { recorded: true, note: "Noted. Progress is not passed on; report again when you are blocked, done, or failed." };
   return { recorded: true, note: "Reported. Your coordinator hears it when this turn ends." };
 }
@@ -241,9 +241,9 @@ async function reportToCoordinator(host: ThreadRequestHost, threadId: string, st
 async function raiseDecision(host: ThreadRequestHost, threadId: string, request: DecisionRequest): Promise<FindingResult> {
   const threads = host.state().threads;
   const thread = threads.find((item) => item.id === threadId);
-  if (!isCoordinator(thread) && !crewLead(threads, thread)) {
+  if (!isCoordinator(thread) && !coordinatorOf(threads, thread)) {
     return { recorded: false, note: "Only a coordinator and the threads working under it can raise decisions, so nothing was recorded. Ask the user in your reply instead." };
   }
-  await host.dispatch({ type: "crew.decision-raised", taskId: threadId, request });
+  await host.dispatch({ type: "coordination.decision-raised", taskId: threadId, request });
   return { recorded: true, note: "Raised. The user sees it now, and their answer arrives in this thread as a message. If you cannot go on without it, end your turn." };
 }

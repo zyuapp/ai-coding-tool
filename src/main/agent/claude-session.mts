@@ -7,7 +7,7 @@ import { SIDE_CHAT_BOUNDARY } from "./side-chat-instructions.mjs";
 import { parseWorkflowProgress, workflowProgressOf } from "./workflow-progress.mjs";
 import { appendCompleteMarkdown, openMarkdownBuffer, type MarkdownBuffer } from "./markdown-buffer.mjs";
 import { AUTOMATION_SERVER_NAME } from "../tools/automation.mjs";
-import { CREW_SERVER_NAME } from "../tools/crew.mjs";
+import { COORDINATION_SERVER_NAME } from "../tools/coordination.mjs";
 import { BROWSER_SERVER_NAME, BROWSER_TOOLS } from "../tools/browser.mjs";
 import { THREAD_SERVER_NAME, THREAD_TOOLS } from "../tools/threads.mjs";
 import { readOnlyToolNames } from "./claude-mcp-host.mjs";
@@ -19,7 +19,7 @@ const setupToolName = "mcp__aicodingtool-computer-use__request_setup";
 /** Scheduled runs have nobody to approve anything, and these tools only reach the run's own automation. */
 const automationToolPrefix = `mcp__${AUTOMATION_SERVER_NAME}__`;
 /** A thread speaking for itself to its coordinator and the user reaches nothing but the app. */
-const crewToolPrefix = `mcp__${CREW_SERVER_NAME}__`;
+const coordinationToolPrefix = `mcp__${COORDINATION_SERVER_NAME}__`;
 /** Reading the workspace changes nothing, so it needs no approval; starting or stopping a run does. */
 const readOnlyThreadTools = readOnlyToolNames(THREAD_SERVER_NAME, THREAD_TOOLS);
 /** Reading a page the panel already holds changes nothing; opening one and acting in it does. */
@@ -28,7 +28,7 @@ const computerUseToolPrefix = "mcp__cua-driver__";
 
 /** What a tool reaches, read from the name the agent process calls it by. */
 function toolReach(toolName: string): ToolReach {
-  if (toolName === setupToolName || toolName.startsWith(automationToolPrefix) || toolName.startsWith(crewToolPrefix) || readOnlyThreadTools.has(toolName) || readOnlyBrowserTools.has(toolName)) return "app";
+  if (toolName === setupToolName || toolName.startsWith(automationToolPrefix) || toolName.startsWith(coordinationToolPrefix) || readOnlyThreadTools.has(toolName) || readOnlyBrowserTools.has(toolName)) return "app";
   return toolName.startsWith(computerUseToolPrefix) ? "computer-use" : "workspace";
 }
 

@@ -16,10 +16,10 @@ import { RenameInput, useRenaming } from "./SidebarRename";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
 import { ThreadRoleMark } from "./ThreadRoleMark";
 import type { ThreadRole } from "../../domain/thread-role";
-import { openDecisions } from "../../domain/crew";
+import { openDecisions } from "../../domain/coordination";
 import type { ThreadHost } from "../../application/computers";
 import { HostMark } from "./HostMark";
-import "./crew.css";
+import "./coordination.css";
 
 /** What a row's trailing slot offers, if anything. Only one of them ever shows in a given list. */
 export type RowAction = "archive" | "dismiss" | "none";
@@ -121,44 +121,44 @@ export type ThreadRowsOptions = {
   onRenameThread: (threadId: string, title: string) => void;
   onForkThread: (threadId: string, worktree: boolean) => void;
   onSetThreadRole: (threadId: string, role: ThreadRole | null) => void;
-  sidebarCrew: SidebarCrew;
+  sidebarCoordination: SidebarCoordination;
 };
 
 /** The threads working under each coordinator, drawn beneath its row, and what moves a thread between them. */
-export type SidebarCrew = {
-  crews: Map<string, Thread[]>;
-  closedCrews: Set<string>;
+export type SidebarCoordination = {
+  threadsByCoordinator: Map<string, Thread[]>;
+  closedCoordinators: Set<string>;
   coordinators: Thread[];
   onSetCoordinator: (threadId: string, coordinatorId: string | null) => void;
-  onSetCrewOpen: (threadId: string, open: boolean) => void;
+  onSetCoordinationOpen: (threadId: string, open: boolean) => void;
 };
 
 /** The threads a coordinator's row opens onto, unless the user folded them away. */
-function CrewRows({ thread, crew, renderMember }: { thread: Thread; crew: SidebarCrew; renderMember: (member: Thread) => React.ReactNode }) {
-  const members = crew.crews.get(thread.id);
-  if (!members?.length || crew.closedCrews.has(thread.id)) return null;
-  return <div className="crew-rows" role="group" aria-label={`Threads under ${thread.title}`}>{members.map(renderMember)}</div>;
+function CoordinatedRows({ thread, coordination, renderMember }: { thread: Thread; coordination: SidebarCoordination; renderMember: (member: Thread) => React.ReactNode }) {
+  const members = coordination.threadsByCoordinator.get(thread.id);
+  if (!members?.length || coordination.closedCoordinators.has(thread.id)) return null;
+  return <div className="coordinated-rows" role="group" aria-label={`Threads under ${thread.title}`}>{members.map(renderMember)}</div>;
 }
 
 /** A coordinator's row speaks for the decisions its threads are waiting on as well as its own. */
-export function decisionCount(thread: Thread, crews: Map<string, Thread[]>) {
-  return [thread, ...crews.get(thread.id) ?? []].reduce((count, item) => count + openDecisions(item).length, 0);
+export function decisionCount(thread: Thread, threadsByCoordinator: Map<string, Thread[]>) {
+  return [thread, ...threadsByCoordinator.get(thread.id) ?? []].reduce((count, item) => count + openDecisions(item).length, 0);
 }
 
 /** The fold on a coordinator's row. A coordinator with no threads under it has none. */
-function CrewToggle({ thread, crew }: { thread: Thread; crew: SidebarCrew }) {
-  const members = crew.crews.get(thread.id);
+function CoordinatorToggle({ thread, coordination }: { thread: Thread; coordination: SidebarCoordination }) {
+  const members = coordination.threadsByCoordinator.get(thread.id);
   if (!members?.length) return null;
-  const open = !crew.closedCrews.has(thread.id);
+  const open = !coordination.closedCoordinators.has(thread.id);
   return (
     <button
       type="button"
-      className={`crew-toggle ${open ? "open" : ""}`}
+      className={`coordinator-toggle ${open ? "open" : ""}`}
       aria-expanded={open}
       aria-label={`${open ? "Hide" : "Show"} the ${members.length} ${members.length === 1 ? "thread" : "threads"} under ${thread.title}`}
       onClick={(event) => {
         event.stopPropagation();
-        crew.onSetCrewOpen(thread.id, !open);
+        coordination.onSetCoordinationOpen(thread.id, !open);
       }}
     >
       <ChevronRight size={12} aria-hidden="true" />
@@ -221,7 +221,7 @@ export function useThreadRows({
   onRenameThread,
   onForkThread,
   onSetThreadRole,
-  sidebarCrew: crew,
+  sidebarCoordination: coordination,
 }: ThreadRowsOptions) {
   const [threadMenuPosition, setThreadMenuPosition] = useState({ x: 0, y: 0 });
   const threadNames = useRenaming((threadId, value) => { if (value.trim()) onRenameThread(threadId, value); });
@@ -249,7 +249,7 @@ export function useThreadRows({
 
   /** The engine stays at the right edge, with status beside it, whatever other marks a row carries. */
   /** A coordinator's row stands for its threads, so it shows the approval or the work they have going. */
-  const membersIn = (thread: Thread, ids: Set<string>) => (crew.crews.get(thread.id) ?? []).some((member) => ids.has(member.id));
+  const membersIn = (thread: Thread, ids: Set<string>) => (coordination.threadsByCoordinator.get(thread.id) ?? []).some((member) => ids.has(member.id));
 
   const rowMarks = (thread: Thread): React.ReactNode[] => [
     thread.role && <ThreadRoleMark key="role" role={thread.role} size={13} />,
@@ -259,7 +259,7 @@ export function useThreadRows({
       ? <span key="status" className="task-attention approval" aria-label={blockedThreadIds.has(thread.id) ? BLOCKED_LABEL : MEMBER_BLOCKED_LABEL} />
       : runningThreadIds.has(thread.id) || membersIn(thread, runningThreadIds)
         ? <ThreadSpinner key="status" />
-        : attentionMark(thread, sideChatAttention.has(thread.id), decisionCount(thread, crew.crews)),
+        : attentionMark(thread, sideChatAttention.has(thread.id), decisionCount(thread, coordination.threadsByCoordinator)),
     <ThreadEngineIcon key="engine" engine={thread.engine} className="task-engine" size={13} />,
   ].filter(Boolean);
 
@@ -320,8 +320,8 @@ export function useThreadRows({
         onFork: (worktree) => onForkThread(thread.id, worktree),
         onArchive: () => onArchiveThread(thread.id),
         onSetRole: (role) => onSetThreadRole(thread.id, role),
-        coordinators: crew.coordinators,
-        onSetCoordinator: (coordinatorId) => crew.onSetCoordinator(thread.id, coordinatorId),
+        coordinators: coordination.coordinators,
+        onSetCoordinator: (coordinatorId) => coordination.onSetCoordinator(thread.id, coordinatorId),
         ...(priority ? { onSnooze: (hours: SnoozeHours) => onSnoozeThread(thread.id, hours) } : {}),
       })}
     />}
@@ -336,7 +336,7 @@ export function useThreadRows({
   /** A thread under a coordinator, drawn beneath its row. */
   const memberRow = (member: Thread) => (
     <div className="task-entry" key={member.id} tabIndex={0} onKeyDown={(event) => selectOnEnter(event, member)}>
-      {rowBody(member, `task-row crew-row ${member.id === currentId ? "active" : ""}`, <span className="task-row-text"><span>{member.title}</span></span>, "none")}
+      {rowBody(member, `task-row coordination-row ${member.id === currentId ? "active" : ""}`, <span className="task-row-text"><span>{member.title}</span></span>, "none")}
     </div>
   );
 
@@ -350,10 +350,10 @@ export function useThreadRows({
             {...provided.dragHandleProps}
             onKeyDown={(event) => selectOnEnter(event, thread)}
           >
-            <CrewToggle thread={thread} crew={crew} />
+            <CoordinatorToggle thread={thread} coordination={coordination} />
             {rowBody(thread, className, content, "archive")}
           </div>
-          <CrewRows thread={thread} crew={crew} renderMember={memberRow} />
+          <CoordinatedRows thread={thread} coordination={coordination} renderMember={memberRow} />
         </div>
       )}
     </Draggable>
@@ -363,15 +363,15 @@ export function useThreadRows({
   const activityRow = (thread: Thread, action: RowAction, priority: boolean) => (
     <div className="task-group" key={thread.id}>
       <div className="task-entry" tabIndex={0} onKeyDown={(event) => selectOnEnter(event, thread)}>
-      <CrewToggle thread={thread} crew={crew} />
+      <CoordinatorToggle thread={thread} coordination={coordination} />
       {rowBody(thread, `task-row ${thread.id === currentId ? "active" : ""}`, (
         <span className="task-row-text">
           <span>{thread.title}</span>
-          <small>{activityMeta(thread, threadHosts.get(thread.id), projects, formatTime, decisionCount(thread, crew.crews), membersIn(thread, blockedThreadIds))}</small>
+          <small>{activityMeta(thread, threadHosts.get(thread.id), projects, formatTime, decisionCount(thread, coordination.threadsByCoordinator), membersIn(thread, blockedThreadIds))}</small>
         </span>
       ), action, priority)}
       </div>
-      <CrewRows thread={thread} crew={crew} renderMember={memberRow} />
+      <CoordinatedRows thread={thread} coordination={coordination} renderMember={memberRow} />
     </div>
   );
 

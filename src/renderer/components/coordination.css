@@ -1,6 +1,6 @@
 /* A coordinator's threads, a thread's place under its coordinator, and the decisions waiting on the user. */
 
-.crew-head {
+.coordination-head {
   position: absolute;
   z-index: 6;
   top: 0;
@@ -10,19 +10,19 @@
   background: linear-gradient(var(--canvas) calc(100% - 12px), var(--canvas-fade));
   pointer-events: none;
 }
-.crew-head > * { pointer-events: auto; }
-.workspace.summary-open .crew-head { padding-right: calc(clamp(20px, 4vw, 64px) + 282px); }
-.work-area.crew-strip-on .conversation { padding-top: 118px; }
-.work-area.crew-bar-on .conversation { padding-top: 96px; }
-.work-area.crew-brief-on .conversation { padding-top: 64px; }
+.coordination-head > * { pointer-events: auto; }
+.workspace.summary-open .coordination-head { padding-right: calc(clamp(20px, 4vw, 64px) + 282px); }
+.work-area.coordination-strip-on .conversation { padding-top: 118px; }
+.work-area.coordination-bar-on .conversation { padding-top: 96px; }
+.work-area.coordination-brief-on .conversation { padding-top: 64px; }
 
-.crew-strip {
+.coordination-strip {
   display: flex;
   gap: 8px;
   overflow-x: auto;
   scrollbar-width: none;
 }
-.crew-card {
+.coordination-card {
   flex: none;
   width: 220px;
   display: grid;
@@ -35,22 +35,22 @@
   cursor: pointer;
   transition: border-color 0.2s ease, transform 0.2s cubic-bezier(0.32, 0.72, 0, 1);
 }
-.crew-card:hover { border-color: var(--line-strong); transform: translateY(-1px); }
-.crew-card.asking, .crew-card.approval { border-color: var(--accent-line); background: var(--accent-surface); }
-.crew-card-top { display: flex; align-items: center; gap: 7px; min-width: 0; color: var(--ink-dim); font-size: var(--text-menu); font-weight: 600; }
-.crew-card-top .task-spinner { flex: none; width: 11px; height: 11px; border-width: 1.6px; }
-.crew-card-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.crew-card-engine { flex: none; color: var(--quiet); }
-.crew-card-status { overflow: hidden; color: var(--muted); font-size: var(--text-meta); text-overflow: ellipsis; white-space: nowrap; }
-.crew-card.asking .crew-card-status, .crew-card.approval .crew-card-status { color: var(--accent); }
-.crew-card.blocked .crew-card-status, .crew-card.failed .crew-card-status { color: var(--danger-soft); }
+.coordination-card:hover { border-color: var(--line-strong); transform: translateY(-1px); }
+.coordination-card.asking, .coordination-card.approval { border-color: var(--accent-line); background: var(--accent-surface); }
+.coordination-card-top { display: flex; align-items: center; gap: 7px; min-width: 0; color: var(--ink-dim); font-size: var(--text-menu); font-weight: 600; }
+.coordination-card-top .task-spinner { flex: none; width: 11px; height: 11px; border-width: 1.6px; }
+.coordination-card-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.coordination-card-engine { flex: none; color: var(--quiet); }
+.coordination-card-status { overflow: hidden; color: var(--muted); font-size: var(--text-meta); text-overflow: ellipsis; white-space: nowrap; }
+.coordination-card.asking .coordination-card-status, .coordination-card.approval .coordination-card-status { color: var(--accent); }
+.coordination-card.blocked .coordination-card-status, .coordination-card.failed .coordination-card-status { color: var(--danger-soft); }
 
-.crew-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--line-bright); }
-.crew-dot.done { background: var(--success); }
-.crew-dot.blocked, .crew-dot.failed { background: var(--danger); }
-.crew-dot.asking, .crew-dot.approval { background: var(--accent); }
+.coordination-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--line-bright); }
+.coordination-dot.done { background: var(--success); }
+.coordination-dot.blocked, .coordination-dot.failed { background: var(--danger); }
+.coordination-dot.asking, .coordination-dot.approval { background: var(--accent); }
 
-.crew-bar {
+.coordination-bar {
   max-width: 860px;
   margin: 0 auto;
   border: 1px solid var(--line);
@@ -58,10 +58,10 @@
   background: var(--surface);
   font-size: var(--text-menu);
 }
-.crew-bar.asking { border-color: var(--accent-line); background: var(--accent-surface); }
-.crew-bar-line { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 8px 0 12px; }
-.crew-bar-lead { color: var(--muted); }
-.crew-bar-lead button, .decision-from {
+.coordination-bar.asking { border-color: var(--accent-line); background: var(--accent-surface); }
+.coordination-bar-line { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 8px 0 12px; }
+.coordination-bar-lead { color: var(--muted); }
+.coordination-bar-lead button, .decision-from {
   border: 0;
   border-radius: 6px;
   padding: 2px 6px;
@@ -70,9 +70,9 @@
   font-size: var(--text-menu);
   cursor: pointer;
 }
-.crew-bar-lead button:hover, .decision-from:hover { color: var(--ink); background: var(--control-hover); }
-.crew-bar-asking { margin-left: auto; color: var(--accent); }
-.crew-bar-answer {
+.coordination-bar-lead button:hover, .decision-from:hover { color: var(--ink); background: var(--control-hover); }
+.coordination-bar-asking { margin-left: auto; color: var(--accent); }
+.coordination-bar-answer {
   border: 0;
   border-radius: 8px;
   padding: 5px 11px;
@@ -81,12 +81,12 @@
   font-weight: 600;
   cursor: pointer;
 }
-.crew-bar-line + .crew-brief { border-top: 1px solid var(--line-soft); }
-.crew-brief summary { padding: 7px 12px; color: var(--muted); cursor: pointer; }
-.crew-brief dl { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 6px 12px; margin: 0; padding: 2px 12px 11px; }
-.crew-brief dt { color: var(--quiet); font-size: var(--text-meta); padding-top: 1px; }
-.crew-brief dd { margin: 0; color: var(--ink-dim); white-space: pre-wrap; overflow-wrap: anywhere; }
-.crew-brief-intent { border-left: 2px solid var(--accent-line); padding-left: 9px; font-style: italic; }
+.coordination-bar-line + .coordination-brief { border-top: 1px solid var(--line-soft); }
+.coordination-brief summary { padding: 7px 12px; color: var(--muted); cursor: pointer; }
+.coordination-brief dl { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 6px 12px; margin: 0; padding: 2px 12px 11px; }
+.coordination-brief dt { color: var(--quiet); font-size: var(--text-meta); padding-top: 1px; }
+.coordination-brief dd { margin: 0; color: var(--ink-dim); white-space: pre-wrap; overflow-wrap: anywhere; }
+.coordination-brief-intent { border-left: 2px solid var(--accent-line); padding-left: 9px; font-style: italic; }
 
 .decision-card {
   box-sizing: border-box;
@@ -124,8 +124,8 @@
 .decision-foot button:disabled { opacity: 0.4; cursor: default; }
 
 /* The sidebar's fold on a coordinator's row, and the threads nested under it. */
-.task-entry:has(> .crew-toggle) > .task-row { padding-left: 28px; }
-.task-entry > .crew-toggle {
+.task-entry:has(> .coordinator-toggle) > .task-row { padding-left: 28px; }
+.task-entry > .coordinator-toggle {
   position: absolute;
   z-index: 1;
   top: 8px;
@@ -141,12 +141,12 @@
   color: var(--quiet);
   cursor: pointer;
 }
-.task-entry:has(> .project-task-row) > .crew-toggle { top: 6px; left: 18px; }
-.task-entry > .crew-toggle:hover { color: var(--ink); background: var(--wash); }
-.task-entry > .crew-toggle svg { transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1); }
-.task-entry > .crew-toggle.open svg { transform: rotate(90deg); }
-.crew-rows { position: relative; margin-left: 18px; padding-left: 6px; }
-.crew-rows::before { content: ""; position: absolute; top: 4px; bottom: 8px; left: 0; width: 1px; background: var(--line-mid); }
-.task-group:has(> .task-entry > .project-task-row) > .crew-rows { margin-left: 40px; }
-.crew-rows .task-row { padding-top: 4px; padding-bottom: 4px; }
-.crew-rows .task-row-text > span { font-size: var(--text-menu); }
+.task-entry:has(> .project-task-row) > .coordinator-toggle { top: 6px; left: 18px; }
+.task-entry > .coordinator-toggle:hover { color: var(--ink); background: var(--wash); }
+.task-entry > .coordinator-toggle svg { transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1); }
+.task-entry > .coordinator-toggle.open svg { transform: rotate(90deg); }
+.coordinated-rows { position: relative; margin-left: 18px; padding-left: 6px; }
+.coordinated-rows::before { content: ""; position: absolute; top: 4px; bottom: 8px; left: 0; width: 1px; background: var(--line-mid); }
+.task-group:has(> .task-entry > .project-task-row) > .coordinated-rows { margin-left: 40px; }
+.coordinated-rows .task-row { padding-top: 4px; padding-bottom: 4px; }
+.coordinated-rows .task-row-text > span { font-size: var(--text-menu); }

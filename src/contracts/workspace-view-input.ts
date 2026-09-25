@@ -2,7 +2,7 @@ import type { AppCommand } from "./commands.js";
 import { isTerminalDimension, MAX_TERMINAL_INPUT } from "./terminal.js";
 import { isSnoozeHours } from "../domain/thread-snooze.js";
 import { isThreadRole } from "../domain/thread-role.js";
-import { isThreadBrief } from "../domain/crew.js";
+import { isThreadBrief } from "../domain/coordination.js";
 import type { WorkspaceEvent } from "../application/workspace-reducer.js";
 import { isBrowserAction } from "./ipc.js";
 import { isAgentEffort, isAgentEngine, isAgentModel } from "../domain/agent-engine.js";
@@ -139,7 +139,7 @@ export function isWorkspaceViewInput(value: unknown): value is WorkspaceViewInpu
 
 const shapes = {
   "view.mounted": {},
-  "view.set-crew-open": { taskId: text, open: boolean },
+  "view.set-coordination-open": { taskId: text, open: boolean },
   "diff.toggle": {  },
   "diff.refresh": {  },
   "diff.set-range": { range: isDiffRange },

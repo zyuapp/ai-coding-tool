@@ -30,7 +30,7 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     setThreadRole: (threadId: string, role: ThreadRole | null) => dispatch({ type: "task.set-role", taskId: threadId, role }),
     setCoordinator: (threadId: string, coordinatorId: string | null) => dispatch({ type: "task.set-coordinator", taskId: threadId, coordinatorId }),
     answerDecision: (threadId: string, decisionId: string, answer: string) => dispatch({ type: "decision.answer", taskId: threadId, decisionId, answer }),
-    setCrewOpen: (threadId: string, open: boolean) => dispatch({ type: "view.set-crew-open", taskId: threadId, open }),
+    setCoordinationOpen: (threadId: string, open: boolean) => dispatch({ type: "view.set-coordination-open", taskId: threadId, open }),
     moveThread: (threadId: string, target: ThreadDropTarget) => dispatch({ type: "task.move", taskId: threadId, target }),
     forkThread: (threadId: string, worktree = false) => dispatch({ type: "task.fork", taskId: threadId, ...(worktree ? { worktree } : {}) }),
     toggleProject: (projectId: string) => dispatch({ type: "view.toggle-project", projectId }),

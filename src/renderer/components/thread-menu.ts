@@ -17,7 +17,7 @@ export function threadMenuEntries(thread: Thread, actions: {
   const leads = actions.coordinators.filter((lead) => lead.id !== thread.id);
   const lead = leads.find((item) => item.id === thread.parentId);
   /** A coordinator takes threads under it; it never works under another. */
-  const crew: MenuEntry[] = thread.role === "coordinator" ? [] : [
+  const coordination: MenuEntry[] = thread.role === "coordinator" ? [] : [
     ...(leads.length ? [{ label: "Move under", items: leads.map((item) => ({ label: item.title, command: { type: "task.set-coordinator" as const, taskId: thread.id, coordinatorId: item.id }, checked: item.id === lead?.id, onSelect: () => actions.onSetCoordinator(item.id) })) }] : []),
     ...(lead ? [{ label: `Move out of ${lead.title}`, command: { type: "task.set-coordinator" as const, taskId: thread.id, coordinatorId: null }, onSelect: () => actions.onSetCoordinator(null) }] : []),
   ];
@@ -28,7 +28,7 @@ export function threadMenuEntries(thread: Thread, actions: {
       ...THREAD_ROLES.map(({ role, label }) => ({ label, command: { type: "task.set-role" as const, taskId: thread.id, role }, checked: thread.role === role, onSelect: () => actions.onSetRole(role) })),
       { label: "None", command: { type: "task.set-role", taskId: thread.id, role: null }, checked: thread.role === undefined, onSelect: () => actions.onSetRole(null) },
     ] },
-    ...crew,
+    ...coordination,
     "separator",
     { label: "Copy link", onSelect: () => void navigator.clipboard?.writeText(threadLink(thread.id)) },
     "separator",

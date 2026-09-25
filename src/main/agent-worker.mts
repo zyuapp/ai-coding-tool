@@ -30,7 +30,7 @@ const coordinatorOptions = {
   automations: (taskId: string, currentRunId: () => string) => automations.bridgeFor(taskId, currentRunId),
   findings: (taskId: string) => threads.findingsFor(taskId),
   threads: (taskId: string) => threads.bridgeFor(taskId),
-  crew: (taskId: string) => threads.crewFor(taskId),
+  coordination: (taskId: string) => threads.coordinationFor(taskId),
   browser: (taskId: string) => threads.browserFor(taskId),
   terminal: (taskId: string) => threads.terminalFor(taskId),
 };

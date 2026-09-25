@@ -10,14 +10,14 @@ import { shownComputers } from "../computers.js";
 import { REMOTE_UNSUPPORTED, supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import { forkedThreads } from "../thread-fork.js";
 import { moveThread as moveThreadInList } from "../thread-order.js";
-import { crewSections } from "../crew.js";
+import { coordinationSections } from "../coordination.js";
 import { pruneDeletedThreads } from "../thread-pruning.js";
 import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeById } from "../thread-location.js";
 import { DRAFT_DOCK, blockedThreadIds, busyThreadIds, sideChatIds, type WorkspaceState } from "../workspace-state.js";
 import { dismissableThreads, dismissed, readAttention } from "../../domain/attention.js";
 import { clampTitle, type Thread } from "../../domain/thread.js";
-import { withCrews } from "../../domain/crew.js";
+import { withCoordinated } from "../../domain/coordination.js";
 import { isSnoozeHours } from "../../domain/thread-snooze.js";
 import { capabilitiesFor, defaultModelFor, effortForModel, engineHasModel, modelHasEffort } from "../../domain/agent-engine.js";
 
@@ -49,7 +49,7 @@ function landOnThread(state: WorkspaceState, taskId: string): WorkspaceState {
 function priorityThreads(state: WorkspaceState): Thread[] {
   const sideChats = sideChatIds(state);
   const listed = state.threads.filter((thread) => thread.archivedAt === undefined && !sideChats.has(thread.id));
-  return crewSections(listed, busyThreadIds(state), blockedThreadIds(state)).priority;
+  return coordinationSections(listed, busyThreadIds(state), blockedThreadIds(state)).priority;
 }
 
 /** The row Priority moves on to once this one leaves it: the one below, or the one above when it was last. */
@@ -64,7 +64,7 @@ function priorityNeighbour(state: WorkspaceState, taskId: string): string | unde
 function dismissPriority(state: WorkspaceState, localOnly = false): WorkspaceTransition {
   const own = localOnly || state.computers.filter === "all" || state.computers.filter === "this";
   /** A coordinator in Priority is there for its threads too, so filing it away files them with it. */
-  const dotted = withCrews(state.threads, new Set(own ? priorityThreads(state).map((thread) => thread.id) : []));
+  const dotted = withCoordinated(state.threads, new Set(own ? priorityThreads(state).map((thread) => thread.id) : []));
   const next = dotted.size ? { ...state, threads: dismissed(state.threads, dotted) } : state;
   if (localOnly) return settled(next);
   const effects: WorkspaceEffect[] = [];
@@ -127,7 +127,7 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
     }
 
     case "task.dismiss": {
-      const threads = dismissed(state.threads, withCrews(state.threads, new Set([input.taskId])));
+      const threads = dismissed(state.threads, withCoordinated(state.threads, new Set([input.taskId])));
       if (threads === state.threads) return settled(state);
       /** Filing away the thread being read moves on to the row that takes its place, so Priority can be worked down without going back to the list. */
       const successor = state.sidebarMode === "activity" && state.currentId === input.taskId
