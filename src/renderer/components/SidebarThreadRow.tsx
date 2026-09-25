@@ -1,6 +1,7 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { CommandButton } from "./CommandControl";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Draggable, type DraggableProvided } from "@hello-pangea/dnd";
-import { LuAlarmClock as AlarmClock, LuArchive as Archive, LuCheck as Check, LuFolderSymlink as FolderSymlink } from "react-icons/lu";
+import { LuAlarmClock as AlarmClock, LuArchive as Archive, LuCheck as Check, LuChevronRight as ChevronRight, LuFolderSymlink as FolderSymlink } from "react-icons/lu";
 import { projectName, type Project } from "../../domain/project";
 import { threadActivityAt, type Thread } from "../../domain/thread";
 import { hasUnreadAttention, newestUnreadFinding } from "../../domain/attention";
@@ -13,6 +14,12 @@ import { threadMenuEntries } from "./thread-menu";
 import type { SnoozeHours } from "../../domain/thread-snooze";
 import { RenameInput, useRenaming } from "./SidebarRename";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
+import { ThreadRoleMark } from "./ThreadRoleMark";
+import type { ThreadRole } from "../../domain/thread-role";
+import { openDecisions } from "../../domain/coordination";
+import type { ThreadHost } from "../../application/computers";
+import { HostMark } from "./HostMark";
+import "./coordination.css";
 
 /** What a row's trailing slot offers, if anything. Only one of them ever shows in a given list. */
 export type RowAction = "archive" | "dismiss" | "none";
@@ -24,6 +31,8 @@ const OUTCOME_LABELS: Record<ThreadOutcome, string> = {
 };
 
 const BLOCKED_LABEL = "Needs approval";
+
+const MEMBER_BLOCKED_LABEL = "A thread needs your approval";
 
 const SIDE_CHAT_LABEL = "A side chat is waiting";
 
@@ -37,7 +46,8 @@ function scheduleLabel(automation: AutomationView) {
 }
 
 /** The dot a row carries. What a run found is named outright: "Finished" says nothing a headline does. */
-function attentionMark(thread: Thread, sideChatWaiting: boolean) {
+function attentionMark(thread: Thread, sideChatWaiting: boolean, decisions: number) {
+  if (decisions) return <span key="status" className="task-attention approval" aria-label={decisionLabel(decisions)} />;
   const finding = newestUnreadFinding(thread);
   if (finding) return <span key="status" className="task-attention" aria-label={finding.headline} />;
   if (hasUnreadAttention(thread)) return <span key="status" className={`task-attention ${thread.outcome!}`} aria-label={OUTCOME_LABELS[thread.outcome!]} />;
@@ -46,15 +56,29 @@ function attentionMark(thread: Thread, sideChatWaiting: boolean) {
   return false;
 }
 
+function decisionLabel(count: number) {
+  return count === 1 ? "A decision is waiting on you" : `${count} decisions are waiting on you`;
+}
+
 /**
- * What a row says under its title in activity mode: which folder it lives in, and when it last moved.
- * A row carrying something a run found says that instead — the headline is why the row is in Priority.
+ * What a row says under its title in activity mode: which computer and folder it lives in, and when
+ * it last moved. A row carrying something a run found says that instead — the headline is why the
+ * row is in Priority.
  */
-function activityMeta(thread: Thread, projects: Project[], formatTime: (value: number) => string) {
+function activityMeta(thread: Thread, host: ThreadHost | undefined, projects: Project[], formatTime: (value: number) => string, decisions: number, memberBlocked: boolean) {
+  if (decisions) return decisionLabel(decisions);
+  if (memberBlocked) return MEMBER_BLOCKED_LABEL;
   const finding = newestUnreadFinding(thread);
   if (finding) return finding.headline;
   const project = projects.find((item) => item.id === thread.projectId);
-  return [project && projectName(project), formatTime(threadActivityAt(thread))].filter(Boolean).join(" · ");
+  return hostMeta(host, ...[project && projectName(project), formatTime(threadActivityAt(thread))].filter((part): part is string => Boolean(part)));
+}
+
+/** A row's meta line: the computer it lives on, marked as one, ahead of whatever else the line says. */
+export function hostMeta(host: ThreadHost | undefined, ...parts: string[]): ReactNode {
+  const rest = parts.join(" · ");
+  if (!host) return rest;
+  return <><HostMark name={host.name} offline={host.offline} />{rest && ` · ${rest}`}</>;
 }
 
 function ThreadSpinner() {
@@ -85,6 +109,8 @@ export type ThreadRowsOptions = {
   schedules: Map<string, AutomationView>;
   worktreeThreadIds: Set<string>;
   worktreeGroups: WorktreeGroup[];
+  /** Which paired computer holds each thread that is not this computer's own. */
+  threadHosts: Map<string, ThreadHost>;
   openMenu: string | null;
   formatTime: (value: number) => string;
   onSetOpenMenu: (menu: string | null) => void;
@@ -94,7 +120,90 @@ export type ThreadRowsOptions = {
   onSnoozeThread: (threadId: string, hours: SnoozeHours) => void;
   onRenameThread: (threadId: string, title: string) => void;
   onForkThread: (threadId: string, worktree: boolean) => void;
+  onSetThreadRole: (threadId: string, role: ThreadRole | null) => void;
+  sidebarCoordination: SidebarCoordination;
 };
+
+/** The threads working under each coordinator, drawn beneath its row, and what moves a thread between them. */
+export type SidebarCoordination = {
+  threadsByCoordinator: Map<string, Thread[]>;
+  closedCoordinators: Set<string>;
+  coordinators: Thread[];
+  onSetCoordinator: (threadId: string, coordinatorId: string | null) => void;
+  onSetCoordinationOpen: (threadId: string, open: boolean) => void;
+};
+
+/** The threads a coordinator's row opens onto, unless the user folded them away. */
+function CoordinatedRows({ thread, coordination, renderMember }: { thread: Thread; coordination: SidebarCoordination; renderMember: (member: Thread) => React.ReactNode }) {
+  const members = coordination.threadsByCoordinator.get(thread.id);
+  if (!members?.length || coordination.closedCoordinators.has(thread.id)) return null;
+  return <div className="coordinated-rows" role="group" aria-label={`Threads under ${thread.title}`}>{members.map(renderMember)}</div>;
+}
+
+/** A coordinator's row speaks for the decisions its threads are waiting on as well as its own. */
+export function decisionCount(thread: Thread, threadsByCoordinator: Map<string, Thread[]>) {
+  return [thread, ...threadsByCoordinator.get(thread.id) ?? []].reduce((count, item) => count + openDecisions(item).length, 0);
+}
+
+/**
+ * The fold on a coordinator's row. In a list ranked by activity it opens the row's meta line and
+ * says how many threads it holds; in a project it hangs in the row's indent. A coordinator with no
+ * threads under it has none.
+ */
+function CoordinatorToggle({ thread, coordination, inline = false }: { thread: Thread; coordination: SidebarCoordination; inline?: boolean }) {
+  const members = coordination.threadsByCoordinator.get(thread.id);
+  if (!members?.length) return null;
+  const open = !coordination.closedCoordinators.has(thread.id);
+  return (
+    <button
+      type="button"
+      className={`coordinator-toggle${inline ? " inline" : ""}${open ? " open" : ""}`}
+      aria-expanded={open}
+      aria-label={`${open ? "Hide" : "Show"} the ${members.length} ${members.length === 1 ? "thread" : "threads"} under ${thread.title}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        coordination.onSetCoordinationOpen(thread.id, !open);
+      }}
+    >
+      <ChevronRight size={12} aria-hidden="true" />
+      {inline && <span>{members.length} {members.length === 1 ? "thread" : "threads"}</span>}
+    </button>
+  );
+}
+
+/**
+ * What can be done to a thread from its row. Activity mode offers dismissing on a priority row
+ * - a thread still asking has nothing to dismiss - and nothing on the others, rather than two
+ * different icons in one view; archiving a thread there is on its menu.
+ */
+function rowActionButtons(thread: Thread, action: RowAction, scheduled: boolean, onDismiss: (threadId: string) => void, onArchive: (threadId: string) => void): React.ReactNode[] {
+  return [
+    action === "dismiss" && <CommandButton command={{ type: "task.dismiss", taskId: thread.id }}
+      key="dismiss"
+      className="row-action task-dismiss"
+      type="button"
+      aria-label={scheduled ? `Dismiss ${thread.title}, which keeps running on its schedule` : `Dismiss ${thread.title}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onDismiss(thread.id);
+      }}
+    >
+      <Check size={13} aria-hidden="true" />
+    </CommandButton>,
+    action === "archive" && <CommandButton command={{ type: "task.archive", taskId: thread.id }}
+      key="archive"
+      className="row-action task-archive"
+      type="button"
+      aria-label={`Archive ${thread.title}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onArchive(thread.id);
+      }}
+    >
+      <Archive size={13} aria-hidden="true" />
+    </CommandButton>,
+  ].filter(Boolean);
+}
 
 /** Both lists draw the same row, so both of them ask this for one: only the placement differs. */
 export function useThreadRows({
@@ -106,6 +215,7 @@ export function useThreadRows({
   schedules,
   worktreeThreadIds,
   worktreeGroups,
+  threadHosts,
   openMenu,
   formatTime,
   onSetOpenMenu,
@@ -115,9 +225,19 @@ export function useThreadRows({
   onSnoozeThread,
   onRenameThread,
   onForkThread,
+  onSetThreadRole,
+  sidebarCoordination: coordination,
 }: ThreadRowsOptions) {
   const [threadMenuPosition, setThreadMenuPosition] = useState({ x: 0, y: 0 });
   const threadNames = useRenaming((threadId, value) => { if (value.trim()) onRenameThread(threadId, value); });
+
+  /** A row on a computer that cannot be reached is drawn, greyed, and takes nothing. */
+  const offline = (thread: Thread | string) => threadHosts.get(typeof thread === "string" ? thread : thread.id)?.offline === true;
+  /** A row whose computer went away takes back what it was offering: a name being typed, or its menu. */
+  useEffect(() => {
+    if (threadNames.editing !== null && offline(threadNames.editing)) threadNames.cancel();
+    if (openMenu?.startsWith("task:") && offline(openMenu.slice("task:".length))) onSetOpenMenu(null);
+  });
 
   const checkouts = new Map(worktreeGroups.flatMap(({ worktree, threads }) =>
     threads.map((thread) => [thread.id, worktree] as const)));
@@ -133,48 +253,22 @@ export function useThreadRows({
   };
 
   /** The engine stays at the right edge, with status beside it, whatever other marks a row carries. */
+  /** A coordinator's row stands for its threads, so it shows the approval or the work they have going. */
+  const membersIn = (thread: Thread, ids: Set<string>) => (coordination.threadsByCoordinator.get(thread.id) ?? []).some((member) => ids.has(member.id));
+
   const rowMarks = (thread: Thread): React.ReactNode[] => [
+    thread.role && <ThreadRoleMark key="role" role={thread.role} size={13} />,
     worktreeThreadIds.has(thread.id) && <FolderSymlink key="worktree" className={worktreeMark(thread.id)} size={13} aria-label={worktreeLabel(thread.id)} />,
     schedules.has(thread.id) && <AlarmClock key="automation" className="task-automation" size={13} aria-label={scheduleLabel(schedules.get(thread.id)!)} />,
-    blockedThreadIds.has(thread.id)
-      ? <span key="status" className="task-attention approval" aria-label={BLOCKED_LABEL} />
-      : runningThreadIds.has(thread.id)
+    blockedThreadIds.has(thread.id) || membersIn(thread, blockedThreadIds)
+      ? <span key="status" className="task-attention approval" aria-label={blockedThreadIds.has(thread.id) ? BLOCKED_LABEL : MEMBER_BLOCKED_LABEL} />
+      : runningThreadIds.has(thread.id) || membersIn(thread, runningThreadIds)
         ? <ThreadSpinner key="status" />
-        : attentionMark(thread, sideChatAttention.has(thread.id)),
+        : attentionMark(thread, sideChatAttention.has(thread.id), decisionCount(thread, coordination.threadsByCoordinator)),
     <ThreadEngineIcon key="engine" engine={thread.engine} className="task-engine" size={13} />,
   ].filter(Boolean);
 
-  /**
-   * What can be done to a thread from its row. Activity mode offers dismissing on a priority row
-   * - a thread still asking has nothing to dismiss - and nothing on the others, rather than two
-   * different icons in one view; archiving a thread there is on its menu.
-   */
-  const rowActions = (thread: Thread, action: RowAction): React.ReactNode[] => [
-    action === "dismiss" && <button
-      key="dismiss"
-      className="row-action task-dismiss"
-      type="button"
-      aria-label={schedules.has(thread.id) ? `Dismiss ${thread.title}, which keeps running on its schedule` : `Dismiss ${thread.title}`}
-      onClick={(event) => {
-        event.stopPropagation();
-        onDismissThread(thread.id);
-      }}
-    >
-      <Check size={13} aria-hidden="true" />
-    </button>,
-    action === "archive" && <button
-      key="archive"
-      className="row-action task-archive"
-      type="button"
-      aria-label={`Archive ${thread.title}`}
-      onClick={(event) => {
-        event.stopPropagation();
-        onArchiveThread(thread.id);
-      }}
-    >
-      <Archive size={13} aria-hidden="true" />
-    </button>,
-  ].filter(Boolean);
+  const rowActions = (thread: Thread, action: RowAction) => rowActionButtons(thread, action, schedules.has(thread.id), onDismissThread, onArchiveThread);
 
   /**
    * Every thread row ends in the same rail: two layers of icons over one set of slots, the marks it
@@ -193,21 +287,25 @@ export function useThreadRows({
   };
 
   /** The row itself, which is the same whether the list around it lets it be dragged or not. */
-  const rowBody = (thread: Thread, className: string, content: React.ReactNode, action: RowAction, priority = false) => (
+  const rowBody = (thread: Thread, className: string, content: React.ReactNode, action: RowAction, priority = false) => {
+    const away = offline(thread);
+    return (
     <>
     <div
-      className={className}
-      onClick={() => onSelectThread(thread.id)}
-      onDoubleClick={(event) => threadNames.start(thread.id, event.currentTarget.closest(".task-entry"))}
+      className={`${thread.role ? `${className} role-${thread.role}` : className}${away ? " offline" : ""}`}
+      aria-disabled={away || undefined}
+      onClick={away ? undefined : () => onSelectThread(thread.id)}
+      onDoubleClick={away ? undefined : (event) => threadNames.start(thread.id, event.currentTarget.closest(".task-entry"))}
       onContextMenu={(event) => {
         event.preventDefault();
+        if (away) return;
         threadNames.row.current = event.currentTarget.closest(".task-entry");
         setThreadMenuPosition({ x: event.clientX, y: event.clientY });
         onSetOpenMenu(`task:${thread.id}`);
       }}
       title={thread.title}
     >
-      {threadNames.editing === thread.id
+      {threadNames.editing === thread.id && !away
         ? <RenameInput
             inputRef={threadNames.input}
             className="task-rename"
@@ -216,9 +314,9 @@ export function useThreadRows({
             onCommit={(value) => threadNames.commit(thread.id, value)}
             onCancel={threadNames.cancel}
           />
-        : <>{content}{threadRail(thread, action)}</>}
+        : <>{content}{threadRail(thread, away ? "none" : action)}</>}
     </div>
-    {openMenu === `task:${thread.id}` && <ContextMenu
+    {openMenu === `task:${thread.id}` && !away && <ContextMenu
       at={threadMenuPosition}
       returnFocus={threadNames.row}
       onClose={() => onSetOpenMenu(null)}
@@ -226,27 +324,41 @@ export function useThreadRows({
         onRename: () => threadNames.start(thread.id),
         onFork: (worktree) => onForkThread(thread.id, worktree),
         onArchive: () => onArchiveThread(thread.id),
+        onSetRole: (role) => onSetThreadRole(thread.id, role),
+        coordinators: coordination.coordinators,
+        onSetCoordinator: (coordinatorId) => coordination.onSetCoordinator(thread.id, coordinatorId),
         ...(priority ? { onSnooze: (hours: SnoozeHours) => onSnoozeThread(thread.id, hours) } : {}),
       })}
     />}
     </>
-  );
-
-  const selectOnEnter = (event: React.KeyboardEvent, threadId: string) => {
-    if (event.key === "Enter") onSelectThread(threadId);
+    );
   };
 
+  const selectOnEnter = (event: React.KeyboardEvent, thread: Thread) => {
+    if (event.key === "Enter" && !offline(thread)) onSelectThread(thread.id);
+  };
+
+  /** A thread under a coordinator, drawn beneath its row. */
+  const memberRow = (member: Thread) => (
+    <div className="task-entry" key={member.id} tabIndex={0} onKeyDown={(event) => selectOnEnter(event, member)}>
+      {rowBody(member, `task-row coordination-row ${member.id === currentId ? "active" : ""}`, <span className="task-row-text"><span>{member.title}</span></span>, "none")}
+    </div>
+  );
+
+  /** A coordinator's threads move with its row, but only the row itself takes the drag. */
   const threadRow = (thread: Thread, index: number, className: string, content: React.ReactNode) => (
-    <Draggable draggableId={thread.id} index={index} key={thread.id}>
+    <Draggable draggableId={thread.id} index={index} key={thread.id} isDragDisabled={offline(thread)}>
       {(provided: DraggableProvided, snapshot) => (
-        <div
-          className={`task-entry ${snapshot.isDragging ? "is-dragging" : ""}`}
-          ref={provided.innerRef}
-          {...provided.draggableProps}
-          {...provided.dragHandleProps}
-          onKeyDown={(event) => selectOnEnter(event, thread.id)}
-        >
-          {rowBody(thread, className, content, "archive")}
+        <div className="task-group" ref={provided.innerRef} {...provided.draggableProps}>
+          <div
+            className={`task-entry ${snapshot.isDragging ? "is-dragging" : ""}`}
+            {...provided.dragHandleProps}
+            onKeyDown={(event) => selectOnEnter(event, thread)}
+          >
+            <CoordinatorToggle thread={thread} coordination={coordination} />
+            {rowBody(thread, className, content, "archive")}
+          </div>
+          <CoordinatedRows thread={thread} coordination={coordination} renderMember={memberRow} />
         </div>
       )}
     </Draggable>
@@ -254,13 +366,19 @@ export function useThreadRows({
 
   /** Activity mode ranks its rows itself, so nothing there is dragged and no list places it. */
   const activityRow = (thread: Thread, action: RowAction, priority: boolean) => (
-    <div className="task-entry" key={thread.id} tabIndex={0} onKeyDown={(event) => selectOnEnter(event, thread.id)}>
+    <div className="task-group" key={thread.id}>
+      <div className="task-entry" tabIndex={0} onKeyDown={(event) => selectOnEnter(event, thread)}>
       {rowBody(thread, `task-row ${thread.id === currentId ? "active" : ""}`, (
         <span className="task-row-text">
           <span>{thread.title}</span>
-          <small>{activityMeta(thread, projects, formatTime)}</small>
+          <small>
+            {coordination.threadsByCoordinator.get(thread.id)?.length ? <><CoordinatorToggle thread={thread} coordination={coordination} inline />{" · "}</> : null}
+            {activityMeta(thread, threadHosts.get(thread.id), projects, formatTime, decisionCount(thread, coordination.threadsByCoordinator), membersIn(thread, blockedThreadIds))}
+          </small>
         </span>
       ), action, priority)}
+      </div>
+      <CoordinatedRows thread={thread} coordination={coordination} renderMember={memberRow} />
     </div>
   );
 

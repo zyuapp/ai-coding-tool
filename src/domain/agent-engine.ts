@@ -44,19 +44,28 @@ const CLAUDE_MODELS = [
 const CODEX_CONTEXT_WINDOW = 272_000;
 
 const CODEX_MODELS = [
-  { id: "gpt-6-astra", label: "Astra", description: "Most capable model for complex, demanding work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA },
-  { id: "gpt-5.6-sol", label: "Sol", description: "Strong coding model for everyday work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA },
-  { id: "gpt-5.6-terra", label: "Terra", description: "Balanced agentic coding model for everyday work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA },
-  { id: "gpt-5.6-luna", label: "Luna", description: "Efficient model for lightweight work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_MAX },
+  { id: "gpt-6-astra", label: "Astra", description: "Most capable model for complex, demanding work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA, manualCompaction: true },
+  { id: "gpt-6-sol", label: "Sol", description: "Strong coding model for everyday work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA, manualCompaction: true },
+  { id: "gpt-5.6-terra", label: "Terra", description: "Balanced agentic coding model for everyday work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA, manualCompaction: true },
+  { id: "gpt-6-luna", label: "Luna", description: "Efficient model for lightweight work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_MAX, manualCompaction: true },
 ] as const;
 
 export type AgentModel = (typeof CLAUDE_MODELS)[number]["id"] | (typeof CODEX_MODELS)[number]["id"];
 
+/** Models the catalogue replaced, each read as its successor wherever a saved setting still names it. */
+const RETIRED_MODELS: Readonly<Record<string, AgentModel>> = { "gpt-5.6-sol": "gpt-6-sol", "gpt-5.6-luna": "gpt-6-luna" };
+
+export function currentModel(value: unknown): unknown {
+  return typeof value === "string" && Object.hasOwn(RETIRED_MODELS, value) ? RETIRED_MODELS[value] : value;
+}
+
 /**
  * Runs always request the widest context a model offers, so `contextWindow` is that ceiling. An
  * empty `efforts` is a model that takes no effort at all, which is drawn as no effort control.
+ * `manualCompaction` is the model's own protocol command for compacting on request, which Claude
+ * models do not offer.
  */
-export type ModelSpec = { id: AgentModel; label: string; description: string; contextWindow: number; efforts: readonly EffortSpec[] };
+export type ModelSpec = { id: AgentModel; label: string; description: string; contextWindow: number; efforts: readonly EffortSpec[]; manualCompaction?: boolean };
 
 export type EffortSpec = { id: AgentEffort; label: string; description?: string };
 
@@ -65,6 +74,10 @@ export type EngineCapabilities = {
   fastMode: boolean;
   workflows: boolean;
   subagents: boolean;
+  /** Can recover a saved subagent's settings without running it again. */
+  subagentMetadata: boolean;
+  /** Reviewing the thread's changes is work the engine performs itself, not a prompt it is sent. */
+  review: boolean;
 };
 
 type EngineSpec = {
@@ -81,14 +94,14 @@ const ENGINES: Record<AgentEngine, EngineSpec> = {
     models: CLAUDE_MODELS,
     defaultModel: "opus",
     defaultEffort: "high",
-    capabilities: { fastMode: false, workflows: true, subagents: true },
+    capabilities: { fastMode: false, workflows: true, subagents: true, subagentMetadata: true, review: false },
   },
   codex: {
     label: "Codex",
     models: CODEX_MODELS,
-    defaultModel: "gpt-5.6-sol",
+    defaultModel: "gpt-6-sol",
     defaultEffort: "high",
-    capabilities: { fastMode: true, workflows: false, subagents: true },
+    capabilities: { fastMode: true, workflows: false, subagents: true, subagentMetadata: true, review: true },
   },
 };
 
@@ -182,6 +195,11 @@ export function isAgentEffort(value: unknown): value is AgentEffort {
   return typeof value === "string" && EFFORT_IDS.has(value);
 }
 
+/** Reported provider values use the same names as the picker, while unfamiliar efforts remain readable. */
+export function effortLabel(value: string) {
+  return isAgentEffort(value) ? EFFORTS[value].label : value;
+}
+
 export function engineHasModel(engine: AgentEngine, model: AgentModel) {
   return ENGINES[engine].models.some((spec) => spec.id === model);
 }
@@ -193,9 +211,9 @@ export function engineForModel(model: AgentModel): AgentEngine {
   return engine;
 }
 
-/** Manual context compaction is currently a Sol protocol capability, not a general Codex command. */
+/** Manual context compaction belongs to the model, so an engine that does not offer it cannot ask. */
 export function modelSupportsManualCompaction(engine: AgentEngine, model: AgentModel) {
-  return engine === "codex" && model === "gpt-5.6-sol";
+  return engineHasModel(engine, model) && MODEL_SPECS.get(model)?.manualCompaction === true;
 }
 
 /** An effort Claude does not offer lands on its default, so a foreign one never reaches the SDK. */

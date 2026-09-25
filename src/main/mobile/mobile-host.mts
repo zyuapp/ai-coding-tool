@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync } from "node:fs";
+import type { ThreadNotice } from "../../contracts/ipc.js";
 import path from "node:path";
 import type { MobileRequest, MobileResponse, MobileViewUpdate } from "../../contracts/mobile.js";
 import {
@@ -13,7 +14,7 @@ import {
 } from "../../domain/mobile.js";
 import { allowedOrigins, BIND_HOST, loopbackAddress, reachableAddresses, tailscaleAddress } from "./addresses.mjs";
 import { serveDevelopmentPairing } from "./development.mjs";
-import { MobileServer } from "./mobile-server.mjs";
+import { MobileServer, type WorkspaceHooks } from "./mobile-server.mjs";
 import { PairingStore } from "./pairing.mjs";
 import { MobileRelay } from "./session-host.mjs";
 import { readTailscale, startTailscaleServe, stopTailscaleServe, type TailscaleAction } from "./tailscale.mjs";
@@ -28,6 +29,8 @@ export type MobileHostOptions = {
   send(request: MobileRequest): boolean;
   /** What settings should now say. Called after anything at all moves. */
   onState(state: MobileServerState): void;
+  /** What another computer is handed and may drive. Absent on a host that takes no computers. */
+  workspace?: WorkspaceHooks;
   /**
    * How Tailscale is asked about and driven. The real one when absent, which is every caller but a
    * test: shelling out to whatever Tailscale the machine happens to be running makes a test answer
@@ -187,7 +190,9 @@ function makeServer() {
     allowedOrigins: origins,
     snapshot: (sessionId) => bridge.snapshot(sessionId),
     command: (sessionId, command) => bridge.command(sessionId, command),
+    query: (sessionId, query) => bridge.query(sessionId, query),
     onChange: announce,
+    ...(host().workspace ? { workspace: host().workspace } : {}),
   });
 }
 
@@ -374,6 +379,16 @@ async function serveIfReady() {
   const delay = TAILSCALE_RETRY_MS[Math.min(tailscaleAttempts, TAILSCALE_RETRY_MS.length - 1)]!;
   tailscaleAttempts += 1;
   scheduleServe(delay);
+}
+
+/** Hands a notice to the computers on the line; with no server up there is no one to hand it to. */
+export function noticeComputers(notice: ThreadNotice): void {
+  server?.notice(notice);
+}
+
+/** Tells the computers on the line what this one now calls itself. */
+export function announceComputerName(): void {
+  server?.announceName();
 }
 
 export function publishMobileView(update: MobileViewUpdate): void {

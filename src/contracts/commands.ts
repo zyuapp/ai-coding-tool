@@ -1,16 +1,20 @@
+import type { ComputerFilter } from "../domain/computers.js";
 import type { AutomationDraft, AutomationPatch } from "../domain/automation.js";
 import type { SnoozeHours } from "../domain/thread-snooze.js";
+import type { ThreadRole } from "../domain/thread-role.js";
+import type { ThreadBrief } from "../domain/coordination.js";
 import type { ShortcutSurface } from "../domain/shortcuts.js";
 import type { BrowserAction } from "../domain/browser.js";
+import type { ComputerUsePermission } from "../domain/computer-use.js";
 import type { CaptureOptions } from "../domain/capture.js";
-import type { DiffRange } from "../domain/diff.js";
+import type { DiffMode, DiffRange } from "../domain/diff.js";
 import type { FindTarget } from "../domain/find.js";
 import type { SettingsSection } from "../domain/settings-section.js";
 import type { SidebarMode, SidebarSection } from "../domain/sidebar.js";
 import type { ThemeMode } from "../domain/theme.js";
 import type { AgentEngine, AgentModel } from "../domain/agent-engine.js";
 import type { AgentEffort, ExecutionPolicy, SubagentGroup } from "../domain/run.js";
-import type { Annotation, AnnotationAnchor, AttachedFile, AttachedFileDraft, PastedText, RunAttachment } from "../domain/conversation.js";
+import type { Annotation, AnnotationAnchor, AttachedFile, AttachedFileDraft, OutgoingAttachment, PastedText, RunAttachment } from "../domain/conversation.js";
 import type { ThreadDropTarget } from "../domain/project.js";
 import type { ReviewTarget } from "../domain/review.js";
 import type { WorktreeDestination } from "../domain/worktree.js";
@@ -29,7 +33,34 @@ export type ReadingPoint = { anchor: string; depth: number } | null;
  * through the same door. Anything that reaches {@link AppCommand} from outside the window has to be
  * validated at that boundary first, the way `isRunCommand` guards the run channel.
  */
-export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ImageCommand | ImageViewCommand | ProjectCommand | RunControlCommand | ReviewCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | DiffCommand | FileCommand | ExternalAppCommand | TerminalCommand | RemoteCommand | EngineCommand | ViewCommand;
+export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ImageCommand | ImageViewCommand | CliCommand | ComputerUseAccessCommand | PlanUsageCommand | ProjectCommand | PullRequestCommand | RunControlCommand | ReviewCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | DiffCommand | FileCommand | ExternalAppCommand | TerminalCommand | RemoteCommand | ComputerCommand | EngineCommand | ViewCommand;
+
+/**
+ * Asks GitHub about the pull request the checkout in front belongs to. Sent again whenever that
+ * checkout, its branch or the thread reading it changes, and on a slow poll until the answer settles.
+ */
+export type PullRequestCommand = { type: "pull-request.read" };
+
+/**
+ * The terminal command the app installs. Reading says whether it is there; installing and removing
+ * answer with where it stands afterwards.
+ */
+/**
+ * What the platform lets the app see and operate. Reading asks the platform; enabling sends the user
+ * to its own permission dialog; restarting is what a newly complete set needs to take effect.
+ */
+export type ComputerUseAccessCommand =
+  | { type: "computer-use.read" }
+  | { type: "computer-use.enable"; permission: ComputerUsePermission }
+  | { type: "computer-use.restart" };
+
+/** The plan limits every provider reports, read again whenever the Usage page asks for them. */
+export type PlanUsageCommand = { type: "usage.read" };
+
+export type CliCommand =
+  | { type: "cli.read" }
+  | { type: "cli.install" }
+  | { type: "cli.uninstall" };
 
 /** The diff panel. Which comparison it shows, which file is open, and which files are ticked off. */
 export type DiffCommand =
@@ -38,6 +69,7 @@ export type DiffCommand =
   | { type: "diff.refresh" }
   | { type: "diff.open-commit"; commit: string; taskId?: string }
   | { type: "diff.set-range"; range: DiffRange }
+  | { type: "diff.set-mode"; mode: DiffMode }
   /** Folds one file shut, or opens it again. Every file starts open. */
   | { type: "diff.set-collapsed"; path: string; collapsed: boolean }
   | { type: "diff.set-viewed"; path: string; viewed: boolean }
@@ -54,11 +86,17 @@ export type TaskCommand =
   | { type: "task.restore"; taskId: string }
   | { type: "task.clear-archive" }
   | { type: "task.rename"; taskId: string; title: string }
+  /** `null` takes the role off. With no thread yet, the role waits for the first message. */
+  | { type: "task.set-role"; taskId?: string; role: ThreadRole | null }
+  /** Moves a thread under a coordinator, or out from under one with `null`. */
+  | { type: "task.set-coordinator"; taskId: string; coordinatorId: string | null }
+  /** Answers a choice a thread put to the user. The answer reaches that thread as a message. */
+  | { type: "decision.answer"; taskId: string; decisionId: string; answer: string }
   /** Takes the dot off a thread, which is the only thing that does. Opening the thread only dims it. */
   | { type: "task.dismiss"; taskId: string }
   | { type: "task.snooze"; taskId: string; hours: SnoozeHours }
-  /** The same for every dotted thread the user has already looked at, leaving the unseen ones alone. */
-  | { type: "task.dismiss-all" }
+  /** Dismisses Priority in the sidebar's computer filter. Forwarded requests stop at the receiving computer. */
+  | { type: "task.dismiss-all"; localOnly?: boolean }
   | { type: "task.move"; taskId: string; target: TaskDropTarget }
   /**
    * Copies a thread into a new one beside it, carrying its conversation and its session. The copy
@@ -93,10 +131,18 @@ export type TaskCommand =
    * always starts a new task, in `project` — its folder name, its path, or its id. `worktree` starts
    * that new task in a checkout of its own; `worktreeId` starts it in one the project already has,
    * and names the project itself, so a `project` that disagrees with it is refused. Naming one takes
-   * precedence over asking for a new one. `model` and `effort` apply only to a new task and leave
-   * the shared draft settings alone.
+   * precedence over asking for a new one. `model`, `effort` and `role` apply only to a new task and leave
+   * the shared draft settings alone, as do `coordinatorId`, which starts it under that coordinator, and
+   * the `brief` it is handed.
    */
-  | { type: "task.send"; taskId?: string; project?: string; text?: string; attachments?: RunAttachment[]; steer?: boolean; worktree?: boolean; worktreeId?: string; model?: AgentModel; effort?: AgentEffort }
+  | { type: "task.send"; taskId?: string; project?: string; text?: string; attachments?: RunAttachment[]; steer?: boolean; worktree?: boolean; worktreeId?: string; model?: AgentModel; effort?: AgentEffort; role?: ThreadRole; coordinatorId?: string; brief?: ThreadBrief }
+  /**
+   * Sends the composer's message with the images in its strip, which are written out to disk first:
+   * the run is started only once they are all there, and a failure to write one stops the send.
+   */
+  | { type: "attachments.send"; taskId?: string; steer?: boolean; attachments: OutgoingAttachment[] }
+  /** What the composer's image strip has to say for itself, such as an image it could not read. */
+  | { type: "attachments.notice"; taskId?: string; message: string | null }
   /** Moves to the thread `delta` away in the sidebar, which is where the keyboard walks the list. */
   | { type: "task.steer-queued"; taskId?: string; messageId: string }
   | { type: "task.drop-queued"; taskId?: string; messageId: string };
@@ -136,6 +182,14 @@ export type ImageViewCommand = { type: "image.open"; source: string } | { type: 
 
 export type ProjectCommand =
   | { type: "project.open" }
+  | { type: "project.add"; root: string; computerId?: string }
+  | { type: "view.add-project-close" }
+  | { type: "view.add-project-device"; computerId: string }
+  | { type: "view.add-project-path"; root: string }
+  | { type: "view.add-project-pick" }
+  | { type: "view.add-project-submit" }
+  | { type: "view.add-project-key"; key: "ArrowUp" | "ArrowDown" | "Tab" | "Enter" | "Escape" }
+  | { type: "view.add-project-accept"; index: number }
   /** `index` counts the folders in the sidebar with the moved one already taken out. */
   | { type: "project.move"; projectId: string; index: number }
   /**
@@ -165,7 +219,7 @@ export type RunControlCommand =
   | { type: "run.compact"; taskId?: string }
   | { type: "question.set-answer"; taskId: string; runId: string; requestId: string; questionId: string; text: string }
   | { type: "question.answer"; taskId: string; runId: string; requestId: string; questionId: string; text?: string }
-  | { type: "run.decide"; allow: boolean; taskId?: string }
+  | { type: "run.decide"; allow: boolean; taskId: string; runId: string; approvalId: string }
   /** Kills one process the run left running, without ending the run. */
   | { type: "run.stop-process"; taskId?: string; processId: string };
 
@@ -213,7 +267,7 @@ export type BrowserCommand =
   | { type: "browser.reload"; taskId?: string; tabId?: string }
   | { type: "browser.act"; taskId?: string; tabId?: string; action: BrowserAction }
   /** Answers the navigation a run is waiting on. Allowing it also allows that origin from now on. */
-  | { type: "browser.decide"; allow: boolean }
+  | { type: "browser.decide"; allow: boolean; approvalId: string }
   /** Signs the whole app out: cookies, storage, and caches for every site. */
   | { type: "browser.clear-data" };
 
@@ -236,6 +290,8 @@ export type FileCommand =
  * so it never appears in `ExternalCommand`: a run has the folder already.
  */
 export type ExternalAppCommand =
+  /** The applications this machine has, read again whenever a list of them is opened. */
+  | { type: "app.list" }
   | { type: "app.open-folder"; appId: string }
   /** Asks the updater to look now, from the notice about threads a newer version wrote. */
   | { type: "app.check-for-updates" }
@@ -272,6 +328,27 @@ export type RemoteCommand =
 
 /* ── End phone bridge ─────────────────────────────────────────────────────── */
 
+/* ── Computers ────────────────────────────────────────────────────────────── */
+
+/**
+ * Other computers running this app, reached over the tailnet the way a phone reaches this one.
+ * Pairing takes the code the other computer shows; from then on its threads are listed here.
+ */
+export type ComputerCommand =
+  /** Looks across the tailnet for computers running this app. */
+  | { type: "computers.discover" }
+  | { type: "computers.pair"; host: string; name: string; code: string }
+  | { type: "computers.cancel-pairing" }
+  | { type: "computers.forget"; id: string }
+  /** What this computer calls itself to the others. Empty goes back to the machine's own name. */
+  | { type: "computers.rename"; name: string }
+  /** What this computer calls a paired one. Empty goes back to what that computer calls itself. */
+  | { type: "computers.label"; id: string; name: string }
+  /** Which computers' threads the sidebar draws. */
+  | { type: "computers.filter"; filter: ComputerFilter };
+
+/* ── End computers ────────────────────────────────────────────────────────── */
+
 /**
  * Asks which engines can take a run, or signs the user in to one that asked for it. Either way the
  * engines' status comes back as the answer.
@@ -286,6 +363,8 @@ export type EngineCommand =
 export type ViewCommand =
   /** A restored desktop view has installed the listeners needed by its input preferences. */
   | { type: "view.mounted" }
+  /** Folds a coordinator's threads away under its row in the sidebar, or opens them again. */
+  | { type: "view.set-coordination-open"; taskId: string; open: boolean }
   | { type: "view.set-prompt"; taskId?: string; prompt: string }
   /**
    * Where a thread was left reading: the message held at the top of its view and how far into it,

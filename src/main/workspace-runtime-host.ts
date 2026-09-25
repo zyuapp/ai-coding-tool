@@ -1,140 +1,89 @@
-import { ipcMain, WebContentsView, type BrowserWindow, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
-import { randomUUID } from "node:crypto";
-import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { ipcMain, type BrowserWindow, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { isWorkspaceViewInput } from "../contracts/workspace-view-input.js";
-import { rememberedPlacement } from "./window-placement.js";
 import type { WorkspaceInput } from "../application/workspace-reducer.js";
-import type { WorkspaceRequest, WorkspaceResponse, WorkspaceUpdate, WorkspaceSurfaceEffect } from "../contracts/workspace-runtime.js";
+import type { WorkspaceResponse, WorkspaceSurfaceEffect, WorkspaceUpdate } from "../contracts/workspace-runtime.js";
+import { createRuntimePublisher } from "../host/runtime-publisher.js";
+import type { RuntimeDesktop } from "../host/runtime-desktop.js";
+import { createWorkspaceRuntime } from "../host/workspace-runtime.js";
+import { loadViewPreferences } from "../host/view-preferences-store.js";
+import type { JsonStorage } from "./json-storage.js";
 
-export type RuntimeOwner = Pick<BrowserWindow, "webContents" | "isDestroyed">;
+export type WorkspaceRuntimeHostOptions = {
+  /** The window showing the workspace, which every update and surface effect is sent to. */
+  view: () => BrowserWindow | null;
+  trusted: (event: IpcMainEvent | IpcMainInvokeEvent) => boolean;
+  desktop: RuntimeDesktop;
+  storage: JsonStorage;
+};
 
-/** A dedicated, nonvisual webContents hosts the application independently of the visible window. */
-export function createWorkspaceRuntimeHost(view: () => BrowserWindow | null) {
-  let owner: WebContentsView | null = null;
-  let ready = false;
-  let failure: string | null = null;
-  const waiting: WorkspaceRequest[] = [];
-  const pending = new Map<string, { resolve: (response: WorkspaceResponse["result"]) => void; reject: (error: Error) => void; timer?: ReturnType<typeof setTimeout> }>();
+/** How many stored values a window may hand over. Two are expected; a bound keeps a stranger's payload small. */
+const MAX_MIGRATED_VALUES = 8;
+const MAX_MIGRATED_LENGTH = 16_000_000;
 
-  function failPending(message: string) {
-    for (const entry of pending.values()) {
-      clearTimeout(entry.timer);
-      entry.reject(new Error(message));
+function isStoredValues(value: unknown): value is Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const entries = Object.entries(value as Record<string, unknown>);
+  return entries.length <= MAX_MIGRATED_VALUES && entries.every(([key, item]) => key.startsWith("aicodingtool.") && typeof item === "string" && item.length <= MAX_MIGRATED_LENGTH);
+}
+
+/**
+ * The application, hosted in this process. The window is a view of it: it subscribes to revisions,
+ * submits inputs, and is handed the few effects that live in its own views.
+ */
+export function createWorkspaceRuntimeHost(options: WorkspaceRuntimeHostOptions) {
+  const { storage } = options;
+  function send(channel: string, payload: WorkspaceUpdate | WorkspaceSurfaceEffect) {
+    const window = options.view();
+    if (window && !window.isDestroyed()) window.webContents.send(channel, payload);
+  }
+  const runtime = createWorkspaceRuntime({ desktop: options.desktop, storage, surface: (effect) => send("workspace-runtime:surface", effect) });
+  const publisher = createRuntimePublisher(runtime);
+  publisher.subscribe((update) => send("workspace-runtime:update", update));
+  let closed = false;
+
+  function request(input?: WorkspaceInput): Promise<WorkspaceResponse["result"]> {
+    if (closed) return Promise.reject(new Error("The workspace runtime has closed."));
+    if (input === undefined) {
+      send("workspace-runtime:update", publisher.snapshot());
+      return Promise.resolve({ ok: true, revision: publisher.revision });
     }
-    pending.clear();
-    waiting.length = 0;
+    return publisher.request(input);
   }
 
-  /** An accepted command may perform long-running effects; its completion belongs to the runtime. */
-  function send(request: WorkspaceRequest) {
-    const entry = pending.get(request.id);
-    if (!entry) return;
-    if (request.input) {
-      clearTimeout(entry.timer);
-      entry.timer = undefined;
-    }
-    try {
-      owner!.webContents.send("workspace-runtime:request", request);
-    } catch (error) {
-      failure = error instanceof Error ? error.message : String(error);
-      failPending(failure);
-    }
+  /** Values a window kept from hosting the runtime itself, taken on once and applied without a restart. */
+  async function migrate(values: Record<string, string>) {
+    if (!storage.adopt(values)) return;
+    const { browserTabs: _reopened, ...preferences } = loadViewPreferences(storage);
+    await runtime.dispatch({ type: "preferences.loaded", preferences });
+    await runtime.restoreDrafts();
   }
 
-  function trusted(event: IpcMainEvent | IpcMainInvokeEvent) {
-    return Boolean(owner && event.sender === owner.webContents && !owner.webContents.isDestroyed());
-  }
-
-  function request(input?: WorkspaceInput, flush?: true): Promise<WorkspaceResponse["result"]> {
-    if (!owner || owner.webContents.isDestroyed()) return Promise.reject(new Error("The workspace runtime is unavailable."));
-    if (failure) return Promise.reject(new Error(failure));
-    const request: WorkspaceRequest = { id: randomUUID() };
-    if (input) request.input = input;
-    if (flush) request.flush = true;
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        pending.delete(request.id);
-        const index = waiting.indexOf(request);
-        if (index !== -1) waiting.splice(index, 1);
-        reject(new Error("The workspace runtime did not respond."));
-      }, 30_000);
-      pending.set(request.id, { resolve, reject, timer });
-      if (ready) send(request);
-      else waiting.push(request);
-    });
-  }
-
-  ipcMain.handle("workspace-runtime:request", (event, input?: WorkspaceInput) => {
-    const window = view();
-    if (!window || window.isDestroyed() || event.sender !== window.webContents) throw new Error("Untrusted IPC sender.");
+  ipcMain.handle("workspace-runtime:request", (event, input?: unknown) => {
+    if (!options.trusted(event)) throw new Error("Untrusted IPC sender.");
     if (input !== undefined && !isWorkspaceViewInput(input)) throw new Error("Invalid workspace input.");
     return request(input);
   });
-  ipcMain.on("workspace-runtime:ready", (event) => {
-    if (!trusted(event)) return;
-    const recovering = failure !== null;
-    ready = true;
-    failure = null;
-    for (const request of waiting.splice(0)) send(request);
-    if (recovering) void request().catch((error) => console.error("Could not refresh the workspace after recovery:", error));
-  });
-  ipcMain.on("workspace-runtime:response", (event, response: WorkspaceResponse) => {
-    if (!trusted(event) || !response || typeof response.id !== "string") return;
-    const entry = pending.get(response.id);
-    if (!entry) return;
-    pending.delete(response.id);
-    clearTimeout(entry.timer);
-    entry.resolve(response.result);
-  });
-  ipcMain.on("workspace-runtime:update", (event, update: WorkspaceUpdate) => {
-    if (!trusted(event)) return;
-    const window = view();
-    if (window && !window.isDestroyed()) window.webContents.send("workspace-runtime:update", update);
-  });
-  ipcMain.on("workspace-runtime:surface", (event, effect: WorkspaceSurfaceEffect) => {
-    if (!trusted(event)) return;
-    const window = view();
-    if (window && !window.isDestroyed()) window.webContents.send("workspace-runtime:surface", effect);
+  ipcMain.handle("workspace-runtime:migrate", async (event, values: unknown) => {
+    if (!options.trusted(event)) throw new Error("Untrusted IPC sender.");
+    if (!isStoredValues(values)) throw new Error("Invalid stored values.");
+    await migrate(values);
   });
 
   return {
-    trusted,
+    runtime,
+    publisher,
     dispatch: (input: WorkspaceInput) => request(input),
-    owner: (): RuntimeOwner | null => {
-      const current = owner;
-      return current ? { webContents: current.webContents, isDestroyed: () => current.webContents.isDestroyed() } : null;
-    },
-    async start() {
-      owner = new WebContentsView({ webPreferences: {
-        preload: path.join(__dirname, "../preload.js"),
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: true,
-        backgroundThrottling: false,
-        additionalArguments: ["--workspace-runtime"],
-      } });
-      const placement = rememberedPlacement();
-      owner.setBounds({ x: 0, y: 0, width: placement.width, height: placement.height });
-      owner.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
-      owner.webContents.on("render-process-gone", () => {
-        ready = false;
-        failure = "The workspace runtime stopped unexpectedly.";
-        failPending(failure);
-      });
-      await owner.webContents.loadURL(pathToFileURL(path.join(__dirname, "../../renderer/index.html")).toString());
-    },
+    start: () => runtime.start(),
     async flush() {
-      if (!owner) return;
-      const result = await request(undefined, true);
+      const result = await publisher.flush();
       if (!result.ok) throw new Error(result.message);
     },
     close() {
-      failPending("The workspace runtime has closed.");
-      owner?.webContents.close();
-      owner = null;
-      ready = false;
-      failure = null;
+      closed = true;
+      publisher.dispose();
+      runtime.dispose();
     },
   };
 }
+
+export type WorkspaceRuntimeHost = ReturnType<typeof createWorkspaceRuntimeHost>;

@@ -6,19 +6,15 @@ export type WorkspacePatch =
   | { path: Array<string | number>; value?: unknown; remove?: true }
   | { path: Array<string | number>; splice: WorkspaceSplice };
 export type WorkspaceUpdate = { revision: number; state: WorkspaceState } | { revision: number; patches: WorkspacePatch[] };
-export type WorkspaceRequest = { id: string; input?: WorkspaceInput; flush?: true };
 export type WorkspaceResponse = { id: string; result: WorkspaceCommandResult & { revision: number } };
 export type WorkspaceSurfaceEffect = Extract<WorkspaceEffect, { type: "terminal.close" | "find-in-terminal" | "stop-find-in-terminal" }>;
 
-/** The runtime owns state; a view subscribes to revisions and submits inputs through main. */
+/** The host owns state; a view subscribes to revisions and submits inputs to it. */
 export type WorkspaceBridge = {
-  owner: boolean;
+  /** Runs one input, or with none asks for a whole snapshot, and answers with the revision it left. */
   request(input?: WorkspaceInput): Promise<WorkspaceResponse["result"]>;
+  /** Hands the window's own stored preferences and drafts to a host that has yet to keep any. */
+  migrate(values: Record<string, string>): Promise<void>;
   onUpdate(listener: (update: WorkspaceUpdate) => void): () => void;
-  onRequest(listener: (request: WorkspaceRequest) => void): () => void;
-  respond(response: WorkspaceResponse): void;
-  publish(update: WorkspaceUpdate): void;
-  ready(): void;
-  surface(effect: WorkspaceSurfaceEffect): void;
   onSurface(listener: (effect: WorkspaceSurfaceEffect) => void): () => void;
 };

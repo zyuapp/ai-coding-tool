@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { MobileCommand, MobileRequest, MobileResponse, MobileView } from "../../contracts/mobile.js";
+import type { MobileCommand, MobileQuery, MobileRequest, MobileResponse, MobileView } from "../../contracts/mobile.js";
 
 /** Shorter than a phone's own patience, so a lost answer comes back as a refusal rather than a hang. */
 export const MOBILE_REQUEST_TIMEOUT = 8_000;
@@ -41,6 +41,13 @@ export class MobileRelay {
   async command(sessionId: string, command: MobileCommand): Promise<void> {
     const response = await this.ask({ type: "mobile.request", requestId: randomUUID(), sessionId, op: "command", command });
     if (!response.ok) throw new Error(response.message);
+  }
+
+  /** The window's own answer, passed through as it came: what a read returns is the phone's to draw. */
+  async query(sessionId: string, query: MobileQuery): Promise<unknown> {
+    const response = await this.ask({ type: "mobile.request", requestId: randomUUID(), sessionId, op: "query", query });
+    if (!response.ok) throw new Error(response.message);
+    return response.result;
   }
 
   /** The window's answer to one request. An answer to nothing pending is a late one, and is dropped. */

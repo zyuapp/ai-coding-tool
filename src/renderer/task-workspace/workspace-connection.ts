@@ -1,38 +1,54 @@
-import { emptyWorkspaceState, promptKey, type WorkspaceState } from "../../application/workspace-state";
+import { emptyWorkspaceState } from "../../application/workspace-state";
+import { applyOptimisticEdits, optimisticEdit, type OptimisticEdit } from "../../application/optimistic-edits";
 import { applyWorkspacePatches } from "../../application/workspace-patches";
-import type { WorkspaceInput } from "../../application/workspace-reducer";
-import { reduce } from "../../application/workspace-reducer";
-import { createWorkspaceRuntime } from "./workspace-runtime";
+import { reduce, type WorkspaceInput } from "../../application/workspace-reducer";
+import { VIEW_PREFERENCES_KEY } from "../../application/view-preferences";
+import { DRAFT_PROMPTS_KEY } from "../../host/draft-persistence";
+import { createWorkspaceRuntime } from "../../host/workspace-runtime";
+import { noComputers } from "../../host/no-computers";
+import type { WorkspaceSurfaceEffect } from "../../contracts/workspace-runtime";
 import { clearTerminalSearch, disposeTerminalView, searchTerminalView } from "./terminal-views";
-import { errorMessage } from "./errors";
-import { sameFindTarget, type FindTarget } from "../../domain/find";
+import { errorMessage } from "../../host/errors";
 
-type TextInput = Extract<WorkspaceInput, { type: "view.set-prompt" | "task.rename" | "worktree.menu-search" | "view.find-query" | "view.jump-query" | "annotation.note" }>;
-type TextEdit = { key: string; input: TextInput; findTarget?: FindTarget; revision?: number };
+/** Set once the window's own stored preferences have been handed to the host, so they are never handed over twice. */
+const MIGRATED_KEY = "aicodingtool.host-migrated.v1";
 
-/** Text edits name the field visible when they were typed, even if selection changes in transit. */
-function localTextEdit(state: WorkspaceState, input: WorkspaceInput): TextEdit | null {
-  switch (input.type) {
-    case "view.set-prompt":
-    case "annotation.note": {
-      const taskId = input.taskId ?? promptKey(state);
-      const key = [input.type, taskId];
-      if (input.type === "annotation.note") key.push(input.annotationId);
-      return { key: JSON.stringify(key), input: { ...input, taskId } };
-    }
-    case "task.rename": return { key: JSON.stringify([input.type, input.taskId]), input };
-    case "worktree.menu-search": return { key: JSON.stringify([input.type, input.list]), input };
-    case "view.jump-query": return { key: input.type, input };
-    case "view.find-query":
-      return state.find ? { key: input.type, input, findTarget: state.find.target } : null;
-    default: return null;
+/** The next paint, or a moment later for a window the browser has stopped painting. */
+const FRAME_FALLBACK_MS = 32;
+
+function nextFrame(flush: () => void) {
+  const frame = requestAnimationFrame(flush);
+  const timer = setTimeout(flush, FRAME_FALLBACK_MS);
+  return () => {
+    cancelAnimationFrame(frame);
+    clearTimeout(timer);
+  };
+}
+
+/** An effect that lives in this window's views: a terminal's search, or its disposal. */
+function performSurface(effect: WorkspaceSurfaceEffect) {
+  if (effect.type === "terminal.close") disposeTerminalView(effect.terminalId);
+  else if (effect.type === "find-in-terminal") searchTerminalView(effect.terminalId, effect.query, effect.forward);
+  else clearTerminalSearch(effect.terminalId);
+}
+
+/**
+ * What this window still holds from when it hosted the runtime itself. A host that has not yet kept
+ * preferences of its own takes these, so an update does not put the user back on the defaults.
+ */
+function storedValues(): Record<string, string> {
+  const values: Record<string, string> = {};
+  for (const key of [VIEW_PREFERENCES_KEY, DRAFT_PROMPTS_KEY]) {
+    const value = localStorage.getItem(key);
+    if (value !== null) values[key] = value;
   }
+  return values;
 }
 
 /** Embedders without a process bridge host the same runtime in their own environment. */
 export function createWorkspaceConnection() {
   const bridge = window.workspace;
-  if (!bridge) return createWorkspaceRuntime();
+  if (!bridge) return createWorkspaceRuntime({ desktop: { ...window.desktop, ...noComputers }, storage: localStorage, viewportWidth: window.innerWidth, surface: performSurface, frame: nextFrame });
   let state = emptyWorkspaceState();
   let displayed = state;
   let revision = -1;
@@ -43,29 +59,20 @@ export function createWorkspaceConnection() {
   let started: Promise<void> | null = null;
   let snapshot: Promise<void> | null = null;
   const listeners = new Set<() => void>();
-  const edits = new Map<string, TextEdit>();
+  const edits = new Map<string, OptimisticEdit>();
 
   function notify() { for (const listener of listeners) listener(); }
   function rebase(error?: string) {
-    let next = state;
-    for (const edit of edits.values()) {
-      // Command replies and state patches can arrive in either order across Electron IPC.
-      if (edit.revision !== undefined && edit.revision <= revision) {
-        edits.delete(edit.key);
-        continue;
-      }
-      if (edit.findTarget && (!next.find || !sameFindTarget(edit.findTarget, next.find.target))) continue;
-      next = reduce(next, edit.input).state;
+    const view = applyOptimisticEdits(state, edits.values(), revision);
+    if (view.edits.length !== edits.size) {
+      edits.clear();
+      for (const edit of view.edits) edits.set(edit.key, edit);
     }
+    let next = view.state;
     if (error !== undefined) next = reduce(next, { type: "action.failed", message: error }).state;
     if (next === displayed) return;
     displayed = next;
     notify();
-  }
-  function finishEdit(edit: TextEdit | null) {
-    if (!edit || edits.get(edit.key) !== edit) return false;
-    edits.delete(edit.key);
-    return true;
   }
   function failed(error: unknown) {
     rebase(errorMessage(error));
@@ -83,13 +90,19 @@ export function createWorkspaceConnection() {
     snapshot = requested;
     return requested;
   }
+  async function migrate() {
+    if (localStorage.getItem(MIGRATED_KEY) !== null) return;
+    const values = storedValues();
+    if (Object.keys(values).length) await bridge!.migrate(values);
+    localStorage.setItem(MIGRATED_KEY, "1");
+  }
 
   return {
     getState: () => displayed,
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     async dispatch(input: WorkspaceInput) {
       const requestedGeneration = generation;
-      const edit = localTextEdit(displayed, input);
+      const edit = optimisticEdit(displayed, input);
       if (edit) {
         edits.delete(edit.key);
         edits.set(edit.key, edit);
@@ -98,13 +111,14 @@ export function createWorkspaceConnection() {
       try {
         const result = await bridge.request(edit?.input ?? input);
         if (requestedGeneration === generation && edit && edits.get(edit.key) === edit) {
-          edit.revision = result.revision;
-          if (!result.ok) finishEdit(edit);
+          /** An edit the published revision already carries is settled, so it is dropped, not stamped. */
+          if (result.ok && result.revision > revision) edits.set(edit.key, { ...edit, revision: result.revision });
+          else edits.delete(edit.key);
           rebase();
         }
       } catch (error) {
         if (requestedGeneration === generation) {
-          finishEdit(edit);
+          if (edit && edits.get(edit.key) === edit) edits.delete(edit.key);
           failed(error);
         }
       }
@@ -131,12 +145,8 @@ export function createWorkspaceConnection() {
         revision = update.revision;
         rebase();
       });
-      stopSurface = bridge.onSurface((effect) => {
-        if (effect.type === "terminal.close") disposeTerminalView(effect.terminalId);
-        else if (effect.type === "find-in-terminal") searchTerminalView(effect.terminalId, effect.query, effect.forward);
-        else clearTerminalSearch(effect.terminalId);
-      });
-      started = requestSnapshot();
+      stopSurface = bridge.onSurface(performSurface);
+      started = migrate().catch((error) => console.error("Could not hand stored preferences to the host:", error)).then(requestSnapshot);
       return started;
     },
     dispose() {

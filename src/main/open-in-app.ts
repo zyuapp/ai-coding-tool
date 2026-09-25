@@ -80,7 +80,7 @@ function launch(command: string, args: string[]) {
 }
 
 /** Opens a checkout in one application, trying each place it might be until one answers. */
-async function openFolderInApp(appId: string, folder: string) {
+export async function openFolderInApp(appId: string, folder: string) {
   const name = externalApps(PLATFORM).find((entry) => entry.id === appId)?.label;
   const candidates = appCandidates(appId, PLATFORM, homedir(), folder);
   if (!name || !candidates.length) throw new Error("AI Coding Tool does not know that application.");

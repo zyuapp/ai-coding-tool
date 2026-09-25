@@ -2,6 +2,7 @@ import { LuCheck as Check, LuRefreshCw as RefreshCw, LuSmartphone as Smartphone 
 import { useEffect, useRef, useState } from "react";
 import { addressOrigin, type MobileAddress, type MobileConnectionState, type MobilePairingOffer, type MobileServerState, type MobileSessionView, type PairedDeviceView, type TailscaleState } from "../../domain/mobile";
 import { SettingRow } from "./SettingRow";
+import { ComputerSettings, type ComputerSettingsProps } from "./ComputerSettings";
 
 function statusLabel(remote: MobileServerState): string {
   if (!remote.enabled) return "Off";
@@ -196,7 +197,8 @@ function deviceLabel(device: PairedDeviceView, connection: MobileConnectionState
   return days === 1 ? "Seen yesterday" : `Seen ${days} days ago`;
 }
 
-function DeviceSection({ devices, sessions, onRevokeDevice }: { devices: PairedDeviceView[]; sessions: MobileSessionView[]; onRevokeDevice: (deviceId: string) => void }) {
+function DeviceSection({ devices: paired, sessions, onRevokeDevice }: { devices: PairedDeviceView[]; sessions: MobileSessionView[]; onRevokeDevice: (deviceId: string) => void }) {
+  const devices = paired.filter((device) => device.kind === "phone");
   const connected = devices.filter((device) => deviceConnection(device, sessions) === "live").length;
   return (
     <section className="settings-group" aria-labelledby="phone-devices-heading">
@@ -236,18 +238,21 @@ export type MobileSettingsProps = {
   onCreatePairingCode: () => void;
   onRevokeDevice: (deviceId: string) => void;
   onRefreshTailscale: () => void;
+  computers: ComputerSettingsProps;
 };
 
-export function MobileSettings({ remote, remoteChecking, onSetEnabled, onCreatePairingCode, onRevokeDevice, onRefreshTailscale }: MobileSettingsProps) {
+export function MobileSettings({ remote, remoteChecking, onSetEnabled, onCreatePairingCode, onRevokeDevice, onRefreshTailscale, computers }: MobileSettingsProps) {
   const listening = remote.enabled && remote.status === "listening";
   const ready = listening && reachable(remote);
 
   return (
     <main className="settings-main">
       <div className="settings-page-heading">
-        <h2>Phone</h2>
-        <p>Read and drive your threads from a phone's browser, anywhere your tailnet reaches.</p>
+        <h2>Devices</h2>
+        <p>Your threads from a phone's browser or another computer, anywhere your tailnet reaches.</p>
       </div>
+
+      <ComputerSettings {...computers} />
 
       <section className="settings-group" aria-labelledby="phone-availability-heading">
         <div className="settings-group-heading">

@@ -14,6 +14,7 @@ import type { AutomationDraft, AutomationPatch, AutomationView } from "./domain/
 const api: DesktopAPI = {
   platform: process.platform === "darwin" ? "macos" : process.platform === "linux" ? "linux" : "other",
   openFolder: () => ipcRenderer.invoke("workspace:open"),
+  directories: (prefix: string, computerId?: string) => ipcRenderer.invoke("workspace:directories", prefix, computerId),
   registerProject: (root: string) => ipcRenderer.invoke("workspace:register", root),
   onOpenProject: (listener: (workspace: WorkspaceRecord) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: WorkspaceRecord) => listener(payload);
@@ -63,6 +64,7 @@ const api: DesktopAPI = {
   loadThreadMessages: (taskId) => ipcRenderer.invoke("task-store:messages", taskId),
   persistTaskStore: (delta) => ipcRenderer.invoke("task-store:persist", delta),
   loadSubagentActivity: (taskId: string, subagentId: string) => ipcRenderer.invoke("subagent-activity:load", taskId, subagentId),
+  loadSubagentMetadata: (engine: AgentEngine, subagentId: string, sessionId?: string) => ipcRenderer.invoke("subagent-metadata:load", engine, subagentId, sessionId),
   listAutomations: () => ipcRenderer.invoke("automation:list"),
   saveAutomation: (draft: AutomationDraft) => ipcRenderer.invoke("automation:save", draft),
   updateAutomation: (taskId: string, patch: AutomationPatch) => ipcRenderer.invoke("automation:update", taskId, patch),
@@ -102,17 +104,18 @@ const api: DesktopAPI = {
   },
   answerMobileRequest: (response: MobileResponse) => ipcRenderer.send("mobile:answer", response),
   publishMobileView: (update: MobileViewUpdate) => ipcRenderer.send("mobile:publish", update),
-  openBrowserTab: (tabId: string, url?: string) => ipcRenderer.invoke("browser:open", tabId, url),
-  navigateBrowser: (tabId: string, url: string) => ipcRenderer.invoke("browser:navigate", tabId, url),
-  browserHistory: (tabId: string, delta: -1 | 1) => ipcRenderer.invoke("browser:history", tabId, delta),
-  reloadBrowser: (tabId: string) => ipcRenderer.invoke("browser:reload", tabId),
+  configureBrowserPermissions: (permissions) => ipcRenderer.invoke("browser:permissions", permissions),
+  openBrowserTab: (tabId: string, url?: string, taskId?: string) => ipcRenderer.invoke("browser:open", tabId, url, taskId),
+  navigateBrowser: (tabId: string, url: string, taskId?: string) => ipcRenderer.invoke("browser:navigate", tabId, url, taskId),
+  browserHistory: (tabId: string, delta: -1 | 1, taskId?: string) => ipcRenderer.invoke("browser:history", tabId, delta, taskId),
+  reloadBrowser: (tabId: string, taskId?: string) => ipcRenderer.invoke("browser:reload", tabId, taskId),
   closeBrowserTab: (tabId: string) => ipcRenderer.invoke("browser:close", tabId),
   showBrowserTab: (tabId: string | null) => ipcRenderer.invoke("browser:show", tabId),
   setBrowserBounds: (bounds: BrowserBounds | null) => ipcRenderer.invoke("browser:bounds", bounds),
-  actInBrowser: (tabId: string, action: BrowserAction) => ipcRenderer.invoke("browser:act", tabId, action),
-  readBrowserPage: (tabId: string, textLimit: number, timeoutMs: number) => ipcRenderer.invoke("browser:read", tabId, textLimit, timeoutMs),
-  inspectBrowserPage: (tabId, inspection) => ipcRenderer.invoke("browser:inspect", tabId, inspection),
-  captureBrowserPage: (tabId: string, fullPage: boolean, timeoutMs: number) => ipcRenderer.invoke("browser:capture", tabId, fullPage, timeoutMs),
+  actInBrowser: (tabId: string, action: BrowserAction, taskId?: string) => ipcRenderer.invoke("browser:act", tabId, action, taskId),
+  readBrowserPage: (tabId: string, textLimit: number, timeoutMs: number, taskId?: string) => ipcRenderer.invoke("browser:read", tabId, textLimit, timeoutMs, taskId),
+  inspectBrowserPage: (tabId, inspection, taskId) => ipcRenderer.invoke("browser:inspect", tabId, inspection, taskId),
+  captureBrowserPage: (tabId: string, fullPage: boolean, timeoutMs: number, taskId?: string) => ipcRenderer.invoke("browser:capture", tabId, fullPage, timeoutMs, taskId),
   clearBrowserData: () => ipcRenderer.invoke("browser:clear"),
   onBrowserEvent: (listener: (event: BrowserPageEvent) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: BrowserPageEvent) => listener(payload);
@@ -136,6 +139,7 @@ const api: DesktopAPI = {
   closeTerminal: (terminalId: string) => ipcRenderer.invoke("terminal:close", terminalId),
   readTerminal: (terminalId: string, options: TerminalReadOptions) => ipcRenderer.invoke("terminal:read", terminalId, options),
   terminalSnapshot: (terminalId: string) => ipcRenderer.invoke("terminal:snapshot", terminalId),
+  readRemoteTerminal: (computerId: string, terminalId: string, after?: number) => ipcRenderer.invoke("terminal:remote-read", computerId, terminalId, after),
   onTerminalData: (listener: (event: TerminalDataEvent) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: TerminalDataEvent) => listener(payload);
     ipcRenderer.on("terminal:data", handler);
@@ -184,25 +188,13 @@ const api: DesktopAPI = {
 contextBridge.exposeInMainWorld("desktop", api);
 
 const workspace: import("./contracts/workspace-runtime").WorkspaceBridge = {
-  owner: process.argv.includes("--workspace-runtime"),
-  request: (input) => {
-    if (input === undefined) ipcRenderer.send("workspace-view:ready");
-    return ipcRenderer.invoke("workspace-runtime:request", input);
-  },
+  request: (input) => ipcRenderer.invoke("workspace-runtime:request", input),
+  migrate: (values) => ipcRenderer.invoke("workspace-runtime:migrate", values),
   onUpdate: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, update: import("./contracts/workspace-runtime").WorkspaceUpdate) => listener(update);
     ipcRenderer.on("workspace-runtime:update", handler);
     return () => ipcRenderer.removeListener("workspace-runtime:update", handler);
   },
-  onRequest: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, request: import("./contracts/workspace-runtime").WorkspaceRequest) => listener(request);
-    ipcRenderer.on("workspace-runtime:request", handler);
-    return () => ipcRenderer.removeListener("workspace-runtime:request", handler);
-  },
-  respond: (response) => ipcRenderer.send("workspace-runtime:response", response),
-  publish: (update) => ipcRenderer.send("workspace-runtime:update", update),
-  ready: () => ipcRenderer.send("workspace-runtime:ready"),
-  surface: (effect) => ipcRenderer.send("workspace-runtime:surface", effect),
   onSurface: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, effect: import("./contracts/workspace-runtime").WorkspaceSurfaceEffect) => listener(effect);
     ipcRenderer.on("workspace-runtime:surface", handler);

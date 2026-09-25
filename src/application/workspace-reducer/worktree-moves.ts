@@ -5,7 +5,11 @@ import { worktreeName, type Worktree } from "../../domain/worktree.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, threadWorkspaceRoot, worktreeById } from "../thread-location.js";
 import { updateThread } from "../thread-run-state.js";
 import type { WorkspaceState } from "../workspace-state.js";
-import { now, rereadDiff, settled, targetId, threadBusy, withCreatingWorktree, WORKTREE_CREATING_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_PROJECT_ERROR, WORKTREE_RELEASING_ERROR, WORKTREE_RUNNING_ERROR, rejected } from "./shared.js";
+import { rereadDiff } from "./diff-reads.js";
+import { WORKTREE_CREATING_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_PROJECT_ERROR, WORKTREE_RELEASING_ERROR, WORKTREE_RUNNING_ERROR } from "./errors.js";
+import { threadBusy } from "./run-queue.js";
+import { now, settled, targetId, rejected } from "./shared.js";
+import { withCreatingWorktree } from "./worktree-claims.js";
 import type { WorkspaceTransition } from "./types.js";
 
 /** A location change preserves the transcript and forks its continuation on the next run. */

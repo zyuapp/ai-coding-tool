@@ -3,17 +3,18 @@ import { LuGitFork as GitFork, LuX as X } from "react-icons/lu";
 import { useRef, type ReactNode } from "react";
 import type { FindView, SideChatView } from "../../application/workspace-state";
 import type { ReadingPoint } from "../../contracts/commands";
-import { sentPrompts, type Annotation, type AnnotationAnchor, type AttachedFile, type PastedText, type RunAttachment } from "../../domain/conversation";
+import { sentPrompts, type Annotation, type AnnotationAnchor, type AttachedFile, type PastedText } from "../../domain/conversation";
 import type { Project } from "../../domain/project";
 import { defaultEffortFor, defaultModelFor, type AgentEngine, type AgentModel } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import type { ThreadHandleOption } from "../../domain/thread-handles";
-import { ApprovalCard } from "./ApprovalCard";
+import { ApprovalCard, type ApprovalCardProps } from "./ApprovalCard";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { ConversationComposer } from "./ConversationComposer";
+import type { ComposerOutbox } from "./ComposerAttachments";
 import { useFileDrop } from "../file-drop";
 
-export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findBar, sourceTitle, sourceContinued, project, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, onSend, onAnswerQuestion, onQuestionAnswerChange, onCancel, onDecide, onPolicyChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onFastModeChange, onSteerQueued, onDropQueued, onClose }: {
+export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findBar, sourceTitle, sourceContinued, project, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, outbox, onAnswerQuestion, onQuestionAnswerChange, onCancel, onDecide, onPolicyChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onFastModeChange, onSteerQueued, onDropQueued, onClose }: {
   chat: SideChatView;
   /** What the engine running this chat is called. */
   engineLabel: string;
@@ -46,9 +47,9 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
   onReadingPointMove?: (point: ReadingPoint) => void;
   onAnswerQuestion?: (question: QuestionAddress) => void;
   onQuestionAnswerChange?: (question: QuestionAddress, text: string) => void;
-  onSend: (attachments: RunAttachment[], steer: boolean) => void;
+  outbox: ComposerOutbox;
   onCancel: () => void;
-  onDecide: (allow: boolean) => void;
+  onDecide: ApprovalCardProps["onDecide"];
   onPolicyChange: (policy: ExecutionPolicy) => void;
   favoriteModels?: AgentModel[];
   onModelFavorite?: (model: AgentModel, favorite: boolean) => void;
@@ -82,6 +83,7 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
           folder={project?.root ?? ""}
           status={chat.status}
           compacting={chat.compacting}
+          retrying={chat.retrying}
           streamingTail={chat.streamingTail}
           scrollContainerRef={transcriptRef}
           readingPoint={readingPoint}
@@ -100,6 +102,7 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
       </div>
       {chat.error && <p className="side-chat-error" role="alert">{chat.error}</p>}
       <ConversationComposer
+        taskId={chat.thread.id}
         focusToken={focusToken}
         prompt={chat.prompt}
         folder={project?.root ?? ""}
@@ -142,7 +145,7 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
         onModelFavorite={onModelFavorite}
         onModelChange={onModelChange}
         onEffortChange={onEffortChange}
-        onSend={onSend}
+        outbox={outbox}
         onSteerQueued={onSteerQueued}
         onDropQueued={onDropQueued}
         onCancel={onCancel}

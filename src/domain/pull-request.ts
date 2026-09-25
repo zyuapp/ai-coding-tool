@@ -21,6 +21,17 @@ export type PullRequestAnswer =
   | { status: "none" }
   | { status: "gh-missing" };
 
+/**
+ * An answer and what it answers: the checkout and branch it was read for, and which ask it belongs
+ * to, so an answer a newer ask has overtaken can be dropped whenever it arrives.
+ */
+export type PullRequestRead = {
+  workspaceId: string;
+  branch: string | null;
+  read: number;
+  answer: PullRequestAnswer;
+};
+
 const STATES: readonly string[] = ["draft", "open", "merged", "closed"];
 
 /**
@@ -60,4 +71,30 @@ function pullRequest(number: unknown, title: unknown, url: unknown, state: strin
   if (typeof title !== "string" || typeof url !== "string" || !url) return null;
   if (!STATES.includes(state)) return null;
   return { number, title, url, state: state as PullRequestState };
+}
+
+/**
+ * How often an unsettled pull request is asked about again. A merge happens on GitHub and leaves no
+ * trace on this machine, so nothing local can announce it and only asking finds out.
+ */
+export const PULL_REQUEST_POLL_MS = 60_000;
+
+/** Nothing to show: the answer a checkout that has not been asked about yet stands at. */
+export const NO_PULL_REQUEST: PullRequestAnswer = { status: "none" };
+
+const SETTLED: readonly PullRequestState[] = ["merged", "closed"];
+
+/** True once nothing local or remote will move the pull request again, past which asking is only cost. */
+export function pullRequestSettled(answer: PullRequestAnswer) {
+  return answer.status === "found" && SETTLED.includes(answer.pullRequest.state);
+}
+
+/** Whether two answers say the same thing, so an unchanged one never rewrites the row. */
+export function samePullRequest(left: PullRequestAnswer, right: PullRequestAnswer) {
+  if (left.status !== right.status) return false;
+  if (left.status !== "found" || right.status !== "found") return true;
+  return left.pullRequest.number === right.pullRequest.number
+    && left.pullRequest.title === right.pullRequest.title
+    && left.pullRequest.url === right.pullRequest.url
+    && left.pullRequest.state === right.pullRequest.state;
 }

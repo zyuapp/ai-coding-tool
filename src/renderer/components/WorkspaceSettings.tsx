@@ -1,16 +1,27 @@
 import { SettingsPanel } from "./SettingsPanel";
+import { useComputerUseReads } from "../task-workspace/computer-use-reads";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;
 
 /** The settings sheet with every preference it reads and every command its controls dispatch. */
 export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace; onClose: () => void }) {
+  useComputerUseReads(workspace.computerUsePermissions, workspace.actions.readComputerUse);
+
   return (
     <SettingsPanel
       onClose={onClose}
       initialSection={workspace.settingsSection ?? "general"}
       initialSetting={workspace.settingsFocus}
       archivedThreads={workspace.archivedThreads}
+      cli={workspace.cli}
+      onReadCli={() => void workspace.actions.readCli()}
+      onSetCliInstalled={(installed) => void workspace.actions.setCliInstalled(installed)}
+      planUsage={workspace.planUsage}
+      onReadPlanUsage={() => void workspace.actions.readPlanUsage()}
+      computerUseAccess={workspace.computerUsePermissions}
+      onEnableComputerUse={(permission) => void workspace.actions.enableComputerUse(permission)}
+      onRestartForComputerUse={() => void workspace.actions.restartForComputerUse()}
       worktreeSettings={workspace.worktreeSettings} worktreeManagementError={workspace.worktreeManagementError} worktreeManagementNotice={workspace.worktreeManagementNotice}
       theme={workspace.theme}
       themeMode={workspace.themeMode}
@@ -43,6 +54,16 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
       onClearBrowserData={() => void workspace.actions.clearBrowserData()}
       onCaptureShortcut={(action) => void workspace.actions.captureShortcut(action)}
       onSetShortcut={(action, binding) => void workspace.actions.setShortcut(action, binding)}
+      computers={{
+        found: workspace.computersFound, searching: workspace.computersSearching, searchError: workspace.computersSearchError,
+        name: workspace.computerName, links: workspace.computerLinks, pairing: workspace.computerPairing,
+        onDiscover: () => void workspace.actions.discoverComputers(),
+        onPair: (host, name, code) => void workspace.actions.pairComputer(host, name, code),
+        onCancelPairing: () => void workspace.actions.cancelComputerPairing(),
+        onForget: (id) => void workspace.actions.forgetComputer(id),
+        onRename: (name) => void workspace.actions.renameComputer(name),
+        onLabel: (id, name) => void workspace.actions.labelComputer(id, name),
+      }}
       onResetShortcuts={() => void workspace.actions.resetShortcuts()} onSetRemoteEnabled={(enabled) => void workspace.actions.setRemoteEnabled(enabled)} onCreateRemotePairingCode={() => void workspace.actions.createRemotePairingCode()} onRevokeRemoteDevice={(deviceId) => void workspace.actions.revokeRemoteDevice(deviceId)} onRefreshRemote={() => void workspace.actions.refreshRemote()}
     />
   );

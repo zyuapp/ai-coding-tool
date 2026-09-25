@@ -75,13 +75,28 @@ function hitsInMessage(message: ConversationMessage, needle: string, limit: numb
   return hits;
 }
 
+const messageHits = new WeakMap<ConversationMessage, { needle: string; hits: FindHit[] }>();
+
+/**
+ * One message's matches, held against the message itself. `occurrence` counts within the message, so
+ * what is held never depends on what came before it, and a thread that grows rescans only what is new.
+ */
+function cachedHitsInMessage(message: ConversationMessage, needle: string): FindHit[] {
+  const cached = messageHits.get(message);
+  if (cached?.needle === needle) return cached.hits;
+  const hits = hitsInMessage(message, needle, MAX_FIND_HITS);
+  messageHits.set(message, { needle, hits });
+  return hits;
+}
+
 /** Every match in a thread, oldest first, capped so a query like "e" cannot cost the whole transcript. */
 export function findHits(messages: ConversationMessage[], query: string): FindHit[] {
   const needle = query.trim().toLowerCase();
   if (!needle) return [];
   const hits: FindHit[] = [];
   for (const message of messages) {
-    hits.push(...hitsInMessage(message, needle, MAX_FIND_HITS - hits.length));
+    const found = cachedHitsInMessage(message, needle);
+    hits.push(...found.slice(0, MAX_FIND_HITS - hits.length));
     if (hits.length === MAX_FIND_HITS) return hits;
   }
   return hits;

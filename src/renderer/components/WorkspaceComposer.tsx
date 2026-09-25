@@ -1,23 +1,27 @@
 import { ConversationComposer, type ComposerAction } from "./ConversationComposer";
+import { DecisionCard } from "./Coordination";
 import { attachDroppedFiles, imageSources } from "../dropped-files";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
-import { modelSupportsManualCompaction } from "../../domain/agent-engine";
+import { capabilitiesFor, modelSupportsManualCompaction } from "../../domain/agent-engine";
 import { sentPrompts } from "../../domain/conversation";
+import { attachmentSendFor } from "../../application/composer-attachments";
+import { useCommandControls } from "./CommandControl";
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;
 
 /** The composer for the thread on screen, with every command its controls dispatch. */
 export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace; actions: ComposerAction[] }) {
   const thread = workspace.currentThread;
-  const compact = thread && modelSupportsManualCompaction(thread.engine, workspace.model)
-    && thread.continuation?.provider === "codex"
+  const controls = useCommandControls();
+  const compact = controls.available({ type: "run.compact" }) && thread && modelSupportsManualCompaction(thread.engine, workspace.model)
+    && thread.continuation?.provider === thread.engine
     && thread.contextUsage !== undefined
     && !workspace.runActive
     && workspace.waitingOn === null
     ? [{ name: "compact", description: "Compact the current chat's context.", run: workspace.actions.compactContext }]
     : [];
-  const review = thread?.engine === "codex"
-    && thread.continuation?.provider === "codex"
+  const review = controls.available({ type: "review.open" }) && thread && capabilitiesFor(thread.engine).review
+    && thread.continuation?.provider === thread.engine
     && workspace.workspaceId
     && !workspace.runActive
     && workspace.waitingOn === null
@@ -25,6 +29,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
     : [];
   return (
     <ConversationComposer
+      taskId={thread?.id}
       disabled={!workspace.restored && !thread}
       focusToken={workspace.composerFocus}
       images={workspace.images}
@@ -47,6 +52,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       onQuestionAnswerChange={(question, text) => { if (thread) void workspace.dispatch({ type: "question.set-answer", taskId: thread.id, runId: question.runId, requestId: question.requestId, questionId: question.questionId, text }); }}
       onAnswerQuestion={(question) => { if (thread) void workspace.dispatch({ type: "question.answer", taskId: thread.id, runId: question.runId, requestId: question.requestId, questionId: question.questionId }); }}
       goal={workspace.goal}
+      decisions={workspace.coordination.decisions.length > 0 && <DecisionCard decisions={workspace.coordination.decisions} onAnswer={workspace.actions.answerDecision} onSelect={workspace.actions.selectThread} />}
       waiting={workspace.waitingOn !== null}
       queuedMessages={workspace.queuedMessages}
       annotations={workspace.annotations}
@@ -77,7 +83,11 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       onEngineRead={workspace.actions.readEngineStatus}
       onSignIn={workspace.actions.signInEngine}
       onOpenEngineSettings={() => void workspace.actions.openSettingsSection("engines")}
-      onSend={(attachments, steer) => void workspace.actions.sendPrompt(attachments, steer)}
+      outbox={{
+        state: attachmentSendFor(workspace.attachmentSends),
+        send: (attachments, steer) => void workspace.dispatch({ type: "attachments.send", attachments, ...(steer ? { steer } : {}) }),
+        notice: (message) => void workspace.dispatch({ type: "attachments.notice", message }),
+      }}
       onSteerQueued={workspace.actions.steerQueued}
       onDropQueued={workspace.actions.dropQueued}
       onCancel={workspace.actions.cancelRun}

@@ -1,6 +1,6 @@
 {
   "name": "ai-coding-tool",
-  "version": "0.4.27",
+  "version": "0.6.2",
   "private": true,
   "license": "MIT",
   "author": "Zhuocheng Yu",
@@ -16,11 +16,14 @@
     "build:mobile": "vite build --config vite.mobile.config.mts",
     "check": "npm run check:licenses && tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit && tsc -p tsconfig.test.json && tsc -p tsconfig.preview.json && npm run lint",
     "check:licenses": "node scripts/generate-legal-notices.mjs --check",
+    "generate:native-licenses": "node scripts/generate-native-legal-notices.mjs",
     "lint": "eslint . --cache --cache-location node_modules/.cache/eslint/",
     "test": "npm run check && npm run build && vitest run",
     "prepare:electron": "install-electron",
     "prepare:cua": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/prepare-cua-driver.mts",
     "start": "npm run prepare:electron && npm run prepare:cua && npm run build && electron .",
+    "serve": "npm run build && node --disable-warning=ExperimentalWarning dist/main/main/serve.js --dev",
+    "serve:pair": "node --disable-warning=ExperimentalWarning dist/main/main/serve.js pair --dev --installed",
     "start:mobile": "npm run prepare:electron && node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/start-mobile.mts",
     "package:mac": "npm run prepare:electron && npm run prepare:cua && npm run build && electron-builder --mac --arm64 --publish never",
     "package:linux": "npm run prepare:electron && npm run prepare:cua && npm run build && electron-builder --linux --publish never",
@@ -28,13 +31,14 @@
     "generate:claude-baseline": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/generate-claude-baseline.mts"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.3.263",
+    "@anthropic-ai/claude-agent-sdk": "^0.3.282",
     "@lydell/node-pty": "^1.2.0-beta.15",
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "@trycua/cua-driver": "0.24.0",
+    "@trycua/cua-driver": "0.28.2",
     "@xterm/headless": "^6.0.0",
     "croner": "^10.0.1",
     "electron-updater": "^6.8.9",
+    "mdast-util-from-markdown": "^2.0.3",
     "qrcode": "^1.5.4",
     "smol-toml": "1.8.0",
     "ws": "^8.21.3",
@@ -52,7 +56,7 @@
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "@fontsource-variable/source-code-pro": "^5.3.0",
     "@hello-pangea/dnd": "^18.0.1",
-    "@openai/codex": "0.153.4",
+    "@openai/codex": "0.157.0",
     "@tanstack/react-virtual": "^3.14.10",
     "@types/jsdom": "^30.0.0",
     "@types/node": "^26.4.0",
@@ -69,7 +73,6 @@
     "electron-builder": "^26.15.3",
     "eslint": "^10.9.1",
     "jsdom": "^30.0.1",
-    "mdast-util-from-markdown": "^2.0.3",
     "mermaid": "^11.17.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
@@ -100,6 +103,7 @@
     "files": [
       "dist/**",
       "assets/**",
+      "!assets/app-plugin/**",
       "!assets/legal/**",
       "!dist/renderer/legal/**",
       "!dist/mobile/legal/**",
@@ -112,6 +116,10 @@
       "!**/node_modules/zod/src/**/*"
     ],
     "extraResources": [
+      {
+        "from": "assets/app-plugin",
+        "to": "app-plugin"
+      },
       {
         "from": "vendor/cua-driver/cua-driver",
         "to": "cua-driver"

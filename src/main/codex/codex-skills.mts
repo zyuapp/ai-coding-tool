@@ -1,4 +1,5 @@
 import type { AvailableCommand } from "../../contracts/ipc.js";
+import { appSkillsRoot, unqualifiedSkillName } from "../app-plugin.mjs";
 import { CLIENT_INFO, codexAppServer, connectAppServer, type AppServerClient, type AppServerCommand } from "./app-server-client.mjs";
 import { APP_FEATURES } from "./codex-config.mjs";
 import type { SkillMetadata } from "./protocol/v2/SkillMetadata.js";
@@ -6,6 +7,12 @@ import type { UserInput } from "./protocol/v2/UserInput.js";
 
 type SkillsClient = Pick<AppServerClient, "request">;
 export type SkillsConnect = (command: AppServerCommand) => Pick<AppServerClient, "initialize" | "request" | "close">;
+
+/** Codex qualifies the app's skills as `aicodingtool:skill`; the app offers and matches them by the short name. */
+export async function adoptAppSkills(client: SkillsClient) {
+  const root = appSkillsRoot();
+  if (root !== undefined) await client.request("skills/extraRoots/set", { extraRoots: [root] });
+}
 
 /** The menu and slash invocation use the same enabled skills and name resolution. */
 async function readSkills(client: SkillsClient, cwd: string, forceReload: boolean) {
@@ -32,7 +39,8 @@ async function discover(cwd: string, connect: SkillsConnect, timeoutMs: number):
   try {
     const reading = (async () => {
       await client.initialize(CLIENT_INFO);
-      return (await readSkills(client, cwd, true)).map((skill) => ({ name: skill.name, description: skill.description, argumentHint: "" }));
+      await adoptAppSkills(client);
+      return (await readSkills(client, cwd, true)).map((skill) => ({ name: unqualifiedSkillName(skill.name), description: skill.description, argumentHint: "" }));
     })();
     return await Promise.race([
       reading,
@@ -67,15 +75,14 @@ export class CodexSkills {
   /** Waits for an active refresh, then adds every slash skill named in the prompt. */
   async input(prompt: string): Promise<UserInput[]> {
     await this.reading;
-    const available = new Map(this.skills.map((skill) => [skill.name, skill.path]));
+    const available = new Map(this.skills.flatMap((skill) => [[skill.name, skill], [unqualifiedSkillName(skill.name), skill]] as const));
     const requested: UserInput[] = [];
     const seen = new Set<string>();
     for (const match of prompt.matchAll(/(?:^|\s)\/([^\s/]+)/g)) {
-      const name = match[1]!;
-      const path = available.get(name);
-      if (!path || seen.has(name)) continue;
-      seen.add(name);
-      requested.push({ type: "skill", name, path });
+      const skill = available.get(match[1]!);
+      if (!skill || seen.has(skill.name)) continue;
+      seen.add(skill.name);
+      requested.push({ type: "skill", name: skill.name, path: skill.path });
     }
     return [...requested, { type: "text", text: prompt, text_elements: [] }];
   }

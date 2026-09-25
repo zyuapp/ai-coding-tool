@@ -6,13 +6,15 @@ import { hasUnreadAttention } from "../domain/attention.js";
 import type { Thread } from "../domain/thread.js";
 import { dockFor, type DockState } from "./workspace-dock.js";
 
-type ScreenState = Pick<DockState, "currentId" | "sideChats" | "docks">;
+type ScreenState = Pick<DockState, "currentId" | "sideChats" | "docks"> & { computers?: { active: string | null } };
 
 /**
  * Whether the user is looking at a thread. A side chat is never the current thread, so it is on
- * screen when its source thread is current and the dock in front is showing that chat's tab.
+ * screen when its source thread is current and the dock in front is showing that chat's tab. While
+ * a paired computer's thread is on screen, none of this computer's own are.
  */
 export function threadOnScreen(state: ScreenState, taskId: string): boolean {
+  if (state.computers?.active) return false;
   if (state.currentId === taskId) return true;
   const chat = state.sideChats.find((item) => item.id === taskId);
   if (!chat || state.currentId !== chat.sourceThreadId) return false;

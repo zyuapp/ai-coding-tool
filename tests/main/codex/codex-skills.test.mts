@@ -3,6 +3,7 @@ import { test } from "vitest";
 import { CodexSkills, discoverCodexCommands, type SkillsConnect } from "../../../src/main/codex/codex-skills.mts";
 import type { SkillMetadata } from "../../../src/main/codex/protocol/v2/SkillMetadata.ts";
 import { FakeCodexClient, harness, sentBy, turn } from "../../support/codex-client.mjs";
+import { setAppPluginRoot } from "../../../src/main/app-plugin.mts";
 
 const threadId = "thread-1";
 
@@ -49,6 +50,34 @@ test("the Codex menu offers enabled system and plugin skills that slash invocati
   assert.equal(clients.length, 2);
 });
 
+test("the app's skills are read from its plugin on every Codex server, and a slash by short name sends the qualified skill", async () => {
+  setAppPluginRoot("/app/resources/app-plugin");
+  try {
+    const skill: SkillMetadata = { name: "aicodingtool:review-thread", description: "Review this thread's work.", path: "/app/resources/app-plugin/skills/review-thread/SKILL.md", scope: "user", enabled: true, pluginId: null };
+    const script = {
+      "skills/extraRoots/set": () => ({}),
+      "skills/list": () => ({ data: [{ cwd: "/tmp/project", skills: [skill], errors: [] }] }),
+    };
+    let discovery: FakeCodexClient | undefined;
+    assert.deepEqual(await discoverCodexCommands("/tmp/project", (command) => discovery = new FakeCodexClient(command, script)), [
+      { name: "review-thread", description: "Review this thread's work.", argumentHint: "" },
+    ]);
+    assert.deepEqual(discovery!.sent.map((call) => call.method), ["initialize", "skills/extraRoots/set", "skills/list"]);
+    assert.deepEqual(discovery!.calls("skills/extraRoots/set"), [{ extraRoots: ["/app/resources/app-plugin/skills"] }]);
+
+    const codex = harness(script);
+    const { client } = await turn(codex, { prompt: "/review-thread codex security only" });
+    assert.deepEqual(client.sent.map((call) => call.method).slice(0, 3), ["initialize", "skills/extraRoots/set", "skills/list"]);
+    assert.deepEqual((client.calls("turn/start")[0] as { input: unknown[] }).input, [
+      { type: "skill", name: "aicodingtool:review-thread", path: skill.path },
+      { type: "text", text: "/review-thread codex security only", text_elements: [] },
+    ]);
+    codex.provider.closeAll();
+  } finally {
+    setAppPluginRoot(undefined);
+  }
+});
+
 test("skill discovery closes failed or stalled servers and permits a later retry", async () => {
   const clients: FakeCodexClient[] = [];
   const failed: SkillsConnect = (command) => {
@@ -89,7 +118,7 @@ test("a slash skill anywhere in the prompt is sent as a native Codex skill", asy
       { type: "skill", name: "suggest-qa-plan", path: skill.path },
       { type: "text", text: "read the changes and /suggest-qa-plan", text_elements: [] },
     ],
-    model: "gpt-5.6-sol",
+    model: "gpt-6-sol",
     effort: "high",
     serviceTier: "default",
     approvalPolicy: "untrusted",

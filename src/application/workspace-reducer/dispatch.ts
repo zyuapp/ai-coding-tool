@@ -1,8 +1,15 @@
 import { reduceThreadCommands } from "./thread-commands.js";
 import { reduceWorktrees } from "./worktrees.js";
+import { reduceCoordination } from "./coordination.js";
 import { reduceWorktreeMenu } from "./worktree-menu.js";
 import { reduceSending } from "./sending.js";
+import { reduceComposerAttachments } from "./composer-attachments.js";
+import { reduceProjectAdd } from "../project-add.js";
 import { reduceProjectCommands } from "./projects.js";
+import { reduceCli } from "./cli.js";
+import { reduceComputerUse } from "./computer-use.js";
+import { reducePlanUsage } from "./plan-usage.js";
+import { reducePullRequests } from "./pull-requests.js";
 import { reduceRuns } from "./runs.js";
 import { reduceAutomations } from "./automations.js";
 import { reduceSideChats } from "./side-chats.js";
@@ -16,22 +23,27 @@ import { reduceDesktop } from "./desktop.js";
 import { reduceView } from "./view.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { isRemoteInput, reduceRemote } from "../remote-commands.js";
+import { isComputerInput, reduceComputers } from "../computer-commands.js";
 import { isEngineInput, reduceEngine } from "../engine-access.js";
 import type { WorkspaceState } from "../workspace-state.js";
 
 /** Every input {@link reduce} has not already unpacked into the several inputs it stands for. */
 export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "view.shortcut" | "view.escape" | "agent.events" }>): WorkspaceTransition {
   if (isRemoteInput(input)) return reduceRemote(state, input);
+  if (isComputerInput(input)) return reduceComputers(state, input);
   if (isEngineInput(input)) return reduceEngine(state, input);
   switch (input.type) {
     case "worktree.menu-open": case "worktree.menu-search":
       return reduceWorktreeMenu(state, input);
     case "task.new": case "task.select": case "task.dismiss": case "task.snooze": case "snoozes.elapsed":
     case "task.dismiss-all": case "task.archive": case "task.restore":
-    case "task.clear-archive": case "task.rename": case "title.suggested":
+    case "task.clear-archive": case "task.rename": case "task.set-role": case "title.suggested":
     case "task.fork": case "task.move": case "task.set-policy":
     case "task.set-model": case "task.set-effort": case "task.set-fast-mode":
       return reduceThreadCommands(state, input);
+
+    case "task.set-coordinator": case "decision.answer": case "view.set-coordination-open": case "coordination.reported": case "coordination.decision-raised":
+      return reduceCoordination(state, input);
 
     case "view.move-worktree": case "task.set-worktree": case "task.move-worktree": case "task.set-branch": case "task.checkout-branch":
     case "worktree.refresh": case "worktree.reveal": case "worktree.delete":
@@ -41,10 +53,19 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "worktrees.failed": case "worktree.released": case "worktree.release-failed": case "worktree.deleted":
       return reduceWorktrees(state, input);
 
+    case "attachments.send": case "attachments.saved": case "attachments.failed": case "attachments.notice":
+      return reduceComposerAttachments(state, input);
+
     case "task.send": case "question.answer": case "question.set-answer": case "task.steer-queued": case "task.drop-queued":
       return reduceSending(state, input);
 
-    case "project.open": case "project.opened": case "project.edit":
+    case "project.open": case "project.add": case "project.added": case "project.add-finished":
+    case "project.directories": case "project.path-picked":
+    case "view.add-project-close": case "view.add-project-device": case "view.add-project-path":
+    case "view.add-project-pick": case "view.add-project-submit": case "view.add-project-key": case "view.add-project-accept":
+      return reduceProjectAdd(state, input);
+
+    case "project.opened": case "project.edit":
     case "project.registered": case "project.register-failed": case "project.move":
     case "view.edit-project": case "view.toggle-project": case "project.remove":
       return reduceProjectCommands(state, input);
@@ -63,8 +84,21 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "side-chat.open": case "side-chat.close":
       return reduceSideChats(state, input);
 
+    case "pull-request.read": case "pull-request.answered":
+      return reducePullRequests(state, input);
+
+    case "computer-use.read": case "computer-use.enable": case "computer-use.restart":
+    case "computer-use.permissions": case "computer-use.failed":
+      return reduceComputerUse(state, input);
+
+    case "usage.read": case "usage.reported":
+      return reducePlanUsage(state, input);
+
+    case "cli.read": case "cli.install": case "cli.uninstall": case "cli.read-status": case "cli.failed":
+      return reduceCli(state, input);
+
     case "view.refresh-environment": case "diff.toggle": case "diff.refresh": case "diff.open-commit":
-    case "diff.set-range": case "diff.set-collapsed": case "diff.set-viewed":
+    case "diff.set-mode": case "diff.set-range": case "diff.set-collapsed": case "diff.set-viewed":
     case "diff.set-split": case "diff.set-ignore-whitespace": case "diff.loaded": case "environment.updated":
       return reduceDiffs(state, input);
 
@@ -105,7 +139,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "browser.updated":
       return reduceBrowser(state, input);
 
-    case "image.open": case "image.close": case "image.download": case "file.open": case "app.open-folder": case "app.check-for-updates": case "app.open-source-licenses": case "terminal.open":
+    case "image.open": case "image.close": case "image.download": case "file.open": case "app.list": case "apps.listed": case "app.open-folder": case "app.check-for-updates": case "app.open-source-licenses": case "terminal.open":
     case "terminal.select": case "terminal.close": case "terminal.input":
     case "terminal.resize": case "terminal.updated": case "view.closed": case "view.mounted":
       return reduceDesktop(state, input);

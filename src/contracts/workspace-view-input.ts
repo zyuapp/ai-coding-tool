@@ -1,12 +1,16 @@
 import type { AppCommand } from "./commands.js";
+import { isTerminalDimension, MAX_TERMINAL_INPUT } from "./terminal.js";
 import { isSnoozeHours } from "../domain/thread-snooze.js";
+import { isThreadRole } from "../domain/thread-role.js";
+import { isThreadBrief } from "../domain/coordination.js";
 import type { WorkspaceEvent } from "../application/workspace-reducer.js";
 import { isBrowserAction } from "./ipc.js";
 import { isAgentEffort, isAgentEngine, isAgentModel } from "../domain/agent-engine.js";
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft } from "../domain/automation.js";
 import { isCaptureOptions } from "../domain/capture.js";
 import { isScreenshotContext } from "../domain/screenshot-context.js";
-import type { Annotation, AnnotationAnchor, AttachedFile, AttachedFileDraft, PastedText, RunAttachment } from "../domain/conversation.js";
+import { MAX_ATTACHMENT_ENCODED_BYTES, type Annotation, type AnnotationAnchor, type AttachedFile, type AttachedFileDraft, type OutgoingAttachment, type PastedText, type RunAttachment } from "../domain/conversation.js";
+import type { ImageAnnotation } from "../domain/image-annotation.js";
 import { isDiffRange } from "../domain/diff.js";
 import { isCommitHash, isImageSource } from "../domain/message-artifacts.js";
 import type { FindTarget } from "../domain/find.js";
@@ -28,6 +32,8 @@ function record(value: unknown): value is Record<string, unknown> {
 }
 
 const text: Validator<string> = (value): value is string => typeof value === "string" && value.length <= 16_000_000;
+const pathText: Validator<string> = (value): value is string => typeof value === "string" && value.length <= 4096 && !value.includes("\0");
+const deviceId: Validator<string> = (value): value is string => typeof value === "string" && value.length > 0 && value.length <= 256;
 const boolean: Validator<boolean> = (value): value is boolean => typeof value === "boolean";
 const number: Validator<number> = (value): value is number => typeof value === "number" && Number.isFinite(value);
 
@@ -72,6 +78,10 @@ const runAttachment = object<RunAttachment>({ path: text, labels: array(text), c
 const pastedText = object<PastedText>({ id: text, text });
 const attachedFileDraft = object<AttachedFileDraft>({ path: text, name: text, folder: optional(literals(true)) });
 const attachedFile = object<AttachedFile>({ id: text, path: text, name: text, folder: optional(literals(true)) });
+const imageAnnotation = object<ImageAnnotation>({ kind: literals("box", "arrow"), x: number, y: number, width: number, height: number, text });
+/** Image data URLs need the encoded byte budget plus room for their MIME prefix. */
+const attachmentSource: Validator<string> = (value): value is string => typeof value === "string" && value.length <= MAX_ATTACHMENT_ENCODED_BYTES + 256;
+const outgoingAttachment = object<OutgoingAttachment>({ id: text, source: attachmentSource, annotations: array(imageAnnotation), path: optionalText, context: optional(isScreenshotContext) });
 const annotation = object<Annotation>({ id: text, quote: text, note: text, anchor: optional(isAnnotationAnchor) });
 
 function isAnnotationAnchor(value: unknown): value is AnnotationAnchor {
@@ -103,6 +113,20 @@ function isScheduleDraft(value: unknown): value is Omit<AutomationDraft, "taskId
   return record(value) && isAutomationDraft({ ...value, taskId: "view" });
 }
 
+const VIEW_EVENT_TYPES = new Set(["action.failed", "find.results", "shortcut.captured", "shortcut.unavailable"]);
+
+/** Whether an input is a command rather than something that happened, which is what may be carried to another computer. */
+export function isAppCommandType(type: string): boolean {
+  return Object.hasOwn(shapes, type) && !VIEW_EVENT_TYPES.has(type);
+}
+
+/** The wire advertises the same actions and fields this validator accepts. New optional fields
+ * become capabilities automatically; a changed meaning needs a new field or command name. */
+export function workspaceCommandDefinitions(): ReadonlyArray<{ type: AppCommand["type"]; fields: readonly string[] }> {
+  return Object.entries(shapes).filter(([type]) => isAppCommandType(type))
+    .map(([type, fields]) => ({ type: type as AppCommand["type"], fields: Object.keys(fields) }));
+}
+
 /** Every input field is checked before a visible view can reach the application reducer. */
 export function isWorkspaceViewInput(value: unknown): value is WorkspaceViewInput {
   if (!record(value) || typeof value.type !== "string" || !Object.hasOwn(shapes, value.type)) return false;
@@ -115,9 +139,11 @@ export function isWorkspaceViewInput(value: unknown): value is WorkspaceViewInpu
 
 const shapes = {
   "view.mounted": {},
+  "view.set-coordination-open": { taskId: text, open: boolean },
   "diff.toggle": {  },
   "diff.refresh": {  },
   "diff.set-range": { range: isDiffRange },
+  "diff.set-mode": { mode: literals("uncommitted", "branch") },
   "diff.set-collapsed": { path: text, collapsed: boolean },
   "diff.set-viewed": { path: text, viewed: boolean },
   "diff.set-split": { split: boolean },
@@ -128,9 +154,12 @@ const shapes = {
   "task.restore": { taskId: text },
   "task.clear-archive": {  },
   "task.rename": { taskId: text, title: text },
+  "task.set-role": { taskId: optionalText, role: nullable(isThreadRole) },
+  "task.set-coordinator": { taskId: text, coordinatorId: nullableText },
+  "decision.answer": { taskId: text, decisionId: text, answer: text },
   "task.dismiss": { taskId: text },
   "task.snooze": { taskId: text, hours: isSnoozeHours },
-  "task.dismiss-all": {  },
+  "task.dismiss-all": { localOnly: optionalBoolean },
   "task.move": { taskId: text, target: dropTarget },
   "task.fork": { taskId: optionalText, worktree: optionalBoolean },
   "task.set-policy": { taskId: optionalText, policy: policy },
@@ -141,7 +170,9 @@ const shapes = {
   "task.move-worktree": { taskId: optionalText, destination: isWorktreeDestination },
   "task.set-branch": { branch: nullableText, create: optionalBoolean },
   "task.checkout-branch": { taskId: optionalText, branch: text, create: optionalBoolean },
-  "task.send": { taskId: optionalText, project: optionalText, text: optionalText, attachments: optional(array(runAttachment)), steer: optionalBoolean, worktree: optionalBoolean, worktreeId: optionalText, model: optional(isAgentModel), effort: optional(isAgentEffort) },
+  "attachments.send": { taskId: optionalText, steer: optionalBoolean, attachments: array(outgoingAttachment) },
+  "attachments.notice": { taskId: optionalText, message: nullableText },
+  "task.send": { taskId: optionalText, project: optionalText, text: optionalText, attachments: optional(array(runAttachment)), steer: optionalBoolean, worktree: optionalBoolean, worktreeId: optionalText, model: optional(isAgentModel), effort: optional(isAgentEffort), role: optional(isThreadRole), coordinatorId: optionalText, brief: optional(isThreadBrief) },
   "task.steer-queued": { taskId: optionalText, messageId: text },
   "task.drop-queued": { taskId: optionalText, messageId: text },
   "annotation.add": { taskId: optionalText, quote: text, note: optionalText, anchor: optional(isAnnotationAnchor) },
@@ -155,6 +186,14 @@ const shapes = {
   "image.remove": { taskId: optionalText, imageId: text },
   "image.recall": { taskId: optionalText, paths: array(text) },
   "project.open": {  },
+  "project.add": { root: (value): value is string => pathText(value) && value.trim().length > 0, computerId: optional(deviceId) },
+  "view.add-project-close": {},
+  "view.add-project-device": { computerId: deviceId },
+  "view.add-project-path": { root: pathText },
+  "view.add-project-pick": {},
+  "view.add-project-submit": {},
+  "view.add-project-key": { key: literals("ArrowUp", "ArrowDown", "Tab", "Enter", "Escape") },
+  "view.add-project-accept": { index: (value): value is number => number(value) && Number.isInteger(value) && value >= 0 && value < 20 },
   "project.move": { projectId: text, index: number },
   "project.edit": { projectId: text, name: optional(nullableText), root: optionalText },
   "project.remove": { projectId: text },
@@ -172,7 +211,7 @@ const shapes = {
   "run.compact": { taskId: optionalText },
   "question.set-answer": { taskId: text, runId: text, requestId: text, questionId: text, text },
   "question.answer": { taskId: text, runId: text, requestId: text, questionId: text, text: optionalText },
-  "run.decide": { allow: boolean, taskId: optionalText },
+  "run.decide": { allow: boolean, taskId: text, runId: text, approvalId: text },
   "run.stop-process": { taskId: optionalText, processId: text },
   "review.open": { taskId: optionalText },
   "review.close": {  },
@@ -193,7 +232,7 @@ const shapes = {
   "browser.go": { taskId: optionalText, tabId: optionalText, delta: step },
   "browser.reload": { taskId: optionalText, tabId: optionalText },
   "browser.act": { taskId: optionalText, tabId: optionalText, action: isBrowserAction },
-  "browser.decide": { allow: boolean },
+  "browser.decide": { allow: boolean, approvalId: text },
   "browser.clear-data": {  },
   "file.open": { taskId: optionalText, path: text, line: optional(number) },
   "image.open": { source: isImageSource },
@@ -209,12 +248,19 @@ const shapes = {
   "terminal.open": { cwd: optionalText },
   "terminal.select": { terminalId: text },
   "terminal.close": { terminalId: text },
-  "terminal.input": { terminalId: text, data: text },
-  "terminal.resize": { terminalId: text, cols: number, rows: number },
+  "terminal.input": { terminalId: text, data: (value): value is string => typeof value === "string" && value.length <= MAX_TERMINAL_INPUT },
+  "terminal.resize": { terminalId: text, cols: isTerminalDimension, rows: isTerminalDimension },
   "remote.set-enabled": { enabled: boolean },
   "remote.create-pairing-code": {  },
   "remote.revoke-device": { deviceId: text },
   "remote.refresh": {  },
+  "computers.discover": {  },
+  "computers.pair": { host: text, name: text, code: text },
+  "computers.cancel-pairing": {  },
+  "computers.forget": { id: text },
+  "computers.rename": { name: text },
+  "computers.label": { id: text, name: text },
+  "computers.filter": { filter: text },
   "engine.read": { refresh: optionalBoolean },
   "engine.reload-settings": {},
   "engine.sign-in": { engine: isAgentEngine },
@@ -268,6 +314,15 @@ const shapes = {
   "view.capture-shortcut": { action: nullableText },
   "view.dismiss-computer-use-setup": {  },
   "view.refresh-environment": {  },
+  "pull-request.read": {  },
+  "app.list": {  },
+  "usage.read": {  },
+  "computer-use.read": {  },
+  "computer-use.enable": { permission: literals("accessibility", "screenRecording") },
+  "computer-use.restart": {  },
+  "cli.read": {  },
+  "cli.install": {  },
+  "cli.uninstall": {  },
   "view.dock-keys": { tab: nullableText },
   "view.find-open": { target: optional(isFindTarget) },
   "view.find-query": { query: text },

@@ -24,6 +24,8 @@ test("a referenced screenshot survives deletion and a fresh store, while later r
   const bytes = Buffer.from([137, 80, 78, 71, 1]);
   await writeFile(file, bytes);
   const store = await import("../../src/main/message-image-store.ts");
+  const { messageThumbnail } = await import("../../src/main/message-thumbnails.ts");
+  store.useMessageImageStore({ directory: path.join(imageHost.root, "message-images"), thumbnail: messageThumbnail });
   const [first, again] = await Promise.all([store.preserveMessageImage(file, "", "reply-1"), store.preserveMessageImage(file, "", "reply-1")]);
   assert.equal(first, again);
   assert.deepEqual(await readFile(first), bytes);
@@ -31,6 +33,7 @@ test("a referenced screenshot survives deletion and a fresh store, while later r
   await rm(file);
   vi.resetModules();
   const restarted = await import("../../src/main/message-image-store.ts");
+  restarted.useMessageImageStore({ directory: path.join(imageHost.root, "message-images"), thumbnail: (await import("../../src/main/message-thumbnails.ts")).messageThumbnail });
   const response = await restarted.messageImageResponse(messageImageUrl(file, "", "reply-1"));
   assert.equal(response.status, 200);
   assert.deepEqual(Buffer.from(await response.arrayBuffer()), bytes);
@@ -46,6 +49,7 @@ test("a referenced screenshot survives deletion and a fresh store, while later r
 test("unavailable and invalid image references fail as previews without blocking other images", async () => {
   imageHost.root = await mkdtemp(path.join(os.tmpdir(), "aic-message-images-"));
   const store = await import("../../src/main/message-image-store.ts");
+  store.useMessageImageStore({ directory: path.join(imageHost.root, "message-images"), thumbnail: (await import("../../src/main/message-thumbnails.ts")).messageThumbnail });
   const invalid = path.join(imageHost.root, "text.png");
   await writeFile(invalid, "not an image");
   assert.equal((await store.messageImageResponse(messageImageUrl(invalid, "", "reply"))).status, 404);

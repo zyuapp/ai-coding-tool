@@ -1,6 +1,7 @@
 /** What the store and the preferences hand back on the way in, and what failed on the way out. */
 import { settled, rejected } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
+import { deliverRestoredNotes } from "./coordination.js";
 import { viewPreferenceState } from "../view-preferences.js";
 import { dockFor, withStoreData, type WorkspaceState } from "../workspace-state.js";
 import { browserUrl, type BrowserTab } from "../../domain/browser.js";
@@ -11,8 +12,9 @@ type StoreInput = Extract<WorkspaceInput, {
 
 export function reduceStore(state: WorkspaceState, input: StoreInput): WorkspaceTransition {
   switch (input.type) {
+    /** A coordinator told of work while the app was closing hears it once the store is back. */
     case "store.loaded":
-      return settled({ ...withStoreData(state, input.data), hiddenThreads: input.hiddenTasks ?? 0, restored: true });
+      return deliverRestoredNotes({ ...withStoreData(state, input.data), hiddenThreads: input.hiddenTasks ?? 0, restored: true });
 
     case "store.thread-loaded": {
       const thread = state.threads.find((item) => item.id === input.taskId);

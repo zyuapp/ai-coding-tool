@@ -3,6 +3,8 @@ import { Terminal } from "@xterm/headless";
 import type { TerminalDataEvent, TerminalReadOptions, TerminalScreenSnapshot, TerminalText } from "../contracts/ipc.js";
 import { serializeTerminal } from "./terminal-snapshot.js";
 import { terminalTitle, withinReadBudget, type TerminalUpdate } from "../domain/terminal.js";
+import { isTerminalDimension, MAX_TERMINAL_INPUT, type TerminalOutputRead } from "../contracts/terminal.js";
+import { TerminalOutputBuffer } from "./terminal-output-buffer.js";
 
 /**
  * The terminal panel's shells. This is the only place a pseudo-terminal is created, written to, or
@@ -29,6 +31,7 @@ type Session = {
   pending: string;
   timer: NodeJS.Timeout | null;
   sequence: number;
+  output: TerminalOutputBuffer | null;
   snapshotReaders: Set<(snapshot: TerminalScreenSnapshot | null) => void>;
 };
 
@@ -73,7 +76,9 @@ function flush(session: Session) {
     ? `\r\n… ${Math.round(dropped / 1024).toLocaleString()} KB of output dropped\r\n${pending.slice(dropped)}`
     : pending;
   session.screen.write(data);
-  publishData({ terminalId: session.id, data, sequence: ++session.sequence });
+  const event = { terminalId: session.id, data, sequence: ++session.sequence };
+  session.output?.push(event);
+  publishData(event);
 }
 
 function schedule(session: Session, chunk: string) {
@@ -87,7 +92,7 @@ function schedule(session: Session, chunk: string) {
 export function startTerminal(terminalId: string, cwd: string) {
   if (sessions.get(terminalId)) return;
   const screen = new Terminal({ cols: DEFAULT_COLS, rows: DEFAULT_ROWS, scrollback: SCROLLBACK_LINES, allowProposedApi: true });
-  const session: Session = { id: terminalId, cwd, pty: null, screen, pending: "", timer: null, sequence: 0, snapshotReaders: new Set() };
+  const session: Session = { id: terminalId, cwd, pty: null, screen, pending: "", timer: null, sequence: 0, output: null, snapshotReaders: new Set() };
   sessions.set(terminalId, session);
   screen.onTitleChange((title) => publishUpdate({ terminalId, title: title || terminalTitle(cwd) }));
   const { file, args } = shellCommand();
@@ -113,20 +118,28 @@ export function startTerminal(terminalId: string, cwd: string) {
 }
 
 export function writeTerminal(terminalId: string, data: string) {
+  if (typeof data !== "string" || data.length > MAX_TERMINAL_INPUT) throw new Error("Invalid terminal input.");
   sessions.get(terminalId)?.pty?.write(data);
 }
 
 export function resizeTerminal(terminalId: string, cols: number, rows: number) {
+  if (!isTerminalDimension(cols) || !isTerminalDimension(rows)) throw new Error("Invalid terminal size.");
   const session = sessions.get(terminalId);
   if (!session) return;
+  if (session.screen.cols === cols && session.screen.rows === rows) return;
+  flush(session);
   session.screen.resize(cols, rows);
   session.pty?.resize(cols, rows);
+  session.sequence += 1;
+  session.output?.reset();
+  publishData({ terminalId, data: "", sequence: session.sequence, size: { cols, rows } });
 }
 
 export function closeTerminal(terminalId: string) {
   const session = sessions.get(terminalId);
   if (!session) return;
   sessions.delete(terminalId);
+  session.output?.wake();
   for (const resolve of session.snapshotReaders) resolve(null);
   session.snapshotReaders.clear();
   if (session.timer) clearTimeout(session.timer);
@@ -147,6 +160,20 @@ export function terminalSnapshot(terminalId: string): Promise<TerminalScreenSnap
       resolve({ sequence, cols: session.screen.cols, rows: session.screen.rows, data: serializeTerminal(session.screen) });
     });
   });
+}
+
+/** Only new bytes cross the paired connection. Missed output is recovered from the host's screen. */
+export async function readTerminalOutput(terminalId: string, after?: number): Promise<TerminalOutputRead | null> {
+  const session = sessions.get(terminalId);
+  if (!session) return null;
+  if (after !== undefined && (!Number.isSafeInteger(after) || after < 0)) throw new Error("Invalid terminal sequence.");
+  session.output ??= new TerminalOutputBuffer();
+  if (after === session.sequence) await session.output.wait();
+  if (sessions.get(terminalId) !== session) return null;
+  const data = after === undefined ? null : session.output.read(after, session.sequence);
+  if (data !== null) return { kind: "output", data, sequence: session.sequence, cols: session.screen.cols, rows: session.screen.rows };
+  const snapshot = await terminalSnapshot(terminalId);
+  return snapshot ? { kind: "snapshot", ...snapshot } : null;
 }
 
 /** Everything the terminal holds, oldest first, with the trailing blank lines a screen always has removed. */

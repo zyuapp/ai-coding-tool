@@ -1,19 +1,18 @@
 /** The project folders the app is open on. */
-import { PROJECT_WORKTREES_ERROR, RUNNING_PROJECT_ERROR, now, retireAutomations, settled, rejected } from "./shared.js";
+import { retireAutomations } from "./automations.js";
+import { PROJECT_WORKTREES_ERROR, RUNNING_PROJECT_ERROR } from "./errors.js";
+import { now, settled, rejected } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { reduceProjects } from "../project-commands.js";
 import type { WorkspaceState } from "../workspace-state.js";
 
 type ProjectInput = Extract<WorkspaceInput, {
-  type: "project.open" | "project.opened" | "project.edit" | "project.registered" | "project.register-failed"
+  type: "project.opened" | "project.edit" | "project.registered" | "project.register-failed"
     | "project.move" | "view.edit-project" | "view.toggle-project" | "project.remove";
 }>;
 
 export function reduceProjectCommands(state: WorkspaceState, input: ProjectInput): WorkspaceTransition {
   switch (input.type) {
-    case "project.open":
-      return settled(state, [{ type: "pick-project" }]);
-
     case "project.opened":
     case "project.edit":
     case "project.registered":

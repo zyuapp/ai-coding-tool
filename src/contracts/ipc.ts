@@ -1,9 +1,11 @@
+import type { BranchesResult } from "./git.js";
+export type { BranchesResult } from "./git.js";
 import type { AgentSettingsReloadEvent, ReloadAgentSettingsCommand } from "./agent-settings.js";
 export { isAgentSettingsReloadEvent, type AgentSettingsReloadEvent, type ReloadAgentSettingsCommand } from "./agent-settings.js";
 import { isQuestionRequest, type QuestionRequest } from "../domain/agent-question.js";
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationPatch, type AutomationRunStatus, type AutomationView } from "../domain/automation.js";
-import type { BrowserRead, ExternalCommand, FindingReport, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
-import type { BrowserAction, BrowserBounds, BrowserInspection, BrowserInspectionResult, BrowserShot, BrowserSnapshot } from "../domain/browser.js";
+import type { BrowserRead, ExternalCommand, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
+import type { BrowserAction, BrowserPermissions, BrowserBounds, BrowserInspection, BrowserInspectionResult, BrowserShot, BrowserSnapshot } from "../domain/browser.js";
 import type { CaptureOptions } from "../domain/capture.js";
 import type { ComputerUsePermission, ComputerUsePermissions, ComputerUseRunConfig } from "../domain/computer-use.js";
 import type { CliStatus } from "../domain/cli.js";
@@ -13,9 +15,10 @@ import type { FindResults } from "../domain/find.js";
 import type { ActiveGoal } from "../domain/goal.js";
 import type { TerminalUpdate } from "../domain/terminal.js";
 import type { AttachedFileDraft } from "../domain/conversation.js";
-import { MAX_DETAIL, MAX_FINDING_KEY, MAX_HEADLINE } from "../domain/finding.js";
-import { engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, modelSupportsManualCompaction, type AgentEngine, type AgentModel, type EngineStatus } from "../domain/agent-engine.js";
-import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, Continuation, ExecutionPolicy, RunStatus, SubagentActivity, SubagentReport, ToolIntent } from "../domain/run.js";
+import { capabilitiesFor, engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, modelSupportsManualCompaction, type AgentEngine, type AgentModel, type EngineStatus } from "../domain/agent-engine.js";
+import { isThreadRole } from "../domain/thread-role.js";
+import { isThreadBrief, type CoordinationRole } from "../domain/coordination.js";
+import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, Continuation, ExecutionPolicy, RetryNotice, RunStatus, SubagentActivity, SubagentReport, ToolIntent } from "../domain/run.js";
 import type { PlanUsage } from "../domain/plan-usage.js";
 import type { PullRequestAnswer } from "../domain/pull-request.js";
 import { shortcutAction, shortcutProblem, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
@@ -26,7 +29,7 @@ import { isReviewTarget, type ReviewTarget } from "../domain/review.js";
 import type { MobileDesktopAPI } from "./mobile.js";
 import type { ImageDesktopAPI } from "./images.js";
 import type { LoadedTaskStore, TaskStoreDelta } from "./task-store.js";
-import type { TerminalDataEvent, TerminalReadOptions, TerminalScreenSnapshot, TerminalStartOptions, TerminalText } from "./terminal.js";
+import type { TerminalDataEvent, TerminalOutputRead, TerminalReadOptions, TerminalScreenSnapshot, TerminalStartOptions, TerminalText } from "./terminal.js";
 export type { TerminalDataEvent, TerminalReadOptions, TerminalScreenSnapshot, TerminalStartOptions, TerminalText } from "./terminal.js";
 export type { LoadedTaskStore, PersistedSubagent, PersistedTask, TaskStoreDelta } from "./task-store.js";
 export type { ComputerUseMcp, ComputerUsePermission, ComputerUsePermissions, ComputerUseRunConfig } from "../domain/computer-use.js";
@@ -73,7 +76,7 @@ export type StartRunCommand = {
   engine: AgentEngine;
   model: AgentModel;
   effort: AgentEffort;
-  /** Codex only. Absent means standard speed. */
+  /** Read only by an engine whose capabilities include fast mode. Absent means standard speed. */
   fastMode?: boolean;
   operation?: RunOperation;
   claude?: ClaudeRunSettings;
@@ -85,6 +88,8 @@ export type StartRunCommand = {
   forkContinuation?: boolean;
   /** Set only by a scheduled tick: nobody is present, so an approval nobody answers is denied for them. */
   unattended?: true;
+  /** Gives the run the tools and instructions for its part beside a coordinator. */
+  coordinationRole?: CoordinationRole;
 };
 
 export type CreateWorktreeRequest = {
@@ -99,11 +104,6 @@ export type CreateWorktreeRequest = {
  * reducer says that; the desktop only reports what it did on disk.
  */
 export type CreatedWorktree = Omit<Worktree, "projectId">;
-
-export type BranchesResult =
-  /** `branches` are local and can be moved onto; `remotes` can only be compared against. */
-  | { status: "available"; branches: string[]; remotes: string[]; current: string | null }
-  | { status: "error"; message: string };
 
 export type ReleaseWorktreeRequest = {
   worktreeId: string;
@@ -169,6 +169,9 @@ export type LabelThreadCommand = { type: "label"; taskId: string; title: string 
 
 export type RunCommand = ReloadAgentSettingsCommand | StartRunCommand | CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand;
 
+/** The same commands as the agent process reads them: a start arrives already resolved against its workspace. */
+export type InternalRunCommand = Exclude<RunCommand, StartRunCommand> | InternalStartRunCommand;
+
 /** The scheduler owns the run ID so it can correlate the renderer's run back to the tick that asked for it. */
 export type AutomationFire = {
   automationId: string;
@@ -199,8 +202,8 @@ export type AutomationRequest = {
 } & (
   | { op: "read" }
   | { op: "list" }
-  | { op: "save"; draft: Omit<AutomationDraft, "taskId"> }
-  | { op: "update"; patch: AutomationPatch }
+  | { op: "save"; runId: string; draft: Omit<AutomationDraft, "taskId"> }
+  | { op: "update"; runId: string; patch: AutomationPatch }
   | { op: "delete" }
 );
 
@@ -217,6 +220,7 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   openFolder(): Promise<WorkspaceRecord | null>;
   /** Opens a folder named by path rather than picked, refusing anything that is not one to work in. */
   registerProject(root: string): Promise<WorkspaceRecord>;
+  directories(prefix: string, computerId?: string): Promise<string[]>;
   /** A folder the `aic` terminal command named, already registered as a workspace. */
   onOpenProject(listener: (workspace: WorkspaceRecord) => void): () => void;
   /** Whether the `aic` terminal command is installed, and the path it takes. */
@@ -273,6 +277,7 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   persistTaskStore(delta: TaskStoreDelta): Promise<void>;
   /** A stored subagent's activity, which the store leaves behind until someone opens that subagent. */
   loadSubagentActivity(taskId: string, subagentId: string): Promise<SubagentActivity[]>;
+  loadSubagentMetadata(engine: AgentEngine, subagentId: string, sessionId?: string): Promise<import("../domain/run.js").SubagentMetadata>;
   listAutomations(): Promise<AutomationView[]>;
   saveAutomation(draft: AutomationDraft): Promise<AutomationView>;
   updateAutomation(taskId: string, patch: AutomationPatch): Promise<AutomationView>;
@@ -285,22 +290,23 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   onThreadRequest(listener: (request: ThreadRequest) => void): () => void;
   answerThreadRequest(response: ThreadResponse): void;
   /** The browser panel's pages live in main; the window owns the record of them and their geometry. */
-  openBrowserTab(tabId: string, url?: string): Promise<void>;
-  navigateBrowser(tabId: string, url: string): Promise<void>;
-  browserHistory(tabId: string, delta: -1 | 1): Promise<void>;
-  reloadBrowser(tabId: string): Promise<void>;
+  configureBrowserPermissions(permissions: BrowserPermissions): Promise<void>;
+  openBrowserTab(tabId: string, url?: string, taskId?: string): Promise<void>;
+  navigateBrowser(tabId: string, url: string, taskId?: string): Promise<void>;
+  browserHistory(tabId: string, delta: -1 | 1, taskId?: string): Promise<void>;
+  reloadBrowser(tabId: string, taskId?: string): Promise<void>;
   closeBrowserTab(tabId: string): Promise<void>;
   /** Which tab the panel is showing. */
   showBrowserTab(tabId: string | null): Promise<void>;
   /** Where the panel is, in window coordinates. Null while the panel is not on screen. */
   setBrowserBounds(bounds: BrowserBounds | null): Promise<void>;
-  actInBrowser(tabId: string, action: BrowserAction): Promise<string>;
+  actInBrowser(tabId: string, action: BrowserAction, taskId?: string): Promise<string>;
   /** Waits for the tab to stop loading, then reads the page. Null when that tab is gone. */
-  readBrowserPage(tabId: string, textLimit: number, timeoutMs: number): Promise<BrowserSnapshot | null>;
+  readBrowserPage(tabId: string, textLimit: number, timeoutMs: number, taskId?: string): Promise<BrowserSnapshot | null>;
   /** Reads recent diagnostics or waits for a condition in one page. */
-  inspectBrowserPage(tabId: string, inspection: BrowserInspection): Promise<BrowserInspectionResult | null>;
+  inspectBrowserPage(tabId: string, inspection: BrowserInspection, taskId?: string): Promise<BrowserInspectionResult | null>;
   /** Waits the same way, then writes a picture of the page to a file. Null when that tab is gone. */
-  captureBrowserPage(tabId: string, fullPage: boolean, timeoutMs: number): Promise<BrowserShot | null>;
+  captureBrowserPage(tabId: string, fullPage: boolean, timeoutMs: number, taskId?: string): Promise<BrowserShot | null>;
   clearBrowserData(): Promise<void>;
   onBrowserEvent(listener: (event: BrowserPageEvent) => void): () => void;
   /** Searching a page. Chromium holds the text and counts the matches, so it reports them back. */
@@ -316,13 +322,14 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   openFolderInApp(appId: string, root: string): Promise<void>;
   /** The terminal panel's shells live in main; the window owns the record of them. */
   startTerminal(terminalId: string, options: TerminalStartOptions): Promise<void>;
-  /** What the user typed. Nothing outside the window reaches this: a run may read a terminal, never drive one. */
+  /** User input from this window or a paired computer. A run may read a terminal, never drive one. */
   writeTerminal(terminalId: string, data: string): Promise<void>;
   resizeTerminal(terminalId: string, cols: number, rows: number): Promise<void>;
   closeTerminal(terminalId: string): Promise<void>;
   /** The lines the terminal holds, cooked to plain text. Null when that terminal is gone. */
   readTerminal(terminalId: string, options: TerminalReadOptions): Promise<TerminalText | null>;
   terminalSnapshot(terminalId: string): Promise<TerminalScreenSnapshot | null>;
+  readRemoteTerminal(computerId: string, terminalId: string, after?: number): Promise<TerminalOutputRead | null>;
   /** Output, coalesced and delivered straight to the view. It is never workspace state. */
   onTerminalData(listener: (event: TerminalDataEvent) => void): () => void;
   onTerminalEvent(listener: (update: TerminalUpdate) => void): () => void;
@@ -363,24 +370,6 @@ export type DesktopShortcutRefusal = { binding: string; reason: "taken" } | { bi
 /** What a thread wants in front of the user: the thread a click lands on, the name it is shown under, and the line itself. */
 export type ThreadNotice = { taskId: string; title: string; headline: string };
 
-/** Longer than any line a notification shows, and still bounded. */
-const MAX_HEADLINE_LENGTH = 1_000;
-
-/** Notices arrive from the window like any other outside command, so main reads them defensively. */
-export function isThreadNotice(value: unknown): value is ThreadNotice {
-  if (!value || typeof value !== "object") return false;
-  const notice = value as Record<string, unknown>;
-  return isString(notice.taskId) && isString(notice.title, MAX_HEADLINE_LENGTH) && isString(notice.headline, MAX_HEADLINE_LENGTH);
-}
-
-/** More unseen threads than the app keeps, so a count above it says the window is confused. */
-const MAX_BADGE_COUNT = 9_999;
-
-/** The count arrives from the window like any other outside command, so main reads it defensively. */
-export function isBadgeCount(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= MAX_BADGE_COUNT;
-}
-
 /** How many bindings a window may send. Far more than the app has actions, and still bounded. */
 const MAX_SHORTCUTS = 200;
 
@@ -395,6 +384,7 @@ export function isShortcutOverrides(value: unknown): value is ShortcutOverrides 
 
 /** What a page did, pushed from main so the reducer stays the only writer of the tab record. */
 export type BrowserPageEvent = {
+  navigationRequest?: { taskId: string; url: string };
   tabId: string;
   url?: string;
   title?: string;
@@ -457,6 +447,7 @@ export type RunEvent =
   | (RunEventBase & { type: "assistant.tail"; messageId: string; text: string })
   | (RunEventBase & { type: "context.usage"; tokens: number; limit: number; model: string })
   | (RunEventBase & { type: "context.compaction-status"; compacting: boolean; error?: string })
+  | (RunEventBase & { type: "run.retrying" } & RetryNotice)
   | (RunEventBase & { type: "context.compacted"; trigger: "manual" | "auto"; preTokens: number; postTokens?: number })
   | (RunEventBase & { type: "tool.intent"; intent: ToolIntent })
   | (RunEventBase & { type: "computer-use.setup-required" })
@@ -513,15 +504,15 @@ export const MAX_THREAD_WAIT_MS = 15 * 60 * 1_000;
 export const MAX_BROWSER_WAIT_MS = 2 * 60 * 1_000;
 const MAX_PROMPT_LENGTH = 1_000_000, MAX_TITLE_LENGTH = 64;
 
-function isString(value: unknown, maxLength = MAX_ID_LENGTH): value is string {
+export function isString(value: unknown, maxLength = MAX_ID_LENGTH): value is string {
   return typeof value === "string" && value.length > 0 && value.length <= maxLength;
 }
 
-function isBlankable(value: unknown, maxLength: number): value is string {
+export function isBlankable(value: unknown, maxLength: number): value is string {
   return typeof value === "string" && value.length <= maxLength;
 }
 
-function isCount(value: unknown): value is number {
+export function isCount(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
@@ -605,10 +596,9 @@ export function isRunCommand(value: unknown): value is RunCommand {
   return false;
 }
 
-export function isInternalRunCommand(value: unknown): value is ReloadAgentSettingsCommand | InternalStartRunCommand | CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand {
-  if (!value || typeof value !== "object") return false;
-  const command = value as Record<string, unknown>;
-  if (command.type === "start") return isStartCommand(command, true);
+export function isInternalRunCommand(value: unknown): value is InternalRunCommand {
+  const command = value as Record<string, unknown> | null;
+  if (command?.type === "start") return isStartCommand(command, true);
   return isRunCommand(value);
 }
 
@@ -621,19 +611,20 @@ function isClaudeRunSettings(value: unknown): value is ClaudeRunSettings {
 function isStartCommand(command: Record<string, unknown>, internal: boolean) {
   if (!isString(command.title, MAX_TITLE_LENGTH)) return false;
   const operation = command.operation as Record<string, unknown> | undefined;
+  /** An operation is work the engine performs itself, so only a catalogue that offers it may ask. */
   const compact = operation?.type === "compact"
     && typeof operation.preTokens === "number" && Number.isFinite(operation.preTokens) && operation.preTokens >= 0
-    && command.engine === "codex" && command.prompt === "" && isAgentModel(command.model) && modelSupportsManualCompaction(command.engine, command.model)
-    && isContinuation(command.continuation) && command.continuation.provider === "codex"
+    && command.prompt === "" && isAgentEngine(command.engine) && isAgentModel(command.model) && modelSupportsManualCompaction(command.engine, command.model)
+    && isContinuation(command.continuation) && command.continuation.provider === command.engine
     && command.forkContinuation === undefined;
   const review = operation?.type === "review"
     && isReviewTarget(operation.target)
-    && command.channel === "main" && command.engine === "codex" && command.prompt === ""
-    && isContinuation(command.continuation) && command.continuation.provider === "codex"
+    && command.channel === "main" && command.prompt === "" && isAgentEngine(command.engine) && capabilitiesFor(command.engine).review
+    && isContinuation(command.continuation) && command.continuation.provider === command.engine
     && (command.forkContinuation === undefined || command.forkContinuation === true);
   const operationOnly = compact || review;
-  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && (operationOnly ? isBlankable(command.prompt, MAX_PROMPT_LENGTH) : isString(command.prompt, MAX_PROMPT_LENGTH)) && isString(command.workspaceId) && isPolicy(command.policy) && isAgentEngine(command.engine) && isAgentModel(command.model) && engineHasModel(command.engine, command.model) && isAgentEffort(command.effort) && engineHasEffort(command.engine, command.effort) && (command.operation === undefined || operationOnly) && (command.claude === undefined || isClaudeRunSettings(command.claude)) && (command.computerUseTools === undefined || command.computerUseTools === false) && (command.browserTools === undefined || command.browserTools === false) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation))) && (command.unattended === undefined || command.unattended === true);
-  if (!base || !(command.fastMode === undefined || command.engine === "codex" && typeof command.fastMode === "boolean")) return false;
+  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && (operationOnly ? isBlankable(command.prompt, MAX_PROMPT_LENGTH) : isString(command.prompt, MAX_PROMPT_LENGTH)) && isString(command.workspaceId) && isPolicy(command.policy) && isAgentEngine(command.engine) && isAgentModel(command.model) && engineHasModel(command.engine, command.model) && isAgentEffort(command.effort) && engineHasEffort(command.engine, command.effort) && (command.operation === undefined || operationOnly) && (command.claude === undefined || isClaudeRunSettings(command.claude)) && (command.computerUseTools === undefined || command.computerUseTools === false) && (command.browserTools === undefined || command.browserTools === false) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation))) && (command.unattended === undefined || command.unattended === true) && (command.coordinationRole === undefined || command.coordinationRole === "coordinator" || command.coordinationRole === "member");
+  if (!base || !(command.fastMode === undefined || isAgentEngine(command.engine) && capabilitiesFor(command.engine).fastMode && typeof command.fastMode === "boolean")) return false;
   if (!internal) return !["workspaceRoot", "projectless", "computerUse", "cwd", "folder", "sessionId", "mode", "requestId"].some((key) => key in command);
   return isString(command.workspaceRoot, 4_096) && typeof command.projectless === "boolean" && isComputerUseRunConfig(command.computerUse);
 }
@@ -643,9 +634,8 @@ export function isAutomationRequest(value: unknown): value is AutomationRequest 
   const request = value as Record<string, unknown>;
   if (request.type !== "automation.request" || !isString(request.requestId) || !isString(request.taskId)) return false;
   if (request.op === "read" || request.op === "list" || request.op === "delete") return true;
-  if (request.op === "save") return isAutomationDraft({ ...(request.draft as object), taskId: request.taskId });
-  if (request.op === "update") return isAutomationPatch(request.patch);
-  return false;
+  if (request.op === "save") return isString(request.runId) && isAutomationDraft({ ...(request.draft as object), taskId: request.taskId });
+  return request.op === "update" && isString(request.runId) && isAutomationPatch(request.patch);
 }
 
 /** The command surface open to callers outside the window. Everything else is the user's alone. */
@@ -654,8 +644,7 @@ export function isExternalCommand(value: unknown): value is ExternalCommand {
   const command = value as Record<string, unknown>;
   const named = command.taskId === undefined || isString(command.taskId);
   if (command.type === "task.send") {
-    return named
-      && (command.project === undefined || isString(command.project))
+    return named && (command.project === undefined || isString(command.project))
       && isString(command.text, MAX_PROMPT_LENGTH)
       && command.attachments === undefined
       && (command.steer === undefined || typeof command.steer === "boolean")
@@ -663,11 +652,14 @@ export function isExternalCommand(value: unknown): value is ExternalCommand {
       /** An id, never a path: the reducer resolves it against the checkouts the app itself made. */
       && (command.worktreeId === undefined || isString(command.worktreeId))
       && (command.model === undefined || isAgentModel(command.model))
-      && (command.effort === undefined || isAgentEffort(command.effort))
-      /** Agent selection belongs to a thread being created, never one that already exists. */
-      && (command.taskId === undefined || command.model === undefined && command.effort === undefined);
+      && (command.effort === undefined || isAgentEffort(command.effort)) && (command.role === undefined || isThreadRole(command.role))
+      /** Only the window says which coordinator a thread works under: the one that started it. */
+      && (command.brief === undefined || isThreadBrief(command.brief)) && command.coordinatorId === undefined
+      /** Agent selection, the role and the brief belong to a thread being created, never one that already exists. */
+      && (command.taskId === undefined || command.model === undefined && command.effort === undefined && command.role === undefined && command.brief === undefined);
   }
   if (command.type === "task.archive") return isString(command.taskId);
+  if (command.type === "task.set-role") return isString(command.taskId) && (command.role === null || isThreadRole(command.role));
   if (command.type === "run.cancel") return named;
   if (typeof command.type === "string" && command.type.startsWith("browser.")) return isBrowserCommand(command);
   return false;
@@ -680,8 +672,7 @@ export function isBrowserAction(value: unknown): value is BrowserAction {
   const action = value as Record<string, unknown>;
   if (action.kind === "click") return isString(action.ref);
   if (action.kind === "type") {
-    return isString(action.ref)
-      && typeof action.text === "string" && action.text.length <= MAX_PROMPT_LENGTH
+    return isString(action.ref) && typeof action.text === "string" && action.text.length <= MAX_PROMPT_LENGTH
       && (action.submit === undefined || typeof action.submit === "boolean");
   }
   return false;
@@ -745,37 +736,6 @@ function isBrowserCommand(command: Record<string, unknown>) {
   return false;
 }
 
-export function isThreadRequest(value: unknown): value is ThreadRequest {
-  if (!value || typeof value !== "object") return false;
-  const request = value as Record<string, unknown>;
-  if (request.type !== "thread.request" || !isString(request.requestId) || !isString(request.taskId)) return false;
-  if (request.op === "list") {
-    return (request.project === undefined || isString(request.project, 4_096))
-      && (request.archived === undefined || typeof request.archived === "boolean")
-      && (request.idleForMs === undefined || isCount(request.idleForMs))
-      && (request.search === undefined || isString(request.search, 1_000))
-      && (request.attachments === undefined || typeof request.attachments === "boolean")
-      && (request.limit === undefined || isCount(request.limit));
-  }
-  if (request.op === "read") return isString(request.threadId) && (request.limit === undefined || isCount(request.limit));
-  if (request.op === "wait") return isString(request.threadId) && isCount(request.timeoutMs) && request.timeoutMs <= MAX_THREAD_WAIT_MS;
-  if (request.op === "command") return isExternalCommand(request.command);
-  if (request.op === "browser") return isBrowserRead(request.read);
-  if (request.op === "terminal") return isTerminalRead(request.read);
-  if (request.op === "notify") return isFindingReport(request.report);
-  if (request.op === "nothing-to-report") return isString(request.checked, MAX_HEADLINE);
-  return false;
-}
-
-export function isFindingReport(value: unknown): value is FindingReport {
-  if (!value || typeof value !== "object") return false;
-  const report = value as Record<string, unknown>;
-  return isString(report.headline, MAX_HEADLINE)
-    /** An optional the caller sent empty says the same as one it left out, and is no reason to drop the call. */
-    && (report.detail === undefined || isBlankable(report.detail, MAX_DETAIL))
-    && (report.key === undefined || isBlankable(report.key, MAX_FINDING_KEY));
-}
-
 /**
  * What a request no guard could read is answered with. The caller is a tool call held open, so a
  * message that is dropped reaches it as a timeout saying nothing about what was wrong with it.
@@ -822,6 +782,7 @@ export function isRunEvent(value: unknown): value is RunEvent {
   if (event.type === "assistant.delta") return isString(event.messageId) && typeof event.text === "string" && (event.append === undefined || event.append === true) && (event.artifact === undefined || event.artifact === true);
   if (event.type === "assistant.tail") return isString(event.messageId) && typeof event.text === "string" && event.text.length <= MAX_PROMPT_LENGTH;
   if (event.type === "context.usage") return typeof event.tokens === "number" && Number.isFinite(event.tokens) && event.tokens >= 0 && typeof event.limit === "number" && Number.isFinite(event.limit) && event.limit > 0 && isString(event.model);
+  if (event.type === "run.retrying") return isString(event.message, 100_000) && (event.attempt === undefined || isCount(event.attempt)) && (event.maxRetries === undefined || isCount(event.maxRetries));
   if (event.type === "context.compaction-status") return typeof event.compacting === "boolean" && (event.error === undefined || isString(event.error, 100_000));
   if (event.type === "context.compacted") return (event.trigger === "manual" || event.trigger === "auto") && typeof event.preTokens === "number" && Number.isFinite(event.preTokens) && event.preTokens >= 0 && (event.postTokens === undefined || (typeof event.postTokens === "number" && Number.isFinite(event.postTokens) && event.postTokens >= 0));
   if (event.type === "tool.intent") return isIntent(event.intent);
@@ -845,15 +806,19 @@ export function isSubagentEvent(value: unknown): value is SubagentEvent {
   if (!value || typeof value !== "object") return false;
   const event = value as Record<string, unknown>;
   if (!isString(event.taskId) || !isString(event.id)) return false;
+  if (event.type === "subagent.started" || event.type === "subagent.metadata") {
+    if (!(event.model === undefined || isString(event.model))
+      || !(event.effort === undefined || isString(event.effort))
+      || !(event.prompt === undefined || typeof event.prompt === "string")) return false;
+    if (event.type === "subagent.metadata") return true;
+  }
   if (event.type === "subagent.started") {
     return isString(event.description, 100_000)
       && (event.agentType === undefined || isString(event.agentType))
       && (event.sessionScoped === undefined || event.sessionScoped === true);
   }
-  if (event.type === "subagent.status") {
-    return (event.status === "working" || event.status === "idle")
-      && (event.summary === undefined || isString(event.summary, 100_000));
-  }
+  if (event.type === "subagent.status") return (event.status === "working" || event.status === "idle")
+    && (event.summary === undefined || isString(event.summary, 100_000));
   if (event.type === "subagent.progress") {
     return isString(event.description, 100_000)
       && (event.agentType === undefined || isString(event.agentType))

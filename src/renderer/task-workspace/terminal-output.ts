@@ -15,14 +15,14 @@ export class TerminalOutput {
   constructor(
     private readonly snapshot: () => Promise<TerminalScreenSnapshot | null>,
     private readonly restore: (snapshot: TerminalScreenSnapshot) => void,
-    private readonly write: (data: string) => void,
+    private readonly write: (data: string, size?: TerminalDataEvent["size"]) => void,
   ) {}
 
   push(event: TerminalDataEvent) {
     if (this.disposed || event.sequence <= this.sequence) return;
     if (this.ready) {
       this.sequence = event.sequence;
-      this.write(event.data);
+      this.write(event.data, event.size);
       return;
     }
     if (this.pendingSize + event.data.length > MAX_PENDING) {

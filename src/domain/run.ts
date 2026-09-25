@@ -30,13 +30,28 @@ export type ToolIntent = {
 
 export type RunStatus = "running" | "awaiting-approval" | "succeeded" | "failed" | "cancelled";
 
+/** The engine's request failed and it is trying again on its own. `message` says why in the user's terms. */
+export type RetryNotice = {
+  message: string;
+  attempt?: number;
+  maxRetries?: number;
+};
+
 export type SubagentLiveStatus = "working" | "idle";
 export type SubagentTerminalStatus = "completed" | "failed" | "stopped";
 export type SubagentStatus = SubagentLiveStatus | SubagentTerminalStatus;
 
+/** Details reported by the provider; absent fields were not supplied, never inferred from the parent. */
+export type SubagentMetadata = {
+  model?: string;
+  effort?: string;
+  prompt?: string;
+};
+
 /** Provider-neutral updates for one delegated agent, before the owning thread is attached for transport. */
 export type SubagentReport =
-  | { type: "subagent.started"; id: string; description: string; agentType?: string; sessionScoped?: true }
+  | ({ type: "subagent.started"; id: string; description: string; agentType?: string; sessionScoped?: true } & SubagentMetadata)
+  | ({ type: "subagent.metadata"; id: string } & SubagentMetadata)
   | { type: "subagent.status"; id: string; status: SubagentLiveStatus; summary?: string }
   | { type: "subagent.progress"; id: string; description: string; agentType?: string; lastToolName?: string; summary?: string; totalTokens: number }
   | { type: "subagent.activity"; id: string; activityId: string; kind: "text" | "tool"; title?: string; text: string }
@@ -64,13 +79,15 @@ export type SubagentActivity = {
   at: number;
 };
 
-export type Subagent = {
+export type Subagent = SubagentMetadata & {
   id: string;
   description: string;
   agentType?: string;
   /** A session-owned agent can continue after the parent run returns. */
   sessionScoped?: true;
   status: SubagentStatus;
+  /** Set from the moment a stop is asked for until the subagent stops working. */
+  stopping?: true;
   lastToolName?: string;
   summary?: string;
   totalTokens?: number;

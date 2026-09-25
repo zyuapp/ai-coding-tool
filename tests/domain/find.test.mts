@@ -71,6 +71,27 @@ test("a message counts text then detail, and the next message starts its own occ
   ]);
 });
 
+test("a message keeps its own matches when the thread around it grows", () => {
+  const before = messages({ kind: "user", text: "retry" });
+  const found = findHits(before, "retry");
+  const again = findHits([...before, { id: "m1", at: 1, kind: "assistant", text: "retry" }], "retry");
+
+  assert.equal(again[0], found[0], "a message nothing touched is not scanned again");
+  assert.deepEqual(again, [
+    { messageId: "m0", field: "text", start: 0, occurrence: 0 },
+    { messageId: "m1", field: "text", start: 0, occurrence: 0 },
+  ]);
+});
+
+test("a message held from a wider search still stops at the room left for it", () => {
+  const wall = messages({ kind: "assistant", text: "a".repeat(MAX_FIND_HITS + 50) });
+  assert.equal(findHits(wall, "a").length, MAX_FIND_HITS);
+
+  const crowded = findHits([{ id: "first", at: 0, kind: "user", text: "aa" }, ...wall], "a");
+  assert.equal(crowded.length, MAX_FIND_HITS);
+  assert.deepEqual(crowded.at(-1), { messageId: "m0", field: "text", start: MAX_FIND_HITS - 3, occurrence: MAX_FIND_HITS - 3 });
+});
+
 test("stepping wraps at both ends, and stays put with nothing to step through", () => {
   assert.equal(stepMatch(2, 1, 3), 0);
   assert.equal(stepMatch(0, -1, 3), 2);

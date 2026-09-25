@@ -189,11 +189,12 @@ test("a restored page waits for the panel to show it before it loads", () => {
 
   assert.deepEqual(dock(restored.state).browserTabs.map((tab) => tab.url), ["https://example.com/docs"]);
   assert.equal(dock(restored.state).browserTabs[0].loading, false);
-  assert.deepEqual(restored.effects, [], "restoring records loads nothing on its own");
+  assert.deepEqual(restored.effects, [{ type: "browser.permissions", permissions: { origins: ["https://example.com"], autonomousTaskIds: [] } }], "restoring permissions loads no page on its own");
 
   const tabId = dock(restored.state).browserTabs[0].id;
   const shown = reduce(restored.state, { type: "view.select-dock-tab", tab: tabId });
   assert.deepEqual(shown.effects, [
+    { type: "browser.permissions", permissions: { origins: ["https://example.com"], autonomousTaskIds: [] } },
     { type: "browser.open", tabId, url: "https://example.com/docs" },
     { type: "browser.show", tabId },
   ]);

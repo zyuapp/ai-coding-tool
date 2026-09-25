@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import type { WorkspaceInput } from "../../application/workspace-reducer";
+import { shortcutCommands, type WorkspaceInput } from "../../application/workspace-reducer";
+import type { WorkspaceState } from "../../application/workspace-state";
 import { displayShortcut } from "../../domain/shortcuts";
 import { MAC } from "../platform";
 import { installFocusAppearance } from "../focus-appearance";
@@ -7,6 +8,7 @@ import { onTerminalFindResults, onTerminalResize } from "./terminal-views";
 
 export type SubscriptionHost = {
   restored: boolean;
+  displayedState(): WorkspaceState;
   dispatch: (input: WorkspaceInput) => Promise<void>;
 };
 
@@ -50,7 +52,11 @@ export function useWorkspaceSubscriptions(host: SubscriptionHost) {
   }, []);
   useEffect(() => {
     if (!("desktop" in window)) return;
-    const stopListening = window.desktop.onShortcut(({ action, surface }) => void host.dispatch({ type: "view.shortcut", action, surface }));
+    const stopListening = window.desktop.onShortcut(({ action, surface }) => {
+      if (action === "run.allow" || action === "run.deny") {
+        for (const command of shortcutCommands(host.displayedState(), action, surface)) void host.dispatch(command);
+      } else void host.dispatch({ type: "view.shortcut", action, surface });
+    });
     const stopCapturing = window.desktop.onShortcutCaptured((binding) => void host.dispatch({ type: "shortcut.captured", binding }));
     const stopRefusals = window.desktop.onDesktopShortcutRefused((refusal) => void host.dispatch(refusal.reason === "unsupported"
       ? { type: "shortcut.unavailable", refusal }

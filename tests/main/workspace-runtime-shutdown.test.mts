@@ -1,150 +1,87 @@
 import assert from "node:assert/strict";
+import { chmod, readFile } from "node:fs/promises";
 import { test } from "vitest";
-import type { WorkspaceCommandResult } from "../../src/application/workspace-reducer.ts";
-import type { LoadedTaskStore, PersistedTask, TaskStoreDelta } from "../../src/contracts/task-store.ts";
-import type { WorkspaceRequest, WorkspaceResponse } from "../../src/contracts/workspace-runtime.ts";
-import type { AutomationView } from "../../src/domain/automation.ts";
+import type { WorkspaceCommandResult, WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { TaskDatabase } from "../../src/main/task-database.mts";
 import { registered, startMainProcess, waitFor, type MainHarness } from "../support/electron-harness.mjs";
 
 type IpcEvent = { sender: unknown };
+type Result = WorkspaceCommandResult & { revision: number };
 
-function holdRuntimeFlushes(main: MainHarness) {
-  const runtime = main.runtimeViews[0];
-  assert.ok(runtime);
-  const requests: WorkspaceRequest[] = [];
-  const send = runtime.webContents.send;
-  runtime.webContents.send = (channel, event) => {
-    if (channel === "workspace-runtime:request" && (event as WorkspaceRequest).flush) {
-      runtime.webContents.sent.push({ channel, event });
-      requests.push(event as WorkspaceRequest);
-      return;
-    }
-    send(channel, event);
-  };
-  const respond = registered<(event: IpcEvent, response: WorkspaceResponse) => void>(main.listeners, "workspace-runtime:response");
-  return {
-    runtime,
-    requests,
-    acknowledge: (index: number, result: WorkspaceCommandResult = { ok: true }) => {
-      assert.ok(requests[index]);
-      respond({ sender: runtime.webContents }, { id: requests[index].id, result: { ...result, revision: 0 } });
-    },
-  };
+function requester(main: MainHarness) {
+  const request = registered<(event: IpcEvent, input?: WorkspaceInput) => Promise<Result>>(main.handlers, "workspace-runtime:request");
+  return (input: WorkspaceInput) => request(main.trusted, input);
 }
 
-async function agentFor(main: MainHarness) {
-  registered<(event: IpcEvent, command: unknown) => void>(main.listeners, "run:command")(
-    { sender: main.runtimeViews[0].webContents },
-    { type: "stop-process", taskId: "test", processId: "test" },
-  );
-  await waitFor(() => main.agents.length > 0);
-  return main.agents[0];
+/** Starts a thread in no project, which is the least a persisted thread takes. */
+async function startThread(main: MainHarness, text: string) {
+  const request = requester(main);
+  await request({ type: "task.new" });
+  await request({ type: "view.set-prompt", prompt: text });
+  const sent = await request({ type: "task.send", attachments: [] });
+  assert.ok(sent.ok, sent.ok ? "" : sent.message);
+  await waitFor(() => main.agents.length > 0, "an agent process for the run");
+  const state = await main.runtimeState();
+  const thread = state.threads.find((item) => item.messages.some((message) => message.text === text));
+  assert.ok(thread, "the thread the send created");
+  return thread;
 }
 
-const task: PersistedTask = {
-  id: "saved", title: "Pending messages", engine: "claude", executionPolicy: "confirm", continuationStatus: "none",
-  lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
-};
-
-test("quit waits for both runtime flushes and leaves storage open for their final writes", async (t) => {
-  const main = await startMainProcess(t, "aicodingtool-runtime-quit-", { computerUse: { stopComputerUse: async () => {} } });
-  const held = holdRuntimeFlushes(main);
-  const agent = await agentFor(main);
-  let killed = 0;
-  agent.kill = () => { killed += 1; };
-  const event = { sender: held.runtime.webContents };
-  const persist = registered<(event: IpcEvent, delta: TaskStoreDelta) => Promise<void>>(main.handlers, "task-store:persist");
-  const load = registered<(event: IpcEvent) => Promise<LoadedTaskStore | null>>(main.handlers, "task-store:load");
+test("quit waits for the runtime's writes and leaves storage open for them", async (t) => {
+  const main = await startMainProcess(t, "aicodingtool-runtime-quit-", { computerUse: { computerUseForRun: async () => ({ status: "unavailable", message: "test" }), stopComputerUse: async () => {} } });
+  const thread = await startThread(main, "Before quit");
+  await requester(main)({ type: "task.rename", taskId: thread.id, title: "Renamed on the way out" });
 
   main.app.quit();
-  await waitFor(() => held.requests.length === 1);
-  assert.equal(killed, 0);
-  assert.equal(main.completedQuits(), 0);
-  await persist(event, { tasks: [{ task, messages: [{ index: 0, message: { id: "before", kind: "assistant", text: "Before cleanup", at: 1 } }] }] });
-  assert.equal((await load(event))!.tasks[0].historySummary!.messageCount, 1);
   main.app.quit();
-  assert.equal(held.requests.length, 1, "repeated quit requests share the outstanding flush");
-
-  held.acknowledge(0);
-  await waitFor(() => held.requests.length === 2);
-  assert.equal(killed, 1);
-  assert.equal(main.completedQuits(), 0);
-  await persist(event, { tasks: [{ task, messages: [{ index: 1, message: { id: "after", kind: "system", text: "After cleanup", at: 2 } }] }] });
-  assert.equal((await load(event))!.tasks[0].historySummary!.messageCount, 2);
-  held.acknowledge(1);
   await waitFor(() => main.completedQuits() === 1);
 
   const reopened = new TaskDatabase(`${main.userData}/tasks.v3.sqlite`);
   try {
-    assert.deepEqual(reopened.loadThreadMessages(task.id).map((message) => message.text), ["Before cleanup", "After cleanup"]);
+    const stored = reopened.load()!.tasks.find((task) => task.id === thread.id);
+    assert.equal(stored?.title, "Renamed on the way out");
+    assert.deepEqual(reopened.loadThreadMessages(thread.id).map((message) => message.text), ["Before quit"]);
   } finally {
     reopened.close();
   }
 });
 
-test("a refused initial flush keeps the app and its agent usable and allows quit to be retried", async (t) => {
-  const main = await startMainProcess(t, "aicodingtool-runtime-flush-failure-", { computerUse: { stopComputerUse: async () => {} } });
-  const held = holdRuntimeFlushes(main);
-  const agent = await agentFor(main);
+test("a refused write keeps the app usable and lets quit be tried again", { skip: process.platform === "win32" }, async (t) => {
+  const main = await startMainProcess(t, "aicodingtool-runtime-flush-failure-", { computerUse: { computerUseForRun: async () => ({ status: "unavailable", message: "test" }), stopComputerUse: async () => {} } });
+  const thread = await startThread(main, "Before the disk filled");
+  const agent = main.agents[0]!;
   let killed = 0;
   agent.kill = () => { killed += 1; };
-  main.app.quit();
-  await waitFor(() => held.requests.length === 1);
-  held.acknowledge(0, { ok: false, message: "disk full" });
-  await waitFor(() => main.messageBoxes.some((box) => box.content === "disk full"));
-  assert.equal(main.completedQuits(), 0);
-  assert.equal(killed, 0);
-  assert.equal(main.window.isVisible(), true);
-  const persist = registered<(event: IpcEvent, delta: TaskStoreDelta) => Promise<void>>(main.handlers, "task-store:persist");
-  await persist({ sender: held.runtime.webContents }, { tasks: [] });
+  /** A folder that takes no new files refuses the file a draft is written through, which is what a full disk looks like. */
+  await chmod(main.userData, 0o500);
+  t.onTestFinished(() => chmod(main.userData, 0o700));
+  await requester(main)({ type: "view.set-prompt", taskId: thread.id, prompt: "Typed while refused" });
 
   main.app.quit();
-  await waitFor(() => held.requests.length === 2);
-  held.acknowledge(1);
-  await waitFor(() => held.requests.length === 3);
-  held.acknowledge(2);
+  await waitFor(() => main.messageBoxes.length > 0, "the error box");
+  assert.equal(main.messageBoxes[0].title, "Could not save the workspace");
+  assert.equal(main.completedQuits(), 0);
+  assert.equal(killed, 0, "the agent keeps running for a quit that did not happen");
+  assert.equal(main.window.isVisible(), true);
+
+  await chmod(main.userData, 0o700);
+  main.app.quit();
   await waitFor(() => main.completedQuits() === 1);
+  assert.ok(killed >= 1, "the agent is stopped by the shutdown that did happen");
+  const drafts = JSON.parse(await readFile(`${main.userData}/window.v1.json`, "utf8")) as Record<string, string>;
+  assert.equal(JSON.parse(drafts["aicodingtool.draft-prompts.v1"]!)[thread.id], "Typed while refused", "the draft lands once the disk takes it");
 });
 
-test("a refused final flush keeps storage open and restores scheduled work", async (t) => {
-  let computerUseResumed = false;
-  const main = await startMainProcess(t, "aicodingtool-runtime-final-flush-", { computerUse: { stopComputerUse: async () => {}, resumeComputerUse: () => { computerUseResumed = true; } } });
-  const held = holdRuntimeFlushes(main);
-  const event = { sender: held.runtime.webContents };
-  const saveAutomation = registered<(event: IpcEvent, draft: unknown) => Promise<AutomationView>>(main.handlers, "automation:save");
-  const listAutomations = registered<(event: IpcEvent) => AutomationView[]>(main.handlers, "automation:list");
-  await saveAutomation(event, { taskId: "scheduled", prompt: "Poll", schedule: `${(new Date().getMinutes() + 30) % 60} * * * *` });
-  main.app.quit();
-  await waitFor(() => held.requests.length === 1);
-  held.acknowledge(0);
-  await waitFor(() => held.requests.length === 2);
-  held.acknowledge(1, { ok: false, message: "final save failed" });
-  await waitFor(() => main.messageBoxes.some((box) => box.content === "final save failed"));
-  assert.equal(main.completedQuits(), 0);
-  assert.equal(main.window.isVisible(), true);
-  const restored = listAutomations(event)[0];
-  assert.ok(restored);
-  assert.notEqual(restored.nextRunAt, null, "aborting quit must rearm the schedules stopped during cleanup");
-  assert.equal(computerUseResumed, true, "canceling shutdown allows new computer-use runs");
-  const load = registered<(event: IpcEvent) => Promise<LoadedTaskStore | null>>(main.handlers, "task-store:load");
-  await assert.doesNotReject(load(event));
-});
-
-test("run events continue reaching the runtime while the visible view is unavailable", async (t) => {
-  const main = await startMainProcess(t, "aicodingtool-runtime-events-", { computerUse: { stopComputerUse: async () => {} } });
-  const runtime = main.runtimeViews[0];
-  const agent = await agentFor(main);
+test("run events keep reaching the runtime while the visible view is unavailable", async (t) => {
+  const main = await startMainProcess(t, "aicodingtool-runtime-events-", { computerUse: { computerUseForRun: async () => ({ status: "unavailable", message: "test" }), stopComputerUse: async () => {} } });
+  const thread = await startThread(main, "Background work");
+  const agent = main.agents[0]!;
+  const command = agent.messages.find((message) => message.type === "start") as { runId: string } | undefined;
+  assert.ok(command);
   main.window.destroyed = true;
-  try {
-    const started = { type: "run.started", taskId: "background", runId: "run", sequence: 1 };
-    const reply = { type: "assistant.delta", taskId: "background", runId: "run", sequence: 2, messageId: "message", text: "Still running" };
-    agent.emit("message", started);
-    agent.emit("message", reply);
-    const events = runtime.webContents.sent.filter((entry) => entry.channel === "run:event").map((entry) => entry.event);
-    assert.deepEqual(events.slice(-2), [started, reply]);
-    assert.equal(main.window.webContents.sent.some((entry) => entry.channel === "run:event"), false);
-  } finally {
-    main.window.destroyed = false;
-  }
+  agent.emit("message", { type: "run.started", taskId: thread.id, runId: command.runId, sequence: 1 });
+  agent.emit("message", { type: "assistant.delta", taskId: thread.id, runId: command.runId, sequence: 2, messageId: "reply", text: "Done while hidden" });
+  agent.emit("message", { type: "run.status", taskId: thread.id, runId: command.runId, sequence: 3, status: "succeeded" });
+  main.window.destroyed = false;
+  await waitFor(async () => (await main.runtimeState()).threads.find((item) => item.id === thread.id)?.messages.some((message) => message.text === "Done while hidden"), "the reply landing in the transcript");
 });

@@ -1,3 +1,4 @@
+import { CommandGate, CommandButton } from "./CommandControl";
 import type { IconType } from "react-icons";
 import { LuSearch as Search, LuStar as Star, LuGrid2X2 as Grid, LuX as X, LuBrain as Brain, LuCheck as Check, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuFlame as Flame, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuNetwork as Network, LuShieldOff as ShieldOff, LuSignal as Signal, LuSignalHigh as SignalHigh, LuSignalLow as SignalLow, LuSignalMedium as SignalMedium, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
 import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
@@ -15,7 +16,7 @@ const modes: Choice<ExecutionPolicy>[] = [
   { value: "confirm", ...POLICIES.confirm, icon: Hand },
 ];
 
-const modelIcons: Record<AgentModel, IconType> = { fable: Sparkles, opus: Brain, sonnet: Gauge, haiku: Feather, "gpt-6-astra": Brain, "gpt-5.6-sol": Sparkles, "gpt-5.6-terra": Gauge, "gpt-5.6-luna": Moon };
+const modelIcons: Record<AgentModel, IconType> = { fable: Sparkles, opus: Brain, sonnet: Gauge, haiku: Feather, "gpt-6-astra": Brain, "gpt-6-sol": Sparkles, "gpt-5.6-terra": Gauge, "gpt-6-luna": Moon };
 
 /** Bars for the depth ladder, and a mark of its own for the tier that works differently. */
 const effortIcons: Record<AgentEffort, IconType> = {
@@ -218,7 +219,8 @@ function ModelMenu({ onOpen, ...props }: ModelLibraryProps & { onOpen: () => voi
   </SettingMenu>;
 }
 
-export function ComposerSettings({ mode, engine, engineLabel, engineLocked, engineAccess, model, effort, fastMode, onFastModeChange, onModeChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onEngineRead, onSignIn, onOpenEngineSettings }: {
+export function ComposerSettings({ taskId, mode, engine, engineLabel, engineLocked, engineAccess, model, effort, fastMode, onFastModeChange, onModeChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onEngineRead, onSignIn, onOpenEngineSettings }: {
+  taskId?: string;
   mode: ExecutionPolicy;
   engine: AgentEngine;
   engineLabel: string;
@@ -242,10 +244,10 @@ export function ComposerSettings({ mode, engine, engineLabel, engineLocked, engi
 }) {
   return (
     <div className="composer-settings">
-      <ChoiceMenu label="Permission mode" axis="Mode" heading={`How should ${engineLabel} actions be approved?`} choices={modes} value={mode} onChange={onModeChange} />
-      <ModelMenu engine={engine} engineLocked={engineLocked} engineAccess={engineAccess} model={model} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onChange={onModelChange} onOpen={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
-      {effortsOf[model].length > 0 && <ChoiceMenu label="Effort" axis="Effort" heading={`How hard should ${engineLabel} think?`} choices={effortsOf[model]} value={effortForModel(model, effort)} onChange={(choice) => onEffortChange(engine, choice)} />}
-      {capabilitiesFor(engine).fastMode && <button type="button" className="fast-mode-toggle" aria-label="Fast mode" aria-pressed={fastMode} title={`Fast mode ${fastMode ? "on" : "off"} · faster responses use more of your plan`} onClick={() => onFastModeChange(!fastMode)}><Zap size={16} aria-hidden="true" /></button>}
+      <CommandGate command={{ type: "task.set-policy", taskId, policy: mode }}><ChoiceMenu label="Permission mode" axis="Mode" heading={`How should ${engineLabel} actions be approved?`} choices={modes} value={mode} onChange={onModeChange} /></CommandGate>
+      <CommandGate command={{ type: "task.set-model", taskId, engine, model }}><ModelMenu engine={engine} engineLocked={engineLocked} engineAccess={engineAccess} model={model} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onChange={onModelChange} onOpen={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} /></CommandGate>
+      {effortsOf[model].length > 0 && <CommandGate command={{ type: "task.set-effort", taskId, engine, effort }}><ChoiceMenu label="Effort" axis="Effort" heading={`How hard should ${engineLabel} think?`} choices={effortsOf[model]} value={effortForModel(model, effort)} onChange={(choice) => onEffortChange(engine, choice)} /></CommandGate>}
+      {capabilitiesFor(engine).fastMode && <CommandButton command={{ type: "task.set-fast-mode", taskId, fastMode: !fastMode }} type="button" className="fast-mode-toggle" aria-label="Fast mode" aria-pressed={fastMode} title={`Fast mode ${fastMode ? "on" : "off"} · faster responses use more of your plan`} onClick={() => onFastModeChange(!fastMode)}><Zap size={16} aria-hidden="true" /></CommandButton>}
     </div>
   );
 }

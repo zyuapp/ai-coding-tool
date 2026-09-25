@@ -101,8 +101,8 @@ test("a rejected schedule comes back as a tool error the model can correct", asy
 test("bridge calls are correlated back to the caller that made them", async () => {
   const posted: AutomationRequest[] = [];
   const channel = new AutomationChannel((request) => posted.push(request));
-  const first = channel.bridgeFor("task-1").read();
-  const second = channel.bridgeFor("task-2").remove();
+  const first = channel.bridgeFor("task-1", () => "run-1").read();
+  const second = channel.bridgeFor("task-2", () => "run-2").remove();
 
   assert.deepEqual(posted.map((request) => [request.taskId, request.op]), [["task-1", "read"], ["task-2", "delete"]]);
   assert.notEqual(posted[0].requestId, posted[1].requestId);
@@ -121,15 +121,15 @@ test("a failed or undeliverable request rejects instead of hanging the tool call
   const posted: AutomationRequest[] = [];
   const channel = new AutomationChannel((request) => posted.push(request));
 
-  const rejected = channel.bridgeFor("task-1").save({ prompt: "poll", schedule: "bad" });
+  const rejected = channel.bridgeFor("task-1", () => "run-1").save({ prompt: "poll", schedule: "bad" });
   channel.settle({ type: "automation.response", requestId: posted[0].requestId, ok: false, message: "not a valid schedule" });
   await assert.rejects(rejected, /not a valid schedule/);
 
   const undeliverable = new AutomationChannel(() => { throw new Error("port closed"); });
-  await assert.rejects(undeliverable.bridgeFor("task-1").read(), /port closed/);
+  await assert.rejects(undeliverable.bridgeFor("task-1", () => "run-1").read(), /port closed/);
 
   const silent = new AutomationChannel(() => {}, 20);
-  await assert.rejects(silent.bridgeFor("task-1").read(), /did not answer the automation "read" request/);
+  await assert.rejects(silent.bridgeFor("task-1", () => "run-1").read(), /did not answer the automation "read" request/);
 });
 
 function findingToolNamed(bridge: FindingBridge, name: string): TestTool {
@@ -190,4 +190,23 @@ test("a schedule says for itself when it is worth surfacing, and can be made lou
   assert.doesNotMatch(textOf(status), /surfaces when/, "a loud automation says nothing about surfacing");
   const quiet = await toolNamed(fakeBridge({ read: async () => view({ surfaceWhen: "there is an error." }) }), "status").handler({}, {});
   assert.match(textOf(quiet), /surfaces when: there is an error\./);
+});
+
+
+test("a reused provider bridge stamps the active turn identity on every mutation", async () => {
+  const posted: AutomationRequest[] = [];
+  const channel = new AutomationChannel((request) => posted.push(request));
+  let runId = "run-1";
+  const bridge = channel.bridgeFor("task-1", () => runId);
+  const first = bridge.save({ prompt: "poll", schedule: "0 * * * *" });
+  assert.ok("runId" in posted[0]);
+  assert.equal(posted[0].runId, "run-1");
+  channel.settle({ type: "automation.response", requestId: posted[0].requestId, ok: true, result: view() });
+  await first;
+  runId = "run-2";
+  const next = bridge.update({ prompt: "new poll" });
+  assert.ok("runId" in posted[1]);
+  assert.equal(posted[1].runId, "run-2");
+  channel.settle({ type: "automation.response", requestId: posted[1].requestId, ok: true, result: view() });
+  await next;
 });

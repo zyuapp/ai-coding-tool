@@ -1,5 +1,7 @@
 /** A send: the prompt the composer hands over, and the queue behind a run already going. */
-import { CHECKOUT_RUNNING_ERROR, MISSING_PROJECT_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_ELSEWHERE_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_RELEASING_ERROR, clearedDraft, forkableContinuation, queuedFor, resolveWorkspaceEffect, runsInWorkspace, sentPrompt, settled, targetId, withAttendedRun, withPending, withQueued, rejected } from "./shared.js";
+import { CHECKOUT_RUNNING_ERROR, MISSING_PROJECT_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_ELSEWHERE_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
+import { clearedDraft, forkableContinuation, queuedFor, resolveWorkspaceEffect, runsInWorkspace, sentPrompt, sideChatPrompt, withAttendedRun, withPending, withQueued } from "./run-queue.js";
+import { settled, targetId, rejected } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { annotationsFor, filesFor, pastesFor } from "../composer-drafts.js";
 import { threadHandleOptions } from "../thread-projection.js";
@@ -11,6 +13,7 @@ import { findProject } from "../../domain/project.js";
 import { expandThreadHandles } from "../../domain/thread-handles.js";
 import { withoutSnooze } from "../../domain/thread-snooze.js";
 import { updateThread } from "../thread-run-state.js";
+import { coordinationSendOf } from "../coordination.js";
 
 type SendInput = Extract<WorkspaceInput, {
   type: "task.send" | "question.answer" | "question.set-answer" | "task.steer-queued" | "task.drop-queued";
@@ -94,6 +97,8 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
       const projectId = thread?.projectId ?? namedWorktree?.projectId ?? named?.project.id ?? (draftKey === undefined ? null : state.draftProjectId);
       const project = projectId ? state.projects.find((item) => item.id === projectId) : undefined;
       if (projectId && !project) return rejected(state, MISSING_PROJECT_ERROR);
+      /** The composer's own send takes the role the draft was given; a caller's `role` outranks it. */
+      const role = thread ? undefined : input.role ?? (draftKey === undefined ? undefined : state.draftRole ?? undefined);
       const pending: PendingRun = {
         id: crypto.randomUUID(),
         runId: crypto.randomUUID(),
@@ -103,6 +108,8 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
         ...(namedWorktree ? { worktreeId: namedWorktree.id } : {}),
         ...(thread || input.model === undefined ? {} : { model: input.model }),
         ...(thread || input.effort === undefined ? {} : { effort: input.effort }),
+        ...(role ? { role } : {}),
+        ...(thread ? {} : coordinationSendOf(input)),
         ...(draftKey === undefined ? {} : { draftKey }),
         text,
         prompt: sentPrompt(text, pastes, annotations, attachments, files),
@@ -134,7 +141,7 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
       const sent = thread?.snoozedUntil === undefined ? state : updateThread(state, taskId, withoutSnooze);
       return settled(
         withAttendedRun(withQueued(sent, taskId, queued.map((item) => item.id === message.id ? { ...item, steering: true } : item)), taskId),
-        [{ type: "send-run-command", command: { type: "steer", taskId, runId: active.runId, messageId: message.id, prompt: message.prompt } }],
+        [{ type: "send-run-command", command: { type: "steer", taskId, runId: active.runId, messageId: message.id, prompt: sideChatPrompt(state, taskId, message.prompt) } }],
       );
     }
 

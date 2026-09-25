@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import React, { act } from "react";
+import { outbox } from "../support/composer-outbox.mts";
 import type { DesktopAPI } from "../../src/contracts/ipc.ts";
 import { reduce, type WorkspaceInput, type WorkspaceEffect } from "../../src/application/workspace-reducer.ts";
 import { deriveView } from "../../src/application/workspace-state.ts";
@@ -35,7 +36,7 @@ async function asking(surface: "main" | "side") {
       onPromptChange: (prompt) => dispatch({ type: "view.set-prompt", prompt }),
       onQuestionAnswerChange: (question, text) => dispatch({ type: "question.set-answer", taskId: "task-a", ...question, text }),
       onAnswerQuestion: (question) => dispatch({ type: "question.answer", taskId: "task-a", ...question }),
-      onSend: (_attachments, steer) => dispatch({ type: "task.send", steer }),
+      outbox: outbox({ send: (_attachments, steer) => dispatch({ type: "task.send", steer }) }),
       onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSteerQueued() {}, onDropQueued() {}, onCancel() {},
     });
   }

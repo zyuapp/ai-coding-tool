@@ -2,10 +2,13 @@
 import { reduceBrowser } from "./browser.js";
 import { reduceDesktop } from "./desktop.js";
 import { reduceSideChats } from "./side-chats.js";
-import { DIFF_PANEL, TAKE_KEYS, WORKFLOW_PANEL, browserEffectsForTab, focusDockTab, initialRange, readDiff, settled } from "./shared.js";
+import { browserEffectsForTab } from "./browser-tabs.js";
+import { initialRange, readDiff } from "./diff-reads.js";
+import { TAKE_KEYS, focusDockTab } from "./dock-tabs.js";
+import { settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { readAttention } from "../../domain/attention.js";
-import { diffFor, dockOwner, dockTabAfterClosing, dockTabIds, dockTabKind, frontDock, withDock, type WorkspaceState } from "../workspace-state.js";
+import { DIFF_PANEL, WORKFLOW_PANEL, diffFor, dockOwner, dockTabAfterClosing, dockTabIds, dockTabKind, frontDock, withDock, type WorkspaceState } from "../workspace-state.js";
 
 type DockInput = Extract<WorkspaceInput, {
   type: "view.close-tab" | "view.new-tab" | "view.select-dock-index" | "view.set-dock-open" | "view.set-dock-expanded"

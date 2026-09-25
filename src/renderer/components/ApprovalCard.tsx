@@ -8,7 +8,7 @@ export type ApprovalCardProps = {
     toolName: string;
     input: Record<string, unknown>;
   };
-  onDecide: (allow: boolean) => void;
+  onDecide: (approval: Pick<ApprovalCardProps["approval"], "taskId" | "runId" | "approvalId">, allow: boolean) => void;
 };
 
 export function ApprovalCard({ approval, onDecide }: ApprovalCardProps) {
@@ -23,8 +23,8 @@ export function ApprovalCard({ approval, onDecide }: ApprovalCardProps) {
           <pre>{JSON.stringify(approval.input, null, 2)}</pre>
         </details>
         <div className="approval-actions">
-          <button className="secondary" onClick={() => onDecide(false)}>Deny</button>
-          <button onClick={() => onDecide(true)}>Allow once</button>
+          <button className="secondary" onClick={() => onDecide(approval, false)}>Deny</button>
+          <button onClick={() => onDecide(approval, true)}>Allow once</button>
         </div>
       </div>
     </section>

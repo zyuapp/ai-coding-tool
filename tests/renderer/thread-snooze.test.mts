@@ -5,7 +5,7 @@ import { dom, mount, query } from "../support/renderer-dom.mts";
 import { renderProjectSidebar, seedProjectTasks } from "../support/sidebar.mts";
 import { fakeDesktop } from "../support/desktop-api.mts";
 import { task } from "../application/workspace-reducer-fixtures.mts";
-import { createSnoozeTimer } from "../../src/renderer/task-workspace/snooze-timer.ts";
+import { createSnoozeTimer } from "../../src/host/snooze-timer.ts";
 import { App } from "../../src/renderer/App.tsx";
 
 function menuItem(label: string) {

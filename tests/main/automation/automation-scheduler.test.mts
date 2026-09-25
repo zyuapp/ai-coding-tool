@@ -498,3 +498,32 @@ test("a manual run stays busy until its outcome is stored", async (t) => {
   assert.equal(await running, "succeeded");
   assert.equal(scheduler.forThread("task-1")!.runCount, 1);
 });
+
+test("agent scheduling and updates cannot exceed the current run's policy", async (t) => {
+  const scheduler = schedulerFor(t, memoryStore(), async () => "succeeded");
+  await scheduler.start();
+  const policies = ["plan", "confirm", "allow-edits", "autonomous", "bypass"] as const;
+  for (const [ceilingIndex, ceiling] of policies.entries()) {
+    for (const [policyIndex, policy] of policies.entries()) {
+      const draft = { taskId: `task-${ceiling}-${policy}`, prompt: "poll", schedule: HOURLY, policy };
+      if (policyIndex > ceilingIndex) await assert.rejects(scheduler.save(draft, () => ceiling), /stronger permissions/);
+      else assert.equal((await scheduler.save(draft, () => ceiling)).policy, policy);
+    }
+    const inherited = await scheduler.save({ taskId: `inherited-${ceiling}`, prompt: "poll", schedule: HOURLY }, () => ceiling);
+    assert.equal(inherited.policy, ceiling);
+  }
+  await scheduler.save({ taskId: "user-bypass", prompt: "poll", schedule: HOURLY, policy: "bypass", paused: false });
+  assert.equal((await scheduler.update("user-bypass", { paused: true }, () => "confirm")).paused, true);
+  assert.equal(scheduler.forThread("user-bypass")?.policy, "bypass");
+  await assert.rejects(scheduler.update("user-bypass", { paused: false }, () => "confirm"), /stronger permissions/);
+  assert.equal(scheduler.forThread("user-bypass")?.paused, true);
+  assert.equal((await scheduler.update("user-bypass", { paused: false, policy: "plan" }, () => "confirm")).policy, "plan");
+  let active = true;
+  const queued = scheduler.update("user-bypass", { prompt: "changed" }, () => {
+    if (!active) throw new Error("expired run");
+    return "confirm";
+  });
+  active = false;
+  await assert.rejects(queued, /expired run/);
+  assert.equal(scheduler.forThread("user-bypass")?.prompt, "poll");
+});

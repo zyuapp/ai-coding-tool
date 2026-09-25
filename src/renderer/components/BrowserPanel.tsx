@@ -15,7 +15,7 @@ export type BrowserPanelProps = {
   onOpen: (url: string) => void;
   onGo: (delta: -1 | 1) => void;
   onReload: () => void;
-  onDecide: (allow: boolean) => void;
+  onDecide: (approvalId: string, allow: boolean) => void;
 };
 
 export function BrowserPanel({ tab, approval, focusToken = 0, find, onOpen, onGo, onReload, onDecide }: BrowserPanelProps) {
@@ -78,8 +78,8 @@ export function BrowserPanel({ tab, approval, focusToken = 0, find, onOpen, onGo
         <div className="browser-approval" role="alert">
           <ShieldAlert size={16} aria-hidden="true" />
           <p>The agent wants to open <strong>{browserTabTitle({ title: "", url: approval.url })}</strong>. It browses with every login you have here.</p>
-          <button className="primary" type="button" onClick={() => onDecide(true)}>Allow this site</button>
-          <button type="button" onClick={() => onDecide(false)}>Block</button>
+          <button className="primary" type="button" onClick={() => onDecide(approval.approvalId, true)}>Allow this site</button>
+          <button type="button" onClick={() => onDecide(approval.approvalId, false)}>Block</button>
         </div>
       )}
 

@@ -1,5 +1,5 @@
 import { LuAlarmClock as AlarmClock, LuChevronDown as ChevronDown, LuFileDiff as FileDiff, LuGitBranch as GitBranch, LuGitMerge as GitMerge, LuGitPullRequest as GitPullRequest, LuGitPullRequestClosed as GitPullRequestClosed, LuGitPullRequestDraft as GitPullRequestDraft } from "react-icons/lu";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import type { ChangedFilesResult } from "../../contracts/ipc";
 import type { BackgroundProcess, Subagent, SubagentGroup, SubagentGroups } from "../../domain/run";
 import type { PullRequestAnswer, PullRequestRef, PullRequestState } from "../../domain/pull-request";
@@ -15,8 +15,8 @@ export type SessionPanelProps = {
   hasProject: boolean;
   /** The checkout the thread works in, which is the one the branch menu reads and moves. */
   workspaceId?: string;
-  /** Threads sharing a checkout share a workspace, so the pull request is read again per thread too. */
-  threadId?: string;
+  /** The pull request the checkout's work belongs to, drawn only when there is one to draw. */
+  pullRequest: PullRequestAnswer;
   /** Absent until a thread exists; a draft has nowhere to move yet. */
   locationRow?: ReactNode;
   openMenu: string | null;
@@ -108,67 +108,7 @@ const PULL_REQUEST_ICONS: Record<PullRequestState, typeof GitPullRequest> = {
   closed: GitPullRequestClosed,
 };
 
-/**
- * How often an unsettled pull request is asked about again. A merge happens on GitHub and leaves no
- * trace on this machine, so nothing local can announce it and only asking finds out.
- */
-const PULL_REQUEST_POLL_MS = 60_000;
-
-/** States nothing local or remote will move again, past which asking is only cost. A reopen is caught on focus. */
-const SETTLED: readonly PullRequestState[] = ["merged", "closed"];
-
-const NONE: PullRequestAnswer = { status: "none" };
-
 const GITHUB_CLI_URL = "https://cli.github.com";
-
-/**
- * The pull request the checkout's work belongs to, read again whenever the checkout, the branch it is
- * on, or the thread reading it changes, whenever the window comes back, and on a slow poll until it
- * settles. Every way of not having one answers "none", apart from a `gh` that is not installed.
- *
- * Only the panel on screen has a row to draw, so only it asks: the poll lives and dies with the mount
- * rather than in the main process, and a hidden window asks nothing at all.
- */
-function usePullRequest(workspaceId: string | undefined, branch: string | null, threadId: string | undefined) {
-  const [answer, setAnswer] = useState<PullRequestAnswer>(NONE);
-  const asked = useRef(0);
-  const settled = answer.status === "found" && SETTLED.includes(answer.pullRequest.state);
-
-  /** Answers to questions asked before the latest one are dropped, whichever order they arrive in. */
-  const refresh = useCallback(() => {
-    if (!workspaceId) return;
-    const generation = ++asked.current;
-    void window.desktop.pullRequest(workspaceId)
-      .then((found) => { if (generation === asked.current) setAnswer(found); })
-      .catch(() => {});
-  }, [workspaceId]);
-
-  /** Only another checkout or another branch can have a different answer, so only those blank the row. */
-  useEffect(() => {
-    asked.current++;
-    setAnswer(NONE);
-  }, [workspaceId, branch]);
-
-  useEffect(() => {
-    refresh();
-    const back = () => { if (document.visibilityState !== "hidden") refresh(); };
-    window.addEventListener("focus", back);
-    document.addEventListener("visibilitychange", back);
-    return () => {
-      window.removeEventListener("focus", back);
-      document.removeEventListener("visibilitychange", back);
-    };
-  }, [refresh, branch, threadId]);
-
-  /** A hidden window has nothing to show for an answer, and gets one on the way back instead. */
-  useEffect(() => {
-    if (settled) return;
-    const timer = window.setInterval(() => { if (document.visibilityState !== "hidden") refresh(); }, PULL_REQUEST_POLL_MS);
-    return () => window.clearInterval(timer);
-  }, [refresh, branch, threadId, settled]);
-
-  return answer;
-}
 
 /** Drawn only when there is a pull request: a row saying there is none would be worth less than the space. */
 function PullRequestRow({ pullRequest }: { pullRequest: PullRequestRef }) {
@@ -209,12 +149,11 @@ function InstallGitHubCliRow() {
   );
 }
 
-export function SessionPanel({ environment, hasProject, workspaceId, threadId, locationRow, openMenu, subagents, subagentGroups, backgroundProcesses, workflows, automationCount, onSelect, onOpenAgents, onOpenAutomations, onOpenWorkflow, onSetOpenMenu, onSetSubagentGroup, onCheckoutBranch, onStopProcess, onToggleChanges }: SessionPanelProps) {
+export function SessionPanel({ environment, hasProject, workspaceId, pullRequest, locationRow, openMenu, subagents, subagentGroups, backgroundProcesses, workflows, automationCount, onSelect, onOpenAgents, onOpenAutomations, onOpenWorkflow, onSetOpenMenu, onSetSubagentGroup, onCheckoutBranch, onStopProcess, onToggleChanges }: SessionPanelProps) {
   const available = environment?.status === "available" ? environment : null;
   const message = environmentMessage(environment, hasProject, workspaceId);
   const working = subagents.filter((subagent) => subagent.status === "working").length;
   const shown = orderSubagents(subagents).slice(0, SIDEBAR_LIMIT);
-  const pullRequest = usePullRequest(workspaceId, available?.branch ?? null, threadId);
 
   return (
     <aside className="session-panel" aria-label="Session panel">

@@ -1,15 +1,32 @@
-import type { ComponentProps } from "react";
+import { memo, type CSSProperties } from "react";
 import { LuMessageSquarePlus as MessageSquarePlus } from "react-icons/lu";
 import type { DiffFileSummary, DiffLineKind, DiffRow, DiffSide } from "../../domain/diff";
 import type { DiffComment, DiffCommentIndex, DrawnFile, PanelRow } from "../diff/panel-rows";
 import type { ThemedToken } from "../diff/highlight";
 import { FileHeader } from "./DiffFileRow";
-import { DiffCommentEditor } from "./DiffCommentEditor";
+
+/** One style per token, so a row drawn again hands React back the colour it already set. */
+const tokenStyles = new WeakMap<ThemedToken, CSSProperties>();
+
+function tokenStyle(token: ThemedToken): CSSProperties {
+  const held = tokenStyles.get(token);
+  if (held) return held;
+  const style: CSSProperties = { color: token.color };
+  tokenStyles.set(token, style);
+  return style;
+}
 
 /** What a row's text becomes once a grammar has read the block it came from. */
 function RowText({ text, tokens }: { text: string; tokens: ThemedToken[] | undefined }) {
   if (!tokens) return <>{text || " "}</>;
-  return <>{tokens.map((token, index) => <span key={index} style={{ color: token.color }}>{token.content}</span>)}</>;
+  return <>{tokens.map((token, index) => <span key={index} style={tokenStyle(token)}>{token.content}</span>)}</>;
+}
+
+/** The run the review has picked, as the file it is in and the rows it reaches. */
+export type SelectedRange = { path: string; from: number; to: number };
+
+function inSelection(selected: SelectedRange | null, path: string, index: number | undefined) {
+  return selected !== null && index !== undefined && selected.path === path && index >= selected.from && index <= selected.to;
 }
 
 /**
@@ -120,13 +137,13 @@ type SplitPairRowProps = {
   tokens: Map<string, ThemedToken[]>;
   indexByKey: Map<string, number> | undefined;
   comments: DiffCommentIndex;
-  isSelected: (path: string, index: number | undefined) => boolean;
+  selected: SelectedRange | null;
   onSelect: (key: string, extend: boolean) => void;
   onEditComment: (comment: DiffComment) => void;
 };
 
 /** One line of the two-column view: the old side beside the new, either of which can be missing. */
-function SplitPairRow({ path, left, right, tokens, indexByKey, comments, isSelected, onSelect, onEditComment }: SplitPairRowProps) {
+function SplitPairRow({ path, left, right, tokens, indexByKey, comments, selected, onSelect, onEditComment }: SplitPairRowProps) {
   const indexOf = (side: DiffRow | null) => side ? indexByKey?.get(side.key) : undefined;
   const commentsFor = (index: number | undefined, side: DiffSide) => index === undefined
     ? []
@@ -141,7 +158,7 @@ function SplitPairRow({ path, left, right, tokens, indexByKey, comments, isSelec
         row={left}
         tokens={tokens}
         side="old"
-        selected={isSelected(path, leftIndex)}
+        selected={inSelection(selected, path, leftIndex)}
         commented={commented(leftIndex)}
         comments={commentsFor(leftIndex, "old")}
         onSelect={(extend) => left && onSelect(left.key, extend)}
@@ -152,7 +169,7 @@ function SplitPairRow({ path, left, right, tokens, indexByKey, comments, isSelec
         row={right}
         tokens={tokens}
         side="new"
-        selected={isSelected(path, rightIndex)}
+        selected={inSelection(selected, path, rightIndex)}
         commented={commented(rightIndex)}
         comments={commentsFor(rightIndex, "new")}
         onSelect={(extend) => right && onSelect(right.key, extend)}
@@ -183,14 +200,13 @@ export function PinnedFileRow({ file, open, viewed, onToggle, onOpenFile, onSetV
 }
 
 export type PanelRowViewProps = {
-  row: PanelRow;
+  /** The composer row is the panel's own to draw: it changes with every keystroke, and no row does. */
+  row: Exclude<PanelRow, { kind: "composer" }>;
   collapsed: Set<string>;
   viewed: Record<string, string>;
   drawn: Map<string, DrawnFile>;
   comments: DiffCommentIndex;
-  /** The note being written, wherever in the review the run it is about was drawn. */
-  composer: ComponentProps<typeof DiffCommentEditor>;
-  isSelected: (path: string, index: number | undefined) => boolean;
+  selected: SelectedRange | null;
   onSelect: (path: string, key: string, extend: boolean) => void;
   onEditComment: (comment: DiffComment) => void;
   onSetCollapsed: (path: string, collapsed: boolean) => void;
@@ -200,15 +216,17 @@ export type PanelRowViewProps = {
 
 const EMPTY_TOKENS = new Map<string, ThemedToken[]>();
 
-/** One panel row, drawn the same whether the review is windowed or laid out whole. */
-export function PanelRowView({
+/**
+ * One panel row, drawn the same whether the review is windowed or laid out whole. Memoized, because
+ * the panel is redrawn by anything the window does and a review holds hundreds of rows of spans.
+ */
+export const PanelRowView = memo(function PanelRowView({
   row,
   collapsed,
   viewed,
   drawn,
   comments,
-  composer,
-  isSelected,
+  selected,
   onSelect,
   onEditComment,
   onSetCollapsed,
@@ -228,7 +246,6 @@ export function PanelRowView({
     );
   }
   if (row.kind === "note") return <p className="diff-note">{row.text}</p>;
-  if (row.kind === "composer") return <DiffCommentEditor {...composer} />;
   const tokens = drawn.get(row.path)?.colours.tokens ?? EMPTY_TOKENS;
   if (row.kind === "line") {
     const key = `${row.path}\n${row.index}`;
@@ -237,7 +254,7 @@ export function PanelRowView({
         path={row.path}
         row={row.row}
         tokens={tokens}
-        selected={isSelected(row.path, row.index)}
+        selected={inSelection(selected, row.path, row.index)}
         commented={comments.highlighted.has(key)}
         comments={comments.markers.get(key) ?? []}
         onSelect={(extend) => onSelect(row.path, row.row.key, extend)}
@@ -254,9 +271,9 @@ export function PanelRowView({
       tokens={tokens}
       indexByKey={drawn.get(row.path)?.indexByKey}
       comments={comments}
-      isSelected={isSelected}
+      selected={selected}
       onSelect={(key, extend) => onSelect(row.path, key, extend)}
       onEditComment={onEditComment}
     />
   );
-}
+});

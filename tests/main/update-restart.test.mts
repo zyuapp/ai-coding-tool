@@ -33,8 +33,7 @@ for (const platform of ["darwin", "linux"] as const) {
       await waitFor(() => main.mobileHost.starts.length === 2);
       assert.equal(main.windows.length, 1);
       assert.notEqual(main.windows[0], main.window);
-      assert.equal(main.mobileHost.starts[1].send({ type: "mobile.request", requestId: "reopened", sessionId: "phone", op: "snapshot" }), true);
-      assert.equal(main.runtimeViews[0].webContents.sent.at(-1)?.channel, "mobile:request");
+      assert.equal(main.mobileHost.starts[1].send({ type: "mobile.request", requestId: "reopened", sessionId: "phone", op: "snapshot" }), true, "the runtime still answers the phone after the window came back");
     }
   });
 
@@ -84,6 +83,7 @@ for (const platform of ["darwin", "linux"] as const) {
     assert.equal(main.completedQuits(), 0);
 
     registered<() => void>(main.appListeners, "activate")();
+    await waitFor(() => typeof finishStop === "function", "shutdown reaching computer use");
     finishStop();
     await waitFor(() => main.completedQuits() === 1);
     await waitFor(() => main.mobileHost.stops() > 0);
@@ -113,9 +113,10 @@ test("reopening a window waits for phone shutdown before starting phone access a
   await tick();
   assert.equal(main.mobileHost.starts.length, 1);
   assert.equal(main.mobileHost.starts[0].send({ type: "mobile.request", requestId: "old-window", sessionId: "phone", op: "snapshot" }), false);
-  const getState = registered<(event: IpcEvent) => Promise<unknown>>(main.handlers, "mobile:state");
+  /** A bridge read waits behind the stop, so settings never read a host that is halfway down. */
+  const request = registered<(event: IpcEvent, input: unknown) => Promise<unknown>>(main.handlers, "workspace-runtime:request");
   let stateReady = false;
-  const state = getState({ sender: main.windows[0].webContents }).then(() => { stateReady = true; });
+  const state = request({ sender: main.windows[0].webContents }, { type: "remote.refresh" }).then(() => { stateReady = true; });
   await tick();
   assert.equal(stateReady, false);
 

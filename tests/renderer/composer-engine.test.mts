@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import React, { act } from "react";
+import { outbox } from "../support/composer-outbox.mts";
 import { deriveView, emptyWorkspaceState } from "../../src/application/workspace-state.ts";
 import type { WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import type { DesktopAPI } from "../../src/contracts/ipc.ts";
@@ -31,7 +32,7 @@ test("a thread that has an engine offers only its models, and says a new thread 
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
     engine: "codex", engineLabel: "Codex", engineLocked: true, model: "gpt-5.6-terra", effort: "high", runActive: false,
     onPromptChange() {}, onModeChange() {}, onModelChange: (engine, model) => chosen.push([engine, model]), onEffortChange() {}, fastMode: false, onFastModeChange() {},
-    queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
+    queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {},
   }));
   await act(async () => {});
 
@@ -62,7 +63,7 @@ test("an engine that is signed out is greyed and inert, and its one sign-in butt
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
     engine: "claude", engineLabel: "Claude", engineLocked: false, engineAccess: { claude: { access: "ready" }, codex: { access: "signed-out" } }, model: "opus", effort: "high", runActive: false,
     onPromptChange() {}, onModeChange() {}, onModelChange: (_engine, model) => chosen.push(model), onEffortChange() {}, fastMode: false, onFastModeChange() {}, onEngineRead: () => { reads += 1; }, onSignIn: (engine) => signIns.push(engine),
-    queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
+    queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {},
   }));
   await act(async () => {});
 
@@ -83,7 +84,7 @@ test("an engine that is signed out is greyed and inert, and its one sign-in butt
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
     engine: "claude", engineLabel: "Claude", engineLocked: false, engineAccess: { claude: { access: "ready" }, codex: { access: "missing", fix: "brew install --cask codex" } }, model: "opus", effort: "high", runActive: false,
     onPromptChange() {}, onModeChange() {}, onModelChange: (_engine, model) => chosen.push(model), onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSignIn: (engine) => signIns.push(engine),
-    queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
+    queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {},
   }));
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   const missing = query(modelMenu, "[role=group][aria-label=Codex]");
@@ -102,7 +103,7 @@ test("an engine too old to speak to is inert, and its hint names both versions a
     engine: "claude", engineLabel: "Claude", engineLocked: false, model: "opus", effort: "high", runActive: false,
     engineAccess: { claude: { access: "ready" }, codex: { access: "outdated", version: "0.147.0", required: "0.150.1", fix: "brew update && brew upgrade --cask codex" } },
     onPromptChange() {}, onModeChange() {}, onModelChange: (_engine, model) => chosen.push(model), onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSignIn() {},
-    queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
+    queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {},
   }));
   await act(async () => {});
 
@@ -123,7 +124,7 @@ test("a Claude behind the app offers only the models it knows, and says an upgra
     engine: "claude", engineLabel: "Claude", engineLocked: false, model: "opus", effort: "high", runActive: false,
     engineAccess: { claude: { access: "ready", version: "2.1.100", required: "2.1.250", fix: "claude update", models: ["opus", "sonnet"] }, codex: { access: "ready" } },
     onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSignIn() {},
-    queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
+    queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {},
   }));
   await act(async () => {});
 
@@ -145,7 +146,7 @@ test("the hint about a broken engine opens the Engines page, which is where it i
     engineAccess: { claude: { access: "ready" }, codex: { access: "missing", fix: "brew install --cask codex" } },
     onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSignIn() {},
     onOpenEngineSettings: () => { opened += 1; },
-    queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
+    queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {},
   }));
   await act(async () => {});
 
@@ -164,7 +165,7 @@ test("a thread that has its engine asks nothing when its model menu opens", asyn
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
     engine: "claude", engineLabel: "Claude", engineLocked: true, model: "opus", effort: "high", runActive: false,
     onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onEngineRead: () => { reads += 1; },
-    queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
+    queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {},
   }));
   await act(async () => {});
   const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[1]);
@@ -189,7 +190,7 @@ test("an idle Sol thread offers compact as an app slash command", async () => {
       actions: [],
     });
   };
-  const view = await mount(render("gpt-5.6-sol"));
+  const view = await mount(render("gpt-6-sol"));
   const textarea = query<HTMLTextAreaElement>(view.container, "textarea");
   await act(async () => {
     textarea.focus();
@@ -301,7 +302,7 @@ test("the review picker reads branches from the thread's worktree", async () => 
 test("clearing a goal targets its existing thread", async () => {
   window.desktop = composerDesktop();
   const currentThread: Thread = {
-    id: "task-goal", title: "Goal", engine: "codex", model: "gpt-5.6-sol", executionPolicy: "confirm",
+    id: "task-goal", title: "Goal", engine: "codex", model: "gpt-6-sol", executionPolicy: "confirm",
     messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
   };
   const derived = deriveView({
@@ -328,7 +329,7 @@ test("the effort menu offers what the model takes, and is gone for a model that 
   const composer = (engine: "claude" | "codex", model: AgentModel) => React.createElement(ConversationComposer, {
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm", engine, engineLabel: "Claude", model, effort: "high",
     runActive: false, queuedMessages: [],
-    onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
+    onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSteerQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {},
   });
   const efforts = async (engine: "claude" | "codex", model: AgentModel) => {
     const view = await mount(composer(engine, model));
@@ -344,7 +345,7 @@ test("the effort menu offers what the model takes, and is gone for a model that 
   };
 
   assert.equal((await efforts("codex", "gpt-6-astra"))?.[0], "Ultra");
-  const luna = await efforts("codex", "gpt-5.6-luna");
+  const luna = await efforts("codex", "gpt-6-luna");
   assert.ok(luna && luna.length > 1);
   assert.equal(luna[0], "Max");
   assert.equal(luna.at(-1), "Low");

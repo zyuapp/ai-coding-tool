@@ -219,24 +219,25 @@ test("a comment can be taken from either column of the two-column view", async (
   await view.unmount();
 });
 
-test("the two sides are picked apart, and remote branches are offered to compare against", async () => {
+test("Branch is the default, with current work before the editable target branch", async () => {
   seedReviewableProject();
   window.desktop = reviewableDesktop();
   const view = await mount(React.createElement(App));
   await openReview(view);
 
-  const sides = () => [...view.container.querySelectorAll(".diff-side-trigger code")].map((code) => code.textContent);
-  assert.deepEqual(sides(), ["HEAD", "Working tree"], "uncommitted work reads as HEAD against disk");
+  assert.ok(view.container.querySelector('button[aria-label="Review mode: Branch"]'));
+  const sides = () => [...view.container.querySelectorAll(".diff-side-trigger > span")].map((code) => code.textContent);
+  assert.deepEqual(sides(), ["main", "HEAD"], "current work appears before the target, even without a remote baseline");
 
   /** The trigger names the side and what it is set to, so a screen reader hears the comparison. */
-  assert.equal(query<HTMLButtonElement>(view.container, '.diff-side button').getAttribute("aria-label"), "Base: HEAD");
-  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label^="Base"]').click(); });
+  assert.equal(query<HTMLButtonElement>(view.container, '.diff-side button').getAttribute("aria-label"), "Compare: Working tree on main");
+  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label^="Target branch"]').click(); });
   const options = [...document.querySelectorAll('.branch-menu [role="option"]')].map((option) => option.textContent);
   assert.equal(options[0], "HEAD", "the side that is not a branch comes first, inside the list");
   assert.ok(options.includes("origin/main"), "a remote branch can be a base");
 
   await act(async () => { item([...document.querySelectorAll<HTMLElement>('.branch-menu [role="option"]')].find((option) => option.textContent === "origin/main")).click(); });
-  assert.deepEqual(sides(), ["origin/main", "Working tree"]);
+  assert.deepEqual(sides(), ["main", "origin/main"]);
   await view.unmount();
 });
 
@@ -274,4 +275,33 @@ test("a review hides the lines that only moved, and showing them reads the compa
   assert.deepEqual(names(), ["src/app.ts", "src/spaced.ts"]);
   assert.ok(view.container.querySelector('button[aria-label="Hide whitespace changes"]'), "the button offers the way back");
   await view.unmount();
+});
+
+/** The mode menu is a portal, like the branch picker it replaces. */
+async function chooseMode(view: MountView, label: string) {
+  await act(async () => { query<HTMLButtonElement>(view.container, '.diff-mode-trigger').click(); });
+  const option = item([...document.querySelectorAll<HTMLButtonElement>('.diff-mode-menu button')].find((button) => button.textContent === label));
+  await act(async () => { option.click(); });
+}
+
+test("the review switches to uncommitted changes and returns to its branch target", async () => {
+  seedReviewableProject();
+  const ranges: unknown[] = [];
+  const desktop = reviewableDesktop();
+  window.desktop = fakeDesktop({
+    diffSummary: async (workspaceId, range, whitespace) => { ranges.push(range); return desktop.diffSummary(workspaceId, range, whitespace); },
+    diffPatch: desktop.diffPatch,
+  });
+  const view = await mount(React.createElement(App));
+  try {
+    await openReview(view);
+    await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label^="Target branch"]').click(); });
+    await act(async () => { item([...document.querySelectorAll<HTMLElement>('.branch-menu [role="option"]')].find((option) => option.textContent === "origin/main")).click(); });
+    await chooseMode(view, "Uncommitted");
+    assert.deepEqual(ranges.at(-1), { kind: "uncommitted" });
+    assert.ok(view.container.querySelector('button[aria-label="Review mode: Uncommitted"]'));
+    await chooseMode(view, "Branch");
+    assert.deepEqual(ranges.at(-1), { kind: "branches", base: "origin/main", compare: null });
+    assert.deepEqual([...view.container.querySelectorAll('.diff-side-trigger > span')].map((span) => span.textContent), ["main", "origin/main"]);
+  } finally { await view.unmount(); }
 });

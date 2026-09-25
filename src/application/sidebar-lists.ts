@@ -1,9 +1,23 @@
 import { orderProjects } from "./project-order.js";
-import { activitySections, orderThreads, slotThreadIds } from "./thread-order.js";
+import { orderThreads, slotThreadIds } from "./thread-order.js";
+import { coordinationSections } from "./coordination.js";
+import { coordinatedThreadIds } from "../domain/coordination.js";
 import { SLOT_COUNT } from "../domain/shortcuts.js";
 import type { Project } from "../domain/project.js";
 import type { SidebarMode, SidebarSections } from "../domain/sidebar.js";
 import { threadActivityAt, type Thread } from "../domain/thread.js";
+import type { ThreadHost } from "./computers.js";
+
+/** Each computer owns its project order. Keep this computer first and paired computers together. */
+function orderSidebarProjects(projects: Project[], hosts?: ReadonlyMap<string, ThreadHost>): Project[] {
+  if (!hosts?.size) return orderProjects(projects);
+  const groups = new Map<string | undefined, Project[]>([[undefined, []]]);
+  for (const project of projects) {
+    const computer = hosts.get(project.id)?.id;
+    groups.get(computer)?.push(project) ?? groups.set(computer, [project]);
+  }
+  return [...groups.values()].flatMap(orderProjects);
+}
 
 /** What the sidebar draws with: the shape it is in, and which of its lists are folded open. */
 export type SidebarPreferences = {
@@ -19,20 +33,27 @@ export function sidebarLists(
   visibleThreads: Thread[],
   busy: Set<string>,
   blocked: Set<string>,
+  projectHosts?: ReadonlyMap<string, ThreadHost>,
 ) {
   const orderedThreads = orderThreads(visibleThreads);
+  /** A thread working under a coordinator is drawn under that coordinator's row, in no list of its own. */
+  const members = coordinatedThreadIds(visibleThreads);
+  const threadsByCoordinator = new Map<string, Thread[]>();
   const threadsByProject = new Map<string, Thread[]>();
-  for (const thread of orderedThreads) if (thread.projectId)
-    threadsByProject.get(thread.projectId)?.push(thread) ?? threadsByProject.set(thread.projectId, [thread]);
-  const ordered = orderProjects(projects);
+  for (const thread of orderedThreads) {
+    if (members.has(thread.id)) threadsByCoordinator.get(thread.parentId!)?.push(thread) ?? threadsByCoordinator.set(thread.parentId!, [thread]);
+    else if (thread.projectId) threadsByProject.get(thread.projectId)?.push(thread) ?? threadsByProject.set(thread.projectId, [thread]);
+  }
+  const ordered = orderSidebarProjects(projects, projectHosts);
   /** The same threads ranked by what wants the user, which is the sidebar's other shape. */
-  const activityThreads = activitySections(visibleThreads, busy, blocked);
+  const activityThreads = coordinationSections(visibleThreads, busy, blocked);
   /** Ranked and stamped by when each chat last did something, so a tick that surfaced nothing moves none of them. */
-  const recentThreads = visibleThreads.filter((thread) => !thread.projectId).sort((a, b) => threadActivityAt(b) - threadActivityAt(a));
+  const recentThreads = visibleThreads.filter((thread) => !thread.projectId && !members.has(thread.id)).sort((a, b) => threadActivityAt(b) - threadActivityAt(a));
   return {
     projects: ordered,
     orderedThreads,
     threadsByProject,
+    threadsByCoordinator,
     activityThreads,
     recentThreads,
     /** The threads ⌘1 through ⌘9 reach, in the order they are drawn. */

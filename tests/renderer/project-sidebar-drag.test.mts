@@ -6,10 +6,38 @@ import React, { act } from "react";
 
 import type { Thread } from "../../src/domain/thread.ts";
 
-import { dom, item, mount, query } from "../support/renderer-dom.mts";
+import { dom, item, mount, place, query } from "../support/renderer-dom.mts";
 
 const { App } = await import("../../src/renderer/App.tsx");
 const { ProjectSidebar } = await import("../../src/renderer/components/ProjectSidebar.tsx");
+
+test("project drags reorder within their computer using that computer's indices", async () => {
+  const moves: Array<[string, number]> = [];
+  const remote = { id: "linux", name: "Linux", offline: false };
+  const ids = ["local-a", "local-b", "remote-a", "remote-b"];
+  const view = await mount(renderProjectSidebar({
+    projects: ids.map((id) => ({ id, root: `/${id}` })),
+    projectHosts: new Map([["remote-a", remote], ["remote-b", remote]]),
+    onMoveProject: (id, index) => { moves.push([id, index]); },
+  }));
+  try {
+    place('[data-rfd-droppable-id="projects:this"]', { x: 0, y: 0, width: 300, height: 80 });
+    place('[data-rfd-droppable-id="projects:linux"]', { x: 0, y: 100, width: 300, height: 80 });
+    ids.forEach((id, index) => place(`[data-rfd-draggable-id="${id}"]`, { x: 0, y: Math.floor(index / 2) * 100 + index % 2 * 40, width: 300, height: 40 }));
+    const key = async (handle: HTMLElement, key: string, keyCode: number) => {
+      await act(async () => { handle.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key, keyCode, bubbles: true, cancelable: true })); });
+    };
+    const handle = query<HTMLElement>(view.container, '[data-rfd-drag-handle-draggable-id="remote-b"]');
+    handle.focus();
+    await key(handle, " ", 32);
+    await key(handle, "ArrowUp", 38);
+    await key(handle, "ArrowUp", 38);
+    await key(handle, " ", 32);
+    assert.deepEqual(moves, [["remote-b", 0]], "the remote project stops at the top of its own computer");
+  } finally {
+    await view.unmount();
+  }
+});
 
 test("a sidebar row renames itself on a double click, and on the menu's Rename", async () => {
   seedProjectTasks([{ id: "only", title: "First task", sortIndex: 0, updatedAt: 1 }]);
@@ -32,7 +60,7 @@ test("a sidebar row renames itself on a double click, and on the menu's Rename",
   assert.equal(row().textContent.includes("Nightly audit"), true);
 
   await act(async () => { row().dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true })); });
-  assert.deepEqual([...document.querySelectorAll(".context-menu-popover > button")].map((button) => button.textContent), ["Rename", "Copy link", "Fork", "Fork into a new worktree", "Archive"]);
+  assert.deepEqual([...document.querySelectorAll(".context-menu-popover > button")].map((button) => button.textContent), ["Rename", "Role", "Copy link", "Fork", "Fork into a new worktree", "Archive"]);
   await act(async () => { query<HTMLButtonElement>(document, ".context-menu-popover button").click(); });
   await type("Abandoned edit", "Escape");
   assert.equal(view.container.querySelector(".task-rename"), null);

@@ -40,6 +40,7 @@ export class TaskDatabaseService {
   load() { return this.request("load", {}); }
   loadSummaries() { return this.request("load", { summariesOnly: true }); }
   loadThreadMessages(taskId: string) { return this.request("messages", { taskId }); }
+  attachmentPaths() { return this.request("attachments", undefined); }
   subagentActivity(taskId: string, subagentId: string) { return this.request("activity", { taskId, subagentId }); }
   persist(delta: TaskStoreDelta) { return this.request("persist", delta); }
   listAutomations() { return this.request("automations", undefined); }

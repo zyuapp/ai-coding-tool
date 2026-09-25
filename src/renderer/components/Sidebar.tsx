@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { ProjectSidebar } from "./ProjectSidebar";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 
@@ -12,6 +12,9 @@ export function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
   const renameProject = useCallback((projectId: string, name: string) => {
     void workspace.actions.editProject(projectId, { name });
   }, [workspace.actions]);
+
+  const { threadsByCoordinator, closedCoordinators, coordinators, actions } = workspace;
+  const sidebarCoordination = useMemo(() => ({ threadsByCoordinator, closedCoordinators, coordinators, onSetCoordinator: actions.setCoordinator, onSetCoordinationOpen: actions.setCoordinationOpen }), [threadsByCoordinator, closedCoordinators, coordinators, actions]);
 
   return (
     <ProjectSidebar
@@ -30,6 +33,12 @@ export function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
       worktreeThreadIds={workspace.worktreeThreadIds}
       worktreeGroups={workspace.worktreeGroups}
       activityThreads={workspace.activityThreads}
+      threadHosts={workspace.threadHosts}
+      projectHosts={workspace.projectHosts}
+      computerLinks={workspace.computerLinks}
+      computerName={workspace.computerName}
+      computerFilter={workspace.computerFilter}
+      onSetComputerFilter={workspace.actions.setComputerFilter}
       mode={workspace.sidebarMode}
       sections={workspace.sections}
       openMenu={workspace.openMenu}
@@ -56,6 +65,8 @@ export function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
       onRenameThread={workspace.actions.renameThread}
       onMoveThread={workspace.actions.moveThread}
       onForkThread={workspace.actions.forkThread}
+      onSetThreadRole={workspace.actions.setThreadRole}
+      sidebarCoordination={sidebarCoordination}
       onOpenSettings={onOpenSettings}
     />
   );

@@ -18,14 +18,21 @@ function status(thread: Thread, busy: Set<string>, blocked: Set<string>) {
   return "Idle";
 }
 
-/** Local has no thread list. Worktree membership is independent of Priority and dismissal. */
-export function worktreeMenuView(state: WorkspaceState, current: Thread | undefined, visible: Thread[], busy: Set<string>, blocked: Set<string>) {
+/** The menu as the window holds it: whether it is open, and what is typed into its lists. */
+export type WorktreeMenuState = Pick<WorkspaceState, "openMenu" | "worktreeMenuSearch">;
+
+/**
+ * Local has no thread list. Worktree membership is independent of Priority and dismissal. The menu
+ * is `window`'s, which is the state on screen unless the thread is a paired computer's: its lists
+ * are that computer's, filled when this window opens the menu and narrowed by what is typed here.
+ */
+export function worktreeMenuView(state: WorkspaceState, current: Thread | undefined, visible: Thread[], busy: Set<string>, blocked: Set<string>, window: WorktreeMenuState = state) {
   const project = projectFor(state, current);
   if (!current || !project) return null;
   const worktree = worktreeFor(state, current);
   const members = worktree ? visible.filter((thread) => thread.worktreeId === worktree.id) : [];
-  const search = state.worktreeMenuSearch;
-  const open = state.openMenu === WORKTREE_MENU;
+  const search = window.worktreeMenuSearch;
+  const open = window.openMenu === WORKTREE_MENU;
   const threadQuery = search.threads.trim().toLocaleLowerCase();
   const threads: WorktreeMenuChoice[] = [];
   if (open) {

@@ -1,15 +1,20 @@
 import type { ProjectEvent, RegisterProjectEffect } from "../project-commands.js";
 import type { RemoteEffect, RemoteEvent } from "../remote-commands.js";
+import type { ComputerEffect, ComputerEvent } from "../computer-commands.js";
 import type { EngineEffect, EngineEvent } from "../engine-access.js";
 import type { DesktopShortcutUnavailable, WorkspaceState } from "../workspace-state.js";
 import type { AppCommand } from "../../contracts/commands.js";
+import type { InstalledApp } from "../../contracts/ipc.js";
+import type { CliStatus } from "../../domain/cli.js";
+import type { ComputerUsePermission, ComputerUsePermissions } from "../../domain/computer-use.js";
+import type { PlanUsage } from "../../domain/plan-usage.js";
 import type { AgentEvent, AnswerQuestionCommand, ApprovalDecisionCommand, AutomationAck, AutomationFire, BrowserPageEvent, CancelRunCommand, ChangedFilesResult, CreatedWorktree, DiffSummaryResult, LabelThreadCommand, RunEvent, StartRunCommand, SteerRunCommand, StopProcessCommand, ThreadEvent, ThreadNotice, WorktreeSnapshotResult } from "../../contracts/ipc.js";
 import type { ViewPreferences } from "../../contracts/preferences.js";
 import type { AgentEngine } from "../../domain/agent-engine.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
-import type { BrowserAction } from "../../domain/browser.js";
+import type { BrowserAction, BrowserPermissions } from "../../domain/browser.js";
 import type { CaptureOptions } from "../../domain/capture.js";
-import type { ConversationMessage } from "../../domain/conversation.js";
+import type { ConversationMessage, OutgoingAttachment, RunAttachment } from "../../domain/conversation.js";
 import type { DiffRange } from "../../domain/diff.js";
 import type { FindResults, FindTarget } from "../../domain/find.js";
 import type { SubagentActivity } from "../../domain/run.js";
@@ -17,7 +22,9 @@ import type { ShortcutOverrides } from "../../domain/shortcuts.js";
 import type { ThreadStoreData } from "../../domain/thread-storage.js";
 import type { TerminalUpdate } from "../../domain/terminal.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
+import type { PullRequestAnswer } from "../../domain/pull-request.js";
 import type { ManagedWorktree } from "../../domain/worktree.js";
+import type { CoordinationState, DecisionRequest } from "../../domain/coordination.js";
 
 /** Things that happened: replies to effects, and pushes from the main process. */
 export type WorkspaceEvent =
@@ -31,6 +38,7 @@ export type WorkspaceEvent =
   | { type: "preferences.loaded"; preferences: ViewPreferences }
   | { type: "store.failed"; message: string }
   | { type: "action.failed"; message: string }
+  | import("../project-add.js").ProjectAddEvent
   | ProjectEvent
   | { type: "run.event"; event: RunEvent }
   /** Work that reports to its thread rather than to a run, which may be long over by then. */
@@ -45,6 +53,10 @@ export type WorkspaceEvent =
   | { type: "automation.fired"; fire: AutomationFire }
   | { type: "automations.changed"; automations: AutomationView[] }
   | { type: "title.suggested"; taskId: string; title: string }
+  /** A thread under a coordinator saying where its work stands. */
+  | { type: "coordination.reported"; taskId: string; state: CoordinationState; summary: string }
+  /** A thread putting a choice to the user that only they can make. */
+  | { type: "coordination.decision-raised"; taskId: string; request: DecisionRequest }
   | { type: "worktree.created"; taskId: string; worktree: CreatedWorktree; move?: boolean; projectId?: string }
   | { type: "worktree.failed"; taskId: string; message: string }
   | { type: "worktrees.loaded"; worktrees: ManagedWorktree[] }
@@ -53,6 +65,8 @@ export type WorkspaceEvent =
   | { type: "worktree.release-failed"; taskId: string; message: string }
   | { type: "worktree.deleted"; worktreeId: string; root: string; snapshot: WorktreeSnapshotResult; missingOnly?: boolean }
   | { type: "environment.updated"; workspaceId: string; taskId?: string; runId?: string; result: ChangedFilesResult }
+  /** What GitHub says about a checkout, named by the ask it answers so an overtaken one is dropped. */
+  | { type: "pull-request.answered"; workspaceId: string; branch: string | null; read: number; answer: PullRequestAnswer }
   /** A comparison's file list, named by the dock that asked so a slow read cannot land in another. */
   | { type: "diff.loaded"; owner: string; workspaceId: string; range: DiffRange; result: DiffSummaryResult }
   /** What a page in the browser panel did. Main watches the page; the reducer keeps the record. */
@@ -60,6 +74,19 @@ export type WorkspaceEvent =
   /** What a shell did. Its output is not here: that goes straight to the view and never becomes state. */
   | { type: "terminal.updated"; update: TerminalUpdate }
   | { type: "subagent.activity.loaded"; taskId: string; subagentId: string; activity: SubagentActivity[] }
+  /** The composer's images, now on disk, and the ids of the ones the strip can let go of. */
+  | { type: "attachments.saved"; taskId?: string; steer?: boolean; ids: string[]; attachments: RunAttachment[] }
+  | { type: "attachments.failed"; taskId?: string; message: string }
+  /** The applications this machine has, as the main process last found them. */
+  | { type: "apps.listed"; apps: InstalledApp[] }
+  /** What the platform lets the app see and operate, and whether an enable was waiting on it. */
+  | { type: "computer-use.permissions"; permissions: ComputerUsePermissions; enabling?: true }
+  | { type: "computer-use.failed"; message: string; enabling?: true }
+  /** What one provider says about its plan, named by the read it answers. */
+  | { type: "usage.reported"; engine: AgentEngine; read: number; usage: PlanUsage }
+  /** Where the terminal command stands after a read, an install or a removal, or why none could happen. */
+  | { type: "cli.read-status"; status: CliStatus }
+  | { type: "cli.failed"; message: string }
   /** The keystroke settings were waiting for, or null when the user pressed Escape instead. */
   | { type: "shortcut.captured"; binding: string | null }
   /** An expected platform limitation for a desktop-wide shortcut, shown with that setting. */
@@ -68,12 +95,14 @@ export type WorkspaceEvent =
   | { type: "find.results"; target: FindTarget; results: FindResults }
   /** What the main process says the phone bridge now is, after anything at all moved it. */
   | RemoteEvent
+  | ComputerEvent
   | EngineEvent;
 
 /** Work the reducer wants done outside itself. The renderer performs these; nothing else does. */
 export type WorkspaceEffect =
   | { type: "schedule-snooze-expiry"; at: number | null }
   | { type: "pick-project" }
+  | import("../project-add.js").ProjectAddEffect
   | RegisterProjectEffect
   | { type: "persist-preferences"; preferences: ViewPreferences }
   | {
@@ -98,6 +127,9 @@ export type WorkspaceEffect =
   | { type: "start-run"; command: StartRunCommand }
   | { type: "send-run-command"; command: CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand }
   | { type: "refresh-environment"; workspaceId: string; taskId?: string; runId?: string }
+  /** Writes a composer's images out, then sends the message they ride, in that order. */
+  | { type: "send-attachments"; taskId?: string; steer?: boolean; attachments: OutgoingAttachment[] }
+  | { type: "read-pull-request"; workspaceId: string; branch: string | null; read: number }
   | { type: "read-diff"; owner: string; workspaceId: string; range: DiffRange; ignoreWhitespace: boolean }
   /** Moves a checkout onto a branch, making it at that checkout's HEAD first when `create`. */
   | { type: "checkout-branch"; workspaceId: string; branch: string; create?: boolean }
@@ -105,23 +137,33 @@ export type WorkspaceEffect =
   | { type: "preserve-message-images"; text: string; root: string; messageId: string }
   | { type: "image.download"; source: string }
   | { type: "load-subagent-activity"; taskId: string; subagentId: string }
+  | { type: "load-subagent-metadata"; taskId: string; subagentId: string; engine: AgentEngine; sessionId?: string }
   | { type: "automation.save"; draft: AutomationDraft }
   | { type: "automation.update"; taskId: string; patch: AutomationPatch }
   | { type: "automation.delete"; taskId: string }
   | { type: "automation.run-now"; taskId: string }
   | { type: "automation.ack"; ack: AutomationAck }
   /** The browser panel's pages. `open` is idempotent: a tab that already has a view keeps it. */
-  | { type: "browser.open"; tabId: string; url?: string }
-  | { type: "browser.navigate"; tabId: string; url: string }
-  | { type: "browser.history"; tabId: string; delta: -1 | 1 }
-  | { type: "browser.reload"; tabId: string }
-  | { type: "browser.act"; tabId: string; action: BrowserAction }
+  | { type: "browser.permissions"; permissions: BrowserPermissions }
+  | { type: "browser.open"; taskId?: string; tabId: string; url?: string }
+  | { type: "browser.navigate"; taskId?: string; tabId: string; url: string }
+  | { type: "browser.history"; taskId?: string; tabId: string; delta: -1 | 1 }
+  | { type: "browser.reload"; taskId?: string; tabId: string }
+  | { type: "browser.act"; taskId?: string; tabId: string; action: BrowserAction }
   | { type: "browser.close"; tabId: string }
   /** Which tab the panel shows. Where it shows is the panel's own to report. */
   | { type: "browser.show"; tabId: string | null }
   | { type: "browser.clear-data" }
   /** A file the desktop opens for the reader. `roots` are the checkouts to look for it in, nearest first. */
   | { type: "file.open"; roots: string[]; path: string; line: number | null }
+  | { type: "app.list" }
+  | { type: "computer-use.read" }
+  | { type: "computer-use.enable"; permission: ComputerUsePermission }
+  | { type: "computer-use.restart" }
+  | { type: "read-plan-usage"; engine: AgentEngine; read: number }
+  | { type: "cli.read" }
+  | { type: "cli.install" }
+  | { type: "cli.uninstall" }
   /** The thread's checkout, opened in another application on the machine. */
   | { type: "app.open-folder"; root: string; appId: string }
   | { type: "app.check-for-updates" }
@@ -153,6 +195,7 @@ export type WorkspaceEffect =
   | { type: "announce-thread"; notice: ThreadNotice }
   /** A change to the phone bridge, which only the main process can actually make. */
   | RemoteEffect
+  | ComputerEffect
   | EngineEffect;
 
 export type WorkspaceInput = AppCommand | WorkspaceEvent;

@@ -43,7 +43,7 @@ test("the library filters providers, searches globally, pins without choosing, a
   await act(async () => { input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })); });
   assert.equal(document.activeElement, query(menu, ".model-choice"));
   await act(async () => { input.focus(); input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 0)); });
-  assert.deepEqual(selected, ["gpt-5.6-sol"]);
+  assert.deepEqual(selected, ["gpt-6-sol"]);
   assert.equal((menu as HTMLDetailsElement).open, false);
   await view.unmount();
 });
@@ -58,7 +58,7 @@ test("the Codex speed toggle follows effort and dispatches both speed changes", 
   const selected: boolean[] = [];
   const props = {
     mode: "confirm" as const, engine: "codex" as const, engineLabel: "Codex", engineLocked: true,
-    engineAccess: EVERY_ENGINE_READY, model: "gpt-5.6-sol" as const, effort: "high" as const,
+    engineAccess: EVERY_ENGINE_READY, model: "gpt-6-sol" as const, effort: "high" as const,
     fastMode: false, onFastModeChange: (fastMode: boolean) => { selected.push(fastMode); },
     onModeChange() {}, onModelChange() {}, onEffortChange() {}, onEngineRead() {}, onSignIn() {},
   };

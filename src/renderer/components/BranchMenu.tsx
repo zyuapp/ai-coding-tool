@@ -1,8 +1,8 @@
-import { LuCheck as Check, LuPlus as Plus, LuSearch as Search } from "react-icons/lu";
+import { LuPlus as Plus } from "react-icons/lu";
 import { Fragment, useEffect, useLayoutEffect, useState, type CSSProperties, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import type { BranchesResult } from "../../contracts/ipc";
-import { moveListFocus } from "../focus";
+import { PickerOption, PickerPopover, PickerSearch } from "./Picker";
 
 /**
  * The branch a typed query would make: what the user typed, once it is a name no branch already has.
@@ -43,12 +43,12 @@ const ANCHOR_GAP = 4;
 const MIN_MENU_WIDTH = 260;
 
 /** Where a list sits beside a row it is not inside: on whichever side of it the viewport leaves more room. */
-function anchoredStyle(anchor: HTMLElement): CSSProperties {
+function anchoredStyle(anchor: HTMLElement, minimumWidth: number, maximumWidth: number): CSSProperties {
   const rect = anchor.getBoundingClientRect();
   const below = window.innerHeight - rect.bottom - ANCHOR_GAP * 2;
   const above = rect.top - ANCHOR_GAP * 2;
   const over = above > below;
-  const width = Math.max(rect.width, MIN_MENU_WIDTH);
+  const width = Math.min(Math.max(rect.width, minimumWidth), maximumWidth, window.innerWidth - ANCHOR_GAP * 2);
   /** A list wider than the row it hangs off would run past the window, so it slides back inside. */
   const left = Math.min(rect.left, window.innerWidth - width - ANCHOR_GAP);
   return {
@@ -61,20 +61,26 @@ function anchoredStyle(anchor: HTMLElement): CSSProperties {
 }
 
 /** Follows the anchor, since the panel it sits in scrolls out from under a list that does not move. */
-function useAnchoredStyle(anchor: HTMLElement | null | undefined) {
+export function useAnchoredStyle(anchor: HTMLElement | RefObject<HTMLElement | null> | null | undefined, minimumWidth = MIN_MENU_WIDTH, maximumWidth = Infinity) {
   const [style, setStyle] = useState<CSSProperties | null>(null);
 
   useLayoutEffect(() => {
-    if (!anchor) return;
-    const place = () => setStyle(anchoredStyle(anchor));
+    const element = anchor && "current" in anchor ? anchor.current : anchor;
+    if (!element) return;
+    const place = () => setStyle(anchoredStyle(element, minimumWidth, maximumWidth));
     place();
+    const observer = new ResizeObserver(place);
+    observer.observe(element);
+    const dock = element.closest(".right-dock");
+    if (dock) observer.observe(dock);
     window.addEventListener("resize", place);
     window.addEventListener("scroll", place, true);
     return () => {
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
+      observer.disconnect();
     };
-  }, [anchor]);
+  }, [anchor, minimumWidth, maximumWidth]);
 
   return style;
 }
@@ -117,45 +123,29 @@ export function BranchMenu({ branches, selected, onPick, anchor, menuRef, includ
   const matched = groups.reduce((count, group) => count + group.names.length, 0);
 
   const option = (name: string, label: string, className?: string) => (
-    <button
+    <PickerOption
       className={className}
-      type="button"
       key={name}
-      role="option"
-      aria-selected={name === selected}
+      selected={name === selected}
       onClick={() => onPick(name, false)}
     >
-      <span className="branch-menu-mark">{name === selected && <Check size={14} />}</span>
-      <span>{label}</span>
-    </button>
+      {label}
+    </PickerOption>
   );
 
   const menu = (
-    <div
+    <PickerPopover
       ref={menuRef}
       className={`branch-menu ${anchor ? "anchored" : ""} ${includeRemotes ? "grouped" : ""}`.trimEnd()}
-      data-popover-menu
       style={anchored ?? undefined}
-      onKeyDown={moveListFocus}
     >
       {title && <div className="branch-menu-title"><span>{title}</span><kbd>↑↓</kbd></div>}
-      <label className="branch-menu-field">
-        <Search size={13} aria-hidden="true" />
-        <input
-          className="branch-menu-search"
-          aria-label="Search branches"
-          placeholder="Search branches"
-          autoFocus
-          value={query}
-          onInput={(event) => setQuery(event.currentTarget.value)}
-        />
-      </label>
+      <PickerSearch label="Search branches" value={query} onChange={setQuery} />
       <div role="listbox" aria-label="Branches">
         {naming && (
-          <button type="button" role="option" aria-selected={false} onClick={() => onPick(naming, true)}>
-            <span className="branch-menu-mark"><Plus size={14} /></span>
-            <span>Create branch “{naming}”</span>
-          </button>
+          <PickerOption selected={false} mark={<Plus size={14} />} onClick={() => onPick(naming, true)}>
+            Create branch “{naming}”
+          </PickerOption>
         )}
         {showExtra && (
           <>
@@ -171,7 +161,7 @@ export function BranchMenu({ branches, selected, onPick, anchor, menuRef, includ
           </Fragment>
         ))}
       </div>
-    </div>
+    </PickerPopover>
   );
 
   return anchor ? createPortal(menu, document.body) : menu;

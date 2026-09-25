@@ -1,10 +1,11 @@
 import { elementScroll, useVirtualizer } from "@tanstack/react-virtual";
 import type { IconType } from "react-icons";
 import { LuChevronDown as ChevronDown, LuFolderSymlink as FolderSymlink } from "react-icons/lu";
-import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { StreamingTail } from "../../application/thread-run-state";
 import type { FindView, ReadingPoint, ThreadWait } from "../../application/workspace-state";
 import type { AgentEngine } from "../../domain/agent-engine";
+import type { RetryNotice } from "../../domain/run";
 import type { Annotation, AnnotationAnchor } from "../../domain/conversation";
 import type { Thread } from "../../domain/thread";
 import { groupTimeline, messageRows } from "../timeline/grouping";
@@ -32,6 +33,8 @@ export type ConversationTimelineProps = {
   folder: string;
   status: "idle" | "running" | "stopped";
   compacting: boolean;
+  /** The request the engine is retrying, while it is. */
+  retrying?: RetryNotice | null;
   /** What the thread is waiting on before a run of its own can start, which can take minutes. */
   waitingOn?: ThreadWait | null;
   streamingTail?: StreamingTail | null;
@@ -64,11 +67,17 @@ const WAIT_LABELS: Record<ThreadWait, string> = {
   run: "Starting…",
 };
 
-export function ConversationTimeline({ currentThread, engine, engineLabel, folder, status, compacting, waitingOn = null, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, restored = true, startOptions, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide }: ConversationTimelineProps) {
+function retryLabel(retry: RetryNotice) {
+  const count = retry.attempt === undefined ? "" : retry.maxRetries === undefined ? ` ${retry.attempt}` : ` ${retry.attempt} of ${retry.maxRetries}`;
+  return `${retry.message} Retrying${count}…`;
+}
+
+export function ConversationTimeline({ currentThread, engine, engineLabel, folder, status, compacting, retrying = null, waitingOn = null, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, restored = true, startOptions, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide }: ConversationTimelineProps) {
   const messages = currentThread?.messages ?? [];
   const artifactScope = useMemo(() => ({ root: folder, taskId: currentThread?.id }), [folder, currentThread?.id]);
   const timelineRef = useRef<HTMLDivElement>(null);
   const links = useMessageLinks();
+  const viewAttachment = useCallback((source: string) => links.openImage?.(source), [links.openImage]);
   const annotate = useAnnotationSelection({ onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide });
   const lastMessage = messages.at(-1);
   /** The answer being read out, whether it is still streaming or has already finished. */
@@ -132,18 +141,22 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
     <MessageArtifactScope.Provider value={artifactScope}>
     <div className="timeline" ref={timelineRef}>
       <div className="timeline-items" style={{ height: virtualizer.getTotalSize() }}>
-        {virtualizer.getVirtualItems().map((item) => (
-          <TimelineRow
-            key={item.key}
-            engine={engine}
-            group={groups[item.index]!}
-            index={item.index}
-            offset={item.start - scrollMargin}
-            measure={virtualizer.measureElement}
-            streamingTail={streamingTail}
-            onViewAttachment={(source) => links.openImage?.(source)}
-          />
-        ))}
+        {virtualizer.getVirtualItems().map((item) => {
+          const group = groups[item.index]!;
+          return (
+            <TimelineRow
+              key={item.key}
+              engine={engine}
+              group={group}
+              index={item.index}
+              offset={item.start - scrollMargin}
+              measure={virtualizer.measureElement}
+              /** Only the live turn reads the tail, so a settled row's props hold still while it streams. */
+              streamingTail={group.kind === "turn" && group.live ? streamingTail : null}
+              onViewAttachment={viewAttachment}
+            />
+          );
+        })}
       </div>
       <AnnotationMarkers markers={markers} annotations={annotations} noteReturn={annotate.noteReturn} onEdit={annotate.setNoting} />
       {waitingOn && (
@@ -157,7 +170,12 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
           <span className="text-sweep">Compacting messages…</span>
         </div>
       )}
-      {status === "running" && !compacting && (
+      {status === "running" && !compacting && retrying && (
+        <div className="retrying-row" role="status" aria-live="polite">
+          <span className="text-sweep">{retryLabel(retrying)}</span>
+        </div>
+      )}
+      {status === "running" && !compacting && !retrying && (
         <div className="thinking-row">
           <span /> <span /> <span />
         </div>

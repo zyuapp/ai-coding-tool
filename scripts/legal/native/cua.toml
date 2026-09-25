@@ -1,0 +1,39 @@
+accepted = ["MIT", "Apache-2.0", "Unicode-3.0", "ISC", "MPL-2.0", "BSD-3-Clause", "BSD-2-Clause", "CDLA-Permissive-2.0", "MIT-0", "Zlib", "BSL-1.0"]
+ignore-build-dependencies = true
+ignore-dev-dependencies = true
+
+[cua-driver.clarify]
+license = "MIT"
+[[cua-driver.clarify.files]]
+path = "../../../../../LICENSE.md"
+checksum = "c0779290c1d4783169aa3dbfb55feb505e563ef8a004bbf55298ceffcfbda8d9"
+
+[cua-driver-contract.clarify]
+license = "MIT"
+[[cua-driver-contract.clarify.files]]
+path = "../../../../../LICENSE.md"
+checksum = "c0779290c1d4783169aa3dbfb55feb505e563ef8a004bbf55298ceffcfbda8d9"
+
+[cua-driver-core.clarify]
+license = "MIT"
+[[cua-driver-core.clarify.files]]
+path = "../../../../../LICENSE.md"
+checksum = "c0779290c1d4783169aa3dbfb55feb505e563ef8a004bbf55298ceffcfbda8d9"
+
+[cursor-overlay.clarify]
+license = "MIT"
+[[cursor-overlay.clarify.files]]
+path = "../../../../../LICENSE.md"
+checksum = "c0779290c1d4783169aa3dbfb55feb505e563ef8a004bbf55298ceffcfbda8d9"
+
+[pip-preview.clarify]
+license = "MIT"
+[[pip-preview.clarify.files]]
+path = "../../../../../LICENSE.md"
+checksum = "c0779290c1d4783169aa3dbfb55feb505e563ef8a004bbf55298ceffcfbda8d9"
+
+[platform-macos.clarify]
+license = "MIT"
+[[platform-macos.clarify.files]]
+path = "../../../../../LICENSE.md"
+checksum = "c0779290c1d4783169aa3dbfb55feb505e563ef8a004bbf55298ceffcfbda8d9"

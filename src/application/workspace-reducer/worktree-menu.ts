@@ -1,4 +1,5 @@
 import type { WorktreeCommand } from "../../contracts/commands.js";
+import { activeComputer } from "../computers.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import { settled } from "./shared.js";
 import type { WorkspaceTransition } from "./types.js";
@@ -7,5 +8,7 @@ export function reduceWorktreeMenu(state: WorkspaceState, input: Extract<Worktre
   const query = input.type === "worktree.menu-search" ? input.query : "";
   const next = { ...state, worktreeMenuSearch: { ...state.worktreeMenuSearch, [input.list]: query } };
   if (input.type === "worktree.menu-search" || input.list === "threads" || state.worktreeManagementLoading) return settled(next);
+  /** The checkouts offered are the ones beside the thread on screen, which a paired computer lists itself. */
+  if (activeComputer(state)) return settled(next);
   return settled({ ...next, worktreeManagementLoading: true, worktreeManagementError: null }, [{ type: "list-worktrees" }]);
 }

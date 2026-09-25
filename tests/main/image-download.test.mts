@@ -7,8 +7,9 @@ import { afterEach, beforeEach, test, vi } from "vitest";
 import { attachmentUrl } from "../../src/application/attachments.ts";
 import { messageImageUrl } from "../../src/domain/message-artifacts.ts";
 
-const host = vi.hoisted(() => ({ root: "", destination: "", canceled: false, dialogs: [] as unknown[] }));
+const host = vi.hoisted(() => ({ root: "", destination: "", canceled: false, dialogs: [] as unknown[], fetched: [] as string[] }));
 vi.mock("electron", () => ({
+  net: { fetch: async (source: string) => { host.fetched.push(source); return new Response("remote bytes"); } },
   app: { getPath: () => host.root },
   dialog: { showSaveDialog: async (_owner: unknown, options: unknown) => {
     host.dialogs.push(options);
@@ -21,8 +22,9 @@ vi.mock("electron", () => ({
 }));
 
 const { downloadImage } = await import("../../src/main/image-download.ts");
-const { writeAttachment } = await import("../../src/main/attachment-store.ts");
-const { preserveMessageImage } = await import("../../src/main/message-image-store.ts");
+const { useAttachmentsDirectory, writeAttachment } = await import("../../src/main/attachment-store.ts");
+const { preserveMessageImage, useMessageImageStore } = await import("../../src/main/message-image-store.ts");
+const { messageThumbnail } = await import("../../src/main/message-thumbnails.ts");
 const owner = {} as BrowserWindow;
 const original = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 
@@ -31,6 +33,8 @@ beforeEach(async () => {
   host.destination = path.join(host.root, "download.png");
   host.canceled = false;
   host.dialogs = [];
+  useAttachmentsDirectory(host.root);
+  useMessageImageStore({ directory: path.join(host.root, "message-images"), thumbnail: messageThumbnail });
 });
 afterEach(async () => { await rm(host.root, { recursive: true, force: true }); });
 
@@ -59,4 +63,12 @@ test("downloads reject unsupported sources and attachment paths outside the imag
     await assert.rejects(downloadImage(owner, source));
   }
   assert.deepEqual(host.dialogs, []);
+});
+
+
+test("a remote attachment download reads the same scoped URL as the viewer", async () => {
+  const source = attachmentUrl("/linux/attachments/remote.png", "remote-thread");
+  await downloadImage(owner, source);
+  assert.deepEqual(host.fetched, [source]);
+  assert.equal(await readFile(host.destination, "utf8"), "remote bytes");
 });

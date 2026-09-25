@@ -1,4 +1,5 @@
 import type { AgentProvider, ProviderResult, ProviderRunInput } from "../agent/agent-provider.mjs";
+import { grantsTool } from "../agent/approval-grant.mjs";
 import { SessionPool } from "../agent/session-pool.mjs";
 import { McpHttpHost, type ToolHost } from "../tools/mcp-http-host.mjs";
 import { connectAppServer } from "./app-server-client.mjs";
@@ -16,10 +17,11 @@ function sessionKey(input: ProviderRunInput) {
     input.channel,
     input.workspaceRoot,
     input.projectless,
-    input.computerUse.status === "available" ? [input.computerUse.mcp, input.policy === "bypass" || (input.channel === "main" && input.policy === "autonomous")] : input.computerUse.status,
+    input.computerUse.status === "available" ? [input.computerUse.mcp, grantsTool("computer-use", input)] : input.computerUse.status,
     Boolean(input.automations),
     Boolean(input.findings),
     Boolean(input.threads),
+    input.coordinationRole ?? null,
     Boolean(input.browser),
     Boolean(input.terminal),
     /** Review has no turn-level overrides, so its process must agree with the thread settings. */

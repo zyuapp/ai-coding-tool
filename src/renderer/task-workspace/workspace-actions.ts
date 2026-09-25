@@ -1,15 +1,18 @@
 import type { WorkspaceInput } from "../../application/workspace-reducer";
 import type { SnoozeHours } from "../../domain/thread-snooze";
+import type { ThreadRole } from "../../domain/thread-role";
 import type { AutomationDraft, AutomationPatch } from "../../domain/automation";
-import type { DiffRange } from "../../domain/diff";
+import type { DiffMode, DiffRange } from "../../domain/diff";
 import type { FindResults, FindTarget } from "../../domain/find";
 import type { AgentEngine, AgentModel } from "../../domain/agent-engine";
+import type { ComputerUsePermission } from "../../domain/computer-use";
 import type { AgentEffort, ExecutionPolicy, SubagentGroup } from "../../domain/run";
 import type { SettingsSection } from "../../domain/settings-section";
 import type { SidebarMode, SidebarSection } from "../../domain/sidebar";
 import type { RunAttachment } from "../../domain/conversation";
 import type { ThreadDropTarget } from "../../domain/project";
 import type { ThemeMode } from "../../domain/theme";
+import type { ComputerFilter } from "../../domain/computers";
 import type { ReviewTarget } from "../../domain/review";
 import { systemPrefersDark } from "../theme";
 
@@ -24,6 +27,10 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     restoreThread: (threadId: string) => dispatch({ type: "task.restore", taskId: threadId }),
     clearArchive: () => dispatch({ type: "task.clear-archive" }),
     renameThread: (threadId: string, title: string) => dispatch({ type: "task.rename", taskId: threadId, title }),
+    setThreadRole: (threadId: string, role: ThreadRole | null) => dispatch({ type: "task.set-role", taskId: threadId, role }),
+    setCoordinator: (threadId: string, coordinatorId: string | null) => dispatch({ type: "task.set-coordinator", taskId: threadId, coordinatorId }),
+    answerDecision: (threadId: string, decisionId: string, answer: string) => dispatch({ type: "decision.answer", taskId: threadId, decisionId, answer }),
+    setCoordinationOpen: (threadId: string, open: boolean) => dispatch({ type: "view.set-coordination-open", taskId: threadId, open }),
     moveThread: (threadId: string, target: ThreadDropTarget) => dispatch({ type: "task.move", taskId: threadId, target }),
     forkThread: (threadId: string, worktree = false) => dispatch({ type: "task.fork", taskId: threadId, ...(worktree ? { worktree } : {}) }),
     toggleProject: (projectId: string) => dispatch({ type: "view.toggle-project", projectId }),
@@ -68,9 +75,18 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     refreshEngineStatus: () => dispatch({ type: "engine.read", refresh: true }),
     signInEngine: (engine: AgentEngine) => dispatch({ type: "engine.sign-in", engine }),
     setWorktree: (worktree: boolean) => dispatch({ type: "task.set-worktree", worktree }),
+    setDraftRole: (role: ThreadRole | null) => dispatch({ type: "task.set-role", role }),
     moveWorktreeClose: () => dispatch({ type: "view.move-worktree", worktree: null }),
     setBranch: (branch: string | null, create?: boolean) => dispatch({ type: "task.set-branch", branch, ...(create ? { create } : {}) }),
     checkoutBranch: (branch: string, create?: boolean) => dispatch({ type: "task.checkout-branch", branch, ...(create ? { create } : {}) }),
+    readPullRequest: () => dispatch({ type: "pull-request.read" }),
+    listApps: () => dispatch({ type: "app.list" }),
+    readCli: () => dispatch({ type: "cli.read" }),
+    readPlanUsage: () => dispatch({ type: "usage.read" }),
+    readComputerUse: () => dispatch({ type: "computer-use.read" }),
+    enableComputerUse: (permission: ComputerUsePermission) => dispatch({ type: "computer-use.enable", permission }),
+    restartForComputerUse: () => dispatch({ type: "computer-use.restart" }),
+    setCliInstalled: (installed: boolean) => dispatch({ type: installed ? "cli.install" : "cli.uninstall" }),
     refreshWorktrees: () => dispatch({ type: "worktree.refresh" }),
     revealWorktree: (root: string) => dispatch({ type: "worktree.reveal", root }),
     sendPrompt: (attachments: RunAttachment[] = [], steer = false) => dispatch({ type: "task.send", attachments, ...(steer ? { steer } : {}) }),
@@ -88,7 +104,7 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     startReview: (target: ReviewTarget) => dispatch({ type: "review.start", target }),
     cancelRun: () => dispatch({ type: "run.cancel" }),
     stopBackgroundProcess: (processId: string) => dispatch({ type: "run.stop-process", processId }),
-    decideApproval: (allow: boolean) => dispatch({ type: "run.decide", allow }),
+    decideApproval: ({ taskId, runId, approvalId }: { taskId: string; runId: string; approvalId: string }, allow: boolean) => dispatch({ type: "run.decide", taskId, runId, approvalId, allow }),
     setDockOpen: (open: boolean) => dispatch({ type: "view.set-dock-open", open }),
     setDockExpanded: (expanded: boolean) => dispatch({ type: "view.set-dock-expanded", expanded }),
     setSettingsOpen: (open: boolean) => dispatch({ type: "view.set-settings-open", open }),
@@ -101,6 +117,7 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     toggleDiff: () => dispatch({ type: "diff.toggle" }),
     refreshDiff: () => dispatch({ type: "diff.refresh" }),
     setDiffRange: (range: DiffRange) => dispatch({ type: "diff.set-range", range }),
+    setDiffMode: (mode: DiffMode) => dispatch({ type: "diff.set-mode", mode }),
     setDiffCollapsed: (path: string, collapsed: boolean) => dispatch({ type: "diff.set-collapsed", path, collapsed }),
     setDiffViewed: (path: string, viewed: boolean) => dispatch({ type: "diff.set-viewed", path, viewed }),
     setDiffSplit: (split: boolean) => dispatch({ type: "diff.set-split", split }),
@@ -110,7 +127,7 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     closeBrowserTab: (tabId: string) => dispatch({ type: "browser.close-tab", tabId }),
     goInBrowser: (delta: -1 | 1, tabId?: string) => dispatch({ type: "browser.go", delta, ...(tabId ? { tabId } : {}) }),
     reloadBrowser: (tabId?: string) => dispatch({ type: "browser.reload", ...(tabId ? { tabId } : {}) }),
-    decideBrowser: (allow: boolean) => dispatch({ type: "browser.decide", allow }),
+    decideBrowser: (approvalId: string, allow: boolean) => dispatch({ type: "browser.decide", approvalId, allow }),
     clearBrowserData: () => dispatch({ type: "browser.clear-data" }),
     openTerminal: () => dispatch({ type: "terminal.open" }),
     openFolderInApp: (appId: string) => dispatch({ type: "app.open-folder", appId }),
@@ -132,5 +149,12 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     createRemotePairingCode: () => dispatch({ type: "remote.create-pairing-code" }),
     revokeRemoteDevice: (deviceId: string) => dispatch({ type: "remote.revoke-device", deviceId }),
     refreshRemote: () => dispatch({ type: "remote.refresh" }),
+    discoverComputers: () => dispatch({ type: "computers.discover" }),
+    pairComputer: (host: string, name: string, code: string) => dispatch({ type: "computers.pair", host, name, code }),
+    cancelComputerPairing: () => dispatch({ type: "computers.cancel-pairing" }),
+    forgetComputer: (id: string) => dispatch({ type: "computers.forget", id }),
+    renameComputer: (name: string) => dispatch({ type: "computers.rename", name }),
+    labelComputer: (id: string, name: string) => dispatch({ type: "computers.label", id, name }),
+    setComputerFilter: (filter: ComputerFilter) => dispatch({ type: "computers.filter", filter }),
   };
 }

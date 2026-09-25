@@ -7,7 +7,7 @@ import { reduce, type WorkspaceInput } from "../../src/application/workspace-red
 import { workspace } from "../application/workspace-reducer-fixtures.mts";
 
 const { useWorkspaceSubscriptions } = await import("../../src/renderer/task-workspace/workspace-subscriptions.ts");
-const { loadViewPreferences, saveViewPreferences } = await import("../../src/renderer/task-workspace/local-view-preferences.ts");
+const { loadViewPreferences, saveViewPreferences } = await import("../../src/host/view-preferences-store.ts");
 
 test("desktop initialization waits for restoration and applies current runtime preferences after listeners attach", async () => {
   let state = workspace({ restored: true, shortcuts: { "window.capture": "Alt+Shift+J" }, captureSound: false, captureFocus: false });
@@ -38,7 +38,7 @@ test("desktop initialization waits for restoration and applies current runtime p
     }
   }
   function Harness({ restored }: { restored: boolean }) {
-    useWorkspaceSubscriptions({ restored, dispatch });
+    useWorkspaceSubscriptions({ restored, dispatch, displayedState: () => state });
     return null;
   }
   const view = await mount(React.createElement(Harness, { restored: false }));
@@ -66,15 +66,15 @@ test("layout defaults use the supplied window width while stored choices remain 
   localStorage.clear();
   try {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 1240 });
-    assert.equal(loadViewPreferences().sidebarOpen, true);
-    assert.equal(loadViewPreferences().sessionPanelOpen, false);
+    assert.equal(loadViewPreferences(localStorage, window.innerWidth).sidebarOpen, true);
+    assert.equal(loadViewPreferences(localStorage, window.innerWidth).sessionPanelOpen, false);
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 1600 });
-    const wide = loadViewPreferences();
+    const wide = loadViewPreferences(localStorage, window.innerWidth);
     assert.equal(wide.sidebarOpen, true);
     assert.equal(wide.sessionPanelOpen, true);
-    saveViewPreferences({ ...wide, sidebarOpen: false, sessionPanelOpen: false });
-    assert.equal(loadViewPreferences().sidebarOpen, false);
-    assert.equal(loadViewPreferences().sessionPanelOpen, false);
+    saveViewPreferences(localStorage, { ...wide, sidebarOpen: false, sessionPanelOpen: false });
+    assert.equal(loadViewPreferences(localStorage, window.innerWidth).sidebarOpen, false);
+    assert.equal(loadViewPreferences(localStorage, window.innerWidth).sessionPanelOpen, false);
   } finally {
     localStorage.clear();
     if (descriptor) Object.defineProperty(window, "innerWidth", descriptor);
@@ -90,7 +90,7 @@ test("reopened views report both focused and unfocused initial DOM state", async
     const focus = vi.spyOn(document, "hasFocus").mockReturnValue(focused);
     let state = workspace({ focused: !focused });
     function Harness() {
-      useWorkspaceSubscriptions({ restored: false, dispatch: async (input) => { state = reduce(state, input).state; } });
+      useWorkspaceSubscriptions({ restored: false, displayedState: () => state, dispatch: async (input) => { state = reduce(state, input).state; } });
       return null;
     }
     const view = await mount(React.createElement(Harness));

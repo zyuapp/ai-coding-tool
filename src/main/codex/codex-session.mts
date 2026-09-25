@@ -1,14 +1,19 @@
 import { CodexQuestions } from "./codex-questions.mjs";
 import { contextWindowLimit } from "../../domain/agent-engine.js";
 import type { BackgroundProcess, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
+import type { CoordinationRole } from "../../domain/coordination.js";
 import { continuationOf, type ProviderResult, type ProviderRunInput } from "../agent/agent-provider.mjs";
+import { grantsTool } from "../agent/approval-grant.mjs";
 import { appendCompleteMarkdown, openMarkdownBuffer, type MarkdownBuffer } from "../agent/markdown-buffer.mjs";
 import { runTools } from "../agent/run-tools.mjs";
+import { BackgroundWork } from "../agent/background-work.mjs";
+import { TurnSlot, type SessionTurn } from "../agent/session-turn.mjs";
 import type { ServedTools, ToolHost } from "../tools/mcp-http-host.mjs";
 import { AppServerError, AppServerExited, CLIENT_INFO, codexAppServer, type AppServerClient, type AppServerCommand, type BackgroundTerminal, type ExitStatus, type IncomingRequest, type NotificationParams } from "./app-server-client.mjs";
 import { codexConfig, TOOL_TOKEN_ENV } from "./codex-config.mjs";
 import { codexInstructions } from "./codex-instructions.mjs";
-import { CodexSkills } from "./codex-skills.mjs";
+import { SIDE_CHAT_BOUNDARY } from "../agent/side-chat-instructions.mjs";
+import { adoptAppSkills, CodexSkills } from "./codex-skills.mjs";
 import { codexImageOutput, type ImageOutput } from "./codex-images.mjs";
 import { CodexSubagents } from "./codex-subagents.mjs";
 import { CodexThreadRecord, resumeThread, type ReadOrigin } from "./codex-thread-record.mjs";
@@ -18,6 +23,7 @@ import type { GrantedPermissionProfile } from "./protocol/v2/GrantedPermissionPr
 import type { RequestPermissionProfile } from "./protocol/v2/RequestPermissionProfile.js";
 import type { SandboxPolicy } from "./protocol/v2/SandboxPolicy.js";
 import type { ThreadItem } from "./protocol/v2/ThreadItem.js";
+import type { TurnError } from "./protocol/v2/TurnError.js";
 import type { ThreadGoal } from "./protocol/v2/ThreadGoal.js";
 
 /** What the session asks of its connection. The real client fits; a scripted one can stand in for it. */
@@ -34,8 +40,17 @@ type CodexSandbox = "read-only" | "workspace-write" | "danger-full-access";
 
 export type CodexPolicy = { approvalPolicy: AskForApproval; sandbox: CodexSandbox; approvalsReviewer: ApprovalsReviewer };
 
-/** Codex has no plan mode, so a plan run is held to what a confirm run may do. */
-export function codexPolicy(policy: ExecutionPolicy): CodexPolicy {
+/**
+ * Codex has no plan mode, so a plan run is held to what a confirm run may do. A coordinator changes
+ * nothing itself: its shell is read-only, and every escalation out of that comes to the app, which
+ * refuses it.
+ */
+export function codexPolicy(policy: ExecutionPolicy, coordinationRole?: CoordinationRole): CodexPolicy {
+  const granted = policyGrants(policy);
+  return coordinationRole === "coordinator" ? { ...granted, sandbox: "read-only", approvalsReviewer: "user" } : granted;
+}
+
+function policyGrants(policy: ExecutionPolicy): CodexPolicy {
   switch (policy) {
     case "confirm":
     case "plan":
@@ -71,6 +86,16 @@ function firstLine(message: string) {
 }
 
 /** What went wrong, without the method the server was answering when it did. */
+/** Why the server is retrying a request, in the user's terms. */
+function retryReason(error: TurnError): string {
+  const info = error.codexErrorInfo;
+  if (info === "serverOverloaded") return "Codex is overloaded.";
+  if (info === "rateLimitExceeded") return "Codex is rate limited.";
+  if (info === "internalServerError") return "Codex API error.";
+  if (isRecord(info) && ("httpConnectionFailed" in info || "responseStreamConnectionFailed" in info || "responseStreamDisconnected" in info)) return "Cannot reach Codex.";
+  return firstLine(error.message);
+}
+
 function reasonOf(error: unknown) {
   if (error instanceof AppServerError) return firstLine(error.message.slice(error.method.length + 2));
   return firstLine(error instanceof Error ? error.message : String(error));
@@ -131,10 +156,7 @@ function toolNamed(message: string) {
 }
 
 /** One turn a run asked for, and everything it builds up as it streams. */
-type Turn = {
-  input: ProviderRunInput;
-  settle: (result: ProviderResult) => void;
-  release: () => void;
+type Turn = SessionTurn & {
   /** Named by the server once turn/start returns; an interrupt asked for before then waits on it. */
   turnId?: string;
   interruptWanted?: boolean;
@@ -165,7 +187,7 @@ export class CodexSession {
   /** The app's tools as this session's process reaches them; released with the session. */
   private served: ServedTools | null = null;
   private opening: Promise<void> | null = null;
-  private turn: Turn | null = null;
+  private readonly turns = new TurnSlot<Turn>(INTERRUPT_GRACE_MS, () => this.close());
   private subagents: CodexSubagents | null = null;
   private ended = false;
   /** How the session ended, kept for a run that arrives after it is already over. */
@@ -176,9 +198,8 @@ export class CodexSession {
   private lastTokens = 0;
   private goalActive = false;
   private reportGoal: ProviderRunInput["reportGoal"] = () => {};
-  private reportBackground: ProviderRunInput["reportBackground"] = () => {};
-  /** The whole process set last read from this thread's app-server session. */
-  private backgroundProcesses: BackgroundProcess[] = [];
+  /** The terminals this thread's app-server session has running. */
+  private readonly background = new BackgroundWork(() => this.busy, () => this.onRested());
   /** A newer read supersedes an older one that is still paging through the server. */
   private backgroundRead = 0;
   private skills: CodexSkills | null = null;
@@ -201,16 +222,21 @@ export class CodexSession {
 
   /** A turn is in flight, so the session owes an answer before it can take another. */
   get answering() {
-    return this.turn !== null;
+    return this.turns.answering;
   }
 
   /** Closing the app server would stop child turns and background terminals, so either keeps it warm. */
   get busy() {
-    return this.answering || Boolean(this.subagents?.busy) || this.backgroundProcesses.length > 0;
+    return this.answering || Boolean(this.subagents?.busy) || this.background.running;
   }
 
   get live() {
     return !this.ended;
+  }
+
+  /** The turn a run asked for, while one is in flight. */
+  private get turn() {
+    return this.turns.turn;
   }
 
   /** Whether this session is the one a run means to continue. */
@@ -220,37 +246,21 @@ export class CodexSession {
 
   run(input: ProviderRunInput): Promise<ProviderResult> {
     if (this.ended) return Promise.resolve(this.outcome ?? { status: "failed", message: "The Codex session ended before the run could start." });
-    return new Promise<ProviderResult>((resolve) => {
-      let grace: ReturnType<typeof setTimeout> | undefined;
-      const interrupt = () => {
-        this.interrupt(turn);
-        grace = setTimeout(() => {
-          this.settle({ status: "cancelled" });
-          this.close();
-        }, INTERRUPT_GRACE_MS);
-        grace.unref?.();
-      };
-      const turn: Turn = {
-        input,
-        settle: resolve,
+    return this.turns.take(input, {
+      open: (base) => ({
+        ...base,
         streamed: new Map(),
         items: new Map(),
         images: new Set(),
         imageIds: new Set(),
-        release: () => {
-          clearTimeout(grace);
-          input.abortController.signal.removeEventListener("abort", interrupt);
-        },
-      };
-      /** The turn is the session's before anything is awaited, so a process that dies still answers it. */
-      this.turn = turn;
-      if (input.abortController.signal.aborted) {
-        this.settle({ status: "cancelled" });
-        return;
-      }
-      input.abortController.signal.addEventListener("abort", interrupt, { once: true });
-      this.record.label(input.title);
-      void this.begin(turn);
+        /** The questions the server asked are the turn's: nobody is left to answer them once it settles. */
+        release: () => { this.questions.close(); base.release(); },
+      }),
+      begin: (turn) => {
+        this.record.label(input.title);
+        void this.begin(turn);
+      },
+      interrupt: (turn) => { this.interrupt(turn); },
     });
   }
 
@@ -258,10 +268,9 @@ export class CodexSession {
     if (this.ended) return;
     this.ended = true;
     this.backgroundRead += 1;
-    this.backgroundProcesses = [];
-    this.reportBackground({ type: "background.changed", processes: [] });
+    this.background.clear();
     this.reportGoal({ type: "goal.changed", goal: null });
-    this.settle({ status: "cancelled" });
+    this.turns.settle({ status: "cancelled" });
     this.subagents?.close();
     this.subagents = null;
     void this.client?.close();
@@ -276,11 +285,16 @@ export class CodexSession {
     this.record.label(title);
   }
 
-  /** Stops one terminal owned by this thread, then republishes what the server still has. */
+  /** Stops one subagent turn or terminal owned by this thread; a terminal's stop republishes what the server still has. */
   stopProcess(processId: string) {
     const client = this.client;
     const threadId = this.threadId;
     if (!client || !threadId) return;
+    const child = this.subagents?.stop(processId);
+    if (child) {
+      if (child !== "held") void client.request("turn/interrupt", child).catch(() => {}).then(() => this.terminateTerminals(client, processId));
+      return;
+    }
     void client.request("thread/backgroundTerminals/terminate", { threadId, processId })
       .then(() => this.refreshBackgroundProcesses())
       .catch(() => this.refreshBackgroundProcesses());
@@ -292,7 +306,7 @@ export class CodexSession {
     } catch (error) {
       if (this.turn === turn) {
         if (error instanceof OpenFailure && error.lost) turn.input.emit({ type: "continuation-lost" });
-        this.settle({ status: "failed", message: openFailure(error) });
+        this.turns.settle({ status: "failed", message: openFailure(error) });
       }
       this.close();
       return;
@@ -317,7 +331,7 @@ export class CodexSession {
       const keepGoing = await this.beginGoal(turn, client, threadId, goal);
       if (!keepGoing) return;
     }
-    const policy = codexPolicy(turn.input.policy);
+    const policy = codexPolicy(turn.input.policy, turn.input.coordinationRole);
     let started: { turn: { id: string } };
     try {
       const prompt = goal?.type === "set" ? goal.objective : turn.input.prompt;
@@ -332,7 +346,7 @@ export class CodexSession {
         sandboxPolicy: sandboxPolicies[policy.sandbox],
       });
     } catch (error) {
-      if (this.turn === turn) this.settle({ status: "failed", message: `Codex could not start the turn: ${reasonOf(error)}` });
+      if (this.turn === turn) this.turns.settle({ status: "failed", message: `Codex could not start the turn: ${reasonOf(error)}` });
       return;
     }
     turn.turnId = started.turn.id;
@@ -352,20 +366,20 @@ export class CodexSession {
         await client.request("thread/goal/clear", { threadId });
         this.goalActive = false;
         turn.input.reportGoal({ type: "goal.changed", goal: null });
-        this.settle({ status: "succeeded" });
+        this.turns.settle({ status: "succeeded" });
         return false;
       }
       if (command.type === "get") {
         const result = await client.request("thread/goal/get", { threadId });
         this.reportCodexGoal(result.goal);
-        this.settle({ status: "succeeded" });
+        this.turns.settle({ status: "succeeded" });
         return false;
       }
       const result = await client.request("thread/goal/set", { threadId, objective: command.objective });
       this.reportCodexGoal(result.goal);
       return true;
     } catch (error) {
-      if (this.turn === turn) this.settle({ status: "failed", message: `Codex could not update the goal: ${reasonOf(error)}` });
+      if (this.turn === turn) this.turns.settle({ status: "failed", message: `Codex could not update the goal: ${reasonOf(error)}` });
       return false;
     }
   }
@@ -389,7 +403,7 @@ export class CodexSession {
     } catch (error) {
       if (this.turn !== turn) return;
       this.setCompacting(turn, false, `Could not compact context: ${reasonOf(error)}`);
-      this.settle({ status: "failed" });
+      this.turns.settle({ status: "failed" });
     }
   }
 
@@ -401,7 +415,7 @@ export class CodexSession {
     try {
       started = await client.request("review/start", { threadId, target: operation.target, delivery: "inline" });
     } catch (error) {
-      if (this.turn === turn) this.settle({ status: "failed", message: `Codex could not start the review: ${reasonOf(error)}` });
+      if (this.turn === turn) this.turns.settle({ status: "failed", message: `Codex could not start the review: ${reasonOf(error)}` });
       return;
     }
     turn.turnId = started.turn.id;
@@ -419,8 +433,7 @@ export class CodexSession {
    * it. The app's tools are served first, since the process connects to them as the thread starts.
    */
   private async open(seed: ProviderRunInput) {
-    this.reportBackground = seed.reportBackground;
-    this.reportBackground({ type: "background.changed", processes: [] });
+    this.background.openWith(seed.reportBackground);
     this.reportGoal = seed.reportGoal;
     this.reportGoal({ type: "goal.changed", goal: null });
     const tools = runTools(seed).flatMap((set) => set.tools);
@@ -438,12 +451,15 @@ export class CodexSession {
     const skills = this.skills = new CodexSkills(client, seed.workspaceRoot);
     const subagents = this.subagents = new CodexSubagents(seed.reportSubagent, (busy) => {
       if (!busy && !this.answering) this.onRested();
-    });
+    }, async (threadId) => (await client.request("thread/read", { threadId, includeTurns: false })).thread);
     client.on("thread/started", (params) => { subagents.threadStarted(params); });
     client.on("thread/status/changed", (params) => { subagents.threadStatusChanged(params); });
     client.on("thread/closed", (params) => { subagents.threadClosed(params); });
     client.on("turn/started", (params) => {
-      if (!subagents.turnStarted(params) && params.threadId === this.threadId && this.turn && this.goalActive) this.turn.turnId = params.turn.id;
+      if (subagents.turnStarted(params)) {
+        const held = subagents.takeHeldStop(params.threadId);
+        if (held) void client.request("turn/interrupt", held).catch(() => {});
+      } else if (params.threadId === this.threadId && this.turn && this.goalActive) this.turn.turnId = params.turn.id;
     });
     client.on("thread/goal/updated", (params) => {
       if (params.threadId === this.threadId) this.reportCodexGoal(params.goal);
@@ -463,7 +479,7 @@ export class CodexSession {
     client.on("item/completed", (params) => {
       const child = subagents.itemCompleted(params);
       if (!child && params.threadId === this.threadId) this.receiveCompleted(params.item);
-      if (params.threadId === this.threadId && params.item.type === "commandExecution" && this.backgroundProcesses.length) {
+      if (params.threadId === this.threadId && params.item.type === "commandExecution" && this.background.running) {
         void this.refreshBackgroundProcesses();
       }
     });
@@ -471,7 +487,9 @@ export class CodexSession {
       if (!subagents.tokenUsageUpdated(params) && params.threadId === this.threadId) this.receiveUsage(params.tokenUsage.last.totalTokens, params.tokenUsage.modelContextWindow);
     });
     client.on("error", (params) => {
-      if (!subagents.error(params) && params.threadId === this.threadId && this.turn && !params.willRetry) this.turn.failure = params.error.message;
+      if (subagents.error(params) || params.threadId !== this.threadId || !this.turn) return;
+      if (params.willRetry) this.turn.input.emit({ type: "retry", message: retryReason(params.error) });
+      else this.turn.failure = params.error.message;
     });
     client.on("turn/completed", (params) => {
       const child = subagents.turnCompleted(params);
@@ -481,11 +499,12 @@ export class CodexSession {
     client.onRequest((request) => this.answer(request));
     void client.exited.then((exit) => this.exited(exit));
     await client.initialize(CLIENT_INFO);
+    await adoptAppSkills(client);
     await skills.refresh(true);
     const account = await client.request("account/read", { refreshToken: false });
     if (!account.account) throw new OpenFailure(SIGN_IN);
-    const policy = codexPolicy(seed.policy);
-    const settings = { cwd: seed.workspaceRoot, model: seed.model, serviceTier: seed.fastMode ? "priority" : "default", approvalPolicy: policy.approvalPolicy, sandbox: policy.sandbox, approvalsReviewer: policy.approvalsReviewer, config: { model_reasoning_effort: seed.effort }, developerInstructions: codexInstructions(seed.channel) };
+    const policy = codexPolicy(seed.policy, seed.coordinationRole);
+    const settings = { cwd: seed.workspaceRoot, model: seed.model, serviceTier: seed.fastMode ? "priority" : "default", approvalPolicy: policy.approvalPolicy, sandbox: policy.sandbox, approvalsReviewer: policy.approvalsReviewer, config: { model_reasoning_effort: seed.effort }, developerInstructions: codexInstructions(seed.channel, seed.coordinationRole) };
     const continuation = continuationOf(seed);
     const started = continuation === undefined
       ? await client.request("thread/start", settings)
@@ -496,6 +515,12 @@ export class CodexSession {
           if (error instanceof AppServerError) throw new OpenFailure(`Codex could not continue this thread (${reasonOf(error)}). Start a new thread to keep going.`, true);
           throw error;
         });
+    if (seed.channel === "side" && (continuation === undefined || seed.forkContinuation)) {
+      await client.request("thread/inject_items", {
+        threadId: started.thread.id,
+        items: [{ type: "message", role: "user", content: [{ type: "input_text", text: SIDE_CHAT_BOUNDARY }] }],
+      });
+    }
     this.threadId = started.thread.id;
     this.record.opened(client, this.threadId, seed.workspaceRoot);
     /** A thread that came back from disk already has the rollout the record is written against. */
@@ -541,19 +566,10 @@ export class CodexSession {
     }
   }
 
-  private settle(result: ProviderResult) {
-    const turn = this.turn;
-    if (!turn) return;
-    this.turn = null;
-    this.questions.close();
-    turn.release();
-    turn.settle(turn.input.abortController.signal.aborted ? { status: "cancelled" } : result);
-  }
-
   private exited(exit: ExitStatus) {
     if (this.ended) return;
     this.outcome = { status: "failed", message: this.threadId ? `Codex stopped: ${describeExit(exit)}` : startFailure(exit) };
-    this.settle(this.outcome);
+    this.turns.settle(this.outcome);
     this.close();
   }
 
@@ -587,7 +603,7 @@ export class CodexSession {
       if (turn.reviewOutput !== undefined) return;
       if (item.delivery === "async" && item.questions?.length && this.client && this.threadId) {
         void this.questions.answerAsync(item.questions, turn.input, this.client, this.threadId, () => this.turn === turn ? turn.turnId : undefined).catch((error: unknown) => {
-          if (this.turn === turn) this.settle({ status: "failed", message: `Codex could not receive your answer: ${reasonOf(error)}` });
+          if (this.turn === turn) this.turns.settle({ status: "failed", message: `Codex could not receive your answer: ${reasonOf(error)}` });
         });
       }
       const buffer = turn.streamed.get(item.id);
@@ -619,7 +635,7 @@ export class CodexSession {
       const manual = turn.input.operation?.type === "compact";
       turn.input.emit({ type: "compaction", trigger: manual ? "manual" : "auto", preTokens: turn.compactionPreTokens ?? this.lastTokens });
       this.setCompacting(turn, false);
-      if (manual) this.settle({ status: "succeeded" });
+      if (manual) this.turns.settle({ status: "succeeded" });
     } else {
       turn.items.delete(item.id);
     }
@@ -655,9 +671,28 @@ export class CodexSession {
     await this.refreshBackgroundProcesses();
     if (this.turn !== turn) return;
     if (completed.status === "completed" && this.goalActive && turn.input.operation?.type !== "review") return;
-    if (completed.status === "completed") this.settle({ status: "succeeded" });
-    else if (completed.status === "interrupted") this.settle({ status: "cancelled" });
-    else if (completed.status === "failed") this.settle({ status: "failed", message: completed.error?.message ?? turn.failure ?? "Codex could not finish the turn." });
+    if (completed.status === "completed") this.turns.settle({ status: "succeeded" });
+    else if (completed.status === "interrupted") this.turns.settle({ status: "cancelled" });
+    else if (completed.status === "failed") this.turns.settle({ status: "failed", message: completed.error?.message ?? turn.failure ?? "Codex could not finish the turn." });
+  }
+
+  /** Interrupting a child's turn leaves the commands it started running, so its stop ends them too. */
+  private async terminateTerminals(client: CodexClient, threadId: string) {
+    const processIds: string[] = [];
+    const cursors = new Set<string>();
+    let cursor: string | null = null;
+    try {
+      do {
+        const page: { data: BackgroundTerminal[]; nextCursor: string | null } = await client.request("thread/backgroundTerminals/list", { threadId, cursor, limit: 100 });
+        processIds.push(...page.data.map((terminal) => terminal.processId));
+        cursor = page.nextCursor;
+        if (cursor && cursors.has(cursor)) break;
+        if (cursor) cursors.add(cursor);
+      } while (cursor);
+    } catch {
+      return;
+    }
+    await Promise.all(processIds.map((processId) => client.request("thread/backgroundTerminals/terminate", { threadId, processId }).catch(() => {})));
   }
 
   /** Reads every page because the Session Panel treats each provider report as the complete set. */
@@ -685,21 +720,15 @@ export class CodexSession {
     } catch {
       return;
     }
-    this.replaceBackgroundProcesses(found);
-  }
-
-  private replaceBackgroundProcesses(processes: BackgroundProcess[]) {
-    const hadProcesses = this.backgroundProcesses.length > 0;
-    this.backgroundProcesses = processes;
-    this.reportBackground({ type: "background.changed", processes });
-    if (hadProcesses && !processes.length && !this.answering && !this.subagents?.busy) this.onRested();
+    this.background.replace(found);
   }
 
   /** Whether the run allows what the server is asking. Nothing is allowed on a session with no run to ask. */
-  private async allowed(intent: ToolIntent) {
+  private async allowed(intent: ToolIntent, workspace = true) {
     const turn = this.turn;
     if (!turn) return false;
-    if (turn.input.policy === "bypass") return true;
+    if (workspace && turn.input.coordinationRole === "coordinator") return false;
+    if (grantsTool("workspace", turn.input)) return true;
     return await turn.input.authorize(intent) === "allow";
   }
 
@@ -772,7 +801,7 @@ export class CodexSession {
           name: toolNamed(params.message) ?? "mcp_tool_call",
           input: isRecord(meta.tool_params) ? meta.tool_params : {},
         };
-        void this.allowed(intent).then((allow) => request.respond(allow ? { action: "accept", content: {}, _meta: null } : { action: "decline", content: null, _meta: null }));
+        void this.allowed(intent, false).then((allow) => request.respond(allow ? { action: "accept", content: {}, _meta: null } : { action: "decline", content: null, _meta: null }));
         return;
       }
       default:

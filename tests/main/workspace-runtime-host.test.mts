@@ -1,63 +1,53 @@
 import assert from "node:assert/strict";
-import { test, vi } from "vitest";
+import { test } from "vitest";
 import type { WorkspaceInput, WorkspaceCommandResult } from "../../src/application/workspace-reducer.ts";
-import type { WorkspaceRequest, WorkspaceResponse } from "../../src/contracts/workspace-runtime.ts";
+import { VIEW_PREFERENCES_KEY } from "../../src/application/view-preferences.ts";
+import type { WorkspaceUpdate } from "../../src/contracts/workspace-runtime.ts";
 import { registered, startMainProcess } from "../support/electron-harness.mjs";
 
 type IpcEvent = { sender: unknown };
+type Result = WorkspaceCommandResult & { revision: number };
 
-test("the background workspace receives desktop dimensions before its preferences load", async (t) => {
-  const main = await startMainProcess(t, "aicodingtool-runtime-placement-");
-  assert.deepEqual(main.runtimeViews[0].loadedBounds, { x: 0, y: 0, width: 1240, height: 820 });
+test("a view's input runs in the host and the window is handed the difference it made", async (t) => {
+  const main = await startMainProcess(t, "aicodingtool-runtime-request-");
+  const request = registered<(event: IpcEvent, input?: WorkspaceInput) => Promise<Result>>(main.handlers, "workspace-runtime:request");
+  assert.throws(() => request(main.untrusted, { type: "view.set-prompt", prompt: "Stranger" }), /Untrusted/);
+  assert.throws(() => request(main.trusted, { type: "nonsense" } as unknown as WorkspaceInput), /Invalid workspace input/);
+
+  const before = main.sentOn<WorkspaceUpdate>("workspace-runtime:update").length;
+  const result = await request(main.trusted, { type: "view.set-prompt", prompt: "Working" });
+  assert.equal(result.ok, true);
+  const updates = main.sentOn<WorkspaceUpdate>("workspace-runtime:update").slice(before);
+  const patched = updates.find((update) => "patches" in update && update.patches.some((patch) => patch.path[0] === "prompts"));
+  assert.ok(patched, "the window hears about the draft it typed");
+  assert.equal(patched.revision, result.revision);
+  assert.equal((await main.runtimeState()).prompts["draft:"], "Working");
 });
 
-test("an accepted command can outlive the readiness deadline and returns its actual result", async (t) => {
-  const main = await startMainProcess(t, "aicodingtool-runtime-long-command-");
-  const runtime = main.runtimeViews[0];
-  const requests: WorkspaceRequest[] = [];
-  const send = runtime.webContents.send;
-  runtime.webContents.send = (channel, event) => {
-    if (channel === "workspace-runtime:request") requests.push(event as WorkspaceRequest);
-    else send(channel, event);
-  };
-  const request = registered<(event: IpcEvent, input: WorkspaceInput) => Promise<WorkspaceCommandResult>>(main.handlers, "workspace-runtime:request");
-  const respond = registered<(event: IpcEvent, response: WorkspaceResponse) => void>(main.listeners, "workspace-runtime:response");
-  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-  try {
-    let settled = false;
-    const result = request(main.trusted, { type: "view.set-prompt", prompt: "Working" }).then((result) => { settled = true; return result; });
-    await vi.advanceTimersByTimeAsync(31_000);
-    assert.equal(settled, false, "a running effect must not be reported failed while it can still complete");
-    assert.equal(requests.length, 1);
-    respond({ sender: runtime.webContents }, { id: requests[0].id, result: { ok: false, message: "Operation refused", revision: 0 } });
-    assert.deepEqual(await result, { ok: false, message: "Operation refused", revision: 0 });
-  } finally {
-    vi.useRealTimers();
-    runtime.webContents.send = send;
-  }
+test("a refused input answers with the reducer's own words", async (t) => {
+  const main = await startMainProcess(t, "aicodingtool-runtime-refusal-");
+  const request = registered<(event: IpcEvent, input?: WorkspaceInput) => Promise<Result>>(main.handlers, "workspace-runtime:request");
+  const result = await request(main.trusted, { type: "task.move-worktree", destination: { kind: "local" } });
+  assert.equal(result.ok, false);
 });
 
-test("runtime loss settles outstanding commands and refuses new work until ready again", async (t) => {
-  const main = await startMainProcess(t, "aicodingtool-runtime-lost-");
-  const runtime = main.runtimeViews[0];
-  const send = runtime.webContents.send;
-  runtime.webContents.send = () => {};
-  const request = registered<(event: IpcEvent, input: WorkspaceInput) => Promise<WorkspaceCommandResult>>(main.handlers, "workspace-runtime:request");
-  const pending = request(main.trusted, { type: "view.set-prompt", prompt: "In flight" });
-  runtime.webContents.emit("render-process-gone");
-  await assert.rejects(pending, /stopped unexpectedly/);
-  await assert.rejects(request(main.trusted, { type: "view.set-prompt", prompt: "After failure" }), /stopped unexpectedly/);
-  runtime.webContents.send = send;
-  registered<(event: IpcEvent) => void>(main.listeners, "workspace-runtime:ready")({ sender: runtime.webContents });
-  assert.deepEqual(await request(main.trusted, { type: "view.set-prompt", prompt: "Recovered" }), { ok: true, revision: 0 });
-});
-
-test("closing the runtime settles its outstanding requests immediately", async (t) => {
+test("closing the runtime settles its outstanding requests and refuses new ones", async (t) => {
   const main = await startMainProcess(t, "aicodingtool-runtime-close-");
-  const runtime = main.runtimeViews[0];
-  runtime.webContents.send = () => {};
-  const request = registered<(event: IpcEvent, input: WorkspaceInput) => Promise<WorkspaceCommandResult>>(main.handlers, "workspace-runtime:request");
-  const pending = request(main.trusted, { type: "view.set-prompt", prompt: "Pending" });
+  const request = registered<(event: IpcEvent, input?: WorkspaceInput) => Promise<Result>>(main.handlers, "workspace-runtime:request");
   registered<() => void>(main.appListeners, "will-quit")();
-  await assert.rejects(pending, /runtime has closed/);
+  await assert.rejects(request(main.trusted, { type: "view.set-prompt", prompt: "Late" }), /runtime has closed/);
+});
+
+test("a window's stored preferences are taken on once, and never over what the host already keeps", async (t) => {
+  const main = await startMainProcess(t, "aicodingtool-runtime-migrate-");
+  const migrate = registered<(event: IpcEvent, values: unknown) => Promise<void>>(main.handlers, "workspace-runtime:migrate");
+  await assert.rejects(migrate(main.untrusted, {}), /Untrusted/);
+  await assert.rejects(migrate(main.trusted, { "someone-elses.key": "x" }), /Invalid stored values/);
+  await migrate(main.trusted, { [VIEW_PREFERENCES_KEY]: JSON.stringify({ sidebarMode: "activity", conciseReplies: true }) });
+  const migrated = await main.runtimeState();
+  assert.equal(migrated.sidebarMode, "activity");
+  assert.equal(migrated.conciseReplies, true);
+  await migrate(main.trusted, { [VIEW_PREFERENCES_KEY]: JSON.stringify({ sidebarMode: "projects", conciseReplies: false }) });
+  const kept = await main.runtimeState();
+  assert.equal(kept.sidebarMode, "activity", "a second window's values never overwrite what the host keeps");
 });

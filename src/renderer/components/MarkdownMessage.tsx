@@ -6,7 +6,7 @@ import { Copyable } from "./CopyButton";
 import { MermaidBlock } from "./MermaidBlock";
 import { ContextMenu } from "./PopoverMenu";
 import { isCommitHash, messageImagePath, messageImageUrl } from "../../domain/message-artifacts";
-import { messageImages, type MessageImage } from "../message-images";
+import { messageImages, type MessageImage } from "../../application/message-images";
 
 const APP_HREF = /^aicodingtool:/i;
 const WEB_HREF = /^https?:/i;
@@ -119,7 +119,7 @@ function MarkdownLink({ children, ...props }: ComponentProps<"a">) {
   const image = messageImagePath(href);
   if (image && messageId && actions.openImage) return <a {...props} onClick={(event) => {
     event.preventDefault();
-    actions.openImage!(messageImageUrl(image, scope.root, messageId));
+    actions.openImage!(messageImageUrl(image, scope.root, messageId, false, scope.taskId));
   }}>{children}</a>;
   const file = parseFileHref(href);
   if (file) return actions.openFile
@@ -143,11 +143,11 @@ function MessageImagePreview({ image: linked, messageId }: { image: MessageImage
   const scope = useContext(MessageArtifactScope);
   const actions = useContext(MessageLinks);
   const [failed, setFailed] = useState(false);
-  const source = messageImageUrl(linked.path, scope.root, messageId);
+  const source = messageImageUrl(linked.path, scope.root, messageId, false, scope.taskId);
   return <div className="message-image-preview">
     {failed ? <span className="message-image-unavailable">{linked.label} · Preview unavailable</span> :
       <button type="button" aria-label={`Enlarge ${linked.label}`} onClick={() => actions.openImage?.(source)}>
-        <img src={messageImageUrl(linked.path, scope.root, messageId, true)} alt={linked.label} loading="lazy" decoding="async" onError={() => setFailed(true)} />
+        <img src={messageImageUrl(linked.path, scope.root, messageId, true, scope.taskId)} alt={linked.label} loading="lazy" decoding="async" onError={() => setFailed(true)} />
       </button>}
   </div>;
 }

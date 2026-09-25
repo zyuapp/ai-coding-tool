@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { deriveView, promptKey } from "../../application/workspace-state";
+import { viewPreferences, writeViewPreferences } from "../../application/view-preferences";
 import type { ThreadHandleOption } from "../../domain/thread-handles";
 import { threadHandleOptions } from "../../application/thread-projection";
 import type { WorkspaceInput } from "../../application/workspace-reducer";
@@ -9,6 +10,7 @@ import { applyTypography } from "../typography";
 import { workspaceActions } from "./workspace-actions";
 import { useWorkspaceSubscriptions } from "./workspace-subscriptions";
 import { createWorkspaceConnection } from "./workspace-connection";
+import { computerCommandAvailable, createComputerCapabilitySnapshot } from "../../application/computers";
 
 export type { ApprovalView } from "../../application/thread-run-state";
 
@@ -24,13 +26,21 @@ export function useTaskWorkspace() {
   const runtime = held.current;
   const state = useSyncExternalStore(runtime.subscribe, runtime.getState);
   useEffect(() => { void runtime.start(); return () => runtime.dispose(); }, [runtime]);
-  useWorkspaceSubscriptions({ restored: state.restored, dispatch: runtime.dispatch });
+  const displayed = useRef(state);
+  displayed.current = state;
+  useWorkspaceSubscriptions({ restored: state.restored, dispatch: runtime.dispatch, displayedState: () => displayed.current });
   const view = useMemo(() => deriveView(state), [state]);
 
   /** Held still across renders, so a memoized view is not redrawn by a handler that only looks new. */
   const dispatchCommand = useCallback((command: AppCommand) => runtime.dispatch(command), []);
   const dispatchInput = useCallback((input: WorkspaceInput) => runtime.dispatch(input), []);
   const actions = useMemo(() => workspaceActions(dispatchInput), [dispatchInput]);
+  const capabilitySnapshot = useMemo(createComputerCapabilitySnapshot, []);
+  const capabilityRevision = capabilitySnapshot(state.computers);
+  const commandControls = useMemo(() => ({
+    available: (command: AppCommand) => computerCommandAvailable(runtime.getState(), command),
+    dispatch: dispatchCommand,
+  }), [capabilityRevision, dispatchCommand]);
 
   /**
    * The `@` menu's threads, per draft, since which threads are in scope depends on the draft. The
@@ -79,6 +89,12 @@ export function useTaskWorkspace() {
     applyTypography({ uiFont: view.uiFont, monoFont: view.monoFont, readingSize: view.readingSize, terminalSize: view.terminalSize });
   }, [view.uiFont, view.monoFont, view.readingSize, view.terminalSize]);
 
+  /** The window's own copy of what it paints with, read before the host has answered at the next launch. */
+  useEffect(() => {
+    if (!state.restored) return;
+    writeViewPreferences(localStorage, viewPreferences(state));
+  }, [state.restored, view.theme, view.themeMode, view.uiFont, view.monoFont, view.readingSize, view.terminalSize]);
+
   return {
     ...view,
     threadHandles: threadHandlesFor(promptKey(state)),
@@ -86,5 +102,6 @@ export function useTaskWorkspace() {
     /** The one door into the application. The named actions below are shorthand for the same commands. */
     dispatch: dispatchCommand,
     actions,
+    commandControls,
   };
 }

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import { dock, task, workspace, effectAt, effectOf, required, run } from "./workspace-reducer-fixtures.mts";
+import { dock, task, workspace, effectOf, required, run } from "./workspace-reducer-fixtures.mts";
 
 test("the user's own page visit opens a dock tab of its own and allows that origin from then on", () => {
   const opened = reduce(workspace(), { type: "browser.open", url: "github.com/zyuapp/ai-coding-tool" });
@@ -14,14 +14,14 @@ test("the user's own page visit opens a dock tab of its own and allows that orig
   assert.deepEqual(opened.state.browserOrigins, ["https://github.com"]);
   assert.equal(dock(opened.state).open, true, "a page has to land somewhere the user can see it");
   assert.equal(dock(opened.state).tab, tab.id, "a page is a tab in the dock, not a tab inside a panel");
-  assert.deepEqual(opened.effects.filter((effect) => effect.type.startsWith("browser")), [
+  assert.deepEqual(opened.effects.filter((effect) => effect.type.startsWith("browser") && effect.type !== "browser.permissions"), [
     { type: "browser.open", tabId: tab.id, url: "https://github.com/zyuapp/ai-coding-tool" },
     { type: "browser.show", tabId: tab.id },
   ]);
 
   const navigated = reduce(opened.state, { type: "browser.open", url: "https://github.com/zyuapp/ai-coding-tool/pulls" });
   assert.equal(dock(navigated.state).browserTabs.length, 1, "the tab on screen is reused");
-  assert.deepEqual(navigated.effects[0], { type: "browser.navigate", tabId: tab.id, url: "https://github.com/zyuapp/ai-coding-tool/pulls" });
+  assert.deepEqual(effectOf(navigated, "browser.navigate"), { type: "browser.navigate", tabId: tab.id, url: "https://github.com/zyuapp/ai-coding-tool/pulls" });
 
   const another = reduce(navigated.state, { type: "browser.open", url: "https://example.com", newTab: true });
   assert.equal(dock(another.state).browserTabs.length, 2);
@@ -46,22 +46,22 @@ test("a run has to be allowed an origin the user has never visited, and then nev
   const [blank] = dock(asked.state).browserTabs;
   assert.ok(blank);
   assert.equal(blank.url, "", "the ask gets a tab of its own to be shown in, and loads nothing into it");
-  assert.deepEqual(asked.state.browserApproval, { url: "https://dash.example.com/metrics", taskId: "task-1", tabId: blank.id });
+  assert.deepEqual(asked.state.browserApproval, { approvalId: asked.state.browserApproval?.approvalId, url: "https://dash.example.com/metrics", taskId: "task-1", tabId: blank.id });
   assert.equal(dock(asked.state).tab, blank.id, "the ask is shown where the page would have been");
 
-  const blocked = reduce(asked.state, { type: "browser.decide", allow: false });
+  const blocked = reduce(asked.state, { type: "browser.decide", approvalId: required(asked.state.browserApproval).approvalId, allow: false });
   assert.equal(blocked.state.browserApproval, null);
   assert.deepEqual(blocked.state.browserOrigins, []);
   assert.deepEqual(dock(blocked.state).browserTabs, [], "a tab that only carried the ask goes with it");
 
-  const allowed = reduce(asked.state, { type: "browser.decide", allow: true });
+  const allowed = reduce(asked.state, { type: "browser.decide", approvalId: required(asked.state.browserApproval).approvalId, allow: true });
   assert.deepEqual(allowed.state.browserOrigins, ["https://dash.example.com"]);
   assert.equal(required(dock(allowed.state).browserTabs[0]).url, "https://dash.example.com/metrics");
   assert.equal(allowed.state.browserApproval, null);
 
   const again = reduce(allowed.state, { type: "browser.open", taskId: "task-1", url: "https://dash.example.com/other" });
   assert.equal(again.state.browserApproval, null, "an allowed origin is not asked about twice");
-  assert.equal(effectAt(again, "browser.navigate").type, "browser.navigate");
+  assert.equal(effectOf(again, "browser.navigate").type, "browser.navigate");
 });
 
 test("a thread trusted to act without asking browses without asking", () => {
@@ -83,7 +83,7 @@ test("closing a browser tab hands the panel its neighbour", () => {
   const closed = reduce(second.state, { type: "browser.close-tab", tabId: two.id });
   assert.deepEqual(dock(closed.state).browserTabs.map((tab) => tab.id), [one.id]);
   assert.equal(dock(closed.state).browserTabId, one.id);
-  assert.deepEqual(closed.effects.filter((effect) => effect.type.startsWith("browser")), [
+  assert.deepEqual(closed.effects.filter((effect) => effect.type.startsWith("browser") && effect.type !== "browser.permissions"), [
     { type: "browser.close", tabId: two.id },
     { type: "browser.open", tabId: one.id, url: "https://one.example/" },
     { type: "browser.show", tabId: one.id },
@@ -132,9 +132,31 @@ test("acting in the browser needs a page, and clearing the session takes back ev
 
   const opened = reduce(browsing, { type: "browser.open", url: "https://example.com" });
   const clicked = reduce(opened.state, { type: "browser.act", taskId: "task-1", action: { kind: "click", ref: "3" } });
-  assert.deepEqual(clicked.effects, [{ type: "browser.act", tabId: required(dock(opened.state).browserTabs[0]).id, action: { kind: "click", ref: "3" } }]);
+  assert.deepEqual(clicked.effects.filter((effect) => effect.type !== "browser.permissions"), [{ type: "browser.act", tabId: required(dock(opened.state).browserTabs[0]).id, action: { kind: "click", ref: "3" }, taskId: "task-1" }]);
 
   const cleared = reduce(opened.state, { type: "browser.clear-data" });
   assert.deepEqual(cleared.state.browserOrigins, []);
-  assert.equal(cleared.effects[0].type, "browser.clear-data");
+  assert.equal(effectOf(cleared, "browser.clear-data").type, "browser.clear-data");
+});
+
+test("browser approval decisions bind to one request and competing asks preserve the displayed request", () => {
+  const initial = workspace({ threads: [task("task-1")], currentId: "task-1" });
+  const first = reduce(initial, { type: "browser.open", taskId: "task-1", url: "https://one.example" });
+  const approval = required(first.state.browserApproval);
+  const competing = reduce(first.state, { type: "browser.open", taskId: "task-1", url: "https://two.example" });
+  assert.deepEqual(competing.state.browserApproval, approval);
+  assert.equal(competing.result?.ok, false);
+  for (const allow of [false, true]) {
+    const stale = reduce(first.state, { type: "browser.decide", approvalId: "stale", allow });
+    assert.equal(stale.state, first.state);
+    assert.deepEqual(stale.effects, []);
+  }
+  const closed = reduce(first.state, { type: "browser.close-tab", tabId: required(approval.tabId) });
+  assert.equal(closed.state.browserApproval, null);
+  const second = reduce(closed.state, { type: "browser.open", taskId: "task-1", url: "https://two.example" });
+  const replay = reduce(second.state, { type: "browser.decide", approvalId: approval.approvalId, allow: true });
+  assert.equal(replay.state, second.state);
+  const allowed = reduce(first.state, { type: "browser.decide", approvalId: approval.approvalId, allow: true });
+  assert.deepEqual(allowed.state.browserOrigins, ["https://one.example"]);
+  assert.deepEqual(reduce(allowed.state, { type: "browser.decide", approvalId: approval.approvalId, allow: true }).effects, []);
 });

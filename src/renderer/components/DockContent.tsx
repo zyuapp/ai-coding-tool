@@ -114,7 +114,7 @@ export function DockContent({ workspace, panels, launchers, activeTab, find, fin
             onOpen={(url) => void workspace.actions.openBrowser(url, false, browserTab.id)}
             onGo={(delta) => void workspace.actions.goInBrowser(delta, browserTab.id)}
             onReload={() => void workspace.actions.reloadBrowser(browserTab.id)}
-            onDecide={(allow) => void workspace.actions.decideBrowser(allow)}
+            onDecide={(approvalId, allow) => void workspace.actions.decideBrowser(approvalId, allow)}
           />
         </div>
       )}
@@ -122,6 +122,7 @@ export function DockContent({ workspace, panels, launchers, activeTab, find, fin
         <div data-dock-tab={shownTerminal.id}>
           <TerminalPanel
             terminal={shownTerminal}
+            computer={workspace.activeComputer}
             focusToken={focusTokenFor(shownTerminal.id)}
             {...(find?.target.kind === "terminal" && find.target.terminalId === shownTerminal.id ? { find: findBar } : {})}
             visible={dockOpen && !settingsVisible}

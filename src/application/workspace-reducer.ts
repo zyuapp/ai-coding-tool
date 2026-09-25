@@ -1,7 +1,12 @@
+import { attachmentSendFor } from "./composer-attachments.js";
 import { apply } from "./workspace-reducer/dispatch.js";
 import { reconcileSnoozes } from "./thread-snooze.js";
-import { prunedFind, prunedWorkflowPanels, settled, shownPageEffects, TAKE_KEYS } from "./workspace-reducer/shared.js";
-import type { WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
+import { shownPageEffects } from "./workspace-reducer/browser-tabs.js";
+import { prunedWorkflowPanels, TAKE_KEYS } from "./workspace-reducer/dock-tabs.js";
+import { prunedFind } from "./workspace-reducer/find.js";
+import { rejected, settled } from "./workspace-reducer/shared.js";
+import { activeComputer, selectedComputer, leavesComputer, routeInput, type InputRoute } from "./computers.js";
+import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
 import { dockFor, dockOwner, findTargetFor, keyboardTerminalId, recordVisit, threadSlots, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type { AgentEvent } from "../contracts/ipc.js";
@@ -9,7 +14,8 @@ import { slotShortcutIndex, type ShortcutSurface } from "../domain/shortcuts.js"
 import { defaultEffortFor, defaultModelFor, effortForModel, effortsFor } from "../domain/agent-engine.js";
 
 export type { WorkspaceCommandResult, WorkspaceEffect, WorkspaceEvent, WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
-export { DIFF_PANEL, WORKFLOW_PANEL, WORKSPACE_ERRORS } from "./workspace-reducer/shared.js";
+export { WORKSPACE_ERRORS } from "./workspace-reducer/errors.js";
+export { DIFF_PANEL, WORKFLOW_PANEL } from "./workspace-state.js";
 
 /**
  * The single writer for workspace state. Commands come from the UI (and, later, from anything else
@@ -26,8 +32,17 @@ export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceT
       return combineTransitions(transition, next);
     }, settled(state));
   }
-  const applied = reconcileSnoozes(state, apply(state, input), input);
+  const route = routeInput(state, input);
+  if (route.kind === "refuse") return rejected(state, route.message);
+  if (route.kind === "computer" && !route.also) return forwarded(state, route);
+  const carried = route.kind === "computer" ? [forwardEffect(route)] : [];
+  const left = leavingComputer(state, input);
+  const applied = reconcileSnoozes(left, apply(left, input), input);
+  applied.effects = [...leftBehind(state, left), ...carried, ...applied.effects];
   const transition = { ...applied, state: prunedWorkflowPanels(prunedFind(applied.state)) };
+  if (transition.state.browserOrigins !== state.browserOrigins || (input.type === "task.set-policy" && transition.state !== state) || input.type === "store.loaded" || input.type === "preferences.loaded" || transition.effects.some((effect) => ["browser.open", "browser.navigate", "browser.act", "browser.history", "browser.reload"].includes(effect.type))) {
+    transition.effects = [{ type: "browser.permissions", permissions: browserPermissions(transition.state) }, ...transition.effects];
+  }
   if (transition.state.currentId === state.currentId) return transition;
   if (transition.state.openMenu === "session:location") transition.state = { ...transition.state, openMenu: null };
   const landed = transition.state.currentId !== null && input.type !== "view.go-back" && input.type !== "view.go-forward"
@@ -38,6 +53,42 @@ export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceT
    * keys come back to the window too, since the page they were on belongs to the thread just left.
    */
   return { ...transition, state: landed, effects: [...transition.effects, ...shownPageEffects(landed), ...(landed.focused ? TAKE_KEYS : [])] };
+}
+
+function forwardEffect(route: Extract<InputRoute, { kind: "computer" }>): WorkspaceEffect {
+  return { type: "computer.forward", id: route.computer.id, inputs: route.inputs, ...(route.draft ? { draft: route.draft } : {}) };
+}
+
+/** A command that moves this window to one of its own threads takes the paired computer off screen. */
+function leavingComputer(state: WorkspaceState, input: WorkspaceInput): WorkspaceState {
+  if (state.computers.active === null || !leavesComputer(input)) return state;
+  return { ...state, computers: { ...state.computers, active: null } };
+}
+
+/**
+ * A computer whose thread the window has just left is told nobody here is looking any more, which
+ * is what its unread marks go by. What its own window shows is its user's, so that is left as it is.
+ */
+function leftBehind(before: WorkspaceState, after: WorkspaceState): WorkspaceEffect[] {
+  const left = activeComputer(before);
+  if (!left || after.computers.active === left.id) return [];
+  return [{ type: "computer.forward", id: left.id, inputs: [{ type: "view.set-focused", focused: false }] }];
+}
+
+/**
+ * A command on its way to the computer holding its thread. Selecting one of that computer's threads
+ * puts that computer on screen; a send carries the draft typed here, which stays until it is taken.
+ */
+function forwarded(state: WorkspaceState, route: Extract<InputRoute, { kind: "computer" }>): WorkspaceTransition {
+  let next = state;
+  const attachments = route.draft?.attachments;
+  if (attachments) {
+    const send = attachmentSendFor(state.attachmentSends, attachments.key);
+    if (send.busy) return settled(state);
+    next = { ...next, attachmentSends: { ...next.attachmentSends, [attachments.key]: { ...send, busy: true, error: null } } };
+  }
+  if (route.select) next = { ...next, computers: { ...next.computers, active: route.computer.id }, actionError: null };
+  return { state: next, effects: [...leftBehind(state, next), forwardEffect(route)], result: { ok: true } };
 }
 
 /** Which channel a report arrived on: a run's own, or the thread's, which outlives every run. */
@@ -65,6 +116,7 @@ function combineTransitions(previous: WorkspaceTransition, next: WorkspaceTransi
  * the surface holding the caret, so Esc in a side chat stops that chat and never the main thread.
  */
 export function escapeCommands(state: WorkspaceState): AppCommand[] {
+  if (state.projectAdd) return [{ type: "view.add-project-key", key: "Escape" }];
   if (state.viewingImage) return [{ type: "image.close" }];
   if (state.jump) return [{ type: "view.jump-close" }];
   if (state.openMenu !== null) return [{ type: "view.set-menu", menu: null }];
@@ -74,10 +126,15 @@ export function escapeCommands(state: WorkspaceState): AppCommand[] {
   return [chat ? { type: "run.cancel", taskId: chat.id } : { type: "run.cancel" }];
 }
 
-/** The project a new thread starts in: the one the current thread is in, else the one being drafted. */
+/**
+ * The project a new thread starts in: the one the thread on screen is in, else the one being drafted.
+ * With a paired computer's thread on screen that is its thread or draft, so the new thread starts
+ * there, in that project; its chat draft names no project, so a new one from it starts here.
+ */
 function currentProjectId(state: WorkspaceState): string | undefined {
-  const thread = state.threads.find((item) => item.id === state.currentId);
-  return (state.currentId ? thread?.projectId : state.draftProjectId) ?? undefined;
+  const shown = selectedComputer(state)?.state ?? state;
+  const thread = shown.threads.find((item) => item.id === shown.currentId);
+  return (shown.currentId ? thread?.projectId : shown.draftProjectId) ?? undefined;
 }
 
 /**
@@ -106,8 +163,13 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
     case "thread.new": return [...leaving, newThread];
     case "thread.new-worktree": return [...leaving, newThread, { type: "task.set-worktree", worktree: true }];
     case "run.cancel": return [{ type: "run.cancel" }];
-    case "run.allow": return [{ type: "run.decide", allow: true }];
-    case "run.deny": return [{ type: "run.decide", allow: false }];
+    case "run.allow":
+    case "run.deny": {
+      const taskId = state.sideChats.find((chat) => chat.id === state.keyboardTab)?.id ?? state.currentId;
+      const active = taskId ? state.activeRuns[taskId] : undefined;
+      const approval = active ? state.approvals[active.runId] : undefined;
+      return approval ? [{ type: "run.decide", taskId: approval.taskId, runId: approval.runId, approvalId: approval.approvalId, allow: action === "run.allow" }] : [];
+    }
     case "composer.focus": return [{ type: "view.focus-composer" }];
     case "effort.increase":
     case "effort.decrease": {
@@ -142,8 +204,9 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
      * The shell that already has the keyboard is one the user is done with, so it goes away instead.
      */
     case "terminal.focus": {
-      if (keyboardTerminalId(state)) return [{ type: "view.set-dock-open", open: false }, { type: "view.focus-composer" }];
-      const latest = dockFor(state, dockOwner(state)).terminals.at(-1);
+      const shown = selectedComputer(state)?.state ?? state;
+      if (keyboardTerminalId(shown)) return [{ type: "view.set-dock-open", open: false }, { type: "view.focus-composer" }];
+      const latest = dockFor(shown, dockOwner(shown)).terminals.at(-1);
       return [...leaving, latest ? { type: "terminal.select", terminalId: latest.id } : { type: "terminal.open" }];
     }
     case "tab.close": return [{ type: "view.close-tab" }];
@@ -153,4 +216,8 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
     case "settings.toggle": return [{ type: "view.set-settings-open", open: !state.settingsOpen }];
     default: return [];
   }
+}
+
+export function browserPermissions(state: WorkspaceState) {
+  return { origins: state.browserOrigins, autonomousTaskIds: state.threads.filter((thread) => thread.executionPolicy === "autonomous").map((thread) => thread.id) };
 }

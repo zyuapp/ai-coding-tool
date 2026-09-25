@@ -1,6 +1,12 @@
 import type { AutomationView } from "../domain/automation.js";
 import type { Thread } from "../domain/thread.js";
+import { remoteCollections, type PairedComputer } from "./computers.js";
+import type { Project } from "../domain/project.js";
+import { orderProjects } from "./project-order.js";
+import type { ComputerLink } from "../domain/computers.js";
 import { sidebarLists } from "./sidebar-lists.js";
+import { coordinationView } from "./coordination.js";
+import { isCoordinator } from "../domain/coordination.js";
 import { unreadView } from "./thread-attention.js";
 import { busyThreadIds, blockedThreadIds, sideChatIds, type WorkspaceState, type WorktreeGroup } from "./workspace-state.js";
 import { worktreeSettingsPage, worktreeSettingsViews } from "./worktree-settings.js";
@@ -47,7 +53,7 @@ const threadLists = selector(
 
 const busy = selector(
   (state) => [
-    state.activeRuns, state.pendingRuns, state.creatingWorktrees, state.releasingWorktrees, state.deletingWorktrees,
+    state.activeRuns, state.pendingRuns, state.creatingWorktrees, state.releasingWorktrees, state.deletingWorktrees, state.workflows, state.backgroundProcesses, state.subagents,
     state.deletingWorktrees.length ? state.threads : null,
     state.deletingWorktrees.length ? state.worktrees : null,
   ],
@@ -57,9 +63,72 @@ const busy = selector(
 
 const blocked = selector((state) => [state.activeRuns], blockedThreadIds, sameIds);
 
+/** The threads that can take others under them, for the menu that moves a thread under one. */
+const coordinators = selector((state) => [threadLists(state).listedThreads], (state) => threadLists(state).listedThreads.filter((thread) => isCoordinator(thread)));
+
+/** What the open thread shows: a coordinator's threads and open decisions, or a thread's coordinator and brief. */
+const coordination = selector(
+  (state) => [state.threads, state.currentId, busy(state), blocked(state)],
+  (state) => coordinationView(state.threads, state.threads.find((thread) => thread.id === state.currentId), busy(state), blocked(state)),
+);
+
+/** The paired computers' threads, gathered once per change to any of them. */
+const remote = selector(
+  (state) => [state.computers.paired, state.computers.filter],
+  (state) => remoteCollections(state.computers),
+);
+
+function linkOf({ id, name, host, status, error, pairedAt }: PairedComputer): ComputerLink {
+  return { id, name, host, status, error, pairedAt };
+}
+
+function sameLinks(before: ComputerLink[], next: ComputerLink[]) {
+  return before.length === next.length && before.every((link, index) => {
+    const other = next[index]!;
+    return link.id === other.id && link.name === other.name && link.host === other.host && link.status === other.status && link.error === other.error;
+  });
+}
+
+/** The paired computers without their states, which the chrome draws and which move only when a line does. */
+const links = selector((state) => [state.computers.paired], (state) => state.computers.paired.map(linkOf), sameLinks);
+
+function union(own: Set<string>, others: Set<string>) {
+  if (!others.size) return own;
+  return new Set([...own, ...others]);
+}
+
+/** Every computer's running and blocked threads together, which is what the rows of a merged list read. */
+const everyBusy = selector((state) => [busy(state), remote(state)], (state) => union(busy(state), remote(state).busy), sameIds);
+const everyBlocked = selector((state) => [blocked(state), remote(state)], (state) => union(blocked(state), remote(state).blocked), sameIds);
+const everyWorktree = selector((state) => [threadLists(state).worktreeThreadIds, remote(state)], (state) => union(threadLists(state).worktreeThreadIds, remote(state).worktreeThreadIds), sameIds);
+
+/** The sidebar draws every computer's threads together, filed under every computer's folders. */
 const sidebar = selector(
-  (state) => [threadLists(state).visibleThreads, state.projects, busy(state), blocked(state), state.sidebarMode, state.sections, state.expandedProjects],
-  (state) => sidebarLists(state, state.projects, threadLists(state).visibleThreads, busy(state), blocked(state)),
+  (state) => [threadLists(state).visibleThreads, state.projects, everyBusy(state), everyBlocked(state), remote(state), state.computers.filter, state.sidebarMode, state.sections, state.expandedProjects],
+  (state) => {
+    const others = remote(state);
+    /** A filter naming one paired computer leaves this computer's own out. */
+    const own = state.computers.filter === "all" || state.computers.filter === "this";
+    const projects = others.projects.length ? [...(own ? state.projects : []), ...others.projects] : own ? state.projects : [];
+    const visible = own ? threadLists(state).visibleThreads : [];
+    const threads = others.threads.length ? [...visible, ...others.threads] : visible;
+    return sidebarLists(state, projects, threads, everyBusy(state), everyBlocked(state), others.projectHosts);
+  },
+);
+
+/**
+ * Every computer's projects, this one's first, for a draft to start in. The sidebar's filter narrows
+ * what is listed, never where a thread may begin, so the draft's own project is always among these.
+ * A computer whose line is down takes no thread, so its projects wait with it.
+ */
+const startProjects = selector(
+  (state) => [state.projects, state.computers.paired],
+  (state) => {
+    const own = orderProjects(state.projects);
+    const others: Project[] = [];
+    for (const computer of state.computers.paired) if (computer.state && computer.status === "connected") others.push(...orderProjects(computer.state.projects));
+    return others.length ? [...own, ...others] : own;
+  },
 );
 
 const managed = selector(
@@ -73,7 +142,7 @@ const settings = selector(
 );
 
 const groups = selector(
-  (state) => [sidebar(state).orderedThreads, state.worktrees],
+  (state) => [sidebar(state).orderedThreads, state.worktrees, remote(state)],
   (state) => {
     const byWorktree = new Map<string, Thread[]>();
     for (const thread of sidebar(state).orderedThreads) {
@@ -85,13 +154,16 @@ const groups = selector(
       }
       threads.push(thread);
     }
-    return state.worktrees.map((worktree): WorktreeGroup => ({ worktree, threads: byWorktree.get(worktree.id) ?? [] }));
+    return [...state.worktrees, ...remote(state).worktrees].map((worktree): WorktreeGroup => ({ worktree, threads: byWorktree.get(worktree.id) ?? [] }));
   },
 );
 
 const attention = selector(
-  (state) => [state.threads, state.sideChats],
-  (state) => unreadView(state, threadLists(state).listedThreads),
+  (state) => [state.threads, state.sideChats, remote(state)],
+  (state) => {
+    const own = unreadView(state, threadLists(state).listedThreads);
+    return { ...own, unreadCount: own.unreadCount + remote(state).unreadCount };
+  },
 );
 
 const schedules = selector(
@@ -103,13 +175,21 @@ const schedules = selector(
 export function workspaceViewCollections(state: WorkspaceState) {
   return {
     ...threadLists(state),
+    worktreeThreadIds: everyWorktree(state),
     ...attention(state),
     lists: sidebar(state),
+    startProjects: startProjects(state),
     busy: busy(state),
     blocked: blocked(state),
+    everyBusy: everyBusy(state),
+    everyBlocked: everyBlocked(state),
+    remote: remote(state),
+    computerLinks: links(state),
     managedWorktrees: managed(state),
     worktreeSettings: settings(state),
     worktreeGroups: groups(state),
     schedules: schedules(state),
+    coordinators: coordinators(state),
+    coordination: coordination(state),
   };
 }

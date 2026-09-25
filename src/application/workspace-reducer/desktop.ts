@@ -1,5 +1,8 @@
 /** The machine around the thread: its shells, its files, and the applications that open them. */
-import { APP_FOLDER_ERROR, FILE_FOLDER_ERROR, TERMINAL_FOLDER_ERROR, focusDockTab, settled, showDockTab, shownPageEffects, rejected } from "./shared.js";
+import { shownPageEffects } from "./browser-tabs.js";
+import { focusDockTab, showDockTab } from "./dock-tabs.js";
+import { APP_FOLDER_ERROR, FILE_FOLDER_ERROR, TERMINAL_FOLDER_ERROR } from "./errors.js";
+import { settled, rejected } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { threadFileRoots } from "../thread-location.js";
 import { currentFolder, dockFor, dockOwner, dockTabAfterClosing, ownerOfTerminal, withDock, type WorkspaceState } from "../workspace-state.js";
@@ -8,7 +11,7 @@ import { terminalTitle, type TerminalSession } from "../../domain/terminal.js";
 import { DOCK_PICKER } from "../workspace-dock.js";
 
 type DesktopInput = Extract<WorkspaceInput, {
-  type: "image.open" | "image.close" | "image.download" | "file.open" | "app.open-folder" | "app.check-for-updates" | "app.open-source-licenses" | "terminal.open" | "terminal.select" | "terminal.close"
+  type: "image.open" | "image.close" | "image.download" | "file.open" | "app.list" | "apps.listed" | "app.open-folder" | "app.check-for-updates" | "app.open-source-licenses" | "terminal.open" | "terminal.select" | "terminal.close"
     | "terminal.input" | "terminal.resize" | "terminal.updated" | "view.closed" | "view.mounted";
 }>;
 
@@ -47,6 +50,13 @@ export function reduceDesktop(state: WorkspaceState, input: DesktopInput): Works
       if (!roots.length && !isAbsoluteFilePath(input.path)) return rejected(state, FILE_FOLDER_ERROR);
       return settled({ ...state, actionError: null }, [{ type: "file.open", roots, path: input.path, line: input.line ?? null }]);
     }
+
+    /** The list a menu draws stays as it was while a fresh one is read, so opening it never blanks. */
+    case "app.list":
+      return settled(state, [{ type: "app.list" }]);
+
+    case "apps.listed":
+      return settled({ ...state, installedApps: input.apps });
 
     case "app.open-folder": {
       const root = currentFolder(state);

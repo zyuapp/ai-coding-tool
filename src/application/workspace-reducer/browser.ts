@@ -1,5 +1,8 @@
 /** The browser panel's pages, and what they report back. */
-import { BROWSER_TAB_ERROR, BROWSER_URL_ERROR, askToBrowse, browserAllowed, browserEffectsForTab, closeBrowserTab, focusDockTab, loadBrowserPage, patchBrowserTab, persistView, settled, showDockTab, withBlankTab, rejected } from "./shared.js";
+import { askToBrowse, browserAllowed, browserEffectsForTab, closeBrowserTab, loadBrowserPage, patchBrowserTab, withBlankTab } from "./browser-tabs.js";
+import { focusDockTab, persistView, showDockTab } from "./dock-tabs.js";
+import { BROWSER_TAB_ERROR, BROWSER_URL_ERROR } from "./errors.js";
+import { settled, rejected } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { browserTarget, dockFor, dockOwner, ownerOfBrowserTab, withDock, type WorkspaceState } from "../workspace-state.js";
 import { browserOrigin, browserUrl } from "../../domain/browser.js";
@@ -17,7 +20,7 @@ export function reduceBrowser(state: WorkspaceState, input: BrowserInput): Works
       if (!url) return rejected(state, BROWSER_URL_ERROR);
       const byUser = input.taskId === undefined;
       if (!byUser && !browserAllowed(state, input.taskId!, url)) return askToBrowse(state, owner, url, input.taskId!, input.tabId, input.newTab === true);
-      return loadBrowserPage(state, owner, url, input.tabId, input.newTab === true, byUser);
+      return loadBrowserPage(state, owner, url, input.tabId, input.newTab === true, byUser, input.taskId);
     }
 
     case "browser.new-tab": {
@@ -29,13 +32,13 @@ export function reduceBrowser(state: WorkspaceState, input: BrowserInput): Works
 
     case "browser.decide": {
       const approval = state.browserApproval;
-      if (!approval) return settled(state);
+      if (!approval || approval.approvalId !== input.approvalId) return settled(state);
       const owner = dockOwner(state, approval.taskId);
       /** A blank tab only existed to carry the ask, so blocking takes it away again. */
       if (!input.allow) return closeBrowserTab({ ...state, browserApproval: null }, owner, approval.tabId, { onlyIfBlank: true });
       const origin = browserOrigin(approval.url);
       const allowed = origin ? { ...state, browserOrigins: [...state.browserOrigins, origin] } : state;
-      return loadBrowserPage(allowed, owner, approval.url, approval.tabId, approval.tabId === undefined, false);
+      return loadBrowserPage(allowed, owner, approval.url, approval.tabId, approval.tabId === undefined, false, approval.taskId);
     }
 
     case "browser.select-tab": {
@@ -54,10 +57,10 @@ export function reduceBrowser(state: WorkspaceState, input: BrowserInput): Works
       const owner = (input.tabId ? ownerOfBrowserTab(state, input.tabId) : undefined) ?? dockOwner(state, input.taskId);
       const target = browserTarget(dockFor(state, owner), input.tabId);
       if (!target) return rejected(state, BROWSER_TAB_ERROR);
-      if (input.type === "browser.act") return settled(state, [{ type: "browser.act", tabId: target.id, action: input.action }]);
+      if (input.type === "browser.act") return settled(state, [{ type: "browser.act", tabId: target.id, action: input.action, taskId: input.taskId }]);
       const effect: WorkspaceEffect = input.type === "browser.go"
-        ? { type: "browser.history", tabId: target.id, delta: input.delta }
-        : { type: "browser.reload", tabId: target.id };
+        ? { type: "browser.history", tabId: target.id, delta: input.delta, taskId: input.taskId }
+        : { type: "browser.reload", tabId: target.id, taskId: input.taskId };
       return settled(patchBrowserTab(state, owner, target.id, { loading: true, error: undefined }), [effect]);
     }
 
@@ -67,10 +70,13 @@ export function reduceBrowser(state: WorkspaceState, input: BrowserInput): Works
     }
 
     case "browser.updated": {
-      const { tabId, ...patch } = input.page;
+      const { tabId, navigationRequest, ...patch } = input.page;
       const owner = ownerOfBrowserTab(state, tabId);
       const current = owner ? dockFor(state, owner).browserTabs.find((tab) => tab.id === tabId) : undefined;
       if (!owner || !current) return settled(state);
+      if (navigationRequest && owner === dockOwner(state, navigationRequest.taskId)) {
+        return askToBrowse(state, owner, navigationRequest.url, navigationRequest.taskId, tabId, false);
+      }
       /** Landing on a different page clears the error the page before it left behind. */
       const clearing = current.error !== undefined && patch.error === undefined && patch.url !== undefined && patch.url !== current.url;
       const updated = patchBrowserTab(state, owner, tabId, clearing ? { ...patch, error: undefined } : patch);

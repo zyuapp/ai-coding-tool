@@ -67,6 +67,8 @@ export default defineConfig({
     emptyOutDir: true,
     license: { fileName: "legal/MOBILE-THIRD-PARTY-LICENSES.md" },
     modulePreload: false,
+    /** The page is one file by design, so its size is the whole app's; the limit is for pages that split. */
+    chunkSizeWarningLimit: 2000,
     /** Every asset is folded into the page, so nothing is left to fetch by URL. */
     assetsInlineLimit: Number.MAX_SAFE_INTEGER,
     cssCodeSplit: false,

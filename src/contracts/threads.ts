@@ -2,8 +2,13 @@ import type { AppCommand } from "./commands.js";
 import type { BrowserInspection, BrowserInspectionResult, BrowserShot, BrowserSnapshot, BrowserTab } from "../domain/browser.js";
 import type { ConversationMessageKind } from "../domain/conversation.js";
 import type { TerminalSession, TerminalSnapshot } from "../domain/terminal.js";
+import type { ThreadRole } from "../domain/thread-role.js";
+import type { CoordinationState, DecisionRequest } from "../domain/coordination.js";
 
 export type TaskMessageKind = ConversationMessageKind;
+
+/** A paired query can spend 30 seconds on the wire before reporting a lost connection. */
+export const REMOTE_THREAD_READ_TIMEOUT_MS = 40_000;
 
 /** Which threads a query covers: everything, one project, or the threads that belong to no project. */
 export type ProjectScope =
@@ -13,6 +18,7 @@ export type ProjectScope =
 
 /** What a caller may narrow a listing by. `project` is resolved against the caller's own thread. */
 export type ThreadListQuery = {
+  computer?: string;
   project?: string;
   archived?: boolean;
   idleForMs?: number;
@@ -35,8 +41,12 @@ export type ThreadFilter = {
 };
 
 export type ThreadSummary = {
+  /** Present for a thread held by a paired computer; offline rows are cached summaries. */
+  computer?: { id: string; name: string; offline: boolean };
   id: string;
   title: string;
+  /** The part the user gave the thread, when they gave it one. */
+  role?: ThreadRole;
   projectId?: string;
   projectRoot?: string;
   /** The checkout the thread works in, when it works in one. Its id is what starts a thread there. */
@@ -67,12 +77,12 @@ export type ThreadTranscript = {
 /**
  * The commands anything outside the window may dispatch. Starting a thread (in the project checkout,
  * in a worktree of its own, or in one the project already has), continuing, archiving and stopping
- * one is allowed, as is driving the browser panel; moving the user around the app, changing how much
+ * one is allowed, as is giving a thread its role and driving the browser panel; moving the user around the app, changing how much
  * a thread is allowed to do, moving a thread between checkouts once it exists, removing projects,
  * clearing the browser session, and answering approvals — the browser's own included — are not.
  */
 export type ExternalCommand = Extract<AppCommand, {
-  type: "task.send" | "task.archive" | "run.cancel" | "browser.open" | "browser.close-tab" | "browser.select-tab" | "browser.go" | "browser.reload" | "browser.act";
+  type: "task.send" | "task.archive" | "task.set-role" | "run.cancel" | "browser.open" | "browser.close-tab" | "browser.select-tab" | "browser.go" | "browser.reload" | "browser.act";
 }>;
 
 /** A run drives the browser as the thread it is, so the channel names the thread, not the caller. */
@@ -116,13 +126,15 @@ export type ThreadRequest = {
   taskId: string;
 } & (
   | ({ op: "list" } & ThreadListQuery)
-  | { op: "read"; threadId: string; limit?: number }
+  | { op: "read"; threadId: string; limit?: number; computer?: string }
   | { op: "wait"; threadId: string; timeoutMs: number }
   | { op: "command"; command: ExternalCommand }
   | { op: "browser"; read: BrowserRead }
   | { op: "terminal"; read: TerminalRead }
   | { op: "notify"; report: FindingReport }
   | { op: "nothing-to-report"; checked: string }
+  | { op: "report"; state: CoordinationState; summary: string }
+  | { op: "decision"; request: DecisionRequest }
 );
 
 /** What a scheduled run says it found. The window keeps it; the run only reports it. */

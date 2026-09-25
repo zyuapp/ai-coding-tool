@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { CommandControlsProvider } from "./components/CommandControl";
 import { LuX as X } from "react-icons/lu";
 import { MessageLinkProvider } from "./components/MarkdownMessage";
 import { AttachmentViewer } from "./components/AttachmentViewer";
@@ -72,17 +73,10 @@ export function App() {
     void workspace.dispatch({ type: "annotation.add", taskId: chatId, quote });
   }
 
-  const openSettings = useCallback(() => {
-    void workspace.actions.setSettingsOpen(true);
-  }, [workspace.actions]);
+  const openSettings = useCallback(() => void workspace.actions.setSettingsOpen(true), [workspace.actions]);
+  const closeSettings = () => void workspace.actions.setSettingsOpen(false);
 
-  function closeSettings() {
-    void workspace.actions.setSettingsOpen(false);
-  }
-
-  const openWorkflow = useCallback((id: string) => {
-    void workspace.actions.openWorkflow(id);
-  }, [workspace.actions]);
+  const openWorkflow = useCallback((id: string) => void workspace.actions.openWorkflow(id), [workspace.actions]);
 
   const { panels: dockPanels, launchers: dockLaunchers } = buildDock({
     workspace,
@@ -126,7 +120,7 @@ export function App() {
   const messageLinks = useMessageLinks(dispatchRef);
 
   return (
-    <MessageLinkProvider actions={messageLinks}>
+    <CommandControlsProvider value={workspace.commandControls}><MessageLinkProvider actions={messageLinks}>
     {workspace.viewingImage && <AttachmentViewer key={workspace.viewingImage} source={workspace.viewingImage} onClose={() => void workspace.dispatch({ type: "image.close" })} onDownload={() => void workspace.dispatch({ type: "image.download" })} />}
     <DiagramViewerHost>
     <main className="app-shell">
@@ -142,17 +136,19 @@ export function App() {
           currentThread={workspace.currentThread}
           folder={workspace.folder}
           folderLabel={workspace.folderLabel}
+          host={workspace.activeComputer && { name: workspace.activeComputer.name, offline: workspace.activeComputer.status !== "connected" }}
           sidebarOpen={sidebarOpen}
           sessionPanelOpen={sessionPanelVisible}
           rightDockOpen={rightDockOpen}
           workingSubagents={workingSubagents}
           openMenu={workspace.openMenu}
           canOpenFolder={Boolean(workspace.folder) && workspace.location?.kind !== "creating"}
-          onSetOpenMenu={workspace.actions.setOpenMenu}
+          onSetOpenMenu={workspace.actions.setOpenMenu} apps={workspace.installedApps} onListApps={() => void workspace.actions.listApps()}
           onOpenInApp={(appId) => void workspace.actions.openFolderInApp(appId)}
           onRenameThread={workspace.actions.renameThread}
           onForkThread={workspace.actions.forkThread}
-          onArchiveThread={workspace.actions.archiveThread}
+          onArchiveThread={workspace.actions.archiveThread} onSetThreadRole={workspace.actions.setThreadRole}
+          coordinators={workspace.coordinators} onSetCoordinator={workspace.actions.setCoordinator}
           onToggleSidebar={() => void workspace.actions.setSidebarOpen(!sidebarOpen)}
           onToggleSessionPanel={() => {
             void workspace.actions.setDockOpen(false);
@@ -163,21 +159,23 @@ export function App() {
             void workspace.actions.setDockOpen(!rightDockOpen);
           }}
         />
-        {(workspace.storageError || workspace.actionError) && (
-          <div className="storage-error" role="alert">
-            <span>{workspace.storageError || workspace.actionError}</span>
-            {!workspace.storageError && errorPage && (
-              <button className="storage-error-link" type="button" onClick={() => void workspace.actions.openSettingsSection(errorPage)}>Open settings</button>
-            )}
-            {!workspace.storageError && (
-              <button type="button" aria-label="Dismiss error" onClick={() => void workspace.dispatch({ type: "view.dismiss-action-error" })}>
-                <X size={15} aria-hidden="true" />
-              </button>
-            )}
-          </div>
-        )}
-
-        {!workspace.storageError && <HiddenThreadsNotice workspace={workspace} />}
+        {/** Every banner takes a row of its own, so none is drawn over another. */}
+        <div className="workspace-banners">
+          {(workspace.storageError || workspace.actionError) && (
+            <div className="storage-error" role="alert">
+              <span>{workspace.storageError || workspace.actionError}</span>
+              {!workspace.storageError && errorPage && (
+                <button className="storage-error-link" type="button" onClick={() => void workspace.actions.openSettingsSection(errorPage)}>Open settings</button>
+              )}
+              {!workspace.storageError && (
+                <button type="button" aria-label="Dismiss error" onClick={() => void workspace.dispatch({ type: "view.dismiss-action-error" })}>
+                  <X size={15} aria-hidden="true" />
+                </button>
+              )}
+            </div>
+          )}
+          {!workspace.storageError && <HiddenThreadsNotice workspace={workspace} />}
+        </div>
 
         <WorkspaceConversation workspace={workspace} find={find} findBar={findBar} onAnnotateSide={annotateToSideChat} />
 
@@ -211,6 +209,6 @@ export function App() {
       <TooltipLayer />
     </main>
     </DiagramViewerHost>
-    </MessageLinkProvider>
+    </MessageLinkProvider></CommandControlsProvider>
   );
 }

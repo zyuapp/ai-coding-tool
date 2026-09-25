@@ -21,8 +21,9 @@ const TOKEN = "a".repeat(64);
 
 function view(title: string): MobileView {
   return {
-    groups: [{ projectId: "p", name: "App", threads: [{ id: "t1", title, status: "idle", lastActivityAt: 1, unread: false }] }],
-    thread: { id: "t1", title, projectName: "App", messages: [], omitted: 0, streamingTail: null, status: "idle", approval: null, queued: [], prompt: "", settings: { engine: "claude", model: "opus", effort: "high", policy: "confirm" } },
+    groups: [{ projectId: "p", name: "App", threads: [{ id: "t1", title, projectName: "App", attention: false, status: "idle", lastActivityAt: 1, unread: false }] }],
+    activity: { priority: [], running: [], threads: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" },
+    thread: { id: "t1", title, projectId: "p", projectName: "App", worktreeId: null, messages: [], omitted: 0, streamingTail: null, status: "idle", approval: null, queued: [], settings: { engine: "claude", model: "opus", effort: "high", policy: "confirm" }, location: { kind: "local" }, worktrees: [], canMove: true, changes: null, reviewable: true, branchRange: { kind: "branches", base: "HEAD", compare: null } },
     draft: null,
     error: null,
   };
@@ -209,11 +210,11 @@ test("an acknowledged command leaves the queue and a refused one says why", () =
 
 test("a command whose acknowledgement never arrived is sent again once the replay has settled", () => {
   const live = paired();
-  const asked = run(live, [{ kind: "dispatch", requestId: "r1", command: { type: "run.decide", taskId: "t1", allow: true } }]);
+  const asked = run(live, [{ kind: "dispatch", requestId: "r1", command: { type: "run.decide", taskId: "t1", runId: "r1", approvalId: "a1", allow: true } }]);
   const dropped = run(asked.state, [{ kind: "closed" }, { kind: "opened" }, { kind: "received", message: { kind: "ping", sequence: 2, at: 1 } }]);
   assert.deepEqual(sent(dropped.effects).filter((message) => message.kind === "command"), []);
   const settled = run(dropped.state, [{ kind: "settled" }]);
-  assert.deepEqual(sent(settled.effects), [{ kind: "command", requestId: "r1", command: { type: "run.decide", taskId: "t1", allow: true } }]);
+  assert.deepEqual(sent(settled.effects), [{ kind: "command", requestId: "r1", command: { type: "run.decide", taskId: "t1", runId: "r1", approvalId: "a1", allow: true } }]);
 });
 
 test("a settle that lands before the line is live asks again rather than stranding the command", () => {
@@ -321,8 +322,8 @@ test("folded groups survive a visit, and a store holding garbage folds nothing",
 });
 
 test("the composer reads settings as labels, and says no effort for a model that takes none", () => {
-  assert.deepEqual(settingsSummary({ engine: "codex", model: "gpt-5.6-sol", effort: "high", policy: "confirm", fastMode: true }), { mode: "Confirm", model: "Sol · Fast", effort: "High" });
-  assert.deepEqual(settingsSummary({ engine: "codex", model: "gpt-5.6-sol", effort: "xhigh", policy: "allow-edits" }), { mode: "Edits", model: "Sol", effort: "Extra high" });
+  assert.deepEqual(settingsSummary({ engine: "codex", model: "gpt-6-sol", effort: "high", policy: "confirm", fastMode: true }), { mode: "Confirm", model: "Sol · Fast", effort: "High" });
+  assert.deepEqual(settingsSummary({ engine: "codex", model: "gpt-6-sol", effort: "xhigh", policy: "allow-edits" }), { mode: "Edits", model: "Sol", effort: "Extra high" });
   assert.deepEqual(settingsSummary({ engine: "claude", model: "opus", effort: "high", policy: "autonomous" }), { mode: "Auto", model: "Opus", effort: "High" });
   assert.deepEqual(settingsSummary({ engine: "claude", model: "haiku", effort: "high", policy: "confirm" }), { mode: "Confirm", model: "Haiku", effort: null });
 });

@@ -1,5 +1,5 @@
 import { LuCode as Code, LuExternalLink as ExternalLink, LuFolder as Folder, LuSquareTerminal as SquareTerminal } from "react-icons/lu";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef } from "react";
 import type { InstalledApp } from "../../contracts/ipc";
 import type { ExternalAppKind } from "../../domain/external-apps";
 import { moveListFocus, useDismissibleLayer } from "../focus";
@@ -20,41 +20,28 @@ const KIND_ICONS = {
   files: Folder,
 } as const;
 
-/**
- * The applications this machine has, read while the list is open. The main process scans again once
- * its answer is old enough, so an application installed during the session turns up here.
- */
-export function useInstalledApps(enabled: boolean) {
-  const [apps, setApps] = useState<InstalledApp[] | null>(null);
-
-  useEffect(() => {
-    if (!enabled) return;
-    let cancelled = false;
-    void window.desktop.listApps()
-      .then((found) => { if (!cancelled) setApps(found); })
-      .catch(() => { if (!cancelled) setApps([]); });
-    return () => { cancelled = true; };
-  }, [enabled]);
-
-  return apps;
-}
-
 export type OpenInMenuProps = {
   openMenu: string | null;
   onSetOpenMenu: (menu: string | null) => void;
   /** False while the thread has no checkout to hand over, such as a worktree still being made. */
   enabled: boolean;
+  /**
+   * The applications this machine has, or null before any have been found. The main process scans
+   * again once its answer is old enough, so one installed during the session turns up here.
+   */
+  apps: InstalledApp[] | null;
+  onListApps: () => void;
   onOpenInApp: (appId: string) => void;
 };
 
 /** The topbar button that hands the thread's checkout to another application on the machine. */
-export function OpenInMenu({ openMenu, onSetOpenMenu, enabled, onOpenInApp }: OpenInMenuProps) {
+export function OpenInMenu({ openMenu, onSetOpenMenu, enabled, apps, onListApps, onOpenInApp }: OpenInMenuProps) {
   const open = openMenu === OPEN_IN_MENU;
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const list = useRef<HTMLDivElement>(null);
   useDismissibleLayer(open, [root], () => onSetOpenMenu(null), trigger);
-  const apps = useInstalledApps(open);
+  useEffect(() => { if (open) onListApps(); }, [open]);
   /** The list itself takes focus, not a row, so it opens with nothing highlighted and still hears the arrow keys. */
   useEffect(() => { if (open) list.current?.focus(); }, [open]);
   const groups = GROUPS

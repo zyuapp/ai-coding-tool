@@ -1,9 +1,13 @@
 /** Where the user is looking: history, focus, and the find bar. */
-import { refreshEnvironment, searchEffects, settled, stopCapture, stopSearchEffects, TAKE_KEYS } from "./shared.js";
+import { TAKE_KEYS } from "./dock-tabs.js";
+import { refreshEnvironment } from "./environment.js";
+import { searchEffects, stopSearchEffects } from "./find.js";
+import { settled } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { reduceSettings } from "./settings.js";
+import { reduceSettings, stopCapture } from "./settings.js";
 import { reduceThreadCommands } from "./thread-commands.js";
 import { projectFor } from "../thread-location.js";
+import { selectedComputer } from "../computers.js";
 import { busyThreadIds, dockHoldsTab, findTargetFor, reachableVisit, type FindState, type WorkspaceState } from "../workspace-state.js";
 import { jumpView } from "../workspace-jump.js";
 import { refreshEngines } from "../engine-access.js";
@@ -51,7 +55,8 @@ export function reduceView(state: WorkspaceState, input: ViewInput): WorkspaceTr
     case "view.set-focused": {
       if (!input.focused) return settled({ ...state, focused: false, capturingShortcut: null }, stopCapture(state));
       const asked = refreshEngines({ ...state, focused: true });
-      return settled(readAttention(asked.state, state.currentId), [...refreshEnvironment(state), ...asked.effects]);
+      /** With a paired computer's thread on screen, none of this computer's own has been looked at. */
+      return settled(readAttention(asked.state, selectedComputer(state) ? null : state.currentId), [...refreshEnvironment(state), ...asked.effects]);
     }
 
     /** A tab the dock in front is not holding is nobody holding the keyboard, which the picker reports too. */

@@ -182,7 +182,7 @@ test("SQLite task storage keeps subagent activity in rows of its own", async () 
     lastChangeSnapshot: { files: [], capturedAt: 1 },
     updatedAt: 2,
   };
-  const subagent: PersistedSubagent = { id: "agent-1", description: "Explore", status: "working", startedAt: 1 };
+  const subagent: PersistedSubagent = { id: "agent-1", description: "Explore", status: "working", startedAt: 1, model: "claude-sonnet", effort: "high", prompt: "  Exact\nprompt  " };
   try {
     database.persist({
       tasks: [{
@@ -204,6 +204,9 @@ test("SQLite task storage keeps subagent activity in rows of its own", async () 
     const loaded = loadDatabase(database);
     assert.deepEqual(loaded.tasks[0].subagents![0].activity, []);
     assert.equal(loaded.tasks[0].subagents![0].status, "completed");
+    assert.equal(loaded.tasks[0].subagents![0].model, subagent.model);
+    assert.equal(loaded.tasks[0].subagents![0].effort, subagent.effort);
+    assert.equal(loaded.tasks[0].subagents![0].prompt, subagent.prompt);
     assert.deepEqual(database.subagentActivity("task-1", "agent-1").map((item) => item.id), ["activity-1", "activity-2"]);
     assert.equal(JSON.parse((new DatabaseSync(file).prepare("SELECT data FROM tasks WHERE id = 'task-1'").get() as { data: string }).data).subagents, undefined);
   } finally {
@@ -415,6 +418,25 @@ test("SQLite task storage keeps what a thread's runs found, and which of its mes
     assert.ok(loaded);
     assert.deepEqual(loaded.findings, task.findings);
     assert.deepEqual(loaded.messages.map((message) => message.withdrawn), [true, true], "the second was stored under the older name and reads back withdrawn");
+  } finally {
+    database.close();
+    await rm(directory, { recursive: true });
+  }
+});
+
+test("SQLite task storage names every image its messages still carry, once each", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "aicodingtool-task-database-"));
+  const database = new TaskDatabase(path.join(directory, "tasks.sqlite"));
+  const task: PersistedTask = { ...summaryTask, id: "task-1", engine: "claude" };
+  try {
+    database.persist({ tasks: [{ task, messages: [
+      { index: 0, message: { id: "first", kind: "user", text: "Look", attachments: ["/data/attachments/a.png", "/data/attachments/b.png"], at: 10 } },
+      { index: 1, message: { id: "second", kind: "user", text: "Again", attachments: ["/data/attachments/a.png"], at: 11 } },
+      { index: 2, message: { id: "third", kind: "assistant", text: "Seen", at: 12 } },
+    ] }] });
+    assert.deepEqual(database.attachmentPaths().sort(), ["/data/attachments/a.png", "/data/attachments/b.png"]);
+    database.persist({ removedTasks: ["task-1"], tasks: [] });
+    assert.deepEqual(database.attachmentPaths(), []);
   } finally {
     database.close();
     await rm(directory, { recursive: true });

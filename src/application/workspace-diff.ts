@@ -1,14 +1,17 @@
 import type { DiffSummaryResult } from "../contracts/ipc.js";
-import { fileFingerprint, foldedForSize, rangeKey, UNCOMMITTED, type DiffFileSummary, type DiffRange } from "../domain/diff.js";
+import { DEFAULT_BRANCH_RANGE, fileFingerprint, foldedForSize, modeForRange, rangeKey, type DiffFileSummary, type DiffMode, type DiffRange } from "../domain/diff.js";
 import type { WorkspaceState } from "./workspace-state.js";
 
 /**
  * One thread's review of its own checkout: what it is comparing, which files it has folded away, and
- * which it has ticked off. Only the file list is held; a patch is content, so it is read when its
+ * which it has ticked off. A patch is content, so it is read when its
  * file is drawn and never becomes state, the way a page's contents and a shell's scrollback never do.
  */
 export type DiffState = {
+  /** A commit link opens a concrete comparison outside the selectable review modes. */
+  mode: DiffMode | "commit";
   range: DiffRange;
+  branchRange?: Extract<DiffRange, { kind: "branches" }>;
   /** The checkout the list was read from, so a thread that moves does not read a stale one. */
   workspaceId: string | null;
   result: DiffSummaryResult | null;
@@ -22,8 +25,11 @@ export type DiffState = {
   ignoreWhitespace: boolean;
 };
 
+export const DIFF_MODE_MENU = "diff:mode";
+
 export const EMPTY_DIFF: DiffState = {
-  range: UNCOMMITTED,
+  mode: "branch",
+  range: DEFAULT_BRANCH_RANGE,
   workspaceId: null,
   result: null,
   loading: false,
@@ -87,5 +93,5 @@ export function foldedOnLoad(diff: DiffState, files: DiffFileSummary[], result: 
 
 /** Whether a landed list still answers what its dock is asking, which a slow read may not. */
 export function diffMatches(diff: DiffState, workspaceId: string, range: DiffRange) {
-  return diff.workspaceId === workspaceId && rangeKey(diff.range) === rangeKey(range);
+  return diff.workspaceId === workspaceId && diff.mode === modeForRange(range) && rangeKey(diff.range) === rangeKey(range);
 }

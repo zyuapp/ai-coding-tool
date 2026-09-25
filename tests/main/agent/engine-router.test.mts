@@ -31,7 +31,7 @@ test("a run goes to the engine it names, a stop asks each engine for the thread,
   const router = new EngineRouter({ claude: engine("claude", log), codex: engine("codex", log, ["task-c"]) });
 
   assert.deepEqual(await router.execute(input({ engine: "claude", model: "opus", taskId: "task-a" })), { status: "succeeded", message: "claude" });
-  assert.deepEqual(await router.execute(input({ engine: "codex", model: "gpt-5.6-sol", taskId: "task-c" })), { status: "succeeded", message: "codex" });
+  assert.deepEqual(await router.execute(input({ engine: "codex", model: "gpt-6-sol", taskId: "task-c" })), { status: "succeeded", message: "codex" });
   assert.equal(router.stopProcess("task-c", "process-1"), true);
   assert.equal(router.stopProcess("task-z", "process-1"), false);
   router.closeAll();

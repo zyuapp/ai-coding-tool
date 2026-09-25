@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import type { ProviderEvent } from "../../../src/main/agent/agent-provider.mts";
+import type { SubagentReport } from "../../../src/domain/run.ts";
 import { liveTurn, tick } from "../../support/claude-session.mjs";
 
 function childMessage(parent: string) {
@@ -40,12 +41,100 @@ for (const channel of ["main", "side"] as const) {
   });
 }
 
-test("recognized subagent output stays in its subagent activity", async () => {
+test("recognized subagent output is reported to the thread as that subagent's activity", async () => {
   const emitted: ProviderEvent[] = [];
-  const live = await liveTurn({ emit: (event) => emitted.push(event) });
+  const reported: SubagentReport[] = [];
+  const live = await liveTurn({ emit: (event) => emitted.push(event), reportSubagent: (report) => reported.push(report) });
   live.capture.emit!({ type: "system", subtype: "task_started", task_id: "child", tool_use_id: "parent", subagent_type: "Explore", description: "Explore" });
   live.capture.emit!(childMessage("parent"));
   await tick();
-  assert.deepEqual(emitted.map((event) => event.type), ["subagent.started", "subagent.activity", "subagent.activity"]);
+  assert.deepEqual(emitted, []);
+  assert.deepEqual(reported.map((report) => report.type), ["subagent.started", "subagent.metadata", "subagent.activity", "subagent.activity"]);
+  assert.equal(reported[0].type === "subagent.started" && reported[0].sessionScoped, true);
   await live.end();
+});
+
+test("a subagent left running in the background reports to the thread after the turn's answer", async () => {
+  let opened = 0;
+  const reported: SubagentReport[] = [];
+  const live = await liveTurn({ reportSubagent: (report) => reported.push(report), beginAgentTurn: () => { opened += 1; return null; } });
+  live.capture.emit!({ type: "system", subtype: "task_started", task_id: "child", tool_use_id: "parent", subagent_type: "Explore", description: "Explore", is_backgrounded: true });
+  live.capture.emit!({ type: "result", subtype: "success", is_error: false, result: "Answer" });
+  await tick();
+  live.capture.emit!(childMessage("parent"));
+  live.capture.emit!({ type: "system", subtype: "task_progress", task_id: "child", description: "Explore", last_tool_name: "Read", usage: { total_tokens: 12 } });
+  live.capture.emit!({ type: "system", subtype: "task_notification", task_id: "child", tool_use_id: "parent", status: "completed", output_file: "/tmp/out", summary: "Found it" });
+  await tick();
+  assert.equal(opened, 0);
+  assert.deepEqual(reported.map((report) => report.type), ["subagent.started", "subagent.metadata", "subagent.activity", "subagent.activity", "subagent.progress", "subagent.finished"]);
+  assert.deepEqual(reported.at(-1), { type: "subagent.finished", id: "child", status: "completed", summary: "Found it" });
+  await live.end();
+});
+
+test("the session ending stops the subagents it still holds", async () => {
+  const reported: SubagentReport[] = [];
+  const live = await liveTurn({ reportSubagent: (report) => reported.push(report) });
+  live.capture.emit!({ type: "system", subtype: "task_started", task_id: "child", tool_use_id: "parent", subagent_type: "Explore", description: "Explore", is_backgrounded: true });
+  await live.end();
+  assert.deepEqual(reported.at(-1), { type: "subagent.finished", id: "child", status: "stopped", summary: "The session ended before this subagent finished." });
+});
+
+test("Claude preserves the full launch prompt and reports the child's model without inventing effort", async () => {
+  const reported: SubagentReport[] = [];
+  const live = await liveTurn({ model: "opus", effort: "max", reportSubagent: (report) => reported.push(report) });
+  const prompt = "  Review the renderer.\n\nPreserve this exact instruction.  ";
+  live.capture.emit!({ type: "assistant", uuid: "parent-message", parent_tool_use_id: null, message: {
+    model: "<synthetic>", content: [{ type: "tool_use", id: "launch", name: "Agent", input: { prompt, model: "haiku" } }],
+  } });
+  live.capture.emit!(childMessage("launch"));
+  live.capture.emit!({ type: "system", subtype: "task_started", task_id: "child", tool_use_id: "launch", task_type: "local_agent", subagent_type: "general-purpose", description: "Review renderer" });
+  await tick();
+  const started = reported.find((report) => report.type === "subagent.started");
+  assert.equal(started?.prompt, prompt);
+  assert.equal(started?.model, "claude-sonnet", "uses the child reply, not the requested alias or parent model");
+  assert.equal(started?.effort, undefined);
+  live.capture.emit!(childMessage("launch"));
+  await tick();
+  assert.equal(reported.filter((report) => report.type === "subagent.metadata").length, 0, "unchanged model is not republished");
+  await live.end();
+});
+
+test("Claude takes the delegated prompt from task_started and the model from the first child stream frame", async () => {
+  const reported: SubagentReport[] = [];
+  const live = await liveTurn({ reportSubagent: (report) => reported.push(report) });
+  const prompt = "Read all files.\n" + "More instructions.\n".repeat(10_000);
+  live.capture.emit!({ type: "system", subtype: "task_started", task_id: "child", tool_use_id: "launch", subagent_type: "Explore", description: "Explore", prompt });
+  live.capture.emit!({ type: "stream_event", parent_tool_use_id: "launch", event: { type: "message_start", message: { model: "claude-haiku" } } });
+  await tick();
+  assert.equal(reported[0].type === "subagent.started" && reported[0].prompt, prompt);
+  assert.deepEqual(reported[1], { type: "subagent.metadata", id: "child", model: "claude-haiku" });
+  await live.end();
+});
+
+test("Claude captures effective child effort from hooks across launch order and completion", async () => {
+  const reported: SubagentReport[] = [];
+  const live = await liveTurn({ effort: "max", reportSubagent: (report) => reported.push(report) });
+  const hooks = live.capture.options!.options!.hooks!;
+  const preTool = hooks.PreToolUse![0].hooks[0];
+  const stopped = hooks.SubagentStop![0].hooks[0];
+  const base = { session_id: "session", transcript_path: "/tmp/transcript", cwd: "/tmp", hook_event_name: "PreToolUse" as const, tool_name: "Read", tool_input: {}, tool_use_id: "read" };
+  const options = { signal: new AbortController().signal };
+  assert.deepEqual(await preTool({ ...base, effort: { level: "max" } }, undefined, options), {});
+  await preTool({ ...base, agent_id: "child", effort: { level: "medium" } }, undefined, options);
+  assert.equal(reported.length, 0);
+  live.capture.emit!({ type: "system", subtype: "task_started", task_id: "child", tool_use_id: "launch", subagent_type: "general-purpose", description: "Explore" });
+  await tick();
+  assert.equal(reported[0].type === "subagent.started" && reported[0].effort, "medium");
+  await preTool({ ...base, agent_id: "child", effort: { level: "medium" } }, undefined, options);
+  assert.equal(reported.length, 1);
+  for (const effort of ["low", "high", "xhigh", "max", "64"]) {
+    await preTool({ ...base, agent_id: "child", effort: { level: effort } }, undefined, options);
+    assert.deepEqual(reported.at(-1), { type: "subagent.metadata", id: "child", effort });
+  }
+  await stopped({ session_id: "session", transcript_path: "/tmp/transcript", cwd: "/tmp", hook_event_name: "SubagentStop", agent_id: "child", agent_type: "general-purpose", agent_transcript_path: "/tmp/child", stop_hook_active: false, effort: { level: "medium" } }, undefined, options);
+  assert.deepEqual(reported.at(-1), { type: "subagent.metadata", id: "child", effort: "medium" });
+  await live.end();
+  const count = reported.length;
+  await preTool({ ...base, agent_id: "child", effort: { level: "max" } }, undefined, options);
+  assert.equal(reported.length, count);
 });

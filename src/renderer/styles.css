@@ -99,6 +99,12 @@
   --worktree-4: color-mix(in srgb, var(--p-ansi-cyan) 70%, var(--p-fg-2));
   --worktree-5: color-mix(in srgb, var(--p-ansi-bright-blue) 70%, var(--p-fg-2));
 
+  /** One colour per role a thread can play, mixed like the checkout marks so a role and a checkout sit level. */
+  --role-coordinator: color-mix(in srgb, var(--p-ansi-magenta) 70%, var(--p-fg-2));
+  --role-implementer: color-mix(in srgb, var(--p-ansi-blue) 70%, var(--p-fg-2));
+  --role-reviewer: color-mix(in srgb, var(--p-ansi-yellow) 70%, var(--p-fg-2));
+  --role-researcher: color-mix(in srgb, var(--p-ansi-cyan) 70%, var(--p-fg-2));
+
   --link-line: color-mix(in srgb, var(--p-link) 45%, var(--p-bg-5));
 
   /* Success */
@@ -260,8 +266,8 @@ button, select { color: inherit; }
 /** Suppress Chromium’s native outline too; the rules below supply keyboard focus appearance. */
 :root[data-focus-appearance="quiet"] :focus { outline: none; }
 :where(button, input, textarea, select, summary, a[href], [role="button"], [tabindex]:not([tabindex="-1"])):focus-visible:where(:root:not([data-focus-appearance="quiet"]) *),
-:where(.agent-search, .font-select-search, .review-search, .thread-jump-search, .branch-menu-field, .thread-start-search-field, .model-search, .size-stepper):has(input:focus-visible):where(:root:not([data-focus-appearance="quiet"]) *),
-:where(.composer, .diff-comment):has(textarea:focus-visible):where(:root:not([data-focus-appearance="quiet"]) *) {
+:where(.agent-search, .font-select-search, .review-search, .thread-jump-search, .picker-search-field, .model-search, .size-stepper):has(input:focus-visible):where(:root:not([data-focus-appearance="quiet"]) *),
+:where(.diff-comment):has(textarea:focus-visible):where(:root:not([data-focus-appearance="quiet"]) *) {
   outline: 2px solid var(--focus-ring);
   /** Keep the indicator inside rows and controls whose parents clip overflow. */
   outline-offset: -2px;
@@ -323,10 +329,11 @@ button, select { color: inherit; }
   align-items: center;
   /** The window's traffic lights own the left of this strip, so everything here stays to the right. */
   justify-content: flex-end;
-  gap: 10px;
+  gap: 12px;
   -webkit-app-region: drag;
 }
 .thread-nav, .sidebar-modes { display: flex; align-items: center; gap: 1px; -webkit-app-region: no-drag; }
+.sidebar-modes { gap: 6px; }
 .thread-nav-button.active { background: var(--surface-active); color: var(--ink-dim); }
 .thread-nav-button {
   width: 26px;
@@ -481,6 +488,19 @@ button, select { color: inherit; }
 .folder-chevron { color: var(--quiet); font-size: 14px; }
 
 .project-list { display: grid; gap: 2px; }
+/** Folders sit under the computer that holds them once more than this one is listed, as the project picker groups them. */
+.computer-group { display: grid; gap: 2px; }
+.computer-group + .computer-group { margin-top: 10px; }
+.computer-heading { display: flex; align-items: center; min-height: 22px; padding: 0 10px 2px; }
+.computer-heading > .host-mark { min-width: 0; }
+/** A computer, wherever it is named: a small screen ahead of the name, set a step quieter than what it labels. */
+.host-mark { display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 100%; vertical-align: -1px; color: var(--quiet); font-size: var(--text-meta); font-weight: 500; }
+.host-mark > svg { flex: none; }
+.host-mark > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.host-mark.offline { color: var(--quiet-soft); }
+/** In a row's meta line the mark runs inline with the text, so the glyph sits on the same line as the words around it. */
+.task-row-text .host-mark { display: inline; font: inherit; color: inherit; vertical-align: baseline; }
+.task-row-text .host-mark > svg { margin-right: 4px; vertical-align: -2px; }
 .project-group { min-width: 0; }
 .project-row {
   position: relative;
@@ -594,10 +614,12 @@ button, select { color: inherit; }
 .menu-popover button:hover .menu-shortcut, .menu-popover button:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) .menu-shortcut,
 .menu-popover button:hover .menu-chevron, .menu-popover button:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) .menu-chevron { color: var(--accent-ink); opacity: 0.75; }
 .menu-separator { height: 1px; margin: 5px 0; background: var(--line-glass); }
-/** A list an item opened, overlapping that item the way this platform draws one. */
-.menu-submenu { top: 0; left: calc(100% - 5px); right: auto; z-index: 1; }
+/**
+ * A list an item opened, overlapping that item the way this platform draws one. It sits inside the
+ * blurred parent, where a backdrop filter only samples the parent, so it is painted solid instead.
+ */
+.menu-submenu { top: 0; left: calc(100% - 5px); right: auto; z-index: 1; background: var(--surface-menu); backdrop-filter: none; }
 .menu-submenu.menu-flipped { left: auto; right: calc(100% - 5px); }
-.menu-panel-submenu { background: var(--surface-menu); backdrop-filter: none; }
 .section-menu-popover { top: 30px; right: -6px; min-width: 224px; }
 .project-tasks { display: flex; flex-direction: column; gap: 1px; min-height: 8px; margin: 1px 0 2px; }
 .show-more,
@@ -886,6 +908,16 @@ button, select { color: inherit; }
 /* Both crumbs shrink, so a long project and a long title each give ground before the row clips. */
 .task-heading h1 > span { overflow: hidden; text-overflow: ellipsis; }
 .heading-project { flex: 0 1 auto; min-width: 4ch; color: var(--muted-soft); font-weight: 500; }
+/* Use the name's text baseline for the crumb, keeping the icon out of baseline calculation. */
+.task-heading h1 > .heading-host { flex: 0 1 auto; align-items: baseline; min-width: 4ch; font-size: inherit; font-weight: 500; color: var(--muted-soft); }
+.task-heading h1 > .heading-host > svg { align-self: center; }
+/* Match the heading's visual weight and compensate for the font's lower optical center. */
+.task-heading h1 > .heading-host > svg,
+.thread-heading-menu > .menu-trigger > svg {
+  width: 19px;
+  height: 19px;
+  transform: translateY(1px);
+}
 .heading-separator { flex: none; color: var(--quiet-soft); font-weight: 400; }
 .heading-thread { flex: 0 1 auto; min-width: 6ch; }
 .task-heading p {
@@ -1205,7 +1237,7 @@ button, select { color: inherit; }
   text-align: center;
 }
 /** The transcript's own empty state centres on the transcript rather than lifting off its floor. */
-.conversation > .empty-state { padding-bottom: 0; }
+.conversation > .empty-state { grid-template-columns: minmax(0, 1fr); padding-bottom: 0; }
 .conversation > .empty-state .empty-glyph {
   width: 46px;
   height: 46px;
@@ -1219,33 +1251,24 @@ button, select { color: inherit; }
 .conversation > .empty-state .empty-glyph svg { width: 21px; height: 21px; }
 .conversation > .empty-state h2 { margin: 20px 0 7px; color: var(--ink); font-size: var(--text-hero); letter-spacing: -0.03em; }
 .conversation > .empty-state p { max-width: 372px; color: var(--muted-soft); font-size: var(--text-control); line-height: 1.6; }
-/** Project, branch and checkout are one decision, so they sit in one track rather than three apart. */
+/** Project, computer, and Git options share a quiet row, wrapping only when space runs out. */
 .thread-start {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0;
+  justify-content: center;
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
   margin-top: 26px;
-  border: 1px solid var(--line-soft);
-  border-radius: 999px;
-  padding: 3px;
-  background: var(--surface-input);
 }
-.thread-start > * { position: relative; }
-.thread-start > * + *::before {
-  content: "";
-  position: absolute;
-  top: 8px;
-  bottom: 8px;
-  left: -1px;
-  width: 1px;
-  background: var(--line);
-}
-/** A hairline beside the control under the pointer would cut across its hover pill. */
-.thread-start > *:hover::before,
-.thread-start > *:hover + *::before { background: transparent; }
-.thread-start-field { position: relative; }
+.thread-start-field { position: relative; min-width: 0; max-width: 100%; }
+.thread-start-project { max-width: min(360px, 100%); }
+.thread-start-git { display: flex; align-items: center; justify-content: center; gap: 4px; max-width: 100%; }
+.thread-start-git > .thread-start-toggle { flex: none; }
 /** The empty state gives its buttons a filled pill; these controls carry only a hover wash. */
-.empty-state .thread-start button {
+.empty-state .thread-start :where(.thread-start-field, .thread-start-git, .thread-start-worktree) > button {
   margin: 0;
   display: flex;
   align-items: center;
@@ -1260,8 +1283,18 @@ button, select { color: inherit; }
   font-size: var(--text-control);
   font-weight: 480;
 }
-.empty-state .thread-start button:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-soft); }
-.empty-state .thread-start button:disabled { opacity: 0.45; cursor: default; }
+.empty-state .thread-start :where(.thread-start-field, .thread-start-git, .thread-start-worktree) > button:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-soft); }
+.empty-state .thread-start :where(.thread-start-field, .thread-start-git, .thread-start-worktree) > button:disabled { opacity: 0.45; cursor: default; }
+.empty-state .thread-start-project > button {
+  max-width: 100%;
+  text-align: left;
+}
+.thread-start-project-label { display: flex; align-items: center; gap: 8px; }
+.thread-start-project-label > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.thread-start-project-label > .host-mark { max-width: 140px; }
+/** Cap the field too, so a truncated branch leaves no empty space before Worktree. */
+.thread-start-git > .thread-start-field { max-width: 220px; }
+.thread-start-git > .thread-start-field > button { max-width: 100%; }
 /** A checkout of its own is a switch on the branch, so it presses in rather than carrying a box. */
 .empty-state .thread-start .thread-start-toggle { color: var(--quiet-strong); }
 .empty-state .thread-start .thread-start-toggle[aria-pressed="true"],
@@ -1270,6 +1303,7 @@ button, select { color: inherit; }
   color: var(--ink-soft);
 }
 .thread-start-toggle > svg { flex: none; color: inherit; }
+.empty-state .thread-start .thread-start-coordinator[aria-pressed="true"] > svg { color: var(--role-coordinator); }
 .thread-start-field > button > span {
   min-width: 0;
   overflow: hidden;
@@ -1287,44 +1321,8 @@ button, select { color: inherit; }
   text-transform: uppercase;
 }
 .thread-start-field > button > svg { flex: none; color: var(--quiet-strong); }
-.thread-start-popover svg { flex: none; color: var(--quiet-strong); }
-.thread-start-popover {
-  position: absolute;
-  z-index: 20;
-  top: 36px;
-  left: 0;
-  /** The field it hangs off is narrow, so the list takes its own width rather than wrapping names. */
-  width: max-content;
-  min-width: 220px;
-  max-width: 340px;
-  max-height: 280px;
-  overflow: auto;
-  border: 1px solid var(--line-mid);
-  border-radius: 10px;
-  padding: 5px;
-  background: var(--surface-menu);
-  box-shadow: var(--shadow-popover);
-  text-align: left;
-}
-.empty-state .thread-start-popover button {
-  width: 100%;
-  max-width: none;
-  justify-content: space-between;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  font-weight: 450;
-}
-/** A name too long for the list is cut off; it is never worth a second line. */
-.thread-start-popover button > span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.empty-state .thread-start-popover button:hover { background: var(--surface-menu-hover); }
-/** The branch list, wherever it hangs: the empty state's start options, and the session panel. */
-.branch-menu {
+/** Compact pickers share their surface, search field, and option geometry. */
+.picker-popover {
   position: absolute;
   z-index: 20;
   max-height: min(280px, var(--branch-menu-room, 100vh));
@@ -1336,14 +1334,16 @@ button, select { color: inherit; }
   box-shadow: var(--shadow-popover);
   text-align: left;
 }
-.branch-menu button {
+.picker-popover .picker-option {
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   text-align: left;
   width: 100%;
+  max-width: none;
   min-height: 32px;
+  margin: 0;
   border: 0;
   border-radius: 6px;
   padding: 0 8px;
@@ -1355,55 +1355,57 @@ button, select { color: inherit; }
   cursor: pointer;
 }
 /** The mark keeps its column whether or not it is drawn, so the names stay on one edge. */
-.branch-menu-mark { display: grid; place-items: center; }
-.branch-menu button[aria-selected="true"] { color: var(--ink); }
-.branch-menu button:hover { background: var(--surface-menu-hover); color: var(--ink-soft); }
-/** The option that is not a branch is set apart from the branches under it. */
-.branch-menu button.branch-menu-extra { border-bottom: 1px solid var(--line-soft); }
-/** A grouped list already names what follows, so the rule under the extra would say it twice. */
-.branch-menu.grouped button.branch-menu-extra { border-bottom: 0; }
+.picker-mark { display: grid; place-items: center; }
+.picker-option[aria-selected="true"], .picker-option[aria-checked="true"] { color: var(--ink); }
+.picker-option:hover:not(:disabled) { background: var(--surface-menu-hover); color: var(--ink-soft); }
 /** A name too long for the list is cut off; it is never worth a second line. */
-.branch-menu button > span {
+.picker-label {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.branch-menu svg { flex: none; color: var(--quiet-strong); }
-/** Placed against a row it does not sit inside, so a panel that scrolls or crops cannot clip it. */
-.branch-menu.anchored { position: fixed; z-index: 1000; }
-.thread-start-field .branch-menu {
-  top: 43px;
+.picker-popover svg { flex: none; color: var(--quiet-strong); }
+.picker-search-field { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; border: 1px solid var(--line-mid); border-radius: 7px; padding: 0 8px; background: var(--surface-input); color: var(--quiet); }
+.picker-search-field .picker-search {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 6px 0;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: var(--text-control);
+}
+.picker-search-field .picker-search:focus { outline: 0; }
+.thread-start-field > .picker-popover {
+  top: calc(100% + 6px);
   left: 0;
   /** The field it hangs off is narrow, so the list takes its own width rather than wrapping names. */
   width: max-content;
   min-width: 220px;
-  max-width: 340px;
+  max-width: min(340px, calc(100vw - 64px));
 }
+.thread-start-group-heading {
+  padding: 8px 8px 4px;
+  color: var(--quiet);
+  font-size: var(--text-meta);
+  font-weight: 500;
+}
+/** The option that is not a branch is set apart from the branches under it. */
+.branch-menu button.branch-menu-extra { border-bottom: 1px solid var(--line-soft); }
+/** A grouped list already names what follows, so the rule under the extra would say it twice. */
+.branch-menu.grouped button.branch-menu-extra { border-bottom: 0; }
+/** Placed against a row it does not sit inside, so a panel that scrolls or crops cannot clip it. */
+.branch-menu.anchored { position: fixed; z-index: 1000; min-width: 260px; }
 /** Titled the way the command menu is, since both are a list a keyboard walks. */
 .branch-menu-title { display: flex; align-items: center; gap: 8px; padding: 4px 8px 8px; color: var(--quiet-strong); font-size: var(--text-meta); font-weight: 600; letter-spacing: 0.02em; }
 .branch-menu-title kbd { margin-left: auto; color: var(--quiet-soft); font: 11px/1 var(--mono); }
 /** Groups say what a name is, so `origin/main` is never mistaken for a branch the checkout holds. */
 .branch-menu-group { padding: 8px 8px 3px; color: var(--quiet-soft); font-size: var(--text-badge); letter-spacing: 0.06em; text-transform: uppercase; }
 .branch-menu-group:first-child { padding-top: 3px; }
-.branch-menu-field, .thread-start-search-field { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; border: 1px solid var(--line-mid); border-radius: 7px; padding: 0 8px; background: var(--surface-input); color: var(--quiet); }
-.branch-menu-field > svg, .thread-start-search-field > svg { flex: none; }
-.branch-menu-field .branch-menu-search, .thread-start-search-field .thread-start-search { margin: 0; border: 0; border-radius: 0; padding: 6px 0; background: none; }
-.branch-menu-field .branch-menu-search:focus, .thread-start-search-field .thread-start-search:focus { outline: 0; }
-/** A list anchored to a narrow trigger still needs room for a ref, and must stay inside the window. */
-.branch-menu.anchored { min-width: 260px; }
-
-.branch-menu-search, .thread-start-search {
-  width: 100%;
-  margin-bottom: 4px;
-  border: 1px solid var(--line-mid);
-  border-radius: 7px;
-  padding: 6px 8px;
-  background: var(--surface-input);
-  color: var(--ink-soft);
-  font: inherit;
-  font-size: var(--text-control);
-}
 .branch-menu-empty, .thread-start-empty { padding: 8px; color: var(--quiet); font-size: var(--text-meta); }
 /** A checkout the user picked reads as a chip, not a control: the only choice left is to leave it. */
 .thread-start-worktree {
@@ -1488,9 +1490,6 @@ button, select { color: inherit; }
 .message-commit { display: inline; padding: 0; border: 0; background: none; font: inherit; cursor: pointer; }
 .markdown-body .message-commit code { color: var(--link); }
 .message-commit:hover code { color: var(--link); text-decoration: underline; text-underline-offset: 3px; }
-.diff-commit-heading { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; }
-.diff-commit-heading code { color: var(--ink); }
-.diff-commit-heading button { padding: 4px 6px; border: 1px solid var(--line); border-radius: 5px; background: none; color: var(--muted); font: inherit; }
 .markdown-body p { margin: 0 0 15px; }
 .markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4, .markdown-body h5, .markdown-body h6 {
   margin: 28px 0 12px;
@@ -1691,6 +1690,7 @@ pre {
 .thinking-row span:nth-child(2) { animation-delay: 0.14s; }
 .thinking-row span:nth-child(3) { animation-delay: 0.28s; }
 .compacting-row,
+.retrying-row,
 .waiting-row {
   display: flex;
   align-items: center;
@@ -2237,12 +2237,23 @@ pre {
 }
 .queued-drop:hover { background: var(--surface-raised); color: var(--ink); }
 
-.storage-error {
+/** The banners under the header, each on a row of its own. Empty, it takes no clicks from what is under it. */
+.workspace-banners {
   position: absolute;
   z-index: 8;
   top: 78px;
   left: 22px;
   right: 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  pointer-events: none;
+}
+.workspace-banners > * { pointer-events: auto; }
+
+.storage-error {
+  align-self: stretch;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2264,12 +2275,8 @@ pre {
  * info tone rather than the error's, and it is sized to its words so it holds one line at any width.
  */
 .storage-notice {
-  position: absolute;
-  z-index: 8;
-  top: 78px;
-  left: 22px;
   width: max-content;
-  max-width: calc(100% - 44px);
+  max-width: 100%;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -2431,8 +2438,18 @@ pre {
 }
 .inspector-header button:hover { background: var(--surface-hover); color: var(--ink-dim); }
 .inspector-scroll { min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
-.subagent-inspector .agent-detail-heading { padding: 26px 24px 22px; }
+.subagent-inspector .agent-detail-heading { grid-template-columns: 36px minmax(0, 1fr) auto; padding: 26px 24px 22px; }
+.subagent-inspector .agent-detail-heading .workflow-stop { align-self: start; margin-top: 2px; }
 .subagent-inspector .agent-detail-heading h2 { font-size: var(--text-heading); }
+.agent-details { padding: 0 24px 18px; border-bottom: 1px solid var(--line-soft); }
+.agent-configuration { display: grid; gap: 8px; margin: 0 0 16px; font-size: var(--text-control); }
+.agent-configuration > div { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 12px; }
+.agent-configuration dt { color: var(--quiet); }
+.agent-configuration dd { margin: 0; color: var(--ink-soft); overflow-wrap: anywhere; }
+.agent-prompt { font-size: var(--text-control); color: var(--ink-soft); }
+.agent-prompt summary { cursor: pointer; }
+.agent-prompt pre { margin: 12px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; line-height: 1.6; }
+.agent-prompt p { margin: 12px 0 0; color: var(--quiet); }
 .subagent-inspector .agent-summary { padding: 18px 24px; }
 .subagent-inspector .agent-activity { padding: 22px 24px 32px; }
 .agent-activity-items { position: relative; width: 100%; display: grid; }
@@ -2575,6 +2592,17 @@ pre {
 .worktree-mark.hue-4 { color: var(--worktree-4); }
 .worktree-mark.hue-5 { color: var(--worktree-5); }
 .task-engine { flex: none; color: var(--muted); }
+/**
+ * A role colours its row: the mark in the rail, and a faint hairline round the row so the eye groups
+ * threads by role before it reads a title. The active row's fill wins over the outline.
+ */
+.task-role { flex: none; color: var(--role-ink); }
+.role-coordinator { --role-ink: var(--role-coordinator); }
+.role-implementer { --role-ink: var(--role-implementer); }
+.role-reviewer { --role-ink: var(--role-reviewer); }
+.role-researcher { --role-ink: var(--role-researcher); }
+.project-task-row[class*="role-"], .task-row[class*="role-"] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--role-ink) 14%, transparent); }
+.project-task-row.active[class*="role-"], .task-row.active[class*="role-"] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--role-ink) 24%, transparent); }
 .subagent-section { border-top: 1px solid var(--line-soft); padding: 7px 12px 8px; }
 .subagent-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--quiet-strong); font-size: var(--text-control); font-weight: 580; }
 .subagent-heading .section-toggle { flex: 1; height: 26px; color: inherit; font-weight: inherit; }
@@ -3536,8 +3564,9 @@ button.file-name { cursor: pointer; }
   line-height: 1.5;
 }
 .composer textarea::placeholder { color: var(--quiet-soft); }
-.composer-bar { display: flex; justify-content: space-between; align-items: center; padding: 7px 9px 9px 8px; }
-.composer-settings { position: relative; min-width: 0; display: flex; align-items: center; gap: 4px; }
+/** Settings wrap as whole controls; Send/Stop keeps its own space at the bottom right. */
+.composer-bar { display: flex; justify-content: space-between; align-items: flex-end; gap: 8px; padding: 7px 9px 9px 8px; }
+.composer-settings { position: relative; flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .fast-mode-toggle {
   display: grid;
   place-items: center;
@@ -3553,7 +3582,7 @@ button.file-name { cursor: pointer; }
 }
 .fast-mode-toggle:hover { background: var(--wash); color: var(--ink); }
 .fast-mode-toggle[aria-pressed="true"] { background: var(--accent-chip); color: var(--accent-bright); }
-.setting-menu { position: relative; color: var(--quiet-strong); font-size: var(--text-control); }
+.setting-menu { flex: none; color: var(--quiet-strong); font-size: var(--text-control); }
 .setting-menu > summary {
   display: flex;
   align-items: baseline;
@@ -3575,7 +3604,8 @@ button.file-name { cursor: pointer; }
 .setting-popover {
   position: absolute;
   z-index: 20;
-  bottom: 39px;
+  /** Anchor above the whole settings group, including when its controls wrap. */
+  bottom: calc(100% + 9px);
   left: -4px;
   width: min(560px, calc(100cqw - 40px));
   /** The list scrolls rather than growing past the top of the window on a long model roster. */
@@ -3627,7 +3657,7 @@ button.setting-hint:hover { color: var(--ink); }
 .setting-icon, .setting-check { display: grid; place-items: center; }
 .setting-icon { color: var(--muted-strong); }
 .setting-check { color: var(--ink-faint); }
-.composer-actions { display: flex; align-items: center; gap: 12px; }
+.composer-actions { flex: none; display: flex; align-items: center; gap: 12px; }
 .context-usage {
   position: relative;
   display: grid;
@@ -3669,6 +3699,7 @@ button.setting-hint:hover { color: var(--ink); }
 .context-usage:hover .context-usage-tooltip,
 .context-usage:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) .context-usage-tooltip { opacity: 1; transform: translate(-50%, 0); }
 .send-button {
+  flex: none;
   width: 32px;
   height: 32px;
   border: 0;
@@ -3691,6 +3722,9 @@ button.setting-hint:hover { color: var(--ink); }
 }
 @container (max-width: 300px) {
   .context-usage { display: none; }
+  .composer-settings { gap: 0; }
+  .composer-bar { gap: 6px; padding-left: 10px; }
+  .setting-menu > summary { padding-inline: 6px; }
 }
 
 @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.35; } 30% { transform: translateY(-4px); opacity: 1; } }
@@ -3750,9 +3784,6 @@ button.setting-hint:hover { color: var(--ink); }
   /** The panel takes the whole width here, so the bar sits over it instead of beside it. */
   .workspace.summary-open .work-area > .find-slot > .find-bar { right: clamp(20px, 4vw, 64px); }
   .composer-wrap { padding: 10px 14px 14px; }
-  .composer-settings { gap: 0; }
-  .composer-bar { padding-left: 10px; }
-  .setting-menu > summary { padding-inline: 6px; }
   .command-menu { max-height: min(330px, calc(100vh - 220px)); border-radius: 13px; }
   .command-option { grid-template-columns: 32px minmax(0, 1fr); }
   .command-source { display: none; }
@@ -3772,23 +3803,25 @@ button.setting-hint:hover { color: var(--ink); }
 
 /* Diff panel */
 .diff-panel { display: flex; flex-direction: column; min-height: 0; height: 100%; }
-.diff-toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--line-soft); }
-/** The two sides share one track, taking the width their refs need rather than half each. */
-.diff-compare { display: flex; align-items: center; flex: 0 1 auto; width: fit-content; max-width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-input); overflow: hidden; }
-/** Shrink follows content, so a long remote ref gives way before a short one does. */
+.diff-toolbar { display: flex; flex-direction: column; flex: none; gap: 5px; padding: 7px 10px 8px; border-bottom: 1px solid var(--line-soft); }
+.diff-toolbar-main { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 26px; }
+.diff-mode-trigger { display: flex; align-items: center; gap: 5px; min-height: 26px; border: 0; border-radius: 6px; padding: 3px 5px; background: none; color: var(--ink-dim); font: inherit; font-size: var(--text-menu); cursor: pointer; }
+.diff-mode-trigger svg { color: var(--quiet); }
+.diff-mode-trigger:hover, .diff-mode-trigger[aria-expanded="true"] { background: var(--surface-hover); }
+.diff-mode-trigger:disabled { opacity: 0.5; cursor: default; }
+.diff-linked-commit { color: var(--quiet-strong); font: 11px var(--mono); padding: 4px 5px; }
+.branch-menu.diff-mode-menu { min-width: 170px; }
+.diff-mode-menu button { font-size: var(--text-menu); }
+.diff-mode-menu button[aria-checked="true"] { color: var(--ink); }
+/** Current work points toward the target; both retain the existing branch comparison choices. */
+.diff-compare { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .diff-side { position: relative; flex: 0 1 auto; min-width: 0; }
-.diff-side-trigger { display: flex; align-items: center; gap: 7px; width: 100%; min-height: 26px; padding: 0 8px 0 10px; border: 0; background: none; color: var(--ink-dim); font: inherit; font-size: var(--text-meta); text-align: left; cursor: pointer; }
-/** Which side this is, said rather than drawn: an arrow between the two reads as a merge. */
-.diff-side-label { flex: none; color: var(--quiet); }
-.diff-side-trigger:hover:not(:disabled) { background: var(--surface-hover); }
-.diff-side-trigger[aria-expanded="true"] { background: var(--surface-active); }
+.diff-side-trigger { display: flex; align-items: center; gap: 5px; width: 100%; min-height: 26px; padding: 4px 5px; border: 0; border-radius: 5px; background: none; color: var(--muted); font: inherit; font-size: var(--text-meta); text-align: left; cursor: pointer; }
+.diff-side-trigger:hover:not(:disabled), .diff-side-trigger[aria-expanded="true"] { background: var(--surface-hover); color: var(--ink-dim); }
 .diff-side-trigger:disabled { opacity: 0.5; cursor: default; }
-/** A long ref gives up its own tail first. Left to shrink in proportion, both sides truncate at once. */
-.diff-side-trigger code { min-width: 0; max-width: 20ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; font-family: var(--mono); }
-/** The caret follows the ref rather than the side's far edge, which would strand a gap after a short ref. */
-.diff-side-trigger > svg { flex: none; margin-left: -2px; color: var(--quiet-soft); }
-/** Git writes a comparison as `base...compare`; periods sit on the baseline, so the cell lifts them. */
-.diff-range { flex: none; display: grid; place-items: center; align-self: stretch; width: 27px; padding-bottom: 4px; border-inline: 1px solid var(--line); background: var(--sunken); color: var(--quiet-soft); font-family: var(--mono); font-size: var(--text-meta); line-height: 1; }
+.diff-side-trigger > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.diff-side-trigger > svg { flex: none; color: var(--quiet); }
+.diff-range-arrow { flex: none; color: var(--quiet); }
 
 .diff-toolbar-actions { display: flex; gap: 2px; }
 .diff-toolbar-actions button { display: grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 7px; background: none; color: var(--quiet-strong); cursor: pointer; }
@@ -3925,7 +3958,7 @@ button.setting-hint:hover { color: var(--ink); }
 .project-edit-panel h2 { margin: 0; color: var(--ink); font-size: var(--text-control); font-weight: 600; }
 .project-edit-field { display: flex; flex-direction: column; gap: 6px; }
 .project-edit-field > span { color: var(--quiet); font-size: var(--text-meta); }
-.project-edit-field input {
+.project-edit-field input, .project-edit-field select {
   width: 100%;
   min-width: 0;
   height: 30px;
@@ -4105,7 +4138,6 @@ button.setting-hint:hover { color: var(--ink); }
 }
 .tooltip[data-placed] { visibility: visible; }
 
-.setting-menu:has(.model-library) { position: static; }
 .model-library { width: min(620px, calc(100cqw - 40px)); padding: 0; overflow: hidden; display: flex; flex-direction: column; }
 .model-search { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line-soft); color: var(--quiet); flex-shrink: 0; }
 .model-search input { min-width: 0; flex: 1; border: 0; background: transparent; color: var(--ink); font: inherit; padding: 5px 0; outline: none; }
@@ -4144,3 +4176,42 @@ button.setting-hint:hover { color: var(--ink); }
   .model-row-icon { display: none; }
   .model-library-footer span { display: none; }
 }
+/** At composer widths that wrap controls, give the models the full menu width. */
+@container (max-width: 300px) {
+  .model-library { width: calc(100cqw - 16px); }
+  .model-library-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .model-provider-rail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-right: 0; border-bottom: 1px solid var(--line-soft); }
+  .model-provider-rail button { gap: 4px; padding-inline: 3px; }
+  .model-provider-rail button > span:last-child { display: none; }
+  .model-provider-rail hr { display: none; }
+  .model-results { padding-inline: 6px; }
+}
+
+/* ── Computers ───────────────────────────────────────────────────────────── */
+
+.computer-switch { position: relative; }
+.computer-switch-trigger[aria-expanded="true"] { background: var(--wash); color: var(--muted-strong); }
+.computer-switch-trigger.offline, .computer-switch-trigger.offline:hover { color: var(--quiet-soft); }
+.computer-switch-menu { top: calc(100% + 4px); right: 0; max-width: min(320px, calc(100vw - 28px)); }
+.computer-switch-menu button.offline { color: var(--quiet); }
+.computer-switch-menu .offline .menu-label::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: currentColor; vertical-align: middle; }
+.task-row.offline, .project-task-row.offline { opacity: 0.45; cursor: default; }
+.task-row.offline:hover, .project-task-row.offline:hover { background: transparent; }
+.computer-notice { background: var(--wash); }
+.computer-code { display: grid; gap: 8px; margin-top: 10px; }
+.computer-code label { display: grid; gap: 4px; color: var(--quiet-strong); font-size: var(--text-meta); }
+.computer-code input { width: 12ch; border: 1px solid var(--line); border-radius: 7px; padding: 5px 9px; background: var(--wash); color: var(--ink); font: 600 var(--text-control)/1.4 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; }
+.computer-code-actions { display: flex; gap: 8px; }
+.computer-address { display: flex; align-items: end; gap: 8px; }
+.computer-address label { display: grid; gap: 4px; color: var(--quiet-strong); font-size: var(--text-meta); }
+.computer-address input { width: 24ch; border: 1px solid var(--line); border-radius: 7px; padding: 5px 9px; background: var(--wash); color: var(--ink); font: var(--text-control)/1.4 var(--mono); }
+.computer-name label { display: grid; gap: 4px; color: var(--quiet-strong); font-size: var(--text-meta); }
+.computer-name input { width: 24ch; border: 1px solid var(--line); border-radius: 7px; padding: 5px 9px; background: var(--wash); color: var(--ink); font: var(--text-control)/1.4 var(--ui-font); }
+.computer-rename { width: 24ch; max-width: 100%; height: 24px; border: 1px solid var(--line-strong); border-radius: 6px; padding: 0 6px; background: var(--surface-input); color: var(--ink); font: inherit; font-size: var(--text-control); }
+
+.project-directory-options { max-height: 200px; overflow: auto; border: 1px solid var(--line-mid); border-radius: 8px; padding: 4px; }
+.project-directory-options button { display: block; width: 100%; padding: 6px 8px; text-align: left; overflow-wrap: anywhere; background: transparent; border: 0; border-radius: 4px; color: var(--ink-soft); font: inherit; font-size: var(--text-meta); }
+.project-directory-options button:hover, .project-directory-options button[aria-selected="true"] { background: var(--control); color: var(--ink); }
+.sidebar-project-empty { padding: 12px; color: var(--quiet); font-size: var(--text-meta); overflow-wrap: anywhere; }
+.sidebar-project-empty p { margin: 0 0 8px; }
+.sidebar-project-empty button { border: 0; background: transparent; color: var(--ink); padding: 0; font: inherit; cursor: pointer; }

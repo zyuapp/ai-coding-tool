@@ -8,12 +8,12 @@ import type { MobileApproval } from "../../contracts/mobile";
  * One tap decides: the card dims and both buttons are disabled until the Mac takes the card away,
  * so a second tap cannot answer twice while the first is still on its way.
  */
-export function ApprovalSheet({ approval, onDecide }: { approval: MobileApproval; onDecide: (allow: boolean) => void }) {
+export function ApprovalSheet({ approval, onDecide }: { approval: MobileApproval; onDecide: (approval: MobileApproval, allow: boolean) => void }) {
   const [decidedFor, setDecidedFor] = useState<string | null>(null);
   const decided = decidedFor === approval.approvalId;
   function decide(allow: boolean) {
     setDecidedFor(approval.approvalId);
-    onDecide(allow);
+    onDecide(approval, allow);
   }
   return (
     <section className="approval" aria-live="assertive" data-decided={decided || undefined}>

@@ -109,6 +109,7 @@ test("serializes and parses v2 data without changing it", () => {
   const migrated = migrateV1ToV2(legacyValues());
   assert.equal(migrated.ok, true);
   if (!migrated.ok) return;
+  migrated.data.tasks[0].role = "reviewer";
   migrated.data.tasks[0].subagents = [{
     id: "agent-1",
     description: "Inspect storage",
@@ -125,6 +126,8 @@ test("serializes and parses v2 data without changing it", () => {
   assert.deepEqual(parsed.data, migrated.data);
   assert.equal(parsed.sourceVersion, 2);
   assert.equal(parsed.preservedV1, null);
+  const unknownRole = validateThreadStoreData({ ...migrated.data, tasks: [{ ...migrated.data.tasks[0], role: "manager" }] });
+  assert.equal(unknownRole.ok && unknownRole.hiddenTasks, 1, "a role this build does not know hides the thread");
 });
 
 test("reads the established v2 field names without relying on this build's serializer", () => {
@@ -235,6 +238,19 @@ test("validating decoded v2 data matches serialized parsing", () => {
   assert.deepEqual(directlyHidden.data.tasks, []);
   assert.equal(directlyHidden.hiddenTasks, 1);
   assert.equal(hidden.hiddenTasks, 1);
+});
+
+test("a coordinator's waiting notes saved under their first name load under the current one", () => {
+  const migrated = migrateV1ToV2(legacyValues());
+  assert.equal(migrated.ok, true);
+  if (!migrated.ok) return;
+  const note = { id: "n1", threadId: "worker", text: "\"Fix login\" ended its turn.", at: 1 };
+  const decoded = { ...migrated.data, tasks: [{ ...migrated.data.tasks[0], role: "coordinator", crewNotes: [note] }] };
+  const validated = validateThreadStoreData(decoded);
+  assert.equal(validated.ok, true);
+  if (!validated.ok) return;
+  assert.deepEqual(validated.data.tasks[0].coordinationNotes, [note]);
+  assert.equal("crewNotes" in validated.data.tasks[0], false);
 });
 
 test("current tasks and unexpired archives keep their existing objects", () => {
@@ -666,6 +682,17 @@ test("duplicate checkout ids keep the first record before invalid projects are r
   assert.equal(result.data.tasks[0].worktreeId, "shared");
   assert.equal(result.data.tasks[1].worktreeId, undefined, "filtering after deduplication does not revive a later duplicate");
   assert.equal(result.data.tasks[1].worktreeEnteredAt, undefined);
+});
+
+test("a thread saved on a replaced model reads back on its successor", () => {
+  const migrated = migrateV1ToV2(legacyValues());
+  assert.equal(migrated.ok, true);
+  if (!migrated.ok) return;
+  const { continuation: _session, ...thread } = migrated.data.tasks[0];
+  const parsed = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...thread, continuationStatus: "none", engine: "codex", model: "gpt-5.6-luna" }] }));
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  assert.equal(parsed.data.tasks[0]?.model, "gpt-6-luna");
 });
 
 test("what a thread's runs found survives being written and read back, and a malformed one hides the thread", () => {

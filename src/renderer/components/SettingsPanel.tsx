@@ -6,18 +6,23 @@ import type { ThemeMode } from "../../domain/theme";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { ArchiveSettings } from "./ArchiveSettings";
 import { BrowserSettings } from "./BrowserSettings";
-import { ComputerUseSettings, useComputerUsePermissions } from "./ComputerUseSettings";
+import { ComputerUseSettings } from "./ComputerUseSettings";
 import { EngineSettings, type EngineSettingsProps } from "./EngineSettings";
 import { GeneralSettings } from "./GeneralSettings";
 import type { AgentEngine, EngineReadiness } from "../../domain/agent-engine";
 import type { SettingsSection } from "../../domain/settings-section";
 import { MobileSettings } from "./MobileSettings";
+import type { ComputerSettingsProps } from "./ComputerSettings";
 import type { MobileServerState } from "../../domain/mobile";
 import { SettingFocus } from "./SettingRow";
 import { ShortcutSettings } from "./ShortcutSettings";
 import { UsageSettings } from "./UsageSettings";
 import { useFocusReturn } from "../focus";
+import type { CliState } from "../../application/cli-installation";
+import type { ComputerUseAccessState } from "../../application/computer-use-access";
+import type { PlanUsageState } from "../../application/plan-limits";
 import type { DesktopShortcutUnavailable } from "../../application/workspace-state";
+import type { ComputerUsePermission } from "../../contracts/ipc";
 import type { WorktreeSettingsPage } from "../../application/worktree-settings";
 import type { WorktreeCommand } from "../../contracts/commands";
 import { WorktreeSettings } from "./WorktreeSettings";
@@ -69,7 +74,7 @@ function SettingsNav({ section, onSelect, onRefreshEngines, onRefreshWorktrees, 
         onRefreshRemote();
       }}>
         <Smartphone size={17} aria-hidden="true" />
-        <span>Phone</span>
+        <span>Devices</span>
       </button>
       <button className={section === "archive" ? "active" : ""} type="button" aria-current={section === "archive" ? "page" : undefined} onClick={() => onSelect("archive")}>
         <Archive size={17} aria-hidden="true" />
@@ -102,6 +107,24 @@ function SettingsSidebar({ section, backRef, onClose, onSelect, onRefreshEngines
   );
 }
 
+/** The two destructive asks the sheet confirms, each taking the focus and handing it back to the button that asked. */
+function useConfirmations() {
+  const [confirmingClear, setConfirmingClear] = useState(false);
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
+  const clearArchive = useRef<HTMLButtonElement>(null);
+  const clearBrowser = useRef<HTMLButtonElement>(null);
+  const confirmation = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (confirmingClear || confirmingSignOut) confirmation.current?.focus();
+  }, [confirmingClear, confirmingSignOut]);
+  function cancelConfirmation(browser: boolean) {
+    if (browser) setConfirmingSignOut(false);
+    else setConfirmingClear(false);
+    requestAnimationFrame(() => (browser ? clearBrowser : clearArchive).current?.focus());
+  }
+  return { confirmingClear, setConfirmingClear, confirmingSignOut, setConfirmingSignOut, clearArchive, clearBrowser, confirmation, cancelConfirmation };
+}
+
 /** The page the sheet shows and the control it marks, both re-aimed whenever something outside names one. */
 function useSettingsPlace(initialSection: SettingsSection, initialSetting: string | null) {
   const [section, setSection] = useState<SettingsSection>(initialSection);
@@ -122,6 +145,17 @@ export type SettingsPanelProps = {
   worktreeSettings: WorktreeSettingsPage;
   worktreeManagementError: string | null;
   worktreeManagementNotice: string | null;
+  /** The terminal command the app installs, and the two things settings can do about it. */
+  cli: CliState;
+  onReadCli: () => void;
+  onSetCliInstalled: (installed: boolean) => void;
+  /** The plan limits each provider reports, and the ask that reads them again. */
+  planUsage: PlanUsageState;
+  onReadPlanUsage: () => void;
+  /** What the platform lets the app see and operate, and the two things settings can do about it. */
+  computerUseAccess: ComputerUseAccessState;
+  onEnableComputerUse: (permission: ComputerUsePermission) => void;
+  onRestartForComputerUse: () => void;
   /** The theme in effect, by id, and the ground the user asked for. */
   theme: string;
   themeMode: ThemeMode;
@@ -180,13 +214,20 @@ export type SettingsPanelProps = {
   onCreateRemotePairingCode: () => void;
   onRevokeRemoteDevice: (deviceId: string) => void;
   onRefreshRemote: () => void;
+  /** The other computers, as the Devices page draws them. Absent where a test has none. */
+  computers?: ComputerSettingsProps;
 };
+
+/** A Devices page with no computers to speak of, for a caller with nothing to say about them. */
+const NO_COMPUTER_SETTINGS: ComputerSettingsProps = { found: [], searching: false, searchError: null, name: "", links: [], pairing: null, onDiscover() {}, onPair() {}, onCancelPairing() {}, onForget() {}, onRename() {}, onLabel() {} };
 
 export function SettingsPanel({
   onClose,
   initialSection = "general",
   initialSetting = null,
   archivedThreads,
+  cli, onReadCli, onSetCliInstalled, planUsage, onReadPlanUsage,
+  computerUseAccess, onEnableComputerUse, onRestartForComputerUse,
   worktreeSettings,
   worktreeManagementError,
   worktreeManagementNotice,
@@ -235,27 +276,13 @@ export function SettingsPanel({
   onCreateRemotePairingCode,
   onRevokeRemoteDevice,
   onRefreshRemote,
+  computers = NO_COMPUTER_SETTINGS,
 }: SettingsPanelProps) {
   const { section, found, choosePage } = useSettingsPlace(initialSection, initialSetting);
-  const [confirmingClear, setConfirmingClear] = useState(false);
-  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
+  const { confirmingClear, setConfirmingClear, confirmingSignOut, setConfirmingSignOut, clearArchive, clearBrowser, confirmation, cancelConfirmation } = useConfirmations();
   const back = useRef<HTMLButtonElement>(null);
-  const clearArchive = useRef<HTMLButtonElement>(null);
-  const clearBrowser = useRef<HTMLButtonElement>(null);
-  const confirmation = useRef<HTMLButtonElement>(null);
   useFocusReturn(back);
 
-  useEffect(() => {
-    if (confirmingClear || confirmingSignOut) confirmation.current?.focus();
-  }, [confirmingClear, confirmingSignOut]);
-
-  function cancelConfirmation(browser: boolean) {
-    if (browser) setConfirmingSignOut(false);
-    else setConfirmingClear(false);
-    requestAnimationFrame(() => (browser ? clearBrowser : clearArchive).current?.focus());
-  }
-
-  const computerUsePermissions = useComputerUsePermissions();
   return (
     <SettingFocus value={found}>
     <section
@@ -296,7 +323,7 @@ export function SettingsPanel({
           <p>How AI Coding Tool answers from outside its own window.</p>
         </div>
 
-        <GeneralSettings chromeBrowser={chromeBrowser} onSetChromeBrowser={onSetChromeBrowser} conciseReplies={conciseReplies} onSetConciseReplies={onSetConciseReplies} notifications={notifications} onSetNotifications={onSetNotifications} onCheckForUpdates={onCheckForUpdates} onOpenSourceLicenses={onOpenSourceLicenses} />
+        <GeneralSettings cli={cli} onReadCli={onReadCli} onSetCliInstalled={onSetCliInstalled} chromeBrowser={chromeBrowser} onSetChromeBrowser={onSetChromeBrowser} conciseReplies={conciseReplies} onSetConciseReplies={onSetConciseReplies} notifications={notifications} onSetNotifications={onSetNotifications} onCheckForUpdates={onCheckForUpdates} onOpenSourceLicenses={onOpenSourceLicenses} />
       </main>
       )}
 
@@ -307,7 +334,7 @@ export function SettingsPanel({
           <p>Plan limits across your signed-in accounts.</p>
         </div>
 
-        <UsageSettings />
+        <UsageSettings usage={planUsage} onRefresh={onReadPlanUsage} />
       </main>
       )}
 
@@ -335,13 +362,14 @@ export function SettingsPanel({
           onCreatePairingCode={onCreateRemotePairingCode}
           onRevokeDevice={onRevokeRemoteDevice}
           onRefreshTailscale={onRefreshRemote}
+          computers={computers}
         />
       )}
 
       {section === "archive" && <ArchiveSettings archivedThreads={archivedThreads} confirming={confirmingClear} confirmationRef={confirmation} clearRef={clearArchive}
         onRestoreThread={onRestoreThread} onClearArchive={onClearArchive} onStartConfirm={() => setConfirmingClear(true)} onCancelConfirm={() => cancelConfirmation(false)} />}
 
-      {section === "computer-use" && <ComputerUseSettings computerUse={computerUse} onSetComputerUse={onSetComputerUse} {...computerUsePermissions} />}
+      {section === "computer-use" && <ComputerUseSettings computerUse={computerUse} onSetComputerUse={onSetComputerUse} access={computerUseAccess} onEnable={onEnableComputerUse} onRestart={onRestartForComputerUse} />}
     </section>
     </SettingFocus>
   );

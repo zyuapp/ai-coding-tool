@@ -11,7 +11,7 @@ import {
   adoptPersistedMessages,
   type PersistenceQueue,
   type PersistenceState,
-} from "../../src/renderer/task-workspace/workspace-persistence.ts";
+} from "../../src/host/workspace-persistence.ts";
 
 function snapshot(text: string): PersistenceState {
   const task: Thread = {

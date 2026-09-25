@@ -14,10 +14,11 @@ const SLICE = 12;
  * Colours the rows on screen, and a run past each edge, a slice at a time. Colouring a whole review
  * costs seconds of a held window, so it follows what is drawn rather than what has arrived: each pass
  * draws what it coloured, and the pass that follows takes the next slice. Every render asks again,
- * which is what carries the colour along with a scroll.
+ * which is what carries the colour along with a scroll. Returns how many passes have drawn, which is
+ * what tells a row already on screen that the tokens under it have changed.
  */
 export function useLazyColours(count: number, window: Virtualizer<HTMLDivElement, Element> | null, colour: (index: number) => boolean) {
-  const [, painted] = useState(0);
+  const [pass, painted] = useState(0);
   useEffect(() => {
     /** A windowed list names the rows it drew; a short one is laid out whole, so all of it is drawn. */
     const items = window?.getVirtualItems();
@@ -30,6 +31,7 @@ export function useLazyColours(count: number, window: Virtualizer<HTMLDivElement
       if (colour(index)) drew = true;
       if (drew && performance.now() > until) break;
     }
-    if (drew) painted((pass) => pass + 1);
+    if (drew) painted((drawn) => drawn + 1);
   });
+  return pass;
 }

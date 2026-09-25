@@ -28,9 +28,9 @@ export type Reply<M extends ServerRequestMethod> = { result: ServerRequestResult
 export const defaultScript: Script = {
   "skills/list": () => ({ data: [{ cwd: "/tmp/project", skills: [], errors: [] }] }),
   "account/read": () => ({ account: { type: "chatgpt", email: "dev@example.com", planType: "pro" }, requiresOpenaiAuth: true }),
-  "thread/start": (params: { model?: string | null }) => ({ thread: { id: "thread-1" }, model: params.model ?? "gpt-5.6-sol" }),
-  "thread/resume": (params: { threadId: string }) => ({ thread: { id: params.threadId }, model: "gpt-5.6-sol" }),
-  "thread/fork": () => ({ thread: { id: "thread-fork" }, model: "gpt-5.6-sol" }),
+  "thread/start": (params: { model?: string | null }) => ({ thread: { id: "thread-1" }, model: params.model ?? "gpt-6-sol" }),
+  "thread/resume": (params: { threadId: string }) => ({ thread: { id: params.threadId }, model: "gpt-6-sol" }),
+  "thread/fork": () => ({ thread: { id: "thread-fork" }, model: "gpt-6-sol" }),
   "thread/goal/set": (params: { threadId: string; objective: string }) => ({ goal: { threadId: params.threadId, objective: params.objective, status: "active", tokenBudget: null, tokensUsed: 0, timeUsedSeconds: 0, createdAt: 1, updatedAt: 1 } }),
   "thread/goal/get": () => ({ goal: null }),
   "thread/goal/clear": () => ({ cleared: true }),
@@ -68,7 +68,7 @@ export class FakeCodexClient implements CodexClient {
     return this.handshake();
   }
 
-  request<M extends ClientMethod>(method: M, ...params: ClientParams<M> extends undefined ? [params?: undefined] : [params: ClientParams<M>]): Promise<ClientResult<M>> {
+  request<M extends ClientMethod>(method: M, ...params: undefined extends ClientParams<M> ? [params?: ClientParams<M>] : [params: ClientParams<M>]): Promise<ClientResult<M>> {
     this.sent.push({ method, params: params[0] });
     const answer = this.script[method];
     if (!answer) return Promise.reject(new Error(`${method} is not scripted`));
@@ -149,7 +149,7 @@ export function input(overrides: Partial<ProviderRunInput> = {}): ProviderRunInp
     computerUse: { status: "unavailable", message: "test" },
     policy: "confirm",
     engine: "codex",
-    model: "gpt-5.6-sol",
+    model: "gpt-6-sol",
     effort: "high",
     steering: { next: () => new Promise<null>(() => {}) },
     abortController: new AbortController(),

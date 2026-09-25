@@ -9,7 +9,9 @@ import type { WorktreeGroup } from "../../application/workspace-state";
 import { PopoverMenu } from "./PopoverMenu";
 import { RenameInput, useRenaming, type Renaming } from "./SidebarRename";
 import { ShowMore } from "./ShowMore";
-import type { ThreadRowRenderer } from "./SidebarThreadRow";
+import { hostMeta, type ThreadRowRenderer } from "./SidebarThreadRow";
+import type { ThreadHost } from "../../application/computers";
+import { HostMark } from "./HostMark";
 
 export const RECENTS_DROPPABLE = "recents";
 export const PROJECTS_DROPPABLE = "projects";
@@ -51,6 +53,8 @@ function visibleCount(projectThreads: Thread[], currentId: string | null, showAl
 
 type ProjectRowProps = {
   project: Project;
+  /** The paired computer the folder is on, for one that is not this computer's own. */
+  host: ThreadHost | undefined;
   index: number;
   threads: Thread[];
   /** A checkout is somewhere a thread can be started, not a list the sidebar draws. */
@@ -72,6 +76,7 @@ type ProjectRowProps = {
 
 function ProjectRow({
   project,
+  host,
   index,
   threads,
   checkouts,
@@ -117,7 +122,7 @@ function ProjectRow({
                   className="project-main"
                   onClick={() => onToggleProject(project.id)}
                   onDoubleClick={(event) => renaming.start(project.id, event.currentTarget.closest(".project-row"))}
-                  title={project.root}
+                  title={host ? `${project.root} on ${host.name}${host.offline ? " (offline)" : ""}` : project.root}
                   aria-expanded={expanded}
                 >
                   <span className="folder-icon"><FolderIcon /></span>
@@ -164,8 +169,25 @@ function ProjectRow({
   );
 }
 
+/**
+ * The folders each computer holds, in the order the list gives them: this computer's first, then
+ * each paired computer's together. Each computer has its own drag list and project indices.
+ */
+function computerGroups(projects: Project[], projectHosts: Map<string, ThreadHost>) {
+  const groups: Array<{ host: ThreadHost | undefined; projects: Project[] }> = [];
+  projects.forEach((project) => {
+    const host = projectHosts.get(project.id);
+    const last = groups.at(-1);
+    if (last && last.host?.id === host?.id) last.projects.push(project);
+    else groups.push({ host, projects: [project] });
+  });
+  return groups;
+}
+
 export type SidebarProjectsProps = {
   projects: Project[];
+  /** What this computer calls itself, which heads its own folders once a paired computer's are listed too. */
+  computerName: string;
   /** The threads each project holds, in the order the folder lists them. */
   threadsByProject: Map<string, Thread[]>;
   checkoutsByProject: Map<string, WorktreeGroup[]>;
@@ -173,6 +195,8 @@ export type SidebarProjectsProps = {
   currentId: string | null;
   draftProjectId: string | null;
   expandedProjects: Set<string>;
+  projectHosts: Map<string, ThreadHost>;
+  threadHosts: Map<string, ThreadHost>;
   sections: SidebarSections;
   shownThreads: ShownThreads;
   openMenu: string | null;
@@ -191,12 +215,15 @@ export type SidebarProjectsProps = {
 
 export function SidebarProjects({
   projects,
+  computerName,
   threadsByProject,
   checkoutsByProject,
   recentThreads,
   currentId,
   draftProjectId,
   expandedProjects,
+  projectHosts,
+  threadHosts,
   sections,
   shownThreads,
   openMenu,
@@ -212,6 +239,9 @@ export function SidebarProjects({
   onRemoveProject,
 }: SidebarProjectsProps) {
   const projectNames = useRenaming(onRenameProject);
+  /** Headings only once a paired computer's folders sit beside this computer's own. */
+  const showComputers = projects.some((project) => projectHosts.has(project.id));
+  const localName = computerName || "This computer";
 
   return (
     <>
@@ -221,35 +251,39 @@ export function SidebarProjects({
         </button>
         <button className="section-action add-project" onClick={onOpenFolder} aria-label="Add project">＋</button>
       </div>
-      {sections.projects && <Droppable droppableId={PROJECTS_DROPPABLE} type={PROJECT_DRAG}>
-        {(list) => (
-          <nav className="project-list" aria-label="Projects" ref={list.innerRef} {...list.droppableProps}>
-            {projects.map((project, projectIndex) => (
-              <ProjectRow
-                key={project.id}
-                project={project}
-                index={projectIndex}
-                threads={threadsByProject.get(project.id) ?? []}
-                checkouts={checkoutsByProject.get(project.id) ?? []}
-                expanded={expandedProjects.has(project.id)}
-                showAll={shownThreads.has(project.id)}
-                current={draftProjectId === project.id}
-                currentId={currentId}
-                openMenu={openMenu}
-                renaming={projectNames}
-                renderRow={renderRow}
-                onToggleShowAll={() => shownThreads.toggle(project.id)}
-                onSetOpenMenu={onSetOpenMenu}
-                onNewThread={onNewThread}
-                onToggleProject={onToggleProject}
-                onEditProject={onEditProject}
-                onRemoveProject={onRemoveProject}
-              />
-            ))}
-            {list.placeholder}
-          </nav>
-        )}
-      </Droppable>}
+      {sections.projects && <nav className="project-list" aria-label="Projects">
+        {computerGroups(projects, projectHosts).map(({ host, projects: held }) => (
+          <Droppable key={host?.id ?? "local"} droppableId={`${PROJECTS_DROPPABLE}:${host?.id ?? "this"}`} type={`${PROJECT_DRAG}:${host?.id ?? "this"}`}>
+            {(list) => <div className="computer-group" role={showComputers ? "group" : undefined} aria-label={showComputers ? host?.name ?? localName : undefined} ref={list.innerRef} {...list.droppableProps}>
+              {showComputers && <div className="computer-heading" aria-hidden="true"><HostMark name={host?.name ?? localName} offline={host?.offline} /></div>}
+              {held.map((project, offset) => (
+                <ProjectRow
+                  key={project.id}
+                  project={project}
+                  host={host}
+                  index={offset}
+                  threads={threadsByProject.get(project.id) ?? []}
+                  checkouts={checkoutsByProject.get(project.id) ?? []}
+                  expanded={expandedProjects.has(project.id)}
+                  showAll={shownThreads.has(project.id)}
+                  current={draftProjectId === project.id}
+                  currentId={currentId}
+                  openMenu={openMenu}
+                  renaming={projectNames}
+                  renderRow={renderRow}
+                  onToggleShowAll={() => shownThreads.toggle(project.id)}
+                  onSetOpenMenu={onSetOpenMenu}
+                  onNewThread={onNewThread}
+                  onToggleProject={onToggleProject}
+                  onEditProject={onEditProject}
+                  onRemoveProject={onRemoveProject}
+                />
+              ))}
+              {list.placeholder}
+            </div>}
+          </Droppable>
+        ))}
+      </nav>}
 
       <div className="section-heading recents-heading">
         <button className="section-toggle" onClick={() => onSetSectionOpen("recents", !sections.recents)} aria-expanded={sections.recents}>
@@ -272,7 +306,7 @@ export function SidebarProjects({
             {recentThreads.length === 0 && !snapshot.isDraggingOver && <p className="sidebar-empty">No chats</p>}
             {recentThreads.map((thread, index) => renderRow(thread, index, `task-row ${thread.id === currentId ? "active" : ""}`, <span className="task-row-text">
                 <span>{thread.title}</span>
-                <small>{formatTime(threadActivityAt(thread))}</small>
+                <small>{hostMeta(threadHosts.get(thread.id), formatTime(threadActivityAt(thread)))}</small>
               </span>))}
             {provided.placeholder}
           </nav>

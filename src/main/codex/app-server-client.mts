@@ -21,12 +21,14 @@ import type { LoginAccountResponse } from "./protocol/v2/LoginAccountResponse.js
 import type { McpServerElicitationRequestResponse } from "./protocol/v2/McpServerElicitationRequestResponse.js";
 import type { PermissionsRequestApprovalResponse } from "./protocol/v2/PermissionsRequestApprovalResponse.js";
 import type { ReviewStartResponse } from "./protocol/v2/ReviewStartResponse.js";
+import type { SkillsExtraRootsSetResponse } from "./protocol/v2/SkillsExtraRootsSetResponse.js";
 import type { SkillsListResponse } from "./protocol/v2/SkillsListResponse.js";
 import type { ThreadForkResponse } from "./protocol/v2/ThreadForkResponse.js";
 import type { ThreadGoalClearResponse } from "./protocol/v2/ThreadGoalClearResponse.js";
 import type { ThreadGoalGetResponse } from "./protocol/v2/ThreadGoalGetResponse.js";
 import type { ThreadGoalSetResponse } from "./protocol/v2/ThreadGoalSetResponse.js";
 import type { ThreadResumeResponse } from "./protocol/v2/ThreadResumeResponse.js";
+import type { ThreadReadResponse } from "./protocol/v2/ThreadReadResponse.js";
 import type { ThreadStartResponse } from "./protocol/v2/ThreadStartResponse.js";
 import type { ToolRequestUserInputResponse } from "./protocol/v2/ToolRequestUserInputResponse.js";
 import type { TurnInterruptResponse } from "./protocol/v2/TurnInterruptResponse.js";
@@ -58,6 +60,7 @@ export interface ClientResponses {
   initialize: InitializeResponse;
   "thread/start": ThreadStartResponse;
   "thread/resume": ThreadResumeResponse;
+  "thread/read": ThreadReadResponse;
   "thread/fork": ThreadForkResponse;
   "thread/goal/set": ThreadGoalSetResponse;
   "thread/goal/get": ThreadGoalGetResponse;
@@ -69,6 +72,7 @@ export interface ClientResponses {
   "thread/backgroundTerminals/terminate": { terminated: boolean };
   "review/start": ReviewStartResponse;
   "skills/list": SkillsListResponse;
+  "skills/extraRoots/set": SkillsExtraRootsSetResponse;
   "account/read": GetAccountResponse;
   "account/rateLimits/read": GetAccountRateLimitsResponse;
   "account/login/start": LoginAccountResponse;
@@ -251,7 +255,7 @@ export class AppServerClient {
     return server;
   }
 
-  request<M extends ClientMethod>(method: M, ...params: ClientParams<M> extends undefined ? [params?: undefined] : [params: ClientParams<M>]): Promise<ClientResult<M>> {
+  request<M extends ClientMethod>(method: M, ...params: undefined extends ClientParams<M> ? [params?: ClientParams<M>] : [params: ClientParams<M>]): Promise<ClientResult<M>> {
     if (this.exit) return Promise.reject(new AppServerExited(this.exit, `before ${method}`));
     const id = this.nextId++;
     return new Promise((resolve, reject) => {

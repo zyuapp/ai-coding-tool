@@ -1,3 +1,4 @@
+import { grantsTool } from "../agent/approval-grant.mjs";
 import type { ProviderRunInput } from "../agent/agent-provider.mjs";
 import type { ServedTools } from "../tools/mcp-http-host.mjs";
 
@@ -38,7 +39,7 @@ export type ConfigSources = Pick<ProviderRunInput, "channel" | "policy" | "compu
 /**
  * The config overrides a Codex app server is spawned with. The app's own tools are served by the
  * app and pre-approved: they reach nothing but the app's own bridges. Bundled computer use prompts
- * like any other MCP server, except where Claude would also grant it unasked.
+ * like any other MCP server, except where the run's policy grants it unasked.
  */
 export function codexConfig(input: ConfigSources, served: ServedTools | undefined): string[] {
   const config: Record<string, TomlValue> = {};
@@ -52,7 +53,7 @@ export function codexConfig(input: ConfigSources, served: ServedTools | undefine
     config[`mcp_servers.${COMPUTER_USE_SERVER_NAME}.command`] = command;
     config[`mcp_servers.${COMPUTER_USE_SERVER_NAME}.args`] = args;
     config[`mcp_servers.${COMPUTER_USE_SERVER_NAME}.env`] = env;
-    if (input.policy === "bypass" || (input.channel === "main" && input.policy === "autonomous")) config[`mcp_servers.${COMPUTER_USE_SERVER_NAME}.default_tools_approval_mode`] = "approve";
+    if (grantsTool("computer-use", input)) config[`mcp_servers.${COMPUTER_USE_SERVER_NAME}.default_tools_approval_mode`] = "approve";
   }
   return [...APP_FEATURES, ...Object.entries(config).flatMap(([key, value]) => ["-c", `${key}=${toml(value)}`])];
 }

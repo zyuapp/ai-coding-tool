@@ -20,11 +20,11 @@ import { threadActivityAt, type Thread } from "../../src/domain/thread.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
 import type { AutomationPanelProps } from "../../src/renderer/components/AutomationPanel.tsx";
 import type { ProjectSidebarProps } from "../../src/renderer/components/ProjectSidebar.tsx";
-import type { ThreadRequestHost } from "../../src/renderer/task-workspace/thread-requests.ts";
+import type { ThreadRequestHost } from "../../src/host/thread-requests.ts";
 import { executeWorkspaceInput } from "../../src/application/workspace-execution.ts";
 
 const { AutomationPanel, automationMeta, lastRunLabel } = await import("../../src/renderer/components/AutomationPanel.tsx");
-const { answerThreadRequest } = await import("../../src/renderer/task-workspace/thread-requests.ts");
+const { answerThreadRequest } = await import("../../src/host/thread-requests.ts");
 const { ProjectSidebar } = await import("../../src/renderer/components/ProjectSidebar.tsx");
 
 function activeRun(overrides: Partial<ActiveRun> = {}): ActiveRun {
@@ -340,6 +340,7 @@ function toolHost(initial: WorkspaceState): ToolHost {
   let state = initial;
   return {
     state: () => state,
+    desktop: {} as ThreadRequestHost["desktop"],
     dispatch: (input: WorkspaceInput) => { state = reduce(state, input).state; },
     execute: (input) => executeWorkspaceInput(input, {
       state: () => state,
@@ -472,7 +473,7 @@ test("a report the thread dropped is never answered as raised", async () => {
   const host = toolHost({ ...waiting, approvals: { "run-1": { approvalId: "ap1", taskId: "task-a", runId: "run-1", title: "Run tests", description: "", toolName: "Bash", input: {} } } });
   /** The user answers the run's question in the moment the report is going in, which takes the run over. */
   const joined = host.dispatch;
-  host.dispatch = (input) => { joined({ type: "run.decide", taskId: "task-a", allow: true }); joined(input); };
+  host.dispatch = (input) => { joined({ type: "run.decide", taskId: "task-a", runId: "run-1", approvalId: "ap1", allow: true }); joined(input); };
 
   const answered = await answer(host, { op: "notify", report: { headline: "Disk at 91%", key: "disk" } });
   assert.equal(host.task().findings, undefined, "a run the user joined answers them rather than raising");
@@ -675,8 +676,15 @@ function sidebar(overrides: Partial<ProjectSidebarProps> = {}) {
     sideChatAttention: new Set<string>(),
     schedules: new Map<string, AutomationView>(),
     worktreeGroups: [],
+    sidebarCoordination: { threadsByCoordinator: new Map(), closedCoordinators: new Set<string>(), coordinators: [], onSetCoordinator() {}, onSetCoordinationOpen() {} },
     worktreeThreadIds: new Set<string>(),
     activityThreads: { priority: [], running: [], threads: [] },
+    threadHosts: new Map(),
+    projectHosts: new Map(),
+    computerLinks: [],
+    computerName: "This Mac",
+    computerFilter: "all",
+    onSetComputerFilter() {},
     mode: "activity",
     sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     openMenu: null,
@@ -687,7 +695,7 @@ function sidebar(overrides: Partial<ProjectSidebarProps> = {}) {
     onNewThread() {}, onOpenFolder() {}, onToggleProject() {}, onRenameProject() {}, onEditProject() {}, onRemoveProject() {},
     onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
     onSelectThread() {}, onArchiveThread() {}, onRenameThread() {}, onDismissThread() {}, onSnoozeThread() {}, onDismissAll() {},
-    onMoveThread() {}, onForkThread() {}, onMoveProject() {}, onOpenSettings() {},
+    onMoveThread() {}, onForkThread() {}, onSetThreadRole() {}, onMoveProject() {}, onOpenSettings() {},
     ...overrides,
   });
 }

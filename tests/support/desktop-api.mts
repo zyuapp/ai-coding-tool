@@ -47,6 +47,14 @@ export type FakeDesktop = DesktopAPI & {
   captureShortcut: (binding: string | null) => void;
 };
 
+const gitDesktop = {
+    changedFiles: async () => ({ status: "available", files: [], branch: "main", baseline: null, additions: 0, deletions: 0 }),
+    branches: async () => ({ status: "available", branches: ["main", "fix-loader", "feature-x"], remotes: ["origin/main"], current: "main" }),
+    pullRequest: async () => ({ status: "none" }) as const,
+    diffSummary: async (_workspaceId, range, ignoreWhitespace = false) => ({ status: "available", range, ignoreWhitespace, files: [], additions: 0, deletions: 0 }),
+    diffPatch: async () => ({ status: "available", patch: "" }),
+} satisfies Pick<DesktopAPI, "changedFiles" | "branches" | "pullRequest" | "diffSummary" | "diffPatch">;
+
 export function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
   const sent: RunCommand[] = [];
   const persisted: TaskStoreDelta[] = [];
@@ -74,7 +82,8 @@ export function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
   const threadAnswers: ThreadResponse[] = [];
   let unsubscribed = false;
   const api: DesktopAPI = {
-    ...mobileDesktopStub, ...engineDesktopStub, openFolder: async () => null,
+    ...gitDesktop, ...mobileDesktopStub, ...engineDesktopStub, openFolder: async () => null,
+    directories: async () => [],
     registerProject: async (root) => ({ id: root, kind: "project", root }),
     onOpenProject: (next) => { openProject = next; return () => {}; },
     onOpenThread: (next) => { openThread = next; return () => {}; },
@@ -87,11 +96,6 @@ export function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
     planUsage: async () => ({ status: "not-applicable" }),
     enableComputerUse: async () => ({ accessibility: false, screenRecording: false }),
     restartForComputerUse() {},
-    changedFiles: async () => ({ status: "available", files: [], branch: "main", baseline: null, additions: 0, deletions: 0 }),
-    branches: async () => ({ status: "available", branches: ["main", "fix-loader", "feature-x"], remotes: ["origin/main"], current: "main" }),
-    pullRequest: async () => ({ status: "none" }) as const,
-    diffSummary: async (_workspaceId, range, ignoreWhitespace = false) => ({ status: "available", range, ignoreWhitespace, files: [], additions: 0, deletions: 0 }),
-    diffPatch: async () => ({ status: "available", patch: "" }),
     checkoutBranch: async () => {},
     createBranch: async () => {},
     createWorktree: async () => ({ id: "wt1", root: "/worktrees/repo-wt1", workspaceId: "worktree-1", baseCommit: "abcdef1", createdAt: 1, lastUsedAt: 1 }),
@@ -103,6 +107,7 @@ export function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
     checkForUpdates: () => {},
     loadTaskStore: async () => null,
     loadSubagentActivity: async () => [],
+    loadSubagentMetadata: async () => ({}),
     persistTaskStore: async (delta) => { persisted.push(delta); },
     send: (command) => sent.push(command),
     onAgentEvent: (next) => { listener = next; return () => { unsubscribed = true; }; },
@@ -116,6 +121,7 @@ export function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
     acknowledgeAutomation: (ack) => acknowledged.push(ack),
     onThreadRequest: (next) => { threadRequested = next; return () => {}; },
     answerThreadRequest: (response) => threadAnswers.push(response),
+    configureBrowserPermissions: async () => {},
     openBrowserTab: async (tabId, url) => { browserCalls.push(["open", tabId, url]); },
     navigateBrowser: async (tabId, url) => { browserCalls.push(["navigate", tabId, url]); },
     browserHistory: async (tabId, delta) => { browserCalls.push(["history", tabId, delta]); },

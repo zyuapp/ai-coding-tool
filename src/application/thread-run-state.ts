@@ -1,6 +1,6 @@
 import type { PendingQuestion } from "../domain/agent-question.js";
 import type { BackgroundEvent, RunEvent, ThreadEvent, WorkflowEvent } from "../contracts/ipc.js";
-import type { BackgroundProcess, Subagent, SubagentReport } from "../domain/run.js";
+import type { BackgroundProcess, RetryNotice, Subagent, SubagentMetadata, SubagentReport } from "../domain/run.js";
 import type { Workflow } from "../domain/workflow.js";
 import type { ActiveGoal } from "../domain/goal.js";
 import { createConversationMessage, createFailureMessage } from "../domain/conversation.js";
@@ -13,7 +13,9 @@ export type ActiveRun = RunProvenance & {
   runId: string;
   sequence: number;
   questions?: PendingQuestion[];
-  status: "running" | "compacting" | "awaiting-approval";
+  status: "running" | "compacting" | "retrying" | "awaiting-approval";
+  /** Set while the engine retries a failed request. Any other event from the run clears it. */
+  retry?: RetryNotice;
   /** Whether this run has said it found something worth surfacing. */
   notified: boolean;
   /** Whether the run answered for itself with either tool. Answering neither is what surfaces a quiet tick. */
@@ -181,6 +183,17 @@ function updateWorkflow<T extends RunTransitionState>(state: T, threadId: string
     : [...workflows, update(undefined)]);
 }
 
+/** The threads driving a workflow right now. It outlives the run that started it, so the thread is still working. */
+export function workflowThreadIds(state: Pick<RunTransitionState, "workflows">): string[] {
+  return Object.entries(state.workflows).filter(([, workflows]) => workflows.some((workflow) => workflow.status === "running")).map(([threadId]) => threadId);
+}
+
+/** The threads whose session still has a shell, a monitor or a subagent working after the run that started it. */
+export function backgroundThreadIds(state: Pick<RunTransitionState, "backgroundProcesses" | "subagents">): string[] {
+  const working = Object.entries(state.subagents).filter(([, subagents]) => subagents.some((subagent) => subagent.status === "working")).map(([threadId]) => threadId);
+  return [...Object.keys(state.backgroundProcesses), ...working];
+}
+
 export function runStatusFor(state: RunTransitionState, threadId: string | null): ThreadRunStatus {
   return threadId ? state.runStatuses[threadId] ?? "idle" : "idle";
 }
@@ -207,11 +220,26 @@ function updateSubagent<T extends RunTransitionState>(state: T, threadId: string
 
 /** Shared subagent state changes, whether a run carries them or a session reports them later. */
 function applySubagentReport<T extends RunTransitionState>(state: T, threadId: string, event: SubagentReport): T {
+  const metadata = (details: SubagentMetadata): SubagentMetadata => ({
+    ...(details.model !== undefined ? { model: details.model } : {}),
+    ...(details.effort !== undefined ? { effort: details.effort } : {}),
+    ...(details.prompt !== undefined ? { prompt: details.prompt } : {}),
+  });
+  if (event.type === "subagent.metadata") {
+    return updateSubagent(state, threadId, event.id, (existing) => ({
+      ...(existing ?? { id: event.id, description: "Subagent", status: "working" as const, startedAt: now(), activity: [] }),
+      ...metadata(event),
+      ...(existing?.prompt !== undefined ? { prompt: existing.prompt } : {}),
+    }));
+  }
   if (event.type === "subagent.started") {
     return updateSubagent(state, threadId, event.id, (existing) => {
-      const { finishedAt: _finishedAt, lastToolName: _lastToolName, ...preserved } = existing ?? {};
+      const { finishedAt: _finishedAt, lastToolName: _lastToolName, stopping: _stopping, ...preserved } = existing ?? {};
       return {
         ...preserved,
+        ...metadata(event),
+        /** Resuming a child may repeat started with a new message; Prompt remains its original assignment. */
+        ...(existing?.prompt !== undefined ? { prompt: existing.prompt } : {}),
         id: event.id,
         description: event.description,
         ...(event.agentType ? { agentType: event.agentType } : {}),
@@ -235,7 +263,7 @@ function applySubagentReport<T extends RunTransitionState>(state: T, threadId: s
         const { finishedAt: _finishedAt, lastToolName: _lastToolName, ...preserved } = base;
         return { ...preserved, status: "working", ...(event.summary ? { summary: event.summary } : {}) };
       }
-      const { finishedAt: _finishedAt, ...preserved } = base;
+      const { finishedAt: _finishedAt, stopping: _stopping, ...preserved } = base;
       return { ...preserved, status: "idle", ...(event.summary ? { summary: event.summary } : {}) };
     });
   }
@@ -277,23 +305,17 @@ function applySubagentReport<T extends RunTransitionState>(state: T, threadId: s
       };
     });
   }
-  return updateSubagent(state, threadId, event.id, (existing) => ({
-    ...(existing ?? {
-      id: event.id,
-      description: "Subagent",
-      startedAt: now(),
-      activity: [],
-    }),
-    status: event.status,
-    summary: event.summary || existing?.summary,
-    finishedAt: now(),
-  }));
+  return updateSubagent(state, threadId, event.id, (existing) => {
+    const { stopping: _stopping, ...base } = existing ?? { id: event.id, description: "Subagent", startedAt: now(), activity: [] };
+    return { ...base, status: event.status, summary: event.summary || existing?.summary, finishedAt: now() };
+  });
 }
 
 /** What the agent process reports about work that outlives the run that started it. */
 export function applyThreadEvent<T extends RunTransitionState>(state: T, event: ThreadEvent): T {
   switch (event.type) {
     case "subagent.started":
+    case "subagent.metadata":
     case "subagent.status":
     case "subagent.progress":
     case "subagent.activity":
@@ -375,10 +397,23 @@ function applyRunFinished<T extends RunTransitionState>(state: T, event: Extract
   return next;
 }
 
+/** A run that hears anything from its engine other than another retry notice is through the retry. */
+function throughRetry(run: ActiveRun, event: RunEvent): ActiveRun {
+  if (run.status !== "retrying" || event.type === "run.retrying" || event.type === "queued.delivered" || event.type === "queued.steer-failed") return run;
+  const { retry: _retry, ...through } = run;
+  return { ...through, status: "running" };
+}
+
 export function applyRunEvent<T extends RunTransitionState>(state: T, event: RunEvent): T {
-  const active = state.activeRuns[event.taskId];
-  if (!active || event.runId !== active.runId || event.sequence <= active.sequence) return state;
+  const found = state.activeRuns[event.taskId];
+  if (!found || event.runId !== found.runId || event.sequence <= found.sequence) return state;
+  const active = throughRetry(found, event);
   const withSequence = withActiveRun(state, event.taskId, { ...active, sequence: event.sequence });
+
+  if (event.type === "run.retrying") {
+    const retry: RetryNotice = { message: event.message, ...(event.attempt === undefined ? {} : { attempt: event.attempt }), ...(event.maxRetries === undefined ? {} : { maxRetries: event.maxRetries }) };
+    return withActiveRun(withSequence, event.taskId, { ...active, sequence: event.sequence, status: "retrying", retry });
+  }
 
   if (event.type === "run.started") {
     /** A workflow the last run left running is still going; the ones that ended are that run's history. */

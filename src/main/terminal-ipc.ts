@@ -1,9 +1,8 @@
 import { ipcMain, type IpcMainInvokeEvent } from "electron";
 import { terminalLineLimit } from "../domain/terminal.js";
 import * as terminal from "./terminal-host.js";
-
-const MAX_TERMINAL_INPUT = 64 * 1024;
-const MAX_TERMINAL_DIMENSION = 1_000;
+import { isComputerQuery, type ComputerQuery } from "../contracts/computers.js";
+import { isTerminalDimension, isTerminalOutputRead, MAX_TERMINAL_INPUT } from "../contracts/terminal.js";
 
 function terminalId(value: unknown) {
   if (typeof value !== "string" || !value || value.length > 256) throw new Error("Invalid terminal ID.");
@@ -11,11 +10,19 @@ function terminalId(value: unknown) {
 }
 
 function terminalDimension(value: unknown) {
-  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > MAX_TERMINAL_DIMENSION) throw new Error("Invalid terminal size.");
+  if (!isTerminalDimension(value)) throw new Error("Invalid terminal size.");
   return value;
 }
 
-export function registerTerminalIpc(trusted: (event: IpcMainInvokeEvent) => boolean) {
+export function registerTerminalIpc(trusted: (event: IpcMainInvokeEvent) => boolean, query: (computerId: string, query: ComputerQuery) => Promise<unknown>) {
+  ipcMain.handle("terminal:remote-read", async (event, computerId: unknown, id: unknown, after: unknown) => {
+    if (!trusted(event)) throw new Error("Untrusted IPC sender.");
+    const request = { kind: "terminal-output", terminalId: id, ...(after === undefined ? {} : { after }) };
+    if (!isComputerQuery(request)) throw new Error("Invalid terminal read.");
+    const result = await query(terminalId(computerId), request);
+    if (!isTerminalOutputRead(result)) throw new Error("Invalid terminal output.");
+    return result;
+  });
   ipcMain.handle("terminal:snapshot", (event, id: unknown) => {
     if (!trusted(event)) throw new Error("Untrusted IPC sender.");
     return terminal.terminalSnapshot(terminalId(id));

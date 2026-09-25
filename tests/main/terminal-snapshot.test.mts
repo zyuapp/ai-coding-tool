@@ -62,3 +62,23 @@ test("snapshots stay bounded when styled scrollback is full", async () => {
     assert.ok(data.endsWith("H"));
   } finally { source.dispose(); }
 });
+
+test("snapshots keep every attribute when adjacent cells differ by one", async () => {
+  const source = new Terminal({ cols: 40, rows: 3, allowProposedApi: true });
+  const target = new Terminal({ cols: 40, rows: 3, allowProposedApi: true });
+  try {
+    const segments = ["1", "2", "3", "4", "5", "7", "8", "9", "53", "38;5;12", "38;5;13", "48;5;20", "48;5;21", "38;2;10;20;30", "48;2;40;50;60"];
+    await write(source, segments.map((code) => `\x1b[${code}ma`).join("") + "\x1b[0mz");
+    await write(target, serializeTerminal(source));
+    const attributes = (terminal: Terminal, col: number) => {
+      const cell = terminal.buffer.active.getLine(0)?.getCell(col);
+      assert.ok(cell);
+      return [
+        cell.isBold(), cell.isDim(), cell.isItalic(), cell.isUnderline(), cell.isBlink(),
+        cell.isInverse(), cell.isInvisible(), cell.isStrikethrough(), cell.isOverline(),
+        cell.getFgColorMode(), cell.getFgColor(), cell.getBgColorMode(), cell.getBgColor(),
+      ];
+    };
+    for (let col = 0; col <= segments.length; col++) assert.deepEqual(attributes(target, col), attributes(source, col));
+  } finally { source.dispose(); target.dispose(); }
+});

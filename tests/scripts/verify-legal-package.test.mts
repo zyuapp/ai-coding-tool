@@ -33,6 +33,12 @@ async function writeAsar(resources: string, forbiddenPackage?: string, sdkVersio
     license: "SEE LICENSE IN README.md",
   }));
   await writeFile(path.join(sdk, "LICENSE.md"), "© Anthropic PBC. All rights reserved.");
+  const terminalName = "@lydell/node-pty-darwin-arm64";
+  const terminal = path.join(source, "node_modules", terminalName);
+  await mkdir(terminal, { recursive: true });
+  await writeFile(path.join(terminal, "package.json"), JSON.stringify({
+    name: terminalName, version: lockedPackageVersion(terminalName), license: "MIT",
+  }));
   await mkdir(path.join(source, "dist/mobile"), { recursive: true });
   await writeFile(path.join(source, "dist/mobile/index.html"), '<template id="third-party-licenses">## react-markdown - </template>');
   if (forbiddenPackage) {
@@ -110,4 +116,12 @@ test("the package hook rejects Anthropic SDK version drift", async () => {
   const resources = await packageFixture();
   await writeAsar(resources, undefined, "0.4.0");
   await assert.rejects(verifyLegalPackage(resources), { message: `Packaged Anthropic SDK is 0.4.0; notices cover ${ANTHROPIC_AGENT_SDK_VERSION}.` });
+});
+
+test("the package hook rejects changed native license text with unchanged version labels", async () => {
+  const resources = await packageFixture();
+  const report = path.join(resources, "legal/UBJS-NATIVE-DEPENDENCIES.html");
+  const text = await readFile(report, "utf8");
+  await writeFile(report, text.replace("Mozilla Public License Version 2.0", "Changed license text"));
+  await assert.rejects(verifyLegalPackage(resources), /unverified inputs or content/);
 });

@@ -1,5 +1,5 @@
 import type { IconType } from "react-icons";
-import { LuBot as Bot, LuFileText as FileText, LuGlobe as Globe, LuPenLine as PenLine, LuSearch as Search, LuTerminal as Terminal, LuWrench as Wrench } from "react-icons/lu";
+import { LuBot as Bot, LuCornerDownRight as CornerDownRight, LuFileText as FileText, LuGlobe as Globe, LuPenLine as PenLine, LuSearch as Search, LuTerminal as Terminal, LuWrench as Wrench, LuX as X } from "react-icons/lu";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import type { MobileMessage, MobileThreadView } from "../../contracts/mobile";
 import type { AgentEngine } from "../../domain/agent-engine";
@@ -51,7 +51,11 @@ function Message({ message, answer }: { message: MobileMessage; answer: boolean 
  * from the scroll position before a new block is measured, so a whole reply landing at once still
  * keeps the end in view.
  */
-export function Conversation({ thread }: { thread: MobileThreadView }) {
+export function Conversation({ thread, onSteerQueued, onDropQueued }: {
+  thread: MobileThreadView;
+  onSteerQueued: (messageId: string) => void;
+  onDropQueued: (messageId: string) => void;
+}) {
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
   const blocks = transcriptBlocks(thread.messages);
@@ -100,12 +104,22 @@ export function Conversation({ thread }: { thread: MobileThreadView }) {
       {thread.status === "running" && thread.streamingTail === null && (
         <div className="thinking-row" aria-hidden="true"><span /><span /><span /></div>
       )}
-      {thread.queued.map((message) => (
-        <div key={message.id} className="queued">
-          <span className="queued-text">{message.text}</span>
-          <span className="queued-state">Queued</span>
+      {thread.queued.length > 0 && (
+        <div className="queued-list" role="list" aria-label="Queued messages">
+          {thread.queued.map((message) => (
+            <div key={message.id} className="queued" role="listitem" data-steering={message.steering || undefined}>
+              <CornerDownRight className="queued-mark" size={14} aria-hidden="true" />
+              <span className="queued-text">{message.text}</span>
+              {message.steering
+                ? <span className="queued-state">Steering…</span>
+                : <span className="queued-actions">
+                  <button type="button" className="queued-steer" onClick={() => onSteerQueued(message.id)}>Steer</button>
+                  <button type="button" className="queued-drop" aria-label="Remove queued message" onClick={() => onDropQueued(message.id)}><X size={14} /></button>
+                </span>}
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }

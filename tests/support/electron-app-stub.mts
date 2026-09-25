@@ -37,6 +37,12 @@ function fakeMenu() {
     Menu: {
       buildFromTemplate: (template: unknown) => template,
       setApplicationMenu: (menu: unknown) => { applicationMenu = menu; },
+      getApplicationMenu: () => ({
+        getMenuItemById: (id: string) => {
+          type Item = { id?: string; submenu?: Item[] };
+          return (applicationMenu as Item[] | null)?.flatMap((item) => item.submenu ?? []).find((item) => item.id === id);
+        },
+      }),
     },
   };
 }
@@ -63,35 +69,10 @@ function fakeNotifications() {
   };
 }
 
-function fakeRuntimeViews(listeners: Map<string, Callback>) {
-  const runtimeViews: FakeWebContentsView[] = [];
-  class HostedView extends FakeWebContentsView {
-    constructor(options: { webPreferences?: { additionalArguments?: string[] } }) {
-      super(options);
-      if (!options.webPreferences?.additionalArguments?.includes("--workspace-runtime")) return;
-      runtimeViews.push(this);
-      this.webContents.loadURL = async () => {
-        this.loadedBounds = this.bounds;
-        listeners.get("workspace-runtime:ready")?.({ sender: this.webContents });
-      };
-      const send = this.webContents.send;
-      this.webContents.send = (channel, event) => {
-        send(channel, event);
-        if (channel === "workspace-runtime:request") {
-          const request = event as { id: string };
-          queueMicrotask(() => listeners.get("workspace-runtime:response")?.({ sender: this.webContents }, { id: request.id, result: { ok: true, revision: 0 } }));
-        }
-      };
-    }
-  }
-  return { HostedView, runtimeViews };
-}
-
 /** The Electron surface `src/main` reaches for, paired with the records a test asserts against. */
 export function fakeElectron(userData: string) {
   const handlers = new Map<string, Callback>();
   const listeners = new Map<string, Callback>();
-  const { HostedView, runtimeViews } = fakeRuntimeViews(listeners);
   const appListeners = new Map<string, Callback>();
   const protocolHandlers = new Map<string, Callback>();
   const globalShortcuts = new Map<string, Callback>();
@@ -137,6 +118,7 @@ export function fakeElectron(userData: string) {
       getAppPath: () => process.cwd(),
       getPath: () => userData,
       setPath() {},
+      commandLine: { appendSwitch() {} },
       whenReady: () => Promise.resolve(),
       on: (name: string, listener: Callback) => appListeners.set(name, listener),
       requestSingleInstanceLock: () => true,
@@ -196,17 +178,17 @@ export function fakeElectron(userData: string) {
     shell: {
       openExternal: async (url: string) => { externalUrls.push(url); },
       openPath: async (file: string) => { openedPaths.push(file); return ""; },
+      trashItem: async () => {},
     },
     session: {
       defaultSession: { setPermissionRequestHandler() {} },
       fromPartition: () => browserPartition,
     },
-    WebContentsView: HostedView,
+    WebContentsView: FakeWebContentsView,
   };
 
   const records = {
     app: electron.app,
-    runtimeViews,
     handlers,
     listeners,
     windows,

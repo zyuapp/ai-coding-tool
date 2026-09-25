@@ -1,7 +1,8 @@
+import type { ReactNode } from "react";
 import type { PendingQuestion, QuestionAddress } from "../../domain/agent-question";
 import { QuestionPrompt } from "./QuestionPrompt";
 import type { QueuedMessage, ReviewPicker as ReviewPickerState } from "../../application/workspace-state";
-import type { Annotation, AttachedFile, PastedText, RecalledMessage, RunAttachment, StagedImage } from "../../domain/conversation";
+import type { Annotation, AttachedFile, PastedText, RecalledMessage, StagedImage } from "../../domain/conversation";
 import { AnnotationRow } from "./AnnotationRow";
 import { FileRow } from "./FileRow";
 import { PasteRow } from "./PasteRow";
@@ -9,7 +10,7 @@ import type { ThreadHandleOption } from "../../domain/thread-handles";
 import type { AgentEngine, AgentModel, EngineReadiness } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import type { ContextUsage } from "../../domain/thread-run";
-import { AttachmentAnnotator, AttachmentStrip, useComposerAttachments } from "./ComposerAttachments";
+import { AttachmentAnnotator, AttachmentStrip, useComposerAttachments, type ComposerOutbox } from "./ComposerAttachments";
 import { ComposerSettings, EVERY_ENGINE_READY } from "./ComposerSettings";
 import { CommandMenu, ThreadMenu, menuActiveDescendant, menuControls, useComposerMenus, type ComposerAction } from "./ComposerMenus";
 import { ContextUsageMeter } from "./ContextUsageMeter";
@@ -21,6 +22,8 @@ import type { ReviewTarget } from "../../domain/review";
 import { ReviewPicker } from "./ReviewPicker";
 import { GoalBar } from "./GoalBar";
 import type { ActiveGoal } from "../../domain/goal";
+import { CommandButton, useCommandControls } from "./CommandControl";
+import type { AppCommand } from "../../contracts/commands";
 
 const NOTHING = () => {};
 
@@ -37,6 +40,7 @@ function sendLabel(surface: "main" | "side", runActive: boolean) {
 }
 
 export type ConversationComposerProps = {
+  taskId?: string;
   prompt: string;
   folder: string;
   workspaceId?: string;
@@ -70,6 +74,8 @@ export type ConversationComposerProps = {
   onQuestionAnswerChange?: (question: QuestionAddress, text: string) => void;
   onAnswerQuestion?: (question: QuestionAddress) => void;
   goal?: ActiveGoal | null;
+  /** The decisions waiting on the user, drawn above the composer of the coordinator they reach. */
+  decisions?: ReactNode;
   queuedMessages: QueuedMessage[];
   /** Annotations waiting to ride the next send, drafted from selections in the transcript. */
   annotations?: Annotation[];
@@ -108,7 +114,7 @@ export type ConversationComposerProps = {
   onSignIn?: (engine: AgentEngine) => void;
   /** Opens the Engines page. A surface without settings of its own leaves it out. */
   onOpenEngineSettings?: () => void;
-  onSend: (attachments: RunAttachment[], steer: boolean) => void;
+  outbox: ComposerOutbox;
   onSteerQueued: (messageId: string) => void;
   onDropQueued: (messageId: string) => void;
   onCancel: () => void;
@@ -116,6 +122,7 @@ export type ConversationComposerProps = {
 };
 
 export function ConversationComposer({
+  taskId,
   prompt,
   folder,
   workspaceId,
@@ -169,11 +176,12 @@ export function ConversationComposer({
   onEngineRead = NOTHING,
   onSignIn = NOTHING,
   onOpenEngineSettings,
-  onSend,
+  outbox,
   onSteerQueued,
   onDropQueued,
   onCancel,
   onGoalClear = NOTHING,
+  decisions,
 }: ConversationComposerProps) {
   const caret = useComposerCaret(focusToken);
   const menus = useComposerMenus({ prompt, caret, actions, threads, workspaceId, engine, enabled: true, onPromptChange });
@@ -181,19 +189,23 @@ export function ConversationComposer({
     prompt, annotations, pastes, files, images, history, queuedMessages, caret,
     onPromptChange, onAnnotationRecall, onPasteRecall, onFileRecall, onImageRecall,
   });
-  const attachments = useComposerAttachments(images, onImageRemove);
+  const attachments = useComposerAttachments(images, outbox, onImageRemove);
   const nothingToSend = !prompt.trim() && attachments.items.length === 0 && annotations.length === 0 && pastes.length === 0 && files.length === 0;
+  const controls = useCommandControls();
+  const sendCommand: AppCommand = { type: "attachments.send", taskId, attachments: attachments.items };
 
   /** While a run is going the message joins the queue, so only steering needs the run to be active. */
   async function submit(steer = false) {
     if (attachments.sending || waiting || disabled || (steer && !runActive)) return;
     if (nothingToSend) return;
-    await attachments.send(onSend, steer);
+    if (!controls.available({ ...sendCommand, ...(steer ? { steer } : {}) })) return;
+    attachments.send(steer);
   }
 
   return (
     <footer className={`composer-wrap ${surface}`}>
       {surface === "main" && goal && <GoalBar goal={goal} onClear={onGoalClear} />}
+      {surface === "main" && decisions}
       {question && <QuestionPrompt question={question} answer={question.answer ?? ""} disabled={disabled || waiting} onAnswerChange={(text) => onQuestionAnswerChange(question, text)} onSubmit={() => onAnswerQuestion(question)} />}
       <QueuedRow messages={queuedMessages} surface={surface} onSteer={onSteerQueued} onDrop={onDropQueued} />
       <div className="composer">
@@ -233,17 +245,17 @@ export function ConversationComposer({
           rows={2}
         />
         <div className="composer-bar">
-          <ComposerSettings mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} fastMode={fastMode} onFastModeChange={onFastModeChange} onModeChange={onModeChange} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
+          <ComposerSettings taskId={taskId} mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} fastMode={fastMode} onFastModeChange={onFastModeChange} onModeChange={onModeChange} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
           <div className="composer-actions">
             {contextUsage && <ContextUsageMeter usage={contextUsage} />}
-            <button
+            <CommandButton command={runActive ? { type: "run.cancel", taskId } : sendCommand}
               className={`send-button ${runActive ? "running" : ""}`}
               disabled={!runActive && (disabled || attachments.sending || waiting || nothingToSend)}
               onClick={runActive ? onCancel : () => void submit()}
               aria-label={sendLabel(surface, runActive)}
             >
               {runActive ? <span className="stop-glyph" /> : "↑"}
-            </button>
+            </CommandButton>
           </div>
         </div>
       </div>

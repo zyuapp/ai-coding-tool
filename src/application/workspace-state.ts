@@ -1,11 +1,19 @@
 import { sideChatView } from "./side-chat-view.js";
-import { worktreeMenuView, type WorktreeMenuSearch } from "./worktree-menu.js";
+import { worktreeMenuView, type WorktreeMenuSearch, type WorktreeMenuState } from "./worktree-menu.js";
 import type { PendingQuestion } from "../domain/agent-question.js";
-import { runStatusFor, type ApprovalView, type RunTransitionState, type StreamingTail, type ThreadRunStatus } from "./thread-run-state.js";
+import type { ThreadRole } from "../domain/thread-role.js";
+import { backgroundThreadIds, runStatusFor, workflowThreadIds, type ApprovalView, type RunTransitionState, type StreamingTail, type ThreadRunStatus } from "./thread-run-state.js";
 import { backfillProjectSortIndex } from "./project-order.js";
 import { sidebarLists } from "./sidebar-lists.js";
+import type { CoordinationSend } from "./coordination.js";
 import { backfillSortIndex } from "./thread-order.js";
-import type { ChangedFilesResult, DesktopShortcutRefusal } from "../contracts/ipc.js";
+import type { ChangedFilesResult, DesktopShortcutRefusal, InstalledApp } from "../contracts/ipc.js";
+import type { PullRequestRead } from "../domain/pull-request.js";
+import { pullRequestFor } from "./pull-request-view.js";
+import { NO_CLI, type CliState } from "./cli-installation.js";
+import { NO_COMPUTER_USE_ACCESS, type ComputerUseAccessState } from "./computer-use-access.js";
+import type { AttachmentSendState } from "./composer-attachments.js";
+import { NO_PLAN_USAGE, type PlanUsageState } from "./plan-limits.js";
 import type { ReadingPoint } from "../contracts/commands.js";
 import type { ReviewTarget } from "../domain/review.js";
 import type { ActiveGoal } from "../domain/goal.js";
@@ -22,11 +30,17 @@ import { diffFor, type DiffState } from "./workspace-diff.js";
 import { jumpView } from "./workspace-jump.js";
 import { workspaceViewCollections } from "./workspace-view-collections.js";
 import { findView } from "./workspace-find.js";
+export { findTargetFor } from "./workspace-find.js";
 export type { FindView } from "./workspace-find.js";
 export { EMPTY_DIFF, diffFor, diffMatches, foldedOnLoad, retainedViews, withDiff } from "./workspace-diff.js";
 export type { DiffState } from "./workspace-diff.js";
 import type { AutomationView } from "../domain/automation.js";
 import { emptyMobileServerState, type MobileServerState } from "../domain/mobile.js";
+import { selectedComputer, NO_COMPUTERS, type ComputersState } from "./computers.js";
+import { overlaidView } from "./workspace-view-overlay.js";
+import { NO_PROJECT_ADD, type ProjectAddWorkspaceState } from "./project-add.js";
+import { workspaceDialogsView } from "./workspace-dialogs.js";
+export type { ProjectEditorView, WorktreeMoveView } from "./workspace-dialogs.js";
 import type { BrowserApproval } from "../domain/browser.js";
 import type { FindResults, FindTarget } from "../domain/find.js";
 import { shortcutSettings, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
@@ -37,7 +51,7 @@ import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, READING_SIZE, TERMINAL_SIZE } from 
 import type { Workflow } from "../domain/workflow.js";
 import { DEFAULT_ENGINE, DEFAULT_MODEL, byEngine, capabilitiesFor, defaultEffortFor, defaultModelFor, engineLabel, type AgentEngine, type AgentModel, type EngineCapabilities, type EngineReadiness, type EngineStatus } from "../domain/agent-engine.js";
 import { engineReadinessOf } from "./engine-access.js";
-import { DEFAULT_EFFORT, OPEN_SUBAGENT_GROUPS, type AgentEffort, type ExecutionPolicy, type Subagent, type SubagentGroups } from "../domain/run.js";
+import { DEFAULT_EFFORT, OPEN_SUBAGENT_GROUPS, type AgentEffort, type ExecutionPolicy, type RetryNotice, type Subagent, type SubagentGroups } from "../domain/run.js";
 import { annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-drafts.js";
 import type { Annotation, AttachedFile, PastedText, StagedImage } from "../domain/conversation.js";
 import { legacyProjectId, projectName, type Project } from "../domain/project.js";
@@ -86,6 +100,8 @@ export type PendingRun = {
   /** Agent choices carried atomically by a new thread request instead of changing the shared draft. */
   model?: AgentModel;
   effort?: AgentEffort;
+  role?: ThreadRole;
+  coordination?: CoordinationSend;
   /** Composer only: which draft to clear once the run starts. */
   draftKey?: string;
   /** What the user typed, before attachments are appended. Titles a brand new thread. */
@@ -154,6 +170,7 @@ export type SideChatView = SideChat & {
   files: AttachedFile[];
   running: boolean;
   compacting: boolean;
+  retrying: RetryNotice | null;
   status: ThreadRunStatus;
   streamingTail: StreamingTail | null;
   queuedMessages: QueuedMessage[];
@@ -213,7 +230,7 @@ export type ReviewPicker = {
   step: "targets" | "base" | "commit" | "custom";
 };
 
-export type WorkspaceState = {
+export type WorkspaceState = ProjectAddWorkspaceState & {
   threads: Thread[];
   /** Native goals live only as long as this app session. */
   goals: Record<string, ActiveGoal>;
@@ -248,6 +265,7 @@ export type WorkspaceState = {
   draftWorktree: boolean;
   /** The checkout the next new thread starts in, when the user picked one the project already has. */
   draftWorktreeId: string | null;
+  draftRole: ThreadRole | null;
   draftEngine: AgentEngine;
   draftModel: AgentModel;
   draftEffort: AgentEffort;
@@ -268,6 +286,8 @@ export type WorkspaceState = {
   /** Files and folders waiting in each composer, keyed the way `prompts` is. */
   files: Record<string, AttachedFile[]>;
   expandedProjects: Set<string>;
+  /** Coordinators whose threads the sidebar has folded away. Every other coordinator shows its threads. */
+  closedCoordinators: Set<string>;
   /** The folder the editor is open on, if any, and what came back the last time it tried to save. */
   projectEdit: ProjectEdit | null;
   /** The move the confirmation is open on: the thread asked to move, and where it would go. */
@@ -342,6 +362,18 @@ export type WorkspaceState = {
    * what was last read while a new scan runs. Session-only, and never persisted.
    */
   environments: Record<string, ChangedFilesResult>;
+  /** The pull request last read, for the checkout and branch it was read for. Session-only. */
+  pullRequest: PullRequestRead | null;
+  /** Where each composer's images stand between its send and the run, keyed by the thread it sends to. */
+  attachmentSends: Record<string, AttachmentSendState>;
+  /** The applications this machine has, or null before any list has asked for them. */
+  installedApps: InstalledApp[] | null;
+  /** The terminal command the app installs, as the settings page last read it. */
+  cli: CliState;
+  /** What each provider says about the plan the user is signed in on. */
+  planUsage: PlanUsageState;
+  /** What the platform lets the app see and operate, as settings last read it. */
+  computerUsePermissions: ComputerUseAccessState;
   computerUseSetup: boolean;
   automations: AutomationView[];
   pendingRuns: Record<string, PendingRun>;
@@ -354,6 +386,8 @@ export type WorkspaceState = {
   remote: MobileServerState;
   /** True while main is reading Tailscale, which the Phone page says out loud. */
   remoteChecking: boolean;
+  /** The computers this one is paired with, each mirrored here as it changes there. Session-only. */
+  computers: ComputersState;
   focused: boolean;
 } & RunTransitionState & {
   /** `hiddenThreads` counts the threads on disk this build cannot read, which stay there untouched. */
@@ -366,40 +400,6 @@ export type WorkspaceState = {
   /** Whether the stored threads have answered. Until they have, there is nothing to say is empty. */
   restored: boolean;
 };
-
-/** The folder editor as the dialog draws it: the folder being edited, and how the last save went. */
-export type ProjectEditorView = { project: Project; checkouts: number; saving: boolean; error: string | null };
-
-function projectEditorView(state: WorkspaceState): ProjectEditorView | null {
-  const edit = state.projectEdit;
-  const project = edit && state.projects.find((item) => item.id === edit.projectId);
-  if (!edit || !project) return null;
-  const checkouts = state.worktrees.filter((worktree) => worktree.projectId === project.id).length;
-  return { project, checkouts, saving: edit.saving, error: edit.error };
-}
-
-/** The pending move as the confirmation draws it: where it goes, and what the thread is holding. */
-export type WorktreeMoveView = {
-  worktree: boolean;
-  /** Uncommitted files in the checkout the thread is leaving, which the move commits first. */
-  changes: number;
-  /** Threads left in the worktree once this one goes, so the text can say whether it stays. */
-  others: number;
-};
-
-function worktreeMoveView(state: WorkspaceState): WorktreeMoveView | null {
-  const move = state.worktreeMove;
-  const thread = move && state.threads.find((item) => item.id === move.taskId);
-  if (!move || !thread) return null;
-  const workspaceId = threadWorkspaceId(state, thread);
-  const environment = workspaceId ? state.environments[workspaceId] : undefined;
-  const worktree = worktreeFor(state, thread);
-  return {
-    worktree: move.worktree,
-    changes: environment?.status === "available" ? environment.files.length : 0,
-    others: worktree ? Math.max(worktreeClaimants(state, worktree.id).length - 1, 0) : 0,
-  };
-}
 
 export function withoutWorktreeRoot(state: Pick<WorkspaceState, "deletingWorktrees">, root: string) {
   return state.deletingWorktrees.filter((item) => item !== root);
@@ -429,6 +429,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     draftBranch: null,
     draftWorktree: false,
     draftWorktreeId: null,
+    draftRole: null,
     draftEngine: DEFAULT_ENGINE,
     draftModel: DEFAULT_MODEL,
     draftEffort: DEFAULT_EFFORT,
@@ -442,6 +443,8 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     images: {},
     files: {},
     expandedProjects: new Set(),
+    closedCoordinators: new Set(),
+    ...NO_PROJECT_ADD,
     projectEdit: null,
     worktreeMove: null,
     sections: OPEN_SIDEBAR_SECTIONS,
@@ -483,6 +486,8 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     openMenu: null,
     reviewPicker: null,
     environments: {},
+    pullRequest: null, attachmentSends: {},
+    installedApps: null, cli: NO_CLI, planUsage: NO_PLAN_USAGE, computerUsePermissions: NO_COMPUTER_USE_ACCESS,
     computerUseSetup: false,
     automations: [],
     pendingRuns: {},
@@ -492,6 +497,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     lastRunIds: {},
     remote: emptyMobileServerState(),
     remoteChecking: false,
+    computers: NO_COMPUTERS,
     focused: true,
     activeRuns: {},
     runStatuses: {},
@@ -509,6 +515,13 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
   };
 }
 
+/** No session outlives the app, so a subagent stored mid-work stopped with it. */
+function restoredSubagent(subagent: Subagent): Subagent {
+  if (subagent.status !== "working") return subagent;
+  const { stopping: _stopping, ...stopped } = subagent;
+  return { ...stopped, status: "stopped" };
+}
+
 export function stateFromData(data: ThreadStoreData, storageError: string | null = null): WorkspaceState {
   const projects = data.lastFolder && !data.projects.some((project) => project.root === data.lastFolder)
     ? [...data.projects, { id: legacyProjectId(data.lastFolder), root: data.lastFolder }]
@@ -516,7 +529,7 @@ export function stateFromData(data: ThreadStoreData, storageError: string | null
   const stored = retainedThreads(data.tasks, Date.now());
   const subagents: Record<string, Subagent[]> = {};
   const threads = stored.map(({ subagents: delegated, ...thread }) => {
-    if (delegated?.length) subagents[thread.id] = delegated;
+    if (delegated?.length) subagents[thread.id] = delegated.map(restoredSubagent);
     return thread;
   });
   const firstThread = threads[0];
@@ -629,6 +642,8 @@ export function busyThreadIds(state: WorkspaceState): Set<string> {
   const busy = new Set(Object.keys(state.activeRuns));
   for (const pending of Object.values(state.pendingRuns)) if (pending.taskId) busy.add(pending.taskId);
   for (const taskId of state.creatingWorktrees) busy.add(taskId);
+  for (const taskId of workflowThreadIds(state)) busy.add(taskId);
+  for (const taskId of backgroundThreadIds(state)) busy.add(taskId);
   /** A checkout on its way out is ground about to move, so every thread standing on it waits. */
   for (const taskId of leavingThreadIds(state)) busy.add(taskId);
   return busy;
@@ -651,7 +666,13 @@ export function waitFor(state: WorkspaceState, currentThread: Thread | undefined
 }
 
 /** Composer drafts live per thread, with one draft per project for the not-yet-created thread. */
-export function promptKey(state: Pick<WorkspaceState, "currentId" | "draftProjectId">) {
+/**
+ * Which composer the window is typing into. While a paired computer's thread is on screen it is that
+ * thread's, so the draft typed for it stays keyed to it here and never travels as keystrokes.
+ */
+export function promptKey(state: Pick<WorkspaceState, "currentId" | "draftProjectId"> & { computers?: WorkspaceState["computers"] }): string {
+  const remote = state.computers ? selectedComputer({ computers: state.computers })?.state : undefined;
+  if (remote) return promptKey({ currentId: remote.currentId, draftProjectId: remote.draftProjectId });
   return state.currentId ?? `draft:${state.draftProjectId ?? ""}`;
 }
 
@@ -678,28 +699,6 @@ export function recordVisit(state: WorkspaceState, threadId: string): WorkspaceS
   const history = state.history.slice(0, state.historyIndex + 1);
   if (history[history.length - 1] !== threadId) history.push(threadId);
   return { ...state, history, historyIndex: history.length - 1 };
-}
-
-/**
- * What ⌘F searches: the page when the keystroke came from one and the dock is showing it, else the
- * dock view holding the keys — a shell, a side chat's thread, the review, a panel — else the thread
- * being read. A keystroke is the only thing that knows about the page, because a page swallows it.
- */
-export function findTargetFor(state: WorkspaceState, surface: ShortcutSurface): FindTarget {
-  const { owner, dock } = frontDock(state);
-  /** The page holding the keys is the one the dock is showing, which a run's page never is. */
-  const page = dock.browserTabs.find((tab) => tab.id === dock.tab);
-  if (surface === "browser" && page) return { kind: "browser", tabId: page.id };
-  const thread: FindTarget = { kind: "thread", taskId: state.currentId };
-  const tab = state.keyboardTab;
-  if (!tab) return thread;
-  switch (dockTabKind(state, owner, tab)) {
-    case "browser": return { kind: "browser", tabId: tab };
-    case "terminal": return { kind: "terminal", terminalId: tab };
-    case "side-chat": return { kind: "thread", taskId: tab };
-    case "panel": return tab === DIFF_PANEL ? { kind: "review", owner } : { kind: "panel", owner, panel: tab };
-    case "picker": return thread;
-  }
 }
 
 /** Each chat's view outlives the derive that built it, so a report elsewhere never redraws one. */
@@ -747,6 +746,15 @@ export function threadSlots(state: WorkspaceState): string[] {
 
 /** Everything the UI reads, derived in one place so components never reach into raw state. */
 export function deriveView(state: WorkspaceState) {
+  const own = deriveOwnView(state);
+  const remote = selectedComputer(state)?.state;
+  return remote ? overlaidView(state, own, remote, deriveOwnView) : own;
+}
+
+export type OwnWorkspaceView = ReturnType<typeof deriveOwnView>;
+
+/** `window` is whose menu the location row draws: this window's when the thread is a paired computer's. */
+function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state) {
   const currentThread = state.threads.find((thread) => thread.id === state.currentId);
   const draftWorktree = worktreeById(state, state.draftWorktreeId ?? undefined);
   const currentProject = currentThread
@@ -765,9 +773,11 @@ export function deriveView(state: WorkspaceState) {
     sideChatAttention: collections.sideChatAttention,
     unreadCount: collections.unreadCount,
     ...lists,
+    startProjects: collections.startProjects,
     threads: listedThreads,
     archivedThreads: collections.archivedThreads,
     currentThread,
+    coordination: collections.coordination, coordinators: collections.coordinators,
     goal: state.currentId ? state.goals[state.currentId] ?? null : null,
     currentProject,
     folder: currentProject?.root ?? "",
@@ -784,11 +794,12 @@ export function deriveView(state: WorkspaceState) {
     files: filesFor(state, promptKey(state)),
     status: currentRun ? "running" as const : runStatusFor(state, state.currentId),
     compacting: currentRun?.status === "compacting",
+    retrying: currentRun?.retry ?? null,
     runActive: Boolean(currentRun),
     question: currentRun?.questions?.[0],
     queuedMessages: (state.currentId ? state.queuedMessages[state.currentId] : undefined) ?? NO_QUEUED,
-    runningThreadIds: busy,
-    blockedThreadIds: blocked,
+    runningThreadIds: collections.everyBusy,
+    blockedThreadIds: collections.everyBlocked,
     approval: currentRun?.status === "awaiting-approval" ? state.approvals[currentRun.runId] as ApprovalView | undefined : undefined,
     backgroundProcesses: (state.currentId ? state.backgroundProcesses[state.currentId] : undefined) ?? [],
     /** The workflow this thread's panel is on, which outlives a move to another thread and back. */
@@ -809,17 +820,19 @@ export function deriveView(state: WorkspaceState) {
     worktreeManagementError: state.worktreeManagementError,
     worktreeManagementNotice: state.worktreeManagementNotice,
     location: locationOf(state, currentThread),
-    worktreeMenu: worktreeMenuView(state, currentThread, visibleThreads, busy, blocked),
+    worktreeMenu: worktreeMenuView(state, currentThread, visibleThreads, busy, blocked, window),
     worktreeDeleteConfirmation: managedWorktrees?.find((item) => item.root === state.worktreeSettings.confirming && !item.deleting) ?? null,
     waitingOn: waitFor(state, currentThread),
     /** The checkout the current thread works in, which is what Git is read from and moved. */
     workspaceId,
-    draftBranch: state.draftBranch,
-    draftWorktree: state.draftWorktree,
-    draftWorktreeId: state.draftWorktreeId,
+    draftBranch: state.draftBranch, draftWorktree: state.draftWorktree, draftWorktreeId: state.draftWorktreeId, draftRole: state.draftRole,
     /** What the composer calls the checkout a draft starts in, when the user picked one. */
     draftWorktreeName: draftWorktree ? worktreeName(draftWorktree) : null,
     environment,
+    /** The pull request that checkout's work belongs to, drawn only while the answer is still its own. */
+    pullRequest: pullRequestFor(state.pullRequest, workspaceId, environment),
+    attachmentSends: state.attachmentSends,
+    installedApps: state.installedApps, cli: state.cli, planUsage: state.planUsage, computerUsePermissions: state.computerUsePermissions,
     storageError: state.storageError, hiddenThreads: state.hiddenThreads,
     actionError: state.actionError,
     viewingImage: state.viewingImage,
@@ -827,8 +840,8 @@ export function deriveView(state: WorkspaceState) {
     restored: state.restored,
     computerUseSetup: state.computerUseSetup,
     expandedProjects: state.expandedProjects,
-    projectEditor: projectEditorView(state),
-    worktreeMove: worktreeMoveView(state),
+    closedCoordinators: state.closedCoordinators,
+    ...workspaceDialogsView(state),
     sections: state.sections,
     subagentGroups: state.subagentGroups,
     theme: state.theme,
@@ -874,6 +887,17 @@ export function deriveView(state: WorkspaceState) {
     jump: jumpView(state, busy),
     remote: state.remote,
     remoteChecking: state.remoteChecking,
+    /** The paired computers as the chrome draws them, and the one whose thread is on screen. */
+    computerLinks: collections.computerLinks,
+    activeComputer: collections.computerLinks.find((link) => link.id === state.computers.active) ?? null,
+    computerName: state.computers.name,
+    computerFilter: state.computers.filter,
+    computerPairing: state.computers.pairing,
+    computersFound: state.computers.found,
+    computersSearching: state.computers.searching,
+    computersSearchError: state.computers.searchError,
+    threadHosts: collections.remote.threadHosts,
+    projectHosts: collections.remote.projectHosts,
     canGoBack: reachableVisit(state, -1) !== null,
     canGoForward: reachableVisit(state, 1) !== null,
     sideChats: reusedSideChats(dockSideChats(state, owner).flatMap((chat) => sideChatView(state, chat))),

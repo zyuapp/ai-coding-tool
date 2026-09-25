@@ -1,4 +1,5 @@
 import type { WorktreeCommand } from "../../contracts/commands.js";
+import { activeComputer } from "../computers.js";
 import { busyThreadIds, type WorkspaceState } from "../workspace-state.js";
 import { worktreeSettingsViews } from "../worktree-settings.js";
 import { worktreeClaimants } from "../thread-location.js";
@@ -21,6 +22,8 @@ export function reduceWorktreeSettings(state: WorkspaceState, input: Input): Wor
         if (worktree.busy || worktree.deleting) return settled(state);
         return settled({ ...state, worktreeSettings: { ...settings, confirming: input.root } });
       }
+      /** A paired computer's checkout is judged by its list, which the confirmation is drawn from. */
+      if (activeComputer(state)) return settled({ ...state, worktreeSettings: { ...settings, confirming: input.root } });
       const recorded = state.worktrees.find((item) => item.root === input.root);
       if (!recorded || state.deletingWorktrees.includes(recorded.root)) return settled(state);
       const busy = busyThreadIds(state);

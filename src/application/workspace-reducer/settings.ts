@@ -1,12 +1,13 @@
 /** Settings: appearance, keystrokes, and the switches that change what a run may do. */
-import { TAKE_KEYS, persistView, settled, stopCapture, targetId, rejected } from "./shared.js";
-import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
+import { TAKE_KEYS, persistView } from "./dock-tabs.js";
+import { settled, targetId, rejected } from "./shared.js";
+import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { focusComposer } from "../composer-drafts.js";
 import { withSubagents } from "../thread-run-state.js";
 import { viewPreferences } from "../view-preferences.js";
 import { dockOwner, withDock, type WorkspaceState } from "../workspace-state.js";
 import { shortcutAction, shortcutProblem, withShortcut } from "../../domain/shortcuts.js";
-import { isAgentModel } from "../../domain/agent-engine.js";
+import { capabilitiesFor, isAgentModel } from "../../domain/agent-engine.js";
 import { isSubagentGroup } from "../../domain/run.js";
 import { isSettingsSection } from "../../domain/settings-section.js";
 import { isSidebarSection } from "../../domain/sidebar.js";
@@ -28,6 +29,20 @@ export function reduceModelFavorite(state: WorkspaceState, input: Extract<Worksp
   if (input.favorite) favoriteModels.push(input.model);
   const next = { ...state, favoriteModels };
   return settled(next, persistView(next));
+}
+
+/** Opening a child loads its log and fills settings that older app versions did not capture. */
+function inspectSubagent(state: WorkspaceState, taskId: string | null, subagentId: string): WorkspaceTransition {
+  const subagent = taskId ? state.subagents[taskId]?.find((candidate) => candidate.id === subagentId) : undefined;
+  if (!subagent || !taskId) return settled(state);
+  const effects: WorkspaceEffect[] = [];
+  if (!subagent.activity.length) effects.push({ type: "load-subagent-activity", taskId, subagentId });
+  const thread = state.threads.find((thread) => thread.id === taskId);
+  const engine = thread?.engine;
+  if (engine && capabilitiesFor(engine).subagentMetadata && (!subagent.model || !subagent.effort)) {
+    effects.push({ type: "load-subagent-metadata", taskId, subagentId, engine, sessionId: thread?.continuation?.value });
+  }
+  return settled(state, effects);
 }
 
 export function reduceSettings(state: WorkspaceState, input: SettingsInput): WorkspaceTransition {
@@ -151,11 +166,7 @@ export function reduceSettings(state: WorkspaceState, input: SettingsInput): Wor
     }
 
     case "view.inspect-subagent": {
-      const taskId = targetId(state, input.taskId);
-      const subagent = taskId ? state.subagents[taskId]?.find((candidate) => candidate.id === input.subagentId) : undefined;
-      return subagent && !subagent.activity.length
-        ? settled(state, [{ type: "load-subagent-activity", taskId: taskId!, subagentId: subagent.id }])
-        : settled(state);
+      return inspectSubagent(state, targetId(state, input.taskId), input.subagentId);
     }
 
     case "subagent.activity.loaded": {
@@ -205,4 +216,9 @@ export function reduceSettings(state: WorkspaceState, input: SettingsInput): Wor
       return settled(input.open ? withDock(settings, owner, { open: false, expanded: false }) : settings, effects);
     }
   }
+}
+
+/** Settings stop waiting for a keystroke the moment they are no longer the thing in front. */
+export function stopCapture(state: WorkspaceState): WorkspaceEffect[] {
+  return state.capturingShortcut === null ? [] : [{ type: "capture-shortcut", capturing: false }];
 }
