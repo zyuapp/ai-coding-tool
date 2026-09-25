@@ -265,6 +265,7 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   draftWorktree: boolean;
   /** The checkout the next new thread starts in, when the user picked one the project already has. */
   draftWorktreeId: string | null;
+  draftRole: ThreadRole | null;
   draftEngine: AgentEngine;
   draftModel: AgentModel;
   draftEffort: AgentEffort;
@@ -428,6 +429,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     draftBranch: null,
     draftWorktree: false,
     draftWorktreeId: null,
+    draftRole: null,
     draftEngine: DEFAULT_ENGINE,
     draftModel: DEFAULT_MODEL,
     draftEffort: DEFAULT_EFFORT,
@@ -823,9 +825,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state)
     waitingOn: waitFor(state, currentThread),
     /** The checkout the current thread works in, which is what Git is read from and moved. */
     workspaceId,
-    draftBranch: state.draftBranch,
-    draftWorktree: state.draftWorktree,
-    draftWorktreeId: state.draftWorktreeId,
+    draftBranch: state.draftBranch, draftWorktree: state.draftWorktree, draftWorktreeId: state.draftWorktreeId, draftRole: state.draftRole,
     /** What the composer calls the checkout a draft starts in, when the user picked one. */
     draftWorktreeName: draftWorktree ? worktreeName(draftWorktree) : null,
     environment,

@@ -316,7 +316,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   const threads = existing ? state.threads.map((item) => item.id === thread.id ? updated : item) : [updated, ...state.threads];
   /** Only a thread the user's own send just created needs looking at; anything else leaves them where they are. */
   const focusing = !existing && pending.draftKey !== undefined;
-  const spent = existing ? {} : { draftBranch: null, draftWorktree: false, draftWorktreeId: null };
+  const spent = existing ? {} : { draftBranch: null, draftWorktree: false, draftWorktreeId: null, ...(pending.draftKey === undefined ? {} : { draftRole: null }) };
   const owning = withUsedWorktree(focusing ? handOverDraftDock(state, thread.id) : state, created, arriving?.id);
   const started = beginRun({ ...owning, threads, ...spent, ...(focusing ? { currentId: thread.id } : {}) }, thread.id, pending.runId);
   const drained = pending.queuedIds

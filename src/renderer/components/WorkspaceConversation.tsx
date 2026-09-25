@@ -66,6 +66,8 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
               onSelectProject={workspace.actions.newThread}
               onSelectBranch={workspace.actions.setBranch}
               onSetWorktree={workspace.actions.setWorktree}
+              coordinator={workspace.draftRole === "coordinator"}
+              onSetCoordinator={(coordinator) => workspace.actions.setDraftRole(coordinator ? "coordinator" : null)}
             />
           )}
           annotations={workspace.annotations}

@@ -154,7 +154,7 @@ const shapes = {
   "task.restore": { taskId: text },
   "task.clear-archive": {  },
   "task.rename": { taskId: text, title: text },
-  "task.set-role": { taskId: text, role: nullable(isThreadRole) },
+  "task.set-role": { taskId: optionalText, role: nullable(isThreadRole) },
   "task.set-coordinator": { taskId: text, coordinatorId: nullableText },
   "decision.answer": { taskId: text, decisionId: text, answer: text },
   "task.dismiss": { taskId: text },

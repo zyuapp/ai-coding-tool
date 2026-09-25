@@ -110,6 +110,7 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
         draftBranch: null,
         draftWorktree: false,
         draftWorktreeId: worktree?.id ?? null,
+        draftRole: null,
         actionError: null,
         lastFolder: project?.root ?? state.lastFolder,
         expandedProjects: projectId ? new Set(state.expandedProjects).add(projectId) : state.expandedProjects,
@@ -187,9 +188,11 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
     }
 
     case "task.set-role": {
-      const thread = state.threads.find((item) => item.id === input.taskId);
-      if (!thread || (thread.role ?? null) === input.role) return settled(state);
-      return settled(updateThread(state, input.taskId, ({ role: _previous, ...item }) => ({ ...item, ...(input.role ? { role: input.role } : {}), updatedAt: now() })));
+      const taskId = targetId(state, input.taskId);
+      const thread = taskId ? state.threads.find((item) => item.id === taskId) : undefined;
+      if (!thread) return settled(input.taskId === undefined ? { ...state, draftRole: input.role } : state);
+      if ((thread.role ?? null) === input.role) return settled(state);
+      return settled(updateThread(state, thread.id, ({ role: _previous, ...item }) => ({ ...item, ...(input.role ? { role: input.role } : {}), updatedAt: now() })));
     }
 
     /** A name the user typed outranks a suggested one, whenever the suggestion lands. */

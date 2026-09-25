@@ -86,8 +86,8 @@ export type TaskCommand =
   | { type: "task.restore"; taskId: string }
   | { type: "task.clear-archive" }
   | { type: "task.rename"; taskId: string; title: string }
-  /** `null` takes the role off. */
-  | { type: "task.set-role"; taskId: string; role: ThreadRole | null }
+  /** `null` takes the role off. With no thread yet, the role waits for the first message. */
+  | { type: "task.set-role"; taskId?: string; role: ThreadRole | null }
   /** Moves a thread under a coordinator, or out from under one with `null`. */
   | { type: "task.set-coordinator"; taskId: string; coordinatorId: string | null }
   /** Answers a choice a thread put to the user. The answer reaches that thread as a message. */

@@ -97,6 +97,8 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
       const projectId = thread?.projectId ?? namedWorktree?.projectId ?? named?.project.id ?? (draftKey === undefined ? null : state.draftProjectId);
       const project = projectId ? state.projects.find((item) => item.id === projectId) : undefined;
       if (projectId && !project) return rejected(state, MISSING_PROJECT_ERROR);
+      /** The composer's own send takes the role the draft was given; a caller's `role` outranks it. */
+      const role = thread ? undefined : input.role ?? (draftKey === undefined ? undefined : state.draftRole ?? undefined);
       const pending: PendingRun = {
         id: crypto.randomUUID(),
         runId: crypto.randomUUID(),
@@ -106,7 +108,7 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
         ...(namedWorktree ? { worktreeId: namedWorktree.id } : {}),
         ...(thread || input.model === undefined ? {} : { model: input.model }),
         ...(thread || input.effort === undefined ? {} : { effort: input.effort }),
-        ...(thread || input.role === undefined ? {} : { role: input.role }),
+        ...(role ? { role } : {}),
         ...(thread ? {} : coordinationSendOf(input)),
         ...(draftKey === undefined ? {} : { draftKey }),
         text,
