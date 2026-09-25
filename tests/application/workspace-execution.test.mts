@@ -196,7 +196,7 @@ test("a coordinator's new thread needs a brief and works under it", async () => 
   assert.deepEqual(worker?.brief, brief);
 });
 
-test("only a thread in a crew reports or raises decisions", async () => {
+test("only a coordinator and its threads report or raise decisions", async () => {
   const host = driver(workspace({ threads: [task("lead", { role: "coordinator" }), task("worker", { parentId: "lead" }), task("alone")] }));
   const alone = await answerThreadRequest(host, { type: "thread.request", requestId: "r1", taskId: "alone", op: "report", state: "done", summary: "Done" });
   assert.deepEqual(alone.ok && (alone.result as { recorded: boolean }).recorded, false);

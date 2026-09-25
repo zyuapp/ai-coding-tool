@@ -1,7 +1,7 @@
 /** What the store and the preferences hand back on the way in, and what failed on the way out. */
 import { settled, rejected } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { deliverRestoredNotes } from "./crew.js";
+import { deliverRestoredNotes } from "./coordination.js";
 import { viewPreferenceState } from "../view-preferences.js";
 import { dockFor, withStoreData, type WorkspaceState } from "../workspace-state.js";
 import { browserUrl, type BrowserTab } from "../../domain/browser.js";

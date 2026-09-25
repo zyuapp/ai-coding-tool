@@ -13,8 +13,8 @@ export function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
     void workspace.actions.editProject(projectId, { name });
   }, [workspace.actions]);
 
-  const { crews, closedCrews, coordinators, actions } = workspace;
-  const sidebarCrew = useMemo(() => ({ crews, closedCrews, coordinators, onSetCoordinator: actions.setCoordinator, onSetCrewOpen: actions.setCrewOpen }), [crews, closedCrews, coordinators, actions]);
+  const { threadsByCoordinator, closedCoordinators, coordinators, actions } = workspace;
+  const sidebarCoordination = useMemo(() => ({ threadsByCoordinator, closedCoordinators, coordinators, onSetCoordinator: actions.setCoordinator, onSetCoordinationOpen: actions.setCoordinationOpen }), [threadsByCoordinator, closedCoordinators, coordinators, actions]);
 
   return (
     <ProjectSidebar
@@ -66,7 +66,7 @@ export function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
       onMoveThread={workspace.actions.moveThread}
       onForkThread={workspace.actions.forkThread}
       onSetThreadRole={workspace.actions.setThreadRole}
-      sidebarCrew={sidebarCrew}
+      sidebarCoordination={sidebarCoordination}
       onOpenSettings={onOpenSettings}
     />
   );

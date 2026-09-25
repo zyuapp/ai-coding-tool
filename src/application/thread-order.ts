@@ -1,7 +1,7 @@
 import type { ThreadDropTarget } from "../domain/project.js";
 import { threadActivityAt, type Thread } from "../domain/thread.js";
 import { wantsAttention } from "../domain/attention.js";
-import { crewMemberIds } from "../domain/crew.js";
+import { coordinatedThreadIds } from "../domain/coordination.js";
 import type { SidebarMode, SidebarSections } from "../domain/sidebar.js";
 
 /** The activity sidebar's three lists, in the order they are drawn. */
@@ -87,7 +87,7 @@ export function nextSortIndex(threads: Thread[]): number {
  */
 export function moveThread(threads: Thread[], threadId: string, target: ThreadDropTarget): Thread[] {
   /** Threads under a coordinator are drawn beneath it, so a drop's index never counts them. */
-  const members = crewMemberIds(threads);
+  const members = coordinatedThreadIds(threads);
   const visible = orderThreads(threads.filter((thread) => thread.archivedAt === undefined && !members.has(thread.id)));
   const moving = visible.find((thread) => thread.id === threadId);
   if (!moving) return threads;

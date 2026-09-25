@@ -4,7 +4,7 @@ import type { ThreadSummary, ThreadTranscript } from "../../contracts/threads.js
 import { AGENT_ENGINES, isAgentEffort, isAgentModel, modelsFor, type AgentModel } from "../../domain/agent-engine.js";
 import type { AgentEffort } from "../../domain/run.js";
 import { THREAD_ROLES, type ThreadRole } from "../../domain/thread-role.js";
-import { DELIVERIES, MAX_BRIEF_FIELD, type Delivery } from "../../domain/crew.js";
+import { DELIVERIES, MAX_BRIEF_FIELD, type Delivery } from "../../domain/coordination.js";
 import type { ThreadBridge } from "../agent/agent-provider.mjs";
 import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";
 

@@ -240,6 +240,19 @@ test("validating decoded v2 data matches serialized parsing", () => {
   assert.equal(hidden.hiddenTasks, 1);
 });
 
+test("a coordinator's waiting notes saved under their first name load under the current one", () => {
+  const migrated = migrateV1ToV2(legacyValues());
+  assert.equal(migrated.ok, true);
+  if (!migrated.ok) return;
+  const note = { id: "n1", threadId: "worker", text: "\"Fix login\" ended its turn.", at: 1 };
+  const decoded = { ...migrated.data, tasks: [{ ...migrated.data.tasks[0], role: "coordinator", crewNotes: [note] }] };
+  const validated = validateThreadStoreData(decoded);
+  assert.equal(validated.ok, true);
+  if (!validated.ok) return;
+  assert.deepEqual(validated.data.tasks[0].coordinationNotes, [note]);
+  assert.equal("crewNotes" in validated.data.tasks[0], false);
+});
+
 test("current tasks and unexpired archives keep their existing objects", () => {
   const migrated = migrateV1ToV2(legacyValues());
   assert.equal(migrated.ok, true);

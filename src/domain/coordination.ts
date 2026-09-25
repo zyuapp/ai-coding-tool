@@ -6,7 +6,7 @@
 import type { Thread } from "./thread.js";
 
 /** A coordinator's run delegates and changes no files; a thread under one reports back to it. */
-export type CrewRole = "coordinator" | "member";
+export type CoordinationRole = "coordinator" | "member";
 
 /** How a thread's work lands. */
 export const DELIVERIES = [
@@ -24,13 +24,13 @@ export type ThreadBrief = {
   delivers: Delivery;
 };
 
-export const CREW_STATES = ["working", "blocked", "done", "failed"] as const;
+export const COORDINATION_STATES = ["working", "blocked", "done", "failed"] as const;
 
-export type CrewState = (typeof CREW_STATES)[number];
+export type CoordinationState = (typeof COORDINATION_STATES)[number];
 
 /** Where a thread says its work stands, newest only. */
-export type CrewReport = {
-  state: CrewState;
+export type CoordinationReport = {
+  state: CoordinationState;
   summary: string;
   at: number;
 };
@@ -53,7 +53,7 @@ export type Decision = {
 };
 
 /** Something a coordinator has yet to hear about one of its threads. */
-export type CrewNote = {
+export type CoordinationNote = {
   id: string;
   threadId: string;
   text: string;
@@ -82,20 +82,20 @@ function coordinator(thread: Thread | undefined): Thread | undefined {
 }
 
 /** The coordinator a thread works under, while that thread is still one. */
-export function crewLead(threads: readonly Thread[], thread: Thread | undefined): Thread | undefined {
+export function coordinatorOf(threads: readonly Thread[], thread: Thread | undefined): Thread | undefined {
   if (!thread?.parentId || thread.role === "coordinator") return undefined;
   return coordinator(threads.find((item) => item.id === thread.parentId));
 }
 
 /** The threads working under a coordinator, in the order the list holds them. */
-export function crewMembers(threads: readonly Thread[], leadId: string): Thread[] {
+export function coordinatedThreads(threads: readonly Thread[], leadId: string): Thread[] {
   const lead = threads.find((thread) => thread.id === leadId);
   if (!isCoordinator(lead)) return [];
   return threads.filter((thread) => thread.parentId === leadId && thread.archivedAt === undefined && thread.role !== "coordinator");
 }
 
 /** Every thread drawn under a coordinator rather than in a list of its own. */
-export function crewMemberIds(threads: readonly Thread[]): Set<string> {
+export function coordinatedThreadIds(threads: readonly Thread[]): Set<string> {
   const leads = new Set(threads.filter(isCoordinator).map((thread) => thread.id));
   const members = new Set<string>();
   for (const thread of threads) {
@@ -105,7 +105,7 @@ export function crewMemberIds(threads: readonly Thread[]): Set<string> {
 }
 
 /** The named threads and every thread working under the coordinators among them. */
-export function withCrews(threads: readonly Thread[], ids: Set<string>): Set<string> {
+export function withCoordinated(threads: readonly Thread[], ids: Set<string>): Set<string> {
   const leads = new Set(threads.filter((thread) => ids.has(thread.id) && isCoordinator(thread)).map((thread) => thread.id));
   if (!leads.size) return ids;
   const all = new Set(ids);
@@ -114,7 +114,7 @@ export function withCrews(threads: readonly Thread[], ids: Set<string>): Set<str
 }
 
 /** A thread can move under a coordinator other than itself, unless it coordinates threads of its own. */
-export function canJoinCrew(thread: Thread, lead: Thread | undefined): lead is Thread {
+export function canJoinCoordinator(thread: Thread, lead: Thread | undefined): lead is Thread {
   return lead !== undefined && isCoordinator(lead) && lead.id !== thread.id && thread.role !== "coordinator" && thread.archivedAt === undefined;
 }
 
@@ -123,10 +123,10 @@ export function openDecisions(thread: Thread): Decision[] {
 }
 
 /** Every decision waiting on the user from a coordinator and its threads, oldest first. */
-export function crewDecisions(threads: readonly Thread[], leadId: string): Array<{ thread: Thread; decision: Decision }> {
+export function coordinationDecisions(threads: readonly Thread[], leadId: string): Array<{ thread: Thread; decision: Decision }> {
   const lead = coordinator(threads.find((thread) => thread.id === leadId));
   if (!lead) return [];
-  return [lead, ...crewMembers(threads, leadId)]
+  return [lead, ...coordinatedThreads(threads, leadId)]
     .flatMap((thread) => openDecisions(thread).map((decision) => ({ thread, decision })))
     .sort((left, right) => left.decision.raisedAt - right.decision.raisedAt);
 }
@@ -146,15 +146,15 @@ export function withAnswer(thread: Thread, decisionId: string, answer: string, a
   };
 }
 
-export function withCrewNote(lead: Thread, note: CrewNote): Thread {
-  return { ...lead, crewNotes: [...lead.crewNotes ?? [], note].slice(-MAX_NOTES) };
+export function withCoordinationNote(lead: Thread, note: CoordinationNote): Thread {
+  return { ...lead, coordinationNotes: [...lead.coordinationNotes ?? [], note].slice(-MAX_NOTES) };
 }
 
 /** Takes off the notes a run heard, leaving any that arrived after it set off. */
-export function withoutCrewNotes(lead: Thread, heard: ReadonlySet<string>): Thread {
-  const rest = (lead.crewNotes ?? []).filter((note) => !heard.has(note.id));
-  if (rest.length) return { ...lead, crewNotes: rest };
-  const { crewNotes: _delivered, ...thread } = lead;
+export function withoutCoordinationNotes(lead: Thread, heard: ReadonlySet<string>): Thread {
+  const rest = (lead.coordinationNotes ?? []).filter((note) => !heard.has(note.id));
+  if (rest.length) return { ...lead, coordinationNotes: rest };
+  const { coordinationNotes: _delivered, ...thread } = lead;
   return thread;
 }
 
@@ -166,8 +166,8 @@ export function isDelivery(value: unknown): value is Delivery {
   return DELIVERIES.some((delivery) => delivery.id === value);
 }
 
-export function isCrewState(value: unknown): value is CrewState {
-  return CREW_STATES.includes(value as CrewState);
+export function isCoordinationState(value: unknown): value is CoordinationState {
+  return COORDINATION_STATES.includes(value as CoordinationState);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -186,8 +186,8 @@ export function isThreadBrief(value: unknown): value is ThreadBrief {
   return isRecord(value) && text(value.intent, MAX_BRIEF_FIELD) && text(value.doneWhen, MAX_BRIEF_FIELD) && isDelivery(value.delivers);
 }
 
-export function isCrewReport(value: unknown): value is CrewReport {
-  return isRecord(value) && isCrewState(value.state) && text(value.summary, MAX_SUMMARY) && finite(value.at);
+export function isCoordinationReport(value: unknown): value is CoordinationReport {
+  return isRecord(value) && isCoordinationState(value.state) && text(value.summary, MAX_SUMMARY) && finite(value.at);
 }
 
 export function isDecisionOption(value: unknown): value is DecisionOption {
@@ -213,6 +213,6 @@ export function isDecision(value: unknown): value is Decision {
     && (decision.answeredAt === undefined || finite(decision.answeredAt));
 }
 
-export function isCrewNote(value: unknown): value is CrewNote {
+export function isCoordinationNote(value: unknown): value is CoordinationNote {
   return isRecord(value) && text(value.id, 200) && text(value.threadId, 200) && typeof value.text === "string" && finite(value.at);
 }

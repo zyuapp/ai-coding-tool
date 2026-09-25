@@ -30,6 +30,8 @@ test("the start options say where a thread begins, and searching narrows the bra
     onSelectProject: (id) => { chosen.project.push(id); },
     onSelectBranch: (name, create) => { chosen.branch.push(create ? { name, create } : name); },
     onSetWorktree: (on) => { chosen.worktree.push(on); },
+    coordinator: false,
+    onSetCoordinator() {},
   });
 
   const view = await mount(options(null, false));
@@ -39,6 +41,7 @@ test("the start options say where a thread begins, and searching narrows the bra
   const worktreeToggle = query<HTMLButtonElement>(view.container, ".thread-start-toggle");
   assert.equal(worktreeToggle.textContent, "Worktree");
   assert.equal(worktreeToggle.getAttribute("aria-pressed"), "false", "a worktree is only ever asked for");
+  assert.equal(query(view.container, ".thread-start-coordinator").getAttribute("aria-pressed"), "false", "a thread starts without a role");
   assert.equal(view.container.querySelector(".thread-mode"), null, "the mode is asked for above these, not among them");
 
   await act(async () => { project.click(); });
@@ -89,7 +92,7 @@ test("the start options say where a thread begins, and searching narrows the bra
   await view.unmount();
 });
 
-test("the mode is chat or work, and a chat is left with nothing else to answer", async () => {
+test("the mode is chat or work, and a chat is left only with whether it coordinates", async () => {
   const { ThreadModeSwitch, ThreadStartOptions } = await import("../../../src/renderer/components/ThreadStartOptions.tsx");
   window.desktop = fakeDesktop();
   const chosen: Array<string | undefined> = [];
@@ -112,6 +115,7 @@ test("the mode is chat or work, and a chat is left with nothing else to answer",
   await view.render(React.createElement(ThreadModeSwitch, { projects: [], projectId: null, onSelectProject() {} }));
   assert.equal(view.container.querySelector(".thread-mode"), null, "with nowhere to work there is no mode to choose");
 
+  const coordinating: boolean[] = [];
   await view.render(React.createElement(ThreadStartOptions, {
     projects,
     projectId: null,
@@ -120,8 +124,12 @@ test("the mode is chat or work, and a chat is left with nothing else to answer",
     onSelectProject() {},
     onSelectBranch() {},
     onSetWorktree() {},
+    coordinator: false,
+    onSetCoordinator: (on) => { coordinating.push(on); },
   }));
-  assert.equal(view.container.querySelector(".thread-start"), null, "a chat has no project, branch, or checkout to answer for");
+  assert.deepEqual([...view.container.querySelectorAll(".thread-start button")].map((button) => button.textContent), ["Coordinator"], "a chat has no project, branch, or checkout to answer for");
+  await act(async () => { query<HTMLButtonElement>(view.container, ".thread-start-coordinator").click(); });
+  assert.deepEqual(coordinating, [true]);
   await view.unmount();
 });
 
@@ -138,6 +146,8 @@ test("the drafted project is shown wherever it sits in the list, and work starts
     onSelectProject() {},
     onSelectBranch() {},
     onSetWorktree() {},
+    coordinator: false,
+    onSetCoordinator() {},
   }));
   assert.match(query(view.container, ".thread-start-field button").textContent, /just-speak/, "a draft in a later project still names it");
   await view.render(React.createElement(ThreadModeSwitch, { projects, projectId: null, onSelectProject: (id) => { chosen.push(id); } }));
@@ -160,6 +170,8 @@ test("a branch the repository does not have is offered as one to create", async 
     onSelectProject() {},
     onSelectBranch: (name, create) => { chosen.push({ name, create }); },
     onSetWorktree() {},
+    coordinator: false,
+    onSetCoordinator() {},
   });
 
   const view = await mount(options(null));
@@ -233,7 +245,7 @@ test("the project picker labels and groups duplicate repository names by compute
   const options = (projectId: string) => React.createElement(ThreadStartOptions, {
     projects, projectHosts, projectId, branch: null, worktree: false,
     onSelectProject: (id) => { chosen.push(id); },
-    onSelectBranch() {}, onSetWorktree() {},
+    onSelectBranch() {}, onSetWorktree() {}, coordinator: false, onSetCoordinator() {},
   });
   const view = await mount(options("studio-one"));
   const trigger = query<HTMLButtonElement>(view.container, 'button[aria-label="shared on Studio Mac"]');

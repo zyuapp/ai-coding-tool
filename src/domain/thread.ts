@@ -2,7 +2,7 @@ import type { AgentEngine, AgentModel } from "./agent-engine.js";
 import type { ConversationMessage } from "./conversation.js";
 import type { AutomationFinding } from "./finding.js";
 import type { AgentEffort, Continuation, ExecutionPolicy } from "./run.js";
-import type { CrewNote, CrewReport, Decision, ThreadBrief } from "./crew.js";
+import type { CoordinationNote, CoordinationReport, Decision, ThreadBrief } from "./coordination.js";
 import type { ThreadRole } from "./thread-role.js";
 import type { ChangeSnapshot, ContextUsage, ContinuationStatus, ThreadOutcome } from "./thread-run.js";
 
@@ -19,11 +19,11 @@ export type Thread = {
   /** What the coordinator asked of this thread when it started it. */
   brief?: ThreadBrief;
   /** Where this thread last said its work stands. */
-  report?: CrewReport;
+  report?: CoordinationReport;
   /** Choices this thread has put to the user, answered or not. */
   decisions?: Decision[];
   /** On a coordinator: what its threads have done that it has yet to be told. */
-  crewNotes?: CrewNote[];
+  coordinationNotes?: CoordinationNote[];
   projectId?: string;
   executionPolicy: ExecutionPolicy;
   engine: AgentEngine;

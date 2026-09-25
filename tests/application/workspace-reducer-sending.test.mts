@@ -558,3 +558,19 @@ test("a role named on a send belongs to the thread it creates, never to one that
   assert.ok(Object.values(again.state.pendingRuns).every((pending) => pending.role === undefined));
   assert.equal(again.state.threads[0].role, "reviewer");
 });
+
+test("a draft made a coordinator starts as one, and the next draft starts without a role", () => {
+  const drafted = reduce(workspace(), { type: "task.set-role", role: "coordinator" }).state;
+  assert.equal(drafted.draftRole, "coordinator");
+  const typed = reduce(drafted, { type: "view.set-prompt", prompt: "Split this work up" }).state;
+  const sending = reduce(typed, { type: "task.send" });
+  const pendingId = effectAt(sending, "resolve-run-workspace").pendingId;
+  assert.equal(sending.state.pendingRuns[pendingId].role, "coordinator");
+  const started = reduce(sending.state, { type: "run.resolved", pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+  assert.equal(started.state.threads[0].role, "coordinator");
+  assert.equal(started.state.draftRole, null);
+
+  const external = reduce(drafted, { type: "task.send", text: "Look into it", attachments: [] });
+  assert.equal(external.state.pendingRuns[effectAt(external, "resolve-run-workspace").pendingId].role, undefined, "a send that is not the composer's own leaves the draft's role alone");
+  assert.equal(reduce(drafted, { type: "task.new" }).state.draftRole, null, "a new draft starts without a role");
+});

@@ -24,7 +24,7 @@ import type { TerminalUpdate } from "../../domain/terminal.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
 import type { PullRequestAnswer } from "../../domain/pull-request.js";
 import type { ManagedWorktree } from "../../domain/worktree.js";
-import type { CrewState, DecisionRequest } from "../../domain/crew.js";
+import type { CoordinationState, DecisionRequest } from "../../domain/coordination.js";
 
 /** Things that happened: replies to effects, and pushes from the main process. */
 export type WorkspaceEvent =
@@ -54,9 +54,9 @@ export type WorkspaceEvent =
   | { type: "automations.changed"; automations: AutomationView[] }
   | { type: "title.suggested"; taskId: string; title: string }
   /** A thread under a coordinator saying where its work stands. */
-  | { type: "crew.reported"; taskId: string; state: CrewState; summary: string }
+  | { type: "coordination.reported"; taskId: string; state: CoordinationState; summary: string }
   /** A thread putting a choice to the user that only they can make. */
-  | { type: "crew.decision-raised"; taskId: string; request: DecisionRequest }
+  | { type: "coordination.decision-raised"; taskId: string; request: DecisionRequest }
   | { type: "worktree.created"; taskId: string; worktree: CreatedWorktree; move?: boolean; projectId?: string }
   | { type: "worktree.failed"; taskId: string; message: string }
   | { type: "worktrees.loaded"; worktrees: ManagedWorktree[] }

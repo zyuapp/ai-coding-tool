@@ -1,7 +1,7 @@
 import { useRef, type ReactNode } from "react";
 import { ApprovalCard } from "./ApprovalCard";
 import { ConversationTimeline } from "./ConversationTimeline";
-import { CrewBar, CrewStrip } from "./Crew";
+import { CoordinationBar, CoordinationStrip } from "./Coordination";
 import { ThreadModeSwitch, ThreadStartOptions } from "./ThreadStartOptions";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import type { FindView } from "../../application/workspace-state";
@@ -18,16 +18,16 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
   const transcriptRef = useRef<HTMLDivElement>(null);
   /** A side chat is a thread too, so the main transcript only claims the bar when it is the one named. */
   const mine = find?.target.kind === "thread" && find.target.taskId === (workspace.currentThread?.id ?? null) ? find : null;
-  const { crew } = workspace;
-  const strip = crew.members.length > 0;
-  const bar = !strip && (crew.lead !== null || crew.brief !== null);
+  const { coordination } = workspace;
+  const strip = coordination.members.length > 0;
+  const bar = !strip && (coordination.lead !== null || coordination.brief !== null);
   return (
-    <div className={`work-area ${strip ? "crew-strip-on" : bar ? (crew.lead ? "crew-bar-on" : "crew-brief-on") : ""}`}>
+    <div className={`work-area ${strip ? "coordination-strip-on" : bar ? (coordination.lead ? "coordination-bar-on" : "coordination-brief-on") : ""}`}>
       {mine && findBar}
-      {(strip || bar) && <div className="crew-head">
+      {(strip || bar) && <div className="coordination-head">
         {strip
-          ? <CrewStrip members={crew.members} onSelect={workspace.actions.selectThread} />
-          : <CrewBar lead={crew.lead} brief={crew.brief} asking={crew.asking} onSelect={workspace.actions.selectThread} />}
+          ? <CoordinationStrip members={coordination.members} onSelect={workspace.actions.selectThread} />
+          : <CoordinationBar lead={coordination.lead} brief={coordination.brief} asking={coordination.asking} onSelect={workspace.actions.selectThread} />}
       </div>}
       {!workspace.currentThread && (
         <ThreadModeSwitch
@@ -66,6 +66,8 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
               onSelectProject={workspace.actions.newThread}
               onSelectBranch={workspace.actions.setBranch}
               onSetWorktree={workspace.actions.setWorktree}
+              coordinator={workspace.draftRole === "coordinator"}
+              onSetCoordinator={(coordinator) => workspace.actions.setDraftRole(coordinator ? "coordinator" : null)}
             />
           )}
           annotations={workspace.annotations}

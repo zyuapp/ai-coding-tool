@@ -1,4 +1,4 @@
-import { LuChevronDown as ChevronDown, LuFolderGit2 as FolderGit2, LuFolderSymlink as FolderSymlink, LuGitBranch as GitBranch, LuX as X } from "react-icons/lu";
+import { LuChevronDown as ChevronDown, LuFolderGit2 as FolderGit2, LuFolderSymlink as FolderSymlink, LuGitBranch as GitBranch, LuWaypoints as Waypoints, LuX as X } from "react-icons/lu";
 import { useRef, useState } from "react";
 import type { DraftBranch } from "../../application/workspace-state";
 import type { ThreadHost } from "../../application/computers";
@@ -74,14 +74,26 @@ export type ThreadStartOptionsProps = {
   /** `create` names a branch the repository does not have yet, made when the thread starts. */
   onSelectBranch: (branch: string | null, create?: boolean) => void;
   onSetWorktree: (worktree: boolean) => void;
+  /** Whether the thread starts as a coordinator, which a chat can be too. */
+  coordinator: boolean;
+  onSetCoordinator: (coordinator: boolean) => void;
 };
+
+function CoordinatorToggle({ coordinator, onSetCoordinator }: Pick<ThreadStartOptionsProps, "coordinator" | "onSetCoordinator">) {
+  return (
+    <button type="button" className="thread-start-toggle thread-start-coordinator" aria-pressed={coordinator} onClick={() => onSetCoordinator(!coordinator)}>
+      <Waypoints size={14} />
+      <span>Coordinator</span>
+    </button>
+  );
+}
 
 /**
  * What work the user is about to start still needs to know: which project, which branch it starts
  * from, and whether it gets a checkout of its own. Nothing here touches disk — the first message does
  * that.
  */
-export function ThreadStartOptions({ projects, projectHosts, projectId, workspaceId, branch, worktree, startsInWorktree, onSelectProject, onSelectBranch, onSetWorktree }: ThreadStartOptionsProps) {
+export function ThreadStartOptions({ projects, projectHosts, projectId, workspaceId, branch, worktree, startsInWorktree, onSelectProject, onSelectBranch, onSetWorktree, coordinator, onSetCoordinator }: ThreadStartOptionsProps) {
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [projectQuery, setProjectQuery] = useState("");
   const [branchesOpen, setBranchesOpen] = useState(false);
@@ -100,8 +112,14 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
   /** Until the user picks one, the thread starts from wherever the checkout already is. */
   const selected = branch?.name ?? current;
 
-  /** A chat has no project, so there is nothing left for it to answer. */
-  if (!project) return null;
+  /** A chat has no project, so all it has left to answer is whether it coordinates. */
+  if (!project) {
+    return (
+      <div className="thread-start" aria-label="How this thread starts">
+        <div className="thread-start-git"><CoordinatorToggle coordinator={coordinator} onSetCoordinator={onSetCoordinator} /></div>
+      </div>
+    );
+  }
   const host = projectHosts?.get(project.id);
   const showComputers = projects.some((item) => projectHosts?.has(item.id));
 
@@ -178,6 +196,7 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
           <span>Worktree</span>
         </button>
         </>)}
+        <CoordinatorToggle coordinator={coordinator} onSetCoordinator={onSetCoordinator} />
       </div>
     </div>
   );

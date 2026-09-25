@@ -17,7 +17,7 @@ import type { TerminalUpdate } from "../domain/terminal.js";
 import type { AttachedFileDraft } from "../domain/conversation.js";
 import { capabilitiesFor, engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, modelSupportsManualCompaction, type AgentEngine, type AgentModel, type EngineStatus } from "../domain/agent-engine.js";
 import { isThreadRole } from "../domain/thread-role.js";
-import { isThreadBrief, type CrewRole } from "../domain/crew.js";
+import { isThreadBrief, type CoordinationRole } from "../domain/coordination.js";
 import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, Continuation, ExecutionPolicy, RetryNotice, RunStatus, SubagentActivity, SubagentReport, ToolIntent } from "../domain/run.js";
 import type { PlanUsage } from "../domain/plan-usage.js";
 import type { PullRequestAnswer } from "../domain/pull-request.js";
@@ -89,7 +89,7 @@ export type StartRunCommand = {
   /** Set only by a scheduled tick: nobody is present, so an approval nobody answers is denied for them. */
   unattended?: true;
   /** Gives the run the tools and instructions for its part beside a coordinator. */
-  crewRole?: CrewRole;
+  coordinationRole?: CoordinationRole;
 };
 
 export type CreateWorktreeRequest = {
@@ -623,7 +623,7 @@ function isStartCommand(command: Record<string, unknown>, internal: boolean) {
     && isContinuation(command.continuation) && command.continuation.provider === command.engine
     && (command.forkContinuation === undefined || command.forkContinuation === true);
   const operationOnly = compact || review;
-  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && (operationOnly ? isBlankable(command.prompt, MAX_PROMPT_LENGTH) : isString(command.prompt, MAX_PROMPT_LENGTH)) && isString(command.workspaceId) && isPolicy(command.policy) && isAgentEngine(command.engine) && isAgentModel(command.model) && engineHasModel(command.engine, command.model) && isAgentEffort(command.effort) && engineHasEffort(command.engine, command.effort) && (command.operation === undefined || operationOnly) && (command.claude === undefined || isClaudeRunSettings(command.claude)) && (command.computerUseTools === undefined || command.computerUseTools === false) && (command.browserTools === undefined || command.browserTools === false) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation))) && (command.unattended === undefined || command.unattended === true) && (command.crewRole === undefined || command.crewRole === "coordinator" || command.crewRole === "member");
+  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && (operationOnly ? isBlankable(command.prompt, MAX_PROMPT_LENGTH) : isString(command.prompt, MAX_PROMPT_LENGTH)) && isString(command.workspaceId) && isPolicy(command.policy) && isAgentEngine(command.engine) && isAgentModel(command.model) && engineHasModel(command.engine, command.model) && isAgentEffort(command.effort) && engineHasEffort(command.engine, command.effort) && (command.operation === undefined || operationOnly) && (command.claude === undefined || isClaudeRunSettings(command.claude)) && (command.computerUseTools === undefined || command.computerUseTools === false) && (command.browserTools === undefined || command.browserTools === false) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation))) && (command.unattended === undefined || command.unattended === true) && (command.coordinationRole === undefined || command.coordinationRole === "coordinator" || command.coordinationRole === "member");
   if (!base || !(command.fastMode === undefined || isAgentEngine(command.engine) && capabilitiesFor(command.engine).fastMode && typeof command.fastMode === "boolean")) return false;
   if (!internal) return !["workspaceRoot", "projectless", "computerUse", "cwd", "folder", "sessionId", "mode", "requestId"].some((key) => key in command);
   return isString(command.workspaceRoot, 4_096) && typeof command.projectless === "boolean" && isComputerUseRunConfig(command.computerUse);

@@ -1303,6 +1303,7 @@ button, select { color: inherit; }
   color: var(--ink-soft);
 }
 .thread-start-toggle > svg { flex: none; color: inherit; }
+.empty-state .thread-start .thread-start-coordinator[aria-pressed="true"] > svg { color: var(--role-coordinator); }
 .thread-start-field > button > span {
   min-width: 0;
   overflow: hidden;

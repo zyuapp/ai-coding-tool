@@ -1,7 +1,7 @@
 import { CodexQuestions } from "./codex-questions.mjs";
 import { contextWindowLimit } from "../../domain/agent-engine.js";
 import type { BackgroundProcess, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
-import type { CrewRole } from "../../domain/crew.js";
+import type { CoordinationRole } from "../../domain/coordination.js";
 import { continuationOf, type ProviderResult, type ProviderRunInput } from "../agent/agent-provider.mjs";
 import { grantsTool } from "../agent/approval-grant.mjs";
 import { appendCompleteMarkdown, openMarkdownBuffer, type MarkdownBuffer } from "../agent/markdown-buffer.mjs";
@@ -45,9 +45,9 @@ export type CodexPolicy = { approvalPolicy: AskForApproval; sandbox: CodexSandbo
  * nothing itself: its shell is read-only, and every escalation out of that comes to the app, which
  * refuses it.
  */
-export function codexPolicy(policy: ExecutionPolicy, crewRole?: CrewRole): CodexPolicy {
+export function codexPolicy(policy: ExecutionPolicy, coordinationRole?: CoordinationRole): CodexPolicy {
   const granted = policyGrants(policy);
-  return crewRole === "coordinator" ? { ...granted, sandbox: "read-only", approvalsReviewer: "user" } : granted;
+  return coordinationRole === "coordinator" ? { ...granted, sandbox: "read-only", approvalsReviewer: "user" } : granted;
 }
 
 function policyGrants(policy: ExecutionPolicy): CodexPolicy {
@@ -331,7 +331,7 @@ export class CodexSession {
       const keepGoing = await this.beginGoal(turn, client, threadId, goal);
       if (!keepGoing) return;
     }
-    const policy = codexPolicy(turn.input.policy, turn.input.crewRole);
+    const policy = codexPolicy(turn.input.policy, turn.input.coordinationRole);
     let started: { turn: { id: string } };
     try {
       const prompt = goal?.type === "set" ? goal.objective : turn.input.prompt;
@@ -503,8 +503,8 @@ export class CodexSession {
     await skills.refresh(true);
     const account = await client.request("account/read", { refreshToken: false });
     if (!account.account) throw new OpenFailure(SIGN_IN);
-    const policy = codexPolicy(seed.policy, seed.crewRole);
-    const settings = { cwd: seed.workspaceRoot, model: seed.model, serviceTier: seed.fastMode ? "priority" : "default", approvalPolicy: policy.approvalPolicy, sandbox: policy.sandbox, approvalsReviewer: policy.approvalsReviewer, config: { model_reasoning_effort: seed.effort }, developerInstructions: codexInstructions(seed.channel, seed.crewRole) };
+    const policy = codexPolicy(seed.policy, seed.coordinationRole);
+    const settings = { cwd: seed.workspaceRoot, model: seed.model, serviceTier: seed.fastMode ? "priority" : "default", approvalPolicy: policy.approvalPolicy, sandbox: policy.sandbox, approvalsReviewer: policy.approvalsReviewer, config: { model_reasoning_effort: seed.effort }, developerInstructions: codexInstructions(seed.channel, seed.coordinationRole) };
     const continuation = continuationOf(seed);
     const started = continuation === undefined
       ? await client.request("thread/start", settings)
@@ -727,7 +727,7 @@ export class CodexSession {
   private async allowed(intent: ToolIntent, workspace = true) {
     const turn = this.turn;
     if (!turn) return false;
-    if (workspace && turn.input.crewRole === "coordinator") return false;
+    if (workspace && turn.input.coordinationRole === "coordinator") return false;
     if (grantsTool("workspace", turn.input)) return true;
     return await turn.input.authorize(intent) === "allow";
   }

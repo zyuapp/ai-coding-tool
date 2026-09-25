@@ -408,7 +408,7 @@ test("fast mode is a boolean setting carried only by Codex runs", () => {
   assert.equal(isRunCommand({ ...command, fastMode: true }), false);
 });
 
-test("crew requests and briefs are checked at the boundary, and only the window names a coordinator", () => {
+test("coordination requests and briefs are checked at the boundary, and only the window names a coordinator", () => {
   const request = { type: "thread.request", requestId: "r1", taskId: "task-1" };
   assert.equal(isThreadRequest({ ...request, op: "report", state: "done", summary: "PR #42" }), true);
   assert.equal(isThreadRequest({ ...request, op: "report", state: "finished", summary: "PR #42" }), false);

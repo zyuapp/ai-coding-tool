@@ -13,7 +13,7 @@ import { findProject } from "../../domain/project.js";
 import { expandThreadHandles } from "../../domain/thread-handles.js";
 import { withoutSnooze } from "../../domain/thread-snooze.js";
 import { updateThread } from "../thread-run-state.js";
-import { crewSendOf } from "../crew.js";
+import { coordinationSendOf } from "../coordination.js";
 
 type SendInput = Extract<WorkspaceInput, {
   type: "task.send" | "question.answer" | "question.set-answer" | "task.steer-queued" | "task.drop-queued";
@@ -97,6 +97,8 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
       const projectId = thread?.projectId ?? namedWorktree?.projectId ?? named?.project.id ?? (draftKey === undefined ? null : state.draftProjectId);
       const project = projectId ? state.projects.find((item) => item.id === projectId) : undefined;
       if (projectId && !project) return rejected(state, MISSING_PROJECT_ERROR);
+      /** The composer's own send takes the role the draft was given; a caller's `role` outranks it. */
+      const role = thread ? undefined : input.role ?? (draftKey === undefined ? undefined : state.draftRole ?? undefined);
       const pending: PendingRun = {
         id: crypto.randomUUID(),
         runId: crypto.randomUUID(),
@@ -106,8 +108,8 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
         ...(namedWorktree ? { worktreeId: namedWorktree.id } : {}),
         ...(thread || input.model === undefined ? {} : { model: input.model }),
         ...(thread || input.effort === undefined ? {} : { effort: input.effort }),
-        ...(thread || input.role === undefined ? {} : { role: input.role }),
-        ...(thread ? {} : crewSendOf(input)),
+        ...(role ? { role } : {}),
+        ...(thread ? {} : coordinationSendOf(input)),
         ...(draftKey === undefined ? {} : { draftKey }),
         text,
         prompt: sentPrompt(text, pastes, annotations, attachments, files),

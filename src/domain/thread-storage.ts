@@ -6,7 +6,7 @@ import type { Continuation, ExecutionPolicy, Subagent } from "./run.js";
 import type { ContextUsage, ContinuationStatus, ThreadOutcome } from "./thread-run.js";
 import type { Thread } from "./thread.js";
 import { isThreadRole } from "./thread-role.js";
-import { isCrewNote, isCrewReport, isDecision, isThreadBrief } from "./crew.js";
+import { isCoordinationNote, isCoordinationReport, isDecision, isThreadBrief } from "./coordination.js";
 import { isWorktree, type Worktree } from "./worktree.js";
 
 export const THREAD_STORE_VERSION = 2 as const;
@@ -370,9 +370,9 @@ function isThreadBase(value: unknown): value is StoredThread {
     (value.role === undefined || isThreadRole(value.role)) &&
     (value.parentId === undefined || nonEmptyString(value.parentId)) &&
     (value.brief === undefined || isThreadBrief(value.brief)) &&
-    (value.report === undefined || isCrewReport(value.report)) &&
+    (value.report === undefined || isCoordinationReport(value.report)) &&
     (value.decisions === undefined || Array.isArray(value.decisions) && value.decisions.every(isDecision)) &&
-    (value.crewNotes === undefined || Array.isArray(value.crewNotes) && value.crewNotes.every(isCrewNote)) &&
+    (value.coordinationNotes === undefined || Array.isArray(value.coordinationNotes) && value.coordinationNotes.every(isCoordinationNote)) &&
     (value.projectId === undefined || nonEmptyString(value.projectId)) &&
     isExecutionPolicy(value.executionPolicy) &&
     isAgentEngine(value.engine) &&
@@ -433,8 +433,8 @@ function dropRetiredSettings(value: unknown) {
 
 /**
  * Threads written while a withdrawn message was called `quiet`, a handled issue a `silencedKeys` entry,
- * or a model had an id the catalogue has since replaced. Whatever the thread already carries under the
- * current name wins.
+ * a coordinator's waiting notes `crewNotes`, or a model had an id the catalogue has since replaced.
+ * Whatever the thread already carries under the current name wins.
  */
 function renamedFields(value: unknown) {
   if (!isRecord(value)) return value;
@@ -444,6 +444,11 @@ function renamedFields(value: unknown) {
   if (value.silencedKeys !== undefined) {
     const { silencedKeys: handled, ...renamed } = value;
     if (renamed.handledIssues === undefined) renamed.handledIssues = handled;
+    task = renamed;
+  }
+  if (task.crewNotes !== undefined) {
+    const { crewNotes: notes, ...renamed } = task;
+    if (renamed.coordinationNotes === undefined) renamed.coordinationNotes = notes;
     task = renamed;
   }
   if (Array.isArray(task.messages)) {

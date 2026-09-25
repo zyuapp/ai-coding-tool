@@ -1,12 +1,12 @@
 import { useId, useState } from "react";
 import { LuChevronDown as ChevronDown, LuChevronUp as ChevronUp } from "react-icons/lu";
-import { deliveryLabel, type ThreadBrief } from "../../domain/crew";
+import { deliveryLabel, type ThreadBrief } from "../../domain/coordination";
 import type { Thread } from "../../domain/thread";
-import type { CrewDecisionView, CrewMemberStatus, CrewMemberView } from "../../application/crew";
+import type { CoordinationDecisionView, CoordinatedThreadStatus, CoordinatedThreadView } from "../../application/coordination";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
-import "./crew.css";
+import "./coordination.css";
 
-const STATUS_LABELS: Record<CrewMemberStatus, string> = {
+const STATUS_LABELS: Record<CoordinatedThreadStatus, string> = {
   approval: "Needs approval",
   asking: "Needs you",
   working: "Working",
@@ -17,24 +17,24 @@ const STATUS_LABELS: Record<CrewMemberStatus, string> = {
   idle: "Idle",
 };
 
-function StatusMark({ status }: { status: CrewMemberStatus }) {
+function StatusMark({ status }: { status: CoordinatedThreadStatus }) {
   return status === "working"
     ? <span className="task-spinner" aria-hidden="true" />
-    : <span className={`crew-dot ${status}`} aria-hidden="true" />;
+    : <span className={`coordination-dot ${status}`} aria-hidden="true" />;
 }
 
 /** The threads a coordinator has working under it, one card each, across the top of its conversation. */
-export function CrewStrip({ members, onSelect }: { members: CrewMemberView[]; onSelect: (threadId: string) => void }) {
+export function CoordinationStrip({ members, onSelect }: { members: CoordinatedThreadView[]; onSelect: (threadId: string) => void }) {
   return (
-    <nav className="crew-strip" aria-label="Threads under this coordinator">
+    <nav className="coordination-strip" aria-label="Threads under this coordinator">
       {members.map(({ thread, status, summary }) => (
-        <button type="button" key={thread.id} className={`crew-card ${status}`} onClick={() => onSelect(thread.id)} title={thread.title}>
-          <span className="crew-card-top">
+        <button type="button" key={thread.id} className={`coordination-card ${status}`} onClick={() => onSelect(thread.id)} title={thread.title}>
+          <span className="coordination-card-top">
             <StatusMark status={status} />
-            <span className="crew-card-title">{thread.title}</span>
-            <ThreadEngineIcon engine={thread.engine} className="crew-card-engine" size={12} />
+            <span className="coordination-card-title">{thread.title}</span>
+            <ThreadEngineIcon engine={thread.engine} className="coordination-card-engine" size={12} />
           </span>
-          <span className="crew-card-status">{summary ? `${STATUS_LABELS[status]} · ${summary}` : STATUS_LABELS[status]}</span>
+          <span className="coordination-card-status">{summary ? `${STATUS_LABELS[status]} · ${summary}` : STATUS_LABELS[status]}</span>
         </button>
       ))}
     </nav>
@@ -42,21 +42,21 @@ export function CrewStrip({ members, onSelect }: { members: CrewMemberView[]; on
 }
 
 /** A thread's place under its coordinator: who it works for, what it was asked, and whether the user owes it an answer. */
-export function CrewBar({ lead, brief, asking, onSelect }: { lead: Thread | null; brief: ThreadBrief | null; asking: boolean; onSelect: (threadId: string) => void }) {
+export function CoordinationBar({ lead, brief, asking, onSelect }: { lead: Thread | null; brief: ThreadBrief | null; asking: boolean; onSelect: (threadId: string) => void }) {
   return (
-    <div className={`crew-bar ${asking ? "asking" : ""}`}>
-      {lead && <div className="crew-bar-line">
-        <span className="crew-bar-lead">Works under <button type="button" onClick={() => onSelect(lead.id)}>{lead.title}</button></span>
+    <div className={`coordination-bar ${asking ? "asking" : ""}`}>
+      {lead && <div className="coordination-bar-line">
+        <span className="coordination-bar-lead">Works under <button type="button" onClick={() => onSelect(lead.id)}>{lead.title}</button></span>
         {asking && <>
-          <span className="crew-bar-asking">A decision is waiting on you</span>
-          <button type="button" className="crew-bar-answer" onClick={() => onSelect(lead.id)}>Answer</button>
+          <span className="coordination-bar-asking">A decision is waiting on you</span>
+          <button type="button" className="coordination-bar-answer" onClick={() => onSelect(lead.id)}>Answer</button>
         </>}
       </div>}
       {brief && (
-        <details className="crew-brief">
+        <details className="coordination-brief">
           <summary>Brief</summary>
           <dl>
-            <dt>Your words</dt><dd className="crew-brief-intent">{brief.intent}</dd>
+            <dt>Your words</dt><dd className="coordination-brief-intent">{brief.intent}</dd>
             <dt>Done when</dt><dd>{brief.doneWhen}</dd>
             <dt>Delivers</dt><dd>{deliveryLabel(brief.delivers)}</dd>
           </dl>
@@ -68,7 +68,7 @@ export function CrewBar({ lead, brief, asking, onSelect }: { lead: Thread | null
 
 /** Every decision waiting on the user from a coordinator and its threads, answered one at a time. */
 export function DecisionCard({ decisions, onAnswer, onSelect }: {
-  decisions: CrewDecisionView[];
+  decisions: CoordinationDecisionView[];
   onAnswer: (threadId: string, decisionId: string, answer: string) => void;
   onSelect: (threadId: string) => void;
 }) {
@@ -89,7 +89,7 @@ export function DecisionCard({ decisions, onAnswer, onSelect }: {
 }
 
 function DecisionForm({ view, position, onStep, onAnswer, onSelect }: {
-  view: CrewDecisionView;
+  view: CoordinationDecisionView;
   position: { index: number; count: number } | null;
   onStep: (delta: 1 | -1) => void;
   onAnswer: (answer: string) => void;

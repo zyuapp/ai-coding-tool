@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { REMOTE_THREAD_READ_TIMEOUT_MS } from "../../contracts/threads.js";
 import type { BrowserRead, BrowserReadResult, BrowserWrite, ExternalCommand, FindingReport, FindingResult, TerminalRead, TerminalReadResult, ThreadCommandResult, ThreadListQuery, ThreadRequest, ThreadResponse, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
-import type { BrowserBridge, CrewBridge, FindingBridge, TerminalBridge, ThreadBridge } from "./agent-provider.mjs";
-import type { CrewState, DecisionRequest } from "../../domain/crew.js";
+import type { BrowserBridge, CoordinationBridge, FindingBridge, TerminalBridge, ThreadBridge } from "./agent-provider.mjs";
+import type { CoordinationState, DecisionRequest } from "../../domain/coordination.js";
 
 /** The request union minus the envelope, distributed so each op keeps its own payload. */
 type ThreadRequestPayload = ThreadRequest extends infer Request
@@ -49,9 +49,9 @@ export class ThreadChannel {
   }
 
   /** Scoped the same way: a thread only ever speaks for itself to its coordinator and the user. */
-  crewFor(taskId: string): CrewBridge {
+  coordinationFor(taskId: string): CoordinationBridge {
     return {
-      report: (state: CrewState, summary: string) => this.request({ taskId, op: "report", state, summary }) as Promise<FindingResult>,
+      report: (state: CoordinationState, summary: string) => this.request({ taskId, op: "report", state, summary }) as Promise<FindingResult>,
       decide: (request: DecisionRequest) => this.request({ taskId, op: "decision", request }) as Promise<FindingResult>,
     };
   }
