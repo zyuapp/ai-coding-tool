@@ -47,7 +47,9 @@ test("remote worktree marks keep their names and colors across sidebar modes, fi
     assert.ok(view.container.querySelector('.task-worktree[aria-label="Works in Renamed checkout"]'));
     const offline = deriveView({ ...state, computers: { ...state.computers, paired: [{ ...state.computers.paired[0], status: "offline" }] } });
     await view.render(renderProjectSidebar({ ...offline, mode: "projects" }));
-    assert.ok(view.container.querySelector('.task-worktree[aria-label="Works in Renamed checkout"]'), "the cached checkout stays marked while its host is offline");
+    assert.equal(view.container.querySelector('.task-worktree[aria-label="Works in Renamed checkout"]'), null);
+    await renderRemote();
+    assert.ok(view.container.querySelector('.task-worktree[aria-label="Works in Renamed checkout"]'), "reconnecting restores the cached checkout's name and marks");
     state = { ...state, computers: { ...state.computers, paired: [{ ...state.computers.paired[0], state: { ...remote, worktrees: [] } }] } };
     await renderRemote();
     assert.ok(view.container.querySelector('.task-worktree[aria-label="Works in a worktree"]'), "a claim still shows its mark before checkout metadata arrives");
@@ -77,7 +79,7 @@ test("overlapping project orders stay grouped and repeated filter changes replac
   try {
     for (const filter of ["all", "this", "linux", "old", "all", "this", "all"] as const) {
       const projected = deriveView({ ...state, computers: { ...state.computers, filter } });
-      const hosts = filter === "all" ? ["mac", "linux", "old"] : [filter === "this" ? "mac" : filter];
+      const hosts = filter === "all" ? ["mac", "linux"] : filter === "old" ? [] : [filter === "this" ? "mac" : filter];
       const ids = hosts.flatMap((host) => [`${host}-a`, `${host}-b`]);
       assert.deepEqual(projected.projects.map((project) => project.id), ids);
       await view.render(renderProjectSidebar({ ...projected, mode: "projects" }));

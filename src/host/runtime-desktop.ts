@@ -5,6 +5,7 @@ import type { WorkspaceState } from "../application/workspace-state.js";
 import type { DesktopAPI } from "../contracts/ipc.js";
 import type { WorkspaceSurfaceEffect } from "../contracts/workspace-runtime.js";
 import type { ComputerLink, DiscoveredComputer } from "../domain/computers.js";
+import type { ComputerThreadQuery } from "../contracts/computers.js";
 
 /** The other computers this one reaches, held by the host process along with the tokens that get it in. */
 export type ComputerDesktop = {
@@ -19,6 +20,7 @@ export type ComputerDesktop = {
   labelComputer(id: string, name: string): Promise<void>;
   /** Carries inputs to a paired computer's own reducer, answering with what it said. */
   sendToComputer(id: string, inputs: WorkspaceInput[]): Promise<WorkspaceCommandResult>;
+  queryComputerThreads(id: string, query: ComputerThreadQuery): Promise<unknown>;
   /** The paired computers and where each line stands, pushed whenever any of it moves. */
   onComputersChanged(listener: (name: string, links: ComputerLink[]) => void): () => void;
   /** A paired computer's whole state, pushed as it changes there. */
@@ -40,7 +42,7 @@ export type RuntimeDesktop = Pick<DesktopAPI,
   | "createWorktree" | "listManagedWorktrees" | "revealWorktree" | "releaseWorktree"
   | "saveAttachment" | "preserveMessageImages" | "downloadImage"
   | "suggestTaskTitle" | "engineStatus" | "signInEngine" | "checkForUpdates" | "openSourceLicenses"
-  | "loadTaskStore" | "loadThreadMessages" | "persistTaskStore" | "loadSubagentActivity"
+  | "loadTaskStore" | "loadThreadMessages" | "persistTaskStore" | "loadSubagentActivity" | "loadSubagentMetadata"
   | "listAutomations" | "saveAutomation" | "updateAutomation" | "deleteAutomation" | "runAutomationNow"
   | "onAutomationsChanged" | "onAutomationFire" | "acknowledgeAutomation"
   | "onThreadRequest" | "answerThreadRequest"

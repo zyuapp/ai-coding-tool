@@ -24,6 +24,7 @@ import type { TerminalUpdate } from "../../domain/terminal.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
 import type { PullRequestAnswer } from "../../domain/pull-request.js";
 import type { ManagedWorktree } from "../../domain/worktree.js";
+import type { CoordinationState, DecisionRequest } from "../../domain/coordination.js";
 
 /** Things that happened: replies to effects, and pushes from the main process. */
 export type WorkspaceEvent =
@@ -52,6 +53,10 @@ export type WorkspaceEvent =
   | { type: "automation.fired"; fire: AutomationFire }
   | { type: "automations.changed"; automations: AutomationView[] }
   | { type: "title.suggested"; taskId: string; title: string }
+  /** A thread under a coordinator saying where its work stands. */
+  | { type: "coordination.reported"; taskId: string; state: CoordinationState; summary: string }
+  /** A thread putting a choice to the user that only they can make. */
+  | { type: "coordination.decision-raised"; taskId: string; request: DecisionRequest }
   | { type: "worktree.created"; taskId: string; worktree: CreatedWorktree; move?: boolean; projectId?: string }
   | { type: "worktree.failed"; taskId: string; message: string }
   | { type: "worktrees.loaded"; worktrees: ManagedWorktree[] }
@@ -132,6 +137,7 @@ export type WorkspaceEffect =
   | { type: "preserve-message-images"; text: string; root: string; messageId: string }
   | { type: "image.download"; source: string }
   | { type: "load-subagent-activity"; taskId: string; subagentId: string }
+  | { type: "load-subagent-metadata"; taskId: string; subagentId: string; engine: AgentEngine; sessionId?: string }
   | { type: "automation.save"; draft: AutomationDraft }
   | { type: "automation.update"; taskId: string; patch: AutomationPatch }
   | { type: "automation.delete"; taskId: string }

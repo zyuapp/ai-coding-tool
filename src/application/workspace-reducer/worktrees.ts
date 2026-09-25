@@ -9,9 +9,10 @@ import { now, settled, targetId, rejected } from "./shared.js";
 import { dropWorktree, leaveWorktree, releaseWorktrees, withCreatingWorktree, withReleasingWorktree, withoutCreatingWorktree, withoutReleasingWorktree } from "./worktree-claims.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { updateThread } from "../thread-run-state.js";
-import { leavingThreadIds, projectFor, threadWorkspaceId, worktreeFor } from "../thread-location.js";
+import { leavingThreadIds, projectFor, threadWorkspaceId, worktreeClaimants, worktreeFor } from "../thread-location.js";
 import { withoutWorktreeRoot, type WorkspaceState } from "../workspace-state.js";
 import { createConversationMessage } from "../../domain/conversation.js";
+import { dismissed } from "../../domain/attention.js";
 import type { Worktree } from "../../domain/worktree.js";
 
 type WorktreeInput = Extract<WorkspaceInput, {
@@ -191,7 +192,13 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
       let text = "Worktree deleted. Back on the project checkout.";
       if (input.missingOnly) text = "Missing worktree folder forgotten. Back on the project checkout.";
       else if (commit) text = `Worktree deleted. Loose work was committed as ${shortCommit ?? commit.slice(0, 7)} first.`;
-      const dropped = worktree ? dropWorktree(state, worktree.id, () => createConversationMessage("system", text, ref ? `Recover it with git show ${ref}` : undefined)) : state;
+      let dropped = state;
+      if (worktree) {
+        /** Successful deletion files away every linked thread, keeping its conversation history. */
+        const claimants = new Set(worktreeClaimants(state, worktree.id).map((thread) => thread.id));
+        const filed = { ...state, threads: dismissed(state.threads, claimants) };
+        dropped = dropWorktree(filed, worktree.id, () => createConversationMessage("system", text, ref ? `Recover it with git show ${ref}` : undefined));
+      }
       let notice = `Deleted ${input.root}.`;
       if (input.missingOnly) notice = `Forgot ${input.root}. Thread history kept.`;
       else if (ref) notice += ` Recover it with git show ${ref}.`;

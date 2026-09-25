@@ -4,6 +4,7 @@ import { reduce, WORKSPACE_ERRORS } from "../../src/application/workspace-reduce
 import { deriveView } from "../../src/application/workspace-state.ts";
 import type { Project } from "../../src/domain/project.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
+import { withFinding } from "../../src/domain/attention.ts";
 import { task, workspace, activeRun, effectAt, required, run, PROJECT, projected, madeWorktree, heldWorktree, inside, send } from "./workspace-reducer-fixtures.mts";
 
 test("asking for a worktree from the panel moves the thread there and then", () => {
@@ -447,15 +448,24 @@ test("a checkout that goes takes the draft pointed at it back to the project", (
   assert.deepEqual(reduce(released, { type: "task.send", text: "Go" }).state.actionError, null);
 });
 
-test("deleting a checkout puts every thread in it back on the project", () => {
+test("deleting a checkout files away every linked thread and keeps its history", () => {
   const worktree = heldWorktree();
+  const linked = inside(worktree, [
+    task("task-a", { projectId: PROJECT.id, outcome: "finished" }),
+    withFinding(task("task-b", { projectId: PROJECT.id, outcome: "failed", outcomeUnread: true }), { headline: "Fix this issue", key: "issue" }, 2),
+  ]);
+  const unrelated = task("unrelated", { projectId: PROJECT.id, outcome: "finished", outcomeUnread: true });
   const state = projected({
-    ...inside(worktree, [task("task-a", { projectId: PROJECT.id }), task("task-b", { projectId: PROJECT.id })]),
+    ...linked,
+    threads: [...linked.threads, unrelated],
     currentId: "task-a",
   });
 
   const deleting = reduce(state, { type: "worktree.delete" });
   assert.deepEqual(deleting.effects, [{ type: "delete-worktree", worktreeId: worktree.id, root: worktree.root, title: "repo-wt1" }]);
+  assert.equal(deleting.state.threads, state.threads, "starting deletion does not dismiss attention before success");
+  const failed = reduce(deleting.state, { type: "worktrees.failed", root: worktree.root, message: "Delete failed" });
+  assert.deepEqual(deriveView(failed.state).activityThreads.priority.map((item) => item.id).sort(), ["task-a", "task-b", "unrelated"], "failed deletion keeps the threads in Priority");
 
   const deleted = reduce(deleting.state, {
     type: "worktree.deleted",
@@ -463,9 +473,16 @@ test("deleting a checkout puts every thread in it back on the project", () => {
     root: worktree.root,
     snapshot: { commit: null, shortCommit: null, ref: null },
   });
-  assert.deepEqual(deleted.state.threads.map((item) => item.worktreeId), [undefined, undefined], "the directory is gone for all of them, not just the one that asked");
+  assert.deepEqual(deleted.state.threads.map((item) => item.worktreeId), [undefined, undefined, undefined], "the directory is gone for all of them, not just the one that asked");
   assert.deepEqual(deleted.state.worktrees, []);
   assert.match(required(deleted.state.threads[1]?.messages.at(-1)).text, /Worktree deleted/);
+  const view = deriveView(deleted.state);
+  assert.deepEqual(view.activityThreads.threads.map((item) => item.id).sort(), ["task-a", "task-b"]);
+  assert.deepEqual(view.activityThreads.priority.map((item) => item.id), ["unrelated"]);
+  assert.equal(deleted.state.threads[2], unrelated, "other threads retain their attention");
+  assert.deepEqual(deleted.state.threads[1].messages.slice(0, -1), linked.threads[1].messages, "the finding remains in the conversation history");
+  assert.deepEqual(deleted.state.threads[1].handledIssues, ["issue"], "deletion uses normal dismissal semantics for findings");
+  assert.equal(deleted.state.threads[1].outcomeUnread, undefined);
 });
 
 test("a thread working in a checkout stops anything else in it from being deleted under it", () => {

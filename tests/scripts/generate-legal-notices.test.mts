@@ -12,6 +12,12 @@ test("runtime notices cover the proprietary SDK, direct dependencies, and bundle
   for (const name of [
     "@anthropic-ai/claude-agent-sdk",
     "@lydell/node-pty",
+    "@lydell/node-pty-darwin-arm64",
+    "@lydell/node-pty-darwin-x64",
+    "@lydell/node-pty-linux-arm64",
+    "@lydell/node-pty-linux-x64",
+    "@lydell/node-pty-win32-arm64",
+    "@lydell/node-pty-win32-x64",
     "@modelcontextprotocol/sdk",
     "@xterm/headless",
     "croner",
@@ -34,9 +40,6 @@ test("runtime notices cover the proprietary SDK, direct dependencies, and bundle
     "@anthropic-ai/claude-agent-sdk-darwin-",
     "@anthropic-ai/claude-agent-sdk-linux-",
     "@anthropic-ai/claude-agent-sdk-win32-",
-    "@lydell/node-pty-darwin-",
-    "@lydell/node-pty-linux-",
-    "@lydell/node-pty-win32-",
   ]) {
     assert.ok(![...packages].some((name) => name.startsWith(prefix)), `Platform package leaked into notices: ${prefix}`);
   }

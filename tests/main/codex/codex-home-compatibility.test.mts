@@ -24,9 +24,15 @@ async function fixture() {
   let refreshes = 0;
   let rejectOldTokens = false;
   const expiresAt = Math.floor(Date.now() / 1000) + 3600;
-  const jwt = (email: string) => `e30.${Buffer.from(JSON.stringify({ email, exp: expiresAt, "https://api.openai.com/auth": { chatgpt_account_id: "synthetic-account", chatgpt_plan_type: "pro" } })).toString("base64url")}.synthetic`;
+  const jwt = (email: string) => `e30.${Buffer.from(JSON.stringify({ email, exp: expiresAt, "https://api.openai.com/auth": { chatgpt_account_id: "synthetic-account", chatgpt_user_id: "synthetic-user", chatgpt_plan_type: "pro" } })).toString("base64url")}.synthetic`;
   const server = createServer((request, response) => {
-    if (request.url === "/oauth/token") {
+    if (request.url?.endsWith("/accounts/check")) {
+      request.resume();
+      response.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ accounts: [{ id: "synthetic-account", workspace_backend_origin: "https://chatgpt.com", account_routing_override: "NO_CONSTRAINT" }] }));
+    } else if (request.url?.endsWith("/config/bundle")) {
+      request.resume();
+      response.writeHead(200, { "Content-Type": "application/json" }).end("{}");
+    } else if (request.url === "/oauth/token") {
       request.resume();
       refreshes++;
       response.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ id_token: jwt(`refresh${refreshes}@example.invalid`), access_token: jwt(`refresh${refreshes}@example.invalid`), refresh_token: `synthetic-refresh-${refreshes}` }));

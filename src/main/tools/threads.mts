@@ -4,6 +4,7 @@ import type { ThreadSummary, ThreadTranscript } from "../../contracts/threads.js
 import { AGENT_ENGINES, isAgentEffort, isAgentModel, modelsFor, type AgentModel } from "../../domain/agent-engine.js";
 import type { AgentEffort } from "../../domain/run.js";
 import { THREAD_ROLES, type ThreadRole } from "../../domain/thread-role.js";
+import { DELIVERIES, MAX_BRIEF_FIELD, type Delivery } from "../../domain/coordination.js";
 import type { ThreadBridge } from "../agent/agent-provider.mjs";
 import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";
 
@@ -28,7 +29,7 @@ const modelField = z.enum(modelIds as [AgentModel, ...AgentModel[]]).refine(isAg
 );
 const roleIds = THREAD_ROLES.map((option) => option.role);
 const roleField = z.enum(roleIds as [ThreadRole, ...ThreadRole[]]).optional().describe(
-  "The part the new thread plays beside the others: coordinator, implementer, reviewer, or researcher. Shown on its row.",
+  "The part the new thread plays beside the others: coordinator, implementer, reviewer, or researcher. Set reviewer for review threads; they stay in Threads unless awaiting the user's approval.",
 );
 const effortField = z.enum(effortIds as [AgentEffort, ...AgentEffort[]]).refine(isAgentEffort).optional().describe(
   "Effort for the new thread. Omit to inherit the calling thread's effort when the selected model supports it, otherwise use that engine's default.",
@@ -45,6 +46,7 @@ function describe(thread: ThreadSummary, at: number) {
   const parts = [
     `${thread.title} [${thread.id}]`,
     ...(thread.role ? [`role ${thread.role}`] : []),
+    ...(thread.computer ? [`computer ${thread.computer.name} [${thread.computer.id}]${thread.computer.offline ? " (offline, cached)" : ""}`] : []),
     thread.worktreeRoot ?? thread.projectRoot ?? "no project",
     ...(thread.worktreeId ? [`worktree ${thread.worktreeId}`] : []),
     thread.status,
@@ -77,8 +79,9 @@ async function report(work: () => Promise<string>) {
 export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
   defineTool({
     name: "list_threads",
-    description: "List the other AICodingTool threads, newest activity first. Use when the user asks what else is going on, points at recent or related work, or describes threads by age rather than by name.",
+    description: "List the other AICodingTool threads, newest activity first. Set computer to \"all\" to include paired computers. Use when the user asks what else is going on, points at recent or related work, or describes threads by age rather than by name.",
     input: {
+      computer: z.string().optional().describe('"this" (the default), "all" paired computers and this one, or a paired computer named by its name or ID. With "all" or a paired computer selected, project defaults to "all". Remote rows include their computer and whether it is offline.'),
       project: projectField,
       archived: z.boolean().optional().describe("List archived threads instead of active ones."),
       idleMinutes: z.number().optional().describe("Only threads that have done nothing for at least this many minutes."),
@@ -90,6 +93,7 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
     run: ({ bridge, now }, args) => report(async () => {
       const at = now();
       const threads = await bridge.list({
+        ...(args.computer === undefined ? {} : { computer: args.computer }),
         ...(args.project === undefined ? {} : { project: args.project }),
         ...(args.archived === undefined ? {} : { archived: args.archived }),
         ...(args.idleMinutes === undefined ? {} : { idleForMs: args.idleMinutes * MINUTE }),
@@ -102,13 +106,14 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
   }),
   defineTool({
     name: "read_thread",
-    description: "Read another thread's transcript when the request calls for fetching its contents. Use a known ID directly, including one supplied in app context or an aicodingtool://thread/<id> link. Use list_threads first only when the target is unknown.",
+    description: "Read another thread's transcript, including threads on paired computers. Use a known ID directly, including one supplied in app context or an aicodingtool://thread/<id> link. The app resolves its computer automatically. Use list_threads first only when the target is unknown.",
     input: {
       threadId: threadIdField,
+      computer: z.string().optional().describe('Optional computer name or ID, or "this" for local threads. Omit to resolve the thread across this computer and paired computers. Use to disambiguate matching threads.'),
       limit: z.number().optional().describe("How many of the newest messages to read. Defaults to 30."),
     },
     readOnly: true,
-    run: ({ bridge, now }, args) => report(async () => transcriptText(await bridge.read(args.threadId, args.limit), now())),
+    run: ({ bridge, now }, args) => report(async () => transcriptText(await bridge.read(args.threadId, args.limit, args.computer), now())),
   }),
   defineTool({
     name: "wait_for_thread",
@@ -136,12 +141,17 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
       model: modelField,
       effort: effortField,
       role: roleField,
+      intent: z.string().max(MAX_BRIEF_FIELD).optional().describe("Part of the brief a coordinator must give: the user's own words for this piece of work."),
+      doneWhen: z.string().max(MAX_BRIEF_FIELD).optional().describe("Part of the brief a coordinator must give: what finished looks like, checkably."),
+      delivers: z.enum(DELIVERIES.map((delivery) => delivery.id) as [Delivery, ...Delivery[]]).optional().describe("Part of the brief a coordinator must give: pull-request, commit, or report (knowledge only, no code changes)."),
     },
     readOnly: false,
     run: ({ bridge, now }, args) => report(async () => {
+      const { intent, doneWhen, delivers } = args;
       const { thread } = await bridge.command({
         type: "task.send",
         text: args.prompt,
+        ...(intent && doneWhen && delivers ? { brief: { intent, doneWhen, delivers } } : {}),
         ...(args.project ? { project: args.project } : {}),
         ...(args.worktreeId ? { worktreeId: args.worktreeId } : args.worktree ? { worktree: true } : {}),
         ...(args.model ? { model: args.model } : {}),
@@ -167,7 +177,7 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
   }),
   defineTool({
     name: "set_thread_role",
-    description: "Give a thread its part beside the others, or take it off. The role shows on the thread's row and in list_threads; it changes nothing about what the thread may do.",
+    description: "Give a thread its part beside the others, or take it off. The role shows on the thread's row and in list_threads. A coordinator changes no files itself and delegates to threads it starts; the other roles change nothing about what the thread may do.",
     input: {
       threadId: threadIdField,
       role: z.enum(roleIds as [ThreadRole, ...ThreadRole[]]).nullable().describe("coordinator, implementer, reviewer, or researcher. null takes the role off."),

@@ -2,6 +2,7 @@ import type { AppCommand } from "./commands.js";
 import { isTerminalDimension, MAX_TERMINAL_INPUT } from "./terminal.js";
 import { isSnoozeHours } from "../domain/thread-snooze.js";
 import { isThreadRole } from "../domain/thread-role.js";
+import { isThreadBrief } from "../domain/coordination.js";
 import type { WorkspaceEvent } from "../application/workspace-reducer.js";
 import { isBrowserAction } from "./ipc.js";
 import { isAgentEffort, isAgentEngine, isAgentModel } from "../domain/agent-engine.js";
@@ -138,6 +139,7 @@ export function isWorkspaceViewInput(value: unknown): value is WorkspaceViewInpu
 
 const shapes = {
   "view.mounted": {},
+  "view.set-coordination-open": { taskId: text, open: boolean },
   "diff.toggle": {  },
   "diff.refresh": {  },
   "diff.set-range": { range: isDiffRange },
@@ -152,7 +154,9 @@ const shapes = {
   "task.restore": { taskId: text },
   "task.clear-archive": {  },
   "task.rename": { taskId: text, title: text },
-  "task.set-role": { taskId: text, role: nullable(isThreadRole) },
+  "task.set-role": { taskId: optionalText, role: nullable(isThreadRole) },
+  "task.set-coordinator": { taskId: text, coordinatorId: nullableText },
+  "decision.answer": { taskId: text, decisionId: text, answer: text },
   "task.dismiss": { taskId: text },
   "task.snooze": { taskId: text, hours: isSnoozeHours },
   "task.dismiss-all": { localOnly: optionalBoolean },
@@ -168,7 +172,7 @@ const shapes = {
   "task.checkout-branch": { taskId: optionalText, branch: text, create: optionalBoolean },
   "attachments.send": { taskId: optionalText, steer: optionalBoolean, attachments: array(outgoingAttachment) },
   "attachments.notice": { taskId: optionalText, message: nullableText },
-  "task.send": { taskId: optionalText, project: optionalText, text: optionalText, attachments: optional(array(runAttachment)), steer: optionalBoolean, worktree: optionalBoolean, worktreeId: optionalText, model: optional(isAgentModel), effort: optional(isAgentEffort), role: optional(isThreadRole) },
+  "task.send": { taskId: optionalText, project: optionalText, text: optionalText, attachments: optional(array(runAttachment)), steer: optionalBoolean, worktree: optionalBoolean, worktreeId: optionalText, model: optional(isAgentModel), effort: optional(isAgentEffort), role: optional(isThreadRole), coordinatorId: optionalText, brief: optional(isThreadBrief) },
   "task.steer-queued": { taskId: optionalText, messageId: text },
   "task.drop-queued": { taskId: optionalText, messageId: text },
   "annotation.add": { taskId: optionalText, quote: text, note: optionalText, anchor: optional(isAnnotationAnchor) },

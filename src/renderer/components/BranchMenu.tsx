@@ -1,8 +1,8 @@
-import { LuCheck as Check, LuPlus as Plus, LuSearch as Search } from "react-icons/lu";
+import { LuPlus as Plus } from "react-icons/lu";
 import { Fragment, useEffect, useLayoutEffect, useState, type CSSProperties, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import type { BranchesResult } from "../../contracts/ipc";
-import { moveListFocus } from "../focus";
+import { PickerOption, PickerPopover, PickerSearch } from "./Picker";
 
 /**
  * The branch a typed query would make: what the user typed, once it is a name no branch already has.
@@ -123,45 +123,29 @@ export function BranchMenu({ branches, selected, onPick, anchor, menuRef, includ
   const matched = groups.reduce((count, group) => count + group.names.length, 0);
 
   const option = (name: string, label: string, className?: string) => (
-    <button
+    <PickerOption
       className={className}
-      type="button"
       key={name}
-      role="option"
-      aria-selected={name === selected}
+      selected={name === selected}
       onClick={() => onPick(name, false)}
     >
-      <span className="branch-menu-mark">{name === selected && <Check size={14} />}</span>
-      <span>{label}</span>
-    </button>
+      {label}
+    </PickerOption>
   );
 
   const menu = (
-    <div
+    <PickerPopover
       ref={menuRef}
       className={`branch-menu ${anchor ? "anchored" : ""} ${includeRemotes ? "grouped" : ""}`.trimEnd()}
-      data-popover-menu
       style={anchored ?? undefined}
-      onKeyDown={moveListFocus}
     >
       {title && <div className="branch-menu-title"><span>{title}</span><kbd>↑↓</kbd></div>}
-      <label className="branch-menu-field">
-        <Search size={13} aria-hidden="true" />
-        <input
-          className="branch-menu-search"
-          aria-label="Search branches"
-          placeholder="Search branches"
-          autoFocus
-          value={query}
-          onInput={(event) => setQuery(event.currentTarget.value)}
-        />
-      </label>
+      <PickerSearch label="Search branches" value={query} onChange={setQuery} />
       <div role="listbox" aria-label="Branches">
         {naming && (
-          <button type="button" role="option" aria-selected={false} onClick={() => onPick(naming, true)}>
-            <span className="branch-menu-mark"><Plus size={14} /></span>
-            <span>Create branch “{naming}”</span>
-          </button>
+          <PickerOption selected={false} mark={<Plus size={14} />} onClick={() => onPick(naming, true)}>
+            Create branch “{naming}”
+          </PickerOption>
         )}
         {showExtra && (
           <>
@@ -177,7 +161,7 @@ export function BranchMenu({ branches, selected, onPick, anchor, menuRef, includ
           </Fragment>
         ))}
       </div>
-    </div>
+    </PickerPopover>
   );
 
   return anchor ? createPortal(menu, document.body) : menu;

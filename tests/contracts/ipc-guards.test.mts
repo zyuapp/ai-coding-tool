@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { isAutomationAck, isAutomationRequest, isAutomationResponse, isBackgroundEvent, isExternalCommand, isGoalEvent, isInternalRunCommand, isRunCommand, isRunEvent, isSubagentEvent, isThreadRequest, isThreadResponse, isWorkflowEvent } from "../../src/contracts/ipc.ts";
+import { isAutomationAck, isAutomationRequest, isAutomationResponse, isBackgroundEvent, isExternalCommand, isGoalEvent, isInternalRunCommand, isRunCommand, isRunEvent, isSubagentEvent, isThreadResponse, isWorkflowEvent } from "../../src/contracts/ipc.ts";
+import { isThreadRequest } from "../../src/contracts/thread-requests.ts";
 
 const command = {
   type: "start",
@@ -21,6 +22,15 @@ test("steering failures require a message address and a bounded error", () => {
   assert.equal(isRunEvent(event), true);
   for (const message of [undefined, 123, "", "x".repeat(100_001)]) assert.equal(isRunEvent({ ...event, message }), false);
   assert.equal(isRunEvent({ ...event, messageId: undefined }), false);
+});
+
+test("retry notices carry a bounded reason and optional attempt counts", () => {
+  const event = { type: "run.retrying", taskId: "task-a", runId: "run-a", sequence: 1, message: "Claude is overloaded." };
+  assert.equal(isRunEvent(event), true);
+  assert.equal(isRunEvent({ ...event, attempt: 2, maxRetries: 10 }), true);
+  for (const message of [undefined, 123, "", "x".repeat(100_001)]) assert.equal(isRunEvent({ ...event, message }), false);
+  assert.equal(isRunEvent({ ...event, attempt: -1 }), false);
+  assert.equal(isRunEvent({ ...event, maxRetries: "10" }), false);
 });
 
 test("external start commands carry only a workspace ID", () => {
@@ -50,17 +60,18 @@ test("start commands carry the Claude engine's settings as one object", () => {
   assert.equal(isRunCommand({ ...command, claude: "Plain" }), false);
 });
 
-test("manual compaction is a validated Sol thread operation", () => {
+test("manual compaction is a validated Codex thread operation", () => {
   const compact = {
     ...command,
     engine: "codex",
-    model: "gpt-5.6-sol",
+    model: "gpt-6-sol",
     prompt: "",
     continuation: { provider: "codex", value: "thread-1" },
     operation: { type: "compact", preTokens: 125_000 },
   };
   assert.equal(isRunCommand(compact), true);
-  assert.equal(isRunCommand({ ...compact, model: "gpt-5.6-terra" }), false);
+  assert.equal(isRunCommand({ ...compact, model: "gpt-6-astra" }), true);
+  assert.equal(isRunCommand({ ...compact, engine: "claude", model: "opus", continuation: { provider: "claude", value: "session-1" } }), false);
   assert.equal(isRunCommand({ ...compact, prompt: "also answer" }), false);
   assert.equal(isRunCommand({ ...compact, continuation: { provider: "claude", value: "session-1" } }), false);
   assert.equal(isRunCommand({ ...compact, operation: { type: "compact", preTokens: -1 } }), false);
@@ -185,6 +196,15 @@ test("subagent event guard validates thread-scoped lifecycle reports", () => {
   for (const event of invalid) assert.equal(isSubagentEvent(event), false, JSON.stringify(event));
 });
 
+test("subagent metadata validates models and effort while preserving long complete prompts", () => {
+  const details = { model: "gpt-6-astra", effort: "xhigh", prompt: "Instructions\n".repeat(20_000) };
+  for (const type of ["subagent.started", "subagent.metadata"]) {
+    const event = { type, taskId: "task-1", id: "child", description: "Review", ...details };
+    assert.equal(isSubagentEvent(event), true);
+    for (const key of ["model", "effort", "prompt"]) assert.equal(isSubagentEvent({ ...event, [key]: 42 }), false);
+  }
+});
+
 test("workflow events name a thread instead of a run", () => {
   const started = { type: "workflow.started", taskId: "task-1", id: "wf-1", name: "review-changes", description: "Review changed files" };
   assert.equal(isWorkflowEvent(started), true);
@@ -209,7 +229,7 @@ test("run guards enforce numeric and string boundaries", () => {
   assert.equal(isRunCommand({ ...command, model: "future-model" }), false);
   assert.equal(isRunCommand({ ...command, effort: "insane" }), false);
   assert.equal(isRunCommand({ ...command, effort: "ultra" }), false, "ultra belongs to Codex");
-  assert.equal(isRunCommand({ ...command, engine: "codex", model: "gpt-5.6-sol", effort: "ultra" }), true);
+  assert.equal(isRunCommand({ ...command, engine: "codex", model: "gpt-6-sol", effort: "ultra" }), true);
   for (const effort of ["low", "medium", "high", "xhigh", "max", "ultra"]) {
     assert.equal(isRunCommand({ ...command, engine: "codex", model: "gpt-6-astra", effort }), true);
   }
@@ -382,8 +402,22 @@ test("what a run reports about itself is bounded before it reaches the workspace
 });
 
 test("fast mode is a boolean setting carried only by Codex runs", () => {
-  const codex = { ...command, engine: "codex", model: "gpt-5.6-sol" };
+  const codex = { ...command, engine: "codex", model: "gpt-6-sol" };
   for (const fastMode of [undefined, false, true]) assert.equal(isRunCommand({ ...codex, fastMode }), true);
   for (const fastMode of [null, "true", 1]) assert.equal(isRunCommand({ ...codex, fastMode }), false);
   assert.equal(isRunCommand({ ...command, fastMode: true }), false);
+});
+
+test("coordination requests and briefs are checked at the boundary, and only the window names a coordinator", () => {
+  const request = { type: "thread.request", requestId: "r1", taskId: "task-1" };
+  assert.equal(isThreadRequest({ ...request, op: "report", state: "done", summary: "PR #42" }), true);
+  assert.equal(isThreadRequest({ ...request, op: "report", state: "finished", summary: "PR #42" }), false);
+  assert.equal(isThreadRequest({ ...request, op: "decision", request: { question: "Ship?", options: [{ label: "Yes", recommended: true }] } }), true);
+  assert.equal(isThreadRequest({ ...request, op: "decision", request: { question: "Ship?", options: [{ label: "" }] } }), false);
+
+  const brief = { intent: "fix it", doneWhen: "it works", delivers: "pull-request" };
+  assert.equal(isExternalCommand({ type: "task.send", text: "Fix", brief }), true);
+  assert.equal(isExternalCommand({ type: "task.send", text: "Fix", brief: { ...brief, delivers: "merge" } }), false);
+  assert.equal(isExternalCommand({ type: "task.send", taskId: "task-1", text: "Fix", brief }), false, "a brief belongs to a thread being started");
+  assert.equal(isExternalCommand({ type: "task.send", text: "Fix", coordinatorId: "lead" }), false);
 });

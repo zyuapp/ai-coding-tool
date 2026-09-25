@@ -1,6 +1,7 @@
 import type { ThreadDropTarget } from "../domain/project.js";
 import { threadActivityAt, type Thread } from "../domain/thread.js";
 import { wantsAttention } from "../domain/attention.js";
+import { coordinatedThreadIds } from "../domain/coordination.js";
 import type { SidebarMode, SidebarSections } from "../domain/sidebar.js";
 
 /** The activity sidebar's three lists, in the order they are drawn. */
@@ -15,7 +16,8 @@ function newestFirst(threads: RankedThread[]): Thread[] {
 /**
  * Ranks threads by what wants the user rather than by where they live. A thread leads when it is
  * blocked on the user, or when it is idle and its last run left a verdict or a run found something;
- * a thread still working belongs among the runs however it ended last time. Every thread appears once.
+ * a thread still working belongs among the runs however it ended last time. Reviewers stay in Threads
+ * unless blocked on the user. Every thread appears once.
  *
  * Running holds its rows in the sidebar's own order instead, because ranking live threads by their
  * newest activity reshuffles the list under the user every time one of them speaks.
@@ -29,6 +31,8 @@ export function activitySections(threads: Thread[], busy: Set<string>, blocked: 
       settled.push({ thread, activity: threadActivityAt(thread) });
     } else if (blocked.has(thread.id)) {
       priority.push({ thread, activity: threadActivityAt(thread) });
+    } else if (thread.role === "reviewer") {
+      settled.push({ thread, activity: threadActivityAt(thread) });
     } else if (busy.has(thread.id)) {
       running.push(thread);
     } else {
@@ -82,7 +86,9 @@ export function nextSortIndex(threads: Thread[]): number {
  * project's list but is never carried to another project.
  */
 export function moveThread(threads: Thread[], threadId: string, target: ThreadDropTarget): Thread[] {
-  const visible = orderThreads(threads.filter((thread) => thread.archivedAt === undefined));
+  /** Threads under a coordinator are drawn beneath it, so a drop's index never counts them. */
+  const members = coordinatedThreadIds(threads);
+  const visible = orderThreads(threads.filter((thread) => thread.archivedAt === undefined && !members.has(thread.id)));
   const moving = visible.find((thread) => thread.id === threadId);
   if (!moving) return threads;
   const rest = visible.filter((thread) => thread.id !== threadId);

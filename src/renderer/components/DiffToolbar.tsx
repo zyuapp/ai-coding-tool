@@ -1,10 +1,11 @@
 import { useRef } from "react";
 import { createPortal } from "react-dom";
-import { LuArrowRight as ArrowRight, LuCheck as Check, LuChevronDown as ChevronDown, LuColumns2 as Columns2, LuPilcrow as Pilcrow, LuRefreshCw as RefreshCw, LuRows3 as Rows3 } from "react-icons/lu";
+import { LuArrowRight as ArrowRight, LuChevronDown as ChevronDown, LuColumns2 as Columns2, LuPilcrow as Pilcrow, LuRefreshCw as RefreshCw, LuRows3 as Rows3 } from "react-icons/lu";
 import { DIFF_MODE_MENU, type DiffState } from "../../application/workspace-diff";
 import { DEFAULT_BRANCH_RANGE, type DiffMode, type DiffRange } from "../../domain/diff";
 import { BranchMenu, useAnchoredStyle, useBranches } from "./BranchMenu";
-import { moveListFocus, useDismissibleLayer } from "../focus";
+import { useDismissibleLayer } from "../focus";
+import { PickerOption, PickerPopover } from "./Picker";
 
 const BASE_MENU = "diff:base";
 const COMPARE_MENU = "diff:compare";
@@ -65,9 +66,9 @@ function ModePicker({ mode, disabled, openMenu, onSetOpenMenu, onSetMode }: Menu
   return <>
     <button ref={trigger} className="diff-mode-trigger" type="button" aria-label={`Review mode: ${label}`} aria-haspopup="menu" aria-expanded={open} disabled={disabled} onClick={() => onSetOpenMenu(open ? null : DIFF_MODE_MENU)}>{label}<ChevronDown size={12} /></button>
     {open && createPortal(
-      <div ref={menu} className="branch-menu anchored diff-mode-menu" role="menu" aria-label="Review mode" data-popover-menu style={anchored ?? undefined} onKeyDown={moveListFocus}>
-        {MODES.map((item) => <button type="button" key={item.value} role="menuitemradio" aria-checked={mode === item.value} autoFocus={mode === item.value || (mode === "commit" && item.value === "uncommitted")} onClick={() => onSetMode(item.value)}><span className="branch-menu-mark">{mode === item.value && <Check size={14} />}</span><span>{item.label}</span></button>)}
-      </div>, document.body,
+      <PickerPopover ref={menu} className="branch-menu anchored diff-mode-menu" role="menu" aria-label="Review mode" style={anchored ?? undefined}>
+        {MODES.map((item) => <PickerOption key={item.value} role="menuitemradio" selected={mode === item.value} autoFocus={mode === item.value || (mode === "commit" && item.value === "uncommitted")} onClick={() => onSetMode(item.value)}>{item.label}</PickerOption>)}
+      </PickerPopover>, document.body,
     )}
   </>;
 }

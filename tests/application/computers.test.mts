@@ -4,7 +4,7 @@ import { computerEffects } from "../../src/host/computer-effects.ts";
 import type { EffectHost } from "../../src/host/effect-host.ts";
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { ATTACHMENTS_ELSEWHERE, FILES_ELSEWHERE, PANEL_ELSEWHERE, routeInput, computerCommandAvailable, createComputerCapabilitySnapshot, type PairedComputer } from "../../src/application/computers.ts";
+import { ATTACHMENTS_ELSEWHERE, FILES_ELSEWHERE, PANEL_ELSEWHERE, routeInput, remoteUnreadCount, computerCommandAvailable, createComputerCapabilitySnapshot, type PairedComputer } from "../../src/application/computers.ts";
 import { reduce, type WorkspaceEffect, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { ComputerLink } from "../../src/domain/computers.ts";
@@ -142,7 +142,7 @@ test("a forwarded dismissal stays on its host regardless of its filter or paired
   assert.equal(dismissed.effects.some((effect) => effect.type === "computer.forward"), false);
 });
 
-test("dismiss all reports unavailable computers while still reaching available ones", () => {
+test("dismiss all skips hidden computers and reports unsupported commands while reaching available ones", () => {
   const remote = workspace({ threads: [task("remote", { outcome: "finished" })] });
   const computers = [paired("offline", remote, { status: "offline" }), paired("unsupported", remote, { capabilities: [] }),
     paired("online", remote), paired("quiet", workspace(), { status: "offline" })];
@@ -151,7 +151,7 @@ test("dismiss all reports unavailable computers while still reaching available o
   assert.equal(dismissed.state.threads[0].outcome, undefined);
   assert.equal(dismissed.state.computers, state.computers);
   assert.equal(dismissed.result?.ok, false);
-  assert.match(dismissed.state.actionError!, /offline is offline/);
+  assert.doesNotMatch(dismissed.state.actionError!, /offline/);
   assert.match(dismissed.state.actionError!, /unsupported:/);
   assert.doesNotMatch(dismissed.state.actionError!, /quiet/);
   assert.deepEqual(dismissed.effects.filter((effect) => effect.type === "computer.forward").map((effect) => effect.id), ["online"]);
@@ -318,16 +318,56 @@ test("the window's own affairs stay here whichever computer is on screen, and ev
 
 test("the sidebar lists every computer's threads, tagged, and the filter narrows them", () => {
   const local = task("local", { title: "Local work" });
-  const state = withComputers(workspace({ threads: [local] }), [paired("linux", remoteState, { status: "offline" })]);
+  const state = withComputers(workspace({ threads: [local] }), [paired("linux", remoteState)]);
   const view = deriveView(state);
   assert.deepEqual(view.activityThreads.threads.map((thread) => thread.id).sort(), ["local", "remote-thread"]);
-  assert.deepEqual(view.threadHosts.get("remote-thread"), { id: "linux", name: "linux", offline: true });
+  assert.deepEqual(view.threadHosts.get("remote-thread"), { id: "linux", name: "linux", offline: false });
   assert.equal(view.threadHosts.get("local"), undefined);
   assert.deepEqual(view.projects.map((project) => project.id), ["remote-project"]);
   assert.equal(view.projectHosts.get("remote-project")?.name, "linux");
   const narrowed = deriveView({ ...state, computers: { ...state.computers, filter: "this" } });
   assert.deepEqual(narrowed.activityThreads.threads.map((thread) => thread.id), ["local"]);
   assert.deepEqual(deriveView({ ...state, computers: { ...state.computers, filter: "linux" } }).activityThreads.threads.map((thread) => thread.id), ["remote-thread"]);
+});
+
+test("a paired computer's thread with background work left after its run stays running", () => {
+  const finished = { ...remoteThread, outcome: "finished" as const };
+  const remote: WorkspaceState = { ...remoteState, threads: [finished], backgroundProcesses: { "remote-thread": [{ id: "watch", kind: "monitor", description: "CI" }] } };
+  const view = deriveView(withComputers(workspace({ sidebarMode: "activity" }), [paired("linux", remote)]));
+  assert.deepEqual(view.activityThreads.running.map((thread) => thread.id), ["remote-thread"]);
+  assert.equal(view.runningThreadIds.has("remote-thread"), true);
+  const settled = deriveView(withComputers(workspace({ sidebarMode: "activity" }), [paired("linux", { ...remote, backgroundProcesses: {} })]));
+  assert.deepEqual(settled.activityThreads.priority.map((thread) => thread.id), ["remote-thread"]);
+});
+
+test("remote lists and attention follow connection changes while preserving threads for reconnection", () => {
+  const local = task("local", { outcome: "finished", outcomeUnread: true });
+  const remote: WorkspaceState = { ...remoteState, threads: ["claude", "codex"].map((engine) => ({
+    ...remoteThread, id: engine, engine: engine as "claude" | "codex", outcome: "finished" as const, outcomeUnread: true,
+  })) };
+  let state = withComputers(workspace({ threads: [local], sidebarMode: "activity" }), [paired("linux", remote)]);
+  for (const status of ["connected", "offline", "connecting", "connected"] as const) {
+    state = reduce(state, { type: "computers.changed", name: "This Mac", links: [link("linux", { status })] }).state;
+    const connected = status === "connected";
+    const view = deriveView(state);
+    const ids = connected ? ["claude", "codex", "local"] : ["local"];
+    assert.deepEqual(view.orderedThreads.map((thread) => thread.id).sort(), ids);
+    assert.deepEqual(view.activityThreads.priority.map((thread) => thread.id).sort(), ids);
+    assert.deepEqual(view.threadSlots.slice().sort(), ids);
+    assert.equal(view.unreadCount, connected ? 3 : 1);
+    assert.equal(remoteUnreadCount(state.computers), connected ? 2 : 0);
+    assert.deepEqual(view.projects.map((project) => project.id), connected ? ["remote-project"] : []);
+    assert.equal(state.computers.paired[0].state, remote, "history and priority remain on the cached workspace");
+    const narrowed = deriveView({ ...state, computers: { ...state.computers, filter: "linux" } });
+    assert.deepEqual(narrowed.orderedThreads.map((thread) => thread.id).sort(), connected ? ["claude", "codex"] : []);
+    if (!connected) {
+      const dismissed = reduce(state, { type: "task.dismiss-all" });
+      assert.equal(dismissed.state.actionError, null);
+      assert.equal(dismissed.state.threads[0].outcome, undefined);
+      assert.equal(dismissed.state.computers.paired[0].state, remote);
+      assert.deepEqual(dismissed.effects, []);
+    }
+  }
 });
 
 test("a draft may start in any computer's project whatever the sidebar filter shows, this computer's first", () => {

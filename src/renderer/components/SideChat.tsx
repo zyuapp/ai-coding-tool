@@ -83,6 +83,7 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
           folder={project?.root ?? ""}
           status={chat.status}
           compacting={chat.compacting}
+          retrying={chat.retrying}
           streamingTail={chat.streamingTail}
           scrollContainerRef={transcriptRef}
           readingPoint={readingPoint}

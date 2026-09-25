@@ -167,6 +167,30 @@ export async function runtimeLicenseEntries() {
       if (dependency) queue.push(dependency);
     }
   }
+  // node-pty's platform packages contain the same upstream license, distinct from
+  // the wrapper's license. Include every locked variant so notices are portable.
+  const terminalVariants = Object.entries(lock.packages).filter(([name]) =>
+    name.startsWith("node_modules/@lydell/node-pty-"));
+  let terminalLicense;
+  for (const [relative, locked] of terminalVariants) {
+    const directory = path.join(root, relative);
+    if (!await exists(path.join(directory, "package.json"))) continue;
+    const manifest = JSON.parse(await readFile(path.join(directory, "package.json"), "utf8"));
+    if (manifest.version !== locked.version || manifest.license !== locked.license) {
+      throw new Error(`${manifest.name} no longer matches its locked release and license.`);
+    }
+    const text = await licenseText(directory, manifest);
+    if (terminalLicense && terminalLicense !== text) throw new Error("node-pty platform licenses differ.");
+    terminalLicense = text;
+  }
+  if (!terminalLicense) throw new Error("No installed node-pty platform license was found.");
+  for (const [relative, locked] of terminalVariants) {
+    if (locked.version !== lock.packages["node_modules/@lydell/node-pty"].version || locked.license !== "MIT") {
+      throw new Error(`${relative} no longer shares the node-pty release and license.`);
+    }
+    const name = relative.slice("node_modules/".length);
+    packages.set(`${name}@${locked.version}`, { name, version: locked.version, license: locked.license, text: terminalLicense });
+  }
   return [...packages.values()].sort((a, b) => `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`));
 }
 

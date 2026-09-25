@@ -8,6 +8,7 @@ export const noComputers: ComputerDesktop = {
   renameComputer: async () => {},
   labelComputer: async () => {},
   sendToComputer: async () => ({ ok: false, message: "This computer holds no other computer's threads." }),
+  queryComputerThreads: async () => { throw new Error("This computer holds no other computer's threads."); },
   onComputersChanged: () => () => {},
   onComputerState: () => () => {},
   onComputerNotice: () => () => {},

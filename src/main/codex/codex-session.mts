@@ -1,6 +1,7 @@
 import { CodexQuestions } from "./codex-questions.mjs";
 import { contextWindowLimit } from "../../domain/agent-engine.js";
 import type { BackgroundProcess, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
+import type { CoordinationRole } from "../../domain/coordination.js";
 import { continuationOf, type ProviderResult, type ProviderRunInput } from "../agent/agent-provider.mjs";
 import { grantsTool } from "../agent/approval-grant.mjs";
 import { appendCompleteMarkdown, openMarkdownBuffer, type MarkdownBuffer } from "../agent/markdown-buffer.mjs";
@@ -22,6 +23,7 @@ import type { GrantedPermissionProfile } from "./protocol/v2/GrantedPermissionPr
 import type { RequestPermissionProfile } from "./protocol/v2/RequestPermissionProfile.js";
 import type { SandboxPolicy } from "./protocol/v2/SandboxPolicy.js";
 import type { ThreadItem } from "./protocol/v2/ThreadItem.js";
+import type { TurnError } from "./protocol/v2/TurnError.js";
 import type { ThreadGoal } from "./protocol/v2/ThreadGoal.js";
 
 /** What the session asks of its connection. The real client fits; a scripted one can stand in for it. */
@@ -38,8 +40,17 @@ type CodexSandbox = "read-only" | "workspace-write" | "danger-full-access";
 
 export type CodexPolicy = { approvalPolicy: AskForApproval; sandbox: CodexSandbox; approvalsReviewer: ApprovalsReviewer };
 
-/** Codex has no plan mode, so a plan run is held to what a confirm run may do. */
-export function codexPolicy(policy: ExecutionPolicy): CodexPolicy {
+/**
+ * Codex has no plan mode, so a plan run is held to what a confirm run may do. A coordinator changes
+ * nothing itself: its shell is read-only, and every escalation out of that comes to the app, which
+ * refuses it.
+ */
+export function codexPolicy(policy: ExecutionPolicy, coordinationRole?: CoordinationRole): CodexPolicy {
+  const granted = policyGrants(policy);
+  return coordinationRole === "coordinator" ? { ...granted, sandbox: "read-only", approvalsReviewer: "user" } : granted;
+}
+
+function policyGrants(policy: ExecutionPolicy): CodexPolicy {
   switch (policy) {
     case "confirm":
     case "plan":
@@ -75,6 +86,16 @@ function firstLine(message: string) {
 }
 
 /** What went wrong, without the method the server was answering when it did. */
+/** Why the server is retrying a request, in the user's terms. */
+function retryReason(error: TurnError): string {
+  const info = error.codexErrorInfo;
+  if (info === "serverOverloaded") return "Codex is overloaded.";
+  if (info === "rateLimitExceeded") return "Codex is rate limited.";
+  if (info === "internalServerError") return "Codex API error.";
+  if (isRecord(info) && ("httpConnectionFailed" in info || "responseStreamConnectionFailed" in info || "responseStreamDisconnected" in info)) return "Cannot reach Codex.";
+  return firstLine(error.message);
+}
+
 function reasonOf(error: unknown) {
   if (error instanceof AppServerError) return firstLine(error.message.slice(error.method.length + 2));
   return firstLine(error instanceof Error ? error.message : String(error));
@@ -264,11 +285,16 @@ export class CodexSession {
     this.record.label(title);
   }
 
-  /** Stops one terminal owned by this thread, then republishes what the server still has. */
+  /** Stops one subagent turn or terminal owned by this thread; a terminal's stop republishes what the server still has. */
   stopProcess(processId: string) {
     const client = this.client;
     const threadId = this.threadId;
     if (!client || !threadId) return;
+    const child = this.subagents?.stop(processId);
+    if (child) {
+      if (child !== "held") void client.request("turn/interrupt", child).catch(() => {}).then(() => this.terminateTerminals(client, processId));
+      return;
+    }
     void client.request("thread/backgroundTerminals/terminate", { threadId, processId })
       .then(() => this.refreshBackgroundProcesses())
       .catch(() => this.refreshBackgroundProcesses());
@@ -305,7 +331,7 @@ export class CodexSession {
       const keepGoing = await this.beginGoal(turn, client, threadId, goal);
       if (!keepGoing) return;
     }
-    const policy = codexPolicy(turn.input.policy);
+    const policy = codexPolicy(turn.input.policy, turn.input.coordinationRole);
     let started: { turn: { id: string } };
     try {
       const prompt = goal?.type === "set" ? goal.objective : turn.input.prompt;
@@ -425,12 +451,15 @@ export class CodexSession {
     const skills = this.skills = new CodexSkills(client, seed.workspaceRoot);
     const subagents = this.subagents = new CodexSubagents(seed.reportSubagent, (busy) => {
       if (!busy && !this.answering) this.onRested();
-    });
+    }, async (threadId) => (await client.request("thread/read", { threadId, includeTurns: false })).thread);
     client.on("thread/started", (params) => { subagents.threadStarted(params); });
     client.on("thread/status/changed", (params) => { subagents.threadStatusChanged(params); });
     client.on("thread/closed", (params) => { subagents.threadClosed(params); });
     client.on("turn/started", (params) => {
-      if (!subagents.turnStarted(params) && params.threadId === this.threadId && this.turn && this.goalActive) this.turn.turnId = params.turn.id;
+      if (subagents.turnStarted(params)) {
+        const held = subagents.takeHeldStop(params.threadId);
+        if (held) void client.request("turn/interrupt", held).catch(() => {});
+      } else if (params.threadId === this.threadId && this.turn && this.goalActive) this.turn.turnId = params.turn.id;
     });
     client.on("thread/goal/updated", (params) => {
       if (params.threadId === this.threadId) this.reportCodexGoal(params.goal);
@@ -458,7 +487,9 @@ export class CodexSession {
       if (!subagents.tokenUsageUpdated(params) && params.threadId === this.threadId) this.receiveUsage(params.tokenUsage.last.totalTokens, params.tokenUsage.modelContextWindow);
     });
     client.on("error", (params) => {
-      if (!subagents.error(params) && params.threadId === this.threadId && this.turn && !params.willRetry) this.turn.failure = params.error.message;
+      if (subagents.error(params) || params.threadId !== this.threadId || !this.turn) return;
+      if (params.willRetry) this.turn.input.emit({ type: "retry", message: retryReason(params.error) });
+      else this.turn.failure = params.error.message;
     });
     client.on("turn/completed", (params) => {
       const child = subagents.turnCompleted(params);
@@ -472,8 +503,8 @@ export class CodexSession {
     await skills.refresh(true);
     const account = await client.request("account/read", { refreshToken: false });
     if (!account.account) throw new OpenFailure(SIGN_IN);
-    const policy = codexPolicy(seed.policy);
-    const settings = { cwd: seed.workspaceRoot, model: seed.model, serviceTier: seed.fastMode ? "priority" : "default", approvalPolicy: policy.approvalPolicy, sandbox: policy.sandbox, approvalsReviewer: policy.approvalsReviewer, config: { model_reasoning_effort: seed.effort }, developerInstructions: codexInstructions(seed.channel) };
+    const policy = codexPolicy(seed.policy, seed.coordinationRole);
+    const settings = { cwd: seed.workspaceRoot, model: seed.model, serviceTier: seed.fastMode ? "priority" : "default", approvalPolicy: policy.approvalPolicy, sandbox: policy.sandbox, approvalsReviewer: policy.approvalsReviewer, config: { model_reasoning_effort: seed.effort }, developerInstructions: codexInstructions(seed.channel, seed.coordinationRole) };
     const continuation = continuationOf(seed);
     const started = continuation === undefined
       ? await client.request("thread/start", settings)
@@ -645,6 +676,25 @@ export class CodexSession {
     else if (completed.status === "failed") this.turns.settle({ status: "failed", message: completed.error?.message ?? turn.failure ?? "Codex could not finish the turn." });
   }
 
+  /** Interrupting a child's turn leaves the commands it started running, so its stop ends them too. */
+  private async terminateTerminals(client: CodexClient, threadId: string) {
+    const processIds: string[] = [];
+    const cursors = new Set<string>();
+    let cursor: string | null = null;
+    try {
+      do {
+        const page: { data: BackgroundTerminal[]; nextCursor: string | null } = await client.request("thread/backgroundTerminals/list", { threadId, cursor, limit: 100 });
+        processIds.push(...page.data.map((terminal) => terminal.processId));
+        cursor = page.nextCursor;
+        if (cursor && cursors.has(cursor)) break;
+        if (cursor) cursors.add(cursor);
+      } while (cursor);
+    } catch {
+      return;
+    }
+    await Promise.all(processIds.map((processId) => client.request("thread/backgroundTerminals/terminate", { threadId, processId }).catch(() => {})));
+  }
+
   /** Reads every page because the Session Panel treats each provider report as the complete set. */
   private async refreshBackgroundProcesses() {
     const client = this.client;
@@ -674,9 +724,10 @@ export class CodexSession {
   }
 
   /** Whether the run allows what the server is asking. Nothing is allowed on a session with no run to ask. */
-  private async allowed(intent: ToolIntent) {
+  private async allowed(intent: ToolIntent, workspace = true) {
     const turn = this.turn;
     if (!turn) return false;
+    if (workspace && turn.input.coordinationRole === "coordinator") return false;
     if (grantsTool("workspace", turn.input)) return true;
     return await turn.input.authorize(intent) === "allow";
   }
@@ -750,7 +801,7 @@ export class CodexSession {
           name: toolNamed(params.message) ?? "mcp_tool_call",
           input: isRecord(meta.tool_params) ? meta.tool_params : {},
         };
-        void this.allowed(intent).then((allow) => request.respond(allow ? { action: "accept", content: {}, _meta: null } : { action: "decline", content: null, _meta: null }));
+        void this.allowed(intent, false).then((allow) => request.respond(allow ? { action: "accept", content: {}, _meta: null } : { action: "decline", content: null, _meta: null }));
         return;
       }
       default:

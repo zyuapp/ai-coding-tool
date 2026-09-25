@@ -21,6 +21,7 @@ function sessionKey(input: ProviderRunInput) {
     Boolean(input.automations),
     Boolean(input.findings),
     Boolean(input.threads),
+    input.coordinationRole ?? null,
     Boolean(input.browser),
     Boolean(input.terminal),
     /** Review has no turn-level overrides, so its process must agree with the thread settings. */

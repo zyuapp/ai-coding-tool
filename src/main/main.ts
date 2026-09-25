@@ -17,7 +17,7 @@ import type { WorktreeService } from "./workspace/worktrees.mjs" with { "resolut
 import type { AutomationScheduler } from "./automation/automation-scheduler.mjs" with { "resolution-mode": "import" };
 import type { TaskDatabaseService } from "./task-database-service.mjs" with { "resolution-mode": "import" };
 import type { EngineAccessHost } from "./agent/engine-services.mjs" with { "resolution-mode": "import" };
-import { readAttachmentContext, savedAttachmentPath, useAttachmentsDirectory, writeAttachment } from "./attachment-store.js";
+import { attachmentsDirectory, readAttachmentContext, savedAttachmentPath, useAttachmentsDirectory, writeAttachment } from "./attachment-store.js";
 import { messageThumbnail } from "./message-thumbnails.js";
 import { browserPageUrl, registerBrowserIpc } from "./browser-ipc.js";
 import { cliStatus, installCli, uninstallCli, refreshCli } from "./cli-install.js";
@@ -29,10 +29,11 @@ import type { ComputerLinks } from "./computers/computer-links.mjs" with { "reso
 import { hostname } from "node:os";
 import { createJsonStorage } from "./json-storage.js";
 import { createRuntimeDesktop } from "./runtime-desktop.js";
+import { attachmentNames, ORPHAN_ATTACHMENT_MIN_AGE_MS, retireLegacyCodexHome, sweepOrphanAttachments } from "./user-data-sweep.js";
 import { startKeyboardHost } from "./keyboard-host.js";
 import { openInEditor } from "./open-in-editor.js";
 import { serveExternalApps } from "./open-in-app.js";
-import { installAppMenu } from "./app-menu.js";
+import { installAppMenu, setUpdateChecking } from "./app-menu.js";
 import { openSourceLicenses } from "./license-window.js";
 import { registerAppImageProtocol } from "./linux-protocol.js";
 import { adoptLoginShellPath } from "./login-path.js";
@@ -58,6 +59,8 @@ app.setName(profile.name);
 mkdirSync(profile.userData, { recursive: true });
 app.setPath("userData", profile.userData);
 app.setPath("sessionData", profile.userData);
+/** The browser panel's page cache otherwise grows with the free disk, well past a gigabyte. */
+app.commandLine.appendSwitch("disk-cache-size", String(256 * 1024 * 1024));
 useAttachmentsDirectory(app.getPath("userData"));
 useMessageImageStore({ directory: path.join(app.getPath("userData"), "message-images"), thumbnail: messageThumbnail });
 
@@ -92,8 +95,6 @@ let updateRestartScheduled = false;
 let reopenArgs: string[] | null = null;
 /** Folders the `aic` command named, held until the window is up and listening for them. */
 const pendingProjectOpens: string[] = [];
-const pendingMenuCommands: string[] = [];
-let rendererListening = false;
 let runtimeListening = false;
 
 function trustedSender(event: IpcMainEvent | IpcMainInvokeEvent) {
@@ -137,6 +138,7 @@ const noticeHost: NoticeHost = { window: () => window, reveal: revealWindow };
 const updateHost: UpdateHost = {
   window: () => window,
   onInstall: () => { updateRestartScheduled = true; },
+  onChecking: setUpdateChecking,
 };
 
 let engineAccess: Promise<EngineAccessHost> | null = null;
@@ -289,20 +291,14 @@ async function flushProjectOpens() {
   revealWindow();
 }
 
-function flushMenuCommands() {
-  if (!rendererListening || !window || window.isDestroyed()) return;
-  while (pendingMenuCommands.length) window.webContents.send("window:shortcut", { action: pendingMenuCommands.shift()!, surface: "any" });
-}
-
-/** A menu remains usable after macOS closes the last window, so its command waits for the next renderer. */
-function sendMenuCommand(action: string) {
-  pendingMenuCommands.push(action);
-  if (!window || window.isDestroyed()) {
-    void createWindow().then(revealWindow).catch((error) => console.error("Could not reopen the app window:", error));
-    return;
-  }
-  revealWindow();
-  flushMenuCommands();
+/** Menu actions use the same runtime as buttons; a closed window is reopened to show their result. */
+function sendMenuCommand(type: "app.check-for-updates" | "app.open-source-licenses") {
+  void (async () => {
+    if (!window || window.isDestroyed()) await createWindow();
+    revealWindow();
+    const result = await workspaceRuntime.dispatch({ type });
+    if (!result.ok) throw new Error(result.message);
+  })().catch((error) => console.error("App menu command failed:", error));
 }
 
 function openProjectPath(root: string) {
@@ -378,7 +374,6 @@ async function createWindow() {
   if (placement.maximized && !placement.fullScreen) window.maximize();
   watchWindowPlacement(window);
   window.on("closed", () => {
-    rendererListening = false;
     void stopMobileBridge().catch((error) => console.error("Could not stop the phone bridge:", error));
     browser.stopBrowserHost();
     terminal.stopTerminalHost();
@@ -401,6 +396,14 @@ async function createWindow() {
 const WORKTREES_ROOT = profile.worktreesRoot;
 
 /** Where the app kept worktrees before, still its own: listed and manually removable, never created in. */
+/** Housekeeping the window never waits for: retired data goes to the Trash, unused attachments go. */
+async function sweepUserData(userData: string, database: TaskDatabaseService) {
+  if (await retireLegacyCodexHome(userData, (target) => shell.trashItem(target))) console.log("Moved the retired Codex home to the Trash.");
+  const referenced = attachmentNames(await database.attachmentPaths());
+  const swept = await sweepOrphanAttachments(attachmentsDirectory(), referenced, { now: Date.now(), minAgeMs: ORPHAN_ATTACHMENT_MIN_AGE_MS });
+  if (swept.files) console.log(`Removed ${swept.files} unused attachment file(s), ${Math.round(swept.bytes / 1024 / 1024)} MB.`);
+}
+
 function legacyWorktreesRoots(userData: string) {
   return [path.join(userData, "worktrees")].filter((root) => root !== WORKTREES_ROOT);
 }
@@ -449,10 +452,6 @@ app.whenReady().then(async () => {
   if (!app.isPackaged) app.dock?.setIcon(icon);
   keyboard.claimDesktopShortcut();
   await searchPath;
-  installAppMenu({
-    onCheckForUpdates: () => sendMenuCommand("app.check-for-updates"),
-    onOpenSourceLicenses: () => sendMenuCommand("app.open-source-licenses"),
-  });
   await workspaceRuntime.start();
   runtimeListening = true;
   void flushProjectOpens();
@@ -466,9 +465,14 @@ app.whenReady().then(async () => {
   });
   computerLinks.start();
   await createWindow();
+  installAppMenu({
+    onCheckForUpdates: () => sendMenuCommand("app.check-for-updates"),
+    onOpenSourceLicenses: () => sendMenuCommand("app.open-source-licenses"),
+  });
   const launchPath = projectPathFromArgv(process.argv);
   if (launchPath) openProjectPath(launchPath);
   void checkForUpdates(updateHost).catch((error) => console.error("Update check failed:", error));
+  void sweepUserData(userData, taskDatabase).catch((error) => console.error("Could not sweep unused app data:", error));
   app.on("activate", () => {
     if (queueReopen()) return;
     if (BrowserWindow.getAllWindows().length === 0) void createWindow();
@@ -560,12 +564,6 @@ ipcMain.handle("workspace:open", async (event) => {
 ipcMain.handle("workspace:projectless", async (event) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   return (await getWorkspaceService().getProjectless()).workspace;
-});
-
-ipcMain.on("workspace-view:ready", (event) => {
-  if (!trustedSender(event)) return;
-  rendererListening = true;
-  flushMenuCommands();
 });
 
 ipcMain.handle("cli:status", async (event) => {
@@ -683,6 +681,13 @@ ipcMain.handle("subagent-activity:load", (event, taskId: string, subagentId: str
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   if (!taskDatabase) throw new Error("Task database is not ready.");
   return taskDatabase.subagentActivity(taskId, subagentId);
+});
+
+ipcMain.handle("subagent-metadata:load", async (event, engine: unknown, subagentId: unknown, sessionId: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  if (!isAgentEngine(engine) || typeof subagentId !== "string" || !subagentId || subagentId.length > 200 || (sessionId !== undefined && (typeof sessionId !== "string" || sessionId.length > 200))) throw new Error("Invalid subagent metadata request.");
+  const { engineServices } = await import("./agent/engine-services.mjs");
+  return engineServices[engine].subagentMetadata?.(subagentId, sessionId) ?? {};
 });
 
 ipcMain.on("run:command", (event, payload: unknown) => {

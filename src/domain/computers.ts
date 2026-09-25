@@ -3,7 +3,7 @@
  * like before pairing, and what a paired one is while this computer holds its threads beside its own.
  */
 
-/** Where a paired computer's line stands. Offline keeps its threads on screen, greyed and untouchable. */
+/** Where a paired computer's line stands. Only connected computers contribute threads to the sidebar. */
 export type ComputerStatus = "connecting" | "connected" | "offline";
 
 /** A computer on the tailnet that answered the app's own health check. */

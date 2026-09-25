@@ -3,6 +3,7 @@ import { saveViewPreferences } from "./view-preferences-store.js";
 import { resolveRunWorkspace } from "./resolve-run-workspace.js";
 import { messageImages } from "../application/message-images.js";
 import type { EffectHandlers } from "./effect-host.js";
+import { isSubagentEvent } from "../contracts/ipc.js";
 
 /** What a run takes to start, what it is told while it runs, what is read back about it, and what its messages leave behind. */
 export const runEffects = {
@@ -17,6 +18,12 @@ export const runEffects = {
     } catch (error) {
       await dispatch({ type: "action.failed", message: errorMessage(error) });
     }
+  },
+
+  "load-subagent-metadata": async (effect, { dispatch, desktop }) => {
+    const metadata = await desktop.loadSubagentMetadata(effect.engine, effect.subagentId, effect.sessionId).catch(() => ({}));
+    const event = { ...metadata, type: "subagent.metadata" as const, taskId: effect.taskId, id: effect.subagentId };
+    if (isSubagentEvent(event) && (event.model || event.effort)) await dispatch({ type: "thread.event", event });
   },
 
   "resolve-run-workspace": async (effect, { dispatch, desktop }) => {

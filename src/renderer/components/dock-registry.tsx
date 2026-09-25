@@ -80,7 +80,7 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
       icon: Bot,
       badge: workingSubagents,
       render: () => (inspectedSubagent
-        ? <SubagentInspector subagent={inspectedSubagent} finding={findingAgents} onClose={onCloseInspector} />
+        ? <SubagentInspector subagent={inspectedSubagent} finding={findingAgents} onClose={onCloseInspector} onStop={workspace.actions.stopBackgroundProcess} />
         : <AgentsPanel
             subagents={workspace.subagents}
             groups={workspace.subagentGroups}

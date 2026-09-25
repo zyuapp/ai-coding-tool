@@ -1,5 +1,6 @@
 /** A run's life: the checkout it resolves to, what it reports, and how it ends. */
 import { ack } from "./automations.js";
+import { settleCoordination } from "./coordination.js";
 import { readDiffFrom } from "./diff-reads.js";
 import { handOverDraftDock } from "./dock-tabs.js";
 import { WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
@@ -13,7 +14,7 @@ import { announced } from "../notices.js";
 import { pasteTitle } from "../pastes.js";
 import { outcomeFor, settledHeadline, whyRunSurfaces, withSettledTick } from "../run-testimony.js";
 import { nextSortIndex } from "../thread-order.js";
-import { applyRunEvent, applyThreadEvent, ATTENDED_RUN, threadMark, updateThread, withBackgroundProcesses, withWorkflows, type ThreadMark } from "../thread-run-state.js";
+import { applyRunEvent, applyThreadEvent, ATTENDED_RUN, threadMark, updateThread, withBackgroundProcesses, withSubagents, withWorkflows, type ThreadMark } from "../thread-run-state.js";
 import { threadOnScreen } from "../thread-attention.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, threadWorkspaceRoot, worktreeById, worktreeFor } from "../thread-location.js";
 import { DRAFT_DOCK, type PendingRun, type WorkspaceState } from "../workspace-state.js";
@@ -21,6 +22,8 @@ import type { CreatedWorktree } from "../../contracts/ipc.js";
 import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel, engineForModel, engineHasEffort, modelSupportsManualCompaction } from "../../domain/agent-engine.js";
 import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
 import { createConversationMessage } from "../../domain/conversation.js";
+import { canJoinCoordinator, isCoordinator, withoutCoordinationNotes } from "../../domain/coordination.js";
+import { briefPrompt, coordinationContext } from "../coordination.js";
 import type { Thread } from "../../domain/thread.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
 
@@ -96,26 +99,8 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       return settled(state, [{ type: "send-run-command", command: { type: "cancel", taskId: active.taskId, runId: active.runId } }]);
     }
 
-    /** The kill is the agent process's to make; the row only says a stop is on its way. */
-    case "run.stop-process": {
-      const taskId = targetId(state, input.taskId);
-      if (!taskId) return settled(state);
-      const stop: WorkspaceEffect[] = [{ type: "send-run-command", command: { type: "stop-process", taskId, processId: input.processId } }];
-      const processes = state.backgroundProcesses[taskId] ?? [];
-      const target = processes.find((process) => process.id === input.processId);
-      if (target) {
-        const marked = processes.map((process) => process.id === target.id ? { ...process, stopping: true } : process);
-        return target.stopping ? settled(state) : settled(withBackgroundProcesses(state, taskId, marked), stop);
-      }
-      /** A workflow is a task of the agent process like any other, so the same stop reaches it. */
-      const workflows = state.workflows[taskId] ?? [];
-      const workflow = workflows.find((candidate) => candidate.id === input.processId);
-      if (!workflow || workflow.stopping || workflow.status !== "running") return settled(state);
-      return settled(
-        withWorkflows(state, taskId, workflows.map((candidate) => candidate.id === workflow.id ? { ...candidate, stopping: true } : candidate)),
-        stop,
-      );
-    }
+    case "run.stop-process":
+      return stopProcess(state, input);
 
     case "run.decide": {
       const active = state.activeRuns[input.taskId];
@@ -193,7 +178,8 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
         : [];
       if (event.type !== "run.status" || event.status === "running" || event.status === "awaiting-approval") return settled(next, [...environment, ...said]);
       const drained = drainQueue(next, event.taskId, event.status);
-      return settled(drained.state, [...environment, ...said, ...drained.effects]);
+      const coordinationed = settleCoordination(drained.state, event.taskId, event.status);
+      return settled(coordinationed.state, [...environment, ...said, ...drained.effects, ...coordinationed.effects]);
     }
 
     case "thread.event": {
@@ -300,6 +286,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     effort,
     ...(capabilitiesFor(engine).fastMode ? { fastMode: state.draftFastMode } : {}),
     ...(pending.role ? { role: pending.role } : {}),
+    ...(pending.coordination?.brief ? { brief: pending.coordination.brief } : {}),
     messages: [],
     continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: now() },
@@ -308,19 +295,28 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     updatedAt: now(),
   };
   if (created && !created.name) created.name = thread.title;
-  const message = createConversationMessage("user", pending.text, undefined, pending.attachments, pending.annotations, pending.pastes, pending.files);
+  /** A thread a coordinator starts works under it from its first run. */
+  const lead = existing ? undefined : state.threads.find((item) => item.id === pending.coordination?.coordinatorId);
+  const joined = lead && canJoinCoordinator(thread, lead) ? { ...thread, parentId: lead.id } : thread;
+  const message = createConversationMessage("user", pending.text, pending.detail, pending.attachments, pending.annotations, pending.pastes, pending.files);
   /** Only a thread that was somewhere else is arriving; one already in this checkout has said so. */
   const arrival = arriving && existing?.worktreeId !== arriving.id
     ? [createConversationMessage("system", `Moved into a worktree at ${arriving.root}`, `Detached at ${arriving.baseCommit.slice(0, 7)}`)]
     : [];
-  const located = arriving ? { ...thread, worktreeId: arriving.id, worktreeEnteredAt: thread.worktreeEnteredAt ?? now() } : thread;
+  const located = arriving ? { ...joined, worktreeId: arriving.id, worktreeEnteredAt: joined.worktreeEnteredAt ?? now() } : joined;
   /** A copied thread forks the session it inherited until a session of its own comes back to continue. */
   const inherited = located.inheritedContinuation;
-  const updated = { ...located, messages: [...located.messages, ...arrival, message], updatedAt: now() };
+  /** A coordinator's run hears everything its threads said since the last one, so none of it is waiting any more. */
+  const coordinating = isCoordinator(located);
+  const context = coordinating ? coordinationContext(state, located, pending.coordination?.notes) : "";
+  const heard = coordinating && located.coordinationNotes ? withoutCoordinationNotes(located, new Set(located.coordinationNotes.map((note) => note.id))) : located;
+  const updated = { ...heard, messages: [...heard.messages, ...arrival, message], updatedAt: now() };
+  const brief = pending.coordination?.brief;
+  const prompt = `${pending.prompt}${brief ? `\n\n${briefPrompt(brief)}` : ""}${context}`;
   const threads = existing ? state.threads.map((item) => item.id === thread.id ? updated : item) : [updated, ...state.threads];
   /** Only a thread the user's own send just created needs looking at; anything else leaves them where they are. */
   const focusing = !existing && pending.draftKey !== undefined;
-  const spent = existing ? {} : { draftBranch: null, draftWorktree: false, draftWorktreeId: null };
+  const spent = existing ? {} : { draftBranch: null, draftWorktree: false, draftWorktreeId: null, ...(pending.draftKey === undefined ? {} : { draftRole: null }) };
   const owning = withUsedWorktree(focusing ? handOverDraftDock(state, thread.id) : state, created, arriving?.id);
   const started = beginRun({ ...owning, threads, ...spent, ...(focusing ? { currentId: thread.id } : {}) }, thread.id, pending.runId);
   const drained = pending.queuedIds
@@ -328,7 +324,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     : started;
   const titling: WorkspaceEffect[] = existing || (!pending.text && pending.attachments.length === 0) ? [] : [{ type: "suggest-title", taskId: thread.id, engine: thread.engine, text: pending.text, attachments: pending.attachments }];
   const command = {
-    ...startRunCommand(state, updated, pending.runId, pending.prompt, workspace.id),
+    ...startRunCommand({ ...state, threads }, updated, pending.runId, prompt, workspace.id),
     ...((entering || inherited) && updated.continuation ? { forkContinuation: true as const } : {}),
     ...sideChannelFor(state, updated),
   };
@@ -342,6 +338,37 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     pending.draftKey ? clearedDraft(reviewing.state, pending.draftKey) : reviewing.state,
     [{ type: "start-run", command }, ...titling, ...reviewing.effects],
     { ok: true, taskId: thread.id },
+  );
+}
+
+/** The kill is the agent process's to make; the row only says a stop is on its way. */
+function stopProcess(state: WorkspaceState, input: Extract<RunInput, { type: "run.stop-process" }>): WorkspaceTransition {
+  const taskId = targetId(state, input.taskId);
+  if (!taskId) return settled(state);
+  const stop: WorkspaceEffect[] = [{ type: "send-run-command", command: { type: "stop-process", taskId, processId: input.processId } }];
+  const processes = state.backgroundProcesses[taskId] ?? [];
+  const target = processes.find((process) => process.id === input.processId);
+  if (target) {
+    const marked = processes.map((process) => process.id === target.id ? { ...process, stopping: true } : process);
+    return target.stopping ? settled(state) : settled(withBackgroundProcesses(state, taskId, marked), stop);
+  }
+  /** A workflow is a task of the agent process like any other, so the same stop reaches it. */
+  const workflows = state.workflows[taskId] ?? [];
+  const workflow = workflows.find((candidate) => candidate.id === input.processId);
+  if (workflow) {
+    if (workflow.stopping || workflow.status !== "running") return settled(state);
+    return settled(
+      withWorkflows(state, taskId, workflows.map((candidate) => candidate.id === workflow.id ? { ...candidate, stopping: true } : candidate)),
+      stop,
+    );
+  }
+  /** So is a subagent the session is still running. */
+  const subagents = state.subagents[taskId] ?? [];
+  const subagent = subagents.find((candidate) => candidate.id === input.processId);
+  if (!subagent || subagent.stopping || subagent.status !== "working") return settled(state);
+  return settled(
+    withSubagents(state, taskId, subagents.map((candidate) => candidate.id === subagent.id ? { ...candidate, stopping: true as const } : candidate)),
+    stop,
   );
 }
 

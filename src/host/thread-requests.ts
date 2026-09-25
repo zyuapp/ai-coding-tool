@@ -1,6 +1,7 @@
 import { browserPermissions } from "../application/workspace-reducer.js";
 import { browserTarget, dockFor, dockOwner, terminalTarget, type WorkspaceState } from "../application/workspace-state.js";
-import { findThread, resolveScope, threadBusy, threadSummaries, threadSummary, threadTranscript, threadWaitResult } from "../application/thread-projection.js";
+import { findThread, threadBusy, threadSummary, threadWaitResult } from "../application/thread-projection.js";
+import { listAcrossComputers, readAcrossComputers } from "./thread-reads.js";
 import { isNews, unreadFindings } from "../domain/attention.js";
 import { scheduledRun } from "../application/run-testimony.js";
 import type { WorkspaceInput } from "../application/workspace-reducer.js";
@@ -8,6 +9,7 @@ import type { WorkspaceExecution } from "../application/workspace-execution.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type { FindingReport, FindingResult, ThreadRequest, ThreadResponse } from "../contracts/threads.js";
 import { terminalLineLimit } from "../domain/terminal.js";
+import { coordinatorOf, isCoordinator, type CoordinationState, type DecisionRequest } from "../domain/coordination.js";
 import { errorMessage } from "./errors.js";
 import type { RuntimeDesktop } from "./runtime-desktop.js";
 import { defaultEffortFor, defaultModelFor, effortForModel, engineForModel, modelHasEffort, modelTakesEffort } from "../domain/agent-engine.js";
@@ -27,7 +29,7 @@ export type ThreadWaiterList = { current: ThreadWaiter[] };
 /** The runtime state and the command execution that answers each tool request. */
 export type ThreadRequestHost = {
   state: () => WorkspaceState;
-  desktop: Pick<RuntimeDesktop, "configureBrowserPermissions" | "captureBrowserPage" | "inspectBrowserPage" | "readBrowserPage" | "readTerminal">;
+  desktop: Pick<RuntimeDesktop, "configureBrowserPermissions" | "captureBrowserPage" | "inspectBrowserPage" | "readBrowserPage" | "readTerminal" | "queryComputerThreads">;
   dispatch: (input: WorkspaceInput) => Promise<void> | void;
   execute: (command: AppCommand) => WorkspaceExecution;
   waiters: ThreadWaiterList;
@@ -60,20 +62,11 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
   const failed = (message: string): ThreadResponse => ({ type: "thread.response", requestId, ok: false, message });
   try {
     if (request.op === "list") {
-      const scope = resolveScope(host.state(), request.taskId, request.project);
-      if ("error" in scope) return failed(scope.error);
-      return ok(threadSummaries(host.state(), {
-        scope,
-        ...(request.archived === undefined ? {} : { archived: request.archived }),
-        ...(request.idleForMs === undefined ? {} : { idleForMs: request.idleForMs }),
-        ...(request.search === undefined ? {} : { search: request.search }),
-        ...(request.attachments === undefined ? {} : { attachments: request.attachments }),
-        ...(request.limit === undefined ? {} : { limit: request.limit }),
-      }, Date.now()));
+      const { type: _type, op: _op, taskId, requestId: _requestId, ...query } = request;
+      return ok(await listAcrossComputers(host, taskId, query));
     }
     if (request.op === "read") {
-      const transcript = threadTranscript(host.state(), request.threadId, request.limit);
-      return transcript ? ok(transcript) : failed(`No thread has the ID ${request.threadId}.`);
+      return ok(await readAcrossComputers(host, request.threadId, request.limit, request.computer));
     }
     if (request.op === "wait") {
       const thread = findThread(host.state(), request.threadId);
@@ -130,6 +123,8 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
     }
     if (request.op === "notify") return ok(await raiseFinding(host, request.taskId, request.report));
     if (request.op === "nothing-to-report") return ok(await reportNothing(host, request.taskId, request.checked));
+    if (request.op === "report") return ok(await reportToCoordinator(host, request.taskId, request.state, request.summary));
+    if (request.op === "decision") return ok(await raiseDecision(host, request.taskId, request.request));
     const { command } = request;
     const before = host.state();
     /** A browser command acts on a tab rather than a thread, so it answers with the panel's own error. */
@@ -155,6 +150,9 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
         })()
       : { command };
     if ("error" in selected) return failed(selected.error);
+    /** A coordinator's new thread works under it, and starts from the brief it was handed. */
+    const coordinating = selected.command.type === "task.send" && selected.command.taskId === undefined && isCoordinator(caller);
+    if (coordinating && selected.command.type === "task.send" && !selected.command.brief) return failed(BRIEF_REQUIRED);
     /** A new thread with no place named starts where the thread that asked for it lives: its project, and its worktree when it has one. */
     const callerProjectId = caller?.projectId;
     const placed = selected.command.type === "task.send" && selected.command.taskId === undefined && selected.command.project === undefined && callerProjectId
@@ -163,7 +161,8 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
     const targeted = placed.type === "task.send" && placed.taskId === undefined && placed.worktree === undefined && placed.worktreeId === undefined && caller?.worktreeId
       ? { ...placed, worktreeId: caller.worktreeId }
       : placed;
-    const result = await host.execute(targeted).completed;
+    const led = coordinating && targeted.type === "task.send" ? { ...targeted, coordinatorId: caller!.id } : targeted;
+    const result = await host.execute(led).completed;
     if (!result.ok) return failed(result.message);
     const after = host.state();
     const taskId = result.taskId ?? command.taskId;
@@ -223,4 +222,28 @@ async function reportNothing(host: ThreadRequestHost, threadId: string, checked:
   if (active.notified) return { recorded: false, note: "This run already raised something new, so it surfaces anyway and what it found stands." };
   if (!active.quiet) return { recorded: true, note: "Noted. This automation has no quiet sentence, so every run of it surfaces, this one included." };
   return { recorded: true, note: "Noted. This run settles without reaching the user." };
+}
+
+const BRIEF_REQUIRED = "A coordinator hands every thread it starts a brief: pass intent (the user's own words), doneWhen, and delivers.";
+
+const NO_COORDINATOR = "This thread works under no coordinator, so there is no one to report to and nothing was recorded. Say it in your reply instead.";
+
+/** A thread under a coordinator saying where its work stands. Its coordinator hears it when this turn ends. */
+async function reportToCoordinator(host: ThreadRequestHost, threadId: string, state: CoordinationState, summary: string): Promise<FindingResult> {
+  const thread = host.state().threads.find((item) => item.id === threadId);
+  if (!coordinatorOf(host.state().threads, thread)) return { recorded: false, note: NO_COORDINATOR };
+  await host.dispatch({ type: "coordination.reported", taskId: threadId, state, summary });
+  if (state === "working") return { recorded: true, note: "Noted. Progress is not passed on; report again when you are blocked, done, or failed." };
+  return { recorded: true, note: "Reported. Your coordinator hears it when this turn ends." };
+}
+
+/** Puts a choice to the user. Only a coordinator and the threads under it have somewhere to show one. */
+async function raiseDecision(host: ThreadRequestHost, threadId: string, request: DecisionRequest): Promise<FindingResult> {
+  const threads = host.state().threads;
+  const thread = threads.find((item) => item.id === threadId);
+  if (!isCoordinator(thread) && !coordinatorOf(threads, thread)) {
+    return { recorded: false, note: "Only a coordinator and the threads working under it can raise decisions, so nothing was recorded. Ask the user in your reply instead." };
+  }
+  await host.dispatch({ type: "coordination.decision-raised", taskId: threadId, request });
+  return { recorded: true, note: "Raised. The user sees it now, and their answer arrives in this thread as a message. If you cannot go on without it, end your turn." };
 }

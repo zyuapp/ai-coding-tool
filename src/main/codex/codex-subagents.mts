@@ -1,6 +1,7 @@
-import type { SubagentReport } from "../../domain/run.js";
+import type { SubagentMetadata, SubagentReport } from "../../domain/run.js";
 import type { NotificationParams } from "./app-server-client.mjs";
 import type { ThreadItem } from "./protocol/v2/ThreadItem.js";
+import type { Thread } from "./protocol/v2/Thread.js";
 
 type ChildLifecycle = "unknown" | "working" | "idle" | "failed" | "stopped";
 
@@ -12,6 +13,10 @@ type Child = {
   lifecycle: ChildLifecycle;
   active: boolean;
   prompt?: string;
+  model?: string;
+  effort?: string;
+  metadataReads?: number;
+  metadataPending?: boolean;
   preview?: string;
   nickname?: string;
   role?: string;
@@ -120,13 +125,18 @@ export class CodexSubagents {
   private readonly children = new Map<string, Child>();
   private readonly ignoredThreads = new Set<string>();
   private readonly liveTurnsByThread = new Map<string, string>();
+  /** Children asked to stop before they had a turn to interrupt. */
+  private readonly heldStops = new Set<string>();
   private readonly pendingItems = new Map<string, PendingItem>();
+  private readonly metadataQueue = new Set<Child>();
+  private readingMetadata = 0;
   private activeChildren = 0;
   private closed = false;
 
   constructor(
     private readonly report: (event: SubagentReport) => void,
     private readonly onBusyChanged: (busy: boolean) => void = () => {},
+    private readonly readMetadata?: (threadId: string) => Promise<Pick<Thread, "id" | "model" | "reasoningEffort">>,
   ) {}
 
   /** Anything closing the app-server process would cut short. */
@@ -139,6 +149,26 @@ export class CodexSubagents {
     return [...this.liveTurnsByThread].map(([threadId, turnId]) => ({ threadId, turnId }));
   }
 
+  /**
+   * The turn a stop of this child interrupts now, or "held" when it has none: a working child's stop
+   * then waits for the turn it starts next. Undefined when no reported child has this id.
+   */
+  stop(threadId: string): CodexChildTurn | "held" | undefined {
+    const child = this.children.get(threadId);
+    if (!child?.discovered) return undefined;
+    const turnId = this.liveTurnsByThread.get(threadId);
+    if (turnId) return { threadId, turnId };
+    if (child.active) this.heldStops.add(threadId);
+    return "held";
+  }
+
+  /** The turn just started by a child whose stop was held for it. */
+  takeHeldStop(threadId: string): CodexChildTurn | undefined {
+    const turnId = this.liveTurnsByThread.get(threadId);
+    if (!turnId || !this.heldStops.delete(threadId)) return undefined;
+    return { threadId, turnId };
+  }
+
   setRootThreadId(threadId: string) {
     const wasBusy = this.busy;
     this.rootThreadId = threadId;
@@ -146,6 +176,7 @@ export class CodexSubagents {
     if (this.children.get(threadId)?.active) this.activeChildren -= 1;
     this.children.delete(threadId);
     this.liveTurnsByThread.delete(threadId);
+    this.heldStops.delete(threadId);
     for (const [itemId, pending] of this.pendingItems) {
       if (pending.threadId === threadId) this.pendingItems.delete(itemId);
     }
@@ -188,6 +219,8 @@ export class CodexSubagents {
       if (!spawn && !this.shouldSuppress(thread.id)) return false;
       const child = this.child(thread.id);
       this.mergeMetadata(child, {
+        model: nonempty(thread.model),
+        effort: nonempty(thread.reasoningEffort),
         preview: nonempty(thread.preview),
         nickname: spawn?.nickname ?? nonempty(thread.agentNickname),
         role: spawn?.role ?? nonempty(thread.agentRole),
@@ -221,6 +254,7 @@ export class CodexSubagents {
       this.liveTurnsByThread.set(params.threadId, params.turn.id);
       const child = this.child(params.threadId);
       this.setLifecycle(child, "working");
+      this.requestMetadata(child);
       return true;
     });
   }
@@ -302,6 +336,7 @@ export class CodexSubagents {
     this.pendingItems.clear();
     this.ignoredThreads.clear();
     this.children.clear();
+    this.metadataQueue.clear();
     this.activeChildren = 0;
     this.changedBusy(wasBusy);
   }
@@ -318,6 +353,7 @@ export class CodexSubagents {
       const child = this.child(threadId);
       if (started) this.pendingItems.set(item.id, { threadId, item });
       this.receiveChildItem(child, item, started);
+      this.requestMetadata(child);
       if (!started) this.pendingItems.delete(item.id);
       return true;
     });
@@ -341,7 +377,11 @@ export class CodexSubagents {
     for (const receiver of item.receiverThreadIds) {
       if (receiver === this.rootThreadId || this.ignoredThreads.has(receiver)) continue;
       const child = this.child(receiver);
-      if (item.tool === "spawnAgent" && item.prompt) this.mergeMetadata(child, { prompt: nonempty(item.prompt) });
+      if (item.tool === "spawnAgent") this.mergeMetadata(child, {
+        ...(item.prompt !== null ? { prompt: item.prompt } : {}),
+        model: child.model ?? nonempty(item.model),
+        effort: child.effort ?? nonempty(item.reasoningEffort),
+      });
       const state = item.agentsStates[receiver];
       if (!state) continue;
       if (state.status === "pendingInit" || state.status === "running") this.setLifecycle(child, "working", state.message ?? undefined);
@@ -352,6 +392,12 @@ export class CodexSubagents {
   }
 
   private receiveChildItem(child: Child, item: ThreadItem, started: boolean) {
+    /** Older protocols expose plain input. MultiAgentV2's encrypted NEW_TASK messages do not expose a prompt. */
+    if (item.type === "userMessage") {
+      const text = item.content.filter((part) => part.type === "text").map((part) => part.text).join("\n");
+      if (text && child.prompt === undefined) this.mergeMetadata(child, { prompt: text });
+      return;
+    }
     if (item.type === "exitedReviewMode") {
       if (started) return;
       const text = item.review.trim();
@@ -413,27 +459,47 @@ export class CodexSubagents {
   }
 
   private description(child: Child) {
-    return child.prompt ?? child.preview ?? child.nickname ?? pathLeaf(child.path) ?? child.role ?? "Subagent";
+    /** The roster's existing title stays searchable; its transport limit must not truncate the separate prompt. */
+    return (nonempty(child.prompt) ?? child.preview ?? child.nickname ?? pathLeaf(child.path) ?? child.role ?? "Subagent").slice(0, 100_000);
   }
 
-  private mergeMetadata(child: Child, metadata: { prompt?: string; preview?: string; nickname?: string; role?: string; path?: string }) {
+  private mergeMetadata(child: Child, metadata: SubagentMetadata & { preview?: string; nickname?: string; role?: string; path?: string }) {
     const before = this.description(child);
     const role = child.role;
+    const changed = child.prompt === undefined && metadata.prompt !== undefined
+      || metadata.model !== undefined && child.model !== metadata.model
+      || metadata.effort !== undefined && child.effort !== metadata.effort;
     child.prompt ??= metadata.prompt;
+    if (metadata.model !== undefined) child.model = metadata.model;
+    if (metadata.effort !== undefined) child.effort = metadata.effort;
     child.preview ??= metadata.preview;
     child.nickname ??= metadata.nickname;
     child.role ??= metadata.role;
     child.path ??= metadata.path;
     if (child.discovered && (this.description(child) !== before || child.role !== role)) this.emitProgress(child);
+    if (child.discovered && changed) this.report({ type: "subagent.metadata", id: child.id, ...this.metadata(child) });
+  }
+
+  private metadata(child: Child): SubagentMetadata {
+    return {
+      ...(child.prompt !== undefined ? { prompt: child.prompt } : {}),
+      ...(child.model !== undefined ? { model: child.model } : {}),
+      ...(child.effort !== undefined ? { effort: child.effort } : {}),
+    };
   }
 
   private discover(child: Child) {
-    if (child.discovered || this.closed) return;
+    if (this.closed) return;
+    if (child.discovered) {
+      this.requestMetadata(child);
+      return;
+    }
     child.discovered = true;
     this.report({
       type: "subagent.started",
       id: child.id,
       description: this.description(child),
+      ...this.metadata(child),
       ...(child.role ? { agentType: child.role } : {}),
       sessionScoped: true,
     });
@@ -444,6 +510,46 @@ export class CodexSubagents {
     if (child.totalTokens > 0 || child.lastToolName || child.summary) this.emitProgress(child);
     for (const activity of child.bufferedActivity) this.report(activity);
     child.bufferedActivity = [];
+    this.requestMetadata(child);
+  }
+
+  /** V2 can announce only subAgentActivity. Read the child's settings without loading its transcript. */
+  private requestMetadata(child: Child) {
+    if (!this.readMetadata || this.closed || !child.discovered || child.metadataPending
+      || (child.model !== undefined && child.effort !== undefined) || (child.metadataReads ?? 0) >= 3) return;
+    child.metadataPending = true;
+    this.metadataQueue.add(child);
+    this.drainMetadata();
+  }
+
+  /** A large spawn batch must not flood the app-server with simultaneous reads. */
+  private drainMetadata() {
+    while (!this.closed && this.readingMetadata < 4 && this.metadataQueue.size) {
+      const child = this.metadataQueue.values().next().value!;
+      this.metadataQueue.delete(child);
+      if (this.children.get(child.id) !== child) continue;
+      this.readingMetadata += 1;
+      void this.loadMetadata(child);
+    }
+  }
+
+  private async loadMetadata(child: Child) {
+    child.metadataReads = (child.metadataReads ?? 0) + 1;
+    try {
+      const thread = await this.readMetadata!(child.id);
+      if (this.closed || thread.id !== child.id || this.children.get(child.id) !== child) return;
+      /** A thread/started notification received during the read has fresher settings. */
+      this.mergeMetadata(child, {
+        model: child.model ?? nonempty(thread.model),
+        effort: child.effort ?? nonempty(thread.reasoningEffort),
+      });
+    } catch {
+      /** Discovery can beat persistence. Later child activity retries, at most three times per child. */
+    } finally {
+      child.metadataPending = false;
+      this.readingMetadata -= 1;
+      this.drainMetadata();
+    }
   }
 
   private setLifecycle(child: Child, lifecycle: Exclude<ChildLifecycle, "unknown">, summary?: string) {
@@ -454,6 +560,7 @@ export class CodexSubagents {
     if (child.active !== wasActive) this.activeChildren += child.active ? 1 : -1;
     if (lifecycle !== "working") {
       this.liveTurnsByThread.delete(child.id);
+      this.heldStops.delete(child.id);
       this.dropPendingItems(child.id);
     }
     child.statusSummary = lifecycle === "working" ? summary : undefined;

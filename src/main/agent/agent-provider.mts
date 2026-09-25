@@ -1,16 +1,23 @@
 import type { QuestionAnswers, QuestionRequest } from "../../domain/agent-question.js";
 import type { BackgroundReport, ClaudeRunSettings, ComputerUseRunConfig, RunChannel, RunOperation, WorkflowReport } from "../../contracts/ipc.js";
+import type { CoordinationRole, CoordinationState, DecisionRequest } from "../../domain/coordination.js";
 import type { BrowserRead, BrowserReadResult, BrowserWrite, ExternalCommand, FindingReport, FindingResult, TerminalRead, TerminalReadResult, ThreadCommandResult, ThreadListQuery, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
 import type { AgentEngine, AgentModel } from "../../domain/agent-engine.js";
-import type { AgentEffort, Continuation, ExecutionPolicy, SubagentReport, ToolIntent } from "../../domain/run.js";
+import type { AgentEffort, Continuation, ExecutionPolicy, RetryNotice, SubagentReport, ToolIntent } from "../../domain/run.js";
 
 /** The window's workspace, reachable from the run: reads are projections, writes are commands. */
 export type ThreadBridge = {
   list(query: ThreadListQuery): Promise<ThreadSummary[]>;
-  read(threadId: string, limit?: number): Promise<ThreadTranscript>;
+  read(threadId: string, limit?: number, computer?: string): Promise<ThreadTranscript>;
   wait(threadId: string, timeoutMs: number): Promise<ThreadWaitResult>;
   command(command: ExternalCommand): Promise<ThreadCommandResult>;
+};
+
+/** What a thread working under a coordinator, or the coordinator itself, says for itself, answered by the window that keeps it. */
+export type CoordinationBridge = {
+  report(state: CoordinationState, summary: string): Promise<FindingResult>;
+  decide(request: DecisionRequest): Promise<FindingResult>;
 };
 
 /**
@@ -59,6 +66,7 @@ export type ProviderEvent =
   /** `model` is the id the engine reported on the wire, not an AgentModel. */
   | { type: "usage"; tokens: number; limit: number; model: string }
   | { type: "compaction-status"; compacting: boolean; error?: string }
+  | ({ type: "retry" } & RetryNotice)
   | { type: "compaction"; trigger: "manual" | "auto"; preTokens: number; postTokens?: number }
   | { type: "tool"; intent: ToolIntent }
   | { type: "computer-use.setup-required" }
@@ -110,6 +118,9 @@ export type ProviderRunInput = {
   /** Only alongside `automations`: the two tools that use it live on the automation surface. */
   findings?: FindingBridge;
   threads?: ThreadBridge;
+  /** The part the run plays beside a coordinator, and the tools that come with it. */
+  coordinationRole?: CoordinationRole;
+  coordination?: CoordinationBridge;
   browser?: BrowserBridge;
   terminal?: TerminalBridge;
   steering: SteerQueue;

@@ -2,9 +2,10 @@ import { sideChatView } from "./side-chat-view.js";
 import { worktreeMenuView, type WorktreeMenuSearch, type WorktreeMenuState } from "./worktree-menu.js";
 import type { PendingQuestion } from "../domain/agent-question.js";
 import type { ThreadRole } from "../domain/thread-role.js";
-import { runStatusFor, workflowThreadIds, type ApprovalView, type RunTransitionState, type StreamingTail, type ThreadRunStatus } from "./thread-run-state.js";
+import { backgroundThreadIds, runStatusFor, workflowThreadIds, type ApprovalView, type RunTransitionState, type StreamingTail, type ThreadRunStatus } from "./thread-run-state.js";
 import { backfillProjectSortIndex } from "./project-order.js";
 import { sidebarLists } from "./sidebar-lists.js";
+import type { CoordinationSend } from "./coordination.js";
 import { backfillSortIndex } from "./thread-order.js";
 import type { ChangedFilesResult, DesktopShortcutRefusal, InstalledApp } from "../contracts/ipc.js";
 import type { PullRequestRead } from "../domain/pull-request.js";
@@ -50,7 +51,7 @@ import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, READING_SIZE, TERMINAL_SIZE } from 
 import type { Workflow } from "../domain/workflow.js";
 import { DEFAULT_ENGINE, DEFAULT_MODEL, byEngine, capabilitiesFor, defaultEffortFor, defaultModelFor, engineLabel, type AgentEngine, type AgentModel, type EngineCapabilities, type EngineReadiness, type EngineStatus } from "../domain/agent-engine.js";
 import { engineReadinessOf } from "./engine-access.js";
-import { DEFAULT_EFFORT, OPEN_SUBAGENT_GROUPS, type AgentEffort, type ExecutionPolicy, type Subagent, type SubagentGroups } from "../domain/run.js";
+import { DEFAULT_EFFORT, OPEN_SUBAGENT_GROUPS, type AgentEffort, type ExecutionPolicy, type RetryNotice, type Subagent, type SubagentGroups } from "../domain/run.js";
 import { annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-drafts.js";
 import type { Annotation, AttachedFile, PastedText, StagedImage } from "../domain/conversation.js";
 import { legacyProjectId, projectName, type Project } from "../domain/project.js";
@@ -100,6 +101,7 @@ export type PendingRun = {
   model?: AgentModel;
   effort?: AgentEffort;
   role?: ThreadRole;
+  coordination?: CoordinationSend;
   /** Composer only: which draft to clear once the run starts. */
   draftKey?: string;
   /** What the user typed, before attachments are appended. Titles a brand new thread. */
@@ -168,6 +170,7 @@ export type SideChatView = SideChat & {
   files: AttachedFile[];
   running: boolean;
   compacting: boolean;
+  retrying: RetryNotice | null;
   status: ThreadRunStatus;
   streamingTail: StreamingTail | null;
   queuedMessages: QueuedMessage[];
@@ -262,6 +265,7 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   draftWorktree: boolean;
   /** The checkout the next new thread starts in, when the user picked one the project already has. */
   draftWorktreeId: string | null;
+  draftRole: ThreadRole | null;
   draftEngine: AgentEngine;
   draftModel: AgentModel;
   draftEffort: AgentEffort;
@@ -282,6 +286,8 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   /** Files and folders waiting in each composer, keyed the way `prompts` is. */
   files: Record<string, AttachedFile[]>;
   expandedProjects: Set<string>;
+  /** Coordinators whose threads the sidebar has folded away. Every other coordinator shows its threads. */
+  closedCoordinators: Set<string>;
   /** The folder the editor is open on, if any, and what came back the last time it tried to save. */
   projectEdit: ProjectEdit | null;
   /** The move the confirmation is open on: the thread asked to move, and where it would go. */
@@ -423,6 +429,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     draftBranch: null,
     draftWorktree: false,
     draftWorktreeId: null,
+    draftRole: null,
     draftEngine: DEFAULT_ENGINE,
     draftModel: DEFAULT_MODEL,
     draftEffort: DEFAULT_EFFORT,
@@ -436,6 +443,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     images: {},
     files: {},
     expandedProjects: new Set(),
+    closedCoordinators: new Set(),
     ...NO_PROJECT_ADD,
     projectEdit: null,
     worktreeMove: null,
@@ -507,6 +515,13 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
   };
 }
 
+/** No session outlives the app, so a subagent stored mid-work stopped with it. */
+function restoredSubagent(subagent: Subagent): Subagent {
+  if (subagent.status !== "working") return subagent;
+  const { stopping: _stopping, ...stopped } = subagent;
+  return { ...stopped, status: "stopped" };
+}
+
 export function stateFromData(data: ThreadStoreData, storageError: string | null = null): WorkspaceState {
   const projects = data.lastFolder && !data.projects.some((project) => project.root === data.lastFolder)
     ? [...data.projects, { id: legacyProjectId(data.lastFolder), root: data.lastFolder }]
@@ -514,7 +529,7 @@ export function stateFromData(data: ThreadStoreData, storageError: string | null
   const stored = retainedThreads(data.tasks, Date.now());
   const subagents: Record<string, Subagent[]> = {};
   const threads = stored.map(({ subagents: delegated, ...thread }) => {
-    if (delegated?.length) subagents[thread.id] = delegated;
+    if (delegated?.length) subagents[thread.id] = delegated.map(restoredSubagent);
     return thread;
   });
   const firstThread = threads[0];
@@ -628,6 +643,7 @@ export function busyThreadIds(state: WorkspaceState): Set<string> {
   for (const pending of Object.values(state.pendingRuns)) if (pending.taskId) busy.add(pending.taskId);
   for (const taskId of state.creatingWorktrees) busy.add(taskId);
   for (const taskId of workflowThreadIds(state)) busy.add(taskId);
+  for (const taskId of backgroundThreadIds(state)) busy.add(taskId);
   /** A checkout on its way out is ground about to move, so every thread standing on it waits. */
   for (const taskId of leavingThreadIds(state)) busy.add(taskId);
   return busy;
@@ -761,6 +777,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state)
     threads: listedThreads,
     archivedThreads: collections.archivedThreads,
     currentThread,
+    coordination: collections.coordination, coordinators: collections.coordinators,
     goal: state.currentId ? state.goals[state.currentId] ?? null : null,
     currentProject,
     folder: currentProject?.root ?? "",
@@ -777,6 +794,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state)
     files: filesFor(state, promptKey(state)),
     status: currentRun ? "running" as const : runStatusFor(state, state.currentId),
     compacting: currentRun?.status === "compacting",
+    retrying: currentRun?.retry ?? null,
     runActive: Boolean(currentRun),
     question: currentRun?.questions?.[0],
     queuedMessages: (state.currentId ? state.queuedMessages[state.currentId] : undefined) ?? NO_QUEUED,
@@ -807,9 +825,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state)
     waitingOn: waitFor(state, currentThread),
     /** The checkout the current thread works in, which is what Git is read from and moved. */
     workspaceId,
-    draftBranch: state.draftBranch,
-    draftWorktree: state.draftWorktree,
-    draftWorktreeId: state.draftWorktreeId,
+    draftBranch: state.draftBranch, draftWorktree: state.draftWorktree, draftWorktreeId: state.draftWorktreeId, draftRole: state.draftRole,
     /** What the composer calls the checkout a draft starts in, when the user picked one. */
     draftWorktreeName: draftWorktree ? worktreeName(draftWorktree) : null,
     environment,
@@ -824,6 +840,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state)
     restored: state.restored,
     computerUseSetup: state.computerUseSetup,
     expandedProjects: state.expandedProjects,
+    closedCoordinators: state.closedCoordinators,
     ...workspaceDialogsView(state),
     sections: state.sections,
     subagentGroups: state.subagentGroups,

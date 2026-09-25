@@ -84,6 +84,25 @@ test("ignores events for another task and stale sequence numbers", () => {
   assert.deepEqual(applyRunEvent(updated, { type: "assistant.delta", taskId: "task-a", runId: "run-a", sequence: 1, messageId: "message-a", text: "late" }), updated);
 });
 
+test("subagent metadata survives discovery, progress, completion, and late enrichment", () => {
+  const base = { taskId: "task-a", id: "child" };
+  let next = applyThreadEvent(state(), { ...base, type: "subagent.metadata", prompt: "  Exact\nprompt  ", model: "gpt-6-astra" });
+  next = applyThreadEvent(next, { ...base, type: "subagent.started", description: "Inspect", effort: "high" });
+  next = applyThreadEvent(next, { ...base, type: "subagent.progress", description: "Inspect", totalTokens: 123 });
+  next = applyThreadEvent(next, { ...base, type: "subagent.finished", status: "completed", summary: "Done" });
+  next = applyThreadEvent(next, { ...base, type: "subagent.metadata", effort: "xhigh" });
+  const child = subagentAt(next, "task-a", 0);
+  assert.equal(child.model, "gpt-6-astra");
+  assert.equal(child.effort, "xhigh");
+  assert.equal(child.prompt, "  Exact\nprompt  ");
+  assert.equal(child.status, "completed");
+  assert.equal(child.totalTokens, 123);
+  next = applyThreadEvent(next, { ...base, type: "subagent.started", description: "Inspect again", prompt: "Follow-up message" });
+  assert.equal(subagentAt(next, "task-a", 0).prompt, "  Exact\nprompt  ", "resuming does not replace the original delegated prompt");
+  next = applyThreadEvent(next, { ...base, type: "subagent.metadata", prompt: "Another follow-up" });
+  assert.equal(subagentAt(next, "task-a", 0).prompt, "  Exact\nprompt  ");
+});
+
 test("collects subagent progress and nested activity", () => {
   const started = applyThreadEvent(state(), {
     type: "subagent.started",
@@ -274,6 +293,22 @@ test("a continuation the engine no longer has is dropped, so the thread starts o
 
   assert.equal(lost.threads[0].continuation, undefined);
   assert.equal(lost.threads[0].continuationStatus, "invalid");
+});
+
+test("a retried request shows as retrying until the run hears anything else", () => {
+  const retrying = applyRunEvent(state(), { type: "run.retrying", taskId: "task-a", runId: "run-a", sequence: 1, message: "Claude is overloaded.", attempt: 2, maxRetries: 10 });
+  assert.equal(retrying.activeRuns["task-a"].status, "retrying");
+  assert.deepEqual(retrying.activeRuns["task-a"].retry, { message: "Claude is overloaded.", attempt: 2, maxRetries: 10 });
+
+  const again = applyRunEvent(retrying, { type: "run.retrying", taskId: "task-a", runId: "run-a", sequence: 2, message: "Claude is overloaded.", attempt: 3, maxRetries: 10 });
+  assert.equal(again.activeRuns["task-a"].retry?.attempt, 3);
+
+  const delivered = applyRunEvent(again, { type: "queued.delivered", taskId: "task-a", runId: "run-a", sequence: 3, messageId: "queued-1" });
+  assert.equal(delivered.activeRuns["task-a"].status, "retrying");
+
+  const through = applyRunEvent(delivered, { type: "assistant.delta", taskId: "task-a", runId: "run-a", sequence: 4, messageId: "message-1", text: "hello" });
+  assert.equal(through.activeRuns["task-a"].status, "running");
+  assert.equal("retry" in through.activeRuns["task-a"], false);
 });
 
 test("streamed Markdown blocks append without injected newlines", () => {

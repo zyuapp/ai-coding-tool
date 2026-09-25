@@ -90,7 +90,7 @@ test("the coordinator carries a manual compaction operation to Codex", async () 
     ...base("task-c", "run-c"),
     prompt: "",
     engine: "codex",
-    model: "gpt-5.6-sol",
+    model: "gpt-6-sol",
     continuation: { provider: "codex", value: "thread-1" },
     operation: { type: "compact", preTokens: 125_000 },
   });

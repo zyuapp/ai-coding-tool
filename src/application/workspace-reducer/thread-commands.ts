@@ -6,16 +6,18 @@ import { closeSideChats } from "./side-chats.js";
 import { now, rejected, settled, targetId } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { focusComposer } from "../composer-drafts.js";
-import { offlineMessage, shownComputers } from "../computers.js";
+import { shownComputers } from "../computers.js";
 import { REMOTE_UNSUPPORTED, supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import { forkedThreads } from "../thread-fork.js";
-import { activitySections, moveThread as moveThreadInList } from "../thread-order.js";
+import { moveThread as moveThreadInList } from "../thread-order.js";
+import { coordinationSections } from "../coordination.js";
 import { pruneDeletedThreads } from "../thread-pruning.js";
 import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeById } from "../thread-location.js";
 import { DRAFT_DOCK, blockedThreadIds, busyThreadIds, sideChatIds, type WorkspaceState } from "../workspace-state.js";
 import { dismissableThreads, dismissed, readAttention } from "../../domain/attention.js";
 import { clampTitle, type Thread } from "../../domain/thread.js";
+import { withCoordinated } from "../../domain/coordination.js";
 import { isSnoozeHours } from "../../domain/thread-snooze.js";
 import { capabilitiesFor, defaultModelFor, effortForModel, engineHasModel, modelHasEffort } from "../../domain/agent-engine.js";
 
@@ -47,7 +49,7 @@ function landOnThread(state: WorkspaceState, taskId: string): WorkspaceState {
 function priorityThreads(state: WorkspaceState): Thread[] {
   const sideChats = sideChatIds(state);
   const listed = state.threads.filter((thread) => thread.archivedAt === undefined && !sideChats.has(thread.id));
-  return activitySections(listed, busyThreadIds(state), blockedThreadIds(state)).priority;
+  return coordinationSections(listed, busyThreadIds(state), blockedThreadIds(state)).priority;
 }
 
 /** The row Priority moves on to once this one leaves it: the one below, or the one above when it was last. */
@@ -61,17 +63,14 @@ function priorityNeighbour(state: WorkspaceState, taskId: string): string | unde
 /** Dismisses the listed computers' Priority; each host owns its changes and reports them back. */
 function dismissPriority(state: WorkspaceState, localOnly = false): WorkspaceTransition {
   const own = localOnly || state.computers.filter === "all" || state.computers.filter === "this";
-  const dotted = new Set(own ? dismissableThreads(priorityThreads(state)).map((thread) => thread.id) : []);
+  /** A coordinator in Priority is there for its threads too, so filing it away files them with it. */
+  const dotted = withCoordinated(state.threads, new Set(own ? priorityThreads(state).map((thread) => thread.id) : []));
   const next = dotted.size ? { ...state, threads: dismissed(state.threads, dotted) } : state;
   if (localOnly) return settled(next);
   const effects: WorkspaceEffect[] = [];
   const errors: string[] = [];
   for (const computer of shownComputers(state.computers)) {
-    if (!computer.state || !dismissableThreads(priorityThreads(computer.state)).length) continue;
-    if (computer.status !== "connected") {
-      errors.push(offlineMessage(computer));
-      continue;
-    }
+    if (computer.status !== "connected" || !computer.state || !dismissableThreads(priorityThreads(computer.state)).length) continue;
     const scoped = { type: "task.dismiss-all", localOnly: true } as const;
     /** Older hosts already dismiss only their own threads and do not know the scope field. */
     const command = supportsComputerCommand(computer.capabilities, scoped) ? scoped : { type: "task.dismiss-all" } as const;
@@ -111,6 +110,7 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
         draftBranch: null,
         draftWorktree: false,
         draftWorktreeId: worktree?.id ?? null,
+        draftRole: null,
         actionError: null,
         lastFolder: project?.root ?? state.lastFolder,
         expandedProjects: projectId ? new Set(state.expandedProjects).add(projectId) : state.expandedProjects,
@@ -128,7 +128,7 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
     }
 
     case "task.dismiss": {
-      const threads = dismissed(state.threads, new Set([input.taskId]));
+      const threads = dismissed(state.threads, withCoordinated(state.threads, new Set([input.taskId])));
       if (threads === state.threads) return settled(state);
       /** Filing away the thread being read moves on to the row that takes its place, so Priority can be worked down without going back to the list. */
       const successor = state.sidebarMode === "activity" && state.currentId === input.taskId
@@ -188,9 +188,11 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
     }
 
     case "task.set-role": {
-      const thread = state.threads.find((item) => item.id === input.taskId);
-      if (!thread || (thread.role ?? null) === input.role) return settled(state);
-      return settled(updateThread(state, input.taskId, ({ role: _previous, ...item }) => ({ ...item, ...(input.role ? { role: input.role } : {}), updatedAt: now() })));
+      const taskId = targetId(state, input.taskId);
+      const thread = taskId ? state.threads.find((item) => item.id === taskId) : undefined;
+      if (!thread) return settled(input.taskId === undefined ? { ...state, draftRole: input.role } : state);
+      if ((thread.role ?? null) === input.role) return settled(state);
+      return settled(updateThread(state, thread.id, ({ role: _previous, ...item }) => ({ ...item, ...(input.role ? { role: input.role } : {}), updatedAt: now() })));
     }
 
     /** A name the user typed outranks a suggested one, whenever the suggestion lands. */

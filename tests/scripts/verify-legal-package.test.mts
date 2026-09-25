@@ -33,6 +33,12 @@ async function writeAsar(resources: string, forbiddenPackage?: string, sdkVersio
     license: "SEE LICENSE IN README.md",
   }));
   await writeFile(path.join(sdk, "LICENSE.md"), "© Anthropic PBC. All rights reserved.");
+  const terminalName = "@lydell/node-pty-darwin-arm64";
+  const terminal = path.join(source, "node_modules", terminalName);
+  await mkdir(terminal, { recursive: true });
+  await writeFile(path.join(terminal, "package.json"), JSON.stringify({
+    name: terminalName, version: lockedPackageVersion(terminalName), license: "MIT",
+  }));
   await mkdir(path.join(source, "dist/mobile"), { recursive: true });
   await writeFile(path.join(source, "dist/mobile/index.html"), '<template id="third-party-licenses">## react-markdown - </template>');
   if (forbiddenPackage) {

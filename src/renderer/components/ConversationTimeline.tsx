@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type
 import type { StreamingTail } from "../../application/thread-run-state";
 import type { FindView, ReadingPoint, ThreadWait } from "../../application/workspace-state";
 import type { AgentEngine } from "../../domain/agent-engine";
+import type { RetryNotice } from "../../domain/run";
 import type { Annotation, AnnotationAnchor } from "../../domain/conversation";
 import type { Thread } from "../../domain/thread";
 import { groupTimeline, messageRows } from "../timeline/grouping";
@@ -32,6 +33,8 @@ export type ConversationTimelineProps = {
   folder: string;
   status: "idle" | "running" | "stopped";
   compacting: boolean;
+  /** The request the engine is retrying, while it is. */
+  retrying?: RetryNotice | null;
   /** What the thread is waiting on before a run of its own can start, which can take minutes. */
   waitingOn?: ThreadWait | null;
   streamingTail?: StreamingTail | null;
@@ -64,7 +67,12 @@ const WAIT_LABELS: Record<ThreadWait, string> = {
   run: "Starting…",
 };
 
-export function ConversationTimeline({ currentThread, engine, engineLabel, folder, status, compacting, waitingOn = null, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, restored = true, startOptions, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide }: ConversationTimelineProps) {
+function retryLabel(retry: RetryNotice) {
+  const count = retry.attempt === undefined ? "" : retry.maxRetries === undefined ? ` ${retry.attempt}` : ` ${retry.attempt} of ${retry.maxRetries}`;
+  return `${retry.message} Retrying${count}…`;
+}
+
+export function ConversationTimeline({ currentThread, engine, engineLabel, folder, status, compacting, retrying = null, waitingOn = null, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, restored = true, startOptions, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide }: ConversationTimelineProps) {
   const messages = currentThread?.messages ?? [];
   const artifactScope = useMemo(() => ({ root: folder, taskId: currentThread?.id }), [folder, currentThread?.id]);
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -162,7 +170,12 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
           <span className="text-sweep">Compacting messages…</span>
         </div>
       )}
-      {status === "running" && !compacting && (
+      {status === "running" && !compacting && retrying && (
+        <div className="retrying-row" role="status" aria-live="polite">
+          <span className="text-sweep">{retryLabel(retrying)}</span>
+        </div>
+      )}
+      {status === "running" && !compacting && !retrying && (
         <div className="thinking-row">
           <span /> <span /> <span />
         </div>

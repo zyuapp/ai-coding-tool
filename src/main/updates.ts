@@ -11,15 +11,16 @@ export type UpdateHost = {
   window: () => BrowserWindow | null;
   /** Told before the app quits to install, so the shutdown is not read as a restart request. */
   onInstall: () => void;
+  onChecking?: (checking: boolean) => void;
 };
 
 let updater: AppUpdater | null = null;
-let checking: Promise<void> | null = null;
+type UpdateCheck = { promise: Promise<void>; userRequested: boolean; pending: boolean };
+let checking: UpdateCheck | null = null;
 /** An update the user put off, offered again the next time they ask rather than downloaded twice. */
 let downloadedVersion: string | null = null;
 /** A failed background check stays in the log; one the user asked for is theirs to hear about. */
 let announceFailure = false;
-let userChecks = 0;
 
 async function updaterFor(host: UpdateHost) {
   if (updater) return updater;
@@ -30,7 +31,9 @@ async function updaterFor(host: UpdateHost) {
   autoUpdater.autoDownload = false;
   autoUpdater.on("error", (error) => {
     console.error("Update error:", error);
-    if (announceFailure || userChecks > 0) void reportUpdateFailure(host.window(), error);
+    // Check failures are reported by the shared promise, including setup failures
+    // that never emit an updater event. Download/install errors still arrive here.
+    if (!checking?.pending && announceFailure) void reportUpdateFailure(host.window(), error);
   });
   autoUpdater.on("update-available", ({ version }) => void offerDownload(host, version));
   autoUpdater.on("update-downloaded", ({ version }) => {
@@ -52,16 +55,37 @@ export async function checkForUpdates(host: UpdateHost, options: { userRequested
     return;
   }
   if (userRequested && downloadedVersion) return offerInstall(host, downloadedVersion);
-  if (checking) return checking;
-  if (userRequested) userChecks += 1;
-  checking = (async () => {
-    const result = await (await updaterFor(host)).checkForUpdates();
-    if (userRequested && result && !result.isUpdateAvailable) await reportUpToDate(host.window());
-  })().finally(() => {
-    checking = null;
-    if (userRequested) userChecks -= 1;
-  });
-  return checking;
+  if (checking) {
+    if (userRequested && !checking.userRequested) {
+      checking.userRequested = true;
+      if (checking.pending) host.onChecking?.(true);
+    }
+    return checking.promise;
+  }
+  const check: UpdateCheck = { promise: Promise.resolve(), userRequested, pending: true };
+  checking = check;
+  if (userRequested) host.onChecking?.(true);
+  const finishProgress = () => {
+    if (!check.pending) return;
+    check.pending = false;
+    if (check.userRequested) host.onChecking?.(false);
+  };
+  check.promise = (async () => {
+    try {
+      const result = await (await updaterFor(host)).checkForUpdates();
+      if (!result) throw new Error("The update service is unavailable. Please try again.");
+      finishProgress();
+      if (check.userRequested && !result.isUpdateAvailable) await reportUpToDate(host.window());
+    } catch (cause) {
+      finishProgress();
+      if (!check.userRequested) throw cause;
+      await reportUpdateFailure(host.window(), cause instanceof Error ? cause : new Error(String(cause)), "check");
+    } finally {
+      finishProgress();
+      checking = null;
+    }
+  })();
+  return check.promise;
 }
 
 async function offerDownload(host: UpdateHost, version: string) {
@@ -141,16 +165,17 @@ async function reportManualLinuxUpdates(window: BrowserWindow | null) {
  * log. macOS ties a copy's signature to the bundle id it was signed with, so a build that changes
  * that id can only be installed by hand.
  */
-export async function reportUpdateFailure(window: BrowserWindow | null, error: Error) {
+export async function reportUpdateFailure(window: BrowserWindow | null, error: Error, phase: "check" | "install" = "install") {
+  console.error(`Update ${phase} failed:`, error);
   if (!window || window.isDestroyed()) return;
   const result = await dialog.showMessageBox(window, {
     type: "warning",
-    title: "Update failed",
-    message: "AI Coding Tool could not install the update.",
-    detail: `${error.message}\n\n${manualUpdateRecovery()}`,
-    buttons: ["Open downloads", "Later"],
+    title: phase === "check" ? "Update check failed" : "Update failed",
+    message: phase === "check" ? "AI Coding Tool could not check for updates." : "AI Coding Tool could not install the update.",
+    detail: phase === "check" ? "Please try again in a moment." : manualUpdateRecovery(),
+    buttons: phase === "check" ? ["OK"] : ["Open downloads", "Later"],
     defaultId: 0,
-    cancelId: 1,
+    cancelId: phase === "check" ? 0 : 1,
   });
-  if (result.response === 0) await shell.openExternal(RELEASES_URL);
+  if (phase === "install" && result.response === 0) await shell.openExternal(RELEASES_URL);
 }

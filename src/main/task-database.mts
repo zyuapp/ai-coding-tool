@@ -303,6 +303,14 @@ export class TaskDatabase {
     return result;
   }
 
+  /** Every image a stored message still names, as the absolute paths the messages carry. */
+  attachmentPaths(): string[] {
+    return Array.from(
+      this.database.prepare("SELECT DISTINCT value FROM messages, json_each(json_extract(messages.data, '$.attachments')) WHERE type = 'text'").iterate() as Iterable<{ value: string }>,
+      ({ value }) => value,
+    );
+  }
+
   loadThreadMessages(taskId: string): ConversationMessage[] {
     if (!this.database.prepare("SELECT 1 FROM tasks WHERE id = ?").get(taskId)) throw new Error("Thread no longer exists.");
     const messages = Array.from(

@@ -107,6 +107,7 @@ export function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
     checkForUpdates: () => {},
     loadTaskStore: async () => null,
     loadSubagentActivity: async () => [],
+    loadSubagentMetadata: async () => ({}),
     persistTaskStore: async (delta) => { persisted.push(delta); },
     send: (command) => sent.push(command),
     onAgentEvent: (next) => { listener = next; return () => { unsubscribed = true; }; },

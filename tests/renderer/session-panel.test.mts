@@ -232,6 +232,57 @@ test("the subagent search keeps what the query names, and the status keeps its o
   assert.deepEqual(matchSubagents(subagents, "failed", "loader"), []);
 });
 
+test("subagent details show provider metadata and the exact expandable prompt", async () => {
+  const prompt = "  First instruction\n\n" + "Keep this line.\n".repeat(1_000) + "  Last instruction  ";
+  const subagent: Subagent = { ...subagents[0], model: "gpt-6-astra", effort: "xhigh", prompt };
+  const view = await mount(React.createElement(SubagentInspector, { subagent, onClose() {}, onStop() {} }));
+  assert.deepEqual([...view.container.querySelectorAll(".agent-configuration dd")].map((node) => node.textContent), ["gpt-6-astra", "Extra high"]);
+  const details = query<HTMLDetailsElement>(view.container, ".agent-prompt");
+  assert.equal(details.open, false);
+  await act(async () => { query<HTMLElement>(details, "summary").click(); });
+  assert.equal(details.open, true);
+  assert.equal(query(details, "pre").textContent, prompt);
+  await view.render(React.createElement(SubagentInspector, { subagent: subagents[0], onClose() {}, onStop() {} }));
+  assert.deepEqual([...view.container.querySelectorAll(".agent-configuration dd")].map((node) => node.textContent), ["Not reported", "Not reported"]);
+  assert.equal(query(view.container, ".agent-prompt p").textContent, "Not reported");
+  await view.render(React.createElement(SubagentInspector, { subagent, finding: true, onClose() {}, onStop() {} }));
+  assert.equal(query<HTMLDetailsElement>(view.container, ".agent-prompt").open, true);
+  await view.unmount();
+});
+
+test("a working subagent can be stopped from its details, once", async () => {
+  const stopped: string[] = [];
+  const subagent: Subagent = { id: "agent-1", description: "Review", status: "working", startedAt: 1, activity: [] };
+  const view = await mount(React.createElement(SubagentInspector, { subagent, onClose() {}, onStop: (id: string) => { stopped.push(id); } }));
+  await act(async () => { query<HTMLButtonElement>(view.container, ".workflow-stop").click(); });
+  assert.deepEqual(stopped, ["agent-1"]);
+  await view.render(React.createElement(SubagentInspector, { subagent: { ...subagent, stopping: true }, onClose() {}, onStop() {} }));
+  assert.equal(query<HTMLButtonElement>(view.container, ".workflow-stop").disabled, true);
+  assert.equal(query(view.container, ".workflow-stop").textContent, "Stopping");
+  await view.render(React.createElement(SubagentInspector, { subagent: { ...subagent, status: "completed" }, onClose() {}, onStop() {} }));
+  assert.equal(view.container.querySelector(".workflow-stop"), null);
+  await view.unmount();
+});
+
+test("expanding a tall prompt keeps the beginning of a virtual activity log reachable", async () => {
+  const subagent: Subagent = { ...subagents[0], prompt: "Long prompt", activity: Array.from({ length: 60 }, (_, index) => ({ id: `step-${index}`, kind: "text", text: `Step ${index}`, at: index })) };
+  const heights = rowHeights((node) => node.classList?.contains("agent-activity-row") ? 40 : 0);
+  const view = await mount(React.createElement(SubagentInspector, { subagent, onClose() {}, onStop() {} }));
+  const scroll = query(view.container, ".inspector-scroll");
+  sizeOf(scroll, 360, 400);
+  const log = query(view.container, ".agent-activity-items");
+  log.getBoundingClientRect = () => ({ top: 6_000 - scroll.scrollTop }) as DOMRect;
+  await pumpResizeObservers();
+  await act(async () => {
+    scroll.scrollTop = 6_000;
+    scroll.dispatchEvent(new dom.window.Event("scroll"));
+  });
+  assert.equal(query(view.container, ".agent-activity-row").getAttribute("data-index"), "0");
+  assert.equal(query(view.container, ".agent-activity-row").style.transform, "translateY(0px)");
+  heights.restore();
+  await view.unmount();
+});
+
 test("subagent inspector renders activity and closes", async () => {
   let closed = false;
   const subagent: Subagent = {
@@ -241,14 +292,14 @@ test("subagent inspector renders activity and closes", async () => {
   };
   /** The log is windowed, and a virtualiser reads every height off the element, which jsdom reports at nothing. */
   const measuredRows = rowHeights((node) => node.classList?.contains("agent-activity-row") ? 40 : 0);
-  const view = await mount(React.createElement(SubagentInspector, { subagent, onClose: () => { closed = true; } }));
+  const view = await mount(React.createElement(SubagentInspector, { subagent, onClose: () => { closed = true; }, onStop() {} }));
   sizeOf(query(view.container, ".inspector-scroll"), 360, 720);
   await pumpResizeObservers();
 
   assert.match(view.container.textContent, /Renderer inspected/);
   assert.match(view.container.textContent, /321 tokens/);
   assert.match(view.container.textContent, /Reading/);
-  assert.equal(query(view.container, "details summary").textContent, "Read");
+  assert.equal(query(view.container, ".agent-tool summary").textContent, "Read");
   const earlier = query<HTMLButtonElement>(view.container, ".agent-activity-earlier"); assert.equal(earlier.textContent, "Load earlier (1)");
   await act(async () => { earlier.click(); });
   assert.equal(view.container.querySelector(".agent-activity-earlier"), null);
@@ -267,7 +318,7 @@ test("a search reading the inspector gets the whole log, drawn open", async () =
     ] satisfies SubagentActivity[],
   };
   const measuredRows = rowHeights((node) => node.classList?.contains("agent-activity-row") ? 40 : 0);
-  const view = await mount(React.createElement(SubagentInspector, { subagent, finding: true, onClose() {} }));
+  const view = await mount(React.createElement(SubagentInspector, { subagent, finding: true, onClose() {}, onStop() {} }));
   sizeOf(query(view.container, ".inspector-scroll"), 360, 720);
   await pumpResizeObservers();
 
@@ -303,6 +354,8 @@ test("workspace header keeps session summary and right panel controls separate",
     onRenameThread: () => {},
     onForkThread: () => {},
     onSetThreadRole: () => {},
+    coordinators: [],
+    onSetCoordinator: () => {},
     onArchiveThread: () => {},
     onToggleSidebar: () => { sidebarToggles += 1; },
     onToggleSessionPanel: () => { summaryToggles += 1; },
@@ -466,6 +519,7 @@ test("the heading names the paired computer a thread lives on, ahead of its fold
     folderLabel: "just-speak-linux",
     sidebarOpen: false, sessionPanelOpen: false, rightDockOpen: false, workingSubagents: 0, openMenu: null, canOpenFolder: true, apps: null,
     onListApps: () => {}, onSetOpenMenu: () => {}, onOpenInApp: () => {}, onRenameThread: () => {}, onForkThread: () => {}, onSetThreadRole: () => {}, onArchiveThread: () => {},
+    coordinators: [], onSetCoordinator: () => {},
     onToggleSidebar: () => {}, onToggleSessionPanel: () => {}, onToggleRightDock: () => {},
   };
   const local = await mount(React.createElement(WorkspaceHeader, props));

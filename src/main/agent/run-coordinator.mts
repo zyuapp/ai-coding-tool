@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { AgentEvent, BackgroundReport, GoalReport, InternalStartRunCommand, RunEvent, WorkflowReport } from "../../contracts/ipc.js";
 import { capabilitiesFor } from "../../domain/agent-engine.js";
 import type { SubagentReport, ToolIntent } from "../../domain/run.js";
-import type { AgentProvider, AgentTurn, AutomationBridge, FindingBridge, ProviderEvent, BrowserBridge, TerminalBridge, ThreadBridge, ToolDecision } from "./agent-provider.mjs";
+import type { AgentProvider, AgentTurn, AutomationBridge, CoordinationBridge, FindingBridge, ProviderEvent, BrowserBridge, TerminalBridge, ThreadBridge, ToolDecision } from "./agent-provider.mjs";
 import { SteerChannel } from "./steer-channel.mjs";
 
 type PendingApproval = {
@@ -42,6 +42,7 @@ type CoordinatorOptions = {
   automations?: (taskId: string, currentRunId: () => string) => AutomationBridge;
   findings?: (taskId: string) => FindingBridge;
   threads?: (taskId: string) => ThreadBridge;
+  coordination?: (taskId: string) => CoordinationBridge;
   browser?: (taskId: string) => BrowserBridge;
   terminal?: (taskId: string) => TerminalBridge;
   tailIntervalMs?: number;
@@ -160,6 +161,7 @@ export class RunCoordinator {
         }),
         findings: this.options.findings?.(command.taskId),
         threads: this.options.threads?.(command.taskId),
+        ...(command.coordinationRole ? { coordinationRole: command.coordinationRole, coordination: this.options.coordination?.(command.taskId) } : {}),
         browser: command.browserTools === false ? undefined : this.options.browser?.(command.taskId),
         terminal: this.options.terminal?.(command.taskId),
         steering: active.steering,
@@ -183,7 +185,7 @@ export class RunCoordinator {
 
   private handleProviderEvent(active: ActiveRun, event: ProviderEvent) {
     if (!this.isCurrent(active) || active.terminal) return;
-    if (event.type === "subagent.started" || event.type === "subagent.status" || event.type === "subagent.progress" || event.type === "subagent.activity" || event.type === "subagent.finished") {
+    if (event.type === "subagent.started" || event.type === "subagent.metadata" || event.type === "subagent.status" || event.type === "subagent.progress" || event.type === "subagent.activity" || event.type === "subagent.finished") {
       this.reportSubagent(active.taskId, event);
       return;
     }
@@ -194,6 +196,7 @@ export class RunCoordinator {
     }
     if (event.type === "assistant-tail") this.queueTail(active, event.messageId, event.text);
     if (event.type === "usage") this.publish(active, { type: "context.usage", tokens: event.tokens, limit: event.limit, model: event.model });
+    if (event.type === "retry") this.publish(active, { type: "run.retrying", message: event.message, ...(event.attempt === undefined ? {} : { attempt: event.attempt }), ...(event.maxRetries === undefined ? {} : { maxRetries: event.maxRetries }) });
     if (event.type === "compaction-status") this.publish(active, { type: "context.compaction-status", compacting: event.compacting, ...(event.error === undefined ? {} : { error: event.error }) });
     if (event.type === "compaction") this.publish(active, { type: "context.compacted", trigger: event.trigger, preTokens: event.preTokens, ...(event.postTokens === undefined ? {} : { postTokens: event.postTokens }) });
     if (event.type === "tool") this.publish(active, { type: "tool.intent", intent: event.intent });

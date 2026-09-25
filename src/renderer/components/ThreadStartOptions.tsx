@@ -1,11 +1,12 @@
-import { LuCheck as Check, LuChevronDown as ChevronDown, LuFolderGit2 as FolderGit2, LuFolderSymlink as FolderSymlink, LuGitBranch as GitBranch, LuSearch as Search, LuX as X } from "react-icons/lu";
+import { LuChevronDown as ChevronDown, LuFolderGit2 as FolderGit2, LuFolderSymlink as FolderSymlink, LuGitBranch as GitBranch, LuWaypoints as Waypoints, LuX as X } from "react-icons/lu";
 import { useRef, useState } from "react";
 import type { DraftBranch } from "../../application/workspace-state";
 import type { ThreadHost } from "../../application/computers";
 import { HostMark } from "./HostMark";
 import { BranchMenu, useBranches } from "./BranchMenu";
 import { projectName, type Project } from "../../domain/project";
-import { moveListFocus, useDismissibleLayer } from "../focus";
+import { useDismissibleLayer } from "../focus";
+import { PickerOption, PickerPopover, PickerSearch } from "./Picker";
 
 /** Which projects a typed query keeps, matched on the name, path, and computer shown. */
 export function matchProjects(projects: Project[], query: string, projectHosts?: ReadonlyMap<string, ThreadHost>) {
@@ -73,14 +74,26 @@ export type ThreadStartOptionsProps = {
   /** `create` names a branch the repository does not have yet, made when the thread starts. */
   onSelectBranch: (branch: string | null, create?: boolean) => void;
   onSetWorktree: (worktree: boolean) => void;
+  /** Whether the thread starts as a coordinator, which a chat can be too. */
+  coordinator: boolean;
+  onSetCoordinator: (coordinator: boolean) => void;
 };
+
+function CoordinatorToggle({ coordinator, onSetCoordinator }: Pick<ThreadStartOptionsProps, "coordinator" | "onSetCoordinator">) {
+  return (
+    <button type="button" className="thread-start-toggle thread-start-coordinator" aria-pressed={coordinator} onClick={() => onSetCoordinator(!coordinator)}>
+      <Waypoints size={14} />
+      <span>Coordinator</span>
+    </button>
+  );
+}
 
 /**
  * What work the user is about to start still needs to know: which project, which branch it starts
  * from, and whether it gets a checkout of its own. Nothing here touches disk — the first message does
  * that.
  */
-export function ThreadStartOptions({ projects, projectHosts, projectId, workspaceId, branch, worktree, startsInWorktree, onSelectProject, onSelectBranch, onSetWorktree }: ThreadStartOptionsProps) {
+export function ThreadStartOptions({ projects, projectHosts, projectId, workspaceId, branch, worktree, startsInWorktree, onSelectProject, onSelectBranch, onSetWorktree, coordinator, onSetCoordinator }: ThreadStartOptionsProps) {
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [projectQuery, setProjectQuery] = useState("");
   const [branchesOpen, setBranchesOpen] = useState(false);
@@ -99,8 +112,14 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
   /** Until the user picks one, the thread starts from wherever the checkout already is. */
   const selected = branch?.name ?? current;
 
-  /** A chat has no project, so there is nothing left for it to answer. */
-  if (!project) return null;
+  /** A chat has no project, so all it has left to answer is whether it coordinates. */
+  if (!project) {
+    return (
+      <div className="thread-start" aria-label="How this thread starts">
+        <div className="thread-start-git"><CoordinatorToggle coordinator={coordinator} onSetCoordinator={onSetCoordinator} /></div>
+      </div>
+    );
+  }
   const host = projectHosts?.get(project.id);
   const showComputers = projects.some((item) => projectHosts?.has(item.id));
 
@@ -115,43 +134,30 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
           </span>
           <ChevronDown size={14} />
         </button>
-        {projectsOpen && <div className="thread-start-popover" onKeyDown={moveListFocus}>
-          <label className="thread-start-search-field">
-            <Search size={13} aria-hidden="true" />
-            <input
-              className="thread-start-search"
-              aria-label="Search projects"
-              placeholder="Search projects"
-              autoFocus
-              value={projectQuery}
-              onInput={(event) => setProjectQuery(event.currentTarget.value)}
-            />
-          </label>
+        {projectsOpen && <PickerPopover className="thread-start-popover">
+          <PickerSearch label="Search projects" value={projectQuery} onChange={setProjectQuery} />
           <div role="listbox" aria-label="Projects">
             {matched.length === 0 && <p className="thread-start-empty">No project matches</p>}
             {groupProjects(matched, projectHosts).map(({ host, projects: grouped }) => (
               <div key={host ? `remote:${host.id}` : "local"} role={showComputers ? "group" : undefined} aria-label={showComputers ? host?.name ?? "This computer" : undefined}>
                 {showComputers && <div className="thread-start-group-heading" aria-hidden="true"><HostMark name={host?.name ?? "This computer"} offline={host?.offline} /></div>}
                 {grouped.map((item) => (
-                  <button
+                  <PickerOption
                     key={item.id}
-                    type="button"
-                    role="option"
                     aria-label={showComputers ? `${projectName(item)} on ${host?.name ?? "This computer"}` : undefined}
-                    aria-selected={item.id === projectId}
+                    selected={item.id === projectId}
                     onClick={() => {
                       setProjectsOpen(false);
                       onSelectProject(item.id);
                     }}
                   >
-                    <span>{projectName(item)}</span>
-                    {item.id === projectId && <Check size={14} />}
-                  </button>
+                    {projectName(item)}
+                  </PickerOption>
                 ))}
               </div>
             ))}
           </div>
-        </div>}
+        </PickerPopover>}
       </div>
 
       <div className="thread-start-git">
@@ -190,6 +196,7 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
           <span>Worktree</span>
         </button>
         </>)}
+        <CoordinatorToggle coordinator={coordinator} onSetCoordinator={onSetCoordinator} />
       </div>
     </div>
   );

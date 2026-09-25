@@ -13,7 +13,7 @@ import { SidebarHeader, SidebarResizer } from "./SidebarChrome";
 import type { ThreadHost } from "../../application/computers";
 import type { ComputerFilter, ComputerLink } from "../../domain/computers";
 import { PROJECT_DRAG, RECENTS_DROPPABLE, SidebarProjects, useShownThreads } from "./SidebarProjects";
-import { useThreadRows } from "./SidebarThreadRow";
+import { decisionCount, useThreadRows, type SidebarCoordination } from "./SidebarThreadRow";
 import type { SnoozeHours } from "../../domain/thread-snooze";
 import type { ThreadRole } from "../../domain/thread-role";
 
@@ -74,6 +74,7 @@ export type ProjectSidebarProps = {
   /** Copies the thread into a new one beside it, with a checkout of its own when `worktree`. */
   onForkThread: (threadId: string, worktree: boolean) => void;
   onSetThreadRole: (threadId: string, role: ThreadRole | null) => void;
+  sidebarCoordination: SidebarCoordination;
   onMoveProject: (projectId: string, index: number) => void;
   onOpenSettings: () => void;
 };
@@ -83,9 +84,11 @@ export type ProjectSidebarProps = {
  * only pushes the marks away from the titles. Every thread carries its engine mark, which also
  * covers the one slot an action needs.
  */
-function railSlotsFor(threads: Thread[], marks: Pick<ProjectSidebarProps, "blockedThreadIds" | "runningThreadIds" | "sideChatAttention" | "worktreeThreadIds" | "schedules">) {
+function railSlotsFor(threads: Thread[], marks: Pick<ProjectSidebarProps, "blockedThreadIds" | "runningThreadIds" | "sideChatAttention" | "worktreeThreadIds" | "schedules">, threadsByCoordinator: Map<string, Thread[]>) {
   return threads.reduce((widest, thread) => {
-    const status = marks.blockedThreadIds.has(thread.id) || marks.runningThreadIds.has(thread.id) || hasUnreadAttention(thread) || marks.sideChatAttention.has(thread.id);
+    const members = threadsByCoordinator.get(thread.id) ?? [];
+    const coordinationStatus = decisionCount(thread, threadsByCoordinator) > 0 || members.some((member) => marks.blockedThreadIds.has(member.id) || marks.runningThreadIds.has(member.id));
+    const status = marks.blockedThreadIds.has(thread.id) || marks.runningThreadIds.has(thread.id) || hasUnreadAttention(thread) || marks.sideChatAttention.has(thread.id) || coordinationStatus;
     return Math.max(widest, 1 + Number(Boolean(thread.role)) + Number(marks.worktreeThreadIds.has(thread.id)) + Number(marks.schedules.has(thread.id)) + Number(status));
   }, 1);
 }
@@ -113,6 +116,16 @@ function groupedBy<T>(items: T[], keyFor: (item: T) => string | undefined): Map<
     if (key) grouped.get(key)?.push(item) ?? grouped.set(key, [item]);
   }
   return grouped;
+}
+
+/** Each folder's threads, short of those drawn beneath a coordinator instead, and each folder's checkouts. */
+function useProjectGroups(orderedThreads: Thread[], worktreeGroups: WorktreeGroup[], threadsByCoordinator: Map<string, Thread[]>) {
+  const threadsByProject = useMemo(() => {
+    const members = new Set([...threadsByCoordinator.values()].flat().map((thread) => thread.id));
+    return groupedBy(members.size ? orderedThreads.filter((thread) => !members.has(thread.id)) : orderedThreads, (thread) => thread.projectId);
+  }, [orderedThreads, threadsByCoordinator]);
+  const checkoutsByProject = useMemo(() => groupedBy(worktreeGroups, (group) => group.worktree.projectId), [worktreeGroups]);
+  return { threadsByProject, checkoutsByProject };
 }
 
 export const ProjectSidebar = memo(function ProjectSidebar({
@@ -163,6 +176,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
   onMoveThread,
   onForkThread,
   onSetThreadRole,
+  sidebarCoordination,
   onMoveProject,
   onOpenSettings,
 }: ProjectSidebarProps) {
@@ -172,8 +186,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
   let timeFormatter: Intl.DateTimeFormat | undefined;
   const formatTime = (value: number) => (timeFormatter ??= new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" })).format(value);
 
-  const threadsByProject = useMemo(() => groupedBy(orderedThreads, (thread) => thread.projectId), [orderedThreads]);
-  const checkoutsByProject = useMemo(() => groupedBy(worktreeGroups, (group) => group.worktree.projectId), [worktreeGroups]);
+  const { threadsByProject, checkoutsByProject } = useProjectGroups(orderedThreads, worktreeGroups, sidebarCoordination.threadsByCoordinator);
 
   const { threadRow, activityRow } = useThreadRows({
     projects,
@@ -195,9 +208,10 @@ export const ProjectSidebar = memo(function ProjectSidebar({
     onRenameThread,
     onForkThread,
     onSetThreadRole,
+    sidebarCoordination,
   });
 
-  const railSlots = railSlotsFor([...orderedThreads, ...recentThreads], { blockedThreadIds, runningThreadIds, sideChatAttention, worktreeThreadIds, schedules });
+  const railSlots = railSlotsFor([...orderedThreads, ...recentThreads], { blockedThreadIds, runningThreadIds, sideChatAttention, worktreeThreadIds, schedules }, sidebarCoordination.threadsByCoordinator);
 
   /** Stepping through threads from the keyboard is blind unless the list follows the one now open. */
   useLayoutEffect(() => {

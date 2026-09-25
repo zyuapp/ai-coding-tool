@@ -28,6 +28,7 @@ import type { ThreadGoalClearResponse } from "./protocol/v2/ThreadGoalClearRespo
 import type { ThreadGoalGetResponse } from "./protocol/v2/ThreadGoalGetResponse.js";
 import type { ThreadGoalSetResponse } from "./protocol/v2/ThreadGoalSetResponse.js";
 import type { ThreadResumeResponse } from "./protocol/v2/ThreadResumeResponse.js";
+import type { ThreadReadResponse } from "./protocol/v2/ThreadReadResponse.js";
 import type { ThreadStartResponse } from "./protocol/v2/ThreadStartResponse.js";
 import type { ToolRequestUserInputResponse } from "./protocol/v2/ToolRequestUserInputResponse.js";
 import type { TurnInterruptResponse } from "./protocol/v2/TurnInterruptResponse.js";
@@ -59,6 +60,7 @@ export interface ClientResponses {
   initialize: InitializeResponse;
   "thread/start": ThreadStartResponse;
   "thread/resume": ThreadResumeResponse;
+  "thread/read": ThreadReadResponse;
   "thread/fork": ThreadForkResponse;
   "thread/goal/set": ThreadGoalSetResponse;
   "thread/goal/get": ThreadGoalGetResponse;

@@ -7,6 +7,12 @@ import { isDiffRange, type DiffRange } from "../domain/diff.js";
 import type { ThreadNotice } from "./ipc.js";
 import type { MobileErrorCode } from "./mobile.js";
 import type { WorkspacePatch } from "./workspace-runtime.js";
+import type { ThreadListQuery } from "./threads.js";
+
+/** These reads stop at the receiving computer; they never follow its own paired links. */
+export type ComputerThreadQuery =
+  | { kind: "thread-read"; threadId: string; limit?: number }
+  | ({ kind: "thread-list" } & Omit<ThreadListQuery, "computer">);
 
 /**
  * How one computer running this app drives another. It is the phone's line with the phone's
@@ -23,6 +29,7 @@ export const COMPUTER_SEND_TOO_LARGE = "This message is too large to send to ano
 
 /** Reads that are content rather than state, which the window asks its own desktop for. */
 export type ComputerQuery =
+  | ComputerThreadQuery
   | { kind: "terminal-output"; terminalId: string; after?: number }
   | { kind: "directories"; prefix: string }
   | { kind: "attachment"; name: string }
@@ -86,6 +93,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /** Every query and field has one validator, also used to advertise what this host understands. */
 const queryShapes = {
+  "thread-read": { threadId: isString, limit: (v) => v === undefined || isCount(v) && v <= 200 },
+  "thread-list": {
+    project: (v) => v === undefined || isString(v, MAX_PATH_LENGTH),
+    archived: (v) => v === undefined || typeof v === "boolean",
+    idleForMs: (v) => v === undefined || isCount(v),
+    search: (v) => v === undefined || isString(v, 1_000),
+    attachments: (v) => v === undefined || typeof v === "boolean",
+    limit: (v) => v === undefined || isCount(v) && v <= 200,
+  },
   "terminal-output": { terminalId: isString, after: (v) => v === undefined || Number.isSafeInteger(v) && (v as number) >= 0 },
   directories: { prefix: (v) => typeof v === "string" && v.length <= MAX_PATH_LENGTH && !v.includes("\0") },
   attachment: { name: (v) => isString(v) && /^[A-Za-z0-9-]+\.png$/.test(v) },

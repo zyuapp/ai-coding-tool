@@ -1,4 +1,4 @@
-import { query, type CanUseTool, type McpServerConfig, type ModelInfo, type Query, type SDKUserMessage, type SlashCommand } from "@anthropic-ai/claude-agent-sdk";
+import { query, type CanUseTool, type McpServerConfig, type ModelInfo, type Options, type Query, type SDKUserMessage, type SlashCommand } from "@anthropic-ai/claude-agent-sdk";
 import { claudeEffort, modelTakesEffort, modelsFor, type AgentModel } from "../../domain/agent-engine.js";
 import { engineBinaryPath } from "./engine-binary.mjs";
 import { continuationOf, type AgentProvider, type ProviderResult, type ProviderRunInput } from "./agent-provider.mjs";
@@ -7,6 +7,7 @@ import { claudeMcpServer } from "./claude-mcp-host.mjs";
 import { claudePermissionMode, ClaudeSession } from "./claude-session.mjs";
 import { grantsTool } from "./approval-grant.mjs";
 import { runTools } from "./run-tools.mjs";
+import { COORDINATOR_WITHHELD_TOOLS, coordinationInstructions } from "./coordination-instructions.mjs";
 import { SessionPool } from "./session-pool.mjs";
 import { SIDE_CHAT_INSTRUCTIONS } from "./side-chat-instructions.mjs";
 import { APP_PLUGIN_NAME, appPluginRoot, unqualifiedSkillName } from "../app-plugin.mjs";
@@ -158,6 +159,7 @@ function sessionKey(input: ProviderRunInput) {
     Boolean(input.automations),
     Boolean(input.findings),
     Boolean(input.threads),
+    input.coordinationRole ?? null,
     Boolean(input.browser),
     Boolean(input.terminal),
   ]);
@@ -170,7 +172,7 @@ export class ClaudeAgentProvider implements AgentProvider {
     const key = sessionKey(input);
     return this.pool.execute(input, key, {
       open: ({ ended, rested }) => new ClaudeSession(key, ended, rested),
-      start: (session) => session.open((prompt, canUseTool) => this.queryFactory(this.options(input, prompt, canUseTool)), input),
+      start: (session) => session.open((prompt, canUseTool, hooks) => this.queryFactory(this.options(input, prompt, canUseTool, hooks)), input),
     });
   }
 
@@ -191,7 +193,7 @@ export class ClaudeAgentProvider implements AgentProvider {
     this.pool.closeAll();
   }
 
-  private options(input: ProviderRunInput, prompt: AsyncIterable<SDKUserMessage>, canUseTool: CanUseTool) {
+  private options(input: ProviderRunInput, prompt: AsyncIterable<SDKUserMessage>, canUseTool: CanUseTool, hooks: Options["hooks"]) {
     const continuation = continuationOf(input);
     const mcpServers: Record<string, McpServerConfig> = {};
     if (input.computerUse.status === "available") {
@@ -203,7 +205,7 @@ export class ClaudeAgentProvider implements AgentProvider {
       options: {
         cwd: input.workspaceRoot,
         pathToClaudeCodeExecutable: claudeExecutable(),
-        disallowedTools: withheldTools(input.channel),
+        disallowedTools: [...withheldTools(input.channel), ...(input.coordinationRole === "coordinator" ? COORDINATOR_WITHHELD_TOOLS : [])],
         resume: continuation,
         ...(input.forkContinuation && continuation ? { forkSession: true } : {}),
         permissionMode: claudePermissionMode(input.policy),
@@ -213,7 +215,7 @@ export class ClaudeAgentProvider implements AgentProvider {
         betas: ["context-1m-2025-08-07" as const],
         ...(input.claude?.chromeBrowser ? { extraArgs: { chrome: null } } : {}),
         ...(Object.keys(mcpServers).length ? { mcpServers } : {}),
-        systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append: [...(input.computerUse.status === "unavailable" ? [] : [computerUseInstructions]), linkInstructions, ...(input.automations ? [automationInstructions] : []), ...(input.threads ? [threadInstructions] : []), ...(input.browser ? [browserInstructions] : []), ...(input.claude?.chromeBrowser ? [chromeInstructions] : []), ...(input.claude?.conciseReplies ? [conciseInstructions] : []), ...(input.channel === "side" ? [SIDE_CHAT_INSTRUCTIONS] : [])].join("\n\n") },
+        systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append: [...(input.computerUse.status === "unavailable" ? [] : [computerUseInstructions]), linkInstructions, ...(input.automations ? [automationInstructions] : []), ...(input.threads ? [threadInstructions] : []), ...coordinationInstructions(input.coordinationRole), ...(input.browser ? [browserInstructions] : []), ...(input.claude?.chromeBrowser ? [chromeInstructions] : []), ...(input.claude?.conciseReplies ? [conciseInstructions] : []), ...(input.channel === "side" ? [SIDE_CHAT_INSTRUCTIONS] : [])].join("\n\n") },
         settingSources: (input.projectless ? ["user"] : ["user", "project", "local"]) as ("user" | "project" | "local")[],
         ...(input.claude?.conciseReplies ? { settings: { outputStyle: "Concise" } } : {}),
         skills: "all" as const,
@@ -221,6 +223,7 @@ export class ClaudeAgentProvider implements AgentProvider {
         forwardSubagentText: true,
         includePartialMessages: true,
         canUseTool,
+        hooks,
       },
     };
   }

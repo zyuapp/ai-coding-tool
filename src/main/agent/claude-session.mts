@@ -1,12 +1,13 @@
-import type { CanUseTool, Query, SDKActiveGoalMessage, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
+import type { CanUseTool, HookCallback, Options, Query, SDKActiveGoalMessage, SDKAPIRetryMessage, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { claudeEffort, contextWindowLimit, modelTakesEffort, type AgentModel, type ClaudeEffort } from "../../domain/agent-engine.js";
-import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, SubagentReport, ToolIntent } from "../../domain/run.js";
+import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, SubagentMetadata, SubagentReport, ToolIntent } from "../../domain/run.js";
 import type { WorkflowReport } from "../../contracts/ipc.js";
 import { continuationOf, type AgentTurn, type ProviderEvent, type ProviderResult, type ProviderRunInput, type SteerQueue, type ToolDecision } from "./agent-provider.mjs";
 import { SIDE_CHAT_BOUNDARY } from "./side-chat-instructions.mjs";
 import { parseWorkflowProgress, workflowProgressOf } from "./workflow-progress.mjs";
 import { appendCompleteMarkdown, openMarkdownBuffer, type MarkdownBuffer } from "./markdown-buffer.mjs";
 import { AUTOMATION_SERVER_NAME } from "../tools/automation.mjs";
+import { COORDINATION_SERVER_NAME } from "../tools/coordination.mjs";
 import { BROWSER_SERVER_NAME, BROWSER_TOOLS } from "../tools/browser.mjs";
 import { THREAD_SERVER_NAME, THREAD_TOOLS } from "../tools/threads.mjs";
 import { readOnlyToolNames } from "./claude-mcp-host.mjs";
@@ -17,6 +18,8 @@ import { TurnSlot, type SessionTurn } from "./session-turn.mjs";
 const setupToolName = "mcp__aicodingtool-computer-use__request_setup";
 /** Scheduled runs have nobody to approve anything, and these tools only reach the run's own automation. */
 const automationToolPrefix = `mcp__${AUTOMATION_SERVER_NAME}__`;
+/** A thread speaking for itself to its coordinator and the user reaches nothing but the app. */
+const coordinationToolPrefix = `mcp__${COORDINATION_SERVER_NAME}__`;
 /** Reading the workspace changes nothing, so it needs no approval; starting or stopping a run does. */
 const readOnlyThreadTools = readOnlyToolNames(THREAD_SERVER_NAME, THREAD_TOOLS);
 /** Reading a page the panel already holds changes nothing; opening one and acting in it does. */
@@ -25,12 +28,20 @@ const computerUseToolPrefix = "mcp__cua-driver__";
 
 /** What a tool reaches, read from the name the agent process calls it by. */
 function toolReach(toolName: string): ToolReach {
-  if (toolName === setupToolName || toolName.startsWith(automationToolPrefix) || readOnlyThreadTools.has(toolName) || readOnlyBrowserTools.has(toolName)) return "app";
+  if (toolName === setupToolName || toolName.startsWith(automationToolPrefix) || toolName.startsWith(coordinationToolPrefix) || readOnlyThreadTools.has(toolName) || readOnlyBrowserTools.has(toolName)) return "app";
   return toolName.startsWith(computerUseToolPrefix) ? "computer-use" : "workspace";
 }
 
 /** The model the agent process stamps on replies it produced itself: slash commands, interrupts, error notices. */
 const SYNTHETIC_MODEL = "<synthetic>";
+
+/** Why a request is being retried, in the user's terms. */
+function retryReason(message: SDKAPIRetryMessage): string {
+  if (message.error === "overloaded") return "Claude is overloaded.";
+  if (message.error === "rate_limit") return "Claude is rate limited.";
+  if (message.error_status === null) return "Cannot reach Claude.";
+  return `Claude API error ${message.error_status}.`;
+}
 
 /** How long an interrupted turn has to come back with a result before the session is given up on. */
 const INTERRUPT_GRACE_MS = 10_000;
@@ -123,7 +134,7 @@ type Owing = { owed: number };
 /** One turn a run asked for: the stream that answers it, and the promise the answer settles. */
 type Turn = Owing & SessionTurn & { stream: Stream };
 
-export type SessionOpener = (prompt: AsyncIterable<SDKUserMessage>, canUseTool: CanUseTool) => Query;
+export type SessionOpener = (prompt: AsyncIterable<SDKUserMessage>, canUseTool: CanUseTool, hooks: Options["hooks"]) => Query;
 
 /**
  * One live Claude session, kept across turns. The agent process, its MCP servers, and everything it
@@ -153,6 +164,9 @@ export class ClaudeSession {
   /** The subagents still running here, by task id, and by the tool call that launched each. */
   private readonly subagentIds = new Set<string>();
   private readonly subagentByToolUse = new Map<string, string>();
+  /** Launch input and child replies can arrive before task_started connects their tool id to a task. */
+  private readonly subagentMetadata = new Map<string, SubagentMetadata>();
+  private readonly subagentEfforts = new Map<string, string>();
   private reportGoal: ProviderRunInput["reportGoal"] = () => {};
   private hasGoal = false;
   /** What the agent process left running here: a shell, a monitor, or a task of its own. */
@@ -195,7 +209,10 @@ export class ClaudeSession {
     this.background.openWith(seed.reportBackground);
     this.reportGoal({ type: "goal.changed", goal: null });
     this.hasGoal = false;
-    this.query = opener(this.stream(), this.canUseTool);
+    this.query = opener(this.stream(), this.canUseTool, {
+      PreToolUse: [{ hooks: [this.receiveSubagentEffort] }],
+      SubagentStop: [{ hooks: [this.receiveSubagentEffort] }],
+    });
     void this.pump();
   }
 
@@ -226,7 +243,7 @@ export class ClaudeSession {
     await this.drainSteering(turn.input.steering, (event) => turn.input.emit(event), () => this.turn === turn ? turn : null);
   }
 
-  /** Kills one background process of this session: a shell, a monitor, or a workflow. */
+  /** Kills one task of this session: a shell, a monitor, a workflow, or a subagent. */
   stopProcess(processId: string) {
     void this.query?.stopTask(processId)?.catch?.(() => {});
   }
@@ -242,6 +259,8 @@ export class ClaudeSession {
     for (const id of this.subagentIds) this.reportSubagent({ type: "subagent.finished", id, status: "stopped", summary: "The session ended before this subagent finished." });
     this.subagentIds.clear();
     this.subagentByToolUse.clear();
+    this.subagentMetadata.clear();
+    this.subagentEfforts.clear();
     /** The session ending is the end of the workflows it holds: their own notification can no longer come. */
     for (const id of this.workflowIds) this.reportWorkflow({ type: "workflow.finished", id, status: "stopped", summary: "" });
     this.workflowIds.clear();
@@ -389,6 +408,7 @@ export class ClaudeSession {
       this.background.replace(backgroundProcesses(message.tasks), message.tasks.map((task) => task.task_id));
     }
     if (this.receiveWorkflow(message)) return;
+    this.receiveSubagentMetadata(message);
     if (this.receiveSubagent(message)) return;
     const stream = this.streamFor(message);
     if (!stream) return;
@@ -401,6 +421,8 @@ export class ClaudeSession {
         preTokens: message.compact_metadata.pre_tokens,
         ...(message.compact_metadata.post_tokens === undefined ? {} : { postTokens: message.compact_metadata.post_tokens }),
       });
+    } else if (message.type === "system" && message.subtype === "api_retry") {
+      stream.emit({ type: "retry", message: retryReason(message), attempt: message.attempt, maxRetries: message.max_retries });
     } else if (message.type === "system" && message.subtype === "status" && (message.status === "compacting" || message.compact_result)) {
       stream.emit({
         type: "compaction-status",
@@ -455,6 +477,43 @@ export class ClaudeSession {
     }
   }
 
+  /** Hooks report the child's effective effort, including model downgrades and agent-definition overrides. */
+  private receiveSubagentEffort: HookCallback = async (input) => {
+    const id = input.agent_id;
+    const effort = input.effort?.level;
+    if (this.ended || !id || !effort || this.subagentEfforts.get(id) === effort) return {};
+    this.subagentEfforts.set(id, effort);
+    if (this.subagentIds.has(id)) this.reportSubagent({ type: "subagent.metadata", id, effort });
+    if (this.subagentEfforts.size > 1_000) this.subagentEfforts.delete(this.subagentEfforts.keys().next().value!);
+    return {};
+  };
+
+  /** The child reply identifies its actual model; the parent's settings cannot account for agent-definition overrides. */
+  private receiveSubagentMetadata(message: SDKMessage) {
+    const remember = (toolId: string, metadata: SubagentMetadata) => {
+      const previous = this.subagentMetadata.get(toolId);
+      if (Object.entries(metadata).every(([key, value]) => previous?.[key as keyof SubagentMetadata] === value)) return;
+      this.subagentMetadata.set(toolId, { ...previous, ...metadata });
+      const id = this.subagentByToolUse.get(toolId);
+      if (id) this.reportSubagent({ type: "subagent.metadata", id, ...metadata });
+      /** Calls that fail before task_started have no finish event to release them. */
+      if (this.subagentMetadata.size > 1_000) this.subagentMetadata.delete(this.subagentMetadata.keys().next().value!);
+    };
+    if (message.type === "assistant") {
+      for (const block of message.message.content) {
+        if (block.type !== "tool_use" || (block.name !== "Agent" && block.name !== "Task")) continue;
+        const input = block.input as Record<string, unknown> | null;
+        if (input && typeof input.prompt === "string") remember(block.id, { prompt: input.prompt });
+      }
+      if (message.parent_tool_use_id && message.message.model && message.message.model !== SYNTHETIC_MODEL) {
+        remember(message.parent_tool_use_id, { model: message.message.model });
+      }
+    } else if (message.type === "stream_event" && message.parent_tool_use_id && message.event.type === "message_start") {
+      const model = message.event.message.model;
+      if (model && model !== SYNTHETIC_MODEL) remember(message.parent_tool_use_id, { model });
+    }
+  }
+
   /** Whether the message belonged to a subagent. Read before the stream guard, so one running in the background reports between turns too. */
   private receiveSubagent(message: SDKMessage) {
     if (message.type === "assistant" && message.parent_tool_use_id) {
@@ -473,7 +532,13 @@ export class ClaudeSession {
     if (message.subtype === "task_started" && message.subagent_type) {
       this.subagentIds.add(message.task_id);
       if (message.tool_use_id) this.subagentByToolUse.set(message.tool_use_id, message.task_id);
-      this.reportSubagent({ type: "subagent.started", id: message.task_id, description: message.description, agentType: message.subagent_type, sessionScoped: true });
+      this.reportSubagent({
+        type: "subagent.started", id: message.task_id, description: message.description,
+        ...(message.subagent_type ? { agentType: message.subagent_type } : {}), sessionScoped: true,
+        ...(message.tool_use_id ? this.subagentMetadata.get(message.tool_use_id) : {}),
+        ...(message.prompt !== undefined ? { prompt: message.prompt } : {}),
+        ...(this.subagentEfforts.has(message.task_id) ? { effort: this.subagentEfforts.get(message.task_id) } : {}),
+      });
       return true;
     }
     if (message.subtype === "task_progress" && (message.subagent_type || this.subagentIds.has(message.task_id))) {
@@ -489,8 +554,12 @@ export class ClaudeSession {
     }
     if (message.subtype === "task_notification" && this.subagentIds.has(message.task_id)) {
       this.subagentIds.delete(message.task_id);
+      this.subagentEfforts.delete(message.task_id);
       for (const [toolUseId, id] of this.subagentByToolUse) {
-        if (id === message.task_id) this.subagentByToolUse.delete(toolUseId);
+        if (id === message.task_id) {
+          this.subagentByToolUse.delete(toolUseId);
+          this.subagentMetadata.delete(toolUseId);
+        }
       }
       this.reportSubagent({ type: "subagent.finished", id: message.task_id, status: message.status === "completed" ? "completed" : message.status, summary: message.summary });
       return true;

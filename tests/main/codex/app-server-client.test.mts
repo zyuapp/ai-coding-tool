@@ -33,12 +33,12 @@ test("responses pair with their own request whatever order they arrive in", asyn
   await client.initialize(clientInfo);
 
   const settled: string[] = [];
-  const started = client.request("thread/start", { model: "gpt-5.6-sol" }).then((result) => { settled.push("thread/start"); return result; });
+  const started = client.request("thread/start", { model: "gpt-6-sol" }).then((result) => { settled.push("thread/start"); return result; });
   const listed = client.request("model/list", {}).then((result) => { settled.push("model/list"); return result as ModelListResponse; });
 
   const [thread, models] = await Promise.all([started, listed]);
   assert.equal(thread.thread.id, "thread-1");
-  assert.equal(thread.model, "gpt-5.6-sol");
+  assert.equal(thread.model, "gpt-6-sol");
   assert.deepEqual(models.data, []);
   assert.deepEqual(settled, ["model/list", "thread/start"]);
 });

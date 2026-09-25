@@ -20,7 +20,7 @@ test("thread menus and shared buttons disable unsupported operations on the corr
     capabilities: COMPUTER_CAPABILITIES.filter((name) => !name.startsWith("command:task.rename") && !name.startsWith("command:task.archive")),
     state: workspace({ threads: [thread], currentId: thread.id }),
   }] };
-  const entries = threadMenuEntries(thread, { onRename: () => {}, onFork: () => {}, onArchive: () => {}, onSetRole: () => {} });
+  const entries = threadMenuEntries(thread, { onRename: () => {}, onFork: () => {}, onArchive: () => {}, onSetRole: () => {}, coordinators: [], onSetCoordinator: () => {} });
   const render = () => createElement(CommandControlsProvider, { value: {
     available: (command) => computerCommandAvailable(state, command),
     dispatch: (command) => { commands.push(command); },

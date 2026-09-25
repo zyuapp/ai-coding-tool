@@ -190,7 +190,7 @@ test("an idle Sol thread offers compact as an app slash command", async () => {
       actions: [],
     });
   };
-  const view = await mount(render("gpt-5.6-sol"));
+  const view = await mount(render("gpt-6-sol"));
   const textarea = query<HTMLTextAreaElement>(view.container, "textarea");
   await act(async () => {
     textarea.focus();
@@ -302,7 +302,7 @@ test("the review picker reads branches from the thread's worktree", async () => 
 test("clearing a goal targets its existing thread", async () => {
   window.desktop = composerDesktop();
   const currentThread: Thread = {
-    id: "task-goal", title: "Goal", engine: "codex", model: "gpt-5.6-sol", executionPolicy: "confirm",
+    id: "task-goal", title: "Goal", engine: "codex", model: "gpt-6-sol", executionPolicy: "confirm",
     messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
   };
   const derived = deriveView({
@@ -345,7 +345,7 @@ test("the effort menu offers what the model takes, and is gone for a model that 
   };
 
   assert.equal((await efforts("codex", "gpt-6-astra"))?.[0], "Ultra");
-  const luna = await efforts("codex", "gpt-5.6-luna");
+  const luna = await efforts("codex", "gpt-6-luna");
   assert.ok(luna && luna.length > 1);
   assert.equal(luna[0], "Max");
   assert.equal(luna.at(-1), "Low");

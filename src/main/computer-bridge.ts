@@ -36,6 +36,7 @@ export function createComputerBridge(host: ComputerBridgeHost) {
       return result;
     },
     query: (query) => answerComputerQuery(query, {
+      threads: host.runtime.runtime.queryThreads,
       workspaces: host.workspaces,
       commands: async (workspaceId, engine) => {
         try {

@@ -163,7 +163,7 @@ test("effort shortcuts step through the model's levels and stop at its limits", 
   const chat = {
     ...main,
     keyboardTab: "chat",
-    threads: [...main.threads, thread("chat", { engine: "codex", model: "gpt-5.6-luna", effort: "ultra" })],
+    threads: [...main.threads, thread("chat", { engine: "codex", model: "gpt-6-luna", effort: "ultra" })],
     sideChats: [{ id: "chat", sourceThreadId: "a", error: null }],
   };
   const lowered = step(chat, down);
