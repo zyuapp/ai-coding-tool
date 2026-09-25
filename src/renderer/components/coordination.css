@@ -124,16 +124,20 @@
 .decision-foot button:disabled { opacity: 0.4; cursor: default; }
 
 /* The sidebar's fold on a coordinator's row, and the threads nested under it. */
-.task-entry:has(> .coordinator-toggle) > .task-row { padding-left: 28px; }
+/**
+ * The fold never moves a title: in a project it hangs in the row's indent, and in a list ranked by
+ * activity it opens the row's meta line, sized and coloured like the rest of that line.
+ */
 .task-entry > .coordinator-toggle {
   position: absolute;
   z-index: 1;
-  top: 8px;
-  left: 8px;
+  top: 50%;
+  left: 18px;
   width: 14px;
-  height: 18px;
+  height: 20px;
   display: grid;
   place-items: center;
+  transform: translateY(-50%);
   border: 0;
   border-radius: 5px;
   padding: 0;
@@ -141,12 +145,25 @@
   color: var(--quiet);
   cursor: pointer;
 }
-.task-entry:has(> .project-task-row) > .coordinator-toggle { top: 6px; left: 18px; }
-.task-entry > .coordinator-toggle:hover { color: var(--ink); background: var(--wash); }
-.task-entry > .coordinator-toggle svg { transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1); }
-.task-entry > .coordinator-toggle.open svg { transform: rotate(90deg); }
-.coordinated-rows { position: relative; margin-left: 18px; padding-left: 6px; }
+.coordinator-toggle.inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: -3px;
+  border: 0;
+  border-radius: 5px;
+  padding: 0 1px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  vertical-align: bottom;
+  cursor: pointer;
+}
+.coordinator-toggle:hover { color: var(--ink); background: var(--wash); }
+.coordinator-toggle svg { flex: none; transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1); }
+.coordinator-toggle.open svg { transform: rotate(90deg); }
+.coordinated-rows { position: relative; margin-left: 14px; padding-left: 6px; }
 .coordinated-rows::before { content: ""; position: absolute; top: 4px; bottom: 8px; left: 0; width: 1px; background: var(--line-mid); }
-.task-group:has(> .task-entry > .project-task-row) > .coordinated-rows { margin-left: 40px; }
+.task-group:has(> .task-entry > .project-task-row) > .coordinated-rows { margin-left: 36px; }
 .coordinated-rows .task-row { padding-top: 4px; padding-bottom: 4px; }
 .coordinated-rows .task-row-text > span { font-size: var(--text-menu); }

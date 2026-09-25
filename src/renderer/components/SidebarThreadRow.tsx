@@ -145,15 +145,19 @@ export function decisionCount(thread: Thread, threadsByCoordinator: Map<string, 
   return [thread, ...threadsByCoordinator.get(thread.id) ?? []].reduce((count, item) => count + openDecisions(item).length, 0);
 }
 
-/** The fold on a coordinator's row. A coordinator with no threads under it has none. */
-function CoordinatorToggle({ thread, coordination }: { thread: Thread; coordination: SidebarCoordination }) {
+/**
+ * The fold on a coordinator's row. In a list ranked by activity it opens the row's meta line and
+ * says how many threads it holds; in a project it hangs in the row's indent. A coordinator with no
+ * threads under it has none.
+ */
+function CoordinatorToggle({ thread, coordination, inline = false }: { thread: Thread; coordination: SidebarCoordination; inline?: boolean }) {
   const members = coordination.threadsByCoordinator.get(thread.id);
   if (!members?.length) return null;
   const open = !coordination.closedCoordinators.has(thread.id);
   return (
     <button
       type="button"
-      className={`coordinator-toggle ${open ? "open" : ""}`}
+      className={`coordinator-toggle${inline ? " inline" : ""}${open ? " open" : ""}`}
       aria-expanded={open}
       aria-label={`${open ? "Hide" : "Show"} the ${members.length} ${members.length === 1 ? "thread" : "threads"} under ${thread.title}`}
       onClick={(event) => {
@@ -162,6 +166,7 @@ function CoordinatorToggle({ thread, coordination }: { thread: Thread; coordinat
       }}
     >
       <ChevronRight size={12} aria-hidden="true" />
+      {inline && <span>{members.length} {members.length === 1 ? "thread" : "threads"}</span>}
     </button>
   );
 }
@@ -363,11 +368,13 @@ export function useThreadRows({
   const activityRow = (thread: Thread, action: RowAction, priority: boolean) => (
     <div className="task-group" key={thread.id}>
       <div className="task-entry" tabIndex={0} onKeyDown={(event) => selectOnEnter(event, thread)}>
-      <CoordinatorToggle thread={thread} coordination={coordination} />
       {rowBody(thread, `task-row ${thread.id === currentId ? "active" : ""}`, (
         <span className="task-row-text">
           <span>{thread.title}</span>
-          <small>{activityMeta(thread, threadHosts.get(thread.id), projects, formatTime, decisionCount(thread, coordination.threadsByCoordinator), membersIn(thread, blockedThreadIds))}</small>
+          <small>
+            {coordination.threadsByCoordinator.get(thread.id)?.length ? <><CoordinatorToggle thread={thread} coordination={coordination} inline />{" · "}</> : null}
+            {activityMeta(thread, threadHosts.get(thread.id), projects, formatTime, decisionCount(thread, coordination.threadsByCoordinator), membersIn(thread, blockedThreadIds))}
+          </small>
         </span>
       ), action, priority)}
       </div>
