@@ -106,13 +106,45 @@ test("a coordinator stands for its threads in the activity lists", () => {
   const busy = task("busy", { parentId: "lead" });
   const sections = coordinationSections([coordinator, asking, busy], new Set(["busy"]), new Set());
   assert.deepEqual(sections.priority.map((thread) => thread.id), ["lead"]);
-  assert.deepEqual([...sections.running, ...sections.threads].map((thread) => thread.id), [], "its threads are drawn under it, in no list of their own");
+  assert.deepEqual([...sections.running, ...sections.threads].map((thread) => thread.id), [], "its threads are reached through it, in no list of their own");
 
   const working = coordinationSections([coordinator, busy], new Set(["busy"]), new Set());
   assert.deepEqual(working.running.map((thread) => thread.id), ["lead"]);
 
   const orphan = coordinationSections([task("lead"), busy], new Set(["busy"]), new Set());
   assert.deepEqual(orphan.running.map((thread) => thread.id), ["busy"], "a thread whose coordinator stepped down stands on its own");
+});
+
+test("a thread under a coordinator opens as a tab in the coordinator's dock rather than as a thread of its own", () => {
+  const state = workspace({ threads: [lead(), task("worker", { parentId: "lead", title: "Dark mode", outcome: "finished", outcomeUnread: true }), task("other")], currentId: "other" });
+  const opened = reduce(state, { type: "task.select", taskId: "worker" }).state;
+  assert.equal(opened.currentId, "lead", "the user lands on the coordinator");
+  assert.deepEqual(opened.docks.lead?.threadTabs, ["worker"]);
+  assert.equal(opened.docks.lead?.tab, "worker");
+  assert.equal(opened.docks.lead?.open, true);
+  assert.equal(opened.threads[1].outcomeUnread, undefined, "what the thread had to say is read");
+  const view = deriveView(opened);
+  assert.deepEqual(view.threadTabs.map((tab) => tab.id), ["worker"]);
+  assert.equal(view.threadTabs[0]?.standing, "finished");
+
+  const again = reduce(opened, { type: "task.select", taskId: "worker" }).state;
+  assert.deepEqual(again.docks.lead?.threadTabs, ["worker"], "a thread already open is not opened twice");
+
+  const closed = reduce(opened, { type: "view.close-thread-tab", taskId: "worker" }).state;
+  assert.deepEqual(closed.docks.lead?.threadTabs, []);
+  assert.equal(closed.docks.lead?.open, false, "closing the last tab goes back to the session panel");
+  assert.equal(closed.threads.some((thread) => thread.id === "worker"), true, "closing the tab leaves the thread working");
+
+  const keyed = reduce({ ...opened, keyboardTab: "worker" }, { type: "view.close-tab" }).state;
+  assert.deepEqual(keyed.docks.lead?.threadTabs, [], "⌘W closes the thread's tab");
+
+  const alone = reduce(state, { type: "task.select", taskId: "other" }).state;
+  assert.equal(alone.currentId, "other", "a thread on its own is landed on as before");
+});
+
+test("the app never opens on a thread under a coordinator", () => {
+  const restored = reduce(workspace(), { type: "store.loaded", data: { version: THREAD_STORE_VERSION, tasks: [task("worker", { parentId: "lead" }), lead()], projects: [], worktrees: [], lastFolder: null } });
+  assert.equal(restored.state.currentId, "lead");
 });
 
 test("dismissing a coordinator files away what its threads finished with", () => {

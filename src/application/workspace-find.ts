@@ -52,7 +52,8 @@ export function findTargetFor(state: WorkspaceState, surface: ShortcutSurface): 
   switch (dockTabKind(state, owner, tab)) {
     case "browser": return { kind: "browser", tabId: tab };
     case "terminal": return { kind: "terminal", terminalId: tab };
-    case "side-chat": return { kind: "thread", taskId: tab };
+    case "side-chat":
+    case "thread": return { kind: "thread", taskId: tab };
     case "panel": return tab === DIFF_PANEL ? { kind: "review", owner } : { kind: "panel", owner, panel: tab };
     case "picker": return thread;
   }

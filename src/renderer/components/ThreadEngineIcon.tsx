@@ -7,6 +7,10 @@ const ENGINE_ICONS: Record<AgentEngine, IconType> = {
   codex: BsOpenai,
 };
 
+export function engineIcon(engine: AgentEngine): IconType {
+  return ENGINE_ICONS[engine];
+}
+
 /** A thread's provider mark stays compact enough to sit beside its other identity marks. */
 export function ThreadEngineIcon({ engine, className, size }: { engine: AgentEngine; className?: string; size: number }) {
   const Icon = ENGINE_ICONS[engine];

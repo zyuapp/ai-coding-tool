@@ -11,7 +11,7 @@ import type { PendingRun, WorkspaceState } from "../workspace-state.js";
 import { canJoinCoordinator, coordinatorOf, isCoordinator, MAX_ANSWER, openDecisions, withAnswer, withCoordinationNote, withDecision } from "../../domain/coordination.js";
 
 type CoordinationInput = Extract<WorkspaceInput, {
-  type: "task.set-coordinator" | "decision.answer" | "view.set-coordination-open" | "coordination.reported" | "coordination.decision-raised";
+  type: "task.set-coordinator" | "decision.answer" | "coordination.reported" | "coordination.decision-raised";
 }>;
 
 const JOIN_REFUSED = "Only a coordinator can take threads under it, and a coordinator cannot work under another.";
@@ -43,15 +43,6 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       /** A decision only closes once its answer is on its way, so one that could not be sent can be answered again. */
       const sent = reduceSending(state, { type: "task.send", taskId: thread.id, text: `The user decided "${decision.question}": ${answer}` });
       return sent.result?.ok === false ? sent : { ...sent, state: answered(sent.state) };
-    }
-
-    case "view.set-coordination-open": {
-      const closed = !input.open;
-      if (state.closedCoordinators.has(input.taskId) === closed) return settled(state);
-      const closedCoordinators = new Set(state.closedCoordinators);
-      if (closed) closedCoordinators.add(input.taskId);
-      else closedCoordinators.delete(input.taskId);
-      return settled({ ...state, closedCoordinators });
     }
 
     /** Progress is not news: only a thread that is blocked, done or failed leaves its coordinator a note. */

@@ -1,11 +1,12 @@
 import { LuCornerDownRight as CornerDownRight, LuX as X } from "react-icons/lu";
 import type { QueuedMessage } from "../../application/workspace-state";
 import { AnnotationRow } from "./AnnotationRow";
+import type { ComposerSurface } from "./ConversationComposer";
 
 /** Messages waiting on the run, each with what it carries and the two things you can do to it. */
 export function QueuedRow({ messages, surface, onSteer, onDrop }: {
   messages: QueuedMessage[];
-  surface: "main" | "side";
+  surface: ComposerSurface;
   onSteer: (messageId: string) => void;
   onDrop: (messageId: string) => void;
 }) {

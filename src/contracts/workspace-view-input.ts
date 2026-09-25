@@ -139,7 +139,6 @@ export function isWorkspaceViewInput(value: unknown): value is WorkspaceViewInpu
 
 const shapes = {
   "view.mounted": {},
-  "view.set-coordination-open": { taskId: text, open: boolean },
   "diff.toggle": {  },
   "diff.refresh": {  },
   "diff.set-range": { range: isDiffRange },
@@ -299,6 +298,7 @@ const shapes = {
   "view.set-dock-expanded": { expanded: boolean },
   "view.open-dock-panel": { panel: text },
   "view.close-dock-panel": { panel: text },
+  "view.close-thread-tab": { taskId: text },
   "view.open-workflow": { workflowId: text },
   "view.select-dock-tab": { tab: text },
   "view.select-dock-index": { index: number },

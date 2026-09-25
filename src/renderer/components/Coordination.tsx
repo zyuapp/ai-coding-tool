@@ -17,27 +17,46 @@ const STATUS_LABELS: Record<CoordinatedThreadStatus, string> = {
   idle: "Idle",
 };
 
-function StatusMark({ status }: { status: CoordinatedThreadStatus }) {
+export function CoordinationStatusMark({ status }: { status: CoordinatedThreadStatus }) {
   return status === "working"
     ? <span className="task-spinner" aria-hidden="true" />
     : <span className={`coordination-dot ${status}`} aria-hidden="true" />;
 }
 
-/** The threads a coordinator has working under it, one card each, across the top of its conversation. */
-export function CoordinationStrip({ members, onSelect }: { members: CoordinatedThreadView[]; onSelect: (threadId: string) => void }) {
+export function coordinationStatusLine(status: CoordinatedThreadStatus, summary: string | null) {
+  return summary ? `${STATUS_LABELS[status]} · ${summary}` : STATUS_LABELS[status];
+}
+
+/** The threads a coordinator has working under it, each opening as a tab beside its conversation. */
+export function CoordinatedThreadList({ members, onSelect }: {
+  members: CoordinatedThreadView[];
+  onSelect: (threadId: string) => void;
+}) {
+  const working = members.filter((member) => member.status === "working").length;
+  const waiting = members.filter((member) => member.status === "asking" || member.status === "approval").length;
   return (
-    <nav className="coordination-strip" aria-label="Threads under this coordinator">
-      {members.map(({ thread, status, summary }) => (
-        <button type="button" key={thread.id} className={`coordination-card ${status}`} onClick={() => onSelect(thread.id)} title={thread.title}>
-          <span className="coordination-card-top">
-            <StatusMark status={status} />
-            <span className="coordination-card-title">{thread.title}</span>
-            <ThreadEngineIcon engine={thread.engine} className="coordination-card-engine" size={12} />
-          </span>
-          <span className="coordination-card-status">{summary ? `${STATUS_LABELS[status]} · ${summary}` : STATUS_LABELS[status]}</span>
-        </button>
-      ))}
-    </nav>
+    <section className="subagent-section coordination-section" aria-label="Threads under this coordinator">
+      <div className="subagent-heading">
+        <div className="coordination-heading">Threads</div>
+        {waiting > 0 ? <div className="coordination-count waiting">{waiting} waiting on you</div> : working > 0 && <div className="coordination-count">{working} working</div>}
+      </div>
+      <div className="subagent-list" aria-live="polite">
+        {members.map(({ thread, status, summary }) => (
+          <button
+            type="button"
+            key={thread.id}
+            className={`coordination-row ${status}`}
+            aria-label={`Open ${thread.title}`}
+            title={thread.title}
+            onClick={() => onSelect(thread.id)}
+          >
+            <span className="coordination-row-mark"><CoordinationStatusMark status={status} /></span>
+            <span><strong>{thread.title}</strong><small>{coordinationStatusLine(status, summary)}</small></span>
+            <ThreadEngineIcon engine={thread.engine} className="coordination-row-engine" size={12} />
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
 

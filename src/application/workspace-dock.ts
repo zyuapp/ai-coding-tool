@@ -25,6 +25,8 @@ export type ThreadDock = {
   browserTabId: string | null;
   terminals: TerminalSession[];
   terminalId: string | null;
+  /** Threads working under this dock's coordinator, each opened as a tab to follow and talk to beside it. */
+  threadTabs: string[];
 };
 
 /** What a dock helper needs of the workspace: whose dock is in front, and every dock there is. */
@@ -51,6 +53,7 @@ export const EMPTY_DOCK: ThreadDock = {
   browserTabId: null,
   terminals: [],
   terminalId: null,
+  threadTabs: [],
 };
 
 /**
@@ -106,6 +109,7 @@ export function dockTabKind(state: DockState, owner: string, tab: string) {
   if (dock.browserTabs.some((page) => page.id === tab)) return "browser" as const;
   if (dock.terminals.some((terminal) => terminal.id === tab)) return "terminal" as const;
   if (dockSideChats(state, owner).some((chat) => chat.id === tab)) return "side-chat" as const;
+  if (dock.threadTabs.includes(tab)) return "thread" as const;
   return dock.panels.includes(tab) ? "panel" as const : "picker" as const;
 }
 
@@ -117,6 +121,7 @@ export function dockTabIds(state: DockState, owner: string) {
     ...dock.browserTabs.map((page) => page.id),
     ...dock.terminals.map((terminal) => terminal.id),
     ...dockSideChats(state, owner).map((chat) => chat.id),
+    ...dock.threadTabs,
   ];
 }
 
@@ -131,7 +136,26 @@ export function dockHoldsTab(state: DockState, tab: string): boolean {
   return dock.panels.includes(tab)
     || dock.browserTabs.some((page) => page.id === tab)
     || dock.terminals.some((terminal) => terminal.id === tab)
-    || dockSideChats(state, owner).some((chat) => chat.id === tab);
+    || dockSideChats(state, owner).some((chat) => chat.id === tab)
+    || dock.threadTabs.includes(tab);
+}
+
+/**
+ * Which dock holds a thread as a tab of its own: a side chat's source, or the coordinator that has
+ * the thread open. A thread shown this way is talked to there rather than landed on.
+ */
+export function tabHolderOf(state: Pick<DockState, "sideChats" | "docks">, taskId: string): string | undefined {
+  const chat = state.sideChats.find((item) => item.id === taskId);
+  if (chat) return chat.sourceThreadId;
+  return Object.keys(state.docks).find((owner) => state.docks[owner].threadTabs.includes(taskId));
+}
+
+/** The thread whose tab holds the keyboard, when the tab holding it is a conversation. */
+export function keyboardThreadId(state: DockState): string | null {
+  const tab = state.keyboardTab;
+  if (!tab) return null;
+  const kind = dockTabKind(state, dockOwner(state), tab);
+  return kind === "side-chat" || kind === "thread" ? tab : null;
 }
 
 /** The shell holding the keyboard, when the tab holding it is one. ⌘J is about shells, not panels. */

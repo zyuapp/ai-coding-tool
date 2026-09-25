@@ -5,6 +5,7 @@
  */
 import { clampQuote } from "./annotations.js";
 import type { WorkspaceState } from "./workspace-state.js";
+import { tabHolderOf } from "./workspace-dock.js";
 import type { WorkspaceTransition } from "./workspace-reducer/types.js";
 import type { AnnotationCommand, FileCommand, ImageCommand, PasteCommand } from "../contracts/commands.js";
 import { MAX_ATTACHED_FILES, MAX_ATTACHMENTS, type Annotation, type AttachedFile, type AttachedFileDraft, type PastedText, type StagedImage } from "../domain/conversation.js";
@@ -75,8 +76,8 @@ export function focusedTab(state: WorkspaceState, owner: string, tab: string): W
  */
 function focusAfter(state: WorkspaceState, input: ComposerDraftCommand, key: string): WorkspaceState {
   if (input.type !== "annotation.add" || input.anchor?.kind === "diff") return state;
-  const chat = state.sideChats.find((item) => item.id === key);
-  return chat ? focusedTab(state, chat.sourceThreadId, key) : focusComposer(state);
+  const holder = tabHolderOf(state, key);
+  return holder ? focusedTab(state, holder, key) : focusComposer(state);
 }
 
 /** An image the app already holds, put back in a composer. What it is of is lost with the send. */

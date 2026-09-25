@@ -12,38 +12,8 @@
 }
 .coordination-head > * { pointer-events: auto; }
 .workspace.summary-open .coordination-head { padding-right: calc(clamp(20px, 4vw, 64px) + 282px); }
-.work-area.coordination-strip-on .conversation { padding-top: 118px; }
 .work-area.coordination-bar-on .conversation { padding-top: 96px; }
 .work-area.coordination-brief-on .conversation { padding-top: 64px; }
-
-.coordination-strip {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.coordination-card {
-  flex: none;
-  width: 220px;
-  display: grid;
-  gap: 4px;
-  padding: 9px 11px;
-  border: 1px solid var(--line);
-  border-radius: 11px;
-  background: var(--surface);
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 0.2s ease, transform 0.2s cubic-bezier(0.32, 0.72, 0, 1);
-}
-.coordination-card:hover { border-color: var(--line-strong); transform: translateY(-1px); }
-.coordination-card.asking, .coordination-card.approval { border-color: var(--accent-line); background: var(--accent-surface); }
-.coordination-card-top { display: flex; align-items: center; gap: 7px; min-width: 0; color: var(--ink-dim); font-size: var(--text-menu); font-weight: 600; }
-.coordination-card-top .task-spinner { flex: none; width: 11px; height: 11px; border-width: 1.6px; }
-.coordination-card-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.coordination-card-engine { flex: none; color: var(--quiet); }
-.coordination-card-status { overflow: hidden; color: var(--muted); font-size: var(--text-meta); text-overflow: ellipsis; white-space: nowrap; }
-.coordination-card.asking .coordination-card-status, .coordination-card.approval .coordination-card-status { color: var(--accent); }
-.coordination-card.blocked .coordination-card-status, .coordination-card.failed .coordination-card-status { color: var(--danger-soft); }
 
 .coordination-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--line-bright); }
 .coordination-dot.done { background: var(--success); }
@@ -123,47 +93,66 @@
 .decision-foot button.secondary { background: transparent; color: var(--ink-dim); font-weight: 500; }
 .decision-foot button:disabled { opacity: 0.4; cursor: default; }
 
-/* The sidebar's fold on a coordinator's row, and the threads nested under it. */
-/**
- * The fold never moves a title: in a project it hangs in the row's indent, and in a list ranked by
- * activity it opens the row's meta line, sized and coloured like the rest of that line.
- */
-.task-entry > .coordinator-toggle {
-  position: absolute;
-  z-index: 1;
-  top: 50%;
-  left: 18px;
-  width: 14px;
-  height: 20px;
+/* A coordinator's threads in the session panel, each opening as a tab in its dock. */
+.coordination-heading { display: flex; align-items: center; height: 26px; }
+.subagent-heading > .coordination-count { color: var(--info-soft); font-size: var(--text-meta); font-weight: 550; }
+.subagent-heading > .coordination-count.waiting { color: var(--accent); }
+.coordination-row {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) 14px;
+  align-items: center;
+  gap: 9px;
+  border: 0;
+  border-radius: 9px;
+  padding: 6px 8px;
+  background: transparent;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.coordination-row:hover { background: var(--surface-hover); color: var(--ink-soft); }
+.coordination-row > span:nth-child(2) { min-width: 0; display: grid; gap: 2px; }
+.coordination-row-mark { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: var(--control); }
+.coordination-row-mark .task-spinner { width: 10px; height: 10px; border-width: 1.6px; }
+.coordination-row-mark .coordination-dot { width: 7px; height: 7px; }
+.coordination-row.working .coordination-row-mark { background: var(--info-surface); }
+.coordination-row.done .coordination-row-mark { background: var(--success-surface); }
+.coordination-row.blocked .coordination-row-mark, .coordination-row.failed .coordination-row-mark { background: var(--danger-chip); }
+.coordination-row.asking .coordination-row-mark, .coordination-row.approval .coordination-row-mark { background: var(--accent-chip); }
+.coordination-row.asking small, .coordination-row.approval small { color: var(--accent); }
+.coordination-row.blocked small, .coordination-row.failed small { color: var(--danger-soft); }
+.coordination-row-engine { color: var(--quiet); }
+
+/* A thread under the coordinator, talked to from its tab in the dock. */
+.side-chat.thread-tab { display: flex; flex-direction: column; }
+.thread-tab > .side-chat-header { flex: 0 0 var(--chrome-head); }
+.thread-tab > .side-chat-transcript { flex: 1 1 0; }
+.thread-tab-mark {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  flex: none;
   display: grid;
   place-items: center;
-  transform: translateY(-50%);
-  border: 0;
-  border-radius: 5px;
-  padding: 0;
-  background: transparent;
-  color: var(--quiet);
-  cursor: pointer;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink-dim);
 }
-.coordinator-toggle.inline {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  margin-left: -3px;
-  border: 0;
-  border-radius: 5px;
-  padding: 0 1px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  vertical-align: bottom;
-  cursor: pointer;
+.thread-tab-mark > .coordination-dot, .thread-tab-mark > .task-spinner {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  box-shadow: 0 0 0 2.5px var(--sunken);
 }
-.coordinator-toggle:hover { color: var(--ink); background: var(--wash); }
-.coordinator-toggle svg { flex: none; transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1); }
-.coordinator-toggle.open svg { transform: rotate(90deg); }
-.coordinated-rows { position: relative; margin-left: 14px; padding-left: 6px; }
-.coordinated-rows::before { content: ""; position: absolute; top: 4px; bottom: 8px; left: 0; width: 1px; background: var(--line-mid); }
-.task-group:has(> .task-entry > .project-task-row) > .coordinated-rows { margin-left: 36px; }
-.coordinated-rows .task-row { padding-top: 4px; padding-bottom: 4px; }
-.coordinated-rows .task-row-text > span { font-size: var(--text-menu); }
+.thread-tab-mark > .coordination-dot { width: 9px; height: 9px; }
+.thread-tab-mark > .task-spinner { width: 11px; height: 11px; border-width: 1.8px; background: var(--sunken); }
+.thread-tab-mark.asking, .thread-tab-mark.approval { border-color: var(--accent-line); background: var(--accent-surface); }
+.side-chat-title .thread-tab-status.asking, .side-chat-title .thread-tab-status.approval { color: var(--accent); }
+.side-chat-title .thread-tab-status.blocked, .side-chat-title .thread-tab-status.failed { color: var(--danger-soft); }
+.thread-tab-brief { flex: none; max-height: 40%; overflow: auto; border-bottom: 1px solid var(--line-soft); font-size: var(--text-menu); }
+.thread-tab-brief summary { padding: 8px 20px; }
+.thread-tab-brief dl { padding: 2px 20px 12px; }

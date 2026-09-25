@@ -1,4 +1,5 @@
-import type { SideChat, ThreadDock, WorkspaceState } from "./workspace-state.js";
+import { DOCK_PICKER, type ThreadDock } from "./workspace-dock.js";
+import type { SideChat, WorkspaceState } from "./workspace-state.js";
 
 function withoutThreadKeys<T>(record: Record<string, T>, removed: Set<string>): Record<string, T> {
   let cleaned: Record<string, T> | null = null;
@@ -30,14 +31,27 @@ function withoutMatching<T>(items: T[], matches: (item: T) => boolean): T[] {
   return kept;
 }
 
-/** Whether any dock still draws this tab: a panel, a page, a shell, or a side chat of its own. */
+/** A deleted thread is no dock's tab, and a dock showing it falls back to the picker. */
+function withoutThreadTabs(docks: Record<string, ThreadDock>, removed: Set<string>): Record<string, ThreadDock> {
+  let cleaned: Record<string, ThreadDock> | null = null;
+  for (const owner in docks) {
+    const dock = docks[owner]!;
+    if (!dock.threadTabs.some((id) => removed.has(id))) continue;
+    cleaned ??= { ...docks };
+    cleaned[owner] = { ...dock, threadTabs: dock.threadTabs.filter((id) => !removed.has(id)), tab: removed.has(dock.tab) ? DOCK_PICKER : dock.tab };
+  }
+  return cleaned ?? docks;
+}
+
+/** Whether any dock still draws this tab: a panel, a page, a shell, a side chat, or a thread. */
 function dockKeeps(docks: Record<string, ThreadDock>, sideChats: SideChat[], tab: string): boolean {
   if (sideChats.some((chat) => chat.id === tab)) return true;
   for (const owner in docks) {
     const dock = docks[owner]!;
     if (dock.panels.includes(tab)
       || dock.browserTabs.some((page) => page.id === tab)
-      || dock.terminals.some((terminal) => terminal.id === tab)) return true;
+      || dock.terminals.some((terminal) => terminal.id === tab)
+      || dock.threadTabs.includes(tab)) return true;
   }
   return false;
 }
@@ -50,7 +64,7 @@ export function pruneDeletedThreads(state: WorkspaceState, removed: Set<string>)
   for (let index = 0; index <= state.historyIndex && index < state.history.length; index += 1) {
     if (!removed.has(state.history[index]!)) historyIndex += 1;
   }
-  const docks = withoutThreadKeys(state.docks, removed);
+  const docks = withoutThreadTabs(withoutThreadKeys(state.docks, removed), removed);
   const sideChats = withoutMatching(state.sideChats, (chat) => removed.has(chat.id) || removed.has(chat.sourceThreadId));
   return {
     ...state,

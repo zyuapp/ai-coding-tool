@@ -1,21 +1,20 @@
 import type { QuestionAddress } from "../../domain/agent-question";
 import { LuGitFork as GitFork, LuX as X } from "react-icons/lu";
 import { useRef, type ReactNode } from "react";
-import type { FindView, SideChatView } from "../../application/workspace-state";
+import type { DockConversationView, FindView, SideChatView } from "../../application/workspace-state";
 import type { ReadingPoint } from "../../contracts/commands";
 import { sentPrompts, type Annotation, type AnnotationAnchor, type AttachedFile, type PastedText } from "../../domain/conversation";
-import type { Project } from "../../domain/project";
 import { defaultEffortFor, defaultModelFor, type AgentEngine, type AgentModel } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import type { ThreadHandleOption } from "../../domain/thread-handles";
 import { ApprovalCard, type ApprovalCardProps } from "./ApprovalCard";
-import { ConversationTimeline } from "./ConversationTimeline";
+import { ConversationTimeline, type ConversationTimelineProps } from "./ConversationTimeline";
 import { ConversationComposer } from "./ConversationComposer";
 import type { ComposerOutbox } from "./ComposerAttachments";
 import { useFileDrop } from "../file-drop";
 
-export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findBar, sourceTitle, sourceContinued, project, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, outbox, onAnswerQuestion, onQuestionAnswerChange, onCancel, onDecide, onPolicyChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onFastModeChange, onSteerQueued, onDropQueued, onClose }: {
-  chat: SideChatView;
+export type DockConversationProps = {
+  chat: DockConversationView;
   /** What the engine running this chat is called. */
   engineLabel: string;
   /** Bumped whenever something asks this chat to take the caret. */
@@ -23,10 +22,9 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
   /** The bar, and the match it is showing, when it is this chat's own thread being searched. */
   find?: FindView | null;
   findBar?: ReactNode;
-  /** What the thread this chat forks is called, and whether it has a session for the chat to fork. */
-  sourceTitle: string;
-  sourceContinued: boolean;
-  project?: Project;
+  /** The folder the thread's links resolve against, and the checkout its `@` menu lists files from. */
+  folder?: string;
+  workspaceId?: string;
   /** Threads this chat's `@` menu offers. */
   threads?: ThreadHandleOption[];
   onPrompt: (prompt: string) => void;
@@ -58,21 +56,28 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
   onEffortChange: (engine: AgentEngine, effort: AgentEffort) => void;
   onSteerQueued: (messageId: string) => void;
   onDropQueued: (messageId: string) => void;
-  onClose: () => void;
+};
+
+/**
+ * A thread talked to from a dock tab: its transcript, its approval, and its composer. The tab draws
+ * its own header and says what the thread is.
+ */
+export function DockConversation({ chat, engineLabel, focusToken = 0, find = null, findBar, folder = "", workspaceId, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, outbox, onAnswerQuestion, onQuestionAnswerChange, onCancel, onDecide, onPolicyChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onFastModeChange, onSteerQueued, onDropQueued, className, label, header, empty, surface, disabled = false, error = null, note }: DockConversationProps & {
+  className: string;
+  label: string;
+  header: ReactNode;
+  empty: NonNullable<ConversationTimelineProps["empty"]>;
+  surface: "side" | "tab";
+  disabled?: boolean;
+  error?: string | null;
+  note?: string;
 }) {
   const transcriptRef = useRef<HTMLDivElement>(null);
-  const available = sourceContinued || Boolean(chat.thread.continuation);
   const drop = useFileDrop(onFilesAdd);
 
   return (
-    <aside className={`side-chat ${drop.over ? "dropping" : ""}`} aria-label="Side chat" {...drop.props}>
-      <header className="side-chat-header">
-        <div className="side-chat-title">
-          <span className="side-chat-fork"><GitFork size={17} /></span>
-          <div><h2>{chat.title}</h2><p>Temporary · forked from {sourceTitle}</p></div>
-        </div>
-        <button type="button" aria-label="Close side chat" onClick={onClose}><X size={18} /></button>
-      </header>
+    <aside className={`${className} ${drop.over ? "dropping" : ""}`} aria-label={label} {...drop.props}>
+      {header}
       {findBar}
       <div className="side-chat-transcript" ref={transcriptRef}>
         <ConversationTimeline
@@ -80,7 +85,7 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
           currentThread={chat.thread}
           engine={chat.thread.engine}
           engineLabel={engineLabel}
-          folder={project?.root ?? ""}
+          folder={folder}
           status={chat.status}
           compacting={chat.compacting}
           retrying={chat.retrying}
@@ -92,21 +97,17 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
           onAnnotateAdd={onAnnotateAdd}
           onAnnotateNote={onAnnotateNote}
           onAnnotateRemove={onAnnotateRemove}
-          empty={{
-            icon: GitFork,
-            title: available ? "Work from a copy of this thread" : "Main context unavailable",
-            description: available ? "This conversation starts from the main thread's context, then continues on its own branch. It is never saved." : "Send a message in the main thread first, then open /side again.",
-          }}
+          empty={empty}
         />
         {chat.approval && <ApprovalCard approval={chat.approval} onDecide={onDecide} />}
       </div>
-      {chat.error && <p className="side-chat-error" role="alert">{chat.error}</p>}
+      {error && <p className="side-chat-error" role="alert">{error}</p>}
       <ConversationComposer
         taskId={chat.thread.id}
         focusToken={focusToken}
         prompt={chat.prompt}
-        folder={project?.root ?? ""}
-        {...(project?.workspaceId ? { workspaceId: project.workspaceId } : {})}
+        folder={folder}
+        {...(workspaceId ? { workspaceId } : {})}
         mode={chat.thread.executionPolicy}
         engine={chat.thread.engine}
         engineLabel={engineLabel}
@@ -127,8 +128,8 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
         threads={threads ?? []}
         images={chat.images}
         history={sentPrompts(chat.thread.messages)}
-        surface="side"
-        disabled={!available}
+        surface={surface}
+        disabled={disabled}
         onPromptChange={onPrompt}
         onAnnotationRecall={onAnnotateRecall}
         onAnnotationRemove={onAnnotateRemove}
@@ -151,7 +152,44 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
         onCancel={onCancel}
       />
       {drop.over && <p className="drop-hint" role="status">Drop to attach</p>}
-      <p className="side-chat-note">Nothing here is saved · closes without a trace</p>
+      {note && <p className="side-chat-note">{note}</p>}
     </aside>
+  );
+}
+
+/** A fork of the thread on screen, asked beside it and never saved. */
+export function SideChat({ chat, sourceTitle, sourceContinued, onClose, ...props }: DockConversationProps & {
+  chat: SideChatView;
+  /** What the thread this chat forks is called, and whether it has a session for the chat to fork. */
+  sourceTitle: string;
+  sourceContinued: boolean;
+  onClose: () => void;
+}) {
+  const available = sourceContinued || Boolean(chat.thread.continuation);
+  return (
+    <DockConversation
+      {...props}
+      chat={chat}
+      error={chat.error}
+      className="side-chat"
+      label="Side chat"
+      surface="side"
+      disabled={!available}
+      note="Nothing here is saved · closes without a trace"
+      header={
+        <header className="side-chat-header">
+          <div className="side-chat-title">
+            <span className="side-chat-fork"><GitFork size={17} /></span>
+            <div><h2>{chat.title}</h2><p>Temporary · forked from {sourceTitle}</p></div>
+          </div>
+          <button type="button" aria-label="Close side chat" onClick={onClose}><X size={18} /></button>
+        </header>
+      }
+      empty={{
+        icon: GitFork,
+        title: available ? "Work from a copy of this thread" : "Main context unavailable",
+        description: available ? "This conversation starts from the main thread's context, then continues on its own branch. It is never saved." : "Send a message in the main thread first, then open /side again.",
+      }}
+    />
   );
 }

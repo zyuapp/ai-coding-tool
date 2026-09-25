@@ -7,7 +7,7 @@ import { prunedFind } from "./workspace-reducer/find.js";
 import { rejected, settled } from "./workspace-reducer/shared.js";
 import { activeComputer, selectedComputer, leavesComputer, routeInput, type InputRoute } from "./computers.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
-import { dockFor, dockOwner, findTargetFor, keyboardTerminalId, recordVisit, threadSlots, type WorkspaceState } from "./workspace-state.js";
+import { dockFor, dockOwner, findTargetFor, keyboardTerminalId, keyboardThreadId, recordVisit, threadSlots, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type { AgentEvent } from "../contracts/ipc.js";
 import { slotShortcutIndex, type ShortcutSurface } from "../domain/shortcuts.js";
@@ -122,8 +122,8 @@ export function escapeCommands(state: WorkspaceState): AppCommand[] {
   if (state.openMenu !== null) return [{ type: "view.set-menu", menu: null }];
   if (state.settingsOpen || state.computerUseSetup) return [{ type: "view.set-settings-open", open: false }];
   if (state.find) return [{ type: "view.find-close" }];
-  const chat = state.sideChats.find((item) => item.id === state.keyboardTab);
-  return [chat ? { type: "run.cancel", taskId: chat.id } : { type: "run.cancel" }];
+  const taskId = keyboardThreadId(state);
+  return [taskId ? { type: "run.cancel", taskId } : { type: "run.cancel" }];
 }
 
 /**
@@ -165,7 +165,7 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
     case "run.cancel": return [{ type: "run.cancel" }];
     case "run.allow":
     case "run.deny": {
-      const taskId = state.sideChats.find((chat) => chat.id === state.keyboardTab)?.id ?? state.currentId;
+      const taskId = keyboardThreadId(state) ?? state.currentId;
       const active = taskId ? state.activeRuns[taskId] : undefined;
       const approval = active ? state.approvals[active.runId] : undefined;
       return approval ? [{ type: "run.decide", taskId: approval.taskId, runId: approval.runId, approvalId: approval.approvalId, allow: action === "run.allow" }] : [];
@@ -173,8 +173,8 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
     case "composer.focus": return [{ type: "view.focus-composer" }];
     case "effort.increase":
     case "effort.decrease": {
-      const chat = state.sideChats.find((item) => item.id === state.keyboardTab);
-      const thread = state.threads.find((item) => item.id === (chat?.id ?? state.currentId));
+      const tabbed = keyboardThreadId(state);
+      const thread = state.threads.find((item) => item.id === (tabbed ?? state.currentId));
       const engine = thread?.engine ?? state.draftEngine;
       const model = thread ? thread.model ?? defaultModelFor(engine) : state.draftModel;
       const effort = thread ? thread.effort ?? defaultEffortFor(engine) : state.draftEffort;
@@ -183,7 +183,7 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
       const next = choices[index + (action === "effort.increase" ? -1 : 1)];
       if (index < 0 || !next) return [];
       const command: AppCommand = { type: "task.set-effort", engine, effort: next.id };
-      if (chat) command.taskId = chat.id;
+      if (tabbed) command.taskId = tabbed;
       return [command];
     }
     /** The panel is a place the keystroke takes you to and back from, so the same keys close it. */

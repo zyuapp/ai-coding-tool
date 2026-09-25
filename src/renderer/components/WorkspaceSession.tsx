@@ -25,6 +25,8 @@ export function WorkspaceSession({ workspace, onInspectSubagent, onOpenPanel, on
       locationRow={workspace.worktreeMenu && <SessionLocationMenu view={workspace.worktreeMenu} openMenu={workspace.openMenu} dispatch={workspace.dispatch} />}
       openMenu={workspace.openMenu}
       onSetOpenMenu={workspace.actions.setOpenMenu}
+      coordinatedThreads={workspace.coordination.members}
+      onOpenThread={workspace.actions.selectThread}
       subagents={workspace.subagents}
       subagentGroups={workspace.subagentGroups}
       onSetSubagentGroup={(group, open) => void workspace.actions.setSubagentGroup(group, open)}

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { BrowserPanel } from "./BrowserPanel";
 import { DockSideChats } from "./DockSideChat";
+import { DockThreadTabs } from "./DockThreadTab";
 import { TerminalPanel } from "./TerminalPanel";
 import type { DockLauncher, DockPanel } from "./dock-registry";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
@@ -130,6 +131,17 @@ export function DockContent({ workspace, panels, launchers, activeTab, find, fin
             onResize={(terminalId, cols, rows) => void workspace.actions.resizeTerminal(terminalId, cols, rows)}
           />
         </div>
+      )}
+      {workspace.currentThread && (
+        <DockThreadTabs
+          workspace={workspace}
+          lead={workspace.currentThread}
+          activeTab={activeTab}
+          find={find}
+          findBar={findBar}
+          focusTokenFor={focusTokenFor}
+          onClose={onCloseTab}
+        />
       )}
       {workspace.currentThread && (
         <DockSideChats

@@ -42,7 +42,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "task.set-model": case "task.set-effort": case "task.set-fast-mode":
       return reduceThreadCommands(state, input);
 
-    case "task.set-coordinator": case "decision.answer": case "view.set-coordination-open": case "coordination.reported": case "coordination.decision-raised":
+    case "task.set-coordinator": case "decision.answer": case "coordination.reported": case "coordination.decision-raised":
       return reduceCoordination(state, input);
 
     case "view.move-worktree": case "task.set-worktree": case "task.move-worktree": case "task.set-branch": case "task.checkout-branch":
@@ -131,6 +131,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "view.close-tab": case "view.new-tab": case "view.select-dock-index":
     case "view.set-dock-open": case "view.set-dock-expanded": case "view.open-dock-panel":
     case "view.open-workflow": case "view.close-dock-panel": case "view.select-dock-tab":
+    case "view.close-thread-tab":
       return reduceDock(state, input);
 
     case "browser.open": case "browser.new-tab": case "browser.decide":

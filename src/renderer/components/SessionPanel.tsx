@@ -9,6 +9,8 @@ import { BranchMenu, useBranches } from "./BranchMenu";
 import { useMessageLinks, WebLink } from "./MarkdownMessage";
 import { useDismissibleLayer } from "../focus";
 import { orderSubagents, SubagentRow } from "./SubagentList";
+import { CoordinatedThreadList } from "./Coordination";
+import type { CoordinatedThreadView } from "../../application/coordination";
 
 export type SessionPanelProps = {
   environment: ChangedFilesResult | null;
@@ -20,6 +22,9 @@ export type SessionPanelProps = {
   /** Absent until a thread exists; a draft has nowhere to move yet. */
   locationRow?: ReactNode;
   openMenu: string | null;
+  /** The threads working under this thread, when it is a coordinator. */
+  coordinatedThreads: CoordinatedThreadView[];
+  onOpenThread: (threadId: string) => void;
   subagents: Subagent[];
   /** Which subagent groups are unfolded; this panel reads only its own list. */
   subagentGroups: SubagentGroups;
@@ -149,7 +154,7 @@ function InstallGitHubCliRow() {
   );
 }
 
-export function SessionPanel({ environment, hasProject, workspaceId, pullRequest, locationRow, openMenu, subagents, subagentGroups, backgroundProcesses, workflows, automationCount, onSelect, onOpenAgents, onOpenAutomations, onOpenWorkflow, onSetOpenMenu, onSetSubagentGroup, onCheckoutBranch, onStopProcess, onToggleChanges }: SessionPanelProps) {
+export function SessionPanel({ environment, hasProject, workspaceId, pullRequest, locationRow, openMenu, coordinatedThreads, onOpenThread, subagents, subagentGroups, backgroundProcesses, workflows, automationCount, onSelect, onOpenAgents, onOpenAutomations, onOpenWorkflow, onSetOpenMenu, onSetSubagentGroup, onCheckoutBranch, onStopProcess, onToggleChanges }: SessionPanelProps) {
   const available = environment?.status === "available" ? environment : null;
   const message = environmentMessage(environment, hasProject, workspaceId);
   const working = subagents.filter((subagent) => subagent.status === "working").length;
@@ -191,6 +196,8 @@ export function SessionPanel({ environment, hasProject, workspaceId, pullRequest
             <span className="session-count">{automationCount}</span>
           </button>
         </div>
+
+            {coordinatedThreads.length > 0 && <CoordinatedThreadList members={coordinatedThreads} onSelect={onOpenThread} />}
 
             {subagents.length > 0 && (
               <div className="subagent-section">

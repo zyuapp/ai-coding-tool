@@ -2,6 +2,8 @@ import { useCallback, useRef, type ReactNode } from "react";
 import { LuGitFork as GitFork, LuGlobe as Globe, LuSquareTerminal as SquareTerminal } from "react-icons/lu";
 import { DockContent } from "./DockContent";
 import { DockTabStrip } from "./DockTabStrip";
+import { engineIcon } from "./ThreadEngineIcon";
+import { roleIcon } from "./ThreadRoleMark";
 import { ADD_TAB_MENU, type DockLauncher, type DockPanel, type DockTab } from "./dock-registry";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import { useDismissibleLayer } from "../focus";
@@ -46,16 +48,18 @@ export function RightDock({ workspace, panels, launchers, open, expanded, sideba
     ...workspace.browserTabs.map((tab) => ({ id: tab.id, title: browserTabTitle(tab), icon: Globe })),
     ...workspace.terminals.map((terminal) => ({ id: terminal.id, title: terminal.title, icon: SquareTerminal })),
     ...workspace.sideChats.map((chat) => ({ id: chat.id, title: chat.title, icon: GitFork, unread: hasUnreadAttention(chat.thread) })),
+    ...workspace.threadTabs.map((tab) => ({ id: tab.id, title: tab.title, icon: tab.thread.role ? roleIcon(tab.thread.role) : engineIcon(tab.thread.engine), unread: hasUnreadAttention(tab.thread) })),
   ];
 
   /** The strip keeps the keyboard when a tab goes, so closing several in a row never needs the mouse. */
   const held = useRef({ workspace });
   held.current.workspace = workspace;
   const closeTab = useCallback(async (id: string) => {
-    const { dockPanels, browserTabs, terminals, actions, dispatch } = held.current.workspace;
+    const { dockPanels, browserTabs, terminals, threadTabs, actions, dispatch } = held.current.workspace;
     if (dockPanels.includes(id)) await actions.closeDockPanel(id);
     else if (browserTabs.some((tab) => tab.id === id)) await actions.closeBrowserTab(id);
     else if (terminals.some((terminal) => terminal.id === id)) await actions.closeTerminal(id);
+    else if (threadTabs.some((tab) => tab.id === id)) await actions.closeThreadTab(id);
     else await dispatch({ type: "side-chat.close", chatId: id });
     requestAnimationFrame(() => {
       (document.querySelector<HTMLElement>('.right-dock-tab.active [role="tab"]') ?? addMenuTrigger.current)?.focus();

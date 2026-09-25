@@ -8,11 +8,11 @@ import { TAKE_KEYS, focusDockTab } from "./dock-tabs.js";
 import { settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { readAttention } from "../../domain/attention.js";
-import { DIFF_PANEL, WORKFLOW_PANEL, diffFor, dockOwner, dockTabAfterClosing, dockTabIds, dockTabKind, frontDock, withDock, type WorkspaceState } from "../workspace-state.js";
+import { DIFF_PANEL, DOCK_PICKER, WORKFLOW_PANEL, diffFor, dockOwner, dockTabAfterClosing, dockTabIds, dockTabKind, frontDock, withDock, type WorkspaceState } from "../workspace-state.js";
 
 type DockInput = Extract<WorkspaceInput, {
   type: "view.close-tab" | "view.new-tab" | "view.select-dock-index" | "view.set-dock-open" | "view.set-dock-expanded"
-    | "view.open-dock-panel" | "view.open-workflow" | "view.close-dock-panel" | "view.select-dock-tab";
+    | "view.open-dock-panel" | "view.open-workflow" | "view.close-dock-panel" | "view.select-dock-tab" | "view.close-thread-tab";
 }>;
 
 export function reduceDock(state: WorkspaceState, input: DockInput): WorkspaceTransition {
@@ -30,6 +30,7 @@ export function reduceDock(state: WorkspaceState, input: DockInput): WorkspaceTr
         : kind === "browser" ? reduceBrowser(state, { type: "browser.close-tab", tabId: dock.tab })
         : kind === "terminal" ? reduceDesktop(state, { type: "terminal.close", terminalId: dock.tab })
         : kind === "side-chat" ? reduceSideChats(state, { type: "side-chat.close", chatId: dock.tab })
+        : kind === "thread" ? reduceDock(state, { type: "view.close-thread-tab", taskId: dock.tab })
         : reduceDock(state, { type: "view.close-dock-panel", panel: dock.tab });
       /** Whatever the closed view was holding is gone with it, so the window takes the keys back. */
       return { state: closed.state, effects: [...closed.effects, ...TAKE_KEYS] };
@@ -99,11 +100,21 @@ export function reduceDock(state: WorkspaceState, input: DockInput): WorkspaceTr
       return settled(closed, browserEffectsForTab(closed, owner, tab));
     }
 
+    case "view.close-thread-tab": {
+      const { owner, dock } = frontDock(state);
+      if (!dock.threadTabs.includes(input.taskId)) return settled(state);
+      const tab = dock.tab === input.taskId ? dockTabAfterClosing(state, owner, input.taskId) : dock.tab;
+      /** A thread's tab opened from the session panel, so closing the last tab goes back to that panel. */
+      const open = dock.open && tab !== DOCK_PICKER;
+      const closed = withDock(state, owner, { threadTabs: dock.threadTabs.filter((id) => id !== input.taskId), tab, open, ...(open ? {} : { expanded: false }) });
+      return settled(closed, open ? browserEffectsForTab(closed, owner, tab) : TAKE_KEYS);
+    }
+
     case "view.select-dock-tab": {
       const owner = dockOwner(state);
       const kind = dockTabKind(state, owner, input.tab);
-      /** A side chat is a thread, so bringing its tab to the front is landing on it. */
-      const read = kind === "side-chat" ? readAttention(state, input.tab) : state;
+      /** A side chat or a thread's tab is a thread, so bringing it to the front is landing on it. */
+      const read = kind === "side-chat" || kind === "thread" ? readAttention(state, input.tab) : state;
       const shown = withDock(read, owner, {
         tab: input.tab,
         open: true,

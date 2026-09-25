@@ -1,7 +1,7 @@
 import { CommandButton } from "./CommandControl";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Draggable, type DraggableProvided } from "@hello-pangea/dnd";
-import { LuAlarmClock as AlarmClock, LuArchive as Archive, LuCheck as Check, LuChevronRight as ChevronRight, LuFolderSymlink as FolderSymlink } from "react-icons/lu";
+import { LuAlarmClock as AlarmClock, LuArchive as Archive, LuCheck as Check, LuFolderSymlink as FolderSymlink } from "react-icons/lu";
 import { projectName, type Project } from "../../domain/project";
 import { threadActivityAt, type Thread } from "../../domain/thread";
 import { hasUnreadAttention, newestUnreadFinding } from "../../domain/attention";
@@ -19,7 +19,6 @@ import type { ThreadRole } from "../../domain/thread-role";
 import { openDecisions } from "../../domain/coordination";
 import type { ThreadHost } from "../../application/computers";
 import { HostMark } from "./HostMark";
-import "./coordination.css";
 
 /** What a row's trailing slot offers, if anything. Only one of them ever shows in a given list. */
 export type RowAction = "archive" | "dismiss" | "none";
@@ -124,51 +123,16 @@ export type ThreadRowsOptions = {
   sidebarCoordination: SidebarCoordination;
 };
 
-/** The threads working under each coordinator, drawn beneath its row, and what moves a thread between them. */
+/** The threads working under each coordinator, which its row speaks for, and what moves a thread between them. */
 export type SidebarCoordination = {
   threadsByCoordinator: Map<string, Thread[]>;
-  closedCoordinators: Set<string>;
   coordinators: Thread[];
   onSetCoordinator: (threadId: string, coordinatorId: string | null) => void;
-  onSetCoordinationOpen: (threadId: string, open: boolean) => void;
 };
-
-/** The threads a coordinator's row opens onto, unless the user folded them away. */
-function CoordinatedRows({ thread, coordination, renderMember }: { thread: Thread; coordination: SidebarCoordination; renderMember: (member: Thread) => React.ReactNode }) {
-  const members = coordination.threadsByCoordinator.get(thread.id);
-  if (!members?.length || coordination.closedCoordinators.has(thread.id)) return null;
-  return <div className="coordinated-rows" role="group" aria-label={`Threads under ${thread.title}`}>{members.map(renderMember)}</div>;
-}
 
 /** A coordinator's row speaks for the decisions its threads are waiting on as well as its own. */
 export function decisionCount(thread: Thread, threadsByCoordinator: Map<string, Thread[]>) {
   return [thread, ...threadsByCoordinator.get(thread.id) ?? []].reduce((count, item) => count + openDecisions(item).length, 0);
-}
-
-/**
- * The fold on a coordinator's row. In a list ranked by activity it opens the row's meta line and
- * says how many threads it holds; in a project it hangs in the row's indent. A coordinator with no
- * threads under it has none.
- */
-function CoordinatorToggle({ thread, coordination, inline = false }: { thread: Thread; coordination: SidebarCoordination; inline?: boolean }) {
-  const members = coordination.threadsByCoordinator.get(thread.id);
-  if (!members?.length) return null;
-  const open = !coordination.closedCoordinators.has(thread.id);
-  return (
-    <button
-      type="button"
-      className={`coordinator-toggle${inline ? " inline" : ""}${open ? " open" : ""}`}
-      aria-expanded={open}
-      aria-label={`${open ? "Hide" : "Show"} the ${members.length} ${members.length === 1 ? "thread" : "threads"} under ${thread.title}`}
-      onClick={(event) => {
-        event.stopPropagation();
-        coordination.onSetCoordinationOpen(thread.id, !open);
-      }}
-    >
-      <ChevronRight size={12} aria-hidden="true" />
-      {inline && <span>{members.length} {members.length === 1 ? "thread" : "threads"}</span>}
-    </button>
-  );
 }
 
 /**
@@ -338,27 +302,17 @@ export function useThreadRows({
     if (event.key === "Enter" && !offline(thread)) onSelectThread(thread.id);
   };
 
-  /** A thread under a coordinator, drawn beneath its row. */
-  const memberRow = (member: Thread) => (
-    <div className="task-entry" key={member.id} tabIndex={0} onKeyDown={(event) => selectOnEnter(event, member)}>
-      {rowBody(member, `task-row coordination-row ${member.id === currentId ? "active" : ""}`, <span className="task-row-text"><span>{member.title}</span></span>, "none")}
-    </div>
-  );
-
-  /** A coordinator's threads move with its row, but only the row itself takes the drag. */
   const threadRow = (thread: Thread, index: number, className: string, content: React.ReactNode) => (
     <Draggable draggableId={thread.id} index={index} key={thread.id} isDragDisabled={offline(thread)}>
       {(provided: DraggableProvided, snapshot) => (
-        <div className="task-group" ref={provided.innerRef} {...provided.draggableProps}>
-          <div
-            className={`task-entry ${snapshot.isDragging ? "is-dragging" : ""}`}
-            {...provided.dragHandleProps}
-            onKeyDown={(event) => selectOnEnter(event, thread)}
-          >
-            <CoordinatorToggle thread={thread} coordination={coordination} />
-            {rowBody(thread, className, content, "archive")}
-          </div>
-          <CoordinatedRows thread={thread} coordination={coordination} renderMember={memberRow} />
+        <div
+          className={`task-entry ${snapshot.isDragging ? "is-dragging" : ""}`}
+          ref={provided.innerRef}
+          {...provided.draggableProps}
+          {...provided.dragHandleProps}
+          onKeyDown={(event) => selectOnEnter(event, thread)}
+        >
+          {rowBody(thread, className, content, "archive")}
         </div>
       )}
     </Draggable>
@@ -366,19 +320,13 @@ export function useThreadRows({
 
   /** Activity mode ranks its rows itself, so nothing there is dragged and no list places it. */
   const activityRow = (thread: Thread, action: RowAction, priority: boolean) => (
-    <div className="task-group" key={thread.id}>
-      <div className="task-entry" tabIndex={0} onKeyDown={(event) => selectOnEnter(event, thread)}>
+    <div className="task-entry" key={thread.id} tabIndex={0} onKeyDown={(event) => selectOnEnter(event, thread)}>
       {rowBody(thread, `task-row ${thread.id === currentId ? "active" : ""}`, (
         <span className="task-row-text">
           <span>{thread.title}</span>
-          <small>
-            {coordination.threadsByCoordinator.get(thread.id)?.length ? <><CoordinatorToggle thread={thread} coordination={coordination} inline />{" · "}</> : null}
-            {activityMeta(thread, threadHosts.get(thread.id), projects, formatTime, decisionCount(thread, coordination.threadsByCoordinator), membersIn(thread, blockedThreadIds))}
-          </small>
+          <small>{activityMeta(thread, threadHosts.get(thread.id), projects, formatTime, decisionCount(thread, coordination.threadsByCoordinator), membersIn(thread, blockedThreadIds))}</small>
         </span>
       ), action, priority)}
-      </div>
-      <CoordinatedRows thread={thread} coordination={coordination} renderMember={memberRow} />
     </div>
   );
 

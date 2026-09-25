@@ -25,6 +25,8 @@ function renderSessionPanel(overrides: Partial<SessionPanelProps>) {
     hasProject: false,
     pullRequest: NO_PULL_REQUEST,
     openMenu: null,
+    coordinatedThreads: [],
+    onOpenThread() {},
     subagents: [],
     subagentGroups: OPEN_SUBAGENT_GROUPS,
     backgroundProcesses: [],
@@ -63,6 +65,28 @@ const liveWorkflow: Workflow = {
   totalToolCalls: 21,
   startedAt: workflowStart,
 };
+
+test("session panel lists a coordinator's threads and opens one as a tab", async () => {
+  window.desktop = fakeDesktop();
+  const member = (id: string, title: string): Thread => ({ id, title, engine: "claude", executionPolicy: "allow-edits", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, parentId: "lead" });
+  let opened: string | undefined;
+  const view = await mount(renderSessionPanel({
+    coordinatedThreads: [
+      { thread: member("a", "Dark mode"), status: "working", summary: "Tokens pass" },
+      { thread: member("b", "Login flake"), status: "asking", summary: "Retry or skip?" },
+    ],
+    onOpenThread: (id) => { opened = id; },
+  }));
+  const section = query(view.container, '[aria-label="Threads under this coordinator"]');
+  assert.match(section.textContent, /1 waiting on you/);
+  assert.match(section.textContent, /Needs you · Retry or skip\?/);
+  await act(async () => { query<HTMLButtonElement>(section, 'button[aria-label="Open Dark mode"]').click(); });
+  assert.equal(opened, "a");
+
+  await view.render(renderSessionPanel({}));
+  assert.equal(view.container.querySelector('[aria-label="Threads under this coordinator"]'), null, "a thread with none under it draws no section");
+  await view.unmount();
+});
 
 test("session panel renders Git and subagent states and selects an agent", async () => {
   window.desktop = fakeDesktop();

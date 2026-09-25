@@ -1,11 +1,11 @@
-import { sideChatView } from "./side-chat-view.js";
+import { sideChatView, threadTabView, type SideChatView, type ThreadTabView } from "./side-chat-view.js";
 import { worktreeMenuView, type WorktreeMenuSearch, type WorktreeMenuState } from "./worktree-menu.js";
-import type { PendingQuestion } from "../domain/agent-question.js";
 import type { ThreadRole } from "../domain/thread-role.js";
-import { backgroundThreadIds, runStatusFor, workflowThreadIds, type ApprovalView, type RunTransitionState, type StreamingTail, type ThreadRunStatus } from "./thread-run-state.js";
+import { backgroundThreadIds, runStatusFor, workflowThreadIds, type ApprovalView, type RunTransitionState } from "./thread-run-state.js";
 import { backfillProjectSortIndex } from "./project-order.js";
 import { sidebarLists } from "./sidebar-lists.js";
 import type { CoordinationSend } from "./coordination.js";
+import { coordinatorOf } from "../domain/coordination.js";
 import { backfillSortIndex } from "./thread-order.js";
 import type { ChangedFilesResult, DesktopShortcutRefusal, InstalledApp } from "../contracts/ipc.js";
 import type { PullRequestRead } from "../domain/pull-request.js";
@@ -23,7 +23,7 @@ import { DIFF_PANEL, dockFor, dockOwner, dockSideChats, dockTabKind, frontDock, 
 export {
   DIFF_PANEL, DOCK_PICKER, DRAFT_DOCK, EMPTY_DOCK, WORKFLOW_PANEL, activeBrowserTab, activeTerminal, browserTarget,
   dockFor, dockHoldsTab, dockOwner, dockSideChats, dockTabAfterClosing, dockTabIds, dockTabKind, frontDock,
-  keyboardTerminalId, ownerOfBrowserTab, ownerOfTerminal, terminalTarget, withDock,
+  keyboardTerminalId, keyboardThreadId, ownerOfBrowserTab, ownerOfTerminal, tabHolderOf, terminalTarget, withDock,
 } from "./workspace-dock.js";
 export type { ThreadDock } from "./workspace-dock.js";
 import { diffFor, type DiffState } from "./workspace-diff.js";
@@ -51,7 +51,7 @@ import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, READING_SIZE, TERMINAL_SIZE } from 
 import type { Workflow } from "../domain/workflow.js";
 import { DEFAULT_ENGINE, DEFAULT_MODEL, byEngine, capabilitiesFor, defaultEffortFor, defaultModelFor, engineLabel, type AgentEngine, type AgentModel, type EngineCapabilities, type EngineReadiness, type EngineStatus } from "../domain/agent-engine.js";
 import { engineReadinessOf } from "./engine-access.js";
-import { DEFAULT_EFFORT, OPEN_SUBAGENT_GROUPS, type AgentEffort, type ExecutionPolicy, type RetryNotice, type Subagent, type SubagentGroups } from "../domain/run.js";
+import { DEFAULT_EFFORT, OPEN_SUBAGENT_GROUPS, type AgentEffort, type ExecutionPolicy, type Subagent, type SubagentGroups } from "../domain/run.js";
 import { annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-drafts.js";
 import type { Annotation, AttachedFile, PastedText, StagedImage } from "../domain/conversation.js";
 import { legacyProjectId, projectName, type Project } from "../domain/project.js";
@@ -160,24 +160,7 @@ export type SideChat = {
   error: string | null;
 };
 
-export type SideChatView = SideChat & {
-  title: string;
-  thread: Thread;
-  prompt: string;
-  annotations: Annotation[];
-  pastes: PastedText[];
-  images: StagedImage[];
-  files: AttachedFile[];
-  running: boolean;
-  compacting: boolean;
-  retrying: RetryNotice | null;
-  status: ThreadRunStatus;
-  streamingTail: StreamingTail | null;
-  queuedMessages: QueuedMessage[];
-  approval?: ApprovalView;
-  question?: PendingQuestion;
-  readingPoint: ReadingPoint;
-};
+export type { DockConversationView, SideChatView, ThreadTabView } from "./side-chat-view.js";
 
 /** The ids of every thread that only lives for this session. */
 export function sideChatIds(state: Pick<WorkspaceState, "sideChats">) {
@@ -286,8 +269,6 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   /** Files and folders waiting in each composer, keyed the way `prompts` is. */
   files: Record<string, AttachedFile[]>;
   expandedProjects: Set<string>;
-  /** Coordinators whose threads the sidebar has folded away. Every other coordinator shows its threads. */
-  closedCoordinators: Set<string>;
   /** The folder the editor is open on, if any, and what came back the last time it tried to save. */
   projectEdit: ProjectEdit | null;
   /** The move the confirmation is open on: the thread asked to move, and where it would go. */
@@ -443,7 +424,6 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     images: {},
     files: {},
     expandedProjects: new Set(),
-    closedCoordinators: new Set(),
     ...NO_PROJECT_ADD,
     projectEdit: null,
     worktreeMove: null,
@@ -532,7 +512,8 @@ export function stateFromData(data: ThreadStoreData, storageError: string | null
     if (delegated?.length) subagents[thread.id] = delegated.map(restoredSubagent);
     return thread;
   });
-  const firstThread = threads[0];
+  /** A thread under a coordinator is shown in the coordinator's dock, so the app never opens on one. */
+  const firstThread = threads.find((thread) => !coordinatorOf(threads, thread));
   const firstProject = firstThread?.projectId ?? (firstThread ? null : projects.find((project) => project.root === data.lastFolder)?.id ?? null);
   return {
     ...emptyWorkspaceState(storageError),
@@ -703,6 +684,7 @@ export function recordVisit(state: WorkspaceState, threadId: string): WorkspaceS
 
 /** Each chat's view outlives the derive that built it, so a report elsewhere never redraws one. */
 const reusedSideChats = heldViews<SideChatView>();
+const reusedThreadTabs = heldViews<ThreadTabView>();
 
 const NO_SUBAGENTS: Subagent[] = [];
 const NO_QUEUED: QueuedMessage[] = [];
@@ -840,7 +822,6 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state)
     restored: state.restored,
     computerUseSetup: state.computerUseSetup,
     expandedProjects: state.expandedProjects,
-    closedCoordinators: state.closedCoordinators,
     ...workspaceDialogsView(state),
     sections: state.sections,
     subagentGroups: state.subagentGroups,
@@ -901,5 +882,6 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state)
     canGoBack: reachableVisit(state, -1) !== null,
     canGoForward: reachableVisit(state, 1) !== null,
     sideChats: reusedSideChats(dockSideChats(state, owner).flatMap((chat) => sideChatView(state, chat))),
+    threadTabs: reusedThreadTabs(dock.threadTabs.flatMap((taskId) => threadTabView(state, taskId, busy, blocked))),
   };
 }

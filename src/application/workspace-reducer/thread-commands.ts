@@ -14,10 +14,10 @@ import { coordinationSections } from "../coordination.js";
 import { pruneDeletedThreads } from "../thread-pruning.js";
 import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeById } from "../thread-location.js";
-import { DRAFT_DOCK, blockedThreadIds, busyThreadIds, sideChatIds, type WorkspaceState } from "../workspace-state.js";
+import { DRAFT_DOCK, blockedThreadIds, busyThreadIds, dockFor, sideChatIds, withDock, type WorkspaceState } from "../workspace-state.js";
 import { dismissableThreads, dismissed, readAttention } from "../../domain/attention.js";
 import { clampTitle, type Thread } from "../../domain/thread.js";
-import { withCoordinated } from "../../domain/coordination.js";
+import { coordinatorOf, withCoordinated } from "../../domain/coordination.js";
 import { isSnoozeHours } from "../../domain/thread-snooze.js";
 import { capabilitiesFor, defaultModelFor, effortForModel, engineHasModel, modelHasEffort } from "../../domain/agent-engine.js";
 
@@ -117,14 +117,20 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
       }), TAKE_KEYS);
     }
 
-    /** A side chat is a tab within its source thread, so landing on one lands on that thread first. */
+    /**
+     * A side chat is a tab within its source thread, and a thread under a coordinator a tab within the
+     * coordinator's, so landing on either lands on the thread holding it and opens its tab there.
+     */
     case "task.select": {
       const chat = state.sideChats.find((item) => item.id === input.taskId);
-      const taskId = chat?.sourceThreadId ?? input.taskId;
+      const lead = chat ? undefined : coordinatorOf(state.threads, state.threads.find((item) => item.id === input.taskId));
+      const taskId = chat?.sourceThreadId ?? lead?.id ?? input.taskId;
       const landed = landOnThread(state, taskId);
-      if (!chat) return settled(landed);
-      const shown = showDockTab(readAttention(landed, chat.id), taskId, chat.id);
-      return focusDockTab(shown, taskId, chat.id);
+      if (taskId === input.taskId) return settled(landed);
+      const tabs = dockFor(landed, taskId).threadTabs;
+      const opened = lead && !tabs.includes(input.taskId) ? withDock(landed, taskId, { threadTabs: [...tabs, input.taskId] }) : landed;
+      const shown = showDockTab(readAttention(opened, input.taskId), taskId, input.taskId);
+      return focusDockTab(shown, taskId, input.taskId);
     }
 
     case "task.dismiss": {

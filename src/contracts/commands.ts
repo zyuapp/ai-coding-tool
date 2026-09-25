@@ -363,8 +363,6 @@ export type EngineCommand =
 export type ViewCommand =
   /** A restored desktop view has installed the listeners needed by its input preferences. */
   | { type: "view.mounted" }
-  /** Folds a coordinator's threads away under its row in the sidebar, or opens them again. */
-  | { type: "view.set-coordination-open"; taskId: string; open: boolean }
   | { type: "view.set-prompt"; taskId?: string; prompt: string }
   /**
    * Where a thread was left reading: the message held at the top of its view and how far into it,
@@ -435,6 +433,8 @@ export type ViewCommand =
   | { type: "view.set-dock-expanded"; expanded: boolean }
   | { type: "view.open-dock-panel"; panel: string }
   | { type: "view.close-dock-panel"; panel: string }
+  /** Closes a thread's tab in the coordinator's dock. The thread itself goes on working. */
+  | { type: "view.close-thread-tab"; taskId: string }
   /** Opens the workflow panel on one workflow. The dock remembers which, so leaving and coming back lands back on it. */
   | { type: "view.open-workflow"; workflowId: string }
   | { type: "view.select-dock-tab"; tab: string }

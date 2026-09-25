@@ -9,6 +9,10 @@ const ROLE_ICONS: Record<ThreadRole, IconType> = {
   researcher: FlaskConical,
 };
 
+export function roleIcon(role: ThreadRole): IconType {
+  return ROLE_ICONS[role];
+}
+
 /** The mark a thread with a role carries in its row's rail, in the role's colour. */
 export function ThreadRoleMark({ role, size }: { role: ThreadRole; size: number }) {
   const Icon = ROLE_ICONS[role];

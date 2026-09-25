@@ -3,7 +3,7 @@ import { SideChat } from "./SideChat";
 import { attachDroppedFiles, imageSources } from "../dropped-files";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import type { AppCommand, ReadingPoint } from "../../contracts/commands";
-import type { FindView, SideChatView } from "../../application/workspace-state";
+import type { DockConversationView, FindView, SideChatView } from "../../application/workspace-state";
 import type { AgentEngine, AgentModel } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import type { ThreadHandleOption } from "../../domain/thread-handles";
@@ -16,7 +16,7 @@ type Workspace = ReturnType<typeof useTaskWorkspace>;
 type Dispatch = (command: AppCommand) => Promise<void>;
 
 /** Everything one chat's controls do, built once per chat so a redraw elsewhere never rebuilds them. */
-function chatHandlers(dispatch: Dispatch, chatId: string, images: SideChatView["images"]) {
+export function chatHandlers(dispatch: Dispatch, chatId: string, images: DockConversationView["images"]) {
   return {
     onPrompt: (prompt: string) => void dispatch({ type: "view.set-prompt", taskId: chatId, prompt }),
     onAnnotateAdd: ({ quote, note, anchor }: { quote: string; note: string; anchor: AnnotationAnchor }) =>
@@ -88,7 +88,8 @@ const DockSideChatTab = memo(function DockSideChatTab({ chat, dispatch, attachme
         findBar={findBar}
         sourceTitle={sourceTitle}
         sourceContinued={sourceContinued}
-        {...(project ? { project } : {})}
+        folder={project?.root ?? ""}
+        {...(project?.workspaceId ? { workspaceId: project.workspaceId } : {})}
         threads={threads}
         readingPoint={chat.readingPoint}
         {...handlers}

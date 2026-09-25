@@ -2409,10 +2409,11 @@ pre {
 .side-chat-transcript .message-text { font-size: var(--text-content); }
 .side-chat-error { margin: 0; padding: 9px 17px; border-top: 1px solid var(--danger-line); background: var(--danger-surface); color: var(--danger-soft); font-size: var(--text-control); }
 /** The side chat lays its own rows out, so the composer takes the row it falls in rather than the workspace's third. */
-.composer-wrap.side { grid-column: auto; grid-row: auto; padding: 10px 14px 0; background: none; }
-.composer-wrap.side .composer { border-radius: 14px; }
-.composer-wrap.side .queued-row { grid-column: auto; grid-row: auto; }
+.composer-wrap.side, .composer-wrap.tab { grid-column: auto; grid-row: auto; padding: 10px 14px 0; background: none; }
+.composer-wrap.side .composer, .composer-wrap.tab .composer { border-radius: 14px; }
+.composer-wrap.side .queued-row, .composer-wrap.tab .queued-row { grid-column: auto; grid-row: auto; }
 .composer-wrap.side textarea:disabled { cursor: not-allowed; }
+.composer-wrap.tab { padding-bottom: 14px; }
 .side-chat-note { margin: 7px 17px 12px; color: var(--quiet-soft); font-size: var(--text-meta); }
 .inspector-header {
   display: flex;

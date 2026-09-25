@@ -29,15 +29,20 @@ const NOTHING = () => {};
 
 export type { ComposerAction };
 
-function composerPlaceholder(surface: "main" | "side", folder: string, disabled: boolean, engineLabel: string) {
+function composerPlaceholder(surface: ComposerSurface, folder: string, disabled: boolean, engineLabel: string) {
   if (surface === "side") return disabled ? "Main context required" : "Ask a side question";
+  if (surface === "tab") return "Reply to this thread";
   return folder ? `Ask ${engineLabel} to work on anything` : `Ask ${engineLabel} anything`;
 }
 
-function sendLabel(surface: "main" | "side", runActive: boolean) {
+function sendLabel(surface: ComposerSurface, runActive: boolean) {
   if (surface === "side") return runActive ? "Stop side chat" : "Send side chat message";
+  if (surface === "tab") return runActive ? "Stop thread" : "Send message";
   return runActive ? "Stop task" : "Send task";
 }
+
+/** Where a composer is drawn: under the thread on screen, in a side chat, or in a thread's dock tab. */
+export type ComposerSurface = "main" | "side" | "tab";
 
 export type ConversationComposerProps = {
   taskId?: string;
@@ -45,7 +50,7 @@ export type ConversationComposerProps = {
   folder: string;
   workspaceId?: string;
   /** Where the composer sits. */
-  surface?: "main" | "side";
+  surface?: ComposerSurface;
   /** Runnable `/` entries. A surface that performs none, as a side chat does, passes none. */
   actions?: ComposerAction[];
   /** The app-owned `/review` flow, when this composer opened it. */
@@ -237,7 +242,7 @@ export function ConversationComposer({
           onKeyDown={(event) => composerKeyDown(event, { menus, runActive, sending: attachments.sending, stepRecall, submit })}
           disabled={disabled}
           placeholder={composerPlaceholder(surface, folder, disabled, engineLabel)}
-          aria-label={surface === "side" ? "Side chat prompt" : "Task prompt"}
+          aria-label={surface === "side" ? "Side chat prompt" : surface === "tab" ? "Thread prompt" : "Task prompt"}
           aria-autocomplete="list"
           aria-controls={reviewPicker ? "review-picker" : menuControls(menus)}
           aria-expanded={Boolean(reviewPicker) || menus.commandMenuOpen || menus.threadMenuOpen}
