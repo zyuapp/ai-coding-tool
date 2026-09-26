@@ -57,11 +57,11 @@ function environmentMessage(environment: ChangedFilesResult | null, hasProject: 
   return null;
 }
 
-type BranchRowProps = Pick<SessionPanelProps, "workspaceId" | "openMenu" | "onSetOpenMenu" | "onCheckoutBranch"> & { branch: string | null; menu: string };
+type BranchRowProps = Pick<SessionPanelProps, "workspaceId" | "openMenu" | "onSetOpenMenu" | "onCheckoutBranch"> & { branch: string | null };
 
 /** The branch the checkout is on, and the list that moves it onto another. */
-function BranchRow({ branch, menu: menuId, workspaceId, openMenu, onSetOpenMenu, onCheckoutBranch }: BranchRowProps) {
-  const open = openMenu === menuId;
+function BranchRow({ branch, workspaceId, openMenu, onSetOpenMenu, onCheckoutBranch }: BranchRowProps) {
+  const open = openMenu === BRANCH_MENU;
   const row = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -79,7 +79,7 @@ function BranchRow({ branch, menu: menuId, workspaceId, openMenu, onSetOpenMenu,
         aria-haspopup="listbox"
         aria-expanded={open}
         disabled={!workspaceId}
-        onClick={() => onSetOpenMenu(open ? null : menuId)}
+        onClick={() => onSetOpenMenu(open ? null : BRANCH_MENU)}
       >
         <span className="session-row-icon"><GitBranch size={18} /></span>
         <span>Branch</span>
@@ -103,14 +103,14 @@ function BranchRow({ branch, menu: menuId, workspaceId, openMenu, onSetOpenMenu,
 }
 
 /** Which icon says the state, so the row is not read by its colour alone. */
-const PULL_REQUEST_ICONS: Record<PullRequestState, typeof GitPullRequest> = {
+export const PULL_REQUEST_ICONS: Record<PullRequestState, typeof GitPullRequest> = {
   draft: GitPullRequestDraft,
   open: GitPullRequest,
   merged: GitMerge,
   closed: GitPullRequestClosed,
 };
 
-const GITHUB_CLI_URL = "https://cli.github.com";
+export const GITHUB_CLI_URL = "https://cli.github.com";
 
 /** Drawn only when there is a pull request: a row saying there is none would be worth less than the space. */
 function PullRequestRow({ pullRequest }: { pullRequest: PullRequestRef }) {
@@ -151,13 +151,13 @@ function InstallGitHubCliRow() {
   );
 }
 
-export type SessionEnvironmentProps = Pick<SessionPanelProps,
+type SessionEnvironmentProps = Pick<SessionPanelProps,
   "environment" | "hasProject" | "workspaceId" | "pullRequest" | "locationRow" | "openMenu" | "automationCount"
   | "onOpenAutomations" | "onToggleChanges" | "onSetOpenMenu" | "onCheckoutBranch"
-> & { branchMenu: string };
+>;
 
 /** A thread's checkout, the branch and pull request it is on, and the schedule that repeats it. */
-export function SessionEnvironment({ environment, hasProject, workspaceId, pullRequest, locationRow, openMenu, automationCount, branchMenu, onOpenAutomations, onToggleChanges, onSetOpenMenu, onCheckoutBranch }: SessionEnvironmentProps) {
+function SessionEnvironment({ environment, hasProject, workspaceId, pullRequest, locationRow, openMenu, automationCount, onOpenAutomations, onToggleChanges, onSetOpenMenu, onCheckoutBranch }: SessionEnvironmentProps) {
   const available = environment?.status === "available" ? environment : null;
   const message = environmentMessage(environment, hasProject, workspaceId);
   return (
@@ -180,7 +180,6 @@ export function SessionEnvironment({ environment, hasProject, workspaceId, pullR
       </button>
       <BranchRow
         branch={available?.branch ?? null}
-        menu={branchMenu}
         {...(workspaceId ? { workspaceId } : {})}
         openMenu={openMenu}
         onSetOpenMenu={onSetOpenMenu}
@@ -226,7 +225,6 @@ export function SessionPanel({ environment, hasProject, workspaceId, pullRequest
           locationRow={locationRow}
           openMenu={openMenu}
           automationCount={automationCount}
-          branchMenu={BRANCH_MENU}
           onOpenAutomations={onOpenAutomations}
           onToggleChanges={onToggleChanges}
           onSetOpenMenu={onSetOpenMenu}

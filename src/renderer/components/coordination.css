@@ -153,11 +153,70 @@
 .thread-tab-mark.asking, .thread-tab-mark.approval { border-color: var(--accent-line); background: var(--accent-surface); }
 .side-chat-title .thread-tab-status.asking, .side-chat-title .thread-tab-status.approval { color: var(--accent); }
 .side-chat-title .thread-tab-status.blocked, .side-chat-title .thread-tab-status.failed { color: var(--danger-soft); }
-.thread-tab-brief { flex: none; max-height: 40%; overflow: auto; border-bottom: 1px solid var(--line-soft); font-size: var(--text-menu); }
-.thread-tab-brief summary { padding: 8px 20px; }
-.thread-tab-brief dl { padding: 2px 20px 12px; }
 .coordination-empty { margin: 0; padding: 14px 16px; }
-/** The thread's own rows, two to a line so the conversation keeps the height. */
-.thread-tab-session { flex: none; border-bottom: 1px solid var(--line-soft); }
-.thread-tab-session .session-environment { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 6px; padding: 4px 14px; }
-.thread-tab-session .session-note { grid-column: 1 / -1; margin: 2px 6px 6px; }
+/** The thread's checkout and brief as one line of chips, read as part of the header above it. */
+.thread-tab > .thread-tab-header { border-bottom: 0; }
+.thread-tab-strip {
+  flex: none;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid var(--line);
+  padding: 0 17px 12px 20px;
+}
+.thread-tab-chip {
+  min-width: 0;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 0 9px;
+  color: var(--ink-dim);
+  font: inherit;
+  font-size: var(--text-meta);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.thread-tab-chip:hover, .thread-tab-chip.open { border-color: var(--line); background: var(--surface-hover); color: var(--ink-soft); }
+.thread-tab-chip > svg { flex: none; color: var(--muted); }
+.thread-tab-chip.quiet { background: transparent; color: var(--quiet); }
+.thread-tab-chip.quiet > svg { color: var(--quiet); }
+.thread-tab-chip.scheduled > svg { color: var(--info); }
+.thread-tab-branch code { min-width: 0; max-width: 160px; overflow: hidden; color: var(--ink-dim); font: var(--text-meta)/1 var(--mono); text-overflow: ellipsis; }
+.thread-tab-branch > svg:last-child { color: var(--quiet); }
+.thread-tab-pull-request[data-state="open"] > svg { color: var(--success); }
+.thread-tab-pull-request[data-state="merged"] > svg { color: var(--pr-merged); }
+.thread-tab-pull-request[data-state="closed"] > svg { color: var(--danger); }
+.thread-tab-note { min-width: 0; overflow: hidden; color: var(--quiet); font-size: var(--text-meta); text-overflow: ellipsis; white-space: nowrap; }
+.thread-tab-brief-toggle { margin-left: auto; }
+.thread-tab-brief-toggle > svg:last-child { color: var(--quiet); transition: transform 140ms ease; }
+.thread-tab-brief-toggle.open > svg:last-child { transform: rotate(180deg); }
+.thread-tab-brief-card {
+  flex: none;
+  max-height: 40%;
+  overflow: auto;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  padding: 14px 20px 16px;
+  animation: brief-in 140ms ease-out;
+}
+@keyframes brief-in { from { opacity: 0; transform: translateY(-4px); } }
+.thread-tab-brief-card blockquote {
+  margin: 0;
+  border-left: 2px solid var(--accent-line);
+  padding-left: 12px;
+  color: var(--ink-soft);
+  font-size: var(--text-menu);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.thread-tab-brief-card dl { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; margin: 14px 0 0; }
+.thread-tab-brief-card dt { color: var(--quiet); font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.thread-tab-brief-card dd { margin: 4px 0 0; color: var(--ink-dim); font-size: var(--text-meta); line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }

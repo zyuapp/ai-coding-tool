@@ -4,12 +4,11 @@ import { DockConversation } from "./SideChat";
 import { chatHandlers } from "./DockSideChat";
 import { CoordinationStatusMark, coordinationStatusLine } from "./Coordination";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
-import { SessionEnvironment } from "./SessionPanel";
+import { ThreadTabStrip } from "./ThreadTabStrip";
 import { branchOf } from "../../application/pull-request-view";
 import { AUTOMATION_PANEL } from "../../application/workspace-reducer";
 import { usePullRequestReads } from "../task-workspace/pull-request-reads";
 import { attachmentSendFor, type AttachmentSendState } from "../../application/composer-attachments";
-import { deliveryLabel } from "../../domain/coordination";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import type { AppCommand } from "../../contracts/commands";
 import type { FindView, ThreadTabView } from "../../application/workspace-state";
@@ -32,29 +31,7 @@ function PullRequestReads({ tab, dispatch }: { tab: ThreadTabView; dispatch: Dis
   return null;
 }
 
-/** The thread's own checkout, branch and schedule, working the way its session panel does. */
-function ThreadTabSession({ tab, dispatch, branchMenuOpen }: { tab: ThreadTabView; dispatch: Dispatch; branchMenuOpen: boolean }) {
-  const menu = branchMenuOf(tab.id);
-  return (
-    <div className="thread-tab-session">
-      <SessionEnvironment
-        environment={tab.environment}
-        hasProject={Boolean(tab.folder)}
-        {...(tab.workspaceId ? { workspaceId: tab.workspaceId } : {})}
-        pullRequest={tab.pullRequest}
-        openMenu={branchMenuOpen ? menu : null}
-        automationCount={tab.automation ? 1 : 0}
-        branchMenu={menu}
-        onOpenAutomations={() => void dispatch({ type: "view.open-dock-panel", panel: AUTOMATION_PANEL, taskId: tab.id })}
-        onToggleChanges={() => void dispatch({ type: "diff.toggle", taskId: tab.id })}
-        onSetOpenMenu={(open) => void dispatch({ type: "view.set-menu", menu: open })}
-        onCheckoutBranch={(branch, create) => void dispatch({ type: "task.checkout-branch", taskId: tab.id, branch, ...(create ? { create } : {}) })}
-      />
-    </div>
-  );
-}
-
-/** Who the thread is and where its work stands, with what it was asked folded underneath. */
+/** Who the thread is and where its work stands, with its checkout and brief underneath. */
 function ThreadTabHeader({ tab, leadTitle, dispatch, branchMenuOpen, onClose }: { tab: ThreadTabView; leadTitle: string; dispatch: Dispatch; branchMenuOpen: boolean; onClose: () => void }) {
   const { thread, standing, summary } = tab;
   return (
@@ -72,17 +49,16 @@ function ThreadTabHeader({ tab, leadTitle, dispatch, branchMenuOpen, onClose }: 
         </div>
         <button type="button" aria-label={`Close ${thread.title}`} title={`Back to ${leadTitle}`} onClick={onClose}><X size={18} /></button>
       </header>
-      <ThreadTabSession tab={tab} dispatch={dispatch} branchMenuOpen={branchMenuOpen} />
-      {thread.brief && (
-        <details className="coordination-brief thread-tab-brief">
-          <summary>Brief</summary>
-          <dl>
-            <dt>Your words</dt><dd className="coordination-brief-intent">{thread.brief.intent}</dd>
-            <dt>Done when</dt><dd>{thread.brief.doneWhen}</dd>
-            <dt>Delivers</dt><dd>{deliveryLabel(thread.brief.delivers)}</dd>
-          </dl>
-        </details>
-      )}
+      <ThreadTabStrip
+        tab={tab}
+        branchMenuOpen={branchMenuOpen}
+        actions={{
+          onToggleChanges: () => void dispatch({ type: "diff.toggle", taskId: tab.id }),
+          onOpenAutomations: () => void dispatch({ type: "view.open-dock-panel", panel: AUTOMATION_PANEL, taskId: tab.id }),
+          onSetBranchMenuOpen: (open) => void dispatch({ type: "view.set-menu", menu: open ? branchMenuOf(tab.id) : null }),
+          onCheckoutBranch: (branch, create) => void dispatch({ type: "task.checkout-branch", taskId: tab.id, branch, ...(create ? { create } : {}) }),
+        }}
+      />
     </>
   );
 }
