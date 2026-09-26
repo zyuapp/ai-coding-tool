@@ -1,5 +1,6 @@
 /** The pull request the checkout in front belongs to, and which ask each answer belongs to. */
 import { currentWorkspaceId } from "./environment.js";
+import { threadWorkspaceId } from "../thread-location.js";
 import { settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { branchOf } from "../pull-request-view.js";
@@ -11,7 +12,7 @@ type PullRequestInput = Extract<WorkspaceInput, { type: "pull-request.read" | "p
 export function reducePullRequests(state: WorkspaceState, input: PullRequestInput): WorkspaceTransition {
   switch (input.type) {
     case "pull-request.read": {
-      const workspaceId = currentWorkspaceId(state);
+      const workspaceId = input.taskId ? threadWorkspaceId(state, state.threads.find((thread) => thread.id === input.taskId)) : currentWorkspaceId(state);
       /** Nothing to ask about leaves nothing to draw, so the answer the last checkout gave goes too. */
       if (!workspaceId) return settled(state.pullRequest === null ? state : { ...state, pullRequest: null });
       const branch = branchOf(state.environments[workspaceId] ?? null);

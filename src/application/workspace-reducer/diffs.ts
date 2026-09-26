@@ -3,12 +3,12 @@ import { reduceDock } from "./dock.js";
 import { browserEffectsForTab } from "./browser-tabs.js";
 import { defaultBranchRange, readDiff, readDiffFrom } from "./diff-reads.js";
 import { focusDockTab, showDockTab } from "./dock-tabs.js";
-import { currentWorkspaceId, environmentFor, refreshEnvironment, retainedEnvironments, sameChangedFiles } from "./environment.js";
+import { environmentFor, refreshEnvironment, retainedEnvironments, sameChangedFiles, subjectWorkspaceId } from "./environment.js";
 import { now, sameStrings, settled, rejected } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { updateThread } from "../thread-run-state.js";
 import { threadWorkspaceId } from "../thread-location.js";
-import { DIFF_PANEL, diffFor, diffMatches, dockFor, dockOwner, foldedOnLoad, retainedViews, withDiff, withDock, type WorkspaceState } from "../workspace-state.js";
+import { DIFF_PANEL, diffFor, diffMatches, dockFor, dockOwner, dockSubject, foldedOnLoad, retainedViews, withDiff, withDock, type WorkspaceState } from "../workspace-state.js";
 import { fileFingerprint, modeForRange, rangeKey, UNCOMMITTED } from "../../domain/diff.js";
 import { isCommitHash } from "../../domain/message-artifacts.js";
 
@@ -36,11 +36,12 @@ export function reduceDiffs(state: WorkspaceState, input: DiffInput): WorkspaceT
       return settled(state, refreshEnvironment(state));
 
     case "diff.toggle": {
-      const dock = dockFor(state, dockOwner(state));
-      const showing = dock.open && dock.tab === DIFF_PANEL;
+      const owner = dockOwner(state);
+      const dock = dockFor(state, owner);
+      const showing = dock.open && dock.tab === DIFF_PANEL && dockSubject(state, owner, DIFF_PANEL) === (input.taskId ?? null);
       return reduceDock(state, showing
         ? { type: "view.close-dock-panel", panel: DIFF_PANEL }
-        : { type: "view.open-dock-panel", panel: DIFF_PANEL });
+        : { type: "view.open-dock-panel", panel: DIFF_PANEL, ...(input.taskId ? { taskId: input.taskId } : {}) });
     }
 
     case "diff.refresh": {
@@ -54,7 +55,7 @@ export function reduceDiffs(state: WorkspaceState, input: DiffInput): WorkspaceT
       const closed = { ...state, openMenu: null };
       if (diff.mode === input.mode) return settled(closed);
       const range = input.mode === "uncommitted" ? UNCOMMITTED
-        : (diff.workspaceId === currentWorkspaceId(state) ? diff.branchRange : undefined) ?? defaultBranchRange(state);
+        : (diff.workspaceId === subjectWorkspaceId(state, owner) ? diff.branchRange : undefined) ?? defaultBranchRange(state, owner);
       return readDiff(closed, owner, range, { mode: input.mode, result: null, collapsed: [], viewed: {} });
     }
 

@@ -1,7 +1,7 @@
 /** A run's life: the checkout it resolves to, what it reports, and how it ends. */
 import { ack } from "./automations.js";
 import { settleCoordination } from "./coordination.js";
-import { readDiffFrom } from "./diff-reads.js";
+import { readDiffFrom, rereadReviewsOf } from "./diff-reads.js";
 import { handOverDraftDock } from "./dock-tabs.js";
 import { WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
 import { beginRun, clearedDraft, drainQueue, queuedFor, resolveWorkspaceEffect, sideChannelFor, startRunCommand, threadBusy, withAttendedRun, withDeliveredMessage, withPending, withQueued, withSideChat, withSteeringFailure, withoutPending } from "./run-queue.js";
@@ -169,9 +169,7 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       const finished = event.type === "run.status" && (event.status === "succeeded" || event.status === "failed");
       const workspaceId = threadWorkspaceId(state, state.threads.find((thread) => thread.id === event.taskId));
       /** A review the thread has open is only as current as the run that was writing under it. */
-      const settledDiff = finished && workspaceId && next.diffs[event.taskId]
-        ? readDiffFrom(next, event.taskId, workspaceId, next.diffs[event.taskId].range)
-        : settled(next);
+      const settledDiff = finished && workspaceId ? rereadReviewsOf(next, event.taskId, workspaceId) : settled(next);
       next = settledDiff.state;
       const environment: WorkspaceEffect[] = finished && workspaceId
         ? [{ type: "refresh-environment", workspaceId, taskId: event.taskId, runId: event.runId }, ...settledDiff.effects]

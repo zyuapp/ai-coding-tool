@@ -6,7 +6,8 @@ import { AgentsPanel } from "./SubagentList";
 import { SubagentInspector } from "./SubagentInspector";
 import { WorkflowPanel } from "./WorkflowPanel";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
-import { DIFF_PANEL } from "../../application/workspace-reducer";
+import { AUTOMATION_PANEL, DIFF_PANEL } from "../../application/workspace-reducer";
+import { engineLabel } from "../../domain/agent-engine";
 import type { DiffState } from "../../application/workspace-state";
 import type { FindTarget } from "../../domain/find";
 import type { ReactNode } from "react";
@@ -70,6 +71,11 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
   const findingAgents = searchedPanel === "agents";
 
   const { subagents: feedsSubagents, workflows: feedsWorkflows } = workspace.capabilities;
+  /** A coordinator's review and schedule can be about one of its thread tabs rather than itself. */
+  const reviewed = workspace.threadTabs.find((tab) => tab.id === workspace.reviewSubject);
+  const scheduled = workspace.threadTabs.find((tab) => tab.id === workspace.automationSubject);
+  const reviewedEnvironment = reviewed ? reviewed.environment : workspace.environment;
+  const reviewedWorkspaceId = reviewed ? reviewed.workspaceId : workspace.workspaceId;
 
   const panels: DockPanel[] = [
     ...(feedsSubagents ? [{
@@ -100,7 +106,7 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
     }] : []),
     {
       id: DIFF_PANEL,
-      title: "Changes",
+      title: reviewed ? `Changes · ${reviewed.title}` : "Changes",
       description: "Review the diff and comment on it",
       command: "diff",
       icon: FileDiff,
@@ -108,10 +114,10 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
       render: () => (
         <DiffPanel
           /** Per thread, so a selection or a half-typed note never carries into another thread's review. */
-          key={workspace.currentThread?.id ?? "draft"}
+          key={reviewed?.id ?? workspace.currentThread?.id ?? "draft"}
           diff={workspace.diff}
-          workspaceId={workspace.diff.workspaceId ?? workspace.workspaceId}
-          currentBranch={workspace.environment?.status === "available" && (!workspace.diff.workspaceId || workspace.diff.workspaceId === workspace.workspaceId) ? workspace.environment.branch : null}
+          workspaceId={workspace.diff.workspaceId ?? reviewedWorkspaceId}
+          currentBranch={reviewedEnvironment?.status === "available" && (!workspace.diff.workspaceId || workspace.diff.workspaceId === reviewedWorkspaceId) ? reviewedEnvironment.branch : null}
           openMenu={workspace.openMenu}
           onSetOpenMenu={workspace.actions.setOpenMenu}
           find={reviewFind}
@@ -123,29 +129,29 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
           onSetSplit={workspace.actions.setDiffSplit}
           onSetIgnoreWhitespace={workspace.actions.setDiffIgnoreWhitespace}
           onRefresh={workspace.actions.refreshDiff}
-          onOpenFile={(path) => void workspace.dispatch({ type: "file.open", path })}
-          annotations={workspace.annotations}
-          onComment={(quote, note, anchor) => void workspace.dispatch({ type: "annotation.add", quote, note, anchor })}
-          onEditComment={(annotationId, note) => void workspace.dispatch({ type: "annotation.note", annotationId, note })}
-          onRemoveComment={(annotationId) => void workspace.dispatch({ type: "annotation.remove", annotationId })}
+          onOpenFile={(path) => void workspace.dispatch({ type: "file.open", path, ...(reviewed ? { taskId: reviewed.id } : {}) })}
+          annotations={reviewed ? reviewed.annotations : workspace.annotations}
+          onComment={(quote, note, anchor) => void workspace.dispatch({ type: "annotation.add", quote, note, anchor, ...(reviewed ? { taskId: reviewed.id } : {}) })}
+          onEditComment={(annotationId, note) => void workspace.dispatch({ type: "annotation.note", annotationId, note, ...(reviewed ? { taskId: reviewed.id } : {}) })}
+          onRemoveComment={(annotationId) => void workspace.dispatch({ type: "annotation.remove", annotationId, ...(reviewed ? { taskId: reviewed.id } : {}) })}
         />
       ),
     },
     {
-      id: "automation",
-      title: "Automation",
+      id: AUTOMATION_PANEL,
+      title: scheduled ? `Automation · ${scheduled.title}` : "Automation",
       description: "Edit the schedule that repeats this task",
       command: "automation",
       icon: AlarmClock,
       render: () => (
         <AutomationPanel
-          automation={workspace.automation}
-          engineLabel={workspace.engineLabel}
-          lastFoundAt={workspace.lastFoundAt}
-          lastChecked={workspace.lastChecked}
-          onUpdate={(patch) => void workspace.actions.updateAutomation(patch)}
-          onDelete={() => void workspace.actions.deleteAutomation()}
-          onRunNow={() => void workspace.actions.runAutomationNow()}
+          automation={scheduled ? scheduled.automation : workspace.automation}
+          engineLabel={scheduled ? engineLabel(scheduled.thread.engine) : workspace.engineLabel}
+          lastFoundAt={scheduled ? scheduled.thread.lastFindingAt ?? null : workspace.lastFoundAt}
+          lastChecked={scheduled ? scheduled.thread.lastChecked ?? null : workspace.lastChecked}
+          onUpdate={(patch) => void workspace.actions.updateAutomation(patch, scheduled?.id)}
+          onDelete={() => void workspace.actions.deleteAutomation(scheduled?.id)}
+          onRunNow={() => void workspace.actions.runAutomationNow(scheduled?.id)}
         />
       ),
     },

@@ -2,6 +2,7 @@
 import { reduceWorktrees } from "./worktrees.js";
 import { retireAutomations } from "./automations.js";
 import { TAKE_KEYS, disposeDocks, focusDockTab, showDockTab } from "./dock-tabs.js";
+import { refreshThreadEnvironment } from "./environment.js";
 import { closeSideChats } from "./side-chats.js";
 import { now, rejected, settled, targetId } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
@@ -130,7 +131,8 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
       const tabs = dockFor(landed, taskId).threadTabs;
       const opened = lead && !tabs.includes(input.taskId) ? withDock(landed, taskId, { threadTabs: [...tabs, input.taskId] }) : landed;
       const shown = showDockTab(readAttention(opened, input.taskId), taskId, input.taskId);
-      return focusDockTab(shown, taskId, input.taskId);
+      const focused = focusDockTab(shown, taskId, input.taskId);
+      return lead ? { ...focused, effects: [...focused.effects, ...refreshThreadEnvironment(focused.state, input.taskId)] } : focused;
     }
 
     case "task.dismiss": {

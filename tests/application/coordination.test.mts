@@ -142,6 +142,34 @@ test("a thread under a coordinator opens as a tab in the coordinator's dock rath
   assert.equal(alone.currentId, "other", "a thread on its own is landed on as before");
 });
 
+test("a thread's tab reviews, schedules and reads the pull request of the thread's own checkout", () => {
+  const projects = [{ id: "a", root: "/a", workspaceId: "workspace-a" }, { id: "b", root: "/b", workspaceId: "workspace-b" }];
+  const state = workspace({ projects, threads: [lead("lead", { projectId: "a" }), task("worker", { parentId: "lead", projectId: "b" })], currentId: "lead" });
+  const selected = reduce(state, { type: "task.select", taskId: "worker" });
+  assert.ok(selected.effects.some((effect) => effect.type === "refresh-environment" && effect.workspaceId === "workspace-b"), "opening the tab reads its checkout");
+
+  const reviewing = reduce(selected.state, { type: "diff.toggle", taskId: "worker" });
+  assert.equal(reviewing.state.docks.lead?.tab, "diff");
+  assert.equal(effectOf(reviewing, "read-diff").workspaceId, "workspace-b");
+  assert.equal(deriveView(reviewing.state).reviewSubject, "worker");
+  const refreshed = reduce(reviewing.state, { type: "diff.refresh" });
+  assert.equal(effectOf(refreshed, "read-diff").workspaceId, "workspace-b", "the review stays on the tab's checkout");
+
+  const own = reduce(reviewing.state, { type: "diff.toggle" });
+  assert.equal(effectOf(own, "read-diff").workspaceId, "workspace-a", "the coordinator's own review is its checkout");
+  assert.equal(deriveView(own.state).reviewSubject, null);
+
+  const closed = reduce(reviewing.state, { type: "view.close-thread-tab", taskId: "worker" });
+  assert.equal(effectOf(closed, "read-diff").workspaceId, "workspace-a", "closing the tab takes the review back to the coordinator");
+
+  const scheduled = reduce(selected.state, { type: "view.open-dock-panel", panel: "automation", taskId: "worker" }).state;
+  assert.equal(deriveView(scheduled).automationSubject, "worker");
+  assert.equal(effectOf(reduce(scheduled, { type: "automation.run-now", taskId: "worker" }), "automation.run-now").taskId, "worker");
+
+  assert.equal(effectOf(reduce(selected.state, { type: "pull-request.read", taskId: "worker" }), "read-pull-request").workspaceId, "workspace-b");
+  assert.equal(effectOf(reduce(selected.state, { type: "task.checkout-branch", taskId: "worker", branch: "main" }), "checkout-branch").workspaceId, "workspace-b");
+});
+
 test("the app never opens on a thread under a coordinator", () => {
   const restored = reduce(workspace(), { type: "store.loaded", data: { version: THREAD_STORE_VERSION, tasks: [task("worker", { parentId: "lead" }), lead()], projects: [], worktrees: [], lastFolder: null } });
   assert.equal(restored.state.currentId, "lead");

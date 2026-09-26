@@ -7,7 +7,11 @@ import { runStatusFor, type ApprovalView, type StreamingTail, type ThreadRunStat
 import { annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-drafts.js";
 import { coordinatedThreadStatus, type CoordinatedThreadStatus } from "./coordination.js";
 import { projectFor, threadWorkspaceId } from "./thread-location.js";
+import { pullRequestFor } from "./pull-request-view.js";
 import type { Thread } from "../domain/thread.js";
+import type { AutomationView } from "../domain/automation.js";
+import type { PullRequestAnswer } from "../domain/pull-request.js";
+import type { ChangedFilesResult } from "../contracts/ipc.js";
 
 const NO_QUEUED: QueuedMessage[] = [];
 
@@ -40,6 +44,10 @@ export type ThreadTabView = DockConversationView & {
   summary: string | null;
   folder: string;
   workspaceId?: string;
+  /** What Git last said about the thread's checkout, and the pull request its branch belongs to. */
+  environment: ChangedFilesResult | null;
+  pullRequest: PullRequestAnswer;
+  automation: AutomationView | null;
 };
 
 /** One thread drawn in a dock tab, projected from the thread and its active run. */
@@ -79,5 +87,15 @@ export function threadTabView(state: WorkspaceState, taskId: string, busy: Set<s
   if (!thread) return [];
   const { status: standing, summary } = coordinatedThreadStatus(thread, busy, blocked);
   const workspaceId = threadWorkspaceId(state, thread);
-  return [{ ...dockConversationView(state, thread), standing, summary, folder: projectFor(state, thread)?.root ?? "", ...(workspaceId ? { workspaceId } : {}) }];
+  const environment = (workspaceId ? state.environments[workspaceId] : undefined) ?? null;
+  return [{
+    ...dockConversationView(state, thread),
+    standing,
+    summary,
+    folder: projectFor(state, thread)?.root ?? "",
+    ...(workspaceId ? { workspaceId } : {}),
+    environment,
+    pullRequest: pullRequestFor(state.pullRequest, workspaceId, environment),
+    automation: state.automations.find((item) => item.taskId === thread.id) ?? null,
+  }];
 }

@@ -1,9 +1,9 @@
 /** The comparison a dock holds, and the reads that keep it pointed at the right checkout. */
-import { currentWorkspaceId, environmentFor } from "./environment.js";
+import { environmentFor, subjectWorkspaceId } from "./environment.js";
 import { settled } from "./shared.js";
 import type { WorkspaceTransition } from "./types.js";
 import { threadWorkspaceId } from "../thread-location.js";
-import { diffFor, withDiff, type DiffState, type WorkspaceState } from "../workspace-state.js";
+import { DIFF_PANEL, diffFor, dockSubject, withDiff, type DiffState, type WorkspaceState } from "../workspace-state.js";
 import { DEFAULT_BRANCH_RANGE, modeForRange, type DiffRange } from "../../domain/diff.js";
 
 /**
@@ -11,13 +11,13 @@ import { DEFAULT_BRANCH_RANGE, modeForRange, type DiffRange } from "../../domain
  * a review reached from that row starts on the same comparison and reports the same totals. Without
  * an origin to measure from the Branch mode compares the working tree from HEAD.
  */
-export function initialRange(state: WorkspaceState, diff: DiffState): DiffRange {
+export function initialRange(state: WorkspaceState, owner: string, diff: DiffState): DiffRange {
   if (diff.mode !== "branch" || diff.workspaceId !== null || diff.result !== null) return diff.range;
-  return defaultBranchRange(state);
+  return defaultBranchRange(state, owner);
 }
 
-export function defaultBranchRange(state: WorkspaceState): Extract<DiffRange, { kind: "branches" }> {
-  const counted = environmentFor(state, currentWorkspaceId(state));
+export function defaultBranchRange(state: WorkspaceState, owner: string): Extract<DiffRange, { kind: "branches" }> {
+  const counted = environmentFor(state, subjectWorkspaceId(state, owner));
   const baseline = counted?.status === "available" ? counted.baseline : null;
   return baseline ? { kind: "branches", base: baseline, compare: null } : DEFAULT_BRANCH_RANGE;
 }
@@ -44,9 +44,9 @@ export function readDiffFrom(state: WorkspaceState, owner: string, workspaceId: 
   );
 }
 
-/** The same, for the thread the user is looking at. */
+/** The same, for the checkout the dock's review is about. */
 export function readDiff(state: WorkspaceState, owner: string, range: DiffRange, patch: Partial<DiffState> = {}): WorkspaceTransition {
-  const workspaceId = range.kind === "commit" ? diffFor(state, owner).workspaceId ?? currentWorkspaceId(state) : currentWorkspaceId(state);
+  const workspaceId = range.kind === "commit" ? diffFor(state, owner).workspaceId ?? subjectWorkspaceId(state, owner) : subjectWorkspaceId(state, owner);
   return readDiffFrom(state, owner, workspaceId, range, patch);
 }
 
@@ -57,6 +57,20 @@ export function readDiff(state: WorkspaceState, owner: string, range: DiffRange,
 export function rereadDiff(state: WorkspaceState, taskId: string): WorkspaceTransition {
   const diff = state.diffs[taskId];
   if (!diff) return settled(state);
-  const workspaceId = threadWorkspaceId(state, state.threads.find((thread) => thread.id === taskId));
+  const subject = dockSubject(state, taskId, DIFF_PANEL) ?? taskId;
+  const workspaceId = threadWorkspaceId(state, state.threads.find((thread) => thread.id === subject));
   return diff.workspaceId === workspaceId ? settled(state) : readDiffFrom(state, taskId, workspaceId, diff.range, { result: null, collapsed: [], viewed: {} });
+}
+
+/** Every review of a thread's checkout: its own dock's, and a coordinator's that has its tab as the subject. */
+export function rereadReviewsOf(state: WorkspaceState, taskId: string, workspaceId: string): WorkspaceTransition {
+  let next = state;
+  const effects: WorkspaceTransition["effects"] = [];
+  for (const [owner, diff] of Object.entries(state.diffs)) {
+    if ((dockSubject(state, owner, DIFF_PANEL) ?? owner) !== taskId) continue;
+    const read = readDiffFrom(next, owner, workspaceId, diff.range);
+    next = read.state;
+    effects.push(...read.effects);
+  }
+  return settled(next, effects);
 }

@@ -139,7 +139,7 @@ export function isWorkspaceViewInput(value: unknown): value is WorkspaceViewInpu
 
 const shapes = {
   "view.mounted": {},
-  "diff.toggle": {  },
+  "diff.toggle": { taskId: optionalText },
   "diff.refresh": {  },
   "diff.set-range": { range: isDiffRange },
   "diff.set-mode": { mode: literals("uncommitted", "branch") },
@@ -296,7 +296,7 @@ const shapes = {
   "view.new-tab": {  },
   "view.set-dock-open": { open: boolean },
   "view.set-dock-expanded": { expanded: boolean },
-  "view.open-dock-panel": { panel: text },
+  "view.open-dock-panel": { panel: text, taskId: optionalText },
   "view.close-dock-panel": { panel: text },
   "view.close-thread-tab": { taskId: text },
   "view.open-workflow": { workflowId: text },
@@ -314,7 +314,7 @@ const shapes = {
   "view.capture-shortcut": { action: nullableText },
   "view.dismiss-computer-use-setup": {  },
   "view.refresh-environment": {  },
-  "pull-request.read": {  },
+  "pull-request.read": { taskId: optionalText },
   "app.list": {  },
   "usage.read": {  },
   "computer-use.read": {  },

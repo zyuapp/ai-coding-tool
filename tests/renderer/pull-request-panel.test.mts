@@ -19,8 +19,6 @@ function renderSessionPanel(overrides: Partial<SessionPanelProps>) {
     hasProject: true,
     pullRequest: NO_PULL_REQUEST,
     openMenu: null,
-    coordinatedThreads: [],
-    onOpenThread() {},
     subagents: [],
     subagentGroups: OPEN_SUBAGENT_GROUPS,
     backgroundProcesses: [],

@@ -27,6 +27,8 @@ export type ThreadDock = {
   terminalId: string | null;
   /** Threads working under this dock's coordinator, each opened as a tab to follow and talk to beside it. */
   threadTabs: string[];
+  /** Per panel, the thread tab it shows in place of the dock's own thread. */
+  subjects: Record<string, string>;
 };
 
 /** What a dock helper needs of the workspace: whose dock is in front, and every dock there is. */
@@ -54,6 +56,7 @@ export const EMPTY_DOCK: ThreadDock = {
   terminals: [],
   terminalId: null,
   threadTabs: [],
+  subjects: {},
 };
 
 /**
@@ -70,8 +73,18 @@ export function dockFor(state: Pick<DockState, "docks">, owner: string): ThreadD
   return state.docks[owner] ?? EMPTY_DOCK;
 }
 
+/** The thread tab a dock's panel is about, while that tab is still open. */
+export function dockSubject(state: Pick<DockState, "docks">, owner: string, panel: string): string | null {
+  const dock = dockFor(state, owner);
+  const subject = dock.subjects[panel];
+  return subject !== undefined && dock.threadTabs.includes(subject) ? subject : null;
+}
+
 /** The dock tab the review is drawn in, which the picker and the composer both name. */
 export const DIFF_PANEL = "diff";
+
+/** The dock tab a thread's schedule is edited in. */
+export const AUTOMATION_PANEL = "automation";
 
 /** The dock tab one workflow is followed in. */
 export const WORKFLOW_PANEL = "workflow";

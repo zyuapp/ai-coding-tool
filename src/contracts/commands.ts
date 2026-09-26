@@ -38,8 +38,9 @@ export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ImageC
 /**
  * Asks GitHub about the pull request the checkout in front belongs to. Sent again whenever that
  * checkout, its branch or the thread reading it changes, and on a slow poll until the answer settles.
+ * `taskId` asks about a thread tab's checkout instead.
  */
-export type PullRequestCommand = { type: "pull-request.read" };
+export type PullRequestCommand = { type: "pull-request.read"; taskId?: string };
 
 /**
  * The terminal command the app installs. Reading says whether it is there; installing and removing
@@ -64,8 +65,8 @@ export type CliCommand =
 
 /** The diff panel. Which comparison it shows, which file is open, and which files are ticked off. */
 export type DiffCommand =
-  /** Opens the panel, or closes it when it is already the tab in front. */
-  | { type: "diff.toggle" }
+  /** Opens the panel, or closes it when it is already the tab in front. `taskId` names a thread tab whose checkout it reviews. */
+  | { type: "diff.toggle"; taskId?: string }
   | { type: "diff.refresh" }
   | { type: "diff.open-commit"; commit: string; taskId?: string }
   | { type: "diff.set-range"; range: DiffRange }
@@ -431,7 +432,8 @@ export type ViewCommand =
   | { type: "view.set-dock-open"; open: boolean }
   /** Whether the dock takes the whole workspace. Expanding it also shows it. */
   | { type: "view.set-dock-expanded"; expanded: boolean }
-  | { type: "view.open-dock-panel"; panel: string }
+  /** `taskId` names a thread tab in the dock the panel is about, rather than the dock's own thread. */
+  | { type: "view.open-dock-panel"; panel: string; taskId?: string }
   | { type: "view.close-dock-panel"; panel: string }
   /** Closes a thread's tab in the coordinator's dock. The thread itself goes on working. */
   | { type: "view.close-thread-tab"; taskId: string }

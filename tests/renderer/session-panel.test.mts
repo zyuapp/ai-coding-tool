@@ -13,7 +13,7 @@ import type { SessionPanelProps } from "../../src/renderer/components/SessionPan
 
 import { dom, item, mount, pumpResizeObservers, query, rowHeights, sizeOf } from "../support/renderer-dom.mts";
 
-const { SessionPanel } = await import("../../src/renderer/components/SessionPanel.tsx");
+const { CoordinatorPanel, SessionPanel } = await import("../../src/renderer/components/SessionPanel.tsx");
 const { SubagentInspector } = await import("../../src/renderer/components/SubagentInspector.tsx");
 const { AgentsPanel, matchSubagents } = await import("../../src/renderer/components/SubagentList.tsx");
 const { WorkspaceHeader } = await import("../../src/renderer/components/WorkspaceHeader.tsx");
@@ -25,8 +25,6 @@ function renderSessionPanel(overrides: Partial<SessionPanelProps>) {
     hasProject: false,
     pullRequest: NO_PULL_REQUEST,
     openMenu: null,
-    coordinatedThreads: [],
-    onOpenThread() {},
     subagents: [],
     subagentGroups: OPEN_SUBAGENT_GROUPS,
     backgroundProcesses: [],
@@ -66,25 +64,28 @@ const liveWorkflow: Workflow = {
   startedAt: workflowStart,
 };
 
-test("session panel lists a coordinator's threads and opens one as a tab", async () => {
+test("a coordinator's panel is only its threads, each opening as a tab", async () => {
   window.desktop = fakeDesktop();
   const member = (id: string, title: string): Thread => ({ id, title, engine: "claude", executionPolicy: "allow-edits", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, parentId: "lead" });
   let opened: string | undefined;
-  const view = await mount(renderSessionPanel({
-    coordinatedThreads: [
+  const view = await mount(React.createElement(CoordinatorPanel, {
+    members: [
       { thread: member("a", "Dark mode"), status: "working", summary: "Tokens pass" },
       { thread: member("b", "Login flake"), status: "asking", summary: "Retry or skip?" },
     ],
-    onOpenThread: (id) => { opened = id; },
+    onOpenThread: (id: string) => { opened = id; },
   }));
   const section = query(view.container, '[aria-label="Threads under this coordinator"]');
   assert.match(section.textContent, /1 waiting on you/);
   assert.match(section.textContent, /Needs you · Retry or skip\?/);
+  assert.equal(view.container.querySelector('button[aria-label="Review changes"]'), null, "a coordinator has no changes of its own");
+  assert.equal(view.container.querySelector('button[aria-label="Branch"]'), null);
+  assert.equal(view.container.querySelector('button[aria-label="Open Automation panel"]'), null);
   await act(async () => { query<HTMLButtonElement>(section, 'button[aria-label="Open Dark mode"]').click(); });
   assert.equal(opened, "a");
 
-  await view.render(renderSessionPanel({}));
-  assert.equal(view.container.querySelector('[aria-label="Threads under this coordinator"]'), null, "a thread with none under it draws no section");
+  await view.render(React.createElement(CoordinatorPanel, { members: [], onOpenThread() {} }));
+  assert.match(view.container.textContent, /No threads yet/);
   await view.unmount();
 });
 

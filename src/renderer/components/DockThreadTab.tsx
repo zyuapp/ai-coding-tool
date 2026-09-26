@@ -4,6 +4,10 @@ import { DockConversation } from "./SideChat";
 import { chatHandlers } from "./DockSideChat";
 import { CoordinationStatusMark, coordinationStatusLine } from "./Coordination";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
+import { SessionEnvironment } from "./SessionPanel";
+import { branchOf } from "../../application/pull-request-view";
+import { AUTOMATION_PANEL } from "../../application/workspace-reducer";
+import { usePullRequestReads } from "../task-workspace/pull-request-reads";
 import { attachmentSendFor, type AttachmentSendState } from "../../application/composer-attachments";
 import { deliveryLabel } from "../../domain/coordination";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
@@ -17,8 +21,41 @@ type Dispatch = (command: AppCommand) => Promise<void>;
 
 const EMPTY = { icon: Waypoints, title: "Nothing here yet", description: "This thread has not started talking." };
 
+/** The branch menu of one thread's tab, so each tab's list opens on its own. */
+function branchMenuOf(taskId: string) {
+  return `thread-tab:branch:${taskId}`;
+}
+
+/** Asks for the pull request only while the tab is the one on screen. */
+function PullRequestReads({ tab, dispatch }: { tab: ThreadTabView; dispatch: Dispatch }) {
+  usePullRequestReads(tab.workspaceId, branchOf(tab.environment), tab.id, tab.pullRequest, () => void dispatch({ type: "pull-request.read", taskId: tab.id }));
+  return null;
+}
+
+/** The thread's own checkout, branch and schedule, working the way its session panel does. */
+function ThreadTabSession({ tab, dispatch, branchMenuOpen }: { tab: ThreadTabView; dispatch: Dispatch; branchMenuOpen: boolean }) {
+  const menu = branchMenuOf(tab.id);
+  return (
+    <div className="thread-tab-session">
+      <SessionEnvironment
+        environment={tab.environment}
+        hasProject={Boolean(tab.folder)}
+        {...(tab.workspaceId ? { workspaceId: tab.workspaceId } : {})}
+        pullRequest={tab.pullRequest}
+        openMenu={branchMenuOpen ? menu : null}
+        automationCount={tab.automation ? 1 : 0}
+        branchMenu={menu}
+        onOpenAutomations={() => void dispatch({ type: "view.open-dock-panel", panel: AUTOMATION_PANEL, taskId: tab.id })}
+        onToggleChanges={() => void dispatch({ type: "diff.toggle", taskId: tab.id })}
+        onSetOpenMenu={(open) => void dispatch({ type: "view.set-menu", menu: open })}
+        onCheckoutBranch={(branch, create) => void dispatch({ type: "task.checkout-branch", taskId: tab.id, branch, ...(create ? { create } : {}) })}
+      />
+    </div>
+  );
+}
+
 /** Who the thread is and where its work stands, with what it was asked folded underneath. */
-function ThreadTabHeader({ tab, leadTitle, onClose }: { tab: ThreadTabView; leadTitle: string; onClose: () => void }) {
+function ThreadTabHeader({ tab, leadTitle, dispatch, branchMenuOpen, onClose }: { tab: ThreadTabView; leadTitle: string; dispatch: Dispatch; branchMenuOpen: boolean; onClose: () => void }) {
   const { thread, standing, summary } = tab;
   return (
     <>
@@ -35,6 +72,7 @@ function ThreadTabHeader({ tab, leadTitle, onClose }: { tab: ThreadTabView; lead
         </div>
         <button type="button" aria-label={`Close ${thread.title}`} title={`Back to ${leadTitle}`} onClick={onClose}><X size={18} /></button>
       </header>
+      <ThreadTabSession tab={tab} dispatch={dispatch} branchMenuOpen={branchMenuOpen} />
       {thread.brief && (
         <details className="coordination-brief thread-tab-brief">
           <summary>Brief</summary>
@@ -53,7 +91,7 @@ function ThreadTabHeader({ tab, leadTitle, onClose }: { tab: ThreadTabView; lead
  * One thread's tab in its coordinator's dock. Memoized, and given only what the tab reads, so the
  * coordinator's own run leaves it alone.
  */
-const DockThreadTab = memo(function DockThreadTab({ tab, dispatch, attachmentSend, favoriteModels, leadTitle, threads, active, focusToken, find, findBar, onClose }: {
+const DockThreadTab = memo(function DockThreadTab({ tab, dispatch, attachmentSend, favoriteModels, leadTitle, threads, active, branchMenuOpen, focusToken, find, findBar, onClose }: {
   tab: ThreadTabView;
   dispatch: Dispatch;
   attachmentSend: AttachmentSendState;
@@ -61,6 +99,7 @@ const DockThreadTab = memo(function DockThreadTab({ tab, dispatch, attachmentSen
   leadTitle: string;
   threads: ThreadHandleOption[];
   active: boolean;
+  branchMenuOpen: boolean;
   focusToken: number;
   find: FindView | null;
   findBar: ReactNode;
@@ -70,6 +109,7 @@ const DockThreadTab = memo(function DockThreadTab({ tab, dispatch, attachmentSen
   const close = useMemo(() => () => onClose(tab.id), [onClose, tab.id]);
   return (
     <div data-dock-tab={tab.id} hidden={!active}>
+      {active && <PullRequestReads tab={tab} dispatch={dispatch} />}
       <DockConversation
         outbox={{
           state: attachmentSend,
@@ -92,7 +132,7 @@ const DockThreadTab = memo(function DockThreadTab({ tab, dispatch, attachmentSen
         className="side-chat thread-tab"
         label={tab.title}
         surface="tab"
-        header={<ThreadTabHeader tab={tab} leadTitle={leadTitle} onClose={close} />}
+        header={<ThreadTabHeader tab={tab} leadTitle={leadTitle} dispatch={dispatch} branchMenuOpen={branchMenuOpen} onClose={close} />}
         empty={EMPTY}
       />
     </div>
@@ -123,6 +163,7 @@ export function DockThreadTabs({ workspace, lead, activeTab, find, findBar, focu
             leadTitle={lead.title}
             threads={workspace.threadHandlesFor(tab.id)}
             active={activeTab === tab.id}
+            branchMenuOpen={workspace.openMenu === branchMenuOf(tab.id)}
             focusToken={focusTokenFor(tab.id)}
             find={searched}
             findBar={searched ? findBar : null}

@@ -15,7 +15,7 @@ import { defaultEffortFor, defaultModelFor, effortForModel, effortsFor } from ".
 
 export type { WorkspaceCommandResult, WorkspaceEffect, WorkspaceEvent, WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
 export { WORKSPACE_ERRORS } from "./workspace-reducer/errors.js";
-export { DIFF_PANEL, WORKFLOW_PANEL } from "./workspace-state.js";
+export { AUTOMATION_PANEL, DIFF_PANEL, WORKFLOW_PANEL } from "./workspace-state.js";
 
 /**
  * The single writer for workspace state. Commands come from the UI (and, later, from anything else

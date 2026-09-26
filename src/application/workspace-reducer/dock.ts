@@ -3,7 +3,8 @@ import { reduceBrowser } from "./browser.js";
 import { reduceDesktop } from "./desktop.js";
 import { reduceSideChats } from "./side-chats.js";
 import { browserEffectsForTab } from "./browser-tabs.js";
-import { initialRange, readDiff } from "./diff-reads.js";
+import { defaultBranchRange, initialRange, readDiff } from "./diff-reads.js";
+import { subjectWorkspaceId } from "./environment.js";
 import { TAKE_KEYS, focusDockTab } from "./dock-tabs.js";
 import { settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
@@ -14,6 +15,14 @@ type DockInput = Extract<WorkspaceInput, {
   type: "view.close-tab" | "view.new-tab" | "view.select-dock-index" | "view.set-dock-open" | "view.set-dock-expanded"
     | "view.open-dock-panel" | "view.open-workflow" | "view.close-dock-panel" | "view.select-dock-tab" | "view.close-thread-tab";
 }>;
+
+/** Reads the review for the checkout it is about now, starting over when that is another checkout. */
+function reviewSubject(state: WorkspaceState, owner: string): WorkspaceTransition {
+  const diff = diffFor(state, owner);
+  if (diff.workspaceId === null || diff.workspaceId === subjectWorkspaceId(state, owner)) return readDiff(state, owner, initialRange(state, owner, diff));
+  const range = diff.mode === "uncommitted" ? diff.range : defaultBranchRange(state, owner);
+  return readDiff(state, owner, range, { result: null, collapsed: [], viewed: {} });
+}
 
 export function reduceDock(state: WorkspaceState, input: DockInput): WorkspaceTransition {
   switch (input.type) {
@@ -71,13 +80,15 @@ export function reduceDock(state: WorkspaceState, input: DockInput): WorkspaceTr
     case "view.open-dock-panel": {
       const { owner, dock } = frontDock(state);
       const panels = dock.panels.includes(input.panel) ? dock.panels : [...dock.panels, input.panel];
-      const shown = focusDockTab(withDock(state, owner, { open: true, panels, tab: input.panel }), owner, input.panel);
+      const subject = input.taskId && dock.threadTabs.includes(input.taskId) ? input.taskId : undefined;
+      const { [input.panel]: _previous, ...others } = dock.subjects;
+      const subjects = subject ? { ...others, [input.panel]: subject } : others;
+      const shown = focusDockTab(withDock(state, owner, { open: true, panels, tab: input.panel, subjects }), owner, input.panel);
       const opened = shown.state;
       const effects = [...browserEffectsForTab(opened, owner, input.panel), ...shown.effects];
       /** However the review is reached, it opens on a list read now rather than one read last time. */
       if (input.panel !== DIFF_PANEL) return settled(opened, effects);
-      const diff = diffFor(opened, owner);
-      const read = readDiff(opened, owner, initialRange(opened, diff));
+      const read = reviewSubject(opened, owner);
       return { state: read.state, effects: [...effects, ...read.effects] };
     }
 
@@ -106,8 +117,11 @@ export function reduceDock(state: WorkspaceState, input: DockInput): WorkspaceTr
       const tab = dock.tab === input.taskId ? dockTabAfterClosing(state, owner, input.taskId) : dock.tab;
       /** A thread's tab opened from the session panel, so closing the last tab goes back to that panel. */
       const open = dock.open && tab !== DOCK_PICKER;
-      const closed = withDock(state, owner, { threadTabs: dock.threadTabs.filter((id) => id !== input.taskId), tab, open, ...(open ? {} : { expanded: false }) });
-      return settled(closed, open ? browserEffectsForTab(closed, owner, tab) : TAKE_KEYS);
+      const subjects = Object.fromEntries(Object.entries(dock.subjects).filter(([, id]) => id !== input.taskId));
+      const closed = withDock(state, owner, { threadTabs: dock.threadTabs.filter((id) => id !== input.taskId), tab, open, subjects, ...(open ? {} : { expanded: false }) });
+      /** A review of the closed tab's checkout goes back to the dock's own. */
+      const reread = dock.subjects[DIFF_PANEL] === input.taskId && dock.panels.includes(DIFF_PANEL) ? reviewSubject(closed, owner) : settled(closed);
+      return { state: reread.state, effects: [...(open ? browserEffectsForTab(closed, owner, tab) : TAKE_KEYS), ...reread.effects] };
     }
 
     case "view.select-dock-tab": {

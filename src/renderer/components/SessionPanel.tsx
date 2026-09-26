@@ -22,9 +22,6 @@ export type SessionPanelProps = {
   /** Absent until a thread exists; a draft has nowhere to move yet. */
   locationRow?: ReactNode;
   openMenu: string | null;
-  /** The threads working under this thread, when it is a coordinator. */
-  coordinatedThreads: CoordinatedThreadView[];
-  onOpenThread: (threadId: string) => void;
   subagents: Subagent[];
   /** Which subagent groups are unfolded; this panel reads only its own list. */
   subagentGroups: SubagentGroups;
@@ -60,11 +57,11 @@ function environmentMessage(environment: ChangedFilesResult | null, hasProject: 
   return null;
 }
 
-type BranchRowProps = Pick<SessionPanelProps, "workspaceId" | "openMenu" | "onSetOpenMenu" | "onCheckoutBranch"> & { branch: string | null };
+type BranchRowProps = Pick<SessionPanelProps, "workspaceId" | "openMenu" | "onSetOpenMenu" | "onCheckoutBranch"> & { branch: string | null; menu: string };
 
 /** The branch the checkout is on, and the list that moves it onto another. */
-function BranchRow({ branch, workspaceId, openMenu, onSetOpenMenu, onCheckoutBranch }: BranchRowProps) {
-  const open = openMenu === BRANCH_MENU;
+function BranchRow({ branch, menu: menuId, workspaceId, openMenu, onSetOpenMenu, onCheckoutBranch }: BranchRowProps) {
+  const open = openMenu === menuId;
   const row = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -82,7 +79,7 @@ function BranchRow({ branch, workspaceId, openMenu, onSetOpenMenu, onCheckoutBra
         aria-haspopup="listbox"
         aria-expanded={open}
         disabled={!workspaceId}
-        onClick={() => onSetOpenMenu(open ? null : BRANCH_MENU)}
+        onClick={() => onSetOpenMenu(open ? null : menuId)}
       >
         <span className="session-row-icon"><GitBranch size={18} /></span>
         <span>Branch</span>
@@ -154,72 +151,109 @@ function InstallGitHubCliRow() {
   );
 }
 
-export function SessionPanel({ environment, hasProject, workspaceId, pullRequest, locationRow, openMenu, coordinatedThreads, onOpenThread, subagents, subagentGroups, backgroundProcesses, workflows, automationCount, onSelect, onOpenAgents, onOpenAutomations, onOpenWorkflow, onSetOpenMenu, onSetSubagentGroup, onCheckoutBranch, onStopProcess, onToggleChanges }: SessionPanelProps) {
+export type SessionEnvironmentProps = Pick<SessionPanelProps,
+  "environment" | "hasProject" | "workspaceId" | "pullRequest" | "locationRow" | "openMenu" | "automationCount"
+  | "onOpenAutomations" | "onToggleChanges" | "onSetOpenMenu" | "onCheckoutBranch"
+> & { branchMenu: string };
+
+/** A thread's checkout, the branch and pull request it is on, and the schedule that repeats it. */
+export function SessionEnvironment({ environment, hasProject, workspaceId, pullRequest, locationRow, openMenu, automationCount, branchMenu, onOpenAutomations, onToggleChanges, onSetOpenMenu, onCheckoutBranch }: SessionEnvironmentProps) {
   const available = environment?.status === "available" ? environment : null;
   const message = environmentMessage(environment, hasProject, workspaceId);
+  return (
+    <div className="session-environment">
+      {locationRow}
+      <button
+        className="session-row session-row-action"
+        type="button"
+        aria-label="Review changes"
+        disabled={!hasProject}
+        onClick={onToggleChanges}
+      >
+        <span className="session-row-icon"><FileDiff size={18} /></span>
+        <span>Changes</span>
+        {available && (
+          <span className="change-counts" title={available.baseline ? `Since ${available.baseline}` : "Uncommitted work"}>
+            <strong>+{available.additions}</strong><em>−{available.deletions}</em>
+          </span>
+        )}
+      </button>
+      <BranchRow
+        branch={available?.branch ?? null}
+        menu={branchMenu}
+        {...(workspaceId ? { workspaceId } : {})}
+        openMenu={openMenu}
+        onSetOpenMenu={onSetOpenMenu}
+        onCheckoutBranch={onCheckoutBranch}
+      />
+      {pullRequest.status === "found" && <PullRequestRow pullRequest={pullRequest.pullRequest} />}
+      {pullRequest.status === "gh-missing" && <InstallGitHubCliRow />}
+      {message && <p className="session-note">{message}</p>}
+      <button className="session-row session-row-action" type="button" onClick={onOpenAutomations} aria-label="Open Automation panel">
+        <span className="session-row-icon"><AlarmClock size={18} /></span>
+        <span>Automations</span>
+        <span className="session-count">{automationCount}</span>
+      </button>
+    </div>
+  );
+}
+
+/** A coordinator only delegates, so its panel is the threads working under it. */
+export function CoordinatorPanel({ members, onOpenThread }: { members: CoordinatedThreadView[]; onOpenThread: (threadId: string) => void }) {
+  return (
+    <aside className="session-panel" aria-label="Session panel">
+      <div className="session-card">
+        {members.length > 0
+          ? <CoordinatedThreadList members={members} onSelect={onOpenThread} />
+          : <p className="session-empty coordination-empty">No threads yet</p>}
+      </div>
+    </aside>
+  );
+}
+
+export function SessionPanel({ environment, hasProject, workspaceId, pullRequest, locationRow, openMenu, subagents, subagentGroups, backgroundProcesses, workflows, automationCount, onSelect, onOpenAgents, onOpenAutomations, onOpenWorkflow, onSetOpenMenu, onSetSubagentGroup, onCheckoutBranch, onStopProcess, onToggleChanges }: SessionPanelProps) {
   const working = subagents.filter((subagent) => subagent.status === "working").length;
   const shown = orderSubagents(subagents).slice(0, SIDEBAR_LIMIT);
 
   return (
     <aside className="session-panel" aria-label="Session panel">
       <div className="session-card">
-        <div className="session-environment">
-          {locationRow}
-          <button
-            className="session-row session-row-action"
-            type="button"
-            aria-label="Review changes"
-            disabled={!hasProject}
-            onClick={onToggleChanges}
-          >
-            <span className="session-row-icon"><FileDiff size={18} /></span>
-            <span>Changes</span>
-            {available && (
-              <span className="change-counts" title={available.baseline ? `Since ${available.baseline}` : "Uncommitted work"}>
-                <strong>+{available.additions}</strong><em>−{available.deletions}</em>
-              </span>
-            )}
-          </button>
-          <BranchRow
-            branch={available?.branch ?? null}
-            {...(workspaceId ? { workspaceId } : {})}
-            openMenu={openMenu}
-            onSetOpenMenu={onSetOpenMenu}
-            onCheckoutBranch={onCheckoutBranch}
-          />
-          {pullRequest.status === "found" && <PullRequestRow pullRequest={pullRequest.pullRequest} />}
-          {pullRequest.status === "gh-missing" && <InstallGitHubCliRow />}
-          {message && <p className="session-note">{message}</p>}
-          <button className="session-row session-row-action" type="button" onClick={onOpenAutomations} aria-label="Open Automation panel">
-            <span className="session-row-icon"><AlarmClock size={18} /></span>
-            <span>Automations</span>
-            <span className="session-count">{automationCount}</span>
-          </button>
-        </div>
+        <SessionEnvironment
+          environment={environment}
+          hasProject={hasProject}
+          {...(workspaceId ? { workspaceId } : {})}
+          pullRequest={pullRequest}
+          locationRow={locationRow}
+          openMenu={openMenu}
+          automationCount={automationCount}
+          branchMenu={BRANCH_MENU}
+          onOpenAutomations={onOpenAutomations}
+          onToggleChanges={onToggleChanges}
+          onSetOpenMenu={onSetOpenMenu}
+          onCheckoutBranch={onCheckoutBranch}
+        />
 
-            {coordinatedThreads.length > 0 && <CoordinatedThreadList members={coordinatedThreads} onSelect={onOpenThread} />}
-
-            {subagents.length > 0 && (
-              <div className="subagent-section">
-                <div className="subagent-heading">
-                  <button className="section-toggle" type="button" aria-expanded={subagentGroups.sidebar} onClick={() => onSetSubagentGroup("sidebar", !subagentGroups.sidebar)}>
-                    <span>Subagents</span>
-                    <span className="section-chevron" aria-hidden="true" />
-                  </button>
-                  {working > 0 && <span>{working} working</span>}
-                </div>
-                {subagentGroups.sidebar && (
-                  <div className="subagent-list" aria-live="polite">
-                    {shown.map((subagent) => <SubagentRow key={subagent.id} subagent={subagent} onSelect={onSelect} />)}
-                    {subagents.length > shown.length && (
-                      <button className="subagent-view-all" type="button" onClick={onOpenAgents}>View All</button>
-                    )}
-                  </div>
+        {subagents.length > 0 && (
+          <div className="subagent-section">
+            <div className="subagent-heading">
+              <button className="section-toggle" type="button" aria-expanded={subagentGroups.sidebar} onClick={() => onSetSubagentGroup("sidebar", !subagentGroups.sidebar)}>
+                <span>Subagents</span>
+                <span className="section-chevron" aria-hidden="true" />
+              </button>
+              {working > 0 && <span>{working} working</span>}
+            </div>
+            {subagentGroups.sidebar && (
+              <div className="subagent-list" aria-live="polite">
+                {shown.map((subagent) => <SubagentRow key={subagent.id} subagent={subagent} onSelect={onSelect} />)}
+                {subagents.length > shown.length && (
+                  <button className="subagent-view-all" type="button" onClick={onOpenAgents}>View All</button>
                 )}
               </div>
             )}
+          </div>
+        )}
 
-            <BackgroundProcessSection processes={backgroundProcesses} workflows={workflows} onOpenWorkflow={onOpenWorkflow} onStop={onStopProcess} />
+        <BackgroundProcessSection processes={backgroundProcesses} workflows={workflows} onOpenWorkflow={onOpenWorkflow} onStop={onStopProcess} />
       </div>
     </aside>
   );

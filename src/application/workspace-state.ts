@@ -19,10 +19,10 @@ import type { ReviewTarget } from "../domain/review.js";
 import type { ActiveGoal } from "../domain/goal.js";
 
 export type { ReadingPoint };
-import { DIFF_PANEL, dockFor, dockOwner, dockSideChats, dockTabKind, frontDock, type ThreadDock } from "./workspace-dock.js";
+import { AUTOMATION_PANEL, DIFF_PANEL, dockFor, dockOwner, dockSideChats, dockSubject, dockTabKind, frontDock, type ThreadDock } from "./workspace-dock.js";
 export {
-  DIFF_PANEL, DOCK_PICKER, DRAFT_DOCK, EMPTY_DOCK, WORKFLOW_PANEL, activeBrowserTab, activeTerminal, browserTarget,
-  dockFor, dockHoldsTab, dockOwner, dockSideChats, dockTabAfterClosing, dockTabIds, dockTabKind, frontDock,
+  AUTOMATION_PANEL, DIFF_PANEL, DOCK_PICKER, DRAFT_DOCK, EMPTY_DOCK, WORKFLOW_PANEL, activeBrowserTab, activeTerminal, browserTarget,
+  dockFor, dockSubject, dockHoldsTab, dockOwner, dockSideChats, dockTabAfterClosing, dockTabIds, dockTabKind, frontDock,
   keyboardTerminalId, keyboardThreadId, ownerOfBrowserTab, ownerOfTerminal, tabHolderOf, terminalTarget, withDock,
 } from "./workspace-dock.js";
 export type { ThreadDock } from "./workspace-dock.js";
@@ -854,6 +854,9 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state)
     dockOpen: dock.open,
     dockExpanded: dock.expanded,
     dockPanels: dock.panels,
+    /** The thread tabs the review and the automation panel show in place of the dock's own thread. */
+    reviewSubject: dockSubject(state, owner, DIFF_PANEL),
+    automationSubject: dockSubject(state, owner, AUTOMATION_PANEL),
     /** The review this thread has open, whether or not the panel drawing it is the tab in front. */
     diff: diffFor(state, owner),
     dockTab: dock.tab,

@@ -2,7 +2,7 @@
 import { sameStrings } from "./shared.js";
 import type { WorkspaceEffect } from "./types.js";
 import { threadWorkspaceId } from "../thread-location.js";
-import type { WorkspaceState } from "../workspace-state.js";
+import { DIFF_PANEL, dockFor, dockOwner, dockSubject, type WorkspaceState } from "../workspace-state.js";
 import type { ChangedFilesResult } from "../../contracts/ipc.js";
 
 export function sameChangedFiles(left: ChangedFilesResult | null, right: ChangedFilesResult) {
@@ -27,16 +27,30 @@ export function currentWorkspaceId(state: WorkspaceState) {
   return state.draftProjectId ? state.projects.find((project) => project.id === state.draftProjectId)?.workspaceId : undefined;
 }
 
+/** The checkout a dock's review reads: the thread tab it is about, else the thread in front. */
+export function subjectWorkspaceId(state: WorkspaceState, owner: string) {
+  const subject = dockSubject(state, owner, DIFF_PANEL);
+  return subject ? threadWorkspaceId(state, state.threads.find((thread) => thread.id === subject)) : currentWorkspaceId(state);
+}
+
 /**
- * Asks Git about the checkout the thread in front works in. It names the run its answer follows, so a
- * reply about work a newer run has already moved past is not written onto the thread.
+ * Asks Git about one thread's checkout. It names the run its answer follows, so a reply about work a
+ * newer run has already moved past is not written onto the thread.
  */
-export function refreshEnvironment(state: WorkspaceState): WorkspaceEffect[] {
-  const workspaceId = currentWorkspaceId(state);
+export function refreshThreadEnvironment(state: WorkspaceState, taskId: string): WorkspaceEffect[] {
+  const workspaceId = threadWorkspaceId(state, state.threads.find((thread) => thread.id === taskId));
   if (!workspaceId) return [];
-  const taskId = state.threads.find((thread) => thread.id === state.currentId)?.id;
-  const runId = taskId ? state.lastRunIds[taskId] : undefined;
-  return [{ type: "refresh-environment", workspaceId, ...(taskId ? { taskId } : {}), ...(runId ? { runId } : {}) }];
+  const runId = state.lastRunIds[taskId];
+  return [{ type: "refresh-environment", workspaceId, taskId, ...(runId ? { runId } : {}) }];
+}
+
+/** Asks Git about the checkout the thread in front works in, and those of the threads open as its tabs. */
+export function refreshEnvironment(state: WorkspaceState): WorkspaceEffect[] {
+  const tabs = dockFor(state, dockOwner(state)).threadTabs.flatMap((taskId) => refreshThreadEnvironment(state, taskId));
+  const current = state.threads.find((thread) => thread.id === state.currentId);
+  if (current) return [...refreshThreadEnvironment(state, current.id), ...tabs];
+  const workspaceId = currentWorkspaceId(state);
+  return workspaceId ? [{ type: "refresh-environment", workspaceId }, ...tabs] : tabs;
 }
 
 /** What Git last said about a checkout, or null while none of it has been read yet. */
