@@ -322,7 +322,8 @@ function isThreadCommand(command: Record<string, unknown>, named: boolean) {
         && command.attachments === undefined
         && (command.steer === undefined || typeof command.steer === "boolean")
         && (command.worktree === undefined || typeof command.worktree === "boolean")
-        && (command.worktreeId === undefined || isString(command.worktreeId));
+        && (command.worktreeId === undefined || isString(command.worktreeId))
+        && command.from === undefined;
     case "task.new":
       return (command.projectId === undefined || isString(command.projectId))
         && (command.worktreeId === undefined || isString(command.worktreeId));

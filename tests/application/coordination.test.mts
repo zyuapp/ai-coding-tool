@@ -49,6 +49,38 @@ test("a coordinator's run is read its threads and runs as a coordinator", () => 
   assert.match(command.prompt, /"Fix login" \[worker\] · idle · reported done: PR #42/);
 });
 
+test("a message from another thread names its sender, and a member hears when that sender is not its coordinator", () => {
+  const state = workspace({ threads: [lead("lead", { title: "Security review" }), lead("other", { title: "Monday" }), task("worker", { parentId: "lead", title: "QA" })] });
+  const heard = (from: string) => {
+    const sending = reduce(state, { type: "task.send", taskId: "worker", text: "Skip the scan", from });
+    const started = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: PROJECTLESS });
+    return { prompt: effectAt(started, "start-run").command.prompt, message: required(started.state.threads.find((thread) => thread.id === "worker")).messages.at(-1) };
+  };
+
+  const foreign = heard("other");
+  assert.equal(foreign.message?.text, "Skip the scan");
+  assert.equal(foreign.message?.detail, "From Monday");
+  assert.match(foreign.prompt, /Message from the thread "Monday" \[other\], not from the user:\n\nSkip the scan/);
+  assert.match(foreign.prompt, /coordinator "Security review" \[lead\], which did not send this message/);
+
+  const own = heard("lead");
+  assert.equal(own.message?.detail, "From Security review");
+  assert.match(own.prompt, /Message from the thread "Security review" \[lead\]/);
+  assert.doesNotMatch(own.prompt, /did not send this message/);
+});
+
+test("a queued message from another thread keeps its sender when it is steered in or drained", () => {
+  const state = workspace({ threads: [lead("other", { title: "Monday" }), task("worker")], activeRuns: { worker: activeRun("worker", "run-1") } });
+  const queued = reduce(state, { type: "task.send", taskId: "worker", text: "Stop the stack", from: "other" });
+  const message = required(queued.state.queuedMessages.worker?.[0]);
+  assert.equal(message.detail, "From Monday");
+  assert.match(message.prompt, /^Message from the thread "Monday" \[other\]/);
+
+  const steered = reduce(queued.state, { type: "task.steer-queued", taskId: "worker", messageId: message.id });
+  const steer = effectAt(steered, "send-run-command").command;
+  assert.match(steer.type === "steer" ? steer.prompt : "", /Message from the thread "Monday"/);
+});
+
 test("a thread ending its turn wakes a free coordinator with the news, and waits for a busy one", () => {
   const worker = task("worker", { parentId: "lead", title: "Fix login", messages: [] });
   const busyWorker = { activeRuns: { worker: activeRun("worker", "run-w") }, runStatuses: { worker: "running" as const } };

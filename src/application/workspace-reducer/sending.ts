@@ -13,7 +13,7 @@ import { findProject } from "../../domain/project.js";
 import { expandThreadHandles } from "../../domain/thread-handles.js";
 import { withoutSnooze } from "../../domain/thread-snooze.js";
 import { updateThread } from "../thread-run-state.js";
-import { coordinationSendOf } from "../coordination.js";
+import { coordinationSendOf, senderDetail, senderPrompt } from "../coordination.js";
 
 type SendInput = Extract<WorkspaceInput, {
   type: "task.send" | "question.answer" | "question.set-answer" | "task.steer-queued" | "task.drop-queued";
@@ -66,11 +66,14 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
         const asked = refreshEngines({ ...state, actionError: blocked, actionErrorPage: "engines" });
         return rejected(asked.state, blocked, asked.effects);
       }
+      const sender = input.from === undefined || input.from === thread?.id ? undefined : state.threads.find((item) => item.id === input.from);
+      const prompt = sentPrompt(text, pastes, annotations, attachments, files);
+      const signed = sender ? { prompt: `${senderPrompt(state.threads, sender, thread)}\n\n${prompt}`, detail: senderDetail(sender) } : { prompt };
       if (thread && state.activeRuns[thread.id]) {
         const queued: QueuedMessage = {
           id: crypto.randomUUID(),
           text,
-          prompt: sentPrompt(text, pastes, annotations, attachments, files),
+          ...signed,
           attachments: attachments.map((attachment) => attachment.path),
           ...(annotations.length ? { annotations } : {}),
           ...(pastes.length ? { pastes } : {}),
@@ -112,7 +115,7 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
         ...(thread ? {} : coordinationSendOf(input)),
         ...(draftKey === undefined ? {} : { draftKey }),
         text,
-        prompt: sentPrompt(text, pastes, annotations, attachments, files),
+        ...signed,
         attachments: attachments.map((attachment) => attachment.path),
         ...(annotations.length ? { annotations } : {}),
         ...(pastes.length ? { pastes } : {}),

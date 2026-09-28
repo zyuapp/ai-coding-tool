@@ -137,9 +137,10 @@ export type TaskCommand =
    * and names the project itself, so a `project` that disagrees with it is refused. Naming one takes
    * precedence over asking for a new one. `model`, `effort` and `role` apply only to a new task and leave
    * the shared draft settings alone, as do `coordinatorId`, which starts it under that coordinator, and
-   * the `brief` it is handed.
+   * the `brief` it is handed. `from` names the thread that sent the message, which both the agent and
+   * the user are shown.
    */
-  | { type: "task.send"; taskId?: string; project?: string; text?: string; attachments?: RunAttachment[]; steer?: boolean; worktree?: boolean; worktreeId?: string; model?: AgentModel; effort?: AgentEffort; role?: ThreadRole; coordinatorId?: string; brief?: ThreadBrief }
+  | { type: "task.send"; taskId?: string; project?: string; text?: string; attachments?: RunAttachment[]; steer?: boolean; worktree?: boolean; worktreeId?: string; model?: AgentModel; effort?: AgentEffort; role?: ThreadRole; coordinatorId?: string; brief?: ThreadBrief; from?: string }
   /**
    * Sends the composer's message with the images in its strip, which are written out to disk first:
    * the run is started only once they are all there, and a failure to write one stops the send.

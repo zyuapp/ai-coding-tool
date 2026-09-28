@@ -162,7 +162,9 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
       ? { ...placed, worktreeId: caller.worktreeId }
       : placed;
     const led = coordinating && targeted.type === "task.send" ? { ...targeted, coordinatorId: caller!.id } : targeted;
-    const result = await host.execute(led).completed;
+    /** A message one thread sends another names the thread it came from. */
+    const signed = led.type === "task.send" && caller && led.taskId !== caller.id ? { ...led, from: caller.id } : led;
+    const result = await host.execute(signed).completed;
     if (!result.ok) return failed(result.message);
     const after = host.state();
     const taskId = result.taskId ?? command.taskId;

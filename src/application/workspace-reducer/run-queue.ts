@@ -149,7 +149,7 @@ export function withDeliveredMessage(state: WorkspaceState, taskId: string, mess
   if (!delivered) return state;
   return updateThread(withAttendedRun(withQueued(state, taskId, queued.filter((message) => message.id !== messageId)), taskId), taskId, (thread) => ({
     ...thread,
-    messages: [...thread.messages, createConversationMessage("user", delivered.text, undefined, delivered.attachments, delivered.annotations, delivered.pastes, delivered.files)],
+    messages: [...thread.messages, createConversationMessage("user", delivered.text, delivered.detail, delivered.attachments, delivered.annotations, delivered.pastes, delivered.files)],
     updatedAt: now(),
   }));
 }
@@ -197,6 +197,7 @@ export function drainQueue(state: WorkspaceState, taskId: string, status: RunSta
     ...(next.annotations ? { annotations: next.annotations } : {}),
     ...(next.pastes ? { pastes: next.pastes } : {}),
     ...(next.files ? { files: next.files } : {}),
+    ...(next.detail ? { detail: next.detail } : {}),
     queuedIds: [next.id],
   };
   return settled(withPending(state, pending), [resolveWorkspaceEffect(pending.id, thread, project, worktreeFor(state, thread), false)]);

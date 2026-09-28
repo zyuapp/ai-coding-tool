@@ -145,6 +145,7 @@ export type QueuedMessage = {
   annotations?: Annotation[];
   pastes?: PastedText[];
   files?: AttachedFile[];
+  detail?: string;
   /** Locks the message while steering is in flight; a rejection restores its controls. */
   steering?: boolean;
 };

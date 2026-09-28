@@ -420,4 +420,5 @@ test("coordination requests and briefs are checked at the boundary, and only the
   assert.equal(isExternalCommand({ type: "task.send", text: "Fix", brief: { ...brief, delivers: "merge" } }), false);
   assert.equal(isExternalCommand({ type: "task.send", taskId: "task-1", text: "Fix", brief }), false, "a brief belongs to a thread being started");
   assert.equal(isExternalCommand({ type: "task.send", text: "Fix", coordinatorId: "lead" }), false);
+  assert.equal(isExternalCommand({ type: "task.send", taskId: "task-1", text: "Fix", from: "lead" }), false, "only the window names a message's sender");
 });

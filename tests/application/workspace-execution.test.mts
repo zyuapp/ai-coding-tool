@@ -196,6 +196,15 @@ test("a coordinator's new thread needs a brief and works under it", async () => 
   assert.deepEqual(worker?.brief, brief);
 });
 
+test("a message one thread sends another names the thread it came from", async () => {
+  const host = driver(workspace({ threads: [task("sender", { title: "Monday" }), task("receiver")] }), async (effect, dispatch) => {
+    if (effect.type === "resolve-run-workspace") await dispatch({ type: "run.resolved", pendingId: effect.pendingId, workspace: { id: "scratch", kind: "projectless", root: "/scratch" } });
+  });
+  const sent = await answerThreadRequest(host, { type: "thread.request", requestId: "r1", taskId: "sender", op: "command", command: { type: "task.send", taskId: "receiver", text: "Stop the stack" } });
+  assert.equal(sent.ok, true);
+  assert.equal(host.state().threads.find((thread) => thread.id === "receiver")?.messages.at(-1)?.detail, "From Monday");
+});
+
 test("only a coordinator and its threads report or raise decisions", async () => {
   const host = driver(workspace({ threads: [task("lead", { role: "coordinator" }), task("worker", { parentId: "lead" }), task("alone")] }));
   const alone = await answerThreadRequest(host, { type: "thread.request", requestId: "r1", taskId: "alone", op: "report", state: "done", summary: "Done" });

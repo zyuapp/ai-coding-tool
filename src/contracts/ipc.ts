@@ -655,8 +655,8 @@ export function isExternalCommand(value: unknown): value is ExternalCommand {
       && (command.worktreeId === undefined || isString(command.worktreeId))
       && (command.model === undefined || isAgentModel(command.model))
       && (command.effort === undefined || isAgentEffort(command.effort)) && (command.role === undefined || isThreadRole(command.role))
-      /** Only the window says which coordinator a thread works under: the one that started it. */
-      && (command.brief === undefined || isThreadBrief(command.brief)) && command.coordinatorId === undefined
+      /** Only the window says which coordinator a thread works under, and which thread a message came from. */
+      && (command.brief === undefined || isThreadBrief(command.brief)) && command.coordinatorId === undefined && command.from === undefined
       /** Agent selection, the role and the brief belong to a thread being created, never one that already exists. */
       && (command.taskId === undefined || command.model === undefined && command.effort === undefined && command.role === undefined && command.brief === undefined);
   }
