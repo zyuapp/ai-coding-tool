@@ -61,6 +61,23 @@ test("an artifact arriving during a streamed answer keeps its image separate and
   ]);
 });
 
+test("an answer a message interrupts continues as a new message with its own ID", () => {
+  const at = { taskId: "task-a", runId: "run-a" };
+  let next = applyRunEvent(state(), { ...at, sequence: 1, type: "assistant.delta", messageId: "answer", text: "First.\n\n" });
+  next = { ...next, threads: next.threads.map((thread) => thread.id === "task-a"
+    ? { ...thread, messages: [...thread.messages, { id: "steer", kind: "user" as const, text: "ELI5", at: 1 }] }
+    : thread) };
+  next = applyRunEvent(next, { ...at, sequence: 2, type: "assistant.tail", messageId: "answer", text: "Sec" });
+  assert.equal(next.streamingTails["task-a"]?.messageId, "answer:1");
+  next = applyRunEvent(next, { ...at, sequence: 3, type: "assistant.delta", messageId: "answer", text: "Second.", append: true });
+  next = applyRunEvent(next, { ...at, sequence: 4, type: "assistant.delta", messageId: "answer", text: " Third.", append: true });
+  assert.deepEqual(next.threads[0]!.messages.map(({ id, text }) => ({ id, text })), [
+    { id: "answer", text: "First.\n\n" },
+    { id: "steer", text: "ELI5" },
+    { id: "answer:1", text: "Second. Third." },
+  ]);
+});
+
 function subagentAt(subject: RunTransitionState, taskId: string, index: number): Subagent {
   const subagent = subject.subagents[taskId]?.[index];
   assert.ok(subagent);

@@ -26,6 +26,8 @@ export type ActiveRun = RunProvenance & {
   messagesBefore: number;
   /** Where the thread stood when this run began, so a silent one can leave it exactly there. */
   before: ThreadMark;
+  /** How many times another message interrupted each streamed answer; each interruption starts a new part. */
+  answerParts?: Record<string, number>;
 };
 
 /**
@@ -396,6 +398,17 @@ function applyRunFinished<T extends RunTransitionState>(state: T, event: Extract
   return next;
 }
 
+/**
+ * The message a block of a streamed answer belongs to. Once another message lands after the answer,
+ * its next block starts a new part with its own ID.
+ */
+function answerPart(run: ActiveRun, last: Thread["messages"][number] | undefined, messageId: string) {
+  const parts = run.answerParts?.[messageId];
+  if (parts === undefined) return { id: messageId, parts: 0 };
+  const id = parts ? `${messageId}:${parts}` : messageId;
+  return last?.id === id ? { id, parts } : { id: `${messageId}:${parts + 1}`, parts: parts + 1 };
+}
+
 /** A run that hears anything from its engine other than another retry notice is through the retry. */
 function throughRetry(run: ActiveRun, event: RunEvent): ActiveRun {
   if (run.status !== "retrying" || event.type === "run.retrying" || event.type === "queued.delivered" || event.type === "queued.steer-failed") return run;
@@ -445,17 +458,23 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
     return updateThread(next, event.taskId, (thread) => ({ ...thread, messages: [...thread.messages, createConversationMessage("user", event.text)], updatedAt: now() }));
   }
   if (event.type === "assistant.tail") {
-    return withStreamingTail(withSequence, event.taskId, event.text ? { messageId: event.messageId, text: event.text } : null);
+    if (!event.text) return withStreamingTail(withSequence, event.taskId, null);
+    const last = withSequence.threads.find((thread) => thread.id === event.taskId)?.messages.at(-1);
+    return withStreamingTail(withSequence, event.taskId, { messageId: answerPart(active, last, event.messageId).id, text: event.text });
   }
   if (event.type === "assistant.delta") {
+    const last = withSequence.threads.find((thread) => thread.id === event.taskId)?.messages.at(-1);
+    const part = event.artifact ? { id: event.messageId, parts: 0 } : answerPart(active, last, event.messageId);
+    const tracked = event.artifact || active.answerParts?.[event.messageId] === part.parts
+      ? withSequence
+      : withActiveRun(withSequence, event.taskId, { ...active, sequence: event.sequence, answerParts: { ...active.answerParts, [event.messageId]: part.parts } });
     /** The block being committed is what the tail was showing, so it stops standing in for it. */
-    return updateThread(event.artifact ? withSequence : withStreamingTail(withSequence, event.taskId, null), event.taskId, (thread) => {
-      const last = thread.messages.at(-1);
+    return updateThread(event.artifact ? tracked : withStreamingTail(tracked, event.taskId, null), event.taskId, (thread) => {
       let messages;
-      if (last?.kind === "assistant" && last.id === event.messageId) {
+      if (last?.kind === "assistant" && last.id === part.id) {
         messages = replaceLastMessage(thread.messages, { ...last, text: `${last.text}${event.append ? "" : "\n"}${event.text}` });
       } else {
-        const message = { id: event.messageId, kind: "assistant" as const, text: event.text, ...(event.artifact ? { artifact: true as const } : {}), at: now() };
+        const message = { id: part.id, kind: "assistant" as const, text: event.text, ...(event.artifact ? { artifact: true as const } : {}), at: now() };
         // Image persistence can finish during a streamed answer. Keep that answer at the tail so
         // its next block still appends to the same message, with the image beside it.
         messages = event.artifact && last?.kind === "assistant" && !last.artifact
