@@ -32,6 +32,7 @@ function Message({ message, answer }: { message: MobileMessage; answer: boolean 
   if (message.kind === "user") {
     return (
       <div className="turn user">
+        {message.origin && <div className="origin">{message.origin}</div>}
         <div className="bubble">{message.text}</div>
       </div>
     );

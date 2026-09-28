@@ -26,5 +26,6 @@ export function isThreadTranscript(value: unknown): value is ThreadTranscript {
     && value.messages.every((message: unknown) => record(message)
       && ["user", "assistant", "tool", "system"].includes(message.kind as string)
       && typeof message.text === "string" && message.text.length <= 2_001
+      && (message.origin === undefined || typeof message.origin === "string" && message.origin.length <= 2_001)
       && typeof message.at === "number" && Number.isFinite(message.at));
 }

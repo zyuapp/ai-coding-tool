@@ -18,6 +18,7 @@ export function QueuedRow({ messages, surface, onSteer, onDrop }: {
         <div className="queued-message" role="listitem" key={message.id}>
           <CornerDownRight className="queued-mark" size={14} aria-hidden="true" />
           <div className="queued-body">
+            {message.detail && <p className="queued-origin">{message.detail}</p>}
             {message.text && <p className="queued-text">{message.text}</p>}
             {message.annotations?.length ? <AnnotationRow annotations={message.annotations} /> : null}
           </div>

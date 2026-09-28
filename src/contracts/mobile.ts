@@ -70,6 +70,7 @@ export type MobileProjectGroup = {
 export type MobileMessage = {
   kind: TaskMessageKind;
   text: string;
+  origin?: string;
   at: number;
 };
 

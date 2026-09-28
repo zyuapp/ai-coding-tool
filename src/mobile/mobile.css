@@ -566,6 +566,14 @@ button {
   overflow-wrap: anywhere;
 }
 
+.turn.user .origin {
+  max-width: 82%;
+  margin-bottom: 4px;
+  color: var(--quiet-strong);
+  font-size: var(--text-meta);
+  overflow-wrap: anywhere;
+}
+
 /* The desktop shows this on hover; a phone has none, so it stays as quiet as the row meta. */
 .answer-time {
   display: block;

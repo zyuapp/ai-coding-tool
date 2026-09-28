@@ -64,6 +64,8 @@ export type ThreadSummary = {
 export type ThreadMessage = {
   kind: TaskMessageKind;
   text: string;
+  /** Where a user message came from when the user did not write it, such as another thread. */
+  origin?: string;
   at: number;
 };
 

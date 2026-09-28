@@ -59,12 +59,12 @@ test("a message from another thread names its sender, and a member hears when th
 
   const foreign = heard("other");
   assert.equal(foreign.message?.text, "Skip the scan");
-  assert.equal(foreign.message?.detail, "From Monday");
+  assert.equal(foreign.message?.detail, "From Monday · other");
   assert.match(foreign.prompt, /Message from the thread "Monday" \[other\], not from the user:\n\nSkip the scan/);
   assert.match(foreign.prompt, /coordinator "Security review" \[lead\], which did not send this message/);
 
   const own = heard("lead");
-  assert.equal(own.message?.detail, "From Security review");
+  assert.equal(own.message?.detail, "From Security review · lead");
   assert.match(own.prompt, /Message from the thread "Security review" \[lead\]/);
   assert.doesNotMatch(own.prompt, /did not send this message/);
 });
@@ -73,7 +73,7 @@ test("a queued message from another thread keeps its sender when it is steered i
   const state = workspace({ threads: [lead("other", { title: "Monday" }), task("worker")], activeRuns: { worker: activeRun("worker", "run-1") } });
   const queued = reduce(state, { type: "task.send", taskId: "worker", text: "Stop the stack", from: "other" });
   const message = required(queued.state.queuedMessages.worker?.[0]);
-  assert.equal(message.detail, "From Monday");
+  assert.equal(message.detail, "From Monday · other");
   assert.match(message.prompt, /^Message from the thread "Monday" \[other\]/);
 
   const steered = reduce(queued.state, { type: "task.steer-queued", taskId: "worker", messageId: message.id });

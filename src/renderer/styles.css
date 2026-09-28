@@ -1476,6 +1476,7 @@ button, select { color: inherit; }
   color: var(--muted);
 }
 .message.system.error { border-left-color: var(--danger); color: var(--danger-soft); }
+.message-origin { color: var(--quiet-strong); font-size: var(--text-meta); overflow-wrap: anywhere; }
 .message-detail { margin-top: 3px; color: var(--quiet-strong); font-size: var(--text-meta); white-space: pre-wrap; overflow-wrap: anywhere; }
 .message-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--text-content); }
 .markdown-body { min-width: 0; white-space: normal; overflow-wrap: break-word; }
@@ -2212,6 +2213,7 @@ pre {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.queued-origin { overflow: hidden; margin: 0; color: var(--quiet-strong); font-size: var(--text-meta); text-overflow: ellipsis; white-space: nowrap; }
 .queued-state { flex: none; padding-right: 6px; color: var(--quiet); font-size: var(--text-meta); }
 .queued-actions { display: flex; flex: none; align-items: center; gap: 4px; }
 .queued-steer {

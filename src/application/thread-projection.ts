@@ -182,6 +182,7 @@ export function threadTranscript(state: WorkspaceState, threadId: string, limit 
     messages: kept.map((message) => ({
       kind: message.kind,
       text: message.text.length > MESSAGE_TEXT_LIMIT ? `${message.text.slice(0, MESSAGE_TEXT_LIMIT)}…` : message.text,
+      ...(message.kind === "user" && message.detail ? { origin: message.detail } : {}),
       at: message.at,
     })),
     omitted: thread.messages.length - kept.length,

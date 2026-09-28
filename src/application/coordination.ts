@@ -20,7 +20,7 @@ export function coordinationSendOf({ coordinatorId, brief }: CoordinationSend): 
 
 /** The label on a message another thread sent. */
 export function senderDetail(sender: Thread): string {
-  return `From ${sender.title}`;
+  return `From ${sender.title} · ${sender.id}`;
 }
 
 /**

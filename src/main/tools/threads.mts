@@ -63,7 +63,7 @@ function transcriptText(transcript: ThreadTranscript, at: number) {
     describe(transcript.thread, at),
     ...(transcript.omitted ? [`(${transcript.omitted} earlier messages not shown)`] : []),
     "",
-    ...transcript.messages.map((message) => `[${message.kind}] ${message.text}`),
+    ...transcript.messages.map((message) => `[${message.kind}${message.origin ? ` · ${message.origin}` : ""}] ${message.text}`),
   ];
   return lines.join("\n");
 }

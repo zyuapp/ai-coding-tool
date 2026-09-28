@@ -5,6 +5,7 @@ import type { WorkspaceInput } from "../../src/application/workspace-reducer.ts"
 import { DRAFT_DOCK, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import { EMPTY_DIFF } from "../../src/application/workspace-diff.ts";
 import { answerThreadRequest, type ThreadRequestHost } from "../../src/host/thread-requests.ts";
+import { threadTranscript } from "../../src/application/thread-projection.ts";
 import { MAX_ATTACHED_FILES, MAX_ATTACHMENTS } from "../../src/domain/conversation.ts";
 import { PROJECT, task, workspace } from "./workspace-reducer-fixtures.mts";
 
@@ -202,7 +203,8 @@ test("a message one thread sends another names the thread it came from", async (
   });
   const sent = await answerThreadRequest(host, { type: "thread.request", requestId: "r1", taskId: "sender", op: "command", command: { type: "task.send", taskId: "receiver", text: "Stop the stack" } });
   assert.equal(sent.ok, true);
-  assert.equal(host.state().threads.find((thread) => thread.id === "receiver")?.messages.at(-1)?.detail, "From Monday");
+  assert.equal(host.state().threads.find((thread) => thread.id === "receiver")?.messages.at(-1)?.detail, "From Monday · sender");
+  assert.deepEqual(threadTranscript(host.state(), "receiver")?.messages.at(-1), { kind: "user", text: "Stop the stack", origin: "From Monday · sender", at: host.state().threads.find((thread) => thread.id === "receiver")!.messages.at(-1)!.at });
 });
 
 test("only a coordinator and its threads report or raise decisions", async () => {

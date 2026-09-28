@@ -110,8 +110,9 @@ test("thread tools carry computer selectors through the channel and label remote
   assert.match(textOf(await listing), /computer Linux \[linux\] \(offline, cached\)/);
   const reading = toolNamed(bridge, "read_thread").handler({ threadId: "task-1", computer: "linux", limit: 1 }, {});
   assert.deepEqual(posted[1], { type: "thread.request", requestId: posted[1].requestId, taskId: "caller", op: "read", threadId: "task-1", computer: "linux", limit: 1 });
-  channel.settle({ type: "thread.response", requestId: posted[1].requestId, ok: true, result: { thread: remote, messages: [], omitted: 0 } });
+  channel.settle({ type: "thread.response", requestId: posted[1].requestId, ok: true, result: { thread: remote, messages: [{ kind: "user", text: "Stop the stack", origin: "From Monday · lead", at: 1 }], omitted: 0 } });
   assert.match(textOf(await reading), /computer Linux/);
+  assert.match(textOf(await reading), /\[user · From Monday · lead\] Stop the stack/);
 });
 
 test("starting, messaging, archiving and stopping go through the command surface", async () => {
