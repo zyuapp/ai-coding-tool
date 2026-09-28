@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { lazy, Suspense, useCallback } from "react";
 import { CommandControlsProvider } from "./components/CommandControl";
 import { LuX as X } from "react-icons/lu";
 import { MessageLinkProvider } from "./components/MarkdownMessage";
@@ -13,13 +13,20 @@ import { ThreadJump } from "./components/ThreadJump";
 import { WorkspaceComposer } from "./components/WorkspaceComposer";
 import { WorkspaceConversation } from "./components/WorkspaceConversation";
 import { WorkspaceSession } from "./components/WorkspaceSession";
-import { WorkspaceSettings } from "./components/WorkspaceSettings";
 import { WorkspaceHeader } from "./components/WorkspaceHeader";
 import { buildDock, findLabel, unreviewedFileCount } from "./components/dock-registry";
 import { useTaskWorkspace } from "./task-workspace/useTaskWorkspace";
 import { useFileDrop, useRefusedStrayDrops } from "./file-drop";
 import { attachDroppedFiles, imageSources } from "./dropped-files";
 import { useComposerFocusRecovery, useEscapeLayers, useLatestDispatch, useMessageLinks, useSubagentInspection } from "./app-shell";
+
+const loadSettings = () => import("./components/WorkspaceSettings");
+const WorkspaceSettings = lazy(() => loadSettings().then((module) => ({ default: module.WorkspaceSettings })));
+
+/** Settings is its own chunk, fetched while the app is idle so the sheet opens without waiting on it. */
+if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+  window.requestIdleCallback(() => void loadSettings().catch(() => undefined));
+}
 
 /** Threads a newer build wrote, which this one left on disk. The count returns on the next launch. */
 function HiddenThreadsNotice({ workspace }: { workspace: ReturnType<typeof useTaskWorkspace> }) {
@@ -204,7 +211,7 @@ export function App() {
         {workspaceDrop.over && <p className="drop-hint" role="status">Drop to attach</p>}
       </section>
       <WorkspaceDialogs workspace={workspace} />
-      {settingsVisible && <WorkspaceSettings workspace={workspace} onClose={closeSettings} />}
+      {settingsVisible && <Suspense fallback={null}><WorkspaceSettings workspace={workspace} onClose={closeSettings} /></Suspense>}
       {workspace.jump && <ThreadJump jump={workspace.jump} actions={workspace.actions} />}
       <TooltipLayer />
     </main>

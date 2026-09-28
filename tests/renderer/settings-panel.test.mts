@@ -74,6 +74,7 @@ type MountView = Awaited<ReturnType<typeof mount>>;
 
 async function openSettingsPage(view: MountView, name: string) {
   await act(async () => { query<HTMLButtonElement>(view.container, ".sidebar-settings").click(); });
+  await settleUntil(() => Boolean(view.container.querySelector(".settings-sidebar")), "settings never opened");
   await act(async () => { item([...view.container.querySelectorAll<HTMLButtonElement>(".settings-sidebar nav button")].find((button) => button.textContent === name)).click(); });
 }
 
@@ -474,6 +475,7 @@ test("settings rebind a shortcut, and the window is told what to match", async (
   assert.deepEqual(desktop.shortcuts, [{}], "the window starts out matching the defaults");
 
   await act(async () => { query<HTMLButtonElement>(view.container, ".sidebar-settings").click(); });
+  await settleUntil(() => Boolean(view.container.querySelector(".settings-sidebar")), "settings never opened");
   await act(async () => { item([...view.container.querySelectorAll<HTMLButtonElement>(".settings-sidebar nav button")].find((button) => button.textContent === "Shortcuts")).click(); });
   const row = (label: string) => item([...view.container.querySelectorAll<HTMLElement>(".shortcut-row")].find((element) => query(element, "strong").textContent === label));
   const keys = (label: string) => [...query(row(label), "kbd").querySelectorAll(".shortcut-key")].map((key) => key.textContent);
