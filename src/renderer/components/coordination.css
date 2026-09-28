@@ -69,15 +69,20 @@
   font-size: var(--text-menu);
   line-height: 1.5;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: min(46vh, 400px);
+  overflow-wrap: anywhere;
 }
-.decision-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px 0; font-size: var(--text-meta); }
+.decision-head { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 14px 6px; font-size: var(--text-meta); }
+.decision-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .decision-head strong { color: var(--accent); }
 .decision-from { font-size: var(--text-meta); }
 .decision-pager { display: flex; align-items: center; gap: 2px; margin-left: auto; color: var(--quiet); }
 .decision-pager span { margin-right: 4px; }
 .decision-pager button { width: 22px; height: 22px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--quiet); cursor: pointer; }
 .decision-pager button:hover { background: var(--wash); color: var(--ink); }
-.decision-question { margin: 6px 14px 2px; color: var(--ink); font-size: var(--text-control); font-weight: 600; }
+.decision-question { margin: 0 14px 2px; color: var(--ink); font-size: var(--text-control); font-weight: 600; }
 .decision-context { margin: 0 14px 4px; color: var(--muted); white-space: pre-wrap; }
 .decision-options { display: grid; gap: 6px; margin: 8px 14px 12px; }
 .decision-option { display: flex; align-items: flex-start; gap: 10px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 9px; cursor: pointer; }
@@ -86,7 +91,7 @@
 .decision-option-label { display: flex; align-items: center; gap: 8px; color: var(--ink); }
 .decision-option-description { display: block; color: var(--muted); font-size: var(--text-meta); }
 .decision-recommended { border-radius: 5px; padding: 0 6px; background: var(--accent-chip); color: var(--accent); font-size: var(--text-badge); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
-.decision-foot { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line-soft); }
+.decision-foot { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line-soft); }
 .decision-foot input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; background: var(--canvas); color: var(--ink); font: inherit; }
 .decision-foot input:focus { border-color: var(--line-strong); outline: none; }
 .decision-foot button { border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; background: var(--surface-inverse); color: var(--ink-inverse); font-weight: 600; cursor: pointer; }

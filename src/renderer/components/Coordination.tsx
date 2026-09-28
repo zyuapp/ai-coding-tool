@@ -133,19 +133,21 @@ function DecisionForm({ view, position, onStep, onAnswer, onSelect }: {
           <button type="button" aria-label="Next decision" onClick={() => onStep(1)}><ChevronDown size={14} aria-hidden="true" /></button>
         </span>}
       </div>
-      <p className="decision-question" id={id}>{decision.question}</p>
-      {decision.context && <p className="decision-context">{decision.context}</p>}
-      {decision.options.length > 0 && <div className="decision-options" role="radiogroup" aria-labelledby={id}>
-        {decision.options.map((option) => (
-          <label className="decision-option" key={option.label}>
-            <input type="radio" name={id} value={option.label} checked={!own.trim() && choice === option.label} onChange={() => { setChoice(option.label); setOwn(""); }} />
-            <span>
-              <span className="decision-option-label">{option.label}{option.recommended && <span className="decision-recommended">Recommended</span>}</span>
-              {option.description && <span className="decision-option-description">{option.description}</span>}
-            </span>
-          </label>
-        ))}
-      </div>}
+      <div className="decision-body">
+        <p className="decision-question" id={id}>{decision.question}</p>
+        {decision.context && <p className="decision-context">{decision.context}</p>}
+        {decision.options.length > 0 && <div className="decision-options" role="radiogroup" aria-labelledby={id}>
+          {decision.options.map((option) => (
+            <label className="decision-option" key={option.label}>
+              <input type="radio" name={id} value={option.label} checked={!own.trim() && choice === option.label} onChange={() => { setChoice(option.label); setOwn(""); }} />
+              <span>
+                <span className="decision-option-label">{option.label}{option.recommended && <span className="decision-recommended">Recommended</span>}</span>
+                {option.description && <span className="decision-option-description">{option.description}</span>}
+              </span>
+            </label>
+          ))}
+        </div>}
+      </div>
       <div className="decision-foot">
         <input
           value={own}
