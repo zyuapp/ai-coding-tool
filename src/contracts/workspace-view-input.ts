@@ -315,6 +315,7 @@ const shapes = {
   "view.dismiss-computer-use-setup": {  },
   "view.refresh-environment": {  },
   "pull-request.read": { taskId: optionalText },
+  "pull-request.read-members": { taskId: optionalText },
   "app.list": {  },
   "usage.read": {  },
   "computer-use.read": {  },

@@ -125,6 +125,10 @@
 .coordination-row.asking small, .coordination-row.approval small { color: var(--accent); }
 .coordination-row.blocked small, .coordination-row.failed small { color: var(--danger-soft); }
 .coordination-row-engine { color: var(--quiet); }
+.coordination-pull-request { text-decoration: none; }
+.coordination-pull-request .coordination-row-mark[data-state="open"] { color: var(--success); background: var(--success-surface); }
+.coordination-pull-request .coordination-row-mark[data-state="merged"] { color: var(--pr-merged); }
+.coordination-pull-request .coordination-row-mark[data-state="closed"] { color: var(--danger); background: var(--danger-chip); }
 
 /* A thread under the coordinator, talked to from its tab in the dock. */
 .side-chat.thread-tab { display: flex; flex-direction: column; }

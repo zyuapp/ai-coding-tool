@@ -73,6 +73,7 @@ test("a coordinator's panel is only its threads, each opening as a tab", async (
       { thread: member("a", "Dark mode"), status: "working", summary: "Tokens pass" },
       { thread: member("b", "Login flake"), status: "asking", summary: "Retry or skip?" },
     ],
+    pullRequests: [],
     onOpenThread: (id: string) => { opened = id; },
   }));
   const section = query(view.container, '[aria-label="Threads under this coordinator"]');
@@ -84,7 +85,19 @@ test("a coordinator's panel is only its threads, each opening as a tab", async (
   await act(async () => { query<HTMLButtonElement>(section, 'button[aria-label="Open Dark mode"]').click(); });
   assert.equal(opened, "a");
 
-  await view.render(React.createElement(CoordinatorPanel, { members: [], onOpenThread() {} }));
+  assert.equal(view.container.querySelector('[aria-label="Pull requests from these threads"]'), null, "no pull request, no section");
+
+  await view.render(React.createElement(CoordinatorPanel, {
+    members: [{ thread: member("a", "Dark mode"), status: "done", summary: null }],
+    pullRequests: [{ pullRequest: { number: 12, title: "Add dark mode", url: "https://github.com/o/r/pull/12", state: "open" }, threads: [member("a", "Dark mode")] }],
+    onOpenThread() {},
+  }));
+  const pullRequests = query(view.container, '[aria-label="Pull requests from these threads"]');
+  const link = query<HTMLAnchorElement>(pullRequests, "a");
+  assert.equal(link.href, "https://github.com/o/r/pull/12");
+  assert.match(link.textContent, /Add dark mode#12 · Open · Dark mode/);
+
+  await view.render(React.createElement(CoordinatorPanel, { members: [], pullRequests: [], onOpenThread() {} }));
   assert.match(view.container.textContent, /No threads yet/);
   await view.unmount();
 });

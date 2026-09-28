@@ -5,7 +5,7 @@ import React, { act } from "react";
 
 import { test } from "vitest";
 import type { PullRequestAnswer, PullRequestState } from "../../src/domain/pull-request.ts";
-import { NO_PULL_REQUEST } from "../../src/domain/pull-request.ts";
+import { NO_PULL_REQUEST, pullRequestSettled } from "../../src/domain/pull-request.ts";
 import type { SessionPanelProps } from "../../src/renderer/components/SessionPanel.tsx";
 import { OPEN_SUBAGENT_GROUPS } from "../../src/domain/run.ts";
 
@@ -87,7 +87,7 @@ test("the pull request is read per thread, on the way back, and only until it se
 
   const read = () => { reads += 1; };
   function Reader({ threadId, answer }: { threadId: string; answer: PullRequestAnswer }) {
-    usePullRequestReads("one-checkout", "pr-poll", threadId, answer, read);
+    usePullRequestReads(`one-checkout\0pr-poll\0${threadId}`, pullRequestSettled(answer), read);
     return null;
   }
   const reader = (threadId: string, answer: PullRequestAnswer) => React.createElement(Reader, { threadId, answer });

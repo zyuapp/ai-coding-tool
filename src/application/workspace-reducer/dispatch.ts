@@ -84,7 +84,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "side-chat.open": case "side-chat.close":
       return reduceSideChats(state, input);
 
-    case "pull-request.read": case "pull-request.answered":
+    case "pull-request.read": case "pull-request.read-members": case "pull-request.answered":
       return reducePullRequests(state, input);
 
     case "computer-use.read": case "computer-use.enable": case "computer-use.restart":

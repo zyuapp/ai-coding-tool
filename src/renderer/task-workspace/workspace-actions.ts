@@ -79,6 +79,7 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     setBranch: (branch: string | null, create?: boolean) => dispatch({ type: "task.set-branch", branch, ...(create ? { create } : {}) }),
     checkoutBranch: (branch: string, create?: boolean, taskId?: string) => dispatch({ type: "task.checkout-branch", branch, ...(create ? { create } : {}), ...(taskId ? { taskId } : {}) }),
     readPullRequest: (taskId?: string) => dispatch({ type: "pull-request.read", ...(taskId ? { taskId } : {}) }),
+    readMemberPullRequests: () => dispatch({ type: "pull-request.read-members" }),
     listApps: () => dispatch({ type: "app.list" }),
     readCli: () => dispatch({ type: "cli.read" }),
     readPlanUsage: () => dispatch({ type: "usage.read" }),

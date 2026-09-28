@@ -345,6 +345,8 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   environments: Record<string, ChangedFilesResult>;
   /** The pull request last read, for the checkout and branch it was read for. Session-only. */
   pullRequest: PullRequestRead | null;
+  /** The pull request of each checkout the open coordinator's threads work in, keyed by checkout. Session-only. */
+  memberPullRequests: Record<string, PullRequestRead>;
   /** Where each composer's images stand between its send and the run, keyed by the thread it sends to. */
   attachmentSends: Record<string, AttachmentSendState>;
   /** The applications this machine has, or null before any list has asked for them. */
@@ -466,7 +468,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     openMenu: null,
     reviewPicker: null,
     environments: {},
-    pullRequest: null, attachmentSends: {},
+    pullRequest: null, memberPullRequests: {}, attachmentSends: {},
     installedApps: null, cli: NO_CLI, planUsage: NO_PLAN_USAGE, computerUsePermissions: NO_COMPUTER_USE_ACCESS,
     computerUseSetup: false,
     automations: [],
@@ -759,7 +761,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state)
     threads: listedThreads,
     archivedThreads: collections.archivedThreads,
     currentThread,
-    coordination: collections.coordination, coordinators: collections.coordinators,
+    coordination: collections.coordination, coordinators: collections.coordinators, memberPullRequests: collections.memberPullRequests,
     goal: state.currentId ? state.goals[state.currentId] ?? null : null,
     currentProject,
     folder: currentProject?.root ?? "",

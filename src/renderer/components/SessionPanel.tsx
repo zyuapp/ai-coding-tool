@@ -11,6 +11,7 @@ import { useDismissibleLayer } from "../focus";
 import { orderSubagents, SubagentRow } from "./SubagentList";
 import { CoordinatedThreadList } from "./Coordination";
 import type { CoordinatedThreadView } from "../../application/coordination";
+import type { MemberPullRequest } from "../../application/pull-request-view";
 
 export type SessionPanelProps = {
   environment: ChangedFilesResult | null;
@@ -197,14 +198,49 @@ function SessionEnvironment({ environment, hasProject, workspaceId, pullRequest,
   );
 }
 
-/** A coordinator only delegates, so its panel is the threads working under it. */
-export function CoordinatorPanel({ members, onOpenThread }: { members: CoordinatedThreadView[]; onOpenThread: (threadId: string) => void }) {
+const PULL_REQUEST_STATES: Record<PullRequestState, string> = { draft: "Draft", open: "Open", merged: "Merged", closed: "Closed" };
+
+/** The pull requests a coordinator's threads have opened, each with the threads working on it. */
+function MemberPullRequestList({ pullRequests }: { pullRequests: MemberPullRequest[] }) {
+  const links = useMessageLinks();
+  return (
+    <section className="subagent-section coordination-section" aria-label="Pull requests from these threads">
+      <div className="subagent-heading"><div className="coordination-heading">Pull requests</div></div>
+      <div className="subagent-list">
+        {pullRequests.map(({ pullRequest, threads }) => {
+          const Icon = PULL_REQUEST_ICONS[pullRequest.state];
+          const by = threads.map((thread) => thread.title).join(", ");
+          return (
+            <WebLink
+              key={pullRequest.url}
+              className="coordination-row coordination-pull-request"
+              href={pullRequest.url}
+              title={`#${pullRequest.number} ${pullRequest.title} · ${by}`}
+              openInApp={links.openUrlInApp && (() => links.openUrlInApp!(pullRequest.url))}
+            >
+              <span className="coordination-row-mark" data-state={pullRequest.state}><Icon size={12} aria-hidden="true" /></span>
+              <span><strong>{pullRequest.title}</strong><small>#{pullRequest.number} · {PULL_REQUEST_STATES[pullRequest.state]} · {by}</small></span>
+            </WebLink>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/** A coordinator only delegates, so its panel is the threads working under it and the pull requests they opened. */
+export function CoordinatorPanel({ members, pullRequests, onOpenThread }: {
+  members: CoordinatedThreadView[];
+  pullRequests: MemberPullRequest[];
+  onOpenThread: (threadId: string) => void;
+}) {
   return (
     <aside className="session-panel" aria-label="Session panel">
       <div className="session-card">
         {members.length > 0
           ? <CoordinatedThreadList members={members} onSelect={onOpenThread} />
           : <p className="session-empty coordination-empty">No threads yet</p>}
+        {pullRequests.length > 0 && <MemberPullRequestList pullRequests={pullRequests} />}
       </div>
     </aside>
   );

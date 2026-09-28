@@ -1,6 +1,7 @@
 import { CoordinatorPanel, SessionPanel } from "./SessionPanel";
 import { SessionLocationMenu } from "./SessionLocationMenu";
-import { branchOf } from "../../application/pull-request-view";
+import { threadAsking } from "../../application/pull-request-view";
+import { pullRequestSettled } from "../../domain/pull-request";
 import { isCoordinator } from "../../domain/coordination";
 import { usePullRequestReads } from "../task-workspace/pull-request-reads";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
@@ -18,14 +19,20 @@ type WorkspaceSessionProps = {
 export function WorkspaceSession(props: WorkspaceSessionProps) {
   const { workspace } = props;
   if (isCoordinator(workspace.currentThread)) {
-    return <CoordinatorPanel members={workspace.coordination.members} onOpenThread={workspace.actions.selectThread} />;
+    return <CoordinatorSession workspace={workspace} />;
   }
   return <ThreadSession {...props} />;
 }
 
+function CoordinatorSession({ workspace }: { workspace: Workspace }) {
+  const { asking, settled, found } = workspace.memberPullRequests;
+  usePullRequestReads(asking, settled, workspace.actions.readMemberPullRequests);
+  return <CoordinatorPanel members={workspace.coordination.members} pullRequests={found} onOpenThread={workspace.actions.selectThread} />;
+}
+
 function ThreadSession({ workspace, onInspectSubagent, onOpenPanel, onOpenWorkflow }: WorkspaceSessionProps) {
   /** Threads sharing a checkout share a workspace, so the pull request is read again per thread too. */
-  usePullRequestReads(workspace.workspaceId, branchOf(workspace.environment), workspace.currentThread?.id, workspace.pullRequest, workspace.actions.readPullRequest);
+  usePullRequestReads(threadAsking(workspace.workspaceId, workspace.environment, workspace.currentThread?.id), pullRequestSettled(workspace.pullRequest), workspace.actions.readPullRequest);
 
   return (
     <SessionPanel

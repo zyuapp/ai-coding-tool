@@ -40,7 +40,10 @@ export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ImageC
  * checkout, its branch or the thread reading it changes, and on a slow poll until the answer settles.
  * `taskId` asks about a thread tab's checkout instead.
  */
-export type PullRequestCommand = { type: "pull-request.read"; taskId?: string };
+export type PullRequestCommand =
+  | { type: "pull-request.read"; taskId?: string }
+  /** Reads the pull request of every checkout a coordinator's threads work in. */
+  | { type: "pull-request.read-members"; taskId?: string };
 
 /**
  * The terminal command the app installs. Reading says whether it is there; installing and removing

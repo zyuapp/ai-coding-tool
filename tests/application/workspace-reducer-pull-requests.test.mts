@@ -81,3 +81,41 @@ test("an answer that says what the row already says leaves the state alone", () 
 
   assert.equal(same.state, polled.state, "an unchanged answer never rewrites the row");
 });
+
+test("a coordinator reads the pull request of every checkout its threads work in, once each", () => {
+  const projects = [{ id: "a", root: "/a", workspaceId: "workspace-a" }, { id: "b", root: "/b", workspaceId: "workspace-b" }];
+  const state = projected({
+    projects,
+    threads: [
+      task("lead", { projectId: "a", role: "coordinator" }),
+      task("one", { projectId: "b", parentId: "lead", title: "One" }),
+      task("two", { projectId: "b", parentId: "lead", title: "Two" }),
+      task("elsewhere", { projectId: "a" }),
+    ],
+    currentId: "lead",
+  });
+
+  const asked = reduce(state, { type: "pull-request.read-members" });
+  const reads = asked.effects.filter((effect) => effect.type === "read-pull-request");
+  assert.deepEqual(reads.map((effect) => effect.workspaceId), ["workspace-b"], "threads sharing a checkout ask once, and the coordinator's own checkout is not asked");
+  const read = effectOf(asked, "read-pull-request");
+  assert.deepEqual(deriveView(asked.state).memberPullRequests.found, []);
+
+  const answered = reduce(asked.state, { type: "pull-request.answered", workspaceId: read.workspaceId, branch: read.branch, read: read.read, answer: OPEN });
+  const { found, settled } = deriveView(answered.state).memberPullRequests;
+  assert.deepEqual(found.map(({ pullRequest, threads }) => [pullRequest.number, threads.map((thread) => thread.id)]), [[7, ["one", "two"]]]);
+  assert.equal(settled, false, "an open pull request is still worth asking about");
+  assert.equal(answered.state.pullRequest, null, "the checkout in front keeps its own answer");
+
+  const left = reduce(answered.state, { type: "task.set-coordinator", taskId: "one", coordinatorId: null }).state;
+  const bothLeft = reduce(left, { type: "task.set-coordinator", taskId: "two", coordinatorId: null }).state;
+  const alone = reduce(bothLeft, { type: "pull-request.read-members" });
+  assert.equal(alone.effects.length, 0);
+  assert.deepEqual(deriveView(alone.state).memberPullRequests.found, [], "a checkout no thread under the coordinator works in stops being drawn");
+});
+
+test("a thread that is not a coordinator reads no member pull requests", () => {
+  const read = reduce(checkedOut(), { type: "pull-request.read-members" });
+  assert.equal(read.effects.length, 0);
+  assert.deepEqual(deriveView(read.state).memberPullRequests.found, []);
+});

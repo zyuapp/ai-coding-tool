@@ -5,9 +5,10 @@ import { chatHandlers } from "./DockSideChat";
 import { CoordinationStatusMark, coordinationStatusLine } from "./Coordination";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
 import { ThreadTabStrip } from "./ThreadTabStrip";
-import { branchOf } from "../../application/pull-request-view";
+import { threadAsking } from "../../application/pull-request-view";
 import { AUTOMATION_PANEL } from "../../application/workspace-reducer";
 import { usePullRequestReads } from "../task-workspace/pull-request-reads";
+import { pullRequestSettled } from "../../domain/pull-request";
 import { attachmentSendFor, type AttachmentSendState } from "../../application/composer-attachments";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import type { AppCommand } from "../../contracts/commands";
@@ -27,7 +28,7 @@ function branchMenuOf(taskId: string) {
 
 /** Asks for the pull request only while the tab is the one on screen. */
 function PullRequestReads({ tab, dispatch }: { tab: ThreadTabView; dispatch: Dispatch }) {
-  usePullRequestReads(tab.workspaceId, branchOf(tab.environment), tab.id, tab.pullRequest, () => void dispatch({ type: "pull-request.read", taskId: tab.id }));
+  usePullRequestReads(threadAsking(tab.workspaceId, tab.environment, tab.id), pullRequestSettled(tab.pullRequest), () => void dispatch({ type: "pull-request.read", taskId: tab.id }));
   return null;
 }
 

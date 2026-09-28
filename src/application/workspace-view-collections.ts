@@ -6,6 +6,7 @@ import { orderProjects } from "./project-order.js";
 import type { ComputerLink } from "../domain/computers.js";
 import { sidebarLists } from "./sidebar-lists.js";
 import { coordinationView } from "./coordination.js";
+import { memberPullRequestsView } from "./pull-request-view.js";
 import { isCoordinator } from "../domain/coordination.js";
 import { unreadView } from "./thread-attention.js";
 import { busyThreadIds, blockedThreadIds, sideChatIds, type WorkspaceState, type WorktreeGroup } from "./workspace-state.js";
@@ -70,6 +71,15 @@ const coordinators = selector((state) => [threadLists(state).listedThreads], (st
 const coordination = selector(
   (state) => [state.threads, state.currentId, busy(state), blocked(state)],
   (state) => coordinationView(state.threads, state.threads.find((thread) => thread.id === state.currentId), busy(state), blocked(state)),
+);
+
+/** The pull requests the open coordinator's threads work on. */
+const memberPullRequests = selector(
+  (state) => [state.threads, state.currentId, state.projects, state.worktrees, state.environments, state.memberPullRequests],
+  (state) => {
+    const current = state.threads.find((thread) => thread.id === state.currentId);
+    return memberPullRequestsView(state, isCoordinator(current) ? current : undefined);
+  },
 );
 
 /** The paired computers' threads, gathered once per change to any of them. */
@@ -191,5 +201,6 @@ export function workspaceViewCollections(state: WorkspaceState) {
     schedules: schedules(state),
     coordinators: coordinators(state),
     coordination: coordination(state),
+    memberPullRequests: memberPullRequests(state),
   };
 }
