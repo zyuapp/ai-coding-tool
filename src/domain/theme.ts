@@ -37,6 +37,8 @@ export const THEMES: Theme[] = [
   { id: "material-lighter", label: "Material Lighter", family: "Material", variant: "light", canvas: "#fafafa" },
   { id: "monokai", label: "Monokai", family: "Monokai", variant: "dark", canvas: "#1e1f1c" },
   { id: "monokai-light", label: "Monokai Light", family: "Monokai", variant: "light", canvas: "#fbf9f2" },
+  { id: "nier-automata-dark", label: "NieR: Automata Dark", family: "NieR: Automata", variant: "dark", canvas: "#2f2d26" },
+  { id: "nier-automata", label: "NieR: Automata", family: "NieR: Automata", variant: "light", canvas: "#ccc8b1" },
   { id: "night-owl", label: "Night Owl", family: "Night Owl", variant: "dark", canvas: "#011627" },
   { id: "light-owl", label: "Light Owl", family: "Night Owl", variant: "light", canvas: "#fbfbfb" },
   { id: "nord", label: "Nord", family: "Nord", variant: "dark", canvas: "#2e3440" },
