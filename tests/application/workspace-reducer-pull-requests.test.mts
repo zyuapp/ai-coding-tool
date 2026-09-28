@@ -114,6 +114,18 @@ test("a coordinator reads the pull request of every checkout its threads work in
   assert.deepEqual(deriveView(alone.state).memberPullRequests.found, [], "a checkout no thread under the coordinator works in stops being drawn");
 });
 
+test("a member answer for another branch is dropped", () => {
+  const state = projected({
+    projects: [{ id: "a", root: "/a", workspaceId: "workspace-a" }, { id: "b", root: "/b", workspaceId: "workspace-b" }],
+    threads: [task("lead", { projectId: "a", role: "coordinator" }), task("one", { projectId: "b", parentId: "lead" })],
+    currentId: "lead",
+  });
+  const asked = reduce(state, { type: "pull-request.read-members" });
+  const read = effectOf(asked, "read-pull-request");
+  const stale = reduce(asked.state, { type: "pull-request.answered", workspaceId: read.workspaceId, branch: "elsewhere", read: read.read, answer: MERGED });
+  assert.equal(stale.state, asked.state);
+});
+
 test("a thread that is not a coordinator reads no member pull requests", () => {
   const read = reduce(checkedOut(), { type: "pull-request.read-members" });
   assert.equal(read.effects.length, 0);

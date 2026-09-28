@@ -121,6 +121,16 @@ test("committed image links are preserved even when another thread is on screen"
   assert.equal(next.state.threads.find((item) => item.id === linked.id)?.messages[0].artifact, true);
 });
 
+test("image links in an interrupted answer's later part are preserved under that part", () => {
+  const state = workspace({ threads: [thread("linked", "Linked")], activeRuns: { linked: activeRun("linked", "run-image") } });
+  const delta = (sequence: number, text: string) => ({ type: "run.event" as const, event: { type: "assistant.delta" as const, taskId: "linked", runId: "run-image", sequence, messageId: "answer", text } });
+  const first = reduce(state, delta(1, "First.")).state;
+  const steered = { ...first, threads: first.threads.map((item) => ({ ...item, messages: [...item.messages, { id: "steer", kind: "user" as const, text: "More", at: 1 }] })) };
+  const text = "See [Shot](/tmp/shot.png).";
+  const next = reduce(steered, delta(2, text));
+  assert.deepEqual(next.effects, [{ type: "preserve-message-images", text, root: "/repo", messageId: "answer:1" }]);
+});
+
 test("Escape closes an enlarged image before reaching the active run", () => {
   const state = workspace({ currentId: "current", threads: [thread("current", "Current")], activeRuns: { current: activeRun("current", "run") } });
   const source = "message-image://file/?path=%2Ftmp%2Fshot.png&root=&message=reply";

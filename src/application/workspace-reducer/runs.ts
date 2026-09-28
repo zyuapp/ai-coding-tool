@@ -1,6 +1,6 @@
 /** A run's life: the checkout it resolves to, what it reports, and how it ends. */
 import { ack } from "./automations.js";
-import { settleCoordination } from "./coordination.js";
+import { deliverCoordinationNotes, settleCoordination } from "./coordination.js";
 import { readDiffFrom, rereadReviewsOf } from "./diff-reads.js";
 import { handOverDraftDock } from "./dock-tabs.js";
 import { WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
@@ -14,15 +14,15 @@ import { announced } from "../notices.js";
 import { pasteTitle } from "../pastes.js";
 import { outcomeFor, settledHeadline, whyRunSurfaces, withSettledTick } from "../run-testimony.js";
 import { nextSortIndex } from "../thread-order.js";
-import { applyRunEvent, applyThreadEvent, ATTENDED_RUN, threadMark, updateThread, withBackgroundProcesses, withSubagents, withWorkflows, type ThreadMark } from "../thread-run-state.js";
+import { answerPartId, applyRunEvent, applyThreadEvent, ATTENDED_RUN, threadMark, updateThread, withBackgroundProcesses, withSubagents, withWorkflows, type ThreadMark } from "../thread-run-state.js";
 import { threadOnScreen } from "../thread-attention.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, threadWorkspaceRoot, worktreeById, worktreeFor } from "../thread-location.js";
-import { DRAFT_DOCK, type PendingRun, type WorkspaceState } from "../workspace-state.js";
+import { DRAFT_DOCK, busyThreadIds, type PendingRun, type WorkspaceState } from "../workspace-state.js";
 import type { CreatedWorktree } from "../../contracts/ipc.js";
 import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel, engineForModel, engineHasEffort, modelSupportsManualCompaction } from "../../domain/agent-engine.js";
 import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
 import { createConversationMessage } from "../../domain/conversation.js";
-import { canJoinCoordinator, isCoordinator, withoutCoordinationNotes } from "../../domain/coordination.js";
+import { canJoinCoordinator, coordinatorOf, isCoordinator, withoutCoordinationNotes } from "../../domain/coordination.js";
 import { briefPrompt, coordinationContext } from "../coordination.js";
 import type { Thread } from "../../domain/thread.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
@@ -124,10 +124,11 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       const applied = applyRunEvent(opened, event);
       if (event.type === "assistant.delta") {
         const thread = applied.threads.find((item) => item.id === event.taskId);
-        const message = thread?.messages.find((item) => item.id === event.messageId);
+        const messageId = event.artifact ? event.messageId : answerPartId(applied.activeRuns[event.taskId], event.messageId);
+        const message = thread?.messages.find((item) => item.id === messageId);
         return settled(applied, message && /\.(?:png|jpe?g|gif|webp)\b/i.test(event.text) ? [{
           type: "preserve-message-images", text: message.text,
-          root: threadWorkspaceRoot(applied, thread) ?? "", messageId: event.messageId,
+          root: threadWorkspaceRoot(applied, thread) ?? "", messageId,
         }] : []);
       }
       const terminal = event.type === "run.status" && (event.status === "succeeded" || event.status === "failed" || event.status === "cancelled");
@@ -182,8 +183,14 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
 
     case "thread.event": {
       const { event } = input;
-      if (!state.threads.some((thread) => thread.id === event.taskId)) return settled(state);
-      return settled(applyThreadEvent(state, event));
+      const thread = state.threads.find((item) => item.id === event.taskId);
+      if (!thread) return settled(state);
+      const applied = applyThreadEvent(state, event);
+      /** Background work ending can leave a coordinator's held news with no thread left to wait for. */
+      const lead = coordinatorOf(state.threads, thread);
+      return lead?.coordinationNotes?.length && busyThreadIds(state).has(thread.id) && !busyThreadIds(applied).has(thread.id)
+        ? deliverCoordinationNotes(applied, lead.id)
+        : settled(applied);
     }
   }
 }

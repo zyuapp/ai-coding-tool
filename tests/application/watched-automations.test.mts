@@ -1,4 +1,4 @@
-import { activeRun, task, workspace } from "./workspace-reducer-fixtures.mts";
+import { activeRun, correlatedRunEvent, task, workspace } from "./workspace-reducer-fixtures.mts";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
@@ -58,6 +58,15 @@ test("a watch that is removed lands its thread in Priority, unread when it ended
   const onScreen = reduce({ ...watched, currentId: "task-a" }, { type: "automations.changed", automations: [] }).state;
   assert.equal(onScreen.threads[0]!.outcome, "finished");
   assert.equal(onScreen.threads[0]!.outcomeUnread, undefined);
+});
+
+test("a watch ended by a tick that settles quietly still lands its thread in Priority", () => {
+  const tick = activeRun("task-a", "run-1", { origin: "automation", quiet: true, acknowledged: true });
+  const watched = workspace({ threads: [task("task-a")], automations: [automationView({ endsWhen: "the PR is approved." })], activeRuns: { "task-a": tick } });
+  const ended = reduce(watched, { type: "automations.changed", automations: [] }).state;
+  const settled = reduce(ended, correlatedRunEvent("task-a", "run-1", 1, { type: "run.status", status: "succeeded" })).state;
+  assert.equal(settled.threads[0]!.outcome, "finished");
+  assert.deepEqual(sections(settled).priority, ["task-a"]);
 });
 
 test("only a live watch leaving announces anything", () => {

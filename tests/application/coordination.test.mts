@@ -216,6 +216,16 @@ test("a coordinator hears news once its other threads stop working, unless the n
   assert.equal(Object.values(waitingOnUser.state.pendingRuns).length, 1, "a thread waiting on the user's approval is not working");
 });
 
+test("news held for a thread's background work reaches the coordinator when that work finishes", () => {
+  const state = workspace({ threads: [lead(), task("worker", { parentId: "lead", title: "Worker" })], activeRuns: { worker: activeRun("worker", "run-w") }, runStatuses: { worker: "running" } });
+  const subagent = { taskId: "worker", id: "child" };
+  const started = reduce(state, { type: "thread.event", event: { ...subagent, type: "subagent.started", description: "Inspect", sessionScoped: true } });
+  const ended = reduce(started.state, correlatedRunEvent("worker", "run-w", 1, { type: "run.status", status: "succeeded" }));
+  assert.deepEqual(ended.state.pendingRuns, {}, "news waits while the subagent works");
+  const finished = reduce(ended.state, { type: "thread.event", event: { ...subagent, type: "subagent.finished", status: "completed", summary: "Done" } });
+  assert.match(required(Object.values(finished.state.pendingRuns)[0]).text, /"Worker" ended its turn/);
+});
+
 test("notes waiting when the app closed are delivered once the store is back", () => {
   const waiting = lead("lead", { coordinationNotes: [{ id: "n1", threadId: "worker", text: "\"Fix login\" ended its turn.", at: 1 }] });
   const loaded = reduce(workspace(), { type: "store.loaded", data: { version: THREAD_STORE_VERSION, tasks: [waiting, task("worker", { parentId: "lead" })], projects: [], worktrees: [], lastFolder: null } });

@@ -52,7 +52,7 @@ export function reducePullRequests(state: WorkspaceState, input: PullRequestInpu
       const held = state.pullRequest;
       const current = held && held.read === input.read && held.workspaceId === input.workspaceId && held.branch === input.branch && !samePullRequest(held.answer, input.answer);
       const member = state.memberPullRequests[input.workspaceId];
-      const answersMember = member && member.read === input.read && !samePullRequest(member.answer, input.answer);
+      const answersMember = member && member.read === input.read && member.branch === input.branch && !samePullRequest(member.answer, input.answer);
       if (!current && !answersMember) return settled(state);
       return settled({
         ...state,

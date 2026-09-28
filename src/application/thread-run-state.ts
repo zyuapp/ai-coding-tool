@@ -412,6 +412,12 @@ function answerPart(run: ActiveRun, last: Thread["messages"][number] | undefined
   return last?.id === id ? { id, parts } : { id: `${messageId}:${parts + 1}`, parts: parts + 1 };
 }
 
+/** The message the latest block of a streamed answer landed on. */
+export function answerPartId(run: ActiveRun | undefined, messageId: string) {
+  const parts = run?.answerParts?.[messageId];
+  return parts ? `${messageId}:${parts}` : messageId;
+}
+
 /** A run that hears anything from its engine other than another retry notice is through the retry. */
 function throughRetry(run: ActiveRun, event: RunEvent): ActiveRun {
   if (run.status !== "retrying" || event.type === "run.retrying" || event.type === "queued.delivered" || event.type === "queued.steer-failed") return run;
