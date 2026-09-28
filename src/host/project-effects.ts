@@ -144,7 +144,7 @@ export const projectEffects = {
   "read-pull-request": async (effect, { dispatch, desktop }) => {
     try {
       const answer = await desktop.pullRequest(effect.workspaceId);
-      await dispatch({ type: "pull-request.answered", workspaceId: effect.workspaceId, branch: effect.branch, read: effect.read, answer });
+      await dispatch({ type: "pull-request.answered", workspaceId: effect.workspaceId, branch: effect.branch, read: effect.read, ...(effect.members ? { members: true as const } : {}), answer });
     } catch {
       return;
     }

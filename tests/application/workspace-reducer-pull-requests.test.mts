@@ -101,7 +101,7 @@ test("a coordinator reads the pull request of every checkout its threads work in
   const read = effectOf(asked, "read-pull-request");
   assert.deepEqual(deriveView(asked.state).memberPullRequests.found, []);
 
-  const answered = reduce(asked.state, { type: "pull-request.answered", workspaceId: read.workspaceId, branch: read.branch, read: read.read, answer: OPEN });
+  const answered = reduce(asked.state, { type: "pull-request.answered", workspaceId: read.workspaceId, branch: read.branch, read: read.read, members: true, answer: OPEN });
   const { found, settled } = deriveView(answered.state).memberPullRequests;
   assert.deepEqual(found.map(({ pullRequest, threads }) => [pullRequest.number, threads.map((thread) => thread.id)]), [[7, ["one", "two"]]]);
   assert.equal(settled, false, "an open pull request is still worth asking about");
@@ -114,7 +114,7 @@ test("a coordinator reads the pull request of every checkout its threads work in
   assert.deepEqual(deriveView(alone.state).memberPullRequests.found, [], "a checkout no thread under the coordinator works in stops being drawn");
 });
 
-test("a member answer for another branch is dropped", () => {
+test("a member read takes only answers to member asks on its branch", () => {
   const state = projected({
     projects: [{ id: "a", root: "/a", workspaceId: "workspace-a" }, { id: "b", root: "/b", workspaceId: "workspace-b" }],
     threads: [task("lead", { projectId: "a", role: "coordinator" }), task("one", { projectId: "b", parentId: "lead" })],
@@ -122,8 +122,9 @@ test("a member answer for another branch is dropped", () => {
   });
   const asked = reduce(state, { type: "pull-request.read-members" });
   const read = effectOf(asked, "read-pull-request");
-  const stale = reduce(asked.state, { type: "pull-request.answered", workspaceId: read.workspaceId, branch: "elsewhere", read: read.read, answer: MERGED });
-  assert.equal(stale.state, asked.state);
+  const answer = { type: "pull-request.answered" as const, workspaceId: read.workspaceId, branch: read.branch, read: read.read, answer: MERGED };
+  assert.equal(reduce(asked.state, { ...answer, members: true, branch: "elsewhere" }).state, asked.state, "another branch");
+  assert.equal(reduce(asked.state, answer).state, asked.state, "an ordinary read with the same count");
 });
 
 test("a thread that is not a coordinator reads no member pull requests", () => {

@@ -44,15 +44,15 @@ export function reducePullRequests(state: WorkspaceState, input: PullRequestInpu
       }
       return settled(
         { ...state, memberPullRequests },
-        Object.values(memberPullRequests).map(({ workspaceId, branch, read }) => ({ type: "read-pull-request" as const, workspaceId, branch, read })),
+        Object.values(memberPullRequests).map(({ workspaceId, branch, read }) => ({ type: "read-pull-request" as const, workspaceId, branch, read, members: true as const })),
       );
     }
     case "pull-request.answered": {
       /** Answers to asks older than the latest are dropped, whichever order they arrive in. */
       const held = state.pullRequest;
-      const current = held && held.read === input.read && held.workspaceId === input.workspaceId && held.branch === input.branch && !samePullRequest(held.answer, input.answer);
+      const current = !input.members && held && held.read === input.read && held.workspaceId === input.workspaceId && held.branch === input.branch && !samePullRequest(held.answer, input.answer);
       const member = state.memberPullRequests[input.workspaceId];
-      const answersMember = member && member.read === input.read && member.branch === input.branch && !samePullRequest(member.answer, input.answer);
+      const answersMember = input.members && member && member.read === input.read && member.branch === input.branch && !samePullRequest(member.answer, input.answer);
       if (!current && !answersMember) return settled(state);
       return settled({
         ...state,

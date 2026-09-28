@@ -66,7 +66,7 @@ export type WorkspaceEvent =
   | { type: "worktree.deleted"; worktreeId: string; root: string; snapshot: WorktreeSnapshotResult; missingOnly?: boolean }
   | { type: "environment.updated"; workspaceId: string; taskId?: string; runId?: string; result: ChangedFilesResult }
   /** What GitHub says about a checkout, named by the ask it answers so an overtaken one is dropped. */
-  | { type: "pull-request.answered"; workspaceId: string; branch: string | null; read: number; answer: PullRequestAnswer }
+  | { type: "pull-request.answered"; workspaceId: string; branch: string | null; read: number; members?: true; answer: PullRequestAnswer }
   /** A comparison's file list, named by the dock that asked so a slow read cannot land in another. */
   | { type: "diff.loaded"; owner: string; workspaceId: string; range: DiffRange; result: DiffSummaryResult }
   /** What a page in the browser panel did. Main watches the page; the reducer keeps the record. */
@@ -129,7 +129,8 @@ export type WorkspaceEffect =
   | { type: "refresh-environment"; workspaceId: string; taskId?: string; runId?: string }
   /** Writes a composer's images out, then sends the message they ride, in that order. */
   | { type: "send-attachments"; taskId?: string; steer?: boolean; attachments: OutgoingAttachment[] }
-  | { type: "read-pull-request"; workspaceId: string; branch: string | null; read: number }
+  /** `members` marks an ask for a coordinator's threads, which counts its reads apart from the checkout in front. */
+  | { type: "read-pull-request"; workspaceId: string; branch: string | null; read: number; members?: true }
   | { type: "read-diff"; owner: string; workspaceId: string; range: DiffRange; ignoreWhitespace: boolean }
   /** Moves a checkout onto a branch, making it at that checkout's HEAD first when `create`. */
   | { type: "checkout-branch"; workspaceId: string; branch: string; create?: boolean }
