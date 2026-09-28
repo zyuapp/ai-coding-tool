@@ -3,7 +3,7 @@ import { queuedFor, resolveWorkspaceEffect, threadBusy, withPending } from "./ru
 import { reduceSending } from "./sending.js";
 import { now, rejected, settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { COORDINATION_UPDATE_DETAIL, coordinationNote, coordinationUpdate, turnNote } from "../coordination.js";
+import { COORDINATION_UPDATE_DETAIL, coordinationNote, coordinationUpdate, turnNote, workingMembers } from "../coordination.js";
 import { announced } from "../notices.js";
 import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
@@ -45,7 +45,10 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       return sent.result?.ok === false ? sent : { ...sent, state: answered(sent.state) };
     }
 
-    /** Progress is not news: only a thread that is blocked, done or failed leaves its coordinator a note. */
+    /**
+     * Progress is not news: only a thread that is blocked, done or failed leaves its coordinator a
+     * note, which it hears with the rest when the thread's turn ends.
+     */
     case "coordination.reported": {
       const thread = state.threads.find((item) => item.id === input.taskId);
       const lead = coordinatorOf(state.threads, thread);
@@ -53,7 +56,8 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       const at = now();
       const reported = updateThread(state, thread.id, (item) => ({ ...item, report: { state: input.state, summary: input.summary, at } }));
       if (input.state === "working") return settled(reported);
-      return deliverCoordinationNotes(updateThread(reported, lead.id, (item) => withCoordinationNote(item, coordinationNote(thread.id, `"${thread.title}" reported ${input.state}: ${input.summary}`, at))), lead.id);
+      const note = coordinationNote(thread.id, `"${thread.title}" reported ${input.state}: ${input.summary}`, at, input.state !== "done");
+      return settled(updateThread(reported, lead.id, (item) => withCoordinationNote(item, note)));
     }
 
     /** The user is told at once; the coordinator hears it with the rest when the thread's turn ends. */
@@ -72,16 +76,16 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       const raised = updateThread(state, thread.id, (item) => withDecision(item, decision));
       if (lead === thread) return settled(raised, announced(raised, lead, `Needs you: ${decision.question}`));
       const noted = updateThread(raised, lead.id, (item) => withCoordinationNote(item, coordinationNote(thread.id, `"${thread.title}" asked the user to decide: ${decision.question}`, at)));
-      const woken = deliverCoordinationNotes(noted, lead.id);
-      return settled(woken.state, [...announced(noted, lead, `Needs you: ${decision.question}`), ...woken.effects]);
+      return settled(noted, announced(noted, lead, `Needs you: ${decision.question}`));
     }
   }
 }
 
 /**
  * What a settled run means for the coordinators around it. A thread's turn ending is news for its
- * coordinator, which hears it at once if it is free. A coordinator coming free hears whatever
- * arrived while it was busy, unless the user just stopped it.
+ * coordinator, which hears it once it is free and its other threads have stopped working, or at
+ * once when the news is urgent. A coordinator coming free hears whatever is due, unless the user
+ * just stopped it.
  */
 export function settleCoordination(state: WorkspaceState, taskId: string, status: "succeeded" | "failed" | "cancelled"): WorkspaceTransition {
   const thread = state.threads.find((item) => item.id === taskId);
@@ -102,13 +106,18 @@ export function deliverRestoredNotes(state: WorkspaceState): WorkspaceTransition
   }, settled(state));
 }
 
-/** Wakes a free coordinator with its waiting notes. The notes stay until its run actually starts. */
+/**
+ * Wakes a free coordinator with its waiting notes, all at once rather than one wake per thread. The
+ * notes stay until its run actually starts.
+ */
 export function deliverCoordinationNotes(state: WorkspaceState, leadId: string): WorkspaceTransition {
   const lead = state.threads.find((item) => item.id === leadId);
   const notes = lead?.coordinationNotes ?? [];
   if (!isCoordinator(lead) || !notes.length || threadBusy(state, leadId) || queuedFor(state, leadId).length) return settled(state);
+  const working = workingMembers(state, leadId).length;
+  if (working && !notes.some((note) => note.urgent)) return settled(state);
   const project = projectFor(state, lead);
-  const update = coordinationUpdate(notes);
+  const update = coordinationUpdate(notes, working);
   const pending: PendingRun = {
     id: crypto.randomUUID(),
     runId: crypto.randomUUID(),

@@ -3,7 +3,7 @@ import { attachmentUrl } from "../../application/attachments";
 import type { StreamingTail } from "../../application/thread-run-state";
 import type { AgentEngine } from "../../domain/agent-engine";
 import type { ConversationMessage } from "../../domain/conversation";
-import { timeSteps, toSegments, type TimelineGroup } from "../timeline/grouping";
+import { groupMessageIds, timeSteps, toSegments, type TimelineGroup } from "../timeline/grouping";
 import { MessageArtifactScope } from "./MarkdownMessage";
 import { AnnotationRow } from "./AnnotationRow";
 import { CopyButton } from "./CopyButton";
@@ -11,7 +11,7 @@ import { FileRow } from "./FileRow";
 import { PasteRow } from "./PasteRow";
 import { StreamingText } from "./StreamingText";
 import { SystemNotice } from "./SystemNotice";
-import { SettledSteps, TurnSegments } from "./TurnWork";
+import { Fold, SettledSteps, TurnSegments } from "./TurnWork";
 
 let clockFormatter: Intl.DateTimeFormat | undefined;
 let momentFormatter: Intl.DateTimeFormat | undefined;
@@ -58,40 +58,75 @@ type TimelineRowProps = {
   onViewAttachment: (source: string) => void;
 };
 
+type Entry = Exclude<TimelineGroup, { kind: "updates" }>;
+
+function TimelineEntry({ engine, entry, streamingTail, onViewAttachment }: { engine: AgentEngine; entry: Entry; streamingTail?: StreamingTail | null; onViewAttachment: (source: string) => void }) {
+  if (entry.kind === "turn") {
+    return (
+      <article className="message assistant turn">
+        {entry.live
+          ? <TurnSegments engine={engine} segments={toSegments(timeSteps(entry.steps, null))} tail={streamingTail} live />
+          : entry.steps.length > 0 && <SettledSteps engine={engine} steps={entry.steps} endsAt={entry.endsAt} />}
+        {entry.final && <div data-message-id={entry.final.id} className="message-text markdown-body"><StreamingText committed={entry.final.text} messageId={entry.final.id} /></div>}
+        {/* Outside the answer, so neither a search nor a selection of it picks the button up. */}
+        {entry.final && (
+          <div className="answer-actions">
+            <time className="answer-time" dateTime={new Date(entry.final.at).toISOString()} title={fullMoment(entry.final.at)}>{clockTime(entry.final.at)}</time>
+            <CopyButton text={entry.final.text} label="Copy the answer" />
+          </div>
+        )}
+      </article>
+    );
+  }
+  const message = entry.message;
+  if (message.kind === "system") return <SystemNotice message={message} />;
+  if (message.kind === "assistant") {
+    return (
+      <article className="message assistant">
+        <div className="message-text markdown-body"><StreamingText committed={message.text} messageId={message.id} /></div>
+      </article>
+    );
+  }
+  return <UserMessage message={message} onView={onViewAttachment} />;
+}
+
+/** Earlier thread updates and the coordinator's answers to them, behind one row until opened. */
+function FoldedUpdates({ engine, group, onViewAttachment }: { engine: AgentEngine; group: Extract<TimelineGroup, { kind: "updates" }>; onViewAttachment: (source: string) => void }) {
+  const summary = (
+    <>
+      <span className="work-lead">Earlier thread updates</span>
+      <span className="work-summary">{group.count}</span>
+    </>
+  );
+  return (
+    <Fold className="work-group updates-fold" holds={groupMessageIds(group)} summary={summary}>
+      {() => (
+        <div className="updates-fold-entries">
+          {group.entries.map((entry) => (
+            <div key={entry.id} data-message-id={entry.kind === "message" ? entry.message.id : undefined}>
+              <TimelineEntry engine={engine} entry={entry} onViewAttachment={onViewAttachment} />
+            </div>
+          ))}
+        </div>
+      )}
+    </Fold>
+  );
+}
+
 export const TimelineRow = memo(function TimelineRow({ engine, group, index, offset, measure, streamingTail, onViewAttachment }: TimelineRowProps) {
   const message = group.kind === "message" ? group.message : null;
   return (
     <div
-      className={`timeline-row ${message?.kind ?? "turn"}`}
+      className={`timeline-row ${message?.kind ?? group.kind}`}
       data-index={index}
       data-group-id={group.id}
       data-message-id={message?.id}
       ref={measure}
       style={{ transform: `translateY(${offset}px)` }}
     >
-      {group.kind === "turn" ? (
-        <article className="message assistant turn">
-          {group.live
-            ? <TurnSegments engine={engine} segments={toSegments(timeSteps(group.steps, null))} tail={streamingTail} live />
-            : group.steps.length > 0 && <SettledSteps engine={engine} steps={group.steps} endsAt={group.endsAt} />}
-          {group.final && <div data-message-id={group.final.id} className="message-text markdown-body"><StreamingText committed={group.final.text} messageId={group.final.id} /></div>}
-          {/* Outside the answer, so neither a search nor a selection of it picks the button up. */}
-          {group.final && (
-            <div className="answer-actions">
-              <time className="answer-time" dateTime={new Date(group.final.at).toISOString()} title={fullMoment(group.final.at)}>{clockTime(group.final.at)}</time>
-              <CopyButton text={group.final.text} label="Copy the answer" />
-            </div>
-          )}
-        </article>
-      ) : message!.kind === "system" ? (
-        <SystemNotice message={message!} />
-      ) : message!.kind === "assistant" ? (
-        <article className="message assistant">
-          <div className="message-text markdown-body"><StreamingText committed={message!.text} messageId={message!.id} /></div>
-        </article>
-      ) : (
-        <UserMessage message={message!} onView={onViewAttachment} />
-      )}
+      {group.kind === "updates"
+        ? <FoldedUpdates engine={engine} group={group} onViewAttachment={onViewAttachment} />
+        : <TimelineEntry engine={engine} entry={group} streamingTail={streamingTail} onViewAttachment={onViewAttachment} />}
     </div>
   );
 });

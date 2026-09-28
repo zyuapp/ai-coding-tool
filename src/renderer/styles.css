@@ -1591,6 +1591,7 @@ button, select { color: inherit; }
 .work-row > summary::after, .work-group > summary::after, .work-run > summary::after { content: "›"; flex: none; color: var(--quiet-soft); font-size: 18px; transition: transform 140ms ease; }
 .work-row[open] > summary::after, .work-group[open] > summary::after, .work-run[open] > summary::after { transform: rotate(90deg); }
 .work-lead { color: var(--muted-soft); }
+.updates-fold-entries { display: flex; flex-direction: column; gap: 26px; padding: 16px 0 4px; }
 /* Durations and counts sit in one right-aligned cluster, so a run's times read as a column. */
 .work-meta { flex: none; display: flex; align-items: center; gap: 9px; margin-left: auto; }
 .work-time { flex: none; color: var(--quiet-strong); font-variant-numeric: tabular-nums; }

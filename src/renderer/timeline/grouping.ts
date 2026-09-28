@@ -1,8 +1,12 @@
+import { COORDINATION_UPDATE_DETAIL } from "../../application/coordination";
 import type { ConversationMessage } from "../../domain/conversation";
 
-export type TimelineGroup =
+type TimelineEntry =
   | { kind: "message"; id: string; message: ConversationMessage }
   | { kind: "turn"; id: string; steps: ConversationMessage[]; final: ConversationMessage | null; endsAt: number | null; live: boolean };
+
+/** `updates` holds a coordinator's thread updates, and its replies to them, that a newer update has since replaced. */
+export type TimelineGroup = TimelineEntry | { kind: "updates"; id: string; entries: TimelineEntry[]; count: number };
 
 /** A step runs until the next one starts; the newest step of a live turn has not ended yet. */
 export type TimedStep = { message: ConversationMessage; endsAt: number | null };
@@ -13,12 +17,12 @@ export type TurnSegment =
 
 type TimelineOptions = { running: boolean; tailMessageId?: string; runEndedAt?: number };
 
-function startOf(group: TimelineGroup) {
+function startOf(group: TimelineEntry) {
   return group.kind === "message" ? group.message.at : (group.steps[0] ?? group.final)?.at ?? null;
 }
 
 /** Only a live turn is still running; anything else ends at the newest moment known to have passed. */
-function endOf(group: TimelineGroup, next: TimelineGroup | undefined, runEndedAt?: number) {
+function endOf(group: TimelineEntry, next: TimelineEntry | undefined, runEndedAt?: number) {
   if (group.kind !== "turn") return null;
   if (group.final) return group.final.at;
   return (next && startOf(next)) ?? (group.live ? null : runEndedAt ?? group.steps.at(-1)?.at ?? null);
@@ -30,7 +34,7 @@ function endOf(group: TimelineGroup, next: TimelineGroup | undefined, runEndedAt
  * closed ends where the next group opens, or where the run it belonged to stopped.
  */
 export function groupTimeline(messages: ConversationMessage[], { running, tailMessageId, runEndedAt }: TimelineOptions): TimelineGroup[] {
-  const groups: (TimelineGroup | ConversationMessage[])[] = [];
+  const groups: (TimelineEntry | ConversationMessage[])[] = [];
   for (const message of messages) {
     if (message.kind === "user" || message.kind === "system" || message.artifact) {
       groups.push({ kind: "message", id: message.id, message });
@@ -41,7 +45,7 @@ export function groupTimeline(messages: ConversationMessage[], { running, tailMe
     else groups.push([message]);
   }
   const liveTurn = running && Array.isArray(groups.at(-1)) ? groups.at(-1) : undefined;
-  const timeline: TimelineGroup[] = groups.map((group) => {
+  const timeline: TimelineEntry[] = groups.map((group) => {
     if (!Array.isArray(group)) return group;
     const settled = group !== liveTurn && group.at(-1)!.kind === "assistant";
     return {
@@ -51,13 +55,55 @@ export function groupTimeline(messages: ConversationMessage[], { running, tailMe
       final: settled ? group.at(-1)! : null,
       endsAt: null,
       live: group === liveTurn,
-    } satisfies TimelineGroup;
+    } satisfies TimelineEntry;
   });
   /** Text can stream before its first block commits, so the turn it belongs to may not exist yet. */
   if (running && tailMessageId && !messages.some((message) => message.id === tailMessageId) && !liveTurn) {
     timeline.push({ kind: "turn", id: tailMessageId, steps: [], final: null, endsAt: null, live: true });
   }
-  return timeline.map((group, index) => group.kind !== "turn" ? group : { ...group, endsAt: endOf(group, timeline[index + 1], runEndedAt) });
+  return foldUpdates(timeline.map((group, index) => group.kind !== "turn" ? group : { ...group, endsAt: endOf(group, timeline[index + 1], runEndedAt) }));
+}
+
+function isUpdate(entry: TimelineEntry) {
+  return entry.kind === "message" && entry.message.kind === "user" && entry.message.detail === COORDINATION_UPDATE_DETAIL;
+}
+
+/**
+ * A coordinator is woken with each batch of its threads' news and answers every one. Of updates
+ * with no word from the user between them, only the newest and its answer stay open; the rest fold
+ * into one row before it.
+ */
+function foldUpdates(entries: TimelineEntry[]): TimelineGroup[] {
+  if (!entries.some(isUpdate)) return entries;
+  const folded: TimelineGroup[] = [];
+  let run: TimelineEntry[] = [];
+  let cycle: TimelineEntry[] = [];
+  let count = 0;
+  const flush = () => {
+    if (count) folded.push({ kind: "updates", id: `updates-${run[0]!.id}`, entries: run, count });
+    folded.push(...cycle);
+    run = [];
+    cycle = [];
+    count = 0;
+  };
+  for (const entry of entries) {
+    if (isUpdate(entry)) {
+      if (cycle.length) {
+        run.push(...cycle);
+        count += 1;
+      }
+      cycle = [entry];
+    } else if (entry.kind === "message" && entry.message.kind === "user") {
+      flush();
+      folded.push(entry);
+    } else if (cycle.length) {
+      cycle.push(entry);
+    } else {
+      folded.push(entry);
+    }
+  }
+  flush();
+  return folded;
 }
 
 export function timeSteps(steps: ConversationMessage[], turnEndsAt: number | null): TimedStep[] {
@@ -83,11 +129,13 @@ export function messageRows(groups: TimelineGroup[]) {
   const rows = new Map<string, number>();
   groups.forEach((group, index) => {
     rows.set(group.id, index);
-    if (group.kind === "message") rows.set(group.message.id, index);
-    else {
-      for (const step of group.steps) rows.set(step.id, index);
-      if (group.final) rows.set(group.final.id, index);
-    }
+    for (const id of groupMessageIds(group)) rows.set(id, index);
   });
   return rows;
+}
+
+export function groupMessageIds(group: TimelineGroup): string[] {
+  if (group.kind === "message") return [group.message.id];
+  if (group.kind === "updates") return group.entries.flatMap(groupMessageIds);
+  return [...group.steps.map((step) => step.id), ...group.final ? [group.final.id] : []];
 }

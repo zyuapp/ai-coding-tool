@@ -181,12 +181,39 @@ test("dismissing a coordinator files away what its threads finished with", () =>
   assert.equal(dismissed.state.threads[1].outcome, undefined);
 });
 
-test("a report or a decision wakes a free coordinator without waiting for the thread's turn to end", () => {
-  const state = workspace({ threads: [lead(), task("worker", { parentId: "lead" })], activeRuns: { worker: activeRun("worker", "run-w") } });
-  const reported = reduce(state, { type: "coordination.reported", taskId: "worker", state: "blocked", summary: "Needs the signing cert" });
-  assert.equal(required(Object.values(reported.state.pendingRuns)[0]).taskId, "lead");
-  const raised = reduce(state, { type: "coordination.decision-raised", taskId: "worker", request: { question: "Ship?", options: [] } });
-  assert.equal(required(Object.values(raised.state.pendingRuns)[0]).taskId, "lead");
+test("a report or a decision waits for the thread's turn to end, and both reach the coordinator in one wake", () => {
+  const state = workspace({ threads: [lead(), task("worker", { parentId: "lead", title: "Fix login" })], activeRuns: { worker: activeRun("worker", "run-w") }, runStatuses: { worker: "running" } });
+  const reported = reduce(state, { type: "coordination.reported", taskId: "worker", state: "done", summary: "PR #42" });
+  assert.deepEqual(reported.state.pendingRuns, {});
+  const raised = reduce(reported.state, { type: "coordination.decision-raised", taskId: "worker", request: { question: "Ship?", options: [] } });
+  assert.deepEqual(raised.state.pendingRuns, {});
+  const ended = reduce(raised.state, correlatedRunEvent("worker", "run-w", 1, { type: "run.status", status: "succeeded" }));
+  const woken = Object.values(ended.state.pendingRuns);
+  assert.equal(woken.length, 1);
+  assert.match(required(woken[0]).text, /reported done: PR #42[\s\S]*asked the user to decide: Ship\?[\s\S]*ended its turn/);
+  assert.match(required(woken[0]).prompt, /None of your threads is working now/);
+});
+
+test("a coordinator hears news once its other threads stop working, unless the news cannot wait", () => {
+  const runs = { one: activeRun("one", "run-1"), two: activeRun("two", "run-2") };
+  const state = workspace({ threads: [lead(), task("one", { parentId: "lead", title: "One" }), task("two", { parentId: "lead", title: "Two" })], activeRuns: runs, runStatuses: { one: "running", two: "running" } });
+  const first = reduce(state, correlatedRunEvent("one", "run-1", 1, { type: "run.status", status: "succeeded" }));
+  assert.deepEqual(first.state.pendingRuns, {}, "news waits while another thread works");
+  assert.equal(first.state.threads[0].coordinationNotes?.length, 1);
+  const second = reduce(first.state, correlatedRunEvent("two", "run-2", 1, { type: "run.status", status: "succeeded" }));
+  const woken = Object.values(second.state.pendingRuns);
+  assert.equal(woken.length, 1);
+  assert.match(required(woken[0]).text, /"One" ended its turn[\s\S]*"Two" ended its turn/);
+
+  const failed = reduce(state, correlatedRunEvent("one", "run-1", 1, { type: "run.status", status: "failed" }));
+  assert.match(required(Object.values(failed.state.pendingRuns)[0]).prompt, /One other thread is still working/, "a failure is heard at once");
+  const blocked = reduce(state, { type: "coordination.reported", taskId: "one", state: "blocked", summary: "Needs the signing cert" });
+  const blockedEnd = reduce(blocked.state, correlatedRunEvent("one", "run-1", 1, { type: "run.status", status: "succeeded" }));
+  assert.equal(Object.values(blockedEnd.state.pendingRuns).length, 1, "a blocked thread is heard at once");
+
+  const approving = { ...state, activeRuns: { ...runs, two: { ...runs.two, status: "awaiting-approval" as const } } };
+  const waitingOnUser = reduce(approving, correlatedRunEvent("one", "run-1", 1, { type: "run.status", status: "succeeded" }));
+  assert.equal(Object.values(waitingOnUser.state.pendingRuns).length, 1, "a thread waiting on the user's approval is not working");
 });
 
 test("notes waiting when the app closed are delivered once the store is back", () => {

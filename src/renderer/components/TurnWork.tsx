@@ -39,7 +39,7 @@ function Elapsed({ startedAt, endsAt }: { startedAt: number; endsAt: number | nu
  * Folded work stays out of the DOM until opened, so a long turn costs one row until it is read. A
  * fold holding the match being read opens itself, because a match nobody can see is no match at all.
  */
-function Fold({ className, summary, holds, messageId, children }: { className: string; summary: ReactNode; holds: string[]; messageId?: string; children: () => ReactNode }) {
+export function Fold({ className, summary, holds, messageId, children }: { className: string; summary: ReactNode; holds: string[]; messageId?: string; children: () => ReactNode }) {
   const revealed = useContext(RevealedMessage);
   const [open, setOpen] = useState(false);
   const forced = revealed !== null && holds.includes(revealed);

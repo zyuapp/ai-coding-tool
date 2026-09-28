@@ -52,12 +52,13 @@ export type Decision = {
   answeredAt?: number;
 };
 
-/** Something a coordinator has yet to hear about one of its threads. */
+/** Something a coordinator has yet to hear about one of its threads. Urgent news reaches it without waiting for its other threads. */
 export type CoordinationNote = {
   id: string;
   threadId: string;
   text: string;
   at: number;
+  urgent?: true;
 };
 
 export const MAX_BRIEF_FIELD = 4_000;
@@ -214,5 +215,6 @@ export function isDecision(value: unknown): value is Decision {
 }
 
 export function isCoordinationNote(value: unknown): value is CoordinationNote {
-  return isRecord(value) && text(value.id, 200) && text(value.threadId, 200) && typeof value.text === "string" && finite(value.at);
+  return isRecord(value) && text(value.id, 200) && text(value.threadId, 200) && typeof value.text === "string" && finite(value.at)
+    && (value.urgent === undefined || value.urgent === true);
 }

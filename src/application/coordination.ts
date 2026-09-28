@@ -52,15 +52,22 @@ function excerpt(text: string) {
   return text.length > EXCERPT ? `${text.slice(0, EXCERPT - 1)}…` : text;
 }
 
-/** What a coordinator hears when one of its threads ends a turn. */
+/** What a coordinator hears when one of its threads ends a turn. A failed turn is news that cannot wait. */
 export function turnNote(thread: Thread, status: "succeeded" | "failed" | "cancelled", at: number): CoordinationNote {
   const ended = status === "succeeded" ? "ended its turn" : status === "failed" ? "failed" : "was stopped";
   const reply = lastReply(thread);
-  return coordinationNote(thread.id, `"${thread.title}" ${ended}.${reply ? ` It last said: ${excerpt(reply)}` : ""}`, at);
+  return coordinationNote(thread.id, `"${thread.title}" ${ended}.${reply ? ` It last said: ${excerpt(reply)}` : ""}`, at, status === "failed");
 }
 
-export function coordinationNote(threadId: string, text: string, at: number): CoordinationNote {
-  return { id: crypto.randomUUID(), threadId, text, at };
+export function coordinationNote(threadId: string, text: string, at: number, urgent = false): CoordinationNote {
+  return { id: crypto.randomUUID(), threadId, text, at, ...(urgent ? { urgent: true as const } : {}) };
+}
+
+/** Threads under a coordinator still doing work. One waiting on the user's approval is not. */
+export function workingMembers(state: WorkspaceState, leadId: string): Thread[] {
+  const busy = busyThreadIds(state);
+  const blocked = blockedThreadIds(state);
+  return coordinatedThreads(state.threads, leadId).filter((thread) => busy.has(thread.id) && !blocked.has(thread.id));
 }
 
 /** One line per thread working under the coordinator, as it stands right now. */
@@ -92,12 +99,18 @@ export function coordinationContext(state: WorkspaceState, lead: Thread, carried
   return sections.length ? `\n\n---\n${sections.join("\n")}` : "";
 }
 
-/** The message that wakes a coordinator with its threads' news, as the user sees it and as the agent reads it. */
-export function coordinationUpdate(notes: CoordinationNote[]): { text: string; prompt: string } {
+/**
+ * The message that wakes a coordinator with its threads' news, as the user sees it and as the agent
+ * reads it. Once none of its threads is working, its reply is the answer the user reads.
+ */
+export function coordinationUpdate(notes: CoordinationNote[], stillWorking: number): { text: string; prompt: string } {
   const text = notes.map((note) => note.text).join("\n");
+  const reply = stillWorking
+    ? `${stillWorking === 1 ? "One other thread is" : `${stillWorking} other threads are`} still working, so tell the user only what cannot wait for ${stillWorking === 1 ? "it" : "them"}, in a line or two.`
+    : "None of your threads is working now, so give the user one answer that brings together everything they delivered, what is left, and any decision waiting on them.";
   return {
     text,
-    prompt: `${text}\n\nThese are updates from threads working under you, not a message from the user. Decide what, if anything, the user needs to hear: outcomes, decisions waiting on them, and real blockers. Say nothing about progress. Start a thread for any follow-up work.`,
+    prompt: `${text}\n\nThese are updates from threads working under you, not a message from the user. ${reply} Say nothing about progress. Start a thread for any follow-up work.`,
   };
 }
 

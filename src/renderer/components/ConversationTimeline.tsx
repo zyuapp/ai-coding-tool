@@ -101,6 +101,7 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
     estimateSize: (index) => {
       const group = groups[index];
       if (group?.kind === "turn") return group.final ? 140 : 64;
+      if (group?.kind === "updates") return 40;
       return group?.message.kind === "user" ? 88 : 64;
     },
     getItemKey: (index) => groups[index]?.id ?? index,

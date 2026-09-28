@@ -387,6 +387,27 @@ test("timeline groups keep user turns apart and leave a lone answer uncollapsed"
   assert.equal(liveTurn.live, true);
 });
 
+test("a coordinator's superseded thread updates fold into one row before the newest", () => {
+  const messages = transcript(
+    { kind: "user", text: "Ship it" },
+    { kind: "assistant", text: "Started two threads." },
+    { kind: "user", text: "\"One\" ended its turn.", detail: "Thread updates" },
+    { kind: "assistant", text: "One is done." },
+    { kind: "user", text: "\"Two\" ended its turn.", detail: "Thread updates" },
+    { kind: "tool", text: "Read" },
+    { kind: "assistant", text: "Both are done." },
+    { kind: "user", text: "Thanks" },
+    { kind: "user", text: "\"Three\" ended its turn.", detail: "Thread updates" },
+    { kind: "assistant", text: "Three is done." },
+  );
+  const groups = groupTimeline(messages, { running: false });
+  assert.deepEqual(groups.map((group) => group.kind), ["message", "turn", "updates", "message", "turn", "message", "message", "turn"]);
+  const folded = item(groups[2]);
+  if (folded.kind !== "updates") assert.fail("expected folded updates");
+  assert.equal(folded.count, 1);
+  assert.deepEqual(folded.entries.map((entry) => entry.id), ["m2", "m3"]);
+});
+
 test("a settled turn times each step it folds away", async () => {
   const settledMessages = transcript(
     { kind: "user", text: "Fix it" },
