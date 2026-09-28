@@ -1,4 +1,4 @@
-import type { AutomationView } from "../domain/automation.js";
+import { withWatchedThreads, type AutomationView } from "../domain/automation.js";
 import type { Thread } from "../domain/thread.js";
 import { remoteCollections, type PairedComputer } from "./computers.js";
 import type { Project } from "../domain/project.js";
@@ -109,12 +109,18 @@ function union(own: Set<string>, others: Set<string>) {
 
 /** Every computer's running and blocked threads together, which is what the rows of a merged list read. */
 const everyBusy = selector((state) => [busy(state), remote(state)], (state) => union(busy(state), remote(state).busy), sameIds);
+/** What the activity list ranks as running: every busy thread, and every thread a live watch holds between its ticks. */
+const everyRanked = selector(
+  (state) => [everyBusy(state), state.automations, remote(state)],
+  (state) => union(withWatchedThreads(everyBusy(state), state.automations), remote(state).ranked),
+  sameIds,
+);
 const everyBlocked = selector((state) => [blocked(state), remote(state)], (state) => union(blocked(state), remote(state).blocked), sameIds);
 const everyWorktree = selector((state) => [threadLists(state).worktreeThreadIds, remote(state)], (state) => union(threadLists(state).worktreeThreadIds, remote(state).worktreeThreadIds), sameIds);
 
 /** The sidebar draws every computer's threads together, filed under every computer's folders. */
 const sidebar = selector(
-  (state) => [threadLists(state).visibleThreads, state.projects, everyBusy(state), everyBlocked(state), remote(state), state.computers.filter, state.sidebarMode, state.sections, state.expandedProjects],
+  (state) => [threadLists(state).visibleThreads, state.projects, everyRanked(state), everyBlocked(state), remote(state), state.computers.filter, state.sidebarMode, state.sections, state.expandedProjects],
   (state) => {
     const others = remote(state);
     /** A filter naming one paired computer leaves this computer's own out. */
@@ -122,7 +128,7 @@ const sidebar = selector(
     const projects = others.projects.length ? [...(own ? state.projects : []), ...others.projects] : own ? state.projects : [];
     const visible = own ? threadLists(state).visibleThreads : [];
     const threads = others.threads.length ? [...visible, ...others.threads] : visible;
-    return sidebarLists(state, projects, threads, everyBusy(state), everyBlocked(state), others.projectHosts);
+    return sidebarLists(state, projects, threads, everyRanked(state), everyBlocked(state), others.projectHosts);
   },
 );
 
@@ -192,6 +198,7 @@ export function workspaceViewCollections(state: WorkspaceState) {
     busy: busy(state),
     blocked: blocked(state),
     everyBusy: everyBusy(state),
+    everyRanked: everyRanked(state),
     everyBlocked: everyBlocked(state),
     remote: remote(state),
     computerLinks: links(state),

@@ -15,6 +15,7 @@ export function automationFire(automation: Automation, runId: string, tick: Tick
     /** The sentence only travels with a tick that may act on it: a watched run is framed as any other. */
     ...(tick.quiet ? { quiet: true as const, surfaceWhen: automation.surfaceWhen } : {}),
     ...(tick.unattended ? { unattended: true as const } : {}),
+    ...(automation.endsWhen === undefined ? {} : { endsWhen: automation.endsWhen }),
     runNumber: automation.runCount + 1,
   };
 }

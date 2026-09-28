@@ -186,6 +186,8 @@ export type AutomationFire = {
   unattended?: true;
   /** What the automation says is worth surfacing, carried into the run's own framing. */
   surfaceWhen?: string;
+  /** What finishes the automation, so the run knows when to stop it. */
+  endsWhen?: string;
 };
 
 export type AutomationAck = {

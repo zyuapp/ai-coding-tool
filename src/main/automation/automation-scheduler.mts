@@ -41,6 +41,11 @@ function permittedPolicy(policy: ExecutionPolicy | undefined, authority?: Automa
   return effective;
 }
 
+/** An absent sentence keeps the stored one; an empty one drops it. */
+function patchedSentence(patched: string | undefined, stored: string | undefined) {
+  return patched === "" ? undefined : patched ?? stored;
+}
+
 export class AutomationScheduler {
   private readonly automations = new Map<string, Automation>();
   private readonly crons = new Map<string, Cron>();
@@ -103,6 +108,7 @@ export class AutomationScheduler {
     const at = this.now();
     /** Rewriting a schedule leaves its quiet where it was: an empty sentence is how the quiet is taken off. */
     const surfaceWhen = draft.surfaceWhen ?? existing?.surfaceWhen;
+    const endsWhen = draft.endsWhen ?? existing?.endsWhen;
     const automation: Automation = {
       id: existing?.id ?? randomUUID(),
       taskId: draft.taskId,
@@ -111,6 +117,7 @@ export class AutomationScheduler {
       ...(draft.timezone === undefined ? {} : { timezone: draft.timezone }),
       ...(policy === undefined ? {} : { policy }),
       ...(surfaceWhen ? { surfaceWhen } : {}),
+      ...(endsWhen ? { endsWhen } : {}),
       paused: draft.paused ?? false,
       createdAt: existing?.createdAt ?? at,
       updatedAt: at,
@@ -138,11 +145,13 @@ export class AutomationScheduler {
     const schedule = patch.schedule ?? existing.schedule;
     const timezone = patch.timezone ?? existing.timezone;
     if (patch.schedule !== undefined || patch.timezone !== undefined) assertSchedule(schedule, timezone);
-    const { surfaceWhen: _spoken, ...silent } = existing;
+    const { surfaceWhen: _spoken, endsWhen: _ending, ...bare } = existing;
+    const surfaceWhen = patchedSentence(patch.surfaceWhen, existing.surfaceWhen);
+    const endsWhen = patchedSentence(patch.endsWhen, existing.endsWhen);
     const automation: Automation = {
-      /** An empty sentence is how the panel takes a schedule off quiet, so it drops the field. */
-      ...(patch.surfaceWhen === "" ? silent : existing),
-      ...(patch.surfaceWhen ? { surfaceWhen: patch.surfaceWhen } : {}),
+      ...bare,
+      ...(surfaceWhen ? { surfaceWhen } : {}),
+      ...(endsWhen ? { endsWhen } : {}),
       ...(patch.prompt === undefined ? {} : { prompt: patch.prompt }),
       schedule,
       ...(timezone === undefined ? {} : { timezone }),

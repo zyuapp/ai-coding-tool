@@ -4,6 +4,7 @@ export const MAX_AUTOMATION_PROMPT = 100_000;
 export const MAX_AUTOMATION_SCHEDULE = 200;
 export const MAX_AUTOMATION_TIMEZONE = 100;
 export const MAX_SURFACE_WHEN = 500;
+export const MAX_ENDS_WHEN = 500;
 
 /** `missed` is not a run: it marks a one-shot whose moment passed without one. */
 export type AutomationRunStatus = "succeeded" | "failed" | "cancelled" | "skipped" | "missed";
@@ -23,6 +24,11 @@ export type Automation = {
    * the schedule quiet: a tick that says it found nothing settles without surfacing. Absent is loud.
    */
   surfaceWhen?: string;
+  /**
+   * What finishes the automation, in its own words. Present makes it a watch: its thread counts as
+   * running until the automation is removed. Absent is a routine that repeats until someone stops it.
+   */
+  endsWhen?: string;
   paused: boolean;
   createdAt: number;
   updatedAt: number;
@@ -47,6 +53,7 @@ export type AutomationDraft = {
   timezone?: string;
   policy?: ExecutionPolicy;
   surfaceWhen?: string;
+  endsWhen?: string;
   paused?: boolean;
 };
 
@@ -57,6 +64,8 @@ export type AutomationPatch = {
   policy?: ExecutionPolicy;
   /** An empty sentence makes the schedule loud again; anything else is what it surfaces for. */
   surfaceWhen?: string;
+  /** An empty sentence makes the automation a routine again. */
+  endsWhen?: string;
   paused?: boolean;
 };
 
@@ -82,6 +91,7 @@ export function isAutomation(value: unknown): value is Automation {
     && (record.timezone === undefined || isText(record.timezone, MAX_AUTOMATION_TIMEZONE))
     && (record.policy === undefined || isPolicy(record.policy))
     && (record.surfaceWhen === undefined || isText(record.surfaceWhen, MAX_SURFACE_WHEN))
+    && (record.endsWhen === undefined || isText(record.endsWhen, MAX_ENDS_WHEN))
     && typeof record.paused === "boolean"
     && isTimestamp(record.createdAt)
     && isTimestamp(record.updatedAt)
@@ -107,6 +117,7 @@ export function isAutomationDraft(value: unknown): value is AutomationDraft {
     && (draft.policy === undefined || isPolicy(draft.policy))
     /** Absent keeps whatever the schedule already surfaces for; empty is what takes the quiet off. */
     && (draft.surfaceWhen === undefined || isText(draft.surfaceWhen, MAX_SURFACE_WHEN))
+    && (draft.endsWhen === undefined || isText(draft.endsWhen, MAX_ENDS_WHEN))
     && (draft.paused === undefined || typeof draft.paused === "boolean");
 }
 
@@ -118,6 +129,7 @@ export function isAutomationPatch(value: unknown): value is AutomationPatch {
     && (patch.timezone === undefined || isText(patch.timezone, MAX_AUTOMATION_TIMEZONE))
     && (patch.policy === undefined || isPolicy(patch.policy))
     && (patch.surfaceWhen === undefined || patch.surfaceWhen === "" || isText(patch.surfaceWhen, MAX_SURFACE_WHEN))
+    && (patch.endsWhen === undefined || patch.endsWhen === "" || isText(patch.endsWhen, MAX_ENDS_WHEN))
     && (patch.paused === undefined || typeof patch.paused === "boolean");
 }
 
@@ -150,6 +162,18 @@ export type TickKind = { quiet: boolean; unattended: boolean };
  */
 export function quietTick(automation: Pick<Automation, "schedule" | "surfaceWhen">, manual: boolean) {
   return !manual && automation.surfaceWhen !== undefined && !isOneShotSchedule(automation.schedule);
+}
+
+/** A paused watch is waiting on the user, not on what it watches, so it no longer holds its thread in Running. */
+export function isWatching(automation: Pick<Automation, "endsWhen" | "paused">) {
+  return automation.endsWhen !== undefined && !automation.paused;
+}
+
+/** The busy threads plus those a live watch holds in Running between its ticks, which is what the activity list ranks by. */
+export function withWatchedThreads(busy: Set<string>, automations: readonly Automation[]): Set<string> {
+  const watched = automations.filter((automation) => isWatching(automation) && !busy.has(automation.taskId));
+  if (!watched.length) return busy;
+  return new Set([...busy, ...watched.map((automation) => automation.taskId)]);
 }
 
 export function didRun(status: AutomationRunStatus) {

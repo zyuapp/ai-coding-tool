@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { MAX_DETAIL, MAX_FINDING_KEY, MAX_HEADLINE } from "../../domain/finding.js";
-import { MAX_SURFACE_WHEN, type AutomationView } from "../../domain/automation.js";
+import { MAX_ENDS_WHEN, MAX_SURFACE_WHEN, type AutomationView } from "../../domain/automation.js";
 import type { AutomationBridge, FindingBridge } from "../agent/agent-provider.mjs";
 import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";
 
@@ -18,8 +18,12 @@ const surfaceWhenField = z.string().max(MAX_SURFACE_WHEN).optional().describe(
   "One sentence naming when a tick of this schedule is worth the user's attention, such as \"an error in the logs was caused by the user's own code.\" Setting it makes the schedule quiet: a run that calls nothing_to_report settles without reaching anyone, and only one that calls notify surfaces. Leave it out and the schedule keeps whatever it surfaces for now, which for a new one is every run; pass an empty sentence to take the quiet off.",
 );
 
+const endsWhenField = z.string().max(MAX_ENDS_WHEN).optional().describe(
+  "One sentence naming what finishes this automation, such as \"the PR is approved.\" Set it when the automation watches something until it is done: its thread shows as running until a tick meets this and calls stop. Leave it out for a routine that repeats until someone stops it, such as a daily brief. Pass an empty sentence to make a watch a routine.",
+);
+
 const promptField = z.string().describe(
-  "The prompt to run on every tick. Write it to stand alone, and state the stop condition inside it so the scheduled run knows when to call stop.",
+  "The prompt to run on every tick. Write it to stand alone. A watch's stop condition goes in endsWhen, which every tick is told.",
 );
 
 function describe(automation: AutomationView) {
@@ -29,6 +33,7 @@ function describe(automation: AutomationView) {
     `runs so far: ${automation.runCount}`,
     `next run: ${automation.nextRunAt ? new Date(automation.nextRunAt).toISOString() : "none"}`,
     ...(automation.surfaceWhen ? [`surfaces when: ${automation.surfaceWhen}`] : []),
+    ...(automation.endsWhen ? [`ends when: ${automation.endsWhen}`] : []),
     `last run: ${automation.lastRunAt ? `${new Date(automation.lastRunAt).toISOString()} (${automation.lastStatus})` : "never"}`,
     ...(automation.policy ? [`policy: ${automation.policy}`] : []),
     `prompt: ${automation.prompt}`,
@@ -80,7 +85,7 @@ export const AUTOMATION_TOOLS: readonly ToolDefinition<AutomationBridge>[] = [
   defineTool({
     name: "schedule",
     description: "Turn this task into a recurring automation that re-runs a prompt on a schedule. Use when the user asks to repeat, babysit, poll, or watch something on a cadence. The task keeps one automation, so calling this again replaces it. Runs never overlap: a tick that arrives while the previous run is still going is dropped.",
-    input: { prompt: promptField, schedule: scheduleField, timezone: z.string().optional().describe("IANA timezone such as \"America/Los_Angeles\". Defaults to the machine's local time."), policy: policyField, surfaceWhen: surfaceWhenField },
+    input: { prompt: promptField, schedule: scheduleField, timezone: z.string().optional().describe("IANA timezone such as \"America/Los_Angeles\". Defaults to the machine's local time."), policy: policyField, surfaceWhen: surfaceWhenField, endsWhen: endsWhenField },
     readOnly: false,
     run: (bridge, args) => report(async () => `Automation scheduled.\n${describe(await bridge.save(args))}`),
   }),
@@ -103,6 +108,7 @@ export const AUTOMATION_TOOLS: readonly ToolDefinition<AutomationBridge>[] = [
       timezone: z.string().optional().describe("IANA timezone for the schedule."),
       policy: policyField,
       surfaceWhen: surfaceWhenField,
+      endsWhen: endsWhenField,
       paused: z.boolean().optional().describe("Pause or resume without discarding the automation."),
     },
     readOnly: false,

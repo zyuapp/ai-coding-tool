@@ -350,6 +350,23 @@ test("what a schedule surfaces for survives every rewrite of it, and is what mak
   assert.equal((await scheduler.update("task-1", { surfaceWhen: "anything at all." })).surfaceWhen, "anything at all.");
 });
 
+test("what ends a watch survives rewrites, and an empty sentence makes it a routine", async (t) => {
+  const store = memoryStore();
+  const scheduler = schedulerFor(t, store, async () => "succeeded");
+  await scheduler.save({ taskId: "task-1", prompt: "babysit", schedule: HOURLY, endsWhen: "the PR is approved." });
+
+  const rewritten = await scheduler.save({ taskId: "task-1", prompt: "babysit", schedule: "0 8 * * *" });
+  assert.equal(rewritten.endsWhen, "the PR is approved.");
+  assert.equal(store.rows.get(rewritten.id)!.endsWhen, "the PR is approved.");
+
+  const updated = await scheduler.update("task-1", { surfaceWhen: "CI fails." });
+  assert.equal(updated.endsWhen, "the PR is approved.");
+  assert.equal(updated.surfaceWhen, "CI fails.");
+  const routine = await scheduler.update("task-1", { endsWhen: "" });
+  assert.equal(routine.endsWhen, undefined);
+  assert.equal(routine.surfaceWhen, "CI fails.", "dropping one sentence leaves the other");
+});
+
 test("the button the user pressed is never a quiet tick, and neither is a one-shot", async (t) => {
   const ticks: [string, TickKind][] = [];
   const scheduler = schedulerFor(t, memoryStore(), async (automation, tick) => { ticks.push([automation.taskId, tick]); return "succeeded"; });

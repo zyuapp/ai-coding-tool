@@ -4,6 +4,8 @@ import { settled, targetId } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { declinedTick, raisedFinding, whyTickCannotRun } from "../findings.js";
 import { withNothingToReport } from "../run-testimony.js";
+import { threadOnScreen } from "../thread-attention.js";
+import { isWatching, type AutomationView } from "../../domain/automation.js";
 import { automationRunLabel, automationRunPrompt } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
@@ -29,7 +31,7 @@ export function reduceAutomations(state: WorkspaceState, input: AutomationInput)
         taskId: fire.taskId,
         ...(project ? { projectId: project.id } : {}),
         text: fire.prompt,
-        prompt: automationRunPrompt(fire.prompt, fire.runNumber, fire.surfaceWhen),
+        prompt: automationRunPrompt(fire.prompt, fire.runNumber, fire.surfaceWhen, fire.endsWhen),
         detail: automationRunLabel(fire.runNumber),
         attachments: [],
         ...(fire.policy ? { policy: fire.policy } : {}),
@@ -67,8 +69,26 @@ export function reduceAutomations(state: WorkspaceState, input: AutomationInput)
     }
 
     case "automations.changed":
-      return settled({ ...state, automations: input.automations });
+      return settled(withEndedWatches({ ...state, automations: input.automations }, state.automations));
   }
+}
+
+/**
+ * A watch that is gone has finished, so its thread leaves Running for Priority the way a settled run
+ * does. A tick still going when it ended replaces this verdict with its own as it settles.
+ */
+function withEndedWatches(state: WorkspaceState, before: readonly AutomationView[]): WorkspaceState {
+  const kept = new Set(state.automations.map((automation) => automation.taskId));
+  const ended = new Set(before.filter((automation) => isWatching(automation) && !kept.has(automation.taskId)).map((automation) => automation.taskId));
+  if (!ended.size) return state;
+  return {
+    ...state,
+    threads: state.threads.map((thread) => !ended.has(thread.id) || thread.archivedAt !== undefined ? thread : {
+      ...thread,
+      outcome: "finished",
+      ...(threadOnScreen(state, thread.id) ? {} : { outcomeUnread: true as const }),
+    }),
+  };
 }
 
 /** An archived thread is unreachable, so its automation would tick forever with nowhere to run. */

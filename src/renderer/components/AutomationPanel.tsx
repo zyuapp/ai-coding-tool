@@ -62,6 +62,7 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
   const [schedule, setSchedule] = useState(automation?.schedule ?? "");
   const [prompt, setPrompt] = useState(automation?.prompt ?? "");
   const [surfaceWhen, setSurfaceWhen] = useState(automation?.surfaceWhen ?? "");
+  const [endsWhen, setEndsWhen] = useState(automation?.endsWhen ?? "");
   const [now, setNow] = useState(() => Date.now());
   const revision = automation ? `${automation.id}:${automation.updatedAt}` : "";
 
@@ -69,6 +70,7 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
     setSchedule(automation?.schedule ?? "");
     setPrompt(automation?.prompt ?? "");
     setSurfaceWhen(automation?.surfaceWhen ?? "");
+    setEndsWhen(automation?.endsWhen ?? "");
   }, [revision]);
 
   useEffect(() => {
@@ -92,7 +94,10 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
     );
   }
 
-  const dirty = schedule !== automation.schedule || prompt !== automation.prompt || surfaceWhen !== (automation.surfaceWhen ?? "");
+  const surfaceChanged = surfaceWhen !== (automation.surfaceWhen ?? "");
+  const endChanged = endsWhen !== (automation.endsWhen ?? "");
+  const dirty = schedule !== automation.schedule || prompt !== automation.prompt || surfaceChanged || endChanged;
+  const patch = { schedule, prompt, ...(surfaceChanged ? { surfaceWhen } : {}), ...(endChanged ? { endsWhen } : {}) };
 
   return (
     <section className="automation-panel" aria-label="Automation">
@@ -132,13 +137,23 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
           />
         </label>
 
+        <label className="automation-field">
+          <span>Ends when</span>
+          <input
+            value={endsWhen}
+            aria-label="What finishes this automation"
+            placeholder="Repeats until removed. Say what finishes it and the thread stays running until then."
+            onInput={(event) => setEndsWhen(event.currentTarget.value)}
+          />
+        </label>
+
         <p className="automation-meta">
           <AlarmClock size={13} aria-hidden="true" />
           <span>{automationMeta(automation, lastFoundAt, lastChecked, now)}</span>
         </p>
 
         <div className="automation-actions">
-          <CommandButton command={{ type: "automation.update", patch: { schedule, prompt, ...(surfaceWhen === (automation.surfaceWhen ?? "") ? {} : { surfaceWhen }) } }} type="button" disabled={!dirty} onClick={() => onUpdate({ schedule, prompt, ...(surfaceWhen === (automation.surfaceWhen ?? "") ? {} : { surfaceWhen }) })}>Save</CommandButton>
+          <CommandButton command={{ type: "automation.update", patch }} type="button" disabled={!dirty} onClick={() => onUpdate(patch)}>Save</CommandButton>
           <CommandButton command={{ type: "automation.update", patch: { paused: !automation.paused } }} type="button" onClick={() => onUpdate({ paused: !automation.paused })} aria-label={automation.paused ? "Resume automation" : "Pause automation"}>
             {automation.paused ? <Play size={14} /> : <Pause size={14} />}
           </CommandButton>

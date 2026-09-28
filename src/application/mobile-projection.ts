@@ -100,9 +100,9 @@ export function projectMobileView(state: WorkspaceState, at: number): MobileView
  * thread past the list's limit is not ranked either: it is too old to be waiting on anyone.
  */
 function projectMobileActivity(state: WorkspaceState, view: ReturnType<typeof deriveView>, entriesById: Map<string, MobileThreadEntry>): MobileActivity {
-  const { visibleThreads } = workspaceViewCollections(state);
+  const { visibleThreads, everyRanked } = workspaceViewCollections(state);
   const listed = visibleThreads.filter((thread) => entriesById.has(thread.id));
-  const sections = activitySections(listed, view.runningThreadIds, view.blockedThreadIds);
+  const sections = activitySections(listed, everyRanked, view.blockedThreadIds);
   const rows = (threads: Thread[]) => threads.flatMap((thread) => entriesById.get(thread.id) ?? []);
   return { priority: rows(sections.priority), running: rows(sections.running), threads: rows(sections.threads) };
 }

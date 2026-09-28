@@ -9,6 +9,7 @@ import type { AppCommand } from "../contracts/commands.js";
 import { isAppCommandType } from "../contracts/workspace-view-input.js";
 import type { Annotation, PastedText } from "../domain/conversation.js";
 import { hasUnreadAttention } from "../domain/attention.js";
+import { withWatchedThreads } from "../domain/automation.js";
 import type { ComputerFilter, ComputerLink, ComputerPairing, DiscoveredComputer } from "../domain/computers.js";
 import type { Project } from "../domain/project.js";
 import type { Thread } from "../domain/thread.js";
@@ -266,7 +267,8 @@ export function createComputerCapabilitySnapshot() {
 }
 
 /** The threads a reachable paired computer would list, less the ones it has filed away. */
-export type RemoteThreads = { computer: PairedComputer; visible: Thread[]; busy: Set<string>; blocked: Set<string> };
+/** `ranked` is `busy` plus the threads a live watch holds in Running, which is what the activity list ranks by. */
+export type RemoteThreads = { computer: PairedComputer; visible: Thread[]; busy: Set<string>; ranked: Set<string>; blocked: Set<string> };
 
 const remoteThreadCache = new WeakMap<WorkspaceState, Omit<RemoteThreads, "computer">>();
 
@@ -276,9 +278,11 @@ function remoteThreads(computer: PairedComputer): RemoteThreads | null {
   let held = remoteThreadCache.get(remote);
   if (!held) {
     const forked = sideChatIds(remote);
+    const busy = busyThreadIds(remote);
     held = {
       visible: remote.threads.filter((thread) => thread.archivedAt === undefined && !forked.has(thread.id)),
-      busy: busyThreadIds(remote),
+      busy,
+      ranked: withWatchedThreads(busy, remote.automations),
       blocked: blockedThreadIds(remote),
     };
     remoteThreadCache.set(remote, held);
@@ -303,6 +307,7 @@ export type RemoteCollections = {
   worktrees: Worktree[];
   worktreeThreadIds: Set<string>;
   busy: Set<string>;
+  ranked: Set<string>;
   blocked: Set<string>;
   /** Which computer each remote thread and project belongs to, by id. */
   threadHosts: Map<string, ThreadHost>;
@@ -310,12 +315,12 @@ export type RemoteCollections = {
   unreadCount: number;
 };
 
-export const NO_REMOTE_COLLECTIONS: RemoteCollections = { threads: [], projects: [], worktrees: [], worktreeThreadIds: new Set(), busy: new Set(), blocked: new Set(), threadHosts: new Map(), projectHosts: new Map(), unreadCount: 0 };
+export const NO_REMOTE_COLLECTIONS: RemoteCollections = { threads: [], projects: [], worktrees: [], worktreeThreadIds: new Set(), busy: new Set(), ranked: new Set(), blocked: new Set(), threadHosts: new Map(), projectHosts: new Map(), unreadCount: 0 };
 
 export function remoteCollections(computers: ComputersState): RemoteCollections {
   const shown = shownComputers(computers);
   if (!shown.length) return NO_REMOTE_COLLECTIONS;
-  const gathered: RemoteCollections = { threads: [], projects: [], worktrees: [], worktreeThreadIds: new Set(), busy: new Set(), blocked: new Set(), threadHosts: new Map(), projectHosts: new Map(), unreadCount: 0 };
+  const gathered: RemoteCollections = { threads: [], projects: [], worktrees: [], worktreeThreadIds: new Set(), busy: new Set(), ranked: new Set(), blocked: new Set(), threadHosts: new Map(), projectHosts: new Map(), unreadCount: 0 };
   for (const computer of shown) {
     const held = remoteThreads(computer);
     if (!held) continue;
@@ -332,6 +337,7 @@ export function remoteCollections(computers: ComputersState): RemoteCollections 
     }
     for (const worktree of computer.state!.worktrees) gathered.worktrees.push(worktree);
     for (const id of held.busy) gathered.busy.add(id);
+    for (const id of held.ranked) gathered.ranked.add(id);
     for (const id of held.blocked) gathered.blocked.add(id);
   }
   return gathered;

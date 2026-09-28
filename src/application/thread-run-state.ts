@@ -129,8 +129,11 @@ function now() {
 }
 
 /** Scheduled runs carry their own framing: nobody is present to answer a question or end the loop. */
-export function automationRunPrompt(prompt: string, runNumber: number, surfaceWhen?: string) {
-  const framing = `This is automated run #${runNumber} of this task's automation, started by AICodingTool's scheduler with no user watching. If the automation's stop condition is now met, call the aicodingtool-automation stop tool to end it.`;
+export function automationRunPrompt(prompt: string, runNumber: number, surfaceWhen?: string, endsWhen?: string) {
+  const stop = endsWhen
+    ? `This automation ends when: ${endsWhen} Once that holds, call the aicodingtool-automation stop tool to end it.`
+    : "If the automation's stop condition is now met, call the aicodingtool-automation stop tool to end it.";
+  const framing = `This is automated run #${runNumber} of this task's automation, started by AICodingTool's scheduler with no user watching. ${stop}`;
   return `${prompt}\n\n---\n${framing}${surfaceWhen ? `\n\n${quietFraming(surfaceWhen)}` : ""}`;
 }
 

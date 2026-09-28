@@ -20,6 +20,7 @@ import { dismissableThreads, dismissed, readAttention } from "../../domain/atten
 import { clampTitle, type Thread } from "../../domain/thread.js";
 import { coordinatorOf, withCoordinated } from "../../domain/coordination.js";
 import { isSnoozeHours } from "../../domain/thread-snooze.js";
+import { withWatchedThreads } from "../../domain/automation.js";
 import { capabilitiesFor, defaultModelFor, effortForModel, engineHasModel, modelHasEffort } from "../../domain/agent-engine.js";
 
 type ThreadCommandInput = Extract<WorkspaceInput, {
@@ -50,7 +51,7 @@ function landOnThread(state: WorkspaceState, taskId: string): WorkspaceState {
 function priorityThreads(state: WorkspaceState): Thread[] {
   const sideChats = sideChatIds(state);
   const listed = state.threads.filter((thread) => thread.archivedAt === undefined && !sideChats.has(thread.id));
-  return coordinationSections(listed, busyThreadIds(state), blockedThreadIds(state)).priority;
+  return coordinationSections(listed, withWatchedThreads(busyThreadIds(state), state.automations), blockedThreadIds(state)).priority;
 }
 
 /** The row Priority moves on to once this one leaves it: the one below, or the one above when it was last. */
