@@ -1,8 +1,10 @@
 import { useId, useState } from "react";
-import { LuChevronDown as ChevronDown, LuChevronUp as ChevronUp } from "react-icons/lu";
+import { LuChevronDown as ChevronDown, LuChevronUp as ChevronUp, LuFolderSymlink as FolderSymlink } from "react-icons/lu";
 import { deliveryLabel, type ThreadBrief } from "../../domain/coordination";
 import type { Thread } from "../../domain/thread";
+import { worktreeHue, worktreeName, type Worktree } from "../../domain/worktree";
 import type { CoordinationDecisionView, CoordinatedThreadStatus, CoordinatedThreadView } from "../../application/coordination";
+import type { WorktreeGroup } from "../../application/workspace-state";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
 import "./coordination.css";
 
@@ -28,10 +30,12 @@ export function coordinationStatusLine(status: CoordinatedThreadStatus, summary:
 }
 
 /** The threads a coordinator has working under it, each opening as a tab beside its conversation. */
-export function CoordinatedThreadList({ members, onSelect }: {
+export function CoordinatedThreadList({ members, worktreeGroups, onSelect }: {
   members: CoordinatedThreadView[];
+  worktreeGroups: WorktreeGroup[];
   onSelect: (threadId: string) => void;
 }) {
+  const worktrees = new Map(worktreeGroups.map(({ worktree }) => [worktree.id, worktree]));
   const working = members.filter((member) => member.status === "working").length;
   const waiting = members.filter((member) => member.status === "asking" || member.status === "approval").length;
   return (
@@ -52,12 +56,20 @@ export function CoordinatedThreadList({ members, onSelect }: {
           >
             <span className="coordination-row-mark"><CoordinationStatusMark status={status} /></span>
             <span><strong>{thread.title}</strong><small>{coordinationStatusLine(status, summary)}</small></span>
-            <ThreadEngineIcon engine={thread.engine} className="coordination-row-engine" size={12} />
+            <span className="coordination-row-marks">
+              {thread.worktreeId && <WorktreeMark worktreeId={thread.worktreeId} worktree={worktrees.get(thread.worktreeId)} />}
+              <ThreadEngineIcon engine={thread.engine} className="coordination-row-engine" size={12} />
+            </span>
           </button>
         ))}
       </div>
     </section>
   );
+}
+
+/** The same mark a thread's sidebar row carries, in its checkout's colour. */
+function WorktreeMark({ worktreeId, worktree }: { worktreeId: string; worktree: Worktree | undefined }) {
+  return <FolderSymlink className={`task-worktree worktree-mark hue-${worktreeHue(worktreeId)}`} size={12} aria-label={`Works in ${worktree ? worktreeName(worktree) : "a worktree"}`} />;
 }
 
 /** A thread's place under its coordinator: who it works for, what it was asked, and whether the user owes it an answer. */

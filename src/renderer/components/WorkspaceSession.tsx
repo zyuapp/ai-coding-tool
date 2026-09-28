@@ -27,7 +27,7 @@ export function WorkspaceSession(props: WorkspaceSessionProps) {
 function CoordinatorSession({ workspace }: { workspace: Workspace }) {
   const { asking, settled, found } = workspace.memberPullRequests;
   usePullRequestReads(asking, settled, workspace.actions.readMemberPullRequests);
-  return <CoordinatorPanel members={workspace.coordination.members} pullRequests={found} onOpenThread={workspace.actions.selectThread} />;
+  return <CoordinatorPanel members={workspace.coordination.members} worktreeGroups={workspace.worktreeGroups} pullRequests={found} onOpenThread={workspace.actions.selectThread} />;
 }
 
 function ThreadSession({ workspace, onInspectSubagent, onOpenPanel, onOpenWorkflow }: WorkspaceSessionProps) {

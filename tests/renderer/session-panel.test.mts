@@ -67,18 +67,22 @@ const liveWorkflow: Workflow = {
 test("a coordinator's panel is only its threads, each opening as a tab", async () => {
   window.desktop = fakeDesktop();
   const member = (id: string, title: string): Thread => ({ id, title, engine: "claude", executionPolicy: "allow-edits", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, parentId: "lead" });
+  const worktree = { id: "wt-1", name: "dark-mode", projectId: "p", root: "/tmp/wt-1", workspaceId: "ws-1", baseCommit: "abc", createdAt: 1, lastUsedAt: 1 };
   let opened: string | undefined;
   const view = await mount(React.createElement(CoordinatorPanel, {
     members: [
-      { thread: member("a", "Dark mode"), status: "working", summary: "Tokens pass" },
+      { thread: { ...member("a", "Dark mode"), worktreeId: "wt-1" }, status: "working", summary: "Tokens pass" },
       { thread: member("b", "Login flake"), status: "asking", summary: "Retry or skip?" },
     ],
+    worktreeGroups: [{ worktree, threads: [] }],
     pullRequests: [],
     onOpenThread: (id: string) => { opened = id; },
   }));
   const section = query(view.container, '[aria-label="Threads under this coordinator"]');
   assert.match(section.textContent, /1 waiting on you/);
   assert.match(section.textContent, /Needs you · Retry or skip\?/);
+  assert.ok(query(section, 'button[aria-label="Open Dark mode"] [aria-label="Works in dark-mode"]'), "a thread in a worktree carries its sidebar mark");
+  assert.equal(query(section, 'button[aria-label="Open Login flake"]').querySelector(".task-worktree"), null);
   assert.equal(view.container.querySelector('button[aria-label="Review changes"]'), null, "a coordinator has no changes of its own");
   assert.equal(view.container.querySelector('button[aria-label="Branch"]'), null);
   assert.equal(view.container.querySelector('button[aria-label="Open Automation panel"]'), null);
@@ -89,6 +93,7 @@ test("a coordinator's panel is only its threads, each opening as a tab", async (
 
   await view.render(React.createElement(CoordinatorPanel, {
     members: [{ thread: member("a", "Dark mode"), status: "done", summary: null }],
+    worktreeGroups: [],
     pullRequests: [{ pullRequest: { number: 12, title: "Add dark mode", url: "https://github.com/o/r/pull/12", state: "open" }, threads: [member("a", "Dark mode")] }],
     onOpenThread() {},
   }));
@@ -97,7 +102,7 @@ test("a coordinator's panel is only its threads, each opening as a tab", async (
   assert.equal(link.href, "https://github.com/o/r/pull/12");
   assert.match(link.textContent, /Add dark mode#12 · Open · Dark mode/);
 
-  await view.render(React.createElement(CoordinatorPanel, { members: [], pullRequests: [], onOpenThread() {} }));
+  await view.render(React.createElement(CoordinatorPanel, { members: [], worktreeGroups: [], pullRequests: [], onOpenThread() {} }));
   assert.match(view.container.textContent, /No threads yet/);
   await view.unmount();
 });

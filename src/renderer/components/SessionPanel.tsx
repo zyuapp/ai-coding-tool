@@ -11,6 +11,7 @@ import { useDismissibleLayer } from "../focus";
 import { orderSubagents, SubagentRow } from "./SubagentList";
 import { CoordinatedThreadList } from "./Coordination";
 import type { CoordinatedThreadView } from "../../application/coordination";
+import type { WorktreeGroup } from "../../application/workspace-state";
 import type { MemberPullRequest } from "../../application/pull-request-view";
 
 export type SessionPanelProps = {
@@ -229,8 +230,9 @@ function MemberPullRequestList({ pullRequests }: { pullRequests: MemberPullReque
 }
 
 /** A coordinator only delegates, so its panel is the threads working under it and the pull requests they opened. */
-export function CoordinatorPanel({ members, pullRequests, onOpenThread }: {
+export function CoordinatorPanel({ members, worktreeGroups, pullRequests, onOpenThread }: {
   members: CoordinatedThreadView[];
+  worktreeGroups: WorktreeGroup[];
   pullRequests: MemberPullRequest[];
   onOpenThread: (threadId: string) => void;
 }) {
@@ -238,7 +240,7 @@ export function CoordinatorPanel({ members, pullRequests, onOpenThread }: {
     <aside className="session-panel" aria-label="Session panel">
       <div className="session-card">
         {members.length > 0
-          ? <CoordinatedThreadList members={members} onSelect={onOpenThread} />
+          ? <CoordinatedThreadList members={members} worktreeGroups={worktreeGroups} onSelect={onOpenThread} />
           : <p className="session-empty coordination-empty">No threads yet</p>}
         {pullRequests.length > 0 && <MemberPullRequestList pullRequests={pullRequests} />}
       </div>
