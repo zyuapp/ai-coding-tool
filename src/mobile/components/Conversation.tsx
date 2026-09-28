@@ -110,7 +110,10 @@ export function Conversation({ thread, onSteerQueued, onDropQueued }: {
           {thread.queued.map((message) => (
             <div key={message.id} className="queued" role="listitem" data-steering={message.steering || undefined}>
               <CornerDownRight className="queued-mark" size={14} aria-hidden="true" />
-              <span className="queued-text">{message.text}</span>
+              <span className="queued-body">
+                {message.origin && <span className="queued-origin">{message.origin}</span>}
+                <span className="queued-text">{message.text}</span>
+              </span>
               {message.steering
                 ? <span className="queued-state">Steering…</span>
                 : <span className="queued-actions">

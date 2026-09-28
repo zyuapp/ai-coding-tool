@@ -199,7 +199,7 @@ function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deri
         detail: approvalDetail(approval.input),
       }
       : null,
-    queued: view.queuedMessages.map((message) => ({ id: message.id, text: message.text, ...(message.steering ? { steering: true } : {}) })),
+    queued: view.queuedMessages.map((message) => ({ id: message.id, text: message.text, ...(message.detail ? { origin: message.detail } : {}), ...(message.steering ? { steering: true } : {}) })),
     settings: { engine: view.engine, model: view.model, effort: view.effort, fastMode: view.fastMode, policy: view.policy },
     location,
     worktrees: project ? worktreeChoices(state, project, thread.worktreeId) : [],

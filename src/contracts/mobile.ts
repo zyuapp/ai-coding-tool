@@ -87,6 +87,7 @@ export type MobileApproval = {
 export type MobileQueuedMessage = {
   id: string;
   text: string;
+  origin?: string;
   /** Set while the message is on its way into the run, which takes its controls away. */
   steering?: boolean;
 };

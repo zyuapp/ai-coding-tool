@@ -613,8 +613,23 @@ button {
   color: var(--quiet);
 }
 
-.queued-text {
+.queued-body {
+  display: flex;
   flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.queued-origin {
+  overflow: hidden;
+  color: var(--quiet-strong);
+  font-size: var(--text-meta);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queued-text {
   min-width: 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;

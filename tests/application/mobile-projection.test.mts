@@ -145,7 +145,7 @@ test("the open thread carries its transcript, approval, queue, draft and setting
     activeRuns: { "in-app": activeRun("in-app", "run-1", "awaiting-approval") },
     runStatuses: { "in-app": "running" },
     approvals: { "run-1": approval },
-    queuedMessages: { "in-app": [{ id: "queued-1", text: "then this", prompt: "then this", attachments: [] }] },
+    queuedMessages: { "in-app": [{ id: "queued-1", text: "then this", prompt: "then this", attachments: [] }, { id: "queued-2", text: "stop the stack", prompt: "stop the stack", attachments: [], detail: "From Monday · lead" }] },
     streamingTails: { "in-app": { messageId: "message-9", text: "still writ" } },
   });
 
@@ -160,7 +160,7 @@ test("the open thread carries its transcript, approval, queue, draft and setting
   assert.equal(thread.approval?.approvalId, "approval-1");
   assert.equal(thread.approval?.toolName, "Bash");
   assert.match(thread.approval!.detail, /rm -rf build/);
-  assert.deepEqual(thread.queued, [{ id: "queued-1", text: "then this" }]);
+  assert.deepEqual(thread.queued, [{ id: "queued-1", text: "then this" }, { id: "queued-2", text: "stop the stack", origin: "From Monday · lead" }]);
   assert.equal("prompt" in thread, false, "the draft stays on the desktop");
   assert.deepEqual(thread.settings, { fastMode: false, engine: "claude", model: "sonnet", effort: "high", policy: "allow-edits" });
 });
