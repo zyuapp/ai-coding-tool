@@ -45,7 +45,7 @@ const CODEX_CONTEXT_WINDOW = 272_000;
 
 const CODEX_MODELS = [
   { id: "gpt-6-astra", label: "Astra", description: "Most capable model for complex, demanding work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA, manualCompaction: true },
-  { id: "gpt-6-sol", label: "Sol", description: "Strong coding model for everyday work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA, manualCompaction: true },
+  { id: "gpt-6.1-sol", label: "Sol", description: "Strong coding model for everyday work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA, manualCompaction: true },
   { id: "gpt-5.6-terra", label: "Terra", description: "Balanced agentic coding model for everyday work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA, manualCompaction: true },
   { id: "gpt-6-luna", label: "Luna", description: "Efficient model for lightweight work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_MAX, manualCompaction: true },
 ] as const;
@@ -53,7 +53,7 @@ const CODEX_MODELS = [
 export type AgentModel = (typeof CLAUDE_MODELS)[number]["id"] | (typeof CODEX_MODELS)[number]["id"];
 
 /** Models the catalogue replaced, each read as its successor wherever a saved setting still names it. */
-const RETIRED_MODELS: Readonly<Record<string, AgentModel>> = { "gpt-5.6-sol": "gpt-6-sol", "gpt-5.6-luna": "gpt-6-luna" };
+const RETIRED_MODELS: Readonly<Record<string, AgentModel>> = { "gpt-5.6-sol": "gpt-6.1-sol", "gpt-6-sol": "gpt-6.1-sol", "gpt-5.6-luna": "gpt-6-luna" };
 
 export function currentModel(value: unknown): unknown {
   return typeof value === "string" && Object.hasOwn(RETIRED_MODELS, value) ? RETIRED_MODELS[value] : value;
@@ -99,7 +99,7 @@ const ENGINES: Record<AgentEngine, EngineSpec> = {
   codex: {
     label: "Codex",
     models: CODEX_MODELS,
-    defaultModel: "gpt-6-sol",
+    defaultModel: "gpt-6.1-sol",
     defaultEffort: "high",
     capabilities: { fastMode: true, workflows: false, subagents: true, subagentMetadata: true, review: true },
   },

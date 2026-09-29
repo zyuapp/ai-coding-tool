@@ -119,8 +119,8 @@ test("model favorites persist, restore, and ignore duplicate commands", () => {
 });
 
 test("a favorite saved under a replaced model id restores as its successor", () => {
-  const storage = new Map<string, string>([[VIEW_PREFERENCES_KEY, JSON.stringify({ favoriteModels: ["gpt-5.6-sol", "gpt-6-sol", "gpt-5.6-luna"] })]]);
-  assert.deepEqual(readViewPreferences({ getItem: (key) => storage.get(key) ?? null, setItem: () => {} }).favoriteModels, ["gpt-6-sol", "gpt-6-luna"]);
+  const storage = new Map<string, string>([[VIEW_PREFERENCES_KEY, JSON.stringify({ favoriteModels: ["gpt-5.6-sol", "gpt-6-sol", "gpt-6.1-sol", "gpt-5.6-luna"] })]]);
+  assert.deepEqual(readViewPreferences({ getItem: (key) => storage.get(key) ?? null, setItem: () => {} }).favoriteModels, ["gpt-6.1-sol", "gpt-6-luna"]);
 });
 
 test("agent settings reload is transient, waits for the worker, and can be retried after failure", () => {
