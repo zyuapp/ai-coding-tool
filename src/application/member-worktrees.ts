@@ -23,20 +23,24 @@ export type MemberWorktree = {
   deleting: boolean;
 };
 
+const NO_MEMBER_WORKTREES: MemberWorktree[] = [];
+
 export function memberWorktreesView(state: MemberWorktreeState, lead: Thread | undefined, busy: Set<string>): MemberWorktree[] {
-  if (!lead) return [];
+  if (!lead) return NO_MEMBER_WORKTREES;
   const members = new Map<string, Thread[]>();
+  const claimants = new Map<string, Thread[]>();
   for (const thread of state.threads) {
-    if (thread.parentId !== lead.id || thread.role === "coordinator" || !thread.worktreeId) continue;
-    members.set(thread.worktreeId, [...members.get(thread.worktreeId) ?? [], thread]);
+    if (!thread.worktreeId) continue;
+    claimants.set(thread.worktreeId, [...claimants.get(thread.worktreeId) ?? [], thread]);
+    if (thread.parentId === lead.id && thread.role !== "coordinator") members.set(thread.worktreeId, [...members.get(thread.worktreeId) ?? [], thread]);
   }
-  if (!members.size) return [];
+  if (!members.size) return NO_MEMBER_WORKTREES;
   const managed = new Map(state.managedWorktrees?.map((item) => [item.root, item]));
   const deleting = new Set(state.deletingWorktrees);
   const releasing = new Set(state.releasingWorktrees);
   const checkouts = state.worktrees.filter((worktree) => members.has(worktree.id)).sort((a, b) => b.lastUsedAt - a.lastUsedAt);
   return checkouts.map((worktree) => {
-    const claimants = state.threads.filter((thread) => thread.worktreeId === worktree.id);
+    const standing = claimants.get(worktree.id) ?? [];
     const environment = state.environments[worktree.workspaceId];
     return {
       id: worktree.id,
@@ -44,8 +48,8 @@ export function memberWorktreesView(state: MemberWorktreeState, lead: Thread | u
       name: worktreeName(worktree),
       branch: environment?.status === "available" ? environment.branch : managed.get(worktree.root)?.branch ?? null,
       threads: members.get(worktree.id)!,
-      busy: claimants.some((thread) => busy.has(thread.id)),
-      deleting: deleting.has(worktree.root) || claimants.some((thread) => releasing.has(thread.id)),
+      busy: standing.some((thread) => busy.has(thread.id)),
+      deleting: deleting.has(worktree.root) || standing.some((thread) => releasing.has(thread.id)),
     };
   });
 }

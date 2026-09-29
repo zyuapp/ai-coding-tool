@@ -658,6 +658,8 @@ test("a coordinator's panel lists the checkouts its threads work in, archived on
   const running = deriveView({ ...state, activeRuns: { stranger: activeRun("stranger", "run-s", { sequence: 1 }) } }).memberWorktrees;
   assert.equal(running.find((item) => item.id === mine.id)?.busy, true, "any thread running in the checkout holds it, not only the coordinator's");
 
+  assert.deepEqual(reduce(state, { type: "worktree.reveal", root: mine.root }).effects, [{ type: "reveal-worktree", root: mine.root }], "revealable before Settings has listed checkouts");
+
   const confirming = reduce(state, { type: "worktree.confirm-delete", root: mine.root });
   assert.equal(confirming.state.worktreeSettings.confirming, mine.root);
   const deleting = reduce(confirming.state, { type: "worktree.delete", root: mine.root });

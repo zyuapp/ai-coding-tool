@@ -127,7 +127,7 @@ test("a coordinator's panel is only its threads, each opening as a tab", async (
   const worktrees = query(view.container, '[aria-label="Worktrees these threads work in"]');
   assert.match(worktrees.textContent, /dark-modedark · Dark mode/);
   assert.equal(worktrees.querySelector('[aria-label^="New thread"]'), null, "threads start in a checkout only through the coordinator");
-  await act(async () => { query<HTMLButtonElement>(worktrees, 'button[aria-label="Reveal dark-mode in Finder"]').click(); });
+  await act(async () => { query<HTMLButtonElement>(worktrees, 'button[aria-label="Reveal dark-mode"]').click(); });
   await act(async () => { query<HTMLButtonElement>(worktrees, 'button[aria-label="Delete dark-mode"]').click(); });
   assert.deepEqual([revealed, deleted], [["/tmp/wt-1"], ["/tmp/wt-1"]]);
   assert.equal(query<HTMLButtonElement>(worktrees, 'button[aria-label="Delete login"]').disabled, true, "a checkout with a run going cannot be deleted");

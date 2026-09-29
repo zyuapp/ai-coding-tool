@@ -118,7 +118,8 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
       return settled({ ...state, worktreeManagementLoading: true, worktreeSettings: { ...state.worktreeSettings, confirming: null }, worktreeManagementError: null, worktreeManagementNotice: null }, [{ type: "list-worktrees" }]);
 
     case "worktree.reveal": {
-      const worktree = state.managedWorktrees?.find((item) => item.root === input.root);
+      /** The Settings list loads on demand, so a checkout a thread records is revealable before it has. */
+      const worktree = state.managedWorktrees?.find((item) => item.root === input.root) ?? state.worktrees.find((item) => item.root === input.root);
       if (!worktree) return settled({ ...state, worktreeManagementError: WORKTREE_MISSING_ERROR }, [], { ok: false, message: WORKTREE_MISSING_ERROR });
       return settled({ ...state, worktreeManagementError: null }, [{ type: "reveal-worktree", root: worktree.root }]);
     }

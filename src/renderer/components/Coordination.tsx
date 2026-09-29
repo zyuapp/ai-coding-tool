@@ -7,6 +7,7 @@ import type { CoordinationDecisionView, CoordinatedThreadStatus, CoordinatedThre
 import type { WorktreeGroup } from "../../application/workspace-state";
 import type { MemberWorktree } from "../../application/member-worktrees";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
+import { MAC } from "../platform";
 import "./coordination.css";
 
 const STATUS_LABELS: Record<CoordinatedThreadStatus, string> = {
@@ -86,7 +87,7 @@ export function MemberWorktreeList({ worktrees, onReveal, onDelete }: {
               <span className={`coordination-row-mark worktree-mark hue-${worktreeHue(worktree.id)}`}><FolderSymlink size={12} aria-hidden="true" /></span>
               <span><strong>{worktree.name}</strong><small className={worktree.deleting ? "text-sweep" : undefined}>{detail}</small></span>
               <span className="coordination-worktree-actions">
-                <button type="button" aria-label={`Reveal ${worktree.name} in Finder`} title="Reveal in Finder" disabled={worktree.deleting} onClick={() => onReveal(worktree.root)}>
+                <button type="button" aria-label={`Reveal ${worktree.name}`} title={MAC ? "Reveal in Finder" : "Show in file manager"} disabled={worktree.deleting} onClick={() => onReveal(worktree.root)}>
                   <FolderOpen size={12} />
                 </button>
                 <button
