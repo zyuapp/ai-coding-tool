@@ -762,7 +762,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state)
     threads: listedThreads,
     archivedThreads: collections.archivedThreads,
     currentThread,
-    coordination: collections.coordination, coordinators: collections.coordinators, memberPullRequests: collections.memberPullRequests,
+    coordination: collections.coordination, coordinators: collections.coordinators, memberPullRequests: collections.memberPullRequests, memberWorktrees: collections.memberWorktrees,
     goal: state.currentId ? state.goals[state.currentId] ?? null : null,
     currentProject,
     folder: currentProject?.root ?? "",

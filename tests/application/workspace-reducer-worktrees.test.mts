@@ -634,3 +634,34 @@ test("deleting a checkout from Settings tells every thread standing in it", () =
   assert.equal(deriveView(gone.state).location.kind, "local");
   assert.deepEqual(gone.state.releasingWorktrees, []);
 });
+
+test("a coordinator's panel lists the checkouts its threads work in, archived ones too, and deletes through the usual confirmation", () => {
+  const mine = heldWorktree("wt1");
+  const archived = { ...heldWorktree("wt2"), lastUsedAt: 5 };
+  const other = heldWorktree("wt3");
+  const state = projected({
+    worktrees: [mine, archived, other],
+    threads: [
+      task("lead", { projectId: PROJECT.id, role: "coordinator" }),
+      task("one", { projectId: PROJECT.id, parentId: "lead", worktreeId: mine.id }),
+      task("two", { projectId: PROJECT.id, parentId: "lead", worktreeId: archived.id, archivedAt: 3 }),
+      task("stranger", { projectId: PROJECT.id, worktreeId: mine.id }),
+      task("elsewhere", { projectId: PROJECT.id, worktreeId: other.id }),
+    ],
+    currentId: "lead",
+    environments: { [mine.workspaceId]: { status: "available", files: [], branch: "dark-mode", baseline: null, additions: 0, deletions: 0 } },
+  });
+
+  const listed = deriveView(state).memberWorktrees;
+  assert.deepEqual(listed.map((item) => [item.id, item.branch, item.threads.map((thread) => thread.id)]), [["wt2", null, ["two"]], ["wt1", "dark-mode", ["one"]]], "most recently used first, and a checkout none of its threads use is left out");
+
+  const running = deriveView({ ...state, activeRuns: { stranger: activeRun("stranger", "run-s", { sequence: 1 }) } }).memberWorktrees;
+  assert.equal(running.find((item) => item.id === mine.id)?.busy, true, "any thread running in the checkout holds it, not only the coordinator's");
+
+  const confirming = reduce(state, { type: "worktree.confirm-delete", root: mine.root });
+  assert.equal(confirming.state.worktreeSettings.confirming, mine.root);
+  const deleting = reduce(confirming.state, { type: "worktree.delete", root: mine.root });
+  assert.equal(deriveView(deleting.state).memberWorktrees.find((item) => item.id === mine.id)?.deleting, true);
+
+  assert.deepEqual(deriveView({ ...state, currentId: "one" }).memberWorktrees, [], "a thread under the coordinator has no such list");
+});

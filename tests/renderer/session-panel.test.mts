@@ -75,8 +75,11 @@ test("a coordinator's panel is only its threads, each opening as a tab", async (
       { thread: member("b", "Login flake"), status: "asking", summary: "Retry or skip?" },
     ],
     worktreeGroups: [{ worktree, threads: [] }],
+    worktrees: [],
     pullRequests: [],
     onOpenThread: (id: string) => { opened = id; },
+    onRevealWorktree() {},
+    onDeleteWorktree() {},
   }));
   const section = query(view.container, '[aria-label="Threads under this coordinator"]');
   assert.match(section.textContent, /1 waiting on you/);
@@ -94,15 +97,42 @@ test("a coordinator's panel is only its threads, each opening as a tab", async (
   await view.render(React.createElement(CoordinatorPanel, {
     members: [{ thread: member("a", "Dark mode"), status: "done", summary: null }],
     worktreeGroups: [],
+    worktrees: [],
     pullRequests: [{ pullRequest: { number: 12, title: "Add dark mode", url: "https://github.com/o/r/pull/12", state: "open" }, threads: [member("a", "Dark mode")] }],
     onOpenThread() {},
+    onRevealWorktree() {},
+    onDeleteWorktree() {},
   }));
   const pullRequests = query(view.container, '[aria-label="Pull requests from these threads"]');
   const link = query<HTMLAnchorElement>(pullRequests, "a");
   assert.equal(link.href, "https://github.com/o/r/pull/12");
   assert.match(link.textContent, /Add dark mode#12 · Open · Dark mode/);
 
-  await view.render(React.createElement(CoordinatorPanel, { members: [], worktreeGroups: [], pullRequests: [], onOpenThread() {} }));
+  assert.equal(view.container.querySelector('[aria-label="Worktrees these threads work in"]'), null, "no worktree, no section");
+
+  const revealed: string[] = [];
+  const deleted: string[] = [];
+  await view.render(React.createElement(CoordinatorPanel, {
+    members: [{ thread: member("a", "Dark mode"), status: "done", summary: null }],
+    worktreeGroups: [],
+    worktrees: [
+      { id: "wt-1", root: "/tmp/wt-1", name: "dark-mode", branch: "dark", threads: [member("a", "Dark mode")], busy: false, deleting: false },
+      { id: "wt-2", root: "/tmp/wt-2", name: "login", branch: null, threads: [member("b", "Login flake")], busy: true, deleting: false },
+    ],
+    pullRequests: [],
+    onOpenThread() {},
+    onRevealWorktree: (root: string) => { revealed.push(root); },
+    onDeleteWorktree: (root: string) => { deleted.push(root); },
+  }));
+  const worktrees = query(view.container, '[aria-label="Worktrees these threads work in"]');
+  assert.match(worktrees.textContent, /dark-modedark · Dark mode/);
+  assert.equal(worktrees.querySelector('[aria-label^="New thread"]'), null, "threads start in a checkout only through the coordinator");
+  await act(async () => { query<HTMLButtonElement>(worktrees, 'button[aria-label="Reveal dark-mode in Finder"]').click(); });
+  await act(async () => { query<HTMLButtonElement>(worktrees, 'button[aria-label="Delete dark-mode"]').click(); });
+  assert.deepEqual([revealed, deleted], [["/tmp/wt-1"], ["/tmp/wt-1"]]);
+  assert.equal(query<HTMLButtonElement>(worktrees, 'button[aria-label="Delete login"]').disabled, true, "a checkout with a run going cannot be deleted");
+
+  await view.render(React.createElement(CoordinatorPanel, { members: [], worktreeGroups: [], worktrees: [], pullRequests: [], onOpenThread() {}, onRevealWorktree() {}, onDeleteWorktree() {} }));
   assert.match(view.container.textContent, /No threads yet/);
   await view.unmount();
 });

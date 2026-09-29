@@ -135,8 +135,8 @@
 .coordinator-panel { display: flex; flex-direction: column; overflow: hidden; }
 .coordinator-panel > .session-card { min-height: 0; display: flex; flex-direction: column; }
 .coordinator-panel .coordination-section { flex: 0 1 auto; min-height: 112px; display: flex; flex-direction: column; }
-.coordinator-panel .coordination-pull-requests { flex: none; min-height: 0; }
-.coordinator-panel .coordination-pull-requests > .subagent-list { max-height: 216px; }
+.coordinator-panel .coordination-pull-requests, .coordinator-panel .coordination-worktrees { flex: none; min-height: 0; }
+.coordinator-panel .coordination-pull-requests > .subagent-list, .coordinator-panel .coordination-worktrees > .subagent-list { max-height: 216px; }
 .coordinator-panel .coordination-section > .subagent-heading { flex: none; }
 .coordinator-panel .coordination-section > .subagent-list {
   min-height: 0;
@@ -145,6 +145,24 @@
   scrollbar-width: thin;
   scrollbar-color: var(--scroll-thumb) transparent;
 }
+.coordination-worktree { cursor: default; }
+.coordination-worktree-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.15s ease; }
+.coordination-worktree:hover .coordination-worktree-actions, .coordination-worktree:focus-within .coordination-worktree-actions { opacity: 1; }
+.coordination-worktree-actions button {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-soft);
+  border-radius: 7px;
+  padding: 0;
+  background: transparent;
+  color: var(--quiet-strong);
+  cursor: pointer;
+}
+.coordination-worktree-actions button:hover:not(:disabled) { background: var(--control-hover); border-color: transparent; color: var(--ink); }
+.coordination-worktree-actions button.danger:hover:not(:disabled) { background: var(--danger-chip); color: var(--danger); }
+.coordination-worktree-actions button:disabled { opacity: 0.45; cursor: default; }
 .coordination-pull-request { text-decoration: none; }
 .coordination-pull-request .coordination-row-mark[data-state="open"] { color: var(--success); background: var(--success-surface); }
 .coordination-pull-request .coordination-row-mark[data-state="merged"] { color: var(--pr-merged); }

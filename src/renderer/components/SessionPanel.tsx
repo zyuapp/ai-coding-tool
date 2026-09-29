@@ -9,10 +9,11 @@ import { BranchMenu, useBranches } from "./BranchMenu";
 import { useMessageLinks, WebLink } from "./MarkdownMessage";
 import { useDismissibleLayer } from "../focus";
 import { orderSubagents, SubagentRow } from "./SubagentList";
-import { CoordinatedThreadList } from "./Coordination";
+import { CoordinatedThreadList, MemberWorktreeList } from "./Coordination";
 import type { CoordinatedThreadView } from "../../application/coordination";
 import type { WorktreeGroup } from "../../application/workspace-state";
 import type { MemberPullRequest } from "../../application/pull-request-view";
+import type { MemberWorktree } from "../../application/member-worktrees";
 
 export type SessionPanelProps = {
   environment: ChangedFilesResult | null;
@@ -229,12 +230,15 @@ function MemberPullRequestList({ pullRequests }: { pullRequests: MemberPullReque
   );
 }
 
-/** A coordinator only delegates, so its panel is the threads working under it and the pull requests they opened. */
-export function CoordinatorPanel({ members, worktreeGroups, pullRequests, onOpenThread }: {
+/** A coordinator only delegates, so its panel is the threads working under it, their worktrees, and the pull requests they opened. */
+export function CoordinatorPanel({ members, worktreeGroups, worktrees, pullRequests, onOpenThread, onRevealWorktree, onDeleteWorktree }: {
   members: CoordinatedThreadView[];
   worktreeGroups: WorktreeGroup[];
+  worktrees: MemberWorktree[];
   pullRequests: MemberPullRequest[];
   onOpenThread: (threadId: string) => void;
+  onRevealWorktree: (root: string) => void;
+  onDeleteWorktree: (root: string) => void;
 }) {
   return (
     <aside className="session-panel coordinator-panel" aria-label="Session panel">
@@ -242,6 +246,7 @@ export function CoordinatorPanel({ members, worktreeGroups, pullRequests, onOpen
         {members.length > 0
           ? <CoordinatedThreadList members={members} worktreeGroups={worktreeGroups} onSelect={onOpenThread} />
           : <p className="session-empty coordination-empty">No threads yet</p>}
+        {worktrees.length > 0 && <MemberWorktreeList worktrees={worktrees} onReveal={onRevealWorktree} onDelete={onDeleteWorktree} />}
         {pullRequests.length > 0 && <MemberPullRequestList pullRequests={pullRequests} />}
       </div>
     </aside>

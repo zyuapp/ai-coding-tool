@@ -7,6 +7,7 @@ import type { ComputerLink } from "../domain/computers.js";
 import { sidebarLists } from "./sidebar-lists.js";
 import { coordinationView } from "./coordination.js";
 import { memberPullRequestsView } from "./pull-request-view.js";
+import { memberWorktreesView } from "./member-worktrees.js";
 import { isCoordinator } from "../domain/coordination.js";
 import { unreadView } from "./thread-attention.js";
 import { busyThreadIds, blockedThreadIds, sideChatIds, type WorkspaceState, type WorktreeGroup } from "./workspace-state.js";
@@ -79,6 +80,15 @@ const memberPullRequests = selector(
   (state) => {
     const current = state.threads.find((thread) => thread.id === state.currentId);
     return memberPullRequestsView(state, isCoordinator(current) ? current : undefined);
+  },
+);
+
+/** The checkouts the open coordinator's threads work in, which its panel offers to clean up. */
+const memberWorktrees = selector(
+  (state) => [state.threads, state.currentId, state.worktrees, state.environments, state.managedWorktrees, state.deletingWorktrees, state.releasingWorktrees, busy(state)],
+  (state) => {
+    const current = state.threads.find((thread) => thread.id === state.currentId);
+    return memberWorktreesView(state, isCoordinator(current) ? current : undefined, busy(state));
   },
 );
 
@@ -209,5 +219,6 @@ export function workspaceViewCollections(state: WorkspaceState) {
     coordinators: coordinators(state),
     coordination: coordination(state),
     memberPullRequests: memberPullRequests(state),
+    memberWorktrees: memberWorktrees(state),
   };
 }

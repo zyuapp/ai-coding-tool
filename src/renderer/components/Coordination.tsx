@@ -1,10 +1,11 @@
 import { useId, useState } from "react";
-import { LuChevronDown as ChevronDown, LuChevronUp as ChevronUp, LuFolderSymlink as FolderSymlink } from "react-icons/lu";
+import { LuChevronDown as ChevronDown, LuChevronUp as ChevronUp, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuTrash2 as Trash } from "react-icons/lu";
 import { deliveryLabel, type ThreadBrief } from "../../domain/coordination";
 import type { Thread } from "../../domain/thread";
 import { worktreeHue, worktreeName, type Worktree } from "../../domain/worktree";
 import type { CoordinationDecisionView, CoordinatedThreadStatus, CoordinatedThreadView } from "../../application/coordination";
 import type { WorktreeGroup } from "../../application/workspace-state";
+import type { MemberWorktree } from "../../application/member-worktrees";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
 import "./coordination.css";
 
@@ -62,6 +63,46 @@ export function CoordinatedThreadList({ members, worktreeGroups, onSelect }: {
             </span>
           </button>
         ))}
+      </div>
+    </section>
+  );
+}
+
+/** The checkouts a coordinator's threads work in. New threads start there only through the coordinator, so the list only reveals and deletes. */
+export function MemberWorktreeList({ worktrees, onReveal, onDelete }: {
+  worktrees: MemberWorktree[];
+  onReveal: (root: string) => void;
+  onDelete: (root: string) => void;
+}) {
+  return (
+    <section className="subagent-section coordination-section coordination-worktrees" aria-label="Worktrees these threads work in">
+      <div className="subagent-heading"><div className="coordination-heading">Worktrees</div></div>
+      <div className="subagent-list">
+        {worktrees.map((worktree) => {
+          const by = worktree.threads.map((thread) => thread.title).join(", ");
+          const detail = worktree.deleting ? "Deleting…" : worktree.branch ? `${worktree.branch} · ${by}` : by;
+          return (
+            <div key={worktree.id} className="coordination-row coordination-worktree" title={`${worktree.root}\n${by}`}>
+              <span className={`coordination-row-mark worktree-mark hue-${worktreeHue(worktree.id)}`}><FolderSymlink size={12} aria-hidden="true" /></span>
+              <span><strong>{worktree.name}</strong><small className={worktree.deleting ? "text-sweep" : undefined}>{detail}</small></span>
+              <span className="coordination-worktree-actions">
+                <button type="button" aria-label={`Reveal ${worktree.name} in Finder`} title="Reveal in Finder" disabled={worktree.deleting} onClick={() => onReveal(worktree.root)}>
+                  <FolderOpen size={12} />
+                </button>
+                <button
+                  type="button"
+                  className="danger"
+                  aria-label={`Delete ${worktree.name}`}
+                  title={worktree.busy ? "Wait for its threads to finish before deleting" : "Delete worktree…"}
+                  disabled={worktree.busy || worktree.deleting}
+                  onClick={() => onDelete(worktree.root)}
+                >
+                  <Trash size={12} />
+                </button>
+              </span>
+            </div>
+          );
+        })}
       </div>
     </section>
   );
