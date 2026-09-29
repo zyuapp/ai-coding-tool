@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { MAX_THREAD_WAIT_MS } from "../../contracts/ipc.js";
 import type { ThreadSummary, ThreadTranscript } from "../../contracts/threads.js";
-import { AGENT_ENGINES, isAgentEffort, isAgentModel, modelsFor, type AgentModel } from "../../domain/agent-engine.js";
+import { AGENT_ENGINES, isAgentEffort, isAgentModel, modelDelegable, modelsFor, type AgentModel } from "../../domain/agent-engine.js";
 import type { AgentEffort } from "../../domain/run.js";
 import { THREAD_ROLES, type ThreadRole } from "../../domain/thread-role.js";
-import { DELIVERIES, MAX_BRIEF_FIELD, type Delivery } from "../../domain/coordination.js";
+import { DELIVERIES, MAX_BRIEF_FIELD, type CoordinationRole, type Delivery } from "../../domain/coordination.js";
 import type { ThreadBridge } from "../agent/agent-provider.mjs";
 import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";
 
@@ -24,9 +24,11 @@ const projectField = z.string().optional().describe(
 
 const modelIds = AGENT_ENGINES.flatMap((engine) => modelsFor(engine).map((model) => model.id));
 const effortIds = [...new Set(AGENT_ENGINES.flatMap((engine) => modelsFor(engine).flatMap((model) => model.efforts.map((effort) => effort.id))))];
-const modelField = z.enum(modelIds as [AgentModel, ...AgentModel[]]).refine(isAgentModel).optional().describe(
+const modelFieldOf = (ids: AgentModel[]) => z.enum(ids as [AgentModel, ...AgentModel[]]).refine(isAgentModel).optional().describe(
   "Model for the new thread. Omit to inherit the calling thread's model.",
 );
+const modelField = modelFieldOf(modelIds);
+const delegableModelField = modelFieldOf(modelIds.filter(modelDelegable));
 const roleIds = THREAD_ROLES.map((option) => option.role);
 const roleField = z.enum(roleIds as [ThreadRole, ...ThreadRole[]]).optional().describe(
   "The part the new thread plays beside the others: coordinator, implementer, reviewer, or researcher. Set reviewer for review threads; they stay in Threads unless awaiting the user's approval.",
@@ -210,6 +212,14 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
   }),
 ];
 
-export function threadTools(bridge: ThreadBridge, now: () => number = Date.now) {
-  return bindTools({ bridge, now }, THREAD_TOOLS);
+/**
+ * A coordinator is woken with its threads' news, so it never holds its turn open waiting on one, and
+ * it is offered only the models it may start a thread on.
+ */
+const COORDINATOR_THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = THREAD_TOOLS
+  .filter((tool) => tool.name !== "wait_for_thread")
+  .map((tool) => tool.name === "start_thread" ? { ...tool, input: { ...tool.input, model: delegableModelField } } : tool);
+
+export function threadTools(bridge: ThreadBridge, now: () => number = Date.now, role?: CoordinationRole) {
+  return bindTools({ bridge, now }, role === "coordinator" ? COORDINATOR_THREAD_TOOLS : THREAD_TOOLS);
 }

@@ -37,7 +37,7 @@ const CLAUDE_MODELS = [
   { id: "fable", label: "Fable", description: "Most capable for demanding work", contextWindow: 1_000_000, efforts: EFFORTS_THROUGH_MAX },
   { id: "opus", label: "Opus", description: "Best for complex reasoning", contextWindow: 1_000_000, efforts: EFFORTS_THROUGH_MAX },
   { id: "sonnet", label: "Sonnet", description: "Balanced speed and capability", contextWindow: 1_000_000, efforts: EFFORTS_THROUGH_MAX },
-  { id: "haiku", label: "Haiku", description: "Fastest for lightweight work", contextWindow: 200_000, efforts: [] },
+  { id: "haiku", label: "Haiku", description: "Fastest for lightweight work", contextWindow: 200_000, efforts: [], delegable: false },
 ] as const;
 
 /** The default context window in Codex's model catalogue, used until the server reports its own. */
@@ -63,9 +63,9 @@ export function currentModel(value: unknown): unknown {
  * Runs always request the widest context a model offers, so `contextWindow` is that ceiling. An
  * empty `efforts` is a model that takes no effort at all, which is drawn as no effort control.
  * `manualCompaction` is the model's own protocol command for compacting on request, which Claude
- * models do not offer.
+ * models do not offer. `delegable: false` is a model a coordinator may not start a thread on.
  */
-export type ModelSpec = { id: AgentModel; label: string; description: string; contextWindow: number; efforts: readonly EffortSpec[]; manualCompaction?: boolean };
+export type ModelSpec = { id: AgentModel; label: string; description: string; contextWindow: number; efforts: readonly EffortSpec[]; manualCompaction?: boolean; delegable?: false };
 
 export type EffortSpec = { id: AgentEffort; label: string; description?: string };
 
@@ -214,6 +214,10 @@ export function engineForModel(model: AgentModel): AgentEngine {
 /** Manual context compaction belongs to the model, so an engine that does not offer it cannot ask. */
 export function modelSupportsManualCompaction(engine: AgentEngine, model: AgentModel) {
   return engineHasModel(engine, model) && MODEL_SPECS.get(model)?.manualCompaction === true;
+}
+
+export function modelDelegable(model: AgentModel) {
+  return MODEL_SPECS.get(model)?.delegable !== false;
 }
 
 /** An effort Claude does not offer lands on its default, so a foreign one never reaches the SDK. */

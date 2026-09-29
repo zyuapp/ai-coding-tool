@@ -26,9 +26,7 @@ export function runTools(input: ToolSources): ServedToolSet[] {
   }
   /** A native review is already isolated in its own Codex thread. App thread tools would create sidebar tasks instead. */
   if (input.threads && input.operation?.type !== "review") {
-    /** A coordinator is woken with its threads' news, so it never holds its turn open waiting on one. */
-    const tools = threadTools(input.threads);
-    sets.push({ server: THREAD_SERVER_NAME, tools: input.coordinationRole === "coordinator" ? tools.filter((tool) => tool.name !== "wait_for_thread") : tools });
+    sets.push({ server: THREAD_SERVER_NAME, tools: threadTools(input.threads, Date.now, input.coordinationRole) });
   }
   if (input.coordination && input.coordinationRole && input.operation?.type !== "review") sets.push({ server: COORDINATION_SERVER_NAME, tools: coordinationTools(input.coordination, input.coordinationRole) });
   if (input.browser) sets.push({ server: BROWSER_SERVER_NAME, tools: browserTools(input.browser) });

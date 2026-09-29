@@ -197,6 +197,17 @@ test("a coordinator's new thread needs a brief and works under it", async () => 
   assert.deepEqual(worker?.brief, brief);
 });
 
+test("a coordinator cannot start a thread on Haiku, whether asked for or inherited", async () => {
+  const brief = { intent: "fix it", doneWhen: "it works", delivers: "commit" as const };
+  const host = driver(workspace({ threads: [task("lead", { role: "coordinator" }), task("light", { role: "coordinator", model: "haiku" })] }));
+  const asked = await answerThreadRequest(host, { type: "thread.request", requestId: "r1", taskId: "lead", op: "command", command: { type: "task.send", text: "Fix it", brief, model: "haiku" } });
+  assert.equal(asked.ok, false);
+  if (!asked.ok) assert.match(asked.message, /haiku/);
+  const inherited = await answerThreadRequest(host, { type: "thread.request", requestId: "r2", taskId: "light", op: "command", command: { type: "task.send", text: "Fix it", brief } });
+  assert.equal(inherited.ok, false);
+  assert.equal(host.state().threads.length, 2);
+});
+
 test("a message one thread sends another names the thread it came from", async () => {
   const host = driver(workspace({ threads: [task("sender", { title: "Monday" }), task("receiver")] }), async (effect, dispatch) => {
     if (effect.type === "resolve-run-workspace") await dispatch({ type: "run.resolved", pendingId: effect.pendingId, workspace: { id: "scratch", kind: "projectless", root: "/scratch" } });

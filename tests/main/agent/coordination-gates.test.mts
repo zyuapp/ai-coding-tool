@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
+import { z } from "zod";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { ClaudeAgentProvider } from "../../../src/main/agent/claude-agent-provider.mts";
 import { codexPolicy } from "../../../src/main/codex/codex-session.mts";
@@ -51,4 +52,15 @@ test("a coordinator never waits on a thread, while every other run still can", (
   assert.ok(threadToolNames({ coordinationRole: "coordinator", coordination }).includes("start_thread"));
   assert.ok(threadToolNames({ coordinationRole: "member", coordination }).includes("wait_for_thread"));
   assert.ok(threadToolNames({}).includes("wait_for_thread"));
+});
+
+test("a coordinator is not offered Haiku for a thread it starts", () => {
+  const threads = { list: async () => [], read: async () => { throw new Error("unused"); }, wait: async () => { throw new Error("unused"); }, command: async () => ({ thread: null }) };
+  const coordination = { report: async () => ({ recorded: true, note: "" }), decide: async () => ({ recorded: true, note: "" }) };
+  const startModel = (sources: Partial<Parameters<typeof runTools>[0]>) => runTools({ channel: "main", computerUse: { status: "unavailable" }, threads, emit: () => {}, ...sources } as Parameters<typeof runTools>[0])
+    .find((set) => set.server === "aicodingtool-threads")!.tools.find((tool) => tool.name === "start_thread")!.input.model!;
+  const accepts = (sources: Partial<Parameters<typeof runTools>[0]>, model: string) => z.object({ model: startModel(sources) }).safeParse({ model }).success;
+  assert.equal(accepts({ coordinationRole: "coordinator", coordination }, "haiku"), false);
+  assert.equal(accepts({ coordinationRole: "coordinator", coordination }, "sonnet"), true);
+  assert.equal(accepts({}, "haiku"), true);
 });

@@ -12,7 +12,7 @@ import { terminalLineLimit } from "../domain/terminal.js";
 import { coordinatorOf, isCoordinator, type CoordinationState, type DecisionRequest } from "../domain/coordination.js";
 import { errorMessage } from "./errors.js";
 import type { RuntimeDesktop } from "./runtime-desktop.js";
-import { defaultEffortFor, defaultModelFor, effortForModel, engineForModel, modelHasEffort, modelTakesEffort } from "../domain/agent-engine.js";
+import { defaultEffortFor, defaultModelFor, effortForModel, engineForModel, modelDelegable, modelHasEffort, modelTakesEffort } from "../domain/agent-engine.js";
 
 /** How much page text a read returns when the caller does not say. */
 const DEFAULT_PAGE_TEXT = 4_000;
@@ -142,6 +142,7 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
     const selected: { command: typeof command } | { error: string } = command.type === "task.send" && command.taskId === undefined && caller
       ? (() => {
           const model = command.model ?? caller.model ?? defaultModelFor(caller.engine);
+          if (isCoordinator(caller) && !modelDelegable(model)) return { error: `A coordinator cannot start a thread on the ${model} model. Pick another model.` };
           if (command.effort && !modelHasEffort(model, command.effort)) return { error: `The ${model} model does not support ${command.effort} effort.` };
           /** An inherited effort the new model does not take drops to the nearest one it does. */
           const effort = command.effort ?? effortForModel(model, caller.effort ?? defaultEffortFor(engineForModel(model)));
