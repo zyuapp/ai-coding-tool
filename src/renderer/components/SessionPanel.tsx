@@ -205,7 +205,7 @@ const PULL_REQUEST_STATES: Record<PullRequestState, string> = { draft: "Draft", 
 function MemberPullRequestList({ pullRequests }: { pullRequests: MemberPullRequest[] }) {
   const links = useMessageLinks();
   return (
-    <section className="subagent-section coordination-section" aria-label="Pull requests from these threads">
+    <section className="subagent-section coordination-section coordination-pull-requests" aria-label="Pull requests from these threads">
       <div className="subagent-heading"><div className="coordination-heading">Pull requests</div></div>
       <div className="subagent-list">
         {pullRequests.map(({ pullRequest, threads }) => {
@@ -237,7 +237,7 @@ export function CoordinatorPanel({ members, worktreeGroups, pullRequests, onOpen
   onOpenThread: (threadId: string) => void;
 }) {
   return (
-    <aside className="session-panel" aria-label="Session panel">
+    <aside className="session-panel coordinator-panel" aria-label="Session panel">
       <div className="session-card">
         {members.length > 0
           ? <CoordinatedThreadList members={members} worktreeGroups={worktreeGroups} onSelect={onOpenThread} />
