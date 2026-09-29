@@ -131,11 +131,11 @@
 .coordination-row.blocked small, .coordination-row.failed small { color: var(--danger-soft); }
 .coordination-row-marks { display: flex; align-items: center; gap: 6px; }
 .coordination-row-engine { color: var(--quiet); }
-/* Each list scrolls inside its own section, so a long roster never pushes the pull requests out of view. */
+/* Each list scrolls inside its own section, so a long list never pushes the others out of view. */
 .coordinator-panel { display: flex; flex-direction: column; overflow: hidden; }
 .coordinator-panel > .session-card { min-height: 0; display: flex; flex-direction: column; }
 .coordinator-panel .coordination-section { flex: 0 1 auto; min-height: 112px; display: flex; flex-direction: column; }
-.coordinator-panel .coordination-pull-requests, .coordinator-panel .coordination-worktrees { flex: none; min-height: 0; }
+.coordinator-panel .coordination-pull-requests, .coordinator-panel .coordination-worktrees { min-height: 80px; }
 .coordinator-panel .coordination-pull-requests > .subagent-list, .coordinator-panel .coordination-worktrees > .subagent-list { max-height: 216px; }
 .coordinator-panel .coordination-section > .subagent-heading { flex: none; }
 .coordinator-panel .coordination-section > .subagent-list {

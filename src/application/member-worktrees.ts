@@ -25,14 +25,20 @@ export type MemberWorktree = {
 
 const NO_MEMBER_WORKTREES: MemberWorktree[] = [];
 
+function add(groups: Map<string, Thread[]>, worktreeId: string, thread: Thread) {
+  const group = groups.get(worktreeId);
+  if (group) group.push(thread);
+  else groups.set(worktreeId, [thread]);
+}
+
 export function memberWorktreesView(state: MemberWorktreeState, lead: Thread | undefined, busy: Set<string>): MemberWorktree[] {
   if (!lead) return NO_MEMBER_WORKTREES;
   const members = new Map<string, Thread[]>();
   const claimants = new Map<string, Thread[]>();
   for (const thread of state.threads) {
     if (!thread.worktreeId) continue;
-    claimants.set(thread.worktreeId, [...claimants.get(thread.worktreeId) ?? [], thread]);
-    if (thread.parentId === lead.id && thread.role !== "coordinator") members.set(thread.worktreeId, [...members.get(thread.worktreeId) ?? [], thread]);
+    add(claimants, thread.worktreeId, thread);
+    if (thread.parentId === lead.id && thread.role !== "coordinator") add(members, thread.worktreeId, thread);
   }
   if (!members.size) return NO_MEMBER_WORKTREES;
   const managed = new Map(state.managedWorktrees?.map((item) => [item.root, item]));
