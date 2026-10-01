@@ -208,6 +208,7 @@
         "libatspi2.0-0",
         "libuuid1",
         "libsecret-1-0",
+        "libsecret-tools",
         "x11-utils"
       ]
     },

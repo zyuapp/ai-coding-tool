@@ -50,9 +50,10 @@ function catalog(platform: NodeJS.Platform, home: string, configHome: string | u
         flatpak("com.brave.Browser", "config", "BraveSoftware", "Brave-Browser"),
         path.join(home, "snap", "brave", "current", ".config", "BraveSoftware", "Brave-Browser"),
       ], "brave"),
-      chromium("edge", "Microsoft Edge", [path.join(config, "microsoft-edge"), flatpak("com.microsoft.Edge", "config", "microsoft-edge")], "microsoft-edge"),
-      chromium("vivaldi", "Vivaldi", [path.join(config, "vivaldi")], "vivaldi"),
-      chromium("opera", "Opera", [path.join(config, "opera")], "opera"),
+      /** Edge and Opera keep their key under Chromium's name on Linux, and Vivaldi under Chrome's. */
+      chromium("edge", "Microsoft Edge", [path.join(config, "microsoft-edge"), flatpak("com.microsoft.Edge", "config", "microsoft-edge")], "chromium", "Chromium"),
+      chromium("vivaldi", "Vivaldi", [path.join(config, "vivaldi"), flatpak("com.vivaldi.Vivaldi", "config", "vivaldi")], "chrome", "Chrome"),
+      chromium("opera", "Opera", [path.join(config, "opera")], "chromium", "Chromium"),
       chromium("chromium", "Chromium", [
         path.join(config, "chromium"),
         path.join(home, "snap", "chromium", "common", "chromium"),
@@ -63,6 +64,7 @@ function catalog(platform: NodeJS.Platform, home: string, configHome: string | u
         path.join(config, "mozilla", "firefox"),
         path.join(home, "snap", "firefox", "common", ".mozilla", "firefox"),
         flatpak("org.mozilla.firefox", ".mozilla", "firefox"),
+        flatpak("org.mozilla.firefox", "config", "mozilla", "firefox"),
       ] },
     ];
   }
@@ -160,6 +162,15 @@ function run(command: string, args: string[], timeout: number): Promise<string |
   });
 }
 
+/** The KDE wallet Chromium stores its key in, which the user may have renamed from the default. */
+async function networkWallet() {
+  for (const service of ["kwalletd6", "kwalletd5"]) {
+    const name = await run("dbus-send", ["--session", "--print-reply=literal", `--dest=org.kde.${service}`, `/modules/${service}`, "org.kde.KWallet.networkWallet"], 5_000);
+    if (name?.trim()) return name.trim();
+  }
+  return "kdewallet";
+}
+
 /**
  * Where each platform keeps the password a Chromium browser encrypts cookies with. macOS asks the
  * user before handing it over. Linux falls back to the fixed password Chromium uses without a keyring.
@@ -172,9 +183,10 @@ function chromiumKeys(kind: BrowserKind): ChromiumKeys {
       return [chromiumKey(password, 1003)];
     }
     if (version === "v10") return [chromiumKey("peanuts", 1)];
+    const wallet = await networkWallet();
     const passwords = [
       await run("secret-tool", ["lookup", "application", kind.libsecret!], 30_000),
-      await run("kwallet-query", ["--read-password", `${kind.kwallet} Safe Storage`, "--folder", `${kind.kwallet} Keys`, "kdewallet"], 30_000),
+      await run("kwallet-query", ["--read-password", `${kind.kwallet} Safe Storage`, "--folder", `${kind.kwallet} Keys`, wallet], 30_000),
       "",
     ].filter((password): password is string => password !== null);
     return [...new Set(passwords)].map((password) => chromiumKey(password, 1));

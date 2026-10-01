@@ -60,6 +60,25 @@ test("Linux profiles are found in the config folder and in Snap and Flatpak inst
   ]);
 });
 
+test("Linux finds Flatpak Vivaldi and Firefox's XDG profile, and asks each keyring under the name the browser stores its key by", async () => {
+  const root = await home();
+  await file(path.join(root, ".var", "app", "com.vivaldi.Vivaldi", "config", "vivaldi", "Default", "Cookies"));
+  await file(path.join(root, ".config", "microsoft-edge", "Default", "Cookies"));
+  await file(path.join(root, ".config", "opera", "Default", "Cookies"));
+  const xdg = path.join(root, ".var", "app", "org.mozilla.firefox", "config", "mozilla", "firefox");
+  await file(path.join(xdg, "profiles.ini"), "[Profile0]\nName=default\nIsRelative=1\nPath=abc.default\n");
+  await file(path.join(xdg, "abc.default", "cookies.sqlite"));
+
+  const sources = (await discover("linux", root, undefined)).map(({ browser, kind }) => ({ browser, libsecret: kind.libsecret, kwallet: kind.kwallet }));
+
+  assert.deepEqual(sources, [
+    { browser: "Microsoft Edge", libsecret: "chromium", kwallet: "Chromium" },
+    { browser: "Vivaldi", libsecret: "chrome", kwallet: "Chrome" },
+    { browser: "Opera", libsecret: "chromium", kwallet: "Chromium" },
+    { browser: "Firefox", libsecret: undefined, kwallet: undefined },
+  ]);
+});
+
 test("Firefox's own default profile is offered first", () => {
   const entries = firefoxProfileEntries([
     "[Profile1]", "Name=old", "IsRelative=1", "Path=Profiles/old",
