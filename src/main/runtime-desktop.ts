@@ -13,6 +13,7 @@ import { openInEditor } from "./open-in-editor.js";
 import { serviceDesktop, type ServiceDesktopHost } from "./service-desktop.js";
 import { checkForUpdates, type UpdateHost } from "./updates.js";
 import * as browser from "./browser-host.js";
+import { importBrowserSites, listImportSites, listImportSources } from "./browser-import.js";
 
 /** What the desktop adds to the services: the window, and everything only a window can do. */
 export type RuntimeDesktopHost = Omit<ServiceDesktopHost, "openUrl" | "computerUse"> & {
@@ -60,6 +61,9 @@ function panelDesktop(host: RuntimeDesktopHost) {
     inspectBrowserPage: (tabId, inspection, taskId) => browser.inspectPage(tabId, inspection, taskId),
     captureBrowserPage: (tabId, fullPage, timeoutMs, taskId) => browser.capturePage(tabId, fullPage, timeoutMs, taskId),
     clearBrowserData: () => browser.clearData(),
+    listBrowserImportSources: () => listImportSources(),
+    listBrowserImportSites: (sourceId) => listImportSites(sourceId),
+    importBrowserSites: (sourceId, sites) => importBrowserSites(sourceId, sites, browser.addCookies),
     onBrowserEvent: (listener) => events.on("browser:event", listener),
     findInPage: async (tabId, query, forward, findNext) => browser.findInPage(tabId, query, { forward, findNext }),
     stopFindInPage: async (tabId) => browser.stopFindInPage(tabId),

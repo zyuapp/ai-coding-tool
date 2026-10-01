@@ -1,4 +1,5 @@
 import type { AgentModel } from "../domain/agent-engine.js";
+import type { BrowserImportMemory } from "../domain/browser-import.js";
 import type { ShortcutOverrides } from "../domain/shortcuts.js";
 import type { ThemeMode } from "../domain/theme.js";
 import type { SidebarMode, SidebarSections } from "../domain/sidebar.js";
@@ -45,4 +46,6 @@ export type ViewPreferences = {
   /** The pages each thread's dock reopens, keyed by thread id, and the origins a run may reach without asking again. */
   browserTabs?: Record<string, string[]>;
   browserOrigins?: string[];
+  /** The import "Import again" repeats. */
+  browserImport?: BrowserImportMemory;
 };

@@ -4219,3 +4219,23 @@ button.setting-hint:hover { color: var(--ink); }
 .sidebar-project-empty { padding: 12px; color: var(--quiet); font-size: var(--text-meta); overflow-wrap: anywhere; }
 .sidebar-project-empty p { margin: 0 0 8px; }
 .sidebar-project-empty button { border: 0; background: transparent; color: var(--ink); padding: 0; font: inherit; cursor: pointer; }
+
+/** Another browser's sites, picked before their sign-ins are copied into the panel. */
+.browser-import-notice { margin: 0; border-top: 1px solid var(--line); padding: 13px 0; color: var(--success-soft); font-size: var(--text-control); }
+.browser-import-picker { display: grid; gap: 10px; padding: 0 0 19px 35px; }
+.browser-import-picker input[type="search"] { border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; background: var(--wash); color: var(--ink); font-size: var(--text-control); }
+.browser-import-picker input[type="search"]:focus { border-color: var(--accent-line); outline: none; }
+.browser-import-sites { max-height: 280px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 4px; }
+.browser-import-sites label { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; border-radius: 6px; padding: 6px 8px; cursor: pointer; }
+.browser-import-sites label:hover { background: var(--control-hover); }
+.browser-import-sites input { margin: 0; accent-color: var(--accent); }
+.browser-import-sites span { overflow: hidden; color: var(--ink-dim); font-size: var(--text-control); text-overflow: ellipsis; white-space: nowrap; }
+.browser-import-sites em { color: var(--quiet-strong); font-size: var(--text-meta); font-style: normal; }
+.browser-import-sites .browser-import-quiet { padding: 6px 8px; }
+.browser-import-quiet { margin: 0; color: var(--quiet-strong); font-size: var(--text-meta); }
+.browser-import-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.browser-import-actions button { border: 1px solid var(--line-strong); border-radius: 8px; padding: 7px 11px; background: var(--control); color: var(--ink-dim); font-size: var(--text-meta); font-weight: 560; cursor: pointer; }
+.browser-import-actions button:hover:not(:disabled) { border-color: var(--line-bright); background: var(--control-hover); }
+.browser-import-actions button:disabled { color: var(--quiet-strong); cursor: default; }
+.browser-import-actions button.primary:not(:disabled) { border-color: var(--accent-line); color: var(--accent-soft); }
+.browser-import-source .setting-row-action button { display: inline-flex; align-items: center; gap: 6px; }

@@ -17,6 +17,7 @@ import type {
   BrowserSnapshot,
   BrowserWaitCondition,
 } from "../domain/browser.js";
+import { cookieOnSite } from "../domain/browser-import.js";
 import type { FindResults } from "../domain/find.js";
 import { chromeHeaders, chromeIdentity } from "./browser-headers.js";
 
@@ -714,4 +715,20 @@ export async function clearData() {
   await partition.clearStorageData();
   await partition.clearCache();
   for (const tab of tabs.values()) tab.view.webContents.reload();
+}
+
+/** Sets cookies in the panel's session, then reloads the pages on those sites. Answers how many were set. */
+export async function addCookies(cookies: Electron.CookiesSetDetails[], sites: string[]): Promise<number> {
+  const partition = session.fromPartition(PARTITION);
+  let added = 0;
+  for (let start = 0; start < cookies.length; start += 100) {
+    const results = await Promise.allSettled(cookies.slice(start, start + 100).map((cookie) => partition.cookies.set(cookie)));
+    added += results.filter((result) => result.status === "fulfilled").length;
+  }
+  await partition.cookies.flushStore();
+  for (const tab of tabs.values()) {
+    const host = URL.parse(tab.view.webContents.getURL())?.hostname;
+    if (host && sites.some((site) => cookieOnSite(host, site))) tab.view.webContents.reload();
+  }
+  return added;
 }

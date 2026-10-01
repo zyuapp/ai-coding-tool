@@ -7,6 +7,7 @@ import type { WorkspaceEvent } from "../application/workspace-reducer.js";
 import { isBrowserAction } from "./ipc.js";
 import { isAgentEffort, isAgentEngine, isAgentModel } from "../domain/agent-engine.js";
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft } from "../domain/automation.js";
+import { isImportSite, isImportSourceId } from "../domain/browser-import.js";
 import { isCaptureOptions } from "../domain/capture.js";
 import { isScreenshotContext } from "../domain/screenshot-context.js";
 import { MAX_ATTACHMENT_ENCODED_BYTES, type Annotation, type AnnotationAnchor, type AttachedFile, type AttachedFileDraft, type OutgoingAttachment, type PastedText, type RunAttachment } from "../domain/conversation.js";
@@ -233,6 +234,12 @@ const shapes = {
   "browser.act": { taskId: optionalText, tabId: optionalText, action: isBrowserAction },
   "browser.decide": { allow: boolean, approvalId: text },
   "browser.clear-data": {  },
+  "browser-import.read": {  },
+  "browser-import.choose": { sourceId: nullable(isImportSourceId) },
+  "browser-import.toggle": { site: isImportSite },
+  "browser-import.filter": { text: (value): value is string => typeof value === "string" && value.length <= 256 },
+  "browser-import.run": {  },
+  "browser-import.again": {  },
   "file.open": { taskId: optionalText, path: text, line: optional(number) },
   "image.open": { source: isImageSource },
   "image.close": {},

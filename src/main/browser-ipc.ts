@@ -2,6 +2,8 @@ import { ipcMain, type IpcMainInvokeEvent } from "electron";
 import { isBrowserAction, isBrowserBounds, isBrowserRead } from "../contracts/ipc.js";
 import type { BrowserInspection } from "../domain/browser.js";
 import * as browser from "./browser-host.js";
+import { importBrowserSites, listImportSites, listImportSources } from "./browser-import.js";
+import { isImportSite, isImportSourceId, MAX_IMPORT_SITES } from "../domain/browser-import.js";
 
 const MAX_URL_LENGTH = 8_192;
 /** Longer than anything anyone searches for, and still bounded. */
@@ -114,5 +116,24 @@ export function registerBrowserIpc(trusted: (event: IpcMainInvokeEvent) => boole
   ipcMain.handle("browser:clear", (event) => {
     if (!trusted(event)) throw new Error("Untrusted IPC sender.");
     return browser.clearData();
+  });
+
+  ipcMain.handle("browser:import-sources", (event) => {
+    if (!trusted(event)) throw new Error("Untrusted IPC sender.");
+    return listImportSources();
+  });
+
+  ipcMain.handle("browser:import-sites", (event, sourceId: unknown) => {
+    if (!trusted(event)) throw new Error("Untrusted IPC sender.");
+    if (!isImportSourceId(sourceId)) throw new Error("Invalid browser profile.");
+    return listImportSites(sourceId);
+  });
+
+  ipcMain.handle("browser:import", (event, sourceId: unknown, sites: unknown) => {
+    if (!trusted(event)) throw new Error("Untrusted IPC sender.");
+    if (!isImportSourceId(sourceId) || !Array.isArray(sites) || !sites.length || sites.length > MAX_IMPORT_SITES || !sites.every(isImportSite)) {
+      throw new Error("Invalid browser import.");
+    }
+    return importBrowserSites(sourceId, sites, browser.addCookies);
   });
 }

@@ -1,4 +1,14 @@
-import { reportFailure, type EffectHandlers } from "./effect-host.js";
+import { reportFailure, type EffectHandlers, type EffectHost } from "./effect-host.js";
+import { errorMessage } from "./errors.js";
+
+/** A failed import step is reported beside the import, not in the workspace error banner. */
+async function importing(host: EffectHost, work: () => Promise<void>) {
+  try {
+    await work();
+  } catch (error) {
+    await host.dispatch({ type: "browser-import.failed", message: errorMessage(error) });
+  }
+}
 
 /** The panels that hold something of their own: pages, shells, and the files opened out of them. */
 export const surfaceEffects = {
@@ -34,6 +44,19 @@ export const surfaceEffects = {
   "browser.act": (effect, host) => reportFailure(host, host.desktop.actInBrowser(effect.tabId, effect.action, effect.taskId)),
 
   "browser.clear-data": (_effect, host) => reportFailure(host, host.desktop.clearBrowserData()),
+
+  "browser-import.list-sources": (_effect, host) => importing(host, async () => {
+    await host.dispatch({ type: "browser-import.sources", sources: await host.desktop.listBrowserImportSources() });
+  }),
+
+  "browser-import.list-sites": (effect, host) => importing(host, async () => {
+    await host.dispatch({ type: "browser-import.sites", sourceId: effect.sourceId, sites: await host.desktop.listBrowserImportSites(effect.sourceId) });
+  }),
+
+  "browser-import.import": (effect, host) => importing(host, async () => {
+    const result = await host.desktop.importBrowserSites(effect.sourceId, effect.sites);
+    await host.dispatch({ type: "browser-import.done", sourceId: effect.sourceId, sites: effect.sites, result });
+  }),
 
   "terminal.start": (effect, host) => reportFailure(host, host.desktop.startTerminal(effect.terminalId, { cwd: effect.cwd })),
 

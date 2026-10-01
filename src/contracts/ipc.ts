@@ -6,6 +6,7 @@ import { isQuestionRequest, type QuestionRequest } from "../domain/agent-questio
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationPatch, type AutomationRunStatus, type AutomationView } from "../domain/automation.js";
 import type { BrowserRead, ExternalCommand, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
 import type { BrowserAction, BrowserPermissions, BrowserBounds, BrowserInspection, BrowserInspectionResult, BrowserShot, BrowserSnapshot } from "../domain/browser.js";
+import type { BrowserImportResult, BrowserImportSite, BrowserImportSource } from "../domain/browser-import.js";
 import type { CaptureOptions } from "../domain/capture.js";
 import type { ComputerUsePermission, ComputerUsePermissions, ComputerUseRunConfig } from "../domain/computer-use.js";
 import type { CliStatus } from "../domain/cli.js";
@@ -310,6 +311,10 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   /** Waits the same way, then writes a picture of the page to a file. Null when that tab is gone. */
   captureBrowserPage(tabId: string, fullPage: boolean, timeoutMs: number, taskId?: string): Promise<BrowserShot | null>;
   clearBrowserData(): Promise<void>;
+  /** Other browsers' profiles on this machine, the sites one holds cookies for, and copying those cookies in. */
+  listBrowserImportSources(): Promise<BrowserImportSource[]>;
+  listBrowserImportSites(sourceId: string): Promise<BrowserImportSite[]>;
+  importBrowserSites(sourceId: string, sites: string[]): Promise<BrowserImportResult>;
   onBrowserEvent(listener: (event: BrowserPageEvent) => void): () => void;
   /** Searching a page. Chromium holds the text and counts the matches, so it reports them back. */
   findInPage(tabId: string, query: string, forward: boolean, findNext: boolean): Promise<void>;

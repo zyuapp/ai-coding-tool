@@ -33,7 +33,7 @@ export type ReadingPoint = { anchor: string; depth: number } | null;
  * through the same door. Anything that reaches {@link AppCommand} from outside the window has to be
  * validated at that boundary first, the way `isRunCommand` guards the run channel.
  */
-export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ImageCommand | ImageViewCommand | CliCommand | ComputerUseAccessCommand | PlanUsageCommand | ProjectCommand | PullRequestCommand | RunControlCommand | ReviewCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | DiffCommand | FileCommand | ExternalAppCommand | TerminalCommand | RemoteCommand | ComputerCommand | EngineCommand | ViewCommand;
+export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ImageCommand | ImageViewCommand | CliCommand | ComputerUseAccessCommand | PlanUsageCommand | ProjectCommand | PullRequestCommand | RunControlCommand | ReviewCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | BrowserImportCommand | DiffCommand | FileCommand | ExternalAppCommand | TerminalCommand | RemoteCommand | ComputerCommand | EngineCommand | ViewCommand;
 
 /**
  * Asks GitHub about the pull request the checkout in front belongs to. Sent again whenever that
@@ -275,6 +275,21 @@ export type BrowserCommand =
   | { type: "browser.decide"; allow: boolean; approvalId: string }
   /** Signs the whole app out: cookies, storage, and caches for every site. */
   | { type: "browser.clear-data" };
+
+/**
+ * Copies another browser's cookies for the sites the user picks into the browser panel. Only the
+ * user imports, so none of these appear in `ExternalCommand`.
+ */
+export type BrowserImportCommand =
+  /** Looks for the browser profiles on this machine. */
+  | { type: "browser-import.read" }
+  /** Opens one profile's sites to pick from, or closes the list with null. */
+  | { type: "browser-import.choose"; sourceId: string | null }
+  | { type: "browser-import.toggle"; site: string }
+  | { type: "browser-import.filter"; text: string }
+  | { type: "browser-import.run" }
+  /** Repeats the last import, reading fresh cookies for the same sites. */
+  | { type: "browser-import.again" };
 
 /**
  * A file named in a message, opened in whatever the desktop opens that kind of file with. Relative

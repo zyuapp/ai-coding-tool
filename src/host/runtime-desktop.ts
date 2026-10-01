@@ -50,7 +50,7 @@ export type RuntimeDesktop = Pick<DesktopAPI,
   | "onMobileState" | "onMobileRequest" | "answerMobileRequest" | "publishMobileView"
   | "configureBrowserPermissions" | "openBrowserTab" | "navigateBrowser" | "browserHistory" | "reloadBrowser"
   | "closeBrowserTab" | "showBrowserTab" | "actInBrowser" | "readBrowserPage" | "inspectBrowserPage"
-  | "captureBrowserPage" | "clearBrowserData" | "onBrowserEvent" | "findInPage" | "stopFindInPage"
+  | "captureBrowserPage" | "clearBrowserData" | "listBrowserImportSources" | "listBrowserImportSites" | "importBrowserSites" | "onBrowserEvent" | "findInPage" | "stopFindInPage"
   | "focusBrowserTab" | "onBrowserFind"
   | "openFile" | "listApps" | "openFolderInApp"
   | "startTerminal" | "writeTerminal" | "resizeTerminal" | "closeTerminal" | "readTerminal" | "onTerminalEvent"

@@ -15,7 +15,7 @@ const OWN_VIEW_KEYS = [
   "expandedProjects", "projectAdd", "projectEditor", "worktreeMove", "sections", "subagentGroups", "theme", "themeMode", "uiFont", "monoFont", "readingSize", "terminalSize",
   "sidebarMode", "sidebarOpen", "sessionPanelOpen", "captureSound", "captureFocus", "chromeBrowser", "conciseReplies", "computerUse", "browserTools", "notifications",
   "favoriteModels", "shortcuts", "capturingShortcut", "desktopShortcutUnavailable", "composerFocus", "settingsOpen", "settingsSection", "settingsFocus",
-  "openMenu", "jump", "remote", "remoteChecking", "canGoBack", "canGoForward", "browserOrigins",
+  "openMenu", "jump", "remote", "remoteChecking", "canGoBack", "canGoForward", "browserOrigins", "browserImport",
   "computerLinks", "activeComputer", "computerName", "computerFilter", "computerPairing", "computersFound", "computersSearching", "computersSearchError", "threadHosts", "projectHosts",
 ] as const;
 

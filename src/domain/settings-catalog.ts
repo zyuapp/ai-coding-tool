@@ -27,7 +27,7 @@ const PAGE_KEYWORDS: Record<SettingsSection, string> = {
   worktrees: "git branch checkout managed disk",
   shortcuts: "keyboard keys binding keystroke rebind",
   "computer-use": "accessibility screen recording permissions automation apps",
-  browser: "session cookies sign out sites origins clear data",
+  browser: "session cookies sign out sites origins clear data import sign in chrome brave firefox edge arc vivaldi opera",
   phone: "mobile phone computer remote pairing tailscale device qr serve",
   archive: "archived deleted restore threads trash",
 };

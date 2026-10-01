@@ -1,4 +1,5 @@
 import { currentModel, isAgentModel } from "../domain/agent-engine.js";
+import { isBrowserImportMemory } from "../domain/browser-import.js";
 import type { KeyValueStorage } from "./task-store.js";
 import { DRAFT_DOCK, type WorkspaceState } from "./workspace-state.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
@@ -102,6 +103,7 @@ export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPrefe
       ...(shortcuts ? { shortcuts } : {}),
       ...(browserTabs ? { browserTabs } : {}),
       ...(browserOrigins ? { browserOrigins } : {}),
+      ...(isBrowserImportMemory(value.browserImport) ? { browserImport: value.browserImport } : {}),
     };
   } catch {
     return {};
@@ -149,6 +151,7 @@ export function viewPreferences(state: WorkspaceState): ViewPreferences {
     shortcuts: state.shortcuts,
     browserTabs,
     browserOrigins: state.browserOrigins,
+    ...(state.browserImport.last ? { browserImport: state.browserImport.last } : {}),
   };
 }
 

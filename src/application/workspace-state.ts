@@ -11,6 +11,7 @@ import type { ChangedFilesResult, DesktopShortcutRefusal, InstalledApp } from ".
 import type { PullRequestRead } from "../domain/pull-request.js";
 import { pullRequestFor } from "./pull-request-view.js";
 import { NO_CLI, type CliState } from "./cli-installation.js";
+import { NO_BROWSER_IMPORT, type BrowserImportState } from "./browser-import.js";
 import { NO_COMPUTER_USE_ACCESS, type ComputerUseAccessState } from "./computer-use-access.js";
 import type { AttachmentSendState } from "./composer-attachments.js";
 import { NO_PLAN_USAGE, type PlanUsageState } from "./plan-limits.js";
@@ -335,6 +336,7 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   keyboardTab: string | null;
   /** The origins a run may reach without asking. Visiting a site adds it. */
   browserOrigins: string[];
+  browserImport: BrowserImportState;
   browserApproval: BrowserApproval | null;
   openMenu: string | null;
   reviewPicker: ReviewPicker | null;
@@ -465,6 +467,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     jump: null,
     keyboardTab: null,
     browserOrigins: [],
+    browserImport: NO_BROWSER_IMPORT,
     browserApproval: null,
     openMenu: null,
     reviewPicker: null,
@@ -866,6 +869,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state)
     browserTabs: dock.browserTabs,
     browserApproval: state.browserApproval,
     browserOrigins: state.browserOrigins,
+    browserImport: state.browserImport,
     terminals: dock.terminals,
     currentFolder: currentFolder(state),
     openMenu: state.openMenu,

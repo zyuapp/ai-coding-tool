@@ -52,6 +52,15 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
       onRefreshEngines={() => void workspace.actions.refreshEngineStatus()} onSignInEngine={(engine) => void workspace.actions.signInEngine(engine)}
       onRefreshWorktrees={() => void workspace.actions.refreshWorktrees()} onWorktreeCommand={workspace.dispatch}
       onClearBrowserData={() => void workspace.actions.clearBrowserData()}
+      browserImport={{
+        state: workspace.browserImport,
+        onRead: () => void workspace.actions.readBrowserImport(),
+        onChoose: (sourceId) => void workspace.actions.chooseBrowserImport(sourceId),
+        onToggle: (site) => void workspace.actions.toggleBrowserImportSite(site),
+        onFilter: (text) => void workspace.actions.filterBrowserImport(text),
+        onRun: () => void workspace.actions.runBrowserImport(),
+        onAgain: () => void workspace.actions.importBrowserAgain(),
+      }}
       onCaptureShortcut={(action) => void workspace.actions.captureShortcut(action)}
       onSetShortcut={(action, binding) => void workspace.actions.setShortcut(action, binding)}
       computers={{

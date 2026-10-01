@@ -13,6 +13,7 @@ import type { ViewPreferences } from "../../contracts/preferences.js";
 import type { AgentEngine } from "../../domain/agent-engine.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
 import type { BrowserAction, BrowserPermissions } from "../../domain/browser.js";
+import type { BrowserImportResult, BrowserImportSite, BrowserImportSource } from "../../domain/browser-import.js";
 import type { CaptureOptions } from "../../domain/capture.js";
 import type { ConversationMessage, OutgoingAttachment, RunAttachment } from "../../domain/conversation.js";
 import type { DiffRange } from "../../domain/diff.js";
@@ -69,6 +70,10 @@ export type WorkspaceEvent =
   | { type: "pull-request.answered"; workspaceId: string; branch: string | null; read: number; members?: true; answer: PullRequestAnswer }
   /** A comparison's file list, named by the dock that asked so a slow read cannot land in another. */
   | { type: "diff.loaded"; owner: string; workspaceId: string; range: DiffRange; result: DiffSummaryResult }
+  | { type: "browser-import.sources"; sources: BrowserImportSource[] }
+  | { type: "browser-import.sites"; sourceId: string; sites: BrowserImportSite[] }
+  | { type: "browser-import.done"; sourceId: string; sites: string[]; result: BrowserImportResult }
+  | { type: "browser-import.failed"; message: string }
   /** What a page in the browser panel did. Main watches the page; the reducer keeps the record. */
   | { type: "browser.updated"; page: BrowserPageEvent }
   /** What a shell did. Its output is not here: that goes straight to the view and never becomes state. */
@@ -155,6 +160,9 @@ export type WorkspaceEffect =
   /** Which tab the panel shows. Where it shows is the panel's own to report. */
   | { type: "browser.show"; tabId: string | null }
   | { type: "browser.clear-data" }
+  | { type: "browser-import.list-sources" }
+  | { type: "browser-import.list-sites"; sourceId: string }
+  | { type: "browser-import.import"; sourceId: string; sites: string[] }
   /** A file the desktop opens for the reader. `roots` are the checkouts to look for it in, nearest first. */
   | { type: "file.open"; roots: string[]; path: string; line: number | null }
   | { type: "app.list" }

@@ -117,6 +117,9 @@ const api: DesktopAPI = {
   inspectBrowserPage: (tabId, inspection, taskId) => ipcRenderer.invoke("browser:inspect", tabId, inspection, taskId),
   captureBrowserPage: (tabId: string, fullPage: boolean, timeoutMs: number, taskId?: string) => ipcRenderer.invoke("browser:capture", tabId, fullPage, timeoutMs, taskId),
   clearBrowserData: () => ipcRenderer.invoke("browser:clear"),
+  listBrowserImportSources: () => ipcRenderer.invoke("browser:import-sources"),
+  listBrowserImportSites: (sourceId: string) => ipcRenderer.invoke("browser:import-sites", sourceId),
+  importBrowserSites: (sourceId: string, sites: string[]) => ipcRenderer.invoke("browser:import", sourceId, sites),
   onBrowserEvent: (listener: (event: BrowserPageEvent) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: BrowserPageEvent) => listener(payload);
     ipcRenderer.on("browser:event", handler);

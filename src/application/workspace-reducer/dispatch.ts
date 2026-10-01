@@ -19,6 +19,7 @@ import { reduceComposer } from "./composer.js";
 import { reduceSettings, reduceModelFavorite } from "./settings.js";
 import { reduceDock } from "./dock.js";
 import { reduceBrowser } from "./browser.js";
+import { reduceBrowserImport } from "./browser-import.js";
 import { reduceDesktop } from "./desktop.js";
 import { reduceView } from "./view.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
@@ -139,6 +140,11 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "browser.reload": case "browser.act": case "browser.clear-data":
     case "browser.updated":
       return reduceBrowser(state, input);
+
+    case "browser-import.read": case "browser-import.sources": case "browser-import.choose": case "browser-import.sites":
+    case "browser-import.toggle": case "browser-import.filter": case "browser-import.run": case "browser-import.again":
+    case "browser-import.done": case "browser-import.failed":
+      return reduceBrowserImport(state, input);
 
     case "image.open": case "image.close": case "image.download": case "file.open": case "app.list": case "apps.listed": case "app.open-folder": case "app.check-for-updates": case "app.open-source-licenses": case "terminal.open":
     case "terminal.select": case "terminal.close": case "terminal.input":

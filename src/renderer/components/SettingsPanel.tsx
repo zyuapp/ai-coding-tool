@@ -6,6 +6,7 @@ import type { ThemeMode } from "../../domain/theme";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { ArchiveSettings } from "./ArchiveSettings";
 import { BrowserSettings } from "./BrowserSettings";
+import { NO_BROWSER_IMPORT_SETTINGS, type BrowserImportSettings } from "./BrowserImportSection";
 import { ComputerUseSettings } from "./ComputerUseSettings";
 import { EngineSettings, type EngineSettingsProps } from "./EngineSettings";
 import { GeneralSettings } from "./GeneralSettings";
@@ -207,6 +208,7 @@ export type SettingsPanelProps = {
   onRefreshWorktrees: () => void;
   onWorktreeCommand: (command: WorktreeCommand) => void;
   onClearBrowserData: () => void;
+  browserImport?: BrowserImportSettings;
   onCaptureShortcut: (action: string | null) => void;
   onSetShortcut: (action: string, binding: string | null) => void;
   onResetShortcuts: () => void;
@@ -269,6 +271,7 @@ export function SettingsPanel({
   onRefreshWorktrees,
   onWorktreeCommand,
   onClearBrowserData,
+  browserImport = NO_BROWSER_IMPORT_SETTINGS,
   onCaptureShortcut,
   onSetShortcut,
   onResetShortcuts,
@@ -352,7 +355,8 @@ export function SettingsPanel({
       {section === "shortcuts" && <ShortcutSettings shortcuts={shortcuts} capturingShortcut={capturingShortcut} desktopShortcutUnavailable={desktopShortcutUnavailable} onCaptureShortcut={onCaptureShortcut} onSetShortcut={onSetShortcut} onResetShortcuts={onResetShortcuts} />}
 
       {section === "browser" && <BrowserSettings browserTools={browserTools} allowedOrigins={allowedOrigins} confirming={confirmingSignOut} confirmationRef={confirmation} clearRef={clearBrowser}
-        onSetBrowserTools={onSetBrowserTools} onClearBrowserData={onClearBrowserData} onStartConfirm={() => setConfirmingSignOut(true)} onCancelConfirm={() => cancelConfirmation(true)} />}
+        onSetBrowserTools={onSetBrowserTools} onClearBrowserData={onClearBrowserData} onStartConfirm={() => setConfirmingSignOut(true)} onCancelConfirm={() => cancelConfirmation(true)}
+        browserImport={browserImport} />}
 
       {section === "phone" && (
         <MobileSettings

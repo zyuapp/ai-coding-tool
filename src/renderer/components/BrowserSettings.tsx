@@ -1,5 +1,6 @@
 import { LuCheck as Check } from "react-icons/lu";
 import { AvailabilitySection } from "./AvailabilitySection";
+import { BrowserImportSection, type BrowserImportSettings } from "./BrowserImportSection";
 
 export type BrowserSettingsProps = {
   /** Whether a run may drive the browser panel. The user's own tabs stay usable either way. */
@@ -14,6 +15,7 @@ export type BrowserSettingsProps = {
   onClearBrowserData: () => void;
   onStartConfirm: () => void;
   onCancelConfirm: () => void;
+  browserImport: BrowserImportSettings;
 };
 
 export function BrowserSettings({
@@ -26,6 +28,7 @@ export function BrowserSettings({
   onClearBrowserData,
   onStartConfirm,
   onCancelConfirm,
+  browserImport,
 }: BrowserSettingsProps) {
   return (
     <main className="settings-main">
@@ -36,6 +39,8 @@ export function BrowserSettings({
 
       <AvailabilitySection id="browser.availability" enabled={browserTools} onChange={onSetBrowserTools}
         description="The agent can open and read pages in the browser panel. Off leaves the panel to you alone." />
+
+      <BrowserImportSection settings={browserImport} />
 
       <section className="settings-group" aria-labelledby="browser-session-heading">
         <div className="settings-group-heading">

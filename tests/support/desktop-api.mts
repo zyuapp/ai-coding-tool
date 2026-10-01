@@ -136,6 +136,8 @@ export function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
     },
     captureBrowserPage: async (tabId, fullPage, timeoutMs) => { browserCalls.push(["capture", tabId, fullPage, timeoutMs]); return { tabId, url: "https://example.com/", title: "Example", path: "/tmp/shot.png", width: 1_200, height: 800 }; },
     clearBrowserData: async () => { browserCalls.push(["clear"]); },
+    listBrowserImportSources: async () => [{ id: "brave:0:Default", browser: "Brave", profile: "Personal" }], listBrowserImportSites: async () => [{ domain: "example.com", cookies: 2 }],
+    importBrowserSites: async (sourceId, sites) => { browserCalls.push(["import", sourceId, sites]); return { imported: 2, skipped: 0 }; },
     findInPage: async (tabId, query, forward, findNext) => { browserCalls.push(["find", tabId, query, forward, findNext]); },
     stopFindInPage: async (tabId) => { browserCalls.push(["stop-find", tabId]); },
     focusBrowserTab: async (tabId) => { browserCalls.push(["focus", tabId]); },
