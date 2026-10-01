@@ -3,7 +3,8 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, test } from "vitest";
-import { cookieDetails, discover, firefoxProfileEntries } from "../../src/main/browser-import.ts";
+import { chromiumKeys, cookieDetails, discover, firefoxProfileEntries } from "../../src/main/browser-import.ts";
+import { chromiumKey } from "../../src/main/browser-cookies.ts";
 
 const folders: string[] = [];
 
@@ -96,4 +97,20 @@ test("a cookie keeps its scope: a dotted host is a domain cookie, a bare host st
   assert.deepEqual(cookieDetails({ host: "example.com", name: "b", value: "2", path: "/app", secure: false, httpOnly: false, expires: null, sameSite: "unspecified" }), {
     url: "http://example.com/app", name: "b", value: "2", path: "/app", secure: false, httpOnly: false, sameSite: "unspecified",
   });
+});
+
+test("Linux asks the network wallet KWallet names, and notes when secret-tool is not installed", async () => {
+  const calls: string[][] = [];
+  const helpers = { missing: [] as string[] };
+  const keys = chromiumKeys({ key: "chrome", name: "Chrome", family: "chromium", roots: [], libsecret: "chrome", kwallet: "Chrome" }, helpers, "linux", async (command, args) => {
+    calls.push([command, ...args]);
+    if (command === "dbus-send") return args.some((arg) => arg.includes("kwalletd6")) ? null : "  work-wallet\n";
+    if (command === "secret-tool") return "missing";
+    return "kwallet-secret";
+  });
+
+  assert.deepEqual(await keys("v10"), [chromiumKey("peanuts", 1)]);
+  assert.deepEqual(await keys("v11"), [chromiumKey("kwallet-secret", 1), chromiumKey("", 1)]);
+  assert.deepEqual(helpers.missing, ["secret-tool"]);
+  assert.deepEqual(calls.find(([command]) => command === "kwallet-query")?.at(-1), "work-wallet");
 });

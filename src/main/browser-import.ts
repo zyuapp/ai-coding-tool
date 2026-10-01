@@ -10,7 +10,7 @@ import { chromiumKey, readCookieHosts, readCookies, type ChromiumKeys, type Cook
  * A browser this machine may have. `roots` are its user-data folders, every packaging of it
  * included. `keychain` names its macOS key; `libsecret` and `kwallet` name where Linux keeps it.
  */
-type BrowserKind = {
+export type BrowserKind = {
   key: string;
   name: string;
   family: CookieFamily;
@@ -156,16 +156,24 @@ export async function listImportSites(sourceId: string): Promise<BrowserImportSi
   return importSites(await readCookieHosts(source.kind.family, source.file));
 }
 
-function run(command: string, args: string[], timeout: number): Promise<string | null> {
+/** What a command printed, null when it failed, or "missing" when it is not installed. */
+function run(command: string, args: string[], timeout: number): Promise<string | null | "missing"> {
   return new Promise((resolve) => {
-    execFile(command, args, { timeout, encoding: "utf8" }, (error, stdout) => resolve(error ? null : stdout.replace(/\n$/, "")));
+    execFile(command, args, { timeout, encoding: "utf8" }, (error, stdout) => {
+      if (!error) resolve(stdout.replace(/\n$/, ""));
+      else resolve((error as NodeJS.ErrnoException).code === "ENOENT" ? "missing" : null);
+    });
   });
 }
 
+function output(result: string | null | "missing") {
+  return result === "missing" ? null : result;
+}
+
 /** The KDE wallet Chromium stores its key in, which the user may have renamed from the default. */
-async function networkWallet() {
+async function networkWallet(exec = run) {
   for (const service of ["kwalletd6", "kwalletd5"]) {
-    const name = await run("dbus-send", ["--session", "--print-reply=literal", `--dest=org.kde.${service}`, `/modules/${service}`, "org.kde.KWallet.networkWallet"], 5_000);
+    const name = output(await exec("dbus-send", ["--session", "--print-reply=literal", `--dest=org.kde.${service}`, `/modules/${service}`, "org.kde.KWallet.networkWallet"], 5_000));
     if (name?.trim()) return name.trim();
   }
   return "kdewallet";
@@ -175,18 +183,20 @@ async function networkWallet() {
  * Where each platform keeps the password a Chromium browser encrypts cookies with. macOS asks the
  * user before handing it over. Linux falls back to the fixed password Chromium uses without a keyring.
  */
-function chromiumKeys(kind: BrowserKind): ChromiumKeys {
+export function chromiumKeys(kind: BrowserKind, helpers: { missing: string[] }, platform = process.platform, exec = run): ChromiumKeys {
   return async (version) => {
-    if (process.platform === "darwin") {
-      const password = await run("security", ["find-generic-password", "-w", "-s", kind.keychain!], 120_000);
+    if (platform === "darwin") {
+      const password = output(await exec("security", ["find-generic-password", "-w", "-s", kind.keychain!], 120_000));
       if (password === null) throw new Error(`macOS did not share ${kind.name}'s key. Choose Allow when it asks.`);
       return [chromiumKey(password, 1003)];
     }
     if (version === "v10") return [chromiumKey("peanuts", 1)];
-    const wallet = await networkWallet();
+    const wallet = await networkWallet(exec);
+    const secret = await exec("secret-tool", ["lookup", "application", kind.libsecret!], 30_000);
+    if (secret === "missing") helpers.missing.push("secret-tool");
     const passwords = [
-      await run("secret-tool", ["lookup", "application", kind.libsecret!], 30_000),
-      await run("kwallet-query", ["--read-password", `${kind.kwallet} Safe Storage`, "--folder", `${kind.kwallet} Keys`, wallet], 30_000),
+      output(secret),
+      output(await exec("kwallet-query", ["--read-password", `${kind.kwallet} Safe Storage`, "--folder", `${kind.kwallet} Keys`, wallet], 30_000)),
       "",
     ].filter((password): password is string => password !== null);
     return [...new Set(passwords)].map((password) => chromiumKey(password, 1));
@@ -196,7 +206,12 @@ function chromiumKeys(kind: BrowserKind): ChromiumKeys {
 /** The cookies for those sites, read from that profile and decrypted. */
 async function readImportCookies(sourceId: string, sites: string[]): Promise<{ cookies: StoredCookie[]; skipped: number }> {
   const source = await resolve(sourceId);
-  return readCookies(source.kind.family, source.file, sites, chromiumKeys(source.kind));
+  const helpers = { missing: [] as string[] };
+  const read = await readCookies(source.kind.family, source.file, sites, chromiumKeys(source.kind, helpers));
+  if (!read.cookies.length && read.skipped && helpers.missing.includes("secret-tool")) {
+    throw new Error(`${source.browser} keeps its key in the system keyring. Install secret-tool (libsecret-tools) and try again.`);
+  }
+  return read;
 }
 
 /** What Electron needs to set one cookie the way the other browser held it. */
