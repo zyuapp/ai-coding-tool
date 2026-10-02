@@ -668,6 +668,8 @@ export function isExternalCommand(value: unknown): value is ExternalCommand {
   if (command.type === "task.archive") return isString(command.taskId);
   if (command.type === "task.set-role") return isString(command.taskId) && (command.role === null || isThreadRole(command.role));
   if (command.type === "run.cancel") return named;
+  /** An id, never a path or the thread on screen, and never the folder-is-gone shortcut. */
+  if (command.type === "worktree.delete") return isString(command.worktreeId) && command.taskId === undefined && command.root === undefined && command.missingOnly === undefined;
   if (typeof command.type === "string" && command.type.startsWith("browser.")) return isBrowserCommand(command);
   return false;
 }

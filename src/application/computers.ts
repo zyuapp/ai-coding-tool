@@ -234,7 +234,9 @@ export function routeInput(state: WorkspaceState, input: WorkspaceInput): InputR
   /** The location menu opens and is searched here; the checkouts it offers, and what it moves or deletes, are the holder's. */
   if (type === "worktree.menu-open") return input.list === "destinations" && active ? forwarded(active, [input], { also: true }) : LOCAL;
   if (type === "worktree.delete") {
-    const computer = input.root !== undefined ? computerOfWorktreeRoot(state, input.root) : input.taskId !== undefined ? computerOfThread(state, input.taskId) : active;
+    const computer = input.worktreeId !== undefined ? computerOfWorktree(state, input.worktreeId)
+      : input.root !== undefined ? computerOfWorktreeRoot(state, input.root)
+      : input.taskId !== undefined ? computerOfThread(state, input.taskId) : active;
     return toward(computer, (holder) => forwarded(holder, [input]));
   }
   if (LOCAL_PREFIXES.some((prefix) => type.startsWith(prefix))) return LOCAL;

@@ -216,7 +216,8 @@ export type WorktreeCommand =
   | { type: "worktree.set-threads-open"; root: string; open: boolean }
   | { type: "worktree.open-thread"; taskId: string }
   | { type: "worktree.reveal"; root: string }
-  | { type: "worktree.delete"; taskId?: string; root?: string; missingOnly?: boolean };
+  /** Names the checkout by `worktreeId`, by `root`, or as the one `taskId` works in. */
+  | { type: "worktree.delete"; taskId?: string; root?: string; worktreeId?: string; missingOnly?: boolean };
 
 export type RunControlCommand =
   | { type: "run.cancel"; taskId?: string }

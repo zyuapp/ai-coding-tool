@@ -9,7 +9,7 @@ import { now, settled, targetId, rejected } from "./shared.js";
 import { dropWorktree, leaveWorktree, releaseWorktrees, withCreatingWorktree, withReleasingWorktree, withoutCreatingWorktree, withoutReleasingWorktree } from "./worktree-claims.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { updateThread } from "../thread-run-state.js";
-import { leavingThreadIds, projectFor, threadWorkspaceId, worktreeClaimants, worktreeFor } from "../thread-location.js";
+import { leavingThreadIds, projectFor, threadWorkspaceId, worktreeById, worktreeClaimants, worktreeFor } from "../thread-location.js";
 import { withoutWorktreeRoot, type WorkspaceState } from "../workspace-state.js";
 import { createConversationMessage } from "../../domain/conversation.js";
 import { dismissed } from "../../domain/attention.js";
@@ -127,7 +127,8 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
     /** Manual deletion snapshots loose work first and refuses to move the ground under a run. */
     case "worktree.delete": {
       const taskId = targetId(state, input.taskId), thread = taskId ? state.threads.find((item) => item.id === taskId) : undefined;
-      const current = worktreeFor(state, thread), recorded = input.root ? state.worktrees.find((item) => item.root === input.root) : current;
+      const current = worktreeFor(state, thread);
+      const recorded = input.worktreeId ? worktreeById(state, input.worktreeId) : input.root ? state.worktrees.find((item) => item.root === input.root) : current;
       const managed = input.root ? state.managedWorktrees?.find((item) => item.root === input.root) : undefined;
       const worktree = recorded ?? managed;
       if (!worktree) return settled({ ...state, worktreeManagementError: WORKTREE_MISSING_ERROR }, [], { ok: false, message: WORKTREE_MISSING_ERROR });

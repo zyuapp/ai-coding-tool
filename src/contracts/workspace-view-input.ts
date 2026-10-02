@@ -206,7 +206,7 @@ const shapes = {
   "worktree.set-threads-open": { root: text, open: boolean },
   "worktree.open-thread": { taskId: text },
   "worktree.reveal": { root: text },
-  "worktree.delete": { taskId: optionalText, root: optionalText, missingOnly: optionalBoolean },
+  "worktree.delete": { taskId: optionalText, root: optionalText, worktreeId: optionalText, missingOnly: optionalBoolean },
   "run.cancel": { taskId: optionalText },
   "run.compact": { taskId: optionalText },
   "question.set-answer": { taskId: text, runId: text, requestId: text, questionId: text, text },

@@ -201,6 +201,16 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
     }),
   }),
   defineTool({
+    name: "delete_worktree",
+    description: "Delete a worktree the app made, by the id list_threads reports. Uncommitted work is committed first so it stays recoverable, then the folder is removed; git-ignored files are lost. Every thread in it moves back to the project checkout. Refused while any of those threads is running. Only delete when the user asked for it, such as cleaning up after coordinated work is done.",
+    input: { worktreeId: z.string().describe("The worktree's ID, as list_threads reports it.") },
+    readOnly: false,
+    run: ({ bridge }, args) => report(async () => {
+      const { notice } = await bridge.command({ type: "worktree.delete", worktreeId: args.worktreeId });
+      return notice ?? `Deleted worktree ${args.worktreeId}.`;
+    }),
+  }),
+  defineTool({
     name: "stop_thread",
     description: "Stop the run a thread has going, leaving the thread itself alone. This throws away work in progress, so only stop a run when the user asked for it.",
     input: { threadId: threadIdField },

@@ -7,7 +7,7 @@ import { EMPTY_DIFF } from "../../src/application/workspace-diff.ts";
 import { answerThreadRequest, type ThreadRequestHost } from "../../src/host/thread-requests.ts";
 import { threadTranscript } from "../../src/application/thread-projection.ts";
 import { MAX_ATTACHED_FILES, MAX_ATTACHMENTS } from "../../src/domain/conversation.ts";
-import { PROJECT, task, workspace } from "./workspace-reducer-fixtures.mts";
+import { PROJECT, activeRun, heldWorktree, inside, projected, task, workspace } from "./workspace-reducer-fixtures.mts";
 
 function driver(initial: WorkspaceState, perform: WorkspaceExecutionHost["perform"] = async () => {}) {
   let state = initial;
@@ -228,4 +228,32 @@ test("only a coordinator and its threads report or raise decisions", async () =>
   const decided = await answerThreadRequest(host, { type: "thread.request", requestId: "r3", taskId: "lead", op: "decision", request: { question: "Ship it?", options: [] } });
   assert.deepEqual(decided.ok && (decided.result as { recorded: boolean }).recorded, true, "a coordinator can put a choice to the user too");
   assert.equal(host.state().threads[0].decisions?.length, 1);
+});
+
+test("a thread deletes a worktree by id, filing away the threads in it, and never one still running", async () => {
+  const worktree = heldWorktree();
+  const deletions: string[] = [];
+  const placed = inside(worktree, [task("worker", { projectId: PROJECT.id })]);
+  const state = projected({ ...placed, threads: [task("lead", { role: "coordinator" }), ...placed.threads] });
+  const request = { type: "thread.request" as const, requestId: "r1", taskId: "lead", op: "command" as const, command: { type: "worktree.delete" as const, worktreeId: worktree.id } };
+  const perform: WorkspaceExecutionHost["perform"] = async (effect, dispatch) => {
+    if (effect.type !== "delete-worktree") return;
+    deletions.push(effect.root);
+    await dispatch({ type: "worktree.deleted", worktreeId: effect.worktreeId, root: effect.root, snapshot: { commit: "1234567890", shortCommit: "1234567", ref: null } });
+  };
+
+  const busy = driver({ ...state, activeRuns: { worker: activeRun("worker", "run-w", { sequence: 1 }) } }, perform);
+  const refused = await answerThreadRequest(busy, request);
+  assert.equal(refused.ok, false);
+  assert.deepEqual(deletions, []);
+
+  const host = driver(state, perform);
+  const deleted = await answerThreadRequest(host, request);
+  assert.deepEqual(deleted.ok && deleted.result, { thread: null, notice: "Deleted /worktrees/repo-wt1. Recover loose work with git show 1234567." });
+  assert.deepEqual(deletions, [worktree.root]);
+  assert.equal(host.state().worktrees.length, 0);
+  assert.equal(host.state().threads.find((thread) => thread.id === "worker")?.worktreeId, undefined);
+
+  const gone = await answerThreadRequest(host, { ...request, requestId: "r2" });
+  assert.equal(gone.ok, false);
 });

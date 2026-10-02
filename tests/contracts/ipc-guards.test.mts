@@ -283,6 +283,11 @@ test("the external command surface covers reading and writing threads, and nothi
   assert.equal(isExternalCommand({ type: "task.send", taskId: "task-1", text: "Carry on", steer: true }), true);
   assert.equal(isExternalCommand({ type: "task.archive", taskId: "task-1" }), true);
   assert.equal(isExternalCommand({ type: "run.cancel", taskId: "task-1" }), true);
+  assert.equal(isExternalCommand({ type: "worktree.delete", worktreeId: "wt1" }), true);
+  assert.equal(isExternalCommand({ type: "worktree.delete" }), false, "never the checkout of the thread on screen");
+  assert.equal(isExternalCommand({ type: "worktree.delete", root: "/worktrees/repo-wt1" }), false);
+  assert.equal(isExternalCommand({ type: "worktree.delete", taskId: "task-1" }), false);
+  assert.equal(isExternalCommand({ type: "worktree.delete", worktreeId: "wt1", missingOnly: true }), false);
 
   assert.equal(isExternalCommand({ type: "task.send", text: "Start here", worktreeId: "wt1" }), true);
   assert.equal(isExternalCommand({ type: "task.send", text: "Use Claude", model: "sonnet", effort: "max" }), true);

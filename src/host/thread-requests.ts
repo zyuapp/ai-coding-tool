@@ -132,6 +132,14 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
       const result = await host.execute(command).completed;
       return result.ok ? ok({ thread: null }) : failed(result.message);
     }
+    if (command.type === "worktree.delete") {
+      const root = before.worktrees.find((worktree) => worktree.id === command.worktreeId)?.root;
+      if (root && before.deletingWorktrees.includes(root)) return failed("That worktree is already being deleted.");
+      const result = await host.execute(command).completed;
+      if (!result.ok) return failed(result.message);
+      const notice = host.state().worktreeManagementNotice;
+      return ok({ thread: null, ...(notice ? { notice } : {}) });
+    }
     if (command.taskId !== undefined && !before.threads.some((thread) => thread.id === command.taskId)) {
       return failed(`No thread has the ID ${command.taskId}.`);
     }

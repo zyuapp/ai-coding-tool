@@ -114,9 +114,9 @@ export function createRuntimeHistory(host: HistoryHost) {
         break;
       case "worktree.delete": {
         const taskId = input.taskId ?? state.currentId;
-        const id = input.root
+        const id = input.worktreeId ?? (input.root
           ? state.worktrees.find((worktree) => worktree.root === input.root)?.id
-          : state.threads.find((thread) => thread.id === taskId)?.worktreeId;
+          : state.threads.find((thread) => thread.id === taskId)?.worktreeId);
         claimants(id);
         break;
       }

@@ -135,6 +135,13 @@ test("starting, messaging, archiving and stopping go through the command surface
   assert.deepEqual(bridge.calls.at(-1), ["command", { type: "run.cancel", taskId: "task-4" }]);
 });
 
+test("deleting a worktree names it by id and reports what became of its loose work", async () => {
+  const bridge = fakeBridge({ command: async (command) => { bridge.calls.push(["command", command]); return { thread: null, notice: "Deleted /worktrees/repo-wt1. Recover it with git show refs/aicodingtool/wt1." }; } });
+  const deleted = await toolNamed(bridge, "delete_worktree").handler({ worktreeId: "wt1" }, {});
+  assert.deepEqual(bridge.calls.at(-1), ["command", { type: "worktree.delete", worktreeId: "wt1" }]);
+  assert.equal(textOf(deleted), "Deleted /worktrees/repo-wt1. Recover it with git show refs/aicodingtool/wt1.");
+});
+
 test("a thread's role is set when it starts, changed later, or taken off", async () => {
   const bridge = fakeBridge();
 

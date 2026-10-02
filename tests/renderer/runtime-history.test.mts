@@ -104,6 +104,7 @@ test("a shared checkout removal prepares every claimant transcript", () => {
     persistence: { persisted: persistenceState(state), pending: null, inFlight: null },
   });
   assert.deepEqual(new Set(history.needed({ type: "worktree.delete", root: worktree.root })), new Set(["first", "second"]));
+  assert.deepEqual(new Set(history.needed({ type: "worktree.delete", worktreeId: worktree.id })), new Set(["first", "second"]));
   assert.deepEqual(new Set(history.needed({ type: "worktree.deleted", worktreeId: worktree.id, root: worktree.root, snapshot: { commit: null, shortCommit: null, ref: null } })), new Set(["first", "second"]));
 });
 
