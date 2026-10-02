@@ -64,3 +64,18 @@ test("a coordinator is not offered Haiku for a thread it starts", () => {
   assert.equal(accepts({ coordinationRole: "coordinator", coordination }, "sonnet"), true);
   assert.equal(accepts({}, "haiku"), true);
 });
+
+test("a coordinator can read automations but not schedule, change, or stop one", async () => {
+  const automations = { save: async () => { throw new Error("unused"); }, read: async () => null, update: async () => { throw new Error("unused"); }, remove: async () => false, list: async () => [] };
+  const coordination = { report: async () => ({ recorded: true, note: "" }), decide: async () => ({ recorded: true, note: "" }) };
+  const automationToolNames = (sources: Partial<Parameters<typeof runTools>[0]>) => runTools({ channel: "main", computerUse: { status: "unavailable" }, automations, emit: () => {}, ...sources } as Parameters<typeof runTools>[0])
+    .find((set) => set.server === "aicodingtool-automation")!.tools.map((tool) => tool.name);
+  assert.deepEqual(automationToolNames({ coordinationRole: "coordinator", coordination }), ["status", "list_all"]);
+  assert.ok(automationToolNames({ coordinationRole: "member", coordination }).includes("schedule"));
+  assert.ok(automationToolNames({}).includes("schedule"));
+
+  const capture: QueryCapture = {};
+  await new ClaudeAgentProvider(queryFactory([], capture)).execute(input({ coordinationRole: "coordinator", coordination, automations }));
+  assert.doesNotMatch(systemAppend(optionsOf(capture)), /This task can schedule itself/);
+  assert.match(systemAppend(optionsOf(capture)), /You cannot schedule automations/);
+});

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { MAX_DETAIL, MAX_FINDING_KEY, MAX_HEADLINE } from "../../domain/finding.js";
 import { MAX_ENDS_WHEN, MAX_SURFACE_WHEN, type AutomationView } from "../../domain/automation.js";
+import type { CoordinationRole } from "../../domain/coordination.js";
 import type { AutomationBridge, FindingBridge } from "../agent/agent-provider.mjs";
 import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";
 
@@ -138,6 +139,9 @@ export function findingTools(bridge: FindingBridge) {
   return bindTools(bridge, FINDING_TOOLS);
 }
 
-export function automationTools(bridge: AutomationBridge) {
-  return bindTools(bridge, AUTOMATION_TOOLS);
+/** A coordinator has no automation of its own; it starts a thread to schedule recurring work. */
+const COORDINATOR_AUTOMATION_TOOLS = AUTOMATION_TOOLS.filter((tool) => tool.readOnly);
+
+export function automationTools(bridge: AutomationBridge, role?: CoordinationRole) {
+  return bindTools(bridge, role === "coordinator" ? COORDINATOR_AUTOMATION_TOOLS : AUTOMATION_TOOLS);
 }

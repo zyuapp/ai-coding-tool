@@ -22,7 +22,7 @@ export function runTools(input: ToolSources): ServedToolSet[] {
     sets.push({ server: COMPUTER_USE_SETUP_SERVER_NAME, tools: computerUseSetupTools({ requestSetup: () => input.emit({ type: "computer-use.setup-required" }) }) });
   }
   if (input.automations) {
-    sets.push({ server: AUTOMATION_SERVER_NAME, tools: [...automationTools(input.automations), ...(input.findings ? findingTools(input.findings) : [])] });
+    sets.push({ server: AUTOMATION_SERVER_NAME, tools: [...automationTools(input.automations, input.coordinationRole), ...(input.findings ? findingTools(input.findings) : [])] });
   }
   /** A native review is already isolated in its own Codex thread. App thread tools would create sidebar tasks instead. */
   if (input.threads && input.operation?.type !== "review") {

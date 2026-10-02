@@ -215,7 +215,7 @@ export class ClaudeAgentProvider implements AgentProvider {
         betas: ["context-1m-2025-08-07" as const],
         ...(input.claude?.chromeBrowser ? { extraArgs: { chrome: null } } : {}),
         ...(Object.keys(mcpServers).length ? { mcpServers } : {}),
-        systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append: [...(input.computerUse.status === "unavailable" ? [] : [computerUseInstructions]), linkInstructions, ...(input.automations ? [automationInstructions] : []), ...(input.threads ? [threadInstructions] : []), ...coordinationInstructions(input.coordinationRole), ...(input.browser ? [browserInstructions] : []), ...(input.claude?.chromeBrowser ? [chromeInstructions] : []), ...(input.claude?.conciseReplies ? [conciseInstructions] : []), ...(input.channel === "side" ? [SIDE_CHAT_INSTRUCTIONS] : [])].join("\n\n") },
+        systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append: [...(input.computerUse.status === "unavailable" ? [] : [computerUseInstructions]), linkInstructions, ...(input.automations && input.coordinationRole !== "coordinator" ? [automationInstructions] : []), ...(input.threads ? [threadInstructions] : []), ...coordinationInstructions(input.coordinationRole), ...(input.browser ? [browserInstructions] : []), ...(input.claude?.chromeBrowser ? [chromeInstructions] : []), ...(input.claude?.conciseReplies ? [conciseInstructions] : []), ...(input.channel === "side" ? [SIDE_CHAT_INSTRUCTIONS] : [])].join("\n\n") },
         settingSources: (input.projectless ? ["user"] : ["user", "project", "local"]) as ("user" | "project" | "local")[],
         ...(input.claude?.conciseReplies ? { settings: { outputStyle: "Concise" } } : {}),
         skills: "all" as const,
