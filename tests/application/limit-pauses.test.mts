@@ -105,6 +105,28 @@ test("writing to a paused thread holds the message and moves the thread to the f
   assert.equal(woke.state.activeRuns.a, undefined);
 });
 
+test("the thread written to last goes first, and a send after the reset still waits its turn", () => {
+  let state = limited(runningThreads("a", "b", "c"), "a", session).state;
+  state = limited(state, "b", session).state;
+  state = limited(state, "c", session).state;
+  const write = (current: WorkspaceState, taskId: string, text: string) => reduce(current, { type: "task.send", taskId, text, attachments: [] });
+  state = write(state, "a", "first").state;
+  vi.mocked(Date.now).mockReturnValue(at + 1);
+  state = write(state, "b", "second").state;
+  assert.deepEqual(["b", "a", "c"].map((id) => deriveView(state).limitPositions.get(id)), [1, 2, 3]);
+  vi.mocked(Date.now).mockReturnValue(at + 2);
+  state = write(state, "a", "again").state;
+  assert.equal(deriveView(state).limitPositions.get("a"), 1, "writing again moves it forward, never back");
+
+  vi.mocked(Date.now).mockReturnValue(session.resetsAt);
+  const woke = resolveAll(reduce(state, { type: "limits.elapsed", at: session.resetsAt }));
+  assert.ok(woke.state.activeRuns.a?.warming);
+  const late = write(woke.state, "c", "now please");
+  assert.equal(late.effects.some((effect) => effect.type === "resolve-run-workspace"), false, "it waits for the thread warming up");
+  assert.equal(late.state.queuedMessages.c?.[0]?.text, "now please");
+  assert.ok(thread(late.state, "c").limitPause);
+});
+
 test("a weekly limit keeps its verdict and waits for the user to resume", () => {
   const paused = limited(runningThreads("a"), "a", weekly);
   assert.equal(thread(paused.state, "a").outcome, "failed");
@@ -139,8 +161,11 @@ test("not resuming hands what was written back to the composer", () => {
   assert.equal(cancelled.state.prompts.a, "later");
   assert.equal(effectOf(cancelled, "schedule-limit-reset").at, null);
   assert.equal(reduce(cancelled.state, { type: "limits.elapsed", at: session.resetsAt }).state.activeRuns.a, undefined);
-  const archived = reduce(limited(runningThreads("a"), "a", session).state, { type: "task.archive", taskId: "a" });
+  const held = reduce(limited(runningThreads("a"), "a", session).state, { type: "task.send", taskId: "a", text: "held", attachments: [] }).state;
+  const archived = reduce(held, { type: "task.archive", taskId: "a" });
   assert.equal(thread(archived.state, "a").limitPause, undefined);
+  assert.equal(archived.state.queuedMessages.a, undefined);
+  assert.equal(archived.state.prompts.a, "held");
   assert.equal(threadBusy(archived.state, "a"), false);
 });
 
@@ -157,6 +182,14 @@ test("a cut-short workflow is resumed rather than restarted, and goes after the 
   const runId = woke.state.activeRuns.b!.runId;
   const next = resolveAll(reduce(woke.state, correlatedRunEvent("b", runId, 1, { type: "context.usage", tokens: 1, limit: 2, model: "claude" })));
   assert.match(effectOf(next, "start-run").command.prompt, /resumeFromRunId/);
+
+  let written: WorkspaceState = { ...runningThreads("w"), workflows: { w: [{ id: "wf", name: "wf", description: "Dynamic workflow", status: "running" as const, phases: [], agents: [], totalTokens: 0, totalToolCalls: 0, startedAt: 1 }] } };
+  vi.mocked(Date.now).mockReturnValue(at);
+  written = limited(written, "w", session).state;
+  written = reduce(written, { type: "task.send", taskId: "w", text: "check the results", attachments: [] }).state;
+  vi.mocked(Date.now).mockReturnValue(session.resetsAt);
+  const prompt = effectOf(resolveAll(reduce(written, { type: "limits.elapsed", at: session.resetsAt })), "start-run").command.prompt;
+  assert.match(prompt, /^check the results\n\n.*resumeFromRunId/s, "a message written while it waited keeps the workflow's instruction");
 });
 
 test("a pause survives a restart, and a run that reports a limit is checked", () => {

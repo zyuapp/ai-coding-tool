@@ -1,12 +1,12 @@
 /** Threads waiting out their account's usage limit, and the line they resume in once it lifts. */
-import { drainQueue, queuedFor, resolveWorkspaceEffect } from "./workspace-reducer/run-queue.js";
+import { drainQueue, queuedFor, resolveWorkspaceEffect, withQueued } from "./workspace-reducer/run-queue.js";
 import { settled } from "./workspace-reducer/shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
 import { updateThread } from "./thread-run-state.js";
 import { leavingThreadIds, projectFor, worktreeFor } from "./thread-location.js";
 import type { PendingRun, WorkspaceState } from "./workspace-state.js";
 import type { AgentEngine } from "../domain/agent-engine.js";
-import { limitLines, resumePrompt, withEngineLimit, withoutLimitPause, type LimitPause, type UsageLimit } from "../domain/usage-limit.js";
+import { limitLines, resumePrompt, resumesOnItsOwn, withEngineLimit, withoutLimitPause, type LimitPause, type UsageLimit } from "../domain/usage-limit.js";
 
 /**
  * Puts a thread whose run hit the limit in line. A session limit lifts on its own, so the failure is
@@ -25,10 +25,13 @@ export function pausedForLimit(state: WorkspaceState, taskId: string, limit: Usa
   });
 }
 
-/** Whether a message to this thread waits for its limit to lift. */
+/**
+ * Whether a message to this thread waits with it. One that resumes on its own waits for its turn in
+ * line even after the limit lifts; a weekly one is taken up by the user's own send once it has.
+ */
 export function heldByLimit(state: WorkspaceState, taskId: string, at: number) {
   const pause = state.threads.find((thread) => thread.id === taskId)?.limitPause;
-  return Boolean(pause && at < pause.resetsAt);
+  return Boolean(pause && (resumesOnItsOwn(pause) || at < pause.resetsAt));
 }
 
 /** A message written to a paused thread waits with it and moves it to the front of the line. */
@@ -45,7 +48,8 @@ export function resumeThread(state: WorkspaceState, taskId: string): WorkspaceTr
   const pause = thread?.limitPause;
   if (!thread || !pause || state.activeRuns[taskId] || Object.values(state.pendingRuns).some((pending) => pending.taskId === taskId)) return settled(state);
   const lifted = updateThread(state, taskId, withoutLimitPause);
-  if (queuedFor(lifted, taskId).length) return drainQueue(lifted, taskId, "succeeded", true);
+  const [written, ...rest] = queuedFor(lifted, taskId);
+  if (written) return drainQueue(withQueued(lifted, taskId, [{ ...written, prompt: resumePrompt(pause, written.prompt) }, ...rest]), taskId, "succeeded", true);
   const project = projectFor(lifted, thread);
   const pending: PendingRun = {
     id: crypto.randomUUID(),
@@ -105,7 +109,7 @@ function nextReset(state: WorkspaceState, after: number): number | null {
 /** Inputs after which a thread in line may be free to go: time passing, or a run warming up or ending. */
 function mayAdvance(input: WorkspaceInput) {
   if (input.type === "run.event") return input.event.type === "context.usage" || input.event.type === "run.status";
-  return input.type === "limits.elapsed" || input.type === "store.loaded" || input.type === "store.absent"
+  return input.type === "limits.elapsed" || input.type === "store.loaded" || input.type === "store.absent" || input.type === "task.send"
     || input.type === "run.unresolved" || input.type === "limit.cancel" || input.type === "view.set-focused" && input.focused;
 }
 

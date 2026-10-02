@@ -49,14 +49,14 @@ export function resumesOnItsOwn(pause: LimitPause) {
 }
 
 /**
- * The order an engine's paused threads resume in: the ones the user wrote to first, then the order
+ * The order an engine's paused threads resume in: the one the user wrote to last first, then the order
  * they paused in, with a reviewer ahead of the rest so the thread waiting on its verdict has one to
  * read, and a dynamic workflow last since it restarts many agents at once.
  */
 function lineOrder(left: Thread, right: Thread) {
   const a = left.limitPause!, b = right.limitPause!;
   if ((a.nudgedAt === undefined) !== (b.nudgedAt === undefined)) return a.nudgedAt === undefined ? 1 : -1;
-  if (a.nudgedAt !== undefined && b.nudgedAt !== undefined && a.nudgedAt !== b.nudgedAt) return a.nudgedAt - b.nudgedAt;
+  if (a.nudgedAt !== undefined && b.nudgedAt !== undefined && a.nudgedAt !== b.nudgedAt) return b.nudgedAt - a.nudgedAt;
   if ((left.role === "reviewer") !== (right.role === "reviewer")) return left.role === "reviewer" ? -1 : 1;
   if (Boolean(a.workflow) !== Boolean(b.workflow)) return a.workflow ? 1 : -1;
   return a.pausedAt - b.pausedAt;
@@ -105,12 +105,12 @@ export function withEngineLimit(threads: Thread[], engine: AgentEngine, limit: U
   return changed ? next : threads;
 }
 
-/** What a resumed thread is told when nobody wrote to it while it waited. */
-export function resumePrompt(pause: LimitPause) {
-  const workflow = pause.workflow
-    ? " A dynamic workflow was cut short when the limit hit: resume it with the Workflow tool's resumeFromRunId, using the run ID its launch returned, so finished agents are not run again."
-    : "";
-  return `The usage limit that paused this thread has reset. Continue where you left off.${workflow}`;
+const WORKFLOW_NOTE = "A dynamic workflow was cut short when the usage limit hit: resume it with the Workflow tool's resumeFromRunId, using the run ID its launch returned, so finished agents are not run again.";
+
+/** What a resumed thread is told: the message written to it while it waited, or to carry on. */
+export function resumePrompt(pause: LimitPause, written?: string) {
+  const prompt = written ?? "The usage limit that paused this thread has reset. Continue where you left off.";
+  return pause.workflow ? `${prompt}\n\n${WORKFLOW_NOTE}` : prompt;
 }
 
 /** When a limit lifts, as a time today or a day and time further out. */

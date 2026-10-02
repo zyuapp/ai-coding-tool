@@ -21,7 +21,13 @@ test("a turn stopped by the plan's usage limit says when the limit lifts", async
   const window = (usedPercent: number, windowDurationMins: number, resetsAt: number) => ({ usedPercent, windowDurationMins, resetsAt });
   const snapshot = (primary: ReturnType<typeof window>, secondary: ReturnType<typeof window>) => ({ limitId: "codex", limitName: null, normalModelSlug: null, primary, secondary, credits: null, individualLimit: null, spendControlReached: null, planType: null, rateLimitReachedType: null });
   const codex = harness({
-    "account/rateLimits/read": () => ({ ordinaryUsageAllowed: false, rateLimits: snapshot(window(100, 300, 1_900_000_000), window(40, 10_080, 1_900_500_000)), rateLimitsByLimitId: null, rateLimitResetCredits: null, accountId: null, rateLimitUpsell: null }),
+    "account/rateLimits/read": () => ({
+      ordinaryUsageAllowed: false,
+      rateLimits: snapshot(window(100, 300, 1_900_000_000), window(40, 10_080, 1_900_500_000)),
+      /** Another bucket used up for the week never holds an ordinary turn. */
+      rateLimitsByLimitId: { review: { ...snapshot(window(10, 300, 1_900_000_000), window(100, 10_080, 1_900_900_000)), limitId: "review" } },
+      rateLimitResetCredits: null, accountId: null, rateLimitUpsell: null,
+    }),
   });
   const running = codex.provider.execute(codexInput());
   const client = await opened(codex);

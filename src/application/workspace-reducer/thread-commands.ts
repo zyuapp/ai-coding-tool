@@ -20,7 +20,7 @@ import { dismissableThreads, dismissed, readAttention } from "../../domain/atten
 import { clampTitle, type Thread } from "../../domain/thread.js";
 import { coordinatorOf, withCoordinated } from "../../domain/coordination.js";
 import { isSnoozeHours } from "../../domain/thread-snooze.js";
-import { withoutLimitPause } from "../../domain/usage-limit.js";
+import { cancelPause } from "../limit-pauses.js";
 import { withWatchedThreads } from "../../domain/automation.js";
 import { capabilitiesFor, defaultModelFor, effortForModel, engineHasModel, modelHasEffort } from "../../domain/agent-engine.js";
 
@@ -154,12 +154,14 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
     /** Archiving a running thread cancels its run; its checkout stays until the user removes it. */
     case "task.archive": {
       const active = state.activeRuns[input.taskId];
+      /** Filing a thread away ends its work, including a wait to resume after its usage limit. */
+      const unpaused = cancelPause(state, input.taskId);
       return settled({
-        ...state,
-        /** Filing a thread away ends its work, including a wait to resume after its usage limit. */
-        threads: state.threads.map((thread) => thread.id === input.taskId ? { ...withoutLimitPause(thread), archivedAt: now() } : thread),
+        ...unpaused.state,
+        threads: unpaused.state.threads.map((thread) => thread.id === input.taskId ? { ...thread, archivedAt: now() } : thread),
         currentId: state.currentId === input.taskId ? null : state.currentId,
       }, [
+        ...unpaused.effects,
         ...retireAutomations(state, [input.taskId]),
         ...(active ? [{ type: "send-run-command" as const, command: { type: "cancel" as const, taskId: active.taskId, runId: active.runId } }] : []),
       ]);

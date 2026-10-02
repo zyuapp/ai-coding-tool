@@ -55,17 +55,18 @@ function snapshots(response: GetAccountRateLimitsResponse): Array<[string, RateL
   return named.length ? named : [[response.rateLimits.limitId ?? "codex", response.rateLimits]];
 }
 
-/** The plan limit Codex turned a turn away for: of the windows used up, the one that lifts last. */
+/**
+ * The plan limit Codex turned a turn away for: of the ordinary limit's windows used up, the one that
+ * lifts last. Other buckets, such as code review's, never hold a turn.
+ */
 export function codexUsageLimit(response: GetAccountRateLimitsResponse): UsageLimit | undefined {
   let found: UsageLimit | undefined;
-  for (const [, snapshot] of snapshots(response)) {
-    for (const value of [snapshot.primary, snapshot.secondary]) {
-      if (!value || value.usedPercent < 100 || value.resetsAt === null || !Number.isFinite(value.resetsAt)) continue;
-      const resetsAt = value.resetsAt * 1_000;
-      if (found && found.resetsAt >= resetsAt) continue;
-      /** Only a window of five hours or less lifts soon enough to resume on its own. */
-      found = { resetsAt, window: value.windowDurationMins !== null && value.windowDurationMins <= 300 ? "session" : "weekly" };
-    }
+  for (const value of [response.rateLimits.primary, response.rateLimits.secondary]) {
+    if (!value || value.usedPercent < 100 || value.resetsAt === null || !Number.isFinite(value.resetsAt)) continue;
+    const resetsAt = value.resetsAt * 1_000;
+    if (found && found.resetsAt >= resetsAt) continue;
+    /** Only a window of five hours or less lifts soon enough to resume on its own. */
+    found = { resetsAt, window: value.windowDurationMins !== null && value.windowDurationMins <= 300 ? "session" : "weekly" };
   }
   return found;
 }
