@@ -227,7 +227,11 @@ export type RunControlCommand =
   | { type: "question.answer"; taskId: string; runId: string; requestId: string; questionId: string; text?: string }
   | { type: "run.decide"; allow: boolean; taskId: string; runId: string; approvalId: string }
   /** Kills one process the run left running, without ending the run. */
-  | { type: "run.stop-process"; taskId?: string; processId: string };
+  | { type: "run.stop-process"; taskId?: string; processId: string }
+  /** Picks a thread paused by its usage limit back up now. */
+  | { type: "limit.resume"; taskId: string }
+  /** Takes a thread paused by its usage limit out of line, so it stays where the limit left it. */
+  | { type: "limit.cancel"; taskId: string };
 
 /** The native Codex review picker and the review turn it starts. */
 export type ReviewCommand =

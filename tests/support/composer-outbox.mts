@@ -27,6 +27,7 @@ export function useSavingOutbox(onSend: (attachments: RunAttachment[], steer: bo
           desktop: { ...window.desktop, ...noComputers }, storage: localStorage,
           environmentRefreshes: { current: new Map() },
           scheduleSnoozeExpiry: () => {},
+          scheduleLimitReset: () => {},
           dispatch: async (input) => {
             if (input.type === "attachments.saved") {
               setState((current) => ({ ...current, busy: false, error: null, sent: input.ids }));

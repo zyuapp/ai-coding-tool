@@ -30,6 +30,7 @@ export function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
       blockedThreadIds={workspace.blockedThreadIds}
       sideChatAttention={workspace.sideChatAttention}
       schedules={workspace.schedules}
+      limitPositions={workspace.limitPositions}
       worktreeThreadIds={workspace.worktreeThreadIds}
       worktreeGroups={workspace.worktreeGroups}
       activityThreads={workspace.activityThreads}

@@ -1,7 +1,8 @@
-import type { CanUseTool, HookCallback, Options, Query, SDKActiveGoalMessage, SDKAPIRetryMessage, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
+import type { CanUseTool, HookCallback, Options, Query, SDKActiveGoalMessage, SDKAPIRetryMessage, SDKMessage, SDKRateLimitInfo, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { claudeEffort, contextWindowLimit, modelTakesEffort, type AgentModel, type ClaudeEffort } from "../../domain/agent-engine.js";
 import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, SubagentMetadata, SubagentReport, ToolIntent } from "../../domain/run.js";
 import type { WorkflowReport } from "../../contracts/ipc.js";
+import type { UsageLimit } from "../../domain/usage-limit.js";
 import { continuationOf, type AgentTurn, type ProviderEvent, type ProviderResult, type ProviderRunInput, type SteerQueue, type ToolDecision } from "./agent-provider.mjs";
 import { SIDE_CHAT_BOUNDARY } from "./side-chat-instructions.mjs";
 import { parseWorkflowProgress, workflowProgressOf } from "./workflow-progress.mjs";
@@ -41,6 +42,15 @@ function retryReason(message: SDKAPIRetryMessage): string {
   if (message.error === "rate_limit") return "Claude is rate limited.";
   if (message.error_status === null) return "Cannot reach Claude.";
   return `Claude API error ${message.error_status}.`;
+}
+
+/** The plan limit the account is held at, if the latest report says requests are being turned away. */
+function usageLimitOf(info: SDKRateLimitInfo | null): { limit?: UsageLimit } {
+  if (info?.status !== "rejected" || !info.resetsAt) return {};
+  /** Extra usage keeps requests going past the plan's limit. */
+  if (info.overageStatus === "allowed" || info.overageStatus === "allowed_warning") return {};
+  /** Reported in seconds. Only the five-hour window lifts soon enough to resume on its own. */
+  return { limit: { resetsAt: info.resetsAt * 1_000, window: info.rateLimitType === undefined || info.rateLimitType === "five_hour" ? "session" : "weekly" } };
 }
 
 /** How long an interrupted turn has to come back with a result before the session is given up on. */
@@ -169,6 +179,8 @@ export class ClaudeSession {
   private readonly subagentEfforts = new Map<string, string>();
   private reportGoal: ProviderRunInput["reportGoal"] = () => {};
   private hasGoal = false;
+  /** The newest plan limit report; the agent process sends one whenever it changes. */
+  private rateLimit: SDKRateLimitInfo | null = null;
   /** What the agent process left running here: a shell, a monitor, or a task of its own. */
   private readonly background = new BackgroundWork(() => this.busy, () => this.onIdle());
   /** What the agent process called this session. A later run resumes it by this id. */
@@ -382,7 +394,7 @@ export class ClaudeSession {
       for await (const message of this.query as Query) this.receive(message as SDKMessage | SDKActiveGoalMessage);
       this.finish({ status: "succeeded" });
     } catch (error) {
-      this.finish({ status: "failed", message: error instanceof Error ? error.message : String(error) });
+      this.finish({ status: "failed", message: error instanceof Error ? error.message : String(error), ...usageLimitOf(this.rateLimit) });
     } finally {
       this.close();
     }
@@ -403,6 +415,10 @@ export class ClaudeSession {
       return;
     }
     if (message.type === "system" && message.subtype === "init") this.sessionId = message.session_id;
+    if (message.type === "rate_limit_event") {
+      this.rateLimit = message.rate_limit_info;
+      return;
+    }
     /** Taken before the stream guard: what the agent leaves running outlives the turn that started it. */
     if (message.type === "system" && message.subtype === "background_tasks_changed") {
       this.background.replace(backgroundProcesses(message.tasks), message.tasks.map((task) => task.task_id));
@@ -468,7 +484,7 @@ export class ClaudeSession {
       /** The open input stream keeps the session alive, so the turn's result is what ends the run. */
       if (this.absorbedSteering()) return;
       if (message.subtype !== "success" || message.is_error) {
-        this.conclude({ status: "failed", message: message.subtype === "success" ? message.result : message.errors.join("\n") });
+        this.conclude({ status: "failed", message: message.subtype === "success" ? message.result : message.errors.join("\n"), ...usageLimitOf(this.rateLimit) });
         /** A turn that broke leaves a session nobody can vouch for; the next run resumes it instead. */
         this.close();
         return;

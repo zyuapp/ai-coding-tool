@@ -1,7 +1,8 @@
 import { CommandButton } from "./CommandControl";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Draggable, type DraggableProvided } from "@hello-pangea/dnd";
-import { LuAlarmClock as AlarmClock, LuArchive as Archive, LuCheck as Check, LuFolderSymlink as FolderSymlink } from "react-icons/lu";
+import { LuAlarmClock as AlarmClock, LuArchive as Archive, LuCheck as Check, LuFolderSymlink as FolderSymlink, LuHourglass as Hourglass } from "react-icons/lu";
+import { pauseSummary } from "../../domain/usage-limit";
 import { projectName, type Project } from "../../domain/project";
 import { threadActivityAt, type Thread } from "../../domain/thread";
 import { hasUnreadAttention, newestUnreadFinding } from "../../domain/attention";
@@ -64,11 +65,12 @@ function decisionLabel(count: number) {
  * it last moved. A row carrying something a run found says that instead — the headline is why the
  * row is in Priority.
  */
-function activityMeta(thread: Thread, host: ThreadHost | undefined, projects: Project[], formatTime: (value: number) => string, decisions: number, memberBlocked: boolean) {
+function activityMeta(thread: Thread, host: ThreadHost | undefined, projects: Project[], formatTime: (value: number) => string, decisions: number, memberBlocked: boolean, linePosition: number | null) {
   if (decisions) return decisionLabel(decisions);
   if (memberBlocked) return MEMBER_BLOCKED_LABEL;
   const finding = newestUnreadFinding(thread);
   if (finding) return finding.headline;
+  if (thread.limitPause) return hostMeta(host, pauseSummary(thread.limitPause, linePosition, Date.now()));
   const project = projects.find((item) => item.id === thread.projectId);
   return hostMeta(host, ...[project && projectName(project), formatTime(threadActivityAt(thread))].filter((part): part is string => Boolean(part)));
 }
@@ -106,6 +108,8 @@ export type ThreadRowsOptions = {
   /** Threads holding a side chat with something unseen, which have no row of their own. */
   sideChatAttention: Set<string>;
   schedules: Map<string, AutomationView>;
+  /** Each thread waiting out its usage limit, by its place in line. */
+  limitPositions: Map<string, number>;
   worktreeThreadIds: Set<string>;
   worktreeGroups: WorktreeGroup[];
   /** Which paired computer holds each thread that is not this computer's own. */
@@ -177,6 +181,7 @@ export function useThreadRows({
   blockedThreadIds,
   sideChatAttention,
   schedules,
+  limitPositions,
   worktreeThreadIds,
   worktreeGroups,
   threadHosts,
@@ -228,7 +233,9 @@ export function useThreadRows({
       ? <span key="status" className="task-attention approval" aria-label={blockedThreadIds.has(thread.id) ? BLOCKED_LABEL : MEMBER_BLOCKED_LABEL} />
       : runningThreadIds.has(thread.id) || membersIn(thread, runningThreadIds)
         ? <ThreadSpinner key="status" />
-        : attentionMark(thread, sideChatAttention.has(thread.id), decisionCount(thread, coordination.threadsByCoordinator)),
+        : thread.limitPause
+          ? <Hourglass key="status" className="task-paused" size={13} aria-label={pauseSummary(thread.limitPause, limitPositions.get(thread.id) ?? null, Date.now())} />
+          : attentionMark(thread, sideChatAttention.has(thread.id), decisionCount(thread, coordination.threadsByCoordinator)),
     <ThreadEngineIcon key="engine" engine={thread.engine} className="task-engine" size={13} />,
   ].filter(Boolean);
 
@@ -324,7 +331,7 @@ export function useThreadRows({
       {rowBody(thread, `task-row ${thread.id === currentId ? "active" : ""}`, (
         <span className="task-row-text">
           <span>{thread.title}</span>
-          <small>{activityMeta(thread, threadHosts.get(thread.id), projects, formatTime, decisionCount(thread, coordination.threadsByCoordinator), membersIn(thread, blockedThreadIds))}</small>
+          <small>{activityMeta(thread, threadHosts.get(thread.id), projects, formatTime, decisionCount(thread, coordination.threadsByCoordinator), membersIn(thread, blockedThreadIds), limitPositions.get(thread.id) ?? null)}</small>
         </span>
       ), action, priority)}
     </div>

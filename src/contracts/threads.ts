@@ -53,6 +53,8 @@ export type ThreadSummary = {
   worktreeId?: string;
   worktreeRoot?: string;
   status: "idle" | "running" | "stopped";
+  /** Set while the thread waits for its usage limit to lift; it counts as running until then. */
+  pausedUntil?: number;
   archived: boolean;
   createdAt: number;
   lastActivityAt: number;

@@ -5,6 +5,7 @@ import type { BrowserRead, BrowserReadResult, BrowserWrite, ExternalCommand, Fin
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
 import type { AgentEngine, AgentModel } from "../../domain/agent-engine.js";
 import type { AgentEffort, Continuation, ExecutionPolicy, RetryNotice, SubagentReport, ToolIntent } from "../../domain/run.js";
+import type { UsageLimit } from "../../domain/usage-limit.js";
 
 /** The window's workspace, reachable from the run: reads are projections, writes are commands. */
 export type ThreadBridge = {
@@ -142,6 +143,8 @@ export type ProviderRunInput = {
 export type ProviderResult = {
   status: "succeeded" | "failed" | "cancelled";
   message?: string;
+  /** Set on a failure caused by the account reaching its plan's usage limit. */
+  limit?: UsageLimit;
 };
 
 /** The engine's own handle on the thread; another engine's continuation means nothing to it. */

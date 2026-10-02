@@ -213,6 +213,8 @@ const shapes = {
   "question.answer": { taskId: text, runId: text, requestId: text, questionId: text, text: optionalText },
   "run.decide": { allow: boolean, taskId: text, runId: text, approvalId: text },
   "run.stop-process": { taskId: optionalText, processId: text },
+  "limit.resume": { taskId: text },
+  "limit.cancel": { taskId: text },
   "review.open": { taskId: optionalText },
   "review.close": {  },
   "review.set-step": { step: literals("targets", "base", "commit", "custom") },

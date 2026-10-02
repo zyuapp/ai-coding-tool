@@ -12,6 +12,7 @@ export function isThreadSummary(value: unknown): value is ThreadSummary {
   if (!record(value)) return false;
   return typeof value.id === "string" && value.id.length > 0 && typeof value.title === "string"
     && ["idle", "running", "stopped"].includes(value.status as string)
+    && (value.pausedUntil === undefined || typeof value.pausedUntil === "number" && Number.isFinite(value.pausedUntil))
     && typeof value.archived === "boolean"
     && typeof value.createdAt === "number" && Number.isFinite(value.createdAt)
     && typeof value.lastActivityAt === "number" && Number.isFinite(value.lastActivityAt)

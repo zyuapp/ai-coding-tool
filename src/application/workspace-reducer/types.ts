@@ -30,6 +30,8 @@ import type { CoordinationState, DecisionRequest } from "../../domain/coordinati
 /** Things that happened: replies to effects, and pushes from the main process. */
 export type WorkspaceEvent =
   | { type: "snoozes.elapsed"; at: number }
+  /** A usage limit some paused thread is waiting on has lifted. */
+  | { type: "limits.elapsed"; at: number }
   | { type: "view.closed" }
   | { type: "store.loaded"; data: ThreadStoreData; hiddenTasks?: number }
   | { type: "store.thread-loaded"; taskId: string; messages: ConversationMessage[] }
@@ -106,6 +108,7 @@ export type WorkspaceEvent =
 /** Work the reducer wants done outside itself. The renderer performs these; nothing else does. */
 export type WorkspaceEffect =
   | { type: "schedule-snooze-expiry"; at: number | null }
+  | { type: "schedule-limit-reset"; at: number | null }
   | { type: "pick-project" }
   | import("../project-add.js").ProjectAddEffect
   | RegisterProjectEffect

@@ -21,9 +21,13 @@ export function resolveScope(state: WorkspaceState, callerThreadId: string, proj
   return "error" in match ? { error: match.error } : { kind: "project", projectId: match.project.id };
 }
 
-/** A thread is working while a run is going, resolving, or still queued behind the one that is. */
+/**
+ * A thread is working while a run is going, resolving, or still queued behind the one that is, and
+ * while it waits for its usage limit to lift.
+ */
 export function threadBusy(state: WorkspaceState, threadId: string): boolean {
   return Boolean(state.activeRuns[threadId])
+    || Boolean(state.threads.find((thread) => thread.id === threadId)?.limitPause)
     || Object.values(state.pendingRuns).some((pending) => pending.taskId === threadId)
     || Boolean(state.queuedMessages[threadId]?.length)
     || Boolean(state.workflows[threadId]?.some((workflow) => workflow.status === "running"));
@@ -58,6 +62,7 @@ function projectionIndex(state: WorkspaceState): ProjectionIndex {
   for (const pending of Object.values(state.pendingRuns)) if (pending.taskId) busy.add(pending.taskId);
   for (const [threadId, queued] of Object.entries(state.queuedMessages)) if (queued.length) busy.add(threadId);
   for (const threadId of workflowThreadIds(state)) busy.add(threadId);
+  for (const thread of state.threads) if (thread.limitPause) busy.add(thread.id);
   return { projects, worktrees, busy };
 }
 
@@ -72,6 +77,7 @@ function projectThreadSummary(state: WorkspaceState, thread: Thread, activity: n
     ...(project ? { projectRoot: project.root } : {}),
     ...(worktree ? { worktreeId: worktree.id, worktreeRoot: worktree.root } : {}),
     status: (index ? index.busy.has(thread.id) : threadBusy(state, thread.id)) ? "running" : runStatusFor(state, thread.id),
+    ...(thread.limitPause ? { pausedUntil: thread.limitPause.resetsAt } : {}),
     archived: thread.archivedAt !== undefined,
     createdAt: threadCreatedAt(thread),
     lastActivityAt: activity,

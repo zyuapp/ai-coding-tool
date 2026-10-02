@@ -47,6 +47,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
   const mobileView = noMobileView();
   const drafts = createDraftPersistence(host.storage, () => state, dispatch);
   const snoozeTimer = createSnoozeTimer((at) => { void dispatch({ type: "snoozes.elapsed", at }); });
+  const limitTimer = createSnoozeTimer((at) => { void dispatch({ type: "limits.elapsed", at }); });
   const history = createRuntimeHistory({ state: () => state, load: (taskId) => desktop.loadThreadMessages(taskId), dispatch: (input) => rawExecute(input).completed.then(() => undefined), persistence });
   const inputs = createRuntimeInputs({
     generation: () => generation,
@@ -98,7 +99,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
       active: () => !disposed && generation === executionGeneration,
       commit,
       prepare: async (input) => { for (const taskId of history.needed(input)) await history.hydrate(taskId); },
-      perform: (effect, dispatch) => runWorkspaceEffect(effect, { dispatch, desktop, storage: host.storage, environmentRefreshes, scheduleSnoozeExpiry: snoozeTimer.schedule, surface: host.surface }),
+      perform: (effect, dispatch) => runWorkspaceEffect(effect, { dispatch, desktop, storage: host.storage, environmentRefreshes, scheduleSnoozeExpiry: snoozeTimer.schedule, scheduleLimitReset: limitTimer.schedule, surface: host.surface }),
     });
     effectsInFlight.add(execution.completed);
     void execution.completed.finally(() => effectsInFlight.delete(execution.completed));
@@ -176,7 +177,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
       subscriptions = null;
       if (refreshTimer !== undefined) clearInterval(refreshTimer);
       drafts.dispose();
-      snoozeTimer.dispose();
+      snoozeTimer.dispose(); limitTimer.dispose();
       started = null;
       generation += 1;
       history.invalidate();

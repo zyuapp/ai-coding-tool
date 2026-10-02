@@ -32,6 +32,8 @@ export type ProjectSidebarProps = {
   /** Threads holding a side chat with something unseen, which have no row of their own. */
   sideChatAttention: Set<string>;
   schedules: Map<string, AutomationView>;
+  /** Each thread waiting out its usage limit, by its place in line. */
+  limitPositions: Map<string, number>;
   worktreeThreadIds: Set<string>;
   /** The checkouts each project has, with the threads in each. A project offers starting one more there. */
   worktreeGroups: WorktreeGroup[];
@@ -88,7 +90,7 @@ function railSlotsFor(threads: Thread[], marks: Pick<ProjectSidebarProps, "block
   return threads.reduce((widest, thread) => {
     const members = threadsByCoordinator.get(thread.id) ?? [];
     const coordinationStatus = decisionCount(thread, threadsByCoordinator) > 0 || members.some((member) => marks.blockedThreadIds.has(member.id) || marks.runningThreadIds.has(member.id));
-    const status = marks.blockedThreadIds.has(thread.id) || marks.runningThreadIds.has(thread.id) || hasUnreadAttention(thread) || marks.sideChatAttention.has(thread.id) || coordinationStatus;
+    const status = marks.blockedThreadIds.has(thread.id) || marks.runningThreadIds.has(thread.id) || Boolean(thread.limitPause) || hasUnreadAttention(thread) || marks.sideChatAttention.has(thread.id) || coordinationStatus;
     return Math.max(widest, 1 + Number(Boolean(thread.role)) + Number(marks.worktreeThreadIds.has(thread.id)) + Number(marks.schedules.has(thread.id)) + Number(status));
   }, 1);
 }
@@ -140,7 +142,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
   runningThreadIds,
   blockedThreadIds,
   sideChatAttention,
-  schedules,
+  schedules, limitPositions,
   worktreeThreadIds,
   worktreeGroups,
   activityThreads,
@@ -194,7 +196,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
     runningThreadIds,
     blockedThreadIds,
     sideChatAttention,
-    schedules,
+    schedules, limitPositions,
     worktreeThreadIds,
     worktreeGroups,
     threadHosts,

@@ -17,6 +17,7 @@ export type EffectHost = {
   storage: KeyValueStorage;
   environmentRefreshes: EnvironmentRefreshes;
   scheduleSnoozeExpiry: (at: number | null) => void;
+  scheduleLimitReset: (at: number | null) => void;
   /** Carries an effect to the window's own views. Absent where there is no window, which drops it. */
   surface?: ((effect: WorkspaceSurfaceEffect) => void) | undefined;
 };

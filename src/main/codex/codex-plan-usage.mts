@@ -1,4 +1,5 @@
 import type { PlanUsage, UsageWindow } from "../../domain/plan-usage.js";
+import type { UsageLimit } from "../../domain/usage-limit.js";
 import { CLIENT_INFO, codexAppServer, connectAppServer, type AppServerClient, type AppServerCommand } from "./app-server-client.mjs";
 import type { GetAccountRateLimitsResponse } from "./protocol/v2/GetAccountRateLimitsResponse.js";
 import type { RateLimitSnapshot } from "./protocol/v2/RateLimitSnapshot.js";
@@ -8,6 +9,7 @@ export type UsageClient = Pick<AppServerClient, "initialize" | "request" | "clos
 export type UsageConnect = (command: AppServerCommand) => UsageClient;
 
 const READ_TIMEOUT_MS = 20_000;
+const LIMIT_READ_TIMEOUT_MS = 10_000;
 
 function describe(cause: unknown) {
   return cause instanceof Error ? cause.message : String(cause);
@@ -51,6 +53,30 @@ function usageWindow(id: string, label: string, kind: "primary" | "secondary", v
 function snapshots(response: GetAccountRateLimitsResponse): Array<[string, RateLimitSnapshot]> {
   const named = Object.entries(response.rateLimitsByLimitId ?? {}).filter((entry): entry is [string, RateLimitSnapshot] => Boolean(entry[1]));
   return named.length ? named : [[response.rateLimits.limitId ?? "codex", response.rateLimits]];
+}
+
+/** The plan limit Codex turned a turn away for: of the windows used up, the one that lifts last. */
+export function codexUsageLimit(response: GetAccountRateLimitsResponse): UsageLimit | undefined {
+  let found: UsageLimit | undefined;
+  for (const [, snapshot] of snapshots(response)) {
+    for (const value of [snapshot.primary, snapshot.secondary]) {
+      if (!value || value.usedPercent < 100 || value.resetsAt === null || !Number.isFinite(value.resetsAt)) continue;
+      const resetsAt = value.resetsAt * 1_000;
+      if (found && found.resetsAt >= resetsAt) continue;
+      /** Only a window of five hours or less lifts soon enough to resume on its own. */
+      found = { resetsAt, window: value.windowDurationMins !== null && value.windowDurationMins <= 300 ? "session" : "weekly" };
+    }
+  }
+  return found;
+}
+
+/** When the plan limit a turn ran into lifts, read from a live session. Unknown if the server cannot say. */
+export async function readCodexUsageLimit(client: Pick<AppServerClient, "request">): Promise<UsageLimit | undefined> {
+  try {
+    return codexUsageLimit(await withTimeout(client.request("account/rateLimits/read"), LIMIT_READ_TIMEOUT_MS));
+  } catch {
+    return undefined;
+  }
 }
 
 function limitName(id: string, snapshot: RateLimitSnapshot) {

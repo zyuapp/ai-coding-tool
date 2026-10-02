@@ -72,6 +72,7 @@ import {
 } from "./thread-location.js";
 import type { WorktreeSettingsState } from "./worktree-settings.js";
 import { heldViews } from "./view-reuse.js";
+import { linePositions } from "../domain/usage-limit.js";
 export type { WorktreeSettingsView } from "./worktree-settings.js";
 export {
   locationOf,
@@ -93,7 +94,8 @@ export type PendingRun = {
   id: string;
   runId: string;
   origin: "composer" | "automation";
-  operation?: { type: "compact" } | { type: "review"; target: ReviewTarget };
+  /** `resume` picks a thread back up after its usage limit lifts, with no message of the user's. */
+  operation?: { type: "compact" } | { type: "review"; target: ReviewTarget } | { type: "resume" };
   taskId?: string;
   projectId?: string;
   /** The checkout the run was told to happen in, for a thread that does not exist yet to claim. */
@@ -123,6 +125,8 @@ export type PendingRun = {
   queuedIds?: string[];
   /** Set when the checkout this run needs is being made on the way, which is the slow part of resolving. */
   creatingWorktree?: boolean;
+  /** Resumes a thread after its usage limit lifted; the next in line waits until this one has answered once. */
+  warming?: true;
 };
 
 /** What a thread is waiting on before it can work: a checkout being made or removed, or a run finding one. */
@@ -786,6 +790,9 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state)
     status: currentRun ? "running" as const : runStatusFor(state, state.currentId),
     compacting: currentRun?.status === "compacting",
     retrying: currentRun?.retry ?? null,
+    /** The usage limit the thread is waiting out, and its place in line. */
+    limitPause: currentThread?.limitPause ? { ...currentThread.limitPause, position: linePositions(state.threads).get(currentThread.id) ?? null } : null,
+    limitPositions: linePositions(state.threads),
     runActive: Boolean(currentRun),
     question: currentRun?.questions?.[0],
     queuedMessages: (state.currentId ? state.queuedMessages[state.currentId] : undefined) ?? NO_QUEUED,

@@ -52,6 +52,7 @@ function describe(thread: ThreadSummary, at: number) {
     thread.worktreeRoot ?? thread.projectRoot ?? "no project",
     ...(thread.worktreeId ? [`worktree ${thread.worktreeId}`] : []),
     thread.status,
+    ...(thread.pausedUntil === undefined ? [] : [`paused by its usage limit until ${new Date(thread.pausedUntil).toISOString()}`]),
     `${thread.messageCount} messages`,
     ...(thread.attachmentCount ? [`${thread.attachmentCount} with images`] : []),
     `idle ${elapsed(Math.max(0, at - thread.lastActivityAt))}`,

@@ -28,6 +28,11 @@ export type ActiveRun = RunProvenance & {
   before: ThreadMark;
   /** How many times another message interrupted each streamed answer; each interruption starts a new part. */
   answerParts?: Record<string, number>;
+  /**
+   * Set on a run resuming a thread after its usage limit lifted, until its first answer. That answer
+   * rebuilds the context the wait let expire, and the next thread in line waits for it.
+   */
+  warming?: true;
 };
 
 /**
@@ -494,7 +499,9 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
     });
   }
   if (event.type === "context.usage") {
-    return updateThread(withSequence, event.taskId, (thread) => ({
+    const { warming: _warmed, ...warm } = withSequence.activeRuns[event.taskId]!;
+    const settledRun = active.warming ? withActiveRun(withSequence, event.taskId, warm) : withSequence;
+    return updateThread(settledRun, event.taskId, (thread) => ({
       ...thread,
       contextUsage: { tokens: event.tokens, limit: event.limit, model: event.model },
     }));

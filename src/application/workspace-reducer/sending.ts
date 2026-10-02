@@ -14,6 +14,7 @@ import { expandThreadHandles } from "../../domain/thread-handles.js";
 import { withoutSnooze } from "../../domain/thread-snooze.js";
 import { updateThread } from "../thread-run-state.js";
 import { coordinationSendOf, senderDetail, senderPrompt } from "../coordination.js";
+import { heldByLimit, nudged } from "../limit-pauses.js";
 
 type SendInput = Extract<WorkspaceInput, {
   type: "task.send" | "question.answer" | "question.set-answer" | "task.steer-queued" | "task.drop-queued";
@@ -69,7 +70,9 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
       const sender = input.from === undefined || input.from === thread?.id ? undefined : state.threads.find((item) => item.id === input.from);
       const prompt = sentPrompt(text, pastes, annotations, attachments, files);
       const signed = sender ? { prompt: `${senderPrompt(state.threads, sender, thread)}\n\n${prompt}`, detail: senderDetail(sender) } : { prompt };
-      if (thread && state.activeRuns[thread.id]) {
+      /** A thread waiting out its usage limit holds the message for when it lifts, and goes first then. */
+      const held = Boolean(thread && !state.activeRuns[thread.id] && heldByLimit(state, thread.id, Date.now()));
+      if (thread && (state.activeRuns[thread.id] || held)) {
         const queued: QueuedMessage = {
           id: crypto.randomUUID(),
           text,
@@ -81,8 +84,8 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
         };
         const drafted = draftKey === undefined ? state : clearedDraft(state, draftKey);
         const sent = thread.snoozedUntil === undefined ? drafted : updateThread(drafted, thread.id, withoutSnooze);
-        const next = withQueued(sent, thread.id, [...queuedFor(state, thread.id), queued]);
-        return input.steer ? reduceSending(next, { type: "task.steer-queued", taskId: thread.id, messageId: queued.id }) : settled(next);
+        const next = withQueued(held ? nudged(sent, thread.id, Date.now()) : sent, thread.id, [...queuedFor(state, thread.id), queued]);
+        return input.steer && !held ? reduceSending(next, { type: "task.steer-queued", taskId: thread.id, messageId: queued.id }) : settled(next);
       }
       /**
        * Which checkout a thread yet to exist starts in: one the caller named, else the one the draft

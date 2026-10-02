@@ -8,6 +8,7 @@ import type { BrowserRead, ExternalCommand, TerminalRead, ThreadRequest, ThreadR
 import type { BrowserAction, BrowserPermissions, BrowserBounds, BrowserInspection, BrowserInspectionResult, BrowserShot, BrowserSnapshot } from "../domain/browser.js";
 import type { BrowserImportResult, BrowserImportSite, BrowserImportSource } from "../domain/browser-import.js";
 import type { CaptureOptions } from "../domain/capture.js";
+import { isUsageLimit, type UsageLimit } from "../domain/usage-limit.js";
 import type { ComputerUsePermission, ComputerUsePermissions, ComputerUseRunConfig } from "../domain/computer-use.js";
 import type { CliStatus } from "../domain/cli.js";
 import type { DiffFileSummary, DiffRange } from "../domain/diff.js";
@@ -450,7 +451,8 @@ export type RunEvent =
   | (RunEventBase & { type: "question.closed"; requestId: string })
   /** `agentInitiated` marks a turn the agent started itself, which the thread takes on a run for. */
   | (RunEventBase & { type: "run.started"; agentInitiated?: true })
-  | (RunEventBase & { type: "run.status"; status: RunStatus; message?: string })
+  /** `limit` marks a run that failed because the account reached its plan's usage limit. */
+  | (RunEventBase & { type: "run.status"; status: RunStatus; message?: string; limit?: UsageLimit })
   | (RunEventBase & { type: "assistant.delta"; messageId: string; text: string; append?: boolean; artifact?: true })
   /** Streamed text that is not a complete Markdown block yet. Superseded by the next delta, never stored. */
   | (RunEventBase & { type: "assistant.tail"; messageId: string; text: string })
@@ -789,7 +791,7 @@ export function isRunEvent(value: unknown): value is RunEvent {
   if (event.type === "question.answered") return isString(event.requestId) && isString(event.questionId) && isString(event.text, MAX_PROMPT_LENGTH);
   if (event.type === "question.closed") return isString(event.requestId);
   if (event.type === "run.started") return event.agentInitiated === undefined || event.agentInitiated === true;
-  if (event.type === "run.status") return (event.status === "running" || event.status === "awaiting-approval" || event.status === "succeeded" || event.status === "failed" || event.status === "cancelled") && (event.message === undefined || isString(event.message, 100_000));
+  if (event.type === "run.status") return (event.status === "running" || event.status === "awaiting-approval" || event.status === "succeeded" || event.status === "failed" || event.status === "cancelled") && (event.message === undefined || isString(event.message, 100_000)) && (event.limit === undefined || event.status === "failed" && isUsageLimit(event.limit));
   if (event.type === "assistant.delta") return isString(event.messageId) && typeof event.text === "string" && (event.append === undefined || event.append === true) && (event.artifact === undefined || event.artifact === true);
   if (event.type === "assistant.tail") return isString(event.messageId) && typeof event.text === "string" && event.text.length <= MAX_PROMPT_LENGTH;
   if (event.type === "context.usage") return typeof event.tokens === "number" && Number.isFinite(event.tokens) && event.tokens >= 0 && typeof event.limit === "number" && Number.isFinite(event.limit) && event.limit > 0 && isString(event.model);

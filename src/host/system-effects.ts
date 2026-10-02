@@ -46,6 +46,9 @@ async function readComputerUse(ask: () => Promise<ComputerUsePermissions>, { dis
 
 /** What the window itself, its schedules and its bridge are told, none of which belongs to a thread. */
 export const systemEffects = {
+  "schedule-limit-reset": (effect, host) => {
+    host.scheduleLimitReset(effect.at);
+  },
   "schedule-snooze-expiry": (effect, host) => {
     host.scheduleSnoozeExpiry(effect.at);
   },

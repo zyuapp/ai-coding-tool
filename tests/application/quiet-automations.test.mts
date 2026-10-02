@@ -675,6 +675,7 @@ function sidebar(overrides: Partial<ProjectSidebarProps> = {}) {
     blockedThreadIds: new Set<string>(),
     sideChatAttention: new Set<string>(),
     schedules: new Map<string, AutomationView>(),
+    limitPositions: new Map<string, number>(),
     worktreeGroups: [],
     sidebarCoordination: { threadsByCoordinator: new Map(), coordinators: [], onSetCoordinator() {} },
     worktreeThreadIds: new Set<string>(),

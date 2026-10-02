@@ -17,6 +17,7 @@ import type { RunStatus } from "../../domain/run.js";
 import { createConversationMessage, type Annotation, type AttachedFile, type PastedText, type RunAttachment } from "../../domain/conversation.js";
 import type { Project } from "../../domain/project.js";
 import type { Thread } from "../../domain/thread.js";
+import { withoutLimitPause } from "../../domain/usage-limit.js";
 import type { Worktree } from "../../domain/worktree.js";
 
 export function withPending(state: WorkspaceState, pending: PendingRun): WorkspaceState {
@@ -124,12 +125,13 @@ export function forkableContinuation(state: WorkspaceState, taskId: string) {
  * The new run supersedes whatever the last one concluded, so its verdict never outlives it, and it
  * keeps where the thread stood, which is what a run that settles unseen puts back.
  */
-export function beginRun(state: WorkspaceState, taskId: string, runId: string, provenance: RunProvenance = ATTENDED_RUN, before?: ThreadMark): WorkspaceState {
-  const threads = withoutOutcome(state.threads, new Set([taskId]));
+export function beginRun(state: WorkspaceState, taskId: string, runId: string, provenance: RunProvenance = ATTENDED_RUN, before?: ThreadMark, warming = false): WorkspaceState {
+  /** A run that starts is the thread picked back up, whatever its place in line. */
+  const threads = withoutOutcome(state.threads, new Set([taskId])).map((thread) => thread.id === taskId ? withoutLimitPause(thread) : thread);
   const messagesBefore = threads.find((thread) => thread.id === taskId)?.messages.length ?? 0;
   const mark = before ?? threadMark(state.threads.find((thread) => thread.id === taskId));
   return withRunStatus(
-    withActiveRun({ ...state, threads, actionError: null, lastRunIds: { ...state.lastRunIds, [taskId]: runId } }, taskId, { taskId, runId, sequence: 0, status: "running", ...provenance, notified: false, acknowledged: false, reportedIssues: [], messagesBefore, before: mark }),
+    withActiveRun({ ...state, threads, actionError: null, lastRunIds: { ...state.lastRunIds, [taskId]: runId } }, taskId, { taskId, runId, sequence: 0, status: "running", ...provenance, notified: false, acknowledged: false, reportedIssues: [], messagesBefore, before: mark, ...(warming ? { warming: true as const } : {}) }),
     taskId,
     "running",
   );
@@ -169,7 +171,7 @@ export function withSteeringFailure(state: WorkspaceState, taskId: string, messa
  * and the ones behind it wait for that run to finish. A run the user stopped hands the whole queue
  * back to the composer instead of speaking for them.
  */
-export function drainQueue(state: WorkspaceState, taskId: string, status: RunStatus): WorkspaceTransition {
+export function drainQueue(state: WorkspaceState, taskId: string, status: RunStatus, warming = false): WorkspaceTransition {
   const queued = queuedFor(state, taskId);
   if (!queued.length) return settled(state);
   if (status === "cancelled") {
@@ -183,6 +185,8 @@ export function drainQueue(state: WorkspaceState, taskId: string, status: RunSta
   }
   const thread = state.threads.find((item) => item.id === taskId);
   if (!thread) return settled(withQueued(state, taskId, []));
+  /** A thread waiting out its usage limit keeps its queue until the limit lifts. */
+  if (thread.limitPause) return settled(state);
   const [next] = queued;
   const project = projectFor(state, thread);
   const pending: PendingRun = {
@@ -199,6 +203,7 @@ export function drainQueue(state: WorkspaceState, taskId: string, status: RunSta
     ...(next.files ? { files: next.files } : {}),
     ...(next.detail ? { detail: next.detail } : {}),
     queuedIds: [next.id],
+    ...(warming ? { warming: true as const } : {}),
   };
   return settled(withPending(state, pending), [resolveWorkspaceEffect(pending.id, thread, project, worktreeFor(state, thread), false)]);
 }

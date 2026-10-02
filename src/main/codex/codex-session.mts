@@ -16,6 +16,7 @@ import { SIDE_CHAT_BOUNDARY } from "../agent/side-chat-instructions.mjs";
 import { adoptAppSkills, CodexSkills } from "./codex-skills.mjs";
 import { codexImageOutput, type ImageOutput } from "./codex-images.mjs";
 import { CodexSubagents } from "./codex-subagents.mjs";
+import { readCodexUsageLimit } from "./codex-plan-usage.mjs";
 import { CodexThreadRecord, resumeThread, type ReadOrigin } from "./codex-thread-record.mjs";
 import type { ApprovalsReviewer } from "./protocol/v2/ApprovalsReviewer.js";
 import type { AskForApproval } from "./protocol/v2/AskForApproval.js";
@@ -168,7 +169,7 @@ type Turn = SessionTurn & {
   images: Set<Promise<void>>;
   imageIds: Set<string>;
   /** The last error the server said it would not retry, kept for the turn's failure. */
-  failure?: string;
+  failure?: TurnError;
   /** The context measured before this compaction began, before usage notifications can replace it. */
   compactionPreTokens?: number;
   compacting?: boolean;
@@ -489,7 +490,7 @@ export class CodexSession {
     client.on("error", (params) => {
       if (subagents.error(params) || params.threadId !== this.threadId || !this.turn) return;
       if (params.willRetry) this.turn.input.emit({ type: "retry", message: retryReason(params.error) });
-      else this.turn.failure = params.error.message;
+      else this.turn.failure = params.error;
     });
     client.on("turn/completed", (params) => {
       const child = subagents.turnCompleted(params);
@@ -673,7 +674,12 @@ export class CodexSession {
     if (completed.status === "completed" && this.goalActive && turn.input.operation?.type !== "review") return;
     if (completed.status === "completed") this.turns.settle({ status: "succeeded" });
     else if (completed.status === "interrupted") this.turns.settle({ status: "cancelled" });
-    else if (completed.status === "failed") this.turns.settle({ status: "failed", message: completed.error?.message ?? turn.failure ?? "Codex could not finish the turn." });
+    else if (completed.status === "failed") {
+      const limited = [completed.error, turn.failure].some((error) => error?.codexErrorInfo === "usageLimitExceeded");
+      const limit = limited && this.client ? await readCodexUsageLimit(this.client) : undefined;
+      if (this.turn !== turn) return;
+      this.turns.settle({ status: "failed", message: completed.error?.message ?? turn.failure?.message ?? "Codex could not finish the turn.", ...(limit ? { limit } : {}) });
+    }
   }
 
   /** Interrupting a child's turn leaves the commands it started running, so its stop ends them too. */

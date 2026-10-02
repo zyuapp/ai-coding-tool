@@ -8,6 +8,7 @@ import type { Thread } from "./thread.js";
 import { isThreadRole } from "./thread-role.js";
 import { isCoordinationNote, isCoordinationReport, isDecision, isThreadBrief } from "./coordination.js";
 import { isWorktree, type Worktree } from "./worktree.js";
+import { isLimitPause } from "./usage-limit.js";
 
 export const THREAD_STORE_VERSION = 2 as const;
 
@@ -391,6 +392,7 @@ function isThreadBase(value: unknown): value is StoredThread {
     (value.lastFindingAt === undefined || finiteNumber(value.lastFindingAt)) &&
     (value.handledIssues === undefined || Array.isArray(value.handledIssues) && value.handledIssues.every((key: unknown) => nonEmptyString(key))) &&
     (value.snoozedUntil === undefined || finiteNumber(value.snoozedUntil) && value.snoozedUntil > 0) &&
+    (value.limitPause === undefined || isLimitPause(value.limitPause)) &&
     (value.lastChecked === undefined || (isRecord(value.lastChecked) && finiteNumber(value.lastChecked.at) && nonEmptyString(value.lastChecked.note))) &&
     (value.worktreeId === undefined || nonEmptyString(value.worktreeId)) &&
     (value.worktreeEnteredAt === undefined || finiteNumber(value.worktreeEnteredAt)) &&

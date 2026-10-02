@@ -27,6 +27,8 @@ import { isRemoteInput, reduceRemote } from "../remote-commands.js";
 import { isComputerInput, reduceComputers } from "../computer-commands.js";
 import { isEngineInput, reduceEngine } from "../engine-access.js";
 import type { WorkspaceState } from "../workspace-state.js";
+import { cancelPause, resumeThread } from "../limit-pauses.js";
+import { settled } from "./shared.js";
 
 /** Every input {@link reduce} has not already unpacked into the several inputs it stands for. */
 export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "view.shortcut" | "view.escape" | "agent.events" }>): WorkspaceTransition {
@@ -70,6 +72,14 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "project.registered": case "project.register-failed": case "project.move":
     case "view.edit-project": case "view.toggle-project": case "project.remove":
       return reduceProjectCommands(state, input);
+
+    /** The line itself moves in {@link reconcileLimitPauses}, which every input passes through. */
+    case "limits.elapsed":
+      return settled(state);
+    case "limit.resume":
+      return resumeThread(state, input.taskId);
+    case "limit.cancel":
+      return cancelPause(state, input.taskId);
 
     case "run.resolved": case "run.unresolved": case "run.cancel": case "run.compact":
     case "run.stop-process": case "run.decide": case "run.event":

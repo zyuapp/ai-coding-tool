@@ -5,6 +5,7 @@ import type { AgentEffort, Continuation, ExecutionPolicy } from "./run.js";
 import type { CoordinationNote, CoordinationReport, Decision, ThreadBrief } from "./coordination.js";
 import type { ThreadRole } from "./thread-role.js";
 import type { ChangeSnapshot, ContextUsage, ContinuationStatus, ThreadOutcome } from "./thread-run.js";
+import type { LimitPause } from "./usage-limit.js";
 
 /** The canonical conversation aggregate. Persisted property names stay unchanged for compatibility. */
 export type Thread = {
@@ -52,6 +53,8 @@ export type Thread = {
   outcomeUnread?: true;
   /** Temporarily files this thread under Threads, preserving everything that needs attention. */
   snoozedUntil?: number;
+  /** Set while the thread waits out its account's usage limit. */
+  limitPause?: LimitPause;
   /** What runs on this thread found, newest last. Cleared by a dismissal, never by the next run. */
   findings?: AutomationFinding[];
   /**

@@ -44,6 +44,7 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
           status={workspace.status}
           compacting={workspace.compacting}
           retrying={workspace.retrying}
+          limitPause={workspace.limitPause}
           waitingOn={workspace.waitingOn}
           streamingTail={workspace.streamingTail}
           readingPoint={workspace.readingPoint}

@@ -5,6 +5,7 @@ import { capabilitiesFor } from "../../domain/agent-engine.js";
 import type { SubagentReport, ToolIntent } from "../../domain/run.js";
 import type { AgentProvider, AgentTurn, AutomationBridge, CoordinationBridge, FindingBridge, ProviderEvent, BrowserBridge, TerminalBridge, ThreadBridge, ToolDecision } from "./agent-provider.mjs";
 import { SteerChannel } from "./steer-channel.mjs";
+import type { UsageLimit } from "../../domain/usage-limit.js";
 
 type PendingApproval = {
   settled: boolean;
@@ -176,7 +177,7 @@ export class RunCoordinator {
         beginAgentTurn: () => this.beginAgentTurn(active),
       });
       if (!this.isCurrent(active) || active.terminal) return;
-      this.finish(active, result.status, result.message);
+      this.finish(active, result.status, result.message, result.limit);
     } catch (error) {
       if (!this.isCurrent(active) || active.terminal) return;
       this.finish(active, "failed", error instanceof Error ? error.message : String(error));
@@ -252,7 +253,7 @@ export class RunCoordinator {
       emit: (event) => this.handleProviderEvent(active, event),
       authorize: (intent) => this.authorize(active, intent),
       steering: active.steering,
-      end: (result) => this.finish(active, result.status, result.message),
+      end: (result) => this.finish(active, result.status, result.message, result.limit),
     };
   }
 
@@ -354,7 +355,7 @@ export class RunCoordinator {
     active.abortController.abort();
   }
 
-  private finish(active: ActiveRun, status: "succeeded" | "failed" | "cancelled", message?: string) {
+  private finish(active: ActiveRun, status: "succeeded" | "failed" | "cancelled", message?: string, limit?: UsageLimit) {
     if (active.terminal) return;
     active.terminal = true;
     clearTimeout(active.tailTimer);
@@ -364,7 +365,7 @@ export class RunCoordinator {
     this.expireApprovals(active);
     for (const pending of active.questions.values()) pending.close(null);
     if (this.isCurrent(active)) {
-      this.publish(active, { type: "run.status", status, message });
+      this.publish(active, { type: "run.status", status, message, ...(status === "failed" && limit ? { limit } : {}) });
       this.runs.delete(active.taskId);
     }
   }

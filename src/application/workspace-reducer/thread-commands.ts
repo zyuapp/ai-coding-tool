@@ -20,6 +20,7 @@ import { dismissableThreads, dismissed, readAttention } from "../../domain/atten
 import { clampTitle, type Thread } from "../../domain/thread.js";
 import { coordinatorOf, withCoordinated } from "../../domain/coordination.js";
 import { isSnoozeHours } from "../../domain/thread-snooze.js";
+import { withoutLimitPause } from "../../domain/usage-limit.js";
 import { withWatchedThreads } from "../../domain/automation.js";
 import { capabilitiesFor, defaultModelFor, effortForModel, engineHasModel, modelHasEffort } from "../../domain/agent-engine.js";
 
@@ -155,7 +156,8 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
       const active = state.activeRuns[input.taskId];
       return settled({
         ...state,
-        threads: state.threads.map((thread) => thread.id === input.taskId ? { ...thread, archivedAt: now() } : thread),
+        /** Filing a thread away ends its work, including a wait to resume after its usage limit. */
+        threads: state.threads.map((thread) => thread.id === input.taskId ? { ...withoutLimitPause(thread), archivedAt: now() } : thread),
         currentId: state.currentId === input.taskId ? null : state.currentId,
       }, [
         ...retireAutomations(state, [input.taskId]),

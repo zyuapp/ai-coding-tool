@@ -1,11 +1,13 @@
 import { elementScroll, useVirtualizer } from "@tanstack/react-virtual";
 import type { IconType } from "react-icons";
-import { LuChevronDown as ChevronDown, LuFolderSymlink as FolderSymlink } from "react-icons/lu";
+import { LuChevronDown as ChevronDown, LuFolderSymlink as FolderSymlink, LuHourglass as Hourglass } from "react-icons/lu";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { StreamingTail } from "../../application/thread-run-state";
 import type { FindView, ReadingPoint, ThreadWait } from "../../application/workspace-state";
 import type { AgentEngine } from "../../domain/agent-engine";
 import type { RetryNotice } from "../../domain/run";
+import { liftTime, resumesOnItsOwn, type LimitPause } from "../../domain/usage-limit";
+import { CommandButton } from "./CommandControl";
 import type { Annotation, AnnotationAnchor } from "../../domain/conversation";
 import type { Thread } from "../../domain/thread";
 import { groupTimeline, messageRows } from "../timeline/grouping";
@@ -35,6 +37,8 @@ export type ConversationTimelineProps = {
   compacting: boolean;
   /** The request the engine is retrying, while it is. */
   retrying?: RetryNotice | null;
+  /** The usage limit the thread is waiting out, and its place in line. */
+  limitPause?: (LimitPause & { position: number | null }) | null;
   /** What the thread is waiting on before a run of its own can start, which can take minutes. */
   waitingOn?: ThreadWait | null;
   streamingTail?: StreamingTail | null;
@@ -67,12 +71,18 @@ const WAIT_LABELS: Record<ThreadWait, string> = {
   run: "Starting…",
 };
 
+function limitLabel(pause: LimitPause & { position: number | null }, now: number) {
+  if (!resumesOnItsOwn(pause)) return `Weekly usage limit reached. Resets ${liftTime(pause.resetsAt, now)}.`;
+  const behind = pause.position !== null && pause.position > 1 ? ` after ${pause.position - 1} other ${pause.position === 2 ? "thread" : "threads"}` : "";
+  return now < pause.resetsAt ? `Usage limit reached. Resumes at ${liftTime(pause.resetsAt, now)}${behind}.` : `Usage limit reset. Resuming${behind}.`;
+}
+
 function retryLabel(retry: RetryNotice) {
   const count = retry.attempt === undefined ? "" : retry.maxRetries === undefined ? ` ${retry.attempt}` : ` ${retry.attempt} of ${retry.maxRetries}`;
   return `${retry.message} Retrying${count}…`;
 }
 
-export function ConversationTimeline({ currentThread, engine, engineLabel, folder, status, compacting, retrying = null, waitingOn = null, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, restored = true, startOptions, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide }: ConversationTimelineProps) {
+export function ConversationTimeline({ currentThread, engine, engineLabel, folder, status, compacting, retrying = null, limitPause = null, waitingOn = null, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, restored = true, startOptions, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide }: ConversationTimelineProps) {
   const messages = currentThread?.messages ?? [];
   const artifactScope = useMemo(() => ({ root: folder, taskId: currentThread?.id }), [folder, currentThread?.id]);
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -164,6 +174,15 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
         <div className="waiting-row" role="status" aria-live="polite">
           <FolderSymlink aria-hidden="true" />
           <span className="text-sweep">{WAIT_LABELS[waitingOn]}</span>
+        </div>
+      )}
+      {status !== "running" && limitPause && currentThread && (
+        <div className="limit-row" role="status">
+          <Hourglass aria-hidden="true" />
+          <span>{limitLabel(limitPause, Date.now())}</span>
+          {resumesOnItsOwn(limitPause)
+            ? <CommandButton type="button" className="limit-action" command={{ type: "limit.cancel", taskId: currentThread.id }}>Don't resume</CommandButton>
+            : <CommandButton type="button" className="limit-action" command={{ type: "limit.resume", taskId: currentThread.id }}>Resume</CommandButton>}
         </div>
       )}
       {status === "running" && compacting && (

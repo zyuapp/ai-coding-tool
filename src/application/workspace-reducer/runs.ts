@@ -22,6 +22,8 @@ import type { CreatedWorktree } from "../../contracts/ipc.js";
 import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel, engineForModel, engineHasEffort, modelSupportsManualCompaction } from "../../domain/agent-engine.js";
 import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
 import { createConversationMessage } from "../../domain/conversation.js";
+import { appendMessages } from "../../domain/conversation-updates.js";
+import { pausedForLimit } from "../limit-pauses.js";
 import { canJoinCoordinator, coordinatorOf, isCoordinator, withoutCoordinationNotes } from "../../domain/coordination.js";
 import { briefPrompt, coordinationContext } from "../coordination.js";
 import type { Thread } from "../../domain/thread.js";
@@ -53,6 +55,7 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       }
       if (pending.operation?.type === "compact") return startCompaction(next, pending, input.workspace);
       if (pending.operation?.type === "review") return startReview(next, pending, input.workspace);
+      if (pending.operation?.type === "resume") return startResume(next, pending, input.workspace);
       return pending.origin === "automation"
         ? startAutomationRun(next, pending, input.workspace, input.worktree)
         : startComposerRun(next, pending, input.workspace, input.worktree);
@@ -176,6 +179,7 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
         ? [{ type: "refresh-environment", workspaceId, taskId: event.taskId, runId: event.runId }, ...settledDiff.effects]
         : [];
       if (event.type !== "run.status" || event.status === "running" || event.status === "awaiting-approval") return settled(next, [...environment, ...said]);
+      if (event.status === "failed" && event.limit) next = pausedForLimit(next, event.taskId, event.limit, now());
       const drained = drainQueue(next, event.taskId, event.status);
       const coordinationed = settleCoordination(drained.state, event.taskId, event.status);
       return settled(coordinationed.state, [...environment, ...said, ...drained.effects, ...coordinationed.effects]);
@@ -323,7 +327,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   const focusing = !existing && pending.draftKey !== undefined;
   const spent = existing ? {} : { draftBranch: null, draftWorktree: false, draftWorktreeId: null, ...(pending.draftKey === undefined ? {} : { draftRole: null }) };
   const owning = withUsedWorktree(focusing ? handOverDraftDock(state, thread.id) : state, created, arriving?.id);
-  const started = beginRun({ ...owning, threads, ...spent, ...(focusing ? { currentId: thread.id } : {}) }, thread.id, pending.runId);
+  const started = beginRun({ ...owning, threads, ...spent, ...(focusing ? { currentId: thread.id } : {}) }, thread.id, pending.runId, ATTENDED_RUN, undefined, pending.warming === true);
   const drained = pending.queuedIds
     ? withQueued(started, thread.id, queuedFor(started, thread.id).filter((message) => !pending.queuedIds!.includes(message.id)))
     : started;
@@ -344,6 +348,23 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     [{ type: "start-run", command }, ...titling, ...reviewing.effects],
     { ok: true, taskId: thread.id },
   );
+}
+
+/** A thread picked back up after its usage limit lifted: nobody wrote to it, so it is told to carry on. */
+function startResume(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord): WorkspaceTransition {
+  const thread = pending.taskId ? state.threads.find((item) => item.id === pending.taskId) : undefined;
+  if (!thread || thread.archivedAt !== undefined || state.activeRuns[thread.id]) return settled(state);
+  const resumed = updateThread(state, thread.id, (item) => ({
+    ...item,
+    messages: appendMessages(item.messages, [createConversationMessage("system", "Usage limit reset. Resuming.")]),
+    updatedAt: now(),
+  }));
+  const command = {
+    ...startRunCommand(state, thread, pending.runId, pending.prompt, workspace.id),
+    ...(thread.inheritedContinuation && thread.continuation ? { forkContinuation: true as const } : {}),
+    ...sideChannelFor(state, thread),
+  };
+  return settled(beginRun(resumed, thread.id, pending.runId, ATTENDED_RUN, undefined, true), [{ type: "start-run", command }]);
 }
 
 /** The kill is the agent process's to make; the row only says a stop is on its way. */
