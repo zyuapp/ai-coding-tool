@@ -212,7 +212,7 @@ export function ConversationComposer({
       {surface === "main" && goal && <GoalBar goal={goal} onClear={onGoalClear} />}
       {surface === "main" && decisions}
       {question && <QuestionPrompt question={question} answer={question.answer ?? ""} disabled={disabled || waiting} onAnswerChange={(text) => onQuestionAnswerChange(question, text)} onSubmit={() => onAnswerQuestion(question)} />}
-      <QueuedRow messages={queuedMessages} surface={surface} onSteer={onSteerQueued} onDrop={onDropQueued} />
+      <QueuedRow messages={queuedMessages} surface={surface} canSteer={runActive} onSteer={onSteerQueued} onDrop={onDropQueued} />
       <div className="composer">
         {reviewPicker && (
           <ReviewPicker

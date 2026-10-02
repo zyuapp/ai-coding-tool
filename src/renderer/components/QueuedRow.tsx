@@ -4,9 +4,11 @@ import { AnnotationRow } from "./AnnotationRow";
 import type { ComposerSurface } from "./ConversationComposer";
 
 /** Messages waiting on the run, each with what it carries and the two things you can do to it. */
-export function QueuedRow({ messages, surface, onSteer, onDrop }: {
+export function QueuedRow({ messages, surface, canSteer, onSteer, onDrop }: {
   messages: QueuedMessage[];
   surface: ComposerSurface;
+  /** Only a run that is going can take a message early; one held for a usage limit waits for it to lift. */
+  canSteer: boolean;
   onSteer: (messageId: string) => void;
   onDrop: (messageId: string) => void;
 }) {
@@ -24,7 +26,7 @@ export function QueuedRow({ messages, surface, onSteer, onDrop }: {
           </div>
           {message.steering ? <span className="queued-state">Steering…</span> : (
             <span className="queued-actions">
-              <button type="button" className="queued-steer" onClick={() => onSteer(message.id)}>Steer</button>
+              {canSteer && <button type="button" className="queued-steer" onClick={() => onSteer(message.id)}>Steer</button>}
               <button type="button" className="queued-drop" aria-label="Remove queued message" onClick={() => onDrop(message.id)}>
                 <X size={13} />
               </button>

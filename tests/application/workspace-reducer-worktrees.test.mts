@@ -304,6 +304,20 @@ test("neither switching back nor deleting happens under a running thread", () =>
   assert.equal(deleting.state.actionError, WORKSPACE_ERRORS.worktreeRunning);
 });
 
+test("a thread waiting out its usage limit keeps its worktree until it resumes or is let go", () => {
+  const worktree = heldWorktree();
+  const paused = task("task-a", { projectId: PROJECT.id, limitPause: { resetsAt: Date.now() + 3_600_000, window: "session", pausedAt: Date.now() } });
+  const state = projected({ ...inside(worktree, [paused]), currentId: "task-a" });
+
+  const leaving = reduce(state, { type: "task.set-worktree", worktree: false });
+  assert.deepEqual(leaving.effects, []);
+  assert.equal(leaving.state.actionError, WORKSPACE_ERRORS.worktreeRunning);
+
+  const deleting = reduce(state, { type: "worktree.delete", worktreeId: worktree.id });
+  assert.deepEqual(deleting.effects, []);
+  assert.equal(deleting.state.actionError, WORKSPACE_ERRORS.worktreeRunning);
+});
+
 test("manually deleting a worktree snapshots it and puts the thread back on the project", () => {
   const worktree = heldWorktree();
   const state = projected({ ...inside(worktree, [task("task-a", { projectId: PROJECT.id })]), currentId: "task-a" });

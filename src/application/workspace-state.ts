@@ -72,7 +72,7 @@ import {
 } from "./thread-location.js";
 import type { WorktreeSettingsState } from "./worktree-settings.js";
 import { heldViews } from "./view-reuse.js";
-import { linePositions } from "../domain/usage-limit.js";
+import { linePositions, type HeldMessage } from "../domain/usage-limit.js";
 export type { WorktreeSettingsView } from "./worktree-settings.js";
 export {
   locationOf,
@@ -142,15 +142,7 @@ export type WorktreeGroup = {
  * Something the user typed while a run was going. It waits for the run to finish, unless it is
  * steered into that run first.
  */
-export type QueuedMessage = {
-  id: string;
-  text: string;
-  prompt: string;
-  attachments: string[];
-  annotations?: Annotation[];
-  pastes?: PastedText[];
-  files?: AttachedFile[];
-  detail?: string;
+export type QueuedMessage = HeldMessage & {
   /** Locks the message while steering is in flight; a rejection restores its controls. */
   steering?: boolean;
 };

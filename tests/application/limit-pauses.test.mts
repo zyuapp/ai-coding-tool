@@ -105,6 +105,36 @@ test("writing to a paused thread holds the message and moves the thread to the f
   assert.equal(woke.state.activeRuns.a, undefined);
 });
 
+test("a message held for a paused thread survives a restart and is what it resumes with", () => {
+  let state = limited(runningThreads("a"), "a", session).state;
+  state = reduce(state, { type: "view.set-prompt", prompt: "also fix the tests" }).state;
+  const sent = reduce(state, { type: "task.send", attachments: [] }).state;
+  assert.deepEqual(thread(sent, "a").limitPause?.held?.map((message) => message.text), ["also fix the tests"]);
+
+  const parsed = parseThreadStore(serializeThreadStore({ version: 2, projects: [PROJECT], worktrees: [], lastFolder: null, tasks: sent.threads }));
+  assert.ok(parsed.ok);
+  const loaded = reduce(workspace({ projects: [PROJECT], threads: [] }), { type: "store.loaded", data: parsed.data }).state;
+  assert.equal(loaded.queuedMessages.a?.[0]?.text, "also fix the tests");
+
+  const woke = resolveAll(reduce(loaded, { type: "limits.elapsed", at: session.resetsAt }));
+  assert.equal(effectOf(woke, "start-run").command.prompt, "also fix the tests");
+  assert.equal(thread(woke.state, "a").limitPause, undefined);
+  assert.deepEqual(woke.state.queuedMessages.a ?? [], []);
+});
+
+test("dropping a held message forgets it, and a message queued before the limit is held too", () => {
+  let state = runningThreads("a");
+  state = reduce(state, { type: "view.set-prompt", prompt: "queued while running" }).state;
+  state = reduce(state, { type: "task.send", attachments: [] }).state;
+  const paused = limited(state, "a", session).state;
+  const held = required(thread(paused, "a").limitPause?.held);
+  assert.deepEqual(held.map((message) => message.text), ["queued while running"]);
+
+  const dropped = reduce(paused, { type: "task.drop-queued", taskId: "a", messageId: held[0]!.id }).state;
+  assert.equal(thread(dropped, "a").limitPause?.held, undefined);
+  assert.ok(thread(dropped, "a").limitPause, "the thread still waits for its limit");
+});
+
 test("the thread written to last goes first, and a send after the reset still waits its turn", () => {
   let state = limited(runningThreads("a", "b", "c"), "a", session).state;
   state = limited(state, "b", session).state;
@@ -134,6 +164,7 @@ test("a weekly limit keeps its verdict and waits for the user to resume", () => 
   const later = reduce(paused.state, { type: "limits.elapsed", at: weekly.resetsAt + 1 });
   assert.ok(thread(later.state, "a").limitPause);
   assert.match(pauseSummary(thread(paused.state, "a").limitPause!, null, at), /^Weekly limit · resets /);
+  assert.equal(pauseSummary(thread(paused.state, "a").limitPause!, null, weekly.resetsAt), "Weekly limit reset");
 
   const input = { type: "limit.resume", taskId: "a" } as const;
   assert.equal(isWorkspaceViewInput(input), true);

@@ -72,7 +72,7 @@ const WAIT_LABELS: Record<ThreadWait, string> = {
 };
 
 function limitLabel(pause: LimitPause & { position: number | null }, now: number) {
-  if (!resumesOnItsOwn(pause)) return `Weekly usage limit reached. Resets ${liftTime(pause.resetsAt, now)}.`;
+  if (!resumesOnItsOwn(pause)) return now < pause.resetsAt ? `Weekly usage limit reached. Resets ${liftTime(pause.resetsAt, now)}.` : "Weekly usage limit reset.";
   const behind = pause.position !== null && pause.position > 1 ? ` after ${pause.position - 1} other ${pause.position === 2 ? "thread" : "threads"}` : "";
   return now < pause.resetsAt ? `Usage limit reached. Resumes at ${liftTime(pause.resetsAt, now)}${behind}.` : `Usage limit reset. Resuming${behind}.`;
 }

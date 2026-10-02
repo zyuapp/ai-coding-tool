@@ -1,4 +1,5 @@
 import type { AgentEngine } from "./agent-engine.js";
+import type { Annotation, AttachedFile, PastedText } from "./conversation.js";
 import type { Thread } from "./thread.js";
 
 /**
@@ -10,6 +11,18 @@ export type UsageLimit = {
   window: "session" | "weekly";
 };
 
+/** A message written to a paused thread, kept until the thread resumes with it. */
+export type HeldMessage = {
+  id: string;
+  text: string;
+  prompt: string;
+  attachments: string[];
+  annotations?: Annotation[];
+  pastes?: PastedText[];
+  files?: AttachedFile[];
+  detail?: string;
+};
+
 /** A thread waiting out its account's usage limit. Persisted, so a restart keeps its place in line. */
 export type LimitPause = UsageLimit & {
   pausedAt: number;
@@ -17,6 +30,8 @@ export type LimitPause = UsageLimit & {
   nudgedAt?: number;
   /** A dynamic workflow was cut short with the run, so resuming picks it up rather than starting over. */
   workflow?: true;
+  /** What was written to it while it waited, so a restart does not lose it. */
+  held?: HeldMessage[];
 };
 
 function finitePositive(value: unknown): value is number {
@@ -34,7 +49,8 @@ export function isLimitPause(value: unknown): value is LimitPause {
   const pause = value as Record<string, unknown>;
   return finitePositive(pause.pausedAt)
     && (pause.nudgedAt === undefined || finitePositive(pause.nudgedAt))
-    && (pause.workflow === undefined || pause.workflow === true);
+    && (pause.workflow === undefined || pause.workflow === true)
+    && (pause.held === undefined || Array.isArray(pause.held));
 }
 
 export function withoutLimitPause(thread: Thread): Thread {
@@ -128,7 +144,7 @@ function ordinal(position: number) {
 
 /** What a paused thread's row says about it: when it goes, and behind how many others. */
 export function pauseSummary(pause: LimitPause, position: number | null, now: number) {
-  if (!resumesOnItsOwn(pause)) return `Weekly limit · resets ${liftTime(pause.resetsAt, now)}`;
+  if (!resumesOnItsOwn(pause)) return now < pause.resetsAt ? `Weekly limit · resets ${liftTime(pause.resetsAt, now)}` : "Weekly limit reset";
   const place = position !== null && position > 1 ? ` · ${ordinal(position)}` : "";
   return now < pause.resetsAt ? `Resumes ${liftTime(pause.resetsAt, now)}${place}` : `Resuming${place}`;
 }

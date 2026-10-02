@@ -392,7 +392,7 @@ function isThreadBase(value: unknown): value is StoredThread {
     (value.lastFindingAt === undefined || finiteNumber(value.lastFindingAt)) &&
     (value.handledIssues === undefined || Array.isArray(value.handledIssues) && value.handledIssues.every((key: unknown) => nonEmptyString(key))) &&
     (value.snoozedUntil === undefined || finiteNumber(value.snoozedUntil) && value.snoozedUntil > 0) &&
-    (value.limitPause === undefined || isLimitPause(value.limitPause)) &&
+    (value.limitPause === undefined || isLimitPause(value.limitPause) && (value.limitPause.held ?? []).every(isHeldMessage)) &&
     (value.lastChecked === undefined || (isRecord(value.lastChecked) && finiteNumber(value.lastChecked.at) && nonEmptyString(value.lastChecked.note))) &&
     (value.worktreeId === undefined || nonEmptyString(value.worktreeId)) &&
     (value.worktreeEnteredAt === undefined || finiteNumber(value.worktreeEnteredAt)) &&
@@ -527,6 +527,18 @@ function isConversationMessage(value: unknown): value is ConversationMessage {
     (value.files === undefined || (Array.isArray(value.files) && value.files.every(isAttachedFile))) &&
     (value.withdrawn === undefined || value.withdrawn === true) &&
     finiteNumber(value.at);
+}
+
+function isHeldMessage(value: unknown): boolean {
+  return isRecord(value) &&
+    nonEmptyString(value.id) &&
+    typeof value.text === "string" &&
+    typeof value.prompt === "string" &&
+    Array.isArray(value.attachments) && value.attachments.every(nonEmptyString) &&
+    (value.annotations === undefined || (Array.isArray(value.annotations) && value.annotations.every(isAnnotation))) &&
+    (value.pastes === undefined || (Array.isArray(value.pastes) && value.pastes.every(isPastedText))) &&
+    (value.files === undefined || (Array.isArray(value.files) && value.files.every(isAttachedFile))) &&
+    (value.detail === undefined || typeof value.detail === "string");
 }
 
 function isAnnotation(value: unknown): value is Annotation {

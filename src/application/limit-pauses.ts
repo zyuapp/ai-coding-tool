@@ -4,9 +4,10 @@ import { settled } from "./workspace-reducer/shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
 import { updateThread } from "./thread-run-state.js";
 import { leavingThreadIds, projectFor, worktreeFor } from "./thread-location.js";
-import type { PendingRun, WorkspaceState } from "./workspace-state.js";
+import type { PendingRun, QueuedMessage, WorkspaceState } from "./workspace-state.js";
 import type { AgentEngine } from "../domain/agent-engine.js";
-import { limitLines, resumePrompt, resumesOnItsOwn, withEngineLimit, withoutLimitPause, type LimitPause, type UsageLimit } from "../domain/usage-limit.js";
+import type { Thread } from "../domain/thread.js";
+import { limitLines, resumePrompt, resumesOnItsOwn, withEngineLimit, withoutLimitPause, type HeldMessage, type LimitPause, type UsageLimit } from "../domain/usage-limit.js";
 
 /**
  * Puts a thread whose run hit the limit in line. A session limit lifts on its own, so the failure is
@@ -113,15 +114,46 @@ function mayAdvance(input: WorkspaceInput) {
     || input.type === "run.unresolved" || input.type === "limit.cancel" || input.type === "view.set-focused" && input.focused;
 }
 
+/** A restart hands each paused thread back what was written to it while it waited. */
+function restoreHeld(state: WorkspaceState): WorkspaceState {
+  let queuedMessages = state.queuedMessages;
+  for (const thread of state.threads) {
+    const held = thread.limitPause?.held;
+    if (held?.length && !queuedMessages[thread.id]?.length) queuedMessages = { ...queuedMessages, [thread.id]: held };
+  }
+  return queuedMessages === state.queuedMessages ? state : { ...state, queuedMessages };
+}
+
+function sameMessages(queued: readonly QueuedMessage[], held: readonly HeldMessage[]) {
+  return queued.length === held.length && queued.every((message, index) => message.id === held[index]!.id);
+}
+
+/** Writes down what each paused thread holds, so the store keeps it with the pause. */
+function recordHeld(state: WorkspaceState): WorkspaceState {
+  const stale = (thread: Thread) => Boolean(thread.limitPause) && !sameMessages(state.queuedMessages[thread.id] ?? [], thread.limitPause!.held ?? []);
+  if (!state.threads.some(stale)) return state;
+  return {
+    ...state,
+    threads: state.threads.map((thread) => {
+      if (!stale(thread)) return thread;
+      const { held: _recorded, ...pause } = thread.limitPause!;
+      const queued = state.queuedMessages[thread.id] ?? [];
+      return { ...thread, limitPause: queued.length ? { ...pause, held: queued.map(({ steering: _steering, ...message }) => message) } : pause };
+    }),
+  };
+}
+
 /** Deadlines are durable; resuming threads and the one timer watching for the next reset belong to the reducer. */
 export function reconcileLimitPauses(previous: WorkspaceState, transition: WorkspaceTransition, input: WorkspaceInput): WorkspaceTransition {
   const check = mayAdvance(input);
-  if (!check && previous.threads === transition.state.threads) return transition;
+  if (!check && previous.threads === transition.state.threads && previous.queuedMessages === transition.state.queuedMessages) return transition;
   const at = input.type === "limits.elapsed" ? input.at : Date.now();
-  const advanced = check ? advanceLines(transition.state, at) : settled(transition.state);
+  const loaded = input.type === "store.loaded" ? restoreHeld(transition.state) : transition.state;
+  const advanced = check ? advanceLines(loaded, at) : settled(loaded);
+  const state = recordHeld(advanced.state);
   const before = nextReset(previous, at);
-  const next = nextReset(advanced.state, at);
+  const next = nextReset(state, at);
   const effects = [...transition.effects, ...advanced.effects];
-  if (next === before && !(check && next !== null)) return { ...transition, state: advanced.state, effects };
-  return { ...transition, state: advanced.state, effects: [...effects, { type: "schedule-limit-reset", at: next }] };
+  if (next === before && !(check && next !== null)) return { ...transition, state, effects };
+  return { ...transition, state, effects: [...effects, { type: "schedule-limit-reset", at: next }] };
 }
