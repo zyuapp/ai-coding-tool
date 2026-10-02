@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { routeInput, type PairedComputer } from "../../src/application/computers.ts";
+import { FILES_ELSEWHERE, routeInput, type PairedComputer } from "../../src/application/computers.ts";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import { WORKTREE_MENU } from "../../src/application/worktree-menu.ts";
@@ -80,4 +80,23 @@ test("moving and deleting act on the computer holding the checkout", () => {
   const confirming = reduce(state, { type: "worktree.confirm-delete", root: first.root });
   assert.deepEqual(confirming.effects, []);
   assert.equal(deriveView(confirming.state).worktreeDeleteConfirmation?.root, first.root, "the confirmation names the other computer's checkout");
+});
+
+test("confirming a paired computer's delete asks it for its worktree list when it has none, and the dialog follows once it does", () => {
+  const unlisted = showing(linux({ managedWorktrees: null }));
+  const asked = reduce(unlisted, { type: "worktree.confirm-delete", root: first.root });
+  assert.deepEqual(effectOf(asked, "computer.forward"), { type: "computer.forward", id: "linux", inputs: [{ type: "worktree.refresh" }] });
+  assert.equal(asked.state.worktreeSettings.confirming, first.root);
+  assert.equal(deriveView(asked.state).worktreeDeleteConfirmation, null);
+  const listed = { ...asked.state, computers: { ...asked.state.computers, paired: [linux()] } };
+  assert.equal(deriveView(listed).worktreeDeleteConfirmation?.root, first.root);
+  assert.deepEqual(routeInput(showing(linux()), { type: "worktree.confirm-delete", root: first.root }), { kind: "local" }, "a computer already listing it is not asked again");
+  assert.deepEqual(routeInput(unlisted, { type: "worktree.confirm-delete", root: null }), { kind: "local" });
+});
+
+test("a paired computer's checkout is not revealed here, while this computer's own still is", () => {
+  const state = showing(linux());
+  assert.deepEqual(routeInput(state, { type: "worktree.reveal", root: first.root }), { kind: "refuse", message: FILES_ELSEWHERE });
+  const own = { ...state, worktrees: [heldWorktree("mine")] };
+  assert.deepEqual(routeInput(own, { type: "worktree.reveal", root: heldWorktree("mine").root }), { kind: "local" });
 });

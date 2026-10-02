@@ -72,7 +72,8 @@ export function CoordinatedThreadList({ members, worktreeGroups, onSelect }: {
 /** The checkouts a coordinator's threads work in. New threads start there only through the coordinator, so the list only reveals and deletes. */
 export function MemberWorktreeList({ worktrees, onReveal, onDelete }: {
   worktrees: MemberWorktree[];
-  onReveal: (root: string) => void;
+  /** Absent for a paired computer's checkouts, which cannot be revealed here. */
+  onReveal?: (root: string) => void;
   onDelete: (root: string) => void;
 }) {
   return (
@@ -87,9 +88,9 @@ export function MemberWorktreeList({ worktrees, onReveal, onDelete }: {
               <span className={`coordination-row-mark worktree-mark hue-${worktreeHue(worktree.id)}`}><FolderSymlink size={12} aria-hidden="true" /></span>
               <span><strong>{worktree.name}</strong><small className={worktree.deleting ? "text-sweep" : undefined}>{detail}</small></span>
               <span className="coordination-worktree-actions">
-                <button type="button" aria-label={`Reveal ${worktree.name}`} title={MAC ? "Reveal in Finder" : "Show in file manager"} disabled={worktree.deleting} onClick={() => onReveal(worktree.root)}>
+                {onReveal && <button type="button" aria-label={`Reveal ${worktree.name}`} title={MAC ? "Reveal in Finder" : "Show in file manager"} disabled={worktree.deleting} onClick={() => onReveal(worktree.root)}>
                   <FolderOpen size={12} />
-                </button>
+                </button>}
                 <button
                   type="button"
                   className="danger"

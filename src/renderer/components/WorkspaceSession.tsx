@@ -34,7 +34,7 @@ function CoordinatorSession({ workspace }: { workspace: Workspace }) {
       worktrees={workspace.memberWorktrees}
       pullRequests={found}
       onOpenThread={workspace.actions.selectThread}
-      onRevealWorktree={workspace.actions.revealWorktree}
+      onRevealWorktree={workspace.activeComputer ? undefined : workspace.actions.revealWorktree}
       onDeleteWorktree={(root) => workspace.dispatch({ type: "worktree.confirm-delete", root })}
     />
   );

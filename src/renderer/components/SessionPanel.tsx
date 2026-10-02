@@ -237,7 +237,7 @@ export function CoordinatorPanel({ members, worktreeGroups, worktrees, pullReque
   worktrees: MemberWorktree[];
   pullRequests: MemberPullRequest[];
   onOpenThread: (threadId: string) => void;
-  onRevealWorktree: (root: string) => void;
+  onRevealWorktree?: (root: string) => void;
   onDeleteWorktree: (root: string) => void;
 }) {
   return (

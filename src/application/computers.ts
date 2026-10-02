@@ -239,6 +239,14 @@ export function routeInput(state: WorkspaceState, input: WorkspaceInput): InputR
       : input.taskId !== undefined ? computerOfThread(state, input.taskId) : active;
     return toward(computer, (holder) => forwarded(holder, [input]));
   }
+  if (type === "worktree.reveal") return computerOfWorktreeRoot(state, input.root) ? { kind: "refuse", message: FILES_ELSEWHERE } : LOCAL;
+  /** The confirmation is drawn from the holder's list, which it is asked for when it has none with this checkout. */
+  if (type === "worktree.confirm-delete" && input.root !== null) {
+    const root = input.root;
+    return toward(computerOfWorktreeRoot(state, root), (holder) => holder.state?.managedWorktrees?.some((worktree) => worktree.root === root)
+      ? LOCAL
+      : forwarded(holder, [{ type: "worktree.refresh" }], { also: true }));
+  }
   if (LOCAL_PREFIXES.some((prefix) => type.startsWith(prefix))) return LOCAL;
   const named = "taskId" in input ? computerOfThread(state, input.taskId) : null;
   const computer = named ?? ("taskId" in input && input.taskId !== undefined ? null : active);
