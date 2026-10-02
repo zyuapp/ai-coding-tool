@@ -1,6 +1,6 @@
 ---
 name: review-thread
-description: Start a companion thread that reviews this thread's work, fix the real findings, and loop until the reviewer approves. Arguments name the reviewer's engine or model, its effort, and any review focus.
+description: Start a companion thread that reviews this thread's work, fix the real findings, and loop until the reviewer approves. Arguments name the reviewer's engine or model, its effort, and any review focus. Use when the user asks for a review thread, often with a model or effort, such as "review thread with sol xhigh".
 argument-hint: "[claude|codex|<model>] [<effort>] [focus]"
 ---
 
