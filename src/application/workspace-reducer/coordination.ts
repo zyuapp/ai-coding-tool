@@ -31,7 +31,7 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       return settled({ ...updateThread(state, thread.id, (item) => ({ ...item, parentId: lead.id, updatedAt: now() })), openMenu: null });
     }
 
-    /** The answer is recorded, then said to the thread that asked, which queues it behind a run already going. */
+    /** The answer is recorded, then said to the thread that asked, steered into a run already going. */
     case "decision.answer": {
       const thread = state.threads.find((item) => item.id === input.taskId);
       const decision = thread && openDecisions(thread).find((item) => item.id === input.decisionId);
@@ -41,7 +41,7 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       const answered = (next: WorkspaceState) => updateThread(next, thread.id, (item) => withAnswer(item, decision.id, answer, now()));
       if (thread.archivedAt !== undefined) return settled(answered(state));
       /** A decision only closes once its answer is on its way, so one that could not be sent can be answered again. */
-      const sent = reduceSending(state, { type: "task.send", taskId: thread.id, text: `The user decided "${decision.question}": ${answer}` });
+      const sent = reduceSending(state, { type: "task.send", taskId: thread.id, text: `The user decided "${decision.question}": ${answer}`, steer: true });
       return sent.result?.ok === false ? sent : { ...sent, state: answered(sent.state) };
     }
 

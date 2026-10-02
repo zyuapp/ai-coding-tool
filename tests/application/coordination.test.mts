@@ -128,6 +128,11 @@ test("a decision is put to the user at once and its answer reaches the thread th
   const sent = required(Object.values(answered.state.pendingRuns).find((pending) => pending.taskId === "worker"));
   assert.match(sent.text, /The user decided "Tokens or overrides\?": Tokens/);
 
+  const running = reduce({ ...raised.state, activeRuns: { worker: activeRun("worker", "run-w") } }, { type: "decision.answer", taskId: "worker", decisionId: decision.id, answer: "Tokens" });
+  const steer = effectOf(running, "send-run-command").command;
+  assert.equal(steer.type, "steer", "an answer joins the run that asked rather than waiting behind it");
+  assert.match(steer.type === "steer" ? steer.prompt : "", /The user decided "Tokens or overrides\?": Tokens/);
+
   const stray = reduce(workspace({ threads: [task("alone")] }), { type: "coordination.decision-raised", taskId: "alone", request: { question: "Q?", options: [] } });
   assert.equal(stray.state.threads[0].decisions, undefined, "a thread outside any coordinator has nowhere to show a decision");
 });
