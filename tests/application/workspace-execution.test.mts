@@ -197,6 +197,21 @@ test("a coordinator's new thread needs a brief and works under it", async () => 
   assert.deepEqual(worker?.brief, brief);
 });
 
+test("a thread started by one working under a coordinator joins it without a brief", async () => {
+  const host = driver(workspace({ threads: [task("lead", { role: "coordinator" }), task("worker", { parentId: "lead" }), task("solo")] }), async (effect, dispatch) => {
+    if (effect.type === "resolve-run-workspace") await dispatch({ type: "run.resolved", pendingId: effect.pendingId, workspace: { id: "scratch", kind: "projectless", root: "/scratch" } });
+  });
+  const started = await answerThreadRequest(host, { type: "thread.request", requestId: "r1", taskId: "worker", op: "command", command: { type: "task.send", text: "Review it", role: "reviewer" } });
+  assert.equal(started.ok, true);
+  const reviewer = host.state().threads.find((thread) => thread.role === "reviewer");
+  assert.equal(reviewer?.parentId, "lead");
+
+  const loose = await answerThreadRequest(host, { type: "thread.request", requestId: "r2", taskId: "solo", op: "command", command: { type: "task.send", text: "Look around" } });
+  assert.equal(loose.ok, true);
+  assert.equal(host.state().threads.length, 5);
+  assert.equal(host.state().threads.filter((thread) => thread.parentId === "lead").length, 2);
+});
+
 test("a coordinator cannot start a thread on Haiku, whether asked for or inherited", async () => {
   const brief = { intent: "fix it", doneWhen: "it works", delivers: "commit" as const };
   const host = driver(workspace({ threads: [task("lead", { role: "coordinator" }), task("light", { role: "coordinator", model: "haiku" })] }));

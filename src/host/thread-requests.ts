@@ -159,9 +159,11 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
         })()
       : { command };
     if ("error" in selected) return failed(selected.error);
-    /** A coordinator's new thread works under it, and starts from the brief it was handed. */
-    const coordinating = selected.command.type === "task.send" && selected.command.taskId === undefined && isCoordinator(caller);
+    /** A coordinator's new thread works under it and starts from the brief it was handed; one its threads start joins them under it. */
+    const starting = selected.command.type === "task.send" && selected.command.taskId === undefined;
+    const coordinating = starting && isCoordinator(caller);
     if (coordinating && selected.command.type === "task.send" && !selected.command.brief) return failed(BRIEF_REQUIRED);
+    const lead = !starting ? undefined : coordinating ? caller : coordinatorOf(before.threads, caller);
     /** A new thread with no place named starts where the thread that asked for it lives: its project, and its worktree when it has one. */
     const callerProjectId = caller?.projectId;
     const placed = selected.command.type === "task.send" && selected.command.taskId === undefined && selected.command.project === undefined && callerProjectId
@@ -170,7 +172,7 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
     const targeted = placed.type === "task.send" && placed.taskId === undefined && placed.worktree === undefined && placed.worktreeId === undefined && caller?.worktreeId
       ? { ...placed, worktreeId: caller.worktreeId }
       : placed;
-    const led = coordinating && targeted.type === "task.send" ? { ...targeted, coordinatorId: caller!.id } : targeted;
+    const led = lead && targeted.type === "task.send" ? { ...targeted, coordinatorId: lead.id } : targeted;
     /** A message one thread sends another names the thread it came from. */
     const signed = led.type === "task.send" && caller && led.taskId !== caller.id ? { ...led, from: caller.id } : led;
     const result = await host.execute(signed).completed;
