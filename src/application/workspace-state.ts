@@ -260,6 +260,8 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   engineStatus: EngineStatus | null;
   /** True while main is running the engine commands, which the Engines page says out loud. */
   engineChecking: boolean;
+  /** The engine whose command the app is upgrading, which its Update button says out loud. */
+  engineUpdating: AgentEngine | null;
   agentSettingsReload: "idle" | "reloading" | "pending" | "reloaded" | "failed";
   prompts: Record<string, string>;
   /** Annotations waiting in each composer, keyed the way `prompts` is. */
@@ -422,6 +424,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     draftFastMode: false,
     engineStatus: null,
     engineChecking: false,
+    engineUpdating: null,
     agentSettingsReload: "idle",
     prompts: {},
     annotations: {},
@@ -856,6 +859,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state)
     settingsSection: state.computerUseSetup ? "computer-use" : state.settingsSection,
     settingsFocus: state.computerUseSetup ? null : state.settingsFocus,
     engineChecking: state.engineChecking,
+    engineUpdating: state.engineUpdating,
     agentSettingsReload: state.agentSettingsReload,
     dockOpen: dock.open,
     dockExpanded: dock.expanded,

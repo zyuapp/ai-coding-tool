@@ -26,9 +26,10 @@ export const mobileDesktopStub: MobileDesktopAPI & Pick<DesktopAPI, "platform" |
 };
 
 /** Every engine ready, and a sign-in that changes nothing, for tests that are not about engines. */
-export const engineDesktopStub: Pick<DesktopAPI, "engineStatus" | "signInEngine" | "inspectBrowserPage" | "openSourceLicenses"> = {
+export const engineDesktopStub: Pick<DesktopAPI, "engineStatus" | "signInEngine" | "updateEngine" | "inspectBrowserPage" | "openSourceLicenses"> = {
   engineStatus: async () => ({ codex: { access: "ready" } }),
   signInEngine: async () => ({ codex: { access: "ready" } }),
+  updateEngine: async () => ({ codex: { access: "ready" } }),
   inspectBrowserPage: async () => null,
   openSourceLicenses: async () => {},
 };

@@ -47,7 +47,7 @@ function renderSettingsPanel(overrides: SettingsTestOverrides) {
     allowedOrigins: [],
     chromeBrowser: false, conciseReplies: false, computerUse: true, browserTools: true, notifications: true,
     agentSettingsReload: "idle", onReloadAgentSettings() {},
-    engineAccess: { claude: { access: "ready" }, codex: { access: "ready" } }, engineChecking: false,
+    engineAccess: { claude: { access: "ready" }, codex: { access: "ready" } }, engineChecking: false, engineUpdating: null,
     remoteChecking: false,
     shortcuts: [],
     capturingShortcut: null,
@@ -60,7 +60,7 @@ function renderSettingsPanel(overrides: SettingsTestOverrides) {
     onSetTerminalSize() {},
     onSetChromeBrowser() {}, onSetConciseReplies() {}, onSetComputerUse() {}, onSetBrowserTools() {}, onSetNotifications() {},
     onCheckForUpdates() {}, onOpenSourceLicenses() {},
-    onRestoreThread() {}, onClearArchive() {}, onRefreshEngines() {}, onSignInEngine() {}, onRefreshWorktrees() {}, onWorktreeCommand() {},
+    onRestoreThread() {}, onClearArchive() {}, onRefreshEngines() {}, onSignInEngine() {}, onUpdateEngine() {}, onRefreshWorktrees() {}, onWorktreeCommand() {},
     onClearBrowserData() {},
     onCaptureShortcut() {},
     onSetShortcut() {},
@@ -209,6 +209,7 @@ test("computer-use settings stay platform-neutral while Linux capability is load
 test("the engines page says what is wrong with each engine, and checks again on demand", async () => {
   window.desktop = fakeDesktop({});
   let checks = 0;
+  const updates: AgentEngine[] = [];
   const view = await mount(renderSettingsPanel({
     initialSection: "engines",
     engineAccess: {
@@ -216,14 +217,16 @@ test("the engines page says what is wrong with each engine, and checks again on 
       codex: { access: "missing", fix: "brew install --cask codex" },
     },
     onRefreshEngines: () => { checks += 1; },
+    onUpdateEngine: (engine) => { updates.push(engine); },
   }));
   await act(async () => {});
 
   const rows = view.container.querySelectorAll<HTMLElement>(".engine-setting-row");
   assert.equal(rows.length, 2);
   assert.match(item(rows[0]).textContent, /Claude 2.1.100 is behind 2.1.250, so some models are hidden./);
-  assert.match(item(rows[0]).textContent, /claude update/);
-  assert.match(item(rows[0]).textContent, /Behind/);
+  assert.doesNotMatch(item(rows[0]).textContent, /claude update/, "an engine the app can update offers the button rather than the command");
+  await act(async () => { query<HTMLButtonElement>(item(rows[0]), ".setting-row-action button").click(); });
+  assert.deepEqual(updates, ["claude"]);
   assert.match(item(rows[1]).textContent, /Codex is not installed./);
   assert.match(item(rows[1]).textContent, /brew install --cask codex/);
   assert.match(item(rows[1]).textContent, /Not installed/);

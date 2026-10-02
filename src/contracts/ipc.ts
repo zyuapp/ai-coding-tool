@@ -273,6 +273,8 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   engineStatus(refresh?: boolean): Promise<EngineStatus>;
   /** Signs in through the engine's own flow, in the browser, and answers with the status after it. */
   signInEngine(engine: AgentEngine): Promise<EngineStatus>;
+  /** Upgrades the engine's command the way the user installed it, and answers with the status after it. */
+  updateEngine(engine: AgentEngine): Promise<EngineStatus>;
   checkForUpdates(): void;
   openSourceLicenses(): Promise<void>;
   loadTaskStore(): Promise<LoadedTaskStore | null>;

@@ -142,6 +142,7 @@ function storeDesktop(host: ServiceDesktopHost) {
     },
     engineStatus: async (refresh) => (await host.engineAccess()).read(refresh === true),
     signInEngine: async (engine) => (await host.engineAccess()).signIn(engine, host.openUrl),
+    updateEngine: async (engine) => (await host.engineAccess()).update(engine),
     loadTaskStore: () => host.taskDatabase().loadSummaries(),
     loadThreadMessages: (taskId) => host.taskDatabase().loadThreadMessages(taskId),
     persistTaskStore: (delta) => host.taskDatabase().persist(delta),

@@ -41,7 +41,7 @@ export type RuntimeDesktop = Pick<DesktopAPI,
   | "changedFiles" | "diffSummary" | "diffPatch" | "pullRequest" | "checkoutBranch" | "createBranch"
   | "createWorktree" | "listManagedWorktrees" | "revealWorktree" | "releaseWorktree"
   | "saveAttachment" | "preserveMessageImages" | "downloadImage"
-  | "suggestTaskTitle" | "engineStatus" | "signInEngine" | "checkForUpdates" | "openSourceLicenses"
+  | "suggestTaskTitle" | "engineStatus" | "signInEngine" | "updateEngine" | "checkForUpdates" | "openSourceLicenses"
   | "loadTaskStore" | "loadThreadMessages" | "persistTaskStore" | "loadSubagentActivity" | "loadSubagentMetadata"
   | "listAutomations" | "saveAutomation" | "updateAutomation" | "deleteAutomation" | "runAutomationNow"
   | "onAutomationsChanged" | "onAutomationFire" | "acknowledgeAutomation"

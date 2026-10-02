@@ -620,6 +620,12 @@ ipcMain.handle("engine:sign-in", async (event, engine: unknown) => {
   return (await engineAccessHost()).signIn(engine, (url) => shell.openExternal(url));
 });
 
+ipcMain.handle("engine:update", async (event, engine: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  if (!isAgentEngine(engine)) throw new Error("Invalid engine.");
+  return (await engineAccessHost()).update(engine);
+});
+
 ipcMain.handle("computer-use:permissions", async (event) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   return computerUsePermissions();

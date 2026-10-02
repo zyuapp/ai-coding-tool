@@ -182,6 +182,7 @@ export type SettingsPanelProps = {
   /** Where each engine stands on this machine, and whether the app is asking about them now. */
   engineAccess: Record<AgentEngine, EngineReadiness>;
   engineChecking: boolean;
+  engineUpdating: AgentEngine | null;
   agentSettingsReload: EngineSettingsProps["reloadStatus"];
   onReloadAgentSettings: () => void;
   shortcuts: ShortcutSetting[];
@@ -205,6 +206,7 @@ export type SettingsPanelProps = {
   onClearArchive: () => void;
   onRefreshEngines: () => void;
   onSignInEngine: (engine: AgentEngine) => void;
+  onUpdateEngine: (engine: AgentEngine) => void;
   onRefreshWorktrees: () => void;
   onWorktreeCommand: (command: WorktreeCommand) => void;
   onClearBrowserData: () => void;
@@ -249,6 +251,7 @@ export function SettingsPanel({
   remoteChecking,
   engineAccess,
   engineChecking,
+  engineUpdating,
   agentSettingsReload, onReloadAgentSettings,
   shortcuts, capturingShortcut, desktopShortcutUnavailable,
   onSetThemeFamily,
@@ -268,6 +271,7 @@ export function SettingsPanel({
   onClearArchive,
   onRefreshEngines,
   onSignInEngine,
+  onUpdateEngine,
   onRefreshWorktrees,
   onWorktreeCommand,
   onClearBrowserData,
@@ -341,7 +345,7 @@ export function SettingsPanel({
       </main>
       )}
 
-      {section === "engines" && <EngineSettings reloadStatus={agentSettingsReload} onReload={onReloadAgentSettings} engineAccess={engineAccess} checking={engineChecking} onRefresh={onRefreshEngines} onSignIn={onSignInEngine} />}
+      {section === "engines" && <EngineSettings reloadStatus={agentSettingsReload} onReload={onReloadAgentSettings} engineAccess={engineAccess} checking={engineChecking} updating={engineUpdating} onRefresh={onRefreshEngines} onSignIn={onSignInEngine} onUpdate={onUpdateEngine} />}
 
       {section === "worktrees" && (
         <WorktreeSettings

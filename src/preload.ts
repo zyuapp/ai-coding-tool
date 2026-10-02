@@ -58,6 +58,7 @@ const api: DesktopAPI = {
   suggestTaskTitle: (text: string, attachments: string[], engine: AgentEngine) => ipcRenderer.invoke("task-title:suggest", text, attachments, engine),
   engineStatus: (refresh?: boolean) => ipcRenderer.invoke("engine:status", refresh === true),
   signInEngine: (engine: AgentEngine) => ipcRenderer.invoke("engine:sign-in", engine),
+  updateEngine: (engine: AgentEngine) => ipcRenderer.invoke("engine:update", engine),
   checkForUpdates: () => ipcRenderer.send("updates:check"),
   openSourceLicenses: () => ipcRenderer.invoke("licenses:open"),
   loadTaskStore: () => ipcRenderer.invoke("task-store:load"),

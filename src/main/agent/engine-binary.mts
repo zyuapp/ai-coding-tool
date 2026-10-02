@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { exec, execFile } from "node:child_process";
 import { accessSync, constants, realpathSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -6,9 +6,13 @@ import type { AgentEngine } from "../../domain/agent-engine.js";
 import { readVersion } from "../../domain/engine-version.js";
 
 const run = promisify(execFile);
+const runShell = promisify(exec);
 
 /** Long enough for a cold binary to answer, short enough that the model menu is not held open on one. */
 const VERSION_TIMEOUT_MS = 10_000;
+
+/** Long enough for a package manager to download and replace a release. */
+const UPGRADE_TIMEOUT_MS = 10 * 60_000;
 
 /** How the user got the command, which decides the command that upgrades it. */
 type InstallSource = "homebrew" | "npm" | "native" | "unknown";
@@ -94,4 +98,16 @@ export async function installedEngine(engine: AgentEngine): Promise<InstalledEng
 /** What to tell a user who has no such command at all. */
 export function installCommand(engine: AgentEngine): string {
   return ENGINE_COMMANDS[engine].install;
+}
+
+/** Brings an installed engine up to date the way the user installed it. Throws with what the command said when it fails. */
+export async function upgradeEngine(engine: AgentEngine): Promise<void> {
+  const installed = await installedEngine(engine);
+  if (!installed) throw new Error(`${ENGINE_COMMANDS[engine].command} is not installed.`);
+  try {
+    await runShell(installed.upgrade, { timeout: UPGRADE_TIMEOUT_MS });
+  } catch (error) {
+    const output = (error as { stderr?: string }).stderr?.trim().split("\n").at(-1);
+    throw new Error(`Could not update ${ENGINE_COMMANDS[engine].command}${output ? `: ${output}` : "."} Run \`${installed.upgrade}\` in your terminal.`);
+  }
 }

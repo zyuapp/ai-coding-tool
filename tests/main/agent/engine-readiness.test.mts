@@ -124,3 +124,31 @@ test("two asks at once run the engine commands once", async () => {
   assert.deepEqual(first, second);
   assert.equal(reads, 1);
 });
+
+test("an update runs the engine's own upgrade, then reads every engine from scratch", async () => {
+  const { EngineAccessHost } = await import("../../../src/main/agent/engine-services.mts");
+  let version = "0.147.0";
+  let updates = 0;
+  let paths = 0;
+  const host = new EngineAccessHost(
+    {
+      claude: { readiness: async () => ({ access: "ready" }) },
+      codex: {
+        readiness: async () => (version === "0.147.0" ? { access: "outdated", version, required: "0.150.1" } : { access: "ready", version }),
+        update: async () => {
+          updates += 1;
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          version = "0.150.1";
+        },
+      },
+    },
+    async () => { paths += 1; },
+  );
+
+  assert.equal((await host.read()).codex?.access, "outdated");
+  const [first, second] = await Promise.all([host.update("codex"), host.update("codex")]);
+  assert.equal(updates, 1, "a second ask while the upgrade runs joins it");
+  assert.deepEqual(first, second);
+  assert.deepEqual(first.codex, { access: "ready", version: "0.150.1" });
+  assert.equal(paths, 1, "the shell is read again, since an upgrade can move the command");
+});

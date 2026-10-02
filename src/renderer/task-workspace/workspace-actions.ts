@@ -73,6 +73,7 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     reloadAgentSettings: () => dispatch({ type: "engine.reload-settings" }),
     refreshEngineStatus: () => dispatch({ type: "engine.read", refresh: true }),
     signInEngine: (engine: AgentEngine) => dispatch({ type: "engine.sign-in", engine }),
+    updateEngine: (engine: AgentEngine) => dispatch({ type: "engine.update", engine }),
     setWorktree: (worktree: boolean) => dispatch({ type: "task.set-worktree", worktree }),
     setDraftRole: (role: ThreadRole | null) => dispatch({ type: "task.set-role", role }),
     moveWorktreeClose: () => dispatch({ type: "view.move-worktree", worktree: null }),

@@ -8,10 +8,13 @@ export type EngineSettingsProps = {
   engineAccess: Record<AgentEngine, EngineReadiness>;
   /** True while the app is running the engine commands, which the button says out loud. */
   checking: boolean;
+  /** The engine the app is upgrading, whose button says so. */
+  updating: AgentEngine | null;
   reloadStatus: WorkspaceState["agentSettingsReload"];
   onReload: () => void;
   onRefresh: () => void;
   onSignIn: (engine: AgentEngine) => void;
+  onUpdate: (engine: AgentEngine) => void;
 };
 
 /** The word in the right column: short enough to read at a glance, plain enough to need no key. */
@@ -31,7 +34,7 @@ function statusLine(engine: AgentEngine, readiness: EngineReadiness) {
   return readiness.version ? `Version ${readiness.version}` : "Installed and ready.";
 }
 
-export function EngineSettings({ engineAccess, checking, onRefresh, onSignIn, reloadStatus, onReload }: EngineSettingsProps) {
+export function EngineSettings({ engineAccess, checking, updating, onRefresh, onSignIn, onUpdate, reloadStatus, onReload }: EngineSettingsProps) {
   return (
     <main className="settings-main">
       <div className="settings-page-heading">
@@ -43,7 +46,7 @@ export function EngineSettings({ engineAccess, checking, onRefresh, onSignIn, re
         <div className="settings-group-heading">
           <div>
             <h3 id="engines-heading">Installed engines</h3>
-            <p>Install or upgrade an engine in your terminal, then check again here.</p>
+            <p>Install an engine in your terminal, then check again here.</p>
           </div>
           <div className="settings-group-action">
             <button type="button" disabled={checking} onClick={onRefresh}>
@@ -62,7 +65,7 @@ export function EngineSettings({ engineAccess, checking, onRefresh, onSignIn, re
               <div>
                 <strong>{engineLabel(engine)}</strong>
                 <p>{statusLine(engine, readiness)}</p>
-                {notice?.fix && (
+                {notice?.fix && !notice.updatable && (
                   <div className="setting-readiness">
                     <code>{notice.fix}</code>
                     <CopyButton text={notice.fix} label={`Copy ${notice.fix}`} />
@@ -72,7 +75,11 @@ export function EngineSettings({ engineAccess, checking, onRefresh, onSignIn, re
               <div className="setting-row-action">
                 {readiness.access === "signed-out"
                   ? <button type="button" onClick={() => onSignIn(engine)}>Sign in</button>
-                  : <em className={ready ? "granted" : ""}>{statusWord(readiness)}</em>}
+                  : notice?.updatable
+                    ? <button type="button" disabled={updating !== null || checking} onClick={() => onUpdate(engine)}>
+                      {updating === engine && <RefreshCw size={13} aria-hidden="true" className="spinning" />}{updating === engine ? "Updating…" : "Update"}
+                    </button>
+                    : <em className={ready ? "granted" : ""}>{statusWord(readiness)}</em>}
               </div>
             </div>
           );

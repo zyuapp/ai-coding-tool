@@ -120,4 +120,6 @@ export const systemEffects = {
   "engine.read": (effect, host) => readEngines(() => host.desktop.engineStatus(effect.refresh), host),
 
   "engine.sign-in": (effect, host) => readEngines(() => host.desktop.signInEngine(effect.engine), host),
+
+  "engine.update": (effect, host) => readEngines(() => host.desktop.updateEngine(effect.engine), host),
 } satisfies Partial<EffectHandlers>;

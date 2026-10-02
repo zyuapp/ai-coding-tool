@@ -1,6 +1,6 @@
 import type { AgentSettingsReloadEvent } from "../contracts/ipc.js";
 import type { EngineCommand } from "../contracts/commands.js";
-import { engineIsBlocked, engineNeedsAttention, type AgentEngine, type EngineAccess, type EngineReadiness, type EngineStatus } from "../domain/agent-engine.js";
+import { engineIsBlocked, engineNeedsAttention, engineNotice, type AgentEngine, type EngineAccess, type EngineReadiness, type EngineStatus } from "../domain/agent-engine.js";
 import type { WorkspaceState } from "./workspace-state.js";
 import type { WorkspaceCommandResult } from "./workspace-reducer/types.js";
 
@@ -58,10 +58,10 @@ export function reduceEngine(state: WorkspaceState, input: EngineInput): EngineT
     const engineStatus = { ...state.engineStatus, ...input.status };
     /** The error under the composer named an engine, so an answer that clears the engine clears it too. */
     const cleared = state.actionErrorPage === "engines" && nothingBlocked(engineStatus);
-    return { state: { ...state, engineStatus, engineChecking: false, ...(cleared ? { actionError: null, actionErrorPage: null } : {}) }, effects: [] };
+    return { state: { ...state, engineStatus, engineChecking: false, engineUpdating: null, ...(cleared ? { actionError: null, actionErrorPage: null } : {}) }, effects: [] };
   }
 
-  if (input.type === "engine.failed") return { state: { ...state, engineChecking: false, actionError: input.message }, effects: [], result: { ok: false, message: input.message } };
+  if (input.type === "engine.failed") return { state: { ...state, engineChecking: false, engineUpdating: null, actionError: input.message }, effects: [], result: { ok: false, message: input.message } };
 
   if (input.type === "engine.read") {
     if (state.engineChecking) return { state, effects: [] };
@@ -69,6 +69,12 @@ export function reduceEngine(state: WorkspaceState, input: EngineInput): EngineT
     if (state.engineStatus === null) return { state: { ...state, engineStatus: {}, engineChecking: true }, effects: [{ type: "engine.read" }] };
     if (!input.refresh && !engineNeedsAttention(state.engineStatus)) return { state, effects: [] };
     return { state: { ...state, engineChecking: true }, effects: [{ type: "engine.read", refresh: true }] };
+  }
+
+  if (input.type === "engine.update") {
+    /** Only a command the app can upgrade is, and one at a time, since package managers lock. */
+    if (state.engineUpdating || !engineNotice(input.engine, engineReadinessOf(state, input.engine))?.updatable) return { state, effects: [] };
+    return { state: { ...state, engineUpdating: input.engine, actionError: null, actionErrorPage: null }, effects: [input] };
   }
 
   /** Only an engine that asked to be signed in to is; a ready one has nothing to open. */

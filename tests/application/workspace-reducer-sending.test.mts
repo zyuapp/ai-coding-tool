@@ -293,8 +293,35 @@ test("a send is refused with the command that fixes it when the engine is missin
   });
   assert.equal(
     required(reduce(old, { type: "task.send", attachments: [] }).state.actionError),
-    "Codex 0.147.0 is too old. Update to 0.150.1. Run `brew update && brew upgrade --cask codex` to fix it.",
+    "Codex 0.147.0 is too old. Update to 0.150.1. Update it in Settings.",
   );
+});
+
+test("only an installed engine that is behind can be updated, one at a time", () => {
+  const ready = workspace();
+  assert.deepEqual(reduce(ready, { type: "engine.update", engine: "codex" }).effects, [], "a ready engine has nothing to update");
+
+  const missing = workspace({ engineStatus: { codex: { access: "missing", fix: "brew install --cask codex" } } });
+  assert.deepEqual(reduce(missing, { type: "engine.update", engine: "codex" }).effects, [], "an engine that is not there is installed by the user");
+
+  const old = workspace({
+    engineStatus: {
+      claude: { access: "ready", version: "2.1.0", required: "2.1.250", fix: "claude update" },
+      codex: { access: "outdated", version: "0.147.0", required: "0.150.1", fix: "brew update && brew upgrade --cask codex" },
+    },
+  });
+  const updating = reduce(old, { type: "engine.update", engine: "codex" });
+  assert.deepEqual(updating.effects, [{ type: "engine.update", engine: "codex" }]);
+  assert.equal(updating.state.engineUpdating, "codex");
+  assert.deepEqual(reduce(updating.state, { type: "engine.update", engine: "claude" }).effects, [], "a second update waits for the first");
+
+  const updated = reduce(updating.state, { type: "engine.status", status: { codex: { access: "ready", version: "0.150.1" } } }).state;
+  assert.equal(updated.engineUpdating, null);
+  assert.deepEqual(reduce(updated, { type: "engine.update", engine: "claude" }).effects, [{ type: "engine.update", engine: "claude" }], "an engine that runs but is behind can be updated too");
+
+  const failed = reduce(updating.state, { type: "engine.failed", message: "Could not update codex." }).state;
+  assert.equal(failed.engineUpdating, null);
+  assert.equal(failed.actionError, "Could not update codex.");
 });
 
 test("an engine's access comes from main, and only a signed-out engine can be signed in to", () => {

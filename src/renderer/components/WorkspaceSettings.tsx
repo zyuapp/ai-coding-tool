@@ -33,7 +33,7 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
       chromeBrowser={workspace.chromeBrowser} conciseReplies={workspace.conciseReplies} computerUse={workspace.computerUse} browserTools={workspace.browserTools}
       notifications={workspace.notifications} remote={workspace.remote} remoteChecking={workspace.remoteChecking}
       agentSettingsReload={workspace.agentSettingsReload} onReloadAgentSettings={() => void workspace.actions.reloadAgentSettings()}
-      engineAccess={workspace.engineAccess} engineChecking={workspace.engineChecking}
+      engineAccess={workspace.engineAccess} engineChecking={workspace.engineChecking} engineUpdating={workspace.engineUpdating}
       shortcuts={workspace.shortcuts}
       capturingShortcut={workspace.capturingShortcut}
       desktopShortcutUnavailable={workspace.desktopShortcutUnavailable}
@@ -49,7 +49,7 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
       onOpenSourceLicenses={() => void workspace.dispatch({ type: "app.open-source-licenses" })}
       onRestoreThread={workspace.actions.restoreThread}
       onClearArchive={workspace.actions.clearArchive}
-      onRefreshEngines={() => void workspace.actions.refreshEngineStatus()} onSignInEngine={(engine) => void workspace.actions.signInEngine(engine)}
+      onRefreshEngines={() => void workspace.actions.refreshEngineStatus()} onSignInEngine={(engine) => void workspace.actions.signInEngine(engine)} onUpdateEngine={(engine) => void workspace.actions.updateEngine(engine)}
       onRefreshWorktrees={() => void workspace.actions.refreshWorktrees()} onWorktreeCommand={workspace.dispatch}
       onClearBrowserData={() => void workspace.actions.clearBrowserData()}
       browserImport={{

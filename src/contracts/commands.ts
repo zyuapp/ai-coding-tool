@@ -371,13 +371,14 @@ export type ComputerCommand =
 /* ── End computers ────────────────────────────────────────────────────────── */
 
 /**
- * Asks which engines can take a run, or signs the user in to one that asked for it. Either way the
- * engines' status comes back as the answer.
+ * Asks which engines can take a run, signs the user in to one that asked for it, or updates one that
+ * is behind. Each way the engines' status comes back as the answer.
  */
 export type EngineCommand =
   /** `refresh` throws away what the app was told before, for a user who just installed or upgraded one. */
   | { type: "engine.read"; refresh?: boolean }
   | { type: "engine.sign-in"; engine: AgentEngine }
+  | { type: "engine.update"; engine: AgentEngine }
   | { type: "engine.reload-settings" };
 
 /** Presentation state. Nothing here reaches the agent process; only `view.set-session-panel-open` outlives the window. */

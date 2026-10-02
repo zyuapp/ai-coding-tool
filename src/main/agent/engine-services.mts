@@ -19,6 +19,8 @@ export type EngineServices = {
   readiness(): Promise<EngineReadiness>;
   subagentMetadata?(id: string, sessionId?: string): Promise<SubagentMetadata>;
   signIn?(openUrl: OpenUrl): Promise<EngineAccess>;
+  /** Upgrades the installed command the way the user installed it. */
+  update?(): Promise<void>;
 };
 
 export const engineServices: Record<AgentEngine, EngineServices> = {
@@ -28,6 +30,7 @@ export const engineServices: Record<AgentEngine, EngineServices> = {
     suggestTitle: async (text, images) => (await import("./title-writer.mjs")).suggestTaskTitle(text, images),
     planUsage: async () => (await import("./plan-usage.mjs")).readPlanUsage(),
     readiness: async () => (await import("./engine-readiness.mjs")).readClaudeReadiness(),
+    update: async () => (await import("./engine-binary.mjs")).upgradeEngine("claude"),
   },
   codex: {
     commands: async (workspace) => {
@@ -40,6 +43,7 @@ export const engineServices: Record<AgentEngine, EngineServices> = {
     suggestTitle: async (text, images) => (await import("../codex/codex-title-writer.mjs")).suggestCodexTitle(text, images),
     planUsage: async () => (await import("../codex/codex-plan-usage.mjs")).readCodexPlanUsage(),
     readiness: async () => (await import("./engine-readiness.mjs")).readCodexReadiness(),
+    update: async () => (await import("./engine-binary.mjs")).upgradeEngine("codex"),
     signIn: async (openUrl) => (await import("../codex/codex-account.mjs")).signInToCodex(openUrl),
     subagentMetadata: async (id) => (await import("../codex/codex-subagent-metadata.mjs")).readCodexSubagentMetadata(id),
   },
@@ -59,9 +63,10 @@ export class EngineAccessHost {
   private status: EngineStatus | undefined;
   private reading: Promise<EngineStatus> | undefined;
   private signingIn: Promise<EngineStatus> | undefined;
+  private updating = new Map<AgentEngine, Promise<EngineStatus>>();
 
   constructor(
-    private readonly engines: Record<AgentEngine, Pick<EngineServices, "readiness" | "signIn">> = engineServices,
+    private readonly engines: Record<AgentEngine, Pick<EngineServices, "readiness" | "signIn" | "update">> = engineServices,
     private readonly searchPathAgain: () => Promise<void> = readSearchPathAgain,
   ) {}
 
@@ -87,6 +92,20 @@ export class EngineAccessHost {
       })
       .finally(() => { this.signingIn = undefined; });
     return this.signingIn;
+  }
+
+  /** One update per engine at a time; the status is read from scratch after it, since the version moved. */
+  update(engine: AgentEngine): Promise<EngineStatus> {
+    const update = this.engines[engine].update;
+    if (!update) return this.read();
+    let updating = this.updating.get(engine);
+    if (!updating) {
+      updating = update()
+        .then(() => this.readAll(true))
+        .finally(() => { this.updating.delete(engine); });
+      this.updating.set(engine, updating);
+    }
+    return updating;
   }
 
   private async readAll(refresh: boolean): Promise<EngineStatus> {

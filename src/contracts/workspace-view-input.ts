@@ -270,6 +270,7 @@ const shapes = {
   "engine.read": { refresh: optionalBoolean },
   "engine.reload-settings": {},
   "engine.sign-in": { engine: isAgentEngine },
+  "engine.update": { engine: isAgentEngine },
   "view.set-prompt": { taskId: optionalText, prompt: text },
   "view.reading-point": { taskId: text, point: readingPoint },
   "view.dismiss-action-error": {  },

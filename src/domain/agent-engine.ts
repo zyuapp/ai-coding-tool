@@ -141,6 +141,8 @@ export type EngineNotice = {
   message: string;
   /** The command that fixes it, when there is one. */
   fix?: string;
+  /** True when the app can run `fix` itself, which it does for an installed command that is behind. */
+  updatable?: true;
 };
 
 /**
@@ -150,12 +152,13 @@ export type EngineNotice = {
 export function engineNotice(engine: AgentEngine, readiness: EngineReadiness): EngineNotice | null {
   const label = engineLabel(engine);
   const fix = readiness.fix ? { fix: readiness.fix } : {};
+  const update = readiness.fix ? { fix: readiness.fix, updatable: true as const } : {};
   const named = `${label} ${readiness.version ?? "on this machine"}`;
   if (readiness.access === "missing") return { blocking: true, message: `${label} is not installed.`, ...fix };
-  if (readiness.access === "outdated") return { blocking: true, message: `${named} is too old. Update to ${readiness.required}.`, ...fix };
+  if (readiness.access === "outdated") return { blocking: true, message: `${named} is too old. Update to ${readiness.required}.`, ...update };
   if (readiness.access === "unavailable") return { blocking: true, message: `${label} is installed but would not start.` };
   /** Ready, but behind: it runs, and the models it never heard of are simply missing from the menu. */
-  if (readiness.required) return { blocking: false, message: `${named} is behind ${readiness.required}, so some models are hidden.`, ...fix };
+  if (readiness.required) return { blocking: false, message: `${named} is behind ${readiness.required}, so some models are hidden.`, ...update };
   return null;
 }
 
@@ -166,6 +169,7 @@ export function engineNotice(engine: AgentEngine, readiness: EngineReadiness): E
 export function engineBlocker(engine: AgentEngine, readiness: EngineReadiness): string | null {
   const notice = engineNotice(engine, readiness);
   if (!notice?.blocking) return null;
+  if (notice.updatable) return `${notice.message} Update it in Settings.`;
   return notice.fix ? `${notice.message} Run \`${notice.fix}\` to fix it.` : notice.message;
 }
 
