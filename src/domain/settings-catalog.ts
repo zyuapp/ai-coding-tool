@@ -3,6 +3,7 @@
  * so a control the app grows is one the jump panel can already find.
  */
 import { SETTINGS_SECTIONS, type SettingsSection } from "./settings-section.js";
+import { SHORTCUT_ACTIONS } from "./shortcuts.js";
 
 /** The name a page goes by, in the sidebar and in the jump panel alike. */
 export const SETTINGS_PAGE_LABELS: Record<SettingsSection, string> = {
@@ -32,7 +33,7 @@ const PAGE_KEYWORDS: Record<SettingsSection, string> = {
   archive: "archived deleted restore threads trash",
 };
 
-/** One control on a settings page, and the words a search may reach it by. */
+/** One control or group on a settings page, and the words a search may reach it by. */
 type SettingsControl = {
   readonly id: string;
   readonly section: SettingsSection;
@@ -48,6 +49,8 @@ export const SETTINGS_CONTROLS = [
   { id: "general.concise-replies", section: "general", label: "Concise replies", keywords: "short brief terse length verbose waffle answers style" },
   { id: "general.updates", section: "general", label: "Updates", keywords: "check version release upgrade" },
   { id: "general.licenses", section: "general", label: "Open source licenses", keywords: "legal notices third party copyright" },
+  { id: "usage.plan-limits", section: "usage", label: "Plan limits", keywords: "quota tokens spend session weekly reset" },
+  { id: "engines.agent-settings", section: "engines", label: "Agent settings", keywords: "reload skills mcp hooks config apply" },
   { id: "appearance.theme", section: "appearance", label: "Colours", keywords: "theme colors palette dark light auto mode appearance" },
   { id: "appearance.ui-font", section: "appearance", label: "Interface", keywords: "font typeface family ui interface sans" },
   { id: "appearance.mono-font", section: "appearance", label: "Code and terminal", keywords: "font typeface family monospace code terminal shell diff" },
@@ -57,7 +60,13 @@ export const SETTINGS_CONTROLS = [
   { id: "computer-use.accessibility", section: "computer-use", label: "Accessibility", keywords: "permission macos click type navigate" },
   { id: "computer-use.screen-recording", section: "computer-use", label: "Screen & System Audio Recording", keywords: "permission macos screenshot capture window" },
   { id: "browser.availability", section: "browser", label: "Browser use", keywords: "panel pages agent switch web" },
+  { id: "browser.session", section: "browser", label: "Session", keywords: "cookies sign out clear data sites origins allowed" },
+  { id: "browser.import", section: "browser", label: "Import", keywords: "sign ins logins cookies brave firefox edge arc vivaldi opera safari" },
   { id: "phone.availability", section: "phone", label: "Phone access", keywords: "mobile remote server pair device switch" },
+  { id: "phone.tailscale", section: "phone", label: "Tailscale", keywords: "vpn network tailnet install https" },
+  { id: "phone.pairing", section: "phone", label: "Pair a phone", keywords: "pairing code qr connect add mobile" },
+  { id: "phone.phones", section: "phone", label: "Phones", keywords: "paired mobile revoke remove" },
+  { id: "phone.computers", section: "phone", label: "Computers", keywords: "remote machine pair link host rename forget mac linux" },
 ] as const satisfies readonly SettingsControl[];
 
 /** The id of a control the app draws, which is what a settings row and a jump row are keyed by. */
@@ -76,14 +85,19 @@ export type SettingsJumpOption = {
   id: string;
   section: SettingsSection;
   /** The control to land on, or null when the row is the page itself. */
-  settingId: SettingId | null;
+  settingId: string | null;
   title: string;
   /** The page the control sits on, which a page's own row leaves out. */
   page: string | null;
   keywords: string;
 };
 
-/** Every page, then every control, which is the order two equal matches are offered in. */
+/** What a shortcut's row is marked by, so a search can land on one action. */
+export function shortcutSettingId(actionId: string): string {
+  return `shortcut.${actionId}`;
+}
+
+/** Every page, then every control, then every shortcut, which is the order two equal matches are offered in. */
 export const SETTINGS_JUMP_OPTIONS: SettingsJumpOption[] = [
   ...SETTINGS_SECTIONS.map((section): SettingsJumpOption => ({
     id: `settings:${section}`,
@@ -100,5 +114,13 @@ export const SETTINGS_JUMP_OPTIONS: SettingsJumpOption[] = [
     title: control.label,
     page: SETTINGS_PAGE_LABELS[control.section],
     keywords: control.keywords,
+  })),
+  ...SHORTCUT_ACTIONS.map((action): SettingsJumpOption => ({
+    id: `settings:${shortcutSettingId(action.id)}`,
+    section: "shortcuts",
+    settingId: shortcutSettingId(action.id),
+    title: action.label,
+    page: SETTINGS_PAGE_LABELS.shortcuts,
+    keywords: `shortcut keyboard ${action.group} ${action.description}`,
   })),
 ];

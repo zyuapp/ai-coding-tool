@@ -1,7 +1,8 @@
 import { LuCheck as Check, LuRefreshCw as RefreshCw, LuSmartphone as Smartphone } from "react-icons/lu";
 import { useEffect, useRef, useState } from "react";
 import { addressOrigin, type MobileAddress, type MobileConnectionState, type MobilePairingOffer, type MobileServerState, type MobileSessionView, type PairedDeviceView, type TailscaleState } from "../../domain/mobile";
-import { SettingRow } from "./SettingRow";
+import { SettingGroup, SettingRow } from "./SettingRow";
+import { settingControl } from "../../domain/settings-catalog";
 import { ComputerSettings, type ComputerSettingsProps } from "./ComputerSettings";
 
 function statusLabel(remote: MobileServerState): string {
@@ -102,10 +103,10 @@ function TailscaleSection({ remote, checking, onRefresh }: { remote: MobileServe
   /** The first thing still to do is the one the user acts on, so only it is drawn as needed. */
   const needed = steps.find((step) => !step.done && step.hint && !(step.id === "serving" && !on))?.id ?? null;
   return (
-    <section className="settings-group" aria-labelledby="phone-tailscale-heading">
+    <SettingGroup setting="phone.tailscale" aria-labelledby="phone-tailscale-heading">
       <div className="settings-group-heading">
         <div>
-          <h3 id="phone-tailscale-heading">Tailscale</h3>
+          <h3 id="phone-tailscale-heading">{settingControl("phone.tailscale").label}</h3>
           <p>The phone reaches this computer over your tailnet, so both need Tailscale signed into the same account.</p>
         </div>
         <div className="settings-group-action">
@@ -123,7 +124,7 @@ function TailscaleSection({ remote, checking, onRefresh }: { remote: MobileServe
         </div>
       ))}
       {remote.tailscale.error && <p className="settings-error" role="alert">{remote.tailscale.error}</p>}
-    </section>
+    </SettingGroup>
   );
 }
 
@@ -147,10 +148,10 @@ function PairingSection({ pairing, ready, onCreatePairingCode }: { pairing: Mobi
   }, [ready, live, pairing?.code, onCreatePairingCode]);
 
   return (
-    <section className="settings-group" aria-labelledby="phone-pairing-heading">
+    <SettingGroup setting="phone.pairing" aria-labelledby="phone-pairing-heading">
       <div className="settings-group-heading">
         <div>
-          <h3 id="phone-pairing-heading">Pair a phone</h3>
+          <h3 id="phone-pairing-heading">{settingControl("phone.pairing").label}</h3>
           <p>Scan the code with the phone's camera. Each code works once and lasts two minutes.</p>
         </div>
         <div className="settings-group-action">
@@ -174,7 +175,7 @@ function PairingSection({ pairing, ready, onCreatePairingCode }: { pairing: Mobi
           </div>
         </div>
       )}
-    </section>
+    </SettingGroup>
   );
 }
 
@@ -201,10 +202,10 @@ function DeviceSection({ devices: paired, sessions, onRevokeDevice }: { devices:
   const devices = paired.filter((device) => device.kind === "phone");
   const connected = devices.filter((device) => deviceConnection(device, sessions) === "live").length;
   return (
-    <section className="settings-group" aria-labelledby="phone-devices-heading">
+    <SettingGroup setting="phone.phones" aria-labelledby="phone-devices-heading">
       <div className="settings-group-heading">
         <div>
-          <h3 id="phone-devices-heading">Phones</h3>
+          <h3 id="phone-devices-heading">{settingControl("phone.phones").label}</h3>
           <p>A connected phone keeps this computer awake. Closing this window stops phone access. Removing a phone cuts it off at once.</p>
         </div>
         <div className="settings-group-action"><span>{devices.length === 0 ? "None paired" : `${connected} of ${devices.length} connected`}</span></div>
@@ -227,7 +228,7 @@ function DeviceSection({ devices: paired, sessions, onRevokeDevice }: { devices:
             </div>
           );
         })}
-    </section>
+    </SettingGroup>
   );
 }
 

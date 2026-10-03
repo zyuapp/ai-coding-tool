@@ -2,6 +2,8 @@ import { LuCheck as Check, LuMonitor as Monitor, LuRefreshCw as RefreshCw } from
 import { useEffect, useState } from "react";
 import { MAX_COMPUTER_NAME, type ComputerLink, type ComputerPairing, type DiscoveredComputer } from "../../domain/computers";
 import { RenameInput, useRenaming } from "./SidebarRename";
+import { SettingGroup } from "./SettingRow";
+import { settingControl } from "../../domain/settings-catalog";
 
 export type ComputerSettingsProps = {
   found: DiscoveredComputer[];
@@ -136,10 +138,10 @@ export function ComputerSettings({ found, searching, searchError, name, links, p
   const paired = new Set(links.map((link) => link.host));
   const offered = found.filter((computer) => !paired.has(computer.host));
   return (
-    <section className="settings-group" aria-labelledby="computers-heading">
+    <SettingGroup setting="phone.computers" aria-labelledby="computers-heading">
       <div className="settings-group-heading">
         <div>
-          <h3 id="computers-heading">Computers</h3>
+          <h3 id="computers-heading">{settingControl("phone.computers").label}</h3>
           <p>Another computer running AI Coding Tool, or <code>aic serve</code>, shows its threads here beside your own.</p>
         </div>
         <div className="settings-group-action">
@@ -201,6 +203,6 @@ export function ComputerSettings({ found, searching, searchError, name, links, p
 
       {searchError && <p className="settings-error" role="alert">{searchError}</p>}
       {!searchError && !searching && offered.length === 0 && links.length === 0 && <p className="settings-empty">No other computer on your tailnet is serving AI Coding Tool.</p>}
-    </section>
+    </SettingGroup>
   );
 }

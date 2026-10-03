@@ -9,10 +9,12 @@ export const SETTINGS_JUMP_ROWS = 5;
 /** A name beats a keyword, so "font" offers the font controls before anything merely tagged with it. */
 const RANKS = MATCH_RANKS + 1;
 
+/** Past the name, every word of the query has to start a word of the name or its keywords, so "text size" still lands. */
 function rankOf(option: SettingsJumpOption, wanted: string): number | null {
   const named = matchRank(option.title, wanted);
   if (named !== null) return named;
-  return startsTitleWord(option.keywords, wanted) ? MATCH_RANKS : null;
+  const words = `${option.title} ${option.keywords}`;
+  return wanted.split(/\s+/).every((word) => startsTitleWord(words, word)) ? MATCH_RANKS : null;
 }
 
 /**

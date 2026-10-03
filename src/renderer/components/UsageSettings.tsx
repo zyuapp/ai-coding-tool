@@ -1,4 +1,6 @@
 import { LuRefreshCw as RefreshCw } from "react-icons/lu";
+import { SettingGroup } from "./SettingRow";
+import { settingControl } from "../../domain/settings-catalog";
 import { useEffect } from "react";
 import type { PlanUsageState } from "../../application/plan-limits";
 import { AGENT_ENGINES, engineLabel, type AgentEngine } from "../../domain/agent-engine";
@@ -27,10 +29,10 @@ export function UsageSettings({ usage: { reports, reading }, onRefresh, timeZone
   useEffect(() => { onRefresh(); }, []);
 
   return (
-    <section className="settings-group" aria-labelledby="plan-limits-heading" aria-live="polite">
+    <SettingGroup setting="usage.plan-limits" aria-labelledby="plan-limits-heading" aria-live="polite">
       <div className="settings-group-heading">
         <div>
-          <h3 id="plan-limits-heading">Plan limits</h3>
+          <h3 id="plan-limits-heading">{settingControl("usage.plan-limits").label}</h3>
           <p>Usage and reset times reported by each provider.</p>
         </div>
         <div className="settings-group-action">
@@ -44,7 +46,7 @@ export function UsageSettings({ usage: { reports, reading }, onRefresh, timeZone
       <div className="usage-providers">
         {AGENT_ENGINES.map((engine) => <ProviderUsage key={engine} engine={engine} usage={reports[engine]} timeZone={timeZone} />)}
       </div>
-    </section>
+    </SettingGroup>
   );
 }
 

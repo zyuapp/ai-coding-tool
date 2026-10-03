@@ -1,4 +1,6 @@
 import { LuCheck as Check } from "react-icons/lu";
+import { SettingGroup } from "./SettingRow";
+import { settingControl } from "../../domain/settings-catalog";
 import { AvailabilitySection } from "./AvailabilitySection";
 import { BrowserImportSection, type BrowserImportSettings } from "./BrowserImportSection";
 
@@ -42,10 +44,10 @@ export function BrowserSettings({
 
       <BrowserImportSection settings={browserImport} />
 
-      <section className="settings-group" aria-labelledby="browser-session-heading">
+      <SettingGroup setting="browser.session" aria-labelledby="browser-session-heading">
         <div className="settings-group-heading">
           <div>
-            <h3 id="browser-session-heading">Session</h3>
+            <h3 id="browser-session-heading">{settingControl("browser.session").label}</h3>
             <p>Signing out clears every cookie, cache, and stored login, and takes back the sites the agent may open on its own.</p>
           </div>
           <div className="settings-group-action">
@@ -73,7 +75,7 @@ export function BrowserSettings({
               </div>
             </div>
           ))}
-      </section>
+      </SettingGroup>
     </main>
   );
 }

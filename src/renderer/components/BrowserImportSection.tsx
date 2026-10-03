@@ -1,4 +1,6 @@
 import { useEffect, useMemo } from "react";
+import { SettingGroup } from "./SettingRow";
+import { settingControl } from "../../domain/settings-catalog";
 import { LuCheck as Check, LuRotateCw as Again } from "react-icons/lu";
 import { NO_BROWSER_IMPORT, sourceName, type BrowserImportPicker, type BrowserImportState } from "../../application/browser-import";
 import type { BrowserImportSource } from "../../domain/browser-import";
@@ -99,10 +101,10 @@ export function BrowserImportSection({ settings }: { settings: BrowserImportSett
   useEffect(() => { onRead(); }, []);
 
   return (
-    <section className="settings-group" aria-labelledby="browser-import-heading">
+    <SettingGroup setting="browser.import" aria-labelledby="browser-import-heading">
       <div className="settings-group-heading">
         <div>
-          <h3 id="browser-import-heading">Import</h3>
+          <h3 id="browser-import-heading">{settingControl("browser.import").label}</h3>
           <p>Copy sign-ins from another browser for the sites you pick. Passwords are never copied.</p>
         </div>
       </div>
@@ -115,6 +117,6 @@ export function BrowserImportSection({ settings }: { settings: BrowserImportSett
         : state.sources.length === 0
           ? <p className="settings-empty">No other browsers found on this computer.</p>
           : state.sources.map((source) => <SourceRow key={source.id} source={source} sources={state.sources!} settings={settings} />)}
-    </section>
+    </SettingGroup>
   );
 }

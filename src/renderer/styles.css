@@ -266,7 +266,7 @@ button, select { color: inherit; }
 /** Suppress Chromium’s native outline too; the rules below supply keyboard focus appearance. */
 :root[data-focus-appearance="quiet"] :focus { outline: none; }
 :where(button, input, textarea, select, summary, a[href], [role="button"], [tabindex]:not([tabindex="-1"])):focus-visible:where(:root:not([data-focus-appearance="quiet"]) *),
-:where(.agent-search, .font-select-search, .review-search, .thread-jump-search, .picker-search-field, .model-search, .size-stepper):has(input:focus-visible):where(:root:not([data-focus-appearance="quiet"]) *),
+:where(.agent-search, .font-select-search, .review-search, .thread-jump-search, .settings-search, .picker-search-field, .model-search, .size-stepper):has(input:focus-visible):where(:root:not([data-focus-appearance="quiet"]) *),
 :where(.diff-comment):has(textarea:focus-visible):where(:root:not([data-focus-appearance="quiet"]) *) {
   outline: 2px solid var(--focus-ring);
   /** Keep the indicator inside rows and controls whose parents clip overflow. */
@@ -1795,8 +1795,35 @@ pre {
 }
 .settings-back:hover { background: var(--wash); color: var(--ink-soft); }
 .settings-sidebar h1 { flex: 0 0 auto; margin: 26px 10px 22px; color: var(--ink); font-size: var(--text-display); font-weight: 610; letter-spacing: -0.03em; }
-.settings-sidebar nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-.settings-sidebar nav button {
+.settings-search {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 0 10px;
+  background: var(--sunken);
+  color: var(--quiet);
+  -webkit-app-region: no-drag;
+}
+.settings-search input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-control);
+}
+.settings-search input:focus { outline: none; }
+.settings-search-empty { margin: 0; padding: 9px 10px; color: var(--quiet); font-size: var(--text-control); }
+.settings-sidebar :is(nav, .settings-search-results) { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.settings-search-results small { flex: none; max-width: 45%; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--quiet); font-size: var(--text-meta); }
+.settings-search-results span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.settings-sidebar :is(nav, .settings-search-results) button {
   width: 100%;
   display: flex;
   align-items: center;
@@ -1810,8 +1837,8 @@ pre {
   text-align: left;
   cursor: pointer;
 }
-.settings-sidebar nav button:hover { background: var(--wash); color: var(--ink-dim); }
-.settings-sidebar nav button.active { background: var(--surface-active); color: var(--ink); }
+.settings-sidebar :is(nav, .settings-search-results) button:hover { background: var(--wash); color: var(--ink-dim); }
+.settings-sidebar :is(nav, .settings-search-results) button.active { background: var(--surface-active); color: var(--ink); }
 .settings-main {
   min-width: 0;
   overflow: auto;
@@ -4134,8 +4161,8 @@ button.setting-hint:hover { color: var(--ink); }
 .thread-jump-empty { margin: 0; padding: 16px 14px; color: var(--quiet); font-size: var(--text-meta); }
 .thread-jump-heading { margin: 6px 0 2px; padding: 0 9px; color: var(--quiet); font-size: var(--text-meta); }
 
-/* The control the jump panel sent the user to, marked once so the eye lands on it and then let go. */
-.setting-row.found { animation: setting-found 2.2s ease-out; }
+/* The control a search sent the user to, marked once so the eye lands on it and then let go. */
+.setting-row.found, .settings-group.found > .settings-group-heading { animation: setting-found 2.2s ease-out; }
 @keyframes setting-found {
   0%, 60% { background: var(--control); }
   100% { background: none; }

@@ -1,4 +1,3 @@
-import { LuArchive as Archive, LuArrowLeft as ArrowLeft, LuBot as Bot, LuFolderGit2 as FolderGit2, LuGauge as Gauge, LuGlobe as Globe, LuKeyboard as Keyboard, LuMonitorCog as MonitorCog, LuPalette as Palette, LuSlidersHorizontal as SlidersHorizontal, LuSmartphone as Smartphone } from "react-icons/lu";
 import { useEffect, useRef, useState } from "react";
 import type { ShortcutSetting } from "../../domain/shortcuts";
 import type { Thread } from "../../domain/thread";
@@ -15,7 +14,8 @@ import type { SettingsSection } from "../../domain/settings-section";
 import { MobileSettings } from "./MobileSettings";
 import type { ComputerSettingsProps } from "./ComputerSettings";
 import type { MobileServerState } from "../../domain/mobile";
-import { SettingFocus } from "./SettingRow";
+import { SettingFocus, type SettingMark } from "./SettingRow";
+import { SettingsSidebar } from "./SettingsSidebar";
 import { ShortcutSettings } from "./ShortcutSettings";
 import { UsageSettings } from "./UsageSettings";
 import { useFocusReturn } from "../focus";
@@ -27,86 +27,6 @@ import type { ComputerUsePermission } from "../../contracts/ipc";
 import type { WorktreeSettingsPage } from "../../application/worktree-settings";
 import type { WorktreeCommand } from "../../contracts/commands";
 import { WorktreeSettings } from "./WorktreeSettings";
-
-/** The list of pages. Three of them ask for a fresh read as they are opened. */
-function SettingsNav({ section, onSelect, onRefreshEngines, onRefreshWorktrees, onRefreshRemote }: { section: SettingsSection; onSelect: (section: SettingsSection) => void; onRefreshEngines: () => void; onRefreshWorktrees: () => void; onRefreshRemote: () => void }) {
-  return (
-    <nav aria-label="Settings sections">
-      <button className={section === "general" ? "active" : ""} type="button" aria-current={section === "general" ? "page" : undefined} onClick={() => onSelect("general")}>
-        <SlidersHorizontal size={17} aria-hidden="true" />
-        <span>General</span>
-      </button>
-      <button className={section === "appearance" ? "active" : ""} type="button" aria-current={section === "appearance" ? "page" : undefined} onClick={() => onSelect("appearance")}>
-        <Palette size={17} aria-hidden="true" />
-        <span>Appearance</span>
-      </button>
-      <button className={section === "usage" ? "active" : ""} type="button" aria-current={section === "usage" ? "page" : undefined} onClick={() => onSelect("usage")}>
-        <Gauge size={17} aria-hidden="true" />
-        <span>Usage</span>
-      </button>
-      <button className={section === "engines" ? "active" : ""} type="button" aria-current={section === "engines" ? "page" : undefined} onClick={() => {
-        onSelect("engines");
-        onRefreshEngines();
-      }}>
-        <Bot size={17} aria-hidden="true" />
-        <span>Engines</span>
-      </button>
-      <button className={section === "worktrees" ? "active" : ""} type="button" aria-current={section === "worktrees" ? "page" : undefined} onClick={() => {
-        onSelect("worktrees");
-        onRefreshWorktrees();
-      }}>
-        <FolderGit2 size={17} aria-hidden="true" />
-        <span>Worktrees</span>
-      </button>
-      <button className={section === "shortcuts" ? "active" : ""} type="button" aria-current={section === "shortcuts" ? "page" : undefined} onClick={() => onSelect("shortcuts")}>
-        <Keyboard size={17} aria-hidden="true" />
-        <span>Shortcuts</span>
-      </button>
-      <button className={section === "computer-use" ? "active" : ""} type="button" aria-current={section === "computer-use" ? "page" : undefined} onClick={() => onSelect("computer-use")}>
-        <MonitorCog size={17} aria-hidden="true" />
-        <span>Computer use</span>
-      </button>
-      <button className={section === "browser" ? "active" : ""} type="button" aria-current={section === "browser" ? "page" : undefined} onClick={() => onSelect("browser")}>
-        <Globe size={17} aria-hidden="true" />
-        <span>Browser</span>
-      </button>
-      <button className={section === "phone" ? "active" : ""} type="button" aria-current={section === "phone" ? "page" : undefined} onClick={() => {
-        onSelect("phone");
-        onRefreshRemote();
-      }}>
-        <Smartphone size={17} aria-hidden="true" />
-        <span>Devices</span>
-      </button>
-      <button className={section === "archive" ? "active" : ""} type="button" aria-current={section === "archive" ? "page" : undefined} onClick={() => onSelect("archive")}>
-        <Archive size={17} aria-hidden="true" />
-        <span>Archived threads</span>
-      </button>
-    </nav>
-  );
-}
-
-/** The way out of settings, above the pages themselves. */
-function SettingsSidebar({ section, backRef, onClose, onSelect, onRefreshEngines, onRefreshWorktrees, onRefreshRemote }: {
-  section: SettingsSection;
-  backRef: React.RefObject<HTMLButtonElement | null>;
-  onClose: () => void;
-  onSelect: (section: SettingsSection) => void;
-  onRefreshEngines: () => void;
-  onRefreshWorktrees: () => void;
-  onRefreshRemote: () => void;
-}) {
-  return (
-    <aside className="settings-sidebar">
-      <div className="settings-traffic-space" aria-hidden="true" />
-      <button ref={backRef} className="settings-back" type="button" onClick={onClose}>
-        <ArrowLeft size={17} aria-hidden="true" />
-        <span>Back to AI Coding Tool</span>
-      </button>
-      <h1>Settings</h1>
-      <SettingsNav section={section} onSelect={onSelect} onRefreshEngines={onRefreshEngines} onRefreshWorktrees={onRefreshWorktrees} onRefreshRemote={onRefreshRemote} />
-    </aside>
-  );
-}
 
 /** The two destructive asks the sheet confirms, each taking the focus and handing it back to the button that asked. */
 function useConfirmations() {
@@ -129,12 +49,15 @@ function useConfirmations() {
 /** The page the sheet shows and the control it marks, both re-aimed whenever something outside names one. */
 function useSettingsPlace(initialSection: SettingsSection, initialSetting: string | null) {
   const [section, setSection] = useState<SettingsSection>(initialSection);
-  const [found, setFound] = useState<string | null>(initialSetting);
+  const [found, setFound] = useState<SettingMark | null>(null);
   useEffect(() => { setSection(initialSection); }, [initialSection]);
-  useEffect(() => { setFound(initialSetting); }, [initialSetting]);
-  /** Leaving the page spends the mark, so coming back to it does not light the row again. */
-  return { section, found, choosePage: (next: SettingsSection) => { setSection(next); setFound(null); } };
+  useEffect(() => { setFound(marking(initialSetting)); }, [initialSetting]);
+  /** Opening a page on its own spends the mark, so coming back to it does not light the row again. */
+  return { section, found, land: (next: SettingsSection, settingId: string | null) => { setSection(next); setFound(marking(settingId)); } };
 }
+
+/** The next mark for `id`, counted on from the last so the same control can be landed on twice. */
+const marking = (id: string | null) => (last: SettingMark | null): SettingMark | null => id === null ? null : { id, visit: (last?.visit ?? 0) + 1 };
 
 export type SettingsPanelProps = {
   onClose: () => void;
@@ -285,7 +208,7 @@ export function SettingsPanel({
   onRefreshRemote,
   computers = NO_COMPUTER_SETTINGS,
 }: SettingsPanelProps) {
-  const { section, found, choosePage } = useSettingsPlace(initialSection, initialSetting);
+  const { section, found, land } = useSettingsPlace(initialSection, initialSetting);
   const { confirmingClear, setConfirmingClear, confirmingSignOut, setConfirmingSignOut, clearArchive, clearBrowser, confirmation, cancelConfirmation } = useConfirmations();
   const back = useRef<HTMLButtonElement>(null);
   useFocusReturn(back);
@@ -302,7 +225,7 @@ export function SettingsPanel({
         cancelConfirmation(confirmingSignOut);
       }}
     >
-      <SettingsSidebar section={section} backRef={back} onClose={onClose} onSelect={choosePage} onRefreshEngines={onRefreshEngines} onRefreshWorktrees={onRefreshWorktrees} onRefreshRemote={onRefreshRemote} />
+      <SettingsSidebar section={section} backRef={back} onClose={onClose} onLand={land} onRefreshEngines={onRefreshEngines} onRefreshWorktrees={onRefreshWorktrees} onRefreshRemote={onRefreshRemote} />
 
       {section === "appearance" && (
       <main className="settings-main">

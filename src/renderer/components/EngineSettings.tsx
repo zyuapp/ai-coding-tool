@@ -1,4 +1,6 @@
 import { LuRefreshCw as RefreshCw } from "react-icons/lu";
+import { SettingGroup } from "./SettingRow";
+import { settingControl } from "../../domain/settings-catalog";
 import { AGENT_ENGINES, engineLabel, engineNotice, type AgentEngine, type EngineReadiness } from "../../domain/agent-engine";
 import type { WorkspaceState } from "../../application/workspace-state";
 import { CopyButton } from "./CopyButton";
@@ -85,10 +87,10 @@ export function EngineSettings({ engineAccess, checking, updating, onRefresh, on
           );
         })}
       </section>
-      <section className="settings-group" aria-labelledby="agent-settings-heading">
+      <SettingGroup setting="engines.agent-settings" aria-labelledby="agent-settings-heading">
         <div className="settings-group-heading">
           <div>
-            <h3 id="agent-settings-heading">Agent settings</h3>
+            <h3 id="agent-settings-heading">{settingControl("engines.agent-settings").label}</h3>
             <p>Apply changes to Claude Code and Codex settings. Busy agents reload when their work finishes.</p>
             <p role="status">{reloadStatus === "idle" ? "" : reloadStatus === "reloading" ? "Reloading…" : reloadStatus === "pending" ? "Reload pending" : reloadStatus === "reloaded" ? "Settings reloaded" : "Could not reload settings. Try again."}</p>
           </div>
@@ -98,7 +100,7 @@ export function EngineSettings({ engineAccess, checking, updating, onRefresh, on
             </button>
           </div>
         </div>
-      </section>
+      </SettingGroup>
     </main>
   );
 }

@@ -8,6 +8,7 @@ import type { DesktopAPI, RunCommand } from "../../src/contracts/ipc.ts";
 import type { CliStatus } from "../../src/domain/cli.ts";
 import type { AgentEngine } from "../../src/domain/agent-engine.ts";
 import type { PlanUsage } from "../../src/domain/plan-usage.ts";
+import { shortcutSettings } from "../../src/domain/shortcuts.ts";
 
 import { deriveView, emptyWorkspaceState } from "../../src/application/workspace-state.ts";
 import type { SettingsPanelProps } from "../../src/renderer/components/SettingsPanel.tsx";
@@ -583,4 +584,71 @@ test("Engines offers a reload and shows when it is waiting or complete", async (
     await view.unmount();
   }
   assert.equal(reloads, 3);
+});
+
+async function searchSettings(view: MountView, text: string) {
+  const field = query<HTMLInputElement>(view.container, 'input[aria-label="Search settings"]');
+  const setValue = item(Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")).set;
+  await act(async () => { field.focus(); });
+  await act(async () => {
+    item(setValue).call(field, text);
+    field.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true }));
+  });
+  return field;
+}
+
+const searchResults = (view: MountView) => [...view.container.querySelectorAll<HTMLButtonElement>(".settings-search-results [role='option']")]
+  .map((option) => option.textContent);
+
+test("a settings search stands in for the pages, and Enter lands on the control it picked", async () => {
+  window.desktop = fakeDesktop({});
+  const view = await mount(renderSettingsPanel({}));
+  await act(async () => {});
+
+  const field = await searchSettings(view, "terminal text");
+  assert.equal(view.container.querySelector(".settings-sidebar nav"), null, "the pages give way to the results");
+  assert.deepEqual(searchResults(view), ["Terminal textAppearance"]);
+
+  await act(async () => { field.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
+  assert.equal(field.value, "");
+  assert.equal(query(view.container, ".settings-sidebar nav [aria-current='page']").textContent, "Appearance");
+  assert.deepEqual([...view.container.querySelectorAll<HTMLElement>(".found")].map((row) => row.dataset.setting), ["appearance.terminal-size"]);
+  await view.unmount();
+});
+
+test("a search lands on a shortcut and on a group, not only on a page", async () => {
+  window.desktop = fakeDesktop({});
+  const view = await mount(renderSettingsPanel({ shortcuts: shortcutSettings({}) }));
+  await act(async () => {});
+  const marked = () => [...view.container.querySelectorAll<HTMLElement>(".found")].map((row) => row.dataset.setting);
+
+  await searchSettings(view, "deny");
+  await act(async () => { item([...view.container.querySelectorAll<HTMLButtonElement>(".settings-search-results [role='option']")][0]).click(); });
+  assert.deepEqual(marked(), ["shortcut.run.deny"]);
+
+  await searchSettings(view, "agent settings");
+  await act(async () => { item([...view.container.querySelectorAll<HTMLButtonElement>(".settings-search-results [role='option']")][0]).click(); });
+  assert.equal(query(view.container, ".settings-sidebar nav [aria-current='page']").textContent, "Engines");
+  assert.deepEqual(marked(), ["engines.agent-settings"]);
+  await view.unmount();
+});
+
+test("Escape empties a settings search before it can close settings, and a miss says so", async () => {
+  window.desktop = fakeDesktop({});
+  const view = await mount(renderSettingsPanel({}));
+  await act(async () => {});
+
+  const field = await searchSettings(view, "zzz");
+  assert.equal(query(view.container, ".settings-search-empty").textContent, "No settings match");
+
+  const escape = new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+  await act(async () => { field.dispatchEvent(escape); });
+  assert.equal(escape.defaultPrevented, true);
+  assert.equal(field.value, "");
+  assert.ok(view.container.querySelector(".settings-sidebar nav"));
+
+  const again = new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+  await act(async () => { field.dispatchEvent(again); });
+  assert.equal(again.defaultPrevented, false, "an empty search leaves Escape to close settings");
+  await view.unmount();
 });
