@@ -437,7 +437,8 @@ export class CodexSession {
     this.background.openWith(seed.reportBackground);
     this.reportGoal = seed.reportGoal;
     this.reportGoal({ type: "goal.changed", goal: null });
-    const tools = runTools(seed).flatMap((set) => set.tools);
+    const sets = runTools(seed);
+    const tools = sets.flatMap((set) => set.tools);
     if (tools.length) {
       const served = await this.host.serve(tools);
       if (this.ended) {
@@ -446,7 +447,7 @@ export class CodexSession {
       }
       this.served = served;
     }
-    const command = await codexAppServer(codexConfig(seed, this.served ?? undefined), { cwd: seed.workspaceRoot, ...(this.served ? { env: { ...process.env, [TOOL_TOKEN_ENV]: this.served.token } } : {}) });
+    const command = await codexAppServer(codexConfig(seed, this.served ?? undefined, sets), { cwd: seed.workspaceRoot, ...(this.served ? { env: { ...process.env, [TOOL_TOKEN_ENV]: this.served.token } } : {}) });
     if (this.ended) throw new OpenFailure("The Codex session ended before the run could start.");
     const client = this.client = this.connect(command);
     const skills = this.skills = new CodexSkills(client, seed.workspaceRoot);

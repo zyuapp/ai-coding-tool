@@ -9,8 +9,8 @@ import { codexImageOutput, type ImageOutput } from "./codex-images.mjs";
 
 /**
  * Everything a session is built with. A run that disagrees with any of it needs a session of its
- * own. Computer use is granted unasked per process, so what decides that grant counts only while
- * computer use is on.
+ * own. App tools and computer use are granted unasked per process, so what decides those grants
+ * counts too; computer use's only while it is on.
  */
 function sessionKey(input: ProviderRunInput) {
   return JSON.stringify([
@@ -24,6 +24,7 @@ function sessionKey(input: ProviderRunInput) {
     input.coordinationRole ?? null,
     Boolean(input.browser),
     Boolean(input.terminal),
+    grantsTool("workspace", input),
     /** Review has no turn-level overrides, so its process must agree with the thread settings. */
     input.operation?.type === "review" ? [input.model, input.effort, input.policy] : null,
   ]);

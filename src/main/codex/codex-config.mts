@@ -1,5 +1,7 @@
-import { grantsTool } from "../agent/approval-grant.mjs";
+import { grantsTool, toolReach } from "../agent/approval-grant.mjs";
+import { mcpToolName } from "../agent/claude-mcp-host.mjs";
 import type { ProviderRunInput } from "../agent/agent-provider.mjs";
+import type { ServedToolSet } from "../agent/run-tools.mjs";
 import type { ServedTools } from "../tools/mcp-http-host.mjs";
 
 /** The name Codex files the app's own tools under. */
@@ -37,16 +39,24 @@ export const APP_FEATURES = ["--enable", "fast_mode", "--enable", "goals", "--en
 export type ConfigSources = Pick<ProviderRunInput, "channel" | "policy" | "computerUse">;
 
 /**
- * The config overrides a Codex app server is spawned with. The app's own tools are served by the
- * app and pre-approved: they reach nothing but the app's own bridges. Bundled computer use prompts
- * like any other MCP server, except where the run's policy grants it unasked.
+ * The config overrides a Codex app server is spawned with. The app's own tools are served flat
+ * under one server and granted tool by tool as Claude grants them; the rest prompt. Bundled
+ * computer use prompts like any other MCP server, except where the run's policy grants it unasked.
  */
-export function codexConfig(input: ConfigSources, served: ServedTools | undefined): string[] {
+export function codexConfig(input: ConfigSources, served: ServedTools | undefined, sets: readonly ServedToolSet[] = []): string[] {
   const config: Record<string, TomlValue> = {};
   if (served) {
     config[`mcp_servers.${APP_SERVER_NAME}.url`] = served.url;
     config[`mcp_servers.${APP_SERVER_NAME}.bearer_token_env_var`] = TOOL_TOKEN_ENV;
-    config[`mcp_servers.${APP_SERVER_NAME}.default_tools_approval_mode`] = "approve";
+    const unasked = grantsTool("workspace", input);
+    config[`mcp_servers.${APP_SERVER_NAME}.default_tools_approval_mode`] = unasked ? "approve" : "prompt";
+    if (!unasked) {
+      for (const { server, tools } of sets) {
+        for (const tool of tools) {
+          if (grantsTool(toolReach(mcpToolName(server, tool.name)))) config[`mcp_servers.${APP_SERVER_NAME}.tools.${tool.name}.approval_mode`] = "approve";
+        }
+      }
+    }
   }
   if (input.computerUse.status === "available") {
     const { command, args, env } = input.computerUse.mcp;

@@ -26,6 +26,11 @@ import { chromeHeaders, chromeIdentity } from "./browser-headers.js";
  * panel is there for every thread and every project, and is still there after a restart.
  */
 const PARTITION = "persist:browser";
+/**
+ * What a page may use without being asked. Everything else is refused, since nothing in the panel
+ * would ask the user: a page could otherwise read the clipboard, use the camera, or launch another app.
+ */
+const PAGE_PERMISSIONS = new Set<string>(["fullscreen", "clipboard-sanitized-write", "pointerLock", "storage-access", "top-level-storage-access", "persistent-storage"]);
 /** Sites refuse sign-in from a user agent that names an embedded runtime, so Electron's is replaced. */
 const IDENTITY = chromeIdentity(process.versions.chrome);
 const REF_ATTRIBUTE = "data-aicodingtool-ref";
@@ -186,6 +191,8 @@ export function startBrowserHost(window: BrowserWindow, handlers: { onPage: (eve
   const partition = session.fromPartition(PARTITION);
   browserSession = partition;
   partition.setUserAgent(IDENTITY.userAgent);
+  partition.setPermissionRequestHandler((_contents, permission, callback) => callback(PAGE_PERMISSIONS.has(permission)));
+  partition.setPermissionCheckHandler((_contents, permission) => PAGE_PERMISSIONS.has(permission));
   /** The user agent is one of several things a request says about the browser; these are the rest. */
   partition.webRequest.onBeforeSendHeaders((details, callback) => {
     callback({ requestHeaders: chromeHeaders(details.url, details.requestHeaders, IDENTITY) });

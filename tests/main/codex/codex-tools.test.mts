@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import type { AutomationBridge, BrowserBridge, FindingBridge, ProviderEvent, TerminalBridge, ThreadBridge } from "../../../src/main/agent/agent-provider.mts";
+import { grantsTool, toolReach } from "../../../src/main/agent/approval-grant.mts";
+import { mcpToolName } from "../../../src/main/agent/claude-mcp-host.mts";
 import { runTools } from "../../../src/main/agent/run-tools.mts";
+import type { ExecutionPolicy } from "../../../src/domain/run.ts";
 import { codexConfig, toml } from "../../../src/main/codex/codex-config.mts";
 import { DEVELOPER_INSTRUCTIONS } from "../../../src/main/codex/codex-instructions.mts";
 import { harness, input, turn } from "../../support/codex-client.mjs";
@@ -27,16 +30,14 @@ function overrides(args: readonly string[]) {
   return found;
 }
 
-test("a session serves the run's tools under one token and points the app server at them, pre-approved", async () => {
+test("a session serves the run's tools under one token and points the app server at them", async () => {
   const codex = harness();
   const { client } = await turn(codex, bridges);
 
-  const toolOverrides = Object.fromEntries(Object.entries(overrides(client.command.args)).filter(([key]) => key.startsWith("mcp_servers.aicodingtool.")));
-  assert.deepEqual(toolOverrides, {
-    "mcp_servers.aicodingtool.url": "\"http://127.0.0.1:1/mcp\"",
-    "mcp_servers.aicodingtool.bearer_token_env_var": "\"AICODINGTOOL_MCP_TOKEN\"",
-    "mcp_servers.aicodingtool.default_tools_approval_mode": "\"approve\"",
-  });
+  const toolOverrides = overrides(client.command.args);
+  assert.equal(toolOverrides["mcp_servers.aicodingtool.url"], "\"http://127.0.0.1:1/mcp\"");
+  assert.equal(toolOverrides["mcp_servers.aicodingtool.bearer_token_env_var"], "\"AICODINGTOOL_MCP_TOKEN\"");
+  assert.equal(toolOverrides["mcp_servers.aicodingtool.default_tools_approval_mode"], "\"prompt\"");
   assert.equal(client.command.env?.AICODINGTOOL_MCP_TOKEN, "token-1");
   assert.equal(client.command.env?.PATH, process.env.PATH, "the process keeps its environment");
   assert.equal(codex.host.served.length, 1);
@@ -140,4 +141,39 @@ test("config values are written as TOML the app server parses", () => {
       "-c", 'plugins={ "browser@openai-bundled" = { "enabled" = false }, "chrome@openai-bundled" = { "enabled" = false }, "computer-use@openai-bundled" = { "enabled" = false }, "unified-computer-use@openai-bundled" = { "enabled" = false }, "codex-app-tools@openai-bundled" = { "enabled" = false } }'],
     "only plugins that target Codex's own desktop surfaces are overridden",
   );
+});
+
+/** Whether Codex runs an app tool without asking, read from the overrides its server was spawned with. */
+function codexApproves(args: readonly string[], name: string) {
+  const found = overrides(args);
+  return (found[`mcp_servers.aicodingtool.tools.${name}.approval_mode`] ?? found["mcp_servers.aicodingtool.default_tools_approval_mode"]) === "\"approve\"";
+}
+
+test("Codex grants app tools unasked exactly where Claude does", async () => {
+  const sets = runTools(input(bridges));
+  for (const policy of ["confirm", "plan", "allow-edits", "autonomous", "bypass"] satisfies ExecutionPolicy[]) {
+    const codex = harness();
+    const { client } = await turn(codex, { ...bridges, policy });
+    for (const { server, tools } of sets) {
+      for (const tool of tools) {
+        const granted = grantsTool(toolReach(mcpToolName(server, tool.name)), { policy, channel: "main" });
+        assert.equal(codexApproves(client.command.args, tool.name), granted, `${tool.name} · ${policy}`);
+      }
+    }
+    codex.provider.closeAll();
+  }
+  const confirmed = codexConfig({ channel: "main", policy: "confirm", computerUse: { status: "unavailable", message: "off" } }, { url: "http://127.0.0.1:1/mcp", token: "t", release: () => {} }, sets);
+  for (const name of ["start_thread", "message_thread", "archive_thread", "delete_worktree", "stop_thread", "browser_open", "browser_click", "browser_type", "terminal_read"]) {
+    assert.equal(codexApproves(confirmed, name), false, `${name} asks under confirm`);
+  }
+  for (const name of ["list_threads", "read_thread", "browser_read", "schedule"]) assert.equal(codexApproves(confirmed, name), true, `${name} runs unasked`);
+});
+
+test("switching to or from bypass opens a new Codex session, since app tool grants are the process's", async () => {
+  const codex = harness();
+  const { client: confirmed } = await turn(codex, { ...bridges, policy: "confirm" });
+  const { client: bypassed } = await turn(codex, { ...bridges, policy: "bypass", continuation: { provider: "codex", value: "thread-1" } });
+  assert.notEqual(bypassed, confirmed);
+  assert.equal(overrides(bypassed.command.args)["mcp_servers.aicodingtool.default_tools_approval_mode"], "\"approve\"");
+  codex.provider.closeAll();
 });

@@ -85,6 +85,7 @@ export function fakeElectron(userData: string) {
   const powerBlockerStops: number[] = [];
   const activePowerBlockers = new Set<number>();
   const webRequestListeners = new Map<string, Callback>();
+  const permissionHandlers = new Map<"request" | "check", Callback>();
   let quitAttempts = 0;
   let completedQuits = 0;
   let quitting = false;
@@ -98,6 +99,8 @@ export function fakeElectron(userData: string) {
   powerMonitor.getSystemIdleState = () => "active";
   const browserPartition = {
     setUserAgent() {},
+    setPermissionRequestHandler: (handler: Callback) => permissionHandlers.set("request", handler),
+    setPermissionCheckHandler: (handler: Callback) => permissionHandlers.set("check", handler),
     webRequest: {
       onBeforeSendHeaders: (listener: Callback | null) => listener ? webRequestListeners.set("before-send-headers", listener) : webRequestListeners.delete("before-send-headers"),
       onBeforeRequest: (listener: Callback | null) => listener ? webRequestListeners.set("before-request", listener) : webRequestListeners.delete("before-request"),
@@ -211,6 +214,7 @@ export function fakeElectron(userData: string) {
     powerBlockerStops,
     activePowerBlockers,
     webRequestListeners,
+    permissionHandlers,
   };
   return { electron, windows, appListeners, records };
 }

@@ -173,3 +173,20 @@ test("approved agent popups retain navigation enforcement and autonomous popups 
   browser.closeTab(id);
   assert.equal(native.destroyed, true);
 });
+
+test("a page in the panel gets only harmless permissions, asked or checked", () => {
+  const request = fake.records.permissionHandlers.get("request")!;
+  const check = fake.records.permissionHandlers.get("check")!;
+  for (const permission of ["clipboard-read", "openExternal", "media", "geolocation", "notifications", "local-network-access", "hid"]) {
+    let granted: boolean | undefined;
+    request({}, permission, (answer: boolean) => { granted = answer; }, {});
+    assert.equal(granted, false, permission);
+    assert.equal(check({}, permission, "https://allowed.example", {}), false, permission);
+  }
+  for (const permission of ["fullscreen", "clipboard-sanitized-write"]) {
+    let granted: boolean | undefined;
+    request({}, permission, (answer: boolean) => { granted = answer; }, {});
+    assert.equal(granted, true, permission);
+    assert.equal(check({}, permission, "https://allowed.example", {}), true, permission);
+  }
+});

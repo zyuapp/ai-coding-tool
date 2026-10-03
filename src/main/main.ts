@@ -225,7 +225,7 @@ function loadWindowTheme(): WindowTheme {
 /**
  * The app's own window loads only bundled content, so it keeps the blanket grant it has always had.
  * It is spelled out here because the font picker asks for `local-fonts`, which Chromium prompts for.
- * The browser panel runs in its own partition and is untouched by this.
+ * The browser panel runs in its own partition, which grants pages far less.
  */
 function grantAppWindowPermissions() {
   session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(true));
