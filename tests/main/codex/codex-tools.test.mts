@@ -143,8 +143,9 @@ test("config values are written as TOML the app server parses", () => {
 
 /** Whether Codex runs an app tool without asking, read from the overrides its server was spawned with. */
 function codexApproves(args: readonly string[], name: string) {
-  const found = overrides(args);
-  return (found[`mcp_servers.aicodingtool.tools.${name}.approval_mode`] ?? found["mcp_servers.aicodingtool.default_tools_approval_mode"]) === "\"approve\"";
+  const mode = overrides(args)[`mcp_servers.aicodingtool.tools.${name}.approval_mode`];
+  assert.ok(mode, `${name} has its own approval mode`);
+  return mode === "\"approve\"";
 }
 
 test("Codex grants app tools unasked exactly where Claude does", async () => {

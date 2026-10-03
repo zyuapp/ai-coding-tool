@@ -50,11 +50,10 @@ export function codexConfig(input: ConfigSources, served: ServedTools | undefine
     config[`mcp_servers.${APP_SERVER_NAME}.bearer_token_env_var`] = TOOL_TOKEN_ENV;
     const unasked = grantsTool("workspace", input);
     config[`mcp_servers.${APP_SERVER_NAME}.default_tools_approval_mode`] = unasked ? "approve" : "prompt";
-    if (!unasked) {
-      for (const { server, tools } of sets) {
-        for (const tool of tools) {
-          if (grantsTool(toolReach(mcpToolName(server, tool.name)))) config[`mcp_servers.${APP_SERVER_NAME}.tools.${tool.name}.approval_mode`] = "approve";
-        }
+    /** Every tool is spelled out, so an approval the user's own config holds for the same name cannot outlast the policy. */
+    for (const { server, tools } of sets) {
+      for (const tool of tools) {
+        config[`mcp_servers.${APP_SERVER_NAME}.tools.${tool.name}.approval_mode`] = unasked || grantsTool(toolReach(mcpToolName(server, tool.name))) ? "approve" : "prompt";
       }
     }
   }
