@@ -46,6 +46,7 @@ import type { BrowserApproval } from "../domain/browser.js";
 import type { FindResults, FindTarget } from "../domain/find.js";
 import { shortcutSettings, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
 import type { SettingsSection } from "../domain/settings-section.js";
+import type { SettingMark } from "../domain/settings-catalog.js";
 import { OPEN_SIDEBAR_SECTIONS, type SidebarMode, type SidebarSections } from "../domain/sidebar.js";
 import { DEFAULT_THEME, DEFAULT_THEME_MODE, type ThemeMode } from "../domain/theme.js";
 import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, READING_SIZE, TERMINAL_SIZE } from "../domain/typography.js";
@@ -305,7 +306,7 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   /** The page settings opens on, when something opened it on one. Null lets it open where it opens. */
   settingsSection: SettingsSection | null;
   /** The control on that page to scroll to and mark, when something named one. */
-  settingsFocus: string | null;
+  settingsFocus: SettingMark | null;
   favoriteModels: AgentModel[];
   /** The bindings the user changed, and the action waiting for a keystroke while settings are open. */
   shortcuts: ShortcutOverrides;

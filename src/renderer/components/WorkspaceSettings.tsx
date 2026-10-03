@@ -11,8 +11,9 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
   return (
     <SettingsPanel
       onClose={onClose}
-      initialSection={workspace.settingsSection ?? "general"}
-      initialSetting={workspace.settingsFocus}
+      section={workspace.settingsSection ?? "general"}
+      settingMark={workspace.settingsFocus}
+      onLand={(section, settingId) => void workspace.actions.openSettingsSection(section, settingId)}
       archivedThreads={workspace.archivedThreads}
       cli={workspace.cli}
       onReadCli={() => void workspace.actions.readCli()}

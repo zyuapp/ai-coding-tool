@@ -14,7 +14,8 @@ import type { SettingsSection } from "../../domain/settings-section";
 import { MobileSettings } from "./MobileSettings";
 import type { ComputerSettingsProps } from "./ComputerSettings";
 import type { MobileServerState } from "../../domain/mobile";
-import { SettingFocus, type SettingMark } from "./SettingRow";
+import { SettingFocus } from "./SettingRow";
+import type { SettingMark } from "../../domain/settings-catalog";
 import { SettingsSidebar } from "./SettingsSidebar";
 import { ShortcutSettings } from "./ShortcutSettings";
 import { UsageSettings } from "./UsageSettings";
@@ -46,25 +47,14 @@ function useConfirmations() {
   return { confirmingClear, setConfirmingClear, confirmingSignOut, setConfirmingSignOut, clearArchive, clearBrowser, confirmation, cancelConfirmation };
 }
 
-/** The page the sheet shows and the control it marks, both re-aimed whenever something outside names one. */
-function useSettingsPlace(initialSection: SettingsSection, initialSetting: string | null) {
-  const [section, setSection] = useState<SettingsSection>(initialSection);
-  const [found, setFound] = useState<SettingMark | null>(null);
-  useEffect(() => { setSection(initialSection); }, [initialSection]);
-  useEffect(() => { setFound(marking(initialSetting)); }, [initialSetting]);
-  /** Opening a page on its own spends the mark, so coming back to it does not light the row again. */
-  return { section, found, land: (next: SettingsSection, settingId: string | null) => { setSection(next); setFound(marking(settingId)); } };
-}
-
-/** The next mark for `id`, counted on from the last so the same control can be landed on twice. */
-const marking = (id: string | null) => (last: SettingMark | null): SettingMark | null => id === null ? null : { id, visit: (last?.visit ?? 0) + 1 };
-
 export type SettingsPanelProps = {
   onClose: () => void;
-  /** The page settings opens on. Computer-use setup and the engine error each ask for their own. */
-  initialSection?: SettingsSection;
+  /** The page settings shows. Computer-use setup and the engine error each ask for their own. */
+  section: SettingsSection;
   /** The control on that page to scroll to and mark, when something named one. */
-  initialSetting?: string | null;
+  settingMark: SettingMark | null;
+  /** Opens a page, marking the control on it a search named. */
+  onLand: (section: SettingsSection, settingId: string | null) => void;
   archivedThreads: Thread[];
   worktreeSettings: WorktreeSettingsPage;
   worktreeManagementError: string | null;
@@ -150,8 +140,9 @@ const NO_COMPUTER_SETTINGS: ComputerSettingsProps = { found: [], searching: fals
 
 export function SettingsPanel({
   onClose,
-  initialSection = "general",
-  initialSetting = null,
+  section,
+  settingMark,
+  onLand,
   archivedThreads,
   cli, onReadCli, onSetCliInstalled, planUsage, onReadPlanUsage,
   computerUseAccess, onEnableComputerUse, onRestartForComputerUse,
@@ -208,13 +199,12 @@ export function SettingsPanel({
   onRefreshRemote,
   computers = NO_COMPUTER_SETTINGS,
 }: SettingsPanelProps) {
-  const { section, found, land } = useSettingsPlace(initialSection, initialSetting);
   const { confirmingClear, setConfirmingClear, confirmingSignOut, setConfirmingSignOut, clearArchive, clearBrowser, confirmation, cancelConfirmation } = useConfirmations();
   const back = useRef<HTMLButtonElement>(null);
   useFocusReturn(back);
 
   return (
-    <SettingFocus value={found}>
+    <SettingFocus value={settingMark}>
     <section
       className="settings-view"
       aria-label="Settings"
@@ -225,7 +215,7 @@ export function SettingsPanel({
         cancelConfirmation(confirmingSignOut);
       }}
     >
-      <SettingsSidebar section={section} backRef={back} onClose={onClose} onLand={land} onRefreshEngines={onRefreshEngines} onRefreshWorktrees={onRefreshWorktrees} onRefreshRemote={onRefreshRemote} />
+      <SettingsSidebar section={section} backRef={back} onClose={onClose} onLand={onLand} onRefreshEngines={onRefreshEngines} onRefreshWorktrees={onRefreshWorktrees} onRefreshRemote={onRefreshRemote} />
 
       {section === "appearance" && (
       <main className="settings-main">

@@ -27,7 +27,7 @@ const PAGE_KEYWORDS: Record<SettingsSection, string> = {
   engines: "claude codex sign in account model provider",
   worktrees: "git branch checkout managed disk",
   shortcuts: "keyboard keys binding keystroke rebind",
-  "computer-use": "accessibility screen recording permissions automation apps",
+  "computer-use": "accessibility screen recording permissions automation apps platform setup linux runtime wayland x11",
   browser: "session cookies sign out sites origins clear data import sign in chrome brave firefox edge arc vivaldi opera",
   phone: "mobile phone computer remote pairing tailscale device qr serve",
   archive: "archived deleted restore threads trash",
@@ -58,8 +58,6 @@ export const SETTINGS_CONTROLS = [
   { id: "appearance.reading-size", section: "appearance", label: "Conversation text", keywords: "text size font bigger smaller reading message" },
   { id: "appearance.terminal-size", section: "appearance", label: "Terminal text", keywords: "text size font bigger smaller terminal shell" },
   { id: "computer-use.availability", section: "computer-use", label: "Computer use", keywords: "automation control apps see operate switch" },
-  { id: "computer-use.platform", section: "computer-use", label: "Platform setup", keywords: "linux unavailable support runtime" },
-  { id: "computer-use.linux-runtime", section: "computer-use", label: "Linux runtime", keywords: "wayland x11 compositor display" },
   { id: "computer-use.accessibility", section: "computer-use", label: "Accessibility", keywords: "permission macos click type navigate" },
   { id: "computer-use.screen-recording", section: "computer-use", label: "Screen & System Audio Recording", keywords: "permission macos screenshot capture window" },
   { id: "browser.availability", section: "browser", label: "Browser use", keywords: "panel pages agent switch web" },
@@ -94,6 +92,9 @@ export type SettingsJumpOption = {
   page: string | null;
   keywords: string;
 };
+
+/** The control a search sent the user to. `visit` counts the trips, so landing on the same one again still shows it. */
+export type SettingMark = { id: string; visit: number };
 
 /** What a shortcut's row is marked by, so a search can land on one action. */
 export function shortcutSettingId(actionId: string): string {

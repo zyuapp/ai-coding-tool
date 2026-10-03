@@ -1,9 +1,6 @@
 import { LuCheck as Check } from "react-icons/lu";
 import { createContext, useContext, useEffect, useRef, type ComponentPropsWithoutRef, type ReactNode } from "react";
-import { settingControl, type SettingId } from "../../domain/settings-catalog";
-
-/** The control a search sent the user to. `visit` counts the trips, so landing on the same one again still shows it. */
-export type SettingMark = { id: string; visit: number };
+import { settingControl, type SettingId, type SettingMark } from "../../domain/settings-catalog";
 
 export const SettingFocus = createContext<SettingMark | null>(null);
 

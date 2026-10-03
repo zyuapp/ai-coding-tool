@@ -10,7 +10,9 @@ import type { AgentEngine } from "../../src/domain/agent-engine.ts";
 import type { PlanUsage } from "../../src/domain/plan-usage.ts";
 import { shortcutSettings } from "../../src/domain/shortcuts.ts";
 
-import { deriveView, emptyWorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { reduce } from "../../src/application/workspace-reducer.ts";
+import type { SettingsSection } from "../../src/domain/settings-section.ts";
 import type { SettingsPanelProps } from "../../src/renderer/components/SettingsPanel.tsx";
 import { mobileSettingsProps } from "../support/mobile-desktop.mts";
 
@@ -26,14 +28,31 @@ function startCommand(command: RunCommand | undefined): Extract<RunCommand, { ty
 }
 
 type SettingsTestOverrides = Partial<SettingsPanelProps> & {
+  /** The page and control the sheet opens on, landed through the workspace reducer. */
+  initialSection?: SettingsSection;
+  initialSetting?: string;
   captureSound?: boolean;
   captureFocus?: boolean;
   onSetTheme?: () => void;
   onSetCaptureOptions?: () => void;
 };
 
-function renderSettingsPanel(overrides: SettingsTestOverrides) {
+const settingsOpened = (state: WorkspaceState, section: SettingsSection, settingId?: string | null) =>
+  reduce(state, { type: "view.set-settings-open", open: true, section, ...(settingId ? { settingId } : {}) }).state;
+
+/** The sheet with its page and mark held by the workspace reducer, the way the app holds them. */
+function ReducedSettings({ initialSection = "general", initialSetting, ...props }: SettingsTestOverrides & Omit<SettingsPanelProps, "section" | "settingMark" | "onLand">) {
+  const [state, setState] = React.useState(() => settingsOpened(emptyWorkspaceState(), initialSection, initialSetting));
   return React.createElement(SettingsPanel, {
+    ...props,
+    section: state.settingsSection ?? "general",
+    settingMark: state.settingsFocus,
+    onLand: (section, settingId) => setState((current) => settingsOpened(current, section, settingId)),
+  });
+}
+
+function renderSettingsPanel(overrides: SettingsTestOverrides) {
+  return React.createElement(ReducedSettings, {
     onClose() {},
     archivedThreads: [], worktreeSettings: deriveView(emptyWorkspaceState()).worktreeSettings, worktreeManagementError: null, worktreeManagementNotice: null,
     cli: deriveView(emptyWorkspaceState()).cli, onReadCli() {}, onSetCliInstalled() {},

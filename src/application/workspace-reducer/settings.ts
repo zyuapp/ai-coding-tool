@@ -207,8 +207,9 @@ export function reduceSettings(state: WorkspaceState, input: SettingsInput): Wor
         worktreeManagementLoading: state.worktreeManagementLoading || (input.open && section === "worktrees"),
         worktreeSettings: input.open ? state.worktreeSettings : { project: null, confirming: null, missingOpen: null, expandedThreads: [] },
         settingsSection: input.open ? section : null,
-        settingsFocus: input.open && section ? input.settingId ?? null : null,
-        ...(input.open ? {} : { computerUseSetup: false, capturingShortcut: null }),
+        settingsFocus: input.open && section && input.settingId ? { id: input.settingId, visit: (state.settingsFocus?.visit ?? 0) + 1 } : null,
+        /** Naming a page takes over from the computer-use setup that held settings open on its own. */
+        ...(input.open ? section ? { computerUseSetup: false } : {} : { computerUseSetup: false, capturingShortcut: null }),
       };
       /** Settings are drawn in the window, so a page that was in front cannot be left holding the keys. */
       const effects = input.open ? [...TAKE_KEYS] : stopCapture(state);

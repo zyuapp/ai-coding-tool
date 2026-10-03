@@ -39,9 +39,10 @@ test("a group's name beats the keyword that names its page", () => {
   assert.deepEqual(rankSettingsJumps("tailscale").map((option) => option.settingId), ["phone.tailscale", null]);
 });
 
-test("every group a page draws can be found by its heading", () => {
-  for (const [query, id] of [["installed engines", "engines.installed"], ["platform setup", "computer-use.platform"], ["linux runtime", "computer-use.linux-runtime"]]) {
-    assert.equal(rankSettingsJumps(query)[0]?.settingId, id, query);
+test("a group is found by its heading, and one drawn on a single platform by its page", () => {
+  assert.equal(rankSettingsJumps("installed engines")[0]?.settingId, "engines.installed");
+  for (const query of ["platform setup", "linux runtime"]) {
+    assert.deepEqual(rankSettingsJumps(query).map((option) => [option.section, option.settingId]), [["computer-use", null]], query);
   }
 });
 

@@ -1,8 +1,7 @@
 import type { ComputerUseAccessState } from "../../application/computer-use-access";
 import type { ComputerUsePermission } from "../../contracts/ipc";
 import { AvailabilitySection } from "./AvailabilitySection";
-import { SettingGroup, SettingRow } from "./SettingRow";
-import { settingControl } from "../../domain/settings-catalog";
+import { SettingRow } from "./SettingRow";
 
 export type ComputerUseSettingsProps = {
   /** Whether a run may see and operate other applications. */
@@ -31,27 +30,27 @@ export function ComputerUseSettings({ computerUse, onSetComputerUse, access: { p
           : "The agent can see and operate other applications. Off leaves it no way to reach them, whatever the platform setup below says."} />
 
       {!permissions && !mac ? (
-      <SettingGroup setting="computer-use.platform" aria-labelledby="runtime-heading" aria-live="polite">
+      <section className="settings-group" aria-labelledby="runtime-heading" aria-live="polite">
         <div className="settings-group-heading">
           <div>
-            <h3 id="runtime-heading">{settingControl("computer-use.platform").label}</h3>
+            <h3 id="runtime-heading">Platform setup</h3>
             <p>Checking what this computer can use…</p>
           </div>
           <span>Checking…</span>
         </div>
         {error && <p className="settings-error" role="alert">{error}</p>}
-      </SettingGroup>
+      </section>
       ) : linux ? (
-      <SettingGroup setting="computer-use.linux-runtime" aria-labelledby="runtime-heading" aria-live="polite">
+      <section className="settings-group" aria-labelledby="runtime-heading" aria-live="polite">
         <div className="settings-group-heading">
           <div>
-            <h3 id="runtime-heading">{settingControl("computer-use.linux-runtime").label}</h3>
+            <h3 id="runtime-heading">Linux runtime</h3>
             <p>{linux.message}</p>
           </div>
           <span className={ready ? "ready" : ""}>{linux.status === "available" ? "Ready" : linux.status === "limited" ? "Compositor-dependent" : "Unavailable"}</span>
         </div>
         {error && <p className="settings-error" role="alert">{error}</p>}
-      </SettingGroup>
+      </section>
       ) : mac ? (
       <section className="settings-group" aria-labelledby="permissions-heading" aria-live="polite">
         <div className="settings-group-heading">
@@ -76,16 +75,16 @@ export function ComputerUseSettings({ computerUse, onSetComputerUse, access: { p
         {restartRequired && <div className="settings-restart"><p>Restart AI Coding Tool to finish enabling computer use.</p><button type="button" onClick={onRestart}>Restart AI Coding Tool</button></div>}
       </section>
       ) : (
-      <SettingGroup setting="computer-use.platform" aria-labelledby="runtime-heading" aria-live="polite">
+      <section className="settings-group" aria-labelledby="runtime-heading" aria-live="polite">
         <div className="settings-group-heading">
           <div>
-            <h3 id="runtime-heading">{settingControl("computer-use.platform").label}</h3>
+            <h3 id="runtime-heading">Platform setup</h3>
             <p>Computer use is not available on this platform.</p>
           </div>
           <span>Unavailable</span>
         </div>
         {error && <p className="settings-error" role="alert">{error}</p>}
-      </SettingGroup>
+      </section>
       )}
 
       {mac && <p className="settings-privacy">Permission checks capture one frame and discard it immediately.</p>}

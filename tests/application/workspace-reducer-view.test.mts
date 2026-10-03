@@ -265,7 +265,7 @@ test("a settings row opens its page on the control it names, and closes the pane
   assert.equal(deriveView(state).jump, null);
   assert.ok(state.settingsOpen);
   assert.equal(state.settingsSection, "appearance");
-  assert.equal(state.settingsFocus, "appearance.ui-font");
+  assert.deepEqual(state.settingsFocus, { id: "appearance.ui-font", visit: 1 });
 
   const page = reduce(state, { type: "view.jump-choose-setting", section: "browser" }).state;
   assert.equal(page.settingsSection, "browser");
@@ -273,6 +273,15 @@ test("a settings row opens its page on the control it names, and closes the pane
 
   const shut = reduce(page, { type: "view.set-settings-open", open: false }).state;
   assert.equal(shut.settingsFocus, null);
+});
+
+test("landing on the same control again counts another visit, and naming a page ends computer-use setup", () => {
+  const land = { type: "view.set-settings-open", open: true, section: "appearance", settingId: "appearance.ui-font" } as const;
+  const once = reduce(workspace({ threads: [task("task-a")], computerUseSetup: true }), land).state;
+  assert.deepEqual(once.settingsFocus, { id: "appearance.ui-font", visit: 1 });
+  assert.equal(once.computerUseSetup, false);
+  assert.equal(deriveView(once).settingsSection, "appearance");
+  assert.deepEqual(reduce(once, land).state.settingsFocus, { id: "appearance.ui-font", visit: 2 });
 });
 
 test("the jump keystroke closes the panel it opened, and settings give way to it", () => {
