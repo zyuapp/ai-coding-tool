@@ -152,7 +152,10 @@ const startProjects = selector(
   (state) => {
     const own = orderProjects(state.projects);
     const others: Project[] = [];
-    for (const computer of state.computers.paired) if (computer.state && computer.status === "connected") others.push(...orderProjects(computer.state.projects));
+    for (const computer of state.computers.paired) {
+      const shown = computer.state;
+      if (shown && computer.status === "connected") others.push(...orderProjects(shown.projects.filter((project) => !project.unlisted || project.id === shown.draftProjectId)));
+    }
     return others.length ? [...own, ...others] : own;
   },
 );

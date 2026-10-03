@@ -126,7 +126,7 @@ const LEAVING_TYPES = new Set(["task.select", "worktree.open-thread", "view.jump
 
 /** Whether a command routed here means the window is leaving the paired computer it was showing. */
 export function leavesComputer(input: WorkspaceInput): boolean {
-  return LEAVING_TYPES.has(input.type);
+  return LEAVING_TYPES.has(input.type) || (input.type === "project.added" && input.start === true);
 }
 
 /** Commands that stay on this computer whatever thread is on screen: the window, its settings, and its drafts. */
@@ -200,7 +200,9 @@ export function routeInput(state: WorkspaceState, input: WorkspaceInput): InputR
     if (!input.computerId || input.computerId === "this") return LOCAL;
     const computer = state.computers.paired.find((item) => item.id === input.computerId);
     if (!computer) return { kind: "refuse", message: "That computer is no longer paired." };
-    return toward(computer, (holder) => forwarded(holder, [{ type: "project.add", root: input.root }]));
+    return toward(computer, (holder) => input.start
+      ? selecting(state, holder, [{ type: "project.add", root: input.root, start: true }])
+      : forwarded(holder, [{ type: "project.add", root: input.root }]));
   }
   if (!state.computers.paired.length || !isAppCommandType(input.type)) return LOCAL;
   const active = selectedComputer(state);

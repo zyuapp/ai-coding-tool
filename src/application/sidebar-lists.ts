@@ -44,7 +44,7 @@ export function sidebarLists(
     if (members.has(thread.id)) threadsByCoordinator.get(thread.parentId!)?.push(thread) ?? threadsByCoordinator.set(thread.parentId!, [thread]);
     else if (thread.projectId) threadsByProject.get(thread.projectId)?.push(thread) ?? threadsByProject.set(thread.projectId, [thread]);
   }
-  const ordered = orderSidebarProjects(projects, projectHosts);
+  const ordered = orderSidebarProjects(projects.filter((project) => !project.unlisted), projectHosts);
   /** The same threads ranked by what wants the user, which is the sidebar's other shape. */
   const activityThreads = coordinationSections(visibleThreads, busy, blocked);
   /** Ranked and stamped by when each chat last did something, so a tick that surfaced nothing moves none of them. */

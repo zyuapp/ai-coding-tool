@@ -33,7 +33,7 @@ export const projectEffects = {
   "add-project": async (effect, { dispatch, desktop }) => {
     try {
       const workspace = await desktop.registerProject(effect.root);
-      await dispatch({ type: "project.added", workspace, ...(effect.request === undefined ? {} : { request: effect.request }) });
+      await dispatch({ type: "project.added", workspace, ...(effect.request === undefined ? {} : { request: effect.request }), ...(effect.start ? { start: true as const } : {}) });
     } catch (error) {
       await dispatch({ type: "project.add-finished", ...(effect.request === undefined ? {} : { request: effect.request }), error: errorMessage(error) });
     }

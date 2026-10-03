@@ -5,6 +5,7 @@ import { reconcileLimitPauses } from "./limit-pauses.js";
 import { shownPageEffects } from "./workspace-reducer/browser-tabs.js";
 import { prunedWorkflowPanels, TAKE_KEYS } from "./workspace-reducer/dock-tabs.js";
 import { prunedFind } from "./workspace-reducer/find.js";
+import { settledUnlisted } from "./project-commands.js";
 import { rejected, settled } from "./workspace-reducer/shared.js";
 import { activeComputer, selectedComputer, leavesComputer, routeInput, type InputRoute } from "./computers.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
@@ -40,7 +41,7 @@ export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceT
   const left = leavingComputer(state, input);
   const applied = reconcileLimitPauses(left, reconcileSnoozes(left, apply(left, input), input), input);
   applied.effects = [...leftBehind(state, left), ...carried, ...applied.effects];
-  const transition = { ...applied, state: prunedWorkflowPanels(prunedFind(applied.state)) };
+  const transition = { ...applied, state: settledUnlisted(left, prunedWorkflowPanels(prunedFind(applied.state))) };
   if (transition.state.browserOrigins !== state.browserOrigins || (input.type === "task.set-policy" && transition.state !== state) || input.type === "store.loaded" || input.type === "preferences.loaded" || transition.effects.some((effect) => ["browser.open", "browser.navigate", "browser.act", "browser.history", "browser.reload"].includes(effect.type))) {
     transition.effects = [{ type: "browser.permissions", permissions: browserPermissions(transition.state) }, ...transition.effects];
   }
@@ -189,6 +190,7 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
     }
     /** The panel is a place the keystroke takes you to and back from, so the same keys close it. */
     case "thread.jump": return state.jump ? [{ type: "view.jump-close" }] : [...leaving, { type: "view.jump-open" }];
+    case "project.start": return [...leaving, ...(state.jump ? [{ type: "view.jump-close" } as AppCommand] : []), { type: "project.open", start: true }];
     /** A bar that is already open is the one being asked for again, so it keeps what it was searching. */
     case "find.open": return [state.find ? { type: "view.find-open" } : { type: "view.find-open", target: findTargetFor(state, surface) }];
     case "find.next":

@@ -21,7 +21,10 @@ export function ProjectAddDialog({ add, links, name, dispatch }: ProjectAddDialo
   const chosen = links.find((link) => link.id === add.computerId);
   const local = add.computerId === "this";
   const offline = !local && chosen?.status !== "connected";
-  const heading = `Add project on ${local ? name || "this computer" : chosen?.name ?? "unavailable computer"}`;
+  const place = local ? name || "this computer" : chosen?.name ?? "unavailable computer";
+  const heading = add.start ? (local ? "Start in a folder" : `Start in a folder on ${place}`) : `Add project on ${place}`;
+  /** Starting needs no device choice when this computer is the only one to start on. */
+  const devices = !add.start || !local || links.some((link) => link.status === "connected");
   const error = offline ? chosen?.error ?? "That computer is offline." : add.error;
   return createPortal(
     <div className="modal-scrim" role="dialog" aria-modal="true" aria-label={heading} ref={dialog} tabIndex={-1}
@@ -34,14 +37,14 @@ export function ProjectAddDialog({ add, links, name, dispatch }: ProjectAddDialo
       }}>
       <form className="modal-panel project-edit-panel" onSubmit={(event) => { event.preventDefault(); dispatch({ type: "view.add-project-submit" }); }}>
         <h2>{heading}</h2>
-        <label className="project-edit-field">
+        {devices && <label className="project-edit-field">
           <span>Device</span>
           <select value={add.computerId} disabled={add.saving} onChange={(event) => dispatch({ type: "view.add-project-device", computerId: event.target.value })}>
             <option value="this">This computer{name ? ` (${name})` : ""}</option>
             {links.filter((link) => link.status === "connected" || link.id === add.computerId).map((link) => <option key={link.id} value={link.id} disabled={link.status !== "connected"}>{link.name}</option>)}
             {!local && !chosen && <option value={add.computerId} disabled>Unavailable computer</option>}
           </select>
-        </label>
+        </label>}
         <label className="project-edit-field">
           <span>Folder</span>
           <div className="project-edit-path">
@@ -67,7 +70,7 @@ export function ProjectAddDialog({ add, links, name, dispatch }: ProjectAddDialo
         {error && <p className="project-edit-error" role="alert">{error}</p>}
         <div className="project-edit-actions">
           <button type="button" onClick={() => dispatch({ type: "view.add-project-close" })}>Cancel</button>
-          <button type="submit" className="primary" disabled={add.saving || offline || !add.root.trim()}>{add.saving ? "Opening…" : "Add project"}</button>
+          <button type="submit" className="primary" disabled={add.saving || offline || !add.root.trim()}>{add.saving ? "Opening…" : add.start ? "Start" : "Add project"}</button>
         </div>
       </form>
     </div>, document.body,

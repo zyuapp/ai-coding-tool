@@ -186,8 +186,9 @@ export type ImageCommand =
 export type ImageViewCommand = { type: "image.open"; source: string } | { type: "image.close" } | { type: "image.download" };
 
 export type ProjectCommand =
-  | { type: "project.open" }
-  | { type: "project.add"; root: string; computerId?: string }
+  /** `start` asks for a folder by path to start a thread in, rather than one to add to the sidebar. */
+  | { type: "project.open"; start?: true }
+  | { type: "project.add"; root: string; computerId?: string; start?: true }
   | { type: "view.add-project-close" }
   | { type: "view.add-project-device"; computerId: string }
   | { type: "view.add-project-path"; root: string }

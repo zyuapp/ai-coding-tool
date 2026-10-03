@@ -7,7 +7,7 @@ import type { WorkspaceCommandResult } from "./workspace-reducer/types.js";
 
 /** What opening a folder answered with, which is the only thing that ever moves a project into one. */
 export type ProjectEvent =
-  | { type: "project.opened"; workspace: WorkspaceRecord }
+  | { type: "project.opened"; workspace: WorkspaceRecord; unlisted?: true }
   /** The folder a project was moved to, now open. The project keeps its id, so its threads move with it. */
   | { type: "project.registered"; projectId: string; workspace: WorkspaceRecord }
   | { type: "project.register-failed"; projectId: string; message: string };
@@ -33,9 +33,14 @@ export function reduceProjects(state: WorkspaceState, input: ProjectInput): Proj
       /** A project that was moved no longer goes by the id its folder makes, so its folder finds it. */
       const existing = state.projects.find((project) => project.id === legacyProjectId(input.workspace.root) || sameRoot(project.root, input.workspace.root));
       const id = existing?.id ?? legacyProjectId(input.workspace.root);
+      /** Opening a folder outright lists it; opening it only to start a thread leaves a listed one listed. */
       const projects = existing
-        ? state.projects.map((project) => project.id === id ? { ...project, root: input.workspace.root, workspaceId: input.workspace.id } : project)
-        : [{ id, root: input.workspace.root, workspaceId: input.workspace.id, sortIndex: nextProjectSortIndex(state.projects) }, ...state.projects];
+        ? state.projects.map((project) => {
+          if (project.id !== id) return project;
+          const { unlisted: _unlisted, ...opened } = { ...project, root: input.workspace.root, workspaceId: input.workspace.id };
+          return input.unlisted && project.unlisted ? { ...opened, unlisted: true as const } : opened;
+        })
+        : [{ id, root: input.workspace.root, workspaceId: input.workspace.id, sortIndex: nextProjectSortIndex(state.projects), ...(input.unlisted ? { unlisted: true as const } : {}) }, ...state.projects];
       return settled({
         ...state,
         projects,
@@ -102,4 +107,25 @@ export function reduceProjects(state: WorkspaceState, input: ProjectInput): Proj
       return settled({ ...state, expandedProjects });
     }
   }
+}
+
+/**
+ * A project opened only to start a thread joins the sidebar once a thread starts there, and is let
+ * go once the draft moves elsewhere without one.
+ */
+export function settledUnlisted(before: WorkspaceState, state: WorkspaceState): WorkspaceState {
+  if (before.threads === state.threads && before.projects === state.projects && before.draftProjectId === state.draftProjectId) return state;
+  const unlisted = state.projects.filter((project) => project.unlisted);
+  if (!unlisted.length) return state;
+  const listed = new Set(unlisted.filter((project) => state.threads.some((thread) => thread.projectId === project.id)).map((project) => project.id));
+  const dropped = new Set(unlisted.filter((project) => !listed.has(project.id) && project.id !== state.draftProjectId).map((project) => project.id));
+  if (!listed.size && !dropped.size) return state;
+  const projects = state.projects.flatMap((project) => {
+    if (dropped.has(project.id)) return [];
+    if (!listed.has(project.id)) return [project];
+    const { unlisted: _unlisted, ...kept } = project;
+    return [kept];
+  });
+  if (!dropped.size) return { ...state, projects };
+  return { ...state, projects, expandedProjects: new Set([...state.expandedProjects].filter((id) => !dropped.has(id))) };
 }

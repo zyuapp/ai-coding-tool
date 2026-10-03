@@ -6,6 +6,8 @@ export type Project = {
   workspaceId?: string;
   /** Sidebar position. Only the user moves it. */
   sortIndex?: number;
+  /** Opened only to start a thread, so the sidebar leaves it out until a thread is started there. */
+  unlisted?: true;
 };
 
 /**
@@ -54,7 +56,7 @@ export function findProject(projects: Project[], reference: string): { project: 
 }
 
 export function isProject(value: unknown): value is Project {
-  return isRecord(value) && nonEmptyString(value.id) && nonEmptyString(value.root) && (value.name === undefined || nonEmptyString(value.name)) && (value.workspaceId === undefined || nonEmptyString(value.workspaceId)) && (value.sortIndex === undefined || finiteNumber(value.sortIndex));
+  return isRecord(value) && nonEmptyString(value.id) && nonEmptyString(value.root) && (value.name === undefined || nonEmptyString(value.name)) && (value.workspaceId === undefined || nonEmptyString(value.workspaceId)) && (value.sortIndex === undefined || finiteNumber(value.sortIndex)) && (value.unlisted === undefined || value.unlisted === true);
 }
 
 /** Whether two paths name the same folder, whatever trailing separators they were written with. */
