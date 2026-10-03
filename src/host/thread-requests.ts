@@ -1,6 +1,7 @@
 import { browserPermissions } from "../application/workspace-reducer.js";
 import { browserTarget, dockFor, dockOwner, terminalTarget, type WorkspaceState } from "../application/workspace-state.js";
-import { findThread, threadBusy, threadSummary, threadWaitResult } from "../application/thread-projection.js";
+import { findThread, threadSummary, threadWaitResult } from "../application/thread-projection.js";
+import { isWorking } from "../application/thread-activity.js";
 import { listAcrossComputers, readAcrossComputers } from "./thread-reads.js";
 import { isNews, unreadFindings } from "../domain/attention.js";
 import { scheduledRun } from "../application/run-testimony.js";
@@ -42,7 +43,7 @@ export function releaseThreadWaiters(waiters: ThreadWaiterList, state: Workspace
   let pending: ThreadWaiter[] | null = null;
   for (let index = 0; index < waiting.length; index += 1) {
     const waiter = waiting[index]!;
-    if (threadBusy(state, waiter.threadId)) {
+    if (isWorking(state, waiter.threadId)) {
       pending?.push(waiter);
     } else {
       pending ??= waiting.slice(0, index);
@@ -73,7 +74,7 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
       if (!thread) return failed(`No thread has the ID ${request.threadId}.`);
       const threadId = thread.id;
       const waited = threadWaitResult(host.state(), threadId, false);
-      if (!threadBusy(host.state(), threadId)) return ok(waited);
+      if (!isWorking(host.state(), threadId)) return ok(waited);
       return new Promise<ThreadResponse>((resolve) => {
         const waiter: ThreadWaiter = {
           threadId,

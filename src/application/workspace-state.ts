@@ -1,7 +1,8 @@
 import { sideChatView, threadTabView, type SideChatView, type ThreadTabView } from "./side-chat-view.js";
 import { worktreeMenuView, type WorktreeMenuSearch, type WorktreeMenuState } from "./worktree-menu.js";
 import type { ThreadRole } from "../domain/thread-role.js";
-import { workingSubagentThreadIds, runStatusFor, workflowThreadIds, type ApprovalView, type RunTransitionState } from "./thread-run-state.js";
+import { runStatusFor, type ApprovalView, type RunTransitionState } from "./thread-run-state.js";
+import { threadActivity, threadLists, waitingOn, type ThreadWait } from "./thread-activity.js";
 import { backfillProjectSortIndex } from "./project-order.js";
 import { sidebarLists } from "./sidebar-lists.js";
 import type { CoordinationSend } from "./coordination.js";
@@ -19,7 +20,7 @@ import type { ReadingPoint } from "../contracts/commands.js";
 import type { ReviewTarget } from "../domain/review.js";
 import type { ActiveGoal } from "../domain/goal.js";
 
-export type { ReadingPoint };
+export type { ReadingPoint, ThreadWait };
 import { AUTOMATION_PANEL, DIFF_PANEL, dockFor, dockOwner, dockSideChats, dockSubject, dockTabKind, frontDock, type ThreadDock } from "./workspace-dock.js";
 export {
   AUTOMATION_PANEL, DIFF_PANEL, DOCK_PICKER, DRAFT_DOCK, EMPTY_DOCK, WORKFLOW_PANEL, activeBrowserTab, activeTerminal, browserTarget,
@@ -62,7 +63,6 @@ import type { ThreadStoreData } from "../domain/thread-storage.js";
 import type { Thread } from "../domain/thread.js";
 import { worktreeName, type ManagedWorktree, type Worktree } from "../domain/worktree.js";
 import {
-  leavingThreadIds,
   locationOf,
   projectFor,
   threadWorkspaceId,
@@ -129,9 +129,6 @@ export type PendingRun = {
   /** Resumes a thread after its usage limit lifted; the next in line waits until this one has answered once. */
   warming?: true;
 };
-
-/** What a thread is waiting on before it can work: a checkout being made or removed, or a run finding one. */
-export type ThreadWait = "worktree" | "worktree-release" | "run";
 
 /** A checkout with the threads working in it, which is how a project offers starting one more there. */
 export type WorktreeGroup = {
@@ -622,38 +619,6 @@ export function currentFolder(state: WorkspaceState): string | null {
 }
 
 /**
- * Threads that are working, which is more than the threads with a run in them: a send still finding
- * its checkout, and a checkout being made, are both work the thread is waiting on.
- */
-export function busyThreadIds(state: WorkspaceState): Set<string> {
-  const busy = new Set(Object.keys(state.activeRuns));
-  for (const pending of Object.values(state.pendingRuns)) if (pending.taskId) busy.add(pending.taskId);
-  for (const taskId of state.creatingWorktrees) busy.add(taskId);
-  for (const taskId of workflowThreadIds(state)) busy.add(taskId);
-  for (const taskId of workingSubagentThreadIds(state)) busy.add(taskId);
-  /** A checkout on its way out is ground about to move, so every thread standing on it waits. */
-  for (const taskId of leavingThreadIds(state)) busy.add(taskId);
-  return busy;
-}
-
-/** Threads stopped on a question only the user can answer, which outranks any work they were doing. */
-export function blockedThreadIds(state: WorkspaceState): Set<string> {
-  return new Set(Object.values(state.activeRuns).filter((run) => run.status === "awaiting-approval").map((run) => run.taskId));
-}
-
-/** What the current thread is waiting on, if anything: its own checkout, or where a send will run. */
-export function waitFor(state: WorkspaceState, currentThread: Thread | undefined): ThreadWait | null {
-  if (currentThread && state.creatingWorktrees.includes(currentThread.id)) return "worktree";
-  if (currentThread && leavingThreadIds(state).has(currentThread.id)) return "worktree-release";
-  const key = promptKey(state);
-  const resolving = Object.values(state.pendingRuns).find((pending) =>
-    (currentThread !== undefined && pending.taskId === currentThread.id) || pending.draftKey === key);
-  if (!resolving) return null;
-  return resolving.creatingWorktree ? "worktree" : "run";
-}
-
-/** Composer drafts live per thread, with one draft per project for the not-yet-created thread. */
-/**
  * Which composer the window is typing into. While a paired computer's thread is on screen it is that
  * thread's, so the draft typed for it stays keyed to it here and never travels as keystrokes.
  */
@@ -727,9 +692,8 @@ function engineView(state: WorkspaceState, currentThread: Thread | undefined) {
  * visible order.
  */
 export function threadSlots(state: WorkspaceState): string[] {
-  const forked = sideChatIds(state);
-  const visible = state.threads.filter((thread) => !forked.has(thread.id) && thread.archivedAt === undefined);
-  return sidebarLists(state, state.projects, visible, busyThreadIds(state), blockedThreadIds(state)).threadSlots;
+  const { ranked, blocked } = threadActivity(state);
+  return sidebarLists(state, state.projects, threadLists(state).visibleThreads, ranked, blocked).threadSlots;
 }
 
 /** Everything the UI reads, derived in one place so components never reach into raw state. */
@@ -811,9 +775,9 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state)
     worktreeManagementError: state.worktreeManagementError,
     worktreeManagementNotice: state.worktreeManagementNotice,
     location: locationOf(state, currentThread),
-    worktreeMenu: worktreeMenuView(state, currentThread, visibleThreads, busy, blocked, window),
+    worktreeMenu: worktreeMenuView(state, currentThread, visibleThreads, window),
     worktreeDeleteConfirmation: managedWorktrees?.find((item) => item.root === state.worktreeSettings.confirming && !item.deleting) ?? null,
-    waitingOn: waitFor(state, currentThread),
+    waitingOn: waitingOn(state, currentThread?.id, promptKey(state)),
     /** The checkout the current thread works in, which is what Git is read from and moved. */
     workspaceId,
     draftBranch: state.draftBranch, draftWorktree: state.draftWorktree, draftWorktreeId: state.draftWorktreeId, draftRole: state.draftRole,

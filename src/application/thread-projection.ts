@@ -1,4 +1,5 @@
-import { runStatusFor, workflowThreadIds } from "./thread-run-state.js";
+import { runStatusFor } from "./thread-run-state.js";
+import { threadActivity } from "./thread-activity.js";
 import { projectFor, worktreeFor } from "./thread-location.js";
 import { sideChatIds, type WorkspaceState } from "./workspace-state.js";
 import type { ProjectScope, ThreadFilter, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../contracts/threads.js";
@@ -21,18 +22,6 @@ export function resolveScope(state: WorkspaceState, callerThreadId: string, proj
   return "error" in match ? { error: match.error } : { kind: "project", projectId: match.project.id };
 }
 
-/**
- * A thread is working while a run is going, resolving, or still queued behind the one that is, and
- * while it waits for its usage limit to lift.
- */
-export function threadBusy(state: WorkspaceState, threadId: string): boolean {
-  return Boolean(state.activeRuns[threadId])
-    || Boolean(state.threads.find((thread) => thread.id === threadId)?.limitPause)
-    || Object.values(state.pendingRuns).some((pending) => pending.taskId === threadId)
-    || Boolean(state.queuedMessages[threadId]?.length)
-    || Boolean(state.workflows[threadId]?.some((workflow) => workflow.status === "running"));
-}
-
 export function threadWaitResult(state: WorkspaceState, threadId: string, timedOut: boolean): ThreadWaitResult | null {
   const thread = findThread(state, threadId);
   if (!thread) return null;
@@ -49,7 +38,6 @@ export function threadWaitResult(state: WorkspaceState, threadId: string, timedO
 type ProjectionIndex = {
   projects: Map<string, Project>;
   worktrees: Map<string, Worktree>;
-  busy: Set<string>;
 };
 
 /** Shared lookups for a whole thread listing. First wins, matching the array searches they replace. */
@@ -58,12 +46,7 @@ function projectionIndex(state: WorkspaceState): ProjectionIndex {
   for (const project of state.projects) if (!projects.has(project.id)) projects.set(project.id, project);
   const worktrees = new Map<string, Worktree>();
   for (const worktree of state.worktrees) if (!worktrees.has(worktree.id)) worktrees.set(worktree.id, worktree);
-  const busy = new Set(Object.keys(state.activeRuns));
-  for (const pending of Object.values(state.pendingRuns)) if (pending.taskId) busy.add(pending.taskId);
-  for (const [threadId, queued] of Object.entries(state.queuedMessages)) if (queued.length) busy.add(threadId);
-  for (const threadId of workflowThreadIds(state)) busy.add(threadId);
-  for (const thread of state.threads) if (thread.limitPause) busy.add(thread.id);
-  return { projects, worktrees, busy };
+  return { projects, worktrees };
 }
 
 function projectThreadSummary(state: WorkspaceState, thread: Thread, activity: number, index?: ProjectionIndex, attachments?: number): ThreadSummary {
@@ -76,7 +59,7 @@ function projectThreadSummary(state: WorkspaceState, thread: Thread, activity: n
     ...(thread.projectId ? { projectId: thread.projectId } : {}),
     ...(project ? { projectRoot: project.root } : {}),
     ...(worktree ? { worktreeId: worktree.id, worktreeRoot: worktree.root } : {}),
-    status: (index ? index.busy.has(thread.id) : threadBusy(state, thread.id)) ? "running" : runStatusFor(state, thread.id),
+    status: threadActivity(state).working.has(thread.id) ? "running" : runStatusFor(state, thread.id),
     ...(thread.limitPause ? { pausedUntil: thread.limitPause.resetsAt } : {}),
     archived: thread.archivedAt !== undefined,
     createdAt: threadCreatedAt(thread),
@@ -142,6 +125,7 @@ export function threadSummaries(state: WorkspaceState, filter: ThreadFilter, at:
 export function threadHandleOptions(state: WorkspaceState, draftKey: string): ThreadHandleOption[] {
   const forked = sideChatIds(state);
   const index = projectionIndex(state);
+  const { working } = threadActivity(state);
   const caller = state.threads.find((thread) => thread.id === draftKey);
   /** A draft belonging to no thread yet is being written wherever the sidebar is pointed. */
   const projectId = caller ? caller.projectId ?? null : state.draftProjectId;
@@ -154,7 +138,7 @@ export function threadHandleOptions(state: WorkspaceState, draftKey: string): Th
         title: thread.title,
         project: project ? projectName(project) : null,
         inScope: (thread.projectId ?? null) === projectId,
-        running: index.busy.has(thread.id),
+        running: working.has(thread.id),
         lastActivityAt: threadActivityAt(thread),
       };
     }));

@@ -8,8 +8,9 @@ import { reduceSettings, stopCapture } from "./settings.js";
 import { reduceThreadCommands } from "./thread-commands.js";
 import { projectFor } from "../thread-location.js";
 import { selectedComputer } from "../computers.js";
-import { busyThreadIds, dockHoldsTab, findTargetFor, reachableVisit, type FindState, type WorkspaceState } from "../workspace-state.js";
+import { dockHoldsTab, findTargetFor, reachableVisit, type FindState, type WorkspaceState } from "../workspace-state.js";
 import { jumpView } from "../workspace-jump.js";
+import { threadActivity } from "../thread-activity.js";
 import { refreshEngines } from "../engine-access.js";
 import { readAttention } from "../../domain/attention.js";
 import { memoizedFindHits, sameFindTarget, searchesItself, stepMatch, type FindResults } from "../../domain/find.js";
@@ -134,7 +135,7 @@ export function reduceView(state: WorkspaceState, input: ViewInput): WorkspaceTr
       return settled(state.jump ? { ...state, jump: { query: input.query, index: 0 } } : state);
 
     case "view.jump-step": {
-      const jump = jumpView(state, busyThreadIds(state));
+      const jump = jumpView(state, threadActivity(state).working);
       if (!jump) return settled(state);
       return settled({ ...state, jump: { query: jump.query, index: stepMatch(jump.index, input.delta, jump.options.length) } });
     }

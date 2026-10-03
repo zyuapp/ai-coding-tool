@@ -231,10 +231,10 @@ export function useThreadRows({
     schedules.has(thread.id) && <AlarmClock key="automation" className="task-automation" size={13} aria-label={scheduleLabel(schedules.get(thread.id)!)} />,
     blockedThreadIds.has(thread.id) || membersIn(thread, blockedThreadIds)
       ? <span key="status" className="task-attention approval" aria-label={blockedThreadIds.has(thread.id) ? BLOCKED_LABEL : MEMBER_BLOCKED_LABEL} />
-      : runningThreadIds.has(thread.id) || membersIn(thread, runningThreadIds)
-        ? <ThreadSpinner key="status" />
-        : thread.limitPause
-          ? <Hourglass key="status" className="task-paused" size={13} aria-label={pauseSummary(thread.limitPause, limitPositions.get(thread.id) ?? null, Date.now())} />
+      : thread.limitPause
+        ? <Hourglass key="status" className="task-paused" size={13} aria-label={pauseSummary(thread.limitPause, limitPositions.get(thread.id) ?? null, Date.now())} />
+        : runningThreadIds.has(thread.id) || membersIn(thread, runningThreadIds)
+          ? <ThreadSpinner key="status" />
           : attentionMark(thread, sideChatAttention.has(thread.id), decisionCount(thread, coordination.threadsByCoordinator)),
     <ThreadEngineIcon key="engine" engine={thread.engine} className="task-engine" size={13} />,
   ].filter(Boolean);

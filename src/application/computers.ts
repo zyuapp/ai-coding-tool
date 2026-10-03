@@ -8,15 +8,14 @@ import { REMOTE_UNSUPPORTED, supportsComputerCommand } from "../contracts/comput
 import type { AppCommand } from "../contracts/commands.js";
 import { commandLeaves, commandPlacement, isAppCommandType, type CommandPlacement, type PlacedCommand } from "../contracts/workspace-view-input.js";
 import type { Annotation, PastedText } from "../domain/conversation.js";
-import { hasUnreadAttention } from "../domain/attention.js";
-import { withWatchedThreads } from "../domain/automation.js";
 import type { ComputerFilter, ComputerLink, ComputerPairing, DiscoveredComputer } from "../domain/computers.js";
 import type { Project } from "../domain/project.js";
 import type { Thread } from "../domain/thread.js";
 import type { Worktree } from "../domain/worktree.js";
 import { MAIN_COMPOSER } from "./composer-attachments.js";
 import { annotationsFor, filesFor, pastesFor } from "./composer-drafts.js";
-import { blockedThreadIds, busyThreadIds, promptKey, sideChatIds, type WorkspaceState } from "./workspace-state.js";
+import { promptKey, type WorkspaceState } from "./workspace-state.js";
+import { threadActivity, threadLists } from "./thread-activity.js";
 import type { WorkspaceInput } from "./workspace-reducer.js";
 import { frontDock } from "./workspace-dock.js";
 
@@ -274,28 +273,9 @@ export function createComputerCapabilitySnapshot() {
   };
 }
 
-/** The threads a reachable paired computer would list, less the ones it has filed away. */
-/** `ranked` is `busy` plus the threads a live watch holds in Running, which is what the activity list ranks by. */
-export type RemoteThreads = { computer: PairedComputer; visible: Thread[]; busy: Set<string>; ranked: Set<string>; blocked: Set<string> };
-
-const remoteThreadCache = new WeakMap<WorkspaceState, Omit<RemoteThreads, "computer">>();
-
-function remoteThreads(computer: PairedComputer): RemoteThreads | null {
-  const remote = computer.state;
-  if (computer.status !== "connected" || !remote) return null;
-  let held = remoteThreadCache.get(remote);
-  if (!held) {
-    const forked = sideChatIds(remote);
-    const busy = busyThreadIds(remote);
-    held = {
-      visible: remote.threads.filter((thread) => thread.archivedAt === undefined && !forked.has(thread.id)),
-      busy,
-      ranked: withWatchedThreads(busy, remote.automations),
-      blocked: blockedThreadIds(remote),
-    };
-    remoteThreadCache.set(remote, held);
-  }
-  return { computer, ...held };
+/** The computer's state while its line is up; a computer that cannot be reached lists nothing. */
+function reachable(computer: PairedComputer): WorkspaceState | null {
+  return computer.status === "connected" ? computer.state : null;
 }
 
 /** Which computers the sidebar's filter lets through. */
@@ -330,23 +310,25 @@ export function remoteCollections(computers: ComputersState): RemoteCollections 
   if (!shown.length) return NO_REMOTE_COLLECTIONS;
   const gathered: RemoteCollections = { threads: [], projects: [], worktrees: [], worktreeThreadIds: new Set(), busy: new Set(), ranked: new Set(), blocked: new Set(), threadHosts: new Map(), projectHosts: new Map(), unreadCount: 0 };
   for (const computer of shown) {
-    const held = remoteThreads(computer);
-    if (!held) continue;
-    const host: ThreadHost = { id: computer.id, name: computer.name, offline: computer.status !== "connected" };
-    for (const thread of held.visible) {
+    const remote = reachable(computer);
+    if (!remote) continue;
+    const host: ThreadHost = { id: computer.id, name: computer.name, offline: false };
+    const lists = threadLists(remote);
+    for (const thread of lists.visibleThreads) {
       gathered.threads.push(thread);
       gathered.threadHosts.set(thread.id, host);
-      if (thread.worktreeId) gathered.worktreeThreadIds.add(thread.id);
-      if (hasUnreadAttention(thread)) gathered.unreadCount += 1;
     }
-    for (const project of computer.state!.projects) {
+    for (const project of remote.projects) {
       gathered.projects.push(project);
       gathered.projectHosts.set(project.id, host);
     }
-    for (const worktree of computer.state!.worktrees) gathered.worktrees.push(worktree);
-    for (const id of held.busy) gathered.busy.add(id);
-    for (const id of held.ranked) gathered.ranked.add(id);
-    for (const id of held.blocked) gathered.blocked.add(id);
+    for (const worktree of remote.worktrees) gathered.worktrees.push(worktree);
+    const activity = threadActivity(remote);
+    for (const id of lists.worktreeThreadIds) gathered.worktreeThreadIds.add(id);
+    for (const id of activity.working) gathered.busy.add(id);
+    for (const id of activity.ranked) gathered.ranked.add(id);
+    for (const id of activity.blocked) gathered.blocked.add(id);
+    gathered.unreadCount += lists.unreadCount;
   }
   return gathered;
 }
@@ -355,9 +337,8 @@ export function remoteCollections(computers: ComputersState): RemoteCollections 
 export function remoteUnreadCount(computers: ComputersState): number {
   let count = 0;
   for (const computer of computers.paired) {
-    const held = remoteThreads(computer);
-    if (!held) continue;
-    for (const thread of held.visible) if (hasUnreadAttention(thread)) count += 1;
+    const remote = reachable(computer);
+    if (remote) count += threadLists(remote).unreadCount;
   }
   return count;
 }

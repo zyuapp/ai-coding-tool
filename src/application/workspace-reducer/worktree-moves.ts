@@ -4,7 +4,7 @@ import type { Thread } from "../../domain/thread.js";
 import { worktreeName, type Worktree } from "../../domain/worktree.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, threadWorkspaceRoot, worktreeById } from "../thread-location.js";
 import { updateThread } from "../thread-run-state.js";
-import { threadBusy } from "../thread-projection.js";
+import { isWorking } from "../thread-activity.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import { rereadDiff } from "./diff-reads.js";
 import { WORKTREE_CREATING_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_PROJECT_ERROR, WORKTREE_RELEASING_ERROR, WORKTREE_RUNNING_ERROR } from "./errors.js";
@@ -36,7 +36,7 @@ export function reduceWorktreeMove(state: WorkspaceState, input: Extract<TaskCom
   if (!thread || !project?.workspaceId) return rejected(state, WORKTREE_PROJECT_ERROR);
   if (state.creatingWorktrees.includes(thread.id)) return rejected(state, WORKTREE_CREATING_ERROR);
   if (leavingThreadIds(state).has(thread.id)) return rejected(state, WORKTREE_RELEASING_ERROR);
-  if (threadBusy(state, thread.id)) return rejected(state, WORKTREE_RUNNING_ERROR);
+  if (isWorking(state, thread.id)) return rejected(state, WORKTREE_RUNNING_ERROR);
   const destination = input.destination;
   if (destination.kind === "new") {
     return settled(withCreatingWorktree(state, thread.id), [{ type: "create-worktree", taskId: thread.id, projectRoot: threadWorkspaceRoot(state, thread)!, move: true, name: thread.title, projectId: project.id }]);

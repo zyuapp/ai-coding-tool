@@ -193,16 +193,6 @@ function updateWorkflow<T extends RunTransitionState>(state: T, threadId: string
     : [...workflows, update(undefined)]);
 }
 
-/** The threads driving a workflow right now. It outlives the run that started it, so the thread is still working. */
-export function workflowThreadIds(state: Pick<RunTransitionState, "workflows">): string[] {
-  return Object.entries(state.workflows).filter(([, workflows]) => workflows.some((workflow) => workflow.status === "running")).map(([threadId]) => threadId);
-}
-
-/** Working subagents keep their thread running; background shells and monitors only keep its session alive. */
-export function workingSubagentThreadIds(state: Pick<RunTransitionState, "subagents">): string[] {
-  return Object.entries(state.subagents).filter(([, subagents]) => subagents.some((subagent) => subagent.status === "working")).map(([threadId]) => threadId);
-}
-
 export function runStatusFor(state: RunTransitionState, threadId: string | null): ThreadRunStatus {
   return threadId ? state.runStatuses[threadId] ?? "idle" : "idle";
 }

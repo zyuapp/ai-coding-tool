@@ -3,15 +3,18 @@ import { threadActivityAt, type Thread } from "../domain/thread.js";
 import { worktreeName } from "../domain/worktree.js";
 import { locationOf, projectFor, worktreeFor } from "./thread-location.js";
 import type { WorkspaceState } from "./workspace-state.js";
+import { threadActivity, threadStatus, type ThreadStatus } from "./thread-activity.js";
 
 export const WORKTREE_MENU = "session:location";
 export type WorktreeMenuList = "threads" | "destinations";
 export type WorktreeMenuSearch = Record<WorktreeMenuList, string>;
 export type WorktreeMenuChoice = { id: string; title: string; detail: string; current?: boolean; disabled?: boolean; command: AppCommand };
 
-function status(thread: Thread, busy: Set<string>, blocked: Set<string>) {
-  if (blocked.has(thread.id)) return "Needs input";
-  if (busy.has(thread.id)) return "Working";
+const ACTIVITY_LABELS: Record<Exclude<ThreadStatus, "idle">, string> = { blocked: "Needs input", paused: "Paused", working: "Working" };
+
+function status(state: WorkspaceState, thread: Thread) {
+  const activity = threadStatus(state, thread.id);
+  if (activity !== "idle") return ACTIVITY_LABELS[activity];
   if (thread.outcome === "failed") return "Failed";
   if (thread.outcome === "stopped") return "Stopped";
   if (thread.outcome === "finished") return "Done";
@@ -26,9 +29,10 @@ export type WorktreeMenuState = Pick<WorkspaceState, "openMenu" | "worktreeMenuS
  * is `window`'s, which is the state on screen unless the thread is a paired computer's: its lists
  * are that computer's, filled when this window opens the menu and narrowed by what is typed here.
  */
-export function worktreeMenuView(state: WorkspaceState, current: Thread | undefined, visible: Thread[], busy: Set<string>, blocked: Set<string>, window: WorktreeMenuState = state) {
+export function worktreeMenuView(state: WorkspaceState, current: Thread | undefined, visible: Thread[], window: WorktreeMenuState = state) {
   const project = projectFor(state, current);
   if (!current || !project) return null;
+  const busy = threadActivity(state).working;
   const worktree = worktreeFor(state, current);
   const members = worktree ? visible.filter((thread) => thread.worktreeId === worktree.id) : [];
   const search = window.worktreeMenuSearch;
@@ -38,7 +42,7 @@ export function worktreeMenuView(state: WorkspaceState, current: Thread | undefi
   if (open) {
     const matching = members.filter((thread) => thread.title.toLocaleLowerCase().includes(threadQuery));
     matching.sort((a, b) => Number(b.id === current.id) - Number(a.id === current.id) || threadActivityAt(b) - threadActivityAt(a));
-    for (const thread of matching) threads.push({ id: thread.id, title: thread.title, detail: thread.id === current.id ? "Current thread" : status(thread, busy, blocked), current: thread.id === current.id, command: { type: "task.select", taskId: thread.id } });
+    for (const thread of matching) threads.push({ id: thread.id, title: thread.title, detail: thread.id === current.id ? "Current thread" : status(state, thread), current: thread.id === current.id, command: { type: "task.select", taskId: thread.id } });
   }
   const managed = new Map(state.managedWorktrees?.map((item) => [item.root, item]));
   const deleting = new Set(state.deletingWorktrees);

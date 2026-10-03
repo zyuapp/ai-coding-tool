@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { findThread, resolveScope, threadBusy, threadHandleOptions, threadSummaries, threadTranscript, threadWaitResult } from "../../src/application/thread-projection.ts";
+import { findThread, resolveScope, threadHandleOptions, threadSummaries, threadTranscript, threadWaitResult } from "../../src/application/thread-projection.ts";
 import { emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { ThreadFilter } from "../../src/contracts/threads.ts";
 import type { ConversationMessage } from "../../src/domain/conversation.ts";
@@ -156,7 +156,7 @@ test("a long message is cut short rather than shipped whole", () => {
   assert.ok(only.text.endsWith("…"));
 });
 
-test("a thread counts as working while a run is going, resolving, or still queued", () => {
+test("a summary reports a thread running while a run is going, resolving, or still queued", () => {
   const threads = [task("running"), task("resolving"), task("queued"), task("done")];
   const state = workspace(threads, {
     activeRuns: { running: {
@@ -176,7 +176,6 @@ test("a thread counts as working while a run is going, resolving, or still queue
     queuedMessages: { queued: [{ id: "message-1", text: "next", prompt: "next", attachments: [] }] },
   });
 
-  assert.deepEqual(threads.map((item) => threadBusy(state, item.id)), [true, true, true, false]);
   assert.deepEqual(threadSummaries(state, { scope: { kind: "all" } }, NOW).filter((thread) => thread.status === "running").map((thread) => thread.id).sort(), ["queued", "resolving", "running"]);
 });
 
@@ -251,7 +250,6 @@ test("thread options keep first-match project and busy semantics while sharing t
     ],
     draftProjectId: "draft",
     queuedMessages: { "empty-queue": [] },
-    creatingWorktrees: ["empty-queue"],
     pendingRuns: {
       pending: { id: "pending", runId: "run", origin: "composer", taskId: "resolving", text: "go", prompt: "go", attachments: [] },
     },
@@ -262,7 +260,7 @@ test("thread options keep first-match project and busy semantics while sharing t
     ["first", "first/same-title"],
     ["second", "first/same-title-cond"],
   ]);
-  assert.equal(options.find((option) => option.id === "empty-queue")!.running, false, "an empty queue and a checkout alone are not a run");
+  assert.equal(options.find((option) => option.id === "empty-queue")!.running, false, "an empty queue is not work");
   assert.equal(options.find((option) => option.id === "resolving")!.running, true);
 });
 

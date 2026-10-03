@@ -10,7 +10,7 @@ import { ATTACHMENTS_ELSEWHERE, FILES_ELSEWHERE, PANEL_ELSEWHERE, routeInput, re
 import { reduce, type WorkspaceEffect, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { ComputerLink } from "../../src/domain/computers.ts";
-import { activeRun, effectOf, task, workspace } from "./workspace-reducer-fixtures.mts";
+import { activeRun, automation, effectOf, task, workspace } from "./workspace-reducer-fixtures.mts";
 
 const link = (id: string, overrides: Partial<ComputerLink> = {}): ComputerLink => ({ id, name: id, host: `${id}.tail.ts.net`, status: "connected", error: null, pairedAt: 1, ...overrides });
 
@@ -356,19 +356,22 @@ test("the sidebar lists every computer's threads, tagged, and the filter narrows
   assert.deepEqual(deriveView({ ...state, computers: { ...state.computers, filter: "linux" } }).activityThreads.threads.map((thread) => thread.id), ["remote-thread"]);
 });
 
-test("a paired computer's finished thread follows its working subagents while background processes remain", () => {
+test("a thread ranks and marks the same on a paired computer as on this one", () => {
   const finished = { ...remoteThread, outcome: "finished" as const };
-  const remote: WorkspaceState = { ...remoteState, threads: [finished], backgroundProcesses: { "remote-thread": [{ id: "watch", kind: "monitor", description: "CI" }] } };
-  const view = deriveView(withComputers(workspace({ sidebarMode: "activity" }), [paired("linux", remote)]));
-  assert.deepEqual(view.activityThreads.priority.map((thread) => thread.id), ["remote-thread"]);
-  assert.equal(view.runningThreadIds.has("remote-thread"), false);
-  const delegated: WorkspaceState = { ...remote, subagents: { "remote-thread": [{ id: "agent", description: "Review", status: "working", startedAt: 1, activity: [] }] } };
-  const running = deriveView(withComputers(workspace({ sidebarMode: "activity" }), [paired("linux", delegated)]));
-  assert.deepEqual(running.activityThreads.running.map((thread) => thread.id), ["remote-thread"]);
-  assert.equal(running.runningThreadIds.has("remote-thread"), true);
-  const settled = deriveView(withComputers(workspace({ sidebarMode: "activity" }), [paired("linux", remote)]));
-  assert.deepEqual(settled.activityThreads.priority.map((thread) => thread.id), ["remote-thread"]);
-  assert.equal(settled.runningThreadIds.has("remote-thread"), false);
+  const conditions: Array<[string, Partial<WorkspaceState>, "priority" | "running", boolean]> = [
+    ["finished, with background processes alone", { backgroundProcesses: { "remote-thread": [{ id: "watch", kind: "monitor", description: "CI" }] } }, "priority", false],
+    ["a working subagent", { subagents: { "remote-thread": [{ id: "agent", description: "Review", status: "working", startedAt: 1, activity: [] }] } }, "running", true],
+    ["a session limit", { threads: [{ ...remoteThread, limitPause: { resetsAt: 10, window: "session", pausedAt: 1 } }] }, "running", true],
+    ["a live watch", { automations: [{ ...automation("remote-thread"), endsWhen: "it merges" }] }, "running", false],
+  ];
+  for (const [condition, overrides, section, working] of conditions) {
+    const here = workspace({ ...remoteState, threads: [finished], sidebarMode: "activity", ...overrides });
+    const there = withComputers(workspace({ sidebarMode: "activity" }), [paired("linux", { ...remoteState, threads: [finished], ...overrides })]);
+    for (const view of [deriveView(here), deriveView(there)]) {
+      assert.deepEqual(view.activityThreads[section].map((thread) => thread.id), ["remote-thread"], condition);
+      assert.equal(view.runningThreadIds.has("remote-thread"), working, condition);
+    }
+  }
 });
 
 test("remote lists and attention follow connection changes while preserving threads for reconnection", () => {

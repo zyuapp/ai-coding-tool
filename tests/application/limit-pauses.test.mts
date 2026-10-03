@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, test, vi } from "vitest";
 import { reduce, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
 import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
-import { threadBusy, threadSummary } from "../../src/application/thread-projection.ts";
+import { threadSummary } from "../../src/application/thread-projection.ts";
+import { isWorking } from "../../src/application/thread-activity.ts";
 import { isRunEvent } from "../../src/contracts/ipc.ts";
 import { isWorkspaceViewInput } from "../../src/contracts/workspace-view-input.ts";
 import { parseThreadStore, serializeThreadStore } from "../../src/domain/thread-storage.ts";
@@ -53,7 +54,7 @@ test("a session limit pauses the thread in line and wakes up when the limit lift
   assert.equal(pause.resetsAt, session.resetsAt);
   assert.equal(thread(paused.state, "a").outcome, undefined, "a limit that lifts on its own is not a failure to look at");
   assert.deepEqual(effectOf(paused, "schedule-limit-reset"), { type: "schedule-limit-reset", at: session.resetsAt });
-  assert.equal(threadBusy(paused.state, "a"), true, "a wait on the thread keeps waiting through the pause");
+  assert.equal(isWorking(paused.state, "a"), true, "a wait on the thread keeps waiting through the pause");
   assert.equal(threadSummary(paused.state, thread(paused.state, "a")).status, "running");
   assert.equal(threadSummary(paused.state, thread(paused.state, "a")).pausedUntil, session.resetsAt);
   assert.equal(deriveView(paused.state).limitPause?.position, 1);
@@ -197,7 +198,7 @@ test("not resuming hands what was written back to the composer", () => {
   assert.equal(thread(archived.state, "a").limitPause, undefined);
   assert.equal(archived.state.queuedMessages.a, undefined);
   assert.equal(archived.state.prompts.a, "held");
-  assert.equal(threadBusy(archived.state, "a"), false);
+  assert.equal(isWorking(archived.state, "a"), false);
 });
 
 test("a cut-short workflow is resumed rather than restarted, and goes after the others", () => {

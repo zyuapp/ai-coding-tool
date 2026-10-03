@@ -1,5 +1,6 @@
 /** What a coordinator and its threads are told, and how the sidebar groups them. */
-import { busyThreadIds, blockedThreadIds, type WorkspaceState } from "./workspace-state.js";
+import type { WorkspaceState } from "./workspace-state.js";
+import { threadActivity, threadStatus, type ThreadStatus } from "./thread-activity.js";
 import { activitySections, type ActivitySections } from "./thread-order.js";
 import { coordinationDecisions, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, openDecisions, type CoordinationNote, type Decision, type ThreadBrief } from "../domain/coordination.js";
 import type { Thread } from "../domain/thread.js";
@@ -83,18 +84,21 @@ export function coordinationNote(threadId: string, text: string, at: number, urg
 
 /** Threads under a coordinator still doing work. One waiting on the user's approval is not. */
 export function workingMembers(state: WorkspaceState, leadId: string): Thread[] {
-  const busy = busyThreadIds(state);
-  const blocked = blockedThreadIds(state);
-  return coordinatedThreads(state.threads, leadId).filter((thread) => busy.has(thread.id) && !blocked.has(thread.id));
+  const { working, blocked } = threadActivity(state);
+  return coordinatedThreads(state.threads, leadId).filter((thread) => working.has(thread.id) && !blocked.has(thread.id));
 }
+
+const ROSTER_STATUS: Record<ThreadStatus, string> = {
+  blocked: "waiting for the user's approval",
+  paused: "paused until its usage limit lifts",
+  working: "working",
+  idle: "idle",
+};
 
 /** One line per thread working under the coordinator, as it stands right now. */
 function roster(state: WorkspaceState, leadId: string): string[] {
-  const busy = busyThreadIds(state);
-  const blocked = blockedThreadIds(state);
   return coordinatedThreads(state.threads, leadId).map((thread) => {
-    const status = blocked.has(thread.id) ? "waiting for the user's approval" : busy.has(thread.id) ? "working" : "idle";
-    const parts = [`- "${thread.title}" [${thread.id}] · ${status}`];
+    const parts = [`- "${thread.title}" [${thread.id}] · ${ROSTER_STATUS[threadStatus(state, thread.id)]}`];
     if (thread.report) parts.push(`reported ${thread.report.state}: ${thread.report.summary}`);
     for (const decision of openDecisions(thread)) parts.push(`waiting on the user to decide: ${decision.question}`);
     return parts.join(" · ");

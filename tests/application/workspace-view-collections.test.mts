@@ -124,18 +124,3 @@ test("a subagent stored mid-work comes back stopped, since its session did not s
   ]);
   assert.deepEqual([...deriveView(state).runningThreadIds], []);
 });
-
-test("a workflow left running after its run marks the thread as working", () => {
-  const idle = { ...populated(), activeRuns: {} };
-  const running = deriveView({
-    ...idle,
-    workflows: { current: [{ id: "wf", name: "review", description: "", status: "running", phases: [], agents: [], totalTokens: 0, totalToolCalls: 0, startedAt: 1 }] },
-  });
-  assert.deepEqual([...running.runningThreadIds], ["current"]);
-  assert.deepEqual(running.activityThreads.running.map((thread) => thread.id), ["current"]);
-  const finished = deriveView({
-    ...idle,
-    workflows: { current: [{ id: "wf", name: "review", description: "", status: "completed", phases: [], agents: [], totalTokens: 0, totalToolCalls: 0, startedAt: 1, finishedAt: 2 }] },
-  });
-  assert.deepEqual([...finished.runningThreadIds], []);
-});

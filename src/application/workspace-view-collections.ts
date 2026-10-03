@@ -1,4 +1,4 @@
-import { withWatchedThreads, type AutomationView } from "../domain/automation.js";
+import type { AutomationView } from "../domain/automation.js";
 import type { Thread } from "../domain/thread.js";
 import { remoteCollections, type PairedComputer } from "./computers.js";
 import type { Project } from "../domain/project.js";
@@ -9,8 +9,8 @@ import { coordinationView } from "./coordination.js";
 import { memberPullRequestsView } from "./pull-request-view.js";
 import { memberWorktreesView } from "./member-worktrees.js";
 import { isCoordinator } from "../domain/coordination.js";
-import { unreadView } from "./thread-attention.js";
-import { busyThreadIds, blockedThreadIds, sideChatIds, type WorkspaceState, type WorktreeGroup } from "./workspace-state.js";
+import type { WorkspaceState, WorktreeGroup } from "./workspace-state.js";
+import { threadActivity, threadLists } from "./thread-activity.js";
 import { worktreeSettingsPage, worktreeSettingsViews } from "./worktree-settings.js";
 
 /** A selector retains one projection while its immutable input references stay unchanged. */
@@ -35,35 +35,10 @@ function sameIds(before: Set<string>, next: Set<string>) {
   return before.size === next.size && [...next].every((id) => before.has(id));
 }
 
-const threadLists = selector(
-  (state) => [state.threads, state.sideChats],
-  (state) => {
-    const forked = sideChatIds(state);
-    const listedThreads = state.sideChats.length ? state.threads.filter((thread) => !forked.has(thread.id)) : state.threads;
-    const visibleThreads: Thread[] = [];
-    const archivedThreads: Thread[] = [];
-    const worktreeThreadIds = new Set<string>();
-    for (const thread of listedThreads) {
-      if (thread.archivedAt === undefined) visibleThreads.push(thread);
-      else archivedThreads.push(thread);
-      if (thread.worktreeId) worktreeThreadIds.add(thread.id);
-    }
-    archivedThreads.sort((left, right) => right.archivedAt! - left.archivedAt!);
-    return { listedThreads, visibleThreads, archivedThreads, worktreeThreadIds };
-  },
-);
-
-const busy = selector(
-  (state) => [
-    state.activeRuns, state.pendingRuns, state.creatingWorktrees, state.releasingWorktrees, state.deletingWorktrees, state.workflows, state.subagents,
-    state.deletingWorktrees.length ? state.threads : null,
-    state.deletingWorktrees.length ? state.worktrees : null,
-  ],
-  busyThreadIds,
-  sameIds,
-);
-
-const blocked = selector((state) => [state.activeRuns], blockedThreadIds, sameIds);
+/** Each of this computer's activity sets, kept by identity while its members stay the same. */
+const busy = selector((state) => [threadActivity(state).working], (state) => threadActivity(state).working, sameIds);
+const blocked = selector((state) => [threadActivity(state).blocked], (state) => threadActivity(state).blocked, sameIds);
+const ranked = selector((state) => [threadActivity(state).ranked], (state) => threadActivity(state).ranked, sameIds);
 
 /** The threads that can take others under them, for the menu that moves a thread under one. */
 const coordinators = selector((state) => [threadLists(state).listedThreads], (state) => threadLists(state).listedThreads.filter((thread) => isCoordinator(thread)));
@@ -120,11 +95,7 @@ function union(own: Set<string>, others: Set<string>) {
 /** Every computer's running and blocked threads together, which is what the rows of a merged list read. */
 const everyBusy = selector((state) => [busy(state), remote(state)], (state) => union(busy(state), remote(state).busy), sameIds);
 /** What the activity list ranks as running: every busy thread, and every thread a live watch holds between its ticks. */
-const everyRanked = selector(
-  (state) => [everyBusy(state), state.automations, remote(state)],
-  (state) => union(withWatchedThreads(everyBusy(state), state.automations), remote(state).ranked),
-  sameIds,
-);
+const everyRanked = selector((state) => [ranked(state), remote(state)], (state) => union(ranked(state), remote(state).ranked), sameIds);
 const everyBlocked = selector((state) => [blocked(state), remote(state)], (state) => union(blocked(state), remote(state).blocked), sameIds);
 const everyWorktree = selector((state) => [threadLists(state).worktreeThreadIds, remote(state)], (state) => union(threadLists(state).worktreeThreadIds, remote(state).worktreeThreadIds), sameIds);
 
@@ -187,13 +158,6 @@ const groups = selector(
   },
 );
 
-const attention = selector(
-  (state) => [state.threads, state.sideChats, remote(state)],
-  (state) => {
-    const own = unreadView(state, threadLists(state).listedThreads);
-    return { ...own, unreadCount: own.unreadCount + remote(state).unreadCount };
-  },
-);
 
 const schedules = selector(
   (state) => [state.automations],
@@ -202,10 +166,14 @@ const schedules = selector(
 
 /** Workspace-wide collections do not rebuild when only a composer, streaming tail, or panel changes. */
 export function workspaceViewCollections(state: WorkspaceState) {
+  const lists = threadLists(state);
   return {
-    ...threadLists(state),
+    listedThreads: lists.listedThreads,
+    visibleThreads: lists.visibleThreads,
+    archivedThreads: lists.archivedThreads,
     worktreeThreadIds: everyWorktree(state),
-    ...attention(state),
+    sideChatAttention: lists.sideChatAttention,
+    unreadCount: lists.unreadCount + remote(state).unreadCount,
     lists: sidebar(state),
     startProjects: startProjects(state),
     busy: busy(state),

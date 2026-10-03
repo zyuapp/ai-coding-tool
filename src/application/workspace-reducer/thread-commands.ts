@@ -15,13 +15,13 @@ import { coordinationSections } from "../coordination.js";
 import { pruneDeletedThreads } from "../thread-pruning.js";
 import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeById } from "../thread-location.js";
-import { DRAFT_DOCK, blockedThreadIds, busyThreadIds, dockFor, sideChatIds, withDock, type WorkspaceState } from "../workspace-state.js";
+import { DRAFT_DOCK, dockFor, sideChatIds, withDock, type WorkspaceState } from "../workspace-state.js";
+import { threadActivity, threadLists } from "../thread-activity.js";
 import { dismissableThreads, dismissed, readAttention } from "../../domain/attention.js";
 import { clampTitle, type Thread } from "../../domain/thread.js";
 import { coordinatorOf, withCoordinated } from "../../domain/coordination.js";
 import { isSnoozeHours } from "../../domain/thread-snooze.js";
 import { cancelPause } from "../limit-pauses.js";
-import { withWatchedThreads } from "../../domain/automation.js";
 import { capabilitiesFor, defaultModelFor, effortForModel, engineHasModel, modelHasEffort } from "../../domain/agent-engine.js";
 
 type ThreadCommandInput = Extract<WorkspaceInput, {
@@ -50,9 +50,8 @@ function landOnThread(state: WorkspaceState, taskId: string): WorkspaceState {
 
 /** Priority as the sidebar draws it. A side chat has no row of its own, so it is not one of them. */
 function priorityThreads(state: WorkspaceState): Thread[] {
-  const sideChats = sideChatIds(state);
-  const listed = state.threads.filter((thread) => thread.archivedAt === undefined && !sideChats.has(thread.id));
-  return coordinationSections(listed, withWatchedThreads(busyThreadIds(state), state.automations), blockedThreadIds(state)).priority;
+  const { ranked, blocked } = threadActivity(state);
+  return coordinationSections(threadLists(state).visibleThreads, ranked, blocked).priority;
 }
 
 /** The row Priority moves on to once this one leaves it: the one below, or the one above when it was last. */

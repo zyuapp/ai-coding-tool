@@ -17,7 +17,8 @@ import { nextSortIndex } from "../thread-order.js";
 import { answerPartId, applyRunEvent, applyThreadEvent, ATTENDED_RUN, threadMark, updateThread, withBackgroundProcesses, withSubagents, withWorkflows, type ThreadMark } from "../thread-run-state.js";
 import { threadOnScreen } from "../thread-attention.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, threadWorkspaceRoot, worktreeById, worktreeFor } from "../thread-location.js";
-import { DRAFT_DOCK, busyThreadIds, type PendingRun, type WorkspaceState } from "../workspace-state.js";
+import { DRAFT_DOCK, type PendingRun, type WorkspaceState } from "../workspace-state.js";
+import { isWorking } from "../thread-activity.js";
 import type { CreatedWorktree } from "../../contracts/ipc.js";
 import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel, engineForModel, engineHasEffort, modelSupportsManualCompaction } from "../../domain/agent-engine.js";
 import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
@@ -192,7 +193,7 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       const applied = applyThreadEvent(state, event);
       /** Background work ending can leave a coordinator's held news with no thread left to wait for. */
       const lead = coordinatorOf(state.threads, thread);
-      return lead?.coordinationNotes?.length && busyThreadIds(state).has(thread.id) && !busyThreadIds(applied).has(thread.id)
+      return lead?.coordinationNotes?.length && isWorking(state, thread.id) && !isWorking(applied, thread.id)
         ? deliverCoordinationNotes(applied, lead.id)
         : settled(applied);
     }

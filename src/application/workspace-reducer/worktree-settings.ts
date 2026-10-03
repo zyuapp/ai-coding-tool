@@ -1,6 +1,7 @@
 import type { WorktreeCommand } from "../../contracts/commands.js";
 import { activeComputer } from "../computers.js";
-import { busyThreadIds, type WorkspaceState } from "../workspace-state.js";
+import type { WorkspaceState } from "../workspace-state.js";
+import { threadActivity } from "../thread-activity.js";
 import { worktreeSettingsViews } from "../worktree-settings.js";
 import { worktreeClaimants } from "../thread-location.js";
 import { settled } from "./shared.js";
@@ -17,7 +18,7 @@ export function reduceWorktreeSettings(state: WorkspaceState, input: Input): Wor
       return settled({ ...state, worktreeSettings: { ...settings, project: input.project, confirming: null } });
     case "worktree.confirm-delete": {
       if (input.root === null) return settled({ ...state, worktreeSettings: { ...settings, confirming: null } });
-      const worktree = worktreeSettingsViews(state, busyThreadIds(state))?.find((item) => item.root === input.root);
+      const worktree = worktreeSettingsViews(state, threadActivity(state).working)?.find((item) => item.root === input.root);
       if (worktree) {
         if (worktree.busy || worktree.deleting) return settled(state);
         return settled({ ...state, worktreeSettings: { ...settings, confirming: input.root } });
@@ -26,7 +27,7 @@ export function reduceWorktreeSettings(state: WorkspaceState, input: Input): Wor
       if (activeComputer(state)) return settled({ ...state, worktreeSettings: { ...settings, confirming: input.root } });
       const recorded = state.worktrees.find((item) => item.root === input.root);
       if (!recorded || state.deletingWorktrees.includes(recorded.root)) return settled(state);
-      const busy = busyThreadIds(state);
+      const busy = threadActivity(state).working;
       if (worktreeClaimants(state, recorded.id).some((thread) => busy.has(thread.id))) return settled(state);
       const next = { ...state, worktreeSettings: { ...settings, confirming: input.root }, worktreeManagementLoading: true, worktreeManagementError: null };
       return settled(next, state.worktreeManagementLoading ? [] : [{ type: "list-worktrees" }]);
