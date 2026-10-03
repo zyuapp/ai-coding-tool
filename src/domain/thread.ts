@@ -6,6 +6,7 @@ import type { CoordinationNote, CoordinationReport, Decision, ThreadBrief } from
 import type { ThreadRole } from "./thread-role.js";
 import type { ChangeSnapshot, ContextUsage, ContinuationStatus, ThreadOutcome } from "./thread-run.js";
 import type { LimitPause } from "./usage-limit.js";
+import type { PullRequestLink } from "./pull-request.js";
 
 /** The canonical conversation aggregate. Persisted property names stay unchanged for compatibility. */
 export type Thread = {
@@ -78,6 +79,8 @@ export type Thread = {
    * sharing a checkout fork independently, so a thread that has yet to run in one has no fork.
    */
   worktreeEnteredAt?: number;
+  /** The pull request this thread's work was last seen on. */
+  pullRequest?: PullRequestLink;
   /**
    * Set on a thread copied from another, which inherits that thread's session. Its runs fork that
    * session instead of continuing it until one reports a session of its own, which clears this, so

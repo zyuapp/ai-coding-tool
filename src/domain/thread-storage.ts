@@ -9,6 +9,7 @@ import { isThreadRole } from "./thread-role.js";
 import { isCoordinationNote, isCoordinationReport, isDecision, isThreadBrief } from "./coordination.js";
 import { isWorktree, type Worktree } from "./worktree.js";
 import { isLimitPause } from "./usage-limit.js";
+import { isPullRequestLink } from "./pull-request.js";
 
 export const THREAD_STORE_VERSION = 2 as const;
 
@@ -396,6 +397,7 @@ function isThreadBase(value: unknown): value is StoredThread {
     (value.lastChecked === undefined || (isRecord(value.lastChecked) && finiteNumber(value.lastChecked.at) && nonEmptyString(value.lastChecked.note))) &&
     (value.worktreeId === undefined || nonEmptyString(value.worktreeId)) &&
     (value.worktreeEnteredAt === undefined || finiteNumber(value.worktreeEnteredAt)) &&
+    (value.pullRequest === undefined || isPullRequestLink(value.pullRequest)) &&
     (value.inheritedContinuation === undefined || value.inheritedContinuation === true) &&
     (value.runEndedAt === undefined || finiteNumber(value.runEndedAt)) &&
     (value.createdAt === undefined || finiteNumber(value.createdAt)) &&

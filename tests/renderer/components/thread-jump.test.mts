@@ -11,8 +11,8 @@ const JUMP: JumpView = {
   query: "pa",
   index: 1,
   options: [
-    { kind: "thread", id: "task-a", title: "Panel find", project: "api", engine: "claude", lastActivityAt: 2, running: true },
-    { kind: "thread", id: "task-b", title: "Dock the browser panel", project: null, engine: "codex", lastActivityAt: 1, running: false },
+    { kind: "thread", id: "task-a", title: "Panel find", project: "api", engine: "claude", pullRequest: null, lastActivityAt: 2, running: true, namedPullRequest: null },
+    { kind: "thread", id: "task-b", title: "Dock the browser panel", project: null, engine: "codex", pullRequest: null, lastActivityAt: 1, running: false, namedPullRequest: null },
     { kind: "setting", id: "settings:appearance", section: "appearance", settingId: null, title: "Appearance", page: null, keywords: "" },
     { kind: "setting", id: "settings:appearance.ui-font", section: "appearance", settingId: "appearance.ui-font", title: "Interface", page: "Appearance", keywords: "" },
   ],
@@ -48,6 +48,13 @@ test("a row names its thread, the folder it lives in, and whether it is working"
   assert.deepEqual(rows().map((row) => row.getAttribute("aria-selected")), ["false", "true", "false", "false"]);
   assert.equal(document.querySelector(".thread-jump-heading")?.textContent, "Settings");
   assert.equal(document.activeElement, document.querySelector(".thread-jump-search input"));
+  await view.unmount();
+});
+
+test("a row found by its pull request shows that pull request's number", async () => {
+  const pullRequest = { number: 42, url: "https://github.com/acme/app/pull/42" };
+  const view = await mount({ query: "#42", index: 0, options: [{ ...JUMP.options[1]!, pullRequest, namedPullRequest: 42 } as JumpView["options"][number]] });
+  assert.deepEqual(rows().map((row) => row.textContent), ["Dock the browser panel#42"]);
   await view.unmount();
 });
 

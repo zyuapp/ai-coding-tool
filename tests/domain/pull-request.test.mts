@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { pullRequestFromCommit, pullRequestFromList } from "../../src/domain/pull-request.ts";
+import { linksPullRequest, pullRequestFromCommit, pullRequestFromList, pullRequestQuery } from "../../src/domain/pull-request.ts";
 
 const listed = (fields: Record<string, unknown> = {}) => [{ number: 12, title: "Name the two families", url: "https://github.com/o/r/pull/12", state: "OPEN", ...fields }];
 const fromApi = (fields: Record<string, unknown> = {}) => [{ number: 12, title: "Name the two families", html_url: "https://github.com/o/r/pull/12", state: "open", draft: false, merged_at: null, ...fields }];
@@ -37,4 +37,19 @@ test("a record missing a field a row draws is not a pull request", () => {
   assert.equal(pullRequestFromList(listed({ url: "" })), null);
   assert.equal(pullRequestFromList(listed({ state: "QUEUED" })), null);
   assert.equal(pullRequestFromCommit(fromApi({ html_url: undefined })), null);
+});
+
+test("a search names a pull request by number or by link", () => {
+  assert.deepEqual(pullRequestQuery("12"), { number: 12, repository: null });
+  assert.deepEqual(pullRequestQuery(" #12 "), { number: 12, repository: null });
+  assert.deepEqual(pullRequestQuery("https://github.com/Acme/App/pull/12#discussion_r1"), { number: 12, repository: "github.com/acme/app" });
+  assert.deepEqual(pullRequestQuery("github.com/acme/app/pull/12/files"), { number: 12, repository: "github.com/acme/app" });
+  for (const query of ["", "#", "0", "#12a", "panel 12", "https://github.com/acme/app/issues/12"]) assert.equal(pullRequestQuery(query), null, query);
+});
+
+test("a link names only the pull request in its own repository", () => {
+  const link = { number: 12, url: "https://github.com/acme/app/pull/12" };
+  assert.equal(linksPullRequest(link, pullRequestQuery("12")!), true);
+  assert.equal(linksPullRequest(link, pullRequestQuery("13")!), false);
+  assert.equal(linksPullRequest(link, pullRequestQuery("https://github.com/acme/other/pull/12")!), false);
 });

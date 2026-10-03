@@ -7,11 +7,15 @@ import { rankSettingsJumps } from "../domain/settings-jump.js";
 import type { SettingsJumpOption } from "../domain/settings-catalog.js";
 import { rankThreadJumps, type ThreadJumpOption } from "../domain/thread-jump.js";
 import { projectName, type Project } from "../domain/project.js";
+import { linksPullRequest, pullRequestQuery } from "../domain/pull-request.js";
 import { threadActivityAt, type Thread } from "../domain/thread.js";
 import type { WorkspaceState } from "./workspace-state.js";
 
-/** A thread row of the jump panel: the thread, plus whether it is working right now. */
-export type ThreadJumpRow = ThreadJumpOption & { kind: "thread"; running: boolean };
+/**
+ * A thread row of the jump panel: the thread, whether it is working right now, and the number of its
+ * pull request when that is what the query named.
+ */
+export type ThreadJumpRow = ThreadJumpOption & { kind: "thread"; running: boolean; namedPullRequest: number | null };
 
 /** A settings row of the jump panel: the page to open, and the control on it to land on. */
 export type SettingJumpRow = SettingsJumpOption & { kind: "setting" };
@@ -36,6 +40,7 @@ function threadJumpOptions(state: WorkspaceState): ThreadJumpOption[] {
       title: thread.title,
       project: thread.projectId ? names.get(thread.projectId) ?? null : null,
       engine: thread.engine,
+      pullRequest: thread.pullRequest ?? null,
       lastActivityAt: threadActivityAt(thread),
     }))
     .sort((left, right) => right.lastActivityAt - left.lastActivityAt);
@@ -47,9 +52,15 @@ function threadJumpOptions(state: WorkspaceState): ThreadJumpOption[] {
 export function jumpView(state: WorkspaceState, busy: Set<string>): JumpView | null {
   const jump = state.jump;
   if (!jump) return null;
+  const named = pullRequestQuery(jump.query);
   const options: JumpRow[] = [
     ...rankThreadJumps(threadJumpOptions(state), jump.query)
-      .map((option): ThreadJumpRow => ({ ...option, kind: "thread", running: busy.has(option.id) })),
+      .map((option): ThreadJumpRow => ({
+        ...option,
+        kind: "thread",
+        running: busy.has(option.id),
+        namedPullRequest: named && option.pullRequest && linksPullRequest(option.pullRequest, named) ? option.pullRequest.number : null,
+      })),
     ...rankSettingsJumps(jump.query).map((option): SettingJumpRow => ({ ...option, kind: "setting" })),
   ];
   return {

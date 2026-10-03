@@ -61,7 +61,7 @@ export function ThreadJump({ jump, actions }: ThreadJumpProps) {
             ref={input}
             value={jump.query}
             aria-label="Search threads and settings"
-            placeholder="Search threads and settings"
+            placeholder="Search threads, pull requests, and settings"
             spellCheck={false}
             onInput={(event) => actions.setJumpQuery(event.currentTarget.value)}
           />
@@ -84,6 +84,7 @@ export function ThreadJump({ jump, actions }: ThreadJumpProps) {
                     : <Settings className="thread-jump-engine" size={13} aria-label="Setting" />}
                   <span className="thread-jump-title">{option.title}</span>
                   {option.kind === "thread" && option.running && <span className="task-spinner" aria-label="Working" />}
+                  {option.kind === "thread" && option.namedPullRequest !== null && <span className="thread-jump-pull-request">#{option.namedPullRequest}</span>}
                   {option.kind === "thread"
                     ? option.project && <span className="thread-jump-project">{option.project}</span>
                     : option.page && <span className="thread-jump-project">{option.page}</span>}

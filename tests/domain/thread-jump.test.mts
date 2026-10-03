@@ -9,6 +9,7 @@ function options(...titles: string[]): ThreadJumpOption[] {
     title,
     project: null,
     engine: "claude" as const,
+    pullRequest: null,
     lastActivityAt: titles.length - index,
   }));
 }
@@ -44,4 +45,17 @@ test("a long list is read only as far as the best matches the panel can draw", (
   const many = options(...Array.from({ length: 500 }, (_, index) => `Panel ${index}`), "Reopen the panel");
   const rows = rankThreadJumps(many, "panel", 3);
   assert.deepEqual(rows.map((option) => option.title), ["Panel 0", "Panel 1", "Panel 2"]);
+});
+
+test("a pull request's number or link finds the threads working on it, above any name", () => {
+  const [first, second, third] = options("Ship 42 fixes", "Dock the browser panel", "Panel find");
+  const linked = [
+    first!,
+    { ...second!, pullRequest: { number: 42, url: "https://github.com/acme/app/pull/42" } },
+    { ...third!, pullRequest: { number: 42, url: "https://github.com/acme/other/pull/42" } },
+  ];
+  assert.deepEqual(rankThreadJumps(linked, "42").map((option) => option.title), ["Dock the browser panel", "Panel find", "Ship 42 fixes"]);
+  assert.deepEqual(rankThreadJumps(linked, "#42").map((option) => option.title), ["Dock the browser panel", "Panel find"]);
+  assert.deepEqual(rankThreadJumps(linked, " https://github.com/Acme/App/pull/42/files ").map((option) => option.title), ["Dock the browser panel"]);
+  assert.deepEqual(rankThreadJumps(linked, "4").map((option) => option.title), ["Ship 42 fixes"], "only the whole number names a pull request");
 });

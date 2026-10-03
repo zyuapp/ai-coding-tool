@@ -82,6 +82,24 @@ test("an answer that says what the row already says leaves the state alone", () 
   assert.equal(same.state, polled.state, "an unchanged answer never rewrites the row");
 });
 
+test("a found pull request is recorded on the thread read, even when the checkout's answer is unchanged", () => {
+  const state = projected({
+    threads: [task("task-a", { projectId: "project-a" }), task("task-b", { projectId: "project-a" })],
+    currentId: "task-a",
+    environments: { "workspace-a": { status: "available", files: [], branch: "pr-poll", baseline: null, additions: 0, deletions: 0 } },
+  });
+  const answer = (from: ReturnType<typeof reduce>) => {
+    const read = effectOf(from, "read-pull-request");
+    return reduce(from.state, { type: "pull-request.answered", workspaceId: read.workspaceId, branch: read.branch, read: read.read, answer: OPEN }).state;
+  };
+
+  const first = answer(reduce(state, { type: "pull-request.read" }));
+  assert.deepEqual(first.threads.map((thread) => thread.pullRequest), [{ number: 7, url: PULL_REQUEST.url }, undefined]);
+
+  const second = answer(reduce(first, { type: "pull-request.read", taskId: "task-b" }));
+  assert.deepEqual(second.threads.map((thread) => thread.pullRequest?.number), [7, 7]);
+});
+
 test("a coordinator reads the pull request of every checkout its threads work in, once each", () => {
   const projects = [{ id: "a", root: "/a", workspaceId: "workspace-a" }, { id: "b", root: "/b", workspaceId: "workspace-b" }];
   const state = projected({
@@ -106,6 +124,7 @@ test("a coordinator reads the pull request of every checkout its threads work in
   assert.deepEqual(found.map(({ pullRequest, threads }) => [pullRequest.number, threads.map((thread) => thread.id)]), [[7, ["one", "two"]]]);
   assert.equal(settled, false, "an open pull request is still worth asking about");
   assert.equal(answered.state.pullRequest, null, "the checkout in front keeps its own answer");
+  assert.deepEqual(answered.state.threads.map((thread) => [thread.id, thread.pullRequest?.number]), [["lead", undefined], ["one", 7], ["two", 7], ["elsewhere", undefined]]);
 
   const left = reduce(answered.state, { type: "task.set-coordinator", taskId: "one", coordinatorId: null }).state;
   const bothLeft = reduce(left, { type: "task.set-coordinator", taskId: "two", coordinatorId: null }).state;

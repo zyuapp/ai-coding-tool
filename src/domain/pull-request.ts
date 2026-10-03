@@ -30,7 +30,39 @@ export type PullRequestRead = {
   branch: string | null;
   read: number;
   answer: PullRequestAnswer;
+  /** The threads whose work the answer is about, which a found pull request is recorded on. */
+  threadIds?: string[];
 };
+
+/** The pull request a thread's work was last seen on, kept so a search can find the thread by it. */
+export type PullRequestLink = { number: number; url: string };
+
+export function isPullRequestLink(value: unknown): value is PullRequestLink {
+  if (!value || typeof value !== "object") return false;
+  const link = value as Record<string, unknown>;
+  return typeof link.number === "number" && Number.isInteger(link.number) && link.number > 0 && typeof link.url === "string" && link.url.length > 0;
+}
+
+/** A search for a pull request: its number, and the repository too when the search is a link. */
+export type PullRequestQuery = { number: number; repository: string | null };
+
+const NUMBER_QUERY = /^#?(\d+)$/;
+const LINK = /^(?:https?:\/\/)?([^/\s]+\/[^/\s]+\/[^/\s]+)\/pull\/(\d+)(?:[/?#]\S*)?$/i;
+
+/** What a search names when it names a pull request: `12`, `#12`, or a link to one. */
+export function pullRequestQuery(query: string): PullRequestQuery | null {
+  const wanted = query.trim();
+  const link = LINK.exec(wanted);
+  const number = Number(link ? link[2] : NUMBER_QUERY.exec(wanted)?.[1]);
+  if (!Number.isSafeInteger(number) || number <= 0) return null;
+  return { number, repository: link ? link[1]!.toLowerCase() : null };
+}
+
+/** Whether a thread's pull request is the one a search names. */
+export function linksPullRequest(link: PullRequestLink, query: PullRequestQuery) {
+  if (link.number !== query.number) return false;
+  return query.repository === null || LINK.exec(link.url)?.[1]?.toLowerCase() === query.repository;
+}
 
 const STATES: readonly string[] = ["draft", "open", "merged", "closed"];
 
