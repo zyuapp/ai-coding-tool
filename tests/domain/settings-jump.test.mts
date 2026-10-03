@@ -39,6 +39,12 @@ test("a group's name beats the keyword that names its page", () => {
   assert.deepEqual(rankSettingsJumps("tailscale").map((option) => option.settingId), ["phone.tailscale", null]);
 });
 
+test("every group a page draws can be found by its heading", () => {
+  for (const [query, id] of [["installed engines", "engines.installed"], ["platform setup", "computer-use.platform"], ["linux runtime", "computer-use.linux-runtime"]]) {
+    assert.equal(rankSettingsJumps(query)[0]?.settingId, id, query);
+  }
+});
+
 test("every word of a longer query has to land", () => {
   assert.deepEqual(rankSettingsJumps("text size").map((option) => option.settingId), [null, "appearance.reading-size", "appearance.terminal-size"]);
   assert.deepEqual(rankSettingsJumps("text purple"), []);

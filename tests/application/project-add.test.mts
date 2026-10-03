@@ -180,6 +180,7 @@ test("the start shortcut asks for a path, then opens a draft in a folder the sid
   const left = reduce(state, { type: "task.new" }).state;
   assert.deepEqual(left.projects, []);
   assert.equal(left.expandedProjects.has(id), false);
+  assert.equal(left.lastFolder, null, "a folder left without a thread does not come back on launch");
 });
 
 test("starting in a listed folder keeps it listed, and adding an unlisted one lists it", () => {
@@ -210,8 +211,10 @@ test("a start answered after the dialog closed does not move the window", () => 
   state = reduce(state, { type: "view.add-project-submit" }).state;
   const request = state.projectAdd!.request;
   state = reduce(state, { type: "view.add-project-close" }).state;
+  state = { ...state, computers: { ...state.computers, active: "linux" } };
   const answered = reduce(state, { type: "project.added", workspace: { id: "ws", kind: "project", root: "/app" }, request, start: true }).state;
   assert.deepEqual(answered.projects, []);
+  assert.equal(answered.computers.active, "linux");
 });
 
 test("starting in a folder on a paired computer opens its draft there and puts that computer on screen", async () => {

@@ -63,7 +63,7 @@ function forwardEffect(route: Extract<InputRoute, { kind: "computer" }>): Worksp
 
 /** A command that moves this window to one of its own threads takes the paired computer off screen. */
 function leavingComputer(state: WorkspaceState, input: WorkspaceInput): WorkspaceState {
-  if (state.computers.active === null || !leavesComputer(input)) return state;
+  if (state.computers.active === null || !leavesComputer(state, input)) return state;
   return { ...state, computers: { ...state.computers, active: null } };
 }
 

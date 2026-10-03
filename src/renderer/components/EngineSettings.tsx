@@ -44,10 +44,10 @@ export function EngineSettings({ engineAccess, checking, updating, onRefresh, on
         <p>AI Coding Tool runs the Claude Code and Codex commands installed on this computer.</p>
       </div>
 
-      <section className="settings-group" aria-labelledby="engines-heading" aria-live="polite">
+      <SettingGroup setting="engines.installed" aria-labelledby="engines-heading" aria-live="polite">
         <div className="settings-group-heading">
           <div>
-            <h3 id="engines-heading">Installed engines</h3>
+            <h3 id="engines-heading">{settingControl("engines.installed").label}</h3>
             <p>Install an engine in your terminal, then check again here.</p>
           </div>
           <div className="settings-group-action">
@@ -86,7 +86,7 @@ export function EngineSettings({ engineAccess, checking, updating, onRefresh, on
             </div>
           );
         })}
-      </section>
+      </SettingGroup>
       <SettingGroup setting="engines.agent-settings" aria-labelledby="agent-settings-heading">
         <div className="settings-group-heading">
           <div>

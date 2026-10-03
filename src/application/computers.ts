@@ -124,9 +124,13 @@ const LOCAL = { kind: "local" } as const;
 /** Commands that move this window to one of its own threads, which takes a paired computer's thread off screen. */
 const LEAVING_TYPES = new Set(["task.select", "worktree.open-thread", "view.jump-choose", "task.new", "view.go-back", "view.go-forward"]);
 
-/** Whether a command routed here means the window is leaving the paired computer it was showing. */
-export function leavesComputer(input: WorkspaceInput): boolean {
-  return LEAVING_TYPES.has(input.type) || (input.type === "project.added" && input.start === true);
+/**
+ * Whether a command routed here means the window is leaving the paired computer it was showing. A
+ * folder opened to start in leaves only when it answers the open dialog's own ask.
+ */
+export function leavesComputer(state: WorkspaceState, input: WorkspaceInput): boolean {
+  if (input.type === "project.added") return input.start === true && (input.request === undefined || state.projectAdd?.request === input.request);
+  return LEAVING_TYPES.has(input.type);
 }
 
 /** Commands that stay on this computer whatever thread is on screen: the window, its settings, and its drafts. */

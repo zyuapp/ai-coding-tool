@@ -127,5 +127,7 @@ export function settledUnlisted(before: WorkspaceState, state: WorkspaceState): 
     return [kept];
   });
   if (!dropped.size) return { ...state, projects };
-  return { ...state, projects, expandedProjects: new Set([...state.expandedProjects].filter((id) => !dropped.has(id))) };
+  /** The last folder comes back listed on launch, so one let go stops being it. */
+  const lastFolder = state.projects.some((project) => dropped.has(project.id) && state.lastFolder !== null && sameRoot(project.root, state.lastFolder)) ? null : state.lastFolder;
+  return { ...state, projects, lastFolder, expandedProjects: new Set([...state.expandedProjects].filter((id) => !dropped.has(id))) };
 }
