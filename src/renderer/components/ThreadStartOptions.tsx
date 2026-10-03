@@ -16,7 +16,7 @@ export function matchProjects(projects: Project[], query: string, projectHosts?:
   return projects.filter((project) => `${projectName(project)} ${project.root} ${projectHosts?.get(project.id)?.name ?? localHostName}`.toLowerCase().includes(needle));
 }
 
-/** Keep each computer's project order, with this computer before the paired computers by name. */
+/** Each computer's projects by name, with this computer before the paired computers by name. */
 function groupProjects(projects: Project[], projectHosts?: ReadonlyMap<string, ThreadHost>) {
   const groups = new Map<string | null, { host: ThreadHost | undefined; projects: Project[] }>();
   for (const project of projects) {
@@ -29,6 +29,7 @@ function groupProjects(projects: Project[], projectHosts?: ReadonlyMap<string, T
     }
     group.projects.push(project);
   }
+  for (const group of groups.values()) group.projects.sort((a, b) => projectName(a).localeCompare(projectName(b)) || a.root.localeCompare(b.root));
   return [...groups.values()].sort((a, b) => {
     if (!a.host) return -1;
     if (!b.host) return 1;

@@ -256,9 +256,9 @@ test("the project picker labels and groups duplicate repository names by compute
   assert.deepEqual(groups().map((group) => group.getAttribute("aria-label")), ["This computer", "Air", "Studio Mac"]);
   assert.deepEqual([...view.container.querySelectorAll(".thread-start-group-heading .host-mark")].map((heading) => heading.textContent), ["This computer", "Air", "Studio Mac"]);
   assert.deepEqual(rows().map((row) => row.getAttribute("aria-label")), [
-    "shared on This computer", "another on This computer", "shared on Air", "shared on Studio Mac", "second on Studio Mac",
-  ], "groups preserve each computer's project order despite interleaving in the input");
-  assert.deepEqual(rows().map((row) => row.textContent), ["shared", "another", "shared", "shared", "second"], "headings identify the computer once for each group");
+    "another on This computer", "shared on This computer", "shared on Air", "second on Studio Mac", "shared on Studio Mac",
+  ], "groups sort each computer's projects by name despite interleaving in the input");
+  assert.deepEqual(rows().map((row) => row.textContent), ["another", "shared", "shared", "second", "shared"], "headings identify the computer once for each group");
   assert.equal(rows().filter((row) => row.getAttribute("aria-selected") === "true")[0]?.getAttribute("aria-label"), "shared on Studio Mac");
   await act(async () => {
     item(rows()[1]).focus();
@@ -290,7 +290,7 @@ test("the project picker labels and groups duplicate repository names by compute
   const localTrigger = query<HTMLButtonElement>(view.container, 'button[aria-label="Project"]');
   assert.equal(localTrigger.textContent, "shared", "hosts outside the picker leave its local-only presentation plain");
   await act(async () => { localTrigger.click(); });
-  assert.equal(query(view.container, '[role="listbox"]').textContent, "sharedanother");
+  assert.equal(query(view.container, '[role="listbox"]').textContent, "anothershared");
   await view.unmount();
 });
 
