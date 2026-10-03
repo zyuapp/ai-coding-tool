@@ -4,6 +4,7 @@ import { reduce, type WorkspaceTransition } from "../../src/application/workspac
 import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import { threadSummary } from "../../src/application/thread-projection.ts";
 import { isWorking } from "../../src/application/thread-activity.ts";
+import { whyTickCannotRun } from "../../src/application/findings.ts";
 import { isRunEvent } from "../../src/contracts/ipc.ts";
 import { isWorkspaceViewInput } from "../../src/contracts/workspace-view-input.ts";
 import { parseThreadStore, serializeThreadStore } from "../../src/domain/thread-storage.ts";
@@ -172,6 +173,13 @@ test("a weekly limit keeps its verdict and waits for the user to resume", () => 
   const resumed = resolveAll(reduce(paused.state, input));
   assert.ok(resumed.state.activeRuns.a);
   assert.equal(thread(resumed.state, "a").limitPause, undefined);
+});
+
+test("a weekly pause holds a scheduled tick back until the user resumes", () => {
+  const paused = limited(runningThreads("a"), "a", weekly).state;
+  const fire = { automationId: "auto", taskId: "a", runId: "tick", prompt: "check", runNumber: 1 };
+  assert.equal(isWorking(paused, "a"), false);
+  assert.equal(whyTickCannotRun(paused, fire, thread(paused, "a"), PROJECT), "busy-agent");
 });
 
 test("a limit holds every thread of the engine waiting on an earlier reset", () => {

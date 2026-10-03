@@ -97,6 +97,7 @@ const everyBusy = selector((state) => [busy(state), remote(state)], (state) => u
 /** What the activity list ranks as running: every busy thread, and every thread a live watch holds between its ticks. */
 const everyRanked = selector((state) => [ranked(state), remote(state)], (state) => union(ranked(state), remote(state).ranked), sameIds);
 const everyBlocked = selector((state) => [blocked(state), remote(state)], (state) => union(blocked(state), remote(state).blocked), sameIds);
+const everySideChatAttention = selector((state) => [threadLists(state).sideChatAttention, remote(state)], (state) => union(threadLists(state).sideChatAttention, remote(state).sideChatAttention), sameIds);
 const everyWorktree = selector((state) => [threadLists(state).worktreeThreadIds, remote(state)], (state) => union(threadLists(state).worktreeThreadIds, remote(state).worktreeThreadIds), sameIds);
 
 /** The sidebar draws every computer's threads together, filed under every computer's folders. */
@@ -172,7 +173,7 @@ export function workspaceViewCollections(state: WorkspaceState) {
     visibleThreads: lists.visibleThreads,
     archivedThreads: lists.archivedThreads,
     worktreeThreadIds: everyWorktree(state),
-    sideChatAttention: lists.sideChatAttention,
+    sideChatAttention: everySideChatAttention(state),
     unreadCount: lists.unreadCount + remote(state).unreadCount,
     lists: sidebar(state),
     startProjects: startProjects(state),

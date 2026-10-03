@@ -300,15 +300,16 @@ export type RemoteCollections = {
   /** Which computer each remote thread and project belongs to, by id. */
   threadHosts: Map<string, ThreadHost>;
   projectHosts: Map<string, ThreadHost>;
+  sideChatAttention: Set<string>;
   unreadCount: number;
 };
 
-export const NO_REMOTE_COLLECTIONS: RemoteCollections = { threads: [], projects: [], worktrees: [], worktreeThreadIds: new Set(), busy: new Set(), ranked: new Set(), blocked: new Set(), threadHosts: new Map(), projectHosts: new Map(), unreadCount: 0 };
+export const NO_REMOTE_COLLECTIONS: RemoteCollections = { threads: [], projects: [], worktrees: [], worktreeThreadIds: new Set(), busy: new Set(), ranked: new Set(), blocked: new Set(), threadHosts: new Map(), projectHosts: new Map(), sideChatAttention: new Set(), unreadCount: 0 };
 
 export function remoteCollections(computers: ComputersState): RemoteCollections {
   const shown = shownComputers(computers);
   if (!shown.length) return NO_REMOTE_COLLECTIONS;
-  const gathered: RemoteCollections = { threads: [], projects: [], worktrees: [], worktreeThreadIds: new Set(), busy: new Set(), ranked: new Set(), blocked: new Set(), threadHosts: new Map(), projectHosts: new Map(), unreadCount: 0 };
+  const gathered: RemoteCollections = { threads: [], projects: [], worktrees: [], worktreeThreadIds: new Set(), busy: new Set(), ranked: new Set(), blocked: new Set(), threadHosts: new Map(), projectHosts: new Map(), sideChatAttention: new Set(), unreadCount: 0 };
   for (const computer of shown) {
     const remote = reachable(computer);
     if (!remote) continue;
@@ -328,6 +329,7 @@ export function remoteCollections(computers: ComputersState): RemoteCollections 
     for (const id of activity.working) gathered.busy.add(id);
     for (const id of activity.ranked) gathered.ranked.add(id);
     for (const id of activity.blocked) gathered.blocked.add(id);
+    for (const id of lists.sideChatAttention) gathered.sideChatAttention.add(id);
     gathered.unreadCount += lists.unreadCount;
   }
   return gathered;

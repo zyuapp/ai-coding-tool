@@ -374,6 +374,13 @@ test("a thread ranks and marks the same on a paired computer as on this one", ()
   }
 });
 
+test("a paired computer's unread side chat marks its source row as well as the count", () => {
+  const remote: WorkspaceState = { ...remoteState, threads: [{ ...remoteThread }, { ...remoteThread, id: "chat", outcome: "finished" as const, outcomeUnread: true }], sideChats: [{ id: "chat", sourceThreadId: "remote-thread", error: null }] };
+  const view = deriveView(withComputers(workspace({}), [paired("linux", remote)]));
+  assert.equal(view.unreadCount, 1);
+  assert.deepEqual([...view.sideChatAttention], ["remote-thread"]);
+});
+
 test("remote lists and attention follow connection changes while preserving threads for reconnection", () => {
   const local = task("local", { outcome: "finished", outcomeUnread: true });
   const remote: WorkspaceState = { ...remoteState, threads: ["claude", "codex"].map((engine) => ({

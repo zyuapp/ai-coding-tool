@@ -12,7 +12,7 @@ import type { Project } from "../domain/project.js";
 import type { Thread } from "../domain/thread.js";
 import { announced } from "./notices.js";
 import { scheduledRun, withNotifiedRun } from "./run-testimony.js";
-import { isWorking } from "./thread-activity.js";
+import { threadStatus } from "./thread-activity.js";
 import { updateThread } from "./thread-run-state.js";
 import type { WorkspaceEffect, WorkspaceTransition } from "./workspace-reducer.js";
 import type { WorkspaceState } from "./workspace-state.js";
@@ -27,11 +27,11 @@ function userIsHere(state: WorkspaceState, taskId: string): boolean {
 }
 
 /**
- * Who the thread is working for, if anyone. Busy is {@link isWorking}'s answer, so a send still
- * resolving and a message still queued both count: two runs in one thread would make two checkouts.
+ * Who the thread is working for, if anyone. Any status but idle counts, so a send still resolving, a
+ * message still queued, and a usage-limit pause all hold a tick back: a run would clear the pause.
  */
 function whoIsBusy(state: WorkspaceState, taskId: string): "busy-user" | "busy-agent" | null {
-  if (!isWorking(state, taskId)) return null;
+  if (threadStatus(state, taskId) === "idle") return null;
   return userIsHere(state, taskId) ? "busy-user" : "busy-agent";
 }
 
