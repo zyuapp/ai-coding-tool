@@ -33,11 +33,13 @@ export class TaskDatabase {
   private readonly saveMessage: StatementSync;
   private readonly saveSubagent: StatementSync;
   private readonly saveActivity: StatementSync;
+  private readonly searchMessages: StatementSync;
   private closed = false;
 
   constructor(file: string, options: { worktreesRoots?: string[] } = {}) {
     this.worktreesRoots = options.worktreesRoots ?? [];
     this.database = new DatabaseSync(file);
+    this.database.function("js_lower", { deterministic: true }, (value) => typeof value === "string" ? value.toLowerCase() : null);
     this.database.exec(`
       PRAGMA journal_mode = WAL;
       PRAGMA foreign_keys = ON;
@@ -77,6 +79,11 @@ export class TaskDatabase {
     this.saveMessage = this.database.prepare("INSERT INTO messages (task_id, id, position, data, message_at, audible, has_attachment) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(task_id, id) DO UPDATE SET position = excluded.position, data = excluded.data, message_at = excluded.message_at, audible = excluded.audible, has_attachment = excluded.has_attachment");
     this.saveSubagent = this.database.prepare("INSERT INTO subagents (task_id, id, position, data) VALUES (?, ?, ?, ?) ON CONFLICT(task_id, id) DO UPDATE SET position = excluded.position, data = excluded.data");
     this.saveActivity = this.database.prepare("INSERT INTO subagent_activity (task_id, subagent_id, id, position, data) VALUES (?, ?, ?, ?, ?) ON CONFLICT(task_id, subagent_id, id) DO UPDATE SET position = excluded.position, data = excluded.data");
+    this.searchMessages = this.database.prepare(`
+      SELECT DISTINCT task_id FROM messages
+      WHERE task_id IN (SELECT value FROM json_each(?))
+        AND instr(js_lower(CASE WHEN json_valid(data) THEN json_extract(data, '$.text') END), ?) > 0
+    `);
     this.liftEmbeddedSubagents();
     this.liftEmbeddedWorktrees();
   }
@@ -318,6 +325,14 @@ export class TaskDatabase {
       ({ data }) => JSON.parse(data) as unknown,
     );
     return parseStoredConversationMessages(messages);
+  }
+
+  /** Which of these threads have a stored message whose text contains `search`, which is already lowercased. */
+  searchThreadMessages(search: string, taskIds: string[]): string[] {
+    return Array.from(
+      this.searchMessages.iterate(JSON.stringify(taskIds), search) as Iterable<{ task_id: string }>,
+      ({ task_id }) => task_id,
+    );
   }
 
   /** A subagent's activity, read only when someone opens it: a session's logs never all fit in the window. */

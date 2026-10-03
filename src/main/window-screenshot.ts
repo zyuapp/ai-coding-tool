@@ -6,7 +6,6 @@ import path from "node:path";
 import { desktopCapturer, systemPreferences } from "electron";
 import type { WindowFrame } from "./capture-flash.js";
 import { linuxWindowCaptureBackend, windowCaptureCapability } from "./platform-capabilities.js";
-import { captureFrontmostHyprlandWindow } from "./hyprland-window-capture.js";
 import { captureScreenshotContext } from "./screenshot-context.js";
 import type { ScreenshotContext } from "../domain/screenshot-context.js";
 
@@ -196,6 +195,6 @@ export async function captureFrontmostWindow(sound: boolean): Promise<WindowShot
   const capability = windowCaptureCapability();
   if (capability.status === "unsupported") return capability;
   if (process.platform === "darwin") return captureFrontmostMacWindow(sound);
-  if (linuxWindowCaptureBackend() === "hyprland") return captureFrontmostHyprlandWindow();
+  if (linuxWindowCaptureBackend() === "hyprland") return (await import("./hyprland-window-capture.js")).captureFrontmostHyprlandWindow();
   return captureFrontmostX11Window();
 }

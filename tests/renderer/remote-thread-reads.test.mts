@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import { listAcrossComputers, queryLocalThreads, readAcrossComputers } from "../../src/host/thread-reads.ts";
 import { createRuntimeHistory } from "../../src/host/runtime-history.ts";
+import { subscribeWorkspaceRuntime } from "../../src/host/runtime-subscriptions.ts";
+import { noComputers } from "../../src/host/no-computers.ts";
+import { fakeDesktop } from "../support/desktop-api.mts";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import type { PairedComputer } from "../../src/application/computers.ts";
 import type { ComputerThreadQuery } from "../../src/contracts/computers.ts";
@@ -104,6 +107,7 @@ function historyHost(initial: WorkspaceState) {
   const loads: string[] = [];
   const history = createRuntimeHistory({
     state: () => state,
+    search: async (search, ids) => "needle in disk history".includes(search) ? ids : [],
     load: async (id) => { loads.push(id); return [{ id: "saved", kind: "assistant", text: "needle in disk history", at: 1 }]; },
     dispatch: async (input) => { state = reduce(state, input).state; },
     persistence: { persisted: null, pending: null, inFlight: null },
@@ -111,20 +115,44 @@ function historyHost(initial: WorkspaceState) {
   return { state: () => state, history, loads };
 }
 
-test("remote reads and message searches hydrate history on the owning host only", async () => {
+test("remote message searches read the owner's disk without loading it, and reads hydrate on the owner only", async () => {
   const { host, remote, state } = fixture();
   remote.threads[0] = { ...remote.threads[0], messages: [], historySummary: { messageCount: 1, attachmentCount: 0 } };
   const owner = historyHost(remote);
   host.desktop.queryComputerThreads = async (_id, query) => queryLocalThreads(owner.state, owner.history.prepareThreadRequest, query);
   const rows = await listAcrossComputers(host, "caller", { computer: "linux", search: "needle" });
   assert.equal(rows[0].id, "remote-id", "search includes content that was absent from the mirror");
-  assert.deepEqual(owner.loads, ["remote-id"]);
+  assert.deepEqual(owner.loads, []);
+  assert.ok(owner.state().threads[0].historySummary);
+  assert.deepEqual(await listAcrossComputers(host, "caller", { computer: "linux", search: "haystack" }), []);
   assert.equal((await readAcrossComputers(host, "remote-id")).messages[0].text, "needle in disk history");
-  assert.deepEqual(owner.loads, ["remote-id"], "read reuses hydrated history");
+  assert.deepEqual(owner.loads, ["remote-id"]);
   state.threads[0] = { ...state.threads[0], title: "remote-id", historySummary: { messageCount: 1, attachmentCount: 0 } };
   const caller = historyHost(state);
   await caller.history.prepareThreadRequest({ type: "thread.request", requestId: "read", taskId: "caller", op: "read", threadId: "remote-id" });
   assert.deepEqual(caller.loads, [], "an exact remote ID does not hydrate a local title match");
+});
+
+test("a local tool search answers from the stored history of an unloaded thread without loading it", async () => {
+  const owner = historyHost(workspace({ threads: [task("caller"), task("cold", { title: "Old work", historySummary: { messageCount: 1, attachmentCount: 0 } })] }));
+  const desktop = Object.assign(fakeDesktop(), noComputers);
+  const subscription = subscribeWorkspaceRuntime({
+    state: owner.state,
+    dispatch: async () => {},
+    execute: () => assert.fail("a list runs no command"),
+    waiters: { current: [] },
+    prepareThreadRequest: owner.history.prepareThreadRequest,
+    desktop,
+  });
+  try {
+    desktop.askThreads({ type: "thread.request", requestId: "search", taskId: "caller", op: "list", search: "needle" });
+    await vi.waitFor(() => assert.equal(desktop.threadAnswers.length, 1));
+    const answer = desktop.threadAnswers[0];
+    if (!answer.ok) assert.fail(answer.message);
+    assert.deepEqual((answer.result as Array<{ id: string }>).map((row) => row.id), ["cold"]);
+    assert.deepEqual(owner.loads, []);
+    assert.ok(owner.state().threads.find((thread) => thread.id === "cold")?.historySummary);
+  } finally { subscription.stop(); }
 });
 
 test("paired queries stay local even if that host also has paired computers", async () => {

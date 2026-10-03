@@ -4,11 +4,13 @@ import { findThread, resolveScope, threadSummaries } from "../application/thread
 import type { ConversationMessage } from "../domain/conversation.js";
 import type { ThreadFilter, ThreadRequest } from "../contracts/threads.js";
 import { adoptPersistedMessages, type PersistenceQueue } from "./workspace-persistence.js";
-import { resolveThreadRead } from "./thread-reads.js";
+import { resolveThreadRead, type PreparedThreadRequest } from "./thread-reads.js";
 
 export type HistoryHost = {
   state(): WorkspaceState;
   load(taskId: string): Promise<ConversationMessage[]>;
+  /** Which of these threads have stored message text containing the lowercased search. */
+  search(search: string, taskIds: string[]): Promise<string[]>;
   dispatch(input: WorkspaceInput): Promise<void>;
   persistence: PersistenceQueue;
 };
@@ -131,7 +133,8 @@ export function createRuntimeHistory(host: HistoryHost) {
       generation += 1;
       reads.clear();
     },
-    async prepareThreadRequest(request: ThreadRequest) {
+    /** A list search reads unloaded histories on disk, so it answers without loading them into the workspace. */
+    async prepareThreadRequest(request: ThreadRequest): Promise<PreparedThreadRequest | void> {
       if ((request.op === "read" || request.op === "list") && request.computer && !["this", "all"].includes(request.computer)) return;
       if (request.op === "read") {
         const match = resolveThreadRead(host.state(), request.threadId, request.computer);
@@ -150,10 +153,10 @@ export function createRuntimeHistory(host: HistoryHost) {
       if (request.attachments !== undefined) filter.attachments = request.attachments;
       if (request.idleForMs !== undefined) filter.idleForMs = request.idleForMs;
       const search = request.search.trim().toLowerCase();
-      const threads = threadSummaries(state, filter, Date.now());
-      for (const thread of threads) {
-        if (!thread.title.toLowerCase().includes(search)) await hydrate(thread.id);
-      }
+      const unloaded = new Set(state.threads.flatMap((thread) => thread.historySummary ? [thread.id] : []));
+      const ids = threadSummaries(state, filter, Date.now())
+        .flatMap((thread) => unloaded.has(thread.id) && !thread.title.toLowerCase().includes(search) ? [thread.id] : []);
+      return { stored: new Set(ids.length ? await host.search(search, ids) : []) };
     },
   };
 }

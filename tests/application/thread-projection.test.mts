@@ -97,6 +97,22 @@ test("archived threads stay out until they are asked for, and search reads the t
   assert.equal(threadSummaries(state, { scope: { kind: "all" }, limit: 0 }, NOW).length, 0);
 });
 
+test("unloaded threads match a search by title or by what the store found, and loaded ones by their transcript", () => {
+  const unloaded = { messageCount: 1, attachmentCount: 0 };
+  const state = workspace([
+    task("loaded", { messages: [message("fix the header", NOW - HOUR)] }),
+    task("stored", { historySummary: unloaded }),
+    task("unmatched", { historySummary: unloaded }),
+    task("header title", { historySummary: unloaded }),
+  ]);
+  const ids = (filter: ThreadFilter) => threadSummaries(state, filter, NOW).map((thread) => thread.id).sort();
+
+  assert.deepEqual(ids({ scope: { kind: "all" }, search: "header" }), ["header title", "loaded"]);
+  assert.deepEqual(ids({ scope: { kind: "all" }, search: "header", stored: new Set(["stored", "loaded"]) }), ["header title", "loaded", "stored"]);
+  assert.deepEqual(ids({ scope: { kind: "all" }, search: "footer", stored: new Set(["loaded"]) }), [], "a loaded thread answers from memory alone");
+  assert.deepEqual(ids({ scope: { kind: "all" }, search: "header", stored: new Set(["stored"]), limit: 5 }), ["header title", "loaded", "stored"]);
+});
+
 test("threads with images can be picked out, and a listing counts the messages carrying them", () => {
   const shot = { ...message("look at this", NOW - HOUR), attachments: ["/tmp/shot-1.png", "/tmp/shot-2.png"] };
   const state = workspace([

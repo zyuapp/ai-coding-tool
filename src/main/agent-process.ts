@@ -24,7 +24,7 @@ export type StartAgentProcess = (listener: AgentProcessListener) => AgentProcess
 
 export const forkAgentProcess: StartAgentProcess = (listener) => {
   /** The worker hosts every engine session, so it is told where the app's plugin is along with where images go. */
-  const agent = utilityProcess.fork(path.join(__dirname, "agent-worker.mjs"), [path.join(app.getPath("userData"), "generated-images"), appPluginPath(app.isPackaged, process.resourcesPath, app.getAppPath())], {
+  const agent = utilityProcess.fork(path.join(__dirname, "agent-worker-entry.mjs"), [path.join(app.getPath("userData"), "generated-images"), appPluginPath(app.isPackaged, process.resourcesPath, app.getAppPath())], {
     serviceName: "AI Coding Tool Agent",
     stdio: "pipe",
   });

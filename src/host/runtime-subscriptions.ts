@@ -4,6 +4,7 @@ import type { WorkspaceExecution } from "../application/workspace-execution.js";
 import type { AgentEvent } from "../contracts/ipc.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type { ThreadRequest } from "../contracts/threads.js";
+import type { PreparedThreadRequest } from "./thread-reads.js";
 import { errorMessage } from "./errors.js";
 import { subscribeToMobile } from "./mobile-bridge.js";
 import type { RuntimeDesktop, WorkspaceRuntimeHost } from "./runtime-desktop.js";
@@ -22,7 +23,7 @@ export type RuntimeSubscriptionHost = {
   dispatch: (input: WorkspaceInput) => Promise<void>;
   execute: (command: AppCommand) => WorkspaceExecution;
   waiters: ThreadWaiterList;
-  prepareThreadRequest: (request: ThreadRequest) => Promise<void>;
+  prepareThreadRequest: (request: ThreadRequest) => Promise<PreparedThreadRequest | void>;
   desktop: RuntimeDesktop;
   frame?: WorkspaceRuntimeHost["frame"];
 };
@@ -66,7 +67,7 @@ export function subscribeWorkspaceRuntime(host: RuntimeSubscriptionHost) {
   listen(() => {
     const stopListening = desktop.onThreadRequest((request) => {
       flushAll();
-      void host.prepareThreadRequest(request).then(() => answerThreadRequest(host, request))
+      void host.prepareThreadRequest(request).then((prepared) => answerThreadRequest(host, request, prepared))
         .then((response) => desktop.answerThreadRequest(response))
         .catch((error) => desktop.answerThreadRequest({ type: "thread.response", requestId: request.requestId, ok: false, message: errorMessage(error) }));
     });

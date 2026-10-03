@@ -107,3 +107,28 @@ test("every call the window makes is relayed on one channel, refused from anyone
     assert.deepEqual(electron.invoked.at(-1), ["desktop:call", name, ...row.valid]);
   }
 });
+
+test("the window's frame calls answer at once while every other call waits for the services", async () => {
+  const ready = Promise.withResolvers<void>();
+  const host = {
+    desktop: { openFolder: record("openFolder") },
+    reads: { read: record("read") },
+    setTheme: (theme: unknown) => { electron.reached.push(["setTheme", theme]); },
+    ready: ready.promise,
+  } as unknown as WindowDesktopHost;
+  serveWindowDesktop(host, (event) => (event.sender as unknown) === window.sender);
+  const relay = electron.handlers.get("desktop:call");
+  assert.ok(relay);
+  electron.reached.length = 0;
+
+  await relay(window, "setTheme", { variant: "dark", canvas: "#0e1117" });
+  await relay(window, "setBrowserBounds", null);
+  const opening = relay(window, "openFolder");
+  const reading = relay(window, "branches", "workspace");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(electron.reached.map((entry) => entry[0]), ["setTheme", "setBrowserBounds"]);
+
+  ready.resolve();
+  await Promise.all([opening, reading]);
+  assert.deepEqual(electron.reached.map((entry) => entry[0]), ["setTheme", "setBrowserBounds", "openFolder", "read"]);
+});

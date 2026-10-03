@@ -35,14 +35,15 @@ test("thread handles follow membership, queued work, and project edits when only
   const running = (id: string) => item(workspace.get().threadHandles.find((option) => option.id === id)).running;
   try {
     let previous = optionsForBothDrafts();
-    for (const [runs, expected] of [
-      [{ a: activeRun("a", "run-a") }, [true, false]],
-      [{ b: activeRun("b", "run-b") }, [false, true]],
-      [{}, [false, false]],
+    /** Draft "b" does not list thread b, so b settling leaves its list alone. */
+    for (const [runs, expected, changed] of [
+      [{ a: activeRun("a", "run-a") }, [true, false], [true, true]],
+      [{ b: activeRun("b", "run-b") }, [false, true], [true, true]],
+      [{}, [false, false], [true, false]],
     ] as const) {
       await publish([{ path: ["activeRuns"], value: runs }]);
       const next = optionsForBothDrafts();
-      for (const [index, options] of next.entries()) assert.notEqual(options, previous[index]);
+      for (const [index, options] of next.entries()) assert.equal(options !== previous[index], changed[index]);
       assert.deepEqual([running("a"), running("b")], expected);
       previous = next;
     }
@@ -63,7 +64,9 @@ test("thread handles follow membership, queued work, and project edits when only
 
     previous = optionsForBothDrafts();
     await publish([{ path: ["projects", 1, "name"], value: "Renamed" }]);
-    for (const [index, options] of optionsForBothDrafts().entries()) assert.notEqual(options, previous[index]);
+    const renamed = optionsForBothDrafts();
+    assert.notEqual(renamed[0], previous[0]);
+    assert.equal(renamed[1], previous[1], "draft \"b\" lists no thread in the renamed project");
     assert.equal(item(workspace.get().threadHandles.find((option) => option.id === "b")).handle, "renamed/b");
     assert.equal(item(workspace.get().threadHandlesFor("b").find((option) => option.id === "a")).handle, "alpha/a");
     const draft = workspace.get().threadHandlesFor("draft");
@@ -73,6 +76,20 @@ test("thread handles follow membership, queued work, and project edits when only
     assert.notEqual(moved, draft);
     assert.equal(item(moved.find((option) => option.id === "a")).inScope, false);
     assert.equal(item(moved.find((option) => option.id === "b")).inScope, true);
+
+    previous = optionsForBothDrafts();
+    await publish([{ path: ["threads", 0, "messages"], value: [{ id: "note", kind: "assistant", text: "done", at: 100 }] }]);
+    for (const [index, options] of optionsForBothDrafts().entries()) assert.equal(options, previous[index], "a message that moves no row keeps the list");
+    await publish([{ path: ["threads", 1, "messages"], value: [{ id: "note", kind: "assistant", text: "done", at: 200 }] }]);
+    const reordered = workspace.get().threadHandlesFor("b");
+    assert.notEqual(reordered, previous[1]);
+    assert.deepEqual(reordered.map((option) => option.id), ["a", "reader"]);
+    previous = optionsForBothDrafts();
+    await publish([{ path: ["threads", 2, "title"], value: "Billing" }]);
+    const retitled = optionsForBothDrafts();
+    assert.notEqual(retitled[0], previous[0]);
+    assert.equal(item(retitled[0].find((option) => option.id === "b")).title, "Billing");
+    assert.equal(retitled[1], previous[1], "a draft that does not list the thread keeps its list");
   } finally {
     await workspace.view.unmount();
     if (previousBridge) window.workspace = previousBridge;

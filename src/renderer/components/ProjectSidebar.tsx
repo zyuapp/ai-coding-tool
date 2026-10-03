@@ -185,8 +185,6 @@ export const ProjectSidebar = memo(function ProjectSidebar({
   const selectedComputer = computerLinks.find((link) => link.id === computerFilter);
   const list = useRef<HTMLElement>(null);
   const shownThreads = useShownThreads();
-  let timeFormatter: Intl.DateTimeFormat | undefined;
-  const formatTime = (value: number) => (timeFormatter ??= new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" })).format(value);
 
   const { threadsByProject, checkoutsByProject } = useProjectGroups(orderedThreads, worktreeGroups, sidebarCoordination.threadsByCoordinator);
 
@@ -201,7 +199,6 @@ export const ProjectSidebar = memo(function ProjectSidebar({
     worktreeGroups,
     threadHosts,
     openMenu,
-    formatTime,
     onSetOpenMenu,
     onSelectThread,
     onArchiveThread,
@@ -213,7 +210,11 @@ export const ProjectSidebar = memo(function ProjectSidebar({
     sidebarCoordination,
   });
 
-  const railSlots = railSlotsFor([...orderedThreads, ...recentThreads], { blockedThreadIds, runningThreadIds, sideChatAttention, worktreeThreadIds, schedules }, sidebarCoordination.threadsByCoordinator);
+  const { threadsByCoordinator } = sidebarCoordination;
+  const railSlots = useMemo(
+    () => railSlotsFor([...orderedThreads, ...recentThreads], { blockedThreadIds, runningThreadIds, sideChatAttention, worktreeThreadIds, schedules }, threadsByCoordinator),
+    [orderedThreads, recentThreads, blockedThreadIds, runningThreadIds, sideChatAttention, worktreeThreadIds, schedules, threadsByCoordinator],
+  );
 
   /** Stepping through threads from the keyboard is blind unless the list follows the one now open. */
   useLayoutEffect(() => {
@@ -263,11 +264,9 @@ export const ProjectSidebar = memo(function ProjectSidebar({
           draftProjectId={draftProjectId}
           expandedProjects={expandedProjects}
           projectHosts={projectHosts}
-          threadHosts={threadHosts}
           sections={sections}
           shownThreads={shownThreads}
           openMenu={openMenu}
-          formatTime={formatTime}
           renderRow={threadRow}
           onSetSectionOpen={onSetSectionOpen}
           onSetOpenMenu={onSetOpenMenu}

@@ -1,3 +1,5 @@
+/** First, so every module after it is compiled through the cache. */
+import { persistCompileCache } from "./compile-cache.js";
 import { app, BrowserWindow, dialog, globalShortcut, nativeTheme, powerMonitor, powerSaveBlocker, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { mkdirSync, readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
@@ -88,6 +90,9 @@ let reopenArgs: string[] | null = null;
 /** Folders the `aic` command named, held until the window is up and listening for them. */
 const pendingProjectOpens: string[] = [];
 let runtimeListening = false;
+let markServicesReady!: () => void;
+/** The window opens beside startup; what it asks of the services before they are up waits for this. */
+const servicesReady = new Promise<void>((resolve) => { markServicesReady = resolve; });
 
 function trustedSender(event: IpcMainEvent | IpcMainInvokeEvent) {
   return Boolean(window && !window.isDestroyed() && event.sender === window.webContents);
@@ -175,7 +180,11 @@ const runtimeDesktop = createRuntimeDesktop({
   engineAccess: engineAccessHost,
   worktreesRoots: () => [WORKTREES_ROOT, ...legacyWorktreesRoots(app.getPath("userData"))],
   restart: () => requestRestart(),
-  computers: getComputerLinks,
+  /** The window can ask before the links are made, so it waits for them rather than failing. */
+  computers: async () => {
+    await servicesReady;
+    return getComputerLinks();
+  },
 });
 
 const workspaceRuntime = createWorkspaceRuntimeHost({
@@ -382,6 +391,7 @@ async function createWindow() {
     }
   });
   await window.loadFile(path.join(__dirname, "../../renderer/index.html"));
+  await servicesReady;
   if (createdWindow.isDestroyed() || quitState !== "running") return;
   await startMobileBridge({ events, workspace: workspaceHooks, userData: app.getPath("userData"), staticRoot: path.join(__dirname, "../../mobile"), ...(!app.isPackaged ? { developmentRoot: app.getAppPath() } : {}) })
     .catch((error) => console.error("Could not start the phone bridge:", error));
@@ -407,7 +417,7 @@ function legacyWorktreesRoots(userData: string) {
   return [path.join(userData, "worktrees")].filter((root) => root !== WORKTREES_ROOT);
 }
 
-app.whenReady().then(async () => {
+const startup = app.whenReady().then(async () => {
   if (!singleInstance) return;
   // Development Electron has no packaged app to serve and must not replace the installed launcher.
   if (app.isPackaged) {
@@ -427,6 +437,8 @@ app.whenReady().then(async () => {
   }
   grantAppWindowPermissions();
   applyWindowTheme(loadWindowTheme());
+  handleImageProtocols(computerReads);
+  const windowCreated = createWindow().catch((error) => console.error("Could not open the window:", error));
   const { WorkspaceService: WorkspaceServiceConstructor } = await import("./workspace/workspace-service.mjs");
   workspaceService = new WorkspaceServiceConstructor({
     registryPath: path.join(userData, "workspaces.v1.json"),
@@ -444,7 +456,6 @@ app.whenReady().then(async () => {
     onChange: (automations) => { events.emit("automation:changed", automations); },
   });
   await automationScheduler.start();
-  handleImageProtocols(computerReads);
   if (!app.isPackaged) app.dock?.setIcon(icon);
   keyboard.claimDesktopShortcut();
   await searchPath;
@@ -460,11 +471,13 @@ app.whenReady().then(async () => {
     onNotice: (id, notice) => { events.emit("computer:notice", { id, notice }); },
   });
   computerLinks.start();
-  await createWindow();
+  markServicesReady();
   installAppMenu({
     onCheckForUpdates: () => sendMenuCommand("app.check-for-updates"),
     onOpenSourceLicenses: () => sendMenuCommand("app.open-source-licenses"),
   });
+  await windowCreated;
+  persistCompileCache();
   const launchPath = projectPathFromArgv(process.argv);
   if (launchPath) openProjectPath(launchPath);
   void checkForUpdates(updateHost).catch((error) => console.error("Update check failed:", error));
@@ -474,6 +487,13 @@ app.whenReady().then(async () => {
     if (BrowserWindow.getAllWindows().length === 0) void createWindow();
     else revealWindow();
   });
+});
+
+/** The window is already up by the time a later step can fail, so the failure is shown and the app quits rather than leaving it hung. */
+startup.catch((error: unknown) => {
+  console.error("Could not start:", error);
+  dialog.showErrorBox("Could not start", error instanceof Error ? error.message : String(error));
+  app.quit();
 });
 
 app.on("window-all-closed", () => {
@@ -501,6 +521,8 @@ app.on("before-quit", (event) => {
 
 async function finishShutdown() {
   let servicesStopped = false;
+  /** A quit during startup lets it finish rather than racing the store's open and the runtime's start. */
+  await startup.catch(() => undefined);
   try {
     await workspaceRuntime.flush();
     servicesStopped = true;
@@ -553,4 +575,4 @@ function setWindowTheme(theme: WindowTheme) {
   rememberWindowTheme(theme);
 }
 
-serveWindowDesktop({ desktop: runtimeDesktop, reads: computerReads, setTheme: setWindowTheme }, trustedSender);
+serveWindowDesktop({ desktop: runtimeDesktop, reads: computerReads, setTheme: setWindowTheme, ready: servicesReady }, trustedSender);

@@ -30,7 +30,7 @@ export {
 export type { ThreadDock } from "./workspace-dock.js";
 import { diffFor, type DiffState } from "./workspace-diff.js";
 import { jumpView } from "./workspace-jump.js";
-import { workspaceViewCollections } from "./workspace-view-collections.js";
+import { shownViewCollections, workspaceViewCollections } from "./workspace-view-collections.js";
 import { findView } from "./workspace-find.js";
 export { findTargetFor } from "./workspace-find.js";
 export type { FindView } from "./workspace-find.js";
@@ -700,19 +700,21 @@ export function threadSlots(state: WorkspaceState): string[] {
 export function deriveView(state: WorkspaceState) {
   const own = deriveOwnView(state);
   const remote = selectedComputer(state)?.state;
-  return remote ? overlaidView(state, own, remote, deriveOwnView) : own;
+  if (remote) return overlaidView(state, own, remote, (shown, window) => deriveOwnView(shown, window, shownViewCollections));
+  shownViewCollections.release();
+  return own;
 }
 
 export type OwnWorkspaceView = ReturnType<typeof deriveOwnView>;
 
 /** `window` is whose menu the location row draws: this window's when the thread is a paired computer's. */
-function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state) {
+function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state, collectionsOf = workspaceViewCollections) {
   const currentThread = state.threads.find((thread) => thread.id === state.currentId);
   const draftWorktree = worktreeById(state, state.draftWorktreeId ?? undefined);
   const currentProject = currentThread
     ? projectFor(state, currentThread)
     : (state.draftProjectId ? state.projects.find((project) => project.id === state.draftProjectId) : undefined);
-  const collections = workspaceViewCollections(state);
+  const collections = collectionsOf(state);
   const { listedThreads, visibleThreads, busy, blocked, managedWorktrees, lists } = collections;
   const currentRun = state.currentId ? state.activeRuns[state.currentId] : undefined;
   const workspaceId = currentThread

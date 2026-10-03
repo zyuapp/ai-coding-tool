@@ -142,6 +142,7 @@ function storeDesktop(host: ServiceDesktopHost) {
     updateEngine: async (engine) => (await host.engineAccess()).update(engine),
     loadTaskStore: () => host.taskDatabase().loadSummaries(),
     loadThreadMessages: (taskId) => host.taskDatabase().loadThreadMessages(taskId),
+    searchThreadMessages: (search, taskIds) => host.taskDatabase().searchThreadMessages(search, taskIds),
     persistTaskStore: (delta) => host.taskDatabase().persist(delta),
     loadSubagentActivity: (taskId, subagentId) => host.taskDatabase().subagentActivity(taskId, subagentId),
     loadSubagentMetadata: async (engine, subagentId, sessionId) => (await import("./agent/engine-services.mjs")).engineServices[engine].subagentMetadata?.(subagentId, sessionId) ?? {},

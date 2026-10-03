@@ -1,9 +1,11 @@
 import { errorMessage } from "./errors.js";
 import { saveViewPreferences } from "./view-preferences-store.js";
 import { resolveRunWorkspace } from "./resolve-run-workspace.js";
-import { messageImages } from "../application/message-images.js";
 import type { EffectHandlers } from "./effect-host.js";
 import { isSubagentEvent } from "../contracts/ipc.js";
+
+/** Loaded on first use, since its markdown parser is a large part of main's startup otherwise. */
+let images: Promise<typeof import("../application/message-images.js")> | undefined;
 
 /** What a run takes to start, what it is told while it runs, what is read back about it, and what its messages leave behind. */
 export const runEffects = {
@@ -47,6 +49,7 @@ export const runEffects = {
   },
 
   "preserve-message-images": async (effect, { desktop }) => {
+    const { messageImages } = await (images ??= import("../application/message-images.js"));
     const files = messageImages(effect.text).map((image) => image.path);
     if (files.length) await desktop.preserveMessageImages(files, effect.root, effect.messageId);
   },

@@ -5,7 +5,7 @@ import type { StartAgentProcess } from "./agent-process.js";
 /** Starts the agent process as a plain child of a host that has no Electron to fork it as a utility process. */
 export function forkAgentProcessNode(options: { generatedImages: string; pluginPath: string }): StartAgentProcess {
   return (listener) => {
-    const agent = fork(path.join(__dirname, "agent-worker.mjs"), [options.generatedImages, options.pluginPath], {
+    const agent = fork(path.join(__dirname, "agent-worker-entry.mjs"), [options.generatedImages, options.pluginPath], {
       stdio: ["ignore", "inherit", "inherit", "ipc"],
       serialization: "advanced",
     });

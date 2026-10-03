@@ -219,9 +219,10 @@ test("typing and streaming leave sidebar rows alone while sidebar changes still 
     await settleFrame();
     assert.equal(view.container.querySelector(".task-spinner"), null, "finishing removes the running mark");
     assert.ok(query(view.container, 'nav[aria-label="Priority"] .task-row[title="Streaming task"]'));
-    assert.ok(quietFormats > beforeStreaming, "a changed sidebar is rendered again");
+    assert.equal(quietFormats, beforeStreaming, "a row that did not change is not drawn again");
     await act(async () => { row("Quiet task").click(); });
     assert.ok(row("Quiet task").classList.contains("active"), "selection updates after streaming");
+    assert.ok(quietFormats > beforeStreaming, "a row that changed is drawn again");
   } finally {
     Object.defineProperty(Intl.DateTimeFormat.prototype, "format", originalFormat);
     await view.unmount();

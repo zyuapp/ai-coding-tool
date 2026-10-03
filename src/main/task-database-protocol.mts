@@ -7,6 +7,7 @@ export type TaskDatabaseOperations = {
   ready: { input: undefined; result: void };
   load: { input: { summariesOnly?: boolean }; result: LoadedTaskStore | null };
   messages: { input: { taskId: string }; result: ConversationMessage[] };
+  search: { input: { search: string; taskIds: string[] }; result: string[] };
   attachments: { input: undefined; result: string[] };
   activity: { input: { taskId: string; subagentId: string }; result: SubagentActivity[] };
   persist: { input: TaskStoreDelta; result: void };

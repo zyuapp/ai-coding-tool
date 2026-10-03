@@ -280,6 +280,8 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   openSourceLicenses(): Promise<void>;
   loadTaskStore(): Promise<LoadedTaskStore | null>;
   loadThreadMessages(taskId: string): Promise<import("../domain/conversation.js").ConversationMessage[]>;
+  /** Which of these threads have a stored message containing `search`, read without loading their histories. */
+  searchThreadMessages(search: string, taskIds: string[]): Promise<string[]>;
   persistTaskStore(delta: TaskStoreDelta): Promise<void>;
   /** A stored subagent's activity, which the store leaves behind until someone opens that subagent. */
   loadSubagentActivity(taskId: string, subagentId: string): Promise<SubagentActivity[]>;

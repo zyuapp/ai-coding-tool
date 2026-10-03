@@ -3,9 +3,14 @@ import { emptyScan, repairCut, scanBlocks } from "../../domain/markdown-stream";
 import { MarkdownMessage } from "./MarkdownMessage";
 
 /** Streamed text only ever grows, so the block scan resumes rather than re-reading from the start. */
-function useCompleteBlocks(text: string) {
+function useCompleteBlocks(text: string, active: boolean) {
   const scan = useRef(emptyScan());
   const seen = useRef("");
+  if (!active) {
+    seen.current = "";
+    scan.current = emptyScan();
+    return 0;
+  }
   if (!text.startsWith(seen.current)) scan.current = emptyScan();
   scan.current = scanBlocks(text, scan.current);
   seen.current = text;
@@ -24,9 +29,9 @@ export function StreamingText({ committed, tail = "", streaming = false, message
   messageId?: string;
 }) {
   const full = committed + tail;
-  const blocks = useCompleteBlocks(full);
+  const blocks = useCompleteBlocks(full, streaming);
   /** Nothing more is coming, so the whole answer renders as one document. */
-  if (!streaming) return <MarkdownMessage messageId={messageId}>{full}</MarkdownMessage>;
+  if (!streaming) return <MarkdownMessage messageId={messageId} cache>{full}</MarkdownMessage>;
   const settled = full.slice(0, blocks);
   const live = repairCut(full.slice(blocks));
   return (

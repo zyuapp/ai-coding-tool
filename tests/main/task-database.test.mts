@@ -86,6 +86,30 @@ test("startup summaries preserve activity and counts while messages load only on
   }
 });
 
+test("message search matches stored text case-insensitively within the given threads and skips unreadable rows", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "aicodingtool-history-search-"));
+  const file = path.join(directory, "tasks.sqlite");
+  const database = new TaskDatabase(file);
+  const message = (id: string, text: string): ConversationMessage => ({ id, kind: "assistant", text, at: 1 });
+  try {
+    database.persist({ tasks: [
+      { task: summaryTask, messages: [{ index: 0, message: message("a", "Found the ÜBER Needle") }, { index: 1, message: message("b", "needle again") }] },
+      { task: { ...summaryTask, id: "other" }, messages: [{ index: 0, message: message("c", "Nothing here") }] },
+      { task: { ...summaryTask, id: "outside" }, messages: [{ index: 0, message: message("d", "needle") }] },
+      { task: { ...summaryTask, id: "broken" }, messages: [{ index: 0, message: message("e", "needle") }] },
+    ] });
+    const raw = new DatabaseSync(file);
+    raw.prepare("UPDATE messages SET data = ? WHERE task_id = 'broken'").run("{broken json");
+    raw.close();
+    assert.deepEqual(database.searchThreadMessages("needle", [summaryTask.id, "other", "broken"]), [summaryTask.id]);
+    assert.deepEqual(database.searchThreadMessages("über needle", [summaryTask.id]), [summaryTask.id]);
+    assert.deepEqual(database.searchThreadMessages("needle", []), []);
+  } finally {
+    database.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("existing databases gain indexed history metadata and preserve legacy withdrawn messages", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "aicodingtool-history-migration-"));
   const file = path.join(directory, "tasks.sqlite");

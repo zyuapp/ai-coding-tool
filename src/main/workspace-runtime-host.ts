@@ -41,17 +41,21 @@ export function createWorkspaceRuntimeHost(options: WorkspaceRuntimeHostOptions)
   publisher.subscribe((update) => send("workspace-runtime:update", update));
   let closed = false;
 
-  function request(input?: WorkspaceInput): Promise<WorkspaceResponse["result"]> {
-    if (closed) return Promise.reject(new Error("The workspace runtime has closed."));
+  /** Held until the store has loaded, in arrival order, so an early window never sees the empty state. */
+  async function request(input?: WorkspaceInput): Promise<WorkspaceResponse["result"]> {
+    if (closed) throw new Error("The workspace runtime has closed.");
+    await runtime.loaded;
+    if (closed) throw new Error("The workspace runtime has closed.");
     if (input === undefined) {
       send("workspace-runtime:update", publisher.snapshot());
-      return Promise.resolve({ ok: true, revision: publisher.revision });
+      return { ok: true, revision: publisher.revision };
     }
     return publisher.request(input);
   }
 
   /** Values a window kept from hosting the runtime itself, taken on once and applied without a restart. */
   async function migrate(values: Record<string, string>) {
+    await runtime.loaded;
     if (!storage.adopt(values)) return;
     const { browserTabs: _reopened, ...preferences } = loadViewPreferences(storage);
     await runtime.dispatch({ type: "preferences.loaded", preferences });

@@ -84,7 +84,7 @@ export function threadSummaries(state: WorkspaceState, filter: ThreadFilter, at:
       if (!inScope(thread, filter.scope)) continue;
       if ((thread.archivedAt !== undefined) !== Boolean(filter.archived)) continue;
       if (filter.idleForMs !== undefined && at - threadActivityAt(thread) < filter.idleForMs) continue;
-      if (search && !matches(thread, search)) continue;
+      if (search && !matches(thread, search, filter.stored)) continue;
       const attachments = filter.attachments ? countAttachments(thread) : undefined;
       if (filter.attachments && !attachments) continue;
       matching.push({ thread, ...(attachments === undefined ? {} : { attachments }) });
@@ -105,7 +105,7 @@ export function threadSummaries(state: WorkspaceState, filter: ThreadFilter, at:
       activity = threadActivityAt(thread);
       if (at - activity < filter.idleForMs) continue;
     }
-    if (search && !matches(thread, search)) continue;
+    if (search && !matches(thread, search, filter.stored)) continue;
     const attachments = filter.attachments ? countAttachments(thread) : undefined;
     if (filter.attachments && !attachments) continue;
     matching.push({ thread, activity: activity ?? threadActivityAt(thread), ...(attachments === undefined ? {} : { attachments }) });
@@ -196,6 +196,7 @@ function countAttachments(thread: Thread) {
   return count;
 }
 
-function matches(thread: Thread, search: string) {
-  return thread.title.toLowerCase().includes(search) || thread.messages.some((message) => message.text.toLowerCase().includes(search));
+function matches(thread: Thread, search: string, stored: ReadonlySet<string> | undefined) {
+  if (thread.title.toLowerCase().includes(search)) return true;
+  return thread.historySummary ? Boolean(stored?.has(thread.id)) : thread.messages.some((message) => message.text.toLowerCase().includes(search));
 }

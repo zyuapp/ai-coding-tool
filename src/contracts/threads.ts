@@ -36,6 +36,8 @@ export type ThreadFilter = {
   idleForMs?: number;
   /** Case-insensitive match against the title and the message text. */
   search?: string;
+  /** Threads whose unloaded history on disk matches `search`; without it, unloaded threads match on title only. */
+  stored?: ReadonlySet<string>;
   /** Keeps only threads where at least one message carries an image. */
   attachments?: boolean;
   limit?: number;

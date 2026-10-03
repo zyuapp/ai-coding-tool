@@ -1,5 +1,5 @@
-import { Children, createContext, isValidElement, memo, useContext, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
-import ReactMarkdown, { defaultUrlTransform, type ExtraProps } from "react-markdown";
+import { Children, createContext, isValidElement, memo, useContext, useMemo, useRef, useState, type ComponentProps, type ReactElement, type ReactNode } from "react";
+import Markdown, { defaultUrlTransform, type ExtraProps } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { parseFileHref, parseThreadHref } from "../../domain/markdown-links";
 import { Copyable } from "./CopyButton";
@@ -180,22 +180,48 @@ function wordSpans() {
   return walk;
 }
 
-export const MarkdownMessage = memo(function MarkdownMessage({ children, animate, messageId = "" }: { children: string; animate?: boolean; messageId?: string }) {
+const REMARK = [remarkGfm];
+const NO_REHYPE: [] = [];
+const ANIMATE_REHYPE = [wordSpans];
+const COMPONENTS = { pre: MarkdownPre, table: MarkdownTable, a: MarkdownLink, code: MarkdownCode, img: MarkdownImage };
+const urlTransform = (url: string) => (APP_HREF.test(url) ? url : defaultUrlTransform(url));
+
+/** Rendered trees of finished text, newest last, bounded by the characters they were parsed from. */
+const rendered = new Map<string, ReactElement>();
+let cachedChars = 0;
+const CACHE_CHARS = 512 * 1024;
+
+/** `Markdown` holds no hooks, so its tree can be built here and kept for the next mount of the same text. */
+function renderMarkdown(text: string, animate: boolean, cache: boolean) {
+  const options = { children: text, remarkPlugins: REMARK, rehypePlugins: animate ? ANIMATE_REHYPE : NO_REHYPE, skipHtml: true, urlTransform, components: COMPONENTS };
+  if (animate || !cache || text.length > CACHE_CHARS / 8) return Markdown(options);
+  const hit = rendered.get(text);
+  if (hit) {
+    rendered.delete(text);
+    rendered.set(text, hit);
+    return hit;
+  }
+  const tree = Markdown(options);
+  rendered.set(text, tree);
+  cachedChars += text.length;
+  for (const [oldest] of rendered) {
+    if (cachedChars <= CACHE_CHARS) break;
+    rendered.delete(oldest);
+    cachedChars -= oldest.length;
+  }
+  return tree;
+}
+
+/** `cache` keeps the parsed tree across mounts, for text that is finished and will be shown again. */
+export const MarkdownMessage = memo(function MarkdownMessage({ children, animate, cache, messageId = "" }: { children: string; animate?: boolean; cache?: boolean; messageId?: string }) {
   const actions = useContext(MessageLinks);
   const images = useMemo(() => !animate && messageId && actions.openImage ? messageImages(children) : [], [children, animate, messageId, actions.openImage]);
+  const tree = useMemo(() => renderMarkdown(children, !!animate, !!cache), [children, animate, cache]);
   return (
     <MessageId.Provider value={messageId}>
     <Unsettled.Provider value={!!animate}>
       <Source.Provider value={children}>
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          rehypePlugins={animate ? [wordSpans] : []}
-          skipHtml
-          urlTransform={(url) => (APP_HREF.test(url) ? url : defaultUrlTransform(url))}
-          components={{ pre: MarkdownPre, table: MarkdownTable, a: MarkdownLink, code: MarkdownCode, img: MarkdownImage }}
-        >
-          {children}
-        </ReactMarkdown>
+        {tree}
         {images.length > 0 && <div className="message-image-previews">{images.map((linked) => <MessageImagePreview key={`${messageId}:${linked.path}`} image={linked} messageId={messageId} />)}</div>}
       </Source.Provider>
     </Unsettled.Provider>

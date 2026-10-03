@@ -19,6 +19,7 @@ test("concurrent history readers share one load and preserve metadata edited dur
   const persistence: PersistenceQueue = { persisted: persistenceState(state), pending: null, inFlight: null };
   const history = createRuntimeHistory({
     state: () => state,
+    search: async () => [],
     load: () => { reads++; return pending.promise; },
     dispatch: async (input) => { state = reduce(state, input).state; },
     persistence,
@@ -42,6 +43,7 @@ test("a failed history read leaves its marker intact and can be retried", async 
   let reads = 0;
   const history = createRuntimeHistory({
     state: () => state,
+    search: async () => [],
     load: async () => { if (++reads === 1) throw new Error("read failed"); return messages; },
     dispatch: async (input) => { state = reduce(state, input).state; },
     persistence: { persisted: persistenceState(state), pending: null, inFlight: null },
@@ -58,6 +60,7 @@ test("a late history response cannot recreate a removed thread", async () => {
   const pending = Promise.withResolvers<ConversationMessage[]>();
   const history = createRuntimeHistory({
     state: () => state,
+    search: async () => [],
     load: () => pending.promise,
     dispatch: async (input) => { state = reduce(state, input).state; },
     persistence: { persisted: persistenceState(state), pending: null, inFlight: null },
@@ -79,6 +82,7 @@ test("hydration survives an older metadata snapshot finishing its persistence wr
   await Promise.resolve();
   const history = createRuntimeHistory({
     state: () => state,
+    search: async () => [],
     load: async () => messages,
     dispatch: async (input) => { state = reduce(state, input).state; },
     persistence,
@@ -99,6 +103,7 @@ test("a shared checkout removal prepares every claimant transcript", () => {
   });
   const history = createRuntimeHistory({
     state: () => state,
+    search: async () => [],
     load: async () => [],
     dispatch: async () => {},
     persistence: { persisted: persistenceState(state), pending: null, inFlight: null },
@@ -110,7 +115,7 @@ test("a shared checkout removal prepares every claimant transcript", () => {
 
 test("a broken current history does not block unrelated settings, browser, focus, or cancellation", () => {
   const state = workspace({ threads: [cold("broken"), cold("other")], currentId: "broken" });
-  const history = createRuntimeHistory({ state: () => state, load: async () => { throw new Error("broken history"); }, dispatch: async () => {}, persistence: { persisted: null, pending: null, inFlight: null } });
+  const history = createRuntimeHistory({ state: () => state, search: async () => [], load: async () => { throw new Error("broken history"); }, dispatch: async () => {}, persistence: { persisted: null, pending: null, inFlight: null } });
   assert.deepEqual(history.needed({ type: "view.set-settings-open", open: true }), []);
   assert.deepEqual(history.needed({ type: "view.set-focused", focused: true }), []);
   assert.deepEqual(history.needed({ type: "browser.open", taskId: "other", url: "https://example.com" }), []);
@@ -123,7 +128,7 @@ test("a broken current history does not block unrelated settings, browser, focus
 
 test("keyboard navigation and an explicit find target hydrate the thread they reach", () => {
   const state = workspace({ threads: [cold("first"), cold("second")], currentId: "first", history: ["second", "first"], historyIndex: 1 });
-  const history = createRuntimeHistory({ state: () => state, load: async () => [], dispatch: async () => {}, persistence: { persisted: null, pending: null, inFlight: null } });
+  const history = createRuntimeHistory({ state: () => state, search: async () => [], load: async () => [], dispatch: async () => {}, persistence: { persisted: null, pending: null, inFlight: null } });
   assert.deepEqual(history.needed({ type: "view.go-back" }), ["second"]);
   assert.deepEqual(history.needed({ type: "view.shortcut", action: "nav.back", surface: "any" }), ["second"]);
   assert.deepEqual(history.needed({ type: "view.find-open", target: { kind: "thread", taskId: "second" } }), ["second"]);
@@ -133,7 +138,7 @@ test("keyboard navigation and an explicit find target hydrate the thread they re
 test("transcript references resolve titles and ID prefixes before loading", async () => {
   let state = workspace({ threads: [{ ...cold("long-thread-id"), title: "Original title" }] });
   const reads: string[] = [];
-  const history = createRuntimeHistory({ state: () => state, load: async (id) => { reads.push(id); return messages; }, dispatch: async (input) => { state = reduce(state, input).state; }, persistence: { persisted: null, pending: null, inFlight: null } });
+  const history = createRuntimeHistory({ state: () => state, search: async () => [], load: async (id) => { reads.push(id); return messages; }, dispatch: async (input) => { state = reduce(state, input).state; }, persistence: { persisted: null, pending: null, inFlight: null } });
   await history.prepareThreadRequest({ type: "thread.request", requestId: "read", taskId: "caller", op: "read", threadId: "Original title" });
   assert.deepEqual(reads, ["long-thread-id"]);
   state = workspace({ threads: [cold("another-long-id")] });
@@ -141,7 +146,7 @@ test("transcript references resolve titles and ID prefixes before loading", asyn
   assert.deepEqual(reads, ["long-thread-id", "another-long-id"]);
 });
 
-test("scoped search loads matching project histories without touching unrelated or archived threads", async () => {
+test("scoped search asks the store about unloaded project histories without loading them or touching unrelated or archived threads", async () => {
   let state = workspace({
     threads: [
       { ...cold("caller"), projectId: "project" },
@@ -152,9 +157,24 @@ test("scoped search loads matching project histories without touching unrelated 
     projects: [{ id: "project", root: "/repo" }, { id: "other", root: "/other" }],
   });
   const reads: string[] = [];
-  const history = createRuntimeHistory({ state: () => state, load: async (id) => { reads.push(id); if (id !== "caller") throw new Error("unrelated corrupt history"); return messages; }, dispatch: async (input) => { state = reduce(state, input).state; }, persistence: { persisted: null, pending: null, inFlight: null } });
-  await history.prepareThreadRequest({ type: "thread.request", requestId: "search", taskId: "caller", op: "list", search: "needle" });
-  assert.deepEqual(reads, ["caller"]);
+  const searches: Array<[string, string[]]> = [];
+  const history = createRuntimeHistory({
+    state: () => state,
+    search: async (search, ids) => { searches.push([search, ids]); return ids; },
+    load: async (id) => { reads.push(id); return messages; },
+    dispatch: async (input) => { state = reduce(state, input).state; },
+    persistence: { persisted: null, pending: null, inFlight: null },
+  });
+  const prepared = await history.prepareThreadRequest({ type: "thread.request", requestId: "search", taskId: "caller", op: "list", search: "  NEEDLE " });
+  assert.deepEqual(prepared, { stored: new Set(["caller"]) });
+  assert.deepEqual(searches, [["needle", ["caller"]]]);
+  assert.deepEqual(reads, []);
+  assert.ok(state.threads.every((thread) => thread.historySummary));
+  const titled = await history.prepareThreadRequest({ type: "thread.request", requestId: "titled", taskId: "caller", op: "list", search: "needle", project: "all", archived: true });
+  assert.deepEqual(titled, { stored: new Set(["archive"]) });
+  state = workspace({ threads: [{ ...cold("title-only"), title: "Needle" }, task("loaded")] });
+  assert.deepEqual(await history.prepareThreadRequest({ type: "thread.request", requestId: "none", taskId: "loaded", op: "list", search: "needle", project: "all" }), { stored: new Set() });
+  assert.equal(searches.length, 2, "nothing unloaded is left to search");
 });
 
 test("invalidated history reads cannot modify a later runtime lifetime or erase its active read", async () => {
@@ -163,7 +183,7 @@ test("invalidated history reads cannot modify a later runtime lifetime or erase 
   const newRead = Promise.withResolvers<ConversationMessage[]>();
   let loads = 0;
   const persistence: PersistenceQueue = { persisted: persistenceState(state), pending: null, inFlight: null };
-  const history = createRuntimeHistory({ state: () => state, load: () => (++loads === 1 ? oldRead.promise : newRead.promise), dispatch: async (input) => { state = reduce(state, input).state; }, persistence });
+  const history = createRuntimeHistory({ state: () => state, search: async () => [], load: () => (++loads === 1 ? oldRead.promise : newRead.promise), dispatch: async (input) => { state = reduce(state, input).state; }, persistence });
   const oldLoading = history.hydrate("thread");
   history.invalidate();
   const newLoading = history.hydrate("thread");

@@ -510,7 +510,7 @@ export class CodexSession {
     const started = continuation === undefined
       ? await client.request("thread/start", settings)
       : seed.forkContinuation
-        ? await client.request("thread/fork", { threadId: continuation, ...settings })
+        ? await client.request("thread/fork", { threadId: continuation, ...settings, excludeTurns: true })
         : await resumeThread(client, continuation, settings).catch((error: unknown) => {
           /** Only the server's own refusal says the thread is gone; a server that died may still have it. */
           if (error instanceof AppServerError) throw new OpenFailure(`Codex could not continue this thread (${reasonOf(error)}). Start a new thread to keep going.`, true);

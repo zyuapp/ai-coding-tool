@@ -187,6 +187,17 @@ test("stores the latest context usage for the active task", () => {
   assert.deepEqual(updated.threads[0].contextUsage, { tokens: 42_000, limit: 200_000, model: "claude-sonnet" });
 });
 
+test("an unchanged context usage report keeps the thread list but still settles a warming run", () => {
+  const initial = state();
+  initial.threads[0].contextUsage = { tokens: 42_000, limit: 200_000, model: "claude-sonnet" };
+  initial.activeRuns["task-a"] = { ...initial.activeRuns["task-a"]!, warming: true };
+  const updated = applyRunEvent(initial, { type: "context.usage", taskId: "task-a", runId: "run-a", sequence: 1, tokens: 42_000, limit: 200_000, model: "claude-sonnet" });
+
+  assert.equal(updated.threads, initial.threads);
+  assert.equal(updated.activeRuns["task-a"]?.warming, undefined);
+  assert.equal(updated.activeRuns["task-a"]?.sequence, 1);
+});
+
 test("records compaction and updates context usage", () => {
   const initial = state();
   initial.threads[0].contextUsage = { tokens: 182_000, limit: 200_000, model: "claude-sonnet" };

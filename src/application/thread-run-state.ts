@@ -491,6 +491,8 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
   if (event.type === "context.usage") {
     const { warming: _warmed, ...warm } = withSequence.activeRuns[event.taskId]!;
     const settledRun = active.warming ? withActiveRun(withSequence, event.taskId, warm) : withSequence;
+    const current = withSequence.threads.find((thread) => thread.id === event.taskId)?.contextUsage;
+    if (current?.tokens === event.tokens && current.limit === event.limit && current.model === event.model) return settledRun;
     return updateThread(settledRun, event.taskId, (thread) => ({
       ...thread,
       contextUsage: { tokens: event.tokens, limit: event.limit, model: event.model },

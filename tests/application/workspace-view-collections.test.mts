@@ -4,6 +4,8 @@ import { deriveView, stateFromData, type WorkspaceState } from "../../src/applic
 import { applyRunEvent } from "../../src/application/thread-run-state.ts";
 import type { Subagent } from "../../src/domain/run.ts";
 import { activeRun, automation, task, workspace } from "./workspace-reducer-fixtures.mts";
+import type { PairedComputer } from "../../src/application/computers.ts";
+import { shownViewCollections } from "../../src/application/workspace-view-collections.ts";
 
 function populated(): WorkspaceState {
   return workspace({
@@ -41,6 +43,40 @@ test("composer and streaming updates reuse workspace lists, counts, and worktree
   }
   assert.equal(typing.prompt, "typing");
   assert.equal(streaming.streamingTail?.text, "stream");
+});
+
+test("typing over a paired computer's thread reuses this computer's and that computer's lists", () => {
+  const own = populated();
+  const remoteState = workspace({
+    threads: [task("remote", { projectId: "remote-project", worktreeId: "remote-wt" }), task("other", { projectId: "remote-project" })],
+    currentId: "remote",
+    activeRuns: { remote: activeRun("remote", "run") },
+    projects: [{ id: "remote-project", root: "/remote" }],
+    worktrees: [{ id: "remote-wt", projectId: "remote-project", root: "/remote-wt", workspaceId: "remote-workspace", baseCommit: "abc", createdAt: 1, lastUsedAt: 1 }],
+  });
+  const linux: PairedComputer = { id: "linux", name: "linux", host: "linux.tail.ts.net", status: "connected", error: null, pairedAt: 1, state: remoteState };
+  const state: WorkspaceState = { ...own, computers: { ...own.computers, paired: [linux], active: linux.id } };
+  const before = deriveView(state);
+  const typing = deriveView({ ...state, prompts: { remote: "x" } });
+  assert.equal(typing.prompt, "x");
+  assert.equal(typing.orderedThreads, before.orderedThreads);
+  assert.equal(typing.threadsByProject, before.threadsByProject);
+  assert.equal(typing.worktreeGroups, before.worktreeGroups);
+  assert.equal(typing.runningThreadIds, before.runningThreadIds);
+  assert.equal(typing.coordination, before.coordination);
+  assert.equal(typing.coordinators, before.coordinators);
+});
+
+test("leaving a paired computer's thread lets go of its lists", () => {
+  const own = populated();
+  const remoteState = workspace({ threads: [task("remote", { projectId: "remote-project" })], currentId: "remote", projects: [{ id: "remote-project", root: "/remote" }] });
+  const linux: PairedComputer = { id: "linux", name: "linux", host: "linux.tail.ts.net", status: "connected", error: null, pairedAt: 1, state: remoteState };
+  const paired: WorkspaceState = { ...own, computers: { ...own.computers, paired: [linux], active: linux.id } };
+  deriveView(paired);
+  const shown = shownViewCollections(remoteState).lists;
+  assert.equal(shownViewCollections(remoteState).lists, shown);
+  deriveView({ ...paired, computers: { ...paired.computers, active: null } });
+  assert.notEqual(shownViewCollections(remoteState).lists, shown);
 });
 
 test("run approval and checkout deletion invalidate the sidebar's busy and blocked lists", () => {

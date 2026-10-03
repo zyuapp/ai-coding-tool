@@ -75,7 +75,7 @@ export class CodexThreadRecord {
  * a resume looks in, so an unarchive is offered once before the refusal is passed on.
  */
 export async function resumeThread(client: CodexClient, threadId: string, settings: Omit<ClientParams<"thread/resume">, "threadId">) {
-  const resume = () => client.request("thread/resume", { threadId, ...settings });
+  const resume = () => client.request("thread/resume", { threadId, ...settings, excludeTurns: true });
   try {
     return await resume();
   } catch (error) {

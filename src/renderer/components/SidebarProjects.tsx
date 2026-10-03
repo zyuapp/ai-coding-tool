@@ -2,14 +2,14 @@ import { useState } from "react";
 import { Draggable, Droppable, type DraggableProvided } from "@hello-pangea/dnd";
 import { LuSquarePen as SquarePen } from "react-icons/lu";
 import { folderName, projectName, type Project } from "../../domain/project";
-import { threadActivityAt, type Thread } from "../../domain/thread";
+import type { Thread } from "../../domain/thread";
 import type { SidebarSection, SidebarSections } from "../../domain/sidebar";
 import { worktreeName } from "../../domain/worktree";
 import type { WorktreeGroup } from "../../application/workspace-state";
 import { PopoverMenu } from "./PopoverMenu";
 import { RenameInput, useRenaming, type Renaming } from "./SidebarRename";
 import { ShowMore } from "./ShowMore";
-import { hostMeta, type ThreadRowRenderer } from "./SidebarThreadRow";
+import type { ThreadRowRenderer } from "./SidebarThreadRow";
 import type { ThreadHost } from "../../application/computers";
 import { HostMark } from "./HostMark";
 
@@ -150,7 +150,7 @@ function ProjectRow({
           {expanded && <Droppable droppableId={project.id} type="task">
             {(provided) => (
               <div className="project-tasks" ref={provided.innerRef} {...provided.droppableProps}>
-                {threads.slice(0, shown).map((thread, threadIndex) => renderRow(thread, threadIndex, `project-task-row ${thread.id === currentId ? "active" : ""}`, <span>{thread.title}</span>))}
+                {threads.slice(0, shown).map((thread, threadIndex) => renderRow(thread, threadIndex, "project"))}
                 {provided.placeholder}
               </div>
             )}
@@ -196,11 +196,9 @@ export type SidebarProjectsProps = {
   draftProjectId: string | null;
   expandedProjects: Set<string>;
   projectHosts: Map<string, ThreadHost>;
-  threadHosts: Map<string, ThreadHost>;
   sections: SidebarSections;
   shownThreads: ShownThreads;
   openMenu: string | null;
-  formatTime: (value: number) => string;
   renderRow: ThreadRowRenderer;
   onSetSectionOpen: (section: SidebarSection, open: boolean) => void;
   onSetOpenMenu: (menu: string | null) => void;
@@ -223,11 +221,9 @@ export function SidebarProjects({
   draftProjectId,
   expandedProjects,
   projectHosts,
-  threadHosts,
   sections,
   shownThreads,
   openMenu,
-  formatTime,
   renderRow,
   onSetSectionOpen,
   onSetOpenMenu,
@@ -304,10 +300,7 @@ export function SidebarProjects({
         {(provided, snapshot) => (
           <nav className="task-list" aria-label="Project-less tasks" ref={provided.innerRef} {...provided.droppableProps}>
             {recentThreads.length === 0 && !snapshot.isDraggingOver && <p className="sidebar-empty">No chats</p>}
-            {recentThreads.map((thread, index) => renderRow(thread, index, `task-row ${thread.id === currentId ? "active" : ""}`, <span className="task-row-text">
-                <span>{thread.title}</span>
-                <small>{hostMeta(threadHosts.get(thread.id), formatTime(threadActivityAt(thread)))}</small>
-              </span>))}
+            {recentThreads.map((thread, index) => renderRow(thread, index, "recent"))}
             {provided.placeholder}
           </nav>
         )}

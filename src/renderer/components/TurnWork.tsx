@@ -1,10 +1,10 @@
 import type { IconType } from "react-icons";
 import { LuBot as Bot, LuFileText as FileText, LuGlobe as Globe, LuPenLine as PenLine, LuSearch as Search, LuTerminal as Terminal, LuWrench as Wrench } from "react-icons/lu";
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, memo, useContext, useEffect, useState, type ReactNode } from "react";
 import type { StreamingTail } from "../../application/thread-run-state";
 import type { AgentEngine } from "../../domain/agent-engine";
 import type { ConversationMessage } from "../../domain/conversation";
-import { describeToolCall, type ToolFamily } from "../../domain/tool-call";
+import { describeToolCall, type ToolCall, type ToolFamily } from "../../domain/tool-call";
 import { timeSteps, toSegments, type TimedStep, type TurnSegment } from "../timeline/grouping";
 import { MarkdownMessage } from "./MarkdownMessage";
 import { StreamingText } from "./StreamingText";
@@ -67,6 +67,17 @@ function ToolGlyph({ family }: { family: ToolFamily }) {
   return <span className="work-glyph" aria-hidden="true"><Icon size={12} strokeWidth={1.75} /></span>;
 }
 
+/** Messages never change once written, so a call is read from its input once per engine. */
+const calls = new Map<AgentEngine, WeakMap<ConversationMessage, ToolCall>>();
+
+function toolCallOf(engine: AgentEngine, message: ConversationMessage): ToolCall {
+  let known = calls.get(engine);
+  if (!known) calls.set(engine, known = new WeakMap());
+  let call = known.get(message);
+  if (!call) known.set(message, call = describeToolCall(engine, message.text, message.detail));
+  return call;
+}
+
 function stepDuration(step: TimedStep): number | null {
   return step.endsAt === null ? null : Math.max(0, step.endsAt - step.message.at);
 }
@@ -76,8 +87,8 @@ function stepDuration(step: TimedStep): number | null {
  * says so once in its own summary, and repeating it there is what buried the argument to begin with.
  * `share` is how much of the run's slowest call this one took, so a long run shows where it went.
  */
-function ToolStep({ engine, step, named = true, share }: { engine: AgentEngine; step: TimedStep; named?: boolean; share?: number }) {
-  const call = describeToolCall(engine, step.message.text, step.message.detail);
+const ToolStep = memo(function ToolStep({ engine, step, named = true, share }: { engine: AgentEngine; step: TimedStep; named?: boolean; share?: number }) {
+  const call = toolCallOf(engine, step.message);
   const label = call.argument || step.message.text;
   const summary = (
     <>
@@ -90,14 +101,14 @@ function ToolStep({ engine, step, named = true, share }: { engine: AgentEngine; 
     </>
   );
   return <Fold className="work-row" holds={[step.message.id]} messageId={step.message.id} summary={summary}>{() => <pre>{step.message.detail}</pre>}</Fold>;
-}
+});
 
 /** Run of tool calls: the newest one stays visible, the rest hide behind a +N counter. */
-function ToolRun({ engine, steps }: { engine: AgentEngine; steps: TimedStep[] }) {
+const ToolRun = memo(function ToolRun({ engine, steps }: { engine: AgentEngine; steps: TimedStep[] }) {
   if (steps.length === 1) return <ToolStep engine={engine} step={steps[0]!} />;
   const hidden = steps.length - 1;
   const newest = steps.at(-1)!;
-  const call = describeToolCall(engine, newest.message.text, newest.message.detail);
+  const call = toolCallOf(engine, newest.message);
   const uniform = steps.every((step) => step.message.text === steps[0]!.message.text);
   const longest = Math.max(...steps.map((step) => stepDuration(step) ?? 0));
   const summary = (
@@ -124,7 +135,7 @@ function ToolRun({ engine, steps }: { engine: AgentEngine; steps: TimedStep[] })
       )}
     </Fold>
   );
-}
+});
 
 /**
  * A live turn streams its newest text. The tail can arrive before its first block commits, so it
@@ -139,7 +150,7 @@ export function TurnSegments({ engine, segments, tail, live = false }: { engine:
       <div key={segment.id} data-message-id={segment.message.id} className="message-text markdown-body work-note">
         {segment.message.id === streamingId
           ? <StreamingText messageId={segment.message.id} committed={segment.message.text} tail={tail?.messageId === segment.message.id ? tail.text : ""} streaming />
-          : <MarkdownMessage messageId={segment.message.id}>{segment.message.text}</MarkdownMessage>}
+          : <MarkdownMessage messageId={segment.message.id} cache>{segment.message.text}</MarkdownMessage>}
       </div>
     ));
   if (streamingId && !segments.some((segment) => segment.kind === "note" && segment.message.id === streamingId)) {

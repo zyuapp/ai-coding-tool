@@ -19,6 +19,15 @@ function sameKeys(previous: object, next: object) {
   return keys.length === Object.keys(previous).length && keys.every((key) => Object.hasOwn(previous, key));
 }
 
+/** Compares what the `@` menu draws and inserts: id, handle, title, project, scope and running, in order. `lastActivityAt` only orders the list. */
+function sameHandles(before: ThreadHandleOption[], next: ThreadHandleOption[]) {
+  return before.length === next.length && before.every((option, index) => {
+    const other = next[index]!;
+    return option.id === other.id && option.handle === other.handle && option.title === other.title
+      && option.project === other.project && option.inScope === other.inScope && option.running === other.running;
+  });
+}
+
 /** A view subscribes to the application runtime and sends it commands. */
 export function useTaskWorkspace() {
   const held = useRef<ReturnType<typeof createWorkspaceConnection> | null>(null);
@@ -47,7 +56,7 @@ export function useTaskWorkspace() {
    * cache outlives one state so a menu whose threads did not move is handed back the same list, and
    * a surface holding that list is not redrawn by a change it never reads.
    */
-  const handleCache = useRef<{ inputs: readonly unknown[]; activeRuns: object; byDraft: Map<string, ThreadHandleOption[]> }>({ inputs: [], activeRuns: {}, byDraft: new Map() });
+  const handleCache = useRef<{ inputs: readonly unknown[]; activeRuns: object; byDraft: Map<string, ThreadHandleOption[]>; stale: Map<string, ThreadHandleOption[]> }>({ inputs: [], activeRuns: {}, byDraft: new Map(), stale: new Map() });
   const threadHandlesFor = useCallback((draftKey: string) => {
     const current = runtime.getState();
     const inputs = [current.threads, current.projects, current.sideChats, current.pendingRuns, current.queuedMessages, current.draftProjectId] as const;
@@ -57,11 +66,15 @@ export function useTaskWorkspace() {
     cache.activeRuns = current.activeRuns;
     if (runsChanged || inputs.some((value, index) => cache.inputs[index] !== value)) {
       cache.inputs = inputs;
+      cache.stale = cache.byDraft;
       cache.byDraft = new Map();
     }
     const known = cache.byDraft.get(draftKey);
     if (known) return known;
-    const options = threadHandleOptions(current, draftKey);
+    const fresh = threadHandleOptions(current, draftKey);
+    /** A change none of the menu's rows show, such as a new message, hands back the list from before it. */
+    const previous = cache.stale.get(draftKey);
+    const options = previous && sameHandles(previous, fresh) ? previous : fresh;
     cache.byDraft.set(draftKey, options);
     return options;
   }, []);

@@ -1,4 +1,4 @@
-import { memo, useContext } from "react";
+import { memo, useContext, useMemo } from "react";
 import { attachmentUrl } from "../../application/attachments";
 import type { StreamingTail } from "../../application/thread-run-state";
 import type { AgentEngine } from "../../domain/agent-engine";
@@ -58,6 +58,12 @@ type TimelineRowProps = {
   onViewAttachment: (source: string) => void;
 };
 
+/** The live turn re-renders on every tail, so its segments are only rebuilt when its steps change. */
+function LiveSteps({ engine, steps, tail }: { engine: AgentEngine; steps: ConversationMessage[]; tail?: StreamingTail | null }) {
+  const segments = useMemo(() => toSegments(timeSteps(steps, null)), [steps]);
+  return <TurnSegments engine={engine} segments={segments} tail={tail} live />;
+}
+
 type Entry = Exclude<TimelineGroup, { kind: "updates" }>;
 
 function TimelineEntry({ engine, entry, streamingTail, onViewAttachment }: { engine: AgentEngine; entry: Entry; streamingTail?: StreamingTail | null; onViewAttachment: (source: string) => void }) {
@@ -65,7 +71,7 @@ function TimelineEntry({ engine, entry, streamingTail, onViewAttachment }: { eng
     return (
       <article className="message assistant turn">
         {entry.live
-          ? <TurnSegments engine={engine} segments={toSegments(timeSteps(entry.steps, null))} tail={streamingTail} live />
+          ? <LiveSteps engine={engine} steps={entry.steps} tail={streamingTail} />
           : entry.steps.length > 0 && <SettledSteps engine={engine} steps={entry.steps} endsAt={entry.endsAt} />}
         {entry.final && <div data-message-id={entry.final.id} className="message-text markdown-body"><StreamingText committed={entry.final.text} messageId={entry.final.id} /></div>}
         {/* Outside the answer, so neither a search nor a selection of it picks the button up. */}

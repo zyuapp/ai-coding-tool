@@ -4,6 +4,7 @@ import { reduce } from "../../src/application/workspace-reducer.ts";
 import { deriveView } from "../../src/application/workspace-state.ts";
 import type { ChangedFilesResult } from "../../src/contracts/ipc.ts";
 import type { ThreadStoreData } from "../../src/domain/thread-storage.ts";
+import { EMPTY_DOCK } from "../../src/application/workspace-dock.ts";
 import { task, workspace, activeRun, automation, effectAt, heldWorktree, inside, PROJECT, required, run } from "./workspace-reducer-fixtures.mts";
 
 test("archiving a thread retires its automation and cancels a run still going", () => {
@@ -33,6 +34,48 @@ test("restoring an archived task returns it to the sidebar and leaves its automa
   assert.deepEqual(restored.effects, []);
   assert.deepEqual(deriveView(restored.state).orderedThreads.map((item) => item.id), ["task-a"]);
   assert.equal(reduce(restored.state, { type: "task.restore", taskId: "task-a" }).state, restored.state);
+});
+
+test("archiving a thread closes its pages but keeps their records and its shells, and showing it again reopens them", () => {
+  const page = (id: string, loading: boolean) => ({ id, url: `https://example.com/${id}`, title: id, loading, canGoBack: false, canGoForward: false });
+  const state = workspace({ currentId: "task-a", threads: [task("task-a"), task("task-b")], docks: {
+    "task-a": { ...EMPTY_DOCK, open: true, tab: "one", browserTabId: "one", browserTabs: [page("one", true), page("two", false)], terminals: [{ id: "shell", cwd: "/repo", title: "Shell", taskId: "task-a", status: "running" }], terminalId: "shell" },
+  } });
+
+  const archived = reduce(state, { type: "task.archive", taskId: "task-a" });
+  assert.deepEqual(archived.effects.filter((effect) => effect.type === "browser.close" || effect.type.startsWith("terminal.")), [
+    { type: "browser.close", tabId: "one" },
+    { type: "browser.close", tabId: "two" },
+  ]);
+  assert.deepEqual(archived.state.docks["task-a"].browserTabs, [page("one", false), page("two", false)]);
+  assert.deepEqual(archived.state.docks["task-a"].terminals.map((terminal) => terminal.id), ["shell"]);
+
+  const restored = reduce(archived.state, { type: "task.restore", taskId: "task-a" });
+  const shown = reduce(restored.state, { type: "task.select", taskId: "task-a" });
+  assert.ok(shown.effects.some((effect) => effect.type === "browser.open" && effect.tabId === "one" && effect.url === "https://example.com/one"));
+  assert.ok(shown.effects.some((effect) => effect.type === "browser.show" && effect.tabId === "one"));
+});
+
+test("archiving a thread from its side chat keeps the page the panel is showing", () => {
+  const page = (id: string) => ({ id, url: `https://example.com/${id}`, title: id, loading: true, canGoBack: false, canGoForward: false });
+  const state = workspace({ currentId: "chat", threads: [task("task-a"), task("chat")], sideChats: [{ id: "chat", sourceThreadId: "task-a", error: null }], docks: {
+    "task-a": { ...EMPTY_DOCK, open: true, tab: "one", browserTabId: "one", browserTabs: [page("one"), page("two")] },
+  } });
+
+  const archived = reduce(state, { type: "task.archive", taskId: "task-a" });
+  assert.deepEqual(archived.effects.filter((effect) => effect.type.startsWith("browser.") && effect.type !== "browser.permissions"), [{ type: "browser.close", tabId: "two" }]);
+  assert.deepEqual(archived.state.docks["task-a"].browserTabs.map((tab) => tab.loading), [true, false]);
+});
+
+test("archiving a thread keeps every page while one of its side chats is still running", () => {
+  const page = (id: string) => ({ id, url: `https://example.com/${id}`, title: id, loading: true, canGoBack: false, canGoForward: false });
+  const state = workspace({ currentId: "task-b", threads: [task("task-a"), task("chat"), task("task-b")], sideChats: [{ id: "chat", sourceThreadId: "task-a", error: null }], activeRuns: { chat: activeRun("chat", "run-chat") }, docks: {
+    "task-a": { ...EMPTY_DOCK, open: true, tab: "one", browserTabId: "one", browserTabs: [page("one"), page("two")] },
+  } });
+
+  const archived = reduce(state, { type: "task.archive", taskId: "task-a" });
+  assert.deepEqual(archived.effects.filter((effect) => effect.type === "browser.close"), []);
+  assert.deepEqual(archived.state.docks["task-a"].browserTabs.map((tab) => tab.loading), [true, true]);
 });
 
 test("clearing the archive deletes every archived task at once", () => {

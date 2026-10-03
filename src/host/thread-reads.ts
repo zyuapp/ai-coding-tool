@@ -9,7 +9,12 @@ import { matchingProjects } from "../domain/project.js";
 
 type ReadHost = { state(): WorkspaceState; desktop: Pick<ComputerDesktop, "queryComputerThreads"> };
 
-export function localThreadReader(state: () => WorkspaceState, prepare: (request: ThreadRequest) => Promise<void>, flush: () => void, disposed: () => boolean) {
+/** What preparing a request found on disk: the unloaded threads whose stored messages match a list search. */
+export type PreparedThreadRequest = { stored?: ReadonlySet<string> };
+
+type PrepareThreadRequest = (request: ThreadRequest) => Promise<PreparedThreadRequest | void>;
+
+export function localThreadReader(state: () => WorkspaceState, prepare: PrepareThreadRequest, flush: () => void, disposed: () => boolean) {
   return async (query: ComputerThreadQuery) => {
     if (disposed()) throw new Error("The workspace runtime has closed.");
     flush();
@@ -18,7 +23,7 @@ export function localThreadReader(state: () => WorkspaceState, prepare: (request
 }
 
 /** The receiving host answers from its own state and disk, without following any paired links. */
-export async function queryLocalThreads(state: () => WorkspaceState, prepare: (request: ThreadRequest) => Promise<void>, query: ComputerThreadQuery) {
+export async function queryLocalThreads(state: () => WorkspaceState, prepare: PrepareThreadRequest, query: ComputerThreadQuery) {
   if (!isComputerQuery(query) || (query.kind !== "thread-read" && query.kind !== "thread-list")) throw new Error("Invalid thread query.");
   if (query.kind === "thread-read") {
     const limit = query.limit ?? 30;
@@ -29,14 +34,14 @@ export async function queryLocalThreads(state: () => WorkspaceState, prepare: (r
   }
   const { kind: _kind, ...filter } = query;
   const local = { ...filter, project: filter.project ?? "all", limit: filter.limit ?? 20 };
-  await prepare({ ...local, type: "thread.request", requestId: "paired-list", taskId: "paired", op: "list", computer: "this" });
-  return localThreadList(state(), "paired", local);
+  const prepared = await prepare({ ...local, type: "thread.request", requestId: "paired-list", taskId: "paired", op: "list", computer: "this" });
+  return localThreadList(state(), "paired", local, prepared?.stored);
 }
 
-export function localThreadList(state: WorkspaceState, caller: string, query: ThreadListQuery): ThreadSummary[] {
+export function localThreadList(state: WorkspaceState, caller: string, query: ThreadListQuery, stored?: ReadonlySet<string>): ThreadSummary[] {
   const scope = resolveScope(state, caller, query.project);
   if ("error" in scope) throw new Error(scope.error);
-  return threadSummaries(state, { ...query, scope }, Date.now());
+  return threadSummaries(state, { ...query, scope, ...(stored ? { stored } : {}) }, Date.now());
 }
 
 function computers(state: WorkspaceState, selected: string): { local: boolean; paired: PairedComputer[] } {
@@ -57,14 +62,14 @@ function online(computer: PairedComputer) {
 }
 
 /** Ordinary listings use the already mirrored index, including cached rows when a host is offline. */
-export async function listAcrossComputers(host: ReadHost, caller: string, query: ThreadListQuery): Promise<ThreadSummary[]> {
+export async function listAcrossComputers(host: ReadHost, caller: string, query: ThreadListQuery, stored?: ReadonlySet<string>): Promise<ThreadSummary[]> {
   const state = host.state();
   const selected = computers(state, query.computer ?? "this");
   const { computer: _computer, ...filter } = query;
   if (query.computer && query.computer !== "this" && filter.project === undefined) filter.project = "all";
   if (selected.paired.length && filter.project === "current") throw new Error('Project "current" belongs to this computer. Use computer "this", or name a remote project.');
   const covers = (state: WorkspaceState) => query.computer !== "all" || !filter.project || filter.project === "all" || filter.project === "current" || matchingProjects(state.projects, filter.project).length > 0;
-  const rows = selected.local && covers(state) ? localThreadList(state, caller, filter) : [];
+  const rows = selected.local && covers(state) ? localThreadList(state, caller, filter, stored) : [];
   const remote = await Promise.all(selected.paired.map(async (computer) => {
     if (!computer.state) throw new Error(`${computer.name} has no cached thread list. Reconnect it and try again.`);
     if (!covers(computer.state)) return [];

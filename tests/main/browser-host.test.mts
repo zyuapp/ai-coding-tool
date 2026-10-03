@@ -8,23 +8,30 @@ import type { BrowserPageEvent } from "../../src/contracts/ipc.js";
 const fake = fakeElectron("/tmp/aic-browser-test");
 let browser: typeof import("../../src/main/browser-host.ts");
 const events: BrowserPageEvent[] = [];
+const finds: string[] = [];
 beforeAll(async () => {
   Reflect.set(process.versions, "chrome", "141.0.0.0");
   vi.doMock("electron", () => fake.electron);
   browser = await import("../../src/main/browser-host.ts");
   const window = new fake.electron.BrowserWindow({ show: false });
-  browser.startBrowserHost(window as unknown as BrowserWindow, { onPage: (event) => events.push(event), onFind() {}, onKey: (input) => input.key === "Escape" });
+  browser.startBrowserHost(window as unknown as BrowserWindow, { onPage: (event) => events.push(event), onFind: (tabId) => finds.push(tabId), onKey: (input) => input.key === "Escape" });
 });
 afterAll(() => { browser?.stopBrowserHost(); Reflect.deleteProperty(process.versions, "chrome"); vi.doUnmock("electron"); });
 
 let counter = 0;
+/** The view the host opened last, which no earlier call has handed out. */
+function claimView() {
+  const view = fake.windows.flatMap((window) => window.children).find((view) => !view.destroyed && !Reflect.has(view, "testClaimed"));
+  assert.ok(view);
+  Reflect.set(view, "testClaimed", true);
+  return view;
+}
+
 function page(url = "https://allowed.example/", taskId?: string) {
   const id = `tab-${++counter}`;
   browser.configurePermissions({ origins: ["https://allowed.example"], autonomousTaskIds: [] });
   browser.openTab(id, undefined, taskId);
-  const view = fake.windows.flatMap((window) => window.children).find((view) => !view.destroyed && !Reflect.has(view, "testClaimed"));
-  assert.ok(view);
-  Reflect.set(view, "testClaimed", true);
+  const view = claimView();
   let current = url;
   view.webContents.getURL = () => current;
   view.webContents.getTitle = () => "Test page";
@@ -172,6 +179,27 @@ test("approved agent popups retain navigation enforcement and autonomous popups 
   assert.equal(native.webContents.windowOpenHandler?.({ url: "https://private.example/nested" }).action, "deny");
   browser.closeTab(id);
   assert.equal(native.destroyed, true);
+});
+
+test("a closed page's late events do not reach the tab that reopens under its id", async () => {
+  const { id, view } = page();
+  browser.closeTab(id);
+  browser.openTab(id);
+  const reopened = claimView();
+  const before = events.length, findsBefore = finds.length;
+  for (const [event, ...args] of [
+    ["did-stop-loading"], ["did-navigate"], ["did-navigate-in-page"], ["page-title-updated", {}, "Stale"],
+    ["did-fail-load", {}, -2, "Failed", "https://allowed.example/", true], ["render-process-gone"],
+    ["found-in-page", {}, { matches: 3, activeMatchOrdinal: 1 }], ["console-message", { level: "info", message: "stale log", lineNumber: 0 }],
+  ] as const) view.webContents.emit(event, ...args);
+  assert.equal(events.length, before);
+  assert.equal(finds.length, findsBefore);
+  const console = await browser.inspectPage(id, { op: "console" });
+  assert.ok(console?.kind === "console");
+  assert.deepEqual(console.entries, []);
+  reopened.webContents.emit("did-start-loading");
+  assert.deepEqual(events.slice(before), [{ tabId: id, loading: true }]);
+  browser.closeTab(id);
 });
 
 test("a page in the panel gets only harmless permissions, asked or checked", () => {

@@ -126,6 +126,9 @@ export function App() {
 
   const messageLinks = useMessageLinks(dispatchRef);
 
+  /** The window opens before the store has loaded, and an empty workspace would read as no threads. */
+  if (!workspace.restored) return <main className="app-shell" />;
+
   return (
     <CommandControlsProvider value={workspace.commandControls}><MessageLinkProvider actions={messageLinks}>
     {workspace.viewingImage && <AttachmentViewer key={workspace.viewingImage} source={workspace.viewingImage} onClose={() => void workspace.dispatch({ type: "image.close" })} onDownload={() => void workspace.dispatch({ type: "image.download" })} />}

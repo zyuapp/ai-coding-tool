@@ -2,7 +2,7 @@ import { browserPermissions } from "../application/workspace-reducer.js";
 import { browserTarget, dockFor, dockOwner, terminalTarget, type WorkspaceState } from "../application/workspace-state.js";
 import { findThread, threadSummary, threadWaitResult } from "../application/thread-projection.js";
 import { isWorking } from "../application/thread-activity.js";
-import { listAcrossComputers, readAcrossComputers } from "./thread-reads.js";
+import { listAcrossComputers, readAcrossComputers, type PreparedThreadRequest } from "./thread-reads.js";
 import { isNews, unreadFindings } from "../domain/attention.js";
 import { scheduledRun } from "../application/run-testimony.js";
 import type { WorkspaceInput } from "../application/workspace-reducer.js";
@@ -57,14 +57,14 @@ export function releaseThreadWaiters(waiters: ThreadWaiterList, state: Workspace
 /**
  * Reads come from the runtime projection, and writes use the shared command execution path.
  */
-export async function answerThreadRequest(host: ThreadRequestHost, request: ThreadRequest): Promise<ThreadResponse> {
+export async function answerThreadRequest(host: ThreadRequestHost, request: ThreadRequest, prepared?: PreparedThreadRequest | void): Promise<ThreadResponse> {
   const requestId = request.requestId;
   const ok = (result: unknown): ThreadResponse => ({ type: "thread.response", requestId, ok: true, result });
   const failed = (message: string): ThreadResponse => ({ type: "thread.response", requestId, ok: false, message });
   try {
     if (request.op === "list") {
       const { type: _type, op: _op, taskId, requestId: _requestId, ...query } = request;
-      return ok(await listAcrossComputers(host, taskId, query));
+      return ok(await listAcrossComputers(host, taskId, query, prepared?.stored));
     }
     if (request.op === "read") {
       return ok(await readAcrossComputers(host, request.threadId, request.limit, request.computer));

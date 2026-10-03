@@ -15,7 +15,7 @@ import { coordinationSections } from "../coordination.js";
 import { pruneDeletedThreads } from "../thread-pruning.js";
 import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeById } from "../thread-location.js";
-import { DRAFT_DOCK, dockFor, sideChatIds, withDock, type WorkspaceState } from "../workspace-state.js";
+import { DRAFT_DOCK, dockFor, frontDock, sideChatIds, withDock, type WorkspaceState } from "../workspace-state.js";
 import { threadActivity, threadLists } from "../thread-activity.js";
 import { dismissableThreads, dismissed, readAttention } from "../../domain/attention.js";
 import { clampTitle, type Thread } from "../../domain/thread.js";
@@ -85,6 +85,36 @@ function dismissPriority(state: WorkspaceState, localOnly = false): WorkspaceTra
   return errors.length ? rejected(next, errors.join("\n"), effects) : settled(next, effects);
 }
 
+/**
+ * Archiving a running thread cancels its run; its checkout stays until the user removes it. Its
+ * pages give up their views but keep their records, so restoring and showing one reopens it. The
+ * page still on screen, through a side chat of the thread, keeps its view, and every page stays while
+ * one of its side chats is still running, since that run browses them.
+ */
+function archiveThread(state: WorkspaceState, taskId: string): WorkspaceTransition {
+  const active = state.activeRuns[taskId];
+  /** Filing a thread away ends its work, including a wait to resume after its usage limit. */
+  const unpaused = cancelPause(state, taskId);
+  const archived = {
+    ...unpaused.state,
+    threads: unpaused.state.threads.map((thread) => thread.id === taskId ? { ...thread, archivedAt: now() } : thread),
+    currentId: state.currentId === taskId ? null : state.currentId,
+  };
+  const dock = dockFor(state, taskId);
+  const shown = frontDock(archived).owner === taskId ? dock.tab : null;
+  const browsing = state.sideChats.some((chat) => chat.sourceThreadId === taskId && state.activeRuns[chat.id]);
+  const closed = new Set(browsing ? [] : dock.browserTabs.filter((tab) => tab.id !== shown).map((tab) => tab.id));
+  const parked = closed.size
+    ? withDock(archived, taskId, { browserTabs: dock.browserTabs.map((tab) => closed.has(tab.id) && tab.loading ? { ...tab, loading: false } : tab) })
+    : archived;
+  return settled(parked, [
+    ...unpaused.effects,
+    ...retireAutomations(state, [taskId]),
+    ...(active ? [{ type: "send-run-command" as const, command: { type: "cancel" as const, taskId: active.taskId, runId: active.runId } }] : []),
+    ...[...closed].map((tabId): WorkspaceEffect => ({ type: "browser.close", tabId })),
+  ]);
+}
+
 export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommandInput): WorkspaceTransition {
   switch (input.type) {
     case "snoozes.elapsed":
@@ -150,21 +180,8 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
     case "task.dismiss-all":
       return dismissPriority(state, input.localOnly);
 
-    /** Archiving a running thread cancels its run; its checkout stays until the user removes it. */
-    case "task.archive": {
-      const active = state.activeRuns[input.taskId];
-      /** Filing a thread away ends its work, including a wait to resume after its usage limit. */
-      const unpaused = cancelPause(state, input.taskId);
-      return settled({
-        ...unpaused.state,
-        threads: unpaused.state.threads.map((thread) => thread.id === input.taskId ? { ...thread, archivedAt: now() } : thread),
-        currentId: state.currentId === input.taskId ? null : state.currentId,
-      }, [
-        ...unpaused.effects,
-        ...retireAutomations(state, [input.taskId]),
-        ...(active ? [{ type: "send-run-command" as const, command: { type: "cancel" as const, taskId: active.taskId, runId: active.runId } }] : []),
-      ]);
-    }
+    case "task.archive":
+      return archiveThread(state, input.taskId);
 
     /** Restoring leaves the retired automation gone; the user re-arms it themselves. */
     case "task.restore": {

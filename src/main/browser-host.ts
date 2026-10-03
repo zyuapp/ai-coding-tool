@@ -358,18 +358,21 @@ function watch(tab: Tab) {
   const { id, view } = tab;
   const contents = view.webContents;
   const state = () => ({ url: contents.getURL(), title: contents.getTitle(), canGoBack: contents.navigationHistory.canGoBack(), canGoForward: contents.navigationHistory.canGoForward() });
-  contents.on("did-start-loading", () => report(id, { loading: true }));
-  contents.on("did-stop-loading", () => report(id, { loading: false, ...state() }));
-  contents.on("page-title-updated", (_event, title) => report(id, { title }));
-  contents.on("did-navigate", () => { tab.epoch++; report(id, state()); });
-  contents.on("did-navigate-in-page", () => report(id, state()));
+  /** A closed page's last events must not reach a record the reducer kept for reopening it. */
+  const live = () => tabs.get(id)?.view === view;
+  /** Built only for a live page, since a closed one's contents can no longer be read. */
+  const tell = (event: () => Omit<BrowserPageEvent, "tabId">) => { if (live()) report(id, event()); };
+  contents.on("did-start-loading", () => tell(() => ({ loading: true })));
+  contents.on("did-stop-loading", () => tell(() => ({ loading: false, ...state() })));
+  contents.on("page-title-updated", (_event, title) => tell(() => ({ title })));
+  contents.on("did-navigate", () => { tab.epoch++; tell(state); });
+  contents.on("did-navigate-in-page", () => tell(state));
   contents.on("did-fail-load", (_event, code, description, validatedURL, isMainFrame) => {
-    if (isMainFrame && code !== -3) report(id, { loading: false, error: `${description} (${validatedURL})` });
+    if (isMainFrame && code !== -3) tell(() => ({ loading: false, error: `${description} (${validatedURL})` }));
   });
-  contents.on("render-process-gone", () => report(id, { loading: false, error: "The page stopped responding." }));
+  contents.on("render-process-gone", () => tell(() => ({ loading: false, error: "The page stopped responding." })));
   contents.on("console-message", (details) => {
-    const tab = tabs.get(id);
-    if (!tab) return;
+    if (!live()) return;
     const level: BrowserConsoleLevel = details.level;
     boundedPush(tab.consoleEntries, {
       pageOrigin: originOf(contents.getURL()),
@@ -382,7 +385,9 @@ function watch(tab: Tab) {
     });
   });
   /** Chromium counts a page's matches itself, and numbers the one it is on from one. */
-  contents.on("found-in-page", (_event, result) => publishFind(id, { matches: result.matches, index: Math.max(0, (result.activeMatchOrdinal ?? 1) - 1) }));
+  contents.on("found-in-page", (_event, result) => {
+    if (live()) publishFind(id, { matches: result.matches, index: Math.max(0, (result.activeMatchOrdinal ?? 1) - 1) });
+  });
   watchNavigation(contents, tab);
   /** Each document is a fresh page, so each one is given the side buttons again. */
   contents.on("dom-ready", () => {
@@ -428,7 +433,7 @@ async function load(tab: Tab, url: string) {
     await tab.view.webContents.loadURL(url);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    if (!message.includes("ERR_ABORTED")) report(tab.id, { loading: false, error: message });
+    if (!message.includes("ERR_ABORTED") && tabs.get(tab.id) === tab) report(tab.id, { loading: false, error: message });
   }
 }
 

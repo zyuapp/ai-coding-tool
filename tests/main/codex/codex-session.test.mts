@@ -150,14 +150,14 @@ test("Codex sets a native goal and keeps the run through its follow-up turns", a
 test("a thread the run continues is resumed, and a side chat forks it instead", async () => {
   const resumed = harness();
   const { client } = await turn(resumed, { continuation: { provider: "codex", value: "thread-9" } });
-  assert.deepEqual(client.calls("thread/resume"), [{ threadId: "thread-9", cwd: "/tmp/project", model: "gpt-6.1-sol", serviceTier: "default", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: developerInstructions() }]);
+  assert.deepEqual(client.calls("thread/resume"), [{ threadId: "thread-9", cwd: "/tmp/project", model: "gpt-6.1-sol", serviceTier: "default", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: developerInstructions(), excludeTurns: true }]);
   assert.equal(client.calls("thread/start").length, 0);
   resumed.provider.closeAll();
 
   const emitted: ProviderEvent[] = [];
   const forked = harness();
   const fork = await turn(forked, { channel: "side", continuation: { provider: "codex", value: "thread-9" }, forkContinuation: true, emit: (event) => emitted.push(event) });
-  assert.deepEqual(fork.client.calls("thread/fork"), [{ threadId: "thread-9", cwd: "/tmp/project", model: "gpt-6.1-sol", serviceTier: "default", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: `${developerInstructions()}\n\n${SIDE_CHAT_INSTRUCTIONS}` }]);
+  assert.deepEqual(fork.client.calls("thread/fork"), [{ threadId: "thread-9", cwd: "/tmp/project", model: "gpt-6.1-sol", serviceTier: "default", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: `${developerInstructions()}\n\n${SIDE_CHAT_INSTRUCTIONS}`, excludeTurns: true }]);
   assert.deepEqual(emitted[0], { type: "continuation", continuation: { provider: "codex", value: "thread-fork" } }, "the fork's own id is what the side chat keeps");
   assert.deepEqual(fork.client.calls("thread/inject_items"), [{
     threadId: "thread-fork",

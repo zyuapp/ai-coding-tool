@@ -21,22 +21,22 @@ export type RuntimeDesktopHost = Omit<ServiceDesktopHost, "openUrl" | "computerU
   updates: UpdateHost;
   keyboard: KeyboardBridge;
   restart: () => void;
-  computers: () => ComputerLinks;
+  computers: () => Promise<ComputerLinks>;
 };
 
 /** The other computers, held by the links this process keeps open to them. */
 function computerDesktop(host: RuntimeDesktopHost): ComputerDesktop {
   const { events } = host;
   return {
-    discoverComputers: () => host.computers().discover(),
-    pairComputer: (address, name, code) => host.computers().pair(address, name, code),
-    forgetComputer: (id) => host.computers().forget(id),
+    discoverComputers: async () => (await host.computers()).discover(),
+    pairComputer: async (address, name, code) => (await host.computers()).pair(address, name, code),
+    forgetComputer: async (id) => (await host.computers()).forget(id),
     renameComputer: async (name) => {
-      host.computers().rename(name);
+      (await host.computers()).rename(name);
       await mobileBridge.announceName();
     },
-    labelComputer: async (id, name) => host.computers().label(id, name),
-    sendToComputer: (id, inputs) => host.computers().send(id, inputs),
+    labelComputer: async (id, name) => (await host.computers()).label(id, name),
+    sendToComputer: async (id, inputs) => (await host.computers()).send(id, inputs),
     queryComputerThreads: (id, query) => host.reads.read(query, { computer: id }),
     onComputersChanged: (listener) => events.on("computers:changed", ({ name, links }) => listener(name, links)),
     onComputerState: (listener) => events.on("computer:state", ({ id, state }) => listener(id, state)),

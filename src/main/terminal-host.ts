@@ -1,5 +1,6 @@
-import { spawn, type IPty } from "@lydell/node-pty";
-import { Terminal } from "@xterm/headless";
+import { createRequire } from "node:module";
+import type { IPty } from "@lydell/node-pty";
+import type { Terminal } from "@xterm/headless";
 import type { TerminalDataEvent, TerminalReadOptions, TerminalScreenSnapshot, TerminalText } from "../contracts/ipc.js";
 import { serializeTerminal } from "./terminal-snapshot.js";
 import { terminalTitle, withinReadBudget, type TerminalUpdate } from "../domain/terminal.js";
@@ -36,6 +37,16 @@ type Session = {
 };
 
 const sessions = new Map<string, Session>();
+type TerminalModules = { pty: typeof import("@lydell/node-pty"); xterm: typeof import("@xterm/headless") };
+let modules: TerminalModules | undefined;
+
+/** Loaded with the first terminal rather than at launch, and synchronously, so a start is never split. */
+function terminalModules(): TerminalModules {
+  if (modules) return modules;
+  const load = createRequire(__filename);
+  modules = { pty: load("@lydell/node-pty") as TerminalModules["pty"], xterm: load("@xterm/headless") as TerminalModules["xterm"] };
+  return modules;
+}
 let publishData: (event: TerminalDataEvent) => void = () => undefined;
 let publishUpdate: (update: TerminalUpdate) => void = () => undefined;
 
@@ -91,13 +102,20 @@ function schedule(session: Session, chunk: string) {
 /** Idempotent: a terminal that already has a shell keeps it, so reopening the panel never restarts one. */
 export function startTerminal(terminalId: string, cwd: string) {
   if (sessions.get(terminalId)) return;
-  const screen = new Terminal({ cols: DEFAULT_COLS, rows: DEFAULT_ROWS, scrollback: SCROLLBACK_LINES, allowProposedApi: true });
+  let loaded: TerminalModules;
+  try {
+    loaded = terminalModules();
+  } catch (error) {
+    publishUpdate({ terminalId, status: "exited", error: error instanceof Error ? error.message : String(error) });
+    return;
+  }
+  const screen = new loaded.xterm.Terminal({ cols: DEFAULT_COLS, rows: DEFAULT_ROWS, scrollback: SCROLLBACK_LINES, allowProposedApi: true });
   const session: Session = { id: terminalId, cwd, pty: null, screen, pending: "", timer: null, sequence: 0, output: null, snapshotReaders: new Set() };
   sessions.set(terminalId, session);
   screen.onTitleChange((title) => publishUpdate({ terminalId, title: title || terminalTitle(cwd) }));
   const { file, args } = shellCommand();
   try {
-    session.pty = spawn(file, args, {
+    session.pty = loaded.pty.spawn(file, args, {
       name: "xterm-256color",
       cols: DEFAULT_COLS,
       rows: DEFAULT_ROWS,

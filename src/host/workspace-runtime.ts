@@ -27,6 +27,19 @@ function initialState(storage: KeyValueStorage, viewportWidth: number | undefine
   return reduce(state, { type: "preferences.loaded", preferences: loadViewPreferences(storage, viewportWidth) }).state;
 }
 
+/** Holds a promise in the set until it settles. */
+function trackUntilSettled(set: Set<Promise<unknown>>, promise: Promise<unknown>) {
+  set.add(promise);
+  void promise.finally(() => set.delete(promise));
+}
+
+/** A promise and the function that resolves it. */
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((settle) => { resolve = settle; });
+  return { promise, resolve };
+}
+
 /** State, effects and durability have one lifetime, independent of whatever displays them. */
 export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
   const { desktop } = host;
@@ -45,19 +58,18 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
   const waiters = { current: [] as ThreadWaiter[] };
   const environmentRefreshes = { current: new Map<string, EnvironmentRefreshEffect | null>() };
   const mobileView = noMobileView();
+  /** Settles once the store and drafts are in, before the current thread's history; never rejects. */
+  const loaded = deferred();
   const drafts = createDraftPersistence(host.storage, () => state, dispatch);
   const snoozeTimer = createSnoozeTimer((at) => { void dispatch({ type: "snoozes.elapsed", at }); });
   const limitTimer = createSnoozeTimer((at) => { void dispatch({ type: "limits.elapsed", at }); });
-  const history = createRuntimeHistory({ state: () => state, load: (taskId) => desktop.loadThreadMessages(taskId), dispatch: (input) => rawExecute(input).completed.then(() => undefined), persistence });
+  const history = createRuntimeHistory({ state: () => state, load: (taskId) => desktop.loadThreadMessages(taskId), search: (search, taskIds) => desktop.searchThreadMessages(search, taskIds), dispatch: (input) => rawExecute(input).completed.then(() => undefined), persistence });
   const inputs = createRuntimeInputs({
     generation: () => generation,
     active: (current) => !disposed && generation === current,
     history,
     execute: rawExecute,
-    track: (completed) => {
-      effectsInFlight.add(completed);
-      void completed.finally(() => effectsInFlight.delete(completed));
-    },
+    track: (completed) => trackUntilSettled(effectsInFlight, completed),
   });
 
   function commit(next: WorkspaceState, input: WorkspaceInput) {
@@ -77,8 +89,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
     if (started) refreshEnvironment();
     if (next.currentId !== previous.currentId && next.currentId) {
       const loading = history.hydrate(next.currentId).catch((error) => rawExecute({ type: "action.failed", message: errorMessage(error) }).completed);
-      effectsInFlight.add(loading);
-      void loading.finally(() => effectsInFlight.delete(loading));
+      trackUntilSettled(effectsInFlight, loading);
     }
     if (!persistenceReady || !next.writable || next.storageError || (input.type === "subagent.activity.loaded" || input.type === "store.thread-loaded")) return;
     if (!hasPersistenceChanges(persistenceState(previous), persistenceState(next))) return;
@@ -100,8 +111,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
       prepare: async (input) => { for (const taskId of history.needed(input)) await history.hydrate(taskId); },
       perform: (effect, dispatch) => runWorkspaceEffect(effect, { dispatch, desktop, storage: host.storage, environmentRefreshes, scheduleSnoozeExpiry: snoozeTimer.schedule, scheduleLimitReset: limitTimer.schedule, surface: host.surface }),
     });
-    effectsInFlight.add(execution.completed);
-    void execution.completed.finally(() => effectsInFlight.delete(execution.completed));
+    trackUntilSettled(effectsInFlight, execution.completed);
     return execution;
   }
 
@@ -126,6 +136,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
       if (data) await dispatch({ type: "store.loaded", data, hiddenTasks: data.hiddenTasks });
       else await dispatch({ type: "store.absent" });
       await drafts.restore();
+      loaded.resolve();
       if (state.currentId) await history.hydrate(state.currentId).catch((error) => rawExecute({ type: "action.failed", message: errorMessage(error) }).completed);
       if (disposed || generation !== currentGeneration) return;
       persistence.pending = persistenceState(state);
@@ -133,7 +144,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
       await drainLatestPersistence(persistence, desktop.persistTaskStore);
     } catch (error) {
       if (!disposed && generation === currentGeneration) storageFailed(error);
-    }
+    } finally { loaded.resolve(); }
   }
 
   return {
@@ -144,6 +155,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
     queryThreads: localThreadReader(() => state, history.prepareThreadRequest, () => subscriptions?.flush(), () => disposed),
     /** Reads the stored drafts again, for text that arrived in storage after the start. */
     restoreDrafts: () => drafts.restore(),
+    loaded: loaded.promise,
     start() {
       if (started) return started;
       disposed = false;
@@ -172,6 +184,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
     },
     dispose() {
       disposed = true;
+      loaded.resolve();
       subscriptions?.stop();
       subscriptions = null;
       if (refreshTimer !== undefined) clearInterval(refreshTimer);

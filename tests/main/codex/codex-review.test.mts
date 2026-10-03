@@ -59,6 +59,7 @@ test("native review runs inline on paginated history and emits its findings once
     approvalsReviewer: "user",
     config: { model_reasoning_effort: "low" },
     developerInstructions: developerInstructions({ operation: { type: "review", target: { type: "baseBranch", branch: "main" } } }),
+    excludeTurns: true,
   }]);
   assert.deepEqual(client.calls("review/start"), [{ threadId, target: { type: "baseBranch", branch: "main" }, delivery: "inline" }]);
   client.notify("item/started", started(command("review-command", "git diff main")));

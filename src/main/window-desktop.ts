@@ -15,7 +15,12 @@ export type WindowDesktopHost = {
   desktop: Pick<RuntimeDesktop, "openFolder" | "projectlessWorkspace" | "diffPatch" | "saveAttachment" | "focusBrowserTab">;
   reads: Pick<ComputerReads, "read">;
   setTheme: (theme: WindowTheme) => void;
+  /** Settles once the services behind the window's calls are up; the window can open before then. */
+  ready?: Promise<void>;
 };
+
+/** Calls about the window's own frame, answered without waiting for the services. */
+const FRAME_CALLS: ReadonlySet<string> = new Set<WindowDesktopCall>(["setTheme", "setBrowserBounds"]);
 
 type GuardEach<Args extends unknown[]> = { [Index in keyof Args]-?: (value: unknown) => boolean };
 type Guards<Name extends WindowDesktopCall> = GuardEach<Parameters<WindowDesktopAPI[Name]>>;
@@ -86,6 +91,7 @@ export function serveWindowDesktop(host: WindowDesktopHost, trusted: (event: Ipc
     if (typeof name !== "string" || !Object.hasOwn(calls, name)) throw new Error("Unknown desktop call.");
     const call = calls[name as WindowDesktopCall] as { args: ReadonlyArray<(value: unknown) => boolean>; run: (...args: unknown[]) => unknown };
     if (args.length > call.args.length || !call.args.every((guard, index) => guard(args[index]))) throw new Error(`Invalid ${name} call.`);
+    if (!FRAME_CALLS.has(name)) await host.ready;
     return call.run(...args);
   });
 }
