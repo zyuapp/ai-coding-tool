@@ -3,14 +3,13 @@ import assert from "node:assert/strict";
 import { test, expect, vi } from "vitest";
 import { AppServerError, AppServerExited } from "../../../src/main/codex/app-server-client.mts";
 import { codexPolicy } from "../../../src/main/codex/codex-session.mts";
-import { DEVELOPER_INSTRUCTIONS } from "../../../src/main/codex/codex-instructions.mts";
 import type { ProviderEvent, ProviderResult } from "../../../src/main/agent/agent-provider.mts";
 import type { BackgroundReport, GoalReport } from "../../../src/contracts/ipc.ts";
 import type { ToolIntent } from "../../../src/domain/run.ts";
 import type { ThreadItem } from "../../../src/main/codex/protocol/v2/ThreadItem.ts";
 import { SteerChannel } from "../../../src/main/agent/steer-channel.mts";
 import { SIDE_CHAT_BOUNDARY, SIDE_CHAT_INSTRUCTIONS } from "../../../src/main/agent/side-chat-instructions.mts";
-import { completeTurn, harness, input, opened, sentBy, tick, turn } from "../../support/codex-client.mjs";
+import { completeTurn, developerInstructions, harness, input, opened, sentBy, tick, turn } from "../../support/codex-client.mjs";
 
 const threadId = "thread-1";
 const turnId = "turn-1";
@@ -62,7 +61,7 @@ test("a run opens one app server in the workspace, signs in, starts a thread, an
   assert.ok(methods.indexOf("account/read") > 0);
   assert.ok(methods.indexOf("account/read") < methods.indexOf("thread/start"));
   assert.ok(methods.indexOf("thread/start") < methods.indexOf("turn/start"));
-  assert.deepEqual(client.calls("thread/start"), [{ cwd: "/tmp/project", model: "gpt-6.1-sol", serviceTier: "default", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: DEVELOPER_INSTRUCTIONS }]);
+  assert.deepEqual(client.calls("thread/start"), [{ cwd: "/tmp/project", model: "gpt-6.1-sol", serviceTier: "default", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: developerInstructions() }]);
   assert.deepEqual(client.calls("turn/start"), [{
     threadId,
     input: [{ type: "text", text: "inspect the app", text_elements: [] }],
@@ -106,7 +105,7 @@ test("a bypass turn disables approvals and the sandbox", async () => {
   const codex = harness();
   const { client } = await turn(codex, { policy: "bypass" });
 
-  assert.deepEqual(client.calls("thread/start"), [{ cwd: "/tmp/project", model: "gpt-6.1-sol", serviceTier: "default", approvalPolicy: "never", sandbox: "danger-full-access", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: DEVELOPER_INSTRUCTIONS }]);
+  assert.deepEqual(client.calls("thread/start"), [{ cwd: "/tmp/project", model: "gpt-6.1-sol", serviceTier: "default", approvalPolicy: "never", sandbox: "danger-full-access", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: developerInstructions() }]);
   assert.deepEqual(client.calls("turn/start")[0], {
     threadId,
     input: [{ type: "text", text: "inspect the app", text_elements: [] }],
@@ -151,14 +150,14 @@ test("Codex sets a native goal and keeps the run through its follow-up turns", a
 test("a thread the run continues is resumed, and a side chat forks it instead", async () => {
   const resumed = harness();
   const { client } = await turn(resumed, { continuation: { provider: "codex", value: "thread-9" } });
-  assert.deepEqual(client.calls("thread/resume"), [{ threadId: "thread-9", cwd: "/tmp/project", model: "gpt-6.1-sol", serviceTier: "default", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: DEVELOPER_INSTRUCTIONS }]);
+  assert.deepEqual(client.calls("thread/resume"), [{ threadId: "thread-9", cwd: "/tmp/project", model: "gpt-6.1-sol", serviceTier: "default", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: developerInstructions() }]);
   assert.equal(client.calls("thread/start").length, 0);
   resumed.provider.closeAll();
 
   const emitted: ProviderEvent[] = [];
   const forked = harness();
   const fork = await turn(forked, { channel: "side", continuation: { provider: "codex", value: "thread-9" }, forkContinuation: true, emit: (event) => emitted.push(event) });
-  assert.deepEqual(fork.client.calls("thread/fork"), [{ threadId: "thread-9", cwd: "/tmp/project", model: "gpt-6.1-sol", serviceTier: "default", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: `${DEVELOPER_INSTRUCTIONS}\n\n${SIDE_CHAT_INSTRUCTIONS}` }]);
+  assert.deepEqual(fork.client.calls("thread/fork"), [{ threadId: "thread-9", cwd: "/tmp/project", model: "gpt-6.1-sol", serviceTier: "default", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: `${developerInstructions()}\n\n${SIDE_CHAT_INSTRUCTIONS}` }]);
   assert.deepEqual(emitted[0], { type: "continuation", continuation: { provider: "codex", value: "thread-fork" } }, "the fork's own id is what the side chat keeps");
   assert.deepEqual(fork.client.calls("thread/inject_items"), [{
     threadId: "thread-fork",
@@ -185,7 +184,7 @@ test("side chat task boundaries also reach fresh and resumed sessions without ch
         ...(method === "thread/resume" ? { continuation: { provider: "codex" as const, value: "side-thread" } } : {}),
       });
       const settings = client.calls(method)[0] as { developerInstructions: string };
-      assert.equal(settings.developerInstructions, `${DEVELOPER_INSTRUCTIONS}\n\n${SIDE_CHAT_INSTRUCTIONS}`);
+      assert.equal(settings.developerInstructions, `${developerInstructions()}\n\n${SIDE_CHAT_INSTRUCTIONS}`);
       const started = client.calls("turn/start")[0] as { input: unknown };
       assert.deepEqual(started.input, [{ type: "text", text: prompt, text_elements: [] }]);
       assert.equal(client.calls("thread/inject_items").length, method === "thread/start" ? 1 : 0, "resuming must not reclassify the side chat's own history as parent context");

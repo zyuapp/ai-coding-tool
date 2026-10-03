@@ -7,6 +7,7 @@ import type { ClientInfo } from "../../src/main/codex/protocol/ClientInfo.ts";
 import type { InitializeResponse } from "../../src/main/codex/protocol/InitializeResponse.ts";
 import type { RequestId } from "../../src/main/codex/protocol/RequestId.ts";
 import { CodexAgentProvider } from "../../src/main/codex/codex-agent-provider.mts";
+import { codexBrief } from "../../src/main/codex/codex-instructions.mts";
 import type { CodexClient } from "../../src/main/codex/codex-session.mts";
 import type { ReadOrigin } from "../../src/main/codex/codex-thread-record.mts";
 import type { ProviderRunInput } from "../../src/main/agent/agent-provider.mts";
@@ -163,6 +164,11 @@ export function input(overrides: Partial<ProviderRunInput> = {}): ProviderRunInp
     beginAgentTurn: () => null,
   };
   return { ...base, ...overrides };
+}
+
+/** The developer instructions a thread is started with for this run. */
+export function developerInstructions(overrides: Partial<ProviderRunInput> = {}) {
+  return codexBrief(input(overrides)).instructions.join("\n\n");
 }
 
 /** One set of tools a session asked the host to serve, and whether the session has let it go. */

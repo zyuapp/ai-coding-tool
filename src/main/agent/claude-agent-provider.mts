@@ -6,19 +6,14 @@ import { withheldTools } from "./channel-tools.mjs";
 import { claudeMcpServer } from "./claude-mcp-host.mjs";
 import { claudePermissionMode, ClaudeSession } from "./claude-session.mjs";
 import { grantsTool } from "./approval-grant.mjs";
-import { runTools } from "./run-tools.mjs";
-import { COORDINATOR_WITHHELD_TOOLS, coordinationInstructions } from "./coordination-instructions.mjs";
+import { runBrief, type BriefDialect, type RunBrief } from "./run-brief.mjs";
+import { COORDINATOR_WITHHELD_TOOLS } from "./coordination-instructions.mjs";
 import { SessionPool } from "./session-pool.mjs";
-import { SIDE_CHAT_INSTRUCTIONS } from "./side-chat-instructions.mjs";
 import { APP_PLUGIN_NAME, appPluginRoot, unqualifiedSkillName } from "../app-plugin.mjs";
 
 type QueryFactory = typeof query;
-const linkInstructions = `Only Markdown links are clickable in your output. Link web pages as [label](https://example.com), workspace files as [label](/absolute/path:line), and other threads as [title](aicodingtool://thread/<id>). Omit the line when it is unavailable.`;
-const browserInstructions = `The AICodingTool browser panel is a real browser sharing one session with the user, so every site they have signed into is signed in for you: use the aicodingtool-browser tools rather than curl or Bash for anything behind a login, and rather than guessing at a page you can read.`;
+const CLAUDE_DIALECT: BriefDialect = { nativeWork: "Claude background tasks, sessions, or agents; native TaskOutput, Agent, and SendMessage cannot access them" };
 const chromeInstructions = `The user's own Chrome answers the mcp__claude-in-chrome__ tools, and those tools drive the windows and tabs they already have on screen: when they ask for the external browser, for their browser, or for Chrome by name, use them rather than the AICodingTool browser panel or an open command through Bash. Everything else stays in the panel, which reads a page without disturbing what the user is looking at.`;
-const threadInstructions = `Use the aicodingtool-threads tools when the user's request requires fetching or acting on another AICodingTool thread. App task IDs identify AICodingTool threads, not Claude background tasks, sessions, or agents; native TaskOutput, Agent, and SendMessage cannot access them. Conversation history and app-supplied thread context are already available evidence; answering from them does not require a tool call.`;
-const automationInstructions = `This task can schedule itself. When the user asks to repeat, babysit, poll, or watch something on a cadence, use the aicodingtool-automation tools instead of looping yourself or reaching for cron.`;
-const computerUseInstructions = `When a requested outcome lives in another application's interface, use the provided computer-use MCP tools. Never invoke a separately installed cua-driver through Bash. Observe the exact target before every action and verify the result afterward. Prefer accessibility targets, then screenshot coordinates, and use foreground delivery only after background delivery fails.`;
 /** The ruleset a thread answers under when concise replies are on, alongside the Concise output style. */
 const conciseInstructions = `## Persistence
 
@@ -147,32 +142,19 @@ function modelNames(info: ModelInfo): string[] {
 }
 
 /** Everything a session is built with. A run that disagrees with any of it needs a session of its own. */
-function sessionKey(input: ProviderRunInput) {
-  return JSON.stringify([
-    input.channel,
-    input.workspaceRoot,
-    input.projectless,
-    grantsTool("workspace", input),
-    input.computerUse.status === "available" ? input.computerUse.mcp : input.computerUse.status,
-    Boolean(input.claude?.chromeBrowser),
-    Boolean(input.claude?.conciseReplies),
-    Boolean(input.automations),
-    Boolean(input.findings),
-    Boolean(input.threads),
-    input.coordinationRole ?? null,
-    Boolean(input.browser),
-    Boolean(input.terminal),
-  ]);
+function sessionKey(input: ProviderRunInput, brief: RunBrief) {
+  return JSON.stringify([...brief.identity, grantsTool("workspace", input), Boolean(input.claude?.chromeBrowser), Boolean(input.claude?.conciseReplies)]);
 }
 
 export class ClaudeAgentProvider implements AgentProvider {
   constructor(private readonly queryFactory: QueryFactory = query, private readonly pool = new SessionPool()) {}
 
   execute(input: ProviderRunInput): Promise<ProviderResult> {
-    const key = sessionKey(input);
+    const brief = runBrief(input, CLAUDE_DIALECT);
+    const key = sessionKey(input, brief);
     return this.pool.execute(input, key, {
       open: ({ ended, rested }) => new ClaudeSession(key, ended, rested),
-      start: (session) => session.open((prompt, canUseTool, hooks) => this.queryFactory(this.options(input, prompt, canUseTool, hooks)), input),
+      start: (session) => session.open((prompt, canUseTool, hooks) => this.queryFactory(this.options(input, brief, prompt, canUseTool, hooks)), input),
     });
   }
 
@@ -193,13 +175,13 @@ export class ClaudeAgentProvider implements AgentProvider {
     this.pool.closeAll();
   }
 
-  private options(input: ProviderRunInput, prompt: AsyncIterable<SDKUserMessage>, canUseTool: CanUseTool, hooks: Options["hooks"]) {
+  private options(input: ProviderRunInput, brief: RunBrief, prompt: AsyncIterable<SDKUserMessage>, canUseTool: CanUseTool, hooks: Options["hooks"]) {
     const continuation = continuationOf(input);
     const mcpServers: Record<string, McpServerConfig> = {};
     if (input.computerUse.status === "available") {
       mcpServers["cua-driver"] = { type: "stdio" as const, ...input.computerUse.mcp };
     }
-    for (const { server, tools } of runTools(input)) mcpServers[server] = claudeMcpServer(server, tools);
+    for (const { server, tools } of brief.tools) mcpServers[server] = claudeMcpServer(server, tools);
     return {
       prompt,
       options: {
@@ -215,7 +197,7 @@ export class ClaudeAgentProvider implements AgentProvider {
         betas: ["context-1m-2025-08-07" as const],
         ...(input.claude?.chromeBrowser ? { extraArgs: { chrome: null } } : {}),
         ...(Object.keys(mcpServers).length ? { mcpServers } : {}),
-        systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append: [...(input.computerUse.status === "unavailable" ? [] : [computerUseInstructions]), linkInstructions, ...(input.automations && input.coordinationRole !== "coordinator" ? [automationInstructions] : []), ...(input.threads ? [threadInstructions] : []), ...coordinationInstructions(input.coordinationRole), ...(input.browser ? [browserInstructions] : []), ...(input.claude?.chromeBrowser ? [chromeInstructions] : []), ...(input.claude?.conciseReplies ? [conciseInstructions] : []), ...(input.channel === "side" ? [SIDE_CHAT_INSTRUCTIONS] : [])].join("\n\n") },
+        systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append: [...brief.instructions, ...(input.claude?.chromeBrowser ? [chromeInstructions] : []), ...(input.claude?.conciseReplies ? [conciseInstructions] : [])].join("\n\n") },
         settingSources: (input.projectless ? ["user"] : ["user", "project", "local"]) as ("user" | "project" | "local")[],
         ...(input.claude?.conciseReplies ? { settings: { outputStyle: "Concise" } } : {}),
         skills: "all" as const,

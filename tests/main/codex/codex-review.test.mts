@@ -2,9 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import type { ProviderEvent } from "../../../src/main/agent/agent-provider.mts";
 import { SteerChannel } from "../../../src/main/agent/steer-channel.mts";
-import { DEVELOPER_INSTRUCTIONS } from "../../../src/main/codex/codex-instructions.mts";
 import type { ThreadItem } from "../../../src/main/codex/protocol/v2/ThreadItem.ts";
-import { completeTurn, defaultScript, harness, input, opened, sentBy, tick, turn } from "../../support/codex-client.mjs";
+import { completeTurn, defaultScript, developerInstructions, harness, input, opened, sentBy, tick, turn } from "../../support/codex-client.mjs";
 
 const threadId = "thread-1";
 const turnId = "turn-1";
@@ -59,7 +58,7 @@ test("native review runs inline on paginated history and emits its findings once
     sandbox: "workspace-write",
     approvalsReviewer: "user",
     config: { model_reasoning_effort: "low" },
-    developerInstructions: DEVELOPER_INSTRUCTIONS,
+    developerInstructions: developerInstructions({ operation: { type: "review", target: { type: "baseBranch", branch: "main" } } }),
   }]);
   assert.deepEqual(client.calls("review/start"), [{ threadId, target: { type: "baseBranch", branch: "main" }, delivery: "inline" }]);
   client.notify("item/started", started(command("review-command", "git diff main")));

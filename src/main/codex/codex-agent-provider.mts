@@ -6,6 +6,7 @@ import { connectAppServer } from "./app-server-client.mjs";
 import { CodexSession, type CodexConnect } from "./codex-session.mjs";
 import type { ReadOrigin } from "./codex-thread-record.mjs";
 import { codexImageOutput, type ImageOutput } from "./codex-images.mjs";
+import { codexBrief } from "./codex-instructions.mjs";
 
 /**
  * Everything a session is built with. A run that disagrees with any of it needs a session of its
@@ -14,16 +15,8 @@ import { codexImageOutput, type ImageOutput } from "./codex-images.mjs";
  */
 function sessionKey(input: ProviderRunInput) {
   return JSON.stringify([
-    input.channel,
-    input.workspaceRoot,
-    input.projectless,
-    input.computerUse.status === "available" ? [input.computerUse.mcp, grantsTool("computer-use", input)] : input.computerUse.status,
-    Boolean(input.automations),
-    Boolean(input.findings),
-    Boolean(input.threads),
-    input.coordinationRole ?? null,
-    Boolean(input.browser),
-    Boolean(input.terminal),
+    ...codexBrief(input).identity,
+    input.computerUse.status === "available" && grantsTool("computer-use", input),
     grantsTool("workspace", input),
     /** Review has no turn-level overrides, so its process must agree with the thread settings. */
     input.operation?.type === "review" ? [input.model, input.effort, input.policy] : null,

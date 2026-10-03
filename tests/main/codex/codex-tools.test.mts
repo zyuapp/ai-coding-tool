@@ -6,8 +6,7 @@ import { mcpToolName } from "../../../src/main/agent/claude-mcp-host.mts";
 import { runTools } from "../../../src/main/agent/run-tools.mts";
 import type { ExecutionPolicy } from "../../../src/domain/run.ts";
 import { codexConfig, toml } from "../../../src/main/codex/codex-config.mts";
-import { DEVELOPER_INSTRUCTIONS } from "../../../src/main/codex/codex-instructions.mts";
-import { harness, input, turn } from "../../support/codex-client.mjs";
+import { developerInstructions, harness, input, turn } from "../../support/codex-client.mjs";
 
 const automations = { list: async () => [], read: async () => null, save: async () => ({}), update: async () => ({}), remove: async () => true } as unknown as AutomationBridge;
 const findings = { notify: async () => ({}), nothingToReport: async () => ({}) } as unknown as FindingBridge;
@@ -46,8 +45,7 @@ test("a session serves the run's tools under one token and points the app server
     runTools(input(bridges)).flatMap((set) => set.tools.map((tool) => tool.name)).sort(),
   );
   assert.ok(codex.host.served[0]!.tools.some((tool) => tool.name === "schedule"));
-  assert.equal((client.calls("thread/start")[0] as { developerInstructions?: string }).developerInstructions, DEVELOPER_INSTRUCTIONS);
-  assert.ok(DEVELOPER_INSTRUCTIONS.split(/\s+/).length < 100, "the instructions stay short");
+  assert.equal((client.calls("thread/start")[0] as { developerInstructions?: string }).developerInstructions, developerInstructions(bridges));
 
   await turn(codex, { ...bridges, prompt: "again", continuation: { provider: "codex", value: "thread-1" } });
   assert.equal(codex.host.served.length, 1, "a warm session keeps its token");

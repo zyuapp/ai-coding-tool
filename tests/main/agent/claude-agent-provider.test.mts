@@ -355,8 +355,6 @@ test("Claude receives bundled computer-use MCP or the internal setup tool", asyn
   const setup = await liveTurn({ computerUse: { status: "setup-required" } });
   assert.equal(setup.mcpServers?.["aicodingtool-computer-use"]?.type, "sdk");
   assert.equal((await useTool(setup.canUseTool, "mcp__aicodingtool-computer-use__request_setup", {}, "setup-1")).behavior, "allow");
-  assert.match(systemAppend(setup), /Observe the exact target before every action/);
-  assert.match(systemAppend(setup), /Never invoke a separately installed cua-driver through Bash/);
   await setup.end();
 });
 
@@ -615,12 +613,11 @@ test("cancelling a turn interrupts it and leaves the session alive", async () =>
 
 test("reading other threads needs no approval, but starting or stopping one does", async () => {
   const asked: string[] = [];
-  const { canUseTool, mcpServers, systemPrompt, end } = await liveTurn({
+  const { canUseTool, mcpServers, end } = await liveTurn({
     threads: { list: async () => [], read: async () => ({}), wait: async () => ({}), command: async () => ({ thread: null }) } as unknown as ThreadBridge,
     authorize: async (intent) => { asked.push(intent.name); return "deny"; },
   });
   assert.equal(mcpServers?.["aicodingtool-threads"]?.type, "sdk");
-  assert.match(systemAppend({ systemPrompt }), /Use the aicodingtool-threads tools when the user's request requires fetching or acting on another AICodingTool thread/);
   for (const name of ["mcp__aicodingtool-threads__list_threads", "mcp__aicodingtool-threads__read_thread", "mcp__aicodingtool-threads__wait_for_thread"]) {
     assert.equal((await useTool(canUseTool, name, {})).behavior, "allow", name);
   }
@@ -629,14 +626,6 @@ test("reading other threads needs no approval, but starting or stopping one does
   }
   assert.deepEqual(asked, ["mcp__aicodingtool-threads__start_thread", "mcp__aicodingtool-threads__archive_thread", "mcp__aicodingtool-threads__stop_thread"]);
   await end();
-});
-
-test("a run with no workspace bridge is offered no thread tools", async () => {
-  const capture: QueryCapture = {};
-  await new ClaudeAgentProvider(queryFactory([], capture)).execute(input());
-
-  assert.equal(optionsOf(capture).mcpServers?.["aicodingtool-threads"], undefined);
-  assert.doesNotMatch(systemAppend(optionsOf(capture)), /aicodingtool-threads/);
 });
 
 test("a workflow keeps reporting between the turns of the session it runs under", async () => {

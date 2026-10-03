@@ -5,13 +5,12 @@ import type { CoordinationRole } from "../../domain/coordination.js";
 import { continuationOf, type ProviderResult, type ProviderRunInput } from "../agent/agent-provider.mjs";
 import { grantsTool } from "../agent/approval-grant.mjs";
 import { appendCompleteMarkdown, openMarkdownBuffer, type MarkdownBuffer } from "../agent/markdown-buffer.mjs";
-import { runTools } from "../agent/run-tools.mjs";
 import { BackgroundWork } from "../agent/background-work.mjs";
 import { TurnSlot, type SessionTurn } from "../agent/session-turn.mjs";
 import type { ServedTools, ToolHost } from "../tools/mcp-http-host.mjs";
 import { AppServerError, AppServerExited, CLIENT_INFO, codexAppServer, type AppServerClient, type AppServerCommand, type BackgroundTerminal, type ExitStatus, type IncomingRequest, type NotificationParams } from "./app-server-client.mjs";
 import { codexConfig, TOOL_TOKEN_ENV } from "./codex-config.mjs";
-import { codexInstructions } from "./codex-instructions.mjs";
+import { codexBrief } from "./codex-instructions.mjs";
 import { SIDE_CHAT_BOUNDARY } from "../agent/side-chat-instructions.mjs";
 import { adoptAppSkills, CodexSkills } from "./codex-skills.mjs";
 import { codexImageOutput, type ImageOutput } from "./codex-images.mjs";
@@ -437,8 +436,8 @@ export class CodexSession {
     this.background.openWith(seed.reportBackground);
     this.reportGoal = seed.reportGoal;
     this.reportGoal({ type: "goal.changed", goal: null });
-    const sets = runTools(seed);
-    const tools = sets.flatMap((set) => set.tools);
+    const brief = codexBrief(seed);
+    const tools = brief.tools.flatMap((set) => set.tools);
     if (tools.length) {
       const served = await this.host.serve(tools);
       if (this.ended) {
@@ -447,7 +446,7 @@ export class CodexSession {
       }
       this.served = served;
     }
-    const command = await codexAppServer(codexConfig(seed, this.served ?? undefined, sets), { cwd: seed.workspaceRoot, ...(this.served ? { env: { ...process.env, [TOOL_TOKEN_ENV]: this.served.token } } : {}) });
+    const command = await codexAppServer(codexConfig(seed, this.served ?? undefined, brief.tools), { cwd: seed.workspaceRoot, ...(this.served ? { env: { ...process.env, [TOOL_TOKEN_ENV]: this.served.token } } : {}) });
     if (this.ended) throw new OpenFailure("The Codex session ended before the run could start.");
     const client = this.client = this.connect(command);
     const skills = this.skills = new CodexSkills(client, seed.workspaceRoot);
@@ -506,7 +505,7 @@ export class CodexSession {
     const account = await client.request("account/read", { refreshToken: false });
     if (!account.account) throw new OpenFailure(SIGN_IN);
     const policy = codexPolicy(seed.policy, seed.coordinationRole);
-    const settings = { cwd: seed.workspaceRoot, model: seed.model, serviceTier: seed.fastMode ? "priority" : "default", approvalPolicy: policy.approvalPolicy, sandbox: policy.sandbox, approvalsReviewer: policy.approvalsReviewer, config: { model_reasoning_effort: seed.effort }, developerInstructions: codexInstructions(seed.channel, seed.coordinationRole) };
+    const settings = { cwd: seed.workspaceRoot, model: seed.model, serviceTier: seed.fastMode ? "priority" : "default", approvalPolicy: policy.approvalPolicy, sandbox: policy.sandbox, approvalsReviewer: policy.approvalsReviewer, config: { model_reasoning_effort: seed.effort }, developerInstructions: brief.instructions.join("\n\n") };
     const continuation = continuationOf(seed);
     const started = continuation === undefined
       ? await client.request("thread/start", settings)
