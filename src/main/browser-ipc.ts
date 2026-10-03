@@ -134,6 +134,6 @@ export function registerBrowserIpc(trusted: (event: IpcMainInvokeEvent) => boole
     if (!isImportSourceId(sourceId) || !Array.isArray(sites) || !sites.length || sites.length > MAX_IMPORT_SITES || !sites.every(isImportSite)) {
       throw new Error("Invalid browser import.");
     }
-    return importBrowserSites(sourceId, sites, browser.addCookies);
+    return importBrowserSites(sourceId, sites, browser.replaceCookies);
   });
 }

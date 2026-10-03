@@ -717,9 +717,19 @@ export async function clearData() {
   for (const tab of tabs.values()) tab.view.webContents.reload();
 }
 
-/** Sets cookies in the panel's session, then reloads the pages on those sites. Answers how many were set. */
-export async function addCookies(cookies: Electron.CookiesSetDetails[], sites: string[]): Promise<number> {
+/**
+ * Replaces those sites' cookies in the panel's session with these, then reloads the pages on those
+ * sites. Nothing is removed when there is nothing to set. Answers how many were set.
+ */
+export async function replaceCookies(cookies: Electron.CookiesSetDetails[], sites: string[]): Promise<number> {
   const partition = session.fromPartition(PARTITION);
+  if (cookies.length) {
+    const removals = (await partition.cookies.get({})).flatMap(({ domain, secure, path: cookiePath, name }) =>
+      domain && sites.some((site) => cookieOnSite(domain, site))
+        ? [partition.cookies.remove(`${secure ? "https" : "http"}://${domain.replace(/^\./, "")}${cookiePath ?? "/"}`, name)]
+        : []);
+    await Promise.allSettled(removals);
+  }
   let added = 0;
   for (let start = 0; start < cookies.length; start += 100) {
     const results = await Promise.allSettled(cookies.slice(start, start + 100).map((cookie) => partition.cookies.set(cookie)));

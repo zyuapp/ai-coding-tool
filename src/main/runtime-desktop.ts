@@ -63,7 +63,7 @@ function panelDesktop(host: RuntimeDesktopHost) {
     clearBrowserData: () => browser.clearData(),
     listBrowserImportSources: () => listImportSources(),
     listBrowserImportSites: (sourceId) => listImportSites(sourceId),
-    importBrowserSites: (sourceId, sites) => importBrowserSites(sourceId, sites, browser.addCookies),
+    importBrowserSites: (sourceId, sites) => importBrowserSites(sourceId, sites, browser.replaceCookies),
     onBrowserEvent: (listener) => events.on("browser:event", listener),
     findInPage: async (tabId, query, forward, findNext) => browser.findInPage(tabId, query, { forward, findNext }),
     stopFindInPage: async (tabId) => browser.stopFindInPage(tabId),

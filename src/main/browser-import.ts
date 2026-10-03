@@ -231,9 +231,9 @@ export function cookieDetails(cookie: StoredCookie): Electron.CookiesSetDetails 
   };
 }
 
-/** Reads those sites' cookies from the profile and hands them to `add`, which answers how many it set. */
-export async function importBrowserSites(sourceId: string, sites: string[], add: (cookies: Electron.CookiesSetDetails[], sites: string[]) => Promise<number>): Promise<BrowserImportResult> {
+/** Reads those sites' cookies from the profile and hands them to `replace`, which answers how many it set. */
+export async function importBrowserSites(sourceId: string, sites: string[], replace: (cookies: Electron.CookiesSetDetails[], sites: string[]) => Promise<number>): Promise<BrowserImportResult> {
   const { cookies, skipped } = await readImportCookies(sourceId, sites);
-  const imported = await add(cookies.map(cookieDetails), sites);
+  const imported = await replace(cookies.map(cookieDetails), sites);
   return { imported, skipped: skipped + cookies.length - imported };
 }
