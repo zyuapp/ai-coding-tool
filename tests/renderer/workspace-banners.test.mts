@@ -1,9 +1,11 @@
 import { fakeDesktop } from "../support/desktop-api.mts";
 import assert from "node:assert/strict";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import React, { act } from "react";
 import { App } from "../../src/renderer/App.tsx";
 import { mount, query } from "../support/renderer-dom.mts";
+
+vi.mock("../../src/renderer/task-workspace/workspace-connection.ts", () => import("../support/in-process-workspace.mts"));
 
 test("an error and a notice under the header take a row each, so neither is drawn over the other", async () => {
   localStorage.clear();

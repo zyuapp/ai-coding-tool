@@ -3,7 +3,6 @@ import { test } from "vitest";
 import { registered, startMainProcess, tick, waitFor } from "../support/electron-harness.mjs";
 import { isolatedViteServer } from "../support/vite-server.mjs";
 
-type IpcEvent = { sender: unknown };
 type ComputerUsePermissions = { accessibility: boolean; screenRecording: boolean };
 type QuitComputerUseRuntime = {
   app: { isPackaged: boolean; getAppPath(): string };
@@ -74,10 +73,8 @@ test("quit hides immediately, finishes cleanup once, and reopens only after exit
   assert.equal(main.window.isVisible(), false, "Cmd-Q removes the window before cleanup finishes");
   await waitFor(() => stopCalls === 1);
   assert.equal(main.completedQuits(), 0);
-  const loadStore = registered<(event: IpcEvent) => unknown>(main.handlers, "task-store:load");
-  const runCommand = registered<(event: IpcEvent, payload: unknown) => void>(main.listeners, "run:command");
-  assert.doesNotThrow(() => loadStore(main.trusted), "queued persistence remains accepted until final shutdown");
-  runCommand(main.trusted, { type: "start", channel: "main", taskId: "late", title: "Late", runId: "late-run", prompt: "late", workspaceId: "missing", policy: "confirm", engine: "claude", model: "opus", effort: "high" });
+  assert.doesNotThrow(() => main.desktop.loadTaskStore(), "queued persistence remains accepted until final shutdown");
+  main.desktop.send({ type: "start", channel: "main", taskId: "late", title: "Late", runId: "late-run", prompt: "late", workspaceId: "missing", policy: "confirm", engine: "claude", model: "opus", effort: "high" });
   await tick();
   assert.equal(runStarts, 0, "shutdown refuses new run work without rejecting persistence");
 
@@ -115,7 +112,7 @@ test("a requested computer-use restart accepts a project URL before it relaunche
   });
   const url = "aicodingtool://open?path=L3RtcA";
 
-  registered<(event: IpcEvent) => void>(main.listeners, "computer-use:restart")(main.trusted);
+  main.desktop.restartForComputerUse();
   registered<(event: { preventDefault(): void }, url: string) => void>(main.appListeners, "open-url")({ preventDefault() {} }, url);
   assert.equal(main.relaunches.length, 0);
 

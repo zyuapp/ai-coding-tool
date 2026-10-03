@@ -8,6 +8,8 @@ import { task } from "../application/workspace-reducer-fixtures.mts";
 import { createSnoozeTimer } from "../../src/host/snooze-timer.ts";
 import { App } from "../../src/renderer/App.tsx";
 
+vi.mock("../../src/renderer/task-workspace/workspace-connection.ts", () => import("../support/in-process-workspace.mts"));
+
 function menuItem(label: string) {
   return [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((button) => button.textContent === label);
 }

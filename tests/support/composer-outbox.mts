@@ -2,7 +2,7 @@ import { useState } from "react";
 import { NO_ATTACHMENT_SEND } from "../../src/application/composer-attachments.ts";
 import type { ComposerOutbox } from "../../src/renderer/components/ComposerAttachments.tsx";
 import { attachmentEffects } from "../../src/host/attachment-effects.ts";
-import { noComputers } from "../../src/host/no-computers.ts";
+import { hostedDesktop } from "./in-process-workspace.mts";
 import type { RunAttachment } from "../../src/domain/conversation.ts";
 
 /** A composer whose sends go nowhere, for surfaces under test that only have to reach one. */
@@ -24,7 +24,7 @@ export function useSavingOutbox(onSend: (attachments: RunAttachment[], steer: bo
       void attachmentEffects["send-attachments"](
         { type: "send-attachments", attachments, ...(steer ? { steer } : {}) },
         {
-          desktop: { ...window.desktop, ...noComputers }, storage: localStorage,
+          desktop: hostedDesktop(), storage: localStorage,
           environmentRefreshes: { current: new Map() },
           scheduleSnoozeExpiry: () => {},
           scheduleLimitReset: () => {},

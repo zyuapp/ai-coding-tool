@@ -76,6 +76,6 @@ test("thread handles follow membership, queued work, and project edits when only
   } finally {
     await workspace.view.unmount();
     if (previousBridge) window.workspace = previousBridge;
-    else delete window.workspace;
+    else Reflect.deleteProperty(window, "workspace");
   }
 });

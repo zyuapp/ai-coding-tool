@@ -74,14 +74,10 @@ function workspaceDesktop(host: ServiceDesktopHost) {
         return { status: "error", message: failed(error) };
       }
     },
-    diffPatch: async (workspaceId, range, filePath, previousPath, ignoreWhitespace) => {
-      try {
-        const { diffPatch } = await import("./workspace/git-diff.mjs");
-        return await diffPatch(workspaceId, range, filePath, host.workspaces(), previousPath, ignoreWhitespace === true);
-      } catch (error) {
-        return { status: "error", message: failed(error) };
-      }
-    },
+    diffPatch: (workspaceId, range, filePath, previousPath, ignoreWhitespace) => host.reads.read(
+      { kind: "diff-patch", workspaceId, range, path: filePath, ...(previousPath === undefined ? {} : { previousPath }), ignoreWhitespace: ignoreWhitespace === true },
+      { workspace: workspaceId },
+    ),
     pullRequest: async (workspaceId): Promise<PullRequestAnswer> => {
       try {
         const resolution = await host.workspaces().resolve(workspaceId);

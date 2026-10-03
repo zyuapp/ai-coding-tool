@@ -15,7 +15,7 @@ test("desktop initialization waits for restoration and applies current runtime p
   const capture: Parameters<DesktopAPI["setCaptureOptions"]>[0][] = [];
   const pending = Promise.withResolvers<void>();
   let refusal: Parameters<DesktopAPI["onDesktopShortcutRefused"]>[0] | undefined;
-  window.desktop = {
+  const desktop = {
     onShortcut: () => () => {},
     onShortcutCaptured: () => () => {},
     onDesktopShortcutRefused: (listener: Parameters<DesktopAPI["onDesktopShortcutRefused"]>[0]) => { refusal = listener; return () => { refusal = undefined; }; },
@@ -28,13 +28,14 @@ test("desktop initialization waits for restoration and applies current runtime p
     },
     setCaptureOptions: (value: Parameters<DesktopAPI["setCaptureOptions"]>[0]) => { capture.push(value); },
   } as unknown as DesktopAPI;
+  window.desktop = desktop;
   async function dispatch(input: WorkspaceInput) {
     if (input.type === "view.mounted") await pending.promise;
     const transition = reduce(state, input);
     state = transition.state;
     for (const effect of transition.effects) {
-      if (effect.type === "apply-shortcuts") window.desktop.setShortcuts(effect.overrides);
-      if (effect.type === "apply-capture-options") window.desktop.setCaptureOptions(effect.options);
+      if (effect.type === "apply-shortcuts") desktop.setShortcuts(effect.overrides);
+      if (effect.type === "apply-capture-options") desktop.setCaptureOptions(effect.options);
     }
   }
   function Harness({ restored }: { restored: boolean }) {

@@ -1,7 +1,7 @@
 import { seedTaskWithSubagent } from "../support/subagents.mts";
 import { fakeDesktop } from "../support/desktop-api.mts";
 import assert from "node:assert/strict";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import React, { act } from "react";
 import type { DesktopAPI, RunCommand } from "../../src/contracts/ipc.ts";
 
@@ -18,6 +18,8 @@ import { mobileSettingsProps } from "../support/mobile-desktop.mts";
 
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
 import { settleUntil } from "../support/settle.mts";
+
+vi.mock("../../src/renderer/task-workspace/workspace-connection.ts", () => import("../support/in-process-workspace.mts"));
 
 const { App } = await import("../../src/renderer/App.tsx");
 const { SettingsPanel } = await import("../../src/renderer/components/SettingsPanel.tsx");

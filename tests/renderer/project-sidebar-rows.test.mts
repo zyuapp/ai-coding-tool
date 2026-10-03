@@ -2,7 +2,7 @@ import { renderProjectSidebar, seedProjectTasks } from "../support/sidebar.mts";
 import { mountWorkspace } from "../support/workspace-renderer.mts";
 import { automationView, fakeDesktop } from "../support/desktop-api.mts";
 import assert from "node:assert/strict";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import React, { act } from "react";
 import type { RunCommand } from "../../src/contracts/ipc.ts";
 
@@ -10,6 +10,8 @@ import type { Thread } from "../../src/domain/thread.ts";
 
 import { dom, item, mount, query, rowHeights } from "../support/renderer-dom.mts";
 import { settleFrame, settleUntil } from "../support/settle.mts";
+
+vi.mock("../../src/renderer/task-workspace/workspace-connection.ts", () => import("../support/in-process-workspace.mts"));
 
 const { useTaskWorkspace } = await import("../../src/renderer/task-workspace/useTaskWorkspace.ts");
 const { App } = await import("../../src/renderer/App.tsx");

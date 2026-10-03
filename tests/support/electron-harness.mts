@@ -2,7 +2,9 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { TestContext } from "vitest";
+import type { WindowDesktopAPI, WindowDesktopCall } from "../../src/contracts/ipc.js";
 import type { WorkspaceUpdate } from "../../src/contracts/workspace-runtime.js";
+import type { RuntimeDesktop } from "../../src/host/runtime-desktop.js";
 import { fakeElectron } from "./electron-app-stub.mjs";
 import { fakePlugins } from "./electron-vite-plugins.mjs";
 import type { Callback } from "./electron-window-stub.mjs";
@@ -17,6 +19,7 @@ type HarnessGlobals = typeof globalThis & {
   __aicodingtoolComputerUse?: ComputerUseStub;
   __aicodingtoolMobileHost?: FakeMobileHost;
   __aicodingtoolUpdater?: unknown;
+  __aicodingtoolDesktop?: RuntimeDesktop;
 };
 
 export function registered<T extends RegisteredCallback>(registry: Map<string, Callback>, name: string): T {
@@ -80,6 +83,7 @@ export async function startMainProcess(t: TestContext | null, prefix: string, op
     Reflect.deleteProperty(globals, "__aicodingtoolComputerUse");
     Reflect.deleteProperty(globals, "__aicodingtoolMobileHost");
     Reflect.deleteProperty(globals, "__aicodingtoolUpdater");
+    Reflect.deleteProperty(globals, "__aicodingtoolDesktop");
     Reflect.deleteProperty(globalThis, "__dirname");
     Reflect.deleteProperty(versions, "chrome");
   };
@@ -96,6 +100,9 @@ export async function startMainProcess(t: TestContext | null, prefix: string, op
 
   const window = windows[0];
   if (!window) throw new Error("Main did not create a window.");
+  const desktop = globals.__aicodingtoolDesktop;
+  if (!desktop) throw new Error("Main made no runtime desktop.");
+  const desktopCall = registered<(event: { sender: unknown }, name: unknown, ...args: unknown[]) => Promise<unknown>>(records.handlers, "desktop:call");
   return {
     ...records,
     dispose,
@@ -104,6 +111,12 @@ export async function startMainProcess(t: TestContext | null, prefix: string, op
     mobileHost,
     trusted: { sender: window.webContents },
     untrusted: { sender: {} },
+    /** What the runtime calls on the machine, called the way the runtime calls it. */
+    desktop,
+    /** One of the window's own desktop calls, relayed the way the preload relays it. */
+    call: <Name extends WindowDesktopCall>(name: Name, ...args: Parameters<WindowDesktopAPI[Name]>) =>
+      desktopCall({ sender: window.webContents }, name, ...args) as ReturnType<WindowDesktopAPI[Name]>,
+    desktopCall,
     sentOn: <T = unknown,>(channel: string) => window.webContents.sent.filter((entry) => entry.channel === channel).map((entry) => entry.event as T),
     /** Asks the host for a whole snapshot, the way a window that has just opened does, and reads it back. */
     runtimeState: async (sender: { sender: unknown } = { sender: windows[0]?.webContents }) => {

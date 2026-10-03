@@ -3,7 +3,7 @@ import { test, afterAll, beforeAll } from "vitest";
 import { registered, startMainProcess, waitFor, type MainHarness } from "../../support/electron-harness.mjs";
 import type { AutomationRequest, AutomationResponse, StartRunCommand } from "../../../src/contracts/ipc.js";
 import type { WorkspaceCommandResult, WorkspaceInput } from "../../../src/application/workspace-reducer.js";
-import type { AutomationDraft, AutomationRunStatus, AutomationView } from "../../../src/domain/automation.js";
+import type { AutomationDraft, AutomationView } from "../../../src/domain/automation.js";
 import type { RunStatus } from "../../../src/domain/run.js";
 
 /**
@@ -16,10 +16,7 @@ const HOURLY = `${(new Date().getMinutes() + 30) % 60} * * * *`;
 let main: MainHarness;
 beforeAll(async () => {
   main = await startMainProcess(null, "aicodingtool-automation-", { computerUse: { computerUseForRun: async () => ({ status: "unavailable", message: "test" }), stopComputerUse: async () => {} } });
-  registered<(event: { sender: unknown }, payload: unknown) => void>(main.listeners, "run:command")(
-    main.trusted,
-    { type: "stop-process", taskId: "test-setup", processId: "test-setup" },
-  );
+  main.desktop.send({ type: "stop-process", taskId: "test-setup", processId: "test-setup" });
   await waitFor(() => main.agents.length === 1, "the agent process to start on demand");
 });
 afterAll(async () => { await main?.dispose(); });
@@ -34,14 +31,9 @@ const draft = (taskId: string, overrides: Partial<AutomationDraft> = {}): Automa
   ...overrides,
 });
 
-const listAutomations = () => registered<(event: IpcEvent) => Promise<AutomationView[]>>(main.handlers, "automation:list");
-const saveAutomation = () => registered<(event: IpcEvent, draft: unknown) => Promise<AutomationView>>(main.handlers, "automation:save");
-const updateAutomation = () => registered<(event: IpcEvent, taskId: unknown, patch: unknown) => Promise<AutomationView>>(main.handlers, "automation:update");
-const deleteAutomation = () => registered<(event: IpcEvent, taskId: unknown) => Promise<boolean>>(main.handlers, "automation:delete");
-const runAutomation = () => registered<(event: IpcEvent, taskId: unknown) => Promise<AutomationRunStatus>>(main.handlers, "automation:run-now");
 const runtimeRequest = (input: WorkspaceInput) => registered<(event: IpcEvent, input?: WorkspaceInput) => Promise<WorkspaceCommandResult>>(main.handlers, "workspace-runtime:request")(main.trusted, input);
 
-const automationFor = async (taskId: string) => (await listAutomations()(main.trusted)).find((view) => view.taskId === taskId);
+const automationFor = async (taskId: string) => (await main.desktop.listAutomations()).find((view) => view.taskId === taskId);
 
 /** What the runtime, and so the panel, says about a task's automation. */
 const latestFor = async (taskId: string) => (await main.runtimeState()).automations.filter((view) => view.taskId === taskId);
@@ -77,38 +69,37 @@ function ticks(taskId: string) {
   };
 }
 
-test("the automation IPC surface rejects untrusted senders and malformed schedules", async () => {
-  await assert.rejects(async () => listAutomations()(main.untrusted), /Untrusted/);
-  await assert.rejects(async () => saveAutomation()(main.untrusted, draft("task-guards")), /Untrusted/);
-  await assert.rejects(async () => deleteAutomation()(main.untrusted, "task-guards"), /Untrusted/);
+test("the window cannot reach the scheduler but through the runtime, and the scheduler refuses malformed schedules", async () => {
+  const request = registered<(event: IpcEvent, input: unknown) => Promise<WorkspaceCommandResult>>(main.handlers, "workspace-runtime:request");
+  await assert.rejects(async () => request(main.untrusted, { type: "automation.save", taskId: "task-guards", draft: { prompt: "poll", schedule: HOURLY } }), /Untrusted/);
+  await assert.rejects(async () => request(main.trusted, { type: "automation.save", taskId: "task-guards", draft: { prompt: "poll" } }), /Invalid workspace input/);
+  await assert.rejects(async () => request(main.trusted, { type: "automation.update", taskId: "task-guards", patch: { paused: "yes" } }), /Invalid workspace input/);
 
-  await assert.rejects(async () => saveAutomation()(main.trusted, { taskId: "task-guards", prompt: "poll" }), /Invalid automation/);
-  await assert.rejects(async () => saveAutomation()(main.trusted, draft("task-guards", { schedule: "*/10 * * * * *" })), /at most once a minute/);
-  await assert.rejects(async () => updateAutomation()(main.trusted, "task-guards", { paused: "yes" }), /Invalid automation change/);
-  await assert.rejects(async () => updateAutomation()(main.trusted, "task-guards", { paused: true }), /no automation/);
+  await assert.rejects(async () => main.desktop.saveAutomation(draft("task-guards", { schedule: "*/10 * * * * *" })), /at most once a minute/);
+  await assert.rejects(async () => main.desktop.updateAutomation("task-guards", { paused: true }), /no automation/);
 
   assert.equal(await automationFor("task-guards"), undefined, "nothing invalid was stored");
 });
 
 test("saving an automation arms it and pushes the new state to the panel", async () => {
-  const saved = await saveAutomation()(main.trusted, draft("task-save"));
+  const saved = await main.desktop.saveAutomation(draft("task-save"));
 
   assert.equal(saved.runCount, 0);
   assert.ok(saved.nextRunAt !== null && saved.nextRunAt > Date.now(), "a saved automation is armed");
   await waitFor(async () => (await latestFor("task-save")).length === 1, "the panel hearing about the schedule");
   assert.deepEqual((await latestFor("task-save")).map((view) => view.id), [saved.id]);
 
-  assert.equal(await deleteAutomation()(main.trusted, "task-save"), true);
+  assert.equal(await main.desktop.deleteAutomation("task-save"), true);
   await waitFor(async () => (await latestFor("task-save")).length === 0, "the panel hearing about the removal");
-  assert.equal(await deleteAutomation()(main.trusted, "task-save"), false);
+  assert.equal(await main.desktop.deleteAutomation("task-save"), false);
 });
 
 test("a tick runs in its thread and the run's outcome comes back to the scheduler", async () => {
   const taskId = await settledThread("Watch PR 42");
-  await saveAutomation()(main.trusted, draft(taskId, { policy: "autonomous" }));
+  await main.desktop.saveAutomation(draft(taskId, { policy: "autonomous" }));
   const takeTick = ticks(taskId);
 
-  const running = runAutomation()(main.trusted, taskId);
+  const running = main.desktop.runAutomationNow(taskId);
   const start = await takeTick();
   assert.equal(await running, "succeeded");
 
@@ -120,7 +111,7 @@ test("a tick runs in its thread and the run's outcome comes back to the schedule
   assert.equal(ran.runCount, 1);
   assert.equal(ran.lastStatus, "succeeded");
 
-  const failing = runAutomation()(main.trusted, taskId);
+  const failing = main.desktop.runAutomationNow(taskId);
   await takeTick({ outcome: "failed" });
   assert.equal(await failing, "failed");
 
@@ -131,9 +122,9 @@ test("a tick runs in its thread and the run's outcome comes back to the schedule
 });
 
 test("a tick for a thread the runtime does not hold is declined and leaves the automation untouched", async () => {
-  await saveAutomation()(main.trusted, draft("task-declined"));
+  await main.desktop.saveAutomation(draft("task-declined"));
 
-  assert.equal(await runAutomation()(main.trusted, "task-declined"), "skipped");
+  assert.equal(await main.desktop.runAutomationNow("task-declined"), "skipped");
   const view = await automationFor("task-declined");
   assert.ok(view);
   assert.equal(view.runCount, 0);
@@ -158,8 +149,8 @@ test("the agent process schedules and stops automations for the task it is runni
     return response.result as T;
   };
 
-  const workspace = await registered<(event: IpcEvent) => Promise<{ id: string }>>(main.handlers, "workspace:projectless")(main.trusted);
-  registered<(event: IpcEvent, command: unknown) => void>(main.listeners, "run:command")(main.trusted, {
+  const workspace = await main.call("projectlessWorkspace");
+  main.desktop.send({
     type: "start", channel: "main", taskId: "task-agent", runId: "run-agent", title: "Work", prompt: "work", workspaceId: workspace.id, policy: "confirm", engine: "claude", model: "opus", effort: "high",
   });
   await waitFor(() => agent.messages.some((message) => message.type === "start" && message.taskId === "task-agent"));
@@ -201,12 +192,12 @@ test("the agent process schedules and stops automations for the task it is runni
 
 test("a run that stops its own automation mid-tick is not resurrected by the tick's bookkeeping", async () => {
   const taskId = await settledThread("Stop yourself");
-  await saveAutomation()(main.trusted, draft(taskId));
+  await main.desktop.saveAutomation(draft(taskId));
   const agent = main.agents[0];
   const starts = () => agent.messages.filter((message) => message.type === "start" && message.taskId === taskId) as StartRunCommand[];
   const before = starts().length;
 
-  const running = runAutomation()(main.trusted, taskId);
+  const running = main.desktop.runAutomationNow(taskId);
   await waitFor(() => starts().length === before + 1, "the scheduler's run to reach the agent");
   const start = starts()[before];
 
@@ -220,7 +211,7 @@ test("a run that stops its own automation mid-tick is not resurrected by the tic
 });
 
 test("automations survive a restart of the app", async (t) => {
-  const saved = await saveAutomation()(main.trusted, draft("task-restart", { paused: true }));
+  const saved = await main.desktop.saveAutomation(draft("task-restart", { paused: true }));
 
   const { TaskDatabase } = await import("../../../src/main/task-database.mts");
   const { AutomationScheduler } = await import("../../../src/main/automation/automation-scheduler.mts");

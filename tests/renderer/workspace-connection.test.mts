@@ -21,7 +21,7 @@ function transport() {
   return { request, emit: (update: WorkspaceUpdate) => { for (const listener of listeners) listener(update); } };
 }
 
-afterEach(() => { delete window.workspace; });
+afterEach(() => { Reflect.deleteProperty(window, "workspace"); });
 
 test("a connection waits for one complete snapshot and ignores duplicate patches", async () => {
   const bridge = transport();

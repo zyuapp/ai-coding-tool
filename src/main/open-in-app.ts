@@ -2,7 +2,6 @@ import { spawn } from "node:child_process";
 import { access, constants } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
-import { ipcMain, type IpcMainInvokeEvent } from "electron";
 import { appCandidates, externalApps, type AppCandidate, type ExternalApp } from "../domain/external-apps.js";
 import type { InstalledApp } from "../contracts/ipc.js";
 import type { Platform } from "../domain/editors.js";
@@ -89,22 +88,4 @@ export async function openFolderInApp(appId: string, folder: string) {
     if (await launch(candidate.command, candidate.args)) return;
   }
   throw new Error(`${name} is not installed on this machine.`);
-}
-
-/** Longer than any id the catalog holds, and still bounded. */
-const MAX_APP_ID = 64;
-
-/** Only the window asks for this, and only for a folder it already works in. */
-export function serveExternalApps(trusted: (event: IpcMainInvokeEvent) => boolean) {
-  ipcMain.handle("apps:list", (event) => {
-    if (!trusted(event)) throw new Error("Untrusted IPC sender.");
-    return listInstalledApps();
-  });
-
-  ipcMain.handle("apps:open", async (event, appId: unknown, root: unknown) => {
-    if (!trusted(event)) throw new Error("Untrusted IPC sender.");
-    if (typeof appId !== "string" || !appId || appId.length > MAX_APP_ID) throw new Error("Invalid application.");
-    const { fileInCheckout } = await import("./path-policy.mjs");
-    await openFolderInApp(appId, await fileInCheckout(root, "."));
-  });
 }

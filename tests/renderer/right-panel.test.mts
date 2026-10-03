@@ -2,7 +2,7 @@ import { seedTaskWithSubagent } from "../support/subagents.mts";
 import { fakeDesktop } from "../support/desktop-api.mts";
 import { outbox } from "../support/composer-outbox.mts";
 import assert from "node:assert/strict";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import React, { act } from "react";
 import type { RunCommand } from "../../src/contracts/ipc.ts";
 
@@ -12,6 +12,8 @@ import type { ExecutionPolicy } from "../../src/domain/run.ts";
 import type { Thread } from "../../src/domain/thread.ts";
 
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
+
+vi.mock("../../src/renderer/task-workspace/workspace-connection.ts", () => import("../support/in-process-workspace.mts"));
 
 const { App } = await import("../../src/renderer/App.tsx");
 const { SideChat } = await import("../../src/renderer/components/SideChat.tsx");

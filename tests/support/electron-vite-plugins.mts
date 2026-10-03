@@ -12,6 +12,12 @@ export const engineServices = { claude: services, codex: services };
 export class EngineAccessHost { async read() { return ready; } async signIn() { return ready; } }
 `;
 
+/** The desktop main hands its runtime, kept where a test can call it as the runtime does. */
+const RUNTIME_DESKTOP_MODULE = `
+import { createRuntimeDesktop as create } from "/src/main/runtime-desktop.ts";
+export function createRuntimeDesktop(host) { return globalThis.__aicodingtoolDesktop = create(host); }
+`;
+
 /** Both fakes are reached through globals, so the modules under test import them like the real ones. */
 export function fakePlugins(computerUse: boolean, updater = false): Plugin[] {
   const plugins: Plugin[] = [{
@@ -31,10 +37,19 @@ export function fakePlugins(computerUse: boolean, updater = false): Plugin[] {
       if (id === "\0fake-mobile-host") return MOBILE_HOST_MODULE;
     },
   }, {
+    name: "held-runtime-desktop",
+    enforce: "pre",
+    resolveId(id, importer) {
+      if (id === "./runtime-desktop.js" && importer?.endsWith("/src/main/main.ts")) return "\0held-runtime-desktop";
+    },
+    load(id) {
+      if (id === "\0held-runtime-desktop") return RUNTIME_DESKTOP_MODULE;
+    },
+  }, {
     name: "fake-engine-services",
     enforce: "pre",
     resolveId(id, importer) {
-      if (id === "./agent/engine-services.mjs" && (importer?.endsWith("/src/main/main.ts") || importer?.endsWith("/src/main/runtime-desktop.ts"))) return "\0fake-engine-services";
+      if (id === "./agent/engine-services.mjs" && ["/src/main/main.ts", "/src/main/runtime-desktop.ts", "/src/main/computer-queries.ts"].some((path) => importer?.endsWith(path))) return "\0fake-engine-services";
     },
     load(id) {
       if (id === "\0fake-engine-services") return ENGINE_SERVICES_MODULE;

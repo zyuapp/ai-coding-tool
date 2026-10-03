@@ -5,13 +5,12 @@ import path from "node:path";
 import { runInNewContext } from "node:vm";
 import { test, afterAll, beforeAll } from "vitest";
 import { registered, startMainProcess, tick, waitFor, type MainHarness } from "../support/electron-harness.mjs";
-import type { ChangedFilesResult, ShortcutInvocation, StartRunCommand } from "../../src/contracts/ipc.js";
+import type { ShortcutInvocation, StartRunCommand } from "../../src/contracts/ipc.js";
 import type { WorkspaceCommandResult, WorkspaceInput } from "../../src/application/workspace-reducer.js";
 import type { ThreadRequest } from "../../src/contracts/threads.js";
-import type { BrowserBounds, BrowserInspectionResult, BrowserSnapshot } from "../../src/domain/browser.js";
-import { cliConfiguration, type CliStatus } from "../../src/domain/cli.js";
+import type { BrowserBounds } from "../../src/domain/browser.js";
+import { cliConfiguration } from "../../src/domain/cli.js";
 import type { KeyInput } from "../../src/domain/shortcuts.js";
-import type { WorkspaceRecord } from "../../src/domain/workspace.js";
 
 let main: MainHarness;
 beforeAll(async () => { main = await startMainProcess(null, "aicodingtool-main-", { computerUse: { computerUseForRun: async () => ({ status: "unavailable", message: "test" }), computerUsePermissions: async () => ({ accessibility: false, screenRecording: false }), requestComputerUsePermission: async () => ({ accessibility: false, screenRecording: false }), stopComputerUse: async () => {}, resumeComputerUse: () => {} } }); });
@@ -19,32 +18,35 @@ afterAll(async () => { await main?.dispose(); });
 
 type Registered = (...args: never[]) => unknown;
 type IpcEvent = { sender: unknown };
-type MaybePromise<T> = T | Promise<T>;
 
 const handler = <T extends Registered>(name: string) => registered<T>(main.handlers, name);
-const listener = <T extends Registered>(name: string) => registered<T>(main.listeners, name);
 const appListener = <T extends Registered>(name: string) => registered<T>(main.appListeners, name);
 const protocolHandler = <T extends Registered>(name: string) => registered<T>(main.protocolHandlers, name);
 
+test("the window reaches main on its desktop channel and the runtime's, and on nothing else", () => {
+  assert.deepEqual([...main.handlers.keys()].sort(), ["desktop:call", "workspace-runtime:migrate", "workspace-runtime:request"]);
+  assert.deepEqual([...main.listeners.keys()], []);
+});
+
 test("capture context survives annotated copies and rejects invalid attachment references", async () => {
-  const save = handler<(event: IpcEvent, data: string, original?: unknown) => Promise<string>>("attachment:save");
-  const read = handler<(event: IpcEvent, file: unknown) => Promise<unknown>>("attachment:context");
-  const original = await save(main.trusted, "AQID");
+  const save = (data: string, original?: string) => main.call("saveAttachment", data, original);
+  const read = (file: string) => main.call("readAttachmentContext", file);
+  const original = await save("AQID");
   const context = { version: 1, platform: "linux-hyprland", app: "Editor", title: "Draft", capturedAt: 123, accessibility: { status: "captured", text: "Document ready", truncated: false } };
   await writeFile(`${original}.context.json`, JSON.stringify(context));
-  assert.deepEqual(await read(main.trusted, original), context);
-  const annotated = await save(main.trusted, "AQIE", original);
+  assert.deepEqual(await read(original), context);
+  const annotated = await save("AQIE", original);
   assert.notEqual(annotated, original);
-  assert.deepEqual(await read(main.trusted, annotated), context);
-  assert.equal(await read(main.trusted, await save(main.trusted, "AQIF")), null);
-  await assert.rejects(read(main.untrusted, original), /Untrusted/);
-  await assert.rejects(read(main.trusted, "/etc/passwd"), /not one/);
-  await assert.rejects(save(main.trusted, "AQIG", "/etc/passwd"), /not one/);
+  assert.deepEqual(await read(annotated), context);
+  assert.equal(await read(await save("AQIF")), null);
+  await assert.rejects(main.desktopCall(main.untrusted, "readAttachmentContext", original), /Untrusted/);
+  await assert.rejects(read("/etc/passwd"), /not one/);
+  await assert.rejects(save("AQIG", "/etc/passwd"), /not one/);
   await writeFile(`${original}.context.json`, "broken JSON");
-  assert.equal(await read(main.trusted, original), null);
+  assert.equal(await read(original), null);
   await writeFile(`${original}.context.json`, "x".repeat(128_001));
-  assert.equal(await read(main.trusted, original), null);
-  assert.deepEqual(await read(main.trusted, annotated), context, "the annotated image owns its metadata copy");
+  assert.equal(await read(original), null);
+  assert.deepEqual(await read(annotated), context, "the annotated image owns its metadata copy");
 });
 
 test("the main window sends ordinary web links to the default browser", async () => {
@@ -74,26 +76,21 @@ async function startThread(text: string) {
 }
 
 test("main serves the window's files and refuses what is not its own", async () => {
-  const { userData, trusted, untrusted } = main;
+  const { userData, untrusted } = main;
 
-  const saveAttachment = handler<(event: IpcEvent, data: unknown) => Promise<string>>("attachment:save");
-  const saved = await saveAttachment(trusted, Buffer.from([1, 2, 3]).toString("base64"));
-  const downloadImage = handler<(event: IpcEvent, source: unknown) => Promise<void>>("image:download");
-  await assert.rejects(downloadImage(untrusted, "attachment://file/image.png"), /Untrusted/);
-  await assert.rejects(downloadImage(trusted, "file:///etc/passwd"), /Invalid image reference/);
+  const saved = await main.call("saveAttachment", Buffer.from([1, 2, 3]).toString("base64"));
+  await assert.rejects(main.desktop.downloadImage("file:///etc/passwd"), /Invalid image reference/);
   assert.equal(path.dirname(saved), path.join(userData, "attachments"));
-  await assert.rejects(saveAttachment(untrusted, "AQID"));
-  await assert.rejects(saveAttachment(trusted, "not base64!"));
+  await assert.rejects(main.desktopCall(untrusted, "saveAttachment", "AQID"), /Untrusted/);
+  await assert.rejects(main.call("saveAttachment", "not base64!"));
 
   const serve = protocolHandler<(request: { url: string }) => Promise<Response>>("attachment");
   assert.equal((await serve({ url: `attachment://file/${path.basename(saved)}` })).status, 200);
   assert.equal((await serve({ url: "attachment://file/%2E%2E%2Fworkspaces.v1.json" })).status, 404);
 
-  const projectlessWorkspace = handler<(event: IpcEvent) => Promise<WorkspaceRecord>>("workspace:projectless");
-  const changedFiles = handler<(event: IpcEvent, workspaceId: unknown) => Promise<ChangedFilesResult>>("workspace:changed-files");
-  const projectless = await projectlessWorkspace(trusted);
-  assert.equal((await changedFiles(untrusted, projectless.id)).status, "error");
-  assert.equal((await changedFiles(trusted, "")).status, "error");
+  const projectless = await main.call("projectlessWorkspace");
+  await assert.rejects(main.desktopCall(untrusted, "projectlessWorkspace"), /Untrusted/);
+  assert.equal(projectless.kind, "projectless");
 });
 
 test("a run the runtime starts reaches one agent process, and what the process reports comes back as state", async () => {
@@ -158,7 +155,7 @@ test("a tool's question about threads is answered by the runtime, and one nobody
 });
 
 test("a bound keystroke is taken from the window's menu and handed to whatever is in front", async () => {
-  const { window, trusted, untrusted } = main;
+  const { window } = main;
 
   const beforeInput = registered<(event: { preventDefault(): void }, input: KeyInput & { type: string }) => void>(window.webContents.listeners, "before-input-event");
   /** Whichever key the platform calls its own: ⌘ on macOS, Ctrl everywhere else. */
@@ -170,9 +167,6 @@ test("a bound keystroke is taken from the window's menu and handed to whatever i
   };
   const shortcuts = () => main.sentOn<ShortcutInvocation>("window:shortcut");
   const captured = () => main.sentOn<string | null>("window:shortcut-captured");
-  const setShortcuts = listener<(event: IpcEvent, overrides: unknown) => void>("shortcuts:set");
-  const captureShortcuts = listener<(event: IpcEvent, capturing: unknown) => void>("shortcuts:capture");
-  const closeWindow = listener<(event: IpcEvent) => void>("window:close");
 
   assert.equal(press("KeyW"), true, "the window must not act on the close keystroke before the app has");
   assert.deepEqual(shortcuts(), [{ action: "tab.close", surface: "any" }]);
@@ -187,44 +181,36 @@ test("a bound keystroke is taken from the window's menu and handed to whatever i
 
   assert.equal(press("KeyA", { shift: true }), true, "answering an approval is bound where the user can move it");
 
-  setShortcuts(untrusted, { "run.allow": "Mod+E" });
-  assert.equal(press("KeyA", { shift: true }), true, "an untrusted sender cannot rebind anything");
-  setShortcuts(trusted, { "run.allow": "Mod+E" });
+  main.desktop.setShortcuts({ "run.allow": "Mod+E" });
   assert.equal(press("KeyA", { shift: true }), false, "the keystroke it used to hold is free again");
   assert.equal(press("KeyE"), true);
   assert.deepEqual(shortcuts().at(-1), { action: "run.allow", surface: "any" });
 
-  setShortcuts(trusted, { "run.allow": "Mod+W" });
+  main.desktop.setShortcuts({ "run.allow": "Mod+W" });
   assert.equal(press("KeyW"), true);
   assert.deepEqual(shortcuts().at(-1), { action: "tab.close", surface: "any" }, "a keystroke the app answers itself is not one an override can take");
 
-  captureShortcuts(trusted, true);
+  main.desktop.setShortcutCapture(true);
   const acted = shortcuts().length;
   assert.equal(press("KeyJ", { shift: true }), true, "while capturing, a keystroke is reported rather than acted on");
   assert.equal(press("KeyJ", { held: false }), false, "a keystroke with no modifier is left to whatever has the keys");
   assert.equal(press("Escape", { held: false }), true);
   assert.deepEqual(captured(), ["Mod+Shift+J", null]);
   assert.equal(shortcuts().length, acted, "nothing fired while settings were listening");
-  captureShortcuts(trusted, false);
+  main.desktop.setShortcutCapture(false);
 
   let closed = 0;
   window.close = () => { closed += 1; };
-  closeWindow(untrusted);
-  assert.equal(closed, 0, "only the window's own renderer may close it");
-  closeWindow(trusted);
+  main.desktop.closeWindow();
   assert.equal(closed, 1);
 });
 
 test("a folder the aic command names is registered and handed to the window that asks for it", async () => {
-  const { trusted, untrusted } = main;
   const folder = await realpath(await mkdtemp(path.join(os.tmpdir(), "aicodingtool-cli-open-")));
   const url = `aicodingtool://open?path=${Buffer.from(folder, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_")}`;
   const opened = async () => (await main.runtimeState()).projects;
   const openUrl = appListener<(event: { preventDefault(): void }, url: string) => void>("open-url");
   const secondInstance = appListener<(event: unknown, argv: string[]) => void>("second-instance");
-  const cliStatus = handler<(event: IpcEvent) => Promise<CliStatus>>("cli:status");
-  const installCli = handler<(event: IpcEvent) => Promise<CliStatus>>("cli:install");
-  const uninstallCli = handler<(event: IpcEvent) => Promise<CliStatus>>("cli:uninstall");
   try {
     openUrl({ preventDefault() {} }, url);
     await waitFor(async () => (await opened()).length === 1, "the folder landing in the runtime");
@@ -238,26 +224,18 @@ test("a folder the aic command names is registered and handed to the window that
     await tick();
     assert.equal((await opened()).length, 1, "a URL that names no absolute folder opens nothing");
 
-    await assert.rejects(cliStatus(untrusted));
-    assert.equal((await cliStatus(trusted)).path, cliConfiguration(process.platform, os.homedir())?.installPath ?? "/usr/local/bin/aic");
-    await assert.rejects(installCli(untrusted));
-    await assert.rejects(uninstallCli(untrusted));
+    assert.equal((await main.desktop.cliStatus()).path, cliConfiguration(process.platform, os.homedir())?.installPath ?? "/usr/local/bin/aic");
   } finally {
     await rm(folder, { recursive: true, force: true });
   }
 });
 
 test("a page the panel is not showing belongs to a window of its own", async () => {
-  const { window, windows, trusted } = main;
+  const { window, windows, desktop } = main;
   const panel: BrowserBounds = { x: 40, y: 60, width: 900, height: 700 };
   const view = () => windows.flatMap((each) => each.children)[0];
-  const openBrowser = handler<(event: IpcEvent, tabId: unknown, url: unknown) => MaybePromise<void>>("browser:open");
-  const setBrowserBounds = handler<(event: IpcEvent, bounds: unknown) => MaybePromise<void>>("browser:bounds");
-  const showBrowser = handler<(event: IpcEvent, tabId: unknown) => MaybePromise<void>>("browser:show");
-  const closeBrowser = handler<(event: IpcEvent, tabId: unknown) => MaybePromise<void>>("browser:close");
-  const readBrowser = handler<(event: IpcEvent, tabId: unknown, textLimit: unknown, timeoutMs: unknown) => MaybePromise<BrowserSnapshot | null>>("browser:read");
 
-  await openBrowser(trusted, "tab-parked", "https://example.com/");
+  await desktop.openBrowserTab("tab-parked", "https://example.com/");
   assert.equal(window.children.length, 0, "a page nobody is showing is not in the app's window");
   const page = view();
   assert.ok(page, "the page is parked in a window all the same");
@@ -276,32 +254,29 @@ test("a page the panel is not showing belongs to a window of its own", async () 
     getComputedStyle: () => ({ visibility: "visible", opacity: "1" }),
     location: { href: "https://example.com/" },
   });
-  assert.equal((await readBrowser(trusted, "tab-parked", 4_000, 0))?.elements.length, 1_000, "an untrusted page cannot grow a snapshot without limit");
+  assert.equal((await desktop.readBrowserPage("tab-parked", 4_000, 0))?.elements.length, 1_000, "an untrusted page cannot grow a snapshot without limit");
   const parking = windows.find((each) => each.children.includes(page));
   assert.ok(parking);
   assert.notEqual(parking, window);
   assert.equal(parking.isVisible(), false, "nothing ever shows it");
 
-  await setBrowserBounds(trusted, panel);
-  await showBrowser(trusted, "tab-parked");
+  await main.call("setBrowserBounds", panel);
+  await desktop.showBrowserTab("tab-parked");
   assert.deepEqual(window.children, [page], "the page the panel shows is the app window's own");
   assert.deepEqual(page.bounds, panel);
 
-  await setBrowserBounds(trusted, null);
+  await main.call("setBrowserBounds", null);
   assert.equal(window.children.length, 0, "a closed panel puts the page back where it cannot take the keyboard");
   assert.deepEqual(parking.children, [page]);
 
-  await closeBrowser(trusted, "tab-parked");
+  await desktop.closeBrowserTab("tab-parked");
   assert.equal(windows.flatMap((each) => each.children).length, 0);
 });
 
 test("a page keeps bounded developer diagnostics and waits for page conditions", async () => {
-  const { trusted, untrusted, windows, webRequestListeners } = main;
-  const openBrowser = handler<(event: IpcEvent, tabId: unknown, url: unknown) => MaybePromise<void>>("browser:open");
-  const closeBrowser = handler<(event: IpcEvent, tabId: unknown) => MaybePromise<void>>("browser:close");
-  const inspectBrowser = handler<(event: IpcEvent, tabId: unknown, inspection: unknown) => MaybePromise<BrowserInspectionResult | null>>("browser:inspect");
+  const { desktop, windows, webRequestListeners } = main;
 
-  await openBrowser(trusted, "tab-diagnostics", "https://example.com/app");
+  await desktop.openBrowserTab("tab-diagnostics", "https://example.com/app");
   const page = windows.flatMap((window) => window.children).find((view) => view.webContents.getURL() === "")!;
   page.webContents.getURL = () => "https://example.com/app";
   page.webContents.getTitle = () => "Example app";
@@ -315,26 +290,25 @@ test("a page keeps bounded developer diagnostics and waits for page conditions",
   beforeRequest({ id: 7, webContentsId: page.webContents.id, method: "GET", url: "https://example.com/api/items", resourceType: "xhr" }, () => {});
   completed({ id: 7, url: "https://example.com/api/items", statusCode: 503, fromCache: false });
 
-  const consoleResult = await inspectBrowser(trusted, "tab-diagnostics", { op: "console", minimumLevel: "warning" });
+  const consoleResult = await desktop.inspectBrowserPage("tab-diagnostics", { op: "console", minimumLevel: "warning" });
   assert.equal(consoleResult?.kind, "console");
   if (consoleResult?.kind === "console") {
     assert.equal(consoleResult.latestSequence, 206);
     assert.deepEqual(consoleResult.entries.map((entry) => [entry.level, entry.message, entry.line]), [["error", "render failed", 42]]);
   }
-  const retainedConsole = await inspectBrowser(trusted, "tab-diagnostics", { op: "console", limit: 200 });
+  const retainedConsole = await desktop.inspectBrowserPage("tab-diagnostics", { op: "console", limit: 200 });
   if (retainedConsole?.kind === "console") assert.equal(retainedConsole.entries.length, 200, "a noisy page cannot grow console history without limit");
 
-  const networkResult = await inspectBrowser(trusted, "tab-diagnostics", { op: "network", failuresOnly: true });
+  const networkResult = await desktop.inspectBrowserPage("tab-diagnostics", { op: "network", failuresOnly: true });
   assert.equal(networkResult?.kind, "network");
   if (networkResult?.kind === "network") assert.deepEqual(networkResult.entries.map((entry) => [entry.method, entry.status, entry.resourceType]), [["GET", 503, "xhr"]]);
 
   page.webContents.executeJavaScript = async (script) => runInNewContext(script, { document: { body: { innerText: "Ready" } } });
-  const waited = await inspectBrowser(trusted, "tab-diagnostics", { op: "wait", condition: "text", value: "Ready", timeoutMs: 100 });
+  const waited = await desktop.inspectBrowserPage("tab-diagnostics", { op: "wait", condition: "text", value: "Ready", timeoutMs: 100 });
   assert.equal(waited?.kind, "wait");
   if (waited?.kind === "wait") assert.equal(waited.matched, true);
 
-  await assert.rejects(async () => await inspectBrowser(untrusted, "tab-diagnostics", { op: "console" }));
-  await closeBrowser(trusted, "tab-diagnostics");
+  await desktop.closeBrowserTab("tab-diagnostics");
 });
 
 type MenuEntry = { label?: string; role?: string; type?: string; submenu?: MenuEntry[]; click?: () => void };
@@ -370,13 +344,11 @@ test("the app menu runs help actions through the runtime without a renderer", as
   licenses.click();
   await waitFor(() => main.windows.some((window) => window.loadedURL === "aicodingtool-licenses://notices/" && window.visible), "the menu opening licenses");
 
-  const openLicenses = handler<(event: IpcEvent) => Promise<void>>("licenses:open");
-  await assert.rejects(openLicenses(main.untrusted));
   const viewer = main.windows.find((window) => window.loadedURL === "aicodingtool-licenses://notices/");
   assert.ok(viewer, "licenses open inside the app without an external text editor");
   assert.equal(viewer.visible, true);
   assert.equal(viewer.menuBarVisible, false);
-  await openLicenses(main.trusted);
+  await main.desktop.openSourceLicenses();
   assert.equal(main.windows.filter((window) => window.loadedURL === viewer.loadedURL).length, 1);
   assert.equal(viewer.focused, true, "another click brings the existing reader forward");
   viewer.close();

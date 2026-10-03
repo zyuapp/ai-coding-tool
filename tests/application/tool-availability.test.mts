@@ -9,7 +9,7 @@ import { ClaudeAgentProvider } from "../../src/main/agent/claude-agent-provider.
 import { RunCoordinator } from "../../src/main/agent/run-coordinator.mts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
 import { input, queryFactory, type QueryCapture } from "../support/claude-session.mjs";
-import { registered, startMainProcess, waitFor } from "../support/electron-harness.mjs";
+import { startMainProcess, waitFor } from "../support/electron-harness.mjs";
 
 const PROJECTLESS = { id: "projectless", kind: "projectless", root: "/tmp" } satisfies WorkspaceRecord;
 
@@ -115,9 +115,8 @@ test("a run the computer-use setting is off for never reaches the driver", async
       stopComputerUse: async () => {},
     },
   });
-  const projectless = await registered<(event: { sender: unknown }) => Promise<WorkspaceRecord>>(main.handlers, "workspace:projectless")(main.trusted);
-  const runCommand = registered<(event: { sender: unknown }, payload: unknown) => void>(main.listeners, "run:command");
-  const start = (runId: string, overrides: Partial<InternalStartRunCommand>) => runCommand(main.trusted, {
+  const projectless = await main.call("projectlessWorkspace");
+  const start = (runId: string, overrides: Partial<InternalStartRunCommand>) => main.desktop.send({
     type: "start", channel: "main", taskId: runId, title: "Look around", runId, prompt: "look around",
     workspaceId: projectless.id, policy: "confirm", engine: "claude", model: "opus", effort: "high", ...overrides,
   });

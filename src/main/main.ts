@@ -1,42 +1,33 @@
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain, nativeTheme, powerMonitor, powerSaveBlocker, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, globalShortcut, nativeTheme, powerMonitor, powerSaveBlocker, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { mkdirSync, readFileSync } from "node:fs";
-import { readFile, stat, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { preserveMessageImages, useMessageImageStore } from "./message-image-store.js";
+import { useMessageImageStore } from "./message-image-store.js";
 import { handleImageProtocols, registerImageSchemes } from "./image-protocols.js";
-import { downloadImage } from "./image-download.js";
-import { isShortcutOverrides, isWindowTheme, type BrowserPageEvent, type ComputerUsePermission, type WindowTheme } from "../contracts/ipc.js";
-import { isAutomationDraft, isAutomationPatch } from "../domain/automation.js";
-import { isAgentEngine } from "../domain/agent-engine.js";
-import { isCaptureOptions } from "../domain/capture.js";
+import { isWindowTheme, type BrowserPageEvent, type WindowTheme } from "../contracts/ipc.js";
 import { CLI_URL_SCHEME, projectPathFromArgv, projectPathFromUrl } from "../domain/cli.js";
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
 import type { WorktreeService } from "./workspace/worktrees.mjs" with { "resolution-mode": "import" };
 import type { AutomationScheduler } from "./automation/automation-scheduler.mjs" with { "resolution-mode": "import" };
 import type { TaskDatabaseService } from "./task-database-service.mjs" with { "resolution-mode": "import" };
 import type { EngineAccessHost } from "./agent/engine-services.mjs" with { "resolution-mode": "import" };
-import { attachmentsDirectory, readAttachmentContext, savedAttachmentPath, useAttachmentsDirectory, writeAttachment } from "./attachment-store.js";
+import { attachmentsDirectory, useAttachmentsDirectory } from "./attachment-store.js";
 import { messageThumbnail } from "./message-thumbnails.js";
-import { browserPageUrl, registerBrowserIpc } from "./browser-ipc.js";
-import { cliStatus, installCli, uninstallCli, refreshCli } from "./cli-install.js";
-import { computerUseForRun, computerUsePermissions, requestComputerUsePermission, resumeComputerUse, stopComputerUse } from "./computer-use-host.js";
+import { refreshCli } from "./cli-install.js";
+import { computerUseForRun, resumeComputerUse, stopComputerUse } from "./computer-use-host.js";
 import type { NoticeHost } from "./desktop-notice.js";
 import { createDesktopEvents } from "./desktop-events.js";
 import { createComputerBridge } from "./computer-bridge.js";
 import { createComputerReads } from "./computer-queries.js";
-import { isComputerQuery } from "../contracts/computers.js";
 import type { ComputerLinks } from "./computers/computer-links.mjs" with { "resolution-mode": "import" };
 import { hostname } from "node:os";
 import { createJsonStorage } from "./json-storage.js";
 import { createRuntimeDesktop } from "./runtime-desktop.js";
 import { attachmentNames, ORPHAN_ATTACHMENT_MIN_AGE_MS, retireLegacyCodexHome, sweepOrphanAttachments } from "./user-data-sweep.js";
 import { startKeyboardHost } from "./keyboard-host.js";
-import { openInEditor } from "./open-in-editor.js";
-import { serveExternalApps } from "./open-in-app.js";
 import { installAppMenu, setUpdateChecking } from "./app-menu.js";
-import { openSourceLicenses } from "./license-window.js";
 import { registerAppImageProtocol } from "./linux-protocol.js";
 import { adoptLoginShellPath } from "./login-path.js";
 import { startLockAwake, type LockAwake } from "./lock-awake.js";
@@ -45,12 +36,11 @@ import { startRunHost } from "./run-host.js";
 import { forkAgentProcess } from "./agent-process.js";
 import { appPluginPath } from "./app-plugin-path.js";
 import { servingProcess } from "./instance-lock.js";
-import { registerTerminalIpc } from "./terminal-ipc.js";
 import { checkForUpdates, type UpdateHost } from "./updates.js";
 import { appProfile } from "./user-data.js";
 import { rememberedPlacement, watchWindowPlacement } from "./window-placement.js";
 import { windowFrameOptions } from "./platform-capabilities.js";
-import { registerWorkspaceIpc } from "./workspace-ipc.js";
+import { serveWindowDesktop } from "./window-desktop.js";
 import { startMobileBridge, stopMobileBridge } from "./mobile/bridge.js";
 import * as browser from "./browser-host.js";
 import * as terminal from "./terminal-host.js";
@@ -167,30 +157,32 @@ const computerReads = createComputerReads({
   links: () => computerLinks,
 });
 
+const runtimeDesktop = createRuntimeDesktop({
+  window: () => window,
+  notices: noticeHost,
+  updates: updateHost,
+  events,
+  reads: computerReads,
+  keyboard,
+  runs,
+  workspaces: getWorkspaceService,
+  worktrees: getWorktreeService,
+  taskDatabase: () => {
+    if (!taskDatabase) throw new Error("Task database is not ready.");
+    return taskDatabase;
+  },
+  scheduler: getAutomationScheduler,
+  engineAccess: engineAccessHost,
+  worktreesRoots: () => [WORKTREES_ROOT, ...legacyWorktreesRoots(app.getPath("userData"))],
+  restart: () => requestRestart(),
+  computers: getComputerLinks,
+});
+
 const workspaceRuntime = createWorkspaceRuntimeHost({
   view: () => window,
   trusted: trustedSender,
   storage: createJsonStorage(path.join(app.getPath("userData"), "window.v1.json")),
-  desktop: createRuntimeDesktop({
-    window: () => window,
-    notices: noticeHost,
-    updates: updateHost,
-    events,
-    reads: computerReads,
-    keyboard,
-    runs,
-    workspaces: getWorkspaceService,
-    worktrees: getWorktreeService,
-    taskDatabase: () => {
-      if (!taskDatabase) throw new Error("Task database is not ready.");
-      return taskDatabase;
-    },
-    scheduler: getAutomationScheduler,
-    engineAccess: engineAccessHost,
-    worktreesRoots: () => [WORKTREES_ROOT, ...legacyWorktreesRoots(app.getPath("userData"))],
-    restart: () => requestRestart(),
-    computers: getComputerLinks,
-  }),
+  desktop: runtimeDesktop,
 });
 
 const workspaceHooks = createComputerBridge({
@@ -321,6 +313,14 @@ app.on("second-instance", (_event, argv) => {
   else revealWindow();
 });
 
+/** A link the window follows outward, which only ever names a web page. */
+function webPageUrl(value: string) {
+  if (value.length > 8_192) throw new Error("Invalid page URL.");
+  const url = new URL(value);
+  if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("Only web pages open outside the app.");
+  return value;
+}
+
 async function createWindow() {
   const placement = rememberedPlacement();
   window = new BrowserWindow({
@@ -364,7 +364,7 @@ async function createWindow() {
   /** A normal link leaves AI Coding Tool. Its context menu offers the browser panel separately. */
   window.webContents.setWindowOpenHandler(({ url }) => {
     try {
-      void shell.openExternal(browserPageUrl(url)).catch((error) => console.error("Could not open link:", error));
+      void shell.openExternal(webPageUrl(url)).catch((error) => console.error("Could not open link:", error));
     } catch {
       // Chromium asked to open something other than a web page.
     }
@@ -546,287 +546,11 @@ app.on("will-quit", () => {
   workspaceRuntime.close();
 });
 
-ipcMain.handle("workspace:open", async (event) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  const result = await dialog.showOpenDialog(window!, {
-    properties: ["openDirectory", "createDirectory"],
-    title: "Open a project folder",
-  });
-  if (result.canceled || !result.filePaths[0]) return null;
-  const registration = await getWorkspaceService().registerProject(result.filePaths[0]);
-  return registration.workspace;
-});
-
-ipcMain.handle("workspace:projectless", async (event) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  return (await getWorkspaceService().getProjectless()).workspace;
-});
-
-ipcMain.handle("cli:status", async (event) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  return cliStatus();
-});
-
-ipcMain.handle("cli:install", async (event) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  return installCli();
-});
-
-ipcMain.handle("cli:uninstall", async (event) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  return uninstallCli();
-});
-
-ipcMain.handle("workspace:commands", async (event, workspaceId: unknown, engine: unknown) => {
-  if (!trustedSender(event)) return { status: "error", message: "Untrusted IPC sender." } as const;
-  const query = { kind: "commands", workspaceId, engine };
-  if (!isComputerQuery(query) || query.kind !== "commands") return { status: "error", message: "Invalid command request." } as const;
-  return computerReads.read(query, { workspace: query.workspaceId });
-});
-
-ipcMain.handle("task-title:suggest", async (event, text: unknown, attachments: unknown, engine: unknown) => {
-  if (!trustedSender(event)) return null;
-  if (typeof text !== "string" || !isAgentEngine(engine)) return null;
-  const images = (Array.isArray(attachments) ? attachments : [])
-    .map((item) => typeof item === "string" ? savedAttachmentPath(item) : null)
-    .filter((file): file is string => file !== null);
-  if (!text.trim() && images.length === 0) return null;
-  try {
-    const { engineServices } = await import("./agent/engine-services.mjs");
-    return await engineServices[engine].suggestTitle(text, images);
-  } catch {
-    return null;
-  }
-});
-
-ipcMain.handle("engine:status", async (event, refresh: unknown) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  return (await engineAccessHost()).read(refresh === true);
-});
-
-ipcMain.handle("engine:sign-in", async (event, engine: unknown) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  if (!isAgentEngine(engine)) throw new Error("Invalid engine.");
-  return (await engineAccessHost()).signIn(engine, (url) => shell.openExternal(url));
-});
-
-ipcMain.handle("engine:update", async (event, engine: unknown) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  if (!isAgentEngine(engine)) throw new Error("Invalid engine.");
-  return (await engineAccessHost()).update(engine);
-});
-
-ipcMain.handle("computer-use:permissions", async (event) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  return computerUsePermissions();
-});
-
-ipcMain.handle("computer-use:enable", async (event, permission: ComputerUsePermission) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  if (permission !== "accessibility" && permission !== "screenRecording") throw new Error("Invalid computer-use permission.");
-  return requestComputerUsePermission(permission);
-});
-
-ipcMain.handle("usage:plan", async (event, engine: unknown) => {
-  if (!trustedSender(event)) return { status: "unavailable", message: "Untrusted IPC sender." } as const;
-  if (!isAgentEngine(engine)) return { status: "unavailable", message: "Invalid engine." } as const;
-  try {
-    const { engineServices } = await import("./agent/engine-services.mjs");
-    return await engineServices[engine].planUsage();
-  } catch (cause) {
-    return { status: "unavailable", message: cause instanceof Error ? cause.message : String(cause) } as const;
-  }
-});
-
-ipcMain.on("updates:check", (event) => {
-  if (!trustedSender(event)) return;
-  void checkForUpdates(updateHost, { userRequested: true }).catch((error) => console.error("Update check failed:", error));
-});
-
-ipcMain.handle("licenses:open", async (event) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  await openSourceLicenses(window);
-});
-
-ipcMain.on("computer-use:restart", (event) => {
-  if (!trustedSender(event)) return;
-  requestRestart();
-  app.quit();
-});
-
-ipcMain.handle("task-store:load", async (event) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  if (!taskDatabase) throw new Error("Task database is not ready.");
-  return taskDatabase.loadSummaries();
-});
-
-ipcMain.handle("task-store:messages", (event, taskId: unknown) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  if (!taskDatabase) throw new Error("Task database is not ready.");
-  if (typeof taskId !== "string" || !taskId || taskId.length > 256) throw new Error("Invalid thread ID.");
-  return taskDatabase.loadThreadMessages(taskId);
-});
-
-ipcMain.handle("task-store:persist", (event, delta) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  if (!taskDatabase) throw new Error("Task database is not ready.");
-  return taskDatabase.persist(delta);
-});
-
-ipcMain.handle("subagent-activity:load", (event, taskId: string, subagentId: string) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  if (!taskDatabase) throw new Error("Task database is not ready.");
-  return taskDatabase.subagentActivity(taskId, subagentId);
-});
-
-ipcMain.handle("subagent-metadata:load", async (event, engine: unknown, subagentId: unknown, sessionId: unknown) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  if (!isAgentEngine(engine) || typeof subagentId !== "string" || !subagentId || subagentId.length > 200 || (sessionId !== undefined && (typeof sessionId !== "string" || sessionId.length > 200))) throw new Error("Invalid subagent metadata request.");
-  const { engineServices } = await import("./agent/engine-services.mjs");
-  return engineServices[engine].subagentMetadata?.(subagentId, sessionId) ?? {};
-});
-
-ipcMain.on("run:command", (event, payload: unknown) => {
-  if (!trustedSender(event)) return;
-  runs.handleRunCommand(payload);
-});
-
-ipcMain.handle("automation:list", (event) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  return getAutomationScheduler().list();
-});
-
-ipcMain.handle("automation:save", (event, draft: unknown) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  if (!isAutomationDraft(draft)) throw new Error("Invalid automation.");
-  return getAutomationScheduler().save(draft);
-});
-
-ipcMain.handle("automation:update", (event, taskId: unknown, patch: unknown) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  if (typeof taskId !== "string" || !taskId || taskId.length > 256 || !isAutomationPatch(patch)) throw new Error("Invalid automation change.");
-  return getAutomationScheduler().update(taskId, patch);
-});
-
-ipcMain.handle("automation:delete", (event, taskId: unknown) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  if (typeof taskId !== "string" || !taskId || taskId.length > 256) throw new Error("Invalid task ID.");
-  return getAutomationScheduler().remove(taskId);
-});
-
-ipcMain.handle("automation:run-now", (event, taskId: unknown) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  if (typeof taskId !== "string" || !taskId || taskId.length > 256) throw new Error("Invalid task ID.");
-  return getAutomationScheduler().runNow(taskId);
-});
-
-ipcMain.on("theme:set", (event, theme: unknown) => {
-  if (!trustedSender(event) || !isWindowTheme(theme)) return;
+/** The frame follows the window's theme, and remembers it for the next launch's first paint. */
+function setWindowTheme(theme: WindowTheme) {
   if (theme.variant === windowTheme.variant && theme.canvas === windowTheme.canvas && Boolean(theme.follow) === Boolean(windowTheme.follow)) return;
   applyWindowTheme(theme);
   rememberWindowTheme(theme);
-});
+}
 
-ipcMain.on("shortcuts:set", (event, overrides: unknown) => {
-  if (!trustedSender(event) || !isShortcutOverrides(overrides)) return;
-  keyboard.setShortcuts(overrides);
-  keyboard.claimDesktopShortcut();
-});
-
-ipcMain.on("capture:set-options", (event, options: unknown) => {
-  if (!trustedSender(event) || !isCaptureOptions(options)) return;
-  keyboard.setCaptureOptions(options);
-});
-
-ipcMain.on("shortcuts:capture", (event, capturing: unknown) => {
-  if (!trustedSender(event) || typeof capturing !== "boolean") return;
-  keyboard.setCapturing(capturing);
-  /** A keystroke the desktop is holding never reaches the window, so settings cannot read it back. */
-  if (capturing) keyboard.releaseDesktopShortcut();
-  else keyboard.claimDesktopShortcut();
-});
-
-ipcMain.on("window:close", (event) => {
-  if (!trustedSender(event)) return;
-  window?.close();
-});
-
-/** A page in the panel holds the keyboard until the window asks for it back. */
-ipcMain.on("window:focus", (event) => {
-  if (!trustedSender(event) || !window || window.isDestroyed()) return;
-  window.webContents.focus();
-});
-
-serveExternalApps(trustedSender);
-
-registerBrowserIpc(trustedSender);
-
-/** Bigger than any file anyone reads, and still small enough that no editor chokes on the argument. */
-const MAX_FILE_LINE = 10_000_000;
-
-ipcMain.handle("file:open", async (event, roots: unknown, candidate: unknown, line: unknown) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  if (line !== null && line !== undefined && (typeof line !== "number" || !Number.isInteger(line) || line < 1 || line > MAX_FILE_LINE)) {
-    throw new Error("Invalid file line.");
-  }
-  const { openableFile } = await import("./path-policy.mjs");
-  await openInEditor(await openableFile(roots, candidate), typeof line === "number" ? line : null);
-});
-
-registerTerminalIpc(trustedSender, computerReads);
-
-/** Hands back an image this app wrote, for a composer that has to draw on it rather than show it. */
-ipcMain.handle("attachment:read", async (event, file: unknown) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  const saved = typeof file === "string" ? savedAttachmentPath(file) : null;
-  if (!saved) throw new Error("That image is not one this app is keeping.");
-  return (await readFile(saved)).toString("base64");
-});
-
-ipcMain.handle("attachment:context", async (event, file: unknown) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  const saved = typeof file === "string" ? savedAttachmentPath(file) : null;
-  if (!saved) throw new Error("That image is not one this app is keeping.");
-  return readAttachmentContext(saved);
-});
-
-ipcMain.handle("message-images:preserve", async (event, files: unknown, root: unknown, messageId: unknown) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  await preserveMessageImages(files, root, messageId);
-});
-
-ipcMain.handle("image:download", async (event, source: unknown) => {
-  if (!trustedSender(event) || !window) throw new Error("Untrusted IPC sender.");
-  await downloadImage(window, source);
-});
-
-/** How many paths one drop may name, and how long each may be. */
-const MAX_DESCRIBED_FILES = 20;
-const MAX_DESCRIBED_PATH = 4_096;
-
-/** What the window dropped: the name to show, and whether the path is a folder. */
-ipcMain.handle("file:describe", async (event, paths: unknown) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  if (!Array.isArray(paths)) return [];
-  const named = paths
-    .filter((value): value is string => typeof value === "string" && value.length > 0 && value.length <= MAX_DESCRIBED_PATH)
-    .slice(0, MAX_DESCRIBED_FILES);
-  const described = await Promise.all(named.map(async (candidate) => {
-    const entry = await stat(candidate).catch(() => null);
-    if (!entry || (!entry.isFile() && !entry.isDirectory())) return null;
-    const resolved = path.resolve(candidate);
-    return { path: resolved, name: path.basename(resolved), ...(entry.isDirectory() ? { folder: true as const } : {}) };
-  }));
-  return described.filter((item) => item !== null);
-});
-
-ipcMain.handle("attachment:save", async (event, data: unknown, original: unknown) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  if (typeof data !== "string") throw new Error("Attachment is empty or too large.");
-  if (original !== undefined && (typeof original !== "string" || !savedAttachmentPath(original))) throw new Error("That image is not one this app is keeping.");
-  const context = typeof original === "string" ? await readAttachmentContext(original) : null;
-  const file = await writeAttachment(data, context);
-  return file;
-});
-
-registerWorkspaceIpc({ workspaces: getWorkspaceService, worktrees: getWorktreeService, reads: computerReads, worktreesRoots: () => [WORKTREES_ROOT, ...legacyWorktreesRoots(app.getPath("userData"))] }, trustedSender);
+serveWindowDesktop({ desktop: runtimeDesktop, reads: computerReads, setTheme: setWindowTheme }, trustedSender);

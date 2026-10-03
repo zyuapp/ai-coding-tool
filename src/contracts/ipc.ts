@@ -369,6 +369,18 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   onOpenThread(listener: (taskId: string) => void): () => void;
 };
 
+/** The calls a window's own views make on the desktop, each relayed to main by name. */
+export type WindowDesktopCall =
+  | "openFolder" | "projectlessWorkspace" | "commands" | "branches" | "diffPatch"
+  | "describeFiles" | "saveAttachment" | "readAttachment" | "readAttachmentContext"
+  | "setBrowserBounds" | "focusBrowserTab" | "terminalSnapshot" | "readRemoteTerminal" | "setTheme";
+
+/** What a window reaches directly: its calls, what main pushes at it, and what it answers itself. The rest is the runtime's. */
+export type WindowDesktopAPI = Pick<DesktopAPI, WindowDesktopCall
+  | "platform" | "pathForFile"
+  | "onTerminalData" | "onWindowScreenshot" | "onDesktopShortcutRefused" | "onShortcut" | "onShortcutCaptured" | "onOpenThread"
+>;
+
 /** What a keystroke asked for, and where it was pressed. */
 export type ShortcutInvocation = { action: string; surface: ShortcutSurface };
 

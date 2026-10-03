@@ -1,7 +1,7 @@
 import { mountWorkspace } from "../support/workspace-renderer.mts";
 import { fakeDesktop } from "../support/desktop-api.mts";
 import assert from "node:assert/strict";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import { act } from "react";
 import type { RunCommand } from "../../src/contracts/ipc.ts";
 import type { ThreadResponse } from "../../src/contracts/threads.ts";
@@ -9,6 +9,8 @@ import type { Thread } from "../../src/domain/thread.ts";
 
 import { item } from "../support/renderer-dom.mts";
 import { settleFrame } from "../support/settle.mts";
+
+vi.mock("../../src/renderer/task-workspace/workspace-connection.ts", () => import("../support/in-process-workspace.mts"));
 
 const { useTaskWorkspace } = await import("../../src/renderer/task-workspace/useTaskWorkspace.ts");
 

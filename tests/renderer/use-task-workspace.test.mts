@@ -14,6 +14,8 @@ import { task } from "../application/workspace-reducer-fixtures.mts";
 
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
 
+vi.mock("../../src/renderer/task-workspace/workspace-connection.ts", () => import("../support/in-process-workspace.mts"));
+
 const { useTaskWorkspace } = await import("../../src/renderer/task-workspace/useTaskWorkspace.ts");
 const { App } = await import("../../src/renderer/App.tsx");
 

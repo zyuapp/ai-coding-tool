@@ -1,9 +1,11 @@
 import { fakeDesktop } from "../support/desktop-api.mts";
 import assert from "node:assert/strict";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import React, { act } from "react";
 
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
+
+vi.mock("../../src/renderer/task-workspace/workspace-connection.ts", () => import("../support/in-process-workspace.mts"));
 
 const { App } = await import("../../src/renderer/App.tsx");
 

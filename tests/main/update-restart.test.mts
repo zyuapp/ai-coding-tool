@@ -68,11 +68,10 @@ for (const platform of ["darwin", "linux"] as const) {
     await waitFor(() => main.appListeners.has("activate"));
     main.app.isPackaged = true;
     main.dialog.showMessageBox = async () => ({ response: 0 });
-    const check = registered<(event: IpcEvent) => void>(main.listeners, "updates:check");
     const appImage = process.env.APPIMAGE;
     process.env.APPIMAGE = "/tmp/AI-Coding-Tool.AppImage";
     try {
-      onPlatform(platform, () => check(main.trusted));
+      onPlatform(platform, () => main.desktop.checkForUpdates());
     } finally {
       if (appImage === undefined) delete process.env.APPIMAGE;
       else process.env.APPIMAGE = appImage;
@@ -133,7 +132,7 @@ test("a Linux package without AppImage uses manual updates", async (t) => {
   const appImage = process.env.APPIMAGE;
   delete process.env.APPIMAGE;
   try {
-    onPlatform("linux", () => registered<(event: IpcEvent) => void>(main.listeners, "updates:check")(main.trusted));
+    onPlatform("linux", () => main.desktop.checkForUpdates());
   } finally {
     if (appImage !== undefined) process.env.APPIMAGE = appImage;
   }

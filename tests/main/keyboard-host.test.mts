@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import type { ShortcutOverrides } from "../../src/domain/shortcuts.ts";
-import { registered, startMainProcess } from "../support/electron-harness.mjs";
+import { startMainProcess } from "../support/electron-harness.mjs";
 
 test("Wayland with XWayland leaves the global capture key unclaimed before a portal can open", { skip: process.platform !== "linux" }, async (t) => {
   const previousDisplay = process.env.DISPLAY;
@@ -14,8 +14,8 @@ test("Wayland with XWayland leaves the global capture key unclaimed before a por
   process.env.XDG_SESSION_TYPE = "wayland";
   try {
     const main = await startMainProcess(t, "aic-keyboard-wayland-");
-    const setShortcuts = registered<(event: unknown, overrides: ShortcutOverrides) => void>(main.listeners, "shortcuts:set");
-    setShortcuts(main.trusted, {});
+    const setShortcuts = (overrides: ShortcutOverrides) => main.desktop.setShortcuts(overrides);
+    setShortcuts({});
 
     assert.equal(main.globalShortcuts.size, 0);
     const refusal = {
@@ -26,10 +26,10 @@ test("Wayland with XWayland leaves the global capture key unclaimed before a por
     assert.deepEqual(main.sentOn("window:shortcut-refused"), [refusal]);
 
     /** A renderer reload repeats its preferences handshake and must receive its own capability state. */
-    setShortcuts(main.trusted, {});
+    setShortcuts({});
     assert.deepEqual(main.sentOn("window:shortcut-refused"), [refusal, refusal]);
     process.env.HYPRLAND_INSTANCE_SIGNATURE = "hyprland-test";
-    setShortcuts(main.trusted, {});
+    setShortcuts({});
     assert.equal(main.globalShortcuts.size, 1, "Hyprland registers the capture shortcut");
     assert.ok(main.globalShortcuts.has("Alt+Shift+S"));
     await main.dispose();

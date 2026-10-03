@@ -4,26 +4,12 @@ import { applyWorkspacePatches } from "../../application/workspace-patches";
 import { reduce, type WorkspaceInput } from "../../application/workspace-reducer";
 import { VIEW_PREFERENCES_KEY } from "../../application/view-preferences";
 import { DRAFT_PROMPTS_KEY } from "../../host/draft-persistence";
-import { createWorkspaceRuntime } from "../../host/workspace-runtime";
-import { noComputers } from "../../host/no-computers";
 import type { WorkspaceSurfaceEffect } from "../../contracts/workspace-runtime";
 import { clearTerminalSearch, disposeTerminalView, searchTerminalView } from "./terminal-views";
 import { errorMessage } from "../../host/errors";
 
 /** Set once the window's own stored preferences have been handed to the host, so they are never handed over twice. */
 const MIGRATED_KEY = "aicodingtool.host-migrated.v1";
-
-/** The next paint, or a moment later for a window the browser has stopped painting. */
-const FRAME_FALLBACK_MS = 32;
-
-function nextFrame(flush: () => void) {
-  const frame = requestAnimationFrame(flush);
-  const timer = setTimeout(flush, FRAME_FALLBACK_MS);
-  return () => {
-    cancelAnimationFrame(frame);
-    clearTimeout(timer);
-  };
-}
 
 /** An effect that lives in this window's views: a terminal's search, or its disposal. */
 function performSurface(effect: WorkspaceSurfaceEffect) {
@@ -45,10 +31,9 @@ function storedValues(): Record<string, string> {
   return values;
 }
 
-/** Embedders without a process bridge host the same runtime in their own environment. */
+/** The window's view of the runtime its host process runs, kept current from the revisions it publishes. */
 export function createWorkspaceConnection() {
   const bridge = window.workspace;
-  if (!bridge) return createWorkspaceRuntime({ desktop: { ...window.desktop, ...noComputers }, storage: localStorage, viewportWidth: window.innerWidth, surface: performSurface, frame: nextFrame });
   let state = emptyWorkspaceState();
   let displayed = state;
   let revision = -1;
@@ -82,7 +67,7 @@ export function createWorkspaceConnection() {
     const requestedGeneration = generation;
     const requested = Promise.resolve().then(async () => {
       if (requestedGeneration !== generation) return;
-      const result = await bridge!.request();
+      const result = await bridge.request();
       if (!result.ok && requestedGeneration === generation) failed(result.message);
     }).catch((error) => {
       if (requestedGeneration === generation) failed(error);
@@ -93,7 +78,7 @@ export function createWorkspaceConnection() {
   async function migrate() {
     if (localStorage.getItem(MIGRATED_KEY) !== null) return;
     const values = storedValues();
-    if (Object.keys(values).length) await bridge!.migrate(values);
+    if (Object.keys(values).length) await bridge.migrate(values);
     localStorage.setItem(MIGRATED_KEY, "1");
   }
 
