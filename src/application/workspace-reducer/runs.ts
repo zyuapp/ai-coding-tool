@@ -1,6 +1,6 @@
 /** A run's life: the checkout it resolves to, what it reports, and how it ends. */
 import { ack } from "./automations.js";
-import { deliverCoordinationNotes, settleCoordination } from "./coordination.js";
+import { deliverCoordinationNotes, releaseCoordinator, settleCoordination } from "./coordination.js";
 import { readDiffFrom, rereadReviewsOf } from "./diff-reads.js";
 import { handOverDraftDock } from "./dock-tabs.js";
 import { WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
@@ -71,7 +71,8 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       if (pending.taskId && next.sideChats.some((chat) => chat.id === pending.taskId)) {
         return settled(withSideChat(next, pending.taskId, (chat) => ({ ...chat, error: input.message })), [], { ok: false, message: input.message });
       }
-      return rejected(next, input.message);
+      const released = releaseCoordinator(next, pending.taskId);
+      return rejected(released.state, input.message, released.effects);
     }
 
     case "run.compact": {
@@ -139,7 +140,11 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       if (active.operation === "compact" && terminal) {
         const restored = restoreCompactionTestimony(applied, event.taskId, active.before);
         const drained = drainQueue(restored, event.taskId, event.status);
-        return settled(drained.state, drained.effects);
+        /** Compacting is not a turn: a coordinator comes free, and a thread under one stops working. */
+        const coordinating = isCoordinator(restored.threads.find((thread) => thread.id === event.taskId));
+        const coordination = !coordinating ? releaseCoordinator(drained.state, event.taskId)
+          : event.status === "cancelled" ? settled(drained.state) : deliverCoordinationNotes(drained.state, event.taskId);
+        return settled(coordination.state, [...drained.effects, ...coordination.effects]);
       }
       const outcome = outcomeFor(event);
       /** Read before the run is applied: a terminal status takes the run, and its provenance, away. */
@@ -179,6 +184,11 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       const environment: WorkspaceEffect[] = finished && workspaceId
         ? [{ type: "refresh-environment", workspaceId, taskId: event.taskId, runId: event.runId }, ...settledDiff.effects]
         : [];
+      /** A thread waiting on the user's approval is not working, so its coordinator's held news may be due. */
+      if (event.type === "run.status" && event.status === "awaiting-approval" && active.status !== "awaiting-approval") {
+        const released = releaseCoordinator(next, event.taskId);
+        return settled(released.state, [...environment, ...said, ...released.effects]);
+      }
       if (event.type !== "run.status" || event.status === "running" || event.status === "awaiting-approval") return settled(next, [...environment, ...said]);
       if (event.status === "failed" && event.limit) next = pausedForLimit(next, event.taskId, event.limit, now());
       const drained = drainQueue(next, event.taskId, event.status);

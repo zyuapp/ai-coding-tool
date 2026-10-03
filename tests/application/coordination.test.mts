@@ -263,6 +263,46 @@ test("news held for a thread's background work reaches the coordinator when that
   assert.match(required(Object.values(finished.state.pendingRuns)[0]).text, /"Worker" ended its turn/);
 });
 
+test("held news reaches the coordinator when its last working thread stops working without ending a turn", () => {
+  const runs = { one: activeRun("one", "run-1"), two: activeRun("two", "run-2") };
+  const state = workspace({ threads: [lead(), task("one", { parentId: "lead", title: "One" }), task("two", { parentId: "lead", title: "Two" })], activeRuns: runs, runStatuses: { one: "running", two: "running" } });
+  const held = reduce(state, correlatedRunEvent("one", "run-1", 1, { type: "run.status", status: "succeeded" })).state;
+  assert.deepEqual(held.pendingRuns, {});
+
+  const asking = reduce(held, correlatedRunEvent("two", "run-2", 1, { type: "run.status", status: "awaiting-approval" }));
+  assert.match(required(Object.values(asking.state.pendingRuns)[0]).text, /"One" ended its turn/, "a thread waiting on the user's approval");
+
+  const compacting = { ...held, activeRuns: { ...held.activeRuns, two: { ...runs.two, operation: "compact" as const } } };
+  const compacted = reduce(compacting, correlatedRunEvent("two", "run-2", 1, { type: "run.status", status: "succeeded" }));
+  assert.match(required(Object.values(compacted.state.pendingRuns)[0]).text, /"One" ended its turn/, "a thread done compacting");
+  assert.doesNotMatch(required(Object.values(compacted.state.pendingRuns)[0]).text, /"Two"/, "compacting is not a turn");
+
+  const resolving = { ...held, activeRuns: { one: runs.one }, pendingRuns: { p: { id: "p", runId: "r", origin: "composer" as const, taskId: "two", text: "go", prompt: "go", attachments: [] } } };
+  const unresolved = reduce(resolving, { type: "run.unresolved", pendingId: "p", message: "No checkout" });
+  assert.deepEqual(unresolved.state.pendingRuns, {}, "a thread still working keeps the news held");
+  const idleOne = { ...resolving, activeRuns: {} };
+  const failedSend = reduce(idleOne, { type: "run.unresolved", pendingId: "p", message: "No checkout" });
+  assert.match(required(Object.values(failedSend.state.pendingRuns)[0]).text, /"One" ended its turn/, "a thread whose send never started");
+
+  const moved = reduce({ ...held, activeRuns: { two: runs.two } }, { type: "task.set-coordinator", taskId: "two", coordinatorId: null });
+  assert.equal(Object.values(moved.state.pendingRuns).length, 1, "a thread leaving its coordinator");
+});
+
+test("a coordinator waiting out a usage limit keeps its news, and a thread waiting one out has not ended its turn", () => {
+  const session = { resetsAt: Date.now() + 3_600_000, window: "session" as const };
+  const runs = { worker: activeRun("worker", "run-w") };
+  const pausedLead = lead("lead", { limitPause: { ...session, pausedAt: 1 } });
+  const state = workspace({ threads: [pausedLead, task("worker", { parentId: "lead", title: "Worker" })], activeRuns: runs, runStatuses: { worker: "running" } });
+  const ended = reduce(state, correlatedRunEvent("worker", "run-w", 1, { type: "run.status", status: "succeeded" }));
+  assert.deepEqual(ended.state.pendingRuns, {}, "no wake runs into the limit");
+  assert.equal(ended.state.threads[0].coordinationNotes?.length, 1, "the news waits for the coordinator to resume");
+
+  const limited = reduce(workspace({ threads: [lead(), task("worker", { parentId: "lead", title: "Worker" })], activeRuns: runs, runStatuses: { worker: "running" } }),
+    correlatedRunEvent("worker", "run-w", 1, { type: "run.status", status: "failed", limit: session }));
+  assert.deepEqual(limited.state.pendingRuns, {});
+  assert.equal(limited.state.threads[0].coordinationNotes, undefined, "a thread that resumes on its own has not ended its turn");
+});
+
 test("notes waiting when the app closed are delivered once the store is back", () => {
   const waiting = lead("lead", { coordinationNotes: [{ id: "n1", threadId: "worker", text: "\"Fix login\" ended its turn.", at: 1 }] });
   const loaded = reduce(workspace(), { type: "store.loaded", data: { version: THREAD_STORE_VERSION, tasks: [waiting, task("worker", { parentId: "lead" })], projects: [], worktrees: [], lastFolder: null } });

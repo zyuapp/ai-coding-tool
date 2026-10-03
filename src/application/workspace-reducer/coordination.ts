@@ -4,11 +4,13 @@ import { reduceSending } from "./sending.js";
 import { now, rejected, settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { COORDINATION_UPDATE_DETAIL, coordinationNote, coordinationUpdate, turnNote, workingMembers } from "../coordination.js";
+import { heldByLimit } from "../limit-pauses.js";
 import { announced } from "../notices.js";
 import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
 import { canJoinCoordinator, coordinatorOf, isCoordinator, MAX_ANSWER, openDecisions, withAnswer, withCoordinationNote, withDecision } from "../../domain/coordination.js";
+import { resumesOnItsOwn } from "../../domain/usage-limit.js";
 
 type CoordinationInput = Extract<WorkspaceInput, {
   type: "task.set-coordinator" | "decision.answer" | "coordination.reported" | "coordination.decision-raised";
@@ -21,14 +23,17 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
     case "task.set-coordinator": {
       const thread = state.threads.find((item) => item.id === input.taskId);
       if (!thread) return settled(state);
+      /** The coordinator it leaves may have been holding news for it alone. */
+      const former = coordinatorOf(state.threads, thread);
+      const released = (next: WorkspaceState) => former ? deliverCoordinationNotes(next, former.id) : settled(next);
       if (input.coordinatorId === null) {
         if (thread.parentId === undefined) return settled(state);
-        return settled({ ...updateThread(state, thread.id, ({ parentId: _left, ...item }) => ({ ...item, updatedAt: now() })), openMenu: null });
+        return released({ ...updateThread(state, thread.id, ({ parentId: _left, ...item }) => ({ ...item, updatedAt: now() })), openMenu: null });
       }
       const lead = state.threads.find((item) => item.id === input.coordinatorId);
       if (!canJoinCoordinator(thread, lead)) return rejected(state, JOIN_REFUSED);
       if (thread.parentId === lead.id) return settled(state);
-      return settled({ ...updateThread(state, thread.id, (item) => ({ ...item, parentId: lead.id, updatedAt: now() })), openMenu: null });
+      return released({ ...updateThread(state, thread.id, (item) => ({ ...item, parentId: lead.id, updatedAt: now() })), openMenu: null });
     }
 
     /** The answer is recorded, then said to the thread that asked, steered into a run already going. */
@@ -84,18 +89,25 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
 /**
  * What a settled run means for the coordinators around it. A thread's turn ending is news for its
  * coordinator, which hears it once it is free and its other threads have stopped working, or at
- * once when the news is urgent. A coordinator coming free hears whatever is due, unless the user
- * just stopped it.
+ * once when the news is urgent. A thread waiting out a session limit carries on by itself, so its
+ * turn has not ended. A coordinator coming free hears whatever is due, unless the user just stopped it.
  */
 export function settleCoordination(state: WorkspaceState, taskId: string, status: "succeeded" | "failed" | "cancelled"): WorkspaceTransition {
   const thread = state.threads.find((item) => item.id === taskId);
   if (!thread) return settled(state);
   const lead = coordinatorOf(state.threads, thread);
   if (lead) {
+    if (thread.limitPause && resumesOnItsOwn(thread.limitPause)) return settled(state);
     const noted = updateThread(state, lead.id, (item) => withCoordinationNote(item, turnNote(thread, status, now())));
     return deliverCoordinationNotes(noted, lead.id);
   }
   return isCoordinator(thread) && status !== "cancelled" ? deliverCoordinationNotes(state, thread.id) : settled(state);
+}
+
+/** A thread under a coordinator that stops working without ending a turn may be the last one its coordinator's news waited for. */
+export function releaseCoordinator(state: WorkspaceState, taskId: string | undefined): WorkspaceTransition {
+  const lead = coordinatorOf(state.threads, state.threads.find((item) => item.id === taskId));
+  return lead ? deliverCoordinationNotes(state, lead.id) : settled(state);
 }
 
 /** What a restored workspace owes its coordinators: the notes that were waiting when the app last closed. */
@@ -108,12 +120,13 @@ export function deliverRestoredNotes(state: WorkspaceState): WorkspaceTransition
 
 /**
  * Wakes a free coordinator with its waiting notes, all at once rather than one wake per thread. The
- * notes stay until its run actually starts.
+ * notes stay until its run actually starts. One waiting out a usage limit hears them once its resumed
+ * run ends.
  */
 export function deliverCoordinationNotes(state: WorkspaceState, leadId: string): WorkspaceTransition {
   const lead = state.threads.find((item) => item.id === leadId);
   const notes = lead?.coordinationNotes ?? [];
-  if (!isCoordinator(lead) || !notes.length || threadBusy(state, leadId) || queuedFor(state, leadId).length) return settled(state);
+  if (!isCoordinator(lead) || !notes.length || threadBusy(state, leadId) || queuedFor(state, leadId).length || heldByLimit(state, leadId, now())) return settled(state);
   const working = workingMembers(state, leadId).length;
   if (working && !notes.some((note) => note.urgent)) return settled(state);
   const project = projectFor(state, lead);
