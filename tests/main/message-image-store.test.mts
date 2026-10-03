@@ -15,6 +15,15 @@ vi.mock("electron", () => ({
   }) },
 }));
 
+/** Imported per call, so a test that resets modules reads through the store a restarted app would. */
+async function respond(url: string) {
+  const { createComputerReads } = await import("../../src/main/computer-queries.ts");
+  const { messageImageResponse } = await import("../../src/main/message-image-response.ts");
+  const { emptyWorkspaceState } = await import("../../src/application/workspace-state.ts");
+  const unused = () => { throw new Error("An image needs neither a thread query nor a checkout."); };
+  return messageImageResponse(url, createComputerReads({ threads: unused, workspaces: unused, state: emptyWorkspaceState, links: () => null }));
+}
+
 afterEach(async () => { if (imageHost.root) await rm(imageHost.root, { recursive: true, force: true }); });
 
 test("a referenced screenshot survives deletion and a fresh store, while later replies capture their own version", async () => {
@@ -34,12 +43,12 @@ test("a referenced screenshot survives deletion and a fresh store, while later r
   vi.resetModules();
   const restarted = await import("../../src/main/message-image-store.ts");
   restarted.useMessageImageStore({ directory: path.join(imageHost.root, "message-images"), thumbnail: (await import("../../src/main/message-thumbnails.ts")).messageThumbnail });
-  const response = await restarted.messageImageResponse(messageImageUrl(file, "", "reply-1"));
+  const response = await respond(messageImageUrl(file, "", "reply-1"));
   assert.equal(response.status, 200);
   assert.deepEqual(Buffer.from(await response.arrayBuffer()), bytes);
-  const thumbnail = await restarted.messageImageResponse(messageImageUrl(file, "", "reply-1", true));
+  const thumbnail = await respond(messageImageUrl(file, "", "reply-1", true));
   assert.equal(await thumbnail.text(), "thumbnail");
-  assert.equal((await restarted.messageImageResponse(messageImageUrl(file, "", "reply-2"))).status, 404);
+  assert.equal((await respond(messageImageUrl(file, "", "reply-2"))).status, 404);
   const changed = Buffer.from([137, 80, 78, 71, 2]);
   await writeFile(file, changed);
   assert.deepEqual(await readFile(await restarted.preserveMessageImage(file, "", "reply-2")), changed);
@@ -52,11 +61,11 @@ test("unavailable and invalid image references fail as previews without blocking
   store.useMessageImageStore({ directory: path.join(imageHost.root, "message-images"), thumbnail: (await import("../../src/main/message-thumbnails.ts")).messageThumbnail });
   const invalid = path.join(imageHost.root, "text.png");
   await writeFile(invalid, "not an image");
-  assert.equal((await store.messageImageResponse(messageImageUrl(invalid, "", "reply"))).status, 404);
-  assert.equal((await store.messageImageResponse(messageImageUrl("/etc/passwd", "", "reply"))).status, 404);
+  assert.equal((await respond(messageImageUrl(invalid, "", "reply"))).status, 404);
+  assert.equal((await respond(messageImageUrl("/etc/passwd", "", "reply"))).status, 404);
   await assert.rejects(store.preserveMessageImage("https://example.com/shot.png", "", "reply"), /Invalid image reference/);
   const good = path.join(imageHost.root, "good.png");
   await writeFile(good, Buffer.from([137, 80, 78, 71]));
   await store.preserveMessageImages([invalid, good], "", "reply");
-  assert.equal((await store.messageImageResponse(messageImageUrl(good, "", "reply"))).status, 200);
+  assert.equal((await respond(messageImageUrl(good, "", "reply"))).status, 200);
 });

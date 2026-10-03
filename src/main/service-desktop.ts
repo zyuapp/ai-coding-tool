@@ -1,4 +1,3 @@
-import { queryDirectories } from "./computer-queries.js";
 import type { AgentEngine } from "../domain/agent-engine.js";
 import type { ComputerUsePermission, ComputerUsePermissions } from "../domain/computer-use.js";
 import { terminalLineLimit } from "../domain/terminal.js";
@@ -13,6 +12,7 @@ import type { WorkspaceService } from "./workspace/workspace-service.mjs" with {
 import type { WorktreeService } from "./workspace/worktrees.mjs" with { "resolution-mode": "import" };
 import { readAttachmentContext, savedAttachmentPath, writeAttachment } from "./attachment-store.js";
 import { cliStatus, installCli, uninstallCli } from "./cli-install.js";
+import type { ComputerReads } from "./computer-queries.js";
 import type { DesktopEvents } from "./desktop-events.js";
 import { preserveMessageImages } from "./message-image-store.js";
 import type { RunBridge } from "./run-host.js";
@@ -21,6 +21,7 @@ import * as terminal from "./terminal-host.js";
 /** The services every host has, whether or not a window is drawn over them. */
 export type ServiceDesktopHost = {
   events: DesktopEvents;
+  reads: ComputerReads;
   runs: RunBridge;
   workspaces: () => WorkspaceService;
   worktrees: () => WorktreeService;
@@ -50,7 +51,7 @@ function workspaceDesktop(host: ServiceDesktopHost) {
     return resolution.workspace.root;
   }
   return {
-    directories: (prefix, computerId) => queryDirectories(prefix, computerId),
+    directories: (prefix, computerId) => host.reads.read({ kind: "directories", prefix }, { computer: computerId }),
     registerProject: async (root) => {
       const { projectFolder } = await import("./project-folder.mjs");
       return (await host.workspaces().registerProject(await projectFolder(root, host.worktreesRoots()))).workspace;

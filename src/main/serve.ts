@@ -15,7 +15,8 @@ import { useMessageImageStore } from "./message-image-store.js";
 import { startRunHost } from "./run-host.js";
 import { attachmentNames, ORPHAN_ATTACHMENT_MIN_AGE_MS, sweepOrphanAttachments } from "./user-data-sweep.js";
 import { createServeDesktop } from "./serve-desktop.js";
-import { answerComputerQuery } from "./computer-queries.js";
+import { createComputerBridge } from "./computer-bridge.js";
+import { createComputerReads } from "./computer-queries.js";
 import { appProfile } from "./user-data.js";
 import type { AutomationScheduler } from "./automation/automation-scheduler.mjs" with { "resolution-mode": "import" };
 import type { EngineAccessHost } from "./agent/engine-services.mjs" with { "resolution-mode": "import" };
@@ -128,8 +129,11 @@ export async function startServe(options: { userData: string; packaged: boolean;
   let engineAccess: Promise<EngineAccessHost> | null = null;
   const mobile = await import("./mobile/mobile-host.mjs");
   const { storedComputerName } = await import("./computers/computer-links.mjs");
+  /** No computer is paired with a headless host, so every read is answered here. */
+  const reads = createComputerReads({ threads: (query) => runtime.queryThreads(query), workspaces: () => workspaces, state: () => runtime.getState(), links: () => null });
   const desktop = createServeDesktop({
     events,
+    reads,
     runs,
     workspaces: () => workspaces,
     worktrees: () => worktrees,
@@ -154,30 +158,11 @@ export async function startServe(options: { userData: string; packaged: boolean;
     staticRoot: path.join(__dirname, "..", "..", "mobile"),
     ...(options.port === undefined ? {} : { port: options.port }),
     ...(options.local ? { tailscale: NO_TAILSCALE } : {}),
-    workspace: {
+    workspace: createComputerBridge({
+      publisher,
+      reads,
       name: () => storedComputerName(path.join(userData, "computers.v1.json"), hostname().replace(/\.local$/, "")),
-      snapshot: () => publisher.snapshot(),
-      subscribe: (listener) => publisher.subscribe(listener),
-      input: async (inputs) => {
-        let result = { ok: true as const, revision: publisher.revision };
-        for (const input of inputs) {
-          const answered = await publisher.request(input);
-          if (!answered.ok) return answered;
-          result = { ...result, ...answered, ok: true };
-        }
-        return result;
-      },
-      query: (query) => answerComputerQuery(query, {
-        threads: runtime.queryThreads,
-        workspaces: () => workspaces,
-        commands: async (workspaceId, engine) => {
-          const resolution = await workspaces.resolve(workspaceId);
-          if (resolution.status !== "available") return { status: "error", message: `Workspace is unavailable (${resolution.reason}).` };
-          const { engineServices } = await import("./agent/engine-services.mjs");
-          return { status: "available", commands: await engineServices[engine].commands({ workspaceRoot: resolution.workspace.root, projectless: resolution.workspace.kind === "projectless" }) };
-        },
-      }),
-    },
+    }),
     send: (request) => events.emit("mobile:request", request),
     onState: (state: MobileServerState) => {
       events.emit("mobile:changed", state);

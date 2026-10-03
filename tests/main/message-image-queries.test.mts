@@ -4,15 +4,16 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "vitest";
 import { isComputerClientMessage, isComputerQuery, isComputerTransfer, type ComputerQuery } from "../../src/contracts/computers.ts";
-import { answerComputerQuery, type ComputerQueryHost } from "../../src/main/computer-queries.ts";
+import { createComputerReads, type ComputerQueryHost } from "../../src/main/computer-queries.ts";
 import { MAX_IMAGE_BYTES } from "../../src/main/image-files.ts";
 import { useMessageImageStore } from "../../src/main/message-image-store.ts";
+import { workspace } from "../application/workspace-reducer-fixtures.mts";
 
 const host: ComputerQueryHost = {
   threads: async () => { throw new Error("An image does not need a thread query."); },
   workspaces: () => { throw new Error("Images do not need a checkout."); },
-  commands: async () => { throw new Error("Images do not need an engine."); },
 };
+const { answer } = createComputerReads({ ...host, state: () => workspace(), links: () => null });
 
 test("message image queries validate the local reference bounds and use transfer deadlines", async () => {
   const query = { kind: "message-image", path: "/tmp/shot.png", root: "", message: "reply" } as const;
@@ -30,7 +31,7 @@ test("message image queries validate the local reference bounds and use transfer
   ]) {
     const invalid = { ...query, ...fields };
     assert.equal(isComputerQuery(invalid), false);
-    await assert.rejects(answerComputerQuery(invalid as ComputerQuery, host));
+    await assert.rejects(answer(invalid as ComputerQuery));
   }
 });
 
@@ -43,17 +44,17 @@ test("the holder preserves originals and answers bounded full-size and thumbnail
   await writeFile(file, bytes);
   const query = { kind: "message-image", path: "shot.jpg", root: folder, message: "reply" } as const;
   const original = { data: bytes.toString("base64"), contentType: "image/jpeg" };
-  assert.deepEqual(await answerComputerQuery(query, host), original);
+  assert.deepEqual(await answer(query), original);
   await rm(file);
-  assert.deepEqual(await answerComputerQuery(query, host), original);
-  assert.deepEqual(await answerComputerQuery({ ...query, thumbnail: true }, host), { data: Buffer.from("preview").toString("base64"), contentType: "image/png" });
-  await assert.rejects(answerComputerQuery({ ...query, message: "later" }, host));
+  assert.deepEqual(await answer(query), original);
+  assert.deepEqual(await answer({ ...query, thumbnail: true }), { data: Buffer.from("preview").toString("base64"), contentType: "image/png" });
+  await assert.rejects(answer({ ...query, message: "later" }));
 
   useMessageImageStore({ directory: path.join(folder, "headless"), thumbnail: () => null });
   await writeFile(file, bytes);
-  assert.deepEqual(await answerComputerQuery({ ...query, thumbnail: true }, host), original);
+  assert.deepEqual(await answer({ ...query, thumbnail: true }), original);
   await writeFile(file, "");
-  await assert.rejects(answerComputerQuery({ ...query, message: "empty" }, host), /too large or unavailable/);
+  await assert.rejects(answer({ ...query, message: "empty" }), /too large or unavailable/);
   await truncate(file, MAX_IMAGE_BYTES + 1);
-  await assert.rejects(answerComputerQuery({ ...query, message: "large" }, host), /too large or unavailable/);
+  await assert.rejects(answer({ ...query, message: "large" }), /too large or unavailable/);
 });

@@ -86,7 +86,7 @@ export async function readMessageImage(file: unknown, root: unknown, messageId: 
 }
 
 /** Validate transferred originals before retaining them under the same snapshot key. */
-export function messageImageBytes(value: unknown, file: string): Buffer {
+export function messageImageBytes(value: unknown, file: string): Buffer<ArrayBuffer> {
   if (!value || typeof value !== "object" || !("data" in value) || !("contentType" in value)
     || value.contentType !== MIME[path.extname(file).slice(1).toLowerCase()]
     || typeof value.data !== "string" || !value.data.length || value.data.length > Math.ceil(MAX_IMAGE_BYTES / 3) * 4
@@ -94,18 +94,4 @@ export function messageImageBytes(value: unknown, file: string): Buffer {
   const bytes = Buffer.from(value.data, "base64");
   if (!bytes.length || bytes.length > MAX_IMAGE_BYTES) throw new Error("Image is too large or unavailable.");
   return bytes;
-}
-
-export async function messageImageResponse(url: string) {
-  try {
-    const query = new URL(url).searchParams;
-    const { bytes, contentType } = await readMessageImage(query.get("path"), query.get("root"), query.get("message"), query.get("thumbnail") === "1");
-    return new Response(bytes, { headers: {
-      "Content-Type": contentType,
-      "Cache-Control": "private, max-age=31536000, immutable",
-      "X-Content-Type-Options": "nosniff",
-    } });
-  } catch {
-    return new Response("Image unavailable", { status: 404 });
-  }
 }

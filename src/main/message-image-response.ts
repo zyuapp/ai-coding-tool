@@ -1,24 +1,16 @@
-import { computerOfThread } from "../application/computers.js";
-import type { WorkspaceState } from "../application/workspace-state.js";
-import { isComputerQuery, type ComputerQuery } from "../contracts/computers.js";
-import { messageImageBytes, messageImageResponse as localMessageImageResponse, preserveMessageImage } from "./message-image-store.js";
-
-type MessageImageResponseHost = {
-  state: () => WorkspaceState;
-  query: (id: string, query: ComputerQuery) => Promise<unknown>;
-};
+import type { ComputerReads } from "./computer-queries.js";
 
 /** Retain the holder's original once, for both previews and the full-size viewer. */
-export async function messageImageResponse(source: string, host: MessageImageResponseHost): Promise<Response> {
+export async function messageImageResponse(source: string, reads: Pick<ComputerReads, "read">): Promise<Response> {
   try {
     const params = new URL(source).searchParams;
-    const query = { kind: "message-image", path: params.get("path"), root: params.get("root"), message: params.get("message") };
-    if (!isComputerQuery(query) || query.kind !== "message-image") throw new Error("Invalid image reference.");
-    const computer = computerOfThread(host.state(), params.get("taskId") ?? undefined);
-    if (computer) {
-      await preserveMessageImage(query.path, query.root, query.message, async () => messageImageBytes(await host.query(computer.id, query), query.path));
-    }
-    return await localMessageImageResponse(source);
+    const query = { kind: "message-image", path: params.get("path") ?? "", root: params.get("root") ?? "", message: params.get("message") ?? "", thumbnail: params.get("thumbnail") === "1" } as const;
+    const { bytes, contentType } = await reads.read(query, { thread: params.get("taskId") ?? undefined });
+    return new Response(bytes, { headers: {
+      "Content-Type": contentType,
+      "Cache-Control": "private, max-age=31536000, immutable",
+      "X-Content-Type-Options": "nosniff",
+    } });
   } catch {
     return new Response("Image unavailable", { status: 404 });
   }

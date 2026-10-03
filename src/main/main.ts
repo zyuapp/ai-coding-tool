@@ -7,9 +7,9 @@ import { pathToFileURL } from "node:url";
 import { preserveMessageImages, useMessageImageStore } from "./message-image-store.js";
 import { handleImageProtocols, registerImageSchemes } from "./image-protocols.js";
 import { downloadImage } from "./image-download.js";
-import { isShortcutOverrides, isWindowTheme, type AvailableCommand, type BrowserPageEvent, type ComputerUsePermission, type WindowTheme } from "../contracts/ipc.js";
+import { isShortcutOverrides, isWindowTheme, type BrowserPageEvent, type ComputerUsePermission, type WindowTheme } from "../contracts/ipc.js";
 import { isAutomationDraft, isAutomationPatch } from "../domain/automation.js";
-import { isAgentEngine, type AgentEngine } from "../domain/agent-engine.js";
+import { isAgentEngine } from "../domain/agent-engine.js";
 import { isCaptureOptions } from "../domain/capture.js";
 import { CLI_URL_SCHEME, projectPathFromArgv, projectPathFromUrl } from "../domain/cli.js";
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
@@ -25,6 +25,8 @@ import { computerUseForRun, computerUsePermissions, requestComputerUsePermission
 import type { NoticeHost } from "./desktop-notice.js";
 import { createDesktopEvents } from "./desktop-events.js";
 import { createComputerBridge } from "./computer-bridge.js";
+import { createComputerReads } from "./computer-queries.js";
+import { isComputerQuery } from "../contracts/computers.js";
 import type { ComputerLinks } from "./computers/computer-links.mjs" with { "resolution-mode": "import" };
 import { hostname } from "node:os";
 import { createJsonStorage } from "./json-storage.js";
@@ -158,6 +160,13 @@ function getComputerLinks() {
   return computerLinks;
 }
 
+const computerReads = createComputerReads({
+  threads: (query) => workspaceRuntime.runtime.queryThreads(query),
+  workspaces: getWorkspaceService,
+  state: () => workspaceRuntime.runtime.getState(),
+  links: () => computerLinks,
+});
+
 const workspaceRuntime = createWorkspaceRuntimeHost({
   view: () => window,
   trusted: trustedSender,
@@ -167,6 +176,7 @@ const workspaceRuntime = createWorkspaceRuntimeHost({
     notices: noticeHost,
     updates: updateHost,
     events,
+    reads: computerReads,
     keyboard,
     runs,
     workspaces: getWorkspaceService,
@@ -183,22 +193,11 @@ const workspaceRuntime = createWorkspaceRuntimeHost({
   }),
 });
 
-const computerBridge = createComputerBridge({
-  runtime: workspaceRuntime,
-  workspaces: getWorkspaceService,
-  commands: readCommands,
-  links: () => computerLinks,
+const workspaceHooks = createComputerBridge({
+  publisher: workspaceRuntime.publisher,
+  reads: computerReads,
   name: () => computerLinks?.name() ?? machineName(),
 });
-const workspaceHooks = computerBridge.hooks;
-
-async function readCommands(workspaceId: string, engine: AgentEngine): Promise<AvailableCommand[]> {
-  const resolution = await getWorkspaceService().resolve(workspaceId);
-  if (resolution.status !== "available") throw new Error(`Workspace is unavailable (${resolution.reason}).`);
-  const workspace = { workspaceRoot: resolution.workspace.root, projectless: resolution.workspace.kind === "projectless" };
-  const { engineServices } = await import("./agent/engine-services.mjs");
-  return engineServices[engine].commands(workspace);
-}
 
 /**
  * The theme's canvas and ground, so the window does not flash a colour the user has already left
@@ -445,10 +444,7 @@ app.whenReady().then(async () => {
     onChange: (automations) => { events.emit("automation:changed", automations); },
   });
   await automationScheduler.start();
-  handleImageProtocols({
-    state: () => workspaceRuntime.runtime.getState(),
-    query: (id, query) => getComputerLinks().query(id, query),
-  });
+  handleImageProtocols(computerReads);
   if (!app.isPackaged) app.dock?.setIcon(icon);
   keyboard.claimDesktopShortcut();
   await searchPath;
@@ -583,15 +579,9 @@ ipcMain.handle("cli:uninstall", async (event) => {
 
 ipcMain.handle("workspace:commands", async (event, workspaceId: unknown, engine: unknown) => {
   if (!trustedSender(event)) return { status: "error", message: "Untrusted IPC sender." } as const;
-  if (typeof workspaceId !== "string" || workspaceId.length === 0 || workspaceId.length > 256) return { status: "error", message: "Invalid workspace ID." } as const;
-  if (!isAgentEngine(engine)) return { status: "error", message: "Invalid engine." } as const;
-  const remote = computerBridge.elsewhere(workspaceId);
-  if (remote) return remote({ kind: "commands", workspaceId, engine }).catch((error: unknown) => ({ status: "error", message: error instanceof Error ? error.message : String(error) } as const));
-  try {
-    return { status: "available", commands: await readCommands(workspaceId, engine) } as const;
-  } catch (error) {
-    return { status: "error", message: error instanceof Error ? error.message : String(error) } as const;
-  }
+  const query = { kind: "commands", workspaceId, engine };
+  if (!isComputerQuery(query) || query.kind !== "commands") return { status: "error", message: "Invalid command request." } as const;
+  return computerReads.read(query, { workspace: query.workspaceId });
 });
 
 ipcMain.handle("task-title:suggest", async (event, text: unknown, attachments: unknown, engine: unknown) => {
@@ -783,7 +773,7 @@ ipcMain.handle("file:open", async (event, roots: unknown, candidate: unknown, li
   await openInEditor(await openableFile(roots, candidate), typeof line === "number" ? line : null);
 });
 
-registerTerminalIpc(trustedSender, (id, query) => getComputerLinks().query(id, query));
+registerTerminalIpc(trustedSender, computerReads);
 
 /** Hands back an image this app wrote, for a composer that has to draw on it rather than show it. */
 ipcMain.handle("attachment:read", async (event, file: unknown) => {
@@ -839,4 +829,4 @@ ipcMain.handle("attachment:save", async (event, data: unknown, original: unknown
   return file;
 });
 
-registerWorkspaceIpc({ workspaces: getWorkspaceService, worktrees: getWorktreeService, elsewhere: computerBridge.elsewhere, worktreesRoots: () => [WORKTREES_ROOT, ...legacyWorktreesRoots(app.getPath("userData"))], computerQuery: (id, query) => getComputerLinks().query(id, query) }, trustedSender);
+registerWorkspaceIpc({ workspaces: getWorkspaceService, worktrees: getWorktreeService, reads: computerReads, worktreesRoots: () => [WORKTREES_ROOT, ...legacyWorktreesRoots(app.getPath("userData"))] }, trustedSender);

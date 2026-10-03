@@ -1,6 +1,6 @@
-import { queryDirectories } from "./computer-queries.js";
 import { ipcMain, shell, type IpcMainInvokeEvent } from "electron";
-import type { ComputerQuery } from "../contracts/computers.js";
+import { isComputerQuery } from "../contracts/computers.js";
+import type { ComputerReads } from "./computer-queries.js";
 import type { CreateWorktreeRequest, ReleaseWorktreeRequest } from "../contracts/ipc.js";
 import type { PullRequestAnswer } from "../domain/pull-request.js";
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
@@ -10,10 +10,8 @@ import type { WorktreeService } from "./workspace/worktrees.mjs" with { "resolut
 export type WorkspaceIpcHost = {
   workspaces: () => WorkspaceService;
   worktreesRoots: () => string[];
-  computerQuery: (id: string, query: ComputerQuery) => Promise<unknown>;
   worktrees: () => WorktreeService;
-  /** Where a checkout that lives on a paired computer is read from, or null for one of this computer's own. */
-  elsewhere?: (workspaceId: string) => ((query: ComputerQuery) => Promise<unknown>) | null;
+  reads: ComputerReads;
 };
 
 function worktreeRequest(value: unknown) {
@@ -32,9 +30,10 @@ async function readChangedFiles(host: WorkspaceIpcHost, workspaceId: string) {
 }
 
 export function registerWorkspaceIpc(host: WorkspaceIpcHost, trusted: (event: IpcMainInvokeEvent) => boolean) {
-  ipcMain.handle("workspace:directories", async (event, prefix: string, computerId?: string) => {
+  ipcMain.handle("workspace:directories", async (event, prefix: unknown, computerId: unknown) => {
     if (!trusted(event)) throw new Error("Untrusted IPC sender.");
-    return queryDirectories(prefix, computerId, host.computerQuery);
+    if (typeof prefix !== "string" || (computerId !== undefined && typeof computerId !== "string")) throw new Error("Invalid directory query.");
+    return host.reads.read({ kind: "directories", prefix }, { computer: computerId });
   });
 
   ipcMain.handle("workspace:register", async (event, root: unknown) => {
@@ -45,16 +44,8 @@ export function registerWorkspaceIpc(host: WorkspaceIpcHost, trusted: (event: Ip
 
   ipcMain.handle("workspace:branches", async (event, workspaceId: unknown) => {
     if (!trusted(event)) return { status: "error", message: "Untrusted IPC sender." } as const;
-    const elsewhere = typeof workspaceId === "string" ? host.elsewhere?.(workspaceId) : null;
-    if (elsewhere) return elsewhere({ kind: "branches", workspaceId: workspaceId as string });
-    try {
-      const resolution = await host.workspaces().resolve(worktreePath(workspaceId));
-      if (resolution.status !== "available") throw new Error(`Workspace is unavailable (${resolution.reason}).`);
-      const { listBranches } = await import("./workspace/git.mjs");
-      return { status: "available", ...(await listBranches(resolution.workspace.root)) } as const;
-    } catch (error) {
-      return { status: "error", message: error instanceof Error ? error.message : String(error) } as const;
-    }
+    if (typeof workspaceId !== "string") return { status: "error", message: "Invalid workspace ID." } as const;
+    return host.reads.read({ kind: "branches", workspaceId }, { workspace: workspaceId });
   });
 
   /** Best effort throughout: a checkout the app cannot even resolve has nothing to say about one. */
@@ -145,18 +136,9 @@ export function registerWorkspaceIpc(host: WorkspaceIpcHost, trusted: (event: Ip
 
   ipcMain.handle("workspace:diff-patch", async (event, workspaceId: unknown, range: unknown, filePath: unknown, previousPath: unknown, ignoreWhitespace: unknown) => {
     if (!trusted(event)) return { status: "error", message: "Untrusted IPC sender." } as const;
-    if (typeof workspaceId !== "string" || workspaceId.length === 0 || workspaceId.length > 256) return { status: "error", message: "Invalid workspace ID." } as const;
-    if (typeof filePath !== "string" || filePath.length === 0 || filePath.length > 4_096) return { status: "error", message: "Invalid path." } as const;
-    if (previousPath !== undefined && (typeof previousPath !== "string" || previousPath.length === 0 || previousPath.length > 4_096)) return { status: "error", message: "Invalid path." } as const;
-    const { isDiffRange } = await import("../domain/diff.js");
-    if (!isDiffRange(range)) return { status: "error", message: "Invalid comparison." } as const;
-    const elsewhere = host.elsewhere?.(workspaceId);
-    if (elsewhere) return elsewhere({ kind: "diff-patch", workspaceId, range, path: filePath, ...(previousPath === undefined ? {} : { previousPath }), ignoreWhitespace: ignoreWhitespace === true });
-    try {
-      const { diffPatch } = await import("./workspace/git-diff.mjs");
-      return await diffPatch(workspaceId, range, filePath, host.workspaces(), previousPath, ignoreWhitespace === true);
-    } catch (error) {
-      return { status: "error", message: error instanceof Error ? error.message : String(error) } as const;
-    }
+    if (typeof workspaceId !== "string") return { status: "error", message: "Invalid workspace ID." } as const;
+    const query = { kind: "diff-patch", workspaceId, range, path: filePath, ...(previousPath === undefined ? {} : { previousPath }), ignoreWhitespace: ignoreWhitespace === true };
+    if (!isComputerQuery(query) || query.kind !== "diff-patch") return { status: "error", message: "Invalid comparison." } as const;
+    return host.reads.read(query, { workspace: workspaceId });
   });
 }
