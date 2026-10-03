@@ -1,4 +1,6 @@
 import { COMPUTER_CAPABILITIES } from "../../src/contracts/computer-capabilities.ts";
+import { commandPlacement, workspaceCommandDefinitions } from "../../src/contracts/workspace-view-input.ts";
+import type { AppCommand } from "../../src/contracts/commands.ts";
 import { executeWorkspaceInput } from "../../src/application/workspace-execution.ts";
 import { computerEffects } from "../../src/host/computer-effects.ts";
 import type { EffectHost } from "../../src/host/effect-host.ts";
@@ -314,6 +316,30 @@ test("the window's own affairs stay here whichever computer is on screen, and ev
   assert.deepEqual(routeInput(state, { type: "task.new" }), { kind: "local" }, "a new thread with no folder named starts here");
   const inProject = routeInput(state, { type: "task.new", projectId: "remote-project" });
   assert.equal(inProject.kind === "computer" && inProject.select, true, "a new thread in a folder on the other computer starts there");
+});
+
+test("each command goes where its placement says while another computer's thread is on screen", () => {
+  const state = withComputers(workspace({ threads: [task("local")] }), [paired("linux", remoteState)], { active: "linux" });
+  const linux = state.computers.paired[0]!;
+  for (const { type } of workspaceCommandDefinitions()) {
+    const input = { type } as AppCommand;
+    const at = commandPlacement(type);
+    if (at === "local") assert.deepEqual(routeInput(state, input), { kind: "local" }, type);
+    if (at === "thread") assert.deepEqual(routeInput(state, input), { kind: "computer", computer: linux, inputs: [input] }, type);
+    if (at === "panel") assert.deepEqual(routeInput(state, input), { kind: "refuse", message: PANEL_ELSEWHERE }, type);
+    if (at === "thread" && type !== "task.clear-archive" && workspaceCommandDefinitions().find((definition) => definition.type === type)!.fields.includes("taskId")) {
+      assert.deepEqual(routeInput(state, { type, taskId: "local" } as AppCommand), { kind: "local" }, `${type} naming a thread here`);
+    }
+  }
+  const project = { type: "project.edit", projectId: "remote-project", name: "Renamed" } as const;
+  assert.deepEqual(routeInput(state, project), { kind: "computer", computer: linux, inputs: [project] });
+  const home = { ...state, computers: { ...state.computers, active: null } };
+  assert.deepEqual(routeInput(home, project), { kind: "computer", computer: linux, inputs: [project] }, "a project goes to its holder whatever is on screen");
+  for (const type of ["task.select", "worktree.open-thread", "view.jump-choose"] as const) {
+    assert.deepEqual(routeInput(home, { type, taskId: "remote-thread" }), { kind: "computer", computer: linux, inputs: [{ type: "view.set-focused", focused: home.focused }, { type: "task.select", taskId: "remote-thread" }], select: true }, type);
+    assert.deepEqual(routeInput(home, { type, taskId: "local" }), { kind: "local" }, type);
+  }
+  assert.deepEqual(routeInput(state, { type: "terminal.input", terminalId: "gone", data: "x" }), { kind: "refuse", message: "That terminal is no longer available." });
 });
 
 test("the sidebar lists every computer's threads, tagged, and the filter narrows them", () => {

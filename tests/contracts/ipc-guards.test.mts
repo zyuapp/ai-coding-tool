@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { isAutomationAck, isAutomationRequest, isAutomationResponse, isBackgroundEvent, isExternalCommand, isGoalEvent, isInternalRunCommand, isRunCommand, isRunEvent, isSubagentEvent, isThreadResponse, isWorkflowEvent } from "../../src/contracts/ipc.ts";
+import { isAutomationAck, isAutomationRequest, isAutomationResponse, isBackgroundEvent, isGoalEvent, isInternalRunCommand, isRunCommand, isRunEvent, isSubagentEvent, isThreadResponse, isWorkflowEvent } from "../../src/contracts/ipc.ts";
 import { isThreadRequest } from "../../src/contracts/thread-requests.ts";
+import { isExternalCommand } from "../../src/contracts/workspace-view-input.ts";
 
 const command = {
   type: "start",

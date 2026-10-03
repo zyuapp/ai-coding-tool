@@ -1,4 +1,5 @@
 import type { AppCommand } from "./commands.js";
+import type { AgentCommandType } from "./workspace-view-input.js";
 import type { BrowserInspection, BrowserInspectionResult, BrowserShot, BrowserSnapshot, BrowserTab } from "../domain/browser.js";
 import type { ConversationMessageKind } from "../domain/conversation.js";
 import type { TerminalSession, TerminalSnapshot } from "../domain/terminal.js";
@@ -85,9 +86,7 @@ export type ThreadTranscript = {
  * a thread is allowed to do, moving a thread between checkouts once it exists, removing projects,
  * clearing the browser session, and answering approvals — the browser's own included — are not.
  */
-export type ExternalCommand = Extract<AppCommand, {
-  type: "task.send" | "task.archive" | "task.set-role" | "run.cancel" | "worktree.delete" | "browser.open" | "browser.close-tab" | "browser.select-tab" | "browser.go" | "browser.reload" | "browser.act";
-}>;
+export type ExternalCommand = Extract<AppCommand, { type: AgentCommandType }>;
 
 /** A run drives the browser as the thread it is, so the channel names the thread, not the caller. */
 type WithoutTask<T> = T extends unknown ? Omit<T, "taskId"> : never;

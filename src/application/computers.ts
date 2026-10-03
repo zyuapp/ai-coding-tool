@@ -6,7 +6,7 @@ import { REMOTE_UNSUPPORTED, supportsComputerCommand } from "../contracts/comput
  * aimed at one is carried to the computer that holds it, and what comes back is its new state.
  */
 import type { AppCommand } from "../contracts/commands.js";
-import { isAppCommandType } from "../contracts/workspace-view-input.js";
+import { commandLeaves, commandPlacement, isAppCommandType, type CommandPlacement, type PlacedCommand } from "../contracts/workspace-view-input.js";
 import type { Annotation, PastedText } from "../domain/conversation.js";
 import { hasUnreadAttention } from "../domain/attention.js";
 import { withWatchedThreads } from "../domain/automation.js";
@@ -72,34 +72,33 @@ export function offlineMessage(computer: ComputerLink): string {
   return computer.error ?? `${computer.name} is offline.`;
 }
 
-/** The paired computer holding a thread, or null for one of this computer's own or one nobody holds. */
-export function computerOfThread(state: Pick<WorkspaceState, "computers" | "threads">, taskId: string | undefined): PairedComputer | null {
-  if (taskId === undefined || state.threads.some((thread) => thread.id === taskId)) return null;
-  return state.computers.paired.find((computer) => computer.state?.threads.some((thread) => thread.id === taskId)) ?? null;
-}
-
-export function computerOfProject(state: Pick<WorkspaceState, "computers" | "projects">, projectId: string | undefined): PairedComputer | null {
-  if (projectId === undefined || state.projects.some((project) => project.id === projectId)) return null;
-  return state.computers.paired.find((computer) => computer.state?.projects.some((project) => project.id === projectId)) ?? null;
-}
-
-/** The paired computer whose project or checkout a workspace id names, or null for one of this computer's own. */
-export function computerOfWorkspace(state: Pick<WorkspaceState, "computers" | "projects" | "worktrees">, workspaceId: string): PairedComputer | null {
-  const holds = (held: Pick<WorkspaceState, "projects" | "worktrees">) => held.projects.some((project) => project.workspaceId === workspaceId) || held.worktrees.some((worktree) => worktree.workspaceId === workspaceId);
+/** The paired computer holding what `holds` finds, or null when this computer holds it or nobody does. */
+function holderOf<K extends keyof WorkspaceState>(state: Pick<WorkspaceState, "computers" | K>, holds: (held: Pick<WorkspaceState, K>) => boolean): PairedComputer | null {
   if (holds(state)) return null;
   return state.computers.paired.find((computer) => computer.state && holds(computer.state)) ?? null;
 }
 
+/** The paired computer holding a thread, or null for one of this computer's own or one nobody holds. */
+export function computerOfThread(state: Pick<WorkspaceState, "computers" | "threads">, taskId: string | undefined): PairedComputer | null {
+  return taskId === undefined ? null : holderOf(state, (held) => held.threads.some((thread) => thread.id === taskId));
+}
+
+export function computerOfProject(state: Pick<WorkspaceState, "computers" | "projects">, projectId: string | undefined): PairedComputer | null {
+  return projectId === undefined ? null : holderOf(state, (held) => held.projects.some((project) => project.id === projectId));
+}
+
+/** The paired computer whose project or checkout a workspace id names, or null for one of this computer's own. */
+export function computerOfWorkspace(state: Pick<WorkspaceState, "computers" | "projects" | "worktrees">, workspaceId: string): PairedComputer | null {
+  return holderOf(state, (held) => held.projects.some((project) => project.workspaceId === workspaceId) || held.worktrees.some((worktree) => worktree.workspaceId === workspaceId));
+}
+
 function computerOfWorktree(state: Pick<WorkspaceState, "computers" | "worktrees">, worktreeId: string | undefined): PairedComputer | null {
-  if (worktreeId === undefined || state.worktrees.some((worktree) => worktree.id === worktreeId)) return null;
-  return state.computers.paired.find((computer) => computer.state?.worktrees.some((worktree) => worktree.id === worktreeId)) ?? null;
+  return worktreeId === undefined ? null : holderOf(state, (held) => held.worktrees.some((worktree) => worktree.id === worktreeId));
 }
 
 /** The paired computer whose checkout is at a root, or null for one of this computer's own or one nobody holds. */
 function computerOfWorktreeRoot(state: Pick<WorkspaceState, "computers" | "worktrees" | "managedWorktrees">, root: string | undefined): PairedComputer | null {
-  const holds = (held: Pick<WorkspaceState, "worktrees" | "managedWorktrees">) => held.worktrees.some((worktree) => worktree.root === root) || Boolean(held.managedWorktrees?.some((worktree) => worktree.root === root));
-  if (root === undefined || holds(state)) return null;
-  return state.computers.paired.find((computer) => computer.state && holds(computer.state)) ?? null;
+  return root === undefined ? null : holderOf(state, (held) => held.worktrees.some((worktree) => worktree.root === root) || Boolean(held.managedWorktrees?.some((worktree) => worktree.root === root)));
 }
 
 /**
@@ -121,23 +120,14 @@ export type SentDraft = {
 
 const LOCAL = { kind: "local" } as const;
 
-/** Commands that move this window to one of its own threads, which takes a paired computer's thread off screen. */
-const LEAVING_TYPES = new Set(["task.select", "worktree.open-thread", "view.jump-choose", "task.new", "view.go-back", "view.go-forward"]);
-
 /**
  * Whether a command routed here means the window is leaving the paired computer it was showing. A
  * folder opened to start in leaves only when it answers the open dialog's own ask.
  */
 export function leavesComputer(state: WorkspaceState, input: WorkspaceInput): boolean {
   if (input.type === "project.added") return input.start === true && (input.request === undefined || state.projectAdd?.request === input.request);
-  return LEAVING_TYPES.has(input.type);
+  return isAppCommandType(input.type) && commandLeaves(input.type);
 }
-
-/** Commands that stay on this computer whatever thread is on screen: the window, its settings, and its drafts. */
-const LOCAL_PREFIXES = ["computer-use.", "cli.", "engine.", "remote.", "computers.", "browser-import.", "app.list", "app.check-for-updates", "app.open-source-licenses", "worktree.", "annotation.", "paste.", "image.", "file.", "view.set-theme", "view.set-ui", "view.set-mono", "view.set-reading", "view.set-terminal", "view.set-sidebar", "view.set-session", "view.set-capture", "view.set-chrome", "view.set-concise", "view.set-computer", "view.set-browser", "view.set-notifications", "view.set-settings", "view.set-shortcut", "view.reset-shortcuts", "view.capture-shortcut", "view.dismiss-", "view.set-section", "view.set-subagent", "view.set-model-favorite", "view.set-menu", "view.go-", "view.mounted", "view.closed", "view.toggle-project", "view.edit-project", "view.add-project-", "view.move-worktree", "view.jump-", "view.find-", "view.focus-composer", "view.system-scheme", "view.set-prompt", "view.reading-point", "view.refresh-environment", "usage.", "project.open", "attachments.notice"] as const;
-
-/** Commands that only this computer's own panels can carry out. */
-const PANEL_PREFIXES = ["browser."] as const;
 
 export const PANEL_ELSEWHERE = "The browser panel opens only for threads on this computer.";
 export const ATTACHMENTS_ELSEWHERE = "Files and folders attached by local path cannot be sent to another computer.";
@@ -195,72 +185,74 @@ function forwardedSend(state: WorkspaceState, computer: PairedComputer, command:
   return forwarded(computer, inputs, { draft });
 }
 
-/**
- * Where a command goes. A thread named outright goes to the computer holding it; one about the
- * thread on screen goes to the computer showing it; the window's own affairs stay here.
- */
-export function routeInput(state: WorkspaceState, input: WorkspaceInput): InputRoute {
-  if (input.type === "project.add") {
-    if (!input.computerId || input.computerId === "this") return LOCAL;
-    const computer = state.computers.paired.find((item) => item.id === input.computerId);
-    if (!computer) return { kind: "refuse", message: "That computer is no longer paired." };
-    return toward(computer, (holder) => input.start
-      ? selecting(state, holder, [{ type: "project.add", root: input.root, start: true }])
-      : forwarded(holder, [{ type: "project.add", root: input.root }]));
-  }
-  if (!state.computers.paired.length || !isAppCommandType(input.type)) return LOCAL;
-  const active = selectedComputer(state);
-  const type = input.type;
+type Route<C extends AppCommand> = (state: WorkspaceState, input: C, active: PairedComputer | null) => InputRoute;
+
+/** The computer holding the thread a command names, else the one showing the thread on screen. */
+function threadHolder(state: WorkspaceState, input: AppCommand, active: PairedComputer | null): PairedComputer | null {
+  const taskId = "taskId" in input ? input.taskId : undefined;
+  return taskId === undefined ? active : computerOfThread(state, taskId);
+}
+
+const PLACED: { [At in Exclude<CommandPlacement, "own">]: Route<PlacedCommand<At>> } = {
+  local: () => LOCAL,
+  thread: (state, input, active) => toward(threadHolder(state, input, active), (holder) => forwarded(holder, [input])),
+  panel: (state, input, active) => toward(threadHolder(state, input, active), () => ({ kind: "refuse", message: PANEL_ELSEWHERE })),
+  project: (state, input) => toward(computerOfProject(state, input.projectId), (holder) => forwarded(holder, [input])),
   /** A delayed resize or keystroke follows its shell, even after another thread is selected. */
-  if (type.startsWith("terminal.") && "terminalId" in input) {
+  terminal: (state, input) => {
     if (holdsTerminal(state, input.terminalId)) return LOCAL;
     const holder = state.computers.paired.find((computer) => computer.state && holdsTerminal(computer.state, input.terminalId));
     return holder ? toward(holder, (computer) => forwarded(computer, [input])) : { kind: "refuse", message: "That terminal is no longer available." };
-  }
-  if (type === "task.new") {
-    const computer = computerOfProject(state, input.projectId) ?? computerOfWorktree(state, input.worktreeId);
-    return toward(computer, (holder) => selecting(state, holder, [input]));
-  }
-  if (type === "task.select" || type === "worktree.open-thread" || type === "view.jump-choose") {
-    return toward(computerOfThread(state, input.taskId), (holder) => selecting(state, holder, [{ type: "task.select", taskId: input.taskId }]));
-  }
-  /** The reducer distributes this action across the computers shown in the sidebar. */
-  if (type === "task.dismiss-all") return LOCAL;
+  },
+  select: (state, input) => toward(computerOfThread(state, input.taskId), (holder) => selecting(state, holder, [{ type: "task.select", taskId: input.taskId }])),
+};
+
+const OWN: { [Type in Exclude<PlacedCommand<"own">["type"], "project.add">]: Route<Extract<AppCommand, { type: Type }>> } = {
+  "task.new": (state, input) => toward(computerOfProject(state, input.projectId) ?? computerOfWorktree(state, input.worktreeId), (holder) => selecting(state, holder, [input])),
+  "task.send": (state, input, active) => toward(threadHolder(state, input, active), (holder) => forwardedSend(state, holder, input)),
+  "attachments.send": (state, input, active) => toward(threadHolder(state, input, active), (holder) => forwardedSend(state, holder, input)),
   /** Whether the user is looking is this window's to know and the other computer's to act on. */
-  if (type === "view.set-focused") return active?.status === "connected" ? forwarded(active, [input], { also: true }) : LOCAL;
-  if (type === "project.move" || type === "project.edit" || type === "project.remove") {
-    return toward(computerOfProject(state, input.projectId), (holder) => forwarded(holder, [input]));
-  }
+  "view.set-focused": (_state, input, active) => active?.status === "connected" ? forwarded(active, [input], { also: true }) : LOCAL,
   /** A file or folder is opened on the machine that has it, which is not this one. */
-  if (type === "file.open" || type === "app.open-folder") {
-    const named = type === "file.open" ? computerOfThread(state, input.taskId) : null;
-    const elsewhere = named ?? (type === "file.open" && input.taskId !== undefined ? null : active);
-    return elsewhere ? { kind: "refuse", message: FILES_ELSEWHERE } : LOCAL;
-  }
+  "file.open": (state, input, active) => threadHolder(state, input, active) ? { kind: "refuse", message: FILES_ELSEWHERE } : LOCAL,
+  "app.open-folder": (_state, _input, active) => active ? { kind: "refuse", message: FILES_ELSEWHERE } : LOCAL,
+  "worktree.reveal": (state, input) => computerOfWorktreeRoot(state, input.root) ? { kind: "refuse", message: FILES_ELSEWHERE } : LOCAL,
   /** The location menu opens and is searched here; the checkouts it offers, and what it moves or deletes, are the holder's. */
-  if (type === "worktree.menu-open") return input.list === "destinations" && active ? forwarded(active, [input], { also: true }) : LOCAL;
-  if (type === "worktree.delete") {
+  "worktree.menu-open": (_state, input, active) => input.list === "destinations" && active ? forwarded(active, [input], { also: true }) : LOCAL,
+  "worktree.delete": (state, input, active) => {
     const computer = input.worktreeId !== undefined ? computerOfWorktree(state, input.worktreeId)
       : input.root !== undefined ? computerOfWorktreeRoot(state, input.root)
       : input.taskId !== undefined ? computerOfThread(state, input.taskId) : active;
     return toward(computer, (holder) => forwarded(holder, [input]));
-  }
-  if (type === "worktree.reveal") return computerOfWorktreeRoot(state, input.root) ? { kind: "refuse", message: FILES_ELSEWHERE } : LOCAL;
+  },
   /** The confirmation is drawn from the holder's list, which it is asked for when it has none with this checkout. */
-  if (type === "worktree.confirm-delete" && input.root !== null) {
+  "worktree.confirm-delete": (state, input) => {
     const root = input.root;
+    if (root === null) return LOCAL;
     return toward(computerOfWorktreeRoot(state, root), (holder) => holder.state?.managedWorktrees?.some((worktree) => worktree.root === root)
       ? LOCAL
       : forwarded(holder, [{ type: "worktree.refresh" }], { also: true }));
-  }
-  if (LOCAL_PREFIXES.some((prefix) => type.startsWith(prefix))) return LOCAL;
-  const named = "taskId" in input ? computerOfThread(state, input.taskId) : null;
-  const computer = named ?? ("taskId" in input && input.taskId !== undefined ? null : active);
-  return toward(computer, (holder) => {
-    if (PANEL_PREFIXES.some((prefix) => type.startsWith(prefix))) return { kind: "refuse", message: PANEL_ELSEWHERE };
-    if (type === "task.send" || type === "attachments.send") return forwardedSend(state, holder, input);
-    return forwarded(holder, [input]);
-  });
+  },
+};
+
+/** A folder is added on the computer the dialog names, whether or not any other is on screen. */
+function addingProject(state: WorkspaceState, input: Extract<AppCommand, { type: "project.add" }>): InputRoute {
+  if (!input.computerId || input.computerId === "this") return LOCAL;
+  const computer = state.computers.paired.find((item) => item.id === input.computerId);
+  if (!computer) return { kind: "refuse", message: "That computer is no longer paired." };
+  return toward(computer, (holder) => input.start
+    ? selecting(state, holder, [{ type: "project.add", root: input.root, start: true }])
+    : forwarded(holder, [{ type: "project.add", root: input.root }]));
+}
+
+/** Where a command goes, by the placement it declares. Events, and everything once no computer is paired, stay here. */
+export function routeInput(state: WorkspaceState, input: WorkspaceInput): InputRoute {
+  if (input.type === "project.add") return addingProject(state, input);
+  if (!state.computers.paired.length || !isAppCommandType(input.type)) return LOCAL;
+  const command = input as AppCommand;
+  const at = commandPlacement(command.type);
+  const route = (at === "own" ? OWN[command.type as keyof typeof OWN] : PLACED[at]) as Route<AppCommand>;
+  return route(state, command, selectedComputer(state));
 }
 
 /** Only missing capabilities hide controls. Ordinary refusals still reach dispatch and explain

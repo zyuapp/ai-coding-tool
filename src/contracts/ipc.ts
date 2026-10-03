@@ -4,7 +4,7 @@ import type { AgentSettingsReloadEvent, ReloadAgentSettingsCommand } from "./age
 export { isAgentSettingsReloadEvent, type AgentSettingsReloadEvent, type ReloadAgentSettingsCommand } from "./agent-settings.js";
 import { isQuestionRequest, type QuestionRequest } from "../domain/agent-question.js";
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationPatch, type AutomationRunStatus, type AutomationView } from "../domain/automation.js";
-import type { BrowserRead, ExternalCommand, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
+import type { BrowserRead, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
 import type { BrowserAction, BrowserPermissions, BrowserBounds, BrowserInspection, BrowserInspectionResult, BrowserShot, BrowserSnapshot } from "../domain/browser.js";
 import type { BrowserImportResult, BrowserImportSite, BrowserImportSource } from "../domain/browser-import.js";
 import type { CaptureOptions } from "../domain/capture.js";
@@ -513,7 +513,8 @@ const MAX_ID_LENGTH = 256;
 export const MAX_THREAD_WAIT_MS = 15 * 60 * 1_000;
 /** A page read waits for the tab to settle, which a slow site must not stretch without limit. */
 export const MAX_BROWSER_WAIT_MS = 2 * 60 * 1_000;
-const MAX_PROMPT_LENGTH = 1_000_000, MAX_TITLE_LENGTH = 64;
+export const MAX_PROMPT_LENGTH = 1_000_000;
+const MAX_TITLE_LENGTH = 64;
 
 export function isString(value: unknown, maxLength = MAX_ID_LENGTH): value is string {
   return typeof value === "string" && value.length > 0 && value.length <= maxLength;
@@ -649,37 +650,6 @@ export function isAutomationRequest(value: unknown): value is AutomationRequest 
   return request.op === "update" && isString(request.runId) && isAutomationPatch(request.patch);
 }
 
-/** The command surface open to callers outside the window. Everything else is the user's alone. */
-export function isExternalCommand(value: unknown): value is ExternalCommand {
-  if (!value || typeof value !== "object") return false;
-  const command = value as Record<string, unknown>;
-  const named = command.taskId === undefined || isString(command.taskId);
-  if (command.type === "task.send") {
-    return named && (command.project === undefined || isString(command.project))
-      && isString(command.text, MAX_PROMPT_LENGTH)
-      && command.attachments === undefined
-      && (command.steer === undefined || typeof command.steer === "boolean")
-      && (command.worktree === undefined || typeof command.worktree === "boolean")
-      /** An id, never a path: the reducer resolves it against the checkouts the app itself made. */
-      && (command.worktreeId === undefined || isString(command.worktreeId))
-      && (command.model === undefined || isAgentModel(command.model))
-      && (command.effort === undefined || isAgentEffort(command.effort)) && (command.role === undefined || isThreadRole(command.role))
-      /** Only the window says which coordinator a thread works under, and which thread a message came from. */
-      && (command.brief === undefined || isThreadBrief(command.brief)) && command.coordinatorId === undefined && command.from === undefined
-      /** Agent selection, the role and the brief belong to a thread being created, never one that already exists. */
-      && (command.taskId === undefined || command.model === undefined && command.effort === undefined && command.role === undefined && command.brief === undefined);
-  }
-  if (command.type === "task.archive") return isString(command.taskId);
-  if (command.type === "task.set-role") return isString(command.taskId) && (command.role === null || isThreadRole(command.role));
-  if (command.type === "run.cancel") return named;
-  /** An id, never a path or the thread on screen, and never the folder-is-gone shortcut. */
-  if (command.type === "worktree.delete") return isString(command.worktreeId) && command.taskId === undefined && command.root === undefined && command.missingOnly === undefined;
-  if (typeof command.type === "string" && command.type.startsWith("browser.")) return isBrowserCommand(command);
-  return false;
-}
-
-const MAX_URL_LENGTH = 8_192;
-
 export function isBrowserAction(value: unknown): value is BrowserAction {
   if (!value || typeof value !== "object") return false;
   const action = value as Record<string, unknown>;
@@ -735,18 +705,6 @@ export function isTerminalRead(value: unknown): value is TerminalRead {
   return (read.terminalId === undefined || isString(read.terminalId))
     && (read.lines === undefined || isCount(read.lines))
     && (read.match === undefined || isString(read.match, 1_000));
-}
-
-/** A run drives the browser as itself, so every browser command names the thread that asked. */
-function isBrowserCommand(command: Record<string, unknown>) {
-  if (!isString(command.taskId)) return false;
-  const tabbed = command.tabId === undefined || isString(command.tabId);
-  if (command.type === "browser.open") return tabbed && isString(command.url, MAX_URL_LENGTH) && (command.newTab === undefined || typeof command.newTab === "boolean");
-  if (command.type === "browser.close-tab" || command.type === "browser.select-tab") return isString(command.tabId);
-  if (command.type === "browser.go") return tabbed && (command.delta === 1 || command.delta === -1);
-  if (command.type === "browser.reload") return tabbed;
-  if (command.type === "browser.act") return tabbed && isBrowserAction(command.action);
-  return false;
 }
 
 /**

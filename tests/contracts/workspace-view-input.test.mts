@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "vitest";
-import { isWorkspaceViewInput, type WorkspaceViewInput } from "../../src/contracts/workspace-view-input.ts";
+import { commandLeaves, commandPlacement, isAppCommandType, isExternalCommand, isWorkspaceViewInput, workspaceCommandDefinitions, type WorkspaceViewInput } from "../../src/contracts/workspace-view-input.ts";
 
 test("the view can send provider commands, attachments, and presentation reports", () => {
   const inputs: WorkspaceViewInput[] = [
@@ -99,14 +99,56 @@ test("image and commit actions validate their targets at the view boundary", () 
   assert.equal(isWorkspaceViewInput({ type: "diff.set-range", range: { kind: "commit", commit: "HEAD;touch x" } }), false);
 });
 
-test("every command the application declares has exactly one shape", async () => {
+test("every command the application declares has exactly one declaration", async () => {
   const commands = await readFile(new URL("../../src/contracts/commands.ts", import.meta.url), "utf8");
   const shapes = await readFile(new URL("../../src/contracts/workspace-view-input.ts", import.meta.url), "utf8");
-  const table = shapes.slice(shapes.indexOf("const shapes = {"));
+  const table = shapes.slice(shapes.indexOf("const commands = {"), shapes.indexOf("const events = {"));
   const declared = new Set([...commands.matchAll(/\{ type: "([\w.-]+)"/g)].map(([, type]) => type));
   assert.ok(declared.size > 100, `found ${declared.size} command types`);
   for (const type of declared) {
     const entries = [...table.matchAll(new RegExp(`^ {2}"${type.replace(/\./g, "\\.")}":`, "gm"))];
-    assert.equal(entries.length, 1, `${type} has ${entries.length} shape entries`);
+    assert.equal(entries.length, 1, `${type} has ${entries.length} declarations`);
   }
+});
+
+test("every command declares where it is carried out, and events are not commands", () => {
+  const placements = new Set(["local", "thread", "panel", "project", "terminal", "select", "own"]);
+  for (const { type } of workspaceCommandDefinitions()) assert.ok(placements.has(commandPlacement(type)), type);
+  for (const type of ["action.failed", "find.results", "shortcut.captured", "shortcut.unavailable"]) {
+    assert.equal(isAppCommandType(type), false, type);
+    assert.equal(workspaceCommandDefinitions().some((definition) => definition.type === type), false, type);
+  }
+});
+
+test("only the commands that move this window to one of its own threads leave a paired computer", () => {
+  const leaving = workspaceCommandDefinitions().map(({ type }) => type).filter(commandLeaves).sort();
+  assert.deepEqual(leaving, ["task.new", "task.select", "view.go-back", "view.go-forward", "view.jump-choose", "worktree.open-thread"]);
+});
+
+test("what an agent may send is a command the window itself accepts, held to the agent's rule as well", () => {
+  const agentCommands = [
+    { type: "task.send", text: "Start" },
+    { type: "task.archive", taskId: "task-1" },
+    { type: "task.set-role", taskId: "task-1", role: "reviewer" },
+    { type: "run.cancel", taskId: "task-1" },
+    { type: "worktree.delete", worktreeId: "wt1" },
+    { type: "browser.open", taskId: "task-1", url: "https://example.com" },
+    { type: "browser.close-tab", taskId: "task-1", tabId: "tab-1" },
+    { type: "browser.select-tab", taskId: "task-1", tabId: "tab-1" },
+    { type: "browser.go", taskId: "task-1", delta: 1 },
+    { type: "browser.reload", taskId: "task-1" },
+    { type: "browser.act", taskId: "task-1", action: { kind: "click", ref: "1" } },
+  ];
+  for (const command of agentCommands) {
+    assert.equal(isExternalCommand(command), true, command.type);
+    assert.equal(isWorkspaceViewInput(command), true, command.type);
+  }
+  const allowed = new Set(agentCommands.map((command) => command.type));
+  for (const { type } of workspaceCommandDefinitions()) {
+    if (!allowed.has(type)) assert.equal(isExternalCommand({ type, taskId: "task-1" }), false, type);
+  }
+  assert.equal(isExternalCommand({ type: "task.archive", taskId: 7 }), false, "the window's own field checks still apply");
+  assert.equal(isExternalCommand({ type: "browser.go", taskId: "task-1", delta: 3 }), false);
+  assert.equal(isWorkspaceViewInput({ type: "browser.go", delta: 1 }), true);
+  assert.equal(isExternalCommand({ type: "browser.go", delta: 1 }), false, "an agent names the thread driving the browser");
 });

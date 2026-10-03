@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { routeInput } from "../../src/application/computers.ts";
-import { isExternalCommand } from "../../src/contracts/ipc.ts";
+import { isExternalCommand } from "../../src/contracts/workspace-view-input.ts";
 import { isWorkspaceViewInput } from "../../src/contracts/workspace-view-input.ts";
 import { effectOf, required, run, workspace } from "./workspace-reducer-fixtures.mts";
 

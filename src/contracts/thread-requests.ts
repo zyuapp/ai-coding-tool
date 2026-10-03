@@ -1,5 +1,6 @@
 /** The guards a thread tool request has to pass on its way from the agent process to the window. */
-import { isBlankable, isBrowserRead, isCount, isExternalCommand, isString, isTerminalRead, MAX_THREAD_WAIT_MS } from "./ipc.js";
+import { isBlankable, isBrowserRead, isCount, isString, isTerminalRead, MAX_THREAD_WAIT_MS } from "./ipc.js";
+import { isExternalCommand } from "./workspace-view-input.js";
 import type { FindingReport, ThreadRequest } from "./threads.js";
 import { isCoordinationState, isDecisionRequest, MAX_SUMMARY } from "../domain/coordination.js";
 import { MAX_DETAIL, MAX_FINDING_KEY, MAX_HEADLINE } from "../domain/finding.js";
