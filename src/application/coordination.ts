@@ -19,9 +19,18 @@ export function coordinationSendOf({ coordinatorId, brief }: CoordinationSend): 
   return { coordination: { ...(coordinatorId ? { coordinatorId } : {}), ...(brief ? { brief } : {}) } };
 }
 
+const FROM = "From ";
+
 /** The label on a message another thread sent. */
 export function senderDetail(sender: Thread): string {
-  return `From ${sender.title} · ${sender.id}`;
+  return `${FROM}${sender.title} · ${sender.id}`;
+}
+
+/** The sending thread's title, read back from a message's label. */
+export function senderTitle(detail: string | undefined): string | null {
+  if (!detail?.startsWith(FROM)) return null;
+  const end = detail.lastIndexOf(" · ");
+  return detail.slice(FROM.length, end < 0 ? undefined : end);
 }
 
 /**

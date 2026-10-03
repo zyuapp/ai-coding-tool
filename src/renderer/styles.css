@@ -1593,6 +1593,11 @@ button, select { color: inherit; }
 .work-row[open] > summary::after, .work-group[open] > summary::after, .work-run[open] > summary::after { transform: rotate(90deg); }
 .work-lead { color: var(--muted-soft); }
 .updates-fold-entries { display: flex; flex-direction: column; gap: 26px; padding: 16px 0 4px; }
+.timeline-row.user:has(> .thread-message) { padding-bottom: 26px; }
+.thread-message > summary { min-width: 0; }
+.thread-message-preview { flex: 1; min-width: 0; overflow: hidden; color: var(--quiet-strong); white-space: nowrap; text-overflow: ellipsis; }
+.thread-message[open] .thread-message-preview { visibility: hidden; }
+.thread-message-text { padding: 8px 8px 4px; color: var(--muted); font-size: var(--text-content); line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 /* Durations and counts sit in one right-aligned cluster, so a run's times read as a column. */
 .work-meta { flex: none; display: flex; align-items: center; gap: 9px; margin-left: auto; }
 .work-time { flex: none; color: var(--quiet-strong); font-variant-numeric: tabular-nums; }

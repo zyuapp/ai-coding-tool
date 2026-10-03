@@ -408,6 +408,29 @@ test("a coordinator's superseded thread updates fold into one row before the new
   assert.deepEqual(folded.entries.map((entry) => entry.id), ["m2", "m3"]);
 });
 
+test("a coordinator's thread messages fold to one row naming the sender, and the user's own words stay open", async () => {
+  const messages = transcript(
+    { kind: "user", text: "Fix login" },
+    { kind: "assistant", text: "Started a thread." },
+    { kind: "user", text: "\"Fix login\" ended its turn.\nIt last said: done", detail: "Thread updates" },
+    { kind: "assistant", text: "Login is fixed." },
+    { kind: "user", text: "Can I merge?", detail: "From Fix login · t2" },
+  );
+  const groups = groupTimeline(messages, { running: false, coordinator: true });
+  assert.deepEqual(groups.map((group) => group.kind === "message" ? group.from ?? null : group.kind), [null, "turn", "Thread updates", "turn", "From Fix login"]);
+  assert.equal(groupTimeline(messages, { running: false }).some((group) => group.kind === "message" && group.from), false, "only a coordinator folds them");
+
+  const plain = timelineView(messages, "idle");
+  const view = await mount(React.cloneElement(plain, { currentThread: { ...plain.props.currentThread!, role: "coordinator" } }));
+  const folds = [...view.container.querySelectorAll<HTMLDetailsElement>(".thread-message")];
+  assert.deepEqual(folds.map((fold) => query(fold, ".work-lead").textContent), ["Thread updates", "From Fix login"]);
+  assert.equal(folds[0]!.querySelector(".thread-message-text"), null, "the news stays out of view until opened");
+  assert.equal(view.container.querySelectorAll(".message.user .message-text").length, 1);
+  await expand(folds[1]!);
+  assert.equal(query(folds[1]!, ".thread-message-text").textContent, "Can I merge?");
+  await view.unmount();
+});
+
 test("a settled turn times each step it folds away", async () => {
   const settledMessages = transcript(
     { kind: "user", text: "Fix it" },

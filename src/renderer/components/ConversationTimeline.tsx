@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type
 import type { StreamingTail } from "../../application/thread-run-state";
 import type { FindView, ReadingPoint, ThreadWait } from "../../application/workspace-state";
 import type { AgentEngine } from "../../domain/agent-engine";
+import { isCoordinator } from "../../domain/coordination";
 import type { RetryNotice } from "../../domain/run";
 import { liftTime, resumesOnItsOwn, type LimitPause } from "../../domain/usage-limit";
 import { CommandButton } from "./CommandControl";
@@ -95,9 +96,10 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
   const toolId = lastMessage?.kind === "tool" ? lastMessage.id : undefined;
   /** The gap above the timeline, which puts the virtualizer's offsets in the scroller's own terms. */
   const [scrollMargin, setScrollMargin] = useState(0);
+  const coordinator = isCoordinator(currentThread);
   const groups = useMemo(
-    () => groupTimeline(messages, { running: status === "running", tailMessageId: streamingTail?.messageId, runEndedAt: currentThread?.runEndedAt }),
-    [messages, status, streamingTail?.messageId, currentThread?.runEndedAt],
+    () => groupTimeline(messages, { running: status === "running", tailMessageId: streamingTail?.messageId, runEndedAt: currentThread?.runEndedAt, coordinator }),
+    [messages, status, streamingTail?.messageId, currentThread?.runEndedAt, coordinator],
   );
   /** Every scroll the virtualizer makes for itself passes through here, which is how the reading view knows it is not the reader's. */
   const virtualizerScrolledAt = useRef(-Infinity);
@@ -111,7 +113,7 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
     estimateSize: (index) => {
       const group = groups[index];
       if (group?.kind === "turn") return group.final ? 140 : 64;
-      if (group?.kind === "updates") return 40;
+      if (group?.kind === "updates" || (group?.kind === "message" && group.from)) return 40;
       return group?.message.kind === "user" ? 88 : 64;
     },
     getItemKey: (index) => groups[index]?.id ?? index,

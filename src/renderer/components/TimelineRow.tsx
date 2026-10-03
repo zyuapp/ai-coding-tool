@@ -87,7 +87,23 @@ function TimelineEntry({ engine, entry, streamingTail, onViewAttachment }: { eng
       </article>
     );
   }
+  if (entry.from) return <ThreadMessage from={entry.from} message={message} />;
   return <UserMessage message={message} onView={onViewAttachment} />;
+}
+
+/** A message a coordinator's threads sent it, behind one row naming its sender until opened. */
+function ThreadMessage({ from, message }: { from: string; message: ConversationMessage }) {
+  const summary = (
+    <>
+      <span className="work-lead">{from}</span>
+      <span className="thread-message-preview">{message.text}</span>
+    </>
+  );
+  return (
+    <Fold className="work-group thread-message" holds={[message.id]} summary={summary}>
+      {() => <div className="thread-message-text">{message.text}</div>}
+    </Fold>
+  );
 }
 
 /** Earlier thread updates and the coordinator's answers to them, behind one row until opened. */

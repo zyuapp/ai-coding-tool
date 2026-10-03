@@ -1,8 +1,9 @@
-import { COORDINATION_UPDATE_DETAIL } from "../../application/coordination";
+import { COORDINATION_UPDATE_DETAIL, senderTitle } from "../../application/coordination";
 import type { ConversationMessage } from "../../domain/conversation";
 
 type TimelineEntry =
-  | { kind: "message"; id: string; message: ConversationMessage }
+  /** `from` names what a folded message's row says it is: its threads' news, or the thread that sent it. */
+  | { kind: "message"; id: string; message: ConversationMessage; from?: string }
   | { kind: "turn"; id: string; steps: ConversationMessage[]; final: ConversationMessage | null; endsAt: number | null; live: boolean };
 
 /** `updates` holds a coordinator's thread updates, and its replies to them, that a newer update has since replaced. */
@@ -15,7 +16,7 @@ export type TurnSegment =
   | { kind: "note"; id: string; message: ConversationMessage }
   | { kind: "tools"; id: string; steps: TimedStep[] };
 
-type TimelineOptions = { running: boolean; tailMessageId?: string; runEndedAt?: number };
+type TimelineOptions = { running: boolean; tailMessageId?: string; runEndedAt?: number; coordinator?: boolean };
 
 function startOf(group: TimelineEntry) {
   return group.kind === "message" ? group.message.at : (group.steps[0] ?? group.final)?.at ?? null;
@@ -33,11 +34,12 @@ function endOf(group: TimelineEntry, next: TimelineEntry | undefined, runEndedAt
  * settled; the newest turn of a running task is live and keeps collecting steps. A turn no answer
  * closed ends where the next group opens, or where the run it belonged to stopped.
  */
-export function groupTimeline(messages: ConversationMessage[], { running, tailMessageId, runEndedAt }: TimelineOptions): TimelineGroup[] {
+export function groupTimeline(messages: ConversationMessage[], { running, tailMessageId, runEndedAt, coordinator = false }: TimelineOptions): TimelineGroup[] {
   const groups: (TimelineEntry | ConversationMessage[])[] = [];
   for (const message of messages) {
     if (message.kind === "user" || message.kind === "system" || message.artifact) {
-      groups.push({ kind: "message", id: message.id, message });
+      const from = coordinator ? threadSender(message) : undefined;
+      groups.push({ kind: "message", id: message.id, message, ...(from ? { from } : {}) });
       continue;
     }
     const open = groups.at(-1);
@@ -62,6 +64,14 @@ export function groupTimeline(messages: ConversationMessage[], { running, tailMe
     timeline.push({ kind: "turn", id: tailMessageId, steps: [], final: null, endsAt: null, live: true });
   }
   return foldUpdates(timeline.map((group, index) => group.kind !== "turn" ? group : { ...group, endsAt: endOf(group, timeline[index + 1], runEndedAt) }));
+}
+
+/** A coordinator's threads speak to it often, so their messages fold to one row behind the user's own words and its answers. */
+function threadSender(message: ConversationMessage) {
+  if (message.kind !== "user") return undefined;
+  if (message.detail === COORDINATION_UPDATE_DETAIL) return COORDINATION_UPDATE_DETAIL;
+  const title = senderTitle(message.detail);
+  return title === null ? undefined : `From ${title}`;
 }
 
 function isUpdate(entry: TimelineEntry) {
