@@ -616,6 +616,28 @@ test("a settings search stands in for the pages, and Enter lands on the control 
   await view.unmount();
 });
 
+test("landing on the same control again flashes it again", async () => {
+  window.desktop = fakeDesktop({});
+  const view = await mount(renderSettingsPanel({}));
+  await act(async () => {});
+  const land = async () => {
+    const field = await searchSettings(view, "terminal text");
+    await act(async () => { field.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
+  };
+
+  await land();
+  const row = query<HTMLElement>(view.container, "[data-setting='appearance.terminal-size']");
+  const changes: (string | null)[] = [];
+  const observer = new dom.window.MutationObserver((records) => changes.push(...records.map((record) => record.oldValue)));
+  observer.observe(row, { attributes: true, attributeFilter: ["class"], attributeOldValue: true });
+  await land();
+  await act(async () => {});
+  observer.disconnect();
+  assert.ok(changes.some((value) => !value?.split(" ").includes("found")), "the mark is taken off and put back, which restarts the flash");
+  assert.ok(row.classList.contains("found"));
+  await view.unmount();
+});
+
 test("a search lands on a shortcut and on a group, not only on a page", async () => {
   window.desktop = fakeDesktop({});
   const view = await mount(renderSettingsPanel({ shortcuts: shortcutSettings({}) }));

@@ -17,10 +17,10 @@ export function useSettingMark<T extends HTMLElement>(id: string) {
     const target = element.current;
     if (visit === null || !target) return;
     target.scrollIntoView({ block: "center" });
-    for (const animation of target.getAnimations?.({ subtree: true }) ?? []) {
-      animation.cancel();
-      animation.play();
-    }
+    /** A finished flash leaves nothing to replay, so the class comes off and back on to start a new one. */
+    target.classList.remove("found");
+    void target.offsetWidth;
+    target.classList.add("found");
   }, [visit]);
 
   return { ref: element, found: visit !== null };
