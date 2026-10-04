@@ -120,6 +120,14 @@ test("a mid-turn report waits for its thread's turn even when it cannot wait for
   assert.match(woken(ends).text, /reported blocked: Needs the cert[\s\S]*"one" ended its turn/);
 });
 
+test("a thread that reports mid-turn and then waits for approval is heard while it waits", () => {
+  const state = workspace({ threads: [lead(), member("one")], activeRuns: { one: activeRun("one", "run-1") }, runStatuses: { one: "running" } });
+  const reported = reduce(state, { type: "coordination.reported", taskId: "one", state: "done", summary: "Replied done" });
+  slept(reported, "reporting");
+  const waiting = reduce(reported.state, correlatedRunEvent("one", "run-1", 1, { type: "run.status", status: "awaiting-approval" }));
+  assert.match(woken(waiting).text, /reported done: Replied done/);
+});
+
 test("urgent news reaches a free coordinator while other threads work, once", () => {
   const both = { activeRuns: { one: activeRun("one", "run-1"), two: activeRun("two", "run-2") }, runStatuses: { one: "running" as const, two: "running" as const } };
   const failed = reduce(workspace({ threads: [lead(), member("one"), member("two")], ...both }), correlatedRunEvent("one", "run-1", 1, { type: "run.status", status: "failed" }));

@@ -4,7 +4,7 @@ import { reduceSending } from "./sending.js";
 import { now, rejected, settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { coordinationNote, coordinationUpdate, turnNote, workingMembers } from "../coordination.js";
-import { activityChanges, threadChanges } from "../thread-activity.js";
+import { activityChanges, threadActivity, threadChanges } from "../thread-activity.js";
 import { heldByLimit } from "../limit-pauses.js";
 import { announced } from "../notices.js";
 import { updateThread } from "../thread-run-state.js";
@@ -156,13 +156,15 @@ function coordinatorsOf(previous: WorkspaceState, next: WorkspaceState, touched:
 
 /**
  * The news that wakes a coordinator: notes not quiet, and not written during a run of one of its
- * threads that is still going.
+ * threads that is still working. A run waiting for the user's approval no longer counts as working.
  */
 function wakingNews(state: WorkspaceState, lead: Thread): CoordinationNote[] {
   const notes = (lead.coordinationNotes ?? []).filter((note) => !note.quiet);
   if (!notes.some((note) => note.runId)) return notes;
   const members = new Set(coordinatedThreads(state.threads, lead.id).map((thread) => thread.id));
-  return notes.filter((note) => !note.runId || !members.has(note.threadId) || state.activeRuns[note.threadId]?.runId !== note.runId);
+  const { working, blocked } = threadActivity(state);
+  const going = (id: string, runId: string) => members.has(id) && state.activeRuns[id]?.runId === runId && working.has(id) && !blocked.has(id);
+  return notes.filter((note) => !note.runId || !going(note.threadId, note.runId));
 }
 
 /**
