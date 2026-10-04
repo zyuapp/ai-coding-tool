@@ -33,7 +33,9 @@ async function updaterFor(host: UpdateHost) {
   autoUpdater.on("error", (error) => {
     console.error("Update error:", error);
     // Check failures are reported by the shared promise, including setup failures
-    // that never emit an updater event. Download/install errors still arrive here.
+    // that never emit an updater event, and download failures by `downloadUpdate`.
+    // Install errors still arrive here.
+    if (state.status === "downloading") return;
     if (!checking?.pending && announceFailure) void reportUpdateFailure(host.window(), error);
   });
   autoUpdater.on("update-available", ({ version }) => {
@@ -110,10 +112,12 @@ export async function downloadUpdate(host: UpdateHost) {
   const { version } = state;
   announceFailure = true;
   setState(host, { status: "downloading", version, percent: 0 });
-  await updater.downloadUpdate().catch((error) => {
-    console.error("Update download failed:", error);
-    if (state.status === "downloading") setState(host, { status: "available", version });
-  });
+  try {
+    await updater.downloadUpdate();
+  } catch (error) {
+    setState(host, { status: "available", version });
+    await reportUpdateFailure(host.window(), error instanceof Error ? error : new Error(String(error)));
+  }
 }
 
 export function installUpdate(host: UpdateHost) {

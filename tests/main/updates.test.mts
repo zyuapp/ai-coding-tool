@@ -153,7 +153,11 @@ test("a failed download offers the update again", async () => {
   f.updater.emit("update-available", { version: "0.5.10" });
   f.resolve({ isUpdateAvailable: true });
   await background;
-  f.updater.downloadUpdate.mockRejectedValueOnce(new Error("Network unavailable"));
+  const error = new Error("Network unavailable");
+  f.updater.downloadUpdate.mockImplementationOnce(async () => {
+    f.updater.emit("error", error);
+    throw error;
+  });
   const log = vi.spyOn(console, "error").mockImplementation(() => {});
   try {
     await f.downloadUpdate(f.host);
@@ -161,4 +165,45 @@ test("a failed download offers the update again", async () => {
     log.mockRestore();
   }
   assert.deepEqual(f.states.at(-1), { status: "available", version: "0.5.10" });
+  assert.deepEqual(stub.dialogs.map((dialog) => dialog.title), ["Update failed"], "reported once, by the download");
+});
+
+test("a download that throws before it starts still offers the update again", async () => {
+  const f = await fixture();
+  const background = f.checkForUpdates(f.host);
+  await vi.waitFor(() => assert.equal(f.updater.checkForUpdates.mock.calls.length, 1));
+  f.updater.emit("update-available", { version: "0.5.10" });
+  f.resolve({ isUpdateAvailable: true });
+  await background;
+  f.updater.downloadUpdate.mockImplementationOnce(() => { throw new Error("Checksum is missing"); });
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    await f.downloadUpdate(f.host);
+  } finally {
+    log.mockRestore();
+  }
+  assert.deepEqual(f.states.at(-1), { status: "available", version: "0.5.10" });
+  assert.deepEqual(stub.dialogs.map((dialog) => dialog.title), ["Update failed"]);
+});
+
+test("a download the menu check started reports its failure while the check is still pending", async () => {
+  const f = await fixture();
+  const error = new Error("ZIP file not provided");
+  f.updater.downloadUpdate.mockImplementationOnce(async () => {
+    f.updater.emit("error", error);
+    throw error;
+  });
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    f.menu.click!();
+    await vi.waitFor(() => assert.equal(f.updater.checkForUpdates.mock.calls.length, 1));
+    f.updater.emit("update-available", { version: "0.5.10" });
+    await vi.waitFor(() => assert.deepEqual(stub.dialogs.map((dialog) => dialog.title), ["Update failed"]));
+    f.resolve({ isUpdateAvailable: true });
+    await Promise.all(f.manual);
+  } finally {
+    log.mockRestore();
+  }
+  assert.deepEqual(f.states.at(-1), { status: "available", version: "0.5.10" });
+  assert.deepEqual(stub.dialogs.map((dialog) => dialog.title), ["Update failed"]);
 });
