@@ -58,8 +58,6 @@ export type RunChannel = "main" | "side";
 export type ClaudeRunSettings = {
   /** Set when the user turned Claude in Chrome on: the run also reaches their own Chrome. */
   chromeBrowser?: true;
-  /** Set when the user turned concise replies on: the run answers under the concise ruleset. */
-  conciseReplies?: true;
 };
 
 /** Work a run performs without sending its prompt as a model turn. */
@@ -638,7 +636,7 @@ export function isInternalRunCommand(value: unknown): value is InternalRunComman
 function isClaudeRunSettings(value: unknown): value is ClaudeRunSettings {
   if (!value || typeof value !== "object") return false;
   const settings = value as Record<string, unknown>;
-  return (settings.chromeBrowser === undefined || settings.chromeBrowser === true) && (settings.conciseReplies === undefined || settings.conciseReplies === true);
+  return settings.chromeBrowser === undefined || settings.chromeBrowser === true;
 }
 
 function isStartCommand(command: Record<string, unknown>, internal: boolean) {

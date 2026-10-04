@@ -83,7 +83,6 @@ export type SettingsPanelProps = {
   /** Whether runs answer in the Simplified Technical English style the app installs. */
   /** Whether runs reach the user's own Chrome through the Claude in Chrome extension. */
   chromeBrowser: boolean;
-  conciseReplies: boolean;
   /** Whether a run may see and operate other applications. */
   computerUse: boolean;
   /** Whether a run may drive the browser panel. The user's own tabs stay usable either way. */
@@ -109,7 +108,6 @@ export type SettingsPanelProps = {
   onSetReadingSize: (size: number) => void;
   onSetTerminalSize: (size: number) => void;
   onSetChromeBrowser: (enabled: boolean) => void;
-  onSetConciseReplies: (enabled: boolean) => void;
   onSetComputerUse: (enabled: boolean) => void;
   onSetBrowserTools: (enabled: boolean) => void;
   onSetNotifications: (enabled: boolean) => void;
@@ -157,7 +155,6 @@ export function SettingsPanel({
   terminalSize,
   allowedOrigins,
   chromeBrowser,
-  conciseReplies,
   computerUse,
   browserTools,
   notifications,
@@ -175,7 +172,6 @@ export function SettingsPanel({
   onSetReadingSize,
   onSetTerminalSize,
   onSetChromeBrowser,
-  onSetConciseReplies,
   onSetComputerUse,
   onSetBrowserTools,
   onSetNotifications,
@@ -243,7 +239,7 @@ export function SettingsPanel({
           <p>How AI Coding Tool answers from outside its own window.</p>
         </div>
 
-        <GeneralSettings cli={cli} onReadCli={onReadCli} onSetCliInstalled={onSetCliInstalled} chromeBrowser={chromeBrowser} onSetChromeBrowser={onSetChromeBrowser} conciseReplies={conciseReplies} onSetConciseReplies={onSetConciseReplies} notifications={notifications} onSetNotifications={onSetNotifications} onCheckForUpdates={onCheckForUpdates} onOpenSourceLicenses={onOpenSourceLicenses} />
+        <GeneralSettings cli={cli} onReadCli={onReadCli} onSetCliInstalled={onSetCliInstalled} chromeBrowser={chromeBrowser} onSetChromeBrowser={onSetChromeBrowser} notifications={notifications} onSetNotifications={onSetNotifications} onCheckForUpdates={onCheckForUpdates} onOpenSourceLicenses={onOpenSourceLicenses} />
       </main>
       )}
 

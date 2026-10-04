@@ -75,7 +75,6 @@ export function clearedDraft(state: WorkspaceState, draftKey: string): Workspace
 function claudeRunSettings(state: WorkspaceState): ClaudeRunSettings | undefined {
   const settings = {
     ...(state.chromeBrowser ? { chromeBrowser: true as const } : {}),
-    ...(state.conciseReplies ? { conciseReplies: true as const } : {}),
   };
   return Object.keys(settings).length > 0 ? settings : undefined;
 }

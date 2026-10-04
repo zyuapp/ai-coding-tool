@@ -25,9 +25,6 @@ export type GeneralSettingsProps = {
   /** Whether runs reach the user's own Chrome through the Claude in Chrome extension. */
   chromeBrowser: boolean;
   onSetChromeBrowser: (enabled: boolean) => void;
-  /** Whether Claude threads answer under the concise ruleset. */
-  conciseReplies: boolean;
-  onSetConciseReplies: (enabled: boolean) => void;
   /** Whether a thread that needs the user announces itself on the desktop. */
   notifications: boolean;
   onSetNotifications: (enabled: boolean) => void;
@@ -35,7 +32,7 @@ export type GeneralSettingsProps = {
   onOpenSourceLicenses: () => void;
 };
 
-export function GeneralSettings({ cli: { status, busy, error }, onReadCli, onSetCliInstalled, chromeBrowser, onSetChromeBrowser, conciseReplies, onSetConciseReplies, notifications, onSetNotifications, onCheckForUpdates, onOpenSourceLicenses }: GeneralSettingsProps) {
+export function GeneralSettings({ cli: { status, busy, error }, onReadCli, onSetCliInstalled, chromeBrowser, onSetChromeBrowser, notifications, onSetNotifications, onCheckForUpdates, onOpenSourceLicenses }: GeneralSettingsProps) {
   useEffect(() => { onReadCli(); }, []);
 
   return (
@@ -84,10 +81,6 @@ export function GeneralSettings({ cli: { status, busy, error }, onReadCli, onSet
 
         <SettingRow id="general.chrome-browser" status={chromeBrowser} description="Claude drives the Chrome you already have open, instead of the browser panel, when you ask for your own browser. Needs the Claude in Chrome extension, and Chrome running.">
           <button type="button" role="switch" aria-checked={chromeBrowser} onClick={() => onSetChromeBrowser(!chromeBrowser)}>{chromeBrowser ? "Turn off" : "Turn on"}</button>
-        </SettingRow>
-
-        <SettingRow id="general.concise-replies" status={conciseReplies} description="Claude leads with the answer and keeps it short. Ask it to expand and it still will.">
-          <button type="button" role="switch" aria-checked={conciseReplies} onClick={() => onSetConciseReplies(!conciseReplies)}>{conciseReplies ? "Turn off" : "Turn on"}</button>
         </SettingRow>
       </section>
 

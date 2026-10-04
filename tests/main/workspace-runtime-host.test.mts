@@ -43,11 +43,11 @@ test("a window's stored preferences are taken on once, and never over what the h
   const migrate = registered<(event: IpcEvent, values: unknown) => Promise<void>>(main.handlers, "workspace-runtime:migrate");
   await assert.rejects(migrate(main.untrusted, {}), /Untrusted/);
   await assert.rejects(migrate(main.trusted, { "someone-elses.key": "x" }), /Invalid stored values/);
-  await migrate(main.trusted, { [VIEW_PREFERENCES_KEY]: JSON.stringify({ sidebarMode: "activity", conciseReplies: true }) });
+  await migrate(main.trusted, { [VIEW_PREFERENCES_KEY]: JSON.stringify({ sidebarMode: "activity", chromeBrowser: true }) });
   const migrated = await main.runtimeState();
   assert.equal(migrated.sidebarMode, "activity");
-  assert.equal(migrated.conciseReplies, true);
-  await migrate(main.trusted, { [VIEW_PREFERENCES_KEY]: JSON.stringify({ sidebarMode: "projects", conciseReplies: false }) });
+  assert.equal(migrated.chromeBrowser, true);
+  await migrate(main.trusted, { [VIEW_PREFERENCES_KEY]: JSON.stringify({ sidebarMode: "projects", chromeBrowser: false }) });
   const kept = await main.runtimeState();
   assert.equal(kept.sidebarMode, "activity", "a second window's values never overwrite what the host keeps");
 });

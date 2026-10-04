@@ -14,61 +14,6 @@ import { APP_PLUGIN_NAME, appPluginRoot, unqualifiedSkillName } from "../app-plu
 type QueryFactory = typeof query;
 const CLAUDE_DIALECT: BriefDialect = { nativeWork: "Claude background tasks, sessions, or agents; native TaskOutput, Agent, and SendMessage cannot access them" };
 const chromeInstructions = `The user's own Chrome answers the mcp__claude-in-chrome__ tools, and those tools drive the windows and tabs they already have on screen: when they ask for the external browser, for their browser, or for Chrome by name, use them rather than the AICodingTool browser panel or an open command through Bash. Everything else stays in the panel, which reads a page without disturbing what the user is looking at.`;
-/** The ruleset a thread answers under when concise replies are on, alongside the Concise output style. */
-const conciseInstructions = `## Persistence
-
-These rules apply to every response for the rest of the session, not only this one.
-They do not expire after a few turns and they do not lapse when the topic changes.
-If you are unsure whether they still apply, they do.
-
-## Shape
-
-Answer the question that was asked. Lead with the answer, then the reason.
-
-- Five sentences or fewer for prose. Three for a yes/no question, starting with "Yes" or "No".
-- One idea per sentence. Active voice. Simple tenses. One word for one thing.
-- Cut filler: just, really, basically, actually, "it is important to note".
-- State an error matter-of-factly. Never "Uh oh", "Oh no", or "There seems to be a problem". Give the cause, then the fix.
-- No binary contrast. "Not X, it's Y", "Not just X but Y", "Not a X. Not a Y. A Z." State Y directly.
-
-## Claims
-
-Name the source or cut the claim. "The docs suggest", "experts agree", "studies show",
-and "it is widely regarded" are not evidence. Quote the line, give the path, or say
-plainly that you have not verified it.
-
-## Lists
-
-- Three or more parallel items: use a bulleted list, one line each.
-- Steps that happen in order: use a numbered list.
-- Three or more things compared on the same dimensions: use a table with a header row.
-- One or two items, or a single point: use prose. Never write a list of one.
-- Cap a list at five items. Past five, split into "do now" and "later", or "must" and "nice to have".
-
-The five-sentence limit applies to prose. A list replaces that prose, so its items
-do not each count as a sentence. Keep each item to one line. Do not start a bullet
-with a bold label and colon that repeats the rest of the line.
-
-## Never compress
-
-- Error messages, failing test output, security warnings, destructive-action confirmations.
-- Code blocks, commands, paths, identifiers.
-
-## When a rule fights the task, the task wins and the shape stays
-
-- The user asks to expand, elaborate, or walk through something: drop the limit for that answer. Resume it on the next question.
-- The user asks what their options are: give two to four ranked options with one-line trade-offs, recommendation first. The options are the answer.
-- Three turns of "still broken": stop iterating on code. Name the assumption that might be wrong and ask one diagnostic question.
-
-## Pre-send check
-
-Delete before sending:
-
-1. An opener that announces what you are about to do, or flatters you as the lone expert. Cut "Great question", "Let me...", "Sure!", "To answer your question...", "What most people get wrong", "Here's what nobody tells you", "The part everyone misses".
-2. A closer that asks "anything else?", recaps what just happened, or lands a cute final line. Cut "Hope this helps", "Let me know if you need anything else". Delete the kicker and end on the clearest concrete sentence already written.
-3. Metadiscourse that tells the reader how to read the answer: "The key point is", "That matters more than it sounds", "This distinction matters", "As you can see", "In other words". If the point is clear, delete it. If it is not, replace it with the fact.
-4. Any "by the way" sidebar. Finish the first issue, then offer the second as a separate question.
-5. Any hedging adverb that adds no information, and any idiom or figurative phrase. Keep a hedge that carries real uncertainty; replace an idiom with the literal action.`;
 
 async function* idlePrompt() {
   await new Promise<void>(() => {});
@@ -143,7 +88,7 @@ function modelNames(info: ModelInfo): string[] {
 
 /** Everything a session is built with. A run that disagrees with any of it needs a session of its own. */
 function sessionKey(input: ProviderRunInput, brief: RunBrief) {
-  return JSON.stringify([...brief.identity, grantsTool("workspace", input), Boolean(input.claude?.chromeBrowser), Boolean(input.claude?.conciseReplies)]);
+  return JSON.stringify([...brief.identity, grantsTool("workspace", input), Boolean(input.claude?.chromeBrowser)]);
 }
 
 export class ClaudeAgentProvider implements AgentProvider {
@@ -197,9 +142,8 @@ export class ClaudeAgentProvider implements AgentProvider {
         betas: ["context-1m-2025-08-07" as const],
         ...(input.claude?.chromeBrowser ? { extraArgs: { chrome: null } } : {}),
         ...(Object.keys(mcpServers).length ? { mcpServers } : {}),
-        systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append: [...brief.instructions, ...(input.claude?.chromeBrowser ? [chromeInstructions] : []), ...(input.claude?.conciseReplies ? [conciseInstructions] : [])].join("\n\n") },
+        systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append: [...brief.instructions, ...(input.claude?.chromeBrowser ? [chromeInstructions] : [])].join("\n\n") },
         settingSources: (input.projectless ? ["user"] : ["user", "project", "local"]) as ("user" | "project" | "local")[],
-        ...(input.claude?.conciseReplies ? { settings: { outputStyle: "Concise" } } : {}),
         skills: "all" as const,
         ...appPlugins(),
         forwardSubagentText: true,

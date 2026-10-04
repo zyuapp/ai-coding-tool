@@ -386,7 +386,6 @@ const commands = {
   "view.set-session-panel-open": { fields: { open: boolean }, at: "local" },
   "view.set-capture-options": { fields: { options: isCaptureOptions }, at: "local" },
   "view.set-chrome-browser": { fields: { enabled: boolean }, at: "local" },
-  "view.set-concise-replies": { fields: { enabled: boolean }, at: "local" },
   "view.set-computer-use": { fields: { enabled: boolean }, at: "local" },
   "view.set-browser-tools": { fields: { enabled: boolean }, at: "local" },
   "view.set-notifications": { fields: { enabled: boolean }, at: "local" },
