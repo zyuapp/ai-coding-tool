@@ -794,6 +794,39 @@ button, select { color: inherit; }
 .sidebar-settings:hover { background: var(--wash); color: var(--ink-faint); }
 .sidebar-settings.active { background: var(--surface-active); color: var(--ink-soft); }
 
+.sidebar-footer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sidebar-footer .sidebar-settings { flex: 1 1 auto; min-width: 0; }
+.sidebar-update {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--accent-line);
+  border-radius: 50%;
+  padding: 0;
+  background: var(--accent-chip);
+  color: var(--accent-soft);
+  cursor: pointer;
+  animation: sidebar-update-in 220ms var(--panel-slide-ease, ease-out);
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+.sidebar-update:not(.downloading):hover { border-color: var(--accent-line-strong); color: var(--accent-bright); }
+.sidebar-update.downloading { cursor: default; }
+.sidebar-update.ready { border-color: transparent; background: var(--accent); color: var(--accent-ink); }
+.sidebar-update.ready:hover { background: var(--accent-hover); color: var(--accent-ink); }
+.sidebar-update-ring { transform: rotate(-90deg); }
+.sidebar-update-ring circle { fill: none; stroke-width: 2; }
+.sidebar-update-ring-track { stroke: var(--accent-line); }
+.sidebar-update-ring-fill { stroke: var(--accent-soft); stroke-linecap: round; transition: stroke-dashoffset 300ms ease; }
+@keyframes sidebar-update-in { from { opacity: 0; transform: scale(0.92); } }
+@media (prefers-reduced-motion: reduce) { .sidebar-update { animation: none; } .sidebar-update-ring-fill { transition: none; } }
+
 .workspace {
   position: relative;
   min-width: 0;

@@ -67,7 +67,6 @@ for (const platform of ["darwin", "linux"] as const) {
     });
     await waitFor(() => main.appListeners.has("activate"));
     main.app.isPackaged = true;
-    main.dialog.showMessageBox = async () => ({ response: 0 });
     const appImage = process.env.APPIMAGE;
     process.env.APPIMAGE = "/tmp/AI-Coding-Tool.AppImage";
     try {
@@ -78,6 +77,7 @@ for (const platform of ["darwin", "linux"] as const) {
     }
     await waitFor(() => updater.listenerCount("update-downloaded") === 1);
     updater.emit("update-downloaded", { version: "0.4.13" });
+    onPlatform(platform, () => main.desktop.installUpdate());
     await waitFor(() => installs === 1);
     assert.equal(main.completedQuits(), 0);
 

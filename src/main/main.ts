@@ -136,6 +136,7 @@ const updateHost: UpdateHost = {
   window: () => window,
   onInstall: () => { updateRestartScheduled = true; },
   onChecking: setUpdateChecking,
+  onState: (update) => { events.emit("update:changed", update); },
 };
 
 let engineAccess: Promise<EngineAccessHost> | null = null;

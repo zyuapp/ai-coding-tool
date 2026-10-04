@@ -4,6 +4,7 @@ import type { AgentEvent, AutomationFire, BrowserFindEvent, BrowserPageEvent } f
 import type { ComputerLink } from "../domain/computers.js";
 import type { MobileRequest } from "../contracts/mobile.js";
 import type { ThreadRequest } from "../contracts/threads.js";
+import type { AppUpdate } from "../domain/app-update.js";
 import type { AutomationView } from "../domain/automation.js";
 import type { MobileServerState } from "../domain/mobile.js";
 import type { TerminalUpdate } from "../domain/terminal.js";
@@ -16,6 +17,7 @@ export type DesktopEventMap = {
   "automation:changed": AutomationView[];
   "thread:request": ThreadRequest;
   "mobile:changed": MobileServerState;
+  "update:changed": AppUpdate;
   "mobile:request": MobileRequest;
   "browser:event": BrowserPageEvent;
   "browser:find": BrowserFindEvent;

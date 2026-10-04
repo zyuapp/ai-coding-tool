@@ -47,6 +47,13 @@ export type FakeDesktop = DesktopAPI & {
   captureShortcut: (binding: string | null) => void;
 };
 
+const updateDesktop = {
+  appUpdate: async () => ({ status: "idle" }) as const,
+  onAppUpdate: () => () => {},
+  downloadUpdate: () => {},
+  installUpdate: () => {},
+} satisfies Partial<DesktopAPI>;
+
 const gitDesktop = {
     changedFiles: async () => ({ status: "available", files: [], branch: "main", baseline: null, additions: 0, deletions: 0 }),
     branches: async () => ({ status: "available", branches: ["main", "fix-loader", "feature-x"], remotes: ["origin/main"], current: "main" }),
@@ -82,7 +89,7 @@ export function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
   const threadAnswers: ThreadResponse[] = [];
   let unsubscribed = false;
   const api: DesktopAPI = {
-    ...gitDesktop, ...mobileDesktopStub, ...engineDesktopStub, openFolder: async () => null,
+    ...gitDesktop, ...updateDesktop, ...mobileDesktopStub, ...engineDesktopStub, openFolder: async () => null,
     directories: async () => [],
     registerProject: async (root) => ({ id: root, kind: "project", root }),
     onOpenProject: (next) => { openProject = next; return () => {}; },

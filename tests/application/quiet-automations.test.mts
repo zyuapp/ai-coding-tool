@@ -697,6 +697,7 @@ function sidebar(overrides: Partial<ProjectSidebarProps> = {}) {
     onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
     onSelectThread() {}, onArchiveThread() {}, onRenameThread() {}, onDismissThread() {}, onSnoozeThread() {}, onDismissAll() {},
     onMoveThread() {}, onForkThread() {}, onSetThreadRole() {}, onMoveProject() {}, onOpenSettings() {},
+    appUpdate: { status: "idle" }, onDownloadUpdate() {}, onInstallUpdate() {},
     ...overrides,
   });
 }

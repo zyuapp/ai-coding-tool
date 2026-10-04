@@ -1,6 +1,6 @@
 import { memo, useLayoutEffect, useMemo, useRef } from "react";
 import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
-import { LuPlus as Plus, LuSettings as Settings } from "react-icons/lu";
+import { LuPlus as Plus } from "react-icons/lu";
 import type { Project, ThreadDropTarget } from "../../domain/project";
 import { hasUnreadAttention } from "../../domain/attention";
 import type { Thread } from "../../domain/thread";
@@ -16,6 +16,8 @@ import { PROJECT_DRAG, RECENTS_DROPPABLE, SidebarProjects, useShownThreads } fro
 import { decisionCount, useThreadRows, type SidebarCoordination } from "./SidebarThreadRow";
 import type { SnoozeHours } from "../../domain/thread-snooze";
 import type { ThreadRole } from "../../domain/thread-role";
+import type { AppUpdate } from "../../domain/app-update";
+import { SidebarFooter } from "./SidebarFooter";
 
 export type ProjectSidebarProps = {
   open: boolean;
@@ -79,6 +81,9 @@ export type ProjectSidebarProps = {
   sidebarCoordination: SidebarCoordination;
   onMoveProject: (projectId: string, index: number) => void;
   onOpenSettings: () => void;
+  appUpdate: AppUpdate;
+  onDownloadUpdate: () => void;
+  onInstallUpdate: () => void;
 };
 
 /**
@@ -181,6 +186,9 @@ export const ProjectSidebar = memo(function ProjectSidebar({
   sidebarCoordination,
   onMoveProject,
   onOpenSettings,
+  appUpdate,
+  onDownloadUpdate,
+  onInstallUpdate,
 }: ProjectSidebarProps) {
   const selectedComputer = computerLinks.find((link) => link.id === computerFilter);
   const list = useRef<HTMLElement>(null);
@@ -278,10 +286,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
           onRemoveProject={onRemoveProject}
         />}
       </div>
-      <button className={`sidebar-settings ${settingsOpen ? "active" : ""}`} type="button" aria-pressed={settingsOpen} onClick={onOpenSettings}>
-        <Settings size={17} aria-hidden="true" />
-        <span>Settings</span>
-      </button>
+      <SidebarFooter settingsOpen={settingsOpen} onOpenSettings={onOpenSettings} update={appUpdate} onDownloadUpdate={onDownloadUpdate} onInstallUpdate={onInstallUpdate} />
       <SidebarResizer />
     </aside>
     </DragDropContext>

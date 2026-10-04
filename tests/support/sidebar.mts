@@ -57,6 +57,7 @@ export function renderProjectSidebar(overrides: Partial<ProjectSidebarProps>) {
     onMoveThread() {}, onForkThread() {}, onSetThreadRole() {},
     onMoveProject() {},
     onOpenSettings() {},
+    appUpdate: { status: "idle" }, onDownloadUpdate() {}, onInstallUpdate() {},
     ...overrides,
   });
 }

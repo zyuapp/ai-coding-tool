@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import type { BrowserWindow } from "electron";
+import type { AppUpdate } from "../../src/domain/app-update.ts";
 import { beforeEach, test, vi } from "vitest";
 
 type MenuItem = { id?: string; label?: string; enabled?: boolean; click?: () => void; submenu?: MenuItem[] };
@@ -35,15 +36,20 @@ async function fixture() {
   let resolve!: (value: { isUpdateAvailable: boolean } | null) => void;
   let reject!: (error: Error) => void;
   const pending = new Promise<{ isUpdateAvailable: boolean } | null>((yes, no) => { resolve = yes; reject = no; });
-  const updater = Object.assign(new EventEmitter(), { checkForUpdates: vi.fn(() => pending) });
+  const updater = Object.assign(new EventEmitter(), {
+    checkForUpdates: vi.fn(() => pending),
+    downloadUpdate: vi.fn(async () => []),
+    quitAndInstall: vi.fn(),
+  });
   stub.updater = updater;
-  const { checkForUpdates } = await import("../../src/main/updates.ts");
+  const { checkForUpdates, downloadUpdate, installUpdate } = await import("../../src/main/updates.ts");
   const { installAppMenu, setUpdateChecking } = await import("../../src/main/app-menu.ts");
-  const host = { window: () => ({ isDestroyed: () => false }) as BrowserWindow, onInstall() {}, onChecking: setUpdateChecking };
+  const states: AppUpdate[] = [];
+  const host = { window: () => ({ isDestroyed: () => false }) as BrowserWindow, onInstall: vi.fn(), onChecking: setUpdateChecking, onState: (update: AppUpdate) => { states.push(update); } };
   const manual: Promise<void>[] = [];
   installAppMenu({ onCheckForUpdates: () => { manual.push(checkForUpdates(host, { userRequested: true })); }, onOpenSourceLicenses() {} });
   const menu = stub.menu.flatMap((item) => item.submenu ?? []).find((item) => item.id === "app.check-for-updates")!;
-  return { updater, resolve, reject, checkForUpdates, host, menu, manual };
+  return { updater, resolve, reject, checkForUpdates, downloadUpdate, installUpdate, host, states, menu, manual };
 }
 
 for (const outcome of ["current", "available", "error", "unavailable"] as const) {
@@ -67,8 +73,9 @@ for (const outcome of ["current", "available", "error", "unavailable"] as const)
       f.resolve(outcome === "unavailable" ? null : { isUpdateAvailable: outcome === "available" });
     }
     await Promise.all([background, ...f.manual]);
-    const title = outcome === "current" ? "No update available" : outcome === "available" ? "Update available" : "Update check failed";
-    assert.deepEqual(stub.dialogs.map((dialog) => dialog.title), [title]);
+    const titles = outcome === "current" ? ["No update available"] : outcome === "available" ? [] : ["Update check failed"];
+    assert.deepEqual(stub.dialogs.map((dialog) => dialog.title), titles);
+    assert.equal(f.updater.downloadUpdate.mock.calls.length, outcome === "available" ? 1 : 0, "a check the user asked for downloads what it finds");
     assert.equal(f.menu.label, "Check for Updates…");
     assert.equal(f.menu.enabled, true);
   });
@@ -107,4 +114,51 @@ test("update errors show a short recovery message and keep raw HTTP diagnostics 
   } finally {
     log.mockRestore();
   }
+});
+
+test("a background check offers the update, and the download reports progress until it is ready to install", async () => {
+  const f = await fixture();
+  const background = f.checkForUpdates(f.host);
+  await vi.waitFor(() => assert.equal(f.updater.checkForUpdates.mock.calls.length, 1));
+  f.updater.emit("update-available", { version: "0.5.10" });
+  f.resolve({ isUpdateAvailable: true });
+  await background;
+  assert.deepEqual(f.states, [{ status: "available", version: "0.5.10" }]);
+  assert.equal(stub.dialogs.length, 0);
+  assert.equal(f.updater.downloadUpdate.mock.calls.length, 0);
+
+  f.installUpdate(f.host);
+  assert.equal(f.updater.quitAndInstall.mock.calls.length, 0, "nothing installs before it has downloaded");
+
+  const download = f.downloadUpdate(f.host);
+  f.updater.emit("download-progress", { percent: 41.2 });
+  f.updater.emit("download-progress", { percent: 41.8 });
+  f.updater.emit("update-downloaded", { version: "0.5.10" });
+  await download;
+  assert.deepEqual(f.states.slice(1), [
+    { status: "downloading", version: "0.5.10", percent: 0 },
+    { status: "downloading", version: "0.5.10", percent: 41 },
+    { status: "ready", version: "0.5.10" },
+  ]);
+
+  f.installUpdate(f.host);
+  assert.equal(f.host.onInstall.mock.calls.length, 1);
+  assert.deepEqual(f.updater.quitAndInstall.mock.calls, [[false, true]]);
+});
+
+test("a failed download offers the update again", async () => {
+  const f = await fixture();
+  const background = f.checkForUpdates(f.host);
+  await vi.waitFor(() => assert.equal(f.updater.checkForUpdates.mock.calls.length, 1));
+  f.updater.emit("update-available", { version: "0.5.10" });
+  f.resolve({ isUpdateAvailable: true });
+  await background;
+  f.updater.downloadUpdate.mockRejectedValueOnce(new Error("Network unavailable"));
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    await f.downloadUpdate(f.host);
+  } finally {
+    log.mockRestore();
+  }
+  assert.deepEqual(f.states.at(-1), { status: "available", version: "0.5.10" });
 });

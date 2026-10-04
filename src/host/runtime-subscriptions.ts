@@ -78,6 +78,10 @@ export function subscribeWorkspaceRuntime(host: RuntimeSubscriptionHost) {
     };
   });
   listen(() => subscribeToMobile(host, desktop));
+  listen(() => {
+    void desktop.appUpdate().then((update) => host.dispatch({ type: "app.update-changed", update })).catch(() => undefined);
+    return desktop.onAppUpdate((update) => void host.dispatch({ type: "app.update-changed", update }));
+  });
   listen(() => desktop.onBrowserEvent((page) => void host.dispatch({ type: "browser.updated", page })));
   listen(() => desktop.onTerminalEvent((update) => void host.dispatch({ type: "terminal.updated", update })));
   listen(() => desktop.onBrowserFind(({ tabId, matches, index }) => void host.dispatch({

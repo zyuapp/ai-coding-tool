@@ -69,6 +69,9 @@ export function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
       onSetThreadRole={workspace.actions.setThreadRole}
       sidebarCoordination={sidebarCoordination}
       onOpenSettings={onOpenSettings}
+      appUpdate={workspace.appUpdate}
+      onDownloadUpdate={workspace.actions.downloadUpdate}
+      onInstallUpdate={workspace.actions.installUpdate}
     />
   );
 }

@@ -105,6 +105,22 @@ test("application help actions ask the desktop without changing workspace state"
   assert.deepEqual(licenses.effects, [{ type: "app.open-source-licenses" }]);
 });
 
+test("the update main reports is the only thing that writes it, and each step asks only from the stage it belongs to", () => {
+  const idle = workspace();
+  assert.deepEqual(reduce(idle, { type: "app.download-update" }).effects, []);
+
+  const available = reduce(idle, { type: "app.update-changed", update: { status: "available", version: "1.0.0" } }).state;
+  assert.deepEqual(available.appUpdate, { status: "available", version: "1.0.0" });
+  const download = reduce(available, { type: "app.download-update" });
+  assert.equal(download.state, available);
+  assert.deepEqual(download.effects, [{ type: "app.download-update" }]);
+  assert.deepEqual(reduce(available, { type: "app.install-update" }).effects, []);
+
+  const ready = reduce(available, { type: "app.update-changed", update: { status: "ready", version: "1.0.0" } }).state;
+  assert.deepEqual(reduce(ready, { type: "app.download-update" }).effects, []);
+  assert.deepEqual(reduce(ready, { type: "app.install-update" }).effects, [{ type: "app.install-update" }]);
+});
+
 test("what a shell reports is the only thing that writes the terminal record, and its output is never state", () => {
   const opened = reduce(workspace({ lastFolder: "/repo" }), { type: "terminal.open" });
   const [terminal] = dock(opened.state).terminals;

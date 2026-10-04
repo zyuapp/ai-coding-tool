@@ -1,6 +1,7 @@
 import { app, dialog, shell, type BrowserWindow } from "electron";
 import type { AppUpdater } from "electron-updater";
 import { homedir } from "node:os";
+import { NO_APP_UPDATE, type AppUpdate } from "../domain/app-update.js";
 import { registerAppImageUpdateRepair } from "./appimage-update.js";
 import { automaticUpdatesAvailable, manualUpdateRecovery } from "./platform-capabilities.js";
 
@@ -12,13 +13,13 @@ export type UpdateHost = {
   /** Told before the app quits to install, so the shutdown is not read as a restart request. */
   onInstall: () => void;
   onChecking?: (checking: boolean) => void;
+  onState: (update: AppUpdate) => void;
 };
 
 let updater: AppUpdater | null = null;
 type UpdateCheck = { promise: Promise<void>; userRequested: boolean; pending: boolean };
 let checking: UpdateCheck | null = null;
-/** An update the user put off, offered again the next time they ask rather than downloaded twice. */
-let downloadedVersion: string | null = null;
+let state: AppUpdate = NO_APP_UPDATE;
 /** A failed background check stays in the log; one the user asked for is theirs to hear about. */
 let announceFailure = false;
 
@@ -35,13 +36,28 @@ async function updaterFor(host: UpdateHost) {
     // that never emit an updater event. Download/install errors still arrive here.
     if (!checking?.pending && announceFailure) void reportUpdateFailure(host.window(), error);
   });
-  autoUpdater.on("update-available", ({ version }) => void offerDownload(host, version));
-  autoUpdater.on("update-downloaded", ({ version }) => {
-    downloadedVersion = version;
-    void offerInstall(host, version);
+  autoUpdater.on("update-available", ({ version }) => {
+    /** A check after the download has started finds the same version again. */
+    if (state.status === "downloading" || state.status === "ready") return;
+    setState(host, { status: "available", version });
+    if (checking?.userRequested) void downloadUpdate(host);
   });
+  autoUpdater.on("download-progress", ({ percent }) => {
+    const whole = Math.min(100, Math.floor(percent));
+    if (state.status === "downloading" && whole !== state.percent) setState(host, { ...state, percent: whole });
+  });
+  autoUpdater.on("update-downloaded", ({ version }) => setState(host, { status: "ready", version }));
   updater = autoUpdater;
   return autoUpdater;
+}
+
+function setState(host: UpdateHost, next: AppUpdate) {
+  state = next;
+  host.onState(next);
+}
+
+export function appUpdate() {
+  return state;
 }
 
 export async function checkForUpdates(host: UpdateHost, options: { userRequested?: boolean } = {}) {
@@ -54,7 +70,7 @@ export async function checkForUpdates(host: UpdateHost, options: { userRequested
     if (userRequested) await reportManualLinuxUpdates(host.window());
     return;
   }
-  if (userRequested && downloadedVersion) return offerInstall(host, downloadedVersion);
+  if (userRequested && state.status === "ready") return offerInstall(host, state.version);
   if (checking) {
     if (userRequested && !checking.userRequested) {
       checking.userRequested = true;
@@ -88,22 +104,22 @@ export async function checkForUpdates(host: UpdateHost, options: { userRequested
   return check.promise;
 }
 
-async function offerDownload(host: UpdateHost, version: string) {
-  const window = host.window();
-  if (!window || window.isDestroyed()) return;
-  const result = await dialog.showMessageBox(window, {
-    type: "info",
-    title: "Update available",
-    message: `AI Coding Tool ${version} is available.`,
-    detail: "Download it now? You can keep working while it downloads.",
-    buttons: ["Download update", "Later"],
-    defaultId: 0,
-    cancelId: 1,
-  });
-  if (result.response !== 0) return;
+/** Downloads the update a check found. A failed download offers it again. */
+export async function downloadUpdate(host: UpdateHost) {
+  if (state.status !== "available" || !updater) return;
+  const { version } = state;
   announceFailure = true;
-  const active = updater;
-  if (active) await active.downloadUpdate().catch((error) => console.error("Update download failed:", error));
+  setState(host, { status: "downloading", version, percent: 0 });
+  await updater.downloadUpdate().catch((error) => {
+    console.error("Update download failed:", error);
+    if (state.status === "downloading") setState(host, { status: "available", version });
+  });
+}
+
+export function installUpdate(host: UpdateHost) {
+  if (state.status !== "ready") return;
+  host.onInstall();
+  updater?.quitAndInstall(false, true);
 }
 
 async function offerInstall(host: UpdateHost, version: string) {
@@ -118,9 +134,7 @@ async function offerInstall(host: UpdateHost, version: string) {
     defaultId: 0,
     cancelId: 1,
   });
-  if (result.response !== 0) return;
-  host.onInstall();
-  updater?.quitAndInstall(false, true);
+  if (result.response === 0) installUpdate(host);
 }
 
 async function reportUpToDate(window: BrowserWindow | null) {

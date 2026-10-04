@@ -321,6 +321,10 @@ export type ExternalAppCommand =
   | { type: "app.open-folder"; appId: string }
   /** Asks the updater to look now, from the notice about threads a newer version wrote. */
   | { type: "app.check-for-updates" }
+  /** Downloads the newer build a check found. */
+  | { type: "app.download-update" }
+  /** Quits and installs the downloaded build. */
+  | { type: "app.install-update" }
   /** Opens the notices shipped with this exact build in the system text viewer. */
   | { type: "app.open-source-licenses" };
 

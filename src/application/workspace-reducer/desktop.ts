@@ -11,7 +11,7 @@ import { terminalTitle, type TerminalSession } from "../../domain/terminal.js";
 import { DOCK_PICKER } from "../workspace-dock.js";
 
 type DesktopInput = Extract<WorkspaceInput, {
-  type: "image.open" | "image.close" | "image.download" | "file.open" | "app.list" | "apps.listed" | "app.open-folder" | "app.check-for-updates" | "app.open-source-licenses" | "terminal.open" | "terminal.select" | "terminal.close"
+  type: "image.open" | "image.close" | "image.download" | "file.open" | "app.list" | "apps.listed" | "app.open-folder" | "app.check-for-updates" | "app.download-update" | "app.install-update" | "app.update-changed" | "app.open-source-licenses" | "terminal.open" | "terminal.select" | "terminal.close"
     | "terminal.input" | "terminal.resize" | "terminal.updated" | "view.closed" | "view.mounted";
 }>;
 
@@ -66,6 +66,16 @@ export function reduceDesktop(state: WorkspaceState, input: DesktopInput): Works
 
     case "app.check-for-updates":
       return settled(state, [{ type: "app.check-for-updates" }]);
+
+    /** Main answers with the stage it moved to, so neither command writes the update itself. */
+    case "app.download-update":
+      return settled(state, state.appUpdate.status === "available" ? [{ type: "app.download-update" }] : []);
+
+    case "app.install-update":
+      return settled(state, state.appUpdate.status === "ready" ? [{ type: "app.install-update" }] : []);
+
+    case "app.update-changed":
+      return settled({ ...state, appUpdate: input.update });
 
     case "app.open-source-licenses":
       return settled(state, [{ type: "app.open-source-licenses" }]);

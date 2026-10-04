@@ -7,6 +7,7 @@ import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type Automa
 import type { BrowserRead, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
 import type { BrowserAction, BrowserPermissions, BrowserBounds, BrowserInspection, BrowserInspectionResult, BrowserShot, BrowserSnapshot } from "../domain/browser.js";
 import type { BrowserImportResult, BrowserImportSite, BrowserImportSource } from "../domain/browser-import.js";
+import type { AppUpdate } from "../domain/app-update.js";
 import type { CaptureOptions } from "../domain/capture.js";
 import { isUsageLimit, type UsageLimit } from "../domain/usage-limit.js";
 import type { ComputerUsePermission, ComputerUsePermissions, ComputerUseRunConfig } from "../domain/computer-use.js";
@@ -277,6 +278,12 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   /** Upgrades the engine's command the way the user installed it, and answers with the status after it. */
   updateEngine(engine: AgentEngine): Promise<EngineStatus>;
   checkForUpdates(): void;
+  /** Where a newer build stands, and each change to it from then on. */
+  appUpdate(): Promise<AppUpdate>;
+  onAppUpdate(listener: (update: AppUpdate) => void): () => void;
+  downloadUpdate(): void;
+  /** Quits and installs the downloaded update. */
+  installUpdate(): void;
   openSourceLicenses(): Promise<void>;
   loadTaskStore(): Promise<LoadedTaskStore | null>;
   loadThreadMessages(taskId: string): Promise<import("../domain/conversation.js").ConversationMessage[]>;

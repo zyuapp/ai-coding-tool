@@ -340,6 +340,8 @@ const commands = {
   "file.recall": { fields: { taskId: optionalText, files: array(attachedFile) }, at: "local" },
   "app.open-folder": { fields: { appId: text }, at: "own" },
   "app.check-for-updates": { fields: {}, at: "local" },
+  "app.download-update": { fields: {}, at: "local" },
+  "app.install-update": { fields: {}, at: "local" },
   "app.open-source-licenses": { fields: {}, at: "local" },
   "terminal.open": { fields: { cwd: optionalText }, at: "thread" },
   "terminal.select": { fields: { terminalId: text }, at: "terminal" },

@@ -1,3 +1,4 @@
+import { NO_APP_UPDATE } from "../domain/app-update.js";
 import { noComputers } from "../host/no-computers.js";
 import type { RuntimeDesktop } from "../host/runtime-desktop.js";
 import type * as MobileHost from "./mobile/mobile-host.mjs" with { "resolution-mode": "import" };
@@ -24,6 +25,10 @@ function headlessDesktop(host: ServeDesktopHost) {
     restartForComputerUse: nothing,
     downloadImage: needsDesktop("Saving an image"),
     checkForUpdates: nothing,
+    appUpdate: async () => NO_APP_UPDATE,
+    onAppUpdate: unsubscribed,
+    downloadUpdate: nothing,
+    installUpdate: nothing,
     openSourceLicenses: needsDesktop("The licenses page"),
     mobileState: async () => host.mobile().mobileState(),
     setMobileEnabled: (enabled) => host.mobile().setMobileEnabled(enabled),

@@ -10,7 +10,7 @@ import { mobileBridge } from "./mobile/bridge.js";
 import { listInstalledApps, openFolderInApp } from "./open-in-app.js";
 import { openInEditor } from "./open-in-editor.js";
 import { serviceDesktop, type ServiceDesktopHost } from "./service-desktop.js";
-import { checkForUpdates, type UpdateHost } from "./updates.js";
+import { appUpdate, checkForUpdates, downloadUpdate, installUpdate, type UpdateHost } from "./updates.js";
 import * as browser from "./browser-host.js";
 import { importBrowserSites, listImportSites, listImportSources } from "./browser-import.js";
 
@@ -93,6 +93,10 @@ function windowDesktop(host: RuntimeDesktopHost) {
       await downloadImage(window, source);
     },
     checkForUpdates: () => { void checkForUpdates(host.updates, { userRequested: true }).catch((error) => console.error("Update check failed:", error)); },
+    appUpdate: async () => appUpdate(),
+    onAppUpdate: (listener) => events.on("update:changed", listener),
+    downloadUpdate: () => { void downloadUpdate(host.updates); },
+    installUpdate: () => installUpdate(host.updates),
     openSourceLicenses: () => openSourceLicenses(host.window()),
     mobileState: () => mobileBridge.state(),
     setMobileEnabled: (enabled) => mobileBridge.setEnabled(enabled),
