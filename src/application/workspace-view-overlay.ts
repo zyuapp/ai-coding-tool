@@ -2,6 +2,7 @@ import { annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-draft
 import { promptKey, type OwnWorkspaceView, type SideChatView, type ThreadTabView, type WorkspaceState } from "./workspace-state.js";
 import { heldViews } from "./view-reuse.js";
 import type { WorktreeMenuState } from "./worktree-menu.js";
+import type { OverviewFolds } from "../domain/coordination.js";
 
 /**
  * Everything the window paints from its own state whichever computer's thread is on screen: the
@@ -22,6 +23,7 @@ const OWN_VIEW_KEYS = [
 type OwnView = Pick<OwnWorkspaceView, (typeof OWN_VIEW_KEYS)[number]>;
 
 const reusedSideChats = heldViews<SideChatView>();
+const NO_OVERVIEW_FOLDS: OverviewFolds = {};
 const reusedThreadTabs = heldViews<ThreadTabView>();
 
 /** Main and side composers both read the drafts typed in this window. */
@@ -54,7 +56,7 @@ export function overlaidView(state: WorkspaceState, own: OwnWorkspaceView, remot
     find: own.find?.target.kind === "terminal" ? own.find : shown.find?.target.kind === "terminal" ? null : shown.find,
     readingPoint: shown.currentThread ? state.readingPoints[shown.currentThread.id] ?? null : null,
     /** Folding an Overview is this window's own view of the coordinator, wherever the coordinator runs. */
-    overviewFolds: shown.currentThread ? state.overviewFolds[shown.currentThread.id] ?? shown.overviewFolds : shown.overviewFolds,
+    overviewFolds: (shown.currentThread ? state.overviewFolds[shown.currentThread.id] : undefined) ?? NO_OVERVIEW_FOLDS,
     /** Browser surfaces still belong to the host's native window. */
     browserTabs: [],
     browserApproval: null,

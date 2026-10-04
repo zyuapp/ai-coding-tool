@@ -696,3 +696,13 @@ test("streaming updates preserve the capability context while discovery and conn
   const refreshed = snapshot({ ...computers, paired: [{ ...computer, capabilities: [] }] });
   assert.notEqual(refreshed, first);
 });
+
+test("a paired computer's coordinator folds its Overview in this window, from this window's defaults", () => {
+  const remote = { ...remoteState, overviewFolds: { "remote-thread": { done: { open: true } } } };
+  let state = withComputers(workspace(), [paired("linux", remote)], { active: "linux" });
+  assert.deepEqual(deriveView(state).overviewFolds, {}, "the host's folds belong to its own window");
+  const folded = reduce(state, { type: "view.set-overview-group", taskId: "remote-thread", group: "working", all: true });
+  assert.equal(folded.effects.some((effect) => effect.type === "computer.forward"), false, "folding stays local");
+  state = folded.state;
+  assert.deepEqual(deriveView(state).overviewFolds, { working: { all: true } });
+});
