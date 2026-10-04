@@ -207,3 +207,27 @@ test("a download the menu check started reports its failure while the check is s
   assert.deepEqual(f.states.at(-1), { status: "available", version: "0.5.10" });
   assert.deepEqual(stub.dialogs.map((dialog) => dialog.title), ["Update failed"]);
 });
+
+test("a macOS failure after the download reports, but before the call settles, is reported once and offers the update again", async () => {
+  const f = await fixture();
+  const background = f.checkForUpdates(f.host);
+  await vi.waitFor(() => assert.equal(f.updater.checkForUpdates.mock.calls.length, 1));
+  f.updater.emit("update-available", { version: "0.5.10" });
+  f.resolve({ isUpdateAvailable: true });
+  await background;
+  const error = new Error("Code signature did not pass validation");
+  f.updater.downloadUpdate.mockImplementationOnce(async () => {
+    f.updater.emit("update-downloaded", { version: "0.5.10" });
+    f.updater.emit("error", error);
+    f.updater.emit("error", error);
+    throw error;
+  });
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    await f.downloadUpdate(f.host);
+  } finally {
+    log.mockRestore();
+  }
+  assert.deepEqual(f.states.at(-1), { status: "available", version: "0.5.10" });
+  assert.deepEqual(stub.dialogs.map((dialog) => dialog.title), ["Update failed"]);
+});

@@ -20,6 +20,8 @@ let updater: AppUpdater | null = null;
 type UpdateCheck = { promise: Promise<void>; userRequested: boolean; pending: boolean };
 let checking: UpdateCheck | null = null;
 let state: AppUpdate = NO_APP_UPDATE;
+/** Until the download call settles, which on macOS is after `update-downloaded` fires. */
+let downloading = false;
 /** A failed background check stays in the log; one the user asked for is theirs to hear about. */
 let announceFailure = false;
 
@@ -35,7 +37,7 @@ async function updaterFor(host: UpdateHost) {
     // Check failures are reported by the shared promise, including setup failures
     // that never emit an updater event, and download failures by `downloadUpdate`.
     // Install errors still arrive here.
-    if (state.status === "downloading") return;
+    if (downloading) return;
     if (!checking?.pending && announceFailure) void reportUpdateFailure(host.window(), error);
   });
   autoUpdater.on("update-available", ({ version }) => {
@@ -112,11 +114,14 @@ export async function downloadUpdate(host: UpdateHost) {
   const { version } = state;
   announceFailure = true;
   setState(host, { status: "downloading", version, percent: 0 });
+  downloading = true;
   try {
     await updater.downloadUpdate();
   } catch (error) {
     setState(host, { status: "available", version });
     await reportUpdateFailure(host.window(), error instanceof Error ? error : new Error(String(error)));
+  } finally {
+    downloading = false;
   }
 }
 
