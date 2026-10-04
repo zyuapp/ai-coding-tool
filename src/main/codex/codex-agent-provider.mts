@@ -1,5 +1,5 @@
 import type { Continuation } from "../../domain/run.js";
-import { continuationOf, type AgentProvider, type ProviderResult, type ProviderRunInput } from "../agent/agent-provider.mjs";
+import type { AgentProvider, ProviderResult, ProviderRunInput } from "../agent/agent-provider.mjs";
 import { grantsTool } from "../agent/approval-grant.mjs";
 import { SessionPool } from "../agent/session-pool.mjs";
 import { McpHttpHost, type ToolHost } from "../tools/mcp-http-host.mjs";
@@ -53,7 +53,7 @@ export class CodexAgentProvider implements AgentProvider {
   private readonly pool: SessionPool;
   private readonly readOrigin: ReadOrigin;
   private readonly imageOutput: ImageOutput;
-  /** The last filing asked of each Codex thread, so an archive and a restore land in the order given. */
+  /** The last filing asked of each thread, so an archive and a restore land in the order given and a run waits for both. */
   private readonly filings = new Map<string, Promise<void>>();
 
   constructor(options: CodexProviderOptions = {}) {
@@ -66,8 +66,7 @@ export class CodexAgentProvider implements AgentProvider {
 
   async execute(input: ProviderRunInput): Promise<ProviderResult> {
     /** A thread still being filed away or brought back is held by that filing until it lands. */
-    const continuation = continuationOf(input);
-    await (continuation ? this.filings.get(continuation) : undefined);
+    await this.filings.get(input.taskId);
     const key = sessionKey(input);
     return this.pool.execute(input, key, { open: ({ ended, rested }) => new CodexSession(key, this.connect, this.host, ended, rested, this.readOrigin, this.imageOutput) });
   }
@@ -97,8 +96,7 @@ export class CodexAgentProvider implements AgentProvider {
     if (continuation && continuation.provider !== "codex") return false;
     const session = this.pool.liveSession(taskId);
     if (!continuation && !(archived && session instanceof CodexSession)) return false;
-    const key = continuation?.value ?? taskId;
-    const previous = this.filings.get(key) ?? Promise.resolve();
+    const previous = this.filings.get(taskId) ?? Promise.resolve();
     const filing = previous
       .then(() => archived ? this.pool.retire(taskId) : undefined)
       .then(() => {
@@ -106,8 +104,8 @@ export class CodexAgentProvider implements AgentProvider {
         return threadId ? fileThread(this.connect, threadId, archived) : undefined;
       })
       .catch(() => {})
-      .finally(() => { if (this.filings.get(key) === filing) this.filings.delete(key); });
-    this.filings.set(key, filing);
+      .finally(() => { if (this.filings.get(taskId) === filing) this.filings.delete(taskId); });
+    this.filings.set(taskId, filing);
     return true;
   }
 

@@ -182,3 +182,31 @@ test("a thread archived before Codex named it to the app is filed under the name
   assert.equal(codex.provider.archiveThread("task-1", undefined, false), false, "nothing named to bring back");
   codex.provider.closeAll();
 });
+
+test("a run after archiving a thread Codex had yet to name waits for that filing too", async () => {
+  let letArchive = () => {};
+  const held = new Promise<void>((resolve) => { letArchive = resolve; });
+  const codex = harness({ "thread/archive": async () => { await held; return {}; } });
+  await turn(codex);
+
+  codex.provider.archiveThread("task-1", undefined, true);
+  for (let waited = 0; codex.clients.length < 2; waited += 1) {
+    if (waited > 100) throw new Error("no archiving server was opened");
+    await tick();
+  }
+  await sentBy(codex.latest(), "thread/archive");
+  const running = codex.provider.execute(input());
+  for (let waited = 0; waited < 20; waited += 1) await tick();
+  assert.equal(codex.clients.length, 2, "no session opens while the filing is pending");
+
+  letArchive();
+  for (let waited = 0; codex.clients.length < 3; waited += 1) {
+    if (waited > 100) throw new Error("the run never opened its session");
+    await tick();
+  }
+  const session = codex.latest();
+  await sentBy(session, "turn/start");
+  completeTurn(session);
+  assert.deepEqual(await running, { status: "succeeded" });
+  codex.provider.closeAll();
+});
