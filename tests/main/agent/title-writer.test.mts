@@ -24,8 +24,8 @@ function queryFactory(messages: readonly unknown[], capture: QueryCapture = {}):
   };
 }
 
-function result(text: string) {
-  return [{ type: "result", subtype: "success", is_error: false, result: text }];
+function result(title: string) {
+  return [{ type: "result", subtype: "success", is_error: false, result: JSON.stringify({ title }), structured_output: { title } }];
 }
 
 test("naming a thread reaches nothing on the machine and returns a clean title", async () => {
@@ -38,6 +38,7 @@ test("naming a thread reaches nothing on the machine and returns a clean title",
   assert.equal(capture.options.cwd, os.tmpdir());
   assert.deepEqual(capture.options.settingSources, []);
   assert.deepEqual(capture.options.tools, []);
+  assert.equal(capture.options.outputFormat?.type, "json_schema");
   assert.equal(typeof capture.options.systemPrompt, "string", "a string prompt replaces the Claude Code preset");
   assert.equal(capture.options.mcpServers, undefined);
   assert.equal(capture.options.maxTurns, 1);
@@ -58,6 +59,7 @@ test("a thread keeps the title it already has when naming produces nothing", asy
   assert.equal(await suggestTaskTitle("hi", [], queryFactory(result("  "))), null);
   assert.equal(await suggestTaskTitle("hi", [], queryFactory([{ type: "result", subtype: "error_during_execution", errors: ["nope"] }])), null);
   assert.equal(await suggestTaskTitle("hi", [], queryFactory([])), null);
+  assert.equal(await suggestTaskTitle("hi", [], queryFactory([{ type: "result", subtype: "success", is_error: false, result: "I don't have access to your previous chat threads" }])), null);
   assert.equal(await suggestTaskTitle("hi", [], () => ({
     async *[Symbol.asyncIterator]() { throw new Error("agent is unavailable"); },
     close() {},

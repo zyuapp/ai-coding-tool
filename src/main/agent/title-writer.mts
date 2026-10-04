@@ -2,7 +2,7 @@ import { query, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { claudeExecutable } from "./claude-agent-provider.mjs";
-import { IMAGE_BYTE_LIMIT, TITLE_INSTRUCTIONS, cleanTitle, readableImages, titleQuestion } from "./title-text.mjs";
+import { IMAGE_BYTE_LIMIT, TITLE_INSTRUCTIONS, TITLE_SCHEMA, readableImages, titleOf, titleQuestion } from "./title-text.mjs";
 
 type QueryFactory = typeof query;
 type ImageBlock = { type: "image"; source: { type: "base64"; media_type: "image/png"; data: string } };
@@ -41,13 +41,14 @@ export async function suggestTaskTitle(text: string, attachments: string[] = [],
       settingSources: [],
       systemPrompt: TITLE_INSTRUCTIONS,
       tools: [],
+      outputFormat: { type: "json_schema", schema: TITLE_SCHEMA },
       maxTurns: 1,
     },
   });
   try {
     for await (const message of session) {
       if (message.type !== "result") continue;
-      return message.subtype === "success" && !message.is_error ? cleanTitle(message.result) || null : null;
+      return message.subtype === "success" && !message.is_error ? titleOf(message.structured_output) : null;
     }
     return null;
   } catch {

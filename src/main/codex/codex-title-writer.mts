@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { TITLE_INSTRUCTIONS, cleanTitle, readableImages, titleQuestion } from "../agent/title-text.mjs";
+import { TITLE_INSTRUCTIONS, TITLE_SCHEMA, readableImages, titleOf, titleQuestion } from "../agent/title-text.mjs";
 import { codexExecutable } from "./codex-executable.mjs";
 import { sharedCodexHome, PRIVATE_CODEX_HOME_ENV } from "./codex-home.mjs";
 import { readHomeConfig } from "./codex-home-config.mjs";
@@ -13,13 +13,6 @@ export type CodexExec = (args: readonly string[], input: string, cwd: string) =>
 
 const TITLE_MODEL = "gpt-6-luna";
 const EXEC_TIMEOUT_MS = 60_000;
-
-const TITLE_SCHEMA = {
-  type: "object",
-  properties: { title: { type: "string", description: "At most six words; no quotes, no trailing punctuation." } },
-  required: ["title"],
-  additionalProperties: false,
-};
 
 /** One-shot, read-only, ephemeral, and blind to the user's own Codex config, so a title touches nothing. */
 export function codexTitleArgs(schemaFile: string, outputFile: string, images: string[]) {
@@ -56,16 +49,6 @@ const execCodex: CodexExec = async (args, input, cwd) => {
   });
 };
 
-function titleOf(lastMessage: string) {
-  try {
-    const parsed: unknown = JSON.parse(lastMessage);
-    const title = typeof parsed === "object" && parsed !== null && "title" in parsed ? parsed.title : undefined;
-    return typeof title === "string" ? cleanTitle(title) || null : null;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Names a thread from its first message and the screenshots sent with it, on Codex. The answer is
  * read back from the file `codex exec` writes its last message to, shaped by a schema that allows
@@ -80,7 +63,7 @@ export async function suggestCodexTitle(text: string, attachments: string[] = []
     const outputFile = path.join(directory, "title.json");
     await writeFile(schemaFile, JSON.stringify(TITLE_SCHEMA));
     await exec(codexTitleArgs(schemaFile, outputFile, images), `${TITLE_INSTRUCTIONS}\n\n${titleQuestion(text)}`, directory);
-    return titleOf(await readFile(outputFile, "utf8"));
+    return titleOf(JSON.parse(await readFile(outputFile, "utf8")));
   } catch {
     return null;
   } finally {

@@ -6,6 +6,20 @@ export const TITLE_MESSAGE_LIMIT = 2_000;
 
 export const TITLE_INSTRUCTIONS = "You name chat threads. Answer with a title of at most six words describing what the message and any screenshots with it are about, and nothing else: no quotes, no trailing punctuation, no preamble.";
 
+/** The only answer a writer may give, so a reply to the message itself cannot become a title. */
+export const TITLE_SCHEMA = {
+  type: "object",
+  properties: { title: { type: "string", description: "At most six words; no quotes, no trailing punctuation." } },
+  required: ["title"],
+  additionalProperties: false,
+};
+
+/** The title inside a writer's structured answer, cleaned; null when the answer has none. */
+export function titleOf(answer: unknown) {
+  const title = typeof answer === "object" && answer !== null && "title" in answer ? answer.title : undefined;
+  return typeof title === "string" ? cleanTitle(title) || null : null;
+}
+
 /** What the writer is asked, given the message; a message with only screenshots asks about those. */
 export function titleQuestion(text: string) {
   return text.trim()
