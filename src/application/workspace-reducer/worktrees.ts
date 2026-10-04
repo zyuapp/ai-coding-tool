@@ -3,6 +3,7 @@ import { reduceWorktreeMove, relocateThread } from "./worktree-moves.js";
 import { reduceWorktreeSettings } from "./worktree-settings.js";
 import { reduceDiffs } from "./diffs.js";
 import { rereadDiff } from "./diff-reads.js";
+import { refreshEnvironment } from "./environment.js";
 import { SWITCH_PROJECT_ERROR, SWITCH_RUNNING_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_PROJECT_ERROR, WORKTREE_RELEASING_ERROR, WORKTREE_RUNNING_ERROR } from "./errors.js";
 import { runsInWorkspace } from "./run-queue.js";
 import { followUps, now, settled, targetId, rejected } from "./shared.js";
@@ -19,7 +20,7 @@ import type { Worktree } from "../../domain/worktree.js";
 type WorktreeInput = Extract<WorkspaceInput, {
   type: "worktree.filter-project" | "worktree.confirm-delete" | "worktree.set-missing-open" | "worktree.set-threads-open" | "worktree.open-thread" | "view.move-worktree" | "task.set-worktree" | "task.move-worktree" | "task.set-branch" | "task.checkout-branch" | "worktree.refresh" | "worktree.reveal"
     | "worktree.delete" | "worktree.created" | "worktree.failed" | "worktrees.loaded" | "worktrees.failed"
-    | "worktree.released" | "worktree.release-failed" | "worktree.deleted";
+    | "worktree.released" | "worktree.release-failed" | "worktree.deleted" | "checkout.finished";
 }>;
 
 export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): WorkspaceTransition {
@@ -93,26 +94,8 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
         actionError: null,
       });
 
-    /**
-     * Moves the checkout itself, which everything working in it sees, so nothing may be running
-     * there. A thread that does not exist yet has no checkout to move: it only records where to start.
-     */
-    case "task.checkout-branch": {
-      const taskId = targetId(state, input.taskId);
-      const thread = taskId ? state.threads.find((item) => item.id === taskId) : undefined;
-      if (!thread) return reduceWorktrees(state, { type: "task.set-branch", branch: input.branch, ...(input.create ? { create: true } : {}) });
-      const workspaceId = threadWorkspaceId(state, thread);
-      if (!workspaceId) return rejected(state, SWITCH_PROJECT_ERROR);
-      if (state.creatingWorktrees.includes(thread.id)) return rejected(state, WORKTREE_CREATING_ERROR);
-      if (leavingThreadIds(state).has(thread.id)) return rejected(state, WORKTREE_RELEASING_ERROR);
-      if (runsInWorkspace(state, workspaceId) || isWorking(state, thread.id)) return rejected(state, SWITCH_RUNNING_ERROR);
-      return settled({ ...state, actionError: null }, [{
-        type: "checkout-branch",
-        workspaceId,
-        branch: input.branch,
-        ...(input.create ? { create: true } : {}),
-      }]);
-    }
+    case "task.checkout-branch": case "checkout.finished":
+      return reduceCheckout(state, input);
 
     case "worktree.refresh":
       if (state.worktreeManagementLoading) return settled(state);
@@ -210,4 +193,30 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
       return { ...refreshed, effects: followUps(refreshed.effects) };
     }
   }
+}
+
+function reduceCheckout(state: WorkspaceState, input: Extract<WorktreeInput, { type: "task.checkout-branch" | "checkout.finished" }>): WorkspaceTransition {
+  /** A failed checkout may still have made the branch, so Git is read either way, as a follow-up. */
+  if (input.type === "checkout.finished") {
+    const reads = followUps(refreshEnvironment(state));
+    return input.message ? rejected(state, input.message, reads) : settled(state, reads);
+  }
+  /**
+   * Moves the checkout itself, which everything working in it sees, so nothing may be running
+   * there. A thread that does not exist yet has no checkout to move: it only records where to start.
+   */
+  const taskId = targetId(state, input.taskId);
+  const thread = taskId ? state.threads.find((item) => item.id === taskId) : undefined;
+  if (!thread) return reduceWorktrees(state, { type: "task.set-branch", branch: input.branch, ...(input.create ? { create: true } : {}) });
+  const workspaceId = threadWorkspaceId(state, thread);
+  if (!workspaceId) return rejected(state, SWITCH_PROJECT_ERROR);
+  if (state.creatingWorktrees.includes(thread.id)) return rejected(state, WORKTREE_CREATING_ERROR);
+  if (leavingThreadIds(state).has(thread.id)) return rejected(state, WORKTREE_RELEASING_ERROR);
+  if (runsInWorkspace(state, workspaceId) || isWorking(state, thread.id)) return rejected(state, SWITCH_RUNNING_ERROR);
+  return settled({ ...state, actionError: null }, [{
+    type: "checkout-branch",
+    workspaceId,
+    branch: input.branch,
+    ...(input.create ? { create: true } : {}),
+  }]);
 }

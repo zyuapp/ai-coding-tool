@@ -7,6 +7,8 @@ import { EMPTY_DIFF } from "../../src/application/workspace-diff.ts";
 import { answerThreadRequest, type ThreadRequestHost } from "../../src/host/thread-requests.ts";
 import { threadTranscript } from "../../src/application/thread-projection.ts";
 import { MAX_ATTACHED_FILES, MAX_ATTACHMENTS } from "../../src/domain/conversation.ts";
+import type { RuntimeDesktop } from "../../src/host/runtime-desktop.ts";
+import { runWorkspaceEffect } from "../../src/host/workspace-effects.ts";
 import { PROJECT, activeRun, heldWorktree, inside, projected, task, workspace } from "./workspace-reducer-fixtures.mts";
 
 function driver(initial: WorkspaceState, perform: WorkspaceExecutionHost["perform"] = async () => {}) {
@@ -352,4 +354,42 @@ test("follow-up work is handed to the host to track, and its failure still reach
   read.release();
   await Promise.all(tracked);
   assert.deepEqual(state.diffs[state.threads[0].id].result, { status: "error", message: "diff unavailable" });
+});
+
+test("a checkout succeeds even when the Git status read after it fails, which still reaches state", async () => {
+  let state = workspace({ projects: [PROJECT], threads: [task("thread", { projectId: PROJECT.id })], currentId: "thread" });
+  const tracked: Promise<unknown>[] = [];
+  const desktop = {
+    checkoutBranch: async () => {},
+    changedFiles: async () => { throw new Error("git status failed"); },
+  } as unknown as RuntimeDesktop;
+  const execution: WorkspaceExecutionHost = {
+    state: () => state,
+    commit: (next) => { state = next; },
+    track: (work) => { tracked.push(work); },
+    perform: (effect, dispatch) => runWorkspaceEffect(effect, { dispatch, desktop, storage: { getItem: () => null, setItem() {} }, environmentRefreshes: { current: new Map() }, scheduleSnoozeExpiry() {}, scheduleLimitReset() {} }),
+  };
+  assert.deepEqual(await executeWorkspaceInput({ type: "task.checkout-branch", branch: "feature" }, execution).completed, { ok: true });
+  await Promise.all(tracked);
+  assert.deepEqual(state.environments[PROJECT.workspaceId!], { status: "error", message: "git status failed" });
+});
+
+test("a failed checkout fails its command and still reads Git status", async () => {
+  let state = workspace({ projects: [PROJECT], threads: [task("thread", { projectId: PROJECT.id })], currentId: "thread" });
+  let reads = 0;
+  const tracked: Promise<unknown>[] = [];
+  const desktop = {
+    checkoutBranch: async () => { throw new Error("local changes would be overwritten"); },
+    changedFiles: async () => { reads++; return { status: "available", files: [], branch: "main", baseline: null, additions: 0, deletions: 0 }; },
+  } as unknown as RuntimeDesktop;
+  const execution: WorkspaceExecutionHost = {
+    state: () => state,
+    commit: (next) => { state = next; },
+    track: (work) => { tracked.push(work); },
+    perform: (effect, dispatch) => runWorkspaceEffect(effect, { dispatch, desktop, storage: { getItem: () => null, setItem() {} }, environmentRefreshes: { current: new Map() }, scheduleSnoozeExpiry() {}, scheduleLimitReset() {} }),
+  };
+  assert.deepEqual(await executeWorkspaceInput({ type: "task.checkout-branch", branch: "feature" }, execution).completed, { ok: false, message: "local changes would be overwritten" });
+  await Promise.all(tracked);
+  assert.equal(reads, 1);
+  assert.equal(state.actionError, "local changes would be overwritten");
 });

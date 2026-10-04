@@ -67,6 +67,8 @@ export type WorkspaceEvent =
   | { type: "worktrees.failed"; message: string; root?: string }
   | { type: "worktree.released"; taskId: string; snapshot: WorktreeSnapshotResult }
   | { type: "worktree.release-failed"; taskId: string; message: string }
+  /** A branch checkout is over, with what went wrong when it did not happen. */
+  | { type: "checkout.finished"; message?: string }
   | { type: "worktree.deleted"; worktreeId: string; root: string; snapshot: WorktreeSnapshotResult; missingOnly?: boolean }
   | { type: "environment.updated"; workspaceId: string; taskId?: string; runId?: string; result: ChangedFilesResult }
   /** What GitHub says about a checkout, named by the ask it answers so an overtaken one is dropped. */

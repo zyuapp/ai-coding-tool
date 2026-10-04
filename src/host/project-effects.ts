@@ -166,12 +166,13 @@ export const projectEffects = {
   },
 
   "checkout-branch": async (effect, { dispatch, desktop }) => {
+    let message: string | undefined;
     try {
       if (effect.create) await desktop.createBranch(effect.workspaceId, effect.branch);
       await desktop.checkoutBranch(effect.workspaceId, effect.branch);
     } catch (error) {
-      await dispatch({ type: "action.failed", message: errorMessage(error) });
+      message = errorMessage(error);
     }
-    await dispatch({ type: "view.refresh-environment" });
+    await dispatch({ type: "checkout.finished", ...(message === undefined ? {} : { message }) });
   },
 } satisfies Partial<EffectHandlers>;

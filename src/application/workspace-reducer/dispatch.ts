@@ -53,7 +53,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "worktree.filter-project": case "worktree.confirm-delete": case "worktree.set-missing-open":
     case "worktree.set-threads-open": case "worktree.open-thread":
     case "worktree.created": case "worktree.failed": case "worktrees.loaded":
-    case "worktrees.failed": case "worktree.released": case "worktree.release-failed": case "worktree.deleted":
+    case "worktrees.failed": case "worktree.released": case "worktree.release-failed": case "worktree.deleted": case "checkout.finished":
       return reduceWorktrees(state, input);
 
     case "attachments.send": case "attachments.saved": case "attachments.failed": case "attachments.notice":
