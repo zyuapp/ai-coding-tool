@@ -146,3 +146,16 @@ test("notes waiting when the app closed wake their coordinator once the store is
   const loaded = reduce(workspace(), { type: "store.loaded", data: { version: THREAD_STORE_VERSION, tasks: [lead({ coordinationNotes: [NEWS] }), member("one")], projects: [], worktrees: [], lastFolder: null } });
   assert.equal(required(woken(loaded)).taskId, "lead");
 });
+
+test("archiving a coordinator stops it, so restoring it wakes nothing until there is new news", () => {
+  const leadRun = { activeRuns: { lead: activeRun("lead", "run-l") }, runStatuses: { lead: "running" as const } };
+  const runningLead = reduce(holding(leadRun), { type: "task.archive", taskId: "lead" });
+  const cancelled = reduce(runningLead.state, correlatedRunEvent("lead", "run-l", 1, { type: "run.status", status: "cancelled" }));
+  const idleLead = reduce(holding(), { type: "task.archive", taskId: "lead" });
+  for (const [how, archived] of [["running", cancelled.state], ["idle", idleLead.state]] as const) {
+    const restored = reduce(archived, { type: "task.restore", taskId: "lead" });
+    slept(restored, `${how}: restoring it`);
+    const ended = reduce({ ...restored.state, ...running }, correlatedRunEvent("two", "run-2", 1, { type: "run.status", status: "succeeded" }));
+    assert.match(woken(ended, how).text, /"two" ended its turn/);
+  }
+});

@@ -120,8 +120,12 @@ export function reconcileCoordination(previous: WorkspaceState, transition: Work
   return { ...transition, state, effects };
 }
 
-/** The coordinator the user just stopped, or whose run could not start, so its news is not pressed on it again at once. */
+/**
+ * The coordinator the user just stopped, filed away, or whose run could not start, so its news is
+ * not pressed on it again at once.
+ */
 function stoppedBy(previous: WorkspaceState, input: WorkspaceInput): string | undefined {
+  if (input.type === "task.archive") return input.taskId;
   if (input.type === "run.event" && input.event.type === "run.status" && input.event.status === "cancelled") {
     return previous.activeRuns[input.event.taskId]?.runId === input.event.runId ? input.event.taskId : undefined;
   }
@@ -130,9 +134,10 @@ function stoppedBy(previous: WorkspaceState, input: WorkspaceInput): string | un
   return undefined;
 }
 
+/** Quiets the coordinator's held news, archived or not, so restoring it wakes nothing by itself. */
 function quieted(state: WorkspaceState, leadId: string): WorkspaceState {
   const lead = state.threads.find((thread) => thread.id === leadId);
-  if (!isCoordinator(lead) || !lead!.coordinationNotes?.some((note) => !note.quiet)) return state;
+  if (lead?.role !== "coordinator" || !lead.coordinationNotes?.some((note) => !note.quiet)) return state;
   return updateThread(state, leadId, (thread) => ({ ...thread, coordinationNotes: thread.coordinationNotes!.map((note) => note.quiet ? note : { ...note, quiet: true as const }) }));
 }
 
