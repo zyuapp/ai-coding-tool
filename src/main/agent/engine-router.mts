@@ -1,4 +1,5 @@
 import type { AgentEngine } from "../../domain/agent-engine.js";
+import type { Continuation } from "../../domain/run.js";
 import type { AgentProvider, ProviderResult, ProviderRunInput } from "./agent-provider.mjs";
 
 export type EngineProvider = AgentProvider & { closeAll(): void };
@@ -17,6 +18,10 @@ export class EngineRouter implements AgentProvider {
 
   labelThread(taskId: string, title: string) {
     return Object.values(this.engines).some((engine) => engine.labelThread(taskId, title));
+  }
+
+  archiveThread(taskId: string, continuation: Continuation, archived: boolean) {
+    return Object.values(this.engines).some((engine) => engine.archiveThread(taskId, continuation, archived));
   }
 
   closeAll() {

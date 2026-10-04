@@ -20,6 +20,11 @@ function engine(name: string, log: string[], holds: string[] = []): EngineProvid
       log.push(`${name}:label:${taskId}:${title}:${held}`);
       return held;
     },
+    archiveThread(taskId: string, continuation: { provider: string }, archived: boolean) {
+      const held = continuation.provider === name;
+      log.push(`${name}:archive:${taskId}:${archived}:${held}`);
+      return held;
+    },
     closeAll() {
       log.push(`${name}:closeAll`);
     },

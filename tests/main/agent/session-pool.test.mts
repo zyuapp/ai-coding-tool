@@ -135,3 +135,27 @@ test("repeated reloads wait for the same busy session and settle if it exits", a
   assert.equal(pool.liveSession("busy"), undefined);
   await pool.reloadSettings();
 });
+
+test("retiring a thread lets its session go once the turn has answered, and a run after it opens a fresh one", async () => {
+  const pool = new SessionPool();
+  const opened: FakeSession[] = [];
+  const codex = engine("codex", pool, opened);
+  await codex(input({ taskId: "t" }));
+  const [first] = opened;
+
+  first.answering = true;
+  let retired = false;
+  const retiring = pool.retire("t").then(() => { retired = true; });
+  await Promise.resolve();
+  assert.equal(first.live, true, "a turn still answering keeps its session");
+  assert.equal(retired, false);
+
+  await codex(input({ taskId: "t" }));
+  assert.equal(first.live, false);
+  assert.equal(opened.length, 2, "a retiring session is never reused");
+  await retiring;
+
+  await pool.retire("t");
+  assert.equal(opened[1].live, false, "an idle session goes at once");
+  await pool.retire("missing");
+});

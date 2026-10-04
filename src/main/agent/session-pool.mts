@@ -15,7 +15,8 @@ export type PooledSession = {
   readonly answering: boolean;
   continues(continuation: string | undefined): boolean;
   run(input: ProviderRunInput): Promise<ProviderResult>;
-  close(): void;
+  /** Idempotent. A session holding a process settles once that process has exited. */
+  close(): void | Promise<void>;
 };
 
 /** What a session is built with: `ended` forgets it, `rested` restarts its idle clock. */
@@ -32,6 +33,8 @@ type Held = {
   usedAt: number;
   idle?: ReturnType<typeof setTimeout>;
   reload?: { done: Promise<void>; resolve(): void };
+  /** Set once the thread is filed away: the session goes as soon as its turn has answered. */
+  retire?: { done: Promise<void>; resolve(closed: void | PromiseLike<void>): void };
 };
 
 /**
@@ -74,6 +77,23 @@ export class SessionPool {
     return Promise.all(waiting).then(() => {});
   }
 
+  /**
+   * Lets the thread's session go once its turn has answered, background work and all, and resolves
+   * when its process is gone.
+   */
+  retire(taskId: string): Promise<void> {
+    const held = this.sessions.get(taskId);
+    if (!held) return Promise.resolve();
+    if (!held.retire) {
+      let resolve!: (closed: void | PromiseLike<void>) => void;
+      const done = new Promise<void>((settled) => { resolve = settled; });
+      held.retire = { done, resolve };
+    }
+    const done = held.retire.done;
+    if (!held.session.answering) this.release(taskId, held);
+    return done;
+  }
+
   /** Lets every session go, which is what ends the processes they hold. */
   closeAll() {
     for (const [taskId, held] of [...this.sessions]) this.release(taskId, held);
@@ -82,6 +102,7 @@ export class SessionPool {
   private sessionFor<S extends PooledSession>(input: ProviderRunInput, key: string, opener: SessionOpener<S>): Held {
     const held = this.sessions.get(input.taskId);
     const reusable = held?.session.live
+      && !held.retire
       && (!held.reload || held.session.busy)
       && held.session.key === key
       && !held.session.answering
@@ -102,6 +123,7 @@ export class SessionPool {
           this.sessions.delete(input.taskId);
           clearTimeout(ended.idle);
           ended.reload?.resolve();
+          ended.retire?.resolve(session.close());
         }
       },
       rested: () => {
@@ -122,6 +144,7 @@ export class SessionPool {
    */
   private rest(taskId: string, held: Held) {
     if (this.sessions.get(taskId) !== held || !held.session.live) return;
+    if (held.retire && !held.session.answering) return this.release(taskId, held);
     if (held.reload && !held.session.busy) return this.release(taskId, held);
     held.usedAt = Date.now();
     clearTimeout(held.idle);
@@ -132,8 +155,9 @@ export class SessionPool {
   private release(taskId: string, held: Held) {
     clearTimeout(held.idle);
     if (this.sessions.get(taskId) === held) this.sessions.delete(taskId);
-    held.session.close();
+    const closed = held.session.close();
     held.reload?.resolve();
+    held.retire?.resolve(closed);
   }
 
   private evict() {

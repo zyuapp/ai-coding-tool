@@ -109,6 +109,11 @@ export class ClaudeAgentProvider implements AgentProvider {
     return false;
   }
 
+  /** Claude keeps no archive of its own, so filing a thread away stays the app's. */
+  archiveThread() {
+    return false;
+  }
+
   stopProcess(taskId: string, processId: string) {
     const session = this.pool.liveSession(taskId);
     if (!(session instanceof ClaudeSession)) return false;

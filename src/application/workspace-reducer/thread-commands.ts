@@ -35,6 +35,15 @@ function labelThread(taskId: string, title: string): WorkspaceEffect {
   return { type: "send-run-command", command: { type: "label", taskId, title } };
 }
 
+/**
+ * Mirrors archiving or restoring into the engine's own record of the thread. A copy that has yet to
+ * run still names its source's session, which is not its to file away.
+ */
+function fileThread(thread: Thread | undefined, archived: boolean): WorkspaceEffect[] {
+  if (!thread?.continuation || thread.inheritedContinuation) return [];
+  return [{ type: "send-run-command", command: { type: "archive", taskId: thread.id, continuation: thread.continuation, archived } }];
+}
+
 /** Puts the user on a thread: what it holds becomes read, and the app follows it to its folder. */
 function landOnThread(state: WorkspaceState, taskId: string): WorkspaceState {
   const thread = state.threads.find((item) => item.id === taskId);
@@ -111,6 +120,7 @@ function archiveThread(state: WorkspaceState, taskId: string): WorkspaceTransiti
     ...unpaused.effects,
     ...retireAutomations(state, [taskId]),
     ...(active ? [{ type: "send-run-command" as const, command: { type: "cancel" as const, taskId: active.taskId, runId: active.runId } }] : []),
+    ...fileThread(state.threads.find((thread) => thread.id === taskId), true),
     ...[...closed].map((tabId): WorkspaceEffect => ({ type: "browser.close", tabId })),
   ]);
 }
@@ -187,7 +197,7 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
     case "task.restore": {
       const thread = state.threads.find((item) => item.id === input.taskId);
       if (!thread || thread.archivedAt === undefined) return settled(state);
-      return settled(updateThread(state, input.taskId, ({ archivedAt: _restored, ...item }) => item));
+      return settled(updateThread(state, input.taskId, ({ archivedAt: _restored, ...item }) => item), fileThread(thread, false));
     }
 
     case "task.clear-archive": {

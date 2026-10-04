@@ -190,6 +190,8 @@ export class CodexSession {
   private readonly turns = new TurnSlot<Turn>(INTERRUPT_GRACE_MS, () => this.close());
   private subagents: CodexSubagents | null = null;
   private ended = false;
+  /** Settles once the process this session held has exited. */
+  private closed: Promise<void> = Promise.resolve();
   /** How the session ended, kept for a run that arrives after it is already over. */
   private outcome: ProviderResult | null = null;
   /** Whether the thread's id has been reported to a run yet. Once is enough: the id never changes. */
@@ -265,7 +267,7 @@ export class CodexSession {
   }
 
   close() {
-    if (this.ended) return;
+    if (this.ended) return this.closed;
     this.ended = true;
     this.backgroundRead += 1;
     this.background.clear();
@@ -273,7 +275,7 @@ export class CodexSession {
     this.turns.settle({ status: "cancelled" });
     this.subagents?.close();
     this.subagents = null;
-    void this.client?.close();
+    this.closed = this.client?.close().then(() => {}, () => {}) ?? Promise.resolve();
     this.client = null;
     this.served?.release();
     this.served = null;

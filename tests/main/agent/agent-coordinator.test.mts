@@ -51,6 +51,10 @@ class FakeProvider implements AgentProvider {
     this.labelled.push([taskId, title]);
     return true;
   }
+
+  archiveThread() {
+    return false;
+  }
 }
 
 function statuses(events: AgentEvent[], runId: string) {
@@ -214,7 +218,7 @@ test("cancelling an approval expires it and rejects a late decision", async () =
       decision = await input.authorize({ toolId: "tool-2", name: "Edit", input: {}, writePath: "/tmp/project/file.txt" });
       return { status: decision === "allow" ? "succeeded" : "failed" };
     },
-    stopProcess: () => false, labelThread: () => false,
+    stopProcess: () => false, labelThread: () => false, archiveThread: () => false,
   };
   const coordinator = new RunCoordinator(provider, (event) => events.push(event), {
     isWritePathInside: () => true,
@@ -273,7 +277,7 @@ test("write-path policy denies outside paths before creating an approval", async
       const decision = await input.authorize({ toolId: "tool-3", name: "Write", input: {}, writePath: "/tmp/elsewhere/file.txt" });
       return { status: decision === "deny" ? "failed" : "succeeded", message: "outside path" };
     },
-    stopProcess: () => false, labelThread: () => false,
+    stopProcess: () => false, labelThread: () => false, archiveThread: () => false,
   };
   const coordinator = new RunCoordinator(provider, (event) => events.push(event), {
     isWritePathInside: (root, candidate) => root === "/tmp/project" && candidate.startsWith(`${root}/`),
@@ -379,7 +383,7 @@ test("coordinator forwards every provider event with one ordered sequence", asyn
   const provider: AgentProvider = { execute: async (input: ProviderRunInput) => {
     for (const event of providerEvents) input.emit(event);
     return { status: "succeeded" };
-  }, stopProcess: () => false, labelThread: () => false };
+  }, stopProcess: () => false, labelThread: () => false, archiveThread: () => false };
   const coordinator = new RunCoordinator(provider, (event) => events.push(event));
 
   coordinator.start(base("task-events", "run-events"));
@@ -395,7 +399,7 @@ test("coordinator forwards every provider event with one ordered sequence", asyn
 
 test("coordinator converts a thrown provider error into one failure", async () => {
   const events: AgentEvent[] = [];
-  const coordinator = new RunCoordinator({ execute: async () => { throw new Error("provider exploded"); }, stopProcess: () => false, labelThread: () => false }, (event) => events.push(event));
+  const coordinator = new RunCoordinator({ execute: async () => { throw new Error("provider exploded"); }, stopProcess: () => false, labelThread: () => false, archiveThread: () => false }, (event) => events.push(event));
 
   coordinator.start(base("task-throw", "run-throw"));
   await tick();

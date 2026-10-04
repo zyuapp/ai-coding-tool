@@ -36,6 +36,24 @@ test("restoring an archived task returns it to the sidebar and leaves its automa
   assert.equal(reduce(restored.state, { type: "task.restore", taskId: "task-a" }).state, restored.state);
 });
 
+test("archiving and restoring a thread files its engine session away and back, but never the session a copy inherited", () => {
+  const continuation = { provider: "codex", value: "codex-thread" };
+  const state = workspace({ threads: [
+    { ...task("task-a"), continuation, continuationStatus: "ready" },
+    { ...task("task-copy"), continuation, continuationStatus: "ready", inheritedContinuation: true },
+  ] });
+  const filing = (effects: ReturnType<typeof reduce>["effects"]) => effects.filter((effect) => effect.type === "send-run-command" && effect.command.type === "archive");
+
+  const archived = reduce(state, { type: "task.archive", taskId: "task-a" });
+  assert.deepEqual(filing(archived.effects), [{ type: "send-run-command", command: { type: "archive", taskId: "task-a", continuation, archived: true } }]);
+  const restored = reduce(archived.state, { type: "task.restore", taskId: "task-a" });
+  assert.deepEqual(restored.effects, [{ type: "send-run-command", command: { type: "archive", taskId: "task-a", continuation, archived: false } }]);
+
+  const copy = reduce(state, { type: "task.archive", taskId: "task-copy" });
+  assert.deepEqual(filing(copy.effects), []);
+  assert.deepEqual(reduce(copy.state, { type: "task.restore", taskId: "task-copy" }).effects, []);
+});
+
 test("archiving a thread closes its pages but keeps their records and its shells, and showing it again reopens them", () => {
   const page = (id: string, loading: boolean) => ({ id, url: `https://example.com/${id}`, title: id, loading, canGoBack: false, canGoForward: false });
   const state = workspace({ currentId: "task-a", threads: [task("task-a"), task("task-b")], docks: {

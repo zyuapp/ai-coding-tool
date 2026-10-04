@@ -8,7 +8,7 @@ import type { InstalledApp } from "../../contracts/ipc.js";
 import type { CliStatus } from "../../domain/cli.js";
 import type { ComputerUsePermission, ComputerUsePermissions } from "../../domain/computer-use.js";
 import type { PlanUsage } from "../../domain/plan-usage.js";
-import type { AgentEvent, AnswerQuestionCommand, ApprovalDecisionCommand, AutomationAck, AutomationFire, BrowserPageEvent, CancelRunCommand, ChangedFilesResult, CreatedWorktree, DiffSummaryResult, LabelThreadCommand, RunEvent, StartRunCommand, SteerRunCommand, StopProcessCommand, ThreadEvent, ThreadNotice, WorktreeSnapshotResult } from "../../contracts/ipc.js";
+import type { AgentEvent, AnswerQuestionCommand, ApprovalDecisionCommand, ArchiveThreadCommand, AutomationAck, AutomationFire, BrowserPageEvent, CancelRunCommand, ChangedFilesResult, CreatedWorktree, DiffSummaryResult, LabelThreadCommand, RunEvent, StartRunCommand, SteerRunCommand, StopProcessCommand, ThreadEvent, ThreadNotice, WorktreeSnapshotResult } from "../../contracts/ipc.js";
 import type { ViewPreferences } from "../../contracts/preferences.js";
 import type { AgentEngine } from "../../domain/agent-engine.js";
 import type { AppUpdate } from "../../domain/app-update.js";
@@ -135,7 +135,7 @@ export type WorkspaceEffect =
   | { type: "reveal-worktree"; root: string }
   | { type: "delete-worktree"; worktreeId: string; root: string; title: string; missingOnly?: boolean }
   | { type: "start-run"; command: StartRunCommand }
-  | { type: "send-run-command"; command: CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand }
+  | { type: "send-run-command"; command: CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand | ArchiveThreadCommand }
   | { type: "refresh-environment"; workspaceId: string; taskId?: string; runId?: string }
   /** Writes a composer's images out, then sends the message they ride, in that order. */
   | { type: "send-attachments"; taskId?: string; steer?: boolean; attachments: OutgoingAttachment[] }

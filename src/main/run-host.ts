@@ -287,8 +287,8 @@ class AgentRunHost {
         this.send({ type: "engine.settings-reload-status", status: "failed", message: error instanceof Error ? error.message : String(error) });
         return;
       }
-      /** A stop or a label belongs to no run, so a failure to send it has no run to report against. */
-      if (command.type === "stop-process" || command.type === "label") return;
+      /** A stop, a label, or an archive belongs to no run, so a failure to send it has no run to report against. */
+      if (command.type === "stop-process" || command.type === "label" || command.type === "archive") return;
       const state = this.ledger.state(command.taskId, command.runId);
       const message = error instanceof Error ? error.message : String(error);
       if (state && !state.terminal) {
@@ -334,7 +334,7 @@ class AgentRunHost {
       this.ledger.retitleStarts(payload.taskId, payload.title);
       return this.postCommand(payload);
     }
-    if (payload.type === "stop-process") return this.postCommand(payload);
+    if (payload.type === "stop-process" || payload.type === "archive") return this.postCommand(payload);
     const pending = this.ledger.pendingStart(payload.taskId, payload.runId);
     if (pending && payload.type === "cancel") {
       this.ledger.takeStart(payload.taskId, payload.runId);

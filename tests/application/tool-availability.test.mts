@@ -70,6 +70,7 @@ class RecordingProvider implements AgentProvider {
   }
   stopProcess() { return false; }
   labelThread() { return false; }
+  archiveThread() { return false; }
   closeAll() {}
 }
 

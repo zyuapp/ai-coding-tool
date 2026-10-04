@@ -2,7 +2,7 @@ import { isQuestionRequest, type QuestionAnswers, type QuestionRequest } from ".
 import { randomUUID } from "node:crypto";
 import type { AgentEvent, BackgroundReport, GoalReport, InternalStartRunCommand, RunEvent, WorkflowReport } from "../../contracts/ipc.js";
 import { capabilitiesFor } from "../../domain/agent-engine.js";
-import type { SubagentReport, ToolIntent } from "../../domain/run.js";
+import type { Continuation, SubagentReport, ToolIntent } from "../../domain/run.js";
 import type { AgentProvider, AgentTurn, AutomationBridge, CoordinationBridge, FindingBridge, ProviderEvent, BrowserBridge, TerminalBridge, ThreadBridge, ToolDecision } from "./agent-provider.mjs";
 import { SteerChannel } from "./steer-channel.mjs";
 import type { UsageLimit } from "../../domain/usage-limit.js";
@@ -122,6 +122,10 @@ export class RunCoordinator {
 
   labelThread(taskId: string, title: string) {
     return this.provider.labelThread(taskId, title);
+  }
+
+  archiveThread(taskId: string, continuation: Continuation, archived: boolean) {
+    return this.provider.archiveThread(taskId, continuation, archived);
   }
 
   decideApproval(taskId: string, runId: string, approvalId: string, allow: boolean) {

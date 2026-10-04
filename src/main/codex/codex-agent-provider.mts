@@ -1,10 +1,11 @@
+import type { Continuation } from "../../domain/run.js";
 import type { AgentProvider, ProviderResult, ProviderRunInput } from "../agent/agent-provider.mjs";
 import { grantsTool } from "../agent/approval-grant.mjs";
 import { SessionPool } from "../agent/session-pool.mjs";
 import { McpHttpHost, type ToolHost } from "../tools/mcp-http-host.mjs";
 import { connectAppServer } from "./app-server-client.mjs";
 import { CodexSession, type CodexConnect } from "./codex-session.mjs";
-import type { ReadOrigin } from "./codex-thread-record.mjs";
+import { fileThread, type ReadOrigin } from "./codex-thread-record.mjs";
 import { codexImageOutput, type ImageOutput } from "./codex-images.mjs";
 import { codexBrief } from "./codex-instructions.mjs";
 
@@ -52,6 +53,8 @@ export class CodexAgentProvider implements AgentProvider {
   private readonly pool: SessionPool;
   private readonly readOrigin: ReadOrigin;
   private readonly imageOutput: ImageOutput;
+  /** The last filing asked of each Codex thread, so an archive and a restore land in the order given. */
+  private readonly filings = new Map<string, Promise<void>>();
 
   constructor(options: CodexProviderOptions = {}) {
     this.connect = options.connect ?? connectAppServer;
@@ -79,6 +82,23 @@ export class CodexAgentProvider implements AgentProvider {
     const session = this.pool.liveSession(taskId);
     if (!(session instanceof CodexSession)) return false;
     session.label(title);
+    return true;
+  }
+
+  /**
+   * Files the thread away in Codex's own history too, or brings it back. Archiving waits out the
+   * thread's session, which holds the thread open until its cancelled turn has answered.
+   */
+  archiveThread(taskId: string, continuation: Continuation, archived: boolean) {
+    if (continuation.provider !== "codex") return false;
+    const threadId = continuation.value;
+    const previous = this.filings.get(threadId) ?? Promise.resolve();
+    const filing = previous
+      .then(() => archived ? this.pool.retire(taskId) : undefined)
+      .then(() => fileThread(this.connect, threadId, archived))
+      .catch(() => {})
+      .finally(() => { if (this.filings.get(threadId) === filing) this.filings.delete(threadId); });
+    this.filings.set(threadId, filing);
     return true;
   }
 

@@ -91,3 +91,30 @@ test("a title that lands before the first turn waits for the rollout instead of 
   await running;
   codex.provider.closeAll();
 });
+
+test("archiving lets the thread's session go before a server of its own files the thread away, and restoring brings it back", async () => {
+  const codex = harness({ "thread/archive": () => ({}) });
+  const { client: session } = await turn(codex);
+  const continuation = { provider: "codex", value: threadId };
+
+  assert.equal(codex.provider.archiveThread("task-1", continuation, true), true);
+  for (let waited = 0; codex.clients.length < 2; waited += 1) {
+    if (waited > 100) throw new Error("no archiving server was opened");
+    await tick();
+  }
+  const archiver = codex.latest();
+  await sentBy(archiver, "thread/archive");
+  assert.equal(session.closed, true, "the session holding the thread is gone first");
+  assert.deepEqual(archiver.calls("thread/archive"), [{ threadId }]);
+  await archiver.exited;
+
+  codex.provider.archiveThread("task-1", continuation, false);
+  for (let waited = 0; codex.clients.length < 3; waited += 1) {
+    if (waited > 100) throw new Error("no restoring server was opened");
+    await tick();
+  }
+  await sentBy(codex.latest(), "thread/unarchive");
+  assert.deepEqual(codex.latest().calls("thread/unarchive"), [{ threadId }]);
+  assert.equal(codex.provider.archiveThread("task-1", { provider: "claude", value: "session" }, true), false);
+  codex.provider.closeAll();
+});

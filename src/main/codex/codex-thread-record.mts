@@ -1,5 +1,5 @@
-import { AppServerError, type ClientParams } from "./app-server-client.mjs";
-import type { CodexClient } from "./codex-session.mjs";
+import { AppServerError, CLIENT_INFO, codexAppServer, type ClientParams } from "./app-server-client.mjs";
+import type { CodexClient, CodexConnect } from "./codex-session.mjs";
 
 /** Where a thread's work belongs, as Codex records it beside the thread. */
 export type ReadOrigin = (root: string) => Promise<{ originUrl: string | null; branch: string | null; sha: string | null }>;
@@ -83,5 +83,27 @@ export async function resumeThread(client: CodexClient, threadId: string, settin
     const unarchived = await client.request("thread/unarchive", { threadId }).then(() => true).catch(() => false);
     if (!unarchived) throw error;
     return await resume();
+  }
+}
+
+const FILE_TIMEOUT_MS = 60_000;
+
+/**
+ * Files a thread away in Codex's history, or brings it back, on a server of its own. Codex refuses
+ * while another process still writes the thread, so its session has to be gone first.
+ */
+export async function fileThread(connect: CodexConnect, threadId: string, archived: boolean) {
+  const client = connect(await codexAppServer(["--disable", "plugins", "--disable", "apps", "--disable", "hooks"]));
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const filing = (async () => {
+      await client.initialize(CLIENT_INFO);
+      await client.request(archived ? "thread/archive" : "thread/unarchive", { threadId });
+    })();
+    const expired = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`Codex did not file thread ${threadId} away in time.`)), FILE_TIMEOUT_MS); });
+    await Promise.race([filing, expired]);
+  } finally {
+    clearTimeout(timer);
+    await client.close();
   }
 }

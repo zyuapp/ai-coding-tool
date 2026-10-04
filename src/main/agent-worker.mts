@@ -98,6 +98,7 @@ const runCommands: RunCommandHandlers = {
   steer: (command) => whichever((coordinator) => coordinator.steer(command.taskId, command.runId, command.messageId, command.prompt)),
   "stop-process": (command) => whichever((coordinator) => coordinator.stopProcess(command.taskId, command.processId)),
   label: (command) => whichever((coordinator) => coordinator.labelThread(command.taskId, command.title)),
+  archive: (command) => whichever((coordinator) => coordinator.archiveThread(command.taskId, command.continuation, command.archived)),
   approval: (command) => whichever((coordinator) => coordinator.decideApproval(command.taskId, command.runId, command.approvalId, command.allow)),
 };
 

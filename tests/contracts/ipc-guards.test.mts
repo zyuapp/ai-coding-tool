@@ -428,3 +428,10 @@ test("coordination requests and briefs are checked at the boundary, and only the
   assert.equal(isExternalCommand({ type: "task.send", text: "Fix", coordinatorId: "lead" }), false);
   assert.equal(isExternalCommand({ type: "task.send", taskId: "task-1", text: "Fix", from: "lead" }), false, "only the window names a message's sender");
 });
+
+test("an archive command names the thread, the engine session it mirrors into, and which way it goes", () => {
+  const command = { type: "archive", taskId: "task-1", continuation: { provider: "codex", value: "thread-1" }, archived: true };
+  assert.equal(isRunCommand(command), true);
+  assert.equal(isRunCommand({ ...command, archived: "yes" }), false);
+  assert.equal(isRunCommand({ ...command, continuation: undefined }), false);
+});

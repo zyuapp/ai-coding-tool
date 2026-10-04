@@ -168,7 +168,10 @@ export type StopProcessCommand = {
 
 export type LabelThreadCommand = { type: "label"; taskId: string; title: string };
 
-export type RunCommand = ReloadAgentSettingsCommand | StartRunCommand | CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand;
+/** Mirrors archiving and restoring a thread into the engine's own record of it. */
+export type ArchiveThreadCommand = { type: "archive"; taskId: string; continuation: Continuation; archived: boolean };
+
+export type RunCommand = ReloadAgentSettingsCommand | StartRunCommand | CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand | ArchiveThreadCommand;
 
 /** The same commands as the agent process reads them: a start arrives already resolved against its workspace. */
 export type InternalRunCommand = Exclude<RunCommand, StartRunCommand> | InternalStartRunCommand;
@@ -624,6 +627,7 @@ export function isRunCommand(value: unknown): value is RunCommand {
   if (command.type === "steer") return isString(command.taskId) && isString(command.runId) && isString(command.messageId) && isString(command.prompt, MAX_PROMPT_LENGTH);
   if (command.type === "stop-process") return isString(command.taskId) && isString(command.processId);
   if (command.type === "label") return isString(command.taskId) && isString(command.title, MAX_TITLE_LENGTH);
+  if (command.type === "archive") return isString(command.taskId) && isContinuation(command.continuation) && typeof command.archived === "boolean";
   return false;
 }
 
