@@ -379,6 +379,12 @@ test("a coordinator's Overview groups its threads by what they need, and its too
   assert.deepEqual(view.approvals.map(({ thread, approval: item }) => [thread.id, item.approvalId]), [["approval", "a1"]]);
   assert.deepEqual(view.decisions.map(({ decision }) => decision.id), ["d1"]);
 
-  const state = workspace({ threads, currentId: "lead", activeRuns: { approval: activeRun("approval", "run-a", { status: "awaiting-approval" }) }, approvals: { "run-a": approval } });
-  assert.deepEqual(deriveView(state).coordination.approvals.map(({ approval: item }) => item.approvalId), ["a1"], "the open coordinator reads its threads' approvals");
+  const own = { ...approval, approvalId: "a0", taskId: "lead", runId: "run-lead" };
+  const state = workspace({
+    threads,
+    currentId: "lead",
+    activeRuns: { lead: activeRun("lead", "run-lead", { status: "awaiting-approval" }), approval: activeRun("approval", "run-a", { status: "awaiting-approval" }) },
+    approvals: { "run-lead": own, "run-a": approval },
+  });
+  assert.deepEqual(deriveView(state).coordination.approvals.map(({ approval: item }) => item.approvalId), ["a0", "a1"], "the open coordinator's own approval waits first, beside its threads'");
 });

@@ -183,7 +183,7 @@ export type CoordinationApprovalView = {
 /** What the open thread shows: a coordinator its threads, their approvals and open decisions, a thread its coordinator and brief. */
 export type CoordinationView = {
   members: CoordinatedThreadView[];
-  /** Tool approvals its threads are waiting on, answered beside its decisions. */
+  /** Tool approvals it and its threads are waiting on, answered beside its decisions. */
   approvals: CoordinationApprovalView[];
   decisions: CoordinationDecisionView[];
   lead: Thread | null;
@@ -216,10 +216,14 @@ export function coordinationView(
   if (!thread) return NO_COORDINATION;
   if (isCoordinator(thread)) {
     const members = coordinatedThreads(threads, thread.id).map((member) => coordinatedThreadStatus(member, busy, blocked));
-    const approvals = members.flatMap(({ thread: member, status }) => {
-      const approval = status === "approval" ? approvalOf(member.id) : undefined;
-      return approval ? [{ thread: member, approval }] : [];
-    });
+    const own = approvalOf(thread.id);
+    const approvals = [
+      ...(own ? [{ thread, approval: own }] : []),
+      ...members.flatMap(({ thread: member, status }) => {
+        const approval = status === "approval" ? approvalOf(member.id) : undefined;
+        return approval ? [{ thread: member, approval }] : [];
+      }),
+    ];
     const decisions = coordinationDecisions(threads, thread.id);
     return members.length || decisions.length ? { ...NO_COORDINATION, members, approvals, decisions, brief: thread.brief ?? null } : NO_COORDINATION;
   }

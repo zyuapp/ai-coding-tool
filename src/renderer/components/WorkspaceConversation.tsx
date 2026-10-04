@@ -75,7 +75,10 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
           onAnnotateRemove={(annotationId) => void workspace.dispatch({ type: "annotation.remove", annotationId })}
           onAnnotateSide={onAnnotateSide}
         />
-        {workspace.approval && <ApprovalCard approval={workspace.approval} onDecide={workspace.actions.decideApproval} />}
+        {/** A coordinator's own approval waits in its Needs-you card beside its threads'. */}
+        {workspace.approval && !coordination.approvals.some(({ approval }) => approval.approvalId === workspace.approval?.approvalId) && (
+          <ApprovalCard approval={workspace.approval} onDecide={workspace.actions.decideApproval} />
+        )}
       </div>
     </div>
   );

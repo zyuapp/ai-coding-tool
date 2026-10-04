@@ -1055,8 +1055,8 @@ button, select { color: inherit; }
 .right-dock-tabs [role="tab"] > .right-dock-tab-attention { flex: none; width: 7px; height: 7px; margin-left: auto; border-radius: 50%; background: var(--info); }
 .right-dock-tab { position: relative; flex: 0 1 150px; padding: 0 4px 0 0; }
 .right-dock-tab > [role="tab"] { flex: 1; border: 0; border-radius: 8px 8px 0 0; padding-right: 2px; background: transparent; color: inherit; }
-.right-dock-tab > button:last-child { width: 24px; height: 24px; flex: 0 0 auto; display: grid; place-items: center; border: 0; border-radius: 6px; padding: 0; background: transparent; color: var(--quiet); cursor: pointer; }
-.right-dock-tab > button:last-child:hover { background: var(--surface-active); color: var(--ink-soft); }
+.right-dock-tab > button:not([role="tab"]) { width: 24px; height: 24px; flex: 0 0 auto; display: grid; place-items: center; border: 0; border-radius: 6px; padding: 0; background: transparent; color: var(--quiet); cursor: pointer; }
+.right-dock-tab > button:not([role="tab"]):hover { background: var(--surface-active); color: var(--ink-soft); }
 .right-dock-add { position: relative; flex: 0 0 auto; }
 .right-dock-add > button, .right-dock-hide { width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 9px; background: transparent; color: var(--quiet-strong); cursor: pointer; }
 .right-dock-add > button:hover, .right-dock-add.open > button, .right-dock-hide:hover { background: var(--surface-hover); color: var(--ink-dim); }
