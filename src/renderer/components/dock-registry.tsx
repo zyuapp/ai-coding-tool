@@ -95,8 +95,15 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
       badge: needsYou,
       attention: true,
       pinned: true,
-      /** Keyed by coordinator, so one coordinator's folded and unfolded groups never carry into another's. */
-      render: () => <CoordinatorOverview key={workspace.currentThread?.id} members={workspace.coordination.members} worktreeGroups={workspace.worktreeGroups} onSelect={workspace.actions.selectThread} />,
+      render: () => (
+        <CoordinatorOverview
+          members={workspace.coordination.members}
+          worktreeGroups={workspace.worktreeGroups}
+          folds={workspace.overviewFolds}
+          onSetFold={(group, change) => { if (workspace.currentThread) void workspace.actions.setOverviewGroup(workspace.currentThread.id, group, change); }}
+          onSelect={workspace.actions.selectThread}
+        />
+      ),
     }] : []),
     ...(feedsSubagents ? [{
       id: "agents",

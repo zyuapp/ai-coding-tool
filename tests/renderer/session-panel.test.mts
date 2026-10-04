@@ -72,9 +72,10 @@ test("a coordinator's Overview groups its threads by what they need, each openin
   window.desktop = fakeDesktop();
   const worktree = { id: "wt-1", name: "dark-mode", projectId: "p", root: "/tmp/wt-1", workspaceId: "ws-1", baseCommit: "abc", createdAt: 1, lastUsedAt: 1 };
   let opened: string | undefined;
+  const folded: unknown[] = [];
   const done = Array.from({ length: 7 }, (_, index) => ({ thread: member(`d${index}`, `Done ${index}`), status: "done" as const, summary: null }));
   const working = Array.from({ length: 7 }, (_, index) => ({ thread: member(`w${index}`, `Working ${index}`), status: "working" as const, summary: null }));
-  const view = await mount(React.createElement(CoordinatorOverview, {
+  const overview = (folds: object) => React.createElement(CoordinatorOverview, {
     members: [
       { thread: { ...member("a", "Dark mode"), worktreeId: "wt-1" }, status: "working", summary: "Tokens pass" },
       { thread: member("b", "Login flake"), status: "asking", summary: "Retry or skip?" },
@@ -82,8 +83,11 @@ test("a coordinator's Overview groups its threads by what they need, each openin
       ...done,
     ],
     worktreeGroups: [{ worktree, threads: [] }],
+    folds,
+    onSetFold: (group: string, change: object) => { folded.push([group, change]); },
     onSelect: (id: string) => { opened = id; },
-  }));
+  });
+  const view = await mount(overview({}));
   const needs = query(view.container, '[aria-label="Needs you"]');
   assert.match(needs.textContent, /Needs you1/);
   assert.match(needs.textContent, /Needs you · Retry or skip\?/);
@@ -91,18 +95,20 @@ test("a coordinator's Overview groups its threads by what they need, each openin
   assert.ok(query(busy, 'button[aria-label="Open Dark mode"] [aria-label="Works in dark-mode"]'), "a thread in a worktree carries its sidebar mark");
   assert.equal(busy.querySelectorAll(".coordination-row").length, 5, "a group shows five threads");
   await act(async () => { query<HTMLButtonElement>(busy, ".coordination-more").click(); });
-  assert.equal(busy.querySelectorAll(".coordination-row").length, 8, "and the rest when asked");
-
   const finished = query(view.container, '[aria-label="Done"]');
   assert.equal(query(finished, ".coordination-group-head").getAttribute("aria-expanded"), "false", "a long Done starts folded");
   assert.equal(finished.querySelectorAll(".coordination-row").length, 0);
   await act(async () => { query<HTMLButtonElement>(finished, ".coordination-group-head").click(); });
-  assert.equal(finished.querySelectorAll(".coordination-row").length, 5);
+  assert.deepEqual(folded, [["working", { all: true }], ["done", { open: true }]], "folding and showing more are commands");
+
+  await view.render(overview({ working: { all: true }, done: { open: true } }));
+  assert.equal(query(view.container, '[aria-label="Working"]').querySelectorAll(".coordination-row").length, 8, "a group the user asked to see whole shows every thread");
+  assert.equal(query(view.container, '[aria-label="Done"]').querySelectorAll(".coordination-row").length, 5);
 
   await act(async () => { query<HTMLButtonElement>(busy, 'button[aria-label="Open Dark mode"]').click(); });
   assert.equal(opened, "a");
 
-  await view.render(React.createElement(CoordinatorOverview, { members: [], worktreeGroups: [], onSelect() {} }));
+  await view.render(React.createElement(CoordinatorOverview, { members: [], worktreeGroups: [], folds: {}, onSetFold() {}, onSelect() {} }));
   assert.match(view.container.textContent, /No threads yet/);
   await view.unmount();
 });

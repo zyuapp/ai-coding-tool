@@ -2,7 +2,7 @@ import type { AppCommand } from "./commands.js";
 import { isTerminalDimension, MAX_TERMINAL_INPUT } from "./terminal.js";
 import { isSnoozeHours } from "../domain/thread-snooze.js";
 import { isThreadRole } from "../domain/thread-role.js";
-import { isThreadBrief } from "../domain/coordination.js";
+import { isOverviewGroup, isThreadBrief } from "../domain/coordination.js";
 import type { WorkspaceEvent } from "../application/workspace-reducer.js";
 import { isBrowserAction, isString, MAX_PROMPT_LENGTH } from "./ipc.js";
 import type { ExternalCommand } from "./threads.js";
@@ -372,6 +372,7 @@ const commands = {
   "view.move-worktree": { fields: { worktree: nullable(boolean) }, at: "local" },
   "view.set-section-open": { fields: { section: isSidebarSection, open: boolean }, at: "local" },
   "view.set-subagent-group": { fields: { group: isSubagentGroup, open: boolean }, at: "local" },
+  "view.set-overview-group": { fields: { taskId: text, group: isOverviewGroup, open: optionalBoolean, all: optionalBoolean }, at: "local" },
   "view.set-model-favorite": { fields: { model: isAgentModel, favorite: boolean }, at: "local" },
   "view.set-theme": { fields: { theme: text }, at: "local" },
   "view.set-theme-family": { fields: { family: text, systemDark: boolean }, at: "local" },

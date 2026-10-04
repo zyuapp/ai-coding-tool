@@ -1,9 +1,9 @@
 import { useId, useState } from "react";
 import { LuChevronDown as ChevronDown, LuChevronUp as ChevronUp, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuTrash2 as Trash } from "react-icons/lu";
-import { deliveryLabel, type ThreadBrief } from "../../domain/coordination";
+import { deliveryLabel, OVERVIEW_GROUPS, type OverviewFold, type OverviewFolds, type OverviewGroup, type ThreadBrief } from "../../domain/coordination";
 import type { Thread } from "../../domain/thread";
 import { worktreeHue, worktreeName, type Worktree } from "../../domain/worktree";
-import { overviewGroups, type CoordinationApprovalView, type CoordinationDecisionView, type CoordinatedThreadStatus, type CoordinatedThreadView, type OverviewGroup } from "../../application/coordination";
+import { overviewGroups, type CoordinationApprovalView, type CoordinationDecisionView, type CoordinatedThreadStatus, type CoordinatedThreadView } from "../../application/coordination";
 import type { ApprovalView } from "../../application/thread-run-state";
 import type { WorktreeGroup } from "../../application/workspace-state";
 import type { MemberWorktree } from "../../application/member-worktrees";
@@ -38,9 +38,11 @@ const OVERVIEW_LIMIT = 5;
 const OVERVIEW_LABELS: Record<OverviewGroup, string> = { needs: "Needs you", working: "Working", done: "Done" };
 
 /** A coordinator's threads by what they need from the user, each opening as a tab beside its conversation. */
-export function CoordinatorOverview({ members, worktreeGroups, onSelect }: {
+export function CoordinatorOverview({ members, worktreeGroups, folds, onSetFold, onSelect }: {
   members: CoordinatedThreadView[];
   worktreeGroups: WorktreeGroup[];
+  folds: OverviewFolds;
+  onSetFold: (group: OverviewGroup, change: { open?: boolean; all?: boolean }) => void;
   onSelect: (threadId: string) => void;
 }) {
   if (!members.length) return <p className="session-empty coordination-empty">No threads yet</p>;
@@ -48,27 +50,28 @@ export function CoordinatorOverview({ members, worktreeGroups, onSelect }: {
   const groups = overviewGroups(members);
   return (
     <div className="coordination-overview" aria-label="Threads under this coordinator">
-      {(["needs", "working", "done"] as const).map((group) => groups[group].length > 0 && (
-        <OverviewSection key={group} group={group} members={groups[group]} worktrees={worktrees} onSelect={onSelect} />
+      {OVERVIEW_GROUPS.map((group) => groups[group].length > 0 && (
+        <OverviewSection key={group} group={group} members={groups[group]} fold={folds[group] ?? {}} worktrees={worktrees} onSetFold={onSetFold} onSelect={onSelect} />
       ))}
     </div>
   );
 }
 
 /** One group of threads. Done starts folded once it is longer than a group shows. */
-function OverviewSection({ group, members, worktrees, onSelect }: {
+function OverviewSection({ group, members, fold, worktrees, onSetFold, onSelect }: {
   group: OverviewGroup;
   members: CoordinatedThreadView[];
+  fold: OverviewFold;
   worktrees: Map<string, Worktree>;
+  onSetFold: (group: OverviewGroup, change: { open?: boolean; all?: boolean }) => void;
   onSelect: (threadId: string) => void;
 }) {
-  const [open, setOpen] = useState(group !== "done" || members.length <= OVERVIEW_LIMIT);
-  const [all, setAll] = useState(false);
+  const open = fold.open ?? (group !== "done" || members.length <= OVERVIEW_LIMIT);
   const label = OVERVIEW_LABELS[group];
-  const shown = all ? members : members.slice(0, OVERVIEW_LIMIT);
+  const shown = fold.all ? members : members.slice(0, OVERVIEW_LIMIT);
   return (
     <section className={`coordination-group ${group}`} aria-label={label}>
-      <button type="button" className="coordination-group-head" aria-expanded={open} onClick={() => setOpen(!open)}>
+      <button type="button" className="coordination-group-head" aria-expanded={open} onClick={() => onSetFold(group, { open: !open })}>
         <ChevronDown size={13} aria-hidden="true" />
         <span>{label}</span>
         <span className="coordination-group-count">{members.length}</span>
@@ -92,7 +95,7 @@ function OverviewSection({ group, members, worktrees, onSelect }: {
           </button>
         ))}
         {members.length > shown.length && (
-          <button type="button" className="coordination-more" onClick={() => setAll(true)}>Show {members.length - shown.length} more</button>
+          <button type="button" className="coordination-more" onClick={() => onSetFold(group, { all: true })}>Show {members.length - shown.length} more</button>
         )}
       </div>}
     </section>

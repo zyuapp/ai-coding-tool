@@ -2,7 +2,7 @@ import type { ComputerFilter } from "../domain/computers.js";
 import type { AutomationDraft, AutomationPatch } from "../domain/automation.js";
 import type { SnoozeHours } from "../domain/thread-snooze.js";
 import type { ThreadRole } from "../domain/thread-role.js";
-import type { ThreadBrief } from "../domain/coordination.js";
+import type { OverviewGroup, ThreadBrief } from "../domain/coordination.js";
 import type { ShortcutSurface } from "../domain/shortcuts.js";
 import type { BrowserAction } from "../domain/browser.js";
 import type { ComputerUsePermission } from "../domain/computer-use.js";
@@ -416,6 +416,8 @@ export type ViewCommand =
   | { type: "view.set-section-open"; section: SidebarSection; open: boolean }
   /** Folds the sidebar's subagent list, or one status heading in the Subagents panel. */
   | { type: "view.set-subagent-group"; group: SubagentGroup; open: boolean }
+  /** Folds or unfolds one group of a coordinator's Overview, or shows every thread in it. */
+  | { type: "view.set-overview-group"; taskId: string; group: OverviewGroup; open?: boolean; all?: boolean }
   | { type: "view.set-model-favorite"; model: AgentModel; favorite: boolean }
   /** The theme the window paints in. An id the app does not ship is ignored. */
   | { type: "view.set-theme"; theme: string }

@@ -80,6 +80,20 @@ export const MAX_ANSWER = 4_000;
 const MAX_DECISIONS = 20;
 const MAX_NOTES = 50;
 
+/** The groups a coordinator's Overview sorts its threads into, by what each one needs. */
+export type OverviewGroup = "needs" | "working" | "done";
+
+export const OVERVIEW_GROUPS: readonly OverviewGroup[] = ["needs", "working", "done"];
+
+export function isOverviewGroup(value: unknown): value is OverviewGroup {
+  return typeof value === "string" && (OVERVIEW_GROUPS as readonly string[]).includes(value);
+}
+
+/** How the user left one Overview group: folded or unfolded, and whether it shows every thread. */
+export type OverviewFold = { open?: boolean; all?: true };
+
+export type OverviewFolds = Partial<Record<OverviewGroup, OverviewFold>>;
+
 export function isCoordinator(thread: Thread | undefined): boolean {
   return thread?.role === "coordinator" && thread.archivedAt === undefined;
 }

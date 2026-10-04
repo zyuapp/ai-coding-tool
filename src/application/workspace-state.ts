@@ -6,7 +6,7 @@ import { threadActivity, threadLists, waitingOn, type ThreadWait } from "./threa
 import { backfillProjectSortIndex } from "./project-order.js";
 import { sidebarLists } from "./sidebar-lists.js";
 import type { CoordinationSend } from "./coordination.js";
-import { coordinatorOf } from "../domain/coordination.js";
+import { coordinatorOf, type OverviewFolds } from "../domain/coordination.js";
 import { backfillSortIndex } from "./thread-order.js";
 import type { ChangedFilesResult, DesktopShortcutRefusal, InstalledApp } from "../contracts/ipc.js";
 import type { PullRequestRead } from "../domain/pull-request.js";
@@ -278,6 +278,8 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   sections: SidebarSections;
   /** Which subagent groups are unfolded: the sidebar's list, and each status heading in the panel. */
   subagentGroups: SubagentGroups;
+  /** Per coordinator, how the user left the groups of its Overview. Not kept across launches. */
+  overviewFolds: Record<string, OverviewFolds>;
   theme: string;
   /** The ground the user asked for, which "auto" leaves to the system's own appearance. */
   themeMode: ThemeMode;
@@ -442,6 +444,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     sidebarMode: "projects",
     sidebarOpen: true,
     subagentGroups: OPEN_SUBAGENT_GROUPS,
+    overviewFolds: {},
     sessionPanelOpen: false,
     captureSound: true,
     captureFocus: true,
@@ -699,6 +702,8 @@ export function threadSlots(state: WorkspaceState): string[] {
   return sidebarLists(state, state.projects, threadLists(state).visibleThreads, ranked, blocked).threadSlots;
 }
 
+const NO_OVERVIEW_FOLDS: OverviewFolds = {};
+
 /** Everything the UI reads, derived in one place so components never reach into raw state. */
 export function deriveView(state: WorkspaceState) {
   const own = deriveOwnView(state);
@@ -735,6 +740,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state,
     archivedThreads: collections.archivedThreads,
     currentThread,
     coordination: collections.coordination, coordinators: collections.coordinators, memberPullRequests: collections.memberPullRequests, memberWorktrees: collections.memberWorktrees,
+    overviewFolds: (state.currentId ? state.overviewFolds[state.currentId] : undefined) ?? NO_OVERVIEW_FOLDS,
     goal: state.currentId ? state.goals[state.currentId] ?? null : null,
     currentProject,
     folder: currentProject?.root ?? "",

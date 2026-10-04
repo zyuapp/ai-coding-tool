@@ -9,11 +9,13 @@ import { TAKE_KEYS, focusDockTab } from "./dock-tabs.js";
 import { followUps, settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { readAttention } from "../../domain/attention.js";
+import { isOverviewGroup } from "../../domain/coordination.js";
 import { DIFF_PANEL, DOCK_PICKER, OVERVIEW_PANEL, WORKFLOW_PANEL, diffFor, dockOwner, dockTabAfterClosing, dockTabIds, dockTabKind, frontDock, withDock, type WorkspaceState } from "../workspace-state.js";
 
 type DockInput = Extract<WorkspaceInput, {
   type: "view.close-tab" | "view.new-tab" | "view.select-dock-index" | "view.set-dock-open" | "view.set-dock-expanded"
-    | "view.open-dock-panel" | "view.open-workflow" | "view.close-dock-panel" | "view.select-dock-tab" | "view.close-thread-tab";
+    | "view.open-dock-panel" | "view.open-workflow" | "view.close-dock-panel" | "view.select-dock-tab" | "view.close-thread-tab"
+    | "view.set-overview-group";
 }>;
 
 /** Reads the review for the checkout it is about now, starting over when that is another checkout. */
@@ -124,6 +126,16 @@ export function reduceDock(state: WorkspaceState, input: DockInput): WorkspaceTr
       /** A review of the closed tab's checkout goes back to the dock's own. */
       const reread = dock.subjects[DIFF_PANEL] === input.taskId && dock.panels.includes(DIFF_PANEL) ? reviewSubject(closed, owner) : settled(closed);
       return { state: reread.state, effects: [...(open ? browserEffectsForTab(closed, owner, tab) : TAKE_KEYS), ...followUps(reread.effects)] };
+    }
+
+    case "view.set-overview-group": {
+      /** The coordinator may run on a paired computer, so its id is not looked up here. */
+      if (!isOverviewGroup(input.group)) return settled(state);
+      const folds = state.overviewFolds[input.taskId] ?? {};
+      const fold = folds[input.group] ?? {};
+      const next = { ...fold, ...(input.open === undefined ? {} : { open: input.open }), ...(input.all ? { all: true as const } : {}) };
+      if (next.open === fold.open && next.all === fold.all) return settled(state);
+      return settled({ ...state, overviewFolds: { ...state.overviewFolds, [input.taskId]: { ...folds, [input.group]: next } } });
     }
 
     case "view.select-dock-tab": {

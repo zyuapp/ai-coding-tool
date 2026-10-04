@@ -363,6 +363,16 @@ test("a coordinator's dock leads with an Overview that opens once a thread works
   assert.deepEqual(stepped.docks.lead?.panels, [], "a thread that stops coordinating loses its Overview");
 });
 
+test("a coordinator's Overview remembers how the user folded each group, per coordinator", () => {
+  const state = workspace({ threads: [lead(), lead("other"), task("worker", { parentId: "lead" })], currentId: "lead" });
+  const unfolded = reduce(state, { type: "view.set-overview-group", taskId: "lead", group: "done", open: true }).state;
+  const whole = reduce(unfolded, { type: "view.set-overview-group", taskId: "lead", group: "working", all: true }).state;
+  assert.deepEqual(deriveView(whole).overviewFolds, { done: { open: true }, working: { all: true } });
+  assert.deepEqual(deriveView({ ...whole, currentId: "other" }).overviewFolds, {}, "another coordinator starts from its own defaults");
+  assert.equal(reduce(whole, { type: "view.set-overview-group", taskId: "lead", group: "done", open: true }).state, whole, "an unchanged group changes nothing");
+  assert.equal(reduce(whole, { type: "view.set-overview-group", taskId: "lead", group: "nowhere" as "done", open: true }).state, whole, "an unknown group is ignored");
+});
+
 test("a coordinator's Overview groups its threads by what they need, and its tool approvals wait beside its decisions", () => {
   const threads = [
     lead(),

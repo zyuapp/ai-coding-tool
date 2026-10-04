@@ -53,6 +53,8 @@ export function overlaidView(state: WorkspaceState, own: OwnWorkspaceView, remot
     /** Terminal search runs in this window's xterm, using the output it has received. */
     find: own.find?.target.kind === "terminal" ? own.find : shown.find?.target.kind === "terminal" ? null : shown.find,
     readingPoint: shown.currentThread ? state.readingPoints[shown.currentThread.id] ?? null : null,
+    /** Folding an Overview is this window's own view of the coordinator, wherever the coordinator runs. */
+    overviewFolds: shown.currentThread ? state.overviewFolds[shown.currentThread.id] ?? shown.overviewFolds : shown.overviewFolds,
     /** Browser surfaces still belong to the host's native window. */
     browserTabs: [],
     browserApproval: null,

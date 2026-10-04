@@ -7,6 +7,7 @@ import type { FindResults, FindTarget } from "../../domain/find";
 import type { AgentEngine, AgentModel } from "../../domain/agent-engine";
 import type { ComputerUsePermission } from "../../domain/computer-use";
 import type { AgentEffort, ExecutionPolicy, SubagentGroup } from "../../domain/run";
+import type { OverviewGroup } from "../../domain/coordination";
 import type { SettingsSection } from "../../domain/settings-section";
 import type { SidebarMode, SidebarSection } from "../../domain/sidebar";
 import type { RunAttachment } from "../../domain/conversation";
@@ -51,6 +52,7 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     dismissAllThreads: () => dispatch({ type: "task.dismiss-all" }),
     setSectionOpen: (section: SidebarSection, open: boolean) => dispatch({ type: "view.set-section-open", section, open }),
     setSubagentGroup: (group: SubagentGroup, open: boolean) => dispatch({ type: "view.set-subagent-group", group, open }),
+    setOverviewGroup: (taskId: string, group: OverviewGroup, change: { open?: boolean; all?: boolean }) => dispatch({ type: "view.set-overview-group", taskId, group, ...change }),
     setTheme: (theme: string) => dispatch({ type: "view.set-theme", theme }),
     setThemeFamily: (family: string) => dispatch({ type: "view.set-theme-family", family, systemDark: systemPrefersDark() }),
     setThemeMode: (mode: ThemeMode) => dispatch({ type: "view.set-theme-mode", mode, systemDark: systemPrefersDark() }),

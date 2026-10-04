@@ -3,7 +3,7 @@ import type { WorkspaceState } from "./workspace-state.js";
 import type { ApprovalView } from "./thread-run-state.js";
 import { threadActivity, threadStatus, type ThreadStatus } from "./thread-activity.js";
 import { activitySections, type ActivitySections } from "./thread-order.js";
-import { coordinationDecisions, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, openDecisions, type CoordinationNote, type Decision, type ThreadBrief } from "../domain/coordination.js";
+import { coordinationDecisions, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, openDecisions, type CoordinationNote, type Decision, type OverviewGroup, type ThreadBrief } from "../domain/coordination.js";
 import type { Thread } from "../domain/thread.js";
 import { wantsAttention } from "../domain/attention.js";
 
@@ -234,10 +234,7 @@ export function coordinationView(
   return { ...NO_COORDINATION, lead, decisions, brief: thread.brief ?? null, asking: Boolean(lead && openDecisions(thread).length) };
 }
 
-/** The groups a coordinator's Overview sorts its threads into, by what each one needs. */
-export type OverviewGroup = "needs" | "working" | "done";
-
-const OVERVIEW_GROUPS: Record<CoordinatedThreadStatus, OverviewGroup> = {
+const GROUP_OF: Record<CoordinatedThreadStatus, OverviewGroup> = {
   approval: "needs",
   asking: "needs",
   blocked: "needs",
@@ -250,6 +247,6 @@ const OVERVIEW_GROUPS: Record<CoordinatedThreadStatus, OverviewGroup> = {
 
 export function overviewGroups(members: readonly CoordinatedThreadView[]): Record<OverviewGroup, CoordinatedThreadView[]> {
   const groups: Record<OverviewGroup, CoordinatedThreadView[]> = { needs: [], working: [], done: [] };
-  for (const member of members) groups[OVERVIEW_GROUPS[member.status]].push(member);
+  for (const member of members) groups[GROUP_OF[member.status]].push(member);
   return groups;
 }

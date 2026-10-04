@@ -142,7 +142,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "view.close-tab": case "view.new-tab": case "view.select-dock-index":
     case "view.set-dock-open": case "view.set-dock-expanded": case "view.open-dock-panel":
     case "view.open-workflow": case "view.close-dock-panel": case "view.select-dock-tab":
-    case "view.close-thread-tab":
+    case "view.close-thread-tab": case "view.set-overview-group":
       return reduceDock(state, input);
 
     case "browser.open": case "browser.new-tab": case "browser.decide":
