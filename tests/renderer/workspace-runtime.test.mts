@@ -262,14 +262,14 @@ test("an input waiting for old history cannot execute after the runtime restarts
   const runtime = createWorkspaceRuntime({ desktop: { ...desktop, ...noComputers }, storage: localStorage });
   try {
     await runtime.start();
-    const oldCommand = runtime.execute({ type: "task.select", taskId: "cold" });
+    const oldCommand = runtime.execute({ type: "task.send", taskId: "cold", text: "hello" });
     await loading.promise;
     runtime.dispose();
     await runtime.start();
     await runtime.flush();
     loaded.resolve(messages);
     await oldCommand.completed;
-    assert.equal(runtime.getState().currentId, "selected");
+    assert.deepEqual(runtime.getState().pendingRuns, {});
   } finally {
     runtime.dispose();
   }
@@ -414,6 +414,110 @@ test("a shutdown retry saves retained changes after a transient storage failure"
     assert.equal(runtime.getState().storageError, null);
     assert.equal(runtime.getState().writable, true);
     assert.ok(writes.some((delta) => delta.tasks.some((change) => change.task.title === "Keep this title")));
+  } finally {
+    runtime.dispose();
+  }
+});
+
+/** Lets queued microtasks and timers run, so anything not held by a pending read has settled. */
+async function settle() {
+  await new Promise((resolve) => setTimeout(resolve, 10));
+}
+
+test("a thread's history read holds only inputs for that thread", async () => {
+  const loaded = Promise.withResolvers<ConversationMessage[]>();
+  const loading = Promise.withResolvers<void>();
+  desktop.loadThreadMessages = () => { loading.resolve(); return loaded.promise; };
+  const runtime = createWorkspaceRuntime({ desktop: { ...desktop, ...noComputers }, storage: localStorage });
+  try {
+    await runtime.start();
+    await runtime.dispatch({ type: "agent.events", events: [{ type: "run.started", taskId: "selected", runId: "selected-run", sequence: 1, agentInitiated: true }] });
+    runtime.execute({ type: "task.select", taskId: "cold" });
+    assert.equal(runtime.getState().currentId, "cold", "selection lands before the transcript does");
+    assert.ok(runtime.getState().threads.find((thread) => thread.id === "cold")?.historySummary, "the selected thread shows as loading");
+    await loading.promise;
+    const first = runtime.dispatch({ type: "agent.events", events: [
+      { type: "run.started", taskId: "cold", runId: "cold-run", sequence: 1, agentInitiated: true },
+      { type: "assistant.delta", taskId: "cold", runId: "cold-run", sequence: 2, messageId: "first", text: "First" },
+    ] });
+    const second = runtime.dispatch({ type: "agent.events", events: [{ type: "assistant.delta", taskId: "cold", runId: "cold-run", sequence: 3, messageId: "second", text: "Second" }] });
+    const done: string[] = [];
+    const cancel = runtime.execute({ type: "run.cancel", taskId: "selected" }).completed.then(() => done.push("cancel"));
+    const settings = runtime.execute({ type: "view.set-settings-open", open: true }).completed.then(() => done.push("settings"));
+    await settle();
+    assert.deepEqual(done.sort(), ["cancel", "settings"]);
+    assert.equal(runtime.getState().settingsOpen, true);
+    assert.ok(vi.mocked(runWorkspaceEffect).mock.calls.some(([effect]) => effect.type === "send-run-command" && effect.command.type === "cancel" && effect.command.taskId === "selected"));
+    assert.equal(runtime.getState().activeRuns.cold, undefined, "the cold thread's events wait for its transcript");
+    loaded.resolve(messages);
+    await Promise.all([first, second, cancel, settings]);
+    assert.deepEqual(runtime.getState().threads.find((thread) => thread.id === "cold")?.messages.map((message) => message.text), ["persisted text", "First", "Second"]);
+  } finally {
+    loaded.resolve(messages);
+    runtime.dispose();
+  }
+});
+
+test("a current-thread command waiting for history keeps its thread when the selection moves on", async () => {
+  const loaded = Promise.withResolvers<ConversationMessage[]>();
+  const loading = Promise.withResolvers<void>();
+  desktop.loadThreadMessages = () => { loading.resolve(); return loaded.promise; };
+  const runtime = createWorkspaceRuntime({ desktop: { ...desktop, ...noComputers }, storage: localStorage });
+  try {
+    await runtime.start();
+    await runtime.dispatch({ type: "view.set-prompt", taskId: "cold", prompt: "for the cold thread" });
+    await runtime.dispatch({ type: "view.set-prompt", taskId: "selected", prompt: "for the selected thread" });
+    runtime.execute({ type: "task.select", taskId: "cold" });
+    await loading.promise;
+    const send = runtime.execute({ type: "task.send" });
+    runtime.execute({ type: "task.select", taskId: "selected" });
+    await settle();
+    assert.equal(runtime.getState().currentId, "selected");
+    loaded.resolve(messages);
+    await send.completed;
+    const pending = Object.values(runtime.getState().pendingRuns);
+    assert.deepEqual(pending.map((run) => [run.taskId, run.text]), [["cold", "for the cold thread"]]);
+    assert.equal(runtime.getState().prompts.selected, "for the selected thread");
+  } finally {
+    loaded.resolve(messages);
+    runtime.dispose();
+  }
+});
+
+test("inputs queued behind a thread's history read report the closed runtime", async () => {
+  const loaded = Promise.withResolvers<ConversationMessage[]>();
+  const loading = Promise.withResolvers<void>();
+  desktop.loadThreadMessages = () => { loading.resolve(); return loaded.promise; };
+  const runtime = createWorkspaceRuntime({ desktop: { ...desktop, ...noComputers }, storage: localStorage });
+  try {
+    await runtime.start();
+    const send = runtime.execute({ type: "task.send", taskId: "cold", text: "hello" });
+    const rename = runtime.execute({ type: "task.rename", taskId: "cold", title: "Renamed" });
+    await loading.promise;
+    runtime.dispose();
+    loaded.resolve(messages);
+    const closed = { ok: false, message: "The workspace runtime is closed." };
+    assert.deepEqual(await send.completed, closed);
+    assert.deepEqual(await rename.completed, closed);
+    assert.deepEqual(runtime.getState().pendingRuns, {});
+  } finally {
+    loaded.resolve(messages);
+    runtime.dispose();
+  }
+});
+
+test("selecting a coordinated thread loads the tab it opens in the coordinator's dock", async () => {
+  const loads: string[] = [];
+  desktop.loadTaskStore = async () => ({ ...store(), tasks: [...store().tasks, task("lead", { role: "coordinator" }), task("worker", { parentId: "lead", historySummary: { messageCount: 1, attachmentCount: 0 } })] });
+  desktop.loadThreadMessages = async (taskId) => { loads.push(taskId); return messages; };
+  const runtime = createWorkspaceRuntime({ desktop: { ...desktop, ...noComputers }, storage: localStorage });
+  try {
+    await runtime.start();
+    await runtime.execute({ type: "task.select", taskId: "worker" }).completed;
+    assert.equal(runtime.getState().currentId, "lead");
+    await runtime.flush();
+    assert.deepEqual(loads, ["worker"]);
+    assert.equal(runtime.getState().threads.find((thread) => thread.id === "worker")?.messages, messages);
   } finally {
     runtime.dispose();
   }

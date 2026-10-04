@@ -95,6 +95,12 @@ export function frontDock(state: Pick<DockState, "currentId" | "sideChats" | "do
   return { owner, dock: dockFor(state, owner) };
 }
 
+/** The thread tab the dock in front is showing, while it shows one. */
+export function shownThreadTab(state: Pick<DockState, "currentId" | "sideChats" | "docks">): string | null {
+  const { dock } = frontDock(state);
+  return dock.open && dock.threadTabs.includes(dock.tab) ? dock.tab : null;
+}
+
 export function withDock<S extends Pick<DockState, "docks">>(state: S, owner: string, patch: Partial<ThreadDock>): S {
   return { ...state, docks: { ...state.docks, [owner]: { ...dockFor(state, owner), ...patch } } };
 }

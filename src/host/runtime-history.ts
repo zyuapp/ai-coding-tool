@@ -1,4 +1,5 @@
-import { findTargetFor, reachableVisit, type WorkspaceState } from "../application/workspace-state.js";
+import { findTargetFor, type WorkspaceState } from "../application/workspace-state.js";
+import { inputScope } from "../application/input-scope.js";
 import { shortcutCommands, type WorkspaceInput } from "../application/workspace-reducer.js";
 import { findThread, resolveScope, threadSummaries } from "../application/thread-projection.js";
 import type { ConversationMessage } from "../domain/conversation.js";
@@ -37,7 +38,10 @@ export function createRuntimeHistory(host: HistoryHost) {
     return read;
   }
 
-  /** Only operations that read or append transcript content require its disk history. */
+  /**
+   * Only operations that read or append transcript content require its disk history. Selection does
+   * not: it lands at once and the thread on screen loads behind its loading state.
+   */
   function needed(input: WorkspaceInput): string[] {
     const state = host.state();
     const ids = new Set<string>();
@@ -53,19 +57,6 @@ export function createRuntimeHistory(host: HistoryHost) {
         const commands = shortcutCommands(state, input.action, input.surface);
         if (commands.some((command) => command.type === "task.new")) break;
         for (const command of commands) for (const id of needed(command)) add(id);
-        break;
-      }
-      case "task.select":
-      case "worktree.open-thread":
-      case "view.jump-choose": {
-        add(input.taskId);
-        add(state.sideChats.find((chat) => chat.id === input.taskId)?.sourceThreadId);
-        break;
-      }
-      case "view.go-back":
-      case "view.go-forward": {
-        const index = reachableVisit(state, input.type === "view.go-back" ? -1 : 1);
-        if (index !== null) add(state.history[index]);
         break;
       }
       case "task.send":
@@ -129,6 +120,7 @@ export function createRuntimeHistory(host: HistoryHost) {
   return {
     hydrate,
     needed,
+    scope: (input: WorkspaceInput) => inputScope(host.state(), input),
     invalidate() {
       generation += 1;
       reads.clear();

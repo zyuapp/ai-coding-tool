@@ -123,14 +123,14 @@ test("a broken current history does not block unrelated settings, browser, focus
   assert.deepEqual(history.needed({ type: "run.cancel" }), []);
   assert.deepEqual(history.needed({ type: "task.send", text: "new thread" }), []);
   assert.deepEqual(history.needed({ type: "task.send", taskId: "other", text: "existing thread" }), ["other"]);
-  assert.deepEqual(history.needed({ type: "task.select", taskId: "other" }), ["other"]);
+  assert.deepEqual(history.needed({ type: "task.select", taskId: "other" }), []);
 });
 
-test("keyboard navigation and an explicit find target hydrate the thread they reach", () => {
+test("keyboard navigation lands without waiting and an explicit find target hydrates the thread it searches", () => {
   const state = workspace({ threads: [cold("first"), cold("second")], currentId: "first", history: ["second", "first"], historyIndex: 1 });
   const history = createRuntimeHistory({ state: () => state, search: async () => [], load: async () => [], dispatch: async () => {}, persistence: { persisted: null, pending: null, inFlight: null } });
-  assert.deepEqual(history.needed({ type: "view.go-back" }), ["second"]);
-  assert.deepEqual(history.needed({ type: "view.shortcut", action: "nav.back", surface: "any" }), ["second"]);
+  assert.deepEqual(history.needed({ type: "view.go-back" }), []);
+  assert.deepEqual(history.needed({ type: "view.shortcut", action: "nav.back", surface: "any" }), []);
   assert.deepEqual(history.needed({ type: "view.find-open", target: { kind: "thread", taskId: "second" } }), ["second"]);
   assert.deepEqual(history.needed({ type: "view.shortcut", action: "thread.new-worktree", surface: "any" }), []);
 });

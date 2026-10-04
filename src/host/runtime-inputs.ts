@@ -1,30 +1,56 @@
 import { agentEventInput } from "../application/workspace-reducer.js";
 import type { WorkspaceInput } from "../application/workspace-reducer.js";
 import type { WorkspaceExecution } from "../application/workspace-execution.js";
+import type { InputScope } from "../application/input-scope.js";
 import { errorMessage } from "./errors.js";
 
 type RuntimeInputHost = {
   generation(): number;
   active(generation: number): boolean;
-  history: { needed(input: WorkspaceInput): string[]; hydrate(taskId: string): Promise<void> };
+  /** The thread on screen now. */
+  current(): string | null;
+  history: {
+    needed(input: WorkspaceInput): string[];
+    hydrate(taskId: string): Promise<void>;
+    scope(input: WorkspaceInput): InputScope;
+  };
   execute(input: WorkspaceInput): WorkspaceExecution;
   track(completed: Promise<unknown>): void;
 };
 
-/** Inputs wait for their histories in arrival order; unrelated effects may complete independently. */
+const CLOSED = "The workspace runtime is closed.";
+const MOVED = "The thread on screen changed before this could run.";
+
+function refused(message: string): WorkspaceExecution {
+  const result = { ok: false as const, message };
+  return { accepted: result, completed: Promise.resolve(result) };
+}
+
+/**
+ * Inputs wait only for the histories they need and for earlier pending inputs sharing one of their
+ * keys, in arrival order per key. Everything else runs at once, whatever another thread is loading.
+ */
 export function createRuntimeInputs(host: RuntimeInputHost) {
-  let preparing: Promise<unknown> | null = null;
-  function execute(input: WorkspaceInput): WorkspaceExecution {
+  /** The newest pending input per key; the next input with that key starts after it. */
+  const tails = new Map<string, Promise<unknown>>();
+  const pending = new Set<Promise<unknown>>();
+
+  function execute(arrived: WorkspaceInput): WorkspaceExecution {
+    if (!tails.size && !host.history.needed(arrived).length) return host.execute(arrived);
+    const { input, keys, screen } = host.history.scope(arrived);
     const needed = host.history.needed(input);
-    if (!preparing && !needed.length) return host.execute(input);
+    for (const taskId of needed) keys.add(taskId);
+    const before: Promise<unknown>[] = [];
+    for (const key of keys) {
+      const tail = tails.get(key);
+      if (tail) before.push(tail);
+    }
+    if (!before.length && !needed.length) return host.execute(input);
     const inputGeneration = host.generation();
-    const closed = (): WorkspaceExecution => {
-      const result = { ok: false as const, message: "The workspace runtime is closed." };
-      return { accepted: result, completed: Promise.resolve(result) };
-    };
     const splitBatch = input.type === "agent.events" && needed.length > 0;
-    const prepared = (preparing ?? Promise.resolve()).then(async () => {
-      if (!host.active(inputGeneration)) return closed();
+    const prepared = Promise.all(before).then(async (): Promise<WorkspaceExecution> => {
+      if (!host.active(inputGeneration)) return refused(CLOSED);
+      if (screen !== undefined && host.current() !== screen) return refused(MOVED);
       if (input.type === "agent.events" && splitBatch) {
         const completions: WorkspaceExecution["completed"][] = [];
         let failure: string | undefined;
@@ -32,10 +58,10 @@ export function createRuntimeInputs(host: RuntimeInputHost) {
           const single = agentEventInput(event);
           try {
             for (const taskId of host.history.needed(single)) await host.history.hydrate(taskId);
-            if (!host.active(inputGeneration)) return closed();
+            if (!host.active(inputGeneration)) return refused(CLOSED);
             completions.push(host.execute(single).completed);
           } catch (error) {
-            if (!host.active(inputGeneration)) return closed();
+            if (!host.active(inputGeneration)) return refused(CLOSED);
             const message = errorMessage(error);
             failure = message;
             const failed = host.execute({ type: "action.failed", message });
@@ -49,24 +75,35 @@ export function createRuntimeInputs(host: RuntimeInputHost) {
         };
       }
       for (const taskId of host.history.needed(input)) await host.history.hydrate(taskId);
-      if (!host.active(inputGeneration)) return closed();
+      if (!host.active(inputGeneration)) return refused(CLOSED);
       return host.execute(input);
     }).catch((error): WorkspaceExecution => {
-      if (!host.active(inputGeneration)) return closed();
+      if (!host.active(inputGeneration)) return refused(CLOSED);
       const message = errorMessage(error);
       const result = { ok: false as const, message };
       const failed = host.execute({ type: "action.failed", message });
       return { accepted: result, completed: failed.completed.then(() => result) };
     });
-    const queued = prepared.finally(() => { if (preparing === queued) preparing = null; });
-    preparing = queued;
+    const queued: Promise<unknown> = prepared.finally(() => {
+      pending.delete(queued);
+      for (const key of keys) if (tails.get(key) === queued) tails.delete(key);
+    });
+    pending.add(queued);
+    for (const key of keys) tails.set(key, queued);
     const completed = prepared.then((execution) => execution.completed);
-    if (splitBatch) {
-      host.track(completed);
-    }
+    if (splitBatch) host.track(completed);
     const accepted = input.type === "agent.events" ? { ok: true as const } : prepared.then((execution) => execution.accepted);
     return { accepted, completed };
   }
 
-  return { execute, settled: () => preparing, reset: () => { preparing = null; } };
+  return {
+    execute,
+    async settled() {
+      while (pending.size) await Promise.all([...pending]);
+    },
+    reset() {
+      tails.clear();
+      pending.clear();
+    },
+  };
 }

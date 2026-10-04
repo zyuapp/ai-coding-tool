@@ -1,4 +1,4 @@
-import { emptyWorkspaceState, stateFromData, type WorkspaceState } from "../application/workspace-state.js";
+import { emptyWorkspaceState, shownThreadTab, stateFromData, type WorkspaceState } from "../application/workspace-state.js";
 import { threadLists } from "../application/thread-activity.js";
 import { remoteUnreadCount } from "../application/computers.js";
 import { reduce, type WorkspaceInput } from "../application/workspace-reducer.js";
@@ -40,6 +40,16 @@ function deferred() {
   return { promise, resolve };
 }
 
+/** Threads this change put on screen, which load their transcripts behind the loading state they show meanwhile. */
+function cameOnScreen(previous: WorkspaceState, next: WorkspaceState): string[] {
+  if (next.currentId === previous.currentId && next.docks === previous.docks) return [];
+  const shown: string[] = [];
+  if (next.currentId && next.currentId !== previous.currentId) shown.push(next.currentId);
+  const tab = shownThreadTab(next);
+  if (tab && tab !== shownThreadTab(previous)) shown.push(tab);
+  return shown;
+}
+
 /** State, effects and durability have one lifetime, independent of whatever displays them. */
 export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
   const { desktop } = host;
@@ -67,6 +77,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
   const inputs = createRuntimeInputs({
     generation: () => generation,
     active: (current) => !disposed && generation === current,
+    current: () => state.currentId,
     history,
     execute: rawExecute,
     track: (completed) => trackUntilSettled(effectsInFlight, completed),
@@ -87,9 +98,8 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
     if (update) desktop.publishMobileView(update);
     for (const listener of listeners) listener();
     if (started) refreshEnvironment();
-    if (next.currentId !== previous.currentId && next.currentId) {
-      const loading = history.hydrate(next.currentId).catch((error) => rawExecute({ type: "action.failed", message: errorMessage(error) }).completed);
-      trackUntilSettled(effectsInFlight, loading);
+    for (const taskId of cameOnScreen(previous, next)) {
+      trackUntilSettled(effectsInFlight, history.hydrate(taskId).catch((error) => rawExecute({ type: "action.failed", message: errorMessage(error) }).completed));
     }
     if (!persistenceReady || !next.writable || next.storageError || (input.type === "subagent.activity.loaded" || input.type === "store.thread-loaded")) return;
     if (!hasPersistenceChanges(persistenceState(previous), persistenceState(next))) return;

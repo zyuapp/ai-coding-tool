@@ -25,7 +25,7 @@ import { AUTOMATION_PANEL, DIFF_PANEL, dockFor, dockOwner, dockSideChats, dockSu
 export {
   AUTOMATION_PANEL, DIFF_PANEL, DOCK_PICKER, DRAFT_DOCK, EMPTY_DOCK, WORKFLOW_PANEL, activeBrowserTab, activeTerminal, browserTarget,
   dockFor, dockSubject, dockHoldsTab, dockOwner, dockSideChats, dockTabAfterClosing, dockTabIds, dockTabKind, frontDock,
-  keyboardTerminalId, keyboardThreadId, ownerOfBrowserTab, ownerOfTerminal, tabHolderOf, terminalTarget, withDock,
+  keyboardTerminalId, keyboardThreadId, ownerOfBrowserTab, ownerOfTerminal, shownThreadTab, tabHolderOf, terminalTarget, withDock,
 } from "./workspace-dock.js";
 export type { ThreadDock } from "./workspace-dock.js";
 import { diffFor, type DiffState } from "./workspace-diff.js";
