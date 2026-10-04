@@ -125,3 +125,72 @@ function deriveLists(state: Pick<WorkspaceState, "threads" | "sideChats">): Thre
   archivedThreads.sort((left, right) => right.archivedAt! - left.archivedAt!);
   return { listedThreads, visibleThreads, archivedThreads, worktreeThreadIds, ...unreadView(state, visibleThreads) };
 }
+
+/** A thread as one input found it and left it; a side is missing when the input added or removed it. */
+export type ThreadChange = { id: string; before?: Thread; after?: Thread };
+
+/** The threads an input replaced, found by reference, so an input that touched one thread costs a pointer scan. */
+export function threadChanges(before: readonly Thread[], after: readonly Thread[]): ThreadChange[] {
+  if (before === after) return [];
+  if (before.length === after.length) {
+    const changes: ThreadChange[] = [];
+    let aligned = true;
+    for (let index = 0; index < after.length && aligned; index += 1) {
+      const was = before[index]!;
+      const is = after[index]!;
+      if (was === is) continue;
+      if (was.id === is.id) changes.push({ id: is.id, before: was, after: is });
+      else aligned = false;
+    }
+    if (aligned) return changes;
+  }
+  const previous = new Map(before.map((thread) => [thread.id, thread]));
+  const changes: ThreadChange[] = [];
+  for (const thread of after) {
+    const was = previous.get(thread.id);
+    previous.delete(thread.id);
+    if (was !== thread) changes.push({ id: thread.id, ...(was ? { before: was } : {}), after: thread });
+  }
+  for (const [id, was] of previous) changes.push({ id, before: was });
+  return changes;
+}
+
+/**
+ * Threads whose activity may differ between two states: every input {@link deriveActivity} reads,
+ * compared by reference first, so a streamed event that changes no run's status finds nothing.
+ */
+export function activityChanges(before: WorkspaceState, after: WorkspaceState, threads: readonly ThreadChange[]): Set<string> {
+  const changed = new Set<string>();
+  changedKeys(before.activeRuns, after.activeRuns, (was, is) => was?.runId === is?.runId && was?.status === is?.status, changed);
+  if (before.pendingRuns !== after.pendingRuns) {
+    for (const id of new Set([...Object.keys(before.pendingRuns), ...Object.keys(after.pendingRuns)])) {
+      const was = before.pendingRuns[id];
+      const is = after.pendingRuns[id];
+      if (was === is) continue;
+      if (was?.taskId) changed.add(was.taskId);
+      if (is?.taskId) changed.add(is.taskId);
+    }
+  }
+  if (before.creatingWorktrees !== after.creatingWorktrees) symmetricDifference(new Set(before.creatingWorktrees), new Set(after.creatingWorktrees), changed);
+  if (before.releasingWorktrees !== after.releasingWorktrees || before.deletingWorktrees !== after.deletingWorktrees || before.worktrees !== after.worktrees) {
+    symmetricDifference(leavingThreadIds(before), leavingThreadIds(after), changed);
+  }
+  changedKeys(before.workflows, after.workflows, (was, is) => Boolean(was?.some((item) => item.status === "running")) === Boolean(is?.some((item) => item.status === "running")), changed);
+  changedKeys(before.subagents, after.subagents, (was, is) => Boolean(was?.some((item) => item.status === "working")) === Boolean(is?.some((item) => item.status === "working")), changed);
+  changedKeys(before.queuedMessages, after.queuedMessages, (was, is) => Boolean(was?.length) === Boolean(is?.length), changed);
+  for (const { id, before: was, after: is } of threads) {
+    if (!was || !is || was.limitPause !== is.limitPause || was.worktreeId !== is.worktreeId) changed.add(id);
+  }
+  return changed;
+}
+
+function changedKeys<Value>(before: Record<string, Value>, after: Record<string, Value>, same: (was: Value | undefined, is: Value | undefined) => boolean, changed: Set<string>) {
+  if (before === after) return;
+  for (const key of Object.keys(after)) if (before[key] !== after[key] && !same(before[key], after[key])) changed.add(key);
+  for (const key of Object.keys(before)) if (!(key in after) && !same(before[key], undefined)) changed.add(key);
+}
+
+function symmetricDifference(before: ReadonlySet<string>, after: ReadonlySet<string>, changed: Set<string>) {
+  for (const id of before) if (!after.has(id)) changed.add(id);
+  for (const id of after) if (!before.has(id)) changed.add(id);
+}

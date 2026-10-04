@@ -87,8 +87,8 @@ export function turnNote(thread: Thread, status: "succeeded" | "failed" | "cance
   return coordinationNote(thread.id, `"${thread.title}" ${ended}.${reply ? ` It last said: ${excerpt(reply)}` : ""}`, at, status === "failed");
 }
 
-export function coordinationNote(threadId: string, text: string, at: number, urgent = false): CoordinationNote {
-  return { id: crypto.randomUUID(), threadId, text, at, ...(urgent ? { urgent: true as const } : {}) };
+export function coordinationNote(threadId: string, text: string, at: number, urgent = false, runId?: string): CoordinationNote {
+  return { id: crypto.randomUUID(), threadId, text, at, ...(urgent ? { urgent: true as const } : {}), ...(runId ? { runId } : {}) };
 }
 
 /** Threads under a coordinator still doing work. One waiting on the user's approval is not. */

@@ -52,13 +52,20 @@ export type Decision = {
   answeredAt?: number;
 };
 
-/** Something a coordinator has yet to hear about one of its threads. Urgent news reaches it without waiting for its other threads. */
+/**
+ * Something a coordinator has yet to hear about one of its threads. Urgent news reaches it without
+ * waiting for its other threads. News written during a thread's run waits for that run to end. A
+ * quiet note was waiting when the user stopped the coordinator: it is heard with the next wake but
+ * never causes one.
+ */
 export type CoordinationNote = {
   id: string;
   threadId: string;
   text: string;
   at: number;
   urgent?: true;
+  runId?: string;
+  quiet?: true;
 };
 
 export const MAX_BRIEF_FIELD = 4_000;
@@ -216,5 +223,7 @@ export function isDecision(value: unknown): value is Decision {
 
 export function isCoordinationNote(value: unknown): value is CoordinationNote {
   return isRecord(value) && text(value.id, 200) && text(value.threadId, 200) && typeof value.text === "string" && finite(value.at)
-    && (value.urgent === undefined || value.urgent === true);
+    && (value.urgent === undefined || value.urgent === true)
+    && (value.runId === undefined || text(value.runId, 200))
+    && (value.quiet === undefined || value.quiet === true);
 }
