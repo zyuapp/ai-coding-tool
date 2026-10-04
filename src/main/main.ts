@@ -38,7 +38,7 @@ import { startRunHost } from "./run-host.js";
 import { forkAgentProcess } from "./agent-process.js";
 import { appPluginPath } from "./app-plugin-path.js";
 import { servingProcess } from "./instance-lock.js";
-import { checkForUpdates, type UpdateHost } from "./updates.js";
+import { startUpdateChecks, type UpdateHost } from "./updates.js";
 import { appProfile } from "./user-data.js";
 import { rememberedPlacement, watchWindowPlacement } from "./window-placement.js";
 import { windowFrameOptions } from "./platform-capabilities.js";
@@ -481,7 +481,7 @@ const startup = app.whenReady().then(async () => {
   persistCompileCache();
   const launchPath = projectPathFromArgv(process.argv);
   if (launchPath) openProjectPath(launchPath);
-  void checkForUpdates(updateHost).catch((error) => console.error("Update check failed:", error));
+  startUpdateChecks(updateHost);
   void sweepUserData(userData, taskDatabase).catch((error) => console.error("Could not sweep unused app data:", error));
   app.on("activate", () => {
     if (queueReopen()) return;

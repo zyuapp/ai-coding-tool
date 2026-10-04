@@ -286,7 +286,7 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   appUpdate(): Promise<AppUpdate>;
   onAppUpdate(listener: (update: AppUpdate) => void): () => void;
   downloadUpdate(): void;
-  /** Quits and installs the downloaded update. */
+  /** Asks to restart, then quits and installs the downloaded update. */
   installUpdate(): void;
   openSourceLicenses(): Promise<void>;
   loadTaskStore(): Promise<LoadedTaskStore | null>;

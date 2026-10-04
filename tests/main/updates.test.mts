@@ -9,13 +9,14 @@ const stub = vi.hoisted(() => ({
   updater: null as unknown,
   menu: [] as MenuItem[],
   dialogs: [] as Array<{ title: string; detail?: string }>,
+  response: 1,
 }));
 vi.mock("electron", () => ({
   app: { isPackaged: true, getVersion: () => "0.5.9" },
   shell: { openExternal: async () => {} },
   dialog: { showMessageBox: async (_window: unknown, options: { title: string; detail?: string }) => {
     stub.dialogs.push(options);
-    return { response: 1 };
+    return { response: stub.response };
   } },
   Menu: {
     buildFromTemplate: (items: MenuItem[]) => items,
@@ -30,6 +31,7 @@ beforeEach(() => {
   vi.resetModules();
   stub.dialogs = [];
   stub.menu = [];
+  stub.response = 1;
 });
 
 async function fixture() {
@@ -42,14 +44,14 @@ async function fixture() {
     quitAndInstall: vi.fn(),
   });
   stub.updater = updater;
-  const { checkForUpdates, downloadUpdate, installUpdate } = await import("../../src/main/updates.ts");
+  const { checkForUpdates, confirmInstall, downloadUpdate, installUpdate, startUpdateChecks } = await import("../../src/main/updates.ts");
   const { installAppMenu, setUpdateChecking } = await import("../../src/main/app-menu.ts");
   const states: AppUpdate[] = [];
   const host = { window: () => ({ isDestroyed: () => false }) as BrowserWindow, onInstall: vi.fn(), onChecking: setUpdateChecking, onState: (update: AppUpdate) => { states.push(update); } };
   const manual: Promise<void>[] = [];
   installAppMenu({ onCheckForUpdates: () => { manual.push(checkForUpdates(host, { userRequested: true })); }, onOpenSourceLicenses() {} });
   const menu = stub.menu.flatMap((item) => item.submenu ?? []).find((item) => item.id === "app.check-for-updates")!;
-  return { updater, resolve, reject, checkForUpdates, downloadUpdate, installUpdate, host, states, menu, manual };
+  return { updater, resolve, reject, checkForUpdates, confirmInstall, downloadUpdate, installUpdate, startUpdateChecks, host, states, menu, manual };
 }
 
 for (const outcome of ["current", "available", "error", "unavailable"] as const) {
@@ -230,4 +232,50 @@ test("a macOS failure after the download reports, but before the call settles, i
   }
   assert.deepEqual(f.states.at(-1), { status: "available", version: "0.5.10" });
   assert.deepEqual(stub.dialogs.map((dialog) => dialog.title), ["Update failed"]);
+});
+
+test("a running app checks again every hour until an update is downloading", async () => {
+  vi.useFakeTimers();
+  try {
+    const f = await fixture();
+    f.updater.checkForUpdates.mockResolvedValue({ isUpdateAvailable: false });
+    const stop = f.startUpdateChecks(f.host);
+    await vi.waitFor(() => assert.equal(f.updater.checkForUpdates.mock.calls.length, 1));
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+    assert.equal(f.updater.checkForUpdates.mock.calls.length, 2);
+
+    f.updater.checkForUpdates.mockImplementation(async () => {
+      f.updater.emit("update-available", { version: "0.5.10" });
+      return { isUpdateAvailable: true };
+    });
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+    assert.deepEqual(f.states, [{ status: "available", version: "0.5.10" }]);
+
+    f.updater.downloadUpdate.mockImplementation(() => new Promise(() => {}));
+    void f.downloadUpdate(f.host);
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+    assert.equal(f.updater.checkForUpdates.mock.calls.length, 3, "no check runs while the update downloads");
+    stop();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("restarting into a downloaded update asks first", async () => {
+  const f = await fixture();
+  f.updater.checkForUpdates.mockResolvedValue({ isUpdateAvailable: true });
+  await f.checkForUpdates(f.host);
+  f.updater.emit("update-available", { version: "0.5.10" });
+  const download = f.downloadUpdate(f.host);
+  f.updater.emit("update-downloaded", { version: "0.5.10" });
+  await download;
+
+  await f.confirmInstall(f.host);
+  assert.deepEqual(stub.dialogs.map((dialog) => dialog.title), ["Update ready"]);
+  assert.equal(f.updater.quitAndInstall.mock.calls.length, 0, "Later keeps the app running");
+
+  stub.response = 0;
+  await f.confirmInstall(f.host);
+  assert.equal(f.host.onInstall.mock.calls.length, 1);
+  assert.deepEqual(f.updater.quitAndInstall.mock.calls, [[false, true]]);
 });

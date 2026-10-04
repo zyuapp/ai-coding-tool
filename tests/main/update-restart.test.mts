@@ -78,6 +78,10 @@ for (const platform of ["darwin", "linux"] as const) {
     await waitFor(() => updater.listenerCount("update-downloaded") === 1);
     updater.emit("update-downloaded", { version: "0.4.13" });
     onPlatform(platform, () => main.desktop.installUpdate());
+    await waitFor(() => main.messageBoxes.some((box) => box.title === "Update ready"));
+    assert.equal(installs, 0, "the restart waits for the user to confirm");
+    main.dialog.showMessageBox = async () => ({ response: 0 });
+    onPlatform(platform, () => main.desktop.installUpdate());
     await waitFor(() => installs === 1);
     assert.equal(main.completedQuits(), 0);
 

@@ -6,6 +6,7 @@ import { registerAppImageUpdateRepair } from "./appimage-update.js";
 import { automaticUpdatesAvailable, manualUpdateRecovery } from "./platform-capabilities.js";
 
 const RELEASES_URL = "https://github.com/zyuapp/ai-coding-tool/releases/latest";
+const CHECK_INTERVAL = 60 * 60 * 1000;
 
 export type UpdateHost = {
   /** Read when a dialog is shown rather than when the check starts, so a replaced window still gets it. */
@@ -24,6 +25,7 @@ let state: AppUpdate = NO_APP_UPDATE;
 let downloading = false;
 /** A failed background check stays in the log; one the user asked for is theirs to hear about. */
 let announceFailure = false;
+let confirming = false;
 
 async function updaterFor(host: UpdateHost) {
   if (updater) return updater;
@@ -64,6 +66,18 @@ export function appUpdate() {
   return state;
 }
 
+/** Checks now and every hour after, skipping while an update is downloading or waiting on a restart. */
+export function startUpdateChecks(host: UpdateHost) {
+  const check = () => {
+    if (state.status === "downloading" || state.status === "ready") return;
+    void checkForUpdates(host).catch((error) => console.error("Update check failed:", error));
+  };
+  check();
+  const timer = setInterval(check, CHECK_INTERVAL);
+  timer.unref();
+  return () => clearInterval(timer);
+}
+
 export async function checkForUpdates(host: UpdateHost, options: { userRequested?: boolean } = {}) {
   const userRequested = options.userRequested === true;
   if (!app.isPackaged) {
@@ -74,7 +88,7 @@ export async function checkForUpdates(host: UpdateHost, options: { userRequested
     if (userRequested) await reportManualLinuxUpdates(host.window());
     return;
   }
-  if (userRequested && state.status === "ready") return offerInstall(host, state.version);
+  if (userRequested && state.status === "ready") return confirmInstall(host);
   if (checking) {
     if (userRequested && !checking.userRequested) {
       checking.userRequested = true;
@@ -131,19 +145,26 @@ export function installUpdate(host: UpdateHost) {
   updater?.quitAndInstall(false, true);
 }
 
-async function offerInstall(host: UpdateHost, version: string) {
+/** Asks before restarting into the downloaded update. */
+export async function confirmInstall(host: UpdateHost) {
+  if (state.status !== "ready" || confirming) return;
   const window = host.window();
   if (!window || window.isDestroyed()) return;
-  const result = await dialog.showMessageBox(window, {
-    type: "info",
-    title: "Update ready",
-    message: `AI Coding Tool ${version} is ready to install.`,
-    detail: "Restart AI Coding Tool to finish the update.",
-    buttons: ["Restart and install", "Later"],
-    defaultId: 0,
-    cancelId: 1,
-  });
-  if (result.response === 0) installUpdate(host);
+  confirming = true;
+  try {
+    const result = await dialog.showMessageBox(window, {
+      type: "info",
+      title: "Update ready",
+      message: `AI Coding Tool ${state.version} is ready to install.`,
+      detail: "Restart AI Coding Tool to finish the update.",
+      buttons: ["Restart and install", "Later"],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (result.response === 0) installUpdate(host);
+  } finally {
+    confirming = false;
+  }
 }
 
 async function reportUpToDate(window: BrowserWindow | null) {
