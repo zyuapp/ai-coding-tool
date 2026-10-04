@@ -20,7 +20,7 @@ export class EngineRouter implements AgentProvider {
     return Object.values(this.engines).some((engine) => engine.labelThread(taskId, title));
   }
 
-  archiveThread(taskId: string, continuation: Continuation, archived: boolean) {
+  archiveThread(taskId: string, continuation: Continuation | undefined, archived: boolean) {
     return Object.values(this.engines).some((engine) => engine.archiveThread(taskId, continuation, archived));
   }
 

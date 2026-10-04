@@ -90,18 +90,24 @@ export class CodexAgentProvider implements AgentProvider {
 
   /**
    * Files the thread away in Codex's own history too, or brings it back. Archiving waits out the
-   * thread's session, which holds the thread open until its cancelled turn has answered.
+   * thread's session, which holds the thread open until its cancelled turn has answered; a thread
+   * archived before Codex named it is filed under the name its session ends up with.
    */
-  archiveThread(taskId: string, continuation: Continuation, archived: boolean) {
-    if (continuation.provider !== "codex") return false;
-    const threadId = continuation.value;
-    const previous = this.filings.get(threadId) ?? Promise.resolve();
+  archiveThread(taskId: string, continuation: Continuation | undefined, archived: boolean) {
+    if (continuation && continuation.provider !== "codex") return false;
+    const session = this.pool.liveSession(taskId);
+    if (!continuation && !(archived && session instanceof CodexSession)) return false;
+    const key = continuation?.value ?? taskId;
+    const previous = this.filings.get(key) ?? Promise.resolve();
     const filing = previous
       .then(() => archived ? this.pool.retire(taskId) : undefined)
-      .then(() => fileThread(this.connect, threadId, archived))
+      .then(() => {
+        const threadId = continuation?.value ?? (session as CodexSession).threadId;
+        return threadId ? fileThread(this.connect, threadId, archived) : undefined;
+      })
       .catch(() => {})
-      .finally(() => { if (this.filings.get(threadId) === filing) this.filings.delete(threadId); });
-    this.filings.set(threadId, filing);
+      .finally(() => { if (this.filings.get(key) === filing) this.filings.delete(key); });
+    this.filings.set(key, filing);
     return true;
   }
 

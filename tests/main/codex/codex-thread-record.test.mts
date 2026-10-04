@@ -165,3 +165,20 @@ test("archiving waits for the thread's session process to exit, which is when Co
   await sentBy(codex.latest(), "thread/archive");
   codex.provider.closeAll();
 });
+
+test("a thread archived before Codex named it to the app is filed under the name its session holds", async () => {
+  const codex = harness({ "thread/archive": () => ({}) });
+  assert.equal(codex.provider.archiveThread("task-1", undefined, true), false, "no session, nothing to file");
+  const { client: session } = await turn(codex);
+
+  assert.equal(codex.provider.archiveThread("task-1", undefined, true), true);
+  for (let waited = 0; codex.clients.length < 2; waited += 1) {
+    if (waited > 100) throw new Error("no archiving server was opened");
+    await tick();
+  }
+  await sentBy(codex.latest(), "thread/archive");
+  assert.equal(session.closed, true);
+  assert.deepEqual(codex.latest().calls("thread/archive"), [{ threadId }]);
+  assert.equal(codex.provider.archiveThread("task-1", undefined, false), false, "nothing named to bring back");
+  codex.provider.closeAll();
+});

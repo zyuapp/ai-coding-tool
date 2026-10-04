@@ -124,7 +124,7 @@ export class RunCoordinator {
     return this.provider.labelThread(taskId, title);
   }
 
-  archiveThread(taskId: string, continuation: Continuation, archived: boolean) {
+  archiveThread(taskId: string, continuation: Continuation | undefined, archived: boolean) {
     return this.provider.archiveThread(taskId, continuation, archived);
   }
 

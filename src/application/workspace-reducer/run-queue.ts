@@ -105,11 +105,15 @@ export function startRunCommand(state: WorkspaceState, thread: Thread, runId: st
 
 /**
  * Mirrors archiving or restoring into the engine's own record of the thread. A copy that has yet to
- * run still names its source's session, which is not its to file away.
+ * run still names its source's session, which is not its to file away; archiving one mid-run, or a
+ * thread whose first run has yet to name a session, leaves the engine to file the session it holds.
  */
-export function fileThread(thread: Thread | undefined, archived: boolean): WorkspaceEffect[] {
-  if (!thread?.continuation || thread.inheritedContinuation) return [];
-  return [{ type: "send-run-command", command: { type: "archive", taskId: thread.id, continuation: thread.continuation, archived } }];
+export function fileThread(state: WorkspaceState, thread: Thread | undefined, archived: boolean): WorkspaceEffect[] {
+  if (!thread) return [];
+  const continuation = thread.inheritedContinuation ? undefined : thread.continuation;
+  if (!continuation && !(archived && state.activeRuns[thread.id])) return [];
+  const channel = sideChannelFor(state, thread).channel ?? "main";
+  return [{ type: "send-run-command", command: { type: "archive", taskId: thread.id, channel, ...(continuation ? { continuation } : {}), archived } }];
 }
 
 /** A side chat's first turn forks the source thread; every turn after resumes its own branch. */

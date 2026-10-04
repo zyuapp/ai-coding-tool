@@ -168,8 +168,11 @@ export type StopProcessCommand = {
 
 export type LabelThreadCommand = { type: "label"; taskId: string; title: string };
 
-/** Mirrors archiving and restoring a thread into the engine's own record of it. */
-export type ArchiveThreadCommand = { type: "archive"; taskId: string; continuation: Continuation; archived: boolean };
+/**
+ * Mirrors archiving and restoring a thread into the engine's own record of it, on the channel its
+ * runs take. Without a continuation, only a session the thread still holds names what to file.
+ */
+export type ArchiveThreadCommand = { type: "archive"; taskId: string; channel: RunChannel; continuation?: Continuation; archived: boolean };
 
 export type RunCommand = ReloadAgentSettingsCommand | StartRunCommand | CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand | ArchiveThreadCommand;
 
@@ -627,7 +630,7 @@ export function isRunCommand(value: unknown): value is RunCommand {
   if (command.type === "steer") return isString(command.taskId) && isString(command.runId) && isString(command.messageId) && isString(command.prompt, MAX_PROMPT_LENGTH);
   if (command.type === "stop-process") return isString(command.taskId) && isString(command.processId);
   if (command.type === "label") return isString(command.taskId) && isString(command.title, MAX_TITLE_LENGTH);
-  if (command.type === "archive") return isString(command.taskId) && isContinuation(command.continuation) && typeof command.archived === "boolean";
+  if (command.type === "archive") return isString(command.taskId) && isRunChannel(command.channel) && (command.continuation === undefined || isContinuation(command.continuation)) && typeof command.archived === "boolean";
   return false;
 }
 

@@ -430,8 +430,10 @@ test("coordination requests and briefs are checked at the boundary, and only the
 });
 
 test("an archive command names the thread, the engine session it mirrors into, and which way it goes", () => {
-  const command = { type: "archive", taskId: "task-1", continuation: { provider: "codex", value: "thread-1" }, archived: true };
+  const command = { type: "archive", taskId: "task-1", channel: "main", continuation: { provider: "codex", value: "thread-1" }, archived: true };
   assert.equal(isRunCommand(command), true);
+  assert.equal(isRunCommand({ ...command, continuation: undefined }), true);
   assert.equal(isRunCommand({ ...command, archived: "yes" }), false);
-  assert.equal(isRunCommand({ ...command, continuation: undefined }), false);
+  assert.equal(isRunCommand({ ...command, channel: "background" }), false);
+  assert.equal(isRunCommand({ ...command, continuation: { provider: "codex" } }), false);
 });

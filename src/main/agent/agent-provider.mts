@@ -159,5 +159,5 @@ export interface AgentProvider {
   /** Offers the thread's title to the engine's own record of it. Engines that keep none say so. */
   labelThread(taskId: string, title: string): boolean;
   /** Files the thread away in the engine's own record of it, or brings it back. Engines that keep none say so. */
-  archiveThread(taskId: string, continuation: Continuation, archived: boolean): boolean;
+  archiveThread(taskId: string, continuation: Continuation | undefined, archived: boolean): boolean;
 }

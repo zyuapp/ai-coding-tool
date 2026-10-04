@@ -4,7 +4,7 @@ import { deliverCoordinationNotes, releaseCoordinator, settleCoordination } from
 import { readDiffFrom, rereadReviewsOf } from "./diff-reads.js";
 import { handOverDraftDock } from "./dock-tabs.js";
 import { WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
-import { beginRun, clearedDraft, fileThread, drainQueue, queuedFor, resolveWorkspaceEffect, sideChannelFor, startRunCommand, threadBusy, withAttendedRun, withDeliveredMessage, withPending, withQueued, withSideChat, withSteeringFailure, withoutPending } from "./run-queue.js";
+import { beginRun, clearedDraft, drainQueue, queuedFor, resolveWorkspaceEffect, sideChannelFor, startRunCommand, threadBusy, withAttendedRun, withDeliveredMessage, withPending, withQueued, withSideChat, withSteeringFailure, withoutPending } from "./run-queue.js";
 import { now, settled, targetId, rejected } from "./shared.js";
 import { withUsedWorktree } from "./worktree-claims.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
@@ -188,11 +188,6 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       if (event.type === "run.status" && event.status === "awaiting-approval" && active.status !== "awaiting-approval") {
         const released = releaseCoordinator(next, event.taskId);
         return settled(released.state, [...environment, ...said, ...released.effects]);
-      }
-      /** A session named after its thread was archived, by the run that archive cancelled, is filed away with it. */
-      if (event.type === "continuation.updated") {
-        const thread = next.threads.find((item) => item.id === event.taskId);
-        return settled(next, thread?.archivedAt !== undefined ? fileThread(thread, true) : []);
       }
       if (event.type !== "run.status" || event.status === "running" || event.status === "awaiting-approval") return settled(next, [...environment, ...said]);
       if (event.status === "failed" && event.limit) next = pausedForLimit(next, event.taskId, event.limit, now());

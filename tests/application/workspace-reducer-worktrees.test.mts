@@ -248,6 +248,7 @@ test("archiving a thread cancels its run and keeps its checkout", () => {
 
   assert.deepEqual(archived.effects.filter((effect) => effect.type !== "browser.show" && effect.type !== "focus-window"), [
     { type: "send-run-command", command: { type: "cancel", taskId: "task-a", runId: "run-a" } },
+    { type: "send-run-command", command: { type: "archive", taskId: "task-a", channel: "main", archived: true } },
   ]);
   assert.equal(archived.state.threads[0].worktreeId, worktree.id);
   assert.deepEqual(archived.state.worktrees, [worktree]);

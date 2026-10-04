@@ -112,7 +112,7 @@ function archiveThread(state: WorkspaceState, taskId: string): WorkspaceTransiti
     ...unpaused.effects,
     ...retireAutomations(state, [taskId]),
     ...(active ? [{ type: "send-run-command" as const, command: { type: "cancel" as const, taskId: active.taskId, runId: active.runId } }] : []),
-    ...fileThread(state.threads.find((thread) => thread.id === taskId), true),
+    ...fileThread(state, state.threads.find((thread) => thread.id === taskId), true),
     ...[...closed].map((tabId): WorkspaceEffect => ({ type: "browser.close", tabId })),
   ]);
 }
@@ -189,7 +189,7 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
     case "task.restore": {
       const thread = state.threads.find((item) => item.id === input.taskId);
       if (!thread || thread.archivedAt === undefined) return settled(state);
-      return settled(updateThread(state, input.taskId, ({ archivedAt: _restored, ...item }) => item), fileThread(thread, false));
+      return settled(updateThread(state, input.taskId, ({ archivedAt: _restored, ...item }) => item), fileThread(state, thread, false));
     }
 
     case "task.clear-archive": {

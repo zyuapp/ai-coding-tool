@@ -5,7 +5,7 @@ import { deriveView } from "../../src/application/workspace-state.ts";
 import type { ChangedFilesResult } from "../../src/contracts/ipc.ts";
 import type { ThreadStoreData } from "../../src/domain/thread-storage.ts";
 import { EMPTY_DOCK } from "../../src/application/workspace-dock.ts";
-import { task, workspace, activeRun, automation, correlatedRunEvent, effectAt, heldWorktree, inside, PROJECT, required, run } from "./workspace-reducer-fixtures.mts";
+import { task, workspace, activeRun, automation, effectAt, heldWorktree, inside, PROJECT, required, run } from "./workspace-reducer-fixtures.mts";
 
 test("archiving a thread retires its automation and cancels a run still going", () => {
   const state = workspace({
@@ -22,6 +22,7 @@ test("archiving a thread retires its automation and cancels a run still going", 
   assert.deepEqual(running.effects, [
     { type: "automation.delete", taskId: "task-b" },
     { type: "send-run-command", command: { type: "cancel", taskId: "task-b", runId: "run-b" } },
+    { type: "send-run-command", command: { type: "archive", taskId: "task-b", channel: "main", archived: true } },
   ]);
   assert.ok(running.state.threads[1].archivedAt);
 });
@@ -45,23 +46,25 @@ test("archiving and restoring a thread files its engine session away and back, b
   const filing = (effects: ReturnType<typeof reduce>["effects"]) => effects.filter((effect) => effect.type === "send-run-command" && effect.command.type === "archive");
 
   const archived = reduce(state, { type: "task.archive", taskId: "task-a" });
-  assert.deepEqual(filing(archived.effects), [{ type: "send-run-command", command: { type: "archive", taskId: "task-a", continuation, archived: true } }]);
+  assert.deepEqual(filing(archived.effects), [{ type: "send-run-command", command: { type: "archive", taskId: "task-a", channel: "main", continuation, archived: true } }]);
   const restored = reduce(archived.state, { type: "task.restore", taskId: "task-a" });
-  assert.deepEqual(restored.effects, [{ type: "send-run-command", command: { type: "archive", taskId: "task-a", continuation, archived: false } }]);
+  assert.deepEqual(restored.effects, [{ type: "send-run-command", command: { type: "archive", taskId: "task-a", channel: "main", continuation, archived: false } }]);
 
   const copy = reduce(state, { type: "task.archive", taskId: "task-copy" });
   assert.deepEqual(filing(copy.effects), []);
   assert.deepEqual(reduce(copy.state, { type: "task.restore", taskId: "task-copy" }).effects, []);
+  const runningCopy = reduce({ ...state, activeRuns: { "task-copy": activeRun("task-copy", "run-copy") } }, { type: "task.archive", taskId: "task-copy" });
+  assert.deepEqual(filing(runningCopy.effects), [{ type: "send-run-command", command: { type: "archive", taskId: "task-copy", channel: "main", archived: true } }], "only a session of the copy's own is filed");
 });
 
-test("a session named by the run an archive cancelled is filed away with its thread", () => {
-  const state = workspace({ threads: [task("task-a")], activeRuns: { "task-a": activeRun("task-a", "run-a") } });
-  const archived = reduce(state, { type: "task.archive", taskId: "task-a" });
-  const continuation = { provider: "codex", value: "codex-thread" };
+test("archiving a side chat files its session on the side channel its runs take", () => {
+  const continuation = { provider: "codex", value: "codex-chat" };
+  const state = workspace({ threads: [task("task-a"), { ...task("chat"), continuation, continuationStatus: "available" }], sideChats: [{ id: "chat", sourceThreadId: "task-a", error: null }] });
 
-  const named = reduce(archived.state, correlatedRunEvent("task-a", "run-a", 1, { type: "continuation.updated", continuation }));
-  assert.deepEqual(named.effects, [{ type: "send-run-command", command: { type: "archive", taskId: "task-a", continuation, archived: true } }]);
-  assert.deepEqual(reduce(state, correlatedRunEvent("task-a", "run-a", 1, { type: "continuation.updated", continuation })).effects, []);
+  const archived = reduce(state, { type: "task.archive", taskId: "chat" });
+  assert.deepEqual(archived.effects.filter((effect) => effect.type === "send-run-command"), [
+    { type: "send-run-command", command: { type: "archive", taskId: "chat", channel: "side", continuation, archived: true } },
+  ]);
 });
 
 test("archiving a thread closes its pages but keeps their records and its shells, and showing it again reopens them", () => {
