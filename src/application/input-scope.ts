@@ -1,4 +1,5 @@
 import { escapeCommands, shortcutCommands, type WorkspaceInput } from "./workspace-reducer.js";
+import { selectedComputer } from "./computers.js";
 import { findTargetFor, type WorkspaceState } from "./workspace-state.js";
 
 /** The find bar is one bar whatever it searches, so its inputs follow each other. */
@@ -13,9 +14,10 @@ export type InputScope = {
   screen?: string;
 };
 
-/** What the window shows: whose computer, which thread or draft, and which dock tab holds the keyboard. */
+/** What the window shows: whose computer, which thread or draft there, and which dock tab holds the keyboard. */
 export function screenOf(state: WorkspaceState): string {
-  return `${state.computers.active ?? ""}\u0000${state.currentId ?? ""}\u0000${state.keyboardTab ?? ""}`;
+  const shown = selectedComputer(state)?.state;
+  return [state.computers.active ?? "", state.currentId ?? "", state.keyboardTab ?? "", shown?.currentId ?? "", shown?.keyboardTab ?? ""].join("\u0000");
 }
 
 /** Commands that act on the thread on screen when they name none. */

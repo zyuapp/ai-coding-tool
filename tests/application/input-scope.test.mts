@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { inputScope, screenOf } from "../../src/application/input-scope.ts";
 import { reduce } from "../../src/application/workspace-reducer.ts";
+import type { PairedComputer } from "../../src/application/computers.ts";
 import { activeRun, task, workspace } from "./workspace-reducer-fixtures.mts";
 
 const state = workspace({ threads: [task("current"), task("other")], currentId: "current", activeRuns: { current: activeRun("current", "run") } });
@@ -59,4 +60,6 @@ test("a command for a paired computer's thread on screen runs only while that sc
   assert.equal(inputScope(remote, { type: "run.cancel" }).screen, screenOf(remote));
   assert.equal(inputScope(remote, { type: "task.send", text: "starts a new thread" }).screen, undefined);
   assert.equal(inputScope(state, { type: "task.send" }).screen, undefined, "a named command needs no screen");
+  const showing = (currentId: string) => ({ ...remote, computers: { ...remote.computers, paired: [{ id: "elsewhere", status: "connected", state: workspace({ threads: [task("a"), task("b")], currentId }) } as PairedComputer] } });
+  assert.notEqual(screenOf(showing("a")), screenOf(showing("b")), "switching threads on the paired computer changes the screen");
 });
