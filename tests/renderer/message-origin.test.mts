@@ -7,6 +7,7 @@ import { threadTranscript } from "../../src/application/thread-projection.ts";
 import { projectMobileView } from "../../src/application/mobile-projection.ts";
 import { createRemoteWorkspaceReader } from "../../src/application/remote-workspace.ts";
 import { sentPrompts, type ConversationMessage } from "../../src/domain/conversation.ts";
+import { legacyOrigin, originFields } from "../../src/domain/message-origin.ts";
 import { parseStoredConversationMessages } from "../../src/domain/thread-storage.ts";
 import { groupTimeline } from "../../src/renderer/timeline/grouping.ts";
 import { task, workspace, effectAt, required } from "../application/workspace-reducer-fixtures.mts";
@@ -58,7 +59,7 @@ test("old stored messages read their labels once and still render the same", () 
     { kind: "thread", threadId: "t2", title: "Fix login" },
     { kind: "thread", title: "Monday" },
     { kind: "automation", runNumber: 2 },
-    { kind: "legacy" },
+    { kind: "legacy", label: "Something a build once wrote" },
     null,
     null,
   ]);
@@ -69,6 +70,12 @@ test("old stored messages read their labels once and still render the same", () 
   assert.deepEqual(required(threadTranscript(state, "lead")).messages.map((message) => message.origin ?? null), [
     "Thread updates", "From Fix login · t2", "From Monday", "Automation run #2", "Something a build once wrote", null, null,
   ]);
+});
+
+test("a message with an unrecognised label keeps it when queued and delivered again", () => {
+  const origin = legacyOrigin("Something a build once wrote");
+  assert.deepEqual(originFields(origin), { origin, detail: "Something a build once wrote" });
+  assert.deepEqual(parseStoredConversationMessages([{ id: "m", kind: "user", text: "Odd", at: 1, ...originFields(origin) }])[0]?.detail, "Something a build once wrote");
 });
 
 test("a newer computer reads an older peer's labelled messages by who sent them", () => {

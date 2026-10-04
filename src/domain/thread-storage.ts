@@ -568,8 +568,8 @@ function isMessageOrigin(value: unknown): value is MessageOrigin {
   switch (value.kind) {
     case "thread": return typeof value.title === "string" && (value.threadId === undefined || nonEmptyString(value.threadId));
     case "automation": return finiteNumber(value.runNumber);
-    case "coordination":
-    case "legacy": return true;
+    case "coordination": return true;
+    case "legacy": return typeof value.label === "string";
     default: return false;
   }
 }
