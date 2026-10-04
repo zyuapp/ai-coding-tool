@@ -1,4 +1,6 @@
-import { CoordinatorPanel, SessionPanel } from "./SessionPanel";
+import type { ReactNode } from "react";
+import { MemberPullRequestList, SessionPanel } from "./SessionPanel";
+import { MemberWorktreeList } from "./Coordination";
 import { SessionLocationMenu } from "./SessionLocationMenu";
 import { threadAsking } from "../../application/pull-request-view";
 import { pullRequestSettled } from "../../domain/pull-request";
@@ -15,32 +17,32 @@ type WorkspaceSessionProps = {
   onOpenWorkflow: (id: string) => void;
 };
 
-/** The session panel: a coordinator's threads, or the thread's own environment and the commands its rows dispatch. */
+/** The session panel: the thread's own environment and the commands its rows dispatch, and a coordinator's checkouts and pull requests below. */
 export function WorkspaceSession(props: WorkspaceSessionProps) {
   const { workspace } = props;
-  if (isCoordinator(workspace.currentThread)) {
-    return <CoordinatorSession workspace={workspace} />;
-  }
-  return <ThreadSession {...props} />;
-}
-
-function CoordinatorSession({ workspace }: { workspace: Workspace }) {
-  const { asking, settled, found } = workspace.memberPullRequests;
-  usePullRequestReads(asking, settled, workspace.actions.readMemberPullRequests);
   return (
-    <CoordinatorPanel
-      members={workspace.coordination.members}
-      worktreeGroups={workspace.worktreeGroups}
-      worktrees={workspace.memberWorktrees}
-      pullRequests={found}
-      onOpenThread={workspace.actions.selectThread}
-      onRevealWorktree={workspace.activeComputer ? undefined : workspace.actions.revealWorktree}
-      onDeleteWorktree={(root) => workspace.dispatch({ type: "worktree.confirm-delete", root })}
-    />
+    <ThreadSession {...props}>
+      {isCoordinator(workspace.currentThread) && <CoordinatorSections workspace={workspace} />}
+    </ThreadSession>
   );
 }
 
-function ThreadSession({ workspace, onInspectSubagent, onOpenPanel, onOpenWorkflow }: WorkspaceSessionProps) {
+function CoordinatorSections({ workspace }: { workspace: Workspace }) {
+  const { asking, settled, found } = workspace.memberPullRequests;
+  usePullRequestReads(asking, settled, workspace.actions.readMemberPullRequests);
+  return (
+    <>
+      {workspace.memberWorktrees.length > 0 && <MemberWorktreeList
+        worktrees={workspace.memberWorktrees}
+        onReveal={workspace.activeComputer ? undefined : workspace.actions.revealWorktree}
+        onDelete={(root) => workspace.dispatch({ type: "worktree.confirm-delete", root })}
+      />}
+      {found.length > 0 && <MemberPullRequestList pullRequests={found} />}
+    </>
+  );
+}
+
+function ThreadSession({ workspace, onInspectSubagent, onOpenPanel, onOpenWorkflow, children }: WorkspaceSessionProps & { children?: ReactNode }) {
   /** Threads sharing a checkout share a workspace, so the pull request is read again per thread too. */
   usePullRequestReads(threadAsking(workspace.workspaceId, workspace.environment, workspace.currentThread?.id), pullRequestSettled(workspace.pullRequest), workspace.actions.readPullRequest);
 
@@ -69,6 +71,8 @@ function ThreadSession({ workspace, onInspectSubagent, onOpenPanel, onOpenWorkfl
       onOpenWorkflow={onOpenWorkflow}
       onStopProcess={workspace.actions.stopBackgroundProcess}
       onCheckoutBranch={(branch, create) => void workspace.actions.checkoutBranch(branch, create)}
-    />
+    >
+      {children}
+    </SessionPanel>
   );
 }

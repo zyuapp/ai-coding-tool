@@ -44,7 +44,7 @@ export function RightDock({ workspace, panels, launchers, open, expanded, sideba
   const focusTokenFor = useCallback((tab: string) => dockFocus?.tab === tab ? dockFocus.count : 0, [dockFocus]);
 
   const tabs: DockTab[] = [
-    ...panels.filter((panel) => workspace.dockPanels.includes(panel.id)).map(({ id, title, icon, badge }) => ({ id, title, icon, badge })),
+    ...panels.filter((panel) => workspace.dockPanels.includes(panel.id)).map(({ id, title, icon, badge, attention, pinned }) => ({ id, title, icon, badge, attention, pinned })),
     ...workspace.browserTabs.map((tab) => ({ id: tab.id, title: browserTabTitle(tab), icon: Globe })),
     ...workspace.terminals.map((terminal) => ({ id: terminal.id, title: terminal.title, icon: SquareTerminal })),
     ...workspace.sideChats.map((chat) => ({ id: chat.id, title: chat.title, icon: GitFork, unread: hasUnreadAttention(chat.thread) })),

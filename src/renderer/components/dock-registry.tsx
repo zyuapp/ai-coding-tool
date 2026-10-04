@@ -1,12 +1,15 @@
 import type { IconType } from "react-icons";
-import { LuAlarmClock as AlarmClock, LuBot as Bot, LuBoxes as Boxes, LuFileDiff as FileDiff, LuGitFork as GitFork, LuGlobe as Globe, LuSquareTerminal as SquareTerminal } from "react-icons/lu";
+import { LuAlarmClock as AlarmClock, LuBot as Bot, LuBoxes as Boxes, LuFileDiff as FileDiff, LuGitFork as GitFork, LuGlobe as Globe, LuLayoutGrid as LayoutGrid, LuSquareTerminal as SquareTerminal } from "react-icons/lu";
+import { CoordinatorOverview } from "./Coordination";
 import { AutomationPanel } from "./AutomationPanel";
 import { DiffPanel } from "./DiffPanel";
 import { AgentsPanel } from "./SubagentList";
 import { SubagentInspector } from "./SubagentInspector";
 import { WorkflowPanel } from "./WorkflowPanel";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
-import { AUTOMATION_PANEL, DIFF_PANEL } from "../../application/workspace-reducer";
+import { AUTOMATION_PANEL, DIFF_PANEL, OVERVIEW_PANEL } from "../../application/workspace-reducer";
+import { overviewGroups } from "../../application/coordination";
+import { isCoordinator } from "../../domain/coordination";
 import { engineLabel } from "../../domain/agent-engine";
 import type { DiffState } from "../../application/workspace-state";
 import type { FindTarget } from "../../domain/find";
@@ -26,13 +29,17 @@ export type DockPanel = {
   command?: string;
   icon: IconType;
   badge?: number;
+  /** The badge counts what is waiting on the user rather than what is going on. */
+  attention?: boolean;
+  /** A tab the dock keeps for as long as it applies, so it has no close button. */
+  pinned?: boolean;
   render: () => ReactNode;
 };
 
 /** An entry in the picker and the add menu: a panel to open, or an action that creates one. */
 export type DockLauncher = { id: string; title: string; description: string; command: string; icon: IconType; disabled?: boolean; open: () => void };
 
-export type DockTab = { id: string; title: string; icon: IconType; badge?: number; unread?: boolean };
+export type DockTab = { id: string; title: string; icon: IconType; badge?: number; attention?: boolean; pinned?: boolean; unread?: boolean };
 
 /** The add menu is an `openMenu` value like any other, so the dock can tell when it is over a page. */
 export const ADD_TAB_MENU = "dock-add";
@@ -77,7 +84,19 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
   const reviewedEnvironment = reviewed ? reviewed.environment : workspace.environment;
   const reviewedWorkspaceId = reviewed ? reviewed.workspaceId : workspace.workspaceId;
 
+  const needsYou = overviewGroups(workspace.coordination.members).needs.length;
+
   const panels: DockPanel[] = [
+    ...(isCoordinator(workspace.currentThread) ? [{
+      id: OVERVIEW_PANEL,
+      title: "Overview",
+      description: "Follow the threads working under this coordinator",
+      icon: LayoutGrid,
+      badge: needsYou,
+      attention: true,
+      pinned: true,
+      render: () => <CoordinatorOverview members={workspace.coordination.members} worktreeGroups={workspace.worktreeGroups} onSelect={workspace.actions.selectThread} />,
+    }] : []),
     ...(feedsSubagents ? [{
       id: "agents",
       title: "Subagents",

@@ -1,5 +1,6 @@
 /** What a coordinator and its threads are told, and how the sidebar groups them. */
 import type { WorkspaceState } from "./workspace-state.js";
+import type { ApprovalView } from "./thread-run-state.js";
 import { threadActivity, threadStatus, type ThreadStatus } from "./thread-activity.js";
 import { activitySections, type ActivitySections } from "./thread-order.js";
 import { coordinationDecisions, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, openDecisions, type CoordinationNote, type Decision, type ThreadBrief } from "../domain/coordination.js";
@@ -174,9 +175,16 @@ export type CoordinationDecisionView = {
   decision: Decision;
 };
 
-/** What the open thread shows: a coordinator its threads and open decisions, a thread its coordinator and brief. */
+export type CoordinationApprovalView = {
+  thread: Thread;
+  approval: ApprovalView;
+};
+
+/** What the open thread shows: a coordinator its threads, their approvals and open decisions, a thread its coordinator and brief. */
 export type CoordinationView = {
   members: CoordinatedThreadView[];
+  /** Tool approvals its threads are waiting on, answered beside its decisions. */
+  approvals: CoordinationApprovalView[];
   decisions: CoordinationDecisionView[];
   lead: Thread | null;
   brief: ThreadBrief | null;
@@ -184,7 +192,7 @@ export type CoordinationView = {
   asking: boolean;
 };
 
-const NO_COORDINATION: CoordinationView = { members: [], decisions: [], lead: null, brief: null, asking: false };
+const NO_COORDINATION: CoordinationView = { members: [], approvals: [], decisions: [], lead: null, brief: null, asking: false };
 
 export function coordinatedThreadStatus(thread: Thread, busy: Set<string>, blocked: Set<string>): CoordinatedThreadView {
   const question = openDecisions(thread)[0]?.question;
@@ -198,16 +206,46 @@ export function coordinatedThreadStatus(thread: Thread, busy: Set<string>, block
   return { thread, status: "idle", summary: null };
 }
 
-export function coordinationView(threads: readonly Thread[], thread: Thread | undefined, busy: Set<string>, blocked: Set<string>): CoordinationView {
+export function coordinationView(
+  threads: readonly Thread[],
+  thread: Thread | undefined,
+  busy: Set<string>,
+  blocked: Set<string>,
+  approvalOf: (threadId: string) => ApprovalView | undefined = () => undefined,
+): CoordinationView {
   if (!thread) return NO_COORDINATION;
   if (isCoordinator(thread)) {
     const members = coordinatedThreads(threads, thread.id).map((member) => coordinatedThreadStatus(member, busy, blocked));
+    const approvals = members.flatMap(({ thread: member, status }) => {
+      const approval = status === "approval" ? approvalOf(member.id) : undefined;
+      return approval ? [{ thread: member, approval }] : [];
+    });
     const decisions = coordinationDecisions(threads, thread.id);
-    return members.length || decisions.length ? { ...NO_COORDINATION, members, decisions, brief: thread.brief ?? null } : NO_COORDINATION;
+    return members.length || decisions.length ? { ...NO_COORDINATION, members, approvals, decisions, brief: thread.brief ?? null } : NO_COORDINATION;
   }
   const lead = coordinatorOf(threads, thread) ?? null;
   /** A thread that left its coordinator with a decision still open is where that decision is answered now. */
   const decisions = lead ? [] : openDecisions(thread).map((decision) => ({ thread, decision }));
   if (!lead && !thread.brief && !decisions.length) return NO_COORDINATION;
   return { ...NO_COORDINATION, lead, decisions, brief: thread.brief ?? null, asking: Boolean(lead && openDecisions(thread).length) };
+}
+
+/** The groups a coordinator's Overview sorts its threads into, by what each one needs. */
+export type OverviewGroup = "needs" | "working" | "done";
+
+const OVERVIEW_GROUPS: Record<CoordinatedThreadStatus, OverviewGroup> = {
+  approval: "needs",
+  asking: "needs",
+  blocked: "needs",
+  failed: "needs",
+  working: "working",
+  done: "done",
+  finished: "done",
+  idle: "done",
+};
+
+export function overviewGroups(members: readonly CoordinatedThreadView[]): Record<OverviewGroup, CoordinatedThreadView[]> {
+  const groups: Record<OverviewGroup, CoordinatedThreadView[]> = { needs: [], working: [], done: [] };
+  for (const member of members) groups[OVERVIEW_GROUPS[member.status]].push(member);
+  return groups;
 }

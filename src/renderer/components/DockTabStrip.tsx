@@ -27,10 +27,10 @@ export function DockTabStrip({ workspace, tabs, launchers, activeTab, expanded, 
           <div className={`right-dock-tab ${activeTab === tab.id ? "active" : ""}`} key={tab.id} data-dock-tab={tab.id}>
             <button type="button" role="tab" aria-selected={activeTab === tab.id} onClick={() => void workspace.actions.selectDockTab(tab.id)}>
               <tab.icon size={15} aria-hidden="true" /><span>{tab.title}</span>
-              {tab.badge ? <em>{tab.badge}</em> : null}
+              {tab.badge ? <em className={tab.attention ? "attention" : undefined}>{tab.badge}</em> : null}
               {tab.unread ? <span className="right-dock-tab-attention" aria-label="Waiting for you" /> : null}
             </button>
-            <button type="button" aria-label={`Close ${tab.title}`} onClick={() => onCloseTab(tab.id)}><X size={13} /></button>
+            {!tab.pinned && <button type="button" aria-label={`Close ${tab.title}`} onClick={() => onCloseTab(tab.id)}><X size={13} /></button>}
           </div>
         ))}
       </div>

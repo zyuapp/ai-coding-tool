@@ -4,7 +4,7 @@ import { reconcileSnoozes } from "./thread-snooze.js";
 import { reconcileLimitPauses } from "./limit-pauses.js";
 import { reconcileCoordination } from "./workspace-reducer/coordination.js";
 import { shownPageEffects } from "./workspace-reducer/browser-tabs.js";
-import { prunedWorkflowPanels, TAKE_KEYS } from "./workspace-reducer/dock-tabs.js";
+import { prunedWorkflowPanels, TAKE_KEYS, withOverviewPanels } from "./workspace-reducer/dock-tabs.js";
 import { prunedFind } from "./workspace-reducer/find.js";
 import { settledUnlisted } from "./project-commands.js";
 import { rejected, settled } from "./workspace-reducer/shared.js";
@@ -18,7 +18,7 @@ import { defaultEffortFor, defaultModelFor, effortForModel, effortsFor } from ".
 
 export type { WorkspaceCommandResult, WorkspaceEffect, WorkspaceEvent, WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
 export { WORKSPACE_ERRORS } from "./workspace-reducer/errors.js";
-export { AUTOMATION_PANEL, DIFF_PANEL, WORKFLOW_PANEL } from "./workspace-state.js";
+export { AUTOMATION_PANEL, DIFF_PANEL, OVERVIEW_PANEL, WORKFLOW_PANEL } from "./workspace-state.js";
 
 /**
  * The single writer for workspace state. Commands come from the UI (and, later, from anything else
@@ -42,7 +42,7 @@ export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceT
   const left = leavingComputer(state, input);
   const applied = reconcileCoordination(left, reconcileLimitPauses(left, reconcileSnoozes(left, apply(left, input), input), input), input);
   applied.effects = [...leftBehind(state, left), ...carried, ...applied.effects];
-  const transition = { ...applied, state: settledUnlisted(left, prunedWorkflowPanels(prunedFind(applied.state))) };
+  const transition = { ...applied, state: settledUnlisted(left, withOverviewPanels(prunedWorkflowPanels(prunedFind(applied.state)))) };
   if (transition.state.browserOrigins !== state.browserOrigins || (input.type === "task.set-policy" && transition.state !== state) || input.type === "store.loaded" || input.type === "preferences.loaded" || transition.effects.some((effect) => ["browser.open", "browser.navigate", "browser.act", "browser.history", "browser.reload"].includes(effect.type))) {
     transition.effects = [{ type: "browser.permissions", permissions: browserPermissions(transition.state) }, ...transition.effects];
   }

@@ -23,7 +23,7 @@ import type { ActiveGoal } from "../domain/goal.js";
 export type { ReadingPoint, ThreadWait };
 import { AUTOMATION_PANEL, DIFF_PANEL, dockFor, dockOwner, dockSideChats, dockSubject, dockTabKind, frontDock, type ThreadDock } from "./workspace-dock.js";
 export {
-  AUTOMATION_PANEL, DIFF_PANEL, DOCK_PICKER, DRAFT_DOCK, EMPTY_DOCK, WORKFLOW_PANEL, activeBrowserTab, activeTerminal, browserTarget,
+  AUTOMATION_PANEL, DIFF_PANEL, DOCK_PICKER, DRAFT_DOCK, EMPTY_DOCK, OVERVIEW_PANEL, WORKFLOW_PANEL, activeBrowserTab, activeTerminal, browserTarget,
   dockFor, dockSubject, dockHoldsTab, dockOwner, dockSideChats, dockTabAfterClosing, dockTabIds, dockTabKind, frontDock,
   keyboardTerminalId, keyboardThreadId, ownerOfBrowserTab, ownerOfTerminal, shownThreadTab, tabHolderOf, terminalTarget, withDock,
 } from "./workspace-dock.js";

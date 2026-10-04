@@ -9,11 +9,7 @@ import { BranchMenu, useBranches } from "./BranchMenu";
 import { useMessageLinks, WebLink } from "./MarkdownMessage";
 import { useDismissibleLayer } from "../focus";
 import { orderSubagents, SubagentRow } from "./SubagentList";
-import { CoordinatedThreadList, MemberWorktreeList } from "./Coordination";
-import type { CoordinatedThreadView } from "../../application/coordination";
-import type { WorktreeGroup } from "../../application/workspace-state";
 import type { MemberPullRequest } from "../../application/pull-request-view";
-import type { MemberWorktree } from "../../application/member-worktrees";
 
 export type SessionPanelProps = {
   environment: ChangedFilesResult | null;
@@ -42,6 +38,8 @@ export type SessionPanelProps = {
   onSetSubagentGroup: (group: SubagentGroup, open: boolean) => void;
   /** `create` names a branch the repository does not have yet, made at the checkout's HEAD first. */
   onCheckoutBranch: (branch: string, create: boolean) => void;
+  /** A coordinator's sections: the checkouts and pull requests of the threads under it. */
+  children?: ReactNode;
 };
 
 export const BRANCH_MENU = "session:branch";
@@ -203,7 +201,7 @@ function SessionEnvironment({ environment, hasProject, workspaceId, pullRequest,
 const PULL_REQUEST_STATES: Record<PullRequestState, string> = { draft: "Draft", open: "Open", merged: "Merged", closed: "Closed" };
 
 /** The pull requests a coordinator's threads have opened, each with the threads working on it. */
-function MemberPullRequestList({ pullRequests }: { pullRequests: MemberPullRequest[] }) {
+export function MemberPullRequestList({ pullRequests }: { pullRequests: MemberPullRequest[] }) {
   const links = useMessageLinks();
   return (
     <section className="subagent-section coordination-section coordination-pull-requests" aria-label="Pull requests from these threads">
@@ -230,30 +228,7 @@ function MemberPullRequestList({ pullRequests }: { pullRequests: MemberPullReque
   );
 }
 
-/** A coordinator only delegates, so its panel is the threads working under it, their worktrees, and the pull requests they opened. */
-export function CoordinatorPanel({ members, worktreeGroups, worktrees, pullRequests, onOpenThread, onRevealWorktree, onDeleteWorktree }: {
-  members: CoordinatedThreadView[];
-  worktreeGroups: WorktreeGroup[];
-  worktrees: MemberWorktree[];
-  pullRequests: MemberPullRequest[];
-  onOpenThread: (threadId: string) => void;
-  onRevealWorktree?: (root: string) => void;
-  onDeleteWorktree: (root: string) => void;
-}) {
-  return (
-    <aside className="session-panel coordinator-panel" aria-label="Session panel">
-      <div className="session-card">
-        {members.length > 0
-          ? <CoordinatedThreadList members={members} worktreeGroups={worktreeGroups} onSelect={onOpenThread} />
-          : <p className="session-empty coordination-empty">No threads yet</p>}
-        {worktrees.length > 0 && <MemberWorktreeList worktrees={worktrees} onReveal={onRevealWorktree} onDelete={onDeleteWorktree} />}
-        {pullRequests.length > 0 && <MemberPullRequestList pullRequests={pullRequests} />}
-      </div>
-    </aside>
-  );
-}
-
-export function SessionPanel({ environment, hasProject, workspaceId, pullRequest, locationRow, openMenu, subagents, subagentGroups, backgroundProcesses, workflows, automationCount, onSelect, onOpenAgents, onOpenAutomations, onOpenWorkflow, onSetOpenMenu, onSetSubagentGroup, onCheckoutBranch, onStopProcess, onToggleChanges }: SessionPanelProps) {
+export function SessionPanel({ environment, hasProject, workspaceId, pullRequest, locationRow, openMenu, subagents, subagentGroups, backgroundProcesses, workflows, automationCount, onSelect, onOpenAgents, onOpenAutomations, onOpenWorkflow, onSetOpenMenu, onSetSubagentGroup, onCheckoutBranch, onStopProcess, onToggleChanges, children }: SessionPanelProps) {
   const working = subagents.filter((subagent) => subagent.status === "working").length;
   const shown = orderSubagents(subagents).slice(0, SIDEBAR_LIMIT);
 
@@ -295,6 +270,7 @@ export function SessionPanel({ environment, hasProject, workspaceId, pullRequest
         )}
 
         <BackgroundProcessSection processes={backgroundProcesses} workflows={workflows} onOpenWorkflow={onOpenWorkflow} onStop={onStopProcess} />
+        {children}
       </div>
     </aside>
   );

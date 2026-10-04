@@ -97,6 +97,21 @@
 .decision-foot button { border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; background: var(--surface-inverse); color: var(--ink-inverse); font-weight: 600; cursor: pointer; }
 .decision-foot button.secondary { background: transparent; color: var(--ink-dim); font-weight: 500; }
 .decision-foot button:disabled { opacity: 0.4; cursor: default; }
+.decision-foot-gap { flex: 1; }
+.decision-command, .decision-tool pre {
+  margin: 6px 14px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--canvas);
+  color: var(--code-ink);
+  font: var(--text-meta)/1.5 var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.decision-tool { margin: 0 14px 10px; color: var(--muted); }
+.decision-tool summary { cursor: pointer; }
+.decision-tool pre { margin: 6px 0 0; }
 
 /* A coordinator's threads in the session panel, each opening as a tab in its dock. */
 .coordination-heading { display: flex; align-items: center; height: 26px; }
@@ -131,15 +146,58 @@
 .coordination-row.blocked small, .coordination-row.failed small { color: var(--danger-soft); }
 .coordination-row-marks { display: flex; align-items: center; gap: 6px; }
 .coordination-row-engine { color: var(--quiet); }
-/* Each list scrolls inside its own section, so a long list never pushes the others out of view. */
-.coordinator-panel { display: flex; flex-direction: column; overflow: hidden; }
-.coordinator-panel > .session-card { min-height: 0; display: flex; flex-direction: column; }
-.coordinator-panel .coordination-section { flex: 0 1 auto; min-height: 112px; display: flex; flex-direction: column; }
-.coordinator-panel .coordination-pull-requests, .coordinator-panel .coordination-worktrees { min-height: 80px; }
-.coordinator-panel .coordination-pull-requests > .subagent-list, .coordinator-panel .coordination-worktrees > .subagent-list { max-height: 216px; }
-.coordinator-panel .coordination-section > .subagent-heading { flex: none; }
-.coordinator-panel .coordination-section > .subagent-list {
-  min-height: 0;
+/* A coordinator's Overview: its threads in groups, in a dock tab that scrolls as one list. */
+.coordination-overview {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 10px 10px 18px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) transparent;
+}
+.coordination-group + .coordination-group { margin-top: 6px; }
+.coordination-group > .subagent-list { margin-top: 2px; }
+.coordination-group-head {
+  position: sticky;
+  z-index: 1;
+  top: -10px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  padding: 8px 8px 6px;
+  background: var(--sunken);
+  color: var(--quiet-strong);
+  font: inherit;
+  font-size: var(--text-menu);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.coordination-group-head > svg { color: var(--quiet); transition: transform 140ms ease; }
+.coordination-group-head[aria-expanded="false"] > svg { transform: rotate(-90deg); }
+.coordination-group-count { color: var(--quiet); font-size: var(--text-meta); font-weight: 550; }
+.coordination-group.needs .coordination-group-head, .coordination-group.needs .coordination-group-count { color: var(--accent); }
+.coordination-overview .coordination-row strong { color: var(--ink-soft); font-size: var(--text-control); font-weight: 550; }
+.coordination-more {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 8px 6px 39px;
+  background: transparent;
+  color: var(--quiet);
+  font: inherit;
+  font-size: var(--text-meta);
+  text-align: left;
+  cursor: pointer;
+}
+.coordination-more:hover { background: var(--wash); color: var(--muted); }
+.right-dock-tabs [role="tab"] > em.attention { border-radius: 6px; padding: 0 6px; background: var(--accent-chip); color: var(--accent); font-weight: 650; }
+
+/* A coordinator's checkouts and pull requests in the session panel, each list scrolling on its own. */
+.session-panel .coordination-section > .subagent-list {
+  max-height: 216px;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;

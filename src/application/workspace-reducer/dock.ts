@@ -9,7 +9,7 @@ import { TAKE_KEYS, focusDockTab } from "./dock-tabs.js";
 import { followUps, settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { readAttention } from "../../domain/attention.js";
-import { DIFF_PANEL, DOCK_PICKER, WORKFLOW_PANEL, diffFor, dockOwner, dockTabAfterClosing, dockTabIds, dockTabKind, frontDock, withDock, type WorkspaceState } from "../workspace-state.js";
+import { DIFF_PANEL, DOCK_PICKER, OVERVIEW_PANEL, WORKFLOW_PANEL, diffFor, dockOwner, dockTabAfterClosing, dockTabIds, dockTabKind, frontDock, withDock, type WorkspaceState } from "../workspace-state.js";
 
 type DockInput = Extract<WorkspaceInput, {
   type: "view.close-tab" | "view.new-tab" | "view.select-dock-index" | "view.set-dock-open" | "view.set-dock-expanded"
@@ -35,7 +35,8 @@ export function reduceDock(state: WorkspaceState, input: DockInput): WorkspaceTr
       /** A dock across the whole workspace is the frontmost thing there is, so it gives that up first. */
       if (dock.expanded) return settled(withDock(state, owner, { expanded: false }));
       const kind = dockTabKind(state, owner, dock.tab);
-      const closed = kind === "picker" ? settled(withDock(state, owner, { open: false }))
+      /** Overview does not close, so ⌘W on it hides the dock the way it does on the picker. */
+      const closed = kind === "picker" || dock.tab === OVERVIEW_PANEL ? settled(withDock(state, owner, { open: false }))
         : kind === "browser" ? reduceBrowser(state, { type: "browser.close-tab", tabId: dock.tab })
         : kind === "terminal" ? reduceDesktop(state, { type: "terminal.close", terminalId: dock.tab })
         : kind === "side-chat" ? reduceSideChats(state, { type: "side-chat.close", chatId: dock.tab })
@@ -101,7 +102,7 @@ export function reduceDock(state: WorkspaceState, input: DockInput): WorkspaceTr
 
     case "view.close-dock-panel": {
       const { owner, dock } = frontDock(state);
-      if (!dock.panels.includes(input.panel)) return settled(state);
+      if (!dock.panels.includes(input.panel) || input.panel === OVERVIEW_PANEL) return settled(state);
       const tab = dock.tab === input.panel ? dockTabAfterClosing(state, owner, input.panel) : dock.tab;
       const closed = withDock(state, owner, {
         panels: dock.panels.filter((panel) => panel !== input.panel),
@@ -115,7 +116,7 @@ export function reduceDock(state: WorkspaceState, input: DockInput): WorkspaceTr
       const { owner, dock } = frontDock(state);
       if (!dock.threadTabs.includes(input.taskId)) return settled(state);
       const tab = dock.tab === input.taskId ? dockTabAfterClosing(state, owner, input.taskId) : dock.tab;
-      /** A thread's tab opened from the session panel, so closing the last tab goes back to that panel. */
+      /** Closing a coordinator's last thread tab falls back to its Overview; with nothing to fall back to, the dock hides. */
       const open = dock.open && tab !== DOCK_PICKER;
       const subjects = Object.fromEntries(Object.entries(dock.subjects).filter(([, id]) => id !== input.taskId));
       const closed = withDock(state, owner, { threadTabs: dock.threadTabs.filter((id) => id !== input.taskId), tab, open, subjects, ...(open ? {} : { expanded: false }) });

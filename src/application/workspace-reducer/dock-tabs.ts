@@ -3,7 +3,8 @@ import { settled } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceTransition } from "./types.js";
 import { focusedTab } from "../composer-drafts.js";
 import { viewPreferences } from "../view-preferences.js";
-import { DRAFT_DOCK, WORKFLOW_PANEL, dockFor, dockTabAfterClosing, withDock, workflowById, type WorkspaceState } from "../workspace-state.js";
+import { coordinatedThreadIds } from "../../domain/coordination.js";
+import { DOCK_PICKER, DRAFT_DOCK, OVERVIEW_PANEL, WORKFLOW_PANEL, dockFor, dockTabAfterClosing, withDock, workflowById, type WorkspaceState } from "../workspace-state.js";
 
 /** The window has the keys again, which a page in the panel is otherwise holding. */
 export const TAKE_KEYS: WorkspaceEffect[] = [{ type: "focus-window" }];
@@ -68,5 +69,35 @@ export function prunedWorkflowPanels(state: WorkspaceState): WorkspaceState {
     next = withDock(next, owner, { workflowId: null, panels, tab });
   }
   if (next === state) { const workflows = validWorkflowPanels.get(state.docks) ?? new WeakSet(); workflows.add(state.workflows); validWorkflowPanels.set(state.docks, workflows); }
+  return next;
+}
+
+/** Docks already matched to these threads' coordinators, so a reduction that changes neither skips the pass. */
+const checkedOverviews = new WeakMap<WorkspaceState["docks"], WeakSet<WorkspaceState["threads"]>>();
+
+/**
+ * A coordinator's dock leads with its Overview once a thread works under it, and shows it that first
+ * time. A thread with nobody working under it any more loses the tab.
+ */
+export function withOverviewPanels(state: WorkspaceState): WorkspaceState {
+  if (checkedOverviews.get(state.docks)?.has(state.threads)) return state;
+  const members = coordinatedThreadIds(state.threads);
+  const leads = new Set<string>();
+  for (const thread of state.threads) if (thread.parentId && members.has(thread.id)) leads.add(thread.parentId);
+  let next = state;
+  for (const owner of leads) {
+    const dock = dockFor(next, owner);
+    if (dock.panels.includes(OVERVIEW_PANEL)) continue;
+    const tab = dock.open && dock.tab !== DOCK_PICKER ? dock.tab : OVERVIEW_PANEL;
+    next = withDock(next, owner, { panels: [OVERVIEW_PANEL, ...dock.panels], open: true, tab });
+  }
+  for (const [owner, dock] of Object.entries(next.docks)) {
+    if (leads.has(owner) || !dock.panels.includes(OVERVIEW_PANEL)) continue;
+    const tab = dock.tab === OVERVIEW_PANEL ? dockTabAfterClosing(next, owner, OVERVIEW_PANEL) : dock.tab;
+    next = withDock(next, owner, { panels: dock.panels.filter((panel) => panel !== OVERVIEW_PANEL), tab });
+  }
+  const checked = checkedOverviews.get(next.docks) ?? new WeakSet();
+  checked.add(next.threads);
+  checkedOverviews.set(next.docks, checked);
   return next;
 }

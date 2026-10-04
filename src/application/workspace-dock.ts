@@ -89,6 +89,9 @@ export const AUTOMATION_PANEL = "automation";
 /** The dock tab one workflow is followed in. */
 export const WORKFLOW_PANEL = "workflow";
 
+/** A coordinator's threads, grouped by what they need. It leads a coordinator's dock and does not close. */
+export const OVERVIEW_PANEL = "overview";
+
 /** The dock in front, and whose it is: the pair every view command starts from. */
 export function frontDock(state: Pick<DockState, "currentId" | "sideChats" | "docks">): { owner: string; dock: ThreadDock } {
   const owner = dockOwner(state);

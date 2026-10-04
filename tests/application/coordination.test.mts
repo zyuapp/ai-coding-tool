@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import { coordinationSections } from "../../src/application/coordination.ts";
+import { coordinationSections, coordinationView, overviewGroups } from "../../src/application/coordination.ts";
 import { deriveView } from "../../src/application/workspace-state.ts";
 import type { ThreadBrief } from "../../src/domain/coordination.ts";
 import { THREAD_STORE_VERSION } from "../../src/domain/thread-storage.ts";
@@ -170,7 +170,8 @@ test("a thread under a coordinator opens as a tab in the coordinator's dock rath
 
   const closed = reduce(opened, { type: "view.close-thread-tab", taskId: "worker" }).state;
   assert.deepEqual(closed.docks.lead?.threadTabs, []);
-  assert.equal(closed.docks.lead?.open, false, "closing the last tab goes back to the session panel");
+  assert.equal(closed.docks.lead?.tab, "overview", "closing the last tab goes back to the Overview");
+  assert.equal(closed.docks.lead?.open, true);
   assert.equal(closed.threads.some((thread) => thread.id === "worker"), true, "closing the tab leaves the thread working");
 
   const keyed = reduce({ ...opened, keyboardTab: "worker" }, { type: "view.close-tab" }).state;
@@ -335,4 +336,49 @@ test("an answer that cannot be sent leaves the decision open, and an overlong on
 test("a thread that leaves its coordinator with a decision open is where it is answered", () => {
   const state = workspace({ threads: [lead(), task("worker", { decisions: [{ id: "d1", question: "Ship?", options: [], raisedAt: 1 }] })], currentId: "worker" });
   assert.equal(deriveView(state).coordination.decisions.length, 1);
+});
+
+test("a coordinator's dock leads with an Overview that opens once a thread works under it and never closes", () => {
+  const alone = reduce(workspace({ threads: [lead()], currentId: "lead" }), { type: "view.set-dock-open", open: false }).state;
+  assert.equal(alone.docks.lead?.panels.includes("overview") ?? false, false, "a coordinator with nobody under it has no Overview");
+
+  const joined = reduce(workspace({ threads: [lead(), task("worker"), task("second")], currentId: "lead" }), { type: "task.set-coordinator", taskId: "worker", coordinatorId: "lead" }).state;
+  assert.deepEqual(joined.docks.lead?.panels, ["overview"]);
+  assert.equal(joined.docks.lead?.tab, "overview");
+  assert.equal(joined.docks.lead?.open, true, "the first thread under it shows the Overview");
+
+  const hidden = reduce(joined, { type: "view.close-tab" }).state;
+  assert.equal(hidden.docks.lead?.open, false, "⌘W on the Overview hides the dock");
+  assert.deepEqual(hidden.docks.lead?.panels, ["overview"], "and keeps the tab");
+  const another = reduce(hidden, { type: "task.set-coordinator", taskId: "second", coordinatorId: "lead" }).state;
+  assert.equal(another.docks.lead?.open, false, "a dock the user hid stays hidden as more threads join");
+
+  const kept = reduce(joined, { type: "view.close-dock-panel", panel: "overview" }).state;
+  assert.deepEqual(kept.docks.lead?.panels, ["overview"], "the Overview does not close");
+
+  const stepped = reduce(joined, { type: "task.set-role", taskId: "lead", role: null }).state;
+  assert.deepEqual(stepped.docks.lead?.panels, [], "a thread that stops coordinating loses its Overview");
+});
+
+test("a coordinator's Overview groups its threads by what they need, and its tool approvals wait beside its decisions", () => {
+  const threads = [
+    lead(),
+    task("approval", { parentId: "lead" }),
+    task("asking", { parentId: "lead", decisions: [{ id: "d1", question: "Keep it?", options: [], raisedAt: 1 }] }),
+    task("failed", { parentId: "lead", outcome: "failed" }),
+    task("busy", { parentId: "lead" }),
+    task("done", { parentId: "lead", report: { state: "done", summary: "Shipped", at: 1 } }),
+    task("idle", { parentId: "lead" }),
+  ];
+  const approval = { approvalId: "a1", taskId: "approval", runId: "run-a", title: "Run a command?", description: "", toolName: "Bash", input: { command: "yarn test" } };
+  const view = coordinationView(threads, threads[0], new Set(["approval", "busy"]), new Set(["approval"]), (id) => id === "approval" ? approval : undefined);
+  const groups = overviewGroups(view.members);
+  assert.deepEqual(groups.needs.map(({ thread }) => thread.id), ["approval", "asking", "failed"]);
+  assert.deepEqual(groups.working.map(({ thread }) => thread.id), ["busy"]);
+  assert.deepEqual(groups.done.map(({ thread }) => thread.id), ["done", "idle"]);
+  assert.deepEqual(view.approvals.map(({ thread, approval: item }) => [thread.id, item.approvalId]), [["approval", "a1"]]);
+  assert.deepEqual(view.decisions.map(({ decision }) => decision.id), ["d1"]);
+
+  const state = workspace({ threads, currentId: "lead", activeRuns: { approval: activeRun("approval", "run-a", { status: "awaiting-approval" }) }, approvals: { "run-a": approval } });
+  assert.deepEqual(deriveView(state).coordination.approvals.map(({ approval: item }) => item.approvalId), ["a1"], "the open coordinator reads its threads' approvals");
 });

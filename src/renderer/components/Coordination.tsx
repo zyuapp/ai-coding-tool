@@ -3,7 +3,8 @@ import { LuChevronDown as ChevronDown, LuChevronUp as ChevronUp, LuFolderOpen as
 import { deliveryLabel, type ThreadBrief } from "../../domain/coordination";
 import type { Thread } from "../../domain/thread";
 import { worktreeHue, worktreeName, type Worktree } from "../../domain/worktree";
-import type { CoordinationDecisionView, CoordinatedThreadStatus, CoordinatedThreadView } from "../../application/coordination";
+import { overviewGroups, type CoordinationApprovalView, type CoordinationDecisionView, type CoordinatedThreadStatus, type CoordinatedThreadView, type OverviewGroup } from "../../application/coordination";
+import type { ApprovalView } from "../../application/thread-run-state";
 import type { WorktreeGroup } from "../../application/workspace-state";
 import type { MemberWorktree } from "../../application/member-worktrees";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
@@ -31,23 +32,49 @@ export function coordinationStatusLine(status: CoordinatedThreadStatus, summary:
   return summary ? `${STATUS_LABELS[status]} · ${summary}` : STATUS_LABELS[status];
 }
 
-/** The threads a coordinator has working under it, each opening as a tab beside its conversation. */
-export function CoordinatedThreadList({ members, worktreeGroups, onSelect }: {
+/** How many threads a group shows before it asks to show the rest. */
+const OVERVIEW_LIMIT = 5;
+
+const OVERVIEW_LABELS: Record<OverviewGroup, string> = { needs: "Needs you", working: "Working", done: "Done" };
+
+/** A coordinator's threads by what they need from the user, each opening as a tab beside its conversation. */
+export function CoordinatorOverview({ members, worktreeGroups, onSelect }: {
   members: CoordinatedThreadView[];
   worktreeGroups: WorktreeGroup[];
   onSelect: (threadId: string) => void;
 }) {
+  if (!members.length) return <p className="session-empty coordination-empty">No threads yet</p>;
   const worktrees = new Map(worktreeGroups.map(({ worktree }) => [worktree.id, worktree]));
-  const working = members.filter((member) => member.status === "working").length;
-  const waiting = members.filter((member) => member.status === "asking" || member.status === "approval").length;
+  const groups = overviewGroups(members);
   return (
-    <section className="subagent-section coordination-section" aria-label="Threads under this coordinator">
-      <div className="subagent-heading">
-        <div className="coordination-heading">Threads</div>
-        {waiting > 0 ? <div className="coordination-count waiting">{waiting} waiting on you</div> : working > 0 && <div className="coordination-count">{working} working</div>}
-      </div>
-      <div className="subagent-list" aria-live="polite">
-        {members.map(({ thread, status, summary }) => (
+    <div className="coordination-overview" aria-label="Threads under this coordinator">
+      {(["needs", "working", "done"] as const).map((group) => groups[group].length > 0 && (
+        <OverviewSection key={group} group={group} members={groups[group]} worktrees={worktrees} onSelect={onSelect} />
+      ))}
+    </div>
+  );
+}
+
+/** One group of threads. Done starts folded once it is longer than a group shows. */
+function OverviewSection({ group, members, worktrees, onSelect }: {
+  group: OverviewGroup;
+  members: CoordinatedThreadView[];
+  worktrees: Map<string, Worktree>;
+  onSelect: (threadId: string) => void;
+}) {
+  const [open, setOpen] = useState(group !== "done" || members.length <= OVERVIEW_LIMIT);
+  const [all, setAll] = useState(false);
+  const label = OVERVIEW_LABELS[group];
+  const shown = all ? members : members.slice(0, OVERVIEW_LIMIT);
+  return (
+    <section className={`coordination-group ${group}`} aria-label={label}>
+      <button type="button" className="coordination-group-head" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <ChevronDown size={13} aria-hidden="true" />
+        <span>{label}</span>
+        <span className="coordination-group-count">{members.length}</span>
+      </button>
+      {open && <div className="subagent-list" aria-live="polite">
+        {shown.map(({ thread, status, summary }) => (
           <button
             type="button"
             key={thread.id}
@@ -64,7 +91,10 @@ export function CoordinatedThreadList({ members, worktreeGroups, onSelect }: {
             </span>
           </button>
         ))}
-      </div>
+        {members.length > shown.length && (
+          <button type="button" className="coordination-more" onClick={() => setAll(true)}>Show {members.length - shown.length} more</button>
+        )}
+      </div>}
     </section>
   );
 }
@@ -140,31 +170,89 @@ export function CoordinationBar({ lead, brief, asking, onSelect }: { lead: Threa
   );
 }
 
-/** Every decision waiting on the user from a coordinator and its threads, answered one at a time. */
-export function DecisionCard({ decisions, onAnswer, onSelect }: {
+type NeedsYouItem =
+  | { kind: "approval"; view: CoordinationApprovalView }
+  | { kind: "decision"; view: CoordinationDecisionView };
+
+type Pager = { index: number; count: number } | null;
+
+/** Every approval and decision waiting on the user from a coordinator's threads, answered one at a time. */
+export function NeedsYouCard({ approvals, decisions, onDecide, onAnswer, onSelect }: {
+  approvals: CoordinationApprovalView[];
   decisions: CoordinationDecisionView[];
+  onDecide: (approval: Pick<ApprovalView, "taskId" | "runId" | "approvalId">, allow: boolean) => void;
   onAnswer: (threadId: string, decisionId: string, answer: string) => void;
   onSelect: (threadId: string) => void;
 }) {
   const [index, setIndex] = useState(0);
-  const shown = Math.min(index, decisions.length - 1);
-  const current = decisions[shown];
+  const items: NeedsYouItem[] = [
+    ...approvals.map((view) => ({ kind: "approval" as const, view })),
+    ...decisions.map((view) => ({ kind: "decision" as const, view })),
+  ];
+  const shown = Math.min(index, items.length - 1);
+  const current = items[shown];
   if (!current) return null;
+  const position = items.length > 1 ? { index: shown, count: items.length } : null;
+  const onStep = (delta: 1 | -1) => setIndex((shown + delta + items.length) % items.length);
+  return current.kind === "approval"
+    ? <ApprovalForm key={current.view.approval.approvalId} view={current.view} position={position} onStep={onStep} onDecide={onDecide} onSelect={onSelect} />
+    : <DecisionForm
+        key={current.view.decision.id}
+        view={current.view}
+        position={position}
+        onStep={onStep}
+        onAnswer={(answer) => onAnswer(current.view.thread.id, current.view.decision.id, answer)}
+        onSelect={onSelect}
+      />;
+}
+
+function NeedsYouHead({ thread, position, onStep, onSelect }: { thread: Thread; position: Pager; onStep: (delta: 1 | -1) => void; onSelect: (threadId: string) => void }) {
   return (
-    <DecisionForm
-      key={current.decision.id}
-      view={current}
-      position={decisions.length > 1 ? { index: shown, count: decisions.length } : null}
-      onStep={(delta) => setIndex((shown + delta + decisions.length) % decisions.length)}
-      onAnswer={(answer) => onAnswer(current.thread.id, current.decision.id, answer)}
-      onSelect={onSelect}
-    />
+    <div className="decision-head">
+      <strong>Needs you</strong>
+      <button type="button" className="decision-from" onClick={() => onSelect(thread.id)}>{thread.title}</button>
+      {position && <span className="decision-pager">
+        <span>{position.index + 1} of {position.count}</span>
+        <button type="button" aria-label="Previous" onClick={() => onStep(-1)}><ChevronUp size={14} aria-hidden="true" /></button>
+        <button type="button" aria-label="Next" onClick={() => onStep(1)}><ChevronDown size={14} aria-hidden="true" /></button>
+      </span>}
+    </div>
+  );
+}
+
+/** A tool call a thread under the coordinator is waiting to run. */
+function ApprovalForm({ view, position, onStep, onDecide, onSelect }: {
+  view: CoordinationApprovalView;
+  position: Pager;
+  onStep: (delta: 1 | -1) => void;
+  onDecide: (approval: Pick<ApprovalView, "taskId" | "runId" | "approvalId">, allow: boolean) => void;
+  onSelect: (threadId: string) => void;
+}) {
+  const { thread, approval } = view;
+  const command = typeof approval.input.command === "string" ? approval.input.command : null;
+  return (
+    <section className="decision-card" aria-label="Approval waiting on you">
+      <NeedsYouHead thread={thread} position={position} onStep={onStep} onSelect={onSelect} />
+      <div className="decision-body">
+        <p className="decision-question">{approval.title}</p>
+        {approval.description && <p className="decision-context">{approval.description}</p>}
+        {command
+          ? <pre className="decision-command">{command}</pre>
+          : <details className="decision-tool"><summary>{approval.toolName}</summary><pre>{JSON.stringify(approval.input, null, 2)}</pre></details>}
+      </div>
+      <div className="decision-foot">
+        {position && <button type="button" className="secondary" onClick={() => onStep(1)}>Later</button>}
+        <span className="decision-foot-gap" />
+        <button type="button" className="secondary" onClick={() => onDecide(approval, false)}>Deny</button>
+        <button type="button" onClick={() => onDecide(approval, true)}>Allow</button>
+      </div>
+    </section>
   );
 }
 
 function DecisionForm({ view, position, onStep, onAnswer, onSelect }: {
   view: CoordinationDecisionView;
-  position: { index: number; count: number } | null;
+  position: Pager;
   onStep: (delta: 1 | -1) => void;
   onAnswer: (answer: string) => void;
   onSelect: (threadId: string) => void;
@@ -179,15 +267,7 @@ function DecisionForm({ view, position, onStep, onAnswer, onSelect }: {
       event.preventDefault();
       if (answer) onAnswer(answer);
     }}>
-      <div className="decision-head">
-        <strong>Needs you</strong>
-        <button type="button" className="decision-from" onClick={() => onSelect(thread.id)}>{thread.title}</button>
-        {position && <span className="decision-pager">
-          <span>{position.index + 1} of {position.count}</span>
-          <button type="button" aria-label="Previous decision" onClick={() => onStep(-1)}><ChevronUp size={14} aria-hidden="true" /></button>
-          <button type="button" aria-label="Next decision" onClick={() => onStep(1)}><ChevronDown size={14} aria-hidden="true" /></button>
-        </span>}
-      </div>
+      <NeedsYouHead thread={thread} position={position} onStep={onStep} onSelect={onSelect} />
       <div className="decision-body">
         <p className="decision-question" id={id}>{decision.question}</p>
         {decision.context && <p className="decision-context">{decision.context}</p>}

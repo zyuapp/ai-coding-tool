@@ -12,8 +12,10 @@ import type { Thread } from "../../src/domain/thread.ts";
 import type { SessionPanelProps } from "../../src/renderer/components/SessionPanel.tsx";
 
 import { dom, item, mount, pumpResizeObservers, query, rowHeights, sizeOf } from "../support/renderer-dom.mts";
+import { required } from "../application/workspace-reducer-fixtures.mts";
 
-const { CoordinatorPanel, SessionPanel } = await import("../../src/renderer/components/SessionPanel.tsx");
+const { MemberPullRequestList, SessionPanel } = await import("../../src/renderer/components/SessionPanel.tsx");
+const { CoordinatorOverview, MemberWorktreeList, NeedsYouCard } = await import("../../src/renderer/components/Coordination.tsx");
 const { SubagentInspector } = await import("../../src/renderer/components/SubagentInspector.tsx");
 const { AgentsPanel, matchSubagents } = await import("../../src/renderer/components/SubagentList.tsx");
 const { WorkspaceHeader } = await import("../../src/renderer/components/WorkspaceHeader.tsx");
@@ -64,76 +66,109 @@ const liveWorkflow: Workflow = {
   startedAt: workflowStart,
 };
 
-test("a coordinator's panel is only its threads, each opening as a tab", async () => {
+const member = (id: string, title: string): Thread => ({ id, title, engine: "claude", executionPolicy: "allow-edits", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, parentId: "lead" });
+
+test("a coordinator's Overview groups its threads by what they need, each opening as a tab", async () => {
   window.desktop = fakeDesktop();
-  const member = (id: string, title: string): Thread => ({ id, title, engine: "claude", executionPolicy: "allow-edits", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, parentId: "lead" });
   const worktree = { id: "wt-1", name: "dark-mode", projectId: "p", root: "/tmp/wt-1", workspaceId: "ws-1", baseCommit: "abc", createdAt: 1, lastUsedAt: 1 };
   let opened: string | undefined;
-  const view = await mount(React.createElement(CoordinatorPanel, {
+  const done = Array.from({ length: 7 }, (_, index) => ({ thread: member(`d${index}`, `Done ${index}`), status: "done" as const, summary: null }));
+  const working = Array.from({ length: 7 }, (_, index) => ({ thread: member(`w${index}`, `Working ${index}`), status: "working" as const, summary: null }));
+  const view = await mount(React.createElement(CoordinatorOverview, {
     members: [
       { thread: { ...member("a", "Dark mode"), worktreeId: "wt-1" }, status: "working", summary: "Tokens pass" },
       { thread: member("b", "Login flake"), status: "asking", summary: "Retry or skip?" },
+      ...working,
+      ...done,
     ],
     worktreeGroups: [{ worktree, threads: [] }],
-    worktrees: [],
-    pullRequests: [],
-    onOpenThread: (id: string) => { opened = id; },
-    onRevealWorktree() {},
-    onDeleteWorktree() {},
+    onSelect: (id: string) => { opened = id; },
   }));
-  const section = query(view.container, '[aria-label="Threads under this coordinator"]');
-  assert.match(section.textContent, /1 waiting on you/);
-  assert.match(section.textContent, /Needs you · Retry or skip\?/);
-  assert.ok(query(section, 'button[aria-label="Open Dark mode"] [aria-label="Works in dark-mode"]'), "a thread in a worktree carries its sidebar mark");
-  assert.equal(query(section, 'button[aria-label="Open Login flake"]').querySelector(".task-worktree"), null);
-  assert.equal(view.container.querySelector('button[aria-label="Review changes"]'), null, "a coordinator has no changes of its own");
-  assert.equal(view.container.querySelector('button[aria-label="Branch"]'), null);
-  assert.equal(view.container.querySelector('button[aria-label="Open Automation panel"]'), null);
-  await act(async () => { query<HTMLButtonElement>(section, 'button[aria-label="Open Dark mode"]').click(); });
+  const needs = query(view.container, '[aria-label="Needs you"]');
+  assert.match(needs.textContent, /Needs you1/);
+  assert.match(needs.textContent, /Needs you · Retry or skip\?/);
+  const busy = query(view.container, '[aria-label="Working"]');
+  assert.ok(query(busy, 'button[aria-label="Open Dark mode"] [aria-label="Works in dark-mode"]'), "a thread in a worktree carries its sidebar mark");
+  assert.equal(busy.querySelectorAll(".coordination-row").length, 5, "a group shows five threads");
+  await act(async () => { query<HTMLButtonElement>(busy, ".coordination-more").click(); });
+  assert.equal(busy.querySelectorAll(".coordination-row").length, 8, "and the rest when asked");
+
+  const finished = query(view.container, '[aria-label="Done"]');
+  assert.equal(query(finished, ".coordination-group-head").getAttribute("aria-expanded"), "false", "a long Done starts folded");
+  assert.equal(finished.querySelectorAll(".coordination-row").length, 0);
+  await act(async () => { query<HTMLButtonElement>(finished, ".coordination-group-head").click(); });
+  assert.equal(finished.querySelectorAll(".coordination-row").length, 5);
+
+  await act(async () => { query<HTMLButtonElement>(busy, 'button[aria-label="Open Dark mode"]').click(); });
   assert.equal(opened, "a");
 
-  assert.equal(view.container.querySelector('[aria-label="Pull requests from these threads"]'), null, "no pull request, no section");
+  await view.render(React.createElement(CoordinatorOverview, { members: [], worktreeGroups: [], onSelect() {} }));
+  assert.match(view.container.textContent, /No threads yet/);
+  await view.unmount();
+});
 
-  await view.render(React.createElement(CoordinatorPanel, {
-    members: [{ thread: member("a", "Dark mode"), status: "done", summary: null }],
-    worktreeGroups: [],
-    worktrees: [],
-    pullRequests: [{ pullRequest: { number: 12, title: "Add dark mode", url: "https://github.com/o/r/pull/12", state: "open" }, threads: [member("a", "Dark mode")] }],
-    onOpenThread() {},
-    onRevealWorktree() {},
-    onDeleteWorktree() {},
+test("the Needs-you card pages through approvals and decisions and answers each", async () => {
+  const decided: Array<[string, boolean]> = [];
+  const answered: string[] = [];
+  const approval = { approvalId: "a1", taskId: "a", runId: "run-a", title: "Run a command?", description: "", toolName: "Bash", input: { command: "yarn test:e2e -u" } };
+  const view = await mount(React.createElement(NeedsYouCard, {
+    approvals: [{ thread: member("a", "Login flake"), approval }],
+    decisions: [{ thread: member("b", "Settings"), decision: { id: "d1", question: "Keep the v2 reader?", options: [{ label: "Keep it", recommended: true }], raisedAt: 1 } }],
+    onDecide: (item: { approvalId: string }, allow: boolean) => { decided.push([item.approvalId, allow]); },
+    onAnswer: (_thread: string, _decision: string, answer: string) => { answered.push(answer); },
+    onSelect() {},
   }));
-  const pullRequests = query(view.container, '[aria-label="Pull requests from these threads"]');
-  const link = query<HTMLAnchorElement>(pullRequests, "a");
-  assert.equal(link.href, "https://github.com/o/r/pull/12");
-  assert.match(link.textContent, /Add dark mode#12 · Open · Dark mode/);
+  const card = query(view.container, '[aria-label="Approval waiting on you"]');
+  assert.match(card.textContent, /Login flake1 of 2/);
+  assert.equal(query(card, ".decision-command").textContent, "yarn test:e2e -u");
+  const button = (label: string) => required([...view.container.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === label));
+  await act(async () => { button("Allow").click(); });
+  await act(async () => { button("Deny").click(); });
+  assert.deepEqual(decided, [["a1", true], ["a1", false]]);
 
-  assert.equal(view.container.querySelector('[aria-label="Worktrees these threads work in"]'), null, "no worktree, no section");
+  await act(async () => { button("Later").click(); });
+  assert.ok(query(view.container, '[aria-label="Decision waiting on you"]'), "Later moves to the next item");
+  await act(async () => { button("Decide").click(); });
+  assert.deepEqual(answered, ["Keep it"]);
+  await view.unmount();
+});
 
+test("a coordinator's session panel keeps its own rows and adds its threads' worktrees and pull requests", async () => {
+  window.desktop = fakeDesktop();
   const revealed: string[] = [];
   const deleted: string[] = [];
-  await view.render(React.createElement(CoordinatorPanel, {
-    members: [{ thread: member("a", "Dark mode"), status: "done", summary: null }],
-    worktreeGroups: [],
-    worktrees: [
-      { id: "wt-1", root: "/tmp/wt-1", name: "dark-mode", branch: "dark", threads: [member("a", "Dark mode")], busy: false, deleting: false },
-      { id: "wt-2", root: "/tmp/wt-2", name: "login", branch: null, threads: [member("b", "Login flake")], busy: true, deleting: false },
+  const view = await mount(renderSessionPanel({
+    hasProject: true,
+    children: [
+      React.createElement(MemberWorktreeList, {
+        key: "worktrees",
+        worktrees: [
+          { id: "wt-1", root: "/tmp/wt-1", name: "dark-mode", branch: "dark", threads: [member("a", "Dark mode")], busy: false, deleting: false },
+          { id: "wt-2", root: "/tmp/wt-2", name: "login", branch: null, threads: [member("b", "Login flake")], busy: true, deleting: false },
+        ],
+        onReveal: (root: string) => { revealed.push(root); },
+        onDelete: (root: string) => { deleted.push(root); },
+      }),
+      React.createElement(MemberPullRequestList, {
+        key: "pull-requests",
+        pullRequests: [{ pullRequest: { number: 12, title: "Add dark mode", url: "https://github.com/o/r/pull/12", state: "open" }, threads: [member("a", "Dark mode")] }],
+      }),
     ],
-    pullRequests: [],
-    onOpenThread() {},
-    onRevealWorktree: (root: string) => { revealed.push(root); },
-    onDeleteWorktree: (root: string) => { deleted.push(root); },
   }));
+  assert.ok(query(view.container, 'button[aria-label="Review changes"]'), "a coordinator has its own changes row again");
+  assert.ok(query(view.container, 'button[aria-label="Open Automation panel"]'));
+  assert.equal(view.container.querySelector('[aria-label="Threads under this coordinator"]'), null, "its threads live in the Overview");
+
   const worktrees = query(view.container, '[aria-label="Worktrees these threads work in"]');
   assert.match(worktrees.textContent, /dark-modedark · Dark mode/);
-  assert.equal(worktrees.querySelector('[aria-label^="New thread"]'), null, "threads start in a checkout only through the coordinator");
   await act(async () => { query<HTMLButtonElement>(worktrees, 'button[aria-label="Reveal dark-mode"]').click(); });
   await act(async () => { query<HTMLButtonElement>(worktrees, 'button[aria-label="Delete dark-mode"]').click(); });
   assert.deepEqual([revealed, deleted], [["/tmp/wt-1"], ["/tmp/wt-1"]]);
   assert.equal(query<HTMLButtonElement>(worktrees, 'button[aria-label="Delete login"]').disabled, true, "a checkout with a run going cannot be deleted");
 
-  await view.render(React.createElement(CoordinatorPanel, { members: [], worktreeGroups: [], worktrees: [], pullRequests: [], onOpenThread() {}, onRevealWorktree() {}, onDeleteWorktree() {} }));
-  assert.match(view.container.textContent, /No threads yet/);
+  const link = query<HTMLAnchorElement>(query(view.container, '[aria-label="Pull requests from these threads"]'), "a");
+  assert.equal(link.href, "https://github.com/o/r/pull/12");
+  assert.match(link.textContent, /Add dark mode#12 · Open · Dark mode/);
   await view.unmount();
 });
 
