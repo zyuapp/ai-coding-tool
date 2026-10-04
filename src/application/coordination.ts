@@ -225,7 +225,7 @@ export function coordinationView(
       }),
     ];
     const decisions = coordinationDecisions(threads, thread.id);
-    return members.length || decisions.length ? { ...NO_COORDINATION, members, approvals, decisions, brief: thread.brief ?? null } : NO_COORDINATION;
+    return members.length || approvals.length || decisions.length ? { ...NO_COORDINATION, members, approvals, decisions, brief: thread.brief ?? null } : NO_COORDINATION;
   }
   const lead = coordinatorOf(threads, thread) ?? null;
   /** A thread that left its coordinator with a decision still open is where that decision is answered now. */

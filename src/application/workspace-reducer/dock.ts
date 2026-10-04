@@ -115,7 +115,8 @@ export function reduceDock(state: WorkspaceState, input: DockInput): WorkspaceTr
     case "view.close-thread-tab": {
       const { owner, dock } = frontDock(state);
       if (!dock.threadTabs.includes(input.taskId)) return settled(state);
-      const tab = dock.tab === input.taskId ? dockTabAfterClosing(state, owner, input.taskId) : dock.tab;
+      const last = dock.threadTabs.length === 1 && dock.panels.includes(OVERVIEW_PANEL);
+      const tab = dock.tab !== input.taskId ? dock.tab : last ? OVERVIEW_PANEL : dockTabAfterClosing(state, owner, input.taskId);
       /** Closing a coordinator's last thread tab falls back to its Overview; with nothing to fall back to, the dock hides. */
       const open = dock.open && tab !== DOCK_PICKER;
       const subjects = Object.fromEntries(Object.entries(dock.subjects).filter(([, id]) => id !== input.taskId));

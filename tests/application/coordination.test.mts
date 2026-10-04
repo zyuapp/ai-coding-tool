@@ -353,6 +353,9 @@ test("a coordinator's dock leads with an Overview that opens once a thread works
   const another = reduce(hidden, { type: "task.set-coordinator", taskId: "second", coordinatorId: "lead" }).state;
   assert.equal(another.docks.lead?.open, false, "a dock the user hid stays hidden as more threads join");
 
+  const tabbed = reduce(reduce(joined, { type: "view.open-dock-panel", panel: "automation" }).state, { type: "task.select", taskId: "worker" }).state;
+  assert.equal(reduce(tabbed, { type: "view.close-thread-tab", taskId: "worker" }).state.docks.lead?.tab, "overview", "closing the last thread tab falls back to the Overview, not the panel beside it");
+
   const kept = reduce(joined, { type: "view.close-dock-panel", panel: "overview" }).state;
   assert.deepEqual(kept.docks.lead?.panels, ["overview"], "the Overview does not close");
 
@@ -387,4 +390,7 @@ test("a coordinator's Overview groups its threads by what they need, and its too
     approvals: { "run-lead": own, "run-a": approval },
   });
   assert.deepEqual(deriveView(state).coordination.approvals.map(({ approval: item }) => item.approvalId), ["a0", "a1"], "the open coordinator's own approval waits first, beside its threads'");
+
+  const alone = coordinationView([lead()], lead(), new Set(), new Set(), (id) => id === "lead" ? own : undefined);
+  assert.deepEqual(alone.approvals.map(({ approval: item }) => item.approvalId), ["a0"], "a coordinator with nobody under it still answers its own approval in the card");
 });
