@@ -13,7 +13,8 @@ import { findProject } from "../../domain/project.js";
 import { expandThreadHandles } from "../../domain/thread-handles.js";
 import { withoutSnooze } from "../../domain/thread-snooze.js";
 import { updateThread } from "../thread-run-state.js";
-import { coordinationSendOf, senderDetail, senderPrompt } from "../coordination.js";
+import { coordinationSendOf, senderPrompt } from "../coordination.js";
+import { originFields, type MessageOrigin } from "../../domain/message-origin.js";
 import { heldByLimit, nudged } from "../limit-pauses.js";
 
 type SendInput = Extract<WorkspaceInput, {
@@ -69,14 +70,16 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
       }
       const sender = input.from === undefined || input.from === thread?.id ? undefined : state.threads.find((item) => item.id === input.from);
       const prompt = sentPrompt(text, pastes, annotations, attachments, files);
-      const signed = sender ? { prompt: `${senderPrompt(state.threads, sender, thread)}\n\n${prompt}`, detail: senderDetail(sender) } : { prompt };
+      const sentBy: MessageOrigin | undefined = sender ? { kind: "thread", threadId: sender.id, title: sender.title } : undefined;
+      const signed = sender ? `${senderPrompt(state.threads, sender, thread)}\n\n${prompt}` : prompt;
       /** A thread waiting out its usage limit holds the message for when it lifts, and goes first then. */
       const held = Boolean(thread && !state.activeRuns[thread.id] && heldByLimit(state, thread.id, Date.now()));
       if (thread && (state.activeRuns[thread.id] || held)) {
         const queued: QueuedMessage = {
           id: crypto.randomUUID(),
           text,
-          ...signed,
+          prompt: signed,
+          ...originFields(sentBy),
           attachments: attachments.map((attachment) => attachment.path),
           ...(annotations.length ? { annotations } : {}),
           ...(pastes.length ? { pastes } : {}),
@@ -118,7 +121,8 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
         ...(thread ? {} : coordinationSendOf(input)),
         ...(draftKey === undefined ? {} : { draftKey }),
         text,
-        ...signed,
+        prompt: signed,
+        ...(sentBy ? { messageOrigin: sentBy } : {}),
         attachments: attachments.map((attachment) => attachment.path),
         ...(annotations.length ? { annotations } : {}),
         ...(pastes.length ? { pastes } : {}),

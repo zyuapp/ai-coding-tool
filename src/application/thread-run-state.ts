@@ -147,10 +147,6 @@ function quietFraming(surfaceWhen: string) {
   return `This run is quiet: it settles without reaching the user unless you say otherwise. Surface it when: ${surfaceWhen} If that is what you found, call the aicodingtool-automation notify tool with a headline before you finish. If it is not, call nothing_to_report with what you checked. Call neither and the run surfaces as an ordinary one, which is what a run that could not do its job should do.`;
 }
 
-export function automationRunLabel(runNumber: number) {
-  return `Automation run #${runNumber}`;
-}
-
 export function withActiveRun<T extends RunTransitionState>(state: T, threadId: string, run: ActiveRun | null): T {
   if (run) return { ...state, activeRuns: { ...state.activeRuns, [threadId]: run } } as T;
   const { [threadId]: _finished, ...activeRuns } = state.activeRuns;

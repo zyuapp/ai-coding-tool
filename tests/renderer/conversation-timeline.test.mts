@@ -418,13 +418,13 @@ test("a coordinator's superseded thread updates fold into one row before the new
   const messages = transcript(
     { kind: "user", text: "Ship it" },
     { kind: "assistant", text: "Started two threads." },
-    { kind: "user", text: "\"One\" ended its turn.", detail: "Thread updates" },
+    { kind: "user", text: "\"One\" ended its turn.", origin: { kind: "coordination" }, detail: "Thread updates" },
     { kind: "assistant", text: "One is done." },
-    { kind: "user", text: "\"Two\" ended its turn.", detail: "Thread updates" },
+    { kind: "user", text: "\"Two\" ended its turn.", origin: { kind: "coordination" }, detail: "Thread updates" },
     { kind: "tool", text: "Read" },
     { kind: "assistant", text: "Both are done." },
     { kind: "user", text: "Thanks" },
-    { kind: "user", text: "\"Three\" ended its turn.", detail: "Thread updates" },
+    { kind: "user", text: "\"Three\" ended its turn.", origin: { kind: "coordination" }, detail: "Thread updates" },
     { kind: "assistant", text: "Three is done." },
   );
   const groups = groupTimeline(messages, { running: false });
@@ -439,9 +439,9 @@ test("a coordinator's thread messages fold to one row naming the sender, and the
   const messages = transcript(
     { kind: "user", text: "Fix login" },
     { kind: "assistant", text: "Started a thread." },
-    { kind: "user", text: "\"Fix login\" ended its turn.\nIt last said: done", detail: "Thread updates" },
+    { kind: "user", text: "\"Fix login\" ended its turn.\nIt last said: done", origin: { kind: "coordination" }, detail: "Thread updates" },
     { kind: "assistant", text: "Login is fixed." },
-    { kind: "user", text: "Can I merge?", detail: "From Fix login · t2" },
+    { kind: "user", text: "Can I merge?", origin: { kind: "thread", threadId: "t2", title: "Fix login" }, detail: "From Fix login · t2" },
   );
   const groups = groupTimeline(messages, { running: false, coordinator: true });
   assert.deepEqual(groups.map((group) => group.kind === "message" ? group.from ?? null : group.kind), [null, "turn", "Thread updates", "turn", "From Fix login"]);

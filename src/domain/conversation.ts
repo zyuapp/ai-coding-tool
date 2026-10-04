@@ -1,3 +1,5 @@
+import { originFields, type MessageOrigin } from "./message-origin.js";
+
 export type ConversationMessageKind = "user" | "assistant" | "tool" | "system";
 
 /** Where a drafted annotation stays visible until the send that carries it. */
@@ -62,6 +64,8 @@ export type ConversationMessage = {
   text: string;
   /** A delivered artifact or its failure stays visible when intermediate work folds away. */
   artifact?: true;
+  /** On a user message, who sent it when the user did not. */
+  origin?: MessageOrigin;
   detail?: string;
   /** A system message is a neutral notice unless it reports a failure. */
   tone?: "error";
@@ -113,14 +117,16 @@ export function createConversationMessage(kind: ConversationMessage["kind"], tex
   };
 }
 
+/** A user message as sent: typed by the user, or by whoever its origin names. */
+export function createSentMessage(sent: { text: string; origin?: MessageOrigin; attachments?: string[]; annotations?: Annotation[]; pastes?: PastedText[]; files?: AttachedFile[] }): ConversationMessage {
+  const { detail, origin } = originFields(sent.origin);
+  return { ...createConversationMessage("user", sent.text, detail, sent.attachments, sent.annotations, sent.pastes, sent.files), ...(origin ? { origin } : {}) };
+}
+
 export function createFailureMessage(text: string): ConversationMessage {
   return { ...createConversationMessage("system", text), tone: "error" };
 }
 
-/**
- * What the composer offers back on ↑: prompts the user sent themselves, oldest first. A user message
- * carries a detail only when an automation tick wrote it, so a labelled one was never typed.
- */
 /** A message the composer can put back: what was typed, and what rode along with it. */
 export type RecalledMessage = {
   text: string;
@@ -133,12 +139,13 @@ export type RecalledMessage = {
 
 const sentPromptCache = new WeakMap<ConversationMessage[], RecalledMessage[]>();
 
+/** What the composer offers back on ↑: prompts the user sent themselves, oldest first. */
 export function sentPrompts(messages: ConversationMessage[]): RecalledMessage[] {
   const cached = sentPromptCache.get(messages);
   if (cached) return cached;
   const prompts: RecalledMessage[] = [];
   for (const message of messages) {
-    if (message.kind === "user" && message.detail === undefined) {
+    if (message.kind === "user" && !message.origin) {
       prompts.push({ text: message.text, annotations: message.annotations ?? [], pastes: message.pastes ?? [], files: message.files ?? [], attachments: message.attachments ?? [] });
     }
   }

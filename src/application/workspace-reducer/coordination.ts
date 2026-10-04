@@ -3,7 +3,7 @@ import { queuedFor, resolveWorkspaceEffect, threadBusy, withPending } from "./ru
 import { reduceSending } from "./sending.js";
 import { now, rejected, settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { COORDINATION_UPDATE_DETAIL, coordinationNote, coordinationUpdate, turnNote, workingMembers } from "../coordination.js";
+import { coordinationNote, coordinationUpdate, turnNote, workingMembers } from "../coordination.js";
 import { activityChanges, threadChanges } from "../thread-activity.js";
 import { heldByLimit } from "../limit-pauses.js";
 import { announced } from "../notices.js";
@@ -188,7 +188,7 @@ function deliverCoordinationNotes(state: WorkspaceState, leadId: string): Worksp
     ...(project ? { projectId: project.id } : {}),
     text: update.text,
     prompt: update.prompt,
-    detail: COORDINATION_UPDATE_DETAIL,
+    messageOrigin: { kind: "coordination" },
     attachments: [],
     coordination: { notes: notes.map((note) => note.id) },
   };

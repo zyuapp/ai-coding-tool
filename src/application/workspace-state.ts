@@ -58,6 +58,7 @@ import { engineReadinessOf } from "./engine-access.js";
 import { DEFAULT_EFFORT, OPEN_SUBAGENT_GROUPS, type AgentEffort, type ExecutionPolicy, type Subagent, type SubagentGroups } from "../domain/run.js";
 import { annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-drafts.js";
 import type { Annotation, AttachedFile, PastedText, StagedImage } from "../domain/conversation.js";
+import type { MessageOrigin } from "../domain/message-origin.js";
 import { legacyProjectId, projectName, type Project } from "../domain/project.js";
 import { retainedThreads } from "../domain/thread-retention.js";
 import type { ThreadStoreData } from "../domain/thread-storage.js";
@@ -116,7 +117,8 @@ export type PendingRun = {
   annotations?: Annotation[];
   pastes?: PastedText[];
   files?: AttachedFile[];
-  detail?: string;
+  /** Who the message the run starts with comes from, when not the user. */
+  messageOrigin?: MessageOrigin;
   policy?: ExecutionPolicy;
   automationId?: string;
   /** Automation only: this tick may settle without surfacing if it earns the silence. */

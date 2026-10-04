@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import { coordinationSections, COORDINATION_UPDATE_DETAIL } from "../../src/application/coordination.ts";
+import { coordinationSections } from "../../src/application/coordination.ts";
 import { deriveView } from "../../src/application/workspace-state.ts";
 import type { ThreadBrief } from "../../src/domain/coordination.ts";
 import { THREAD_STORE_VERSION } from "../../src/domain/thread-storage.ts";
@@ -89,12 +89,13 @@ test("a thread ending its turn wakes a free coordinator with the news, and waits
   const woken = effectOf(ended, "resolve-run-workspace");
   const pending = required(ended.state.pendingRuns[woken.pendingId]);
   assert.equal(pending.taskId, "lead");
-  assert.equal(pending.detail, COORDINATION_UPDATE_DETAIL);
+  assert.deepEqual(pending.messageOrigin, { kind: "coordination" });
   assert.match(pending.text, /"Fix login" ended its turn/);
 
   const started = reduce(ended.state, { type: "run.resolved", pendingId: woken.pendingId, workspace: PROJECTLESS });
   assert.equal(started.state.threads[0].coordinationNotes, undefined, "a delivered note is not delivered again");
-  assert.equal(started.state.threads[0].messages.at(-1)?.detail, COORDINATION_UPDATE_DETAIL);
+  assert.deepEqual(started.state.threads[0].messages.at(-1)?.origin, { kind: "coordination" });
+  assert.equal(started.state.threads[0].messages.at(-1)?.detail, "Thread updates");
 
   const busyLead = workspace({ threads: [lead(), worker], activeRuns: { ...busyWorker.activeRuns, lead: activeRun("lead", "run-l") }, runStatuses: { worker: "running", lead: "running" } });
   const waiting = reduce(busyLead, correlatedRunEvent("worker", "run-w", 1, { type: "run.status", status: "succeeded" }));

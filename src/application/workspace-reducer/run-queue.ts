@@ -14,7 +14,7 @@ import { withoutOutcome } from "../../domain/attention.js";
 import { coordinationRole } from "../coordination.js";
 import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel } from "../../domain/agent-engine.js";
 import type { RunStatus } from "../../domain/run.js";
-import { createConversationMessage, type Annotation, type AttachedFile, type PastedText, type RunAttachment } from "../../domain/conversation.js";
+import { createSentMessage, type Annotation, type AttachedFile, type PastedText, type RunAttachment } from "../../domain/conversation.js";
 import type { Project } from "../../domain/project.js";
 import type { Thread } from "../../domain/thread.js";
 import { withoutLimitPause } from "../../domain/usage-limit.js";
@@ -163,7 +163,7 @@ export function withDeliveredMessage(state: WorkspaceState, taskId: string, mess
   if (!delivered) return state;
   return updateThread(withAttendedRun(withQueued(state, taskId, queued.filter((message) => message.id !== messageId)), taskId), taskId, (thread) => ({
     ...thread,
-    messages: [...thread.messages, createConversationMessage("user", delivered.text, delivered.detail, delivered.attachments, delivered.annotations, delivered.pastes, delivered.files)],
+    messages: [...thread.messages, createSentMessage(delivered)],
     updatedAt: now(),
   }));
 }
@@ -213,7 +213,7 @@ export function drainQueue(state: WorkspaceState, taskId: string, status: RunSta
     ...(next.annotations ? { annotations: next.annotations } : {}),
     ...(next.pastes ? { pastes: next.pastes } : {}),
     ...(next.files ? { files: next.files } : {}),
-    ...(next.detail ? { detail: next.detail } : {}),
+    ...(next.origin ? { messageOrigin: next.origin } : {}),
     queuedIds: [next.id],
     ...(warming ? { warming: true as const } : {}),
   };

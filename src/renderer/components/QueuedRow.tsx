@@ -1,7 +1,13 @@
 import { LuCornerDownRight as CornerDownRight, LuX as X } from "react-icons/lu";
 import type { QueuedMessage } from "../../application/workspace-state";
+import { messageLabel } from "../../domain/message-origin";
 import { AnnotationRow } from "./AnnotationRow";
 import type { ComposerSurface } from "./ConversationComposer";
+
+function QueuedOrigin({ message }: { message: QueuedMessage }) {
+  const label = messageLabel(message);
+  return label ? <p className="queued-origin">{label}</p> : null;
+}
 
 /** Messages waiting on the run, each with what it carries and the two things you can do to it. */
 export function QueuedRow({ messages, surface, canSteer, onSteer, onDrop }: {
@@ -20,7 +26,7 @@ export function QueuedRow({ messages, surface, canSteer, onSteer, onDrop }: {
         <div className="queued-message" role="listitem" key={message.id}>
           <CornerDownRight className="queued-mark" size={14} aria-hidden="true" />
           <div className="queued-body">
-            {message.detail && <p className="queued-origin">{message.detail}</p>}
+            <QueuedOrigin message={message} />
             {message.text && <p className="queued-text">{message.text}</p>}
             {message.annotations?.length ? <AnnotationRow annotations={message.annotations} /> : null}
           </div>

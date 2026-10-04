@@ -7,6 +7,7 @@ import { findProject, projectName, type Project } from "../domain/project.js";
 import { threadActivityAt, threadCreatedAt, type Thread } from "../domain/thread.js";
 import { threadHandles, type ThreadHandleOption } from "../domain/thread-handles.js";
 import type { Worktree } from "../domain/worktree.js";
+import { messageLabel, type MessageOrigin } from "../domain/message-origin.js";
 
 /** Enough of a message to recognise what happened without carrying a whole transcript. */
 const MESSAGE_TEXT_LIMIT = 2_000;
@@ -163,6 +164,12 @@ export function findThread(state: WorkspaceState, reference: string): Thread | n
   return title?.thread ?? prefix?.thread ?? null;
 }
 
+/** Where a message came from, in the words every surface shows. */
+export function labelOf(message: { origin?: MessageOrigin; detail?: string }): { origin?: string } {
+  const label = messageLabel(message);
+  return label ? { origin: label } : {};
+}
+
 export function threadTranscript(state: WorkspaceState, threadId: string, limit = DEFAULT_TRANSCRIPT_MESSAGES): ThreadTranscript | null {
   const thread = findThread(state, threadId);
   if (!thread) return null;
@@ -172,7 +179,7 @@ export function threadTranscript(state: WorkspaceState, threadId: string, limit 
     messages: kept.map((message) => ({
       kind: message.kind,
       text: message.text.length > MESSAGE_TEXT_LIMIT ? `${message.text.slice(0, MESSAGE_TEXT_LIMIT)}…` : message.text,
-      ...(message.kind === "user" && message.detail ? { origin: message.detail } : {}),
+      ...(message.kind === "user" ? labelOf(message) : {}),
       at: message.at,
     })),
     omitted: thread.messages.length - kept.length,

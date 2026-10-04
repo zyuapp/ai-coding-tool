@@ -1,5 +1,6 @@
 import { capabilitiesFor, currentModel, engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, type AgentEngine } from "./agent-engine.js";
 import type { Annotation, AttachedFile, ConversationMessage, ConversationMessageKind, PastedText } from "./conversation.js";
+import { legacyOrigin, type MessageOrigin } from "./message-origin.js";
 import type { AutomationFinding } from "./finding.js";
 import { isProject, legacyProjectId, normalizeProjectRoot, type Project } from "./project.js";
 import type { Continuation, ExecutionPolicy, Subagent } from "./run.js";
@@ -221,7 +222,7 @@ function migrateMessages(value: unknown, taskIndex: number, errors: string[]) {
       errors.push(`tasks[${taskIndex}].messages[${index}] is invalid`);
       continue;
     }
-    messages.push({ id: message.id, kind: message.kind, text: message.text, ...(message.detail === undefined ? {} : { detail: message.detail }), at: message.at });
+    messages.push(labelledOrigin({ id: message.id, kind: message.kind, text: message.text, ...(message.detail === undefined ? {} : { detail: message.detail }), at: message.at }) as ConversationMessage);
   }
   return messages;
 }
@@ -455,6 +456,8 @@ function renamedFields(value: unknown) {
     if (renamed.coordinationNotes === undefined) renamed.coordinationNotes = notes;
     task = renamed;
   }
+  const limitPause = heldWithOrigins(task.limitPause);
+  if (limitPause !== task.limitPause) task = { ...task, limitPause };
   if (Array.isArray(task.messages)) {
     let messages: unknown[] | null = null;
     for (let index = 0; index < task.messages.length; index += 1) {
@@ -469,9 +472,24 @@ function renamedFields(value: unknown) {
 }
 
 function renamedMessageFields(value: unknown) {
-  if (!isRecord(value) || value.quiet === undefined) return value;
-  const { quiet: withdrawn, ...message } = value;
+  if (!isRecord(value)) return value;
+  const labelled = labelledOrigin(value);
+  if (labelled.quiet === undefined) return labelled;
+  const { quiet: withdrawn, ...message } = labelled;
   return message.withdrawn === undefined ? { ...message, withdrawn } : message;
+}
+
+/** A user message an older build labelled gets the origin its label names. A held message is always the user kind. */
+function labelledOrigin(value: Record<string, unknown>) {
+  const user = value.kind === undefined || value.kind === "user";
+  return user && value.origin === undefined && typeof value.detail === "string" ? { ...value, origin: legacyOrigin(value.detail) } : value;
+}
+
+function heldWithOrigins(pause: unknown) {
+  if (!isRecord(pause) || !Array.isArray(pause.held)) return pause;
+  const before: unknown[] = pause.held;
+  const held = before.map((message) => isRecord(message) ? labelledOrigin(message) : message);
+  return held.some((message, index) => message !== before[index]) ? { ...pause, held } : pause;
 }
 
 /** A conversation loaded separately uses the same migrations and validation as a complete store. */
@@ -521,6 +539,7 @@ function isConversationMessage(value: unknown): value is ConversationMessage {
     typeof value.kind === "string" && isMessageKind(value.kind) &&
     typeof value.text === "string" &&
     (value.artifact === undefined || value.artifact === true) &&
+    (value.origin === undefined || value.kind === "user" && isMessageOrigin(value.origin)) &&
     (value.detail === undefined || typeof value.detail === "string") &&
     (value.tone === undefined || value.tone === "error") &&
     (value.attachments === undefined || (Array.isArray(value.attachments) && value.attachments.every(nonEmptyString))) &&
@@ -540,7 +559,19 @@ function isHeldMessage(value: unknown): boolean {
     (value.annotations === undefined || (Array.isArray(value.annotations) && value.annotations.every(isAnnotation))) &&
     (value.pastes === undefined || (Array.isArray(value.pastes) && value.pastes.every(isPastedText))) &&
     (value.files === undefined || (Array.isArray(value.files) && value.files.every(isAttachedFile))) &&
+    (value.origin === undefined || isMessageOrigin(value.origin)) &&
     (value.detail === undefined || typeof value.detail === "string");
+}
+
+function isMessageOrigin(value: unknown): value is MessageOrigin {
+  if (!isRecord(value)) return false;
+  switch (value.kind) {
+    case "thread": return typeof value.title === "string" && (value.threadId === undefined || nonEmptyString(value.threadId));
+    case "automation": return finiteNumber(value.runNumber);
+    case "coordination":
+    case "legacy": return true;
+    default: return false;
+  }
 }
 
 function isAnnotation(value: unknown): value is Annotation {

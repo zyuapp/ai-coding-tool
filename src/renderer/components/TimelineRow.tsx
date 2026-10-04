@@ -3,6 +3,7 @@ import { attachmentUrl } from "../../application/attachments";
 import type { StreamingTail } from "../../application/thread-run-state";
 import type { AgentEngine } from "../../domain/agent-engine";
 import type { ConversationMessage } from "../../domain/conversation";
+import { messageLabel } from "../../domain/message-origin";
 import { groupMessageIds, timeSteps, toSegments, type TimelineGroup } from "../timeline/grouping";
 import { MessageArtifactScope } from "./MarkdownMessage";
 import { AnnotationRow } from "./AnnotationRow";
@@ -20,6 +21,7 @@ const fullMoment = (at: number) => (momentFormatter ??= new Intl.DateTimeFormat(
 
 function UserMessage({ message, onView }: { message: ConversationMessage; onView: (source: string) => void }) {
   const { taskId } = useContext(MessageArtifactScope);
+  const label = messageLabel(message);
   return (
     <article className="message user">
       <div className="message-stack">
@@ -39,7 +41,7 @@ function UserMessage({ message, onView }: { message: ConversationMessage; onView
             ))}
           </div>
         ) : null}
-        {message.detail && <div className="message-origin">{message.detail}</div>}
+        {label && <div className="message-origin">{label}</div>}
         {message.text && <div className="message-text">{message.text}</div>}
       </div>
     </article>

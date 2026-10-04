@@ -1,4 +1,4 @@
-import { COORDINATION_UPDATE_DETAIL, senderTitle } from "../../application/coordination";
+import { senderLabel } from "../../domain/message-origin";
 import type { ConversationMessage } from "../../domain/conversation";
 
 type TimelineEntry =
@@ -68,14 +68,11 @@ export function groupTimeline(messages: ConversationMessage[], { running, tailMe
 
 /** A coordinator's threads speak to it often, so their messages fold to one row behind the user's own words and its answers. */
 function threadSender(message: ConversationMessage) {
-  if (message.kind !== "user") return undefined;
-  if (message.detail === COORDINATION_UPDATE_DETAIL) return COORDINATION_UPDATE_DETAIL;
-  const title = senderTitle(message.detail);
-  return title === null ? undefined : `From ${title}`;
+  return message.kind === "user" ? senderLabel(message.origin) : undefined;
 }
 
 function isUpdate(entry: TimelineEntry) {
-  return entry.kind === "message" && entry.message.kind === "user" && entry.message.detail === COORDINATION_UPDATE_DETAIL;
+  return entry.kind === "message" && entry.message.kind === "user" && entry.message.origin?.kind === "coordination";
 }
 
 /**

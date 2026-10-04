@@ -1,5 +1,6 @@
 import type { AgentEngine } from "./agent-engine.js";
 import type { Annotation, AttachedFile, PastedText } from "./conversation.js";
+import type { MessageOrigin } from "./message-origin.js";
 import type { Thread } from "./thread.js";
 
 /**
@@ -20,6 +21,8 @@ export type HeldMessage = {
   annotations?: Annotation[];
   pastes?: PastedText[];
   files?: AttachedFile[];
+  origin?: MessageOrigin;
+  /** The origin's label, for builds that read only this. */
   detail?: string;
 };
 

@@ -19,20 +19,6 @@ export function coordinationSendOf({ coordinatorId, brief }: CoordinationSend): 
   return { coordination: { ...(coordinatorId ? { coordinatorId } : {}), ...(brief ? { brief } : {}) } };
 }
 
-const FROM = "From ";
-
-/** The label on a message another thread sent. */
-export function senderDetail(sender: Thread): string {
-  return `${FROM}${sender.title} · ${sender.id}`;
-}
-
-/** The sending thread's title, read back from a message's label. */
-export function senderTitle(detail: string | undefined): string | null {
-  if (!detail?.startsWith(FROM)) return null;
-  const end = detail.lastIndexOf(" · ");
-  return detail.slice(FROM.length, end < 0 ? undefined : end);
-}
-
 /**
  * What the agent reads above a message another thread sent, so it knows whose words they are. A
  * thread working under a coordinator is also told when the sender is not that coordinator.
@@ -45,9 +31,6 @@ export function senderPrompt(threads: readonly Thread[], sender: Thread, recipie
   }
   return lines.join("\n");
 }
-
-/** The label on a coordinator's message that carries its threads' news rather than the user's words. */
-export const COORDINATION_UPDATE_DETAIL = "Thread updates";
 
 /** How much of a thread's last reply a coordinator is told when the thread ends its turn. */
 const EXCERPT = 600;

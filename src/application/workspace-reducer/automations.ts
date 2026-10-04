@@ -6,7 +6,7 @@ import { declinedTick, raisedFinding, whyTickCannotRun } from "../findings.js";
 import { withNothingToReport } from "../run-testimony.js";
 import { threadOnScreen } from "../thread-attention.js";
 import { isWatching, type AutomationView } from "../../domain/automation.js";
-import { automationRunLabel, automationRunPrompt } from "../thread-run-state.js";
+import { automationRunPrompt } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
 
@@ -32,7 +32,7 @@ export function reduceAutomations(state: WorkspaceState, input: AutomationInput)
         ...(project ? { projectId: project.id } : {}),
         text: fire.prompt,
         prompt: automationRunPrompt(fire.prompt, fire.runNumber, fire.surfaceWhen, fire.endsWhen),
-        detail: automationRunLabel(fire.runNumber),
+        messageOrigin: { kind: "automation", runNumber: fire.runNumber },
         attachments: [],
         ...(fire.policy ? { policy: fire.policy } : {}),
         ...(fire.quiet ? { quiet: true as const } : {}),

@@ -4,6 +4,8 @@ import { applyWorkspacePatches } from "./workspace-patches.js";
 import type { ComputerWorkspaceUpdate } from "../contracts/computers.js";
 import type { Thread } from "../domain/thread.js";
 import type { Project } from "../domain/project.js";
+import type { ConversationMessage } from "../domain/conversation.js";
+import { withLegacyOrigin } from "../domain/message-origin.js";
 
 const REQUIRED_TEXT = Symbol("required text");
 type RecordDefaults<T> = { [K in keyof T as {} extends Pick<T, K> ? never : K]: T[K] | typeof REQUIRED_TEXT };
@@ -19,6 +21,18 @@ const SIDE_CHAT_DEFAULTS = { id: REQUIRED_TEXT, sourceThreadId: REQUIRED_TEXT, e
 
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value) && !(value instanceof Set);
+}
+
+/** The list itself when no item changes. */
+function mapKept<T>(list: T[], read: (item: T) => T): T[] {
+  let result = list;
+  for (let index = 0; index < list.length; index++) {
+    const next = read(list[index]!);
+    if (next === list[index]) continue;
+    if (result === list) result = list.slice();
+    result[index] = next;
+  }
+  return result;
 }
 
 /** Keeps wire revisions separate from the normalized view. A missing revision asks for a snapshot;
@@ -89,17 +103,30 @@ export function createRemoteWorkspaceReader() {
   function items<T>(values: T[], template: object): T[] {
     const cached = normalized.get(values)?.get(template);
     if (cached) return cached as T[];
-    let result = values;
-    for (let index = 0; index < values.length; index++) {
-      if (!record(values[index])) throw new Error("Invalid remote workspace item.");
-      const next = fill(values[index], template) as T;
-      if (next === values[index]) continue;
-      if (result === values) result = values.slice();
-      result[index] = next;
-    }
+    const result = mapKept(values, (value) => {
+      if (!record(value)) throw new Error("Invalid remote workspace item.");
+      return fill(value, template) as T;
+    });
     remember(values, template, result);
     return result;
   }
+
+  /** An older host labels messages without saying who sent them; each is read once, by reference. */
+  const origins = new WeakMap<object, unknown>();
+  function cachedRead<T extends object>(value: T, read: (value: T) => T): T {
+    const cached = origins.get(value);
+    if (cached) return cached as T;
+    const result = read(value);
+    origins.set(value, result);
+    return result;
+  }
+  const readMessage = (message: ConversationMessage) => cachedRead(message, withLegacyOrigin);
+  const readMessages = (values: ConversationMessage[]) => cachedRead(values, (list) => mapKept(list, readMessage));
+  const readThread = (thread: Thread) => cachedRead(thread, (value) => {
+    const next = readMessages(value.messages);
+    return next === value.messages ? value : { ...value, messages: next };
+  });
+  const originThreads = (threads: Thread[]) => cachedRead(threads, (list) => mapKept(list, readThread));
 
   const docks = new WeakMap<object, WorkspaceState["docks"]>();
   const views = new WeakMap<object, WorkspaceState>();
@@ -119,7 +146,7 @@ export function createRemoteWorkspaceReader() {
       }
       docks.set(state.docks, nextDocks);
     }
-    const threads = items(state.threads, THREAD_DEFAULTS);
+    const threads = originThreads(items(state.threads, THREAD_DEFAULTS));
     const projects = items(state.projects, PROJECT_DEFAULTS);
     const sideChats = items(state.sideChats, SIDE_CHAT_DEFAULTS);
     const result = nextDocks === state.docks && threads === state.threads && projects === state.projects && sideChats === state.sideChats

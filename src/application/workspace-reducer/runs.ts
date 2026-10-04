@@ -21,7 +21,7 @@ import { DRAFT_DOCK, type PendingRun, type WorkspaceState } from "../workspace-s
 import type { CreatedWorktree } from "../../contracts/ipc.js";
 import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel, engineForModel, engineHasEffort, modelSupportsManualCompaction } from "../../domain/agent-engine.js";
 import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
-import { createConversationMessage } from "../../domain/conversation.js";
+import { createConversationMessage, createSentMessage } from "../../domain/conversation.js";
 import { appendMessages } from "../../domain/conversation-updates.js";
 import { pausedForLimit } from "../limit-pauses.js";
 import { canJoinCoordinator, isCoordinator, withoutCoordinationNotes } from "../../domain/coordination.js";
@@ -300,7 +300,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   /** A thread a coordinator starts works under it from its first run. */
   const lead = existing ? undefined : state.threads.find((item) => item.id === pending.coordination?.coordinatorId);
   const joined = lead && canJoinCoordinator(thread, lead) ? { ...thread, parentId: lead.id } : thread;
-  const message = createConversationMessage("user", pending.text, pending.detail, pending.attachments, pending.annotations, pending.pastes, pending.files);
+  const message = createSentMessage({ ...pending, origin: pending.messageOrigin });
   /** Only a thread that was somewhere else is arriving; one already in this checkout has said so. */
   const arrival = arriving && existing?.worktreeId !== arriving.id
     ? [createConversationMessage("system", `Moved into a worktree at ${arriving.root}`, `Detached at ${arriving.baseCommit.slice(0, 7)}`)]
@@ -396,7 +396,7 @@ function startAutomationRun(state: WorkspaceState, pending: PendingRun, workspac
   const thread = state.threads.find((item) => item.id === taskId);
   if (!thread || thread.archivedAt !== undefined || state.activeRuns[taskId]) return settled(state, ack(pending, false));
   /** A quiet tick's own label counts for nothing in the thread's activity, like the rest of its run. */
-  const message = { ...createConversationMessage("user", pending.text, pending.detail), ...(pending.quiet ? { withdrawn: true as const } : {}) };
+  const message = { ...createSentMessage({ text: pending.text, origin: pending.messageOrigin }), ...(pending.quiet ? { withdrawn: true as const } : {}) };
   const created = worktree && thread.projectId ? { ...worktree, name: worktree.name ?? thread.title, projectId: thread.projectId } : undefined;
   const entered = created ?? worktreeFor(state, thread);
   const withMessage = updateThread(withUsedWorktree(state, created, entered?.id), taskId, (item) => ({
