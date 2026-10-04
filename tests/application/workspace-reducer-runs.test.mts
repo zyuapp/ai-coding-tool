@@ -137,7 +137,7 @@ test("a run that settles off screen flags its thread and refreshes its project",
 
   const settled = reduce(state, { type: "run.event", event: { type: "run.status", taskId: "task-a", runId: "run-1", sequence: 1, status: "succeeded" } });
   assert.equal(settled.state.threads[0].outcome, "finished");
-  assert.deepEqual(settled.effects, [{ type: "refresh-environment", workspaceId: "workspace-1", taskId: "task-a", runId: "run-1" }, { type: "announce-thread", notice: { taskId: "task-a", title: "task-a", headline: "The run finished." } }]);
+  assert.deepEqual(settled.effects, [{ type: "refresh-environment", workspaceId: "workspace-1", taskId: "task-a", runId: "run-1", followUp: true }, { type: "announce-thread", notice: { taskId: "task-a", title: "task-a", headline: "The run finished." } }]);
 
   assert.equal(settled.state.threads[0].outcomeUnread, true);
 

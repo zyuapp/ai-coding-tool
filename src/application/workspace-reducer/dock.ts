@@ -6,7 +6,7 @@ import { browserEffectsForTab } from "./browser-tabs.js";
 import { defaultBranchRange, initialRange, readDiff } from "./diff-reads.js";
 import { subjectWorkspaceId } from "./environment.js";
 import { TAKE_KEYS, focusDockTab } from "./dock-tabs.js";
-import { settled } from "./shared.js";
+import { followUps, settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { readAttention } from "../../domain/attention.js";
 import { DIFF_PANEL, DOCK_PICKER, WORKFLOW_PANEL, diffFor, dockOwner, dockTabAfterClosing, dockTabIds, dockTabKind, frontDock, withDock, type WorkspaceState } from "../workspace-state.js";
@@ -121,7 +121,7 @@ export function reduceDock(state: WorkspaceState, input: DockInput): WorkspaceTr
       const closed = withDock(state, owner, { threadTabs: dock.threadTabs.filter((id) => id !== input.taskId), tab, open, subjects, ...(open ? {} : { expanded: false }) });
       /** A review of the closed tab's checkout goes back to the dock's own. */
       const reread = dock.subjects[DIFF_PANEL] === input.taskId && dock.panels.includes(DIFF_PANEL) ? reviewSubject(closed, owner) : settled(closed);
-      return { state: reread.state, effects: [...(open ? browserEffectsForTab(closed, owner, tab) : TAKE_KEYS), ...reread.effects] };
+      return { state: reread.state, effects: [...(open ? browserEffectsForTab(closed, owner, tab) : TAKE_KEYS), ...followUps(reread.effects)] };
     }
 
     case "view.select-dock-tab": {

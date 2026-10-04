@@ -25,7 +25,7 @@ export function relocateThread(state: WorkspaceState, thread: Thread, destinatio
   if (next.currentId === thread.id) next.openMenu = null;
   const result = rereadDiff(next, thread.id);
   const workspaceId = threadWorkspaceId(result.state, result.state.threads.find((item) => item.id === thread.id));
-  if (workspaceId) result.effects.push({ type: "refresh-environment", workspaceId, taskId: thread.id });
+  if (workspaceId) result.effects.push({ type: "refresh-environment", workspaceId, taskId: thread.id, followUp: true });
   return result;
 }
 

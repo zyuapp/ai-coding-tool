@@ -547,3 +547,34 @@ test("a screen command whose history read outlasts the selection is refused rath
     runtime.dispose();
   }
 });
+
+test("a command completes ahead of the view reads it set off, and flushing still waits for them", async () => {
+  const saved = store();
+  saved.projects = [{ id: "project-a", root: "/repo", workspaceId: "workspace-a" }];
+  saved.tasks[0].projectId = "project-a";
+  desktop.loadTaskStore = async () => saved;
+  const runtime = createWorkspaceRuntime({ desktop: { ...desktop, ...noComputers }, storage: localStorage });
+  const read = Promise.withResolvers<void>();
+  try {
+    await runtime.start();
+    await runtime.flush();
+    await runtime.execute({ type: "view.set-focused", focused: false }).completed;
+    const reads: string[] = [];
+    vi.mocked(runWorkspaceEffect).mockImplementation(async (effect) => {
+      if (effect.type !== "refresh-environment") return;
+      reads.push(effect.workspaceId);
+      await read.promise;
+    });
+    await runtime.execute({ type: "view.set-focused", focused: true }).completed;
+    assert.deepEqual(reads, ["workspace-a"]);
+    let flushed = false;
+    const flushing = runtime.flush().then(() => { flushed = true; });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(flushed, false);
+    read.resolve();
+    await flushing;
+  } finally {
+    read.resolve();
+    runtime.dispose();
+  }
+});

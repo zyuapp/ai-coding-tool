@@ -16,6 +16,11 @@ export function settled(state: WorkspaceState, effects: WorkspaceEffect[] = [], 
   return transition;
 }
 
+/** Marks effects as follow-ups: work that keeps a view current, which the input does not wait for. */
+export function followUps(effects: WorkspaceEffect[]): WorkspaceEffect[] {
+  return effects.map((effect) => effect.followUp ? effect : { ...effect, followUp: true });
+}
+
 /** A refusal belongs to this transition even when the same message is already on screen. */
 export function rejected(state: WorkspaceState, message: string, effects: WorkspaceEffect[] = []): WorkspaceTransition {
   return { state: { ...state, actionError: message }, effects, result: { ok: false, message } };

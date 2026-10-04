@@ -108,7 +108,15 @@ export type WorkspaceEvent =
   | EngineEvent;
 
 /** Work the reducer wants done outside itself. The renderer performs these; nothing else does. */
-export type WorkspaceEffect =
+export type WorkspaceEffect = WorkspaceWork & {
+  /**
+   * Keeps a view current after the input's own work. The input completes without waiting for it or
+   * taking on its result; the host still tracks it, and what it finds still lands through events.
+   */
+  followUp?: true;
+};
+
+type WorkspaceWork =
   | { type: "schedule-snooze-expiry"; at: number | null }
   | { type: "schedule-limit-reset"; at: number | null }
   | { type: "pick-project" }

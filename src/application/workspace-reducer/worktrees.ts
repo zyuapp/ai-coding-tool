@@ -5,7 +5,7 @@ import { reduceDiffs } from "./diffs.js";
 import { rereadDiff } from "./diff-reads.js";
 import { SWITCH_PROJECT_ERROR, SWITCH_RUNNING_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_PROJECT_ERROR, WORKTREE_RELEASING_ERROR, WORKTREE_RUNNING_ERROR } from "./errors.js";
 import { runsInWorkspace } from "./run-queue.js";
-import { now, settled, targetId, rejected } from "./shared.js";
+import { followUps, now, settled, targetId, rejected } from "./shared.js";
 import { dropWorktree, leaveWorktree, releaseWorktrees, withCreatingWorktree, withReleasingWorktree, withoutCreatingWorktree, withoutReleasingWorktree } from "./worktree-claims.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { updateThread } from "../thread-run-state.js";
@@ -206,7 +206,8 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
       if (input.missingOnly) notice = `Forgot ${input.root}. Thread history kept.`;
       else if (ref) notice += ` Recover it with git show ${ref}.`;
       else if (commit) notice += ` Recover loose work with git show ${shortCommit ?? commit}.`;
-      return reduceDiffs({ ...dropped, managedWorktrees: dropped.managedWorktrees?.filter((item) => item.root !== input.root) ?? null, deletingWorktrees: withoutWorktreeRoot(dropped, input.root), worktreeManagementError: null, worktreeManagementNotice: notice }, { type: "view.refresh-environment" });
+      const refreshed = reduceDiffs({ ...dropped, managedWorktrees: dropped.managedWorktrees?.filter((item) => item.root !== input.root) ?? null, deletingWorktrees: withoutWorktreeRoot(dropped, input.root), worktreeManagementError: null, worktreeManagementNotice: notice }, { type: "view.refresh-environment" });
+      return { ...refreshed, effects: followUps(refreshed.effects) };
     }
   }
 }

@@ -1,6 +1,6 @@
 /** The comparison a dock holds, and the reads that keep it pointed at the right checkout. */
 import { environmentFor, subjectWorkspaceId } from "./environment.js";
-import { settled } from "./shared.js";
+import { followUps, settled } from "./shared.js";
 import type { WorkspaceTransition } from "./types.js";
 import { threadWorkspaceId } from "../thread-location.js";
 import { DIFF_PANEL, diffFor, dockSubject, withDiff, type DiffState, type WorkspaceState } from "../workspace-state.js";
@@ -52,17 +52,19 @@ export function readDiff(state: WorkspaceState, owner: string, range: DiffRange,
 
 /**
  * A thread whose checkout changed is reviewing the wrong one until it reads again. Nothing to do for a
- * thread with no review open, which is most of them.
+ * thread with no review open, which is most of them. The read is a follow-up of whatever moved it.
  */
 export function rereadDiff(state: WorkspaceState, taskId: string): WorkspaceTransition {
   const diff = state.diffs[taskId];
   if (!diff) return settled(state);
   const subject = dockSubject(state, taskId, DIFF_PANEL) ?? taskId;
   const workspaceId = threadWorkspaceId(state, state.threads.find((thread) => thread.id === subject));
-  return diff.workspaceId === workspaceId ? settled(state) : readDiffFrom(state, taskId, workspaceId, diff.range, { result: null, collapsed: [], viewed: {} });
+  if (diff.workspaceId === workspaceId) return settled(state);
+  const read = readDiffFrom(state, taskId, workspaceId, diff.range, { result: null, collapsed: [], viewed: {} });
+  return { ...read, effects: followUps(read.effects) };
 }
 
-/** Every review of a thread's checkout: its own dock's, and a coordinator's that has its tab as the subject. */
+/** Every review of a thread's checkout, as follow-ups: its own dock's, and a coordinator's that has its tab as the subject. */
 export function rereadReviewsOf(state: WorkspaceState, taskId: string, workspaceId: string): WorkspaceTransition {
   let next = state;
   const effects: WorkspaceTransition["effects"] = [];
@@ -72,5 +74,5 @@ export function rereadReviewsOf(state: WorkspaceState, taskId: string, workspace
     next = read.state;
     effects.push(...read.effects);
   }
-  return settled(next, effects);
+  return settled(next, followUps(effects));
 }

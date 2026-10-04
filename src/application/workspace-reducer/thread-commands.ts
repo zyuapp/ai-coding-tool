@@ -5,7 +5,7 @@ import { TAKE_KEYS, disposeDocks, focusDockTab, showDockTab } from "./dock-tabs.
 import { refreshThreadEnvironment } from "./environment.js";
 import { closeSideChats } from "./side-chats.js";
 import { fileThread } from "./run-queue.js";
-import { now, rejected, settled, targetId } from "./shared.js";
+import { followUps, now, rejected, settled, targetId } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { focusComposer } from "../composer-drafts.js";
 import { shownComputers } from "../computers.js";
@@ -165,7 +165,7 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
       const opened = lead && !tabs.includes(input.taskId) ? withDock(landed, taskId, { threadTabs: [...tabs, input.taskId] }) : landed;
       const shown = showDockTab(readAttention(opened, input.taskId), taskId, input.taskId);
       const focused = focusDockTab(shown, taskId, input.taskId);
-      return lead ? { ...focused, effects: [...focused.effects, ...refreshThreadEnvironment(focused.state, input.taskId)] } : focused;
+      return lead ? { ...focused, effects: [...focused.effects, ...followUps(refreshThreadEnvironment(focused.state, input.taskId))] } : focused;
     }
 
     case "task.dismiss": {

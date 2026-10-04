@@ -463,7 +463,7 @@ test("a run that settles reads the review the thread has open again", () => {
   });
 
   assert.deepEqual(settled.effects.filter((effect) => effect.type === "read-diff"), [
-    { type: "read-diff", owner: "task-a", workspaceId: "workspace-a", range: DEFAULT_BRANCH_RANGE, ignoreWhitespace: true },
+    { type: "read-diff", owner: "task-a", workspaceId: "workspace-a", range: DEFAULT_BRANCH_RANGE, ignoreWhitespace: true, followUp: true },
   ]);
 });
 
@@ -528,8 +528,8 @@ test("a review composed in the draft is asked for again under the thread the sen
   const taskId = startRunEffect(started.effects).command.taskId;
 
   assert.deepEqual(started.effects.filter((effect) => effect.type === "read-diff"), [
-    { type: "read-diff", owner: taskId, workspaceId: "workspace-a", range: DEFAULT_BRANCH_RANGE, ignoreWhitespace: true },
-  ], "the read is re-issued under the new thread");
+    { type: "read-diff", owner: taskId, workspaceId: "workspace-a", range: DEFAULT_BRANCH_RANGE, ignoreWhitespace: true, followUp: true },
+  ], "the read is re-issued under the new thread, without holding back the start");
 
   /** The reply the draft asked for is stale and drops; the one the thread asked for lands. */
   const stale = reduce(started.state, { type: "diff.loaded", owner: "draft", workspaceId: "workspace-a", range: DEFAULT_BRANCH_RANGE, result: summary([file("ghost.ts")]) });
@@ -554,7 +554,7 @@ test("a thread that moves into a worktree reviews the checkout it moved to", () 
   });
 
   assert.deepEqual(moved.effects.filter((effect) => effect.type === "read-diff"), [
-    { type: "read-diff", owner: "task-a", workspaceId: "workspace-wt", range: DEFAULT_BRANCH_RANGE, ignoreWhitespace: true },
+    { type: "read-diff", owner: "task-a", workspaceId: "workspace-wt", range: DEFAULT_BRANCH_RANGE, ignoreWhitespace: true, followUp: true },
   ]);
   assert.equal(diffFor(moved.state, "task-a").workspaceId, "workspace-wt");
   assert.equal(diffFor(moved.state, "task-a").result, null, "the old checkout's list is not what this one holds");

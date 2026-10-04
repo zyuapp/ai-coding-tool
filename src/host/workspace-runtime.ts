@@ -120,6 +120,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
       active: () => !disposed && generation === executionGeneration,
       commit,
       prepare: async (input) => { for (const taskId of history.needed(input)) await history.hydrate(taskId); },
+      track: (work) => trackUntilSettled(effectsInFlight, work),
       perform: (effect, dispatch) => runWorkspaceEffect(effect, { dispatch, desktop, storage: host.storage, environmentRefreshes, scheduleSnoozeExpiry: snoozeTimer.schedule, scheduleLimitReset: limitTimer.schedule, surface: host.surface }),
     });
     trackUntilSettled(effectsInFlight, execution.completed);

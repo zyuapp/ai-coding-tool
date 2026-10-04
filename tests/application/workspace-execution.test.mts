@@ -272,3 +272,84 @@ test("a thread deletes a worktree by id, filing away the threads in it, and neve
   const gone = await answerThreadRequest(host, { ...request, requestId: "r2" });
   assert.equal(gone.ok, false);
 });
+
+function held() {
+  let release!: () => void;
+  const promise = new Promise<void>((resolve) => { release = resolve; });
+  return { promise, release };
+}
+
+/** The promise's result, or "pending" while it is still waiting once other work has had its turn. */
+function soon<T>(promise: Promise<T>): Promise<T | "pending"> {
+  return Promise.race([promise, new Promise<"pending">((resolve) => setTimeout(() => resolve("pending"), 20))]);
+}
+
+function startingDriver(diffRead: Promise<void>, launch: () => void = () => {}) {
+  return driver(workspace({ projects: [PROJECT], draftProjectId: PROJECT.id, diffs: { [DRAFT_DOCK]: EMPTY_DIFF } }), async (effect, dispatch) => {
+    if (effect.type === "resolve-run-workspace") await dispatch({ type: "run.resolved", pendingId: effect.pendingId, workspace: { id: PROJECT.workspaceId!, kind: "project", root: PROJECT.root } });
+    if (effect.type === "start-run") launch();
+    if (effect.type === "read-diff") {
+      await diffRead;
+      await dispatch({ type: "diff.loaded", owner: effect.owner, workspaceId: effect.workspaceId, range: effect.range, result: { status: "error", message: "diff unavailable" } });
+    }
+  });
+}
+
+test("a slow review read carried by a new thread does not hold back its start", async () => {
+  const read = held();
+  let launched = 0;
+  const host = startingDriver(read.promise, () => { launched++; });
+  await host.execute({ type: "view.set-prompt", prompt: "Start the task" }).completed;
+  const result = await soon(host.execute({ type: "task.send" }).completed);
+  assert.notEqual(result, "pending");
+  assert.deepEqual(result, { ok: true, taskId: host.state().threads[0].id });
+  assert.equal(launched, 1);
+  read.release();
+});
+
+test("a failed launch fails its start even while the carried review read is still out", async () => {
+  const read = held();
+  const host = startingDriver(read.promise, () => { throw new Error("launch failed"); });
+  await host.execute({ type: "view.set-prompt", prompt: "Start the task" }).completed;
+  assert.deepEqual(await soon(host.execute({ type: "task.send" }).completed), { ok: false, message: "launch failed" });
+  read.release();
+});
+
+test("an asked-for review read is the command's own work, so it waits for it and reports its failure", async () => {
+  const read = held();
+  const host = driver(workspace({ projects: [PROJECT], threads: [task("thread", { projectId: PROJECT.id })], currentId: "thread" }), async (effect, dispatch) => {
+    if (effect.type !== "read-diff") return;
+    await read.promise;
+    await dispatch({ type: "diff.loaded", owner: effect.owner, workspaceId: effect.workspaceId, range: effect.range, result: { status: "error", message: "diff unavailable" } });
+  });
+  const refresh = host.execute({ type: "diff.refresh" }).completed;
+  assert.equal(await soon(refresh), "pending");
+  read.release();
+  assert.deepEqual(await refresh, { ok: false, message: "diff unavailable" });
+});
+
+test("follow-up work is handed to the host to track, and its failure still reaches state", async () => {
+  const read = held();
+  let state = workspace({ projects: [PROJECT], draftProjectId: PROJECT.id, diffs: { [DRAFT_DOCK]: EMPTY_DIFF } });
+  const tracked: Promise<unknown>[] = [];
+  const execution: WorkspaceExecutionHost = {
+    state: () => state,
+    commit: (next) => { state = next; },
+    track: (work) => { tracked.push(work); },
+    perform: async (effect, dispatch) => {
+      if (effect.type === "resolve-run-workspace") await dispatch({ type: "run.resolved", pendingId: effect.pendingId, workspace: { id: PROJECT.workspaceId!, kind: "project", root: PROJECT.root } });
+      if (effect.type === "read-diff") {
+        await read.promise;
+        await dispatch({ type: "diff.loaded", owner: effect.owner, workspaceId: effect.workspaceId, range: effect.range, result: { status: "error", message: "diff unavailable" } });
+      }
+    },
+  };
+  await executeWorkspaceInput({ type: "view.set-prompt", prompt: "Start the task" }, execution).completed;
+  const result = await executeWorkspaceInput({ type: "task.send" }, execution).completed;
+  assert.equal(result.ok, true);
+  assert.equal(tracked.length, 1);
+  assert.equal(await soon(Promise.all(tracked)), "pending");
+  read.release();
+  await Promise.all(tracked);
+  assert.deepEqual(state.diffs[state.threads[0].id].result, { status: "error", message: "diff unavailable" });
+});

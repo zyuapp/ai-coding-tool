@@ -170,7 +170,7 @@ test("coming back to the window reads Git again", () => {
   const state = workspace({ projects: [PROJECT], threads: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a" });
 
   const back = reduce({ ...state, focused: false }, { type: "view.set-focused", focused: true });
-  assert.deepEqual(back.effects, [{ type: "refresh-environment", workspaceId: required(PROJECT.workspaceId), taskId: "task-a" }]);
+  assert.deepEqual(back.effects, [{ type: "refresh-environment", workspaceId: required(PROJECT.workspaceId), taskId: "task-a", followUp: true }]);
 
   const away = reduce(state, { type: "view.set-focused", focused: false });
   assert.deepEqual(away.effects, [], "a window left alone asks nothing");
@@ -178,7 +178,7 @@ test("coming back to the window reads Git again", () => {
 
 test("coming back to the window reads an engine the user went off to install, and only that engine", () => {
   const state = workspace({ projects: [PROJECT], threads: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a", focused: false });
-  const environment = { type: "refresh-environment", workspaceId: required(PROJECT.workspaceId), taskId: "task-a" };
+  const environment = { type: "refresh-environment", workspaceId: required(PROJECT.workspaceId), taskId: "task-a", followUp: true };
 
   const ready = reduce({ ...state, engineStatus: { claude: { access: "ready" } } }, { type: "view.set-focused", focused: true });
   assert.deepEqual(ready.effects, [environment], "a machine with its engines in place pays nothing for switching windows");
