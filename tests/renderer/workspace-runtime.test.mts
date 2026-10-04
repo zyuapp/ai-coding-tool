@@ -363,7 +363,9 @@ test("a corrupt transcript does not discard later events and flush waits for the
     loaded.resolve(messages);
     await Promise.all([batch, flushing]);
     assert.equal(flushed, true);
-    assert.deepEqual(arrived, ["cold:1", "selected:1", "cold:2", "selected:2"]);
+    assert.deepEqual(arrived.filter((item) => item.startsWith("cold:")), ["cold:1", "cold:2"]);
+    assert.deepEqual(arrived.filter((item) => item.startsWith("selected:")), ["selected:1", "selected:2"]);
+    assert.deepEqual(arrived.slice(0, 2), ["selected:1", "selected:2"], "the loaded thread's events do not wait for the other's read");
     assert.equal(runtime.getState().threads.find((thread) => thread.id === "cold")?.messages.at(-1)?.text, "Cold reply");
     assert.equal(runtime.getState().threads.find((thread) => thread.id === "selected")?.messages.at(-1)?.text, "Selected reply");
     assert.match(runtime.getState().actionError ?? "", /broken transcript/);
@@ -374,7 +376,7 @@ test("a corrupt transcript does not discard later events and flush waits for the
   }
 });
 
-test("a batch waiting for history cannot apply remaining events after dispose and restart", async () => {
+test("events waiting for history cannot apply after dispose and restart", async () => {
   const loaded = Promise.withResolvers<ConversationMessage[]>();
   const loading = Promise.withResolvers<void>();
   desktop.loadThreadMessages = () => { loading.resolve(); return loaded.promise; };
@@ -390,7 +392,7 @@ test("a batch waiting for history cannot apply remaining events after dispose an
     const restarted = runtime.start();
     loaded.resolve(messages);
     await Promise.all([batch, restarted]);
-    assert.deepEqual(runtime.getState().activeRuns, {});
+    assert.equal(runtime.getState().activeRuns.cold, undefined);
   } finally {
     loaded.resolve(messages);
     runtime.dispose();
@@ -452,6 +454,34 @@ test("a thread's history read holds only inputs for that thread", async () => {
     loaded.resolve(messages);
     await Promise.all([first, second, cancel, settings]);
     assert.deepEqual(runtime.getState().threads.find((thread) => thread.id === "cold")?.messages.map((message) => message.text), ["persisted text", "First", "Second"]);
+  } finally {
+    loaded.resolve(messages);
+    runtime.dispose();
+  }
+});
+
+test("a batch spanning a loading thread and a loaded one holds only the loading thread's events", async () => {
+  const loaded = Promise.withResolvers<ConversationMessage[]>();
+  const loading = Promise.withResolvers<void>();
+  desktop.loadThreadMessages = () => { loading.resolve(); return loaded.promise; };
+  const runtime = createWorkspaceRuntime({ desktop: { ...desktop, ...noComputers }, storage: localStorage });
+  try {
+    await runtime.start();
+    const batch = runtime.dispatch({ type: "agent.events", events: [
+      { type: "run.started", taskId: "cold", runId: "cold-run", sequence: 1, agentInitiated: true },
+      { type: "run.started", taskId: "selected", runId: "selected-run", sequence: 1, agentInitiated: true },
+    ] });
+    await loading.promise;
+    await settle();
+    assert.equal(runtime.getState().activeRuns.selected?.runId, "selected-run", "the loaded thread's event applies at once");
+    assert.equal(runtime.getState().activeRuns.cold, undefined, "the loading thread's event waits for its transcript");
+    let cancelled = false;
+    const cancel = runtime.execute({ type: "run.cancel", taskId: "selected" }).completed.then(() => { cancelled = true; });
+    await settle();
+    assert.equal(cancelled, true, "a command for the loaded thread does not wait for the other's read");
+    loaded.resolve(messages);
+    await Promise.all([batch, cancel]);
+    assert.equal(runtime.getState().activeRuns.cold?.runId, "cold-run");
   } finally {
     loaded.resolve(messages);
     runtime.dispose();

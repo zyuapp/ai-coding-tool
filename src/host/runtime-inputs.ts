@@ -46,6 +46,20 @@ export function createRuntimeInputs(host: RuntimeInputHost) {
       if (tail) before.push(tail);
     }
     if (!before.length && !needed.length) return host.execute(input);
+    /** A batch spanning threads splits, so events for a thread with nothing to wait for are not held by another's read. */
+    if (input.type === "agent.events" && keys.size > 1) {
+      const batchGeneration = host.generation();
+      const parts = input.events.map((event) => execute(agentEventInput(event)));
+      /** A failure is reported again once the batch is done, so events applied after it cannot hide it. */
+      const completed = Promise.all(parts.map((part) => part.completed)).then((results) => {
+        const failure = results.find((result) => !result.ok);
+        if (!failure) return { ok: true as const };
+        if (failure.ok || !host.active(batchGeneration)) return failure;
+        return host.execute({ type: "action.failed", message: failure.message }).completed.then(() => failure);
+      });
+      host.track(completed);
+      return { accepted: { ok: true as const }, completed };
+    }
     const inputGeneration = host.generation();
     const splitBatch = input.type === "agent.events" && needed.length > 0;
     const prepared = Promise.all(before).then(async (): Promise<WorkspaceExecution> => {

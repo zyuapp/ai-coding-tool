@@ -13,10 +13,15 @@ export type InputScope = {
   screen?: string;
 };
 
-/** What the window shows: whose computer, and which thread or draft. */
+/** What the window shows: whose computer, which thread or draft, and which dock tab holds the keyboard. */
 export function screenOf(state: WorkspaceState): string {
-  return `${state.computers.active ?? ""}\u0000${state.currentId ?? ""}`;
+  return `${state.computers.active ?? ""}\u0000${state.currentId ?? ""}\u0000${state.keyboardTab ?? ""}`;
 }
+
+/** Commands that act on the thread on screen when they name none. */
+const IMPLICIT = new Set<WorkspaceInput["type"]>([
+  "view.set-prompt", "task.send", "task.fork", "task.set-worktree", "task.move-worktree", "run.compact", "run.cancel", "review.start", "worktree.delete",
+]);
 
 /**
  * What an input must follow before it may run, read from the state it arrived in. Selection follows
@@ -84,5 +89,6 @@ function collect(state: WorkspaceState, input: WorkspaceInput, keys: Set<string>
   }
   const taskId = (input as { taskId?: unknown }).taskId;
   if (typeof taskId === "string") keys.add(taskId);
-  return false;
+  /** One `withNamedThread` could not name, such as one for a paired computer's thread, waits only while that screen stays. */
+  return taskId === undefined && IMPLICIT.has(input.type) && !(input.type === "task.send" && input.text !== undefined);
 }

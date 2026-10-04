@@ -50,4 +50,13 @@ test("a command that cannot name the thread on screen runs only while that threa
   assert.equal(find.screen, screenOf(state), "a keystroke is read against the screen it was pressed on, even one naming its target");
   assert.notEqual(screenOf(state), screenOf({ ...state, currentId: "other" }));
   assert.notEqual(screenOf(state), screenOf({ ...state, computers: { ...state.computers, active: "elsewhere" } }));
+  assert.notEqual(screenOf(state), screenOf({ ...state, keyboardTab: "other" }), "moving the keyboard to a thread in the dock changes the screen");
+});
+
+test("a command for a paired computer's thread on screen runs only while that screen stays", () => {
+  const remote = { ...state, computers: { ...state.computers, active: "elsewhere" } };
+  assert.equal(inputScope(remote, { type: "task.send" }).screen, screenOf(remote));
+  assert.equal(inputScope(remote, { type: "run.cancel" }).screen, screenOf(remote));
+  assert.equal(inputScope(remote, { type: "task.send", text: "starts a new thread" }).screen, undefined);
+  assert.equal(inputScope(state, { type: "task.send" }).screen, undefined, "a named command needs no screen");
 });
