@@ -4,6 +4,7 @@ import { retireAutomations } from "./automations.js";
 import { TAKE_KEYS, disposeDocks, focusDockTab, showDockTab } from "./dock-tabs.js";
 import { refreshThreadEnvironment } from "./environment.js";
 import { closeSideChats } from "./side-chats.js";
+import { fileThread } from "./run-queue.js";
 import { now, rejected, settled, targetId } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { focusComposer } from "../composer-drafts.js";
@@ -33,15 +34,6 @@ type ThreadCommandInput = Extract<WorkspaceInput, {
 /** Offers the title to the engine's own record of the thread; an engine that keeps none ignores it. */
 function labelThread(taskId: string, title: string): WorkspaceEffect {
   return { type: "send-run-command", command: { type: "label", taskId, title } };
-}
-
-/**
- * Mirrors archiving or restoring into the engine's own record of the thread. A copy that has yet to
- * run still names its source's session, which is not its to file away.
- */
-function fileThread(thread: Thread | undefined, archived: boolean): WorkspaceEffect[] {
-  if (!thread?.continuation || thread.inheritedContinuation) return [];
-  return [{ type: "send-run-command", command: { type: "archive", taskId: thread.id, continuation: thread.continuation, archived } }];
 }
 
 /** Puts the user on a thread: what it holds becomes read, and the app follows it to its folder. */

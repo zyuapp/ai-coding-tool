@@ -118,3 +118,50 @@ test("archiving lets the thread's session go before a server of its own files th
   assert.equal(codex.provider.archiveThread("task-1", { provider: "claude", value: "session" }, true), false);
   codex.provider.closeAll();
 });
+
+test("a run on a thread still being archived waits for the filing before its session opens", async () => {
+  let letArchive = () => {};
+  const held = new Promise<void>((resolve) => { letArchive = resolve; });
+  const codex = harness({ "thread/archive": async () => { await held; return {}; } });
+  const continuation = { provider: "codex", value: threadId };
+
+  codex.provider.archiveThread("task-1", continuation, true);
+  await opened(codex);
+  const archiver = codex.latest();
+  await sentBy(archiver, "thread/archive");
+  const running = codex.provider.execute(input({ continuation }));
+  await tick();
+  assert.equal(codex.clients.length, 1, "no session opens while the thread is being filed away");
+
+  letArchive();
+  for (let waited = 0; codex.clients.length < 2; waited += 1) {
+    if (waited > 100) throw new Error("the run never opened its session");
+    await tick();
+  }
+  const session = codex.latest();
+  await sentBy(session, "turn/start");
+  completeTurn(session);
+  assert.deepEqual(await running, { status: "succeeded" });
+  codex.provider.closeAll();
+});
+
+test("archiving waits for the thread's session process to exit, which is when Codex lets go of the thread", async () => {
+  const codex = harness({ "thread/archive": () => ({}) });
+  const { client: session } = await turn(codex);
+  let exit = () => {};
+  const exiting = new Promise<void>((resolve) => { exit = resolve; });
+  const close = session.close.bind(session);
+  session.close = async () => { await exiting; return close(); };
+
+  codex.provider.archiveThread("task-1", { provider: "codex", value: threadId }, true);
+  for (let waited = 0; waited < 20; waited += 1) await tick();
+  assert.equal(codex.clients.length, 1, "no archiving server while the session's process is still up");
+
+  exit();
+  for (let waited = 0; codex.clients.length < 2; waited += 1) {
+    if (waited > 100) throw new Error("no archiving server was opened");
+    await tick();
+  }
+  await sentBy(codex.latest(), "thread/archive");
+  codex.provider.closeAll();
+});

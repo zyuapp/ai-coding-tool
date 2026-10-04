@@ -1,5 +1,5 @@
 import type { Continuation } from "../../domain/run.js";
-import type { AgentProvider, ProviderResult, ProviderRunInput } from "../agent/agent-provider.mjs";
+import { continuationOf, type AgentProvider, type ProviderResult, type ProviderRunInput } from "../agent/agent-provider.mjs";
 import { grantsTool } from "../agent/approval-grant.mjs";
 import { SessionPool } from "../agent/session-pool.mjs";
 import { McpHttpHost, type ToolHost } from "../tools/mcp-http-host.mjs";
@@ -64,7 +64,10 @@ export class CodexAgentProvider implements AgentProvider {
     this.pool = options.pool ?? new SessionPool(options.idleMs);
   }
 
-  execute(input: ProviderRunInput): Promise<ProviderResult> {
+  async execute(input: ProviderRunInput): Promise<ProviderResult> {
+    /** A thread still being filed away or brought back is held by that filing until it lands. */
+    const continuation = continuationOf(input);
+    await (continuation ? this.filings.get(continuation) : undefined);
     const key = sessionKey(input);
     return this.pool.execute(input, key, { open: ({ ended, rested }) => new CodexSession(key, this.connect, this.host, ended, rested, this.readOrigin, this.imageOutput) });
   }

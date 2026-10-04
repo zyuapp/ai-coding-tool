@@ -5,7 +5,7 @@ import { deriveView } from "../../src/application/workspace-state.ts";
 import type { ChangedFilesResult } from "../../src/contracts/ipc.ts";
 import type { ThreadStoreData } from "../../src/domain/thread-storage.ts";
 import { EMPTY_DOCK } from "../../src/application/workspace-dock.ts";
-import { task, workspace, activeRun, automation, effectAt, heldWorktree, inside, PROJECT, required, run } from "./workspace-reducer-fixtures.mts";
+import { task, workspace, activeRun, automation, correlatedRunEvent, effectAt, heldWorktree, inside, PROJECT, required, run } from "./workspace-reducer-fixtures.mts";
 
 test("archiving a thread retires its automation and cancels a run still going", () => {
   const state = workspace({
@@ -39,8 +39,8 @@ test("restoring an archived task returns it to the sidebar and leaves its automa
 test("archiving and restoring a thread files its engine session away and back, but never the session a copy inherited", () => {
   const continuation = { provider: "codex", value: "codex-thread" };
   const state = workspace({ threads: [
-    { ...task("task-a"), continuation, continuationStatus: "ready" },
-    { ...task("task-copy"), continuation, continuationStatus: "ready", inheritedContinuation: true },
+    { ...task("task-a"), continuation, continuationStatus: "available" },
+    { ...task("task-copy"), continuation, continuationStatus: "available", inheritedContinuation: true },
   ] });
   const filing = (effects: ReturnType<typeof reduce>["effects"]) => effects.filter((effect) => effect.type === "send-run-command" && effect.command.type === "archive");
 
@@ -52,6 +52,16 @@ test("archiving and restoring a thread files its engine session away and back, b
   const copy = reduce(state, { type: "task.archive", taskId: "task-copy" });
   assert.deepEqual(filing(copy.effects), []);
   assert.deepEqual(reduce(copy.state, { type: "task.restore", taskId: "task-copy" }).effects, []);
+});
+
+test("a session named by the run an archive cancelled is filed away with its thread", () => {
+  const state = workspace({ threads: [task("task-a")], activeRuns: { "task-a": activeRun("task-a", "run-a") } });
+  const archived = reduce(state, { type: "task.archive", taskId: "task-a" });
+  const continuation = { provider: "codex", value: "codex-thread" };
+
+  const named = reduce(archived.state, correlatedRunEvent("task-a", "run-a", 1, { type: "continuation.updated", continuation }));
+  assert.deepEqual(named.effects, [{ type: "send-run-command", command: { type: "archive", taskId: "task-a", continuation, archived: true } }]);
+  assert.deepEqual(reduce(state, correlatedRunEvent("task-a", "run-a", 1, { type: "continuation.updated", continuation })).effects, []);
 });
 
 test("archiving a thread closes its pages but keeps their records and its shells, and showing it again reopens them", () => {

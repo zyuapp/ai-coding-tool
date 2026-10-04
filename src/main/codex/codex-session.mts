@@ -280,6 +280,7 @@ export class CodexSession {
     this.served?.release();
     this.served = null;
     this.onEnded();
+    return this.closed;
   }
 
   /** Names this thread in Codex's own history, so it reads there as it reads here. */
