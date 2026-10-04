@@ -522,3 +522,28 @@ test("selecting a coordinated thread loads the tab it opens in the coordinator's
     runtime.dispose();
   }
 });
+
+test("a screen command whose history read outlasts the selection is refused rather than run on the new thread", async () => {
+  const loaded = Promise.withResolvers<ConversationMessage[]>();
+  const loading = Promise.withResolvers<void>();
+  desktop.loadThreadMessages = () => { loading.resolve(); return loaded.promise; };
+  const runtime = createWorkspaceRuntime({ desktop: { ...desktop, ...noComputers }, storage: localStorage });
+  try {
+    await runtime.start();
+    runtime.execute({ type: "task.select", taskId: "cold" });
+    await loading.promise;
+    const open = runtime.execute({ type: "side-chat.open", chatId: "chat" });
+    const find = runtime.execute({ type: "view.shortcut", action: "find.open", surface: "any" });
+    await settle();
+    runtime.execute({ type: "task.select", taskId: "selected" });
+    loaded.resolve(messages);
+    const moved = { ok: false, message: "The thread on screen changed before this could run." };
+    assert.deepEqual(await open.completed, moved);
+    assert.deepEqual(await find.completed, moved);
+    assert.deepEqual(runtime.getState().sideChats, []);
+    assert.equal(runtime.getState().find, null);
+  } finally {
+    loaded.resolve(messages);
+    runtime.dispose();
+  }
+});

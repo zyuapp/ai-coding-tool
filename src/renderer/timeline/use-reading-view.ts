@@ -54,6 +54,8 @@ function useViewRefs(): ViewRefs {
 type ReadingViewOptions = {
   scrollContainerRef: RefObject<HTMLDivElement | null>;
   timelineRef: RefObject<HTMLDivElement | null>;
+  /** Whether the timeline is mounted; the view attaches to it whenever it is, including after a thread's loading state. */
+  drawn: boolean;
   virtualizer: Virtualizer<HTMLDivElement, Element>;
   /** When the virtualizer last scrolled this scroller to correct its own estimates. */
   virtualizerScrolledAt: RefObject<number>;
@@ -75,7 +77,7 @@ type ReadingViewOptions = {
  * Every scroll of this transcript: where a reopened thread lands, where a match or a fresh answer
  * takes the view, and where the reader is reported to have settled.
  */
-export function useReadingView({ scrollContainerRef, timelineRef, virtualizer, virtualizerScrolledAt, threadId, rowOfMessage, hit, answerId, toolId, readingPoint, onReadingPointMove, setScrollMargin }: ReadingViewOptions) {
+export function useReadingView({ scrollContainerRef, timelineRef, drawn, virtualizer, virtualizerScrolledAt, threadId, rowOfMessage, hit, answerId, toolId, readingPoint, onReadingPointMove, setScrollMargin }: ReadingViewOptions) {
   const refs = useViewRefs();
   const { view, restoreScroll, placeAt, observed, placedFrom } = refs;
   const [atBottom, setAtBottom] = useState(true);
@@ -216,6 +218,8 @@ export function useReadingView({ scrollContainerRef, timelineRef, virtualizer, v
     return () => {
       cancelAnimationFrame(frame);
       report();
+      restoreScroll.current = () => {};
+      placeAt.current = () => {};
       scroller.removeEventListener("scroll", onScroll);
       scroller.removeEventListener("wheel", touch);
       scroller.removeEventListener("touchmove", touch);
@@ -226,7 +230,7 @@ export function useReadingView({ scrollContainerRef, timelineRef, virtualizer, v
       window.removeEventListener("pointercancel", onRelease);
       observer.disconnect();
     };
-  }, [threadId, scrollContainerRef, virtualizer]);
+  }, [threadId, drawn, scrollContainerRef, virtualizer]);
 
   /**
    * A report made while another thread was opening can arrive here after it. The freshest point is
@@ -242,7 +246,8 @@ export function useReadingView({ scrollContainerRef, timelineRef, virtualizer, v
     restoreScroll.current();
   }, [readingPoint]);
 
-  useFollowNewest(refs, threadId, answerId, toolId);
+  /** A transcript drawn after its loading state is opening, not receiving, so it places itself like a switch. */
+  useFollowNewest(refs, drawn ? threadId : undefined, answerId, toolId);
 
   return {
     atBottom,

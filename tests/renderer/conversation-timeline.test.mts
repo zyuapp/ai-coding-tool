@@ -49,7 +49,8 @@ function threadHarness() {
   /** What the workspace would hold, fed back in as each thread is opened. */
   const points: Record<string, TimelineReadingPoint> = {};
   const moves: Array<{ id: string; point: TimelineReadingPoint }> = [];
-  const thread = (id: string, count: number, prefix?: string) => {
+  /** `loading` is a thread whose transcript is still on disk, which the workspace marks by its summary. */
+  const thread = (id: string, count: number, prefix?: string, loading = false) => {
     const currentThread: Thread = {
       id, title: id, engine: "claude", executionPolicy: "confirm", continuationStatus: "none", updatedAt: 1,
       lastChangeSnapshot: { files: [], capturedAt: 1 },
@@ -58,6 +59,7 @@ function threadHarness() {
         text: `${id} ${index}`,
       })))
         .map((message, index) => (prefix ? { ...message, id: `${prefix}${index}` } : message)),
+      ...(loading ? { messages: [], historySummary: { messageCount: count, attachmentCount: 0 } } : {}),
     };
     return React.createElement(ConversationTimeline, {
       currentThread,
@@ -184,6 +186,31 @@ test("the workspace hears where a reader settles without a switch having to carr
   await scrollTo(300);
   await act(async () => { await vi.advanceTimersByTimeAsync(READING_SETTLE_MS); });
   assert.equal(moves.length, heard, "an unchanged place is never reported twice");
+
+  await done(view);
+});
+
+test("a thread opened before its transcript loads reopens where its reader left it and keeps reporting", async () => {
+  const { scrolls, moves, thread, scrollTo, settle, done } = threadHarness();
+
+  const view = await mount(thread("read", 12));
+  await settle();
+  await scrollTo(300);
+  await view.render(thread("other", 12, "o"));
+  await settle();
+
+  scrolls.length = 0;
+  await view.render(thread("read", 12, undefined, true));
+  await settle();
+  await view.render(thread("read", 12));
+  await settle();
+  assert.ok(scrolls.length > 0, "the loaded transcript places its view");
+  assert.ok(!scrolls.includes(BOTTOM), "a thread left mid-transcript does not open at its foot once it loads");
+
+  moves.length = 0;
+  await scrollTo(500);
+  await act(async () => { await vi.advanceTimersByTimeAsync(READING_SETTLE_MS); });
+  assert.ok(moves.some((move) => move.id === "read" && move.point !== null), "the reader's new place is reported");
 
   await done(view);
 });

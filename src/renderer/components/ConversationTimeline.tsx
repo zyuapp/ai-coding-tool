@@ -136,8 +136,10 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
 
   useEffect(() => () => paintMatches(painter, [], null), [painter]);
 
+  /** Whether the transcript itself is drawn, rather than its loading or empty state. */
+  const drawn = !currentThread?.historySummary && (messages.length > 0 || !!streamingTail);
   const { atBottom, scrollToFoot } = useReadingView({
-    scrollContainerRef, timelineRef, virtualizer, virtualizerScrolledAt, threadId: currentThread?.id, rowOfMessage,
+    scrollContainerRef, timelineRef, drawn, virtualizer, virtualizerScrolledAt, threadId: currentThread?.id, rowOfMessage,
     hit, answerId, toolId, readingPoint, onReadingPointMove, setScrollMargin,
   });
   useSelectionCapture({ timelineRef, scrollContainerRef, threadId: currentThread?.id, onAnnotateAdd, setSelection: annotate.setSelection, dismissNote: annotate.dismissNote });
@@ -145,7 +147,7 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
 
   if (currentThread?.historySummary) return <div className="empty-state" role="status">Loading conversation…</div>;
 
-  if (!currentThread?.messages.length && !streamingTail) {
+  if (!drawn) {
     return <TimelineEmptyState restored={restored} engineLabel={engineLabel} folder={folder} empty={empty} startOptions={startOptions} />;
   }
 

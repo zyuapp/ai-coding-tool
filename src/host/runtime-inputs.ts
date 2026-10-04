@@ -7,8 +7,8 @@ import { errorMessage } from "./errors.js";
 type RuntimeInputHost = {
   generation(): number;
   active(generation: number): boolean;
-  /** The thread on screen now. */
-  current(): string | null;
+  /** What the window shows now, as `screenOf` reads it. */
+  screen(): string;
   history: {
     needed(input: WorkspaceInput): string[];
     hydrate(taskId: string): Promise<void>;
@@ -49,8 +49,14 @@ export function createRuntimeInputs(host: RuntimeInputHost) {
     const inputGeneration = host.generation();
     const splitBatch = input.type === "agent.events" && needed.length > 0;
     const prepared = Promise.all(before).then(async (): Promise<WorkspaceExecution> => {
-      if (!host.active(inputGeneration)) return refused(CLOSED);
-      if (screen !== undefined && host.current() !== screen) return refused(MOVED);
+      /** Checked again after every read, since the runtime and the screen can both change during one. */
+      const refusal = () => {
+        if (!host.active(inputGeneration)) return refused(CLOSED);
+        if (screen !== undefined && host.screen() !== screen) return refused(MOVED);
+        return null;
+      };
+      const early = refusal();
+      if (early) return early;
       if (input.type === "agent.events" && splitBatch) {
         const completions: WorkspaceExecution["completed"][] = [];
         let failure: string | undefined;
@@ -75,8 +81,7 @@ export function createRuntimeInputs(host: RuntimeInputHost) {
         };
       }
       for (const taskId of host.history.needed(input)) await host.history.hydrate(taskId);
-      if (!host.active(inputGeneration)) return refused(CLOSED);
-      return host.execute(input);
+      return refusal() ?? host.execute(input);
     }).catch((error): WorkspaceExecution => {
       if (!host.active(inputGeneration)) return refused(CLOSED);
       const message = errorMessage(error);

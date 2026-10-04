@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { inputScope } from "../../src/application/input-scope.ts";
+import { inputScope, screenOf } from "../../src/application/input-scope.ts";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { activeRun, task, workspace } from "./workspace-reducer-fixtures.mts";
 
@@ -40,11 +40,14 @@ test("only the threads an input touches order it, and selection follows nothing"
 });
 
 test("a command that cannot name the thread on screen runs only while that thread stays there", () => {
-  assert.deepEqual(inputScope(state, { type: "side-chat.open", chatId: "chat" }).screen, "current");
+  assert.equal(inputScope(state, { type: "side-chat.open", chatId: "chat" }).screen, screenOf(state));
   const escape = inputScope(state, { type: "view.escape" });
   assert.deepEqual([...escape.keys], ["current"]);
-  assert.equal(escape.screen, "current");
+  assert.equal(escape.screen, screenOf(state));
   const closing = inputScope({ ...state, settingsOpen: true }, { type: "view.escape" });
   assert.deepEqual([...closing.keys], []);
-  assert.equal(closing.screen, undefined);
+  const find = inputScope(state, { type: "view.shortcut", action: "find.open", surface: "any" });
+  assert.equal(find.screen, screenOf(state), "a keystroke is read against the screen it was pressed on, even one naming its target");
+  assert.notEqual(screenOf(state), screenOf({ ...state, currentId: "other" }));
+  assert.notEqual(screenOf(state), screenOf({ ...state, computers: { ...state.computers, active: "elsewhere" } }));
 });

@@ -7,6 +7,7 @@ import type { KeyValueStorage } from "../application/task-store.js";
 import { createTaskStore, createDraftPersistence } from "./draft-persistence.js";
 import { loadViewPreferences } from "./view-preferences-store.js";
 import { createRuntimeInputs } from "./runtime-inputs.js";
+import { screenOf } from "../application/input-scope.js";
 import { createSnoozeTimer } from "./snooze-timer.js";
 import { createRuntimeHistory } from "./runtime-history.js";
 import { errorMessage } from "./errors.js";
@@ -77,7 +78,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost) {
   const inputs = createRuntimeInputs({
     generation: () => generation,
     active: (current) => !disposed && generation === current,
-    current: () => state.currentId,
+    screen: () => screenOf(state),
     history,
     execute: rawExecute,
     track: (completed) => trackUntilSettled(effectsInFlight, completed),

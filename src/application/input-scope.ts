@@ -9,9 +9,14 @@ export type InputScope = {
   input: WorkspaceInput;
   /** Earlier pending inputs sharing any of these run first. Thread ids, plus a key per shared view. */
   keys: Set<string>;
-  /** Set when the input acts on the thread on screen without naming it: it only runs while that thread stays there. */
+  /** Set when the input acts on what is on screen without naming it: it only runs while `screenOf` still says this. */
   screen?: string;
 };
+
+/** What the window shows: whose computer, and which thread or draft. */
+export function screenOf(state: WorkspaceState): string {
+  return `${state.computers.active ?? ""}\u0000${state.currentId ?? ""}`;
+}
 
 /**
  * What an input must follow before it may run, read from the state it arrived in. Selection follows
@@ -20,8 +25,7 @@ export type InputScope = {
 export function inputScope(state: WorkspaceState, input: WorkspaceInput): InputScope {
   const named = withNamedThread(state, input);
   const keys = new Set<string>();
-  const screen = collect(state, named, keys) && state.currentId !== null;
-  return screen ? { input: named, keys, screen: state.currentId! } : { input: named, keys };
+  return collect(state, named, keys) ? { input: named, keys, screen: screenOf(state) } : { input: named, keys };
 }
 
 /** Names the current thread in a command that would otherwise act on whatever thread is current when it runs. */
@@ -71,14 +75,11 @@ function collect(state: WorkspaceState, input: WorkspaceInput, keys: Set<string>
     case "side-chat.open": case "view.move-worktree":
       if (state.currentId) keys.add(state.currentId);
       return true;
+    /** The reducer reads a keystroke against the state it runs in, so it may only run on the screen it was pressed on. */
     case "view.shortcut": case "view.escape": {
       const commands = input.type === "view.shortcut" ? shortcutCommands(state, input.action, input.surface) : escapeCommands(state);
-      let screen = false;
-      for (const command of commands) {
-        const named = withNamedThread(state, command);
-        if (collect(state, named, keys) || named !== command) screen = true;
-      }
-      return screen;
+      for (const command of commands) collect(state, withNamedThread(state, command), keys);
+      return true;
     }
   }
   const taskId = (input as { taskId?: unknown }).taskId;
