@@ -53,3 +53,14 @@ test("a link names only the pull request in its own repository", () => {
   assert.equal(linksPullRequest(link, pullRequestQuery("13")!), false);
   assert.equal(linksPullRequest(link, pullRequestQuery("https://github.com/acme/other/pull/12")!), false);
 });
+
+test("a pull request keeps the branch it merges into and the commit at its head, when Git would take them", () => {
+  const head = "b".repeat(40);
+  assert.deepEqual(pullRequestFromList(listed({ baseRefName: "main", headRefOid: head })), {
+    number: 12, title: "Name the two families", url: "https://github.com/o/r/pull/12", state: "open", base: "main", head,
+  });
+  assert.equal(pullRequestFromCommit(fromApi({ base: { ref: "release/2" }, head: { sha: head } }))?.base, "release/2");
+  assert.equal(pullRequestFromCommit(fromApi({ base: { ref: "release/2" }, head: { sha: head } }))?.head, head);
+  for (const base of ["", "-x", "a..b", "a b", "main^", "@{u}"]) assert.equal(pullRequestFromList(listed({ baseRefName: base }))?.base, undefined, base);
+  assert.equal(pullRequestFromList(listed({ headRefOid: "HEAD~1" }))?.head, undefined);
+});

@@ -3912,6 +3912,15 @@ button.setting-hint:hover { color: var(--ink); }
 .diff-side-trigger > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .diff-side-trigger > svg { flex: none; color: var(--quiet); }
 .diff-range-arrow { flex: none; color: var(--quiet); }
+/** The pull request a branch review reads, and what it shows that the pull request does not have yet. */
+.diff-pull-request { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; min-width: 0; padding: 0 5px; font-size: var(--text-meta); }
+.diff-pull-request-link { display: flex; align-items: center; gap: 5px; min-width: 0; max-width: 100%; color: var(--muted); text-decoration: none; }
+.diff-pull-request-link:hover { color: var(--ink-dim); }
+.diff-pull-request-link > svg { flex: none; color: var(--success); }
+.diff-pull-request-link[data-state="draft"] > svg { color: var(--quiet); }
+.diff-pull-request-link > code { flex: none; color: var(--ink-dim); font: var(--text-meta)/1 var(--mono); }
+.diff-pull-request-link > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.diff-pull-request-pending { color: var(--quiet); white-space: nowrap; }
 
 .diff-toolbar-actions { display: flex; gap: 2px; }
 .diff-toolbar-actions button { display: grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 7px; background: none; color: var(--quiet-strong); cursor: pointer; }

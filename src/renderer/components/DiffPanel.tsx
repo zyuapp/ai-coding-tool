@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { DiffSummaryResult } from "../../contracts/ipc";
 import type { DiffState, FindView } from "../../application/workspace-state";
+import type { ReviewedPullRequest } from "../../application/pull-request-view";
 import type { FindResults } from "../../domain/find";
 import type { Annotation, AnnotationAnchor } from "../../domain/conversation";
 import { commentQuote, foldedForSize, rangeKey, type DiffFileSummary, type DiffRange } from "../../domain/diff";
@@ -30,6 +31,7 @@ const VIRTUALIZE_ABOVE = 200;
 
 export type DiffPanelProps = DiffPickerActions & {
   diff: DiffState;
+  pullRequest?: ReviewedPullRequest | null;
   workspaceId?: string;
   currentBranch?: string | null;
   onSetRange: (range: DiffRange) => void;
@@ -122,6 +124,7 @@ function useRowHandlers(
 
 export function DiffPanel({
   diff,
+  pullRequest = null,
   workspaceId,
   currentBranch,
   onSetCollapsed,
@@ -248,6 +251,7 @@ export function DiffPanel({
       <DiffToolbar
         {...comparisonActions}
         diff={diff}
+        pullRequest={pullRequest}
         split={split}
         roomForTwo={roomForTwo}
         currentBranch={currentBranch}

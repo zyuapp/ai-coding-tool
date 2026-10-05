@@ -2,10 +2,13 @@ import { useRef } from "react";
 import { createPortal } from "react-dom";
 import { LuArrowRight as ArrowRight, LuChevronDown as ChevronDown, LuColumns2 as Columns2, LuPilcrow as Pilcrow, LuRefreshCw as RefreshCw, LuRows3 as Rows3 } from "react-icons/lu";
 import { DIFF_MODE_MENU, type DiffState } from "../../application/workspace-diff";
+import type { ReviewedPullRequest } from "../../application/pull-request-view";
 import { DEFAULT_BRANCH_RANGE, type DiffMode, type DiffRange } from "../../domain/diff";
 import { BranchMenu, useAnchoredStyle, useBranches } from "./BranchMenu";
 import { useDismissibleLayer } from "../focus";
 import { PickerOption, PickerPopover } from "./Picker";
+import { useMessageLinks, WebLink } from "./MarkdownMessage";
+import { PULL_REQUEST_ICONS } from "./SessionPanel";
 
 const BASE_MENU = "diff:base";
 const COMPARE_MENU = "diff:compare";
@@ -73,8 +76,42 @@ function ModePicker({ mode, disabled, openMenu, onSetOpenMenu, onSetMode }: Menu
   </>;
 }
 
+/** What the review shows that the pull request's readers cannot see yet, or null when it shows them the same. */
+function pendingNote({ unpushed, uncommitted }: ReviewedPullRequest) {
+  const commits = unpushed === 1 ? "1 unpushed commit" : `${unpushed} unpushed commits`;
+  if (unpushed > 0 && uncommitted) return `Includes ${commits} and uncommitted changes`;
+  if (unpushed > 0) return `Includes ${commits}`;
+  return uncommitted ? "Includes uncommitted changes" : null;
+}
+
+/** Names the pull request a branch review is reading, so the comparison says what it is. */
+function PullRequestLine({ reviewed }: { reviewed: ReviewedPullRequest }) {
+  const links = useMessageLinks();
+  const { url, number, title, state } = reviewed.pullRequest;
+  const Icon = PULL_REQUEST_ICONS[state];
+  const pending = pendingNote(reviewed);
+  return (
+    <div className="diff-pull-request">
+      <WebLink
+        className="diff-pull-request-link"
+        data-state={state}
+        href={url}
+        title={`#${number} ${title}`}
+        openInApp={links.openUrlInApp && (() => links.openUrlInApp!(url))}
+      >
+        <Icon size={13} aria-hidden="true" />
+        <code>#{number}</code>
+        <span>{title}</span>
+      </WebLink>
+      {pending && <span className="diff-pull-request-pending">{pending}</span>}
+    </div>
+  );
+}
+
 export type DiffToolbarProps = MenuControl & DiffPickerActions & {
   diff: DiffState;
+  /** The pull request the comparison reads, when it compares against that pull request's base. */
+  pullRequest?: ReviewedPullRequest | null;
   split: boolean;
   roomForTwo: boolean;
   currentBranch?: string | null;
@@ -86,7 +123,7 @@ export type DiffToolbarProps = MenuControl & DiffPickerActions & {
 };
 
 /** Mode first; a branch comparison reads current work → target. */
-export function DiffToolbar({ diff, split, roomForTwo, currentBranch, workspaceId, openMenu, onSetOpenMenu, onSetMode, onSetRange, onToggleSplit, onToggleWhitespace, onRefresh }: DiffToolbarProps) {
+export function DiffToolbar({ diff, pullRequest = null, split, roomForTwo, currentBranch, workspaceId, openMenu, onSetOpenMenu, onSetMode, onSetRange, onToggleSplit, onToggleWhitespace, onRefresh }: DiffToolbarProps) {
   const range = diff.range.kind === "branches" ? diff.range : diff.branchRange ?? DEFAULT_BRANCH_RANGE;
   return (
     <header className="diff-toolbar">
@@ -104,6 +141,7 @@ export function DiffToolbar({ diff, split, roomForTwo, currentBranch, workspaceI
         <ArrowRight className="diff-range-arrow" size={14} aria-hidden="true" />
         <SidePicker id={BASE_MENU} label="Target branch" value={range.base} extra={HEAD_SIDE} workspaceId={workspaceId} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} onPick={(base) => onSetRange({ ...range, base })} />
       </div>}
+      {diff.mode === "branch" && pullRequest && <PullRequestLine reviewed={pullRequest} />}
     </header>
   );
 }

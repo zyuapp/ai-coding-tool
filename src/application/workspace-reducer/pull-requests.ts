@@ -1,4 +1,5 @@
 /** The pull request the checkout in front belongs to, those a coordinator's threads work on, and which ask each answer belongs to. */
+import { retargetReviews } from "./diff-reads.js";
 import { currentWorkspaceId } from "./environment.js";
 import { threadWorkspaceId } from "../thread-location.js";
 import { settled } from "./shared.js";
@@ -61,11 +62,11 @@ export function reducePullRequests(state: WorkspaceState, input: PullRequestInpu
       const changedMember = answersMember && !samePullRequest(member.answer, input.answer);
       const next = linked(state, answersHeld ? held.threadIds : member?.threadIds, input.answer);
       if (!current && !changedMember) return settled(next);
-      return settled({
+      return retargetReviews(state, {
         ...next,
         ...(current ? { pullRequest: { ...held, answer: input.answer } } : {}),
         ...(changedMember ? { memberPullRequests: { ...state.memberPullRequests, [input.workspaceId]: { ...member, answer: input.answer } } } : {}),
-      });
+      }, input.workspaceId);
     }
   }
 }

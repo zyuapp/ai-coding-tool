@@ -2,14 +2,16 @@
 import { environmentFor, subjectWorkspaceId } from "./environment.js";
 import { followUps, settled } from "./shared.js";
 import type { WorkspaceTransition } from "./types.js";
+import { checkoutPullRequest, pullRequestBase } from "../pull-request-view.js";
 import { threadWorkspaceId } from "../thread-location.js";
 import { DIFF_PANEL, diffFor, dockSubject, withDiff, type DiffState, type WorkspaceState } from "../workspace-state.js";
-import { DEFAULT_BRANCH_RANGE, modeForRange, type DiffRange } from "../../domain/diff.js";
+import { DEFAULT_BRANCH_RANGE, modeForRange, rangeKey, type DiffRange } from "../../domain/diff.js";
 
 /**
- * What a review opens on. The session panel counts from where HEAD left the origin default branch, so
- * a review reached from that row starts on the same comparison and reports the same totals. Without
- * an origin to measure from the Branch mode compares the working tree from HEAD.
+ * What a review opens on. A branch with an open pull request is read the way its reviewers read it,
+ * from the branch it merges into. Otherwise the session panel counts from where HEAD left the origin
+ * default branch, so a review reached from that row starts on the same comparison and reports the
+ * same totals. Without an origin to measure from the Branch mode compares the working tree from HEAD.
  */
 export function initialRange(state: WorkspaceState, owner: string, diff: DiffState): DiffRange {
   if (diff.mode !== "branch" || diff.workspaceId !== null || diff.result !== null) return diff.range;
@@ -17,7 +19,10 @@ export function initialRange(state: WorkspaceState, owner: string, diff: DiffSta
 }
 
 export function defaultBranchRange(state: WorkspaceState, owner: string): Extract<DiffRange, { kind: "branches" }> {
-  const counted = environmentFor(state, subjectWorkspaceId(state, owner));
+  const workspaceId = subjectWorkspaceId(state, owner);
+  const reviewed = pullRequestBase(checkoutPullRequest(state, workspaceId));
+  if (reviewed) return { kind: "branches", base: reviewed, compare: null };
+  const counted = environmentFor(state, workspaceId);
   const baseline = counted?.status === "available" ? counted.baseline : null;
   return baseline ? { kind: "branches", base: baseline, compare: null } : DEFAULT_BRANCH_RANGE;
 }
@@ -71,6 +76,26 @@ export function rereadReviewsOf(state: WorkspaceState, taskId: string, workspace
   for (const [owner, diff] of Object.entries(state.diffs)) {
     if ((dockSubject(state, owner, DIFF_PANEL) ?? owner) !== taskId) continue;
     const read = readDiffFrom(next, owner, workspaceId, diff.range);
+    next = read.state;
+    effects.push(...read.effects);
+  }
+  return settled(next, followUps(effects));
+}
+
+/**
+ * Moves the reviews of a checkout still on the comparison they opened with to the one it opens with
+ * now, which is what a pull request found, retargeted or closed under an open review changes. A
+ * comparison the user picked is theirs and is left alone.
+ */
+export function retargetReviews(before: WorkspaceState, after: WorkspaceState, workspaceId: string): WorkspaceTransition {
+  let next = after;
+  const effects: WorkspaceTransition["effects"] = [];
+  for (const [owner, diff] of Object.entries(after.diffs)) {
+    if (diff.mode !== "branch" || diff.workspaceId !== workspaceId || subjectWorkspaceId(after, owner) !== workspaceId) continue;
+    if (rangeKey(diff.range) !== rangeKey(defaultBranchRange(before, owner))) continue;
+    const range = defaultBranchRange(after, owner);
+    if (rangeKey(range) === rangeKey(diff.range)) continue;
+    const read = readDiffFrom(next, owner, workspaceId, range, { result: null, collapsed: [], viewed: {} });
     next = read.state;
     effects.push(...read.effects);
   }
