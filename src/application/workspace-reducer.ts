@@ -48,6 +48,8 @@ export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceT
   }
   if (transition.state.currentId === state.currentId) return transition;
   if (transition.state.openMenu === "session:location") transition.state = { ...transition.state, openMenu: null };
+  /** A dock tab asked for the keys only on that visit, so coming back later finds the caret in the composer. */
+  if (transition.state.dockFocus && transition.state.dockFocus === state.dockFocus) transition.state = { ...transition.state, dockFocus: null };
   const landed = transition.state.currentId !== null && input.type !== "view.go-back" && input.type !== "view.go-forward"
     ? recordVisit(transition.state, transition.state.currentId)
     : transition.state;

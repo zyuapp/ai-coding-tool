@@ -76,8 +76,10 @@ export function prunedWorkflowPanels(state: WorkspaceState): WorkspaceState {
 const checkedOverviews = new WeakMap<WorkspaceState["docks"], WeakSet<WorkspaceState["threads"]>>();
 
 /**
- * A coordinator's dock leads with its Overview once a thread works under it, and shows it that first
- * time. A thread with nobody working under it any more loses the tab.
+ * A coordinator's dock leads with its Overview once a thread works under it. A thread usually arrives
+ * from an agent while the user is elsewhere, so the dock is never opened or switched for it: a closed
+ * dock with nothing chosen just opens on the Overview next time. A thread with nobody working under
+ * it any more loses the tab.
  */
 export function withOverviewPanels(state: WorkspaceState): WorkspaceState {
   if (checkedOverviews.get(state.docks)?.has(state.threads)) return state;
@@ -88,8 +90,8 @@ export function withOverviewPanels(state: WorkspaceState): WorkspaceState {
   for (const owner of leads) {
     const dock = dockFor(next, owner);
     if (dock.panels.includes(OVERVIEW_PANEL)) continue;
-    const tab = dock.open && dock.tab !== DOCK_PICKER ? dock.tab : OVERVIEW_PANEL;
-    next = withDock(next, owner, { panels: [OVERVIEW_PANEL, ...dock.panels], open: true, tab });
+    const tab = !dock.open && dock.tab === DOCK_PICKER ? OVERVIEW_PANEL : dock.tab;
+    next = withDock(next, owner, { panels: [OVERVIEW_PANEL, ...dock.panels], tab });
   }
   for (const [owner, dock] of Object.entries(next.docks)) {
     if (leads.has(owner) || !dock.panels.includes(OVERVIEW_PANEL)) continue;

@@ -128,8 +128,14 @@ function windowDesktop(host: RuntimeDesktopHost) {
       else host.keyboard.claimDesktopShortcut();
     },
     closeWindow: () => host.window()?.close(),
-    /** A page in the panel holds the keyboard until the window asks for it back. */
-    focusWindow: () => host.window()?.webContents.focus(),
+    /**
+     * A page in the panel holds the keyboard until the window asks for it back. Only a window that is
+     * already in front takes it, since focusing one that is not raises it over whatever the user is in.
+     */
+    focusWindow: () => {
+      const window = host.window();
+      if (window?.isFocused()) window.webContents.focus();
+    },
     announceThread: (notice) => announceThread(host.notices, notice),
     setBadgeCount: (count) => app.setBadgeCount(count),
   } satisfies Partial<RuntimeDesktop>;

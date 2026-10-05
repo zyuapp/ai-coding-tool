@@ -406,7 +406,7 @@ const commands = {
   "view.go-back": { fields: {}, at: "local", leaves: true },
   "view.go-forward": { fields: {}, at: "local", leaves: true },
   "view.set-focused": { fields: { focused: boolean }, at: "own" },
-  "view.focus-composer": { fields: {}, at: "local" },
+  "view.focus-composer": { fields: { recover: optionalBoolean }, at: "local" },
   "view.shortcut": { fields: { action: text, surface: literals("any", "browser", "desktop") }, at: "thread" },
   "view.escape": { fields: {}, at: "thread" },
   "view.set-shortcut": { fields: { action: text, binding: nullableText }, at: "local" },

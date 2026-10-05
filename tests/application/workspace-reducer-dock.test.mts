@@ -181,6 +181,15 @@ test("a new thread is opened to type in, so the caret and the keys go to its com
   assert.deepEqual(reduce(started.state, { type: "view.focus-composer" }).effects, [{ type: "focus-window" }]);
 });
 
+test("a caret the app recovers on its own never calls the window back from another app", () => {
+  const away = { ...workspace(), focused: false };
+  const recovered = reduce(away, { type: "view.focus-composer", recover: true });
+  assert.equal(recovered.state.composerFocus, away.composerFocus + 1, "the caret waits in the composer for the user's return");
+  assert.deepEqual(recovered.effects, []);
+  assert.deepEqual(reduce({ ...away, focused: true }, { type: "view.focus-composer", recover: true }).effects, [{ type: "focus-window" }]);
+  assert.deepEqual(reduce(away, { type: "view.focus-composer" }).effects, [{ type: "focus-window" }], "asked for from a page holding the keys, the window takes them back");
+});
+
 test("a restored page waits for the panel to show it before it loads", () => {
   const restored = reduce(workspace(), {
     type: "preferences.loaded",

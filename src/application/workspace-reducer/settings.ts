@@ -129,8 +129,9 @@ export function reduceSettings(state: WorkspaceState, input: SettingsInput): Wor
       return settled(next, persistView(next));
     }
 
+    /** A caret recovered while the window is away waits there, rather than calling the window back. */
     case "view.focus-composer":
-      return settled(focusComposer(state), TAKE_KEYS);
+      return settled(focusComposer(state), input.recover && !state.focused ? [] : TAKE_KEYS);
 
     case "view.set-shortcut": {
       if (!shortcutAction(input.action)) return settled(state);

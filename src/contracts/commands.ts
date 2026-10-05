@@ -478,8 +478,11 @@ export type ViewCommand =
   | { type: "view.go-back" }
   | { type: "view.go-forward" }
   | { type: "view.set-focused"; focused: boolean }
-  /** Puts the caret in the composer. Components watch the token rather than being told to focus. */
-  | { type: "view.focus-composer" }
+  /**
+   * Puts the caret in the composer. Components watch the token rather than being told to focus. A
+   * recovered caret is the app tidying up after a view went, not the user asking for the keys.
+   */
+  | { type: "view.focus-composer"; recover?: boolean }
   /**
    * What a keystroke asked for. The action is routed here rather than in the window, because only
    * state knows whether ⌘[ means the thread you came from or the page before this one.

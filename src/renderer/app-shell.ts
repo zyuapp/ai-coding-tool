@@ -75,7 +75,7 @@ export function useComposerFocusRecovery(dispatchRef: RefObject<Dispatch>, view:
     const frame = requestAnimationFrame(() => {
       const active = document.activeElement;
       const stranded = !active || active === document.body || !active.isConnected || active.closest("[hidden],[inert]") !== null;
-      if (stranded) void dispatchRef.current({ type: "view.focus-composer" });
+      if (stranded) void dispatchRef.current({ type: "view.focus-composer", recover: true });
     });
     return () => cancelAnimationFrame(frame);
   }, [dockOpen, sidebarOpen, settingsVisible, pageTookKeys, dockFocus, dockTab]);

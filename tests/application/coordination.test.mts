@@ -338,16 +338,18 @@ test("a thread that leaves its coordinator with a decision open is where it is a
   assert.equal(deriveView(state).coordination.decisions.length, 1);
 });
 
-test("a coordinator's dock leads with an Overview that opens once a thread works under it and never closes", () => {
+test("a coordinator's dock leads with an Overview once a thread works under it and never closes", () => {
   const alone = reduce(workspace({ threads: [lead()], currentId: "lead" }), { type: "view.set-dock-open", open: false }).state;
   assert.equal(alone.docks.lead?.panels.includes("overview") ?? false, false, "a coordinator with nobody under it has no Overview");
 
   const joined = reduce(workspace({ threads: [lead(), task("worker"), task("second")], currentId: "lead" }), { type: "task.set-coordinator", taskId: "worker", coordinatorId: "lead" }).state;
   assert.deepEqual(joined.docks.lead?.panels, ["overview"]);
-  assert.equal(joined.docks.lead?.tab, "overview");
-  assert.equal(joined.docks.lead?.open, true, "the first thread under it shows the Overview");
+  assert.equal(joined.docks.lead?.tab, "overview", "the dock opens on the Overview");
+  assert.equal(joined.docks.lead?.open ?? false, false, "but a thread arriving never opens it");
 
-  const hidden = reduce(joined, { type: "view.close-tab" }).state;
+  const shown = reduce(joined, { type: "view.set-dock-open", open: true }).state;
+  assert.equal(shown.docks.lead?.tab, "overview");
+  const hidden = reduce(shown, { type: "view.close-tab" }).state;
   assert.equal(hidden.docks.lead?.open, false, "⌘W on the Overview hides the dock");
   assert.deepEqual(hidden.docks.lead?.panels, ["overview"], "and keeps the tab");
   const another = reduce(hidden, { type: "task.set-coordinator", taskId: "second", coordinatorId: "lead" }).state;
@@ -361,6 +363,36 @@ test("a coordinator's dock leads with an Overview that opens once a thread works
 
   const stepped = reduce(joined, { type: "task.set-role", taskId: "lead", role: null }).state;
   assert.deepEqual(stepped.docks.lead?.panels, [], "a thread that stops coordinating loses its Overview");
+});
+
+test("a thread a coordinator starts in the background never opens, switches or focuses its dock", () => {
+  const picking = reduce(workspace({ threads: [lead()], currentId: "lead" }), { type: "view.set-dock-open", open: true }).state;
+  const state = { ...picking, focused: false };
+  const sending = reduce(state, { type: "task.send", text: "Fix it", coordinatorId: "lead", brief: BRIEF });
+  const started = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: PROJECTLESS });
+  assert.deepEqual(started.state.docks.lead?.panels, ["overview"], "the Overview is there to pick");
+  assert.equal(started.state.docks.lead?.tab, picking.docks.lead?.tab, "the dock keeps showing what the user left it on");
+  assert.equal(started.state.dockFocus, null);
+  for (const step of [sending, started]) assert.equal(step.effects.some((effect) => effect.type === "focus-window"), false, "the window is never called back");
+
+  const closed = reduce(workspace({ threads: [lead(), task("worker")], currentId: "lead" }), { type: "view.set-dock-open", open: false }).state;
+  const joined = reduce({ ...closed, focused: false }, { type: "task.set-coordinator", taskId: "worker", coordinatorId: "lead" });
+  assert.equal(joined.state.docks.lead?.open, false, "a closed dock stays closed");
+  assert.equal(joined.effects.some((effect) => effect.type === "focus-window"), false);
+});
+
+test("coming back to a coordinator puts the caret in the composer, not the Overview it was last in", () => {
+  const state = workspace({ threads: [lead(), task("worker", { parentId: "lead" }), task("other")], currentId: "lead" });
+  const overview = reduce(reduce(state, { type: "view.set-dock-open", open: true }).state, { type: "view.select-dock-tab", tab: "overview" }).state;
+  assert.equal(deriveView(overview).dockFocus?.tab, "overview", "picking the Overview hands it the keys");
+
+  const away = reduce(overview, { type: "task.select", taskId: "other" }).state;
+  const back = reduce(away, { type: "task.select", taskId: "lead" }).state;
+  assert.equal(back.docks.lead?.tab, "overview", "the dock comes back as it was left");
+  assert.equal(deriveView(back).dockFocus, null, "but nothing in it asks for the keys again");
+
+  const member = reduce(away, { type: "task.select", taskId: "worker" }).state;
+  assert.equal(deriveView(member).dockFocus?.tab, "worker", "a thread opened in the dock on the way in still takes them");
 });
 
 test("a coordinator's Overview remembers how the user folded each group, per coordinator", () => {
