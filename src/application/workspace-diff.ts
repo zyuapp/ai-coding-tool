@@ -12,6 +12,8 @@ export type DiffState = {
   mode: DiffMode | "commit";
   range: DiffRange;
   branchRange?: Extract<DiffRange, { kind: "branches" }>;
+  /** Set once the user picks a branch comparison, which from then on stops following the checkout's pull request. */
+  branchPicked?: true;
   /** The checkout the list was read from, so a thread that moves does not read a stale one. */
   workspaceId: string | null;
   result: DiffSummaryResult | null;

@@ -35,10 +35,13 @@ export function defaultBranchRange(state: WorkspaceState, owner: string): Extrac
 export function readDiffFrom(state: WorkspaceState, owner: string, workspaceId: string | undefined, range: DiffRange, patch: Partial<DiffState> = {}): WorkspaceTransition {
   const previous = diffFor(state, owner);
   const sameWorkspace = previous.workspaceId === workspaceId;
+  /** A pick belongs to the checkout it was made in, so another checkout's review follows its own pull request. */
+  const branchPicked = patch.branchPicked ?? (sameWorkspace ? previous.branchPicked : undefined);
   patch = {
     ...patch,
     mode: modeForRange(range),
     branchRange: range.kind === "branches" ? range : sameWorkspace ? previous.branchRange : undefined,
+    branchPicked,
   };
   if (!workspaceId) return settled(withDiff(state, owner, { ...patch, range, workspaceId: null, result: null, loading: false }));
   /** The read takes the whitespace setting the review lands with, which is the one it already had. */
@@ -83,17 +86,20 @@ export function rereadReviewsOf(state: WorkspaceState, taskId: string, workspace
 }
 
 /**
- * Moves the reviews of a checkout still on the comparison they opened with to the one it opens with
- * now, which is what a pull request found, retargeted or closed under an open review changes. A
- * comparison the user picked is theirs and is left alone.
+ * Moves every review of a checkout that the user has not pointed elsewhere onto the comparison it
+ * opens with now, which is what a pull request found, retargeted or closed under it changes. A review
+ * on another mode only has the branch comparison it returns to brought up to date.
  */
-export function retargetReviews(before: WorkspaceState, after: WorkspaceState, workspaceId: string): WorkspaceTransition {
-  let next = after;
+export function retargetReviews(state: WorkspaceState, workspaceId: string): WorkspaceTransition {
+  let next = state;
   const effects: WorkspaceTransition["effects"] = [];
-  for (const [owner, diff] of Object.entries(after.diffs)) {
-    if (diff.mode !== "branch" || diff.workspaceId !== workspaceId || subjectWorkspaceId(after, owner) !== workspaceId) continue;
-    if (rangeKey(diff.range) !== rangeKey(defaultBranchRange(before, owner))) continue;
-    const range = defaultBranchRange(after, owner);
+  for (const [owner, diff] of Object.entries(state.diffs)) {
+    if (diff.branchPicked || diff.workspaceId !== workspaceId || subjectWorkspaceId(state, owner) !== workspaceId) continue;
+    const range = defaultBranchRange(state, owner);
+    if (diff.mode !== "branch") {
+      if (!diff.branchRange || rangeKey(diff.branchRange) !== rangeKey(range)) next = withDiff(next, owner, { branchRange: range });
+      continue;
+    }
     if (rangeKey(range) === rangeKey(diff.range)) continue;
     const read = readDiffFrom(next, owner, workspaceId, range, { result: null, collapsed: [], viewed: {} });
     next = read.state;

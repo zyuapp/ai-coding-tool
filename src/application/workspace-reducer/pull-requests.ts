@@ -62,7 +62,7 @@ export function reducePullRequests(state: WorkspaceState, input: PullRequestInpu
       const changedMember = answersMember && !samePullRequest(member.answer, input.answer);
       const next = linked(state, answersHeld ? held.threadIds : member?.threadIds, input.answer);
       if (!current && !changedMember) return settled(next);
-      return retargetReviews(state, {
+      return retargetReviews({
         ...next,
         ...(current ? { pullRequest: { ...held, answer: input.answer } } : {}),
         ...(changedMember ? { memberPullRequests: { ...state.memberPullRequests, [input.workspaceId]: { ...member, answer: input.answer } } } : {}),

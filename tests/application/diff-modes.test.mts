@@ -73,3 +73,29 @@ test("A pull request whose base the checkout has never fetched leaves the review
   const opened = reduce(answered(workspace(), { unpushed: 0 }).state, { type: "diff.toggle" });
   assert.deepEqual(effect(opened, "read-diff").range, { kind: "branches", base: "origin/stack-base", compare: null });
 });
+
+test("Picking the default comparison by hand is still a pick, so a later pull request leaves it alone", () => {
+  const opened = reduce(workspace(), { type: "diff.toggle" });
+  const away = reduce(opened.state, { type: "diff.set-range", range: { kind: "branches", base: "main", compare: null } });
+  const back = reduce(away.state, { type: "diff.set-range", range: { kind: "branches", base: "origin/stack-base", compare: null } });
+  const kept = answered(back.state);
+  assert.deepEqual(diff(kept.state).range, { kind: "branches", base: "origin/stack-base", compare: null });
+});
+
+test("A review opened before Git described the checkout still moves to the pull request's base", () => {
+  const opened = reduce({ ...workspace(), environments: {} }, { type: "diff.toggle" });
+  assert.deepEqual(effect(opened, "read-diff").range, DEFAULT_BRANCH_RANGE);
+  const described = { ...opened.state, environments: workspace().environments };
+  const found = answered(described);
+  assert.deepEqual(diff(found.state).range, { kind: "branches", base: "origin/release", compare: null });
+});
+
+test("A pull request found while reviewing uncommitted changes is where Branch returns to", () => {
+  const opened = reduce(workspace(), { type: "diff.toggle" });
+  const uncommitted = reduce(opened.state, { type: "diff.set-mode", mode: "uncommitted" });
+  const found = answered(uncommitted.state);
+  assert.equal(found.effects.some((item) => item.type === "read-diff"), false, "the review on screen is not read again");
+  assert.deepEqual(diff(found.state).branchRange, { kind: "branches", base: "origin/release", compare: null });
+  const branch = reduce(found.state, { type: "diff.set-mode", mode: "branch" });
+  assert.deepEqual(effect(branch, "read-diff").range, { kind: "branches", base: "origin/release", compare: null });
+});
