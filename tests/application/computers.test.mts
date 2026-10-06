@@ -515,7 +515,7 @@ test("file and folder chips stay here when an image or text send targets another
       assert.deepEqual(routeInput(state, input), { kind: "refuse", message: ATTACHMENTS_ELSEWHERE });
       assert.deepEqual(reduce(state, input).state.files, state.files);
     }
-    assert.equal(routeInput(state, { type: "task.send", text: "independent agent send" }).kind, "computer");
+    assert.equal(routeInput(state, { type: "task.send", taskId: "remote-thread", text: "independent agent send" }).kind, "computer");
   }
 });
 
@@ -653,8 +653,8 @@ test("advertised support blocks a whole remote batch before it changes selection
   const limited = COMPUTER_CAPABILITIES.filter((name) => !name.startsWith("command:annotation.recall") && name !== "command:task.send:role");
   const state = withComputers(workspace({ prompts: { "remote-thread": "keep me" } }), [paired("linux", remoteState, { capabilities: limited })], { active: "linux" });
   assert.equal(routeInput(state, { type: "task.send" }).kind, "refuse");
-  assert.equal(routeInput(state, { type: "task.send", text: "direct", role: "reviewer" }).kind, "refuse");
-  assert.equal(routeInput(state, { type: "task.send", text: "direct" }).kind, "computer");
+  assert.equal(routeInput(state, { type: "task.send", project: "remote-project", text: "direct", role: "reviewer" }).kind, "refuse");
+  assert.equal(routeInput(state, { type: "task.send", project: "remote-project", text: "direct" }).kind, "computer");
   const rejected = reduce(state, { type: "task.send" });
   assert.equal(rejected.state.prompts["remote-thread"], "keep me");
   assert.equal(rejected.effects.some((effect) => effect.type === "computer.forward"), false);

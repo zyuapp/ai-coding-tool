@@ -9,6 +9,8 @@ import { computerEffects } from "../../src/host/computer-effects.ts";
 import type { EffectHost } from "../../src/host/effect-host.ts";
 import { COMPUTER_CAPABILITIES, REMOTE_UNSUPPORTED } from "../../src/contracts/computer-capabilities.ts";
 import type { ExternalCommand, ThreadCommandResult, ThreadRequest, ThreadWaitResult } from "../../src/contracts/threads.ts";
+import type { ComputerThreadQuery } from "../../src/contracts/computers.ts";
+import { queryLocalThreads } from "../../src/host/thread-reads.ts";
 import { PROJECT, activeRun, task, workspace } from "./workspace-reducer-fixtures.mts";
 
 const REMOTE_PROJECT = { id: "remote-project", root: PROJECT.root, workspaceId: "remote-workspace" };
@@ -37,7 +39,7 @@ function pair(overrides: Partial<PairedComputer> = {}) {
     threads: [task("remote-id", { projectId: REMOTE_PROJECT.id, title: "Remote work", messages: [{ id: "reply", kind: "assistant", text: "Tests pass", at: 5 }] })],
   }));
   const initial = workspace({ projects: [PROJECT], threads: [task("caller", { projectId: PROJECT.id, title: "Planner", model: "opus" })] });
-  initial.computers = { ...initial.computers, name: "Mac", paired: [{ id: "linux", name: "Linux", host: "linux.test", pairedAt: 1, status: "connected", error: null, state: linux.state(), ...overrides }] };
+  initial.computers = { ...initial.computers, name: "Mac", paired: [{ id: "linux", name: "Linux", host: "linux.test", pairedAt: 1, status: "connected", error: null, state: linux.state(), capabilities: COMPUTER_CAPABILITIES, ...overrides }] };
   let state = initial;
   const waiters: ThreadRequestHost["waiters"] = { current: [] };
   const execution: WorkspaceExecutionHost = {
@@ -60,7 +62,7 @@ function pair(overrides: Partial<PairedComputer> = {}) {
   };
   const host: ThreadRequestHost = {
     state: () => state,
-    desktop: {} as ThreadRequestHost["desktop"],
+    desktop: { queryComputerThreads: async (_id: string, query: ComputerThreadQuery) => queryLocalThreads(linux.state, async () => {}, query) } as unknown as ThreadRequestHost["desktop"],
     dispatch: async (input) => { await executeWorkspaceInput(input, execution).completed; },
     execute: (input) => executeWorkspaceInput(input, execution),
     waiters,
@@ -132,17 +134,23 @@ test("a remote start names its project there, and a coordinator keeps its thread
 });
 
 test("a computer whose build predates signed messages refuses them rather than passing them off as the user's", async () => {
-  const { host, linux } = pair({ capabilities: COMPUTER_CAPABILITIES.filter((name) => name !== "command:task.send:sender") });
-  assert.equal(await refusal(host, command({ type: "task.send", taskId: "remote-id", text: "Hi" })), REMOTE_UNSUPPORTED);
-  assert.equal(linux.inputs.length, 0);
+  for (const capabilities of [COMPUTER_CAPABILITIES.filter((name) => name !== "command:task.send:sender"), undefined]) {
+    const { host, linux } = pair({ capabilities });
+    assert.equal(await refusal(host, command({ type: "task.send", taskId: "remote-id", text: "Hi" })), REMOTE_UNSUPPORTED);
+    assert.equal(await refusal(host, command({ type: "task.send", text: "Hi" }, "linux")), REMOTE_UNSUPPORTED);
+    assert.equal(linux.inputs.length, 0);
+  }
 });
 
-test("a new thread named into this computer's project starts here even with a paired computer's thread on screen", async () => {
+test("a new thread asked for here starts here even with a paired computer's thread on screen", async () => {
   const { host, linux } = pair();
   host.state().computers.active = "linux";
   const { thread } = await answer<ThreadCommandResult>(host, command({ type: "task.send", text: "Local work" }));
   assert.equal(thread?.computer, undefined);
-  assert.equal(host.state().threads.length, 2);
+  await answer(host, command({ type: "task.send", text: "By path", project: PROJECT.root }, "this"));
+  host.state().threads[0] = { ...host.state().threads[0], projectId: undefined };
+  await answer(host, command({ type: "task.send", text: "No project" }));
+  assert.equal(host.state().threads.length, 4);
   assert.equal(linux.inputs.length, 0);
 });
 
@@ -159,6 +167,14 @@ test("waiting on a paired computer's thread settles when its mirrored state stop
   assert.equal(waited.timedOut, false);
   assert.equal(waited.reply, "Tests pass");
   assert.equal(waited.thread.computer?.name, "Linux");
+});
+
+test("a wait on a paired computer's thread whose history is not loaded there reads its reply from that computer", async () => {
+  const { host, linux } = pair();
+  const loaded = linux.state();
+  host.state().computers.paired[0] = { ...host.state().computers.paired[0], state: { ...loaded, threads: loaded.threads.map((thread) => ({ ...thread, messages: [], historySummary: { messageCount: 1, attachmentCount: 0 } })) } };
+  const waited = await answer<ThreadWaitResult>(host, { type: "thread.request", requestId: "w", taskId: "caller", op: "wait", threadId: "remote-id", timeoutMs: 1_000 });
+  assert.equal(waited.reply, "Tests pass");
 });
 
 test("a wait ends with an error when the paired computer drops", async () => {

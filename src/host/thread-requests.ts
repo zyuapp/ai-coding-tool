@@ -11,7 +11,8 @@ import { scheduledRun } from "../application/run-testimony.js";
 import type { WorkspaceInput } from "../application/workspace-reducer.js";
 import type { WorkspaceExecution } from "../application/workspace-execution.js";
 import type { AppCommand } from "../contracts/commands.js";
-import type { ExternalCommand, FindingReport, FindingResult, ThreadCommandResult, ThreadRequest, ThreadResponse } from "../contracts/threads.js";
+import type { ExternalCommand, FindingReport, FindingResult, ThreadCommandResult, ThreadRequest, ThreadResponse, ThreadTranscript } from "../contracts/threads.js";
+import { REMOTE_UNSUPPORTED } from "../contracts/computer-capabilities.js";
 import { terminalLineLimit } from "../domain/terminal.js";
 import { coordinatorOf, isCoordinator, type CoordinationState, type DecisionRequest } from "../domain/coordination.js";
 import { errorMessage } from "./errors.js";
@@ -92,7 +93,10 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
       online(computer, "waited on");
       const waited = computer.state ? threadWaitResult(computer.state, threadId, timedOut) : null;
       if (!waited) return failed(`No thread has the ID ${threadId}.`);
-      return ok({ ...waited, thread: { ...waited.thread, computer: tag(computer) } });
+      /** A thread whose history that computer has not loaded is mirrored without its messages, so its reply is read from there. */
+      const unloaded = Boolean(computer.state?.threads.find((thread) => thread.id === threadId)?.historySummary);
+      const reply = waited.reply === null && unloaded ? lastReply(await readAcrossComputers(host, threadId, MAX_REMOTE_MESSAGES, computerId)) : waited.reply;
+      return ok({ ...waited, reply, thread: { ...waited.thread, computer: tag(computer) } });
     }
     if (request.op === "browser") {
       const state = host.state();
@@ -216,6 +220,18 @@ function waitFor(host: ThreadRequestHost, pending: (state: WorkspaceState) => bo
   });
 }
 
+/** As many messages as a paired computer hands over in one read. */
+const MAX_REMOTE_MESSAGES = 200;
+
+function lastReply(transcript: ThreadTranscript): string | null {
+  for (let index = transcript.messages.length - 1; index >= 0; index -= 1) {
+    if (transcript.messages[index]!.kind === "assistant") return transcript.messages[index]!.text;
+  }
+  return null;
+}
+
+const SIGNED_SEND = "command:task.send:sender";
+
 const COORDINATED_HERE = "A coordinator and the threads under it start threads only on their own computer.";
 
 /** How long a thread just started on a paired computer is given to show up in the state that computer publishes. */
@@ -232,6 +248,8 @@ async function commandElsewhere(host: ThreadRequestHost, computer: PairedCompute
   if (!computer.state) throw new Error(`${computer.name} has not sent its threads yet. Try again once it is connected.`);
   const state = host.state();
   const sender = caller ? { threadId: caller.id, title: caller.title, computer: state.computers.name || "another computer" } : undefined;
+  /** A build from before capabilities were told names none and would take the message as the user's, so a signed one needs the capability named. */
+  if (command.type === "task.send" && sender && !computer.capabilities?.includes(SIGNED_SEND)) throw new Error(REMOTE_UNSUPPORTED);
   if (command.type === "task.send" && command.taskId === undefined) {
     const own = state.projects.find((project) => project.id === caller?.projectId);
     const project = projectThere(computer, command.project, own);

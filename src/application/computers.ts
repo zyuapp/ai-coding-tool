@@ -192,7 +192,8 @@ function threadHolder(state: WorkspaceState, input: AppCommand, active: PairedCo
 
 /**
  * Where a send goes: the computer holding the thread it names, else the one holding the project or
- * checkout a new thread is named into, whatever is on screen, else the one showing a thread.
+ * checkout a new thread is named into, whatever is on screen. Only the composer's own send, which
+ * carries no text, follows the computer showing a thread; one with text of its own starts here.
  */
 function sendHolder(state: WorkspaceState, input: Extract<AppCommand, { type: "task.send" }>, active: PairedComputer | null): PairedComputer | null {
   if (input.taskId !== undefined) return computerOfThread(state, input.taskId);
@@ -206,7 +207,7 @@ function sendHolder(state: WorkspaceState, input: Extract<AppCommand, { type: "t
     const holder = computerOfProject(state, input.project);
     if (holder) return holder;
   }
-  return active;
+  return input.text === undefined ? active : null;
 }
 
 /** The paired computer holding a thread's queue, with the thread a command without a `taskId` means there. */
