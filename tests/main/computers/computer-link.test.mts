@@ -19,7 +19,7 @@ import type { WorkspaceUpdate } from "../../../src/contracts/workspace-runtime.t
 import type { ComputerStatus } from "../../../src/domain/computers.ts";
 import { MobileServer, WORKSPACE_SOCKET_PATH } from "../../../src/main/mobile/mobile-server.mts";
 import { PairingStore } from "../../../src/main/mobile/pairing.mts";
-import { createComputerClient, type ComputerClient, type ComputerClientOptions } from "../../../src/main/computers/computer-client.mts";
+import { COMPUTER_RESTARTED, createComputerClient, type ComputerClient, type ComputerClientOptions } from "../../../src/main/computers/computer-client.mts";
 import { createComputerLinks } from "../../../src/main/computers/computer-links.mts";
 import { task } from "../../application/workspace-reducer-fixtures.mts";
 
@@ -72,6 +72,7 @@ async function host(t: { onTestFinished(callback: () => void | Promise<void>): v
     folder,
     devices,
     inputs,
+    server,
     notice: (notice: ThreadNotice) => server.notice(notice),
     url: `ws://127.0.0.1:${server.port}${WORKSPACE_SOCKET_PATH}`,
     mint: () => devices.mint(Date.now()).code,
@@ -86,11 +87,13 @@ async function host(t: { onTestFinished(callback: () => void | Promise<void>): v
 }
 
 /** A line between a computer and its host that can be cut the way a dropped network cuts it, with neither end told. */
-async function cuttable(t: { onTestFinished(callback: () => void | Promise<void>): void }, url: string) {
-  const target = new URL(url);
+async function cuttable(t: { onTestFinished(callback: () => void | Promise<void>): void }, url: string | (() => string)) {
+  const where = () => new URL(typeof url === "string" ? url : url());
+  const target = where();
   const open = new Set<net.Socket>();
   const proxy = net.createServer((inbound) => {
-    const outbound = net.connect(Number(target.port), target.hostname);
+    const now = where();
+    const outbound = net.connect(Number(now.port), now.hostname);
     open.add(inbound);
     open.add(outbound);
     inbound.pipe(outbound);
@@ -252,6 +255,62 @@ test("a send in flight when the line drops is carried again once it is back, and
   release();
   assert.equal((await sent).ok, true, "the answer finds the line it came back on");
   assert.equal(served.inputs.filter((input) => input.type === "task.rename").length, 1, "the carried request is not run twice");
+});
+
+test("a send in flight when the other computer restarts is refused rather than run twice", async (t) => {
+  let release!: () => void;
+  const served = await host(t, { gate: new Promise<void>((resolve) => { release = resolve; }) });
+  const line = await cuttable(t, () => `ws://127.0.0.1:${served.server.port}${WORKSPACE_SOCKET_PATH}`);
+  const pairing = client({ url: line.url, credential: { code: served.mint() } });
+  const { token } = await until(() => pairing.paired(), "the pairing");
+  pairing.link.stop();
+  const mac = client({ url: line.url, credential: { token } });
+  t.onTestFinished(() => mac.link.stop());
+  await until(() => mac.link.status === "connected", "the first connection");
+  const sent = mac.link.send([{ type: "task.rename", taskId: "first", title: "slow" }]);
+  await until(() => served.inputs.some((input) => input.type === "task.rename"), "the send reaching the host");
+  release();
+  line.cut();
+  await served.server.stop();
+  await served.server.start("127.0.0.1");
+  await assert.rejects(sent, (error: Error) => error.message === COMPUTER_RESTARTED);
+  assert.equal(served.inputs.filter((input) => input.type === "task.rename").length, 1, "a restarted computer is not handed what it may have run");
+  await until(() => mac.link.status === "connected", "the line back");
+  assert.equal((await mac.link.send([{ type: "task.rename", taskId: "first", title: "after the restart" }])).ok, true);
+});
+
+test("a computer that refused once and then took the line back is dialled again soon after the next drop", async (t) => {
+  const served = await host(t);
+  const line = await cuttable(t, served.url);
+  const pairing = client({ url: line.url, credential: { code: served.mint() } });
+  const { token } = await until(() => pairing.paired(), "the pairing");
+  pairing.link.stop();
+  const real = served.devices.authenticate.bind(served.devices);
+  let refuse = true;
+  served.devices.authenticate = (given: string, at?: number) => refuse ? null : real(given, at);
+  const mac = client({ url: line.url, credential: { token } });
+  t.onTestFinished(() => mac.link.stop());
+  await until(() => mac.statuses.some(([status, error]) => status === "offline" && error?.includes("not paired")), "the refusal");
+  refuse = false;
+  mac.link.reconnect();
+  await until(() => mac.link.status === "connected", "taken back");
+  const dials = mac.statuses.filter(([status]) => status === "connecting").length;
+  line.cut();
+  await until(() => mac.statuses.filter(([status]) => status === "connecting").length > dials, "dialled again on the usual pause, not the refusal's");
+});
+
+test("a host that cannot read its paired devices says so, and is not taken to have unpaired anyone", async (t) => {
+  const served = await host(t);
+  const pairing = client({ url: served.url, credential: { code: served.mint() } });
+  const { token } = await until(() => pairing.paired(), "the pairing");
+  pairing.link.stop();
+  served.devices.authenticate = () => null;
+  Object.defineProperty(served.devices, "unreadable", { get: () => true });
+  const mac = client({ url: served.url, credential: { token } });
+  t.onTestFinished(() => mac.link.stop());
+  await until(() => mac.statuses.some(([, error]) => error?.includes("could not read its paired devices")), "the reason");
+  await until(() => mac.statuses.filter(([status]) => status === "connecting").length >= 2, "dialled again on the usual pause");
+  assert.equal(mac.statuses.some(([, error]) => error?.includes("not paired")), false);
 });
 
 test("a computer long unreachable is found again under the name Tailscale now gives it", async (t) => {

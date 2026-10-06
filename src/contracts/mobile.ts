@@ -492,6 +492,8 @@ export type MobileSnapshotMessage = Sequenced & {
   /** Which build of the phone page the Mac serves. A page from another one reloads itself. */
   build: string;
   view: MobileView;
+  /** Which running server this is. A new one has forgotten what it ran, so what was sent before is not sent again. */
+  instance?: string;
 };
 
 export type MobilePatchMessage = Sequenced & { kind: "patch"; patch: MobilePatch };
@@ -535,7 +537,7 @@ export function isMobileClientMessage(value: unknown): value is MobileClientMess
 export function isMobileServerMessage(value: unknown): value is MobileServerMessage {
   if (!isRecord(value) || !isCount(value.sequence)) return false;
   if (value.kind === "paired") return isString(value.deviceId) && isString(value.deviceName, MAX_DEVICE_NAME_LENGTH) && isString(value.token, MAX_TOKEN_LENGTH);
-  if (value.kind === "snapshot") return isString(value.sessionId) && isString(value.build) && isRecord(value.view);
+  if (value.kind === "snapshot") return isString(value.sessionId) && isString(value.build) && isRecord(value.view) && (value.instance === undefined || isString(value.instance));
   if (value.kind === "patch") return isRecord(value.patch);
   if (value.kind === "ack") {
     if (!isString(value.requestId)) return false;

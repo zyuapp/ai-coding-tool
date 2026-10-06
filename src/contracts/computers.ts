@@ -68,7 +68,8 @@ export type ComputerServerMessage = Sequenced & (
   | { kind: "notice"; notice: ThreadNotice }
   /** What that computer calls itself, sent as the line opens and again whenever it changes. */
   | { kind: "name"; name: string }
-  | { kind: "capabilities"; capabilities: readonly string[] }
+  /** `instance` names the running app, which changes when it restarts and forgets what it has run. */
+  | { kind: "capabilities"; capabilities: readonly string[]; instance?: string }
   | { kind: "ping"; at: number }
 );
 
@@ -150,7 +151,8 @@ export function isComputerServerMessage(value: unknown): value is ComputerServer
   }
   if (value.kind === "error") return typeof value.code === "string" && typeof value.message === "string";
   if (value.kind === "notice") return isRecord(value.notice) && isString(value.notice.taskId) && typeof value.notice.title === "string" && typeof value.notice.headline === "string";
-  if (value.kind === "capabilities") return Array.isArray(value.capabilities) && value.capabilities.length <= 4096 && value.capabilities.every((name) => typeof name === "string" && name.length > 0 && name.length <= 256);
+  if (value.kind === "capabilities") return Array.isArray(value.capabilities) && value.capabilities.length <= 4096 && value.capabilities.every((name) => typeof name === "string" && name.length > 0 && name.length <= 256)
+    && (value.instance === undefined || (typeof value.instance === "string" && value.instance.length > 0 && value.instance.length <= 256));
   if (value.kind === "name") return isString(value.name, MAX_DEVICE_NAME_LENGTH);
   if (value.kind === "ping") return isCount(value.at);
   return false;

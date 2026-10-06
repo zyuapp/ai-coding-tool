@@ -184,6 +184,11 @@ export type MobileServerOptions = {
  */
 export class MobileServer {
   private readonly sessions = new Map<string, Session>();
+  /**
+   * Which running server this is. What a device has run is remembered only as long as the server
+   * runs, so a device that finds a new one does not send it what the old one may have run already.
+   */
+  private instance = randomUUID();
   /** Per device: every request ID it has sent, and what came of it. Null while one is in flight. */
   private readonly handled = new Map<string, Map<string, AckOutcome | null>>();
   private http: Server | null = null;
@@ -226,6 +231,7 @@ export class MobileServer {
   async start(host: string): Promise<void> {
     if (this.http) return;
     this.failure = null;
+    this.instance = randomUUID();
     this.build = buildStamp(this.options.staticRoot);
     const server = createServer((request, response) => {
       this.serve(request, response).catch(() => {
@@ -277,7 +283,7 @@ export class MobileServer {
   }
 
   private sendCapabilities(session: Session) {
-    if (session.kind === "computer") this.emit(session, { kind: "capabilities", capabilities: COMPUTER_CAPABILITIES });
+    if (session.kind === "computer") this.emit(session, { kind: "capabilities", capabilities: COMPUTER_CAPABILITIES, instance: this.instance });
   }
 
   private sendName(session: Session) {
@@ -316,7 +322,7 @@ export class MobileServer {
       if (session.kind !== "phone") continue;
       if (update.kind === "snapshot") {
         session.awaitingSnapshot = false;
-        this.emit(session, { kind: "snapshot", sessionId: session.id, build: this.build, view: update.view });
+        this.emit(session, { kind: "snapshot", sessionId: session.id, build: this.build, view: update.view, instance: this.instance });
       } else if (!session.awaitingSnapshot) {
         if (congested(session)) this.fallBehind(session);
         else this.emit(session, { kind: "patch", patch: update.patch });
@@ -447,7 +453,7 @@ export class MobileServer {
         this.view = view;
       }
       session.awaitingSnapshot = false;
-      this.emit(session, { kind: "snapshot", sessionId: session.id, build: this.build, view: this.view });
+      this.emit(session, { kind: "snapshot", sessionId: session.id, build: this.build, view: this.view, instance: this.instance });
     } catch (error) {
       /**
        * A session with no view to patch is no session. The phone hears why, is hung up on, and
@@ -709,6 +715,11 @@ export class MobileServer {
     if (!versionAccepted(request.version, kind, socket)) return null;
     const now = Date.now();
     const device = this.options.devices.authenticate(request.token);
+    /** A token this computer cannot check yet is not a token it refused: the device keeps it and asks again. */
+    if (!device && this.options.devices.unreadable) {
+      refuse(socket, "internal", "This computer could not read its paired devices. Try again in a moment.");
+      return null;
+    }
     if (!device || device.kind !== kind) {
       refuse(socket, "unauthorized", kind === "computer" ? "This computer is not paired with the other one." : "This phone is not paired with this computer.");
       return null;

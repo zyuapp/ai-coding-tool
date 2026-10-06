@@ -43,9 +43,10 @@ export function readOutbox(store: CredentialStore): OutboxEntry[] {
   if (!Array.isArray(parsed)) return [];
   return parsed.flatMap((value): OutboxEntry[] => {
     if (!value || typeof value !== "object") return [];
-    const { requestId, command, queuedAt, writes } = value as Record<string, unknown>;
+    const { requestId, command, queuedAt, writes, instance } = value as Record<string, unknown>;
     if (typeof requestId !== "string" || !requestId || !isMobileCommand(command)) return [];
-    return [{ requestId, command, sent: false, queuedAt: typeof queuedAt === "number" ? queuedAt : 0, writes: typeof writes === "number" ? writes : 0 }];
+    const written = typeof writes === "number" ? writes : 0;
+    return [{ requestId, command, sent: written > 0, queuedAt: typeof queuedAt === "number" ? queuedAt : 0, writes: written, ...(typeof instance === "string" && instance ? { instance } : {}) }];
   });
 }
 

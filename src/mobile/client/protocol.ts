@@ -37,6 +37,8 @@ export type OutboxEntry = {
   queuedAt: number;
   /** How many times it has been written. One the Mac never answers is given up on rather than sent forever. */
   writes: number;
+  /** The running server it was written to, which alone remembers whether it ran it. */
+  instance?: string;
 };
 
 /** A command the Mac turned down, handed back so the screen that sent it can give the user their words back. */
@@ -55,6 +57,8 @@ export type MobileClientState = {
   lastSequence: number;
   /** The build of the page this phone is running, learnt from the first snapshot it ever reads. */
   build: string | null;
+  /** The running server the current session belongs to, once a snapshot has named it. */
+  instance: string | null;
   view: MobileView;
   outbox: OutboxEntry[];
   /** The last command the Mac refused, until another is. */
@@ -156,9 +160,10 @@ export function initialMobileClient(input: { credential: MobileCredential | null
     sessionId: null,
     lastSequence: 0,
     build: null,
+    instance: null,
     view: emptyMobileView(),
     /** What a page that reloaded still owed is sent again; the Mac runs each request once, whatever it is sent. */
-    outbox: input.credential ? (input.outbox ?? []).map((item) => ({ ...item, sent: false })) : [],
+    outbox: input.credential ? input.outbox ?? [] : [],
     returned: null,
     openedAt: 0,
     attempt: 0,
@@ -245,17 +250,26 @@ function closed(state: MobileClientState): MobileClientStep {
 /**
  * A full outbox refuses rather than drops: text the user typed is not thrown away in silence. One the
  * Mac could not read is refused here, since sending it would only be turned away. Waiting for the
- * line, only the last of several moves between screens is kept.
+ * line, a move between screens replaces the moves just before it, but never one that something
+ * asked after it depends on: a new thread a message is sent into stays.
  */
 function dispatch(state: MobileClientState, requestId: string, command: MobileCommand, at: number): MobileClientStep {
   if (!isMobileCommand(command)) return { state: { ...state, notice: "That could not be sent to your computer." }, effects: [] };
   const live = state.connection === "live";
-  const kept = live || !VIEW_COMMANDS.has(command.type) ? state.outbox : state.outbox.filter((item) => item.sent || !VIEW_COMMANDS.has(item.command.type));
+  const kept = live || !VIEW_COMMANDS.has(command.type) ? state.outbox : withoutTrailingMoves(state.outbox);
   if (kept.length >= MOBILE_OUTBOX_LIMIT) {
     return { state: { ...state, notice: "Too much is already waiting for your computer. Wait for it to catch up." }, effects: [] };
   }
-  const next = { ...state, outbox: [...kept, { requestId, command, sent: live, queuedAt: at, writes: live ? 1 : 0 }] };
+  const written = live && state.instance ? { instance: state.instance } : {};
+  const next = { ...state, outbox: [...kept, { requestId, command, sent: live, queuedAt: at, writes: live ? 1 : 0, ...written }] };
   return { state: next, effects: live ? [{ kind: "send", message: { kind: "command", requestId, command } }] : [] };
+}
+
+/** The outbox without the unwritten moves between screens at its end, which a newer move makes moot. */
+function withoutTrailingMoves(outbox: OutboxEntry[]): OutboxEntry[] {
+  let end = outbox.length;
+  while (end > 0 && !outbox[end - 1]!.sent && VIEW_COMMANDS.has(outbox[end - 1]!.command.type)) end -= 1;
+  return end === outbox.length ? outbox : outbox.slice(0, end);
 }
 
 /**
@@ -266,7 +280,13 @@ function flush(state: MobileClientState, owed: OutboxEntry[]): MobileClientStep 
   if (!owed.length) return { state, effects: [] };
   const spent = owed.filter((item) => item.writes >= MOBILE_RESEND_LIMIT);
   const effects = owed.filter((item) => !spent.includes(item)).map((item): MobileClientEffect => ({ kind: "send", message: { kind: "command", requestId: item.requestId, command: item.command } }));
-  const outbox = state.outbox.flatMap((item) => spent.includes(item) ? [] : owed.includes(item) ? [{ ...item, sent: true, writes: item.writes + 1 }] : [item]);
+  const stamp = (item: OutboxEntry) => item.instance ?? state.instance ?? undefined;
+  const outbox = state.outbox.flatMap((item): OutboxEntry[] => {
+    if (spent.includes(item)) return [];
+    if (!owed.includes(item)) return [item];
+    const instance = stamp(item);
+    return [{ ...item, sent: true, writes: item.writes + 1, ...(instance ? { instance } : {}) }];
+  });
   return { state: { ...state, outbox, ...(spent.length ? { notice: "Your computer did not answer. Try again." } : {}) }, effects };
 }
 
@@ -305,7 +325,9 @@ function received(state: MobileClientState, message: MobileServerMessage): Mobil
     /** It is still drawn: a reload the page cannot make leaves the user on the newest view, told to reload. */
     case "snapshot": {
       const changed = seen.build !== null && seen.build !== message.build;
-      const step = live(shown({ ...seen, build: message.build, sessionId: message.sessionId, notice: changed ? REFUSALS.version : null }, message.view));
+      const kept = restarted(seen, message.instance);
+      const notice = changed ? REFUSALS.version : kept.outbox === seen.outbox ? null : RESTARTED;
+      const step = live(shown({ ...kept, build: message.build, instance: message.instance ?? null, sessionId: message.sessionId, notice }, message.view));
       return withEffect(step, changed ? { kind: "reload" } : { kind: "current" });
     }
     case "patch": {
@@ -325,6 +347,18 @@ function received(state: MobileClientState, message: MobileServerMessage): Mobil
     case "ping":
       return withEffect(settled(seen), { kind: "send", message: { kind: "pong", at: message.at } });
   }
+}
+
+const RESTARTED = "Your computer restarted. Check that your last taps went through.";
+
+/**
+ * A server other than the one a command was written to has forgotten whether it ran it, so sending
+ * it again could run it twice. Those commands are let go of, and the user told to check.
+ */
+function restarted(state: MobileClientState, instance: string | undefined): MobileClientState {
+  if (!instance) return state;
+  const outbox = state.outbox.filter((item) => item.writes === 0 || !item.instance || item.instance === instance);
+  return outbox.length === state.outbox.length ? state : { ...state, outbox };
 }
 
 /** Takes the next view; an error the user put away comes back only once the view's error has been something else. */

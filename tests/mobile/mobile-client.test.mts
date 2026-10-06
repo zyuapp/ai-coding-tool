@@ -279,11 +279,29 @@ test("a command the Mac could not read is refused here rather than sent, and mov
   assert.deepEqual(bad.state.outbox, []);
   assert.deepEqual(sent(bad.effects), []);
   assert.match(bad.state.notice ?? "", /could not be sent/);
-  const offline = run(live, [{ kind: "closed" },
+  const moves = run(live, [{ kind: "closed" },
     { kind: "dispatch", requestId: "a", command: { type: "task.select", taskId: "t1" }, at: 0 },
-    { kind: "dispatch", requestId: "b", command: { type: "task.send", taskId: "t1", text: "keep me" }, at: 0 },
+    { kind: "dispatch", requestId: "b", command: { type: "task.new", projectId: "p" }, at: 0 },
     { kind: "dispatch", requestId: "c", command: { type: "task.select", taskId: "t2" }, at: 0 }]);
-  assert.deepEqual(offline.state.outbox.map((item) => item.requestId), ["b", "c"], "only the last move is kept");
+  assert.deepEqual(moves.state.outbox.map((item) => item.requestId), ["c"], "only the last of several moves is kept");
+  const depended = run(live, [{ kind: "closed" },
+    { kind: "dispatch", requestId: "a", command: { type: "task.new", projectId: "p" }, at: 0 },
+    { kind: "dispatch", requestId: "b", command: { type: "view.set-prompt", prompt: "hello" }, at: 0 },
+    { kind: "dispatch", requestId: "c", command: { type: "task.send" }, at: 0 },
+    { kind: "dispatch", requestId: "d", command: { type: "task.select", taskId: "t2" }, at: 0 }]);
+  assert.deepEqual(depended.state.outbox.map((item) => item.requestId), ["a", "b", "c", "d"], "a move something later depends on stays");
+});
+
+test("what was written to a server that has since restarted is let go of, not run twice", () => {
+  const first = run(paired(), [{ kind: "received", message: { ...snapshot(2, "s1"), instance: "one" } as MobileServerMessage }]);
+  const asked = run(first.state, [{ kind: "dispatch", requestId: "r1", command: { type: "task.send", taskId: "t1", text: "hello" }, at: 0 }]);
+  assert.equal(asked.state.outbox[0]?.instance, "one");
+  const offline = run(asked.state, [{ kind: "closed" }, { kind: "dispatch", requestId: "r2", command: { type: "task.send", taskId: "t1", text: "unsent" }, at: 0 }]);
+  const restarted = run(offline.state, [{ kind: "opened", at: 0 }, { kind: "received", message: { ...snapshot(1, "s2"), instance: "two" } as MobileServerMessage }]);
+  assert.deepEqual(sent(restarted.effects).filter((message) => message.kind === "command").map((message) => message.kind === "command" && message.requestId), ["r2"]);
+  assert.match(restarted.state.notice ?? "", /restarted/);
+  const same = run(offline.state, [{ kind: "opened", at: 0 }, { kind: "received", message: { ...snapshot(1, "s2"), instance: "one" } as MobileServerMessage }]);
+  assert.deepEqual(sent(same.effects).filter((message) => message.kind === "command").map((message) => message.kind === "command" && message.requestId), ["r1", "r2"], "the same server remembers, so it is asked again");
 });
 
 test("a stop asked long before the line came back is dropped, not carried out late", () => {
@@ -334,7 +352,9 @@ test("what was owed survives a reload, sent again from the start", () => {
   assert.ok(kept?.kind === "keep");
   writeOutbox(shelf, kept.outbox);
   const restored = initialMobileClient({ credential: { token: TOKEN, deviceId: "d1", deviceName: "iPhone" }, code: null, deviceName: "iPhone", outbox: readOutbox(shelf) });
-  assert.deepEqual(restored.outbox.map((item) => [item.requestId, item.sent]), [["r1", false]]);
+  assert.deepEqual(restored.outbox.map((item) => [item.requestId, item.sent]), [["r1", true]], "it is still known to have been written, so a restarted computer is not handed it again");
+  const back = run(restored, [{ kind: "opened", at: 5 }, { kind: "received", message: snapshot(1) }]);
+  assert.deepEqual(sent(back.effects).filter((message) => message.kind === "command").map((message) => message.kind === "command" && message.requestId), ["r1"], "and the same computer is asked again");
   writeOutbox(shelf, []);
   assert.equal(store.size, 0);
 });

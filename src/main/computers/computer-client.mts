@@ -51,8 +51,22 @@ export type ComputerClientOptions = {
   onName?: (name: string) => void;
 };
 
-/** A request still owed an answer, kept as it was sent so a line that comes back can carry it again. */
-type Waiting<T> = { resolve: (value: T) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout>; requestId: string; payload: string; transferring: boolean };
+/**
+ * A request still owed an answer, kept as it was sent so a line that comes back can carry it again.
+ * `line` counts the dial it was last written on, and `instance` names the running app that took it.
+ */
+type Waiting<T> = {
+  resolve: (value: T) => void;
+  reject: (error: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+  requestId: string;
+  payload: string;
+  transferring: boolean;
+  line: number;
+  instance: string | undefined;
+};
+
+export const COMPUTER_RESTARTED = "That computer restarted before it answered. Check whether it went through.";
 
 /** Every request still waiting is refused: the line it was asked on is gone, and its answer with it. */
 function refuseWaiting(held: Map<string, Waiting<never>>, message: string) {
@@ -104,7 +118,7 @@ function createWatchdog(dead: () => void) {
  * What a line still owes: each request kept as it was sent, settled by its answer or its own
  * deadline, and handed back whole to be carried again when a dropped line returns.
  */
-function createOwed(line: { live: () => boolean; deliver: (waiting: Waiting<unknown>) => void }) {
+function createOwed(line: { live: () => boolean; deliver: (waiting: Waiting<unknown>) => void; current: () => { line: number; instance: string | undefined } }) {
   const results = new Map<string, Waiting<WorkspaceCommandResult>>();
   const answers = new Map<string, Waiting<unknown>>();
 
@@ -119,7 +133,7 @@ function createOwed(line: { live: () => boolean; deliver: (waiting: Waiting<unkn
         reject(new Error(line.live() ? "That computer did not answer in time." : COMPUTER_OFFLINE));
       }, transferring ? COMPUTER_TRANSFER_TIMEOUT_MS : REQUEST_TIMEOUT_MS);
       timer.unref?.();
-      const waiting: Waiting<T> = { resolve, reject, timer, requestId: message.requestId, payload, transferring };
+      const waiting: Waiting<T> = { resolve, reject, timer, requestId: message.requestId, payload, transferring, ...line.current() };
       held.set(message.requestId, waiting);
       line.deliver(waiting as Waiting<unknown>);
     });
@@ -135,8 +149,27 @@ function createOwed(line: { live: () => boolean; deliver: (waiting: Waiting<unkn
       if (message.ok) waiting?.resolve(message.result);
       else waiting?.reject(new Error(message.message));
     },
-    /** In the order each was first asked within its kind. */
-    waiting: (): Waiting<unknown>[] => [...results.values(), ...answers.values()] as Waiting<unknown>[],
+    /**
+     * The line names the running app it reached. What was written on an earlier line is carried
+     * again only to the same running app, which remembers what it ran; an app that restarted since
+     * has forgotten, and would run it twice, so the request is refused instead. Written on this
+     * line, a request learns which app took it.
+     */
+    carry(current: number, instance: string | undefined) {
+      for (const held of [results, answers] as Map<string, Waiting<unknown>>[]) {
+        for (const [id, waiting] of [...held]) {
+          if (waiting.line !== current && (instance === undefined || waiting.instance !== instance)) {
+            held.delete(id);
+            clearTimeout(waiting.timer);
+            waiting.reject(new Error(COMPUTER_RESTARTED));
+            continue;
+          }
+          if (waiting.line !== current) line.deliver(waiting);
+          waiting.line = current;
+          waiting.instance = instance;
+        }
+      }
+    },
     refuse(message: string) {
       refuseWaiting(results as Map<string, Waiting<never>>, message);
       refuseWaiting(answers as Map<string, Waiting<never>>, message);
@@ -193,6 +226,9 @@ export function createComputerClient(options: ComputerClientOptions) {
   let capabilities: ComputerCapabilities;
   const applyUpdate = createRemoteWorkspaceReplica();
   let attempt = 0;
+  /** How many lines have been dialled, and the running app the current one reached, once it says. */
+  let dials = 0;
+  let instance: string | undefined;
   let stopped = false;
   /** Whether the other computer refused the line, which is not asked again on the usual pause. */
   let refused = false;
@@ -218,14 +254,14 @@ export function createComputerClient(options: ComputerClientOptions) {
     if (socket?.readyState === WebSocket.OPEN) socket.send(waiting.payload);
   }
 
-  const owed = createOwed({ live: () => socket?.readyState === WebSocket.OPEN && status === "connected", deliver });
+  const owed = createOwed({ live: () => socket?.readyState === WebSocket.OPEN && status === "connected", deliver, current: () => ({ line: dials, instance }) });
 
-  /** The line answers again: what is waiting is carried again, in the order it was first asked. */
+  /** The line answers again. What is still waiting goes again once the line names the app it reached. */
   function connected() {
     attempt = 0;
+    refused = false;
     lastError = null;
     report("connected");
-    for (const waiting of owed.waiting()) deliver(waiting);
   }
 
   function schedule() {
@@ -290,6 +326,8 @@ export function createComputerClient(options: ComputerClientOptions) {
       options.onNotice?.(message.notice);
     } else if (message.kind === "capabilities") {
       capabilities = message.capabilities;
+      instance = message.instance;
+      owed.carry(dials, instance);
       options.onCapabilities?.(capabilities);
     } else if (message.kind === "name") {
       options.onName?.(message.name);
@@ -301,6 +339,8 @@ export function createComputerClient(options: ComputerClientOptions) {
   function open() {
     if (stopped || socket) return;
     report("connecting", lastError);
+    dials += 1;
+    instance = undefined;
     const dialled: WebSocket = dial(url, {
       heard: () => { if (socket === dialled) watchdog.heard(); },
       open: () => {
