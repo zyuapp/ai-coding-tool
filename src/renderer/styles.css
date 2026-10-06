@@ -2188,11 +2188,13 @@ pre {
 .setting-row-action { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
 .setting-row-action em { color: var(--accent-soft); font-size: var(--text-meta); font-style: normal; }
 .setting-row-action em.granted { color: var(--success-soft); }
-.setting-row-action button, .settings-restart button { border: 1px solid var(--line-strong); border-radius: 8px; padding: 7px 11px; background: var(--control); color: var(--ink-dim); font-size: var(--text-meta); font-weight: 560; cursor: pointer; }
+.setting-row-action button, .settings-restart button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 7px 11px; background: var(--control); color: var(--ink-dim); font-size: var(--text-meta); font-weight: 560; cursor: pointer; }
 .setting-row-action button:hover, .settings-restart button:hover { border-color: var(--line-bright); background: var(--control-hover); }
 .setting-row-action button:disabled { color: var(--quiet-strong); cursor: default; }
 .setting-row-action button.danger { border-color: var(--danger-line); color: var(--danger-soft); }
 .setting-row-action button.danger:hover { border-color: var(--danger-line-hover); background: var(--danger-surface); }
+.setting-row-action button > svg { flex: 0 0 auto; }
+.setting-row-action button > svg.spinning { animation: spin 0.9s linear infinite; }
 .engine-setting-row .setting-readiness { margin-top: 6px; }
 .settings-group-action { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; }
 .settings-group-action button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 5px 9px; background: var(--control); color: var(--ink-dim); font-size: var(--text-meta); font-weight: 560; cursor: pointer; }
@@ -4333,4 +4335,3 @@ button.setting-hint:hover { color: var(--ink); }
 .browser-import-actions button:hover:not(:disabled) { border-color: var(--line-bright); background: var(--control-hover); }
 .browser-import-actions button:disabled { color: var(--quiet-strong); cursor: default; }
 .browser-import-actions button.primary:not(:disabled) { border-color: var(--accent-line); color: var(--accent-soft); }
-.browser-import-source .setting-row-action button { display: inline-flex; align-items: center; gap: 6px; }
