@@ -122,7 +122,7 @@ function ProjectRow({
                   className="project-main"
                   onClick={() => onToggleProject(project.id)}
                   onDoubleClick={(event) => renaming.start(project.id, event.currentTarget.closest(".project-row"))}
-                  title={host ? `${project.root} on ${host.name}${host.offline ? " (offline)" : ""}` : project.root}
+                  title={host ? `${project.root} on ${host.name}${host.offline ? ` (${host.reconnecting ? "reconnecting" : "offline"})` : ""}` : project.root}
                   aria-expanded={expanded}
                 >
                   <span className="folder-icon"><FolderIcon /></span>
@@ -251,7 +251,7 @@ export function SidebarProjects({
         {computerGroups(projects, projectHosts).map(({ host, projects: held }) => (
           <Droppable key={host?.id ?? "local"} droppableId={`${PROJECTS_DROPPABLE}:${host?.id ?? "this"}`} type={`${PROJECT_DRAG}:${host?.id ?? "this"}`}>
             {(list) => <div className="computer-group" role={showComputers ? "group" : undefined} aria-label={showComputers ? host?.name ?? localName : undefined} ref={list.innerRef} {...list.droppableProps}>
-              {showComputers && <div className="computer-heading" aria-hidden="true"><HostMark name={host?.name ?? localName} offline={host?.offline} /></div>}
+              {showComputers && <div className="computer-heading" aria-hidden="true"><HostMark name={host?.name ?? localName} offline={host?.offline} reconnecting={host?.reconnecting} /></div>}
               {held.map((project, offset) => (
                 <ProjectRow
                   key={project.id}

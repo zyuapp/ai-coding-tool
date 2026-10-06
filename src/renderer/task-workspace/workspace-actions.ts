@@ -171,6 +171,7 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     pairComputer: (host: string, name: string, code: string) => dispatch({ type: "computers.pair", host, name, code }),
     cancelComputerPairing: () => dispatch({ type: "computers.cancel-pairing" }),
     forgetComputer: (id: string) => dispatch({ type: "computers.forget", id }),
+    reconnectComputer: (id: string) => dispatch({ type: "computers.reconnect", id }),
     renameComputer: (name: string) => dispatch({ type: "computers.rename", name }),
     labelComputer: (id: string, name: string) => dispatch({ type: "computers.label", id, name }),
     setComputerFilter: (filter: ComputerFilter) => dispatch({ type: "computers.filter", filter }),

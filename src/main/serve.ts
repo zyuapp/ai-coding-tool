@@ -152,6 +152,7 @@ export async function startServe(options: { userData: string; packaged: boolean;
   await runtime.dispatch({ type: "view.set-computer-use", enabled: false });
 
   let served: string | null = null;
+  let trouble: string | null = null;
   const { servePairingSocket } = await import("./mobile/development.mjs");
   await mobile.startMobileHost({
     userData,
@@ -173,6 +174,9 @@ export async function startServe(options: { userData: string; packaged: boolean;
         mobile.createMobilePairingCode().then((offer) => say(pairingLine(offer))).catch(() => undefined);
       }
       if (state.error) say(`Bridge: ${state.error}`);
+      /** Said once as it changes: the bridge checks Tailscale every minute, and a stuck reason is not news. */
+      if (state.tailscale.error && state.tailscale.error !== trouble) say(`Tailscale: ${state.tailscale.error}`);
+      trouble = state.tailscale.error;
     },
   });
   void taskDatabase.attachmentPaths()

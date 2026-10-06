@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { MobileCommand, MobileQuery } from "../../contracts/mobile";
 import { createMobileConnection, type MobileConnection } from "./connection";
 import { initialMobileClient, type MobileClientState } from "./protocol";
-import { deviceName, readCredential, readPairingCode, socketUrl, withoutPairingCode } from "./storage";
+import { deviceName, readCredential, readOutbox, readPairingCode, socketUrl, withoutPairingCode } from "./storage";
 
 /**
  * The connection held for as long as the page is open. The pairing code is taken out of the address
@@ -20,7 +20,7 @@ export function useMobileClient(): MobileClient {
     const code = readPairingCode(window.location.href);
     const url = socketUrl(window.location.href);
     if (code) window.history.replaceState(null, "", withoutPairingCode(window.location.href));
-    return { url, state: initialMobileClient({ credential: readCredential(window.localStorage), code, deviceName: deviceName(navigator.userAgent) }) };
+    return { url, state: initialMobileClient({ credential: readCredential(window.localStorage), code, deviceName: deviceName(navigator.userAgent), outbox: readOutbox(window.localStorage) }) };
   }, []);
   const [state, setState] = useState(start.state);
   const connection = useRef<MobileConnection | null>(null);

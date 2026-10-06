@@ -14,6 +14,8 @@ export type ComputerDesktop = {
   /** Trades the code the other computer shows for a token of this computer's own, and opens the line. */
   pairComputer(host: string, name: string, code: string): Promise<void>;
   forgetComputer(id: string): Promise<void>;
+  /** Dials a paired computer now, or every one when none is named, without waiting out the pause between tries. */
+  reconnectComputer(id?: string): Promise<void>;
   /** What this computer calls itself to the others from now on, told to every computer on the line. */
   renameComputer(name: string): Promise<void>;
   /** What this computer calls a paired one, kept here whatever that computer announces. */

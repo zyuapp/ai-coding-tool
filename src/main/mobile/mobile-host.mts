@@ -44,10 +44,12 @@ export type MobileHostOptions = {
   port?: number;
 };
 
+/** Each is handed a signal a stop aborts, so a slow answer never holds the app open. */
 export type TailscaleHooks = {
-  read(port: number | null, knownName: string | null): Promise<TailscaleState>;
-  start(port: number): Promise<TailscaleAction>;
-  stop(): Promise<TailscaleAction>;
+  read(port: number | null, knownName: string | null, signal?: AbortSignal): Promise<TailscaleState>;
+  start(port: number, signal?: AbortSignal): Promise<TailscaleAction>;
+  /** Takes Serve down only while it still points at this port. */
+  stop(port: number, signal?: AbortSignal): Promise<TailscaleAction>;
 };
 
 const REAL_TAILSCALE: TailscaleHooks = { read: readTailscale, start: startTailscaleServe, stop: stopTailscaleServe };
@@ -67,6 +69,13 @@ const DEFAULT_SETTINGS: MobileSettings = { version: 1, enabled: false, magicDnsN
 
 /** How long to wait before asking Tailscale again while it is not yet serving: quick at first, then once a minute. */
 const TAILSCALE_RETRY_MS = [5_000, 15_000, 60_000];
+/**
+ * How often Serve is looked at once it works. Tailscale can be reset, reinstalled or signed into
+ * another account, or 443 handed to another copy of this app, and nothing tells us when it happens.
+ */
+const SERVE_CHECK_MS = 60_000;
+/** How long to wait before starting a server that would not start, the same way. */
+const SERVER_RETRY_MS = [5_000, 15_000, 60_000];
 
 let options: MobileHostOptions | null = null;
 let settings: MobileSettings = DEFAULT_SETTINGS;
@@ -91,6 +100,10 @@ let lifecycle: Promise<unknown> = Promise.resolve();
 let tailscaleWork: Promise<unknown> = Promise.resolve();
 let tailscaleRetry: ReturnType<typeof setTimeout> | null = null;
 let tailscaleAttempts = 0;
+/** Aborted by every stop, so a turn off or a quit never waits out a slow certificate. */
+let tailscaleAbort = new AbortController();
+let serverRetry: ReturnType<typeof setTimeout> | null = null;
+let serverAttempts = 0;
 
 function inTurn<T>(work: () => Promise<T>): Promise<T> {
   const next = lifecycle.then(work, work);
@@ -179,11 +192,16 @@ function announce() {
   if (options) options.onState(mobileState());
 }
 
+/** The pause before the next try, which stops growing at the last one. */
+function backoff(delays: number[], attempt: number) {
+  return delays[Math.min(attempt, delays.length - 1)]!;
+}
+
 function makeServer() {
   const store = devices;
   const bridge = relay;
   if (!store || !bridge) throw new Error("The phone bridge is not ready.");
-  return new MobileServer({
+  const made: MobileServer = new MobileServer({
     devices: store,
     staticRoot: host().staticRoot,
     port: host().port ?? (host().developmentRoot ? 0 : MOBILE_DEFAULT_PORT),
@@ -191,11 +209,16 @@ function makeServer() {
     snapshot: (sessionId) => bridge.snapshot(sessionId),
     command: (sessionId, command) => bridge.command(sessionId, command),
     query: (sessionId, query) => bridge.query(sessionId, query),
-    onChange: announce,
+    onChange: () => {
+      if (made === server && made.status === "error") void inTurn(() => recover(made)).catch((error) => console.error("Could not restart the phone bridge:", error));
+      announce();
+    },
     ...(host().workspace ? { workspace: host().workspace } : {}),
   });
+  return made;
 }
 
+/** A server that would not start is tried again for as long as phone access stays on. */
 async function startServer(localDevelopment = false) {
   if (stopping || server || (!settings.enabled && !localDevelopment)) return;
   starting = true;
@@ -205,6 +228,7 @@ async function startServer(localDevelopment = false) {
   try {
     await started.start(BIND_HOST);
     server = started;
+    cancelServerRetry();
   } catch (error) {
     failure = error instanceof Error ? error.message : String(error);
   } finally {
@@ -212,23 +236,58 @@ async function startServer(localDevelopment = false) {
   }
   announce();
   if (server && settings.enabled) scheduleServe(0);
+  else if (!server && settings.enabled && !stopping) scheduleStart();
+}
+
+/** A server that lost its port is let go and started again, the way one that never had a port is. */
+async function recover(broken: MobileServer) {
+  if (server !== broken) return;
+  await stopServer({ unserve: false });
+  failure = broken.error;
+  announce();
+  if (settings.enabled && !stopping) scheduleStart();
+}
+
+function scheduleStart() {
+  if (serverRetry) clearTimeout(serverRetry);
+  serverRetry = setTimeout(() => {
+    serverRetry = null;
+    void inTurn(() => startServer()).catch((error) => console.error("Could not start the phone bridge:", error));
+  }, backoff(SERVER_RETRY_MS, serverAttempts));
+  serverAttempts += 1;
+  serverRetry.unref?.();
+}
+
+function cancelServerRetry() {
+  if (serverRetry) clearTimeout(serverRetry);
+  serverRetry = null;
+  serverAttempts = 0;
+}
+
+/** Stops whatever Tailscale is still being asked, and hands what comes next a signal of its own. */
+function abortTailscale() {
+  tailscaleAbort.abort();
+  tailscaleAbort = new AbortController();
 }
 
 /**
  * Turning phone access off takes Serve down with it, so Tailscale stops answering for a port that no
- * longer listens. Quitting the app leaves Serve in place: Tailscale keeps the config across restarts,
- * and the server comes back on launch when the user left it on.
+ * longer listens, but only while Serve still points here: another copy of the app may hold it now.
+ * Quitting the app leaves Serve in place: Tailscale keeps the config across restarts, and the server
+ * comes back on launch when the user left it on.
  */
 async function stopServer(options: { unserve: boolean }) {
   cancelServeRetry();
+  cancelServerRetry();
+  abortTailscale();
   const running = server;
+  const port = running?.port ?? null;
   server = null;
   await running?.stop();
   relay?.failAll("The phone bridge was turned off.");
-  if (!options.unserve) return;
+  if (!options.unserve || port === null) return;
   await inTailscaleTurn(async () => {
-    if (!tailscale.serving) return;
-    const action = await tailscaleHooks().stop();
+    const action = await tailscaleHooks().stop(port, tailscaleAbort.signal);
     await refreshTailscaleState();
     if (!action.ok) tailscale = { ...tailscale, error: action.message };
   });
@@ -245,7 +304,7 @@ function scheduleServe(delayMs: number) {
   if (tailscaleRetry) clearTimeout(tailscaleRetry);
   tailscaleRetry = setTimeout(() => {
     tailscaleRetry = null;
-    void inTailscaleTurn(serveIfReady).then(announce);
+    void inTailscaleTurn(serveIfReady).then(announce, (error) => console.error("Could not check Tailscale:", error));
   }, delayMs);
   tailscaleRetry.unref?.();
 }
@@ -256,6 +315,7 @@ function scheduleServe(delayMs: number) {
  */
 export async function startMobileHost(hooks: MobileHostOptions): Promise<void> {
   stopping = false;
+  tailscaleAbort = new AbortController();
   options = hooks;
   settings = readSettings();
   tailscale = { ...emptyTailscaleState(), magicDnsName: settings.magicDnsName };
@@ -271,12 +331,16 @@ export async function startMobileHost(hooks: MobileHostOptions): Promise<void> {
       return pairingOffer(loopbackAddress(port), code);
     }));
   }
-  if (settings.enabled) await inTurn(startServer);
-  else if (!hooks.developmentRoot) void inTailscaleTurn(refreshTailscaleState).then(announce);
+  if (settings.enabled) await inTurn(() => startServer());
+  else if (!hooks.developmentRoot) void inTailscaleTurn(refreshTailscaleState).then(announce, (error) => console.error("Could not check Tailscale:", error));
 }
 
+/** Stopping never waits on Tailscale: whatever it is still being asked is aborted. */
 export async function stopMobileHost(): Promise<void> {
   stopping = true;
+  cancelServeRetry();
+  cancelServerRetry();
+  abortTailscale();
   await stopDevelopmentPairing?.();
   stopDevelopmentPairing = null;
   await inTurn(() => stopServer({ unserve: false }));
@@ -288,9 +352,12 @@ export async function stopMobileHost(): Promise<void> {
 }
 
 export async function setMobileEnabled(enabled: boolean): Promise<MobileServerState> {
-  if (settings.enabled === enabled) return mobileState();
-  settings = { ...settings, enabled };
-  writeSettings();
+  /** On but not running is a server that failed, which asking again starts rather than shrugs at. */
+  if (settings.enabled === enabled && (!enabled || server)) return mobileState();
+  if (settings.enabled !== enabled) {
+    settings = { ...settings, enabled };
+    writeSettings();
+  }
   /** The switch answers at once; the server follows behind whatever turn is still running. */
   announce();
   if (enabled) await inTurn(async () => {
@@ -323,7 +390,11 @@ export async function revokeMobileDevice(deviceId: string): Promise<MobileServer
 }
 
 async function refreshTailscaleState() {
-  tailscale = await tailscaleHooks().read(server?.port ?? null, tailscale.magicDnsName);
+  const { signal } = tailscaleAbort;
+  const read = await tailscaleHooks().read(server?.port ?? null, tailscale.magicDnsName, signal);
+  /** An answer cut short by a stop says nothing about Tailscale. */
+  if (signal.aborted) return tailscale;
+  tailscale = read;
   if (tailscale.magicDnsName && tailscale.magicDnsName !== settings.magicDnsName) {
     settings = { ...settings, magicDnsName: tailscale.magicDnsName };
     writeSettings();
@@ -338,9 +409,15 @@ function tailscaleHooks(): TailscaleHooks {
 /**
  * Asks Tailscale again, and finishes the setup if it now can: a user who installs or signs into
  * Tailscale after turning phone access on presses "Check again" and is served without another switch.
+ * A server that would not start is tried again first, since there is nothing to serve without one.
  */
 export async function refreshTailscale(): Promise<MobileServerState> {
   cancelServeRetry();
+  if (settings.enabled && !server) {
+    await inTurn(() => startServer());
+    /** This check is about to serve it, so the one a fresh server schedules would only repeat it. */
+    cancelServeRetry();
+  }
   await inTailscaleTurn(async () => {
     if (server) await serveIfReady();
     else await refreshTailscaleState();
@@ -350,35 +427,54 @@ export async function refreshTailscale(): Promise<MobileServerState> {
 }
 
 /**
- * Puts Tailscale Serve in front of the listening server whenever Tailscale is able to. A tailnet that
+ * Looks again now rather than at the next check: a machine that slept may wake to a Tailscale that
+ * was reset or handed 443 elsewhere meanwhile, and to a server that can start where it could not.
+ */
+export function recheckMobileHost(): void {
+  if (!options || stopping || !settings.enabled) return;
+  if (server) {
+    cancelServeRetry();
+    scheduleServe(0);
+  } else if (!starting) {
+    void inTurn(() => startServer()).catch((error) => console.error("Could not start the phone bridge:", error));
+  }
+}
+
+/**
+ * Keeps Tailscale Serve in front of the listening server for as long as it listens. A tailnet that
  * is not signed in or issues no certificate is reported as it stands rather than asked and left to
  * hang, and asked again later: Tailscale often comes up after the app does, and the user may install
- * or sign into it with phone access already on.
+ * or sign into it with phone access already on. Once served it is still looked at once a minute,
+ * and served again the moment it points anywhere else. Whatever goes wrong, the next look is booked.
  */
 async function serveIfReady() {
   const listening = server;
   const port = listening?.port ?? null;
   if (stopping || !listening || port === null || !settings.enabled) return;
+  let serving = false;
+  try {
+    serving = await serveListening(listening, port);
+  } catch (error) {
+    console.error("Could not serve the phone bridge over Tailscale:", error);
+  }
+  if (stopping || server !== listening || !settings.enabled) return;
+  if (serving) tailscaleAttempts = 0;
+  else tailscaleAttempts += 1;
+  scheduleServe(serving ? SERVE_CHECK_MS : backoff(TAILSCALE_RETRY_MS, tailscaleAttempts - 1));
+}
+
+/** Whether Serve now fronts this server, having asked it to when Tailscale is able to. */
+async function serveListening(listening: MobileServer, port: number) {
   await refreshTailscaleState();
-  if (server !== listening) return;
-  if (tailscale.serving) {
-    tailscaleAttempts = 0;
-    return;
-  }
-  if (tailscale.status === "ready" && tailscale.certs) {
-    const action = await tailscaleHooks().start(port);
-    if (server !== listening) return;
-    await refreshTailscaleState();
-    if (!action.ok) tailscale = { ...tailscale, error: action.message };
-    else devices?.discardCode();
-    if (tailscale.serving) {
-      tailscaleAttempts = 0;
-      return;
-    }
-  }
-  const delay = TAILSCALE_RETRY_MS[Math.min(tailscaleAttempts, TAILSCALE_RETRY_MS.length - 1)]!;
-  tailscaleAttempts += 1;
-  scheduleServe(delay);
+  if (server !== listening) return false;
+  if (tailscale.serving) return true;
+  if (tailscale.status !== "ready" || !tailscale.certs) return false;
+  const action = await tailscaleHooks().start(port, tailscaleAbort.signal);
+  if (server !== listening) return false;
+  await refreshTailscaleState();
+  if (!action.ok) tailscale = { ...tailscale, error: action.message };
+  else devices?.discardCode();
+  return tailscale.serving;
 }
 
 /** Hands a notice to the computers on the line; with no server up there is no one to hand it to. */

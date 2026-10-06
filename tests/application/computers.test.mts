@@ -347,7 +347,7 @@ test("the sidebar lists every computer's threads, tagged, and the filter narrows
   const state = withComputers(workspace({ threads: [local] }), [paired("linux", remoteState)]);
   const view = deriveView(state);
   assert.deepEqual(view.activityThreads.threads.map((thread) => thread.id).sort(), ["local", "remote-thread"]);
-  assert.deepEqual(view.threadHosts.get("remote-thread"), { id: "linux", name: "linux", offline: false });
+  assert.deepEqual(view.threadHosts.get("remote-thread"), { id: "linux", name: "linux", offline: false, reconnecting: false });
   assert.equal(view.threadHosts.get("local"), undefined);
   assert.deepEqual(view.projects.map((project) => project.id), ["remote-project"]);
   assert.equal(view.projectHosts.get("remote-project")?.name, "linux");
@@ -381,7 +381,7 @@ test("a paired computer's unread side chat marks its source row as well as the c
   assert.deepEqual([...view.sideChatAttention], ["remote-thread"]);
 });
 
-test("remote lists and attention follow connection changes while preserving threads for reconnection", () => {
+test("an unreachable computer's threads stay listed, dimmed, while only a connected one counts toward attention", () => {
   const local = task("local", { outcome: "finished", outcomeUnread: true });
   const remote: WorkspaceState = { ...remoteState, threads: ["claude", "codex"].map((engine) => ({
     ...remoteThread, id: engine, engine: engine as "claude" | "codex", outcome: "finished" as const, outcomeUnread: true,
@@ -391,16 +391,18 @@ test("remote lists and attention follow connection changes while preserving thre
     state = reduce(state, { type: "computers.changed", name: "This Mac", links: [link("linux", { status })] }).state;
     const connected = status === "connected";
     const view = deriveView(state);
-    const ids = connected ? ["claude", "codex", "local"] : ["local"];
+    const ids = ["claude", "codex", "local"];
     assert.deepEqual(view.orderedThreads.map((thread) => thread.id).sort(), ids);
     assert.deepEqual(view.activityThreads.priority.map((thread) => thread.id).sort(), ids);
     assert.deepEqual(view.threadSlots.slice().sort(), ids);
+    assert.equal(view.threadHosts.get("claude")?.offline, !connected, "a row from a computer that is away is drawn as away");
+    assert.equal(view.threadHosts.get("claude")?.reconnecting, status === "connecting");
     assert.equal(view.unreadCount, connected ? 3 : 1);
     assert.equal(remoteUnreadCount(state.computers), connected ? 2 : 0);
-    assert.deepEqual(view.projects.map((project) => project.id), connected ? ["remote-project"] : []);
+    assert.deepEqual(view.projects.map((project) => project.id), ["remote-project"]);
     assert.equal(state.computers.paired[0].state, remote, "history and priority remain on the cached workspace");
     const narrowed = deriveView({ ...state, computers: { ...state.computers, filter: "linux" } });
-    assert.deepEqual(narrowed.orderedThreads.map((thread) => thread.id).sort(), connected ? ["claude", "codex"] : []);
+    assert.deepEqual(narrowed.orderedThreads.map((thread) => thread.id).sort(), ["claude", "codex"]);
     if (!connected) {
       const dismissed = reduce(state, { type: "task.dismiss-all" });
       assert.equal(dismissed.state.actionError, null);
@@ -566,7 +568,7 @@ test("a paired computer whose line drops leaves the screen, and the window's own
 test("a command that names a thread or project on a computer that is away is refused with why, once", () => {
   const away = paired("linux", remoteState, { status: "offline", error: "The other computer runs a different version of AI Coding Tool. Update both." });
   const state = withComputers(workspace({ threads: [task("local")] }), [away]);
-  const why = { kind: "refuse", message: away.error };
+  const why = { kind: "refuse", message: `linux is offline. ${away.error}` };
   assert.deepEqual(routeInput(state, { type: "task.select", taskId: "remote-thread" }), why);
   assert.deepEqual(routeInput(state, { type: "task.new", projectId: "remote-project" }), why);
   assert.deepEqual(routeInput(state, { type: "run.cancel", taskId: "remote-thread" }), why);
@@ -574,10 +576,10 @@ test("a command that names a thread or project on a computer that is away is ref
   assert.deepEqual(routeInput(state, { type: "project.remove", projectId: "remote-project" }), why);
   const refused = reduce(state, { type: "task.select", taskId: "remote-thread" });
   assert.equal(refused.state.computers.active, null, "a computer that cannot take the selection is not put on screen");
-  assert.equal(refused.state.actionError, away.error);
+  assert.equal(refused.state.actionError, why.message);
   assert.deepEqual(refused.effects, []);
   const nameless = withComputers(state, [paired("linux", remoteState, { status: "connecting" })]);
-  assert.deepEqual(routeInput(nameless, { type: "task.select", taskId: "remote-thread" }), { kind: "refuse", message: "linux is offline." });
+  assert.deepEqual(routeInput(nameless, { type: "task.select", taskId: "remote-thread" }), { kind: "refuse", message: "linux is reconnecting." });
 });
 
 test("a computer on screen that is not connected counts as none: the window paints and routes its own", () => {
@@ -618,7 +620,7 @@ test("remote terminals stay with their host across selection changes and reconne
   assert.equal(reduce(dropped, command).result?.ok, false);
   assert.equal(reduce(dropped, { type: "terminal.open" }).result?.ok, false);
   const back = reduce(dropped, { type: "computers.changed", name: "This Mac", links: [link("linux")] });
-  assert.deepEqual(back.effects, [], "reconnection never replays keyboard input");
+  assert.deepEqual(back.effects, [{ type: "computer.forward", id: "linux", inputs: [{ type: "view.set-focused", focused: back.state.focused }] }], "reconnection says only whether anyone is looking, and never replays keyboard input");
   assert.equal(deriveView(back.state).terminals[0].id, terminal.id);
   const search = reduce(back.state, { type: "view.find-open" });
   assert.deepEqual(search.state.find?.target, { kind: "terminal", terminalId: terminal.id });

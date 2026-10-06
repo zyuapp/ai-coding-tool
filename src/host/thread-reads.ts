@@ -6,6 +6,7 @@ import type { ThreadListQuery, ThreadRequest, ThreadSummary, ThreadTranscript } 
 import { isComputerQuery, type ComputerThreadQuery } from "../contracts/computers.js";
 import type { ComputerDesktop } from "./runtime-desktop.js";
 import { matchingProjects } from "../domain/project.js";
+import { awayStatus } from "../domain/computers.js";
 
 type ReadHost = { state(): WorkspaceState; desktop: Pick<ComputerDesktop, "queryComputerThreads"> };
 
@@ -58,10 +59,14 @@ function tag(computer: PairedComputer) {
 }
 
 function online(computer: PairedComputer) {
-  if (computer.status !== "connected") throw new Error(`${computer.name} is offline. Reconnect it to read its threads.`);
+  if (computer.status !== "connected") throw new Error(`${computer.name} is ${awayStatus(computer.status)}, so its threads cannot be read right now.`);
 }
 
-/** Ordinary listings use the already mirrored index, including cached rows when a host is offline. */
+/**
+ * Ordinary listings use the already mirrored index, including cached rows when a host is offline. A
+ * listing across every computer leaves out one it cannot answer for: one that has sent no list yet,
+ * or, for a search, one whose line is down or that fails to answer. Naming that computer says why.
+ */
 export async function listAcrossComputers(host: ReadHost, caller: string, query: ThreadListQuery, stored?: ReadonlySet<string>): Promise<ThreadSummary[]> {
   const state = host.state();
   const selected = computers(state, query.computer ?? "this");
@@ -70,15 +75,25 @@ export async function listAcrossComputers(host: ReadHost, caller: string, query:
   if (selected.paired.length && filter.project === "current") throw new Error('Project "current" belongs to this computer. Use computer "this", or name a remote project.');
   const covers = (state: WorkspaceState) => query.computer !== "all" || !filter.project || filter.project === "all" || filter.project === "current" || matchingProjects(state.projects, filter.project).length > 0;
   const rows = selected.local && covers(state) ? localThreadList(state, caller, filter, stored) : [];
+  const every = query.computer === "all";
   const remote = await Promise.all(selected.paired.map(async (computer) => {
-    if (!computer.state) throw new Error(`${computer.name} has no cached thread list. Reconnect it and try again.`);
+    if (!computer.state) {
+      if (every) return [];
+      throw new Error(`${computer.name} has not sent its thread list yet. Try again once it is connected.`);
+    }
     if (!covers(computer.state)) return [];
     let summaries: ThreadSummary[];
     if (filter.search?.trim()) {
+      if (every && computer.status !== "connected") return [];
       online(computer);
-      const result = await host.desktop.queryComputerThreads(computer.id, { ...filter, kind: "thread-list", limit: Math.min(filter.limit ?? 20, 200) });
-      if (!Array.isArray(result) || result.length > 200 || !result.every(isThreadSummary)) throw new Error(`Invalid thread list from ${computer.name}.`);
-      summaries = result;
+      try {
+        const result = await host.desktop.queryComputerThreads(computer.id, { ...filter, kind: "thread-list", limit: Math.min(filter.limit ?? 20, 200) });
+        if (!Array.isArray(result) || result.length > 200 || !result.every(isThreadSummary)) throw new Error(`Invalid thread list from ${computer.name}.`);
+        summaries = result;
+      } catch (error) {
+        if (every) return [];
+        throw error;
+      }
     } else {
       summaries = localThreadList(computer.state, "", filter);
     }
@@ -105,7 +120,7 @@ export function resolveThreadRead(state: WorkspaceState, reference: string, sele
   const match = candidates[0];
   if (!match) {
     const missing = scope.paired.filter((computer) => !computer.state || computer.status !== "connected");
-    throw new Error(`No thread has the ID ${reference}.${missing.length ? ` Reconnect ${missing.map((computer) => computer.name).join(", ")} to check its threads.` : ""}`);
+    throw new Error(`No thread has the ID ${reference}.${missing.length ? ` ${missing.map((computer) => computer.name).join(", ")} ${missing.length === 1 ? "is" : "are"} not connected, so newer threads there may be missing.` : ""}`);
   }
   return match;
 }

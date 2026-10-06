@@ -16,6 +16,7 @@ function settings(overrides: Partial<ComputerSettingsProps>) {
     onPair() {},
     onCancelPairing() {},
     onForget() {},
+    onReconnect() {},
     onRename() {},
     onLabel() {},
     ...overrides,
@@ -45,5 +46,28 @@ test("a computer the tailnet does not list is paired by its address, with the co
     assert.match(asked.container.querySelector(".computer-code label span")!.textContent!, /127\.0\.0\.1:7737/);
   } finally {
     await asked.unmount();
+  }
+});
+
+test("a computer that is not connected says whether it is being dialled and why it is down, and offers to reconnect", async () => {
+  const reconnected: string[] = [];
+  const links: ComputerSettingsProps["links"] = [
+    { id: "up", name: "Up", host: "up.tail.ts.net", status: "connected", error: null, pairedAt: 1 },
+    { id: "dialling", name: "Dialling", host: "dialling.tail.ts.net", status: "connecting", error: "That computer cannot be reached right now.", pairedAt: 1 },
+    { id: "down", name: "Down", host: "down.tail.ts.net", status: "offline", error: null, pairedAt: 1 },
+  ];
+  const view = await mount(settings({ links, onReconnect: (id) => reconnected.push(id) }));
+  try {
+    const row = (id: string) => view.container.querySelector(`[data-computer="${id}"]`)!;
+    const reconnect = (id: string) => [...row(id).querySelectorAll("button")].find((button) => button.textContent === "Reconnect");
+    assert.equal(row("up").querySelector(".phone-device-state")!.textContent, "up.tail.ts.net · Connected");
+    assert.equal(row("dialling").querySelector(".phone-device-state")!.textContent, "dialling.tail.ts.net · Reconnecting… · That computer cannot be reached right now.");
+    assert.equal(row("down").querySelector(".phone-device-state")!.textContent, "down.tail.ts.net · Offline");
+    assert.equal(reconnect("up"), undefined);
+    await act(async () => { reconnect("dialling")!.click(); });
+    await act(async () => { reconnect("down")!.click(); });
+    assert.deepEqual(reconnected, ["dialling", "down"]);
+  } finally {
+    await view.unmount();
   }
 });

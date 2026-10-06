@@ -34,7 +34,7 @@ export class MobileRelay {
   async snapshot(sessionId: string): Promise<MobileView> {
     const response = await this.ask({ type: "mobile.request", requestId: randomUUID(), sessionId, op: "snapshot" });
     if (!response.ok) throw new Error(response.message);
-    if (!isView(response.result)) throw new Error("The AI Coding Tool window sent an unreadable view.");
+    if (!isView(response.result)) throw new Error("Your computer sent a view this phone could not read.");
     return response.result;
   }
 
@@ -72,12 +72,12 @@ export class MobileRelay {
     return new Promise<MobileResponse>((resolve) => {
       const timer = setTimeout(() => {
         this.pending.delete(request.requestId);
-        resolve({ type: "mobile.response", requestId: request.requestId, ok: false, message: `AI Coding Tool did not answer the phone's "${request.op}" within ${this.patience}ms.` });
+        resolve({ type: "mobile.response", requestId: request.requestId, ok: false, message: "Your computer did not answer in time. Try again." });
       }, this.patience);
       timer.unref?.();
       this.pending.set(request.requestId, { settle: resolve, timer });
       if (this.host.send(request)) return;
-      this.answer({ type: "mobile.response", requestId: request.requestId, ok: false, message: "The AI Coding Tool window is not open." });
+      this.answer({ type: "mobile.response", requestId: request.requestId, ok: false, message: "The AI Coding Tool window is not open on your computer." });
     });
   }
 }

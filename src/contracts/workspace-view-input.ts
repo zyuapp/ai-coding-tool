@@ -356,6 +356,7 @@ const commands = {
   "computers.pair": { fields: { host: text, name: text, code: text }, at: "local" },
   "computers.cancel-pairing": { fields: {}, at: "local" },
   "computers.forget": { fields: { id: text }, at: "local" },
+  "computers.reconnect": { fields: { id: optionalText }, at: "local" },
   "computers.rename": { fields: { name: text }, at: "local" },
   "computers.label": { fields: { id: text, name: text }, at: "local" },
   "computers.filter": { fields: { filter: text }, at: "local" },

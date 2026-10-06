@@ -107,8 +107,8 @@ test("what went wrong after the phone was acknowledged travels as part of the vi
 
   const clear = projectMobileView({ ...state, actionError: null }, NOW);
   assert.deepEqual(diffMobileView(failed, clear), { error: null });
-  assert.equal(applyMobilePatch(failed, { error: null }).error, null);
-  assert.equal(applyMobilePatch(failed, { groups: [] }).error, "That worktree is busy.", "a patch that says nothing about it leaves it alone");
+  assert.equal(applyMobilePatch(failed, { error: null })?.error, null);
+  assert.equal(applyMobilePatch(failed, { groups: [] })?.error, "That worktree is busy.", "a patch that says nothing about it leaves it alone");
 });
 
 test("a running thread and a blocked one are told apart in the list", () => {
@@ -235,12 +235,12 @@ test("a message arriving costs an append, not a transcript", () => {
 
   const patch = diffMobileView(projectMobileView(before, NOW), projectMobileView(after, NOW));
   assert.ok(patch);
-  assert.ok(patch.groups, "the thread moved up the list");
+  assert.equal(patch.groups, undefined, "a row that only moved in time, by less than the list draws, is not sent again");
   assert.equal(patch.thread?.kind, "changed");
   assert.ok(patch.thread?.kind === "changed");
-  assert.deepEqual(patch.thread.delta.appended?.map((entry) => entry.text), ["on it"]);
+  assert.deepEqual(patch.thread.delta.spliced?.messages.map((entry) => entry.text), ["on it"]);
   assert.equal(patch.thread.delta.messages, undefined);
-  assert.deepEqual(applyMobilePatch(projectMobileView(before, NOW), patch), projectMobileView(after, NOW));
+  assert.deepEqual(applyMobilePatch(projectMobileView(before, NOW), patch)?.thread, projectMobileView(after, NOW).thread);
 });
 
 test("a transcript that did not simply grow is replaced whole", () => {
@@ -249,7 +249,7 @@ test("a transcript that did not simply grow is replaced whole", () => {
 
   const patch = diffMobileView(projectMobileView(before, NOW), projectMobileView(after, NOW));
   assert.ok(patch?.thread?.kind === "changed");
-  assert.equal(patch.thread.delta.appended, undefined);
+  assert.equal(patch.thread.delta.spliced, undefined);
   assert.deepEqual(patch.thread.delta.messages?.map((entry) => entry.text), ["do that instead"]);
 });
 
@@ -263,7 +263,7 @@ test("opening, changing and closing a thread are three different patches", () =>
 
   const closed = diffMobileView(projectMobileView(open, NOW), projectMobileView(none, NOW));
   assert.equal(closed?.thread?.kind, "closed");
-  assert.equal(applyMobilePatch(projectMobileView(open, NOW), closed!).thread, null);
+  assert.equal(applyMobilePatch(projectMobileView(open, NOW), closed!)?.thread, null);
 
   const moved = diffMobileView(projectMobileView(open, NOW), projectMobileView(other, NOW));
   assert.equal(moved?.thread?.kind, "opened", "another thread is one the phone has never seen");

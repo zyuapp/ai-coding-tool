@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { MAX_TITLE_LENGTH } from "../../contracts/mobile";
 import { Sheet } from "./Sheet";
 
 export function RenameSheet({ title, onClose, onRename }: { title: string; onClose: () => void; onRename: (title: string) => void }) {
@@ -15,6 +16,7 @@ export function RenameSheet({ title, onClose, onRename }: { title: string; onClo
           type="text"
           aria-label="Thread title"
           value={draft}
+          maxLength={MAX_TITLE_LENGTH}
           enterKeyHint="done"
           autoCapitalize="sentences"
           onInput={(event) => setDraft(event.currentTarget.value)}

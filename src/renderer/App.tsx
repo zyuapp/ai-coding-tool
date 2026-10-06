@@ -146,7 +146,7 @@ export function App() {
           currentThread={workspace.currentThread}
           folder={workspace.folder}
           folderLabel={workspace.folderLabel}
-          host={workspace.activeComputer && { name: workspace.activeComputer.name, offline: workspace.activeComputer.status !== "connected" }}
+          host={workspace.activeComputer && { name: workspace.activeComputer.name, offline: workspace.activeComputer.status !== "connected", reconnecting: workspace.activeComputer.status === "connecting" }}
           sidebarOpen={sidebarOpen}
           sessionPanelOpen={sessionPanelVisible}
           rightDockOpen={rightDockOpen}

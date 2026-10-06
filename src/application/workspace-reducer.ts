@@ -64,10 +64,13 @@ function forwardEffect(route: Extract<InputRoute, { kind: "computer" }>): Worksp
   return { type: "computer.forward", id: route.computer.id, inputs: route.inputs, ...(route.draft ? { draft: route.draft } : {}) };
 }
 
-/** A command that moves this window to one of its own threads takes the paired computer off screen. */
+/**
+ * A command that moves this window to one of its own threads takes the paired computer off screen,
+ * and lets go of one waiting for its line to come back on screen.
+ */
 function leavingComputer(state: WorkspaceState, input: WorkspaceInput): WorkspaceState {
-  if (state.computers.active === null || !leavesComputer(state, input)) return state;
-  return { ...state, computers: { ...state.computers, active: null } };
+  if ((state.computers.active === null && state.computers.dropped === null) || !leavesComputer(state, input)) return state;
+  return { ...state, computers: { ...state.computers, active: null, dropped: null } };
 }
 
 /**
@@ -92,7 +95,7 @@ function forwarded(state: WorkspaceState, route: Extract<InputRoute, { kind: "co
     if (send.busy) return settled(state);
     next = { ...next, attachmentSends: { ...next.attachmentSends, [attachments.key]: { ...send, busy: true, error: null } } };
   }
-  if (route.select) next = { ...next, computers: { ...next.computers, active: route.computer.id }, actionError: null };
+  if (route.select) next = { ...next, computers: { ...next.computers, active: route.computer.id, dropped: null }, actionError: null };
   return { state: next, effects: [...leftBehind(state, next), forwardEffect(route)], result: { ok: true } };
 }
 

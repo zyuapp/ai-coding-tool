@@ -8,7 +8,6 @@ import path from "node:path";
 import type { Duplex } from "node:stream";
 import { WebSocketServer, type WebSocket } from "ws";
 import {
-  isMobileClientMessage,
   MOBILE_PROTOCOL_VERSION,
   type MobileClientMessage,
   type MobileCommand,
@@ -26,6 +25,7 @@ import {
   MAX_SESSIONS_PER_DEVICE,
   MOBILE_APP_PATH,
   MOBILE_BUFFER_BYTES,
+  MOBILE_CONGESTED_BYTES,
   MOBILE_DEAD_AFTER_MS,
   MOBILE_EVENT_BUFFER,
   MOBILE_PING_INTERVAL_MS,
@@ -33,13 +33,15 @@ import {
   type MobileSession,
   type MobileSessionView,
 } from "../../domain/mobile.js";
-import { MOBILE_HEALTH_PATH, MOBILE_HEALTH_RESPONSE } from "./addresses.mjs";
+import { MOBILE_HEALTH_PATH, MOBILE_HEALTH_RESPONSE, MOBILE_INSTANCE, MOBILE_INSTANCE_HEADER } from "./addresses.mjs";
 import type { PairingStore } from "./pairing.mjs";
+import { forwardedHost, forwardedScheme, listen, readClientMessage, rejectedComputerRequest, rejectedPhoneRequest, sourceOf } from "./socket-requests.mjs";
 import type { ThreadNotice } from "../../contracts/ipc.js";
-import { COMPUTER_TRANSFER_TIMEOUT_MS, MAX_COMPUTER_MESSAGE_BYTES, isComputerTransfer, isComputerClientMessage, type ComputerClientMessage, type ComputerQuery, type ComputerServerMessage } from "../../contracts/computers.js";
+import { COMPUTER_TRANSFER_TIMEOUT_MS, MAX_COMPUTER_MESSAGE_BYTES, isComputerTransfer, type ComputerClientMessage, type ComputerQuery, type ComputerServerMessage } from "../../contracts/computers.js";
 import type { WorkspaceCommandResult, WorkspaceInput } from "../../application/workspace-reducer.js";
 import type { WorkspaceUpdate } from "../../contracts/workspace-runtime.js";
 import { stringifyWorkspaceJson } from "../../application/workspace-json.js";
+import { applyMobilePatch } from "../../application/mobile-projection.js";
 import type { PairedDeviceKind } from "../../domain/mobile.js";
 
 /** Where the phone page talks back. Pairing happens on the same socket, as its first message. */
@@ -64,6 +66,10 @@ const MAX_QUERIES_IN_FLIGHT = 8;
  * would otherwise keep delivering messages for `ws`'s own half-minute, so it is cut instead.
  */
 const CLOSE_GRACE_MS = 250;
+/** How often a phone behind a congested line is looked at again, to hand it the view once it drains. */
+const CATCH_UP_MS = 250;
+/** What a phone is told when it sends something the server cannot read, instead of being hung up on. */
+const PHONE_UNREADABLE = "Your computer could not read that request.";
 
 /** What the build is called when the page cannot be read. Every phone agrees on it, so none reloads. */
 const UNKNOWN_BUILD = "unknown";
@@ -93,13 +99,12 @@ const SECURITY_HEADERS = {
   "referrer-policy": "no-referrer",
 };
 
-/** How a command ended, kept so a resend is answered rather than run a second time. */
-type AckOutcome = { ok: true } | { ok: false; message: string };
+/** How a command ended, kept so a resend is answered rather than run a second time, with what it named. */
+type AckOutcome = WorkspaceCommandResult;
 
 /** One outbound message, kept as the text it was sent as so replaying it costs nothing. */
 type Buffered = { sequence: number; text: string };
 
-type ClientMessage = MobileClientMessage | ComputerClientMessage;
 
 type Session = MobileSession & {
   deviceName: string;
@@ -119,6 +124,8 @@ type Session = MobileSession & {
   queries: number;
   /** Upload announcements and attachment requests still being handled or written to the socket. */
   transfers: Map<string, number>;
+  /** A phone that fell behind a congested line, waiting for it to drain before it is handed the view whole. */
+  catchingUp?: ReturnType<typeof setTimeout>;
 };
 
 /**
@@ -189,6 +196,12 @@ export class MobileServer {
   /** Sockets that have connected but not yet said who they are. */
   private pending = 0;
   private stopWorkspace: (() => void) | null = null;
+  /**
+   * The view the published patches build, which is exactly what every phone on the line holds. A
+   * phone that arrives is handed this rather than asking the window, so nothing published while it
+   * waited can fall between its snapshot and the patches after it. Null until there is one to keep.
+   */
+  private view: MobileView | null = null;
 
   constructor(private readonly options: MobileServerOptions) {}
 
@@ -230,6 +243,17 @@ export class MobileServer {
       await this.stop();
       throw error;
     }
+    /**
+     * Once the port is up an error is mostly a connection the server shrugs off, and with no one
+     * listening for it would take the whole app down. One that cost the port is a server gone, which
+     * is reported as a failure for the host to start again.
+     */
+    server.on("error", (error) => {
+      console.error("The phone bridge server failed:", error);
+      if (this.http !== server || server.listening) return;
+      this.failure = error.message;
+      this.options.onChange();
+    });
     this.heartbeat = setInterval(() => this.tick(), MOBILE_PING_INTERVAL_MS);
     this.heartbeat.unref?.();
     this.stopWorkspace = this.options.workspace?.subscribe((update) => {
@@ -282,12 +306,39 @@ export class MobileServer {
     });
   }
 
-  /** What every phone should see now. Offline sessions are numbered too, so a resume replays them. */
+  /**
+   * What every phone should see now. Offline sessions are numbered too, so a resume replays them. A
+   * whole view is ground truth, so a phone still waiting for one is handed it too.
+   */
   publish(update: MobileViewUpdate) {
+    this.view = update.kind === "snapshot" ? update.view : this.view && applyMobilePatch(this.view, update.patch);
     for (const session of this.sessions.values()) {
-      if (session.kind !== "phone" || session.awaitingSnapshot) continue;
-      this.emit(session, update.kind === "snapshot" ? { kind: "snapshot", sessionId: session.id, build: this.build, view: update.view } : { kind: "patch", patch: update.patch });
+      if (session.kind !== "phone") continue;
+      if (update.kind === "snapshot") {
+        session.awaitingSnapshot = false;
+        this.emit(session, { kind: "snapshot", sessionId: session.id, build: this.build, view: update.view });
+      } else if (!session.awaitingSnapshot) {
+        if (congested(session)) this.fallBehind(session);
+        else this.emit(session, { kind: "patch", patch: update.patch });
+      }
     }
+  }
+
+  /**
+   * A phone whose socket still holds what it was handed earlier is handed no more: patches would
+   * queue faster than they drain, and the phone would read a reply seconds late, step by step. It is
+   * owed the view instead, handed whole once the line drains, or kept for its resume if it drops.
+   */
+  private fallBehind(session: Session) {
+    session.awaitingSnapshot = true;
+    if (session.catchingUp) return;
+    session.catchingUp = setTimeout(() => {
+      session.catchingUp = undefined;
+      if (this.sessions.get(session.id) !== session || !session.awaitingSnapshot) return;
+      if (congested(session)) this.fallBehind(session);
+      else void this.sendSnapshot(session);
+    }, CATCH_UP_MS);
+    session.catchingUp.unref?.();
   }
 
   /** A revoked phone loses its session with its token, mid-conversation if that is where it is. */
@@ -295,7 +346,7 @@ export class MobileServer {
     for (const session of [...this.sessions.values()]) {
       if (session.deviceId !== deviceId) continue;
       this.forget(session);
-      hangUp(session.socket, 4003, "This phone was unpaired.");
+      hangUp(session.socket, 4003, session.kind === "computer" ? "This computer was unpaired." : "This phone was unpaired.");
     }
     this.handled.delete(deviceId);
   }
@@ -307,6 +358,8 @@ export class MobileServer {
    */
   private forget(session: Session) {
     this.sessions.delete(session.id);
+    /** With nobody left the window stops publishing, so what was kept would only go stale. */
+    if (!this.sessions.size) this.view = null;
   }
 
   private emit(session: Session, message: OutboundMessage, sent?: () => void) {
@@ -347,6 +400,13 @@ export class MobileServer {
       this.forget(stale);
       hangUp(stale.socket, 4002, "This phone connected again.");
     }
+    /**
+     * A phone that opens a session has given up on the ones it dropped: it resumes the one it names,
+     * and here that failed. Kept, they would be published to, and keep the computer awake, until they expire.
+     */
+    if (kind === "phone") {
+      for (const dropped of held) if (dropped !== session && dropped.kind === "phone" && !dropped.socket) this.forget(dropped);
+    }
     return session;
   }
 
@@ -379,9 +439,15 @@ export class MobileServer {
         this.emit(session, { kind: "workspace", sessionId: session.id, update: handedOver(workspace.snapshot()) });
         return;
       }
-      const view = await this.options.snapshot(session.id);
+      /** Only with no view kept is the window asked; the one it answers with is then what is kept. */
+      if (!this.view) {
+        const view = await this.options.snapshot(session.id);
+        /** A whole view published while this one was fetched has been handed over already, and is newer. */
+        if (!session.awaitingSnapshot) return;
+        this.view = view;
+      }
       session.awaitingSnapshot = false;
-      this.emit(session, { kind: "snapshot", sessionId: session.id, build: this.build, view });
+      this.emit(session, { kind: "snapshot", sessionId: session.id, build: this.build, view: this.view });
     } catch (error) {
       /**
        * A session with no view to patch is no session. The phone hears why, is hung up on, and
@@ -390,7 +456,7 @@ export class MobileServer {
       const message = error instanceof Error ? error.message : String(error);
       this.emit(session, { kind: "error", code: "internal", message });
       this.forget(session);
-      hangUp(session.socket, 1011, message);
+      hangUp(session.socket, 1011, session.kind === "computer" ? message : "The view could not be read.");
       this.options.onChange();
     }
   }
@@ -445,6 +511,12 @@ export class MobileServer {
             : { kind: "answer", requestId: rejected.requestId, ok: false, message: REMOTE_UNSUPPORTED });
         }
       }
+      /** A phone's request that is not one it may make is answered as refused; hanging up would only have it sent again. */
+      if (!message && session?.kind === "phone" && this.sessions.get(session.id) === session) {
+        const rejected = rejectedPhoneRequest(data);
+        if (rejected?.kind === "command") return this.ack(session, rejected.requestId, { ok: false, message: PHONE_UNREADABLE });
+        if (rejected) return this.emit(session, { kind: "answer", requestId: rejected.requestId, ok: false, message: PHONE_UNREADABLE });
+      }
       if (!message) return refuse(socket, "unreadable", kind === "computer"
         ? "The remote computer could not read this request. Updating AI Coding Tool on the remote computer may help."
         : "That message could not be read.");
@@ -472,6 +544,8 @@ export class MobileServer {
    */
   private onSessionMessage(session: Session, message: MobileClientMessage) {
     if (message.kind === "query") return this.onQuery(session, message);
+    /** A phone checking the line after a sleep or a change of network is answered at once. */
+    if (message.kind === "ping") return this.emit(session, { kind: "ping", at: Date.now() });
     if (message.kind !== "command") return;
     const { requestId } = message;
     const handled = this.handled.get(session.deviceId);
@@ -526,31 +600,50 @@ export class MobileServer {
       if (session.queries >= MAX_QUERIES_IN_FLIGHT) return this.emit(session, { kind: "answer", requestId, ok: false, message: "That computer is asking for too much at once." }, sent);
       session.queries += 1;
       workspace.query(message.query).then(
-        (result) => this.emit(session, { kind: "answer", requestId, ok: true, result }, sent),
-        (error: unknown) => this.emit(session, { kind: "answer", requestId, ok: false, message: error instanceof Error ? error.message : String(error) }, sent),
+        (result) => this.emit(this.answering(session), { kind: "answer", requestId, ok: true, result }, sent),
+        (error: unknown) => this.emit(this.answering(session), { kind: "answer", requestId, ok: false, message: error instanceof Error ? error.message : String(error) }, sent),
       ).finally(() => { session.queries -= 1; });
       return;
     }
     const handled = this.handled.get(session.deviceId);
     if (!handled) return;
+    /** One still running is answered when it settles, on whichever line the computer has by then. */
     if (handled.has(requestId)) {
       const settled = handled.get(requestId);
       if (settled) this.emit(session, { kind: "result", requestId, result: { ...settled, revision: 0 } }, sent);
       return;
     }
+    if ([...handled.values()].filter((outcome) => outcome === null).length >= MAX_COMMANDS_IN_FLIGHT) {
+      return this.emit(session, { kind: "result", requestId, result: { ok: false, message: "That computer has too much still waiting.", revision: 0 } }, sent);
+    }
     handled.set(requestId, null);
     this.trim(handled);
     workspace.input(message.inputs).then(
       (result) => {
-        if (handled.has(requestId)) handled.set(requestId, result.ok ? { ok: true } : { ok: false, message: result.message });
-        this.emit(session, { kind: "result", requestId, result }, sent);
+        const { revision: _revision, ...outcome } = result;
+        if (handled.has(requestId)) handled.set(requestId, outcome);
+        this.emit(this.answering(session), { kind: "result", requestId, result }, sent);
       },
       (error: unknown) => {
         const failed = { ok: false as const, message: error instanceof Error ? error.message : String(error) };
         if (handled.has(requestId)) handled.set(requestId, failed);
-        this.emit(session, { kind: "result", requestId, result: { ...failed, revision: 0 } }, sent);
+        this.emit(this.answering(session), { kind: "result", requestId, result: { ...failed, revision: 0 } }, sent);
       },
     );
+  }
+
+  /**
+   * Where a request's outcome goes: the session that asked while its line is up, else whichever
+   * session of the same device has one. A device that lost the line may have come back as a new
+   * session, and asks again for what it is still owed; the answer must find it there.
+   */
+  private answering(session: Session): Session {
+    if (session.socket && this.sessions.get(session.id) === session) return session;
+    let live: Session | null = null;
+    for (const entry of this.sessions.values()) {
+      if (entry.deviceId === session.deviceId && entry.socket && (!live || entry.startedAt >= live.startedAt)) live = entry;
+    }
+    return live ?? session;
   }
 
   private onQuery(session: Session, message: MobileQueryRequest) {
@@ -576,7 +669,7 @@ export class MobileServer {
   private settle(session: Session, requestId: string, outcome: AckOutcome) {
     const handled = this.handled.get(session.deviceId);
     if (handled?.has(requestId)) handled.set(requestId, outcome);
-    this.ack(session, requestId, outcome);
+    this.ack(this.answering(session), requestId, outcome);
   }
 
   private ack(session: Session, requestId: string, outcome: AckOutcome) {
@@ -666,7 +759,8 @@ export class MobileServer {
     if (request.method !== "GET") return plain(response, 405, "Method not allowed");
     /** The socket path is only ever an upgrade; a plain GET on it is not the page. */
     if (url.pathname === SOCKET_PATH) return plain(response, 400, "This address is a WebSocket.");
-    if (url.pathname === MOBILE_HEALTH_PATH) return plain(response, 200, MOBILE_HEALTH_RESPONSE);
+    /** The instance header tells this process's server from another copy's behind the same name. */
+    if (url.pathname === MOBILE_HEALTH_PATH) return plain(response.setHeader(MOBILE_INSTANCE_HEADER, MOBILE_INSTANCE), 200, MOBILE_HEALTH_RESPONSE);
     if (url.pathname === "/" || url.pathname === MOBILE_APP_PATH) {
       response.writeHead(302, { location: `${MOBILE_APP_PATH}/${url.search}`, ...SECURITY_HEADERS });
       return response.end();
@@ -761,20 +855,9 @@ function refuseUpgrade(socket: Duplex, status: string) {
   socket.destroy();
 }
 
-function readClientMessage(data: unknown, kind: PairedDeviceKind): ClientMessage | null {
-  const text = Buffer.isBuffer(data) ? data.toString("utf8") : Array.isArray(data) ? Buffer.concat(data).toString("utf8") : String(data);
-  const parsed = parseJson(text);
-  if (kind === "computer") return isComputerClientMessage(parsed) ? parsed : null;
-  return isMobileClientMessage(parsed) ? parsed : null;
-}
-
-/** Only an authenticated socket gets a correlated refusal; no rejected payload reaches the reducer. */
-function rejectedComputerRequest(data: WebSocket.RawData): { kind: "input" | "query"; requestId: string } | null {
-  try {
-    const value = JSON.parse(data.toString()) as Record<string, unknown> | null;
-    if (!value || (value.kind !== "input" && value.kind !== "query") || typeof value.requestId !== "string" || !value.requestId || value.requestId.length > 256) return null;
-    return { kind: value.kind, requestId: value.requestId };
-  } catch { return null; }
+/** Whether a phone's socket still holds more unsent than a patch should queue behind. */
+function congested(session: Session) {
+  return session.socket !== null && session.socket.bufferedAmount > MOBILE_CONGESTED_BYTES;
 }
 
 /** Computers connect best effort across versions; a stale phone page can reload from its host. */
@@ -784,76 +867,7 @@ function versionAccepted(version: number, kind: PairedDeviceKind, socket: WebSoc
   return false;
 }
 
-function parseJson(text: string): unknown {
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Only ever used to count wrong pairing codes against one caller. Tailscale Serve proxies from the
- * loopback and names the real peer in the forwarded header, which is trusted only from the loopback:
- * without it every phone on the tailnet would be one bucket, and one stale QR would lock them all out.
- */
-function sourceOf(request: IncomingMessage) {
-  const remote = request.socket.remoteAddress ?? "unknown";
-  if (!isLoopback(remote)) return remote;
-  const forwarded = header(request, "x-forwarded-for")?.split(",")[0]?.trim();
-  return forwarded || remote;
-}
-
-function isLoopback(address: string) {
-  return address === "127.0.0.1" || address === "::1" || address === "::ffff:127.0.0.1";
-}
-
-function header(request: IncomingMessage, name: string): string | null {
-  const value = request.headers[name];
-  const text = Array.isArray(value) ? value[0] : value;
-  return text?.trim() || null;
-}
-
-/** The host the page was served on, as the proxy in front of us saw it, else as this server did. */
-function forwardedHost(request: IncomingMessage): string | null {
-  if (!isLoopback(request.socket.remoteAddress ?? "")) return header(request, "host");
-  return header(request, "x-forwarded-host") ?? header(request, "host");
-}
-
-function forwardedScheme(request: IncomingMessage): string {
-  if (!isLoopback(request.socket.remoteAddress ?? "")) return "http";
-  return header(request, "x-forwarded-proto") === "https" ? "https" : "http";
-}
-
 function plain(response: ServerResponse, status: number, text: string) {
   response.writeHead(status, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", ...SECURITY_HEADERS });
   response.end(text);
-}
-
-/** The asked-for port, or whatever the machine offers when something else already holds it. */
-function listen(server: Server, host: string, port: number): Promise<number> {
-  return new Promise<number>((resolve, reject) => {
-    let retried = false;
-    const done = () => {
-      server.off("error", onError);
-      server.off("listening", onListening);
-    };
-    const onError = (error: NodeJS.ErrnoException) => {
-      if (error.code === "EADDRINUSE" && port !== 0 && !retried) {
-        retried = true;
-        server.listen(0, host);
-        return;
-      }
-      done();
-      reject(error);
-    };
-    const onListening = () => {
-      done();
-      const address = server.address();
-      resolve(typeof address === "object" && address ? address.port : port);
-    };
-    server.on("error", onError);
-    server.on("listening", onListening);
-    server.listen(port, host);
-  });
 }

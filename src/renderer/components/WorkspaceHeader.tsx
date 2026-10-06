@@ -14,7 +14,7 @@ export type WorkspaceHeaderProps = {
   /** What the folder is called, which is the project's name rather than the directory's. */
   folderLabel: string;
   /** The paired computer the thread lives on, for one that is not this computer's own. */
-  host?: { name: string; offline: boolean } | null;
+  host?: { name: string; offline: boolean; reconnecting?: boolean } | null;
   sidebarOpen: boolean;
   sessionPanelOpen: boolean;
   rightDockOpen: boolean;
@@ -44,7 +44,7 @@ function ThreadHeading({ currentThread, folder, folderLabel, host, openMenu, onS
     <div className="thread-heading-line">
       <h1 title={host ? `${folder} on ${host.name}` : folder || undefined}>
         {host && <>
-          <HostMark name={host.name} offline={host.offline} className="heading-host" />
+          <HostMark name={host.name} offline={host.offline} reconnecting={host.reconnecting} className="heading-host" />
           <span className="heading-separator" aria-hidden="true">/</span>
         </>}
         {folder && <>

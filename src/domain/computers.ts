@@ -3,7 +3,10 @@
  * like before pairing, and what a paired one is while this computer holds its threads beside its own.
  */
 
-/** Where a paired computer's line stands. Only connected computers contribute threads to the sidebar. */
+/**
+ * Where a paired computer's line stands. Only a connected computer takes commands; one that is not
+ * still lists the threads it last sent, dimmed, until its line is up again.
+ */
 export type ComputerStatus = "connecting" | "connected" | "offline";
 
 /** A computer on the tailnet that answered the app's own health check. */
@@ -44,4 +47,15 @@ export const MAX_COMPUTER_NAME = 128;
 
 export function isComputerStatus(value: unknown): value is ComputerStatus {
   return value === "connecting" || value === "connected" || value === "offline";
+}
+
+/** What a paired computer that is not connected is doing: dialling again, or between tries. */
+export function awayStatus(status: ComputerStatus): "reconnecting" | "offline" {
+  return status === "connecting" ? "reconnecting" : "offline";
+}
+
+/** Why a paired computer takes nothing: that it is away, then the last fault its line reported. */
+export function offlineMessage(link: Pick<ComputerLink, "name" | "status" | "error">): string {
+  const away = `${link.name} is ${awayStatus(link.status)}.`;
+  return link.error ? `${away} ${link.error}` : away;
 }

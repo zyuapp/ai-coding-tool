@@ -19,7 +19,7 @@ export type MobileBridgeHost = {
 let app: MobileBridgeHost | null = null;
 let host: typeof MobileHost | null = null;
 let awake: number | null = null;
-/** A replacement window starts its phone host only after the previous host has stopped. */
+/** A start that follows a stop waits for the previous host to have stopped. */
 let lifecycle: Promise<void> = Promise.resolve();
 
 /** The server lives in an ES module of its own, so `ws` is only loaded when the bridge is wired up. */
@@ -52,6 +52,10 @@ function keepAwake(needed: boolean) {
   awake = null;
 }
 
+/**
+ * The bridge lives as long as the app rather than the window: what a phone or another computer asks
+ * is answered by the workspace runtime in this process, so a closed window leaves both served.
+ */
 export function startMobileBridge(options: MobileBridgeHost) {
   app = options;
   lifecycle = lifecycle.catch(() => undefined).then(async () => {
@@ -77,6 +81,11 @@ export function stopMobileBridge() {
     await host?.stopMobileHost();
   });
   return lifecycle;
+}
+
+/** After the machine wakes, Serve is looked at again at once rather than at the next minute. */
+export function recheckMobileBridge() {
+  if (app) host?.recheckMobileHost();
 }
 
 async function readyHost() {

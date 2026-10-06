@@ -164,8 +164,10 @@ test("a phone trades its code for a token and is handed the view", async (t) => 
   assert.deepEqual(commands, [command]);
 
   client.send({ kind: "command", requestId: "request-2", command: { type: "task.select", taskId: "" } as MobileCommand });
-  await new Promise((resolve) => setTimeout(resolve, 50));
-  assert.equal(client.messages.filter((message) => message.kind === "ack").length, 1, "a command that fails the guard is not relayed");
+  const refused = await until(() => client.messages.find((message) => message.kind === "ack" && message.requestId === "request-2"), "a refusal for the command the guard turned away");
+  assert.equal(refused.kind === "ack" && refused.ok, false, "a command that fails the guard is refused rather than hung up on, so the phone stops sending it");
+  assert.deepEqual(commands, [command], "and it never reaches the window");
+  assert.equal(client.socket.readyState, WebSocket.OPEN);
 });
 
 test("a phone that drops resumes where it was, and falls back to a snapshot when it cannot", async (t) => {
@@ -201,7 +203,7 @@ test("a phone that drops resumes where it was, and falls back to a snapshot when
   await behind.opened();
   behind.send({ kind: "resume", version: MOBILE_PROTOCOL_VERSION, token: paired.token, sessionId, lastSequence: missed.sequence });
   const snapshot = await behind.waitFor("snapshot");
-  assert.deepEqual(snapshot.view, view("second"));
+  assert.deepEqual(snapshot.view, { ...view("first"), groups: [] }, "the view the published patches built, which nothing published can fall outside of");
   assert.notEqual(snapshot.sessionId, sessionId, "a phone too far behind is given a session of its own");
 });
 

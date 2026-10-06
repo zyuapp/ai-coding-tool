@@ -10,14 +10,16 @@ import type { WorkspaceCommandResult, WorkspaceInput } from "../../application/w
 import type { WorkspaceState } from "../../application/workspace-state.js";
 import type { ThreadNotice } from "../../contracts/ipc.js";
 import { COMPUTER_PROTOCOL_VERSION, COMPUTER_TRANSFER_TIMEOUT_MS, COMPUTER_SEND_TOO_LARGE, MAX_COMPUTER_MESSAGE_BYTES, isComputerTransfer, isComputerServerMessage, type ComputerClientMessage, type ComputerQuery, type ComputerServerMessage } from "../../contracts/computers.js";
-import { MOBILE_DEAD_AFTER_MS } from "../../domain/mobile.js";
+import { MOBILE_DEAD_AFTER_MS, MOBILE_PING_INTERVAL_MS } from "../../domain/mobile.js";
 import type { ComputerStatus } from "../../domain/computers.js";
 import { WORKSPACE_SOCKET_PATH } from "../mobile/mobile-server.mjs";
 
 /** How long a dial may sit unanswered before the next try. */
 const CONNECT_TIMEOUT_MS = 10_000;
 /** How long each failed dial waits before the next, growing to a pause and no further. */
-const RETRY_MS = [1_000, 2_000, 5_000, 10_000, 30_000];
+const RETRY_MS = [1_000, 2_000, 5_000, 10_000, 15_000];
+/** How long a line the other computer refused waits before asking again, in case what it said has since changed. */
+const REFUSED_RETRY_MS = 5 * 60_000;
 /** How long a request may wait on the other computer. Its runs are its own; only the answer is waited for. */
 const REQUEST_TIMEOUT_MS = 30_000;
 
@@ -49,7 +51,8 @@ export type ComputerClientOptions = {
   onName?: (name: string) => void;
 };
 
-type Waiting<T> = { resolve: (value: T) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> };
+/** A request still owed an answer, kept as it was sent so a line that comes back can carry it again. */
+type Waiting<T> = { resolve: (value: T) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout>; requestId: string; payload: string; transferring: boolean };
 
 /** Every request still waiting is refused: the line it was asked on is gone, and its answer with it. */
 function refuseWaiting(held: Map<string, Waiting<never>>, message: string) {
@@ -60,9 +63,94 @@ function refuseWaiting(held: Map<string, Waiting<never>>, message: string) {
   }
 }
 
-/** One dial, with what to do as it opens, speaks, and closes. */
-function dial(url: string, handlers: { open: () => void; message: (message: ComputerServerMessage) => void; close: (code: number, reason: string) => void }) {
+/** The one waiting on an answer, taken off the list as it is answered. */
+function claim<T>(held: Map<string, Waiting<T>>, requestId: string): Waiting<T> | null {
+  const waiting = held.get(requestId);
+  if (!waiting) return null;
+  held.delete(requestId);
+  clearTimeout(waiting.timer);
+  return waiting;
+}
+
+/**
+ * The server pings every so often, so a line nothing has arrived on for a while is dead even when
+ * the network never said so. Bytes on their way count, so a long answer is not mistaken for silence.
+ */
+function createWatchdog(dead: () => void) {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let heardAt = Date.now();
+  function arm() {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      if (Date.now() - heardAt >= MOBILE_DEAD_AFTER_MS) dead();
+      else arm();
+    }, Math.max(0, heardAt + MOBILE_DEAD_AFTER_MS - Date.now()));
+    timer.unref?.();
+  }
+  return {
+    get heardAt() { return heardAt; },
+    heard() { heardAt = Date.now(); },
+    /** Watches a line that has just opened, counting from now. */
+    start() { heardAt = Date.now(); arm(); },
+    stop() {
+      if (timer) clearTimeout(timer);
+      timer = null;
+    },
+  };
+}
+
+/**
+ * What a line still owes: each request kept as it was sent, settled by its answer or its own
+ * deadline, and handed back whole to be carried again when a dropped line returns.
+ */
+function createOwed(line: { live: () => boolean; deliver: (waiting: Waiting<unknown>) => void }) {
+  const results = new Map<string, Waiting<WorkspaceCommandResult>>();
+  const answers = new Map<string, Waiting<unknown>>();
+
+  function ask<T>(held: Map<string, Waiting<T>>, message: ComputerClientMessage & { requestId: string }): Promise<T> {
+    if (!line.live()) return Promise.reject(new Error(COMPUTER_OFFLINE));
+    const payload = requestPayload(message);
+    if (payload === null) return Promise.reject(new Error(COMPUTER_SEND_TOO_LARGE));
+    const transferring = isComputerTransfer(message);
+    return new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        held.delete(message.requestId);
+        reject(new Error(line.live() ? "That computer did not answer in time." : COMPUTER_OFFLINE));
+      }, transferring ? COMPUTER_TRANSFER_TIMEOUT_MS : REQUEST_TIMEOUT_MS);
+      timer.unref?.();
+      const waiting: Waiting<T> = { resolve, reject, timer, requestId: message.requestId, payload, transferring };
+      held.set(message.requestId, waiting);
+      line.deliver(waiting as Waiting<unknown>);
+    });
+  }
+
+  return {
+    send: (inputs: WorkspaceInput[]) => ask(results, { kind: "input", requestId: randomUUID(), inputs }),
+    query: (query: ComputerQuery) => ask(answers, { kind: "query", requestId: randomUUID(), query }),
+    receive(message: ComputerServerMessage) {
+      if (message.kind === "result") claim(results, message.requestId)?.resolve(message.result);
+      if (message.kind !== "answer") return;
+      const waiting = claim(answers, message.requestId);
+      if (message.ok) waiting?.resolve(message.result);
+      else waiting?.reject(new Error(message.message));
+    },
+    /** In the order each was first asked within its kind. */
+    waiting: (): Waiting<unknown>[] => [...results.values(), ...answers.values()] as Waiting<unknown>[],
+    refuse(message: string) {
+      refuseWaiting(results as Map<string, Waiting<never>>, message);
+      refuseWaiting(answers as Map<string, Waiting<never>>, message);
+    },
+  };
+}
+
+/**
+ * One dial, with what to do as it opens, speaks, and closes. `heard` is told whenever bytes arrive,
+ * so a long answer still on its way counts as the line being alive before it is whole.
+ */
+function dial(url: string, handlers: { open: () => void; heard: () => void; message: (message: ComputerServerMessage) => void; close: (code: number, reason: string) => void }) {
   const socket = new WebSocket(url, { handshakeTimeout: CONNECT_TIMEOUT_MS });
+  socket.on("upgrade", (response) => response.socket.on("data", handlers.heard));
   socket.on("open", handlers.open);
   socket.on("message", (data) => {
     const message = readServerMessage(data);
@@ -89,28 +177,12 @@ function requestPayload(message: ComputerClientMessage): string | null {
   return Buffer.byteLength(payload) > MAX_COMPUTER_MESSAGE_BYTES ? null : payload;
 }
 
-function ask<T>(socket: WebSocket | null, status: ComputerStatus, held: Map<string, Waiting<T>>, message: ComputerClientMessage & { requestId: string }, transfer: (id: string, pending: boolean) => void): Promise<T> {
-  if (socket?.readyState !== WebSocket.OPEN || status !== "connected") return Promise.reject(new Error(COMPUTER_OFFLINE));
-  const payload = requestPayload(message);
-  if (payload === null) return Promise.reject(new Error(COMPUTER_SEND_TOO_LARGE));
-  const transferring = isComputerTransfer(message);
-  if (transferring) transfer(message.requestId, true);
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      held.delete(message.requestId);
-      reject(new Error("That computer did not answer in time."));
-    }, transferring ? COMPUTER_TRANSFER_TIMEOUT_MS : REQUEST_TIMEOUT_MS);
-    timer.unref?.();
-    held.set(message.requestId, { resolve, reject, timer });
-    if (transferring) socket!.send(stringifyWorkspaceJson({ kind: "transfer", requestId: message.requestId }));
-    socket!.send(payload);
-  }).finally(() => { if (transferring) transfer(message.requestId, false); });
-}
-
 /**
  * One line to a paired computer. It dials, pairs or resumes, mirrors the other computer's state as
- * it arrives, and carries inputs there. A dropped line is dialled again on a growing pause; a line
- * the other computer refuses outright, as unpaired or another version, is left down with the reason.
+ * it arrives, and carries inputs there. A dropped line is dialled again on a growing pause, and what
+ * was still owed an answer is carried again once it is back: the other computer remembers what it
+ * has run by request, so nothing runs twice. A line the other computer refuses outright, as unpaired
+ * or unreadable, is left down with the reason and asked again only rarely, or when told to.
  */
 export function createComputerClient(options: ComputerClientOptions) {
   let socket: WebSocket | null = null;
@@ -122,13 +194,13 @@ export function createComputerClient(options: ComputerClientOptions) {
   const applyUpdate = createRemoteWorkspaceReplica();
   let attempt = 0;
   let stopped = false;
+  /** Whether the other computer refused the line, which is not asked again on the usual pause. */
+  let refused = false;
   let retry: ReturnType<typeof setTimeout> | null = null;
-  let watchdog: ReturnType<typeof setTimeout> | null = null;
+  const watchdog = createWatchdog(() => socket?.terminate());
   let status: ComputerStatus = "connecting";
-  const results = new Map<string, Waiting<WorkspaceCommandResult>>();
-  const answers = new Map<string, Waiting<unknown>>();
-  const transfers = new Set<string>();
-  let lastHeardAt = Date.now();
+  /** Why the line last went down, kept through the dials that follow until one connects. */
+  let lastError: string | null = null;
   const url = options.url ?? computerSocketUrl(options.host);
 
   function report(next: ComputerStatus, error: string | null = null) {
@@ -140,49 +212,59 @@ export function createComputerClient(options: ComputerClientOptions) {
     if (socket?.readyState === WebSocket.OPEN) socket.send(stringifyWorkspaceJson(message));
   }
 
-  function watch() {
-    if (watchdog) clearTimeout(watchdog);
-    const deadline = transfers.size ? COMPUTER_TRANSFER_TIMEOUT_MS : MOBILE_DEAD_AFTER_MS;
-    watchdog = setTimeout(() => socket?.terminate(), Math.max(0, lastHeardAt + deadline - Date.now()));
-    watchdog.unref?.();
+  /** Writes a request, announcing a large one first so the other computer allows for it. */
+  function deliver(waiting: Waiting<unknown>) {
+    if (waiting.transferring) write({ kind: "transfer", requestId: waiting.requestId });
+    if (socket?.readyState === WebSocket.OPEN) socket.send(waiting.payload);
   }
 
-  function transfer(id: string, pending: boolean) {
-    if (pending) transfers.add(id); else transfers.delete(id);
-    if (socket) watch();
-  }
+  const owed = createOwed({ live: () => socket?.readyState === WebSocket.OPEN && status === "connected", deliver });
 
-  function refuseAll(message: string) {
-    refuseWaiting(results as Map<string, Waiting<never>>, message);
-    refuseWaiting(answers as Map<string, Waiting<never>>, message);
+  /** The line answers again: what is waiting is carried again, in the order it was first asked. */
+  function connected() {
+    attempt = 0;
+    lastError = null;
+    report("connected");
+    for (const waiting of owed.waiting()) deliver(waiting);
   }
 
   function schedule() {
     if (stopped || retry) return;
-    const delay = RETRY_MS[Math.min(attempt, RETRY_MS.length - 1)]!;
+    const delay = refused ? REFUSED_RETRY_MS : RETRY_MS[Math.min(attempt, RETRY_MS.length - 1)]!;
     attempt += 1;
     retry = setTimeout(() => { retry = null; open(); }, delay);
     retry.unref?.();
   }
 
-  /** A line the other computer will not have back is left down; every other drop is dialled again. */
-  function dropped(error: string | null, fatal = false) {
-    if (watchdog) clearTimeout(watchdog);
-    watchdog = null;
+  /**
+   * A refused line is left down a long while; every other drop is dialled again soon. Requests
+   * still waiting outlast a drop, each on its own deadline, unless the other computer refused us.
+   */
+  function dropped(error: string | null, refusal = false) {
+    watchdog.stop();
     const closing = socket;
     socket = null;
-    refuseAll(error ?? COMPUTER_OFFLINE);
     closing?.terminate();
     if (stopped) return;
-    report("offline", error);
-    if (fatal) stopped = true;
-    else schedule();
+    if (error) lastError = error;
+    if (refusal) {
+      owed.refuse(error ?? COMPUTER_OFFLINE);
+      refused = true;
+      /** A code is spent or wrong for good, so a pairing line is not dialled again at all. */
+      if (!("token" in credential)) stopped = true;
+    }
+    report("offline", lastError);
+    schedule();
   }
 
   function receive(message: ComputerServerMessage) {
     lastSequence = message.sequence;
-    lastHeardAt = Date.now();
-    watch();
+    watchdog.heard();
+    /**
+     * A resumed line holding a view already is live on its first word: a resume replays only what
+     * changed, and a computer where nothing did sends no state at all. A new line waits for its state.
+     */
+    if (displayed && sessionId && status !== "connected" && message.kind !== "workspace" && message.kind !== "error") connected();
     if (message.kind === "paired") {
       credential = { token: message.token };
       options.onPaired(message.deviceId, message.deviceName, message.token);
@@ -197,25 +279,13 @@ export function createComputerClient(options: ComputerClientOptions) {
         dropped("This computer sent workspace data this app cannot read. Updating AI Coding Tool may help.", true);
         return;
       }
-      attempt = 0;
-      if (status !== "connected") report("connected");
+      if (status !== "connected") connected();
       options.onState(displayed);
-    } else if (message.kind === "result") {
-      const waiting = results.get(message.requestId);
-      if (!waiting) return;
-      results.delete(message.requestId);
-      clearTimeout(waiting.timer);
-      waiting.resolve(message.result);
-    } else if (message.kind === "answer") {
-      const waiting = answers.get(message.requestId);
-      if (!waiting) return;
-      answers.delete(message.requestId);
-      clearTimeout(waiting.timer);
-      if (message.ok) waiting.resolve(message.result);
-      else waiting.reject(new Error(message.message));
+    } else if (message.kind === "result" || message.kind === "answer") {
+      owed.receive(message);
     } else if (message.kind === "error") {
-      const fatal = message.code === "unauthorized" || message.code === "version" || message.code === "expired-code" || message.code === "rate-limited";
-      dropped(message.message, fatal);
+      const refusal = message.code === "unauthorized" || message.code === "version" || message.code === "expired-code" || message.code === "rate-limited";
+      dropped(message.message, refusal);
     } else if (message.kind === "notice") {
       options.onNotice?.(message.notice);
     } else if (message.kind === "capabilities") {
@@ -230,14 +300,14 @@ export function createComputerClient(options: ComputerClientOptions) {
 
   function open() {
     if (stopped || socket) return;
-    report("connecting", null);
+    report("connecting", lastError);
     const dialled: WebSocket = dial(url, {
+      heard: () => { if (socket === dialled) watchdog.heard(); },
       open: () => {
         if (socket !== dialled) return;
-        lastHeardAt = Date.now();
         capabilities = undefined;
         options.onCapabilities?.(undefined);
-        watch();
+        watchdog.start();
         if ("token" in credential) write({ kind: "resume", version: COMPUTER_PROTOCOL_VERSION, token: credential.token, ...(sessionId ? { sessionId } : {}), lastSequence });
         else write({ kind: "pair", version: COMPUTER_PROTOCOL_VERSION, code: credential.code, deviceName: options.deviceName });
       },
@@ -256,20 +326,32 @@ export function createComputerClient(options: ComputerClientOptions) {
       if (inputs.some((input) => !isWorkspaceViewInput(input) || !isAppCommandType(input.type)
         || !supportsComputerCommand(COMPUTER_CAPABILITIES, input as AppCommand)
         || !supportsComputerCommand(capabilities, input as AppCommand))) return Promise.reject(new Error(REMOTE_UNSUPPORTED));
-      return ask(socket, status, results, { kind: "input", requestId: randomUUID(), inputs }, transfer);
+      return owed.send(inputs);
     },
-    query: (query: ComputerQuery) => supportsComputerQuery(capabilities, query)
-      ? ask(socket, status, answers, { kind: "query", requestId: randomUUID(), query }, transfer)
-      : Promise.reject(new Error(REMOTE_UNSUPPORTED)),
+    query: (query: ComputerQuery) => supportsComputerQuery(capabilities, query) ? owed.query(query) : Promise.reject(new Error(REMOTE_UNSUPPORTED)),
+    /**
+     * Dials now rather than at the end of the pause, and asks a computer that refused the line again.
+     * A line that is up is left alone; one that only looks up, after the network moved under it, is
+     * cut first so the dial is a real one.
+     */
+    reconnect() {
+      if (stopped || (refused && !("token" in credential))) return;
+      refused = false;
+      attempt = 0;
+      if (retry) clearTimeout(retry);
+      retry = null;
+      if (socket && (status !== "connected" || Date.now() - watchdog.heardAt < MOBILE_PING_INTERVAL_MS + 5_000)) return;
+      if (socket) socket.terminate();
+      else open();
+    },
     stop() {
       stopped = true;
       if (retry) clearTimeout(retry);
       retry = null;
-      if (watchdog) clearTimeout(watchdog);
-      watchdog = null;
+      watchdog.stop();
       const closing = socket;
       socket = null;
-      refuseAll(COMPUTER_OFFLINE);
+      owed.refuse(COMPUTER_OFFLINE);
       closing?.close(1000, "stopped");
     },
   };

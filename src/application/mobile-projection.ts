@@ -223,14 +223,46 @@ function approvalDetail(input: Record<string, unknown>): string {
 /** Null when nothing moved, so a server with nothing to say sends nothing at all. */
 export function diffMobileView(previous: MobileView, next: MobileView): MobilePatch | null {
   const patch: MobilePatch = {};
-  if (!same(previous.groups, next.groups)) patch.groups = next.groups;
-  if (!same(previous.activity, next.activity)) patch.activity = next.activity;
+  if (!sameGroups(previous.groups, next.groups)) patch.groups = next.groups;
+  if (!sameActivity(previous.activity, next.activity)) patch.activity = next.activity;
   if (!same(previous.theme, next.theme)) patch.theme = next.theme;
   const thread = diffMobileThread(previous.thread, next.thread);
   if (thread) patch.thread = thread;
   if (!same(previous.draft, next.draft)) patch.draft = next.draft;
   if (previous.error !== next.error) patch.error = next.error;
   return Object.keys(patch).length ? patch : null;
+}
+
+/**
+ * How far a row's last activity may drift before the list is worth sending again. The list never
+ * draws a time finer than a minute, and a streaming run moves its row with every block it commits,
+ * which would otherwise resend the heaviest part of the view many times a minute. Whoever diffs
+ * keeps the view the phone holds rather than the newest one, so the drift never passes this.
+ */
+const ACTIVITY_DRIFT_MS = 60_000;
+
+function sameGroups(previous: MobileProjectGroup[], next: MobileProjectGroup[]): boolean {
+  if (previous.length !== next.length) return false;
+  return previous.every((group, index) => {
+    const other = next[index]!;
+    return group.projectId === other.projectId && group.name === other.name && sameRows(group.threads, other.threads);
+  });
+}
+
+function sameActivity(previous: MobileActivity, next: MobileActivity): boolean {
+  return sameRows(previous.priority, next.priority) && sameRows(previous.running, next.running) && sameRows(previous.threads, next.threads);
+}
+
+/** Rows in the same order that differ only in when they last moved, and by less than the drift, are the same rows. */
+function sameRows(previous: MobileThreadEntry[], next: MobileThreadEntry[]): boolean {
+  if (previous.length !== next.length) return false;
+  for (let index = 0; index < previous.length; index += 1) {
+    const before = previous[index]!;
+    const after = next[index]!;
+    if (Math.abs(before.lastActivityAt - after.lastActivityAt) >= ACTIVITY_DRIFT_MS) return false;
+    if (!same({ ...before, lastActivityAt: 0 }, { ...after, lastActivityAt: 0 })) return false;
+  }
+  return true;
 }
 
 function diffMobileThread(previous: MobileThreadView | null, next: MobileThreadView | null): MobilePatch["thread"] {
@@ -240,29 +272,49 @@ function diffMobileThread(previous: MobileThreadView | null, next: MobileThreadV
   for (const key of MOVING_KEYS) {
     if (!same(previous[key], next[key])) (delta as Record<string, unknown>)[key] = next[key];
   }
-  const appended = appendedMessages(previous.messages, next.messages);
-  if (appended === null) delta.messages = next.messages;
-  else if (appended.length) delta.appended = appended;
+  const tail = previous.streamingTail;
+  if (tail !== next.streamingTail) {
+    if (tail !== null && next.streamingTail?.startsWith(tail)) delta.tail = { from: tail.length, text: next.streamingTail.slice(tail.length) };
+    else delta.streamingTail = next.streamingTail;
+  }
+  Object.assign(delta, transcriptDelta(previous.messages, next.messages));
   return Object.keys(delta).length ? { kind: "changed", id: next.id, delta } : undefined;
 }
 
-/** Every field of the open thread a delta can carry, which is all of them but its id and its transcript. */
+/**
+ * Every field of the open thread a delta carries as it stands, which is all of them but its id, its
+ * transcript and its streaming tail: those two grow at their end, and travel as what they grew by.
+ */
 const MOVING_KEYS = [
-  "loading", "title", "projectId", "projectName", "worktreeId", "omitted", "streamingTail", "status", "question", "approval",
+  "loading", "title", "projectId", "projectName", "worktreeId", "omitted", "status", "question", "approval",
   "queued", "settings", "location", "worktrees", "canMove", "changes", "reviewable", "branchRange",
-] as const satisfies ReadonlyArray<keyof Omit<MobileThreadView, "id" | "messages">>;
+] as const satisfies ReadonlyArray<keyof Omit<MobileThreadView, "id" | "messages" | "streamingTail">>;
 
-/** The messages added at the end, or null when the transcript changed in any other way. */
-function appendedMessages(previous: MobileMessage[], next: MobileMessage[]): MobileMessage[] | null {
-  if (next.length < previous.length) return null;
-  for (let index = 0; index < previous.length; index += 1) {
-    if (!same(previous[index], next[index])) return null;
-  }
-  return next.slice(previous.length);
+/**
+ * How the transcript moved: not at all, at its end, or some other way. At its end means the window
+ * may have slid past older messages, and the newest message the phone holds may have grown, while
+ * everything between stayed as it was. Anything else sends the whole transcript.
+ */
+function transcriptDelta(previous: MobileMessage[], next: MobileMessage[]): Pick<MobileThreadDelta, "spliced" | "messages"> {
+  const held = previous.map((message) => JSON.stringify(message));
+  const wanted = next.map((message) => JSON.stringify(message));
+  if (!held.length) return wanted.length ? { spliced: { dropped: 0, kept: 0, messages: next } } : {};
+  const dropped = wanted.length ? held.indexOf(wanted[0]!) : -1;
+  if (dropped < 0) return { messages: next };
+  let kept = 0;
+  while (dropped + kept < held.length && kept < wanted.length && held[dropped + kept] === wanted[kept]) kept += 1;
+  const rest = held.length - dropped;
+  if (kept < rest - 1) return { messages: next };
+  if (dropped === 0 && kept === rest && kept === wanted.length) return {};
+  return { spliced: { dropped, kept, messages: next.slice(kept) } };
 }
 
-/** Puts a patch back on the view the phone holds, which is the other half of {@link diffMobileView}. */
-export function applyMobilePatch(view: MobileView, patch: MobilePatch): MobileView {
+/**
+ * Puts a patch back on the view the phone holds, which is the other half of {@link diffMobileView}.
+ * Null when it does not fit: a transcript or tail that grew from something other than what is held
+ * would be drawn wrong in silence, so whoever holds the view fetches it whole instead.
+ */
+export function applyMobilePatch(view: MobileView, patch: MobilePatch): MobileView | null {
   const rest = {
     groups: patch.groups ?? view.groups,
     activity: patch.activity ?? view.activity,
@@ -275,15 +327,18 @@ export function applyMobilePatch(view: MobileView, patch: MobilePatch): MobileVi
   if (patch.thread.kind === "opened") return { ...rest, thread: patch.thread.thread };
   const current = view.thread;
   if (!current || current.id !== patch.thread.id) return { ...rest, thread: current };
-  const { appended, messages, ...moved } = patch.thread.delta;
-  return {
-    ...rest,
-    thread: {
-      ...current,
-      ...moved,
-      messages: messages ?? (appended ? [...current.messages, ...appended] : current.messages),
-    },
-  };
+  const { spliced, messages, tail, ...moved } = patch.thread.delta;
+  let transcript = messages ?? current.messages;
+  if (spliced) {
+    if (current.messages.length < spliced.dropped + spliced.kept) return null;
+    transcript = [...current.messages.slice(spliced.dropped, spliced.dropped + spliced.kept), ...spliced.messages];
+  }
+  let streamingTail = "streamingTail" in moved ? moved.streamingTail ?? null : current.streamingTail;
+  if (tail) {
+    if (current.streamingTail?.length !== tail.from) return null;
+    streamingTail = `${current.streamingTail}${tail.text}`;
+  }
+  return { ...rest, thread: { ...current, ...moved, messages: transcript, streamingTail } };
 }
 
 function same(left: unknown, right: unknown): boolean {

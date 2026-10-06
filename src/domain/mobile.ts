@@ -27,6 +27,12 @@ export const MAX_PAIRED_DEVICES = 16;
 export const MOBILE_EVENT_BUFFER = 600;
 export const MOBILE_BUFFER_BYTES = 1024 * 1024;
 
+/**
+ * How much a phone's socket may hold unsent before the server stops queueing patches behind it. A
+ * phone on a weak line is handed the newest view once its line drains, not every step it missed.
+ */
+export const MOBILE_CONGESTED_BYTES = 256 * 1024;
+
 /** How many sessions one phone may hold at once. Past this the oldest is hung up on. */
 export const MAX_SESSIONS_PER_DEVICE = 4;
 

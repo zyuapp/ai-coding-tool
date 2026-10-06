@@ -36,7 +36,7 @@ test("remote worktree marks keep their names and colors across sidebar modes, fi
         assert.ok(marks.length >= 2, `${mode}/${filter}/${active}: both engines show ${host}'s checkout`);
         for (const mark of marks) assert.ok(mark.classList.contains(`hue-${worktreeHue(`${host}-wt`)}`));
       }
-      if (filter === "this") assert.equal(view.container.querySelector('.task-worktree[aria-label="Works in linux checkout"]'), null);
+      if (filter === "this") assert.equal(view.container.querySelector('.task-worktree[aria-label="Works in linux checkout"]') === null, true);
     }
     const renderRemote = async () => {
       const projected = deriveView({ ...state, computers: { ...state.computers, active: "linux", filter: "linux" } });
@@ -47,15 +47,17 @@ test("remote worktree marks keep their names and colors across sidebar modes, fi
     assert.ok(view.container.querySelector('.task-worktree[aria-label="Works in Renamed checkout"]'));
     const offline = deriveView({ ...state, computers: { ...state.computers, paired: [{ ...state.computers.paired[0], status: "offline" }] } });
     await view.render(renderProjectSidebar({ ...offline, mode: "projects" }));
-    assert.equal(view.container.querySelector('.task-worktree[aria-label="Works in Renamed checkout"]'), null);
+    assert.equal(view.container.querySelector('.task-worktree[aria-label="Works in Renamed checkout"]') === null, false, "an unreachable computer keeps its cached rows and their marks, dimmed");
+    assert.equal(view.container.querySelector('[aria-disabled="true"]') === null, false, "the cached rows are drawn as away");
     await renderRemote();
-    assert.ok(view.container.querySelector('.task-worktree[aria-label="Works in Renamed checkout"]'), "reconnecting restores the cached checkout's name and marks");
+    assert.ok(view.container.querySelector('.task-worktree[aria-label="Works in Renamed checkout"]'), "reconnecting keeps the cached checkout's name and marks");
+    assert.equal(view.container.querySelector('[aria-disabled="true"]') === null, true);
     state = { ...state, computers: { ...state.computers, paired: [{ ...state.computers.paired[0], state: { ...remote, worktrees: [] } }] } };
     await renderRemote();
     assert.ok(view.container.querySelector('.task-worktree[aria-label="Works in a worktree"]'), "a claim still shows its mark before checkout metadata arrives");
     state = { ...state, computers: { ...state.computers, paired: [{ ...state.computers.paired[0], state: { ...remote, threads: remote.threads.map((thread) => ({ ...thread, worktreeId: undefined })) } }] } };
     await renderRemote();
-    assert.equal(view.container.querySelector(".task-worktree"), null, "leaving the checkout removes the marks");
+    assert.equal(view.container.querySelector(".task-worktree") === null, true, "leaving the checkout removes the marks");
   } finally { await view.unmount(); }
 });
 
@@ -79,7 +81,8 @@ test("overlapping project orders stay grouped and repeated filter changes replac
   try {
     for (const filter of ["all", "this", "linux", "old", "all", "this", "all"] as const) {
       const projected = deriveView({ ...state, computers: { ...state.computers, filter } });
-      const hosts = filter === "all" ? ["mac", "linux"] : filter === "old" ? [] : [filter === "this" ? "mac" : filter];
+      /** The computer that cannot be reached still lists what it last sent, under its own heading. */
+      const hosts = filter === "all" ? ["mac", "linux", "old"] : [filter === "this" ? "mac" : filter];
       const ids = hosts.flatMap((host) => [`${host}-a`, `${host}-b`]);
       assert.deepEqual(projected.projects.map((project) => project.id), ids);
       await view.render(renderProjectSidebar({ ...projected, mode: "projects" }));
@@ -131,7 +134,7 @@ test("folders all on this computer carry no computer heading", async () => {
     computerName: "My Mac",
   }));
   try {
-    assert.equal(view.container.querySelector(".computer-heading"), null);
+    assert.equal(view.container.querySelector(".computer-heading") === null, true);
     assert.equal(query(view.container, ".computer-group").getAttribute("role"), null);
     assert.equal(query(view.container, ".project-main").textContent, "Local app");
   } finally {
@@ -139,7 +142,7 @@ test("folders all on this computer carry no computer heading", async () => {
   }
 });
 
-test("rows on a paired computer carry its name, and rows on one that cannot be reached are greyed and take nothing", async () => {
+test("rows on a paired computer carry its name, and rows on one that cannot be reached are greyed and only say why when chosen", async () => {
   const selected: string[] = [];
   const here = task("here", { title: "Local work" });
   const there = task("there", { title: "Remote work", projectId: "remote-project" });
@@ -160,14 +163,14 @@ test("rows on a paired computer carry its name, and rows on one that cannot be r
       `linux-box · app · ${rows[1]!.querySelector("small")!.textContent!.split(" · ").at(-1)}`,
       `old-laptop · ${rows[2]!.querySelector("small")!.textContent!.split(" · ").at(-1)}`,
     ]);
-    assert.equal(rows[0]!.querySelector(".host-mark"), null);
+    assert.equal(rows[0]!.querySelector(".host-mark") === null, true);
     assert.equal(query(rows[1]!, "small > .host-mark").textContent, "linux-box");
     assert.equal(query(rows[2]!, "small > .host-mark").classList.contains("offline"), true);
     assert.equal(rows[2]!.classList.contains("offline"), true);
     assert.equal(rows[2]!.getAttribute("aria-disabled"), "true");
     await act(async () => { rows[2]!.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true })); });
     await act(async () => { rows[1]!.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true })); });
-    assert.deepEqual(selected, ["there"], "only the reachable computer's row selects");
+    assert.deepEqual(selected, ["elsewhere", "there"], "choosing an away row asks, and the window answers with why it cannot");
   } finally {
     await view.unmount();
   }
@@ -272,7 +275,7 @@ test("the computer button is pressed while the lists are narrowed, and dimmed wh
 test("a sidebar with no paired computer draws no computer button", async () => {
   const view = await mount(renderProjectSidebar({}));
   try {
-    assert.equal(view.container.querySelector(".computer-switch"), null);
+    assert.equal(view.container.querySelector(".computer-switch") === null, true);
     assert.equal(query(view.container, ".traffic-space").nextElementSibling, query(view.container, ".new-task-button"));
   } finally {
     await view.unmount();
@@ -293,9 +296,9 @@ test("an unreachable computer's row offers nothing: no rename, no menu, no archi
   try {
     const rows = [...view.container.querySelectorAll<HTMLElement>(".task-row")];
     assert.equal(rows[0]!.querySelector(".task-archive") !== null, true, "a row here can be archived");
-    assert.equal(rows[1]!.querySelector(".row-action"), null);
+    assert.equal(rows[1]!.querySelector(".row-action") === null, true);
     await act(async () => { rows[1]!.dispatchEvent(new dom.window.MouseEvent("dblclick", { bubbles: true })); });
-    assert.equal(view.container.querySelector(".task-rename"), null);
+    assert.equal(view.container.querySelector(".task-rename") === null, true);
     await act(async () => { rows[1]!.dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true })); });
     assert.deepEqual(menus, []);
     await act(async () => { rows[0]!.dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true })); });
@@ -317,7 +320,7 @@ test("a row whose computer goes away takes back the menu it had open", async () 
     onSetOpenMenu: (menu) => menus.push(menu),
   }));
   try {
-    assert.equal(view.container.querySelector("[role=menu]"), null);
+    assert.equal(view.container.querySelector("[role=menu]") === null, true);
     assert.deepEqual(menus, [null]);
   } finally {
     await view.unmount();
@@ -334,8 +337,8 @@ test("an empty device offers adding a project, while an offline device shows its
     await act(async () => query(view.container, ".sidebar-project-empty button").click());
     assert.equal(added, 1);
     await view.render(renderProjectSidebar({ ...props, computerLinks: [{ ...link, status: "offline", error: "Connection refused" }] }));
-    assert.equal(query(view.container, ".sidebar-project-empty [role='alert']").textContent, "Connection refused");
+    assert.equal(query(view.container, ".sidebar-project-empty [role='alert']").textContent, "zyuapp is offline. Connection refused");
     assert.ok(query(view.container, ".computer-switch-trigger").classList.contains("offline"));
-    assert.equal(view.container.querySelector(".sidebar-project-empty button"), null);
+    assert.equal(view.container.querySelector(".sidebar-project-empty button") === null, true);
   } finally { await view.unmount(); }
 });

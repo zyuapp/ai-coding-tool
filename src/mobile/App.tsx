@@ -3,10 +3,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { MobileCommand, MobileDraftView, MobileQuery, MobileThreadView } from "../contracts/mobile";
 import type { MobileConnectionState } from "../domain/mobile";
 import { useMobileClient } from "./client/useMobileClient";
+import type { ReturnedCommand } from "./client/protocol";
 import { readListMode, writeListMode, type MobileListMode } from "./client/storage";
 import { ApprovalSheet } from "./components/ApprovalSheet";
 import { Changes } from "./components/Changes";
-import { Composer } from "./components/Composer";
+import { Composer, type ReturnedToComposer } from "./components/Composer";
 import { Conversation } from "./components/Conversation";
 import { LocationSheet } from "./components/LocationSheet";
 import { RenameSheet } from "./components/RenameSheet";
@@ -92,7 +93,8 @@ export function App() {
   const now = useNow();
   const thread = state.view.thread;
   const draft = state.view.draft;
-  const waiting = state.outbox.length;
+  /** Commands only wait on the line while it is down; on a live one they are simply on their way. */
+  const waiting = state.connection === "live" ? 0 : state.outbox.length;
   const notice = state.notice ?? (state.view.error !== state.dismissedError ? state.view.error : null);
   const current = thread ? thread.id : draft ? "draft" : "none";
   const reading = screen !== "list";
@@ -189,7 +191,7 @@ export function App() {
         ? <Changes thread={thread} live={state.connection === "live"} query={query} />
         : reading
           ? thread && !pending
-            ? <ThreadBody thread={thread} connection={state.connection} waiting={waiting} send={send} sheet={sheet} onSheet={setSheet} onChanges={() => setScreen("changes")} onNewHere={() => newThread(thread.projectId, thread.projectName, thread.worktreeId ?? undefined)} onArchived={back} />
+            ? <ThreadBody thread={thread} connection={state.connection} waiting={waiting} returned={state.returned} send={send} sheet={sheet} onSheet={setSheet} onChanges={() => setScreen("changes")} onNewHere={() => newThread(thread.projectId, thread.projectName, thread.worktreeId ?? undefined)} onArchived={back} />
             : draft && !pending
               ? <DraftBody draft={draft} waiting={waiting} send={send} sheet={sheet} onSheet={setSheet} onStartIn={(worktreeId) => newThread(draft.projectId, draft.projectName, worktreeId)} />
               : <div className="empty"><p>Opening the thread…</p></div>
@@ -209,10 +211,23 @@ export function App() {
   );
 }
 
-function ThreadBody({ thread, connection, waiting, send, sheet, onSheet, onChanges, onNewHere, onArchived }: {
+/**
+ * What the composer of one thread gets back from a command the computer turned down: the words of a
+ * message, to type again, and which question's answer to let go of, to answer again.
+ */
+function returnedTo(returned: ReturnedCommand | null, taskId: string): ReturnedToComposer | null {
+  const command = returned?.command;
+  if (!returned || !command || !("taskId" in command) || command.taskId !== taskId) return null;
+  if (command.type === "task.send" && command.text) return { id: returned.requestId, text: command.text };
+  if (command.type === "question.answer") return { id: returned.requestId, answer: command.questionId };
+  return null;
+}
+
+function ThreadBody({ thread, connection, waiting, returned, send, sheet, onSheet, onChanges, onNewHere, onArchived }: {
   thread: MobileThreadView;
   connection: MobileConnectionState;
   waiting: number;
+  returned: ReturnedCommand | null;
   send: (command: MobileCommand) => void;
   sheet: ThreadSheet;
   onSheet: (sheet: ThreadSheet) => void;
@@ -234,6 +249,7 @@ function ThreadBody({ thread, connection, waiting, send, sheet, onSheet, onChang
       <Composer
         running={running}
         waiting={waiting}
+        returned={returnedTo(returned, thread.id)}
         settings={thread.settings}
         question={thread.question}
         onAnswerQuestion={(question, text) => send({ type: "question.answer", taskId: thread.id, runId: question.runId, requestId: question.requestId, questionId: question.questionId, text })}

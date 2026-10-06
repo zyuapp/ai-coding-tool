@@ -1,5 +1,6 @@
+import { isMobileCommand } from "../../contracts/mobile";
 import { PAIRING_CODE_LENGTH } from "../../domain/mobile";
-import type { MobileCredential } from "./protocol";
+import type { MobileCredential, OutboxEntry } from "./protocol";
 
 /** Where the device token lives between visits. Clearing site data unpairs the phone, as it should. */
 export const MOBILE_CREDENTIAL_KEY = "aicodingtool.mobile.device";
@@ -24,6 +25,37 @@ export function readCredential(store: CredentialStore): MobileCredential | null 
 export function writeCredential(store: CredentialStore, credential: MobileCredential | null): void {
   if (credential) store.setItem(MOBILE_CREDENTIAL_KEY, JSON.stringify(credential));
   else store.removeItem(MOBILE_CREDENTIAL_KEY);
+}
+
+/**
+ * What the phone still owes the Mac, kept so a reload or a tab the browser evicted sends it again.
+ * The Mac runs each request once, so sending one it already ran costs nothing.
+ */
+export const MOBILE_OUTBOX_KEY = "aicodingtool.mobile.outbox";
+
+export function readOutbox(store: CredentialStore): OutboxEntry[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(store.getItem(MOBILE_OUTBOX_KEY) ?? "[]");
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.flatMap((value): OutboxEntry[] => {
+    if (!value || typeof value !== "object") return [];
+    const { requestId, command, queuedAt, writes } = value as Record<string, unknown>;
+    if (typeof requestId !== "string" || !requestId || !isMobileCommand(command)) return [];
+    return [{ requestId, command, sent: false, queuedAt: typeof queuedAt === "number" ? queuedAt : 0, writes: typeof writes === "number" ? writes : 0 }];
+  });
+}
+
+export function writeOutbox(store: CredentialStore, outbox: OutboxEntry[]): void {
+  try {
+    if (outbox.length) store.setItem(MOBILE_OUTBOX_KEY, JSON.stringify(outbox));
+    else store.removeItem(MOBILE_OUTBOX_KEY);
+  } catch {
+    // A full or refused store only loses what a reload would have sent again.
+  }
 }
 
 const CODE = /^[0-9A-HJKMNP-TV-Z]+$/;

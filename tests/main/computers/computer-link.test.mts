@@ -4,12 +4,14 @@ import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_ENCODED_BYTES, MAX_ATTACHMENTS } f
 import { COMPUTER_PROTOCOL_VERSION, COMPUTER_SEND_TOO_LARGE, type ComputerServerMessage } from "../../../src/contracts/computers.ts";
 import assert from "node:assert/strict";
 import { once } from "node:events";
+import net from "node:net";
+import { readFileSync } from "node:fs";
 import WebSocket, { WebSocketServer } from "ws";
 import type { ThreadNotice } from "../../../src/contracts/ipc.ts";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import { emptyWorkspaceState, type WorkspaceState } from "../../../src/application/workspace-state.ts";
 import { parseWorkspaceJson, stringifyWorkspaceJson } from "../../../src/application/workspace-json.ts";
 import type { WorkspaceInput } from "../../../src/application/workspace-reducer.ts";
@@ -17,7 +19,7 @@ import type { WorkspaceUpdate } from "../../../src/contracts/workspace-runtime.t
 import type { ComputerStatus } from "../../../src/domain/computers.ts";
 import { MobileServer, WORKSPACE_SOCKET_PATH } from "../../../src/main/mobile/mobile-server.mts";
 import { PairingStore } from "../../../src/main/mobile/pairing.mts";
-import { createComputerClient, type ComputerClientOptions } from "../../../src/main/computers/computer-client.mts";
+import { createComputerClient, type ComputerClient, type ComputerClientOptions } from "../../../src/main/computers/computer-client.mts";
 import { createComputerLinks } from "../../../src/main/computers/computer-links.mts";
 import { task } from "../../application/workspace-reducer-fixtures.mts";
 
@@ -31,7 +33,7 @@ async function until<T>(check: () => T | null | false | undefined, message: stri
 }
 
 /** A host with a workspace of its own, taking computers on the bridge the way the app and aic serve do. */
-async function host(t: { onTestFinished(callback: () => void | Promise<void>): void }) {
+async function host(t: { onTestFinished(callback: () => void | Promise<void>): void }, options: { gate?: Promise<void> } = {}) {
   const folder = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-computers-"));
   await writeFile(path.join(folder, "index.html"), "<!doctype html><title>phone</title>");
   const devices = new PairingStore(path.join(folder, "mobile-devices.v1.json"));
@@ -54,6 +56,7 @@ async function host(t: { onTestFinished(callback: () => void | Promise<void>): v
       subscribe: (listener) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
       input: async (batch) => {
         inputs.push(...batch);
+        if (batch.some((input) => input.type === "task.rename" && input.title === "slow")) await options.gate;
         if (batch.some((input) => input.type === "task.rename" && input.title === "refuse")) return { ok: false, message: "Refused by the host", revision };
         return { ok: true, revision };
       },
@@ -79,6 +82,28 @@ async function host(t: { onTestFinished(callback: () => void | Promise<void>): v
       const update: WorkspaceUpdate = { revision, patches: Object.entries(next).map(([key, value]) => ({ path: [key], value })) };
       for (const listener of listeners) listener(update);
     },
+  };
+}
+
+/** A line between a computer and its host that can be cut the way a dropped network cuts it, with neither end told. */
+async function cuttable(t: { onTestFinished(callback: () => void | Promise<void>): void }, url: string) {
+  const target = new URL(url);
+  const open = new Set<net.Socket>();
+  const proxy = net.createServer((inbound) => {
+    const outbound = net.connect(Number(target.port), target.hostname);
+    open.add(inbound);
+    open.add(outbound);
+    inbound.pipe(outbound);
+    outbound.pipe(inbound);
+    const close = () => { inbound.destroy(); outbound.destroy(); open.delete(inbound); open.delete(outbound); };
+    for (const end of [inbound, outbound]) { end.on("error", close); end.on("close", close); }
+  });
+  await new Promise<void>((resolve) => proxy.listen(0, "127.0.0.1", resolve));
+  t.onTestFinished(() => new Promise<void>((resolve) => { for (const socket of open) socket.destroy(); proxy.close(() => resolve()); }));
+  const address = proxy.address() as net.AddressInfo;
+  return {
+    url: `ws://127.0.0.1:${address.port}${target.pathname}`,
+    cut: () => { for (const socket of [...open]) socket.destroy(); },
   };
 }
 
@@ -175,7 +200,7 @@ test.for([COMPUTER_PROTOCOL_VERSION - 1, COMPUTER_PROTOCOL_VERSION + 1])("a comp
   assert.deepEqual(served.inputs.filter((received) => received.type === "task.rename"), [input]);
 });
 
-test("a wrong code and a stale token are refused for good", async (t) => {
+test("a wrong code and a stale token are refused, and only asked again when told to", async (t) => {
   const served = await host(t);
   served.mint();
   const wrong = client({ url: served.url, credential: { code: "NOTTHECODE" } });
@@ -184,7 +209,84 @@ test("a wrong code and a stale token are refused for good", async (t) => {
   const stale = client({ url: served.url, credential: { token: "not-a-token" } });
   t.onTestFinished(() => stale.link.stop());
   await until(() => stale.statuses.some(([status, error]) => status === "offline" && error?.includes("not paired")), "the stale token turned away");
-  assert.equal(stale.statuses.filter(([status]) => status === "connecting").length, 1, "a line the host will not have back is not dialled again");
+  assert.equal(stale.statuses.filter(([status]) => status === "connecting").length, 1, "a line the host will not have back is not dialled again soon");
+  stale.link.reconnect();
+  await until(() => stale.statuses.filter(([status]) => status === "connecting").length === 2, "asking again when told to");
+  wrong.link.reconnect();
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(wrong.statuses.filter(([status]) => status === "connecting").length, 1, "a spent code is never tried again");
+});
+
+test("a line that drops and resumes where nothing changed is live again, keeping the reason it went down", async (t) => {
+  const served = await host(t);
+  const line = await cuttable(t, served.url);
+  const pairing = client({ url: line.url, credential: { code: served.mint() } });
+  const { token } = await until(() => pairing.paired(), "the pairing");
+  pairing.link.stop();
+  const mac = client({ url: line.url, credential: { token } });
+  t.onTestFinished(() => mac.link.stop());
+  await until(() => mac.link.status === "connected", "the first connection");
+  const snapshots = mac.states.length;
+  line.cut();
+  await until(() => mac.statuses.some(([status]) => status === "offline"), "noticing the drop");
+  await until(() => mac.link.status === "connected", "the resumed line counted as live");
+  assert.equal(mac.states.length, snapshots, "a resume with nothing missed sends no state");
+  assert.equal((await mac.link.send([{ type: "task.rename", taskId: "first", title: "after the drop" }])).ok, true);
+});
+
+test("a send in flight when the line drops is carried again once it is back, and runs once", async (t) => {
+  let release!: () => void;
+  const served = await host(t, { gate: new Promise<void>((resolve) => { release = resolve; }) });
+  const line = await cuttable(t, served.url);
+  const pairing = client({ url: line.url, credential: { code: served.mint() } });
+  const { token } = await until(() => pairing.paired(), "the pairing");
+  pairing.link.stop();
+  const mac = client({ url: line.url, credential: { token } });
+  t.onTestFinished(() => mac.link.stop());
+  await until(() => mac.link.status === "connected", "the first connection");
+  const sent = mac.link.send([{ type: "task.rename", taskId: "first", title: "slow" }]);
+  await until(() => served.inputs.some((input) => input.type === "task.rename"), "the send reaching the host");
+  line.cut();
+  await until(() => mac.statuses.some(([status]) => status === "offline"), "noticing the drop");
+  await until(() => mac.link.status === "connected", "the line back");
+  release();
+  assert.equal((await sent).ok, true, "the answer finds the line it came back on");
+  assert.equal(served.inputs.filter((input) => input.type === "task.rename").length, 1, "the carried request is not run twice");
+});
+
+test("a computer long unreachable is found again under the name Tailscale now gives it", async (t) => {
+  const folder = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-links-"));
+  t.onTestFinished(() => rm(folder, { recursive: true, force: true }));
+  const file = path.join(folder, "computers.v1.json");
+  await writeFile(file, JSON.stringify({ version: 1, computers: [{ id: "box", name: "linux-box", host: "linux-box.tail.ts.net", token: "token", pairedAt: 1 }] }));
+  const dialled: string[] = [];
+  const statuses: Array<(status: ComputerStatus) => void> = [];
+  let peers = [{ id: "node-1", host: "linux-box.tail.ts.net", name: "linux-box", os: "linux", online: true }];
+  const links = createComputerLinks({
+    file,
+    deviceName: "This Mac",
+    onChanged: () => {},
+    onState: () => {},
+    onNotice: () => {},
+    peers: async () => peers,
+    connect: (options) => {
+      dialled.push(options.host);
+      statuses.push((status) => options.onStatus(status, null));
+      return { status: "connecting", state: null, send: async () => ({ ok: true }), query: async () => null, reconnect: () => {}, stop: () => {} } as unknown as ComputerClient;
+    },
+  });
+  t.onTestFinished(() => links.stop());
+  links.start();
+  statuses[0]!("connected");
+  await until(() => (JSON.parse(readFileSync(file, "utf8")) as { computers: Array<{ node?: string }> }).computers[0]?.node === "node-1", "the node learned on connecting");
+  statuses[0]!("offline");
+  peers = [{ id: "node-1", host: "linux-box-1.tail.ts.net", name: "linux-box", os: "linux", online: true }];
+  vi.useFakeTimers({ toFake: ["Date"], now: Date.now() + 2 * 60_000 });
+  t.onTestFinished(() => { vi.useRealTimers(); });
+  links.reconnect();
+  await until(() => dialled.length === 2, "dialling the new name");
+  assert.deepEqual(dialled, ["linux-box.tail.ts.net", "linux-box-1.tail.ts.net"]);
+  assert.equal(links.links()[0]?.host, "linux-box-1.tail.ts.net");
 });
 
 test("the links keep the token on disk with the computer's name, and a forgotten computer is cut off", async (t) => {

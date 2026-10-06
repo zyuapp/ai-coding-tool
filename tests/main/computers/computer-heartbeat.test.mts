@@ -27,7 +27,7 @@ const input = { type: "attachments.send" as const, attachments: [{ id: "shot", s
 const query = { kind: "attachment" as const, name: "shot.png" };
 const messageImageQuery = { kind: "message-image" as const, path: "/tmp/shot.png", root: "", message: "reply" };
 
-test.each(["idle", "send", "query", "message-image", "overlap", "timeout"])("client heartbeat uses the normal deadline outside a pending transfer: %s", async (mode) => {
+test.each(["idle", "send", "query", "message-image", "trickle"])("client heartbeat counts only what arrives, so a pending transfer cannot hide a dead line: %s", async (mode) => {
   vi.useFakeTimers();
   const server = new WebSocketServer({ host: "127.0.0.1", port: 0 });
   await once(server, "listening");
@@ -46,28 +46,20 @@ test.each(["idle", "send", "query", "message-image", "overlap", "timeout"])("cli
   const client = createComputerClient({ host: `127.0.0.1:${address.port}`, credential: { token: "test" }, deviceName: "Mac", onStatus: () => {}, onState: () => {}, onPaired: () => {} });
   try {
     await until(() => client.status === "connected");
-    const pending = [];
-    if (mode !== "idle") pending.push((mode === "send" ? client.send([input]) : client.query(mode === "message-image" ? messageImageQuery : query)).catch(() => undefined));
-    if (mode === "overlap") pending.push(client.send([input]).catch(() => undefined));
-    if (pending.length) await until(() => requests.length === pending.length);
-    await vi.advanceTimersByTimeAsync(MOBILE_DEAD_AFTER_MS);
-    if (mode === "idle") return await until(() => client.status === "offline");
-    assert.equal(client.status, "connected");
-    if (mode === "timeout") {
-      await vi.advanceTimersByTimeAsync(COMPUTER_TRANSFER_TIMEOUT_MS - MOBILE_DEAD_AFTER_MS);
-      await Promise.all(pending);
-      return await until(() => client.status === "offline");
-    }
-    for (const [index, request] of requests.entries()) {
-      // Both rejection and acceptance must retire their transfer allowance.
-      peer!.send(JSON.stringify(request.kind === "query"
-        ? { kind: "answer", requestId: request.requestId, sequence: index + 2, ok: false, message: "Read failed" }
-        : { kind: "result", requestId: request.requestId, sequence: index + 2, result: { ok: true, revision: 0 } }));
-      await pending[index];
-      if (index < requests.length - 1) {
-        await vi.advanceTimersByTimeAsync(MOBILE_DEAD_AFTER_MS);
-        assert.equal(client.status, "connected", "the other transfer is still pending");
+    if (mode === "trickle") {
+      // A long answer still arriving: one frame's header, then its body a few bytes at a time.
+      const raw = (peer as unknown as { _socket: import("node:net").Socket })._socket;
+      const body = Buffer.from(JSON.stringify({ kind: "ping", at: 0, sequence: 2, pad: "x".repeat(200) }));
+      raw.write(Buffer.from([0x81, 126, body.length >> 8, body.length & 0xff]));
+      for (let offset = 0; offset < body.length; offset += 50) {
+        await vi.advanceTimersByTimeAsync(MOBILE_DEAD_AFTER_MS - 1_000);
+        raw.write(body.subarray(offset, offset + 50));
+        await new Promise((resolve) => realTimeout(resolve, 20));
+        assert.equal(client.status, "connected", "bytes on their way keep the line alive");
       }
+    } else if (mode !== "idle") {
+      void (mode === "send" ? client.send([input]) : client.query(mode === "message-image" ? messageImageQuery : query)).catch(() => undefined);
+      await until(() => requests.length === 1);
     }
     await vi.advanceTimersByTimeAsync(MOBILE_DEAD_AFTER_MS);
     await until(() => client.status === "offline");

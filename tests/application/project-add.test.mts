@@ -66,10 +66,10 @@ test("add defaults to the filtered device and explicit path commands route even 
   assert.equal(routeInput(emptyWorkspaceState(), { type: "project.add", root: "/app", computerId: "forgotten" }).kind, "refuse");
   const offline = workspace();
   offline.computers.paired[0] = { ...offline.computers.paired[0]!, status: "offline", error: "Connection refused" };
-  assert.deepEqual(routeInput(offline, { type: "project.add", root: "/app", computerId: "linux" }), { kind: "refuse", message: "Connection refused" });
+  assert.deepEqual(routeInput(offline, { type: "project.add", root: "/app", computerId: "linux" }), { kind: "refuse", message: "Linux is offline. Connection refused" });
   const refused = reduce(offline, { type: "project.add", root: "/app", computerId: "linux" });
   assert.deepEqual(refused.effects, []);
-  assert.deepEqual(refused.result, { ok: false, message: "Connection refused" });
+  assert.deepEqual(refused.result, { ok: false, message: "Linux is offline. Connection refused" });
   offline.computers.paired[0] = { ...offline.computers.paired[0]!, error: null };
   assert.deepEqual(routeInput(offline, { type: "project.add", root: "/app", computerId: "linux" }), { kind: "refuse", message: "Linux is offline." });
 });

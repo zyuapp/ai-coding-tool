@@ -26,6 +26,8 @@ export type ComputerEffect =
   | { type: "computer.discover" }
   | { type: "computer.pair"; host: string; name: string; code: string }
   | { type: "computer.forget"; id: string }
+  /** Dials now rather than after the pause between tries. No id dials every computer that is not connected. */
+  | { type: "computer.reconnect"; id?: string }
   /** What this computer will call itself, or a paired one, from now on. Empty goes back to the default. */
   | { type: "computer.rename"; name: string }
   | { type: "computer.label"; id: string; name: string }
@@ -74,6 +76,36 @@ function linked(state: WorkspaceState, links: ComputerLink[]): PairedComputer[] 
   });
 }
 
+/**
+ * Which paired computer the conversation shows as the lines move. One whose line drops leaves the
+ * screen, except while its terminal is in front, which waits to restore the same shell; it comes
+ * back on screen when its line does, unless the window has moved on in the meantime.
+ */
+function onScreen(computers: WorkspaceState["computers"], paired: PairedComputer[]): Pick<WorkspaceState["computers"], "active" | "dropped"> {
+  const selected = paired.find((computer) => computer.id === computers.active);
+  if (selected) {
+    const dock = selected.state ? frontDock(selected.state).dock : null;
+    const terminalVisible = dock?.open && dock.terminals.some((terminal) => terminal.id === dock.tab);
+    return selected.status === "connected" || terminalVisible ? { active: selected.id, dropped: null } : { active: null, dropped: selected.id };
+  }
+  if (computers.active !== null) return { active: null, dropped: null };
+  const returning = paired.find((computer) => computer.id === computers.dropped);
+  if (!returning) return { active: null, dropped: null };
+  return returning.status === "connected" ? { active: returning.id, dropped: null } : { active: null, dropped: returning.id };
+}
+
+/**
+ * A line that comes back up to the computer on screen is told again whether anyone here is looking,
+ * since that computer forgot it when the line dropped. The others already take it that nobody is.
+ */
+function lookingAgain(state: WorkspaceState, paired: PairedComputer[], active: string | null): WorkspaceEffect[] {
+  const shown = paired.find((computer) => computer.id === active);
+  if (shown?.status !== "connected") return [];
+  const before = state.computers.paired.find((computer) => computer.id === shown.id);
+  if (before?.status === "connected" && state.computers.active === shown.id) return [];
+  return [{ type: "computer.forward", id: shown.id, inputs: [{ type: "view.set-focused", focused: state.focused }] }];
+}
+
 export function reduceComputers(state: WorkspaceState, input: ComputerInput): WorkspaceTransition {
   const { computers } = state;
   switch (input.type) {
@@ -95,9 +127,12 @@ export function reduceComputers(state: WorkspaceState, input: ComputerInput): Wo
       return settled(withComputers(state, { pairing: null }));
     case "computers.forget": {
       const active = computers.active === input.id ? null : computers.active;
+      const dropped = computers.dropped === input.id ? null : computers.dropped;
       const filter = computers.filter === input.id ? "all" : computers.filter;
-      return settled(withComputers(state, { active, filter }), [{ type: "computer.forget", id: input.id }]);
+      return settled(withComputers(state, { active, dropped, filter }), [{ type: "computer.forget", id: input.id }]);
     }
+    case "computers.reconnect":
+      return settled(state, [input.id === undefined ? { type: "computer.reconnect" } : { type: "computer.reconnect", id: input.id }]);
     /** The name shows at once when there is one; an empty one is the host's to fill in and announce. */
     case "computers.rename": {
       const name = input.name.trim().slice(0, MAX_COMPUTER_NAME);
@@ -117,13 +152,9 @@ export function reduceComputers(state: WorkspaceState, input: ComputerInput): Wo
       const paired = linked(state, input.links);
       /** A pairing that now shows up as a link is done; one that went away, or whose line dropped, takes the screen with it. */
       const pairing = computers.pairing && paired.some((computer) => computer.host === computers.pairing?.host) ? null : computers.pairing;
-      /** Keep a visible terminal selected through disconnection so it restores the same shell. */
-      const selected = paired.find((computer) => computer.id === computers.active);
-      const dock = selected?.state ? frontDock(selected.state).dock : null;
-      const terminalVisible = dock?.open && dock.terminals.some((terminal) => terminal.id === dock.tab);
-      const active = selected && (selected.status === "connected" || terminalVisible) ? selected.id : null;
+      const { active, dropped } = onScreen(computers, paired);
       const filter = computers.filter === "all" || computers.filter === "this" || paired.some((computer) => computer.id === computers.filter) ? computers.filter : "all";
-      return settled(withComputers(state, { name: input.name, paired, pairing, active, filter }));
+      return settled(withComputers(state, { name: input.name, paired, pairing, active, dropped, filter }), lookingAgain(state, paired, active));
     }
     case "computer.state": {
       const computer = computers.paired.find((item) => item.id === input.id);

@@ -19,17 +19,26 @@ export async function servesApp(host: string, request: typeof fetch = fetch): Pr
   }
 }
 
-type Peer = { host: string; name: string; os: string; online: boolean };
+/** A machine on the tailnet. `id` is Tailscale's stable node ID, which outlives a renamed host. */
+export type TailnetPeer = { id: string; host: string; name: string; os: string; online: boolean };
 
-function peersOf(status: unknown): Peer[] {
+function peersOf(status: unknown): TailnetPeer[] {
   const peers = (status as { Peer?: Record<string, unknown> } | null)?.Peer;
   if (!peers || typeof peers !== "object") return [];
   return Object.values(peers).flatMap((peer) => {
     const record = peer as Record<string, unknown>;
     const host = typeof record.DNSName === "string" ? record.DNSName.replace(/\.$/, "") : "";
     if (!host) return [];
-    return [{ host, name: typeof record.HostName === "string" && record.HostName ? record.HostName : host, os: typeof record.OS === "string" ? record.OS : "", online: record.Online === true }];
+    return [{ id: typeof record.ID === "string" ? record.ID : "", host, name: typeof record.HostName === "string" && record.HostName ? record.HostName : host, os: typeof record.OS === "string" ? record.OS : "", online: record.Online === true }];
   });
+}
+
+/** Every other machine on this tailnet, as Tailscale reports it right now. */
+export async function tailnetPeers(): Promise<TailnetPeer[]> {
+  const binary = await findTailscale();
+  if (!binary) throw new Error("Tailscale is not installed on this computer.");
+  const { stdout } = await run(binary, ["status", "--json"], { timeout: STATUS_TIMEOUT, maxBuffer: 4 * 1024 * 1024 });
+  return peersOf(parseTailscaleJson(stdout));
 }
 
 /**
@@ -37,12 +46,8 @@ function peersOf(status: unknown): Peer[] {
  * parallel whether it serves the bridge. A peer that is not, or is off, is not offered.
  */
 export async function discoverComputers(options: { probe?: (host: string) => Promise<boolean> } = {}): Promise<DiscoveredComputer[]> {
-  const binary = await findTailscale();
-  if (!binary) throw new Error("Tailscale is not installed on this computer.");
-  const { stdout } = await run(binary, ["status", "--json"], { timeout: STATUS_TIMEOUT, maxBuffer: 4 * 1024 * 1024 });
-  const status = parseTailscaleJson(stdout);
   const probe = options.probe ?? servesApp;
-  const online = peersOf(status).filter((peer) => peer.online);
+  const online = (await tailnetPeers()).filter((peer) => peer.online);
   const serving = await Promise.all(online.map(async (peer) => (await probe(peer.host)) ? peer : null));
   return serving.flatMap((peer) => peer ? [{ host: peer.host, name: peer.name, os: peer.os }] : []).sort((left, right) => left.name.localeCompare(right.name));
 }

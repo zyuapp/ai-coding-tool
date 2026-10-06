@@ -71,6 +71,7 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
         onPair: (host, name, code) => void workspace.actions.pairComputer(host, name, code),
         onCancelPairing: () => void workspace.actions.cancelComputerPairing(),
         onForget: (id) => void workspace.actions.forgetComputer(id),
+        onReconnect: (id) => void workspace.actions.reconnectComputer(id),
         onRename: (name) => void workspace.actions.renameComputer(name),
         onLabel: (id, name) => void workspace.actions.labelComputer(id, name),
       }}

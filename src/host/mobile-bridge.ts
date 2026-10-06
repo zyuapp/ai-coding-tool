@@ -1,4 +1,4 @@
-import { diffMobileView, projectMobileView } from "../application/mobile-projection.js";
+import { applyMobilePatch, diffMobileView, projectMobileView } from "../application/mobile-projection.js";
 import type { WorkspaceState } from "../application/workspace-state.js";
 import type { WorkspaceExecution } from "../application/workspace-execution.js";
 import type { WorkspaceEffect, WorkspaceInput } from "../application/workspace-reducer.js";
@@ -71,7 +71,11 @@ export async function answerMobileRequest(host: MobileBridgeHost, request: Mobil
   }
 }
 
-/** The view every connected phone was last shown, so a change can be sent as the difference. */
+/**
+ * The view every connected phone holds, so a change can be sent as the difference. It is what the
+ * patches built rather than the newest projection: a patch may leave out what moved too little to
+ * draw, and the next one is measured against what the phones actually have.
+ */
 export type MobileViewHolder = { current: MobileView | null };
 
 export function noMobileView(): MobileViewHolder {
@@ -89,10 +93,14 @@ export function nextMobileUpdate(held: MobileViewHolder, state: WorkspaceState, 
   }
   const view = projectMobileView(state, at);
   const previous = held.current;
-  held.current = view;
-  if (!previous) return { kind: "snapshot", view };
+  if (!previous) {
+    held.current = view;
+    return { kind: "snapshot", view };
+  }
   const patch = diffMobileView(previous, view);
-  return patch ? { kind: "patch", patch } : null;
+  if (!patch) return null;
+  held.current = applyMobilePatch(previous, patch) ?? view;
+  return { kind: "patch", patch };
 }
 
 /** The settings the bridge keeps in main, which is where the socket, the tokens and Tailscale live. */

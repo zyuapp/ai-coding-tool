@@ -8,7 +8,7 @@ import { REMOTE_UNSUPPORTED, supportsComputerCommand } from "../contracts/comput
 import type { AppCommand } from "../contracts/commands.js";
 import { commandLeaves, commandPlacement, isAppCommandType, type CommandPlacement, type PlacedCommand } from "../contracts/workspace-view-input.js";
 import type { Annotation, PastedText } from "../domain/conversation.js";
-import type { ComputerFilter, ComputerLink, ComputerPairing, DiscoveredComputer } from "../domain/computers.js";
+import { offlineMessage, type ComputerFilter, type ComputerLink, type ComputerPairing, type DiscoveredComputer } from "../domain/computers.js";
 import type { Project } from "../domain/project.js";
 import type { Thread } from "../domain/thread.js";
 import type { Worktree } from "../domain/worktree.js";
@@ -33,10 +33,12 @@ export type ComputersState = {
   pairing: ComputerPairing | null;
   /** The paired computer whose thread the conversation is showing. Null for this computer's own. */
   active: string | null;
+  /** The paired computer that was on screen when its line dropped, put back once it is up again unless the window has moved on. */
+  dropped: string | null;
   filter: ComputerFilter;
 };
 
-export const NO_COMPUTERS: ComputersState = { name: "", found: [], searching: false, searchError: null, paired: [], pairing: null, active: null, filter: "all" };
+export const NO_COMPUTERS: ComputersState = { name: "", found: [], searching: false, searchError: null, paired: [], pairing: null, active: null, dropped: null, filter: "all" };
 
 /** The paired computer whose thread is on screen, while its line is up. One whose line is down shows nothing and takes nothing. */
 export function activeComputer(state: Pick<WorkspaceState, "computers">): PairedComputer | null {
@@ -64,11 +66,6 @@ function holdsTerminal(state: Pick<WorkspaceState, "docks">, id: string): boolea
     terminalIds.set(state.docks, ids);
   }
   return ids.has(id);
-}
-
-/** Why a paired computer takes nothing: the fault its line reported, else that it is away. */
-export function offlineMessage(computer: ComputerLink): string {
-  return computer.error ?? `${computer.name} is offline.`;
 }
 
 /** The paired computer holding what `holds` finds, or null when this computer holds it or nobody does. */
@@ -273,7 +270,7 @@ export function createComputerCapabilitySnapshot() {
   };
 }
 
-/** The computer's state while its line is up; a computer that cannot be reached lists nothing. */
+/** The computer's state while its line is up; a computer that cannot be reached counts nothing unread. */
 function reachable(computer: PairedComputer): WorkspaceState | null {
   return computer.status === "connected" ? computer.state : null;
 }
@@ -285,8 +282,8 @@ export function shownComputers(computers: ComputersState): PairedComputer[] {
   return computers.paired.filter((computer) => computer.id === computers.filter);
 }
 
-/** One row's tag: which computer holds it, and whether that computer can be reached. */
-export type ThreadHost = { id: string; name: string; offline: boolean };
+/** One row's tag: which computer holds it, whether that computer can be reached, and whether it is being dialled again. */
+export type ThreadHost = { id: string; name: string; offline: boolean; reconnecting?: boolean };
 
 /** Everything the sidebar needs from the paired computers, gathered once per state. */
 export type RemoteCollections = {
@@ -311,9 +308,14 @@ export function remoteCollections(computers: ComputersState): RemoteCollections 
   if (!shown.length) return NO_REMOTE_COLLECTIONS;
   const gathered: RemoteCollections = { threads: [], projects: [], worktrees: [], worktreeThreadIds: new Set(), busy: new Set(), ranked: new Set(), blocked: new Set(), threadHosts: new Map(), projectHosts: new Map(), sideChatAttention: new Set(), unreadCount: 0 };
   for (const computer of shown) {
-    const remote = reachable(computer);
+    const remote = computer.state;
     if (!remote) continue;
-    const host: ThreadHost = { id: computer.id, name: computer.name, offline: false };
+    /**
+     * A computer whose line is down still lists what it last sent, dimmed and taking nothing, so its
+     * threads stay where the user left them. It claims no work going on and nothing unread meanwhile.
+     */
+    const live = computer.status === "connected";
+    const host: ThreadHost = { id: computer.id, name: computer.name, offline: !live, reconnecting: computer.status === "connecting" };
     const lists = threadLists(remote);
     for (const thread of lists.visibleThreads) {
       gathered.threads.push(thread);
@@ -326,11 +328,11 @@ export function remoteCollections(computers: ComputersState): RemoteCollections 
     for (const worktree of remote.worktrees) gathered.worktrees.push(worktree);
     const activity = threadActivity(remote);
     for (const id of lists.worktreeThreadIds) gathered.worktreeThreadIds.add(id);
-    for (const id of activity.working) gathered.busy.add(id);
+    if (live) for (const id of activity.working) gathered.busy.add(id);
     for (const id of activity.ranked) gathered.ranked.add(id);
     for (const id of activity.blocked) gathered.blocked.add(id);
     for (const id of lists.sideChatAttention) gathered.sideChatAttention.add(id);
-    gathered.unreadCount += lists.unreadCount;
+    if (live) gathered.unreadCount += lists.unreadCount;
   }
   return gathered;
 }

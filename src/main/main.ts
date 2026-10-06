@@ -45,7 +45,7 @@ import { appProfile } from "./user-data.js";
 import { rememberedPlacement, watchWindowPlacement } from "./window-placement.js";
 import { windowFrameOptions } from "./platform-capabilities.js";
 import { serveWindowDesktop } from "./window-desktop.js";
-import { startMobileBridge, stopMobileBridge } from "./mobile/bridge.js";
+import { recheckMobileBridge, startMobileBridge, stopMobileBridge } from "./mobile/bridge.js";
 import * as browser from "./browser-host.js";
 import * as terminal from "./terminal-host.js";
 
@@ -353,7 +353,6 @@ async function createWindow() {
       backgroundThrottling: false,
     },
   });
-  const createdWindow = window;
   if (process.platform === "linux") {
     /** Keep native accelerators, but never reveal a menu strip (including on Alt). */
     window.setAutoHideMenuBar(false);
@@ -387,7 +386,6 @@ async function createWindow() {
   if (placement.maximized && !placement.fullScreen) window.maximize();
   watchWindowPlacement(window);
   window.on("closed", () => {
-    void stopMobileBridge().catch((error) => console.error("Could not stop the phone bridge:", error));
     browser.stopBrowserHost();
     terminal.stopTerminalHost();
     if (quitState === "running") {
@@ -396,9 +394,14 @@ async function createWindow() {
     }
   });
   await window.loadFile(path.join(__dirname, "../../renderer/index.html"));
-  await servicesReady;
-  if (createdWindow.isDestroyed() || quitState !== "running") return;
-  await startMobileBridge({ events, workspace: workspaceHooks, userData: app.getPath("userData"), staticRoot: path.join(__dirname, "../../mobile"), ...(!app.isPackaged ? { developmentRoot: app.getAppPath() } : {}) })
+}
+
+/**
+ * Phones and computers are answered by the runtime in this process, not by the window, so the bridge
+ * runs from launch to quit: closing the window on a Mac leaves this computer reachable.
+ */
+function startPhoneBridge() {
+  return startMobileBridge({ events, workspace: workspaceHooks, userData: app.getPath("userData"), staticRoot: path.join(__dirname, "../../mobile"), ...(!app.isPackaged ? { developmentRoot: app.getAppPath() } : {}) })
     .catch((error) => console.error("Could not start the phone bridge:", error));
 }
 
@@ -477,7 +480,12 @@ const startup = app.whenReady().then(async () => {
     onNotice: (id, notice) => { events.emit("computer:notice", { id, notice }); },
   });
   computerLinks.start();
+  /** A machine that slept has lines that only look open, and computers that came back while it was away. */
+  powerMonitor.on("resume", () => computerLinks?.reconnect());
   markServicesReady();
+  void startPhoneBridge();
+  /** Tailscale may have been reset or handed to another copy of the app while the machine slept. */
+  powerMonitor.on("resume", recheckMobileBridge);
   installAppMenu({
     onCheckForUpdates: () => sendMenuCommand("app.check-for-updates"),
     onOpenSourceLicenses: () => sendMenuCommand("app.open-source-licenses"),
@@ -552,13 +560,11 @@ async function finishShutdown() {
   } catch (error) {
     quitState = "running";
     if (servicesStopped) {
+      computerLinks?.start();
       resumeComputerUse();
       if (process.platform === "darwin") lockAwake = startLockAwake(powerMonitor, powerSaveBlocker);
       await automationScheduler?.start().catch((failure) => console.error("Could not restart schedules:", failure));
-      if (window && !window.isDestroyed()) {
-        await startMobileBridge({ events, workspace: workspaceHooks, userData: app.getPath("userData"), staticRoot: path.join(__dirname, "../../mobile"), ...(!app.isPackaged ? { developmentRoot: app.getAppPath() } : {}) })
-          .catch((failure) => console.error("Could not restart the phone bridge:", failure));
-      }
+      await startPhoneBridge();
     }
     revealWindow();
     dialog.showErrorBox("Could not save the workspace", error instanceof Error ? error.message : String(error));

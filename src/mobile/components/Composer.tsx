@@ -14,8 +14,13 @@ const MAX_ROWS_PX = 168;
  * newline the way every other phone keyboard does; sending is the button, which is where a thumb
  * already is.
  */
-export function Composer({ running, waiting, settings, question, onAnswerQuestion, onSend, onSteer, onStop, onOpenSettings, children }: {
+/** A command of this thread's the computer turned down: a message's words, or the question it answered. */
+export type ReturnedToComposer = { id: string; text?: string; answer?: string };
+
+export function Composer({ running, waiting, returned, settings, question, onAnswerQuestion, onSend, onSteer, onStop, onOpenSettings, children }: {
   running: boolean;
+  /** What the computer last turned down here. A message's words come back to an empty field. */
+  returned?: ReturnedToComposer | null;
   question?: PendingQuestion | null;
   onAnswerQuestion?: (question: QuestionAddress, text: string) => void;
   /** Commands the phone is holding until the line comes back. */
@@ -31,8 +36,13 @@ export function Composer({ running, waiting, settings, question, onAnswerQuestio
   /** What sits above the card: how a draft starts, or nothing. */
   children?: React.ReactNode;
 }) {
-  const answer = useQuestionAnswer(question, onAnswerQuestion);
+  const answer = useQuestionAnswer(question, onAnswerQuestion, returned?.answer ? returned.id : null);
   const [draft, setDraft] = useState("");
+  const [given, setGiven] = useState<string | null>(null);
+  if (returned?.text && returned.id !== given) {
+    setGiven(returned.id);
+    if (!draft.trim()) setDraft(returned.text);
+  }
   const field = useRef<HTMLTextAreaElement>(null);
   const { mode, model, effort } = settingsSummary(settings);
 

@@ -1,5 +1,6 @@
 import { applyMobilePatch, emptyMobileView } from "../../application/mobile-projection";
 import {
+  isMobileCommand,
   MOBILE_PROTOCOL_VERSION,
   type MobileClientMessage,
   type MobileCommand,
@@ -32,7 +33,14 @@ export type OutboxEntry = {
   command: MobileCommand;
   /** Whether it has been written to a socket. An unwritten one is owed a send the moment there is one. */
   sent: boolean;
+  /** When the user asked, by the phone's clock, so a stop asked long ago is not carried out late. */
+  queuedAt: number;
+  /** How many times it has been written. One the Mac never answers is given up on rather than sent forever. */
+  writes: number;
 };
+
+/** A command the Mac turned down, handed back so the screen that sent it can give the user their words back. */
+export type ReturnedCommand = { requestId: string; command: MobileCommand; message: string };
 
 export type MobileClientState = {
   entry: MobileEntry;
@@ -49,6 +57,10 @@ export type MobileClientState = {
   build: string | null;
   view: MobileView;
   outbox: OutboxEntry[];
+  /** The last command the Mac refused, until another is. */
+  returned: ReturnedCommand | null;
+  /** When the current line opened, by the phone's clock. */
+  openedAt: number;
   /** Consecutive failed connections, which is what the backoff counts. */
   attempt: number;
   /** One plain sentence for the user. Never a code, never a stack. */
@@ -58,10 +70,14 @@ export type MobileClientState = {
 };
 
 export type MobileClientEvent =
-  | { kind: "opened" }
+  | { kind: "opened"; at: number }
   | { kind: "received"; message: MobileServerMessage }
+  /** A frame this page could not read, which still took its place in the numbering. */
+  | { kind: "skipped"; sequence: number }
   | { kind: "closed" }
-  | { kind: "dispatch"; requestId: string; command: MobileCommand }
+  | { kind: "dispatch"; requestId: string; command: MobileCommand; at: number }
+  /** Time to write again whatever is still unanswered on a line that is up. */
+  | { kind: "remind" }
   /** The moment a resume's replay has had time to land, after which silence means a frame was lost. */
   | { kind: "settled" }
   /**
@@ -80,7 +96,11 @@ export type MobileClientEffect =
   /** Null forgets the token, which is what an unauthorised phone must do before it shows a code. */
   | { kind: "store"; credential: MobileCredential | null }
   /** Fetches the page again, which is the only way a phone gets the build the Mac now serves. */
-  | { kind: "reload" };
+  | { kind: "reload" }
+  /** The page and the Mac agree on the build, so a later change of build may reload it again. */
+  | { kind: "current" }
+  /** What is still owed, kept where a reload or an evicted tab finds it again. */
+  | { kind: "keep"; outbox: OutboxEntry[] };
 
 export type MobileClientStep = { state: MobileClientState; effects: MobileClientEffect[] };
 
@@ -93,6 +113,21 @@ export const MOBILE_SETTLE_MS = 750;
 
 /** How many unacknowledged commands the phone will hold. Past this a new one is refused, not queued. */
 export const MOBILE_OUTBOX_LIMIT = 50;
+
+/** How often a live line writes again what is still unanswered. The Mac runs each request once, whatever it is sent. */
+export const MOBILE_RESEND_MS = 10_000;
+
+/** How many times a command is written before the phone stops asking. */
+export const MOBILE_RESEND_LIMIT = 6;
+
+/** How long a stop or a decision may wait for the line before carrying it out would surprise the user. */
+export const MOBILE_STALE_COMMAND_MS = 30_000;
+
+/** Commands that only move what the phone is looking at: only the last one asked for is worth sending. */
+const VIEW_COMMANDS = new Set<MobileCommand["type"]>(["task.select", "task.new"]);
+
+/** Commands that act on a run as it stood when asked, and are dropped rather than carried out late. */
+const MOMENT_COMMANDS = new Set<MobileCommand["type"]>(["run.cancel", "run.decide"]);
 
 const SCAN_AGAIN = "Scan the QR code on your computer to connect this phone.";
 
@@ -110,7 +145,7 @@ export function backoffDelay(attempt: number): number {
   return Math.min(MOBILE_RETRY_MAX_MS, MOBILE_RETRY_BASE_MS * 2 ** (attempt - 1));
 }
 
-export function initialMobileClient(input: { credential: MobileCredential | null; code: string | null; deviceName: string }): MobileClientState {
+export function initialMobileClient(input: { credential: MobileCredential | null; code: string | null; deviceName: string; outbox?: OutboxEntry[] }): MobileClientState {
   const entry: MobileEntry = input.credential ? "ready" : input.code ? "pairing" : "blocked";
   return {
     entry,
@@ -122,7 +157,10 @@ export function initialMobileClient(input: { credential: MobileCredential | null
     lastSequence: 0,
     build: null,
     view: emptyMobileView(),
-    outbox: [],
+    /** What a page that reloaded still owed is sent again; the Mac runs each request once, whatever it is sent. */
+    outbox: input.credential ? (input.outbox ?? []).map((item) => ({ ...item, sent: false })) : [],
+    returned: null,
+    openedAt: 0,
     attempt: 0,
     notice: entry === "blocked" ? SCAN_AGAIN : null,
     dismissedError: null,
@@ -135,15 +173,26 @@ export function shouldReconnect(state: MobileClientState): boolean {
 }
 
 export function reduceMobileClient(state: MobileClientState, event: MobileClientEvent): MobileClientStep {
+  const step = reduceEvent(state, event);
+  return step.state.outbox === state.outbox ? step : withEffect(step, { kind: "keep", outbox: step.state.outbox });
+}
+
+function reduceEvent(state: MobileClientState, event: MobileClientEvent): MobileClientStep {
   switch (event.kind) {
     case "opened":
-      return opened(state);
+      return opened({ ...state, openedAt: event.at });
     case "received":
       return received(state, event.message);
+    case "skipped":
+      if (event.sequence <= state.lastSequence) return { state, effects: [] };
+      if (state.sessionId !== null && event.sequence > state.lastSequence + 1) return resync(state);
+      return { state: { ...state, lastSequence: event.sequence }, effects: [] };
     case "closed":
       return closed(state);
     case "dispatch":
-      return dispatch(state, event.requestId, event.command);
+      return dispatch(state, event.requestId, event.command, event.at);
+    case "remind":
+      return state.connection === "live" ? flush(state, state.outbox.filter((item) => item.sent)) : { state, effects: [] };
     /**
      * A replay that has had its moment: anything still unacknowledged is written again. Arriving
      * before the line is live means the window was mistimed, not that there is nothing owed, so it
@@ -193,27 +242,45 @@ function closed(state: MobileClientState): MobileClientStep {
   return { state: offline, effects: [{ kind: "connect", delayMs: backoffDelay(attempt) }] };
 }
 
-/** A full outbox refuses rather than drops: text the user typed is not thrown away in silence. */
-function dispatch(state: MobileClientState, requestId: string, command: MobileCommand): MobileClientStep {
-  if (state.outbox.length >= MOBILE_OUTBOX_LIMIT) {
+/**
+ * A full outbox refuses rather than drops: text the user typed is not thrown away in silence. One the
+ * Mac could not read is refused here, since sending it would only be turned away. Waiting for the
+ * line, only the last of several moves between screens is kept.
+ */
+function dispatch(state: MobileClientState, requestId: string, command: MobileCommand, at: number): MobileClientStep {
+  if (!isMobileCommand(command)) return { state: { ...state, notice: "That could not be sent to your computer." }, effects: [] };
+  const live = state.connection === "live";
+  const kept = live || !VIEW_COMMANDS.has(command.type) ? state.outbox : state.outbox.filter((item) => item.sent || !VIEW_COMMANDS.has(item.command.type));
+  if (kept.length >= MOBILE_OUTBOX_LIMIT) {
     return { state: { ...state, notice: "Too much is already waiting for your computer. Wait for it to catch up." }, effects: [] };
   }
-  const live = state.connection === "live";
-  const next = { ...state, outbox: [...state.outbox, { requestId, command, sent: live }] };
+  const next = { ...state, outbox: [...kept, { requestId, command, sent: live, queuedAt: at, writes: live ? 1 : 0 }] };
   return { state: next, effects: live ? [{ kind: "send", message: { kind: "command", requestId, command } }] : [] };
 }
 
-/** Writes every command still owed a send and marks it written. */
+/**
+ * Writes every command owed a send, in the order it was asked, and marks it written. One written as
+ * often as the limit allows without an answer is given up on, and the user told.
+ */
 function flush(state: MobileClientState, owed: OutboxEntry[]): MobileClientStep {
-  const effects = owed.map((item): MobileClientEffect => ({ kind: "send", message: { kind: "command", requestId: item.requestId, command: item.command } }));
-  if (!effects.length) return { state, effects: [] };
-  return { state: { ...state, outbox: state.outbox.map((item) => (owed.includes(item) ? { ...item, sent: true } : item)) }, effects };
+  if (!owed.length) return { state, effects: [] };
+  const spent = owed.filter((item) => item.writes >= MOBILE_RESEND_LIMIT);
+  const effects = owed.filter((item) => !spent.includes(item)).map((item): MobileClientEffect => ({ kind: "send", message: { kind: "command", requestId: item.requestId, command: item.command } }));
+  const outbox = state.outbox.flatMap((item) => spent.includes(item) ? [] : owed.includes(item) ? [{ ...item, sent: true, writes: item.writes + 1 }] : [item]);
+  return { state: { ...state, outbox, ...(spent.length ? { notice: "Your computer did not answer. Try again." } : {}) }, effects };
 }
 
-/** The line is answering again: unwritten commands go now, written ones wait for the replay to settle. */
+/**
+ * The line is answering again. A line just back writes everything still owed, in the order it was
+ * asked, so nothing asked later lands first; a stop or a decision that waited too long is dropped.
+ * A line already live writes only what is new.
+ */
 function live(state: MobileClientState): MobileClientStep {
   const next = { ...state, connection: "live" as const, attempt: 0 };
-  return flush(next, next.outbox.filter((item) => !item.sent));
+  if (state.connection === "live") return flush(next, next.outbox.filter((item) => !item.sent));
+  const late = next.outbox.filter((item) => MOMENT_COMMANDS.has(item.command.type) && next.openedAt - item.queuedAt > MOBILE_STALE_COMMAND_MS);
+  const current = late.length ? { ...next, outbox: next.outbox.filter((item) => !late.includes(item)), notice: "Some taps were not sent: the line was down too long." } : next;
+  return flush(current, current.outbox);
 }
 
 function received(state: MobileClientState, message: MobileServerMessage): MobileClientStep {
@@ -235,15 +302,22 @@ function received(state: MobileClientState, message: MobileServerMessage): Mobil
      * A snapshot names the build the Mac serves. A page from an older one cannot draw what the Mac
      * now describes, so it fetches itself again rather than carry on showing the wrong screen.
      */
+    /** It is still drawn: a reload the page cannot make leaves the user on the newest view, told to reload. */
     case "snapshot": {
-      if (seen.build !== null && seen.build !== message.build) return { state: seen, effects: [{ kind: "reload" }] };
-      return live(shown({ ...seen, build: message.build, sessionId: message.sessionId, notice: null }, message.view));
+      const changed = seen.build !== null && seen.build !== message.build;
+      const step = live(shown({ ...seen, build: message.build, sessionId: message.sessionId, notice: changed ? REFUSALS.version : null }, message.view));
+      return withEffect(step, changed ? { kind: "reload" } : { kind: "current" });
     }
-    case "patch":
-      return settled(shown(seen, applyMobilePatch(seen.view, message.patch)));
+    case "patch": {
+      const view = applyMobilePatch(seen.view, message.patch);
+      return view ? settled(shown(seen, view)) : resync(state);
+    }
     case "ack": {
-      const outbox = seen.outbox.filter((item) => item.requestId !== message.requestId);
-      return settled({ ...seen, outbox, notice: message.ok ? seen.notice : message.message });
+      const asked = seen.outbox.find((item) => item.requestId === message.requestId);
+      const outbox = seen.outbox.filter((item) => item !== asked);
+      if (message.ok) return settled({ ...seen, outbox });
+      const returned = asked ? { requestId: asked.requestId, command: asked.command, message: message.message } : seen.returned;
+      return settled({ ...seen, outbox, returned, notice: message.message });
     }
     /** The answer itself is handed to whoever asked by the connection; here it only counts. */
     case "answer":
@@ -258,11 +332,15 @@ function shown(state: MobileClientState, view: MobileView): MobileClientState {
   return { ...state, view, dismissedError: view.error === state.view.error ? state.dismissedError : null };
 }
 
-/** A gap in the numbering means a frame was lost, and a patch onto a view with a hole in it lies. */
+/**
+ * A gap in the numbering means a frame was lost, and a patch onto a view with a hole in it lies. It
+ * counts as a failed line, so a Mac that keeps sending what cannot be read is not redialled in a loop.
+ */
 function resync(state: MobileClientState): MobileClientStep {
+  const attempt = state.attempt + 1;
   return {
-    state: { ...state, sessionId: null, lastSequence: 0, connection: "connecting" },
-    effects: [{ kind: "disconnect" }, { kind: "connect", delayMs: 0 }],
+    state: { ...state, sessionId: null, lastSequence: 0, connection: "connecting", attempt },
+    effects: [{ kind: "disconnect" }, { kind: "connect", delayMs: state.attempt ? backoffDelay(attempt) : 0 }],
   };
 }
 
@@ -286,9 +364,16 @@ function refused(state: MobileClientState, code: MobileErrorCode, message: strin
     const next: MobileClientState = { ...state, credential: null, entry: "pairing", connection: "offline", sessionId: null, lastSequence: 0, notice: null };
     return { state: next, effects: [{ kind: "store", credential: null }, { kind: "disconnect" }, { kind: "connect", delayMs: 0 }] };
   }
-  /** The page is what is out of date, so it fetches itself again; the sentence stays for a reload that is refused. */
+  /**
+   * The page is what is out of date, so it fetches itself again. The sentence stays for a reload
+   * that is refused, and the line is still tried on the backoff in case the Mac is what changes.
+   */
   if (code === "version") {
-    return { state: { ...state, connection: "offline", notice: REFUSALS.version }, effects: [{ kind: "disconnect" }, { kind: "reload" }] };
+    const attempt = state.attempt + 1;
+    return {
+      state: { ...state, connection: "offline", attempt, notice: REFUSALS.version },
+      effects: [{ kind: "disconnect" }, { kind: "reload" }, { kind: "connect", delayMs: backoffDelay(attempt) }],
+    };
   }
   /** A pairing phone locked out cannot wait it out: its code expires first. The Mac's own words say what to do. */
   const sentence = code === "rate-limited" ? message : REFUSALS[code];

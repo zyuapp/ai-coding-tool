@@ -11,7 +11,7 @@ import type { WorktreeGroup } from "../../application/workspace-state";
 import { SidebarActivity } from "./SidebarActivity";
 import { SidebarHeader, SidebarResizer } from "./SidebarChrome";
 import type { ThreadHost } from "../../application/computers";
-import type { ComputerFilter, ComputerLink } from "../../domain/computers";
+import { offlineMessage, type ComputerFilter, type ComputerLink } from "../../domain/computers";
 import { PROJECT_DRAG, RECENTS_DROPPABLE, SidebarProjects, useShownThreads } from "./SidebarProjects";
 import { decisionCount, useThreadRows, type SidebarCoordination } from "./SidebarThreadRow";
 import type { SnoozeHours } from "../../domain/thread-snooze";
@@ -250,7 +250,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
       <div className="sidebar-scroll">
         {projects.length === 0 && computerFilter !== "all" && <div className="sidebar-project-empty">
           {selectedComputer && selectedComputer.status !== "connected"
-            ? <p role="alert">{selectedComputer.error ?? `${selectedComputer.name} is offline.`}</p>
+            ? <p role="alert">{offlineMessage(selectedComputer)}</p>
             : <><p>{selectedComputer?.name ?? (computerName || "This computer")} has no projects yet</p><button type="button" onClick={onOpenFolder}>Add project</button></>}
         </div>}
         {mode === "activity" && <SidebarActivity

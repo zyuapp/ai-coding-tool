@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import WebSocket from "ws";
-import { allowedOrigins, reachableAddresses } from "../../../src/main/mobile/addresses.mts";
+import { allowedOrigins, MOBILE_INSTANCE, MOBILE_INSTANCE_HEADER, reachableAddresses } from "../../../src/main/mobile/addresses.mts";
 import { servesPort } from "../../../src/main/mobile/tailscale.mts";
 import { MOBILE_PROTOCOL_VERSION, type MobileRequest } from "../../../src/contracts/mobile.ts";
 import type { MobileServerState } from "../../../src/domain/mobile.ts";
@@ -182,6 +182,108 @@ test("a late Tailscale result during shutdown preserves the saved phone setting"
   await Promise.all([refreshing, stopping]);
   const saved = JSON.parse(await readFile(path.join(folder, "mobile.v1.json"), "utf8"));
   assert.equal(saved.enabled, true);
+});
+
+/** A tailnet that is signed in and issues certificates, serving whatever port it was last asked to. */
+function readyTailscale() {
+  const calls = { starts: [] as number[], stops: [] as number[], served: null as number | null };
+  const hooks = {
+    read: (port: number | null) => Promise.resolve({ status: "ready" as const, magicDnsName: "mac.tail.test", certs: true, serving: port !== null && calls.served === port, error: null }),
+    start: (port: number) => {
+      calls.starts.push(port);
+      calls.served = port;
+      return Promise.resolve({ ok: true as const });
+    },
+    stop: (port: number) => {
+      calls.stops.push(port);
+      if (calls.served === port) calls.served = null;
+      return Promise.resolve({ ok: true as const });
+    },
+  };
+  return { calls, hooks };
+}
+
+test("the health probe names this process, so another copy of the app is never taken for it", async (t) => {
+  const { host } = await bridge(t);
+  const on = await host.setMobileEnabled(true);
+  const health = await fetch(`http://127.0.0.1:${on.port}/m/health`);
+  assert.equal(await health.text(), "aicodingtool-mobile-v1", "the body other computers look for is unchanged");
+  assert.equal(health.headers.get(MOBILE_INSTANCE_HEADER), MOBILE_INSTANCE);
+});
+
+test("Serve is looked at again once a minute and served again when it no longer points here", async (t) => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  t.onTestFinished(() => { vi.useRealTimers(); });
+  const { host, options } = await bridge(t);
+  const { calls, hooks } = readyTailscale();
+  options.tailscale = hooks;
+  const on = await host.setMobileEnabled(true);
+  await vi.advanceTimersByTimeAsync(0);
+  assert.deepEqual(calls.starts, [on.port]);
+  assert.equal(host.mobileState().tailscale.serving, true);
+
+  /** `tailscale serve reset`, or another copy taking 443 and quitting. */
+  calls.served = null;
+  await vi.advanceTimersByTimeAsync(59_000);
+  assert.equal(calls.starts.length, 1, "nothing is asked again before the minute is up");
+  await vi.advanceTimersByTimeAsync(1_000);
+  assert.deepEqual(calls.starts, [on.port, on.port]);
+  assert.equal(host.mobileState().tailscale.serving, true);
+
+  /** Waking from sleep looks at once rather than at the next minute. */
+  calls.served = null;
+  host.recheckMobileHost();
+  await vi.advanceTimersByTimeAsync(0);
+  assert.equal(calls.starts.length, 3);
+});
+
+test("turning phone access off takes down only a Serve that points at this server's port", async (t) => {
+  const { host, options } = await bridge(t);
+  const { calls, hooks } = readyTailscale();
+  options.tailscale = hooks;
+  const on = await host.setMobileEnabled(true);
+  await host.refreshTailscale();
+  await host.setMobileEnabled(false);
+  assert.deepEqual(calls.stops, [on.port], "the port is handed over, so another copy's handler is told apart");
+});
+
+test("a server that would not start is tried again by the switch and by Check again", async (t) => {
+  const { host, options } = await bridge(t);
+  options.port = 70_000;
+  const failed = await host.setMobileEnabled(true);
+  assert.equal(failed.status, "error");
+  assert.equal(failed.port, null);
+
+  const still = await host.setMobileEnabled(true);
+  assert.equal(still.status, "error", "the switch tried again rather than shrugging");
+
+  options.port = 0;
+  const checked = await host.refreshTailscale();
+  assert.equal(checked.status, "listening");
+  assert.equal(checked.error, null);
+});
+
+test("stopping never waits on a Tailscale call that is still running", async (t) => {
+  const { host, options } = await bridge(t);
+  let asked = false;
+  let aborted = false;
+  options.tailscale = {
+    ...readyTailscale().hooks,
+    /** A first certificate can take a minute and a half. */
+    start: (_port: number, signal?: AbortSignal) => new Promise((resolve) => {
+      asked = true;
+      signal?.addEventListener("abort", () => {
+        aborted = true;
+        resolve({ ok: false, message: "aborted" });
+      });
+    }),
+  };
+  await host.setMobileEnabled(true);
+  await until(() => asked, "Serve was never asked");
+  const started = Date.now();
+  await host.stopMobileHost();
+  assert.equal(aborted, true);
+  assert.ok(Date.now() - started < 2_000, `stopping took ${Date.now() - started}ms`);
 });
 
 async function until(check: () => boolean, message: string) {

@@ -206,10 +206,19 @@ export type MobileView = {
 
 /** Everything about the open thread but which thread it is, so a change can name only what moved. */
 export type MobileThreadDelta = Partial<Omit<MobileThreadView, "id" | "messages">> & {
-  /** Messages that arrived at the end of the transcript the phone already holds. */
-  appended?: MobileMessage[];
-  /** The whole transcript, when it did not simply grow. */
+  /**
+   * The transcript's end, when only its end moved: `dropped` messages leave the front as the window
+   * slides, the first `kept` of the rest stay, and `messages` follow them. A message growing, a
+   * message arriving and the oldest falling out of the window all cost only what is new.
+   */
+  spliced?: { dropped: number; kept: number; messages: MobileMessage[] };
+  /** The whole transcript, when it did not simply move at its end. */
   messages?: MobileMessage[];
+  /**
+   * What a streaming reply added: everything past the first `from` characters of the tail the phone
+   * holds. A tail that did not simply grow travels whole, as `streamingTail`.
+   */
+  tail?: { from: number; text: string };
 };
 
 /**
@@ -235,11 +244,12 @@ export type MobilePatch = {
  * page for any other reason: a phone the Mac turns away is told to reload, where one left running
  * is wrong in silence.
  */
-export const MOBILE_PROTOCOL_VERSION = 4;
+export const MOBILE_PROTOCOL_VERSION = 5;
 
 const MAX_ID_LENGTH = 256;
 const MAX_PROMPT_LENGTH = 1_000_000;
-const MAX_TITLE_LENGTH = 1_000;
+/** The longest title a phone may give a thread, which its rename field holds it to. */
+export const MAX_TITLE_LENGTH = 1_000;
 const MAX_QUOTE_LENGTH = 100_000;
 const MAX_DEVICE_NAME_LENGTH = 128;
 const MAX_TOKEN_LENGTH = 512;
@@ -454,7 +464,13 @@ export type MobileQueryRequest = {
 
 export type MobilePongMessage = { kind: "pong"; at: number };
 
-export type MobileClientMessage = MobilePairRequest | MobileResumeRequest | MobileCommandRequest | MobileQueryRequest | MobilePongMessage;
+/**
+ * The phone asking whether the line still carries anything, which the Mac answers with a ping of
+ * its own. A phone back from sleep cannot tell a live socket from a dead one any other way.
+ */
+export type MobileProbeMessage = { kind: "ping"; at: number };
+
+export type MobileClientMessage = MobilePairRequest | MobileResumeRequest | MobileCommandRequest | MobileQueryRequest | MobilePongMessage | MobileProbeMessage;
 
 /**
  * Every message the server sends carries a sequence, counting from one within a session and never
@@ -507,7 +523,7 @@ export function isMobileClientMessage(value: unknown): value is MobileClientMess
   }
   if (value.kind === "command") return isString(value.requestId) && isMobileCommand(value.command);
   if (value.kind === "query") return isString(value.requestId) && isMobileQuery(value.query);
-  if (value.kind === "pong") return isCount(value.at);
+  if (value.kind === "pong" || value.kind === "ping") return isCount(value.at);
   return false;
 }
 

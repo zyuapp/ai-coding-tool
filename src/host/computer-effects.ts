@@ -27,6 +27,14 @@ export const computerEffects = {
     }
   },
 
+  "computer.reconnect": async (effect, { dispatch, desktop }) => {
+    try {
+      await desktop.reconnectComputer(effect.id);
+    } catch (error) {
+      await dispatch({ type: "action.failed", message: errorMessage(error) });
+    }
+  },
+
   "computer.rename": async (effect, { dispatch, desktop }) => {
     try {
       await desktop.renameComputer(effect.name);

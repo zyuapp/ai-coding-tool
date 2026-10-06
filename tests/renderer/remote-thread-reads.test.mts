@@ -64,7 +64,7 @@ test("offline hosts can be discovered from cached rows but transcripts and searc
   assert.equal(rows.find((row) => row.id === "remote-id")?.computer?.offline, true);
   await assert.rejects(readAcrossComputers(host, "remote-id"), /Linux is offline/);
   await assert.rejects(listAcrossComputers(host, "caller", { computer: "linux", search: "results" }), /Linux is offline/);
-  await assert.rejects(readAcrossComputers(host, "missing"), /Reconnect Linux/);
+  await assert.rejects(readAcrossComputers(host, "missing"), /Linux is not connected/);
   assert.deepEqual(queries, []);
 });
 
@@ -86,8 +86,8 @@ test("reads diagnose missing snapshots and reject ambiguous computer labels", as
   await assert.rejects(readAcrossComputers(host, "remote-id", 1, "Linux"), /More than one computer is named/);
   state.computers.paired.pop();
   computer.state = null;
-  await assert.rejects(readAcrossComputers(host, "remote-id"), /Reconnect Linux/);
-  await assert.rejects(listAcrossComputers(host, "caller", { computer: "linux" }), /no cached thread list/);
+  await assert.rejects(readAcrossComputers(host, "remote-id"), /Linux is not connected/);
+  await assert.rejects(listAcrossComputers(host, "caller", { computer: "linux" }), /has not sent its thread list yet/);
 });
 
 test("remote responses are validated and a wrong transcript cannot be substituted", async () => {

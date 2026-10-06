@@ -131,7 +131,7 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
           <FolderGit2 size={14} />
           <span className="thread-start-project-label">
             <span>{projectName(project)}</span>
-            {showComputers && <HostMark name={host?.name ?? "This computer"} offline={host?.offline} />}
+            {showComputers && <HostMark name={host?.name ?? "This computer"} offline={host?.offline} reconnecting={host?.reconnecting} />}
           </span>
           <ChevronDown size={14} />
         </button>
@@ -141,7 +141,7 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
             {matched.length === 0 && <p className="thread-start-empty">No project matches</p>}
             {groupProjects(matched, projectHosts).map(({ host, projects: grouped }) => (
               <div key={host ? `remote:${host.id}` : "local"} role={showComputers ? "group" : undefined} aria-label={showComputers ? host?.name ?? "This computer" : undefined}>
-                {showComputers && <div className="thread-start-group-heading" aria-hidden="true"><HostMark name={host?.name ?? "This computer"} offline={host?.offline} /></div>}
+                {showComputers && <div className="thread-start-group-heading" aria-hidden="true"><HostMark name={host?.name ?? "This computer"} offline={host?.offline} reconnecting={host?.reconnecting} /></div>}
                 {grouped.map((item) => (
                   <PickerOption
                     key={item.id}

@@ -17,16 +17,19 @@ export type ComputerSettingsProps = {
   onPair: (host: string, name: string, code: string) => void;
   onCancelPairing: () => void;
   onForget: (id: string) => void;
+  /** Dials a computer that is not connected now, rather than after the pause between tries. */
+  onReconnect: (id: string) => void;
   /** What this computer will call itself. Empty goes back to the machine's own name. */
   onRename: (name: string) => void;
   /** What this computer will call a paired one. Empty goes back to what that computer calls itself. */
   onLabel: (id: string, name: string) => void;
 };
 
+/** Where the line stands, and while it is down, the last fault it reported. */
 function statusLabel(link: ComputerLink): string {
   if (link.status === "connected") return "Connected";
-  if (link.status === "connecting") return "Connecting…";
-  return link.error ? `Offline: ${link.error}` : "Offline";
+  const status = link.status === "connecting" ? "Reconnecting…" : "Offline";
+  return link.error ? `${status} · ${link.error}` : status;
 }
 
 /** The code the other computer printed, typed here, which is the whole of pairing. */
@@ -132,7 +135,7 @@ function NameEntry({ name, onRename }: { name: string; onRename: (name: string) 
  * Other computers running this app on the tailnet, and the ones this computer already pairs with.
  * Pairing takes the code the other computer shows; from then on its threads sit in the sidebar.
  */
-export function ComputerSettings({ found, searching, searchError, name, links, pairing, onDiscover, onPair, onCancelPairing, onForget, onRename, onLabel }: ComputerSettingsProps) {
+export function ComputerSettings({ found, searching, searchError, name, links, pairing, onDiscover, onPair, onCancelPairing, onForget, onReconnect, onRename, onLabel }: ComputerSettingsProps) {
   useEffect(() => { onDiscover(); }, []);
   const labels = useRenaming(onLabel);
   const paired = new Set(links.map((link) => link.host));
@@ -173,6 +176,7 @@ export function ComputerSettings({ found, searching, searchError, name, links, p
             <p className={`phone-device-state${link.status === "connected" ? " live" : ""}`}>{link.host} · {statusLabel(link)}</p>
           </div>
           <div className="setting-row-action">
+            {link.status !== "connected" && <button type="button" onClick={() => onReconnect(link.id)}>Reconnect</button>}
             <button type="button" disabled={labels.editing === link.id} onClick={(event) => labels.start(link.id, event.currentTarget.closest(".setting-row"))}>Rename</button>
             <button className="danger" type="button" onClick={() => onForget(link.id)}>Remove</button>
           </div>

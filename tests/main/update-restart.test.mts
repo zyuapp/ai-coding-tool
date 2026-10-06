@@ -16,24 +16,27 @@ function onPlatform<T>(platform: NodeJS.Platform, action: () => T): T {
 }
 
 for (const platform of ["darwin", "linux"] as const) {
-  test(`${platform}: closing the last window stops phone access and follows the platform quit behavior`, async (t) => {
+  test(`${platform}: closing the last window keeps phone access and follows the platform quit behavior`, async (t) => {
     const main = await startMainProcess(t, "aicodingtool-window-close-");
     await waitFor(() => main.appListeners.has("activate"));
+    await waitFor(() => main.mobileHost.starts.length === 1);
 
     onPlatform(platform, () => main.window.close());
-    await waitFor(() => main.mobileHost.stops() > 0);
-    assert.equal(main.window.isDestroyed(), true);
+    await waitFor(() => main.window.isDestroyed());
     assert.equal(main.windows.length, 0);
 
     if (platform === "linux") {
       await waitFor(() => main.completedQuits() === 1);
+      assert.ok(main.mobileHost.stops() > 0, "quitting stops phone access");
     } else {
       assert.equal(main.quitAttempts(), 0);
+      await tick();
+      assert.equal(main.mobileHost.stops(), 0, "a Mac with its window closed is still reachable");
+      assert.equal(main.mobileHost.starts[0].send({ type: "mobile.request", requestId: "closed", sessionId: "phone", op: "snapshot" }), true, "the runtime answers the phone with no window open");
       registered<() => void>(main.appListeners, "activate")();
-      await waitFor(() => main.mobileHost.starts.length === 2);
-      assert.equal(main.windows.length, 1);
+      await waitFor(() => main.windows.length === 1);
       assert.notEqual(main.windows[0], main.window);
-      assert.equal(main.mobileHost.starts[1].send({ type: "mobile.request", requestId: "reopened", sessionId: "phone", op: "snapshot" }), true, "the runtime still answers the phone after the window came back");
+      assert.equal(main.mobileHost.starts.length, 1, "a window that comes back starts no second bridge");
     }
   });
 
@@ -95,39 +98,6 @@ for (const platform of ["darwin", "linux"] as const) {
     assert.equal(installs, 1);
   });
 }
-
-test("reopening a window waits for phone shutdown before starting phone access again", async (t) => {
-  let finishStop!: () => void;
-  let stops = 0;
-  const main = await startMainProcess(t, "aicodingtool-phone-reopen-", {
-    mobileHost: {
-      stopMobileHost: async () => {
-        stops += 1;
-        if (stops === 1) await new Promise<void>((resolve) => { finishStop = resolve; });
-      },
-    },
-  });
-  await waitFor(() => main.appListeners.has("activate"));
-
-  onPlatform("darwin", () => main.window.close());
-  await waitFor(() => stops === 1);
-  registered<() => void>(main.appListeners, "activate")();
-  await waitFor(() => main.windows.length === 1);
-  await tick();
-  assert.equal(main.mobileHost.starts.length, 1);
-  assert.equal(main.mobileHost.starts[0].send({ type: "mobile.request", requestId: "old-window", sessionId: "phone", op: "snapshot" }), false);
-  /** A bridge read waits behind the stop, so settings never read a host that is halfway down. */
-  const request = registered<(event: IpcEvent, input: unknown) => Promise<unknown>>(main.handlers, "workspace-runtime:request");
-  let stateReady = false;
-  const state = request({ sender: main.windows[0].webContents }, { type: "remote.refresh" }).then(() => { stateReady = true; });
-  await tick();
-  assert.equal(stateReady, false);
-
-  finishStop();
-  await waitFor(() => main.mobileHost.starts.length === 2);
-  await state;
-  assert.equal(main.windows[0].isDestroyed(), false);
-});
 
 test("a Linux package without AppImage uses manual updates", async (t) => {
   const main = await startMainProcess(t, "aicodingtool-manual-update-");

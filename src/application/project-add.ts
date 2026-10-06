@@ -65,7 +65,7 @@ function startIn(state: WorkspaceState, workspace: WorkspaceRecord): WorkspaceTr
 function showComputer(state: WorkspaceState, id: string): WorkspaceTransition {
   const left = state.computers.active;
   return settled(
-    { ...state, computers: { ...state.computers, active: id } },
+    { ...state, computers: { ...state.computers, active: id, dropped: null } },
     left && left !== id ? [{ type: "computer.forward", id: left, inputs: [{ type: "view.set-focused", focused: false }] }] : [],
   );
 }

@@ -84,7 +84,7 @@ function activityMeta(thread: Thread, host: ThreadHost | undefined, projectLabel
 export function hostMeta(host: ThreadHost | undefined, ...parts: string[]): ReactNode {
   const rest = parts.join(" · ");
   if (!host) return rest;
-  return <><HostMark name={host.name} offline={host.offline} />{rest && ` · ${rest}`}</>;
+  return <><HostMark name={host.name} offline={host.offline} reconnecting={host.reconnecting} />{rest && ` · ${rest}`}</>;
 }
 
 function ThreadSpinner() {
@@ -181,7 +181,7 @@ function rowActionButtons(thread: Thread, action: RowAction, scheduled: boolean,
 type RowState = {
   thread: Thread;
   active: boolean;
-  /** A row on a computer that cannot be reached is drawn, greyed, and takes nothing. */
+  /** A row on a computer that cannot be reached is drawn, greyed, and takes nothing: choosing it only says why. */
   away: boolean;
   /** The thread, or one working under it, has a run going. */
   running: boolean;
@@ -266,7 +266,7 @@ function rowBody(row: RowState, className: string, content: ReactNode, action: R
     <div
       className={`${thread.role ? `${className} role-${thread.role}` : className}${away ? " offline" : ""}`}
       aria-disabled={away || undefined}
-      onClick={away ? undefined : () => handlers.select(thread.id)}
+      onClick={() => handlers.select(thread.id)}
       onDoubleClick={away ? undefined : (event) => handlers.startRename(thread.id, event.currentTarget.closest(".task-entry"))}
       onContextMenu={(event) => {
         event.preventDefault();
@@ -305,7 +305,7 @@ function rowBody(row: RowState, className: string, content: ReactNode, action: R
 }
 
 function selectOnEnter(event: React.KeyboardEvent, row: RowState) {
-  if (event.key === "Enter" && !row.away) row.handlers.select(row.thread.id);
+  if (event.key === "Enter") row.handlers.select(row.thread.id);
 }
 
 /** Where a draggable row sits: under its folder, or in Recents with when it last moved. */

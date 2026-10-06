@@ -370,6 +370,8 @@ export type ComputerCommand =
   | { type: "computers.pair"; host: string; name: string; code: string }
   | { type: "computers.cancel-pairing" }
   | { type: "computers.forget"; id: string }
+  /** Dials a paired computer now, or every one that is not connected, even one that refused the last try. */
+  | { type: "computers.reconnect"; id?: string }
   /** What this computer calls itself to the others. Empty goes back to the machine's own name. */
   | { type: "computers.rename"; name: string }
   /** What this computer calls a paired one. Empty goes back to what that computer calls itself. */

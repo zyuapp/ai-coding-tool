@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { LuChevronLeft as ChevronLeft, LuChevronRight as ChevronRight, LuInbox as Inbox, LuMonitor as Monitor, LuMonitorOff as MonitorOff } from "react-icons/lu";
-import type { ComputerFilter, ComputerLink } from "../../domain/computers";
+import { awayStatus, type ComputerFilter, type ComputerLink } from "../../domain/computers";
 import type { SidebarMode } from "../../domain/sidebar";
 import { useDismissibleLayer } from "../focus";
 import { MenuList, type MenuItem } from "./PopoverMenu";
@@ -26,20 +26,21 @@ function ComputerSwitch({ links, name, filter, onSetFilter, openMenu, onSetOpenM
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   useDismissibleLayer(open, [root], () => onSetOpenMenu(null), trigger);
-  const choices: Array<{ filter: ComputerFilter; label: string; offline?: boolean }> = [
+  /** A computer that is not connected says whether it is being dialled again or waiting to be. */
+  const choices: Array<{ filter: ComputerFilter; label: string; away?: string }> = [
     { filter: "all", label: "All" },
     { filter: "this", label: name || "This computer" },
-    ...links.map((link) => ({ filter: link.id, label: link.name, offline: link.status !== "connected" })),
+    ...links.map((link) => ({ filter: link.id, label: link.name, ...(link.status !== "connected" ? { away: awayStatus(link.status) } : {}) })),
   ];
   const selected = choices.find((choice) => choice.filter === filter) ?? choices[0]!;
   const narrowed = selected.filter !== "all";
-  const Screen = selected.offline ? MonitorOff : Monitor;
-  const tip = !narrowed ? "Computers" : selected.filter === "this" ? `Only ${name || "this computer"}` : `Only ${selected.label}${selected.offline ? " (offline)" : ""}`;
+  const Screen = selected.away ? MonitorOff : Monitor;
+  const tip = !narrowed ? "Computers" : selected.filter === "this" ? `Only ${name || "this computer"}` : `Only ${selected.label}${selected.away ? ` (${selected.away})` : ""}`;
   const entries: MenuItem[] = choices.map((choice) => ({
     label: choice.label,
     checked: filter === choice.filter,
-    className: choice.offline ? "offline" : undefined,
-    title: choice.offline ? `${choice.label} is offline` : undefined,
+    className: choice.away ? "offline" : undefined,
+    title: choice.away ? `${choice.label} is ${choice.away}` : undefined,
     onSelect: () => onSetFilter(choice.filter),
   }));
   return (
@@ -49,7 +50,7 @@ function ComputerSwitch({ links, name, filter, onSetFilter, openMenu, onSetOpenM
       <button
         ref={trigger}
         type="button"
-        className={`thread-nav-button computer-switch-trigger${narrowed ? " active" : ""}${selected.offline ? " offline" : ""}`}
+        className={`thread-nav-button computer-switch-trigger${narrowed ? " active" : ""}${selected.away ? " offline" : ""}`}
         aria-label="Computers"
         aria-haspopup="menu"
         aria-expanded={open}

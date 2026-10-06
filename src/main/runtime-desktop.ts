@@ -31,6 +31,7 @@ function computerDesktop(host: RuntimeDesktopHost): ComputerDesktop {
     discoverComputers: async () => (await host.computers()).discover(),
     pairComputer: async (address, name, code) => (await host.computers()).pair(address, name, code),
     forgetComputer: async (id) => (await host.computers()).forget(id),
+    reconnectComputer: async (id) => (await host.computers()).reconnect(id),
     renameComputer: async (name) => {
       (await host.computers()).rename(name);
       await mobileBridge.announceName();

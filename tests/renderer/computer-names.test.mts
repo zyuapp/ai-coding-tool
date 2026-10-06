@@ -16,6 +16,7 @@ function settings(overrides: Partial<ComputerSettingsProps>) {
     onPair() {},
     onCancelPairing() {},
     onForget() {},
+    onReconnect() {},
     onRename() {},
     onLabel() {},
     ...overrides,
