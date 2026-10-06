@@ -22,6 +22,7 @@ import { isSettingsSection } from "../domain/settings-section.js";
 import { isSidebarMode, isSidebarSection } from "../domain/sidebar.js";
 import { isThemeMode } from "../domain/theme.js";
 import type { WorktreeDestination } from "../domain/worktree.js";
+import type { RemoteSender } from "../domain/message-origin.js";
 
 type ViewEvent = Extract<WorkspaceEvent, { type: "action.failed" | "find.results" | "shortcut.captured" | "shortcut.unavailable" }>;
 export type WorkspaceViewInput = AppCommand | ViewEvent;
@@ -78,6 +79,7 @@ const readingPoint = nullable(object({ anchor: text, depth: number }));
 const dropTarget = object({ projectId: nullableText, index: number });
 const runAttachment = object<RunAttachment>({ path: text, labels: array(text), context: optional(isScreenshotContext) });
 const pastedText = object<PastedText>({ id: text, text });
+const remoteSender = object<RemoteSender>({ threadId: deviceId, title: text, computer: deviceId });
 const attachedFileDraft = object<AttachedFileDraft>({ path: text, name: text, folder: optional(literals(true)) });
 const attachedFile = object<AttachedFile>({ id: text, path: text, name: text, folder: optional(literals(true)) });
 const imageAnnotation = object<ImageAnnotation>({ kind: literals("box", "arrow"), x: number, y: number, width: number, height: number, text });
@@ -136,7 +138,7 @@ function agentSend(command: Extract<AppCommand, { type: "task.send" }>): boolean
     /** An id, never a path: the reducer resolves it against the checkouts the app itself made. */
     && agentId(command.worktreeId)
     /** Only the window says which coordinator a thread works under, and which thread a message came from. */
-    && command.coordinatorId === undefined && command.from === undefined
+    && command.coordinatorId === undefined && command.from === undefined && command.sender === undefined
     /** Agent selection, the role and the brief belong to a thread being created, never one that already exists. */
     && (command.taskId === undefined || command.model === undefined && command.effort === undefined && command.role === undefined && command.brief === undefined);
 }
@@ -260,7 +262,7 @@ const commands = {
   "task.checkout-branch": { fields: { taskId: optionalText, branch: text, create: optionalBoolean }, at: "thread" },
   "attachments.send": { fields: { taskId: optionalText, steer: optionalBoolean, attachments: array(outgoingAttachment) }, at: "own" },
   "attachments.notice": { fields: { taskId: optionalText, message: nullableText }, at: "local" },
-  "task.send": { fields: { taskId: optionalText, project: optionalText, text: optionalText, attachments: optional(array(runAttachment)), steer: optionalBoolean, worktree: optionalBoolean, worktreeId: optionalText, model: optional(isAgentModel), effort: optional(isAgentEffort), role: optional(isThreadRole), coordinatorId: optionalText, brief: optional(isThreadBrief), from: optionalText }, at: "own", agent: agentSend },
+  "task.send": { fields: { taskId: optionalText, project: optionalText, text: optionalText, attachments: optional(array(runAttachment)), steer: optionalBoolean, worktree: optionalBoolean, worktreeId: optionalText, model: optional(isAgentModel), effort: optional(isAgentEffort), role: optional(isThreadRole), coordinatorId: optionalText, brief: optional(isThreadBrief), from: optionalText, sender: optional(remoteSender) }, at: "own", agent: agentSend },
   "task.steer-queued": { fields: { taskId: optionalText, messageId: text }, at: "thread" },
   "task.drop-queued": { fields: { taskId: optionalText, messageId: text }, at: "thread" },
   "task.edit-queued": { fields: { taskId: optionalText, messageId: text }, at: "own" },

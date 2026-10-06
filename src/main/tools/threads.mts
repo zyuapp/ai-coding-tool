@@ -16,7 +16,7 @@ export type ThreadToolContext = { bridge: ThreadBridge; now: () => number };
 const MINUTE = 60_000;
 const DEFAULT_WAIT_MS = 5 * MINUTE;
 
-const threadIdField = z.string().describe("The thread's known ID, an unambiguous prefix of it, or its exact title. Use list_threads only if you need to discover the target.");
+const threadIdField = z.string().describe("The thread's known ID, an unambiguous prefix of it, or its exact title, on this computer or a paired one. Use list_threads only if you need to discover the target.");
 
 const projectField = z.string().optional().describe(
   "\"current\" (the default) for the project this thread belongs to, \"all\" for every project, or a project named by its folder name or its path.",
@@ -135,12 +135,13 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
   }),
   defineTool({
     name: "start_thread",
-    description: "Start a new AICodingTool thread on its own prompt and run it. Use when the user asks for separate pieces of work to run side by side, one thread per piece. The new thread runs with the permission policy the app is set to, so write a prompt that stands on its own. It starts in this thread's checkout, worktree included. Pass worktree to give it an isolated checkout instead, which is what you want when it edits the same files as this thread.",
+    description: "Start a new AICodingTool thread on its own prompt and run it. Use when the user asks for separate pieces of work to run side by side, one thread per piece. The new thread runs with the permission policy the app is set to on the computer it runs on, so write a prompt that stands on its own. It starts in this thread's checkout, worktree included. Pass worktree to give it an isolated checkout instead, which is what you want when it edits the same files as this thread.",
     input: {
       prompt: z.string().describe("The first message of the new thread. It has none of this conversation's context, so say everything it needs."),
-      project: z.string().optional().describe("Which project to start it in: its folder name, its path, or its id. Defaults to this thread's project."),
+      computer: z.string().optional().describe('A paired computer to start it on, named by its name or ID, or "this" (the default). There it starts in the project checkout unless worktree or worktreeId says otherwise.'),
+      project: z.string().optional().describe("Which project to start it in: its folder name, its path, or its id. Defaults to this thread's project, or on a paired computer the project there at the same path or with the same folder name."),
       worktree: z.boolean().optional().describe("Run the new thread in its own new git worktree, detached at whatever the project has checked out, so its edits never touch this thread's checkout."),
-      worktreeId: z.string().optional().describe("Start the thread in another worktree that already exists, as list_threads reports it. Omit both worktree fields to share this thread's checkout. Takes precedence over worktree."),
+      worktreeId: z.string().optional().describe("Start the thread in another worktree that already exists, as list_threads reports it, on the computer it starts on. Omit both worktree fields to share this thread's checkout. Takes precedence over worktree."),
       model: modelField,
       effort: effortField,
       role: roleField,
@@ -151,7 +152,7 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
     readOnly: false,
     run: ({ bridge, now }, args) => report(async () => {
       const { intent, doneWhen, delivers } = args;
-      const { thread } = await bridge.command({
+      const { thread, notice } = await bridge.command({
         type: "task.send",
         text: args.prompt,
         ...(intent && doneWhen && delivers ? { brief: { intent, doneWhen, delivers } } : {}),
@@ -160,13 +161,13 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
         ...(args.model ? { model: args.model } : {}),
         ...(args.effort ? { effort: args.effort } : {}),
         ...(args.role ? { role: args.role } : {}),
-      });
-      return thread ? `Started ${describe(thread, now())}` : "The thread did not start.";
+      }, args.computer);
+      return thread ? `Started ${describe(thread, now())}` : notice ?? "The thread did not start.";
     }),
   }),
   defineTool({
     name: "message_thread",
-    description: "Send a message to another thread. It waits for that thread's current run to finish unless steer is true, which pushes it into the run already going.",
+    description: "Send a message to another thread, on this computer or a paired one. It waits for that thread's current run to finish unless steer is true, which pushes it into the run already going.",
     input: {
       threadId: threadIdField,
       text: z.string().describe("The message to send."),
@@ -225,11 +226,15 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
 
 /**
  * A coordinator is woken with its threads' news, so it never holds its turn open waiting on one, and
- * it is offered only the models it may start a thread on.
+ * it is offered only the models it may start a thread on, on its own computer.
  */
 const COORDINATOR_THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = THREAD_TOOLS
   .filter((tool) => tool.name !== "wait_for_thread")
-  .map((tool) => tool.name === "start_thread" ? { ...tool, input: { ...tool.input, model: delegableModelField } } : tool);
+  .map((tool) => {
+    if (tool.name !== "start_thread") return tool;
+    const { computer: _elsewhere, ...input } = tool.input;
+    return { ...tool, input: { ...input, model: delegableModelField } };
+  });
 
 export function threadTools(bridge: ThreadBridge, now: () => number = Date.now, role?: CoordinationRole) {
   return bindTools({ bridge, now }, role === "coordinator" ? COORDINATOR_THREAD_TOOLS : THREAD_TOOLS);

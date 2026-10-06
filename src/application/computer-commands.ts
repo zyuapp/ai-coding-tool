@@ -19,7 +19,9 @@ export type ComputerEvent =
   /** What a paired computer would have put on its own desktop: it judged the run news, this one only carries it. */
   | { type: "computer.notice"; id: string; notice: ThreadNotice }
   /** A paired computer took the draft a send carried, so this window lets go of it. */
-  | { type: "computers.forwarded"; draft: SentDraft };
+  | { type: "computers.forwarded"; draft: SentDraft }
+  /** The thread a paired computer says a carried command acted on, such as one it just started, for whoever asked. */
+  | { type: "computers.answered"; taskId: string };
 
 /** The host process holds the lines and the tokens, so every command here is described and never done. */
 export type ComputerEffect =
@@ -148,6 +150,8 @@ export function reduceComputers(state: WorkspaceState, input: ComputerInput): Wo
       return settled(withComputers(state, { filter: input.filter }));
     case "computers.forwarded":
       return settled(withoutSent(state, input.draft));
+    case "computers.answered":
+      return { state, effects: [], result: { ok: true, taskId: input.taskId } };
     case "computers.changed": {
       const paired = linked(state, input.links);
       /** A pairing that now shows up as a link is done; one that went away, or whose line dropped, takes the screen with it. */

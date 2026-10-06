@@ -59,6 +59,7 @@ export const computerEffects = {
     try {
       const result = await desktop.sendToComputer(effect.id, effect.inputs);
       if (!result.ok) throw new Error(result.message);
+      if (result.taskId !== undefined) await dispatch({ type: "computers.answered", taskId: result.taskId });
       if (effect.projectAddRequest !== undefined) await dispatch({ type: "project.add-finished", request: effect.projectAddRequest });
       if (effect.draft) await dispatch({ type: "computers.forwarded", draft: effect.draft });
     } catch (error) {

@@ -133,7 +133,8 @@ export type ThreadRequest = {
   | ({ op: "list" } & ThreadListQuery)
   | { op: "read"; threadId: string; limit?: number; computer?: string }
   | { op: "wait"; threadId: string; timeoutMs: number }
-  | { op: "command"; command: ExternalCommand }
+  /** `computer` names the paired computer a new thread starts on. */
+  | { op: "command"; command: ExternalCommand; computer?: string }
   | { op: "browser"; read: BrowserRead }
   | { op: "terminal"; read: TerminalRead }
   | { op: "notify"; report: FindingReport }

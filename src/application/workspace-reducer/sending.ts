@@ -70,9 +70,11 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
         const asked = refreshEngines({ ...state, actionError: blocked, actionErrorPage: "engines" });
         return rejected(asked.state, blocked, asked.effects);
       }
-      const sender = input.from === undefined || input.from === thread?.id ? undefined : state.threads.find((item) => item.id === input.from);
+      const local = input.from === undefined || input.from === thread?.id ? undefined : state.threads.find((item) => item.id === input.from);
+      /** A thread on another computer names itself, since this computer may not hold it. */
+      const sender: { id: string; title: string; computer?: string } | undefined = local ? { id: local.id, title: local.title } : input.sender ? { id: input.sender.threadId, title: input.sender.title, computer: input.sender.computer } : undefined;
       const prompt = sentPrompt(text, pastes, annotations, attachments, files);
-      const sentBy: MessageOrigin | undefined = sender ? { kind: "thread", threadId: sender.id, title: sender.title } : undefined;
+      const sentBy: MessageOrigin | undefined = sender ? { kind: "thread", threadId: sender.id, title: sender.title, ...(sender.computer ? { computer: sender.computer } : {}) } : undefined;
       const signed = sender ? `${senderPrompt(state.threads, sender, thread)}\n\n${prompt}` : prompt;
       /** A thread waiting out its usage limit holds the message for when it lifts, and goes first then. */
       const held = Boolean(thread && !state.activeRuns[thread.id] && heldByLimit(state, thread.id, Date.now()));

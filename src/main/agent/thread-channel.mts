@@ -38,7 +38,10 @@ export class ThreadChannel {
       list: (query: ThreadListQuery) => this.request({ taskId, op: "list", ...query }, query.computer && query.computer !== "this" ? this.remoteTimeout : this.timeout) as Promise<ThreadSummary[]>,
       read: (threadId: string, limit?: number, computer?: string) => this.request({ taskId, op: "read", threadId, ...(limit === undefined ? {} : { limit }), ...(computer === undefined ? {} : { computer }) }, computer === "this" ? this.timeout : this.remoteTimeout) as Promise<ThreadTranscript>,
       wait: (threadId: string, timeoutMs: number) => this.request({ taskId, op: "wait", threadId, timeoutMs }, timeoutMs + WAIT_SLACK) as Promise<ThreadWaitResult>,
-      command: (command: ExternalCommand) => this.request({ taskId, op: "command", command }, command.type === "worktree.delete" ? WORKTREE_DELETE_TIMEOUT : this.timeout) as Promise<ThreadCommandResult>,
+      command: (command: ExternalCommand, computer?: string) => this.request(
+        { taskId, op: "command", command, ...(computer === undefined ? {} : { computer }) },
+        command.type === "worktree.delete" ? WORKTREE_DELETE_TIMEOUT : command.type.startsWith("browser.") ? this.timeout : this.remoteTimeout,
+      ) as Promise<ThreadCommandResult>,
     };
   }
 

@@ -3,15 +3,19 @@
  * user's own words. `detail` still carries the label for display, which older builds read instead.
  */
 export type MessageOrigin =
-  /** Another thread. The title is the one it had when it sent the message. */
-  | { kind: "thread"; threadId?: string; title: string }
+  /** Another thread. The title is the one it had when it sent the message; `computer` names the paired computer it lives on. */
+  | { kind: "thread"; threadId?: string; title: string; computer?: string }
   | { kind: "automation"; runNumber: number }
   /** A coordinator's batch of news from its threads. */
   | { kind: "coordination" }
   /** Written by a build that kept only a label, which is all that says where it came from. */
   | { kind: "legacy"; label: string };
 
+/** A thread on another computer saying who it is, since the computer it reaches may not hold it. */
+export type RemoteSender = { threadId: string; title: string; computer: string };
+
 const FROM = "From ";
+const ON = " on ";
 const SEPARATOR = " · ";
 const COORDINATION = "Thread updates";
 const AUTOMATION = /^Automation run #(\d+)$/;
@@ -19,7 +23,7 @@ const AUTOMATION = /^Automation run #(\d+)$/;
 /** What a message's origin reads as. */
 export function originLabel(origin: MessageOrigin): string {
   switch (origin.kind) {
-    case "thread": return `${FROM}${origin.title}${origin.threadId ? `${SEPARATOR}${origin.threadId}` : ""}`;
+    case "thread": return `${FROM}${threadName(origin)}${origin.threadId ? `${SEPARATOR}${origin.threadId}` : ""}`;
     case "automation": return `Automation run #${origin.runNumber}`;
     case "coordination": return COORDINATION;
     case "legacy": return origin.label;
@@ -28,9 +32,13 @@ export function originLabel(origin: MessageOrigin): string {
 
 /** The short name a folded row gives the sender. */
 export function senderLabel(origin: MessageOrigin | undefined): string | undefined {
-  if (origin?.kind === "thread") return `${FROM}${origin.title}`;
+  if (origin?.kind === "thread") return `${FROM}${threadName(origin)}`;
   if (origin?.kind === "coordination") return COORDINATION;
   return undefined;
+}
+
+function threadName(origin: Extract<MessageOrigin, { kind: "thread" }>) {
+  return origin.computer ? `${origin.title}${ON}${origin.computer}` : origin.title;
 }
 
 /** The origin a message carries, with the label that travels beside it. */

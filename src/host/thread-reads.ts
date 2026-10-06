@@ -1,5 +1,5 @@
 import type { PairedComputer } from "../application/computers.js";
-import { findThread, resolveScope, threadSummaries, threadTranscript } from "../application/thread-projection.js";
+import { findThread, resolveScope, threadSummaries, threadSummary, threadTranscript } from "../application/thread-projection.js";
 import type { WorkspaceState } from "../application/workspace-state.js";
 import { isThreadSummary, isThreadTranscript } from "../contracts/thread-results.js";
 import type { ThreadListQuery, ThreadRequest, ThreadSummary, ThreadTranscript } from "../contracts/threads.js";
@@ -54,12 +54,24 @@ function computers(state: WorkspaceState, selected: string): { local: boolean; p
   return { local: false, paired: found };
 }
 
-function tag(computer: PairedComputer) {
+/** The paired computer a caller names, or null for this one. */
+export function namedComputer(state: WorkspaceState, selected: string): PairedComputer | null {
+  return computers(state, selected).paired[0] ?? null;
+}
+
+export function tag(computer: PairedComputer) {
   return { id: computer.id, name: computer.name, offline: computer.status !== "connected" };
 }
 
-function online(computer: PairedComputer) {
-  if (computer.status !== "connected") throw new Error(`${computer.name} is ${awayStatus(computer.status)}, so its threads cannot be read right now.`);
+export function online(computer: PairedComputer, doing = "read") {
+  if (computer.status !== "connected") throw new Error(`${computer.name} is ${awayStatus(computer.status)}, so its threads cannot be ${doing} right now.`);
+}
+
+/** A paired computer's thread as a listing shows it, tagged with the computer, or null while that computer's state does not hold it. */
+export function remoteSummary(state: WorkspaceState, computerId: string, threadId: string): ThreadSummary | null {
+  const computer = state.computers.paired.find((item) => item.id === computerId);
+  const thread = computer?.state?.threads.find((item) => item.id === threadId);
+  return computer?.state && thread ? { ...threadSummary(computer.state, thread), computer: tag(computer) } : null;
 }
 
 /**
@@ -116,7 +128,7 @@ export function resolveThreadRead(state: WorkspaceState, reference: string, sele
   });
   const exact = matches.filter(({ thread }) => thread.id.toLowerCase() === reference.trim().toLowerCase());
   const candidates = exact.length ? exact : matches;
-  if (candidates.length > 1) throw new Error(`More than one computer has a thread matching ${reference}. Specify computer: ${candidates.map(({ computer }) => computer ? `${computer.name} [${computer.id}]` : "this").join(", ")}.`);
+  if (candidates.length > 1) throw new Error(`More than one computer has a thread matching ${reference}: ${candidates.map(({ computer, thread }) => `${thread.id} on ${computer ? `${computer.name} [${computer.id}]` : "this computer"}`).join(", ")}. Use the full thread ID.`);
   const match = candidates[0];
   if (!match) {
     const missing = scope.paired.filter((computer) => !computer.state || computer.status !== "connected");

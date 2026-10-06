@@ -18,6 +18,7 @@ import type { Annotation, AnnotationAnchor, AttachedFile, AttachedFileDraft, Out
 import type { ThreadDropTarget } from "../domain/project.js";
 import type { ReviewTarget } from "../domain/review.js";
 import type { WorktreeDestination } from "../domain/worktree.js";
+import type { RemoteSender } from "../domain/message-origin.js";
 
 export type TaskDropTarget = ThreadDropTarget;
 
@@ -140,7 +141,7 @@ export type TaskCommand =
    * the `brief` it is handed. `from` names the thread that sent the message, which both the agent and
    * the user are shown.
    */
-  | { type: "task.send"; taskId?: string; project?: string; text?: string; attachments?: RunAttachment[]; steer?: boolean; worktree?: boolean; worktreeId?: string; model?: AgentModel; effort?: AgentEffort; role?: ThreadRole; coordinatorId?: string; brief?: ThreadBrief; from?: string }
+  | { type: "task.send"; taskId?: string; project?: string; text?: string; attachments?: RunAttachment[]; steer?: boolean; worktree?: boolean; worktreeId?: string; model?: AgentModel; effort?: AgentEffort; role?: ThreadRole; coordinatorId?: string; brief?: ThreadBrief; from?: string; sender?: RemoteSender }
   /**
    * Sends the composer's message with the images in its strip, which are written out to disk first:
    * the run is started only once they are all there, and a failure to write one stops the send.

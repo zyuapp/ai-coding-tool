@@ -12,7 +12,8 @@ export type ThreadBridge = {
   list(query: ThreadListQuery): Promise<ThreadSummary[]>;
   read(threadId: string, limit?: number, computer?: string): Promise<ThreadTranscript>;
   wait(threadId: string, timeoutMs: number): Promise<ThreadWaitResult>;
-  command(command: ExternalCommand): Promise<ThreadCommandResult>;
+  /** `computer` names the paired computer a new thread starts on; a named thread is acted on wherever it is. */
+  command(command: ExternalCommand, computer?: string): Promise<ThreadCommandResult>;
 };
 
 /** What a thread working under a coordinator, or the coordinator itself, says for itself, answered by the window that keeps it. */

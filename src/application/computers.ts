@@ -190,6 +190,25 @@ function threadHolder(state: WorkspaceState, input: AppCommand, active: PairedCo
   return taskId === undefined ? active : computerOfThread(state, taskId);
 }
 
+/**
+ * Where a send goes: the computer holding the thread it names, else the one holding the project or
+ * checkout a new thread is named into, whatever is on screen, else the one showing a thread.
+ */
+function sendHolder(state: WorkspaceState, input: Extract<AppCommand, { type: "task.send" }>, active: PairedComputer | null): PairedComputer | null {
+  if (input.taskId !== undefined) return computerOfThread(state, input.taskId);
+  if (input.worktreeId !== undefined) {
+    if (state.worktrees.some((worktree) => worktree.id === input.worktreeId)) return null;
+    const holder = computerOfWorktree(state, input.worktreeId);
+    if (holder) return holder;
+  }
+  if (input.project !== undefined) {
+    if (state.projects.some((project) => project.id === input.project)) return null;
+    const holder = computerOfProject(state, input.project);
+    if (holder) return holder;
+  }
+  return active;
+}
+
 /** The paired computer holding a thread's queue, with the thread a command without a `taskId` means there. */
 export function queueHolder(state: WorkspaceState, taskId: string | undefined): { computer: PairedComputer; taskId: string | undefined } | null {
   const computer = taskId === undefined ? selectedComputer(state) : computerOfThread(state, taskId);
@@ -212,7 +231,7 @@ const PLACED: { [At in Exclude<CommandPlacement, "own">]: Route<PlacedCommand<At
 
 const OWN: { [Type in Exclude<PlacedCommand<"own">["type"], "project.add">]: Route<Extract<AppCommand, { type: Type }>> } = {
   "task.new": (state, input) => toward(computerOfProject(state, input.projectId) ?? computerOfWorktree(state, input.worktreeId), (holder) => selecting(state, holder, [input])),
-  "task.send": (state, input, active) => toward(threadHolder(state, input, active), (holder) => forwardedSend(state, holder, input)),
+  "task.send": (state, input, active) => toward(sendHolder(state, input, active), (holder) => forwardedSend(state, holder, input)),
   "attachments.send": (state, input, active) => toward(threadHolder(state, input, active), (holder) => forwardedSend(state, holder, input)),
   /** The queue is the holder's and the draft is this computer's, so the message leaves there and lands here. */
   "task.edit-queued": (state, input, active) => toward(threadHolder(state, input, active), (holder) => {

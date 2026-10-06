@@ -187,6 +187,8 @@ class AgentRunHost {
       : request.op === "browser" && (request.read.op === "snapshot" || request.read.op === "screenshot" || request.read.op === "wait")
         ? request.read.timeoutMs + THREAD_WAIT_SLACK
         : (request.op === "read" && request.computer !== "this") || (request.op === "list" && request.computer && request.computer !== "this")
+          /** A named thread may live on a paired computer, which only the workspace knows. */
+          || (request.op === "command" && !request.command.type.startsWith("browser.") && request.command.type !== "worktree.delete")
           ? REMOTE_THREAD_READ_TIMEOUT_MS
           : THREAD_REQUEST_TIMEOUT;
     const timer = setTimeout(() => {

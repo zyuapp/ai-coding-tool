@@ -1,14 +1,17 @@
 import { browserPermissions } from "../application/workspace-reducer.js";
 import { browserTarget, dockFor, dockOwner, terminalTarget, type WorkspaceState } from "../application/workspace-state.js";
-import { findThread, threadSummary, threadWaitResult } from "../application/thread-projection.js";
+import { threadSummary, threadWaitResult } from "../application/thread-projection.js";
 import { isWorking } from "../application/thread-activity.js";
-import { listAcrossComputers, readAcrossComputers, type PreparedThreadRequest } from "./thread-reads.js";
+import { listAcrossComputers, namedComputer, online, readAcrossComputers, remoteSummary, resolveThreadRead, tag, type PreparedThreadRequest } from "./thread-reads.js";
+import type { PairedComputer } from "../application/computers.js";
+import { findProject, folderName, matchingProjects, projectName, type Project } from "../domain/project.js";
+import type { Thread } from "../domain/thread.js";
 import { isNews, unreadFindings } from "../domain/attention.js";
 import { scheduledRun } from "../application/run-testimony.js";
 import type { WorkspaceInput } from "../application/workspace-reducer.js";
 import type { WorkspaceExecution } from "../application/workspace-execution.js";
 import type { AppCommand } from "../contracts/commands.js";
-import type { FindingReport, FindingResult, ThreadRequest, ThreadResponse } from "../contracts/threads.js";
+import type { ExternalCommand, FindingReport, FindingResult, ThreadCommandResult, ThreadRequest, ThreadResponse } from "../contracts/threads.js";
 import { terminalLineLimit } from "../domain/terminal.js";
 import { coordinatorOf, isCoordinator, type CoordinationState, type DecisionRequest } from "../domain/coordination.js";
 import { errorMessage } from "./errors.js";
@@ -18,9 +21,9 @@ import { defaultEffortFor, defaultModelFor, effortForModel, engineForModel, mode
 /** How much page text a read returns when the caller does not say. */
 const DEFAULT_PAGE_TEXT = 4_000;
 
-/** A tool call held open until the thread it names stops working. */
+/** A tool call held open until the state it waits on arrives, such as the thread it names stopping work. */
 export type ThreadWaiter = {
-  threadId: string;
+  pending: (state: WorkspaceState) => boolean;
   settle: (state: WorkspaceState) => void;
   timer: ReturnType<typeof setTimeout>;
 };
@@ -43,7 +46,7 @@ export function releaseThreadWaiters(waiters: ThreadWaiterList, state: Workspace
   let pending: ThreadWaiter[] | null = null;
   for (let index = 0; index < waiting.length; index += 1) {
     const waiter = waiting[index]!;
-    if (isWorking(state, waiter.threadId)) {
+    if (waiter.pending(state)) {
       pending?.push(waiter);
     } else {
       pending ??= waiting.slice(0, index);
@@ -70,22 +73,26 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
       return ok(await readAcrossComputers(host, request.threadId, request.limit, request.computer));
     }
     if (request.op === "wait") {
-      const thread = findThread(host.state(), request.threadId);
-      if (!thread) return failed(`No thread has the ID ${request.threadId}.`);
-      const threadId = thread.id;
-      const waited = threadWaitResult(host.state(), threadId, false);
-      if (!isWorking(host.state(), threadId)) return ok(waited);
-      return new Promise<ThreadResponse>((resolve) => {
-        const waiter: ThreadWaiter = {
-          threadId,
-          settle: (state) => resolve(ok(threadWaitResult(state, threadId, false))),
-          timer: setTimeout(() => {
-            host.waiters.current = host.waiters.current.filter((item) => item !== waiter);
-            resolve(ok(threadWaitResult(host.state(), threadId, true)));
-          }, request.timeoutMs),
-        };
-        host.waiters.current.push(waiter);
-      });
+      const match = resolveThreadRead(host.state(), request.threadId);
+      const threadId = match.thread.id;
+      if (!match.computer) {
+        const { state, timedOut } = await waitFor(host, (state) => isWorking(state, threadId), request.timeoutMs);
+        return ok(threadWaitResult(state, threadId, timedOut));
+      }
+      /** A paired computer's thread is watched in the state it keeps publishing, which settles it here as it settles there. */
+      const computerId = match.computer.id;
+      online(match.computer, "waited on");
+      const holder = (state: WorkspaceState) => state.computers.paired.find((computer) => computer.id === computerId);
+      const { state, timedOut } = await waitFor(host, (state) => {
+        const computer = holder(state);
+        return computer?.status === "connected" && Boolean(computer.state && isWorking(computer.state, threadId));
+      }, request.timeoutMs);
+      const computer = holder(state);
+      if (!computer) return failed("That computer is no longer paired.");
+      online(computer, "waited on");
+      const waited = computer.state ? threadWaitResult(computer.state, threadId, timedOut) : null;
+      if (!waited) return failed(`No thread has the ID ${threadId}.`);
+      return ok({ ...waited, thread: { ...waited.thread, computer: tag(computer) } });
     }
     if (request.op === "browser") {
       const state = host.state();
@@ -141,30 +148,36 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
       const notice = host.state().worktreeManagementNotice;
       return ok({ thread: null, ...(notice ? { notice } : {}) });
     }
-    if (command.taskId !== undefined && !before.threads.some((thread) => thread.id === command.taskId)) {
-      return failed(`No thread has the ID ${command.taskId}.`);
-    }
+    /** A thread is named the way the tools name it, and found on this computer or a paired one. */
+    const target = command.taskId === undefined ? null : resolveThreadRead(before, command.taskId);
     const caller = before.threads.find((thread) => thread.id === request.taskId);
     if (command.type === "task.send" && command.taskId === undefined && !caller) {
       return failed(`No thread has the ID ${request.taskId}.`);
     }
-    const selected: { command: typeof command } | { error: string } = command.type === "task.send" && command.taskId === undefined && caller
+    const named = target ? { ...command, taskId: target.thread.id } as typeof command : command;
+    const selected: { command: typeof command } | { error: string } = named.type === "task.send" && named.taskId === undefined && caller
       ? (() => {
-          const model = command.model ?? caller.model ?? defaultModelFor(caller.engine);
+          const model = named.model ?? caller.model ?? defaultModelFor(caller.engine);
           if (isCoordinator(caller) && !modelDelegable(model)) return { error: `A coordinator cannot start a thread on the ${model} model. Pick another model.` };
-          if (command.effort && !modelHasEffort(model, command.effort)) return { error: `The ${model} model does not support ${command.effort} effort.` };
+          if (named.effort && !modelHasEffort(model, named.effort)) return { error: `The ${model} model does not support ${named.effort} effort.` };
           /** An inherited effort the new model does not take drops to the nearest one it does. */
-          const effort = command.effort ?? effortForModel(model, caller.effort ?? defaultEffortFor(engineForModel(model)));
-          const { effort: _asked, ...rest } = command;
-          return { command: modelTakesEffort(model) ? { ...command, model, effort } : { ...rest, model } };
+          const effort = named.effort ?? effortForModel(model, caller.effort ?? defaultEffortFor(engineForModel(model)));
+          const { effort: _asked, ...rest } = named;
+          return { command: modelTakesEffort(model) ? { ...named, model, effort } : { ...rest, model } };
         })()
-      : { command };
+      : { command: named };
     if ("error" in selected) return failed(selected.error);
     /** A coordinator's new thread works under it and starts from the brief it was handed; one its threads start joins them under it. */
     const starting = selected.command.type === "task.send" && selected.command.taskId === undefined;
     const coordinating = starting && isCoordinator(caller);
     if (coordinating && selected.command.type === "task.send" && !selected.command.brief) return failed(BRIEF_REQUIRED);
     const lead = !starting ? undefined : coordinating ? caller : coordinatorOf(before.threads, caller);
+    /** A thread on a paired computer, or a new one asked for there, is that computer's to act on. */
+    const elsewhere = target ? target.computer : starting && request.computer !== undefined ? namedComputer(before, request.computer) : null;
+    if (elsewhere) {
+      if (lead) return failed(COORDINATED_HERE);
+      return ok(await commandElsewhere(host, elsewhere, selected.command, caller));
+    }
     /** A new thread with no place named starts where the thread that asked for it lives: its project, and its worktree when it has one. */
     const callerProjectId = caller?.projectId;
     const placed = selected.command.type === "task.send" && selected.command.taskId === undefined && selected.command.project === undefined && callerProjectId
@@ -179,12 +192,75 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
     const result = await host.execute(signed).completed;
     if (!result.ok) return failed(result.message);
     const after = host.state();
-    const taskId = result.taskId ?? command.taskId;
+    const taskId = result.taskId ?? named.taskId;
     const thread = after.threads.find((thread) => thread.id === taskId);
     return ok({ thread: thread ? threadSummary(after, thread) : null });
   } catch (error) {
     return failed(errorMessage(error));
   }
+}
+
+/** Holds the call until `pending` stops holding, or until the time runs out. */
+function waitFor(host: ThreadRequestHost, pending: (state: WorkspaceState) => boolean, timeoutMs: number): Promise<{ state: WorkspaceState; timedOut: boolean }> {
+  if (!pending(host.state())) return Promise.resolve({ state: host.state(), timedOut: false });
+  return new Promise((resolve) => {
+    const waiter: ThreadWaiter = {
+      pending,
+      settle: (state) => resolve({ state, timedOut: false }),
+      timer: setTimeout(() => {
+        host.waiters.current = host.waiters.current.filter((item) => item !== waiter);
+        resolve({ state: host.state(), timedOut: true });
+      }, timeoutMs),
+    };
+    host.waiters.current.push(waiter);
+  });
+}
+
+const COORDINATED_HERE = "A coordinator and the threads under it start threads only on their own computer.";
+
+/** How long a thread just started on a paired computer is given to show up in the state that computer publishes. */
+const ARRIVAL_MS = 5_000;
+
+/**
+ * A command for a paired computer's thread, or for a new thread there, goes through the reducer,
+ * which carries it to that computer. The message says which thread sent it, since that computer
+ * may not hold this one's threads, and a new thread starts in the project there that this one's
+ * own project matches unless another is named.
+ */
+async function commandElsewhere(host: ThreadRequestHost, computer: PairedComputer, command: ExternalCommand, caller: Thread | undefined): Promise<ThreadCommandResult> {
+  online(computer, "reached");
+  if (!computer.state) throw new Error(`${computer.name} has not sent its threads yet. Try again once it is connected.`);
+  const state = host.state();
+  const sender = caller ? { threadId: caller.id, title: caller.title, computer: state.computers.name || "another computer" } : undefined;
+  if (command.type === "task.send" && command.taskId === undefined) {
+    const own = state.projects.find((project) => project.id === caller?.projectId);
+    const project = projectThere(computer, command.project, own);
+    const result = await host.execute({ ...command, project: project.id, ...(sender ? { sender } : {}) }).completed;
+    if (!result.ok) throw new Error(result.message);
+    const taskId = result.taskId;
+    if (taskId === undefined) throw new Error(`${computer.name} did not say which thread it started.`);
+    const arrived = await waitFor(host, (state) => !remoteSummary(state, computer.id, taskId), ARRIVAL_MS);
+    const thread = remoteSummary(arrived.state, computer.id, taskId);
+    return thread ? { thread } : { thread: null, notice: `Started thread ${taskId} on ${computer.name}.` };
+  }
+  const result = await host.execute(command.type === "task.send" && sender ? { ...command, sender } : command).completed;
+  if (!result.ok) throw new Error(result.message);
+  return { thread: command.taskId === undefined ? null : remoteSummary(host.state(), computer.id, command.taskId) };
+}
+
+/** The project on a paired computer a new thread starts in: the one named, else the one at this thread's project's path or with its folder's name. */
+function projectThere(computer: PairedComputer, named: string | undefined, own: Project | undefined): Project {
+  const projects = computer.state?.projects ?? [];
+  if (named !== undefined) {
+    const found = findProject(projects, named);
+    if ("error" in found) throw new Error(`On ${computer.name}: ${found.error}`);
+    return found.project;
+  }
+  if (!own) throw new Error(`Name the project on ${computer.name} to start the thread in.`);
+  const atRoot = matchingProjects(projects, own.root);
+  const matches = atRoot.length ? atRoot : matchingProjects(projects, folderName(own.root));
+  if (matches.length === 1) return matches[0]!;
+  throw new Error(`${matches.length ? "More than one" : "No"} project on ${computer.name} matches ${projectName(own)}. Name the project to start the thread in.`);
 }
 
 /** What the tools say when the caller is not a scheduled run at all. Nothing is written for one. */

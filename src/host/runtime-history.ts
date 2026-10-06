@@ -1,7 +1,7 @@
 import { findTargetFor, type WorkspaceState } from "../application/workspace-state.js";
 import { inputScope } from "../application/input-scope.js";
 import { shortcutCommands, type WorkspaceInput } from "../application/workspace-reducer.js";
-import { findThread, resolveScope, threadSummaries } from "../application/thread-projection.js";
+import { resolveScope, threadSummaries } from "../application/thread-projection.js";
 import type { ConversationMessage } from "../domain/conversation.js";
 import type { ThreadFilter, ThreadRequest } from "../contracts/threads.js";
 import { adoptPersistedMessages, type PersistenceQueue } from "./workspace-persistence.js";
@@ -133,8 +133,8 @@ export function createRuntimeHistory(host: HistoryHost) {
         if (!match.computer) await hydrate(match.thread.id);
       }
       if (request.op === "wait") {
-        const thread = findThread(host.state(), request.threadId);
-        if (thread) await hydrate(thread.id);
+        const match = resolveThreadRead(host.state(), request.threadId);
+        if (!match.computer) await hydrate(match.thread.id);
       }
       if (request.op !== "list" || !request.search?.trim()) return;
       const state = host.state();

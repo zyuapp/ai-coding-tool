@@ -566,7 +566,7 @@ function isHeldMessage(value: unknown): boolean {
 function isMessageOrigin(value: unknown): value is MessageOrigin {
   if (!isRecord(value)) return false;
   switch (value.kind) {
-    case "thread": return typeof value.title === "string" && (value.threadId === undefined || nonEmptyString(value.threadId));
+    case "thread": return typeof value.title === "string" && (value.threadId === undefined || nonEmptyString(value.threadId)) && (value.computer === undefined || nonEmptyString(value.computer));
     case "automation": return finiteNumber(value.runNumber);
     case "coordination": return true;
     case "legacy": return typeof value.label === "string";
