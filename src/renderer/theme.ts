@@ -1,6 +1,7 @@
 import { readViewPreferences } from "../application/view-preferences";
 import { themeFor, themeModeOrDefault, themeOrDefault, variantFor, type Theme } from "../domain/theme";
 import { redrawDiagrams } from "./components/MermaidBlock";
+import { restyleVisuals } from "./components/VisualBlock";
 import { repaintTerminalViews } from "./task-workspace/terminal-views";
 
 /** Whether the system is asking for a dark ground, which only a window set to "auto" reads. */
@@ -25,7 +26,7 @@ function tellWindow(chosen: Theme) {
 /**
  * The theme lives on the root as an attribute; the stylesheet does the rest. What CSS cannot reach
  * is repainted here: xterm holds the colours it was built with, Mermaid bakes them into its SVG,
- * and the window's own frame is drawn by the platform.
+ * a visual's frame is a document of its own, and the window's own frame is drawn by the platform.
  */
 export function applyTheme(id: string, follow = false): void {
   const chosen = themeOrDefault(id);
@@ -38,6 +39,7 @@ export function applyTheme(id: string, follow = false): void {
   if (!repaint) return;
   repaintTerminalViews();
   redrawDiagrams();
+  restyleVisuals();
 }
 
 /** Runs before the first render, so the window never paints a theme the user has already left. */

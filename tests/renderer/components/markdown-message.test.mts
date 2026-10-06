@@ -149,3 +149,23 @@ test("commit hashes in inline code open that transcript's commit, while fenced c
   assert.equal(view.container.querySelector("pre code")?.textContent, "60cceb8\n");
   await view.unmount();
 });
+
+test("a visual fence becomes a sandboxed frame once it has closed, and an oversized one stays code", async () => {
+  const fence = "```visual\n<div id=\"viz-a\">Hi</div>\n```";
+  const settled = await mount(React.createElement(MarkdownMessage, null, fence));
+  const frame = settled.container.querySelector("iframe");
+  assert.equal(frame?.getAttribute("sandbox"), "allow-scripts", "the frame gets scripts and nothing else");
+  assert.equal(frame?.getAttribute("src"), "aicodingtool-visual://frame/");
+  assert.equal(settled.container.querySelector("pre"), null);
+  await settled.unmount();
+
+  const streaming = await mount(React.createElement(MarkdownMessage, { animate: true, children: "```visual\n<div id=\"viz-a\">" }));
+  assert.equal(streaming.container.querySelector("iframe"), null, "a fence still being written is not run");
+  assert.match(streaming.container.textContent, /Drawing visual/);
+  await streaming.unmount();
+
+  const oversized = await mount(React.createElement(MarkdownMessage, null, `\`\`\`visual\n${"x".repeat(1_000_001)}\n\`\`\``));
+  assert.equal(oversized.container.querySelector("iframe"), null);
+  assert.ok(oversized.container.querySelector("pre code.language-visual"));
+  await oversized.unmount();
+});

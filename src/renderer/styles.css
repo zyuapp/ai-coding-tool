@@ -1603,6 +1603,14 @@ button, select { color: inherit; }
 .mermaid-svg svg { flex: none; margin: auto; width: var(--diagram-width, 100%); height: var(--diagram-height, auto); }
 .mermaid-error summary { color: var(--danger-soft); cursor: pointer; }
 .mermaid-error pre { margin-bottom: 0; }
+/* A visual is unframed: it sits on the conversation like prose and draws its own surfaces. */
+.visual-block { margin: 17px 0; }
+.visual-frame { display: block; width: 100%; height: var(--visual-height, 160px); border: 0; background: transparent; opacity: 0; transition: opacity 180ms ease; }
+.visual-frame[data-ready] { opacity: 1; }
+.visual-loading { display: flex; align-items: center; justify-content: center; height: var(--visual-height, 120px); border-radius: 10px; background: var(--sunken); color: var(--quiet-strong); font-size: var(--text-meta); }
+.visual-error { margin-top: 6px; font-size: var(--text-meta); }
+.visual-error summary { color: var(--danger-soft); cursor: pointer; }
+.visual-error pre { margin-bottom: 0; }
 .message.tool { margin: 0; }
 /* A run of tool calls is one card, so the calls inside it need no divider of their own. */
 .work-run, .work-row { border: 1px solid var(--line-soft); border-radius: 10px; background: var(--sunken); }

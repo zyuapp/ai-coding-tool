@@ -7,7 +7,9 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { useMessageImageStore } from "./message-image-store.js";
-import { handleImageProtocols, registerImageSchemes } from "./image-protocols.js";
+import { handleImageProtocols, registerAppSchemes } from "./image-protocols.js";
+import { guardVisualFrames, handleVisualProtocol } from "./visual-frame-host.js";
+import { isVisualFrameUrl } from "../domain/visual-frame.js";
 import { isWindowTheme, type BrowserPageEvent, type WindowTheme } from "../contracts/ipc.js";
 import { CLI_URL_SCHEME, projectPathFromArgv, projectPathFromUrl } from "../domain/cli.js";
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
@@ -58,7 +60,7 @@ app.commandLine.appendSwitch("disk-cache-size", String(256 * 1024 * 1024));
 useAttachmentsDirectory(app.getPath("userData"));
 useMessageImageStore({ directory: path.join(app.getPath("userData"), "message-images"), thumbnail: messageThumbnail });
 
-registerImageSchemes();
+registerAppSchemes();
 
 /** The `aic` command opens a folder in the app that is already running, never a second one. */
 const singleInstance = app.requestSingleInstanceLock();
@@ -226,10 +228,11 @@ function loadWindowTheme(): WindowTheme {
 /**
  * The app's own window loads only bundled content, so it keeps the blanket grant it has always had.
  * It is spelled out here because the font picker asks for `local-fonts`, which Chromium prompts for.
- * The browser panel runs in its own partition, which grants pages far less.
+ * The browser panel runs in its own partition, which grants pages far less. A visual's frame is an
+ * agent's markup rather than the app's, so it is granted nothing.
  */
 function grantAppWindowPermissions() {
-  session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(true));
+  session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback, details) => callback(!isVisualFrameUrl(details.requestingUrl)));
 }
 
 function applyWindowTheme(theme: WindowTheme) {
@@ -371,6 +374,7 @@ async function createWindow() {
   window.webContents.on("before-input-event", (event, input) => {
     if (keyboard.handleKey(input, "any")) event.preventDefault();
   });
+  guardVisualFrames(window.webContents);
   /** A normal link leaves AI Coding Tool. Its context menu offers the browser panel separately. */
   window.webContents.setWindowOpenHandler(({ url }) => {
     try {
@@ -439,6 +443,7 @@ const startup = app.whenReady().then(async () => {
   grantAppWindowPermissions();
   applyWindowTheme(loadWindowTheme());
   handleImageProtocols(computerReads);
+  handleVisualProtocol();
   const windowCreated = createWindow().catch((error) => console.error("Could not open the window:", error));
   const { WorkspaceService: WorkspaceServiceConstructor } = await import("./workspace/workspace-service.mjs");
   workspaceService = new WorkspaceServiceConstructor({

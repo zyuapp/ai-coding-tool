@@ -4,9 +4,11 @@ import remarkGfm from "remark-gfm";
 import { parseFileHref, parseThreadHref } from "../../domain/markdown-links";
 import { Copyable } from "./CopyButton";
 import { MermaidBlock } from "./MermaidBlock";
+import { VisualBlock } from "./VisualBlock";
 import { ContextMenu } from "./PopoverMenu";
 import { isCommitHash, messageImagePath, messageImageUrl } from "../../domain/message-artifacts";
 import { messageImages, type MessageImage } from "../../application/message-images";
+import { MAX_VISUAL_SOURCE, VISUAL_LANGUAGE } from "../../domain/visual-frame";
 
 const APP_HREF = /^aicodingtool:/i;
 const WEB_HREF = /^https?:/i;
@@ -56,7 +58,15 @@ function MarkdownPre({ children, node, ...props }: ComponentProps<"pre"> & Extra
   /** The fence marks frame the block, so what is copied is only what was written inside them. */
   const inside = String(code?.props.children ?? "").replace(/\n$/, "");
   const copied = unsettled ? "" : inside;
-  if (code?.props.className?.split(" ").includes("language-mermaid")) {
+  const languages = code?.props.className?.split(" ") ?? [];
+  if (languages.includes(`language-${VISUAL_LANGUAGE}`) && inside.length <= MAX_VISUAL_SOURCE) {
+    return (
+      <Copyable text={copied} label="Copy the visual's HTML">
+        <VisualBlock source={inside} pending={unsettled} />
+      </Copyable>
+    );
+  }
+  if (languages.includes("language-mermaid")) {
     return (
       <Copyable text={copied} label="Copy the diagram">
         <MermaidBlock source={inside} pending={unsettled} />

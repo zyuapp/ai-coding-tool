@@ -8,6 +8,7 @@ import {
   uiFontOrDefault,
 } from "../domain/typography";
 import { redrawDiagrams } from "./components/MermaidBlock";
+import { restyleVisuals } from "./components/VisualBlock";
 import { restyleTerminalViews } from "./task-workspace/terminal-views";
 
 export type TypographyChoice = {
@@ -58,7 +59,10 @@ function settle(choice: TypographyChoice) {
 export function applyTypography(choice: TypographyChoice): void {
   const changed = settle(choice);
   if (changed.monoFont || changed.terminalSize) restyleTerminalViews();
-  if (changed.uiFont || changed.monoFont || changed.readingSize) redrawDiagrams();
+  if (changed.uiFont || changed.monoFont || changed.readingSize) {
+    redrawDiagrams();
+    restyleVisuals();
+  }
 }
 
 /** Runs before the first render, so the window never paints type the user has already left. */
