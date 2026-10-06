@@ -32,8 +32,9 @@ function view(title: string): MobileView {
 
 const BUILD = "b7f0c1d2e3a4b5c6";
 
-function snapshot(sequence: number, sessionId = "s1", body = view("Thread"), build = BUILD): MobileServerMessage {
-  return { kind: "snapshot", sequence, sessionId, build, view: body };
+/** A snapshot from the running server named "one", unless a test says another. */
+function snapshot(sequence: number, sessionId = "s1", body = view("Thread"), build = BUILD, instance: string | null = "one"): MobileServerMessage {
+  return { kind: "snapshot", sequence, sessionId, build, view: body, ...(instance ? { instance } : {}) };
 }
 
 /** Runs a run of events through the reducer and keeps every effect they asked for. */
@@ -296,10 +297,18 @@ test("what was written to a server that has since restarted is let go of, not ru
   const first = run(paired(), [{ kind: "received", message: { ...snapshot(2, "s1"), instance: "one" } as MobileServerMessage }]);
   const asked = run(first.state, [{ kind: "dispatch", requestId: "r1", command: { type: "task.send", taskId: "t1", text: "hello" }, at: 0 }]);
   assert.equal(asked.state.outbox[0]?.instance, "one");
+  const whole = run(asked.state, [{ kind: "received", message: snapshot(3, "s1", view("Thread"), BUILD, null) }]);
+  assert.equal(whole.state.outbox.length, 1, "a whole view within the same session is the same server, which remembers");
   const offline = run(asked.state, [{ kind: "closed" }, { kind: "dispatch", requestId: "r2", command: { type: "task.send", taskId: "t1", text: "unsent" }, at: 0 }]);
   const restarted = run(offline.state, [{ kind: "opened", at: 0 }, { kind: "received", message: { ...snapshot(1, "s2"), instance: "two" } as MobileServerMessage }]);
   assert.deepEqual(sent(restarted.effects).filter((message) => message.kind === "command").map((message) => message.kind === "command" && message.requestId), ["r2"]);
   assert.match(restarted.state.notice ?? "", /restarted/);
+  const unnamed = run(offline.state, [{ kind: "opened", at: 0 }, { kind: "received", message: snapshot(1, "s2", view("Thread"), BUILD, null) }]);
+  assert.deepEqual(unnamed.state.outbox.map((item) => item.requestId), ["r2"], "a server that does not say which it is cannot be trusted to remember");
+  const legacy = run(paired(), [{ kind: "dispatch", requestId: "old", command: { type: "task.send", taskId: "t1", text: "hi" }, at: 0 }]);
+  const stripped = { ...legacy.state, outbox: legacy.state.outbox.map((item) => ({ ...item, instance: undefined })) };
+  const after = run(stripped, [{ kind: "closed" }, { kind: "opened", at: 0 }, { kind: "received", message: { ...snapshot(1, "s3"), instance: "two" } as MobileServerMessage }]);
+  assert.deepEqual(after.state.outbox, [], "one written to a server that never said which it was is let go of too");
   const same = run(offline.state, [{ kind: "opened", at: 0 }, { kind: "received", message: { ...snapshot(1, "s2"), instance: "one" } as MobileServerMessage }]);
   assert.deepEqual(sent(same.effects).filter((message) => message.kind === "command").map((message) => message.kind === "command" && message.requestId), ["r1", "r2"], "the same server remembers, so it is asked again");
 });

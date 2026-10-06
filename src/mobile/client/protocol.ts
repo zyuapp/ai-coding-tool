@@ -325,7 +325,8 @@ function received(state: MobileClientState, message: MobileServerMessage): Mobil
     /** It is still drawn: a reload the page cannot make leaves the user on the newest view, told to reload. */
     case "snapshot": {
       const changed = seen.build !== null && seen.build !== message.build;
-      const kept = restarted(seen, message.instance);
+      /** A snapshot within the session it already holds comes from the same server, which remembers. */
+      const kept = message.sessionId === seen.sessionId ? seen : restarted(seen, message.instance);
       const notice = changed ? REFUSALS.version : kept.outbox === seen.outbox ? null : RESTARTED;
       const step = live(shown({ ...kept, build: message.build, instance: message.instance ?? null, sessionId: message.sessionId, notice }, message.view));
       return withEffect(step, changed ? { kind: "reload" } : { kind: "current" });
@@ -352,12 +353,12 @@ function received(state: MobileClientState, message: MobileServerMessage): Mobil
 const RESTARTED = "Your computer restarted. Check that your last taps went through.";
 
 /**
- * A server other than the one a command was written to has forgotten whether it ran it, so sending
- * it again could run it twice. Those commands are let go of, and the user told to check.
+ * A new session's server may not be the one a command was written to, and one that is not has
+ * forgotten whether it ran it, so sending it again could run it twice. Only a command written to
+ * this very server, by name, is sent again; the rest are let go of, and the user told to check.
  */
 function restarted(state: MobileClientState, instance: string | undefined): MobileClientState {
-  if (!instance) return state;
-  const outbox = state.outbox.filter((item) => item.writes === 0 || !item.instance || item.instance === instance);
+  const outbox = state.outbox.filter((item) => item.writes === 0 || (instance !== undefined && item.instance === instance));
   return outbox.length === state.outbox.length ? state : { ...state, outbox };
 }
 
