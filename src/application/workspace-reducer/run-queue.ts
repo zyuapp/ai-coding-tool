@@ -179,6 +179,20 @@ export function withSteeringFailure(state: WorkspaceState, taskId: string, messa
 }
 
 /**
+ * Queued messages put back in the thread's composer, ahead of whatever is drafted there, with
+ * everything they carry. The caller has already taken them out of the queue.
+ */
+export function handedBack(state: WorkspaceState, taskId: string, messages: QueuedMessage[]): WorkspaceTransition {
+  const text = [...messages.map((message) => message.text), state.prompts[taskId] ?? ""].filter(Boolean).join("\n\n");
+  const annotations = [...messages.flatMap((message) => message.annotations ?? []), ...annotationsFor(state, taskId)];
+  const pastes = [...messages.flatMap((message) => message.pastes ?? []), ...pastesFor(state, taskId)];
+  const files = [...messages.flatMap((message) => message.files ?? []), ...filesFor(state, taskId)];
+  const images = messages.flatMap((message) => message.attachments);
+  const handed = withFiles(withPastes(withAnnotations(withPrompt(state, taskId, text), taskId, annotations), taskId, pastes), taskId, files);
+  return images.length ? composerDraft(handed, { type: "image.recall", taskId, paths: [...images, ...imagesFor(state, taskId).map((image) => image.path)] }, taskId) : settled(handed);
+}
+
+/**
  * A finished run hands its queue on one message at a time, so each queued message gets its own run
  * and the ones behind it wait for that run to finish. A run the user stopped hands the whole queue
  * back to the composer instead of speaking for them.
@@ -186,15 +200,7 @@ export function withSteeringFailure(state: WorkspaceState, taskId: string, messa
 export function drainQueue(state: WorkspaceState, taskId: string, status: RunStatus, warming = false): WorkspaceTransition {
   const queued = queuedFor(state, taskId);
   if (!queued.length) return settled(state);
-  if (status === "cancelled") {
-    const text = [...queued.map((message) => message.text), state.prompts[taskId] ?? ""].filter(Boolean).join("\n\n");
-    const annotations = [...queued.flatMap((message) => message.annotations ?? []), ...annotationsFor(state, taskId)];
-    const pastes = [...queued.flatMap((message) => message.pastes ?? []), ...pastesFor(state, taskId)];
-    const files = [...queued.flatMap((message) => message.files ?? []), ...filesFor(state, taskId)];
-    const images = queued.flatMap((message) => message.attachments);
-    const handed = withFiles(withPastes(withAnnotations(withPrompt(withQueued(state, taskId, []), taskId, text), taskId, annotations), taskId, pastes), taskId, files);
-    return images.length ? composerDraft(handed, { type: "image.recall", taskId, paths: [...images, ...imagesFor(state, taskId).map((image) => image.path)] }, taskId) : settled(handed);
-  }
+  if (status === "cancelled") return handedBack(withQueued(state, taskId, []), taskId, queued);
   const thread = state.threads.find((item) => item.id === taskId);
   if (!thread) return settled(withQueued(state, taskId, []));
   /** A thread waiting out its usage limit keeps its queue until the limit lifts. */

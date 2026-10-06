@@ -192,6 +192,26 @@ test("dropping a queued message removes only that one", () => {
   assert.deepEqual(dropped.state.queuedMessages["task-a"].map((message) => message.text), ["Second"]);
 });
 
+test("editing a queued message takes it back into the composer, ahead of the draft", () => {
+  const queued = run(queueMessage(queueMessage(running(), "First"), "Second"), [
+    { type: "paste.add", text: "a log" },
+    { type: "view.set-prompt", prompt: "Still typing" },
+  ]);
+  const [first, second] = queued.queuedMessages["task-a"];
+  const edited = reduce(queued, { type: "task.edit-queued", messageId: first.id });
+
+  assert.deepEqual(edited.effects, []);
+  assert.deepEqual(edited.state.queuedMessages["task-a"], [second]);
+  assert.equal(edited.state.prompts["task-a"], "First\n\nStill typing");
+  assert.equal(edited.state.pastes["task-a"].length, 1, "the draft keeps what it already held");
+  assert.equal(edited.state.composerFocus, queued.composerFocus + 1);
+
+  const steering = reduce(queued, { type: "task.steer-queued", messageId: first.id }).state;
+  assert.equal(reduce(steering, { type: "task.edit-queued", messageId: first.id }).state, steering, "a steered message is already on its way");
+  const sent = { ...queued, queuedMessages: { "task-a": [{ ...first, origin: { kind: "coordination" as const } }] } };
+  assert.equal(reduce(sent, { type: "task.edit-queued", messageId: first.id }).state, sent, "another thread's message is not the user's to rewrite");
+});
+
 test("a run starting on a task the user is not looking at leaves them where they are", () => {
   const queued = queueMessage(running(), "Run the tests");
   const looking = run(queued, [{ type: "task.select", taskId: "task-b" }]);

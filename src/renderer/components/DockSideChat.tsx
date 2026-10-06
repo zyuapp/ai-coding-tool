@@ -40,6 +40,7 @@ export function chatHandlers(dispatch: Dispatch, chatId: string, images: DockCon
     onModelChange: (engine: AgentEngine, model: AgentModel) => void dispatch({ type: "task.set-model", taskId: chatId, engine, model }),
     onFastModeChange: (fastMode: boolean) => void dispatch({ type: "task.set-fast-mode", taskId: chatId, fastMode }),
     onEffortChange: (engine: AgentEngine, effort: AgentEffort) => void dispatch({ type: "task.set-effort", taskId: chatId, engine, effort }),
+    onEditQueued: (messageId: string) => void dispatch({ type: "task.edit-queued", taskId: chatId, messageId }),
     onSteerQueued: (messageId: string) => void dispatch({ type: "task.steer-queued", taskId: chatId, messageId }),
     onDropQueued: (messageId: string) => void dispatch({ type: "task.drop-queued", taskId: chatId, messageId }),
   };

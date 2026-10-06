@@ -6,7 +6,7 @@ import { computerEffects } from "../../src/host/computer-effects.ts";
 import type { EffectHost } from "../../src/host/effect-host.ts";
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { ATTACHMENTS_ELSEWHERE, FILES_ELSEWHERE, PANEL_ELSEWHERE, routeInput, remoteUnreadCount, computerCommandAvailable, createComputerCapabilitySnapshot, type PairedComputer } from "../../src/application/computers.ts";
+import { ATTACHMENTS_ELSEWHERE, FILES_ELSEWHERE, PANEL_ELSEWHERE, QUEUED_ATTACHMENTS_ELSEWHERE, routeInput, remoteUnreadCount, computerCommandAvailable, createComputerCapabilitySnapshot, type PairedComputer } from "../../src/application/computers.ts";
 import { reduce, type WorkspaceEffect, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { ComputerLink } from "../../src/domain/computers.ts";
@@ -707,4 +707,18 @@ test("a paired computer's coordinator folds its Overview in this window, from th
   assert.equal(folded.effects.some((effect) => effect.type === "computer.forward"), false, "folding stays local");
   state = folded.state;
   assert.deepEqual(deriveView(state).overviewFolds, { working: { all: true } });
+});
+
+test("editing a paired computer's queued message drops it there and drafts it here", () => {
+  const message = { id: "queued", text: "Check the logs", prompt: "Check the logs", attachments: [] };
+  const remote = { ...remoteState, activeRuns: { "remote-thread": activeRun("remote-thread", "remote-run") }, queuedMessages: { "remote-thread": [message] } };
+  const state = withComputers(workspace({ prompts: { "remote-thread": "and then" } }), [paired("linux", remote)], { active: "linux" });
+  const edited = reduce(state, { type: "task.edit-queued", messageId: "queued" });
+
+  assert.deepEqual(effectOf(edited, "computer.forward").inputs, [{ type: "task.drop-queued", taskId: "remote-thread", messageId: "queued" }]);
+  assert.equal(edited.state.prompts["remote-thread"], "Check the logs\n\nand then");
+  assert.deepEqual(edited.state.queuedMessages, {}, "the queue stays the holder's");
+
+  const imaged = withComputers(workspace(), [paired("linux", { ...remote, queuedMessages: { "remote-thread": [{ ...message, attachments: ["/linux/shot.png"] }] } })], { active: "linux" });
+  assert.equal(reduce(imaged, { type: "task.edit-queued", messageId: "queued" }).state.actionError, QUEUED_ATTACHMENTS_ELSEWHERE);
 });

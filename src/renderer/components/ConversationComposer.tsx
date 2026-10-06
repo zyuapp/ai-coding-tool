@@ -120,6 +120,7 @@ export type ConversationComposerProps = {
   /** Opens the Engines page. A surface without settings of its own leaves it out. */
   onOpenEngineSettings?: () => void;
   outbox: ComposerOutbox;
+  onEditQueued: (messageId: string) => void;
   onSteerQueued: (messageId: string) => void;
   onDropQueued: (messageId: string) => void;
   onCancel: () => void;
@@ -182,6 +183,7 @@ export function ConversationComposer({
   onSignIn = NOTHING,
   onOpenEngineSettings,
   outbox,
+  onEditQueued,
   onSteerQueued,
   onDropQueued,
   onCancel,
@@ -212,7 +214,7 @@ export function ConversationComposer({
       {surface === "main" && goal && <GoalBar goal={goal} onClear={onGoalClear} />}
       {surface === "main" && decisions}
       {question && <QuestionPrompt question={question} answer={question.answer ?? ""} disabled={disabled || waiting} onAnswerChange={(text) => onQuestionAnswerChange(question, text)} onSubmit={() => onAnswerQuestion(question)} />}
-      <QueuedRow messages={queuedMessages} surface={surface} canSteer={runActive} onSteer={onSteerQueued} onDrop={onDropQueued} />
+      <QueuedRow messages={queuedMessages} surface={surface} canSteer={runActive} onEdit={onEditQueued} onSteer={onSteerQueued} onDrop={onDropQueued} />
       <div className="composer">
         {reviewPicker && (
           <ReviewPicker

@@ -22,7 +22,7 @@ export function composer(props: Partial<ConversationComposerProps>) {
     onEffortChange() {}, fastMode: false, onFastModeChange() {},
     outbox: outbox(),
     onSteerQueued() {},
-    onDropQueued() {},
+    onEditQueued() {}, onDropQueued() {},
     onCancel() {},
     ...props,
   });

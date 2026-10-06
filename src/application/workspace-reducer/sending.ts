@@ -1,9 +1,11 @@
 /** A send: the prompt the composer hands over, and the queue behind a run already going. */
 import { CHECKOUT_RUNNING_ERROR, MISSING_PROJECT_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_ELSEWHERE_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
-import { clearedDraft, forkableContinuation, queuedFor, resolveWorkspaceEffect, runsInWorkspace, sentPrompt, sideChatPrompt, withAttendedRun, withPending, withQueued } from "./run-queue.js";
+import { clearedDraft, forkableContinuation, handedBack, queuedFor, resolveWorkspaceEffect, runsInWorkspace, sentPrompt, sideChatPrompt, withAttendedRun, withPending, withQueued } from "./run-queue.js";
 import { settled, targetId, rejected } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { annotationsFor, filesFor, pastesFor } from "../composer-drafts.js";
+import { annotationsFor, filesFor, focusComposer, focusedTab, pastesFor } from "../composer-drafts.js";
+import { tabHolderOf } from "../workspace-dock.js";
+import { queueHolder } from "../computers.js";
 import { threadHandleOptions } from "../thread-projection.js";
 import { leavingThreadIds, worktreeById, worktreeFor } from "../thread-location.js";
 import { promptKey, type PendingRun, type QueuedMessage, type WorkspaceState } from "../workspace-state.js";
@@ -18,7 +20,7 @@ import { originFields, type MessageOrigin } from "../../domain/message-origin.js
 import { heldByLimit, nudged } from "../limit-pauses.js";
 
 type SendInput = Extract<WorkspaceInput, {
-  type: "task.send" | "question.answer" | "question.set-answer" | "task.steer-queued" | "task.drop-queued";
+  type: "task.send" | "question.answer" | "question.set-answer" | "task.steer-queued" | "task.drop-queued" | "task.edit-queued";
 }>;
 
 export function reduceSending(state: WorkspaceState, input: SendInput): WorkspaceTransition {
@@ -162,6 +164,23 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
       const message = queued.find((item) => item.id === input.messageId);
       if (!taskId || !message || message.steering) return settled(state);
       return settled(withQueued(state, taskId, queued.filter((item) => item.id !== message.id)));
+    }
+
+    /**
+     * Editing takes the message out of the queue and back into the composer, so a run that finishes
+     * mid-edit never sends the old words. Only the user's own messages are theirs to rewrite.
+     */
+    case "task.edit-queued": {
+      /** A paired computer's thread has already been told to let the message go; only the draft is this computer's. */
+      const remote = state.computers.paired.length ? queueHolder(state, input.taskId) : null;
+      const taskId = remote ? remote.taskId : targetId(state, input.taskId);
+      const queued = !taskId ? [] : remote ? (remote.computer.state ? queuedFor(remote.computer.state, taskId) : []) : queuedFor(state, taskId);
+      const message = queued.find((item) => item.id === input.messageId);
+      if (!taskId || !message || message.steering || message.origin || message.detail) return settled(state);
+      const left = remote ? state : withQueued(state, taskId, queued.filter((item) => item.id !== message.id));
+      const handed = handedBack(left, taskId, [message]);
+      const holder = tabHolderOf(handed.state, taskId);
+      return { ...handed, state: holder ? focusedTab(handed.state, holder, taskId) : focusComposer(handed.state) };
     }
   }
 }

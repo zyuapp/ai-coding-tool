@@ -150,7 +150,9 @@ export type TaskCommand =
   | { type: "attachments.notice"; taskId?: string; message: string | null }
   /** Moves to the thread `delta` away in the sidebar, which is where the keyboard walks the list. */
   | { type: "task.steer-queued"; taskId?: string; messageId: string }
-  | { type: "task.drop-queued"; taskId?: string; messageId: string };
+  | { type: "task.drop-queued"; taskId?: string; messageId: string }
+  /** Takes one of the user's own queued messages back into the composer to be rewritten and sent again. */
+  | { type: "task.edit-queued"; taskId?: string; messageId: string };
 
 /**
  * Highlights of the assistant's output waiting in a composer, kept as drafts are: per task, with the

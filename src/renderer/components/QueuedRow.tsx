@@ -1,4 +1,4 @@
-import { LuCornerDownRight as CornerDownRight, LuX as X } from "react-icons/lu";
+import { LuCornerDownRight as CornerDownRight, LuPencil as Pencil, LuX as X } from "react-icons/lu";
 import type { QueuedMessage } from "../../application/workspace-state";
 import { messageLabel } from "../../domain/message-origin";
 import { AnnotationRow } from "./AnnotationRow";
@@ -9,12 +9,13 @@ function QueuedOrigin({ message }: { message: QueuedMessage }) {
   return label ? <p className="queued-origin">{label}</p> : null;
 }
 
-/** Messages waiting on the run, each with what it carries and the two things you can do to it. */
-export function QueuedRow({ messages, surface, canSteer, onSteer, onDrop }: {
+/** Messages waiting on the run, each with what it carries and what you can do to it. */
+export function QueuedRow({ messages, surface, canSteer, onEdit, onSteer, onDrop }: {
   messages: QueuedMessage[];
   surface: ComposerSurface;
   /** Only a run that is going can take a message early; one held for a usage limit waits for it to lift. */
   canSteer: boolean;
+  onEdit: (messageId: string) => void;
   onSteer: (messageId: string) => void;
   onDrop: (messageId: string) => void;
 }) {
@@ -32,6 +33,11 @@ export function QueuedRow({ messages, surface, canSteer, onSteer, onDrop }: {
           </div>
           {message.steering ? <span className="queued-state">Steering…</span> : (
             <span className="queued-actions">
+              {!messageLabel(message) && (
+                <button type="button" className="queued-edit" aria-label="Edit queued message" title="Edit" onClick={() => onEdit(message.id)}>
+                  <Pencil size={13} />
+                </button>
+              )}
               {canSteer && <button type="button" className="queued-steer" onClick={() => onSteer(message.id)}>Steer</button>}
               <button type="button" className="queued-drop" aria-label="Remove queued message" onClick={() => onDrop(message.id)}>
                 <X size={13} />

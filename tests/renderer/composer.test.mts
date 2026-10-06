@@ -30,7 +30,7 @@ function renderConversationComposer(overrides: Partial<ConversationComposerProps
     onEffortChange() {}, fastMode: false, onFastModeChange() {},
     outbox: outbox(),
     onSteerQueued() {},
-    onDropQueued() {},
+    onEditQueued() {}, onDropQueued() {},
     onCancel() {},
     ...overrides,
   });
@@ -66,7 +66,7 @@ test("context usage stays within 100% when the window shrinks below the used tok
     onModelChange() {},
     queuedMessages: [],
     onSteerQueued() {},
-    onDropQueued() {},
+    onEditQueued() {}, onDropQueued() {},
     outbox: outbox(),
     onCancel() {},
   }));
@@ -85,7 +85,7 @@ test("one outside pointer press dismisses the slash menu until the draft changes
     const [prompt, setPrompt] = React.useState("");
     return renderConversationComposer({
       prompt, folder: "/project", workspaceId: "workspace-1", mode: "confirm", engine: "claude", engineLabel: "Claude", model: "opus", effort: "medium", runActive: false,
-      onPromptChange: setPrompt, onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {},
+      onPromptChange: setPrompt, onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, queuedMessages: [], onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {},
     });
   }
   const view = await mount(React.createElement(Harness));
@@ -132,7 +132,7 @@ test("a slash action runs at once and clears the draft", async () => {
       onModelChange() {},
       queuedMessages: [],
       onSteerQueued() {},
-      onDropQueued() {},
+      onEditQueued() {}, onDropQueued() {},
       outbox: outbox({ send: () => { sends += 1; } }),
       onCancel() {},
     });
@@ -184,7 +184,7 @@ test("the up arrow recalls sent prompts and the down arrow walks back to the dra
       onModelChange() {},
       queuedMessages: [],
       onSteerQueued() {},
-      onDropQueued() {},
+      onEditQueued() {}, onDropQueued() {},
       outbox: outbox(),
       onCancel() {},
     });
@@ -241,7 +241,7 @@ test("a skill completes anywhere in the draft, where an action is not offered", 
       onModelChange() {},
       queuedMessages: [],
       onSteerQueued() {},
-      onDropQueued() {},
+      onEditQueued() {}, onDropQueued() {},
       outbox: outbox(),
       onCancel() {},
     });
@@ -293,7 +293,7 @@ test("the @ menu offers threads, keeps browsing in this project, and completes t
       onModelChange() {},
       queuedMessages: [],
       onSteerQueued() {},
-      onDropQueued() {},
+      onEditQueued() {}, onDropQueued() {},
       outbox: outbox(),
       onCancel() {},
     });
@@ -351,7 +351,7 @@ test("the side surface keeps the slash palette but never offers to fork a fork",
       onModelChange() {},
       queuedMessages: [],
       onSteerQueued() {},
-      onDropQueued() {},
+      onEditQueued() {}, onDropQueued() {},
       outbox: outbox(),
       onCancel() {},
     });
@@ -390,7 +390,7 @@ test("a pasted image becomes an attachment chip and is saved on send", async () 
       onModelChange() {},
       queuedMessages: [],
       onSteerQueued() {},
-      onDropQueued() {},
+      onEditQueued() {}, onDropQueued() {},
       outbox: sending,
       onCancel() {},
     });
@@ -435,7 +435,7 @@ test("a long paste is held aside as a pill, and a short one lands in the draft",
       onModelChange() {},
       queuedMessages: [],
       onSteerQueued() {},
-      onDropQueued() {},
+      onEditQueued() {}, onDropQueued() {},
       outbox: outbox(),
       onCancel() {},
     });
@@ -481,7 +481,7 @@ test("the send button holds while the checkout a send needs is still being made"
   const composer = (waiting: boolean) => React.createElement(ConversationComposer, {
     prompt: "Refactor the loader", folder: "/project", workspaceId: "workspace-1", mode: "confirm", engine: "claude", engineLabel: "Claude", model: "opus", effort: "medium",
     runActive: false, waiting, queuedMessages: [],
-    onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSteerQueued() {}, onDropQueued() {},
+    onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSteerQueued() {}, onEditQueued() {}, onDropQueued() {},
     outbox: outbox({ send: () => { sent.push("sent"); } }), onCancel() {},
   });
 

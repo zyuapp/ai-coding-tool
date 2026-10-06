@@ -59,7 +59,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "attachments.send": case "attachments.saved": case "attachments.failed": case "attachments.notice":
       return reduceComposerAttachments(state, input);
 
-    case "task.send": case "question.answer": case "question.set-answer": case "task.steer-queued": case "task.drop-queued":
+    case "task.send": case "question.answer": case "question.set-answer": case "task.steer-queued": case "task.drop-queued": case "task.edit-queued":
       return reduceSending(state, input);
 
     case "project.open": case "project.add": case "project.added": case "project.add-finished":

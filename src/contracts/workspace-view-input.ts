@@ -263,6 +263,7 @@ const commands = {
   "task.send": { fields: { taskId: optionalText, project: optionalText, text: optionalText, attachments: optional(array(runAttachment)), steer: optionalBoolean, worktree: optionalBoolean, worktreeId: optionalText, model: optional(isAgentModel), effort: optional(isAgentEffort), role: optional(isThreadRole), coordinatorId: optionalText, brief: optional(isThreadBrief), from: optionalText }, at: "own", agent: agentSend },
   "task.steer-queued": { fields: { taskId: optionalText, messageId: text }, at: "thread" },
   "task.drop-queued": { fields: { taskId: optionalText, messageId: text }, at: "thread" },
+  "task.edit-queued": { fields: { taskId: optionalText, messageId: text }, at: "own" },
   "annotation.add": { fields: { taskId: optionalText, quote: text, note: optionalText, anchor: optional(isAnnotationAnchor) }, at: "local" },
   "annotation.note": { fields: { taskId: optionalText, annotationId: text, note: text }, at: "local" },
   "annotation.remove": { fields: { taskId: optionalText, annotationId: text }, at: "local" },

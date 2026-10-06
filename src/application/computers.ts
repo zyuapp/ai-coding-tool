@@ -127,6 +127,7 @@ export function leavesComputer(state: WorkspaceState, input: WorkspaceInput): bo
 
 export const PANEL_ELSEWHERE = "The browser panel opens only for threads on this computer.";
 export const ATTACHMENTS_ELSEWHERE = "Files and folders attached by local path cannot be sent to another computer.";
+export const QUEUED_ATTACHMENTS_ELSEWHERE = "A message with images or files cannot be edited from another computer.";
 export const FILES_ELSEWHERE = "That folder is on another computer, so it cannot be opened here.";
 
 function forwarded(computer: PairedComputer, inputs: WorkspaceInput[], options: { select?: true; also?: true; draft?: SentDraft } = {}): InputRoute {
@@ -189,6 +190,12 @@ function threadHolder(state: WorkspaceState, input: AppCommand, active: PairedCo
   return taskId === undefined ? active : computerOfThread(state, taskId);
 }
 
+/** The paired computer holding a thread's queue, with the thread a command without a `taskId` means there. */
+export function queueHolder(state: WorkspaceState, taskId: string | undefined): { computer: PairedComputer; taskId: string | undefined } | null {
+  const computer = taskId === undefined ? selectedComputer(state) : computerOfThread(state, taskId);
+  return computer ? { computer, taskId: taskId ?? computer.state?.currentId ?? undefined } : null;
+}
+
 const PLACED: { [At in Exclude<CommandPlacement, "own">]: Route<PlacedCommand<At>> } = {
   local: () => LOCAL,
   thread: (state, input, active) => toward(threadHolder(state, input, active), (holder) => forwarded(holder, [input])),
@@ -207,6 +214,15 @@ const OWN: { [Type in Exclude<PlacedCommand<"own">["type"], "project.add">]: Rou
   "task.new": (state, input) => toward(computerOfProject(state, input.projectId) ?? computerOfWorktree(state, input.worktreeId), (holder) => selecting(state, holder, [input])),
   "task.send": (state, input, active) => toward(threadHolder(state, input, active), (holder) => forwardedSend(state, holder, input)),
   "attachments.send": (state, input, active) => toward(threadHolder(state, input, active), (holder) => forwardedSend(state, holder, input)),
+  /** The queue is the holder's and the draft is this computer's, so the message leaves there and lands here. */
+  "task.edit-queued": (state, input, active) => toward(threadHolder(state, input, active), (holder) => {
+    const taskId = input.taskId ?? holder.state?.currentId;
+    const message = taskId ? holder.state?.queuedMessages[taskId]?.find((item) => item.id === input.messageId) : undefined;
+    if (!taskId || !message) return { kind: "refuse", message: "That message has already been sent." };
+    /** Its images and files are paths on that computer, which a composer here cannot hold. */
+    if (message.attachments.length || message.files?.length) return { kind: "refuse", message: QUEUED_ATTACHMENTS_ELSEWHERE };
+    return forwarded(holder, [{ type: "task.drop-queued", taskId, messageId: input.messageId }], { also: true });
+  }),
   /** Whether the user is looking is this window's to know and the other computer's to act on. */
   "view.set-focused": (_state, input, active) => active?.status === "connected" ? forwarded(active, [input], { also: true }) : LOCAL,
   /** A file or folder is opened on the machine that has it, which is not this one. */

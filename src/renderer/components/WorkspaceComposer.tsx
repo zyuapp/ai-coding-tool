@@ -94,6 +94,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
         send: (attachments, steer) => void workspace.dispatch({ type: "attachments.send", attachments, ...(steer ? { steer } : {}) }),
         notice: (message) => void workspace.dispatch({ type: "attachments.notice", message }),
       }}
+      onEditQueued={workspace.actions.editQueued}
       onSteerQueued={workspace.actions.steerQueued}
       onDropQueued={workspace.actions.dropQueued}
       onCancel={workspace.actions.cancelRun}

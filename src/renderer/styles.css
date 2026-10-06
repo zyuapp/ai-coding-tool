@@ -2319,7 +2319,7 @@ pre {
   cursor: pointer;
 }
 .queued-steer:hover { border-color: var(--accent); color: var(--accent); }
-.queued-drop {
+.queued-edit, .queued-drop {
   display: grid;
   width: 24px;
   height: 24px;
@@ -2331,7 +2331,7 @@ pre {
   place-items: center;
   cursor: pointer;
 }
-.queued-drop:hover { background: var(--surface-raised); color: var(--ink); }
+.queued-edit:hover, .queued-drop:hover { background: var(--surface-raised); color: var(--ink); }
 
 /** The banners under the header, each on a row of its own. Empty, it takes no clicks from what is under it. */
 .workspace-banners {

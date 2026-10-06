@@ -130,7 +130,7 @@ test("a side chat composes with everything the main composer has", async () => {
     onModelChange() {},
     onEffortChange() {}, onFastModeChange() {},
     onSteerQueued() {},
-    onDropQueued() {},
+    onEditQueued() {}, onDropQueued() {},
     onClose() {},
   });
   function Harness() {

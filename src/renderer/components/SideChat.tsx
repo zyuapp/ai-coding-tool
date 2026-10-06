@@ -54,6 +54,7 @@ export type DockConversationProps = {
   onModelChange: (engine: AgentEngine, model: AgentModel) => void;
   onFastModeChange: (fastMode: boolean) => void;
   onEffortChange: (engine: AgentEngine, effort: AgentEffort) => void;
+  onEditQueued: (messageId: string) => void;
   onSteerQueued: (messageId: string) => void;
   onDropQueued: (messageId: string) => void;
 };
@@ -62,7 +63,7 @@ export type DockConversationProps = {
  * A thread talked to from a dock tab: its transcript, its approval, and its composer. The tab draws
  * its own header and says what the thread is.
  */
-export function DockConversation({ chat, engineLabel, focusToken = 0, find = null, findBar, folder = "", workspaceId, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, outbox, onAnswerQuestion, onQuestionAnswerChange, onCancel, onDecide, onPolicyChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onFastModeChange, onSteerQueued, onDropQueued, className, label, header, empty, surface, disabled = false, error = null, note }: DockConversationProps & {
+export function DockConversation({ chat, engineLabel, focusToken = 0, find = null, findBar, folder = "", workspaceId, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, outbox, onAnswerQuestion, onQuestionAnswerChange, onCancel, onDecide, onPolicyChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onFastModeChange, onEditQueued, onSteerQueued, onDropQueued, className, label, header, empty, surface, disabled = false, error = null, note }: DockConversationProps & {
   className: string;
   label: string;
   header: ReactNode;
@@ -147,6 +148,7 @@ export function DockConversation({ chat, engineLabel, focusToken = 0, find = nul
         onModelChange={onModelChange}
         onEffortChange={onEffortChange}
         outbox={outbox}
+        onEditQueued={onEditQueued}
         onSteerQueued={onSteerQueued}
         onDropQueued={onDropQueued}
         onCancel={onCancel}
