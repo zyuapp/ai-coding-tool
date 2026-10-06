@@ -55,32 +55,33 @@ The app sets these custom properties on the frame's root and updates them when t
 | Property | Use |
 |---|---|
 | `--color-bg` | The conversation's background, for knockouts and gaps |
-| `--color-surface` | Cards and panels set on the background |
-| `--color-surface-raised` | Something set on a card: chips, the selected segment |
+| `--color-surface` | Small fills: tooltips, a selected segment, a track |
+| `--color-surface-raised` | Chips and toggles |
 | `--color-surface-hover` | Hover on a control or row |
 | `--color-text` | Primary text |
 | `--color-text-secondary` | Labels, axis text, captions |
 | `--color-text-tertiary` | Hints, placeholders, disabled text |
-| `--color-border` | Dividers, card borders, gridlines |
+| `--color-border` | Gridlines and hairline dividers |
 | `--color-border-strong` | Input borders, axes |
 | `--color-accent`, `--color-on-accent` | The one emphasized element, and text on it |
 | `--color-success`, `--color-warning`, `--color-danger`, `--color-info` | Status only |
 | `--series-1` … `--series-6` | Categorical data colors, in this order |
 | `--font-sans`, `--font-mono`, `--font-size` | The reply's own type; numbers and code in mono |
-| `--radius` | Corner radius for cards and controls |
+| `--radius` | Corner radius for controls and chips |
 
 The body already uses `--color-text` and `--font-sans` at `--font-size`, and native controls follow the theme and accent color. When script draws colors into canvas or SVG attributes, read them at draw time with `getComputedStyle(document.documentElement).getPropertyValue("--series-1")` and redraw on the window's `visualthemechange` event.
 
 ## Layout
 
-- Leave the outermost background transparent so the visual sits on the conversation like prose. Use `--color-surface` cards only to group things.
+- Draw inline, on the conversation itself, the way a chart sits in a document. No card, panel, border, background, or shadow around the visual, a chart, the controls, or a group of stats. Separate parts with space, and at most a hairline `--color-border` rule.
+- Put controls in one wrapping row directly above what they change, and stats as plain text or large numbers with a label beneath, not in boxes.
 - Fill the width and adapt from 320px to about 1000px: no fixed widths, use flex or grid with wrapping, and give SVG a `viewBox` with `width: 100%`.
 - Let content set the height. Never use `vh` units or percentage heights on the root, and keep the whole visual under about 800px tall.
 - Keep text at 12px or larger.
 
 ## Quality bar
 
-- One idea per visual. Give it a short title, label axes with units, and prefer direct labels to a legend.
+- One idea per visual. The reply's prose introduces it, so skip a heading or keep it to a short caption. Label axes with units, and prefer direct labels to a legend.
 - Make interaction obvious: native `<input type="range">`, `<select>`, and `<button>` controls with visible labels, the current value shown beside each slider, and hover details that also appear on focus.
 - Animate with `requestAnimationFrame`, and honour `prefers-reduced-motion`.
 - Before sending, check that every element the script queries exists, every identifier is defined, and nothing throws. The app shows the first script error under the visual.
