@@ -54,9 +54,8 @@ export function reduceDiffs(state: WorkspaceState, input: DiffInput): WorkspaceT
       const diff = diffFor(state, owner);
       const closed = { ...state, openMenu: null };
       if (diff.mode === input.mode) return settled(closed);
-      /** A comparison the user picked comes back as it was; one they did not follows the checkout's pull request. */
       const range = input.mode === "uncommitted" ? UNCOMMITTED
-        : (diff.branchPicked && diff.workspaceId === subjectWorkspaceId(state, owner) ? diff.branchRange : undefined) ?? defaultBranchRange(state, owner);
+        : (diff.workspaceId === subjectWorkspaceId(state, owner) ? diff.branchRange : undefined) ?? defaultBranchRange(state, owner);
       return readDiff(closed, owner, range, { mode: input.mode, result: null, collapsed: [], viewed: {} });
     }
 
@@ -65,10 +64,7 @@ export function reduceDiffs(state: WorkspaceState, input: DiffInput): WorkspaceT
       const diff = diffFor(state, owner);
       if (diff.mode === modeForRange(input.range) && rangeKey(diff.range) === rangeKey(input.range)) return settled(state);
       /** A different comparison is a different set of files, so nothing carries over but the layout. */
-      return readDiff(state, owner, input.range, {
-        mode: modeForRange(input.range), result: null, collapsed: [], viewed: {},
-        ...(input.range.kind === "branches" ? { branchPicked: true as const } : {}),
-      });
+      return readDiff(state, owner, input.range, { mode: modeForRange(input.range), result: null, collapsed: [], viewed: {} });
     }
 
     case "diff.set-collapsed": {

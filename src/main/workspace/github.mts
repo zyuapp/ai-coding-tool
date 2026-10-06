@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { pullRequestFromCommit, pullRequestFromList, type PullRequestAnswer, type PullRequestRef, type PullRequestReview } from "../../domain/pull-request.js";
+import { pullRequestFromCommit, pullRequestFromList, type PullRequestAnswer, type PullRequestRef } from "../../domain/pull-request.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -84,13 +84,9 @@ async function remembered(key: string, ask: () => Promise<PullRequestAnswer>) {
  * at all, and a checkout on GitHub is told that rather than told it has no pull request.
  */
 export async function pullRequestFor(root: string): Promise<PullRequestAnswer> {
-  return await withReview(root, await askedFor(root));
-}
-
-async function askedFor(root: string): Promise<PullRequestAnswer> {
   const branch = await read("git", ["symbolic-ref", "--quiet", "--short", "HEAD"], root);
   if (branch) {
-    const fields = "number,title,url,state,isDraft,baseRefName,headRefOid";
+    const fields = "number,title,url,state,isDraft";
     return await remembered(`${root}\0${branch}`, async () =>
       answerFrom(root, await readJson(["pr", "list", "--head", branch, "--state", "all", "--limit", "1", "--json", fields], root), pullRequestFromList));
   }
@@ -98,23 +94,4 @@ async function askedFor(root: string): Promise<PullRequestAnswer> {
   if (!commit) return NONE;
   return await remembered(`${root}\0${commit}`, async () =>
     answerFrom(root, await readJson(["api", `repos/{owner}/{repo}/commits/${commit}/pulls`], root), pullRequestFromCommit));
-}
-
-/**
- * How the checkout stands against a pull request still open for review. Read fresh on every ask
- * rather than cached with GitHub's answer: a commit made here moves it, and asking Git is cheap.
- * Nothing is fetched, so the base is as current as the last fetch, the same as the session's counts.
- */
-async function withReview(root: string, answer: PullRequestAnswer): Promise<PullRequestAnswer> {
-  if (answer.status !== "found" || (answer.pullRequest.state !== "open" && answer.pullRequest.state !== "draft")) return answer;
-  const { base, head } = answer.pullRequest;
-  const [tracked, unpushed] = await Promise.all([
-    base ? read("git", ["rev-parse", "--verify", "--quiet", `refs/remotes/origin/${base}^{commit}`], root) : null,
-    head ? read("git", ["rev-list", "--count", `${head}..HEAD`], root) : null,
-  ]);
-  const review: PullRequestReview = {
-    ...(tracked && base ? { baseRef: `origin/${base}` } : {}),
-    ...(unpushed !== null && /^\d+$/.test(unpushed) ? { unpushed: Number(unpushed) } : {}),
-  };
-  return Object.keys(review).length ? { ...answer, review } : answer;
 }

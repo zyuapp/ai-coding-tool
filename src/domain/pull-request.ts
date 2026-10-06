@@ -10,9 +10,6 @@ export type PullRequestRef = {
   title: string;
   url: string;
   state: PullRequestState;
-  /** The branch it asks to merge into, and the commit GitHub last saw at its head. */
-  base?: string;
-  head?: string;
 };
 
 /**
@@ -20,16 +17,9 @@ export type PullRequestRef = {
  * or that `gh` is not installed and so nothing could be asked at all.
  */
 export type PullRequestAnswer =
-  | { status: "found"; pullRequest: PullRequestRef; review?: PullRequestReview }
+  | { status: "found"; pullRequest: PullRequestRef }
   | { status: "none" }
   | { status: "gh-missing" };
-
-/**
- * How the checkout stands against its pull request: the ref it keeps the base branch at, which is
- * what a review compares against, and how many of its commits GitHub has not been sent yet. Either
- * is absent when the checkout cannot say — a base it has never fetched, a head it has not seen.
- */
-export type PullRequestReview = { baseRef?: string; unpushed?: number };
 
 /**
  * An answer and what it answers: the checkout and branch it was read for, and which ask it belongs
@@ -77,14 +67,14 @@ export function linksPullRequest(link: PullRequestLink, query: PullRequestQuery)
 const STATES: readonly string[] = ["draft", "open", "merged", "closed"];
 
 /**
- * `gh pr list --json number,title,url,state,isDraft,baseRefName,headRefOid`, which answers with an
- * array of at most one and keeps draft beside the state rather than in it.
+ * `gh pr list --json number,title,url,state,isDraft`, which answers with an array of at most one and
+ * keeps draft beside the state rather than in it.
  */
 export function pullRequestFromList(value: unknown): PullRequestRef | null {
   const found = firstRecord(value);
   if (!found) return null;
   const state = lowercase(found.state);
-  return withEnds(pullRequest(found.number, found.title, found.url, found.isDraft === true && state === "open" ? "draft" : state), found.baseRefName, found.headRefOid);
+  return pullRequest(found.number, found.title, found.url, found.isDraft === true && state === "open" ? "draft" : state);
 }
 
 /**
@@ -95,26 +85,7 @@ export function pullRequestFromCommit(value: unknown): PullRequestRef | null {
   const found = firstRecord(value);
   if (!found) return null;
   const state = found.merged_at ? "merged" : found.draft === true ? "draft" : lowercase(found.state);
-  return withEnds(pullRequest(found.number, found.title, found.html_url, state), refField(found.base, "ref"), refField(found.head, "sha"));
-}
-
-function refField(value: unknown, field: string) {
-  return value && typeof value === "object" ? (value as Record<string, unknown>)[field] : undefined;
-}
-
-/** A branch and commit are only worth keeping when they are names Git would take. */
-function withEnds(found: PullRequestRef | null, base: unknown, head: unknown): PullRequestRef | null {
-  if (!found) return null;
-  return {
-    ...found,
-    ...(typeof base === "string" && isBranchName(base) ? { base } : {}),
-    ...(typeof head === "string" && /^[a-f\d]{40,64}$/i.test(head) ? { head } : {}),
-  };
-}
-
-/** Rejects what would read as an option or a revision expression rather than a branch. */
-function isBranchName(name: string) {
-  return name.length > 0 && name.length <= 255 && !name.startsWith("-") && !/[\s~^:?*[\\]|\.\.|@\{/.test(name);
+  return pullRequest(found.number, found.title, found.html_url, state);
 }
 
 function firstRecord(value: unknown) {
@@ -157,9 +128,5 @@ export function samePullRequest(left: PullRequestAnswer, right: PullRequestAnswe
   return left.pullRequest.number === right.pullRequest.number
     && left.pullRequest.title === right.pullRequest.title
     && left.pullRequest.url === right.pullRequest.url
-    && left.pullRequest.state === right.pullRequest.state
-    && left.pullRequest.base === right.pullRequest.base
-    && left.pullRequest.head === right.pullRequest.head
-    && left.review?.baseRef === right.review?.baseRef
-    && left.review?.unpushed === right.review?.unpushed;
+    && left.pullRequest.state === right.pullRequest.state;
 }

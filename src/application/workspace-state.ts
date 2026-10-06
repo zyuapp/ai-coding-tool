@@ -10,7 +10,7 @@ import { coordinatorOf, type OverviewFolds } from "../domain/coordination.js";
 import { backfillSortIndex } from "./thread-order.js";
 import type { ChangedFilesResult, DesktopShortcutRefusal, InstalledApp } from "../contracts/ipc.js";
 import type { PullRequestRead } from "../domain/pull-request.js";
-import { pullRequestFor, reviewedPullRequest } from "./pull-request-view.js";
+import { pullRequestFor } from "./pull-request-view.js";
 import { NO_CLI, type CliState } from "./cli-installation.js";
 import { NO_BROWSER_IMPORT, type BrowserImportState } from "./browser-import.js";
 import { NO_COMPUTER_USE_ACCESS, type ComputerUseAccessState } from "./computer-use-access.js";
@@ -844,8 +844,6 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state,
     automationSubject: dockSubject(state, owner, AUTOMATION_PANEL),
     /** The review this thread has open, whether or not the panel drawing it is the tab in front. */
     diff: diffFor(state, owner),
-    /** The pull request that review is reading, when it compares against that pull request's base. */
-    diffPullRequest: reviewedPullRequest(state, diffFor(state, owner)),
     dockTab: dock.tab,
     browserTabs: dock.browserTabs,
     browserApproval: state.browserApproval,

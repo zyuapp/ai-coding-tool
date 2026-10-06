@@ -1,5 +1,4 @@
 import type { ChangedFilesResult } from "../contracts/ipc.js";
-import type { DiffRange } from "../domain/diff.js";
 import { coordinatedThreads } from "../domain/coordination.js";
 import { NO_PULL_REQUEST, pullRequestSettled, type PullRequestAnswer, type PullRequestRead, type PullRequestRef } from "../domain/pull-request.js";
 import type { Project } from "../domain/project.js";
@@ -16,44 +15,6 @@ export function branchOf(environment: ChangedFilesResult | null) {
 export function pullRequestFor(held: PullRequestRead | null, workspaceId: string | undefined, environment: ChangedFilesResult | null): PullRequestAnswer {
   if (!held || held.workspaceId !== workspaceId || held.branch !== branchOf(environment)) return NO_PULL_REQUEST;
   return held.answer;
-}
-
-type CheckoutState = {
-  pullRequest: PullRequestRead | null;
-  memberPullRequests: Record<string, PullRequestRead>;
-  environments: Record<string, ChangedFilesResult>;
-};
-
-/** A checkout's pull request, from whichever read last answered for its branch: the one in front, or a coordinator's thread. */
-export function checkoutPullRequest(state: CheckoutState, workspaceId: string | undefined): PullRequestAnswer {
-  if (!workspaceId) return NO_PULL_REQUEST;
-  const environment = state.environments[workspaceId] ?? null;
-  const held = pullRequestFor(state.pullRequest, workspaceId, environment);
-  return held.status === "found" ? held : pullRequestFor(state.memberPullRequests[workspaceId] ?? null, workspaceId, environment);
-}
-
-/** Where a review of the pull request compares from, while it is still open to review and the checkout keeps its base. */
-export function pullRequestBase(answer: PullRequestAnswer) {
-  if (answer.status !== "found" || pullRequestSettled(answer)) return null;
-  return answer.review?.baseRef ?? null;
-}
-
-/**
- * The pull request a review is reading, which it is while it compares the working tree with that
- * pull request's base: what the panel names, and what it shows that GitHub has not been sent.
- */
-export type ReviewedPullRequest = { pullRequest: PullRequestRef; unpushed: number; uncommitted: boolean };
-
-export function reviewedPullRequest(state: CheckoutState, { range, workspaceId }: { range: DiffRange; workspaceId: string | null }): ReviewedPullRequest | null {
-  if (range.kind !== "branches" || range.compare !== null || !workspaceId) return null;
-  const answer = checkoutPullRequest(state, workspaceId);
-  if (answer.status !== "found" || pullRequestBase(answer) !== range.base) return null;
-  const environment = state.environments[workspaceId];
-  return {
-    pullRequest: answer.pullRequest,
-    unpushed: answer.review?.unpushed ?? 0,
-    uncommitted: environment?.status === "available" && environment.files.length > 0,
-  };
 }
 
 /** What one thread's panel asks about: changes with the checkout, its branch, or the thread reading it. */

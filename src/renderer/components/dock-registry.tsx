@@ -143,7 +143,6 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
           /** Per thread, so a selection or a half-typed note never carries into another thread's review. */
           key={reviewed?.id ?? workspace.currentThread?.id ?? "draft"}
           diff={workspace.diff}
-          pullRequest={workspace.diffPullRequest}
           workspaceId={workspace.diff.workspaceId ?? reviewedWorkspaceId}
           currentBranch={reviewedEnvironment?.status === "available" && (!workspace.diff.workspaceId || workspace.diff.workspaceId === reviewedWorkspaceId) ? reviewedEnvironment.branch : null}
           openMenu={workspace.openMenu}
