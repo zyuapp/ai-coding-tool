@@ -3,7 +3,7 @@ import { browserTarget, dockFor, dockOwner, terminalTarget, type WorkspaceState 
 import { threadSummary, threadWaitResult } from "../application/thread-projection.js";
 import { isWorking } from "../application/thread-activity.js";
 import { listAcrossComputers, namedComputer, online, readAcrossComputers, remoteSummary, resolveThreadRead, tag, type PreparedThreadRequest } from "./thread-reads.js";
-import type { PairedComputer } from "../application/computers.js";
+import { computerOfPlace, type PairedComputer } from "../application/computers.js";
 import { findProject, folderName, matchingProjects, projectName, type Project } from "../domain/project.js";
 import type { Thread } from "../domain/thread.js";
 import { isNews, unreadFindings } from "../domain/attention.js";
@@ -176,8 +176,11 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
     const coordinating = starting && isCoordinator(caller);
     if (coordinating && selected.command.type === "task.send" && !selected.command.brief) return failed(BRIEF_REQUIRED);
     const lead = !starting ? undefined : coordinating ? caller : coordinatorOf(before.threads, caller);
-    /** A thread on a paired computer, or a new one asked for there, is that computer's to act on. */
-    const elsewhere = target ? target.computer : starting && request.computer !== undefined ? namedComputer(before, request.computer) : null;
+    /** A thread on a paired computer, or a new one asked for there or named into a checkout or project there, is that computer's to act on. */
+    const placedOn = starting && selected.command.type === "task.send" ? computerOfPlace(before, selected.command) ?? null : null;
+    const asked = starting && request.computer !== undefined ? namedComputer(before, request.computer) : undefined;
+    if (placedOn && asked !== undefined && asked?.id !== placedOn.id) return failed(`That project or worktree is on ${placedOn.name}. Pass computer "${placedOn.name}" to start the thread there.`);
+    const elsewhere = target ? target.computer : asked ?? placedOn;
     if (elsewhere) {
       if (lead) return failed(COORDINATED_HERE);
       return ok(await commandElsewhere(host, elsewhere, selected.command, caller));

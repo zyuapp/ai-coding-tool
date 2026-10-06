@@ -133,6 +133,18 @@ test("a remote start names its project there, and a coordinator keeps its thread
   assert.equal(linux.inputs.length, 0);
 });
 
+test("a thread named into a paired computer's project by id starts there, signed and under the same rules", async () => {
+  const { host, linux } = pair();
+  const { thread } = await answer<ThreadCommandResult>(host, command({ type: "task.send", text: "Go", project: REMOTE_PROJECT.id }));
+  assert.equal(thread?.computer?.id, "linux");
+  assert.equal(linux.state().threads.find((item) => item.id === thread?.id)?.messages[0].detail, "From Planner on Mac · caller");
+  assert.match(await refusal(host, command({ type: "task.send", text: "Go", project: REMOTE_PROJECT.id }, "this")), /That project or worktree is on Linux/);
+  host.state().threads[0] = { ...host.state().threads[0], role: "coordinator" };
+  const brief = { intent: "go", doneWhen: "done", delivers: "report" as const };
+  assert.match(await refusal(host, command({ type: "task.send", text: "Go", brief, project: REMOTE_PROJECT.id })), /own computer/);
+  assert.equal(linux.state().threads.length, 2);
+});
+
 test("a computer whose build predates signed messages refuses them rather than passing them off as the user's", async () => {
   for (const capabilities of [COMPUTER_CAPABILITIES.filter((name) => name !== "command:task.send:sender"), undefined]) {
     const { host, linux } = pair({ capabilities });

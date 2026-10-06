@@ -197,17 +197,27 @@ function threadHolder(state: WorkspaceState, input: AppCommand, active: PairedCo
  */
 function sendHolder(state: WorkspaceState, input: Extract<AppCommand, { type: "task.send" }>, active: PairedComputer | null): PairedComputer | null {
   if (input.taskId !== undefined) return computerOfThread(state, input.taskId);
-  if (input.worktreeId !== undefined) {
-    if (state.worktrees.some((worktree) => worktree.id === input.worktreeId)) return null;
-    const holder = computerOfWorktree(state, input.worktreeId);
-    if (holder) return holder;
-  }
-  if (input.project !== undefined) {
-    if (state.projects.some((project) => project.id === input.project)) return null;
-    const holder = computerOfProject(state, input.project);
-    if (holder) return holder;
-  }
+  const placed = computerOfPlace(state, input);
+  if (placed !== undefined) return placed;
   return input.text === undefined ? active : null;
+}
+
+/**
+ * The computer holding the checkout or project a new thread is named into by id: null for this
+ * computer, undefined when no id names one.
+ */
+export function computerOfPlace(state: WorkspaceState, place: { project?: string; worktreeId?: string }): PairedComputer | null | undefined {
+  if (place.worktreeId !== undefined) {
+    if (state.worktrees.some((worktree) => worktree.id === place.worktreeId)) return null;
+    const holder = computerOfWorktree(state, place.worktreeId);
+    if (holder) return holder;
+  }
+  if (place.project !== undefined) {
+    if (state.projects.some((project) => project.id === place.project)) return null;
+    const holder = computerOfProject(state, place.project);
+    if (holder) return holder;
+  }
+  return undefined;
 }
 
 /** The paired computer holding a thread's queue, with the thread a command without a `taskId` means there. */
