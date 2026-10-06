@@ -9,7 +9,7 @@ import WebSocket, { WebSocketServer } from "ws";
 import { emptyWorkspaceState } from "../../../src/application/workspace-state.ts";
 import { COMPUTER_PROTOCOL_VERSION, COMPUTER_TRANSFER_TIMEOUT_MS, type ComputerClientMessage, type ComputerServerMessage } from "../../../src/contracts/computers.ts";
 import { MOBILE_DEAD_AFTER_MS, MOBILE_PING_INTERVAL_MS } from "../../../src/domain/mobile.ts";
-import { createComputerClient } from "../../../src/main/computers/computer-client.mts";
+import { COMPUTER_SILENT_AFTER_MS, createComputerClient } from "../../../src/main/computers/computer-client.mts";
 import { MobileServer, WORKSPACE_SOCKET_PATH } from "../../../src/main/mobile/mobile-server.mts";
 import { PairingStore } from "../../../src/main/mobile/pairing.mts";
 
@@ -52,7 +52,7 @@ test.each(["idle", "send", "query", "message-image", "trickle"])("client heartbe
       const body = Buffer.from(JSON.stringify({ kind: "ping", at: 0, sequence: 2, pad: "x".repeat(200) }));
       raw.write(Buffer.from([0x81, 126, body.length >> 8, body.length & 0xff]));
       for (let offset = 0; offset < body.length; offset += 50) {
-        await vi.advanceTimersByTimeAsync(MOBILE_DEAD_AFTER_MS - 1_000);
+        await vi.advanceTimersByTimeAsync(COMPUTER_SILENT_AFTER_MS - 1_000);
         raw.write(body.subarray(offset, offset + 50));
         await new Promise((resolve) => realTimeout(resolve, 20));
         assert.equal(client.status, "connected", "bytes on their way keep the line alive");
@@ -61,7 +61,7 @@ test.each(["idle", "send", "query", "message-image", "trickle"])("client heartbe
       void (mode === "send" ? client.send([input]) : client.query(mode === "message-image" ? messageImageQuery : query)).catch(() => undefined);
       await until(() => requests.length === 1);
     }
-    await vi.advanceTimersByTimeAsync(MOBILE_DEAD_AFTER_MS);
+    await vi.advanceTimersByTimeAsync(COMPUTER_SILENT_AFTER_MS);
     await until(() => client.status === "offline");
   } finally {
     client.stop();

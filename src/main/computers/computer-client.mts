@@ -10,7 +10,7 @@ import type { WorkspaceCommandResult, WorkspaceInput } from "../../application/w
 import type { WorkspaceState } from "../../application/workspace-state.js";
 import type { ThreadNotice } from "../../contracts/ipc.js";
 import { COMPUTER_PROTOCOL_VERSION, COMPUTER_TRANSFER_TIMEOUT_MS, COMPUTER_SEND_TOO_LARGE, MAX_COMPUTER_MESSAGE_BYTES, isComputerTransfer, isComputerServerMessage, type ComputerClientMessage, type ComputerQuery, type ComputerServerMessage } from "../../contracts/computers.js";
-import { MOBILE_DEAD_AFTER_MS, MOBILE_PING_INTERVAL_MS } from "../../domain/mobile.js";
+import { MOBILE_PING_INTERVAL_MS } from "../../domain/mobile.js";
 import type { ComputerStatus } from "../../domain/computers.js";
 import { WORKSPACE_SOCKET_PATH } from "../mobile/mobile-server.mjs";
 
@@ -22,6 +22,17 @@ const RETRY_MS = [1_000, 2_000, 5_000, 10_000, 15_000];
 const REFUSED_RETRY_MS = 5 * 60_000;
 /** How long a request may wait on the other computer. Its runs are its own; only the answer is waited for. */
 const REQUEST_TIMEOUT_MS = 30_000;
+/**
+ * How long a request waits in all while its line is down, to be carried again once it is back. A
+ * blip of Wi-Fi costs the user a pause, not a failed send to retry and perhaps run twice.
+ */
+const OUTAGE_WAIT_MS = 2 * 60_000;
+/**
+ * Silence past this means the line is gone, though no one said so: the other computer pings more
+ * often, and bytes still arriving count. Shorter than a request's own wait, so a request finds the
+ * line down, and waits for it, rather than giving up on a line only thought to be up.
+ */
+export const COMPUTER_SILENT_AFTER_MS = MOBILE_PING_INTERVAL_MS + 5_000;
 
 export const COMPUTER_OFFLINE = "That computer cannot be reached right now.";
 
@@ -97,9 +108,9 @@ function createWatchdog(dead: () => void) {
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
       timer = null;
-      if (Date.now() - heardAt >= MOBILE_DEAD_AFTER_MS) dead();
+      if (Date.now() - heardAt >= COMPUTER_SILENT_AFTER_MS) dead();
       else arm();
-    }, Math.max(0, heardAt + MOBILE_DEAD_AFTER_MS - Date.now()));
+    }, Math.max(0, heardAt + COMPUTER_SILENT_AFTER_MS - Date.now()));
     timer.unref?.();
   }
   return {
@@ -127,11 +138,20 @@ function createOwed(line: { live: () => boolean; deliver: (waiting: Waiting<unkn
     const payload = requestPayload(message);
     if (payload === null) return Promise.reject(new Error(COMPUTER_SEND_TOO_LARGE));
     const transferring = isComputerTransfer(message);
+    const askedAt = Date.now();
     return new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(() => {
+      /** A request whose line is down waits out the outage, then is refused; one on a live line that went unanswered is refused now. */
+      const expire = () => {
+        const waited = Date.now() - askedAt;
+        if (!line.live() && waited < OUTAGE_WAIT_MS) {
+          waiting.timer = setTimeout(expire, OUTAGE_WAIT_MS - waited);
+          waiting.timer.unref?.();
+          return;
+        }
         held.delete(message.requestId);
         reject(new Error(line.live() ? "That computer did not answer in time." : COMPUTER_OFFLINE));
-      }, transferring ? COMPUTER_TRANSFER_TIMEOUT_MS : REQUEST_TIMEOUT_MS);
+      };
+      const timer = setTimeout(expire, transferring ? COMPUTER_TRANSFER_TIMEOUT_MS : REQUEST_TIMEOUT_MS);
       timer.unref?.();
       const waiting: Waiting<T> = { resolve, reject, timer, requestId: message.requestId, payload, transferring, ...line.current() };
       held.set(message.requestId, waiting);
