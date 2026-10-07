@@ -20,3 +20,10 @@ test("a profile from before the record was kept counts as updated", async () => 
   await writeFile(path.join(userData, "window.v1.json"), "{}");
   assert.equal(readAppLaunch(userData, "0.8.0"), "0.8.0");
 });
+
+test("going back to an older build is recorded without counting as an update", async () => {
+  const userData = await temporaryDirectory(path.join(os.tmpdir(), "app-launch-"));
+  readAppLaunch(userData, "0.8.0");
+  assert.equal(readAppLaunch(userData, "0.7.2"), null);
+  assert.equal(readAppLaunch(userData, "0.8.0"), "0.8.0", "moving forward again is an update");
+});
