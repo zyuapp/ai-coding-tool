@@ -60,7 +60,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
         onAnswer={workspace.actions.answerDecision}
         onSelect={workspace.actions.selectThread}
       />}
-      startOptions={!thread && (
+      startOptions={!thread && workspace.restored && (
         <ThreadStartOptions
           projects={workspace.startProjects}
           projectHosts={workspace.projectHosts}

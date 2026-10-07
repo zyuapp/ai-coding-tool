@@ -1269,7 +1269,7 @@ button, select { color: inherit; }
 .thread-start-project { max-width: min(360px, 100%); }
 .thread-start-git { display: flex; align-items: center; gap: 2px; max-width: 100%; }
 .thread-start-git > .thread-start-toggle { flex: none; }
-/** The empty state gives its buttons a filled pill; these controls carry only a hover wash. */
+/** These controls sit quietly under the composer, carrying only a hover wash. */
 .thread-start :where(.thread-start-field, .thread-start-git, .thread-start-worktree) > button {
   margin: 0;
   display: flex;

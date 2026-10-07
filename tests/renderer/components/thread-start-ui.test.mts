@@ -134,6 +134,18 @@ test("no project makes a chat, which is left only with whether it coordinates", 
   await view.unmount();
 });
 
+test("a new thread's empty transcript names only its project, or that it is a chat", async () => {
+  const { TimelineEmptyState } = await import("../../../src/renderer/components/TimelineEmptyState.tsx");
+  const view = await mount(React.createElement(TimelineEmptyState, { restored: true, place: "ai-coding-tool" }));
+  assert.equal(query(view.container, ".empty-state h2").textContent, "ai-coding-tool");
+  assert.equal(view.container.querySelector(".empty-state p"), null, "there is nothing to explain");
+  await view.render(React.createElement(TimelineEmptyState, { restored: true }));
+  assert.equal(query(view.container, ".empty-state h2").textContent, "New chat", "without a project it is a chat");
+  await view.render(React.createElement(TimelineEmptyState, { restored: false, place: "ai-coding-tool" }));
+  assert.equal(view.container.querySelector(".empty-state h2"), null, "nothing is named before the threads are read");
+  await view.unmount();
+});
+
 test("the drafted project is shown wherever it sits in the list", async () => {
   const { ThreadStartOptions } = await import("../../../src/renderer/components/ThreadStartOptions.tsx");
   window.desktop = fakeDesktop();
