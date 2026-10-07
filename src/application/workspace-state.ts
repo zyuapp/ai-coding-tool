@@ -260,11 +260,10 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   engineChecking: boolean;
   /** The engine whose command the app is upgrading, which its Update button says out loud. */
   engineUpdating: AgentEngine | null;
-  /**
-   * The engines the app is bringing up to date on its own, the one updating first. Null until the
-   * first answer about the engines, which is the only one that starts any.
-   */
-  engineAutoUpdates: AgentEngine[] | null;
+  /** Engines the user asked to update while another was updating, in the order they asked. */
+  engineUpdateQueue: AgentEngine[];
+  /** True once the launch's first answer about the engines has offered their updates. */
+  engineUpdatesOffered: boolean;
   agentSettingsReload: "idle" | "reloading" | "pending" | "reloaded" | "failed";
   prompts: Record<string, string>;
   /** Annotations waiting in each composer, keyed the way `prompts` is. */
@@ -383,6 +382,8 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   toasts: Toast[];
   /** The id the last toast took, so each one has its own. */
   toastSequence: number;
+  /** What the user closed toasts about, so the same ones are not raised again. Kept between launches. */
+  dismissedToasts: string[];
   /** The computers this one is paired with, each mirrored here as it changes there. Session-only. */
   computers: ComputersState;
   focused: boolean;
@@ -434,7 +435,8 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     engineStatus: null,
     engineChecking: false,
     engineUpdating: null,
-    engineAutoUpdates: null,
+    engineUpdateQueue: [],
+    engineUpdatesOffered: false,
     agentSettingsReload: "idle",
     prompts: {},
     annotations: {},
@@ -499,6 +501,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     appUpdate: NO_APP_UPDATE,
     toasts: [],
     toastSequence: 0,
+    dismissedToasts: [],
     computers: NO_COMPUTERS,
     focused: true,
     activeRuns: {},

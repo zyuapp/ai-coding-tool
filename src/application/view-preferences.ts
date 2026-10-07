@@ -2,6 +2,7 @@ import { currentModel, isAgentModel } from "../domain/agent-engine.js";
 import { isBrowserImportMemory } from "../domain/browser-import.js";
 import type { KeyValueStorage } from "./task-store.js";
 import { DRAFT_DOCK, type WorkspaceState } from "./workspace-state.js";
+import { MAX_REMEMBERED_TOASTS } from "../domain/toast.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
 import { shortcutAction, shortcutOverrides, shortcutProblem, type ShortcutOverrides } from "../domain/shortcuts.js";
 import { OPEN_SUBAGENT_GROUPS, SUBAGENT_GROUPS, type SubagentGroups } from "../domain/run.js";
@@ -74,6 +75,7 @@ export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPrefe
     if (!value || typeof value !== "object" || Array.isArray(value)) return {};
     const browserTabs = urlsByThread(value.browserTabs);
     const browserOrigins = urlList(value.browserOrigins);
+    const dismissedToasts = Array.isArray(value.dismissedToasts) ? value.dismissedToasts.filter((key): key is string => typeof key === "string" && key.length > 0 && key.length <= 256).slice(-MAX_REMEMBERED_TOASTS) : undefined;
     const shortcuts = bindings(value.shortcuts);
     const groups = subagentGroups(value.subagentGroups);
     const folds = sidebarSections(value.sections);
@@ -103,6 +105,7 @@ export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPrefe
       ...(browserTabs ? { browserTabs } : {}),
       ...(browserOrigins ? { browserOrigins } : {}),
       ...(isBrowserImportMemory(value.browserImport) ? { browserImport: value.browserImport } : {}),
+      ...(dismissedToasts ? { dismissedToasts } : {}),
     };
   } catch {
     return {};
@@ -150,6 +153,7 @@ export function viewPreferences(state: WorkspaceState): ViewPreferences {
     browserTabs,
     browserOrigins: state.browserOrigins,
     ...(state.browserImport.last ? { browserImport: state.browserImport.last } : {}),
+    ...(state.dismissedToasts.length ? { dismissedToasts: state.dismissedToasts } : {}),
   };
 }
 
@@ -176,5 +180,6 @@ export function viewPreferenceState(preferences: ViewPreferences) {
     favoriteModels: preferences.favoriteModels ?? [],
     shortcuts: preferences.shortcuts ?? {},
     browserOrigins: preferences.browserOrigins ?? [],
+    dismissedToasts: preferences.dismissedToasts ?? [],
   };
 }

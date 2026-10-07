@@ -31,6 +31,7 @@ export function loadViewPreferences(storage: KeyValueStorage, viewportWidth?: nu
     shortcuts: stored.shortcuts ?? {},
     browserTabs: stored.browserTabs ?? {},
     browserOrigins: stored.browserOrigins ?? [],
+    dismissedToasts: stored.dismissedToasts ?? [],
   };
 }
 

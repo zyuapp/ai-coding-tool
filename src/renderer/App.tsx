@@ -224,7 +224,7 @@ export function App() {
       <WorkspaceDialogs workspace={workspace} />
       {settingsVisible && <Suspense fallback={null}><WorkspaceSettings workspace={workspace} onClose={closeSettings} /></Suspense>}
       {workspace.jump && <ThreadJump jump={workspace.jump} actions={workspace.actions} />}
-      <Toasts toasts={workspace.toasts} onDismiss={(id) => void workspace.actions.dismissToast(id)} />
+      <Toasts toasts={workspace.toasts} onDismiss={(id) => void workspace.actions.dismissToast(id)} onAction={(command) => void workspace.dispatch(command)} />
       <TooltipLayer />
     </main>
     </DiagramViewerHost>

@@ -123,8 +123,8 @@ export type WorkspaceEffect = WorkspaceWork & {
 type WorkspaceWork =
   | { type: "schedule-snooze-expiry"; at: number | null }
   | { type: "schedule-limit-reset"; at: number | null }
-  /** Takes a toast down at `at`, unless the user closes it first. */
-  | { type: "schedule-toast-dismissal"; id: number; at: number }
+  /** Takes a toast down at `at`, unless the user closes it first. Null keeps it up, for a toast that now waits for the user. */
+  | { type: "schedule-toast-dismissal"; id: number; at: number | null }
   | { type: "pick-project" }
   | import("../project-add.js").ProjectAddEffect
   | RegisterProjectEffect

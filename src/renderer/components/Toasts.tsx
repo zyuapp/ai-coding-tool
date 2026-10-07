@@ -1,7 +1,7 @@
-import { LuCircleAlert as Alert, LuCircleCheck as Check, LuLoaderCircle as Loader, LuX as X } from "react-icons/lu";
-import type { Toast, ToastTone } from "../../domain/toast";
+import { LuCircleAlert as Alert, LuCircleCheck as Check, LuDownload as Download, LuLoaderCircle as Loader, LuX as X } from "react-icons/lu";
+import type { Toast, ToastAction, ToastTone } from "../../domain/toast";
 
-const ICONS: Record<ToastTone, typeof Check> = { progress: Loader, success: Check, error: Alert };
+const ICONS: Record<ToastTone, typeof Check> = { update: Download, progress: Loader, success: Check, error: Alert };
 
 /** A command wraps only between its words, so a flag is never split from its dash. */
 function Command({ text }: { text: string }) {
@@ -14,7 +14,7 @@ function ToastMessage({ text }: { text: string }) {
 }
 
 /** The cards in the window's top-right corner, newest on top. Each leaves on its own, or at its X. */
-export function Toasts({ toasts, onDismiss }: { toasts: readonly Toast[]; onDismiss: (id: number) => void }) {
+export function Toasts({ toasts, onDismiss, onAction }: { toasts: readonly Toast[]; onDismiss: (id: number) => void; onAction: (command: ToastAction["command"]) => void }) {
   if (!toasts.length) return null;
   return (
     <section className="toasts" aria-label="Notifications">
@@ -26,6 +26,7 @@ export function Toasts({ toasts, onDismiss }: { toasts: readonly Toast[]; onDism
             <div className="toast-text">
               <strong>{toast.title}</strong>
               {toast.message && <ToastMessage text={toast.message} />}
+              {toast.action && <button type="button" className="toast-action" onClick={() => onAction(toast.action!.command)}>{toast.action.label}</button>}
             </div>
             <button type="button" className="toast-close" aria-label="Dismiss" onClick={() => onDismiss(toast.id)}>
               <X size={14} aria-hidden="true" />

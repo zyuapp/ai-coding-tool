@@ -1,7 +1,7 @@
 import { LuRefreshCw as RefreshCw } from "react-icons/lu";
 import { SettingGroup } from "./SettingRow";
 import { settingControl } from "../../domain/settings-catalog";
-import { AGENT_ENGINES, engineLabel, engineNotice, type AgentEngine, type EngineReadiness } from "../../domain/agent-engine";
+import { AGENT_ENGINES, engineLabel, engineNotice, engineUpdate, type AgentEngine, type EngineReadiness } from "../../domain/agent-engine";
 import type { WorkspaceState } from "../../application/workspace-state";
 import { CopyButton } from "./CopyButton";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
@@ -25,7 +25,8 @@ function statusWord(readiness: EngineReadiness) {
   if (readiness.access === "outdated") return "Too old";
   if (readiness.access === "unavailable") return "Will not start";
   if (readiness.access === "signed-out") return "Signed out";
-  return readiness.required ? "Behind" : "Ready";
+  if (readiness.required) return "Behind";
+  return readiness.latest ? "Update available" : "Ready";
 }
 
 /** What this engine is doing on this machine, under its name. */
@@ -33,6 +34,7 @@ function statusLine(engine: AgentEngine, readiness: EngineReadiness) {
   const notice = engineNotice(engine, readiness);
   if (notice) return notice.message;
   if (readiness.access === "signed-out") return `Sign in to run threads on ${engineLabel(engine)}.`;
+  if (readiness.latest) return `Version ${readiness.version}. ${readiness.latest} is available${readiness.fix ? "" : "; update it the way you installed it"}.`;
   return readiness.version ? `Version ${readiness.version}` : "Installed and ready.";
 }
 
@@ -60,6 +62,7 @@ export function EngineSettings({ engineAccess, checking, updating, onRefresh, on
         {AGENT_ENGINES.map((engine) => {
           const readiness = engineAccess[engine];
           const notice = engineNotice(engine, readiness);
+          const update = engineUpdate(readiness);
           const ready = !notice && readiness.access === "ready";
           return (
             <div className="setting-row engine-setting-row" key={engine}>
@@ -77,7 +80,7 @@ export function EngineSettings({ engineAccess, checking, updating, onRefresh, on
               <div className="setting-row-action">
                 {readiness.access === "signed-out"
                   ? <button type="button" onClick={() => onSignIn(engine)}>Sign in</button>
-                  : notice?.updatable
+                  : update?.command
                     ? <button type="button" disabled={updating !== null || checking} onClick={() => onUpdate(engine)}>
                       {updating === engine && <RefreshCw size={13} aria-hidden="true" className="spinning" />}{updating === engine ? "Updating…" : "Update"}
                     </button>

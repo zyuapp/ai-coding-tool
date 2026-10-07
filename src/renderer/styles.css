@@ -2392,6 +2392,7 @@ pre {
   animation: toast-in 220ms cubic-bezier(0.2, 0.9, 0.3, 1.15);
 }
 .toast-icon { flex: none; margin-top: 1px; }
+.toast.update .toast-icon { color: var(--accent); }
 .toast.progress .toast-icon { color: var(--info); animation: spin 900ms linear infinite; }
 .toast.success .toast-icon { color: var(--success); }
 .toast.error .toast-icon { color: var(--danger); }
@@ -2400,6 +2401,8 @@ pre {
 .toast-text p { margin: 0; color: var(--muted-strong); font-size: var(--text-meta); line-height: 1.45; overflow-wrap: anywhere; }
 .toast-text code { border-radius: 4px; padding: 0 4px; background: var(--code-surface); color: var(--code-ink); font-family: var(--mono); font-size: 0.95em; }
 .toast-text code span { white-space: nowrap; }
+.toast-action { justify-self: start; margin-top: 7px; border: 0; border-radius: 7px; padding: 4px 11px; background: var(--surface-inverse); color: var(--ink-inverse); font-size: var(--text-meta); font-weight: 600; cursor: pointer; }
+.toast-action:hover { background: var(--surface-inverse-soft); }
 .toast-close { flex: none; display: grid; place-items: center; border: 0; border-radius: 6px; padding: 3px; background: none; color: var(--quiet); cursor: pointer; }
 .toast-close:hover { background: var(--wash); color: var(--ink-soft); }
 @keyframes toast-in { from { opacity: 0; transform: translateX(14px) scale(0.98); } }

@@ -1,6 +1,6 @@
 import type { AgentSettingsReloadEvent } from "../contracts/ipc.js";
 import type { EngineCommand } from "../contracts/commands.js";
-import { AGENT_ENGINES, engineIsBlocked, engineLabel, engineNeedsAttention, engineNotice, type AgentEngine, type EngineAccess, type EngineReadiness, type EngineStatus } from "../domain/agent-engine.js";
+import { AGENT_ENGINES, engineIsBlocked, engineLabel, engineNeedsAttention, engineUpdate, type AgentEngine, type EngineAccess, type EngineReadiness, type EngineStatus } from "../domain/agent-engine.js";
 import type { Toast } from "../domain/toast.js";
 import { withToast, type ToastEffect } from "./toasts.js";
 import type { WorkspaceState } from "./workspace-state.js";
@@ -19,7 +19,7 @@ export type EngineEffect = EngineCommand;
 
 export type EngineInput = EngineCommand | EngineEvent;
 
-/** Engine work, and the toasts that say what the app did to an engine on its own. */
+/** Engine work, and the toasts that offer an update and say how it went. */
 export type EngineTransition = { state: WorkspaceState; effects: Array<EngineEffect | ToastEffect>; result?: WorkspaceCommandResult };
 
 /** Everything about engine access is named `engine.`, so one test sorts the whole family out of the way. */
@@ -51,42 +51,68 @@ function nothingBlocked(status: EngineStatus) {
   return !Object.entries(status).some(([engine, readiness]) => engineIsBlocked(engine as AgentEngine, readiness));
 }
 
-/** True when the engine's installed command is behind the app and the app can bring it up to date. */
-function updatable(state: Pick<WorkspaceState, "engineStatus">, engine: AgentEngine) {
-  return engineNotice(engine, engineReadinessOf(state, engine))?.updatable === true;
+/** The key a closed offer is remembered by, so the same release is not offered again but the next one is. */
+export function engineUpdateKey(engine: AgentEngine, target: string) {
+  return `engine-update:${engine}@${target}`;
+}
+
+/** Puts a toast up alongside the engine work already decided. */
+function toasted(transition: EngineTransition, toast: Omit<Toast, "id">): EngineTransition {
+  const shown = withToast(transition.state, toast);
+  return { ...transition, state: shown.state, effects: [...transition.effects, ...shown.effects] };
 }
 
 /**
- * Starts the next engine the app is updating on its own, once nothing else is updating, since package
- * managers lock. One the user has brought up to date meanwhile is passed over.
+ * The card that offers an engine's update when the launch first hears about the engines. It stays
+ * until the user upgrades or closes it, and a closed one is not offered again for the same release.
  */
-function nextAutoUpdate(state: WorkspaceState): EngineTransition {
-  if (state.engineUpdating || !state.engineAutoUpdates?.length) return { state, effects: [] };
-  const queue = state.engineAutoUpdates.filter((engine) => updatable(state, engine));
-  const engine = queue[0];
-  const next = queue.length === state.engineAutoUpdates.length ? state : { ...state, engineAutoUpdates: queue };
-  if (!engine) return { state: next, effects: [] };
-  const { version, required } = engineReadinessOf(state, engine);
+function updateOffer(state: WorkspaceState, engine: AgentEngine): Omit<Toast, "id"> | null {
+  const readiness = engineReadinessOf(state, engine);
+  const update = engineUpdate(readiness);
+  if (!update || state.dismissedToasts.includes(engineUpdateKey(engine, update.target))) return null;
   const label = engineLabel(engine);
-  const shown = withToast({ ...next, engineUpdating: engine }, { tone: "progress", title: `Updating ${label}`, message: `${label} ${version ?? "on this machine"} is behind ${required}.`, subject: engine });
-  return { state: shown.state, effects: [{ type: "engine.update", engine }, ...shown.effects] };
+  const have = update.version ? `You have ${update.version}.` : "";
+  const needed = readiness.required ? `This app needs ${readiness.required} or newer. ${have}` : have;
+  return {
+    tone: "update",
+    title: `${label} ${update.target} is available`,
+    message: update.command ? needed.trim() : `${needed} Update it the way you installed it.`.trim(),
+    subject: engine,
+    persistent: true,
+    remember: engineUpdateKey(engine, update.target),
+    ...(update.command ? { action: { label: "Upgrade", command: { type: "engine.update", engine } } } : {}),
+  };
 }
 
-/** Says how an update the app started on its own went, then starts the next one. */
-function finishAutoUpdate(state: WorkspaceState, toast: Omit<Toast, "id">): EngineTransition {
-  const shown = withToast({ ...state, engineAutoUpdates: state.engineAutoUpdates?.slice(1) ?? [] }, toast);
-  const after = nextAutoUpdate(shown.state);
-  return { state: after.state, effects: [...shown.effects, ...after.effects] };
+/** Starts an engine's update, saying so in place of the card that offered it. */
+function startUpdate(state: WorkspaceState, engine: AgentEngine): EngineTransition {
+  const label = engineLabel(engine);
+  const update = engineUpdate(engineReadinessOf(state, engine));
+  const message = update?.version ? `Moving from ${update.version} to ${update.target}.` : `Moving to ${update?.target}.`;
+  return toasted(
+    { state: { ...state, engineUpdating: engine, actionError: null, actionErrorPage: null }, effects: [{ type: "engine.update", engine }] },
+    { tone: "progress", title: `Updating ${label}`, message, subject: engine, persistent: true },
+  );
 }
 
-/** What the app tells the user once it has updated an engine on its own: the version it reached, or that it is still behind. */
-function autoUpdateToast(state: WorkspaceState, engine: AgentEngine): Omit<Toast, "id"> {
+/** Starts the next engine waiting its turn, since package managers lock. One brought up to date meanwhile is passed over. */
+function nextUpdate(state: WorkspaceState): EngineTransition {
+  const queue = state.engineUpdateQueue.filter((engine) => engineUpdate(engineReadinessOf(state, engine))?.command);
+  const [engine, ...rest] = queue;
+  const next = { ...state, engineUpdateQueue: rest };
+  return engine ? startUpdate(next, engine) : { state: queue.length === state.engineUpdateQueue.length ? state : next, effects: [] };
+}
+
+/** How an update went: the version it reached, or that the engine is still behind. A success leaves on its own. */
+function updateResult(state: WorkspaceState, engine: AgentEngine): Omit<Toast, "id"> {
   const label = engineLabel(engine);
-  const { version, required, fix } = engineReadinessOf(state, engine);
-  if (updatable(state, engine)) {
-    return { tone: "error", title: `Couldn't update ${label}`, message: `${label} ${version ?? "on this machine"} is still behind ${required}.${fix ? ` Run \`${fix}\` in your terminal.` : ""}`, subject: engine };
+  const readiness = engineReadinessOf(state, engine);
+  const update = engineUpdate(readiness);
+  if (update) {
+    const run = update.command ? ` Run \`${update.command}\` in your terminal.` : "";
+    return { tone: "error", title: `Couldn't update ${label}`, message: `${label} is still on ${update.version ?? "an older version"}.${run}`, subject: engine, persistent: true };
   }
-  return { tone: "success", title: `${label} updated`, ...(version ? { message: `Now on ${version}.` } : {}), subject: engine };
+  return { tone: "success", title: `${label} updated`, ...(readiness.version ? { message: `Now on ${readiness.version}.` } : {}), subject: engine };
 }
 
 export function reduceEngine(state: WorkspaceState, input: EngineInput): EngineTransition {
@@ -105,26 +131,25 @@ export function reduceEngine(state: WorkspaceState, input: EngineInput): EngineT
     const next: WorkspaceState = { ...state, engineStatus, ...(cleared ? { actionError: null, actionErrorPage: null } : {}) };
     if (input.type === "engine.status") {
       const read = { ...next, engineChecking: false };
-      /** The first answer of a launch is the one that finds what fell behind the app, which is updated without asking. */
-      if (state.engineAutoUpdates !== null) return { state: read, effects: [] };
-      return nextAutoUpdate({ ...read, engineAutoUpdates: AGENT_ENGINES.filter((engine) => updatable(read, engine)) });
+      /** Only the launch's first answer offers updates; later ones are the user's own checks, answered in Settings. */
+      if (state.engineUpdatesOffered) return { state: read, effects: [] };
+      return AGENT_ENGINES.reduce<EngineTransition>((transition, engine) => {
+        const offer = updateOffer(transition.state, engine);
+        return offer ? toasted(transition, offer) : transition;
+      }, { state: { ...read, engineUpdatesOffered: true }, effects: [] });
     }
     const updated = { ...next, engineUpdating: null };
-    if (state.engineAutoUpdates?.[0] !== input.engine) return nextAutoUpdate(updated);
-    return finishAutoUpdate(updated, autoUpdateToast(updated, input.engine));
+    const shown = withToast(updated, updateResult(updated, input.engine));
+    const after = nextUpdate(shown.state);
+    return { state: after.state, effects: [...shown.effects, ...after.effects] };
   }
 
   if (input.type === "engine.failed") return { state: { ...state, engineChecking: false, actionError: input.message }, effects: [], result: { ok: false, message: input.message } };
 
   if (input.type === "engine.update-failed") {
-    const label = engineLabel(input.engine);
-    const updated = { ...state, engineUpdating: null };
-    /** An update the user asked for answers where they asked; one the app started on its own says so in a toast. */
-    if (state.engineAutoUpdates?.[0] !== input.engine) {
-      const message = `Could not update ${label}. ${input.message}`;
-      return { ...nextAutoUpdate({ ...updated, actionError: message }), result: { ok: false, message } };
-    }
-    return finishAutoUpdate(updated, { tone: "error", title: `Couldn't update ${label}`, message: input.message, subject: input.engine });
+    const shown = withToast({ ...state, engineUpdating: null }, { tone: "error", title: `Couldn't update ${engineLabel(input.engine)}`, message: input.message, subject: input.engine, persistent: true });
+    const after = nextUpdate(shown.state);
+    return { state: after.state, effects: [...shown.effects, ...after.effects], result: { ok: false, message: input.message } };
   }
 
   if (input.type === "engine.read") {
@@ -136,9 +161,14 @@ export function reduceEngine(state: WorkspaceState, input: EngineInput): EngineT
   }
 
   if (input.type === "engine.update") {
-    /** Only a command the app can upgrade is, and one at a time, since package managers lock. */
-    if (state.engineUpdating || !engineNotice(input.engine, engineReadinessOf(state, input.engine))?.updatable) return { state, effects: [] };
-    return { state: { ...state, engineUpdating: input.engine, actionError: null, actionErrorPage: null }, effects: [input] };
+    /** Only an install the app can upgrade is, and only once; one asked for while another runs waits its turn. */
+    const { engine } = input;
+    if (!engineUpdate(engineReadinessOf(state, engine))?.command || state.engineUpdating === engine || state.engineUpdateQueue.includes(engine)) return { state, effects: [] };
+    if (!state.engineUpdating) return startUpdate(state, engine);
+    return toasted(
+      { state: { ...state, engineUpdateQueue: [...state.engineUpdateQueue, engine] }, effects: [] },
+      { tone: "progress", title: `Updating ${engineLabel(engine)}`, message: `Waiting for ${engineLabel(state.engineUpdating)} to finish.`, subject: engine, persistent: true },
+    );
   }
 
   /** Only an engine that asked to be signed in to is; a ready one has nothing to open. */

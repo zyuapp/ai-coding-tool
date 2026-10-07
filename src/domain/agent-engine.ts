@@ -124,7 +124,12 @@ export type EngineReadiness = {
   version?: string;
   /** The version the app was built against, named only when the installed one is older. */
   required?: string;
-  /** The command that installs or upgrades this engine the way the user already has it. */
+  /** The newest release, named only when the installed one is older. */
+  latest?: string;
+  /**
+   * The command that installs this engine, or that upgrades it the way the user already has it.
+   * Absent for an install the app cannot upgrade, such as one a version manager keeps.
+   */
   fix?: string;
   /** The catalogue models the installed command can run. Absent means it runs all of them. */
   models?: readonly AgentModel[];
@@ -160,6 +165,16 @@ export function engineNotice(engine: AgentEngine, readiness: EngineReadiness): E
   /** Ready, but behind: it runs, and the models it never heard of are simply missing from the menu. */
   if (readiness.required) return { blocking: false, message: `${named} is behind ${readiness.required}, so some models are hidden.`, ...update };
   return null;
+}
+
+/** A version an installed engine can move to, the one it is on, and the command that moves it when the app can run it. */
+export type EngineUpdate = { target: string; version?: string; command?: string };
+
+/** What this engine could update to, aiming for the newest release, or nothing when it is current or not installed. */
+export function engineUpdate(readiness: EngineReadiness): EngineUpdate | null {
+  const target = readiness.latest ?? readiness.required;
+  if (readiness.access === "missing" || !target) return null;
+  return { target, ...(readiness.version ? { version: readiness.version } : {}), ...(readiness.fix ? { command: readiness.fix } : {}) };
 }
 
 /**

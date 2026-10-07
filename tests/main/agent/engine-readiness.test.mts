@@ -1,6 +1,6 @@
 import { temporaryDirectory } from "../../support/temporary-directory.mts";
 import assert from "node:assert/strict";
-import { chmod, mkdir, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, realpath, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { test } from "vitest";
@@ -47,7 +47,7 @@ test("an engine is the command on the user's path, read for its version", async 
   const found = await onPath(folder, () => installedEngine("codex"));
   assert.equal(found?.path, executable);
   assert.equal(found?.version, "0.150.1");
-  assert.equal(found?.upgrade, "npm install -g @openai/codex@latest", "an install from nowhere known upgrades the way the engine documents");
+  assert.equal(found?.update?.command, "codex update", "an install the path does not place anywhere known is left to the engine's own updater");
 });
 
 test("an engine that is nowhere on the path is absent, and the app can say how to install it", async () => {
@@ -70,7 +70,44 @@ test("the upgrade command follows the launcher to the real file, so a cask upgra
   await symlink(real, path.join(bin, "codex"));
 
   const found = await onPath(bin, () => installedEngine("codex"));
-  assert.equal(found?.upgrade, "brew update && brew upgrade --cask codex");
+  assert.deepEqual(found?.update, { command: "brew upgrade --cask codex", file: "brew", args: ["upgrade", "--cask", "codex"] });
+  assert.deepEqual(found?.keg, { kind: "cask", name: "codex", prefix: root });
+});
+
+test("a global npm install upgrades through the npm of its own prefix, and a version manager's is left to the user", async () => {
+  /** The real path, since macOS reaches the temporary folder through a link. */
+  const root = await realpath(await temporaryDirectory(path.join(os.tmpdir(), "engine-npm-")));
+  const pkg = path.join(root, "node", "lib", "node_modules", "@openai", "codex", "bin");
+  await mkdir(pkg, { recursive: true });
+  const real = path.join(pkg, "codex.js");
+  await writeFile(real, "#!/bin/sh\necho 'codex-cli 0.150.1'\n");
+  await chmod(real, 0o755);
+  const bin = path.join(root, "node", "bin");
+  await mkdir(bin, { recursive: true });
+  await symlink(real, path.join(bin, "codex"));
+  await writeFile(path.join(bin, "npm"), "#!/bin/sh\n");
+  await chmod(path.join(bin, "npm"), 0o755);
+  const prefix = path.join(root, "node");
+  const found = await onPath(bin, () => installedEngine("codex"));
+  assert.deepEqual(found?.update, {
+    command: "npm install -g @openai/codex@latest",
+    file: path.join(bin, "npm"),
+    args: ["install", "-g", "--prefix", prefix, "--allow-scripts=@openai/codex", "@openai/codex@latest"],
+  });
+
+  const mise = path.join(root, "mise", "installs", "claude", "2.1.0");
+  await mkdir(mise, { recursive: true });
+  await writeFile(path.join(mise, "claude"), "#!/bin/sh\necho '2.1.0 (Claude Code)'\n");
+  await chmod(path.join(mise, "claude"), 0o755);
+  const managed = await onPath(mise, () => installedEngine("claude"));
+  assert.equal(managed?.version, "2.1.0");
+  assert.equal(managed?.update, null);
+
+  const local = path.join(root, ".local", "bin");
+  await mkdir(local, { recursive: true });
+  await writeFile(path.join(local, "claude"), '#!/bin/bash\nmise use -g --quiet "claude" || exit 1\nexec mise x "claude" -- "claude" "$@"\n');
+  await chmod(path.join(local, "claude"), 0o755);
+  assert.equal((await onPath(local, () => installedEngine("claude")))?.update, null, "a mise launcher where the native install would be is still mise's");
 });
 
 test("an answer with every engine in place is kept, and one with an engine missing is read again", async () => {
@@ -151,4 +188,25 @@ test("an update runs the engine's own upgrade, then reads every engine from scra
   assert.deepEqual(first, second);
   assert.deepEqual(first.codex, { access: "ready", version: "0.150.1" });
   assert.equal(paths, 1, "the shell is read again, since an upgrade can move the command");
+});
+
+test("the newest release is read from npm once an hour, and an answer that cannot be read is no answer", async () => {
+  const { latestEngineVersion } = await import("../../../src/main/agent/engine-binary.mts");
+  const asked: string[] = [];
+  const original = globalThis.fetch;
+  let reply: unknown = { version: "0.161.0" };
+  globalThis.fetch = (async (url: string) => {
+    asked.push(url);
+    return new Response(JSON.stringify(reply), { status: 200 });
+  }) as typeof fetch;
+  try {
+    const installed = { path: "/bin/codex", version: "0.160.1", update: null, keg: null };
+    assert.equal(await latestEngineVersion("codex", installed), "0.161.0");
+    assert.equal(await latestEngineVersion("codex", installed), "0.161.0");
+    assert.deepEqual(asked, ["https://registry.npmjs.org/%40openai%2Fcodex/latest"], "the second ask is answered from the last hour's");
+    reply = { version: "2.2.0-beta.1" };
+    assert.equal(await latestEngineVersion("claude", { ...installed, version: "2.1.0" }), null, "a prerelease is not offered");
+  } finally {
+    globalThis.fetch = original;
+  }
 });

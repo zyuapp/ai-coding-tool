@@ -46,4 +46,6 @@ export type ViewPreferences = {
   browserOrigins?: string[];
   /** The import "Import again" repeats. */
   browserImport?: BrowserImportMemory;
+  /** What the user closed toasts about, such as an engine release they chose not to install. */
+  dismissedToasts?: string[];
 };

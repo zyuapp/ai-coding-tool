@@ -317,12 +317,15 @@ test("a send is refused with the command that fixes it when the engine is missin
   );
 });
 
-test("only an installed engine that is behind can be updated, one at a time", () => {
+test("only an installed engine the app can upgrade is updated, one at a time", () => {
   const ready = workspace();
   assert.deepEqual(reduce(ready, { type: "engine.update", engine: "codex" }).effects, [], "a ready engine has nothing to update");
 
   const missing = workspace({ engineStatus: { codex: { access: "missing", fix: "brew install --cask codex" } } });
   assert.deepEqual(reduce(missing, { type: "engine.update", engine: "codex" }).effects, [], "an engine that is not there is installed by the user");
+
+  const managed = workspace({ engineStatus: { claude: { access: "ready", version: "2.1.0", latest: "2.1.300" } } });
+  assert.deepEqual(reduce(managed, { type: "engine.update", engine: "claude" }).effects, [], "an install the app cannot upgrade is left to the user");
 
   const old = workspace({
     engineStatus: {
@@ -333,19 +336,20 @@ test("only an installed engine that is behind can be updated, one at a time", ()
   const updating = reduce(old, { type: "engine.update", engine: "codex" });
   assert.deepEqual(updating.effects, [{ type: "engine.update", engine: "codex" }]);
   assert.equal(updating.state.engineUpdating, "codex");
-  assert.deepEqual(reduce(updating.state, { type: "engine.update", engine: "claude" }).effects, [], "a second update waits for the first");
+  const waiting = reduce(updating.state, { type: "engine.update", engine: "claude" });
+  assert.deepEqual(waiting.effects.filter((effect) => effect.type === "engine.update"), [], "a second update waits for the first");
+  assert.deepEqual(waiting.state.engineUpdateQueue, ["claude"]);
 
   const read = reduce(updating.state, { type: "engine.status", status: { codex: { access: "outdated", version: "0.147.0", required: "0.150.1" } } }).state;
   assert.equal(read.engineUpdating, "codex", "a read that lands while the update runs does not end it");
 
   const updated = reduce(updating.state, { type: "engine.updated", engine: "codex", status: { codex: { access: "ready", version: "0.150.1" } } }).state;
   assert.equal(updated.engineUpdating, null);
-  assert.deepEqual(updated.toasts, [], "an update the user asked for answers in Settings, not in a toast");
-  assert.deepEqual(reduce(updated, { type: "engine.update", engine: "claude" }).effects, [{ type: "engine.update", engine: "claude" }], "an engine that runs but is behind can be updated too");
+  assert.deepEqual(reduce(updated, { type: "engine.update", engine: "claude" }).effects[0], { type: "engine.update", engine: "claude" }, "an engine that runs but is behind can be updated too");
 
   const failed = reduce(updating.state, { type: "engine.update-failed", engine: "codex", message: "Run `brew upgrade --cask codex` in your terminal." }).state;
   assert.equal(failed.engineUpdating, null);
-  assert.equal(failed.actionError, "Could not update Codex. Run `brew upgrade --cask codex` in your terminal.");
+  assert.equal(failed.actionError, null, "how an update went is told in its toast");
 });
 
 test("an engine's access comes from main, and only a signed-out engine can be signed in to", () => {

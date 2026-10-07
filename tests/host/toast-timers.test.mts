@@ -17,7 +17,12 @@ test("each toast keeps its own time, scheduling one again restarts it, and stopp
   vi.advanceTimersByTime(3_000);
   assert.deepEqual(elapsed, [2, 1]);
 
-  timers.schedule(3, 12_000);
+  timers.schedule(4, 10_000);
+  timers.schedule(4, null);
+  vi.advanceTimersByTime(2_000);
+  assert.deepEqual(elapsed, [2, 1], "a toast that now waits for the user is not taken down");
+
+  timers.schedule(3, 14_000);
   timers.dispose();
   vi.advanceTimersByTime(10_000);
   assert.deepEqual(elapsed, [2, 1], "a stopped host takes nothing down");
