@@ -51,5 +51,26 @@ test("the frame takes the markup once, runs its scripts in order, and applies th
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.ok(observed.some((data) => visualFrameMessage(data)?.type === "size"), "the frame reports the height it needs");
   assert.equal(window.document.documentElement.style.overflowY, "hidden", "a visual within the cap shows no scrollbar to narrow it");
+  // Closing empties the body, and a measure the bridge queued for that would run with no document.
+  Object.defineProperty(window, "requestAnimationFrame", { value: () => 0 });
+  window.close();
+});
+
+test("a ResizeObserver loop is not reported, so a later script error still is", async () => {
+  const frame = new JSDOM(visualFrameDocument(), { runScripts: "dangerously" });
+  const window = frame.window;
+  const errors: string[] = [];
+  window.addEventListener("message", (event) => {
+    const message = visualFrameMessage(event.data);
+    if (message?.type === "error") errors.push(message.message);
+  });
+  const fail = (message: string) => window.dispatchEvent(new window.ErrorEvent("error", { message }));
+
+  fail("ResizeObserver loop completed with undelivered notifications.");
+  fail("ResizeObserver loop limit exceeded");
+  fail("ReferenceError: chart is not defined");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.deepEqual(errors, ["ReferenceError: chart is not defined"]);
   window.close();
 });

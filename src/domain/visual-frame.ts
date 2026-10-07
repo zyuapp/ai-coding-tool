@@ -101,7 +101,14 @@ const BRIDGE = `(() => {
     failed = true;
     post({ type: ${JSON.stringify(FAILURE)}, message: String(message) });
   };
-  addEventListener("error", (event) => report(event.message || "Script error"));
+  /**
+   * A ResizeObserver loop is the browser deferring a notification to the next frame, which the
+   * visual still receives. Reporting it would flag a visual that draws fine and use up the one report.
+   */
+  addEventListener("error", (event) => {
+    if (/^ResizeObserver loop/.test(event.message)) return;
+    report(event.message || "Script error");
+  });
   addEventListener("unhandledrejection", (event) => report(event.reason && event.reason.message || event.reason));
   addEventListener("message", (event) => {
     const data = event.data;

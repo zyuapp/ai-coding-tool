@@ -75,7 +75,7 @@ The body already uses `--color-text` and `--font-sans` at `--font-size`, and nat
 
 - Draw inline, on the conversation itself, the way a chart sits in a document. No card, panel, border, background, or shadow around the visual, a chart, the controls, or a group of stats. Separate parts with space, and at most a hairline `--color-border` rule.
 - Put controls in one wrapping row directly above what they change, and stats as plain text or large numbers with a label beneath, not in boxes.
-- Fill the width and adapt from 320px to about 1000px: no fixed widths, use flex or grid with wrapping, and give SVG a `viewBox` with `width: 100%`.
+- Fill the width and adapt from 320px to about 1000px: no fixed widths, use flex or grid with wrapping, and give SVG a `viewBox` with `width: 100%`. When script redraws for a new width, call it from a `ResizeObserver` through `requestAnimationFrame`, only when the width changed.
 - Let content set the height. Never use `vh` units or percentage heights on the root, and keep the whole visual under about 800px tall.
 - Keep text at 12px or larger.
 
