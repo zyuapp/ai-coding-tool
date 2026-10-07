@@ -81,6 +81,8 @@ export type ConversationComposerProps = {
   goal?: ActiveGoal | null;
   /** The decisions waiting on the user, drawn above the composer of the coordinator they reach. */
   decisions?: ReactNode;
+  /** How a thread that does not exist yet starts, drawn under the composer it is sent from. */
+  startOptions?: ReactNode;
   queuedMessages: QueuedMessage[];
   /** Annotations waiting to ride the next send, drafted from selections in the transcript. */
   annotations?: Annotation[];
@@ -189,6 +191,7 @@ export function ConversationComposer({
   onCancel,
   onGoalClear = NOTHING,
   decisions,
+  startOptions,
 }: ConversationComposerProps) {
   const caret = useComposerCaret(focusToken);
   const menus = useComposerMenus({ prompt, caret, actions, threads, workspaceId, engine, enabled: true, onPromptChange });
@@ -266,6 +269,7 @@ export function ConversationComposer({
           </div>
         </div>
       </div>
+      {surface === "main" && startOptions}
       <AttachmentAnnotator attachments={attachments} />
     </footer>
   );

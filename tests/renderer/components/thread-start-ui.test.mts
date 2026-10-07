@@ -42,13 +42,12 @@ test("the start options say where a thread begins, and searching narrows the bra
   assert.equal(worktreeToggle.textContent, "Worktree");
   assert.equal(worktreeToggle.getAttribute("aria-pressed"), "false", "a worktree is only ever asked for");
   assert.equal(query(view.container, ".thread-start-coordinator").getAttribute("aria-pressed"), "false", "a thread starts without a role");
-  assert.equal(view.container.querySelector(".thread-mode"), null, "the mode is asked for above these, not among them");
 
   await act(async () => { project.click(); });
   const projectSearch = query<HTMLInputElement>(view.container, 'input[aria-label="Search projects"]');
   assert.equal(document.activeElement, projectSearch, "the project search takes focus when it opens");
-  assert.deepEqual([...view.container.querySelectorAll('[role="option"]')].map((option) => option.textContent), ["ai-coding-tool", "just-speak"]);
-  assert.equal(query(view.container, '[role="listbox"]').textContent, "ai-coding-tooljust-speak", "local-only projects form a plain list");
+  assert.deepEqual([...view.container.querySelectorAll('[role="option"]')].map((option) => option.textContent), ["No project", "ai-coding-tool", "just-speak"], "no project leads the list");
+  assert.equal(query(view.container, '[role="listbox"]').textContent, "No projectai-coding-tooljust-speak", "local-only projects form a plain list");
   await act(async () => {
     item(Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")).set!.call(projectSearch, "speak");
     projectSearch.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true }));
@@ -92,51 +91,52 @@ test("the start options say where a thread begins, and searching narrows the bra
   await view.unmount();
 });
 
-test("the mode is chat or work, and a chat is left only with whether it coordinates", async () => {
-  const { ThreadModeSwitch, ThreadStartOptions } = await import("../../../src/renderer/components/ThreadStartOptions.tsx");
+test("no project makes a chat, which is left only with whether it coordinates", async () => {
+  const { ThreadStartOptions } = await import("../../../src/renderer/components/ThreadStartOptions.tsx");
   window.desktop = fakeDesktop();
   const chosen: Array<string | undefined> = [];
-  const projects = [{ id: "project-a", root: "/repo/ai-coding-tool" }, { id: "project-b", root: "/repo/just-speak" }];
-  const view = await mount(React.createElement(ThreadModeSwitch, { projects, projectId: "project-a", onSelectProject: (id) => { chosen.push(id); } }));
-
-  const modes = () => [...view.container.querySelectorAll<HTMLButtonElement>('[role="radio"]')];
-  assert.deepEqual(modes().map((mode) => [mode.textContent, mode.getAttribute("aria-checked")]), [["Chat", "false"], ["Work", "true"]], "a thread in a project is work");
-  await act(async () => { item(modes()[1]).click(); });
-  assert.deepEqual([...chosen], [], "the mode it is already in asks for nothing");
-  await act(async () => { item(modes()[0]).click(); });
-  assert.deepEqual([...chosen], [undefined], "turning to chat leaves the project behind");
-  chosen.length = 0;
-
-  await view.render(React.createElement(ThreadModeSwitch, { projects, projectId: null, onSelectProject: (id) => { chosen.push(id); } }));
-  assert.deepEqual(modes().map((mode) => mode.getAttribute("aria-checked")), ["true", "false"], "a thread with no project is a chat");
-  await act(async () => { item(modes()[1]).click(); });
-  assert.deepEqual([...chosen], ["project-a"], "turning to work starts the thread in the first project");
-
-  await view.render(React.createElement(ThreadModeSwitch, { projects: [], projectId: null, onSelectProject() {} }));
-  assert.equal(view.container.querySelector(".thread-mode"), null, "with nowhere to work there is no mode to choose");
-
   const coordinating: boolean[] = [];
-  await view.render(React.createElement(ThreadStartOptions, {
-    projects,
-    projectId: null,
+  const projects = [{ id: "project-a", root: "/repo/ai-coding-tool" }, { id: "project-b", root: "/repo/just-speak" }];
+  const options = (projectId: string | null, offered = projects) => React.createElement(ThreadStartOptions, {
+    projects: offered,
+    projectId,
     branch: null,
     worktree: false,
-    onSelectProject() {},
+    onSelectProject: (id) => { chosen.push(id); },
     onSelectBranch() {},
     onSetWorktree() {},
     coordinator: false,
     onSetCoordinator: (on) => { coordinating.push(on); },
-  }));
-  assert.deepEqual([...view.container.querySelectorAll(".thread-start button")].map((button) => button.textContent), ["Coordinator"], "a chat has no project, branch, or checkout to answer for");
+  });
+  const rows = () => [...view.container.querySelectorAll<HTMLButtonElement>('[role="option"]')];
+  const open = async () => { await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Project"]').click(); }); };
+
+  const view = await mount(options("project-a"));
+  await open();
+  await act(async () => { item(rows()[0]).click(); });
+  assert.deepEqual([...chosen], [undefined], "no project leaves the project behind");
+  chosen.length = 0;
+
+  await view.render(options(null));
+  assert.deepEqual([...view.container.querySelectorAll(".thread-start button")].map((button) => button.textContent), ["No project", "Coordinator"], "a chat has no branch or checkout to answer for");
+  await open();
+  assert.equal(rows()[0]?.getAttribute("aria-selected"), "true");
+  await act(async () => { item(rows()[0]).click(); });
+  assert.deepEqual([...chosen], [], "the chat it already is asks for nothing");
+  await open();
+  await act(async () => { item(rows()[1]).click(); });
+  assert.deepEqual([...chosen], ["project-a"], "picking a project turns the chat into work");
+
+  await view.render(options(null, []));
+  assert.deepEqual([...view.container.querySelectorAll(".thread-start button")].map((button) => button.textContent), ["Coordinator"], "with nowhere to work there is no project to pick");
   await act(async () => { query<HTMLButtonElement>(view.container, ".thread-start-coordinator").click(); });
   assert.deepEqual(coordinating, [true]);
   await view.unmount();
 });
 
-test("the drafted project is shown wherever it sits in the list, and work starts in the first one offered", async () => {
-  const { ThreadModeSwitch, ThreadStartOptions } = await import("../../../src/renderer/components/ThreadStartOptions.tsx");
+test("the drafted project is shown wherever it sits in the list", async () => {
+  const { ThreadStartOptions } = await import("../../../src/renderer/components/ThreadStartOptions.tsx");
   window.desktop = fakeDesktop();
-  const chosen: Array<string | undefined> = [];
   const projects = [{ id: "local", root: "/mac/ai-coding-tool" }, { id: "remote", root: "/linux/just-speak" }];
   const view = await mount(React.createElement(ThreadStartOptions, {
     projects,
@@ -150,9 +150,6 @@ test("the drafted project is shown wherever it sits in the list, and work starts
     onSetCoordinator() {},
   }));
   assert.match(query(view.container, ".thread-start-field button").textContent, /just-speak/, "a draft in a later project still names it");
-  await view.render(React.createElement(ThreadModeSwitch, { projects, projectId: null, onSelectProject: (id) => { chosen.push(id); } }));
-  await act(async () => { item([...view.container.querySelectorAll<HTMLButtonElement>('[role="radio"]')][1]).click(); });
-  assert.deepEqual(chosen, ["local"], "work starts in the first project offered, which the view puts on this computer");
   await view.unmount();
 });
 
@@ -256,15 +253,15 @@ test("the project picker labels and groups duplicate repository names by compute
   assert.deepEqual(groups().map((group) => group.getAttribute("aria-label")), ["This computer", "Air", "Studio Mac"]);
   assert.deepEqual([...view.container.querySelectorAll(".thread-start-group-heading .host-mark")].map((heading) => heading.textContent), ["This computer", "Air", "Studio Mac"]);
   assert.deepEqual(rows().map((row) => row.getAttribute("aria-label")), [
-    "another on This computer", "shared on This computer", "shared on Air", "second on Studio Mac", "shared on Studio Mac",
+    null, "another on This computer", "shared on This computer", "shared on Air", "second on Studio Mac", "shared on Studio Mac",
   ], "groups sort each computer's projects by name despite interleaving in the input");
-  assert.deepEqual(rows().map((row) => row.textContent), ["another", "shared", "shared", "second", "shared"], "headings identify the computer once for each group");
+  assert.deepEqual(rows().map((row) => row.textContent), ["No project", "another", "shared", "shared", "second", "shared"], "headings identify the computer once for each group");
   assert.equal(rows().filter((row) => row.getAttribute("aria-selected") === "true")[0]?.getAttribute("aria-label"), "shared on Studio Mac");
   await act(async () => {
-    item(rows()[1]).focus();
-    item(rows()[1]).dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowDown" }));
+    item(rows()[2]).focus();
+    item(rows()[2]).dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowDown" }));
   });
-  assert.equal(document.activeElement, rows()[2], "keyboard navigation crosses computer headings");
+  assert.equal(document.activeElement, rows()[3], "keyboard navigation crosses computer headings");
 
   const search = query<HTMLInputElement>(view.container, 'input[aria-label="Search projects"]');
   const type = async (text: string) => {
@@ -290,7 +287,7 @@ test("the project picker labels and groups duplicate repository names by compute
   const localTrigger = query<HTMLButtonElement>(view.container, 'button[aria-label="Project"]');
   assert.equal(localTrigger.textContent, "shared", "hosts outside the picker leave its local-only presentation plain");
   await act(async () => { localTrigger.click(); });
-  assert.equal(query(view.container, '[role="listbox"]').textContent, "anothershared");
+  assert.equal(query(view.container, '[role="listbox"]').textContent, "No projectanothershared");
   await view.unmount();
 });
 

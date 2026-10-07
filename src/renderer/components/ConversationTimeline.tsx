@@ -1,7 +1,7 @@
 import { elementScroll, useVirtualizer } from "@tanstack/react-virtual";
 import type { IconType } from "react-icons";
 import { LuChevronDown as ChevronDown, LuFolderSymlink as FolderSymlink, LuHourglass as Hourglass } from "react-icons/lu";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { StreamingTail } from "../../application/thread-run-state";
 import type { FindView, ReadingPoint, ThreadWait } from "../../application/workspace-state";
 import type { AgentEngine } from "../../domain/agent-engine";
@@ -51,8 +51,8 @@ export type ConversationTimelineProps = {
   empty?: { icon: IconType; title: string; description: string };
   /** False while the stored threads are still on their way, when an empty transcript means nothing. */
   restored?: boolean;
-  /** Shown under the empty state, where a thread that does not exist yet is set up. */
-  startOptions?: ReactNode;
+  /** What an empty transcript names: the project a new thread works in. Without one it is a chat. */
+  place?: string;
   /** The find bar, when it is this transcript being searched, and the match it is showing. */
   find?: FindView | null;
   /** This composer's drafted annotations, whose anchors are highlighted and numbered here. */
@@ -83,7 +83,7 @@ function retryLabel(retry: RetryNotice) {
   return `${retry.message} Retrying${count}…`;
 }
 
-export function ConversationTimeline({ currentThread, engine, engineLabel, folder, status, compacting, retrying = null, limitPause = null, waitingOn = null, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, restored = true, startOptions, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide }: ConversationTimelineProps) {
+export function ConversationTimeline({ currentThread, engine, engineLabel, folder, status, compacting, retrying = null, limitPause = null, waitingOn = null, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, restored = true, place, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide }: ConversationTimelineProps) {
   const messages = currentThread?.messages ?? [];
   const artifactScope = useMemo(() => ({ root: folder, taskId: currentThread?.id }), [folder, currentThread?.id]);
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -148,7 +148,7 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
   if (currentThread?.historySummary) return <div className="empty-state" role="status">Loading conversation…</div>;
 
   if (!drawn) {
-    return <TimelineEmptyState restored={restored} engineLabel={engineLabel} folder={folder} empty={empty} startOptions={startOptions} />;
+    return <TimelineEmptyState restored={restored} {...(empty ? { empty } : {})} {...(place ? { place } : {})} />;
   }
 
   return (

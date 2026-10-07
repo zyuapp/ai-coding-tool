@@ -1,5 +1,6 @@
 import { ConversationComposer, type ComposerAction } from "./ConversationComposer";
 import { NeedsYouCard } from "./Coordination";
+import { ThreadStartOptions } from "./ThreadStartOptions";
 import { attachDroppedFiles, imageSources } from "../dropped-files";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import { capabilitiesFor, modelSupportsManualCompaction } from "../../domain/agent-engine";
@@ -59,6 +60,22 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
         onAnswer={workspace.actions.answerDecision}
         onSelect={workspace.actions.selectThread}
       />}
+      startOptions={!thread && (
+        <ThreadStartOptions
+          projects={workspace.startProjects}
+          projectHosts={workspace.projectHosts}
+          projectId={workspace.currentProject?.id ?? null}
+          {...(workspace.currentProject?.workspaceId ? { workspaceId: workspace.currentProject.workspaceId } : {})}
+          branch={workspace.draftBranch}
+          worktree={workspace.draftWorktree}
+          {...(workspace.draftWorktreeName ? { startsInWorktree: workspace.draftWorktreeName } : {})}
+          onSelectProject={workspace.actions.newThread}
+          onSelectBranch={workspace.actions.setBranch}
+          onSetWorktree={workspace.actions.setWorktree}
+          coordinator={workspace.draftRole === "coordinator"}
+          onSetCoordinator={(coordinator) => workspace.actions.setDraftRole(coordinator ? "coordinator" : null)}
+        />
+      )}
       waiting={workspace.waitingOn !== null}
       queuedMessages={workspace.queuedMessages}
       annotations={workspace.annotations}

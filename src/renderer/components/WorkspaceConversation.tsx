@@ -2,13 +2,13 @@ import { useRef, type ReactNode } from "react";
 import { ApprovalCard } from "./ApprovalCard";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { CoordinationBar } from "./Coordination";
-import { ThreadModeSwitch, ThreadStartOptions } from "./ThreadStartOptions";
+import { projectName } from "../../domain/project";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import type { FindView } from "../../application/workspace-state";
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;
 
-/** The transcript and everything drawn alongside it: the find bar, the draft's start options, approvals. */
+/** The transcript and everything drawn alongside it: the find bar and approvals. */
 export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide }: {
   workspace: Workspace;
   find: FindView | null;
@@ -27,13 +27,6 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
       {bar && <div className="coordination-head">
         <CoordinationBar lead={coordination.lead} brief={coordination.brief} asking={coordination.asking} onSelect={workspace.actions.selectThread} />
       </div>}
-      {!workspace.currentThread && (
-        <ThreadModeSwitch
-          projects={workspace.startProjects}
-          projectId={workspace.currentProject?.id ?? null}
-          onSelectProject={workspace.actions.newThread}
-        />
-      )}
       <div className="conversation" ref={transcriptRef}>
         <ConversationTimeline
           find={mine}
@@ -53,22 +46,7 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
           }}
           scrollContainerRef={transcriptRef}
           restored={workspace.restored}
-          startOptions={!workspace.currentThread && (
-            <ThreadStartOptions
-              projects={workspace.startProjects}
-              projectHosts={workspace.projectHosts}
-              projectId={workspace.currentProject?.id ?? null}
-              {...(workspace.currentProject?.workspaceId ? { workspaceId: workspace.currentProject.workspaceId } : {})}
-              branch={workspace.draftBranch}
-              worktree={workspace.draftWorktree}
-              {...(workspace.draftWorktreeName ? { startsInWorktree: workspace.draftWorktreeName } : {})}
-              onSelectProject={workspace.actions.newThread}
-              onSelectBranch={workspace.actions.setBranch}
-              onSetWorktree={workspace.actions.setWorktree}
-              coordinator={workspace.draftRole === "coordinator"}
-              onSetCoordinator={(coordinator) => workspace.actions.setDraftRole(coordinator ? "coordinator" : null)}
-            />
-          )}
+          {...(workspace.currentProject ? { place: projectName(workspace.currentProject) } : {})}
           annotations={workspace.annotations}
           onAnnotateAdd={({ quote, note, anchor }) => void workspace.dispatch({ type: "annotation.add", quote, note, anchor })}
           onAnnotateNote={(annotationId, note) => void workspace.dispatch({ type: "annotation.note", annotationId, note })}

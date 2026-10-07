@@ -1,4 +1,4 @@
-import { LuChevronDown as ChevronDown, LuFolderGit2 as FolderGit2, LuFolderSymlink as FolderSymlink, LuGitBranch as GitBranch, LuWaypoints as Waypoints, LuX as X } from "react-icons/lu";
+import { LuChevronDown as ChevronDown, LuFolderGit2 as FolderGit2, LuFolderSymlink as FolderSymlink, LuGitBranch as GitBranch, LuMessageCircle as MessageCircle, LuWaypoints as Waypoints, LuX as X } from "react-icons/lu";
 import { useRef, useState } from "react";
 import type { DraftBranch } from "../../application/workspace-state";
 import type { ThreadHost } from "../../application/computers";
@@ -37,29 +37,6 @@ function groupProjects(projects: Project[], projectHosts?: ReadonlyMap<string, T
   });
 }
 
-export type ThreadModeSwitchProps = {
-  projects: Project[];
-  projectId: string | null;
-  /** No project starts the thread as a chat, in a scratch workspace of its own. */
-  onSelectProject: (projectId?: string) => void;
-};
-
-/**
- * Chat or work: the shape of the thread, asked once and above everything work goes on to ask.
- */
-export function ThreadModeSwitch({ projects, projectId, onSelectProject }: ThreadModeSwitchProps) {
-  /** With nothing to work in, a thread can only be a chat, and there is nothing to ask. */
-  if (!projects.length) return null;
-
-  const chat = !projectId;
-  return (
-    <div className="thread-mode" role="radiogroup" aria-label="Mode">
-      <button type="button" role="radio" aria-checked={chat} onClick={() => { if (!chat) onSelectProject(undefined); }}>Chat</button>
-      <button type="button" role="radio" aria-checked={!chat} onClick={() => { if (chat) onSelectProject(projects[0]?.id); }}>Work</button>
-    </div>
-  );
-}
-
 export type ThreadStartOptionsProps = {
   projects: Project[];
   projectHosts?: ReadonlyMap<string, ThreadHost>;
@@ -90,9 +67,9 @@ function CoordinatorToggle({ coordinator, onSetCoordinator }: Pick<ThreadStartOp
 }
 
 /**
- * What work the user is about to start still needs to know: which project, which branch it starts
- * from, and whether it gets a checkout of its own. Nothing here touches disk — the first message does
- * that.
+ * What the user is about to start still needs to know: which project, if any, which branch it starts
+ * from, and whether it gets a checkout of its own. No project makes it a chat. Nothing here touches
+ * disk — the first message does that.
  */
 export function ThreadStartOptions({ projects, projectHosts, projectId, workspaceId, branch, worktree, startsInWorktree, onSelectProject, onSelectBranch, onSetWorktree, coordinator, onSetCoordinator }: ThreadStartOptionsProps) {
   const [projectsOpen, setProjectsOpen] = useState(false);
@@ -113,31 +90,34 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
   /** Until the user picks one, the thread starts from wherever the checkout already is. */
   const selected = branch?.name ?? current;
 
-  /** A chat has no project, so all it has left to answer is whether it coordinates. */
-  if (!project) {
+  /** With nowhere to work a thread can only be a chat, so all it has left to answer is whether it coordinates. */
+  if (!projects.length) {
     return (
       <div className="thread-start" aria-label="How this thread starts">
         <div className="thread-start-git"><CoordinatorToggle coordinator={coordinator} onSetCoordinator={onSetCoordinator} /></div>
       </div>
     );
   }
-  const host = projectHosts?.get(project.id);
+  const host = project && projectHosts?.get(project.id);
   const showComputers = projects.some((item) => projectHosts?.has(item.id));
+  const label = project ? projectName(project) : "No project";
 
   return (
     <div className="thread-start" aria-label="How this thread starts">
       <div className={`thread-start-field thread-start-project ${projectsOpen ? "open" : ""}`} ref={projectRef}>
-        <button ref={projectTrigger} type="button" aria-label={showComputers ? `${projectName(project)} on ${host?.name ?? "This computer"}` : "Project"} aria-haspopup="listbox" aria-expanded={projectsOpen} onClick={() => { setProjectQuery(""); setProjectsOpen(!projectsOpen); }}>
-          <FolderGit2 size={14} />
+        <button ref={projectTrigger} type="button" aria-label={showComputers && project ? `${label} on ${host?.name ?? "This computer"}` : "Project"} aria-haspopup="listbox" aria-expanded={projectsOpen} onClick={() => { setProjectQuery(""); setProjectsOpen(!projectsOpen); }}>
+          {project ? <FolderGit2 size={14} /> : <MessageCircle size={14} />}
           <span className="thread-start-project-label">
-            <span>{projectName(project)}</span>
-            {showComputers && <HostMark name={host?.name ?? "This computer"} offline={host?.offline} reconnecting={host?.reconnecting} />}
+            <span>{label}</span>
+            {showComputers && project && <HostMark name={host?.name ?? "This computer"} offline={host?.offline} reconnecting={host?.reconnecting} />}
           </span>
           <ChevronDown size={14} />
         </button>
         {projectsOpen && <PickerPopover className="thread-start-popover">
           <PickerSearch label="Search projects" value={projectQuery} onChange={setProjectQuery} />
           <div role="listbox" aria-label="Projects">
+            {/** Leaving the project behind is how a chat is started, so it leads the list rather than hiding in it. */}
+            {!projectQuery.trim() && <PickerOption className="thread-start-no-project" selected={!project} onClick={() => { setProjectsOpen(false); if (project) onSelectProject(undefined); }}>No project</PickerOption>}
             {matched.length === 0 && <p className="thread-start-empty">No project matches</p>}
             {groupProjects(matched, projectHosts).map(({ host, projects: grouped }) => (
               <div key={host ? `remote:${host.id}` : "local"} role={showComputers ? "group" : undefined} aria-label={showComputers ? host?.name ?? "This computer" : undefined}>
@@ -163,8 +143,9 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
 
       <div className="thread-start-git">
         {/** A checkout that already exists is entered as it stands, so there is no branch left to pick
-          *  and no second checkout to ask for. Clearing it puts the thread back in the project. */}
-        {startsInWorktree ? (
+          *  and no second checkout to ask for. Clearing it puts the thread back in the project. A chat
+          *  has neither. */}
+        {!project ? null : startsInWorktree ? (
           <div className="thread-start-worktree">
             <FolderSymlink size={15} />
             <span>{startsInWorktree}</span>

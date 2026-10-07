@@ -1,5 +1,5 @@
 import type { IconType } from "react-icons";
-import type { ReactNode } from "react";
+import { LuMessageCircle } from "react-icons/lu";
 
 function FolderIcon() {
   return (
@@ -12,23 +12,29 @@ function FolderIcon() {
 type EmptyStateProps = {
   /** False while the stored threads are still on their way, when an empty transcript means nothing. */
   restored: boolean;
-  /** What the engine running this thread is called. */
-  engineLabel: string;
-  folder: string;
   empty?: { icon: IconType; title: string; description: string };
-  startOptions?: ReactNode;
+  /** What a new thread's transcript names: its project, or that it is a chat. */
+  place?: string;
 };
 
-export function TimelineEmptyState({ restored, engineLabel, folder, empty, startOptions }: EmptyStateProps) {
+export function TimelineEmptyState({ restored, empty, place }: EmptyStateProps) {
   /** A transcript that has nothing yet because nothing has been read is not a transcript with nothing in it. */
   if (!restored) return <div className="empty-state" />;
-  const EmptyIcon = empty?.icon;
+  if (empty) {
+    const EmptyIcon = empty.icon;
+    return (
+      <div className="empty-state">
+        <div className="empty-glyph"><EmptyIcon /></div>
+        <h2>{empty.title}</h2>
+        <p>{empty.description}</p>
+      </div>
+    );
+  }
+  /** Where the thread will work is all a new one needs to say; the composer under it asks the rest. */
   return (
-    <div className="empty-state">
-      <div className="empty-glyph">{EmptyIcon ? <EmptyIcon /> : <FolderIcon />}</div>
-      <h2>{empty?.title ?? "Start a task"}</h2>
-      <p>{empty?.description ?? (folder ? `Tell ${engineLabel} what you want to change, investigate, or build in this project.` : "Ask a question or start a self-contained task.")}</p>
-      {startOptions}
+    <div className="empty-state empty-place">
+      <div className="empty-glyph">{place ? <FolderIcon /> : <LuMessageCircle />}</div>
+      <h2>{place ?? "New chat"}</h2>
     </div>
   );
 }

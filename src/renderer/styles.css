@@ -1157,37 +1157,6 @@ button, select { color: inherit; }
 .browser-panel > .find-slot { height: auto; }
 .browser-panel > .find-slot > .find-bar { position: static; width: auto; border: 0; border-bottom: 1px solid var(--line-soft); border-radius: 0; padding: 7px 10px; background: var(--surface); backdrop-filter: none; box-shadow: none; }
 
-/** The mode is the thread's own choice, so it sits under its name rather than in with the details. */
-.thread-mode {
-  position: absolute;
-  z-index: 4;
-  top: 14px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  border: 1px solid var(--line-soft);
-  border-radius: 999px;
-  padding: 3px;
-  background: var(--surface-input);
-}
-/** Both labels take the same room, so the thumb slides rather than resizing under the pointer. */
-.thread-mode button {
-  min-width: 72px;
-  min-height: 28px;
-  border: 0;
-  border-radius: 999px;
-  padding: 0 12px;
-  background: transparent;
-  color: var(--quiet);
-  font-size: var(--text-control);
-  font-weight: 500;
-  cursor: pointer;
-}
-.thread-mode button:hover { color: var(--ink-faint); }
-.thread-mode button[aria-checked="true"] { background: var(--surface-active); color: var(--ink); box-shadow: var(--shadow-thumb); }
-/** The session panel takes the right of the strip, so the mode centres on what is left of it. */
-.workspace.summary-open .work-area > .thread-mode { transform: translateX(calc(-50% - 141px)); }
 /** The session panel holds the same corner, so the bar takes the space beside it rather than under it. */
 .workspace.summary-open .work-area > .find-slot > .find-bar { right: calc(clamp(20px, 4vw, 64px) + 282px); }
 
@@ -1284,41 +1253,41 @@ button, select { color: inherit; }
 .conversation > .empty-state .empty-glyph svg { width: 21px; height: 21px; }
 .conversation > .empty-state h2 { margin: 20px 0 7px; color: var(--ink); font-size: var(--text-hero); letter-spacing: -0.03em; }
 .conversation > .empty-state p { max-width: 372px; color: var(--muted-soft); font-size: var(--text-control); line-height: 1.6; }
-/** Project, computer, and Git options share a quiet row, wrapping only when space runs out. */
+/** A new thread names only where it works, and quietly: the composer under it asks the rest. */
+.conversation > .empty-state.empty-place h2 { margin: 16px 0 0; color: var(--ink-soft); font-size: var(--text-display); font-weight: 580; letter-spacing: -0.02em; }
+/** Project, computer, and Git options share a quiet row under the composer, wrapping only when space runs out. */
 .thread-start {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
-  gap: 4px;
-  width: fit-content;
-  max-width: 100%;
+  gap: 2px;
+  max-width: 860px;
   min-width: 0;
-  margin-top: 26px;
+  margin: 8px auto 0;
 }
 .thread-start-field { position: relative; min-width: 0; max-width: 100%; }
 .thread-start-project { max-width: min(360px, 100%); }
-.thread-start-git { display: flex; align-items: center; justify-content: center; gap: 4px; max-width: 100%; }
+.thread-start-git { display: flex; align-items: center; gap: 2px; max-width: 100%; }
 .thread-start-git > .thread-start-toggle { flex: none; }
 /** The empty state gives its buttons a filled pill; these controls carry only a hover wash. */
-.empty-state .thread-start :where(.thread-start-field, .thread-start-git, .thread-start-worktree) > button {
+.thread-start :where(.thread-start-field, .thread-start-git, .thread-start-worktree) > button {
   margin: 0;
   display: flex;
   align-items: center;
   gap: 7px;
   max-width: 220px;
-  min-height: 30px;
+  min-height: 28px;
   border: 0;
-  border-radius: 999px;
-  padding: 0 13px;
+  border-radius: 8px;
+  padding: 0 9px;
   background: transparent;
-  color: var(--ink-faint);
-  font-size: var(--text-control);
+  color: var(--quiet-strong);
+  font-size: var(--text-menu);
   font-weight: 480;
 }
-.empty-state .thread-start :where(.thread-start-field, .thread-start-git, .thread-start-worktree) > button:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-soft); }
-.empty-state .thread-start :where(.thread-start-field, .thread-start-git, .thread-start-worktree) > button:disabled { opacity: 0.45; cursor: default; }
-.empty-state .thread-start-project > button {
+.thread-start :where(.thread-start-field, .thread-start-git, .thread-start-worktree) > button:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-soft); }
+.thread-start :where(.thread-start-field, .thread-start-git, .thread-start-worktree) > button:disabled { opacity: 0.45; cursor: default; }
+.thread-start-project > button {
   max-width: 100%;
   text-align: left;
 }
@@ -1329,14 +1298,14 @@ button, select { color: inherit; }
 .thread-start-git > .thread-start-field { max-width: 220px; }
 .thread-start-git > .thread-start-field > button { max-width: 100%; }
 /** A checkout of its own is a switch on the branch, so it presses in rather than carrying a box. */
-.empty-state .thread-start .thread-start-toggle { color: var(--quiet-strong); }
-.empty-state .thread-start .thread-start-toggle[aria-pressed="true"],
-.empty-state .thread-start .thread-start-toggle[aria-pressed="true"]:hover {
+.thread-start .thread-start-toggle { color: var(--quiet-strong); }
+.thread-start .thread-start-toggle[aria-pressed="true"],
+.thread-start .thread-start-toggle[aria-pressed="true"]:hover {
   background: var(--chip);
   color: var(--ink-soft);
 }
 .thread-start-toggle > svg { flex: none; color: inherit; }
-.empty-state .thread-start .thread-start-coordinator[aria-pressed="true"] > svg { color: var(--role-coordinator); }
+.thread-start .thread-start-coordinator[aria-pressed="true"] > svg { color: var(--role-coordinator); }
 .thread-start-field > button > span {
   min-width: 0;
   overflow: hidden;
@@ -1413,8 +1382,9 @@ button, select { color: inherit; }
   font-size: var(--text-control);
 }
 .picker-search-field .picker-search:focus { outline: 0; }
+/** The row sits under the composer at the foot of the window, so its lists open upward. */
 .thread-start-field > .picker-popover {
-  top: calc(100% + 6px);
+  bottom: calc(100% + 6px);
   left: 0;
   /** The field it hangs off is narrow, so the list takes its own width rather than wrapping names. */
   width: max-content;
@@ -1439,6 +1409,8 @@ button, select { color: inherit; }
 /** Groups say what a name is, so `origin/main` is never mistaken for a branch the checkout holds. */
 .branch-menu-group { padding: 8px 8px 3px; color: var(--quiet-soft); font-size: var(--text-badge); letter-spacing: 0.06em; text-transform: uppercase; }
 .branch-menu-group:first-child { padding-top: 3px; }
+/** Leaving the projects behind is set apart from them. */
+.picker-option.thread-start-no-project { margin-bottom: 4px; box-shadow: 0 1px 0 var(--line-soft); border-radius: 6px 6px 0 0; }
 .branch-menu-empty, .thread-start-empty { padding: 8px; color: var(--quiet); font-size: var(--text-meta); }
 /** A checkout the user picked reads as a chip, not a control: the only choice left is to leave it. */
 .thread-start-worktree {
@@ -1455,7 +1427,7 @@ button, select { color: inherit; }
 }
 .thread-start-worktree > svg { flex: none; color: var(--quiet-strong); }
 .thread-start-worktree > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.empty-state .thread-start .thread-start-worktree > button {
+.thread-start .thread-start-worktree > button {
   flex: none;
   min-height: 24px;
   width: 24px;
@@ -2253,7 +2225,7 @@ pre {
   grid-row: 3;
 }
 /** A composer menu stands over the whole workspace, so the footer rises past the topbar while one is open. */
-.composer-wrap:has(.command-menu, .setting-menu[open]) { z-index: 41; }
+.composer-wrap:has(.command-menu, .setting-menu[open], .thread-start .picker-popover) { z-index: 41; }
 
 .goal-bar {
   display: grid;
