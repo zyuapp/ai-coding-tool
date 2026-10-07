@@ -367,7 +367,7 @@ test("a checkout succeeds even when the Git status read after it fails, which st
     state: () => state,
     commit: (next) => { state = next; },
     track: (work) => { tracked.push(work); },
-    perform: (effect, dispatch) => runWorkspaceEffect(effect, { dispatch, desktop, storage: { getItem: () => null, setItem() {} }, environmentRefreshes: { current: new Map() }, scheduleSnoozeExpiry() {}, scheduleLimitReset() {} }),
+    perform: (effect, dispatch) => runWorkspaceEffect(effect, { dispatch, desktop, storage: { getItem: () => null, setItem() {} }, environmentRefreshes: { current: new Map() }, scheduleSnoozeExpiry() {}, scheduleLimitReset() {}, scheduleToastDismissal() {} }),
   };
   assert.deepEqual(await executeWorkspaceInput({ type: "task.checkout-branch", branch: "feature" }, execution).completed, { ok: true });
   await Promise.all(tracked);
@@ -386,7 +386,7 @@ test("a failed checkout fails its command and still reads Git status", async () 
     state: () => state,
     commit: (next) => { state = next; },
     track: (work) => { tracked.push(work); },
-    perform: (effect, dispatch) => runWorkspaceEffect(effect, { dispatch, desktop, storage: { getItem: () => null, setItem() {} }, environmentRefreshes: { current: new Map() }, scheduleSnoozeExpiry() {}, scheduleLimitReset() {} }),
+    perform: (effect, dispatch) => runWorkspaceEffect(effect, { dispatch, desktop, storage: { getItem: () => null, setItem() {} }, environmentRefreshes: { current: new Map() }, scheduleSnoozeExpiry() {}, scheduleLimitReset() {}, scheduleToastDismissal() {} }),
   };
   assert.deepEqual(await executeWorkspaceInput({ type: "task.checkout-branch", branch: "feature" }, execution).completed, { ok: false, message: "local changes would be overwritten" });
   await Promise.all(tracked);

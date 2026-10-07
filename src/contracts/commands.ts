@@ -409,6 +409,8 @@ export type ViewCommand =
   | { type: "view.dismiss-action-error" }
   /** Closes the notice about threads this build cannot read. It returns on the next launch. */
   | { type: "view.dismiss-hidden-tasks" }
+  /** Takes a toast down, whether the user closed it or its time ran out. */
+  | { type: "view.dismiss-toast"; id: number }
   | { type: "view.toggle-project"; projectId: string }
   /** Opens the folder editor on one project, or closes whichever it was on with a null. */
   | { type: "view.edit-project"; projectId: string | null }

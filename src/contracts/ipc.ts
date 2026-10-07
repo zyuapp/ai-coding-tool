@@ -285,6 +285,8 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   /** Where a newer build stands, and each change to it from then on. */
   appUpdate(): Promise<AppUpdate>;
   onAppUpdate(listener: (update: AppUpdate) => void): () => void;
+  /** The version this launch updated the app to, answered once; null when it is not the first launch since an update. */
+  launchedUpdate(): Promise<string | null>;
   downloadUpdate(): void;
   /** Asks to restart, then quits and installs the downloaded update. */
   installUpdate(): void;

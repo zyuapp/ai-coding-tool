@@ -17,7 +17,7 @@ const changeBridge = async (effect: RemoteEffect, { dispatch, desktop }: EffectH
   }
 };
 
-/** Where every engine stands: asked outright, or answered by an engine's own sign-in once it is over. */
+/** Where every engine stands: asked outright, or answered by an engine's own sign-in once it is over. An update answers apart, naming its engine. */
 async function readEngines(ask: () => Promise<EngineStatus>, { dispatch }: EffectHost) {
   try {
     await dispatch({ type: "engine.status", status: await ask() });
@@ -51,6 +51,9 @@ export const systemEffects = {
   },
   "schedule-snooze-expiry": (effect, host) => {
     host.scheduleSnoozeExpiry(effect.at);
+  },
+  "schedule-toast-dismissal": (effect, host) => {
+    host.scheduleToastDismissal(effect.id, effect.at);
   },
 
   "automation.save": (effect, host) => reportFailure(host, host.desktop.saveAutomation(effect.draft)),
@@ -124,5 +127,11 @@ export const systemEffects = {
 
   "engine.sign-in": (effect, host) => readEngines(() => host.desktop.signInEngine(effect.engine), host),
 
-  "engine.update": (effect, host) => readEngines(() => host.desktop.updateEngine(effect.engine), host),
+  "engine.update": async ({ engine }, { dispatch, desktop }) => {
+    try {
+      await dispatch({ type: "engine.updated", engine, status: await desktop.updateEngine(engine) });
+    } catch (error) {
+      await dispatch({ type: "engine.update-failed", engine, message: errorMessage(error) });
+    }
+  },
 } satisfies Partial<EffectHandlers>;

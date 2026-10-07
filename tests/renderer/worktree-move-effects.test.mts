@@ -10,7 +10,7 @@ test("creating a move destination leaves source changes in place and reports its
   const calls: Parameters<DesktopAPI["createWorktree"]>[0][] = [];
   const events: WorkspaceInput[] = [];
   const desktop = { createWorktree: async (input: Parameters<DesktopAPI["createWorktree"]>[0]) => { calls.push(input); return madeWorktree(); } } as unknown as RuntimeDesktop;
-  const host = { desktop, storage: { getItem: () => null, setItem() {} }, dispatch: async (input: WorkspaceInput) => { events.push(input); }, environmentRefreshes: { current: new Map() }, scheduleSnoozeExpiry() {}, scheduleLimitReset() {} };
+  const host = { desktop, storage: { getItem: () => null, setItem() {} }, dispatch: async (input: WorkspaceInput) => { events.push(input); }, environmentRefreshes: { current: new Map() }, scheduleSnoozeExpiry() {}, scheduleLimitReset() {}, scheduleToastDismissal() {} };
   await projectEffects["create-worktree"]({ type: "create-worktree", taskId: "thread", projectRoot: "/source/worktree", move: true, name: "Fix login", projectId: "source-project" }, host);
   assert.deepEqual(calls, [{ projectRoot: "/source/worktree", carryChanges: false }]);
   const event = events[0];
@@ -27,7 +27,7 @@ test("creation failure reports the thread so the reducer can retain its source c
   const events: WorkspaceInput[] = [];
   const desktop = { createWorktree: async () => { throw new Error("No disk space"); } } as unknown as RuntimeDesktop;
   await projectEffects["create-worktree"]({ type: "create-worktree", taskId: "thread", projectRoot: "/project", move: true }, {
-    desktop, storage: { getItem: () => null, setItem() {} }, dispatch: async (input) => { events.push(input); }, environmentRefreshes: { current: new Map() }, scheduleSnoozeExpiry() {}, scheduleLimitReset() {},
+    desktop, storage: { getItem: () => null, setItem() {} }, dispatch: async (input) => { events.push(input); }, environmentRefreshes: { current: new Map() }, scheduleSnoozeExpiry() {}, scheduleLimitReset() {}, scheduleToastDismissal() {},
   });
   assert.deepEqual(events, [{ type: "worktree.failed", taskId: "thread", message: "Could not create the worktree: No disk space" }]);
 });

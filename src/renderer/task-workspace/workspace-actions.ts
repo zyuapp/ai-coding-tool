@@ -17,12 +17,14 @@ import type { ComputerFilter } from "../../domain/computers";
 import type { ReviewTarget } from "../../domain/review";
 import { systemPrefersDark } from "../theme";
 
-/** A newer build of the app: looked for, downloaded, then installed by a restart. */
-function updateActions(dispatch: (input: WorkspaceInput) => Promise<void>) {
+/** A newer build of the app, looked for, downloaded, then installed by a restart; and the notices the window puts up. */
+function noticeActions(dispatch: (input: WorkspaceInput) => Promise<void>) {
   return {
     checkForUpdates: () => dispatch({ type: "app.check-for-updates" }),
     downloadUpdate: () => dispatch({ type: "app.download-update" }),
     installUpdate: () => dispatch({ type: "app.install-update" }),
+    dismissHiddenThreads: () => dispatch({ type: "view.dismiss-hidden-tasks" }),
+    dismissToast: (id: number) => dispatch({ type: "view.dismiss-toast", id }),
   };
 }
 
@@ -149,8 +151,7 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     importBrowserAgain: () => dispatch({ type: "browser-import.again" }),
     openTerminal: () => dispatch({ type: "terminal.open" }),
     openFolderInApp: (appId: string) => dispatch({ type: "app.open-folder", appId }),
-    ...updateActions(dispatch),
-    dismissHiddenThreads: () => dispatch({ type: "view.dismiss-hidden-tasks" }),
+    ...noticeActions(dispatch),
     closeTerminal: (terminalId: string) => dispatch({ type: "terminal.close", terminalId }),
     sendToTerminal: (terminalId: string, data: string) => dispatch({ type: "terminal.input", terminalId, data }),
     setJumpQuery: (query: string) => dispatch({ type: "view.jump-query", query }),

@@ -27,7 +27,7 @@ import { createComputerBridge } from "./computer-bridge.js";
 import { createComputerReads } from "./computer-queries.js";
 import type { ComputerLinks } from "./computers/computer-links.mjs" with { "resolution-mode": "import" };
 import { hostname } from "node:os";
-import { createJsonStorage } from "./json-storage.js";
+import { createJsonStorage, WINDOW_STORAGE_FILE } from "./json-storage.js";
 import { createRuntimeDesktop } from "./runtime-desktop.js";
 import { attachmentNames, ORPHAN_ATTACHMENT_MIN_AGE_MS, retireLegacyCodexHome, sweepOrphanAttachments } from "./user-data-sweep.js";
 import { startKeyboardHost } from "./keyboard-host.js";
@@ -42,6 +42,7 @@ import { appPluginPath } from "./app-plugin-path.js";
 import { servingProcess } from "./instance-lock.js";
 import { startUpdateChecks, type UpdateHost } from "./updates.js";
 import { appProfile } from "./user-data.js";
+import { readAppLaunch } from "./app-launch.js";
 import { rememberedPlacement, watchWindowPlacement } from "./window-placement.js";
 import { windowFrameOptions } from "./platform-capabilities.js";
 import { serveWindowDesktop } from "./window-desktop.js";
@@ -74,6 +75,11 @@ if (serving !== null) {
   dialog.showErrorBox(`${profile.name} is already serving`, `\`aic serve\` is running from this data folder (process ${serving}). Stop it before opening the app.`);
   app.exit(1);
 }
+/**
+ * Read before the window storage is first written, which is what tells an old profile from a new one.
+ * A launch that is about to exit leaves the record for the one that opens the window.
+ */
+const launchedUpdate = singleInstance && serving === null ? readAppLaunch(profile.userData, app.getVersion()) : null;
 /** Only the installed app claims the scheme; a run from source would hand it to the bare Electron binary. */
 if (app.isPackaged) app.setAsDefaultProtocolClient(CLI_URL_SCHEME);
 
@@ -167,6 +173,7 @@ const computerReads = createComputerReads({
 
 const runtimeDesktop = createRuntimeDesktop({
   window: () => window,
+  launchedUpdate,
   notices: noticeHost,
   updates: updateHost,
   events,
@@ -193,7 +200,7 @@ const runtimeDesktop = createRuntimeDesktop({
 const workspaceRuntime = createWorkspaceRuntimeHost({
   view: () => window,
   trusted: trustedSender,
-  storage: createJsonStorage(path.join(app.getPath("userData"), "window.v1.json")),
+  storage: createJsonStorage(path.join(app.getPath("userData"), WINDOW_STORAGE_FILE)),
   desktop: runtimeDesktop,
 });
 

@@ -335,13 +335,17 @@ test("only an installed engine that is behind can be updated, one at a time", ()
   assert.equal(updating.state.engineUpdating, "codex");
   assert.deepEqual(reduce(updating.state, { type: "engine.update", engine: "claude" }).effects, [], "a second update waits for the first");
 
-  const updated = reduce(updating.state, { type: "engine.status", status: { codex: { access: "ready", version: "0.150.1" } } }).state;
+  const read = reduce(updating.state, { type: "engine.status", status: { codex: { access: "outdated", version: "0.147.0", required: "0.150.1" } } }).state;
+  assert.equal(read.engineUpdating, "codex", "a read that lands while the update runs does not end it");
+
+  const updated = reduce(updating.state, { type: "engine.updated", engine: "codex", status: { codex: { access: "ready", version: "0.150.1" } } }).state;
   assert.equal(updated.engineUpdating, null);
+  assert.deepEqual(updated.toasts, [], "an update the user asked for answers in Settings, not in a toast");
   assert.deepEqual(reduce(updated, { type: "engine.update", engine: "claude" }).effects, [{ type: "engine.update", engine: "claude" }], "an engine that runs but is behind can be updated too");
 
-  const failed = reduce(updating.state, { type: "engine.failed", message: "Could not update codex." }).state;
+  const failed = reduce(updating.state, { type: "engine.update-failed", engine: "codex", message: "Run `brew upgrade --cask codex` in your terminal." }).state;
   assert.equal(failed.engineUpdating, null);
-  assert.equal(failed.actionError, "Could not update codex.");
+  assert.equal(failed.actionError, "Could not update Codex. Run `brew upgrade --cask codex` in your terminal.");
 });
 
 test("an engine's access comes from main, and only a signed-out engine can be signed in to", () => {

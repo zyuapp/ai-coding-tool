@@ -26,6 +26,7 @@ import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { isRemoteInput, reduceRemote } from "../remote-commands.js";
 import { isComputerInput, reduceComputers } from "../computer-commands.js";
 import { isEngineInput, reduceEngine } from "../engine-access.js";
+import { reduceToasts } from "../toasts.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import { cancelPause, resumeThread } from "../limit-pauses.js";
 import { settled } from "./shared.js";
@@ -126,6 +127,9 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
       return reduceComposer(state, input);
 
     case "view.set-model-favorite": return reduceModelFavorite(state, input);
+
+    case "view.dismiss-toast": case "app.launched":
+      return reduceToasts(state, input);
 
     case "view.set-theme": case "view.set-theme-family": case "view.set-theme-mode":
     case "view.system-scheme": case "view.set-ui-font": case "view.set-mono-font":

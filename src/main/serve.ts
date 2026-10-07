@@ -10,7 +10,7 @@ import { appPluginPath } from "./app-plugin-path.js";
 import { attachmentsDirectory, useAttachmentsDirectory } from "./attachment-store.js";
 import { createDesktopEvents } from "./desktop-events.js";
 import { claimServeLock } from "./instance-lock.js";
-import { createJsonStorage } from "./json-storage.js";
+import { createJsonStorage, WINDOW_STORAGE_FILE } from "./json-storage.js";
 import { useMessageImageStore } from "./message-image-store.js";
 import { startRunHost } from "./run-host.js";
 import { attachmentNames, ORPHAN_ATTACHMENT_MIN_AGE_MS, sweepOrphanAttachments } from "./user-data-sweep.js";
@@ -144,7 +144,7 @@ export async function startServe(options: { userData: string; packaged: boolean;
     mobile: () => mobile,
     say,
   });
-  const runtime = createWorkspaceRuntime({ desktop, storage: createJsonStorage(path.join(userData, "window.v1.json")) });
+  const runtime = createWorkspaceRuntime({ desktop, storage: createJsonStorage(path.join(userData, WINDOW_STORAGE_FILE)) });
   const publisher = createRuntimePublisher(runtime);
   await runtime.start();
   /** Browser and computer-use surfaces need a desktop; shells can be viewed from a paired computer. */

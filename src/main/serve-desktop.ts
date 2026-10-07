@@ -26,6 +26,7 @@ function headlessDesktop(host: ServeDesktopHost) {
     downloadImage: needsDesktop("Saving an image"),
     checkForUpdates: nothing,
     appUpdate: async () => NO_APP_UPDATE,
+    launchedUpdate: async () => null,
     onAppUpdate: unsubscribed,
     downloadUpdate: nothing,
     installUpdate: nothing,

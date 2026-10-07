@@ -90,6 +90,8 @@ export type WorkspaceEvent =
   /** The applications this machine has, as the main process last found them. */
   | { type: "apps.listed"; apps: InstalledApp[] }
   | { type: "app.update-changed"; update: AppUpdate }
+  /** This launch is the first since the app was updated to `version`. */
+  | { type: "app.launched"; version: string }
   /** What the platform lets the app see and operate, and whether an enable was waiting on it. */
   | { type: "computer-use.permissions"; permissions: ComputerUsePermissions; enabling?: true }
   | { type: "computer-use.failed"; message: string; enabling?: true }
@@ -121,6 +123,8 @@ export type WorkspaceEffect = WorkspaceWork & {
 type WorkspaceWork =
   | { type: "schedule-snooze-expiry"; at: number | null }
   | { type: "schedule-limit-reset"; at: number | null }
+  /** Takes a toast down at `at`, unless the user closes it first. */
+  | { type: "schedule-toast-dismissal"; id: number; at: number }
   | { type: "pick-project" }
   | import("../project-add.js").ProjectAddEffect
   | RegisterProjectEffect

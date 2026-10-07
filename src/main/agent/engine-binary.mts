@@ -100,14 +100,19 @@ export function installCommand(engine: AgentEngine): string {
   return ENGINE_COMMANDS[engine].install;
 }
 
-/** Brings an installed engine up to date the way the user installed it. Throws with what the command said when it fails. */
+/**
+ * Brings an installed engine up to date the way the user installed it. Throws with what the command
+ * said when it fails, and the command to run by hand; the caller names the engine.
+ */
 export async function upgradeEngine(engine: AgentEngine): Promise<void> {
   const installed = await installedEngine(engine);
   if (!installed) throw new Error(`${ENGINE_COMMANDS[engine].command} is not installed.`);
   try {
     await runShell(installed.upgrade, { timeout: UPGRADE_TIMEOUT_MS });
   } catch (error) {
-    const output = (error as { stderr?: string }).stderr?.trim().split("\n").at(-1);
-    throw new Error(`Could not update ${ENGINE_COMMANDS[engine].command}${output ? `: ${output}` : "."} Run \`${installed.upgrade}\` in your terminal.`);
+    /** Package managers sign off with where their log went, so the line naming the error says more than the last one. */
+    const lines = ((error as { stderr?: string }).stderr ?? "").split("\n").map((line) => line.trim()).filter(Boolean);
+    const output = lines.find((line) => /error/i.test(line)) ?? lines.at(-1);
+    throw new Error(`${output ? `${output.replace(/[.\s]+$/, "")}. ` : ""}Run \`${installed.upgrade}\` in your terminal.`);
   }
 }

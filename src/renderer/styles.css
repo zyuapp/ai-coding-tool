@@ -2366,6 +2366,48 @@ pre {
 .storage-notice button.storage-notice-link { border: 1px solid var(--info-line); border-radius: 7px; padding: 3px 9px; font-size: var(--text-meta); font-weight: 560; white-space: nowrap; }
 .storage-notice button.storage-notice-link:hover { border-color: var(--info); }
 
+/** Cards over everything but tooltips, under the top bar so its controls stay in reach. */
+.toasts {
+  position: fixed;
+  z-index: 1050;
+  top: calc(var(--chrome-head) + 10px);
+  right: 16px;
+  width: min(340px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid var(--line-mid);
+  border-radius: 12px;
+  padding: 11px 8px 11px 12px;
+  background: var(--surface-menu);
+  box-shadow: var(--shadow-menu);
+  color: var(--ink);
+  pointer-events: auto;
+  animation: toast-in 220ms cubic-bezier(0.2, 0.9, 0.3, 1.15);
+}
+.toast-icon { flex: none; margin-top: 1px; }
+.toast.progress .toast-icon { color: var(--info); animation: spin 900ms linear infinite; }
+.toast.success .toast-icon { color: var(--success); }
+.toast.error .toast-icon { color: var(--danger); }
+.toast-text { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+.toast-text strong { font-size: var(--text-menu); font-weight: 600; line-height: 1.35; }
+.toast-text p { margin: 0; color: var(--muted-strong); font-size: var(--text-meta); line-height: 1.45; overflow-wrap: anywhere; }
+.toast-text code { border-radius: 4px; padding: 0 4px; background: var(--code-surface); color: var(--code-ink); font-family: var(--mono); font-size: 0.95em; }
+.toast-text code span { white-space: nowrap; }
+.toast-close { flex: none; display: grid; place-items: center; border: 0; border-radius: 6px; padding: 3px; background: none; color: var(--quiet); cursor: pointer; }
+.toast-close:hover { background: var(--wash); color: var(--ink-soft); }
+@keyframes toast-in { from { opacity: 0; transform: translateX(14px) scale(0.98); } }
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: none; }
+  .toast.progress .toast-icon { animation: none; }
+}
+
 /**
  * The shadow belongs to the scrolling frame rather than the card inside it. A scroll container
  * clips its children to its own box, which cut the card's shadow away everywhere the two met and

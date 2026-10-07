@@ -19,6 +19,8 @@ export type RuntimeDesktopHost = Omit<ServiceDesktopHost, "openUrl" | "computerU
   window: () => BrowserWindow | null;
   notices: NoticeHost;
   updates: UpdateHost;
+  /** The version this launch updated the app to, or null when it is not the first launch since one. */
+  launchedUpdate: string | null;
   keyboard: KeyboardBridge;
   restart: () => void;
   computers: () => Promise<ComputerLinks>;
@@ -75,6 +77,7 @@ function panelDesktop(host: RuntimeDesktopHost) {
 /** The window itself, its keys, the desktop around it, and the phone bridge it keeps awake for. */
 function windowDesktop(host: RuntimeDesktopHost) {
   const { events } = host;
+  let launchedUpdate = host.launchedUpdate;
   return {
     openFolder: async () => {
       const window = host.window();
@@ -95,6 +98,11 @@ function windowDesktop(host: RuntimeDesktopHost) {
     },
     checkForUpdates: () => { void checkForUpdates(host.updates, { userRequested: true }).catch((error) => console.error("Update check failed:", error)); },
     appUpdate: async () => appUpdate(),
+    launchedUpdate: async () => {
+      const version = launchedUpdate;
+      launchedUpdate = null;
+      return version;
+    },
     onAppUpdate: (listener) => events.on("update:changed", listener),
     downloadUpdate: () => { void downloadUpdate(host.updates); },
     installUpdate: () => { void confirmInstall(host.updates); },

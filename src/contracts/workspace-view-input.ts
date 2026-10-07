@@ -371,6 +371,7 @@ const commands = {
   "view.reading-point": { fields: { taskId: text, point: readingPoint }, at: "local" },
   "view.dismiss-action-error": { fields: {}, at: "local" },
   "view.dismiss-hidden-tasks": { fields: {}, at: "local" },
+  "view.dismiss-toast": { fields: { id: number }, at: "local" },
   "view.toggle-project": { fields: { projectId: text }, at: "local" },
   "view.edit-project": { fields: { projectId: nullableText }, at: "local" },
   "view.move-worktree": { fields: { worktree: nullable(boolean) }, at: "local" },

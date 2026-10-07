@@ -9,6 +9,7 @@ import { currentFolder, dockFor, dockOwner, dockTabAfterClosing, ownerOfTerminal
 import { isAbsoluteFilePath } from "../../domain/markdown-links.js";
 import { terminalTitle, type TerminalSession } from "../../domain/terminal.js";
 import { DOCK_PICKER } from "../workspace-dock.js";
+import { rescheduledToasts } from "../toasts.js";
 
 type DesktopInput = Extract<WorkspaceInput, {
   type: "image.open" | "image.close" | "image.download" | "file.open" | "app.list" | "apps.listed" | "app.open-folder" | "app.check-for-updates" | "app.download-update" | "app.install-update" | "app.update-changed" | "app.open-source-licenses" | "terminal.open" | "terminal.select" | "terminal.close"
@@ -28,6 +29,7 @@ export function reduceDesktop(state: WorkspaceState, input: DesktopInput): Works
         { type: "apply-shortcuts", overrides: state.shortcuts },
         { type: "apply-capture-options", options: { sound: state.captureSound, focus: state.captureFocus } },
         ...shownPageEffects(state),
+        ...rescheduledToasts(state),
       ]);
 
     case "view.closed": {

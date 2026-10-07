@@ -2,6 +2,9 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { KeyValueStorage } from "../application/task-store.js";
 
+/** The file a profile keeps its window's storage in. */
+export const WINDOW_STORAGE_FILE = "window.v1.json";
+
 /** What a window keeps between launches, as one JSON file of the same keys it kept in its own storage. */
 export type JsonStorage = KeyValueStorage & {
   /** Takes on values a window still holds from hosting the runtime itself, without overwriting any it already has. */

@@ -6,6 +6,7 @@ import { AttachmentViewer } from "./components/AttachmentViewer";
 import { DiagramViewerHost } from "./components/MermaidBlock";
 import { FindBar } from "./components/FindBar";
 import { TooltipLayer } from "./components/TooltipLayer";
+import { Toasts } from "./components/Toasts";
 import { WorkspaceDialogs } from "./components/WorkspaceDialogs";
 import { RightDock } from "./components/RightDock";
 import { Sidebar } from "./components/Sidebar";
@@ -43,6 +44,27 @@ function HiddenThreadsNotice({ workspace }: { workspace: ReturnType<typeof useTa
   );
 }
 
+/** The error the last action ran into, with the settings page that clears it when there is one. */
+function ActionErrorBanner({ workspace }: { workspace: ReturnType<typeof useTaskWorkspace> }) {
+  const message = workspace.storageError || workspace.actionError;
+  if (!message) return null;
+  /** The settings page that clears the error, when one does. */
+  const errorPage = workspace.actionErrorPage;
+  return (
+    <div className="storage-error" role="alert">
+      <span>{message}</span>
+      {!workspace.storageError && errorPage && (
+        <button className="storage-error-link" type="button" onClick={() => void workspace.actions.openSettingsSection(errorPage)}>Open settings</button>
+      )}
+      {!workspace.storageError && (
+        <button type="button" aria-label="Dismiss error" onClick={() => void workspace.dispatch({ type: "view.dismiss-action-error" })}>
+          <X size={15} aria-hidden="true" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function App() {
   const workspace = useTaskWorkspace();
   const dispatchRef = useLatestDispatch(workspace.dispatch);
@@ -50,8 +72,6 @@ export function App() {
   const inspector = useSubagentInspection(workspace);
   const sidebarOpen = workspace.sidebarOpen;
   const settingsVisible = workspace.settingsOpen;
-  /** The settings page that clears the error the banner is showing, when one does. */
-  const errorPage = workspace.actionErrorPage;
   const workingSubagents = workspace.subagents.filter((subagent) => subagent.status === "working").length;
   /** The tab counts what is still to read, so ticking files off empties it the way working down a list should. */
   const unreviewedFiles = unreviewedFileCount(workspace.diff);
@@ -171,19 +191,7 @@ export function App() {
         />
         {/** Every banner takes a row of its own, so none is drawn over another. */}
         <div className="workspace-banners">
-          {(workspace.storageError || workspace.actionError) && (
-            <div className="storage-error" role="alert">
-              <span>{workspace.storageError || workspace.actionError}</span>
-              {!workspace.storageError && errorPage && (
-                <button className="storage-error-link" type="button" onClick={() => void workspace.actions.openSettingsSection(errorPage)}>Open settings</button>
-              )}
-              {!workspace.storageError && (
-                <button type="button" aria-label="Dismiss error" onClick={() => void workspace.dispatch({ type: "view.dismiss-action-error" })}>
-                  <X size={15} aria-hidden="true" />
-                </button>
-              )}
-            </div>
-          )}
+          <ActionErrorBanner workspace={workspace} />
           {!workspace.storageError && <HiddenThreadsNotice workspace={workspace} />}
         </div>
 
@@ -216,6 +224,7 @@ export function App() {
       <WorkspaceDialogs workspace={workspace} />
       {settingsVisible && <Suspense fallback={null}><WorkspaceSettings workspace={workspace} onClose={closeSettings} /></Suspense>}
       {workspace.jump && <ThreadJump jump={workspace.jump} actions={workspace.actions} />}
+      <Toasts toasts={workspace.toasts} onDismiss={(id) => void workspace.actions.dismissToast(id)} />
       <TooltipLayer />
     </main>
     </DiagramViewerHost>

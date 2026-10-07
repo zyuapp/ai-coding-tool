@@ -118,6 +118,7 @@ export function fakeElectron(userData: string) {
       setBadgeCount(count: number) { badgeCounts.push(count); },
       setName() {},
       getName: () => "AI Coding Tool",
+      getVersion: () => "0.0.0",
       getAppPath: () => process.cwd(),
       getPath: () => userData,
       setPath() {},

@@ -38,6 +38,7 @@ export { EMPTY_DIFF, diffFor, diffMatches, foldedOnLoad, retainedViews, withDiff
 export type { DiffState } from "./workspace-diff.js";
 import type { AutomationView } from "../domain/automation.js";
 import { NO_APP_UPDATE, type AppUpdate } from "../domain/app-update.js";
+import type { Toast } from "../domain/toast.js";
 import { emptyMobileServerState, type MobileServerState } from "../domain/mobile.js";
 import { selectedComputer, NO_COMPUTERS, type ComputersState } from "./computers.js";
 import { overlaidView } from "./workspace-view-overlay.js";
@@ -259,6 +260,11 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   engineChecking: boolean;
   /** The engine whose command the app is upgrading, which its Update button says out loud. */
   engineUpdating: AgentEngine | null;
+  /**
+   * The engines the app is bringing up to date on its own, the one updating first. Null until the
+   * first answer about the engines, which is the only one that starts any.
+   */
+  engineAutoUpdates: AgentEngine[] | null;
   agentSettingsReload: "idle" | "reloading" | "pending" | "reloaded" | "failed";
   prompts: Record<string, string>;
   /** Annotations waiting in each composer, keyed the way `prompts` is. */
@@ -373,6 +379,10 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   remoteChecking: boolean;
   /** A newer build of the app, as the updater in main last reported it. */
   appUpdate: AppUpdate;
+  /** The cards in the window's corner, oldest first. Session-only. */
+  toasts: Toast[];
+  /** The id the last toast took, so each one has its own. */
+  toastSequence: number;
   /** The computers this one is paired with, each mirrored here as it changes there. Session-only. */
   computers: ComputersState;
   focused: boolean;
@@ -424,6 +434,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     engineStatus: null,
     engineChecking: false,
     engineUpdating: null,
+    engineAutoUpdates: null,
     agentSettingsReload: "idle",
     prompts: {},
     annotations: {},
@@ -486,6 +497,8 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     remote: emptyMobileServerState(),
     remoteChecking: false,
     appUpdate: NO_APP_UPDATE,
+    toasts: [],
+    toastSequence: 0,
     computers: NO_COMPUTERS,
     focused: true,
     activeRuns: {},
@@ -858,6 +871,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state,
     remote: state.remote,
     remoteChecking: state.remoteChecking,
     appUpdate: state.appUpdate,
+    toasts: state.toasts,
     /** The paired computers as the chrome draws them, and the one whose thread is on screen. */
     computerLinks: collections.computerLinks,
     activeComputer: collections.computerLinks.find((link) => link.id === state.computers.active) ?? null,
