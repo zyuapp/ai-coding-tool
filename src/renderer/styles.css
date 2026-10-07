@@ -1323,6 +1323,9 @@ button, select { color: inherit; }
   text-transform: uppercase;
 }
 .thread-start-field > button > svg { flex: none; color: var(--quiet-strong); }
+/** The list opens upward, so the chevron turns to point at it while it is open. */
+.thread-start-field > button > svg:last-child { transition: transform 140ms ease; }
+.thread-start-field.open > button > svg:last-child { transform: rotate(180deg); }
 /** Compact pickers share their surface, search field, and option geometry. */
 .picker-popover {
   position: absolute;
