@@ -218,6 +218,7 @@ export function ConversationComposer({
       {surface === "main" && decisions}
       {question && <QuestionPrompt question={question} answer={question.answer ?? ""} disabled={disabled || waiting} onAnswerChange={(text) => onQuestionAnswerChange(question, text)} onSubmit={() => onAnswerQuestion(question)} />}
       <QueuedRow messages={queuedMessages} surface={surface} canSteer={runActive} onEdit={onEditQueued} onSteer={onSteerQueued} onDrop={onDropQueued} />
+      {surface === "main" && startOptions}
       <div className="composer">
         {reviewPicker && (
           <ReviewPicker
@@ -269,7 +270,6 @@ export function ConversationComposer({
           </div>
         </div>
       </div>
-      {surface === "main" && startOptions}
       <AttachmentAnnotator attachments={attachments} />
     </footer>
   );

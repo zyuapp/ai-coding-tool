@@ -1256,9 +1256,9 @@ button, select { color: inherit; }
 /** A new thread names only where it works, and quietly: the composer under it asks the rest. */
 .conversation > .empty-state.empty-place h2 { margin: 16px 0 0; color: var(--ink-soft); font-size: var(--text-display); font-weight: 580; letter-spacing: -0.02em; }
 /**
- * Project, computer, and Git options sit in a tray docked under the composer, wrapping only when
- * space runs out. The tray tucks its top behind the composer so the two read as one object; its
- * surface is drawn a layer down so the pickers it opens still rise over the composer.
+ * Project, computer, and Git options sit in a tray docked on top of the composer, wrapping only
+ * when space runs out. The tray tucks its foot behind the composer so the two read as one object;
+ * its surface is drawn a layer down so the composer always sits over it.
  */
 .thread-start {
   position: relative;
@@ -1268,8 +1268,8 @@ button, select { color: inherit; }
   gap: 2px;
   max-width: 860px;
   min-width: 0;
-  margin: -17px auto 0;
-  padding: 23px 6px 6px;
+  margin: 0 auto -17px;
+  padding: 6px 6px 23px;
 }
 .thread-start::before {
   content: "";
@@ -1277,8 +1277,8 @@ button, select { color: inherit; }
   inset: 0;
   z-index: -1;
   border: 1px solid var(--line);
-  border-top: 0;
-  border-radius: 0 0 17px 17px;
+  border-bottom: 0;
+  border-radius: 17px 17px 0 0;
   background: color-mix(in srgb, var(--surface) 45%, var(--canvas));
 }
 .thread-start-field { position: relative; min-width: 0; max-width: 100%; }
@@ -1403,7 +1403,7 @@ button, select { color: inherit; }
   font-size: var(--text-control);
 }
 .picker-search-field .picker-search:focus { outline: 0; }
-/** The row sits under the composer at the foot of the window, so its lists open upward. */
+/** The tray sits at the foot of the window, so its lists open upward, away from the composer. */
 .thread-start-field > .picker-popover {
   bottom: calc(100% + 6px);
   left: 0;
