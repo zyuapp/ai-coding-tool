@@ -109,3 +109,11 @@ export function textHandlerLaunch(platform: Platform, file: string): Launch | nu
   if (platform === "win32") return { command: "notepad.exe", args: [file] };
   return null;
 }
+
+/**
+ * A web page is opened to be looked at, so it goes to the browser rather than an editor. A link to
+ * one of its lines is about the source, so that still opens in the editor.
+ */
+export function opensInBrowser(file: string, line: number | null) {
+  return line === null && /\.x?html?$/i.test(file);
+}

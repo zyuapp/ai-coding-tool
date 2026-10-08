@@ -12,6 +12,7 @@ import { MAX_VISUAL_SOURCE, VISUAL_LANGUAGE } from "../../domain/visual-frame";
 
 const APP_HREF = /^aicodingtool:/i;
 const WEB_HREF = /^https?:/i;
+const FILE_HREF = /^file:/i;
 
 /** What a link in a message can reach. A handler the host leaves out makes that link plain text. */
 export type MessageLinkActions = {
@@ -194,7 +195,8 @@ const REMARK = [remarkGfm];
 const NO_REHYPE: [] = [];
 const ANIMATE_REHYPE = [wordSpans];
 const COMPONENTS = { pre: MarkdownPre, table: MarkdownTable, a: MarkdownLink, code: MarkdownCode, img: MarkdownImage };
-const urlTransform = (url: string) => (APP_HREF.test(url) ? url : defaultUrlTransform(url));
+/** A `file:` link opens like a bare path does. An image never loads straight from the disk. */
+const urlTransform = (url: string, key: string) => (APP_HREF.test(url) || (key === "href" && FILE_HREF.test(url)) ? url : defaultUrlTransform(url));
 
 /** Rendered trees of finished text, newest last, bounded by the characters they were parsed from. */
 const rendered = new Map<string, ReactElement>();

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { editorCandidates, editorLaunch, textHandlerLaunch, type Platform } from "../../src/domain/editors.ts";
+import { editorCandidates, editorLaunch, opensInBrowser, textHandlerLaunch, type Platform } from "../../src/domain/editors.ts";
 
 test("a candidate carries the line in whatever form its editor takes", () => {
   const candidates = editorCandidates("darwin", "/checkout/src/app.mts", 119);
@@ -47,4 +47,11 @@ test("the floor opens a file as text rather than by its extension", () => {
   assert.deepEqual(textHandlerLaunch("darwin", "/f.mts"), { command: "open", args: ["-t", "/f.mts"] });
   assert.deepEqual(textHandlerLaunch("win32", "C:\\f.mts"), { command: "notepad.exe", args: ["C:\\f.mts"] });
   assert.equal(textHandlerLaunch("linux", "/f.mts"), null, "nothing on Linux skips the extension mapping");
+});
+
+test("a web page opens in the browser unless the link points at one of its lines", () => {
+  assert.equal(opensInBrowser("/tmp/mockup.html", null), true);
+  assert.equal(opensInBrowser("/tmp/MOCKUP.HTM", null), true);
+  assert.equal(opensInBrowser("/tmp/mockup.html", 12), false);
+  assert.equal(opensInBrowser("/checkout/src/app.mts", null), false);
 });

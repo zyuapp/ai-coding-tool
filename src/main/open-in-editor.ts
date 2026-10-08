@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
+import { pathToFileURL } from "node:url";
 import { shell } from "electron";
-import { editorCandidates, editorLaunch, textHandlerLaunch, type Launch, type Platform } from "../domain/editors.js";
+import { editorCandidates, editorLaunch, opensInBrowser, textHandlerLaunch, type Launch, type Platform } from "../domain/editors.js";
 
 /** Narrowed once here: a platform the domain does not know simply offers nothing to try. */
 const PLATFORM = process.platform as Platform;
@@ -30,8 +31,13 @@ function launch({ command, args }: Launch) {
 /** The launcher that answered last time, so later clicks skip the ones that already missed. */
 let resolved: string | null = null;
 
-/** Opens a source file for reading, at its line where the editor it finds takes one. */
+/** Opens a source file for reading, at its line where the editor it finds takes one. A web page opens in the browser. */
 export async function openInEditor(file: string, line: number | null) {
+  if (opensInBrowser(file, line)) {
+    const opened = await shell.openExternal(pathToFileURL(file).href).then(() => true, () => false);
+    if (opened) return;
+  }
+
   if (resolved) {
     const known = editorLaunch(PLATFORM, resolved, file, line);
     if (known && (await launch(known))) return;
