@@ -1257,8 +1257,9 @@ button, select { color: inherit; }
 .conversation > .empty-state.empty-place h2 { margin: 16px 0 0; color: var(--ink-soft); font-size: var(--text-display); font-weight: 580; letter-spacing: -0.02em; }
 /**
  * Project, computer, and Git options sit in a tray docked on top of the composer, wrapping only
- * when space runs out. The tray tucks its foot behind the composer so the two read as one object;
- * its surface is drawn a layer down so the composer always sits over it.
+ * when space runs out. The tray tucks its foot behind the composer so the two read as one object.
+ * It is drawn the way the composer is, a fill and a shadow with no outline, one step further back;
+ * its surface sits a layer down so the composer always covers it.
  */
 .thread-start {
   position: relative;
@@ -1276,10 +1277,9 @@ button, select { color: inherit; }
   position: absolute;
   inset: 0;
   z-index: -1;
-  border: 1px solid var(--line);
-  border-bottom: 0;
   border-radius: 17px 17px 0 0;
-  background: color-mix(in srgb, var(--surface) 45%, var(--canvas));
+  background: color-mix(in srgb, var(--surface) 50%, var(--canvas));
+  box-shadow: var(--shadow-float);
 }
 .thread-start-field { position: relative; min-width: 0; max-width: 100%; }
 .thread-start-project { max-width: min(360px, 100%); }
