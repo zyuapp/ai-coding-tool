@@ -1255,37 +1255,40 @@ button, select { color: inherit; }
 .conversation > .empty-state p { max-width: 372px; color: var(--muted-soft); font-size: var(--text-control); line-height: 1.6; }
 /** A new thread names only where it works, and quietly: the composer under it asks the rest. */
 .conversation > .empty-state.empty-place h2 { margin: 16px 0 0; color: var(--ink-soft); font-size: var(--text-display); font-weight: 580; letter-spacing: -0.02em; }
-/** Project, computer, and Git options share a quiet row under the composer, wrapping only when space runs out. */
+/** Project, computer, and Git options share a row of pills under the composer, wrapping only when space runs out. */
 .thread-start {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 2px;
+  gap: 6px;
   max-width: 860px;
   min-width: 0;
-  margin: 8px auto 0;
+  margin: 10px auto 0;
 }
 .thread-start-field { position: relative; min-width: 0; max-width: 100%; }
 .thread-start-project { max-width: min(360px, 100%); }
-.thread-start-git { display: flex; align-items: center; gap: 2px; max-width: 100%; }
+.thread-start-git { display: flex; align-items: center; gap: 6px; max-width: 100%; }
 .thread-start-git > .thread-start-toggle { flex: none; }
-/** These controls sit quietly under the composer, carrying only a hover wash. */
-.thread-start :where(.thread-start-field, .thread-start-git, .thread-start-worktree) > button {
+/** Outlined pills, so the row lines up with the composer's edge and reads as its own set of controls. */
+.thread-start :where(.thread-start-field, .thread-start-git) > button {
   margin: 0;
   display: flex;
   align-items: center;
   gap: 7px;
   max-width: 220px;
-  min-height: 28px;
-  border: 0;
-  border-radius: 8px;
-  padding: 0 9px;
+  min-height: 30px;
+  border: 1px solid var(--line-mid);
+  border-radius: 999px;
+  padding: 0 11px;
   background: transparent;
   color: var(--quiet-strong);
   font-size: var(--text-menu);
   font-weight: 480;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
 }
-.thread-start :where(.thread-start-field, .thread-start-git, .thread-start-worktree) > button:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-soft); }
+.thread-start :where(.thread-start-field, .thread-start-git) > button:hover:not(:disabled),
+.thread-start-field.open > button { border-color: var(--line); background: var(--surface-hover); color: var(--ink-soft); }
+.thread-start .thread-start-worktree > button:hover { background: var(--surface-hover); color: var(--ink-soft); }
 .thread-start :where(.thread-start-field, .thread-start-git, .thread-start-worktree) > button:disabled { opacity: 0.45; cursor: default; }
 .thread-start-project > button {
   max-width: 100%;
@@ -1297,10 +1300,11 @@ button, select { color: inherit; }
 /** Cap the field too, so a truncated branch leaves no empty space before Worktree. */
 .thread-start-git > .thread-start-field { max-width: 220px; }
 .thread-start-git > .thread-start-field > button { max-width: 100%; }
-/** A checkout of its own is a switch on the branch, so it presses in rather than carrying a box. */
+/** A switch fills in when it is on, keeping its outline so the row stays one shape. */
 .thread-start .thread-start-toggle { color: var(--quiet-strong); }
 .thread-start .thread-start-toggle[aria-pressed="true"],
 .thread-start .thread-start-toggle[aria-pressed="true"]:hover {
+  border-color: var(--line);
   background: var(--chip);
   color: var(--ink-soft);
 }
@@ -1422,8 +1426,9 @@ button, select { color: inherit; }
   gap: 7px;
   max-width: 240px;
   min-height: 30px;
+  border: 1px solid var(--line);
   border-radius: 999px;
-  padding: 0 5px 0 12px;
+  padding: 0 4px 0 11px;
   background: var(--chip);
   color: var(--ink-soft);
   font-size: var(--text-control);
@@ -1432,11 +1437,16 @@ button, select { color: inherit; }
 .thread-start-worktree > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .thread-start .thread-start-worktree > button {
   flex: none;
-  min-height: 24px;
-  width: 24px;
-  padding: 0;
+  display: flex;
+  align-items: center;
   justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  border: 0;
   border-radius: 999px;
+  padding: 0;
+  background: transparent;
   color: var(--quiet-strong);
 }
 
