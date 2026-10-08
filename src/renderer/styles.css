@@ -1255,39 +1255,54 @@ button, select { color: inherit; }
 .conversation > .empty-state p { max-width: 372px; color: var(--muted-soft); font-size: var(--text-control); line-height: 1.6; }
 /** A new thread names only where it works, and quietly: the composer under it asks the rest. */
 .conversation > .empty-state.empty-place h2 { margin: 16px 0 0; color: var(--ink-soft); font-size: var(--text-display); font-weight: 580; letter-spacing: -0.02em; }
-/** Project, computer, and Git options share a row of pills under the composer, wrapping only when space runs out. */
+/**
+ * Project, computer, and Git options sit in a tray docked under the composer, wrapping only when
+ * space runs out. The tray tucks its top behind the composer so the two read as one object; its
+ * surface is drawn a layer down so the pickers it opens still rise over the composer.
+ */
 .thread-start {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
   max-width: 860px;
   min-width: 0;
-  margin: 10px auto 0;
+  margin: -17px auto 0;
+  padding: 23px 6px 6px;
+}
+.thread-start::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border: 1px solid var(--line);
+  border-top: 0;
+  border-radius: 0 0 17px 17px;
+  background: color-mix(in srgb, var(--surface) 45%, var(--canvas));
 }
 .thread-start-field { position: relative; min-width: 0; max-width: 100%; }
 .thread-start-project { max-width: min(360px, 100%); }
-.thread-start-git { display: flex; align-items: center; gap: 6px; max-width: 100%; }
+.thread-start-git { display: flex; align-items: center; gap: 2px; max-width: 100%; }
 .thread-start-git > .thread-start-toggle { flex: none; }
-/** Outlined pills, so the row lines up with the composer's edge and reads as its own set of controls. */
+/** The tray is the container, so the controls inside it carry only a wash on hover or while open. */
 .thread-start :where(.thread-start-field, .thread-start-git) > button {
   margin: 0;
   display: flex;
   align-items: center;
   gap: 7px;
   max-width: 220px;
-  min-height: 30px;
-  border: 1px solid var(--line-mid);
-  border-radius: 999px;
-  padding: 0 11px;
+  min-height: 28px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 9px;
   background: transparent;
   color: var(--quiet-strong);
   font-size: var(--text-menu);
   font-weight: 480;
-  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 .thread-start :where(.thread-start-field, .thread-start-git) > button:hover:not(:disabled),
-.thread-start-field.open > button { border-color: var(--line); background: var(--surface-hover); color: var(--ink-soft); }
+.thread-start-field.open > button { background: var(--surface-hover); color: var(--ink-soft); }
 .thread-start .thread-start-worktree > button:hover { background: var(--surface-hover); color: var(--ink-soft); }
 .thread-start :where(.thread-start-field, .thread-start-git, .thread-start-worktree) > button:disabled { opacity: 0.45; cursor: default; }
 .thread-start-project > button {
@@ -1300,11 +1315,10 @@ button, select { color: inherit; }
 /** Cap the field too, so a truncated branch leaves no empty space before Worktree. */
 .thread-start-git > .thread-start-field { max-width: 220px; }
 .thread-start-git > .thread-start-field > button { max-width: 100%; }
-/** A switch fills in when it is on, keeping its outline so the row stays one shape. */
+/** A switch presses in when it is on rather than carrying a box of its own. */
 .thread-start .thread-start-toggle { color: var(--quiet-strong); }
 .thread-start .thread-start-toggle[aria-pressed="true"],
 .thread-start .thread-start-toggle[aria-pressed="true"]:hover {
-  border-color: var(--line);
   background: var(--chip);
   color: var(--ink-soft);
 }
@@ -1425,10 +1439,9 @@ button, select { color: inherit; }
   align-items: center;
   gap: 7px;
   max-width: 240px;
-  min-height: 30px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 0 4px 0 11px;
+  min-height: 28px;
+  border-radius: 8px;
+  padding: 0 3px 0 9px;
   background: var(--chip);
   color: var(--ink-soft);
   font-size: var(--text-control);
@@ -1444,7 +1457,7 @@ button, select { color: inherit; }
   height: 22px;
   margin: 0;
   border: 0;
-  border-radius: 999px;
+  border-radius: 6px;
   padding: 0;
   background: transparent;
   color: var(--quiet-strong);
