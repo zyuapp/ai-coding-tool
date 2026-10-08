@@ -177,9 +177,8 @@ export function DiffPanel({
   });
   const { pinned, sync: syncPinned } = usePinnedFile(scrollRef, rows, files, windowed, virtualizer);
 
-  /** A colouring pass fills its tokens in place, so the rows are handed a new map to read them from. */
-  const painted = useLazyColours(rows.length, windowed ? virtualizer : null, (index) => colourRow(rows[index], drawn));
-  const coloured = useMemo(() => new Map(drawn), [drawn, painted]);
+  /** A colouring pass fills its tokens in place, so each file's paint count is what sends its rows back to read them. */
+  const paints = useLazyColours(rows.length, windowed ? virtualizer : null, (index) => colourRow(rows[index], drawn));
 
   useReviewFind({
     find, files, versionOf, patchOf, patches, rows, collapsed, windowed, virtualizer, scrollRef, onSetCollapsed,
@@ -227,7 +226,6 @@ export function DiffPanel({
   const rowView = {
     collapsed,
     viewed: diff.viewed,
-    drawn: coloured,
     comments: commentRows,
     selected,
     onSelect: selectByKey,
@@ -238,7 +236,7 @@ export function DiffPanel({
   /** The composer is drawn where the review picked it up, and is the one row that is never held still. */
   const drawRow = (row: PanelRow) => row.kind === "composer"
     ? <DiffCommentEditor quote={quote} note={note} editing={editing !== null} noteRef={noteRef} onNote={setNote} onSubmit={comment} onClear={clear} onRemove={removeComment} />
-    : <PanelRowView row={row} {...rowView} />;
+    : <PanelRowView row={row} drawing={drawn.get(row.path)} paint={paints.get(row.path) ?? 0} {...rowView} />;
 
   const overBudget = useMemo(() => overDrawingBudget(files, collapsed), [files, collapsed]);
   const notice = panelNote({ result: diff.result, loading: diff.loading, workspaceId, settling, overBudget, ignoreWhitespace: diff.ignoreWhitespace });

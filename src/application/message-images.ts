@@ -4,9 +4,34 @@ import { MAX_MESSAGE_IMAGES, messageImagePath } from "../domain/message-artifact
 
 export type MessageImage = { path: string; label: string };
 
+/** Image lists of recently seen texts, bounded by the characters they were parsed from. */
+const cached = new Map<string, MessageImage[]>();
+let cachedChars = 0;
+const CACHE_CHARS = 512 * 1024;
+const MAX_CACHED_CHARS = 64 * 1024;
+
 /** The same Markdown destinations supply both previews and durable copies, including reference links. */
 export function messageImages(text: string): MessageImage[] {
   if (!/\.(?:png|jpe?g|gif|webp)\b/i.test(text)) return [];
+  if (text.length > MAX_CACHED_CHARS) return parseMessageImages(text);
+  const hit = cached.get(text);
+  if (hit) {
+    cached.delete(text);
+    cached.set(text, hit);
+    return hit;
+  }
+  const images = parseMessageImages(text);
+  cached.set(text, images);
+  cachedChars += text.length;
+  for (const [oldest] of cached) {
+    if (cachedChars <= CACHE_CHARS) break;
+    cached.delete(oldest);
+    cachedChars -= oldest.length;
+  }
+  return images;
+}
+
+function parseMessageImages(text: string): MessageImage[] {
   const tree: Root = fromMarkdown(text);
   const definitions = new Map<string, string>();
   const define = (node: Nodes) => {

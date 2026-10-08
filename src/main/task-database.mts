@@ -313,7 +313,7 @@ export class TaskDatabase {
   /** Every image a stored message still names, as the absolute paths the messages carry. */
   attachmentPaths(): string[] {
     return Array.from(
-      this.database.prepare("SELECT DISTINCT value FROM messages, json_each(json_extract(messages.data, '$.attachments')) WHERE type = 'text'").iterate() as Iterable<{ value: string }>,
+      this.database.prepare("SELECT DISTINCT value FROM messages, json_each(json_extract(messages.data, '$.attachments')) WHERE messages.has_attachment = 1 AND type = 'text'").iterate() as Iterable<{ value: string }>,
       ({ value }) => value,
     );
   }

@@ -151,16 +151,16 @@ export function colouredKeys(row: PanelRow): string[] {
   return [row.row.left?.key, row.row.right?.key].filter((key): key is string => key !== undefined);
 }
 
-/** Colour follows the drawing: a row is read when it is on screen, not when its patch arrives. */
-export function colourRow(row: PanelRow | undefined, drawn: Map<string, DrawnFile>) {
+/** Colour follows the drawing: a row is read when it is on screen, not when its patch arrives. Names the file it painted. */
+export function colourRow(row: PanelRow | undefined, drawn: Map<string, DrawnFile>): string | undefined {
   const colours = row ? drawn.get(row.path)?.colours : undefined;
-  if (!row || !colours) return false;
+  if (!row || !colours) return undefined;
   let drew = false;
   for (const key of colouredKeys(row)) {
     const hunk = colours.hunkOf.get(key);
     if (hunk !== undefined && colours.colour(hunk)) drew = true;
   }
-  return drew;
+  return drew ? row.path : undefined;
 }
 
 export type PanelRowsInput = {

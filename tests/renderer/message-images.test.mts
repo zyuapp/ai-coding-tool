@@ -9,3 +9,12 @@ test("image destinations follow Markdown escaping, references, and inline images
     { path: "/tmp/after(1).jpg", label: "After" },
   ]);
 });
+
+test("repeated lookups of the same text return the same image list", () => {
+  const text = "[Shot](/tmp/shot.webp)";
+  const first = messageImages(text);
+  assert.equal(messageImages(text), first);
+  const large = `![Big](/tmp/big.png)\n\n${"x".repeat(70 * 1024)}`;
+  assert.deepEqual(messageImages(large), [{ path: "/tmp/big.png", label: "Big" }]);
+  assert.deepEqual(messageImages(large), [{ path: "/tmp/big.png", label: "Big" }]);
+});

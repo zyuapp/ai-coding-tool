@@ -204,7 +204,10 @@ export type PanelRowViewProps = {
   row: Exclude<PanelRow, { kind: "composer" }>;
   collapsed: Set<string>;
   viewed: Record<string, string>;
-  drawn: Map<string, DrawnFile>;
+  /** The file's drawing, which keeps its identity across colouring passes. */
+  drawing: DrawnFile | undefined;
+  /** Moves each time a pass paints this file, since its tokens change in place under the same drawing. */
+  paint: number;
   comments: DiffCommentIndex;
   selected: SelectedRange | null;
   onSelect: (path: string, key: string, extend: boolean) => void;
@@ -224,7 +227,7 @@ export const PanelRowView = memo(function PanelRowView({
   row,
   collapsed,
   viewed,
-  drawn,
+  drawing,
   comments,
   selected,
   onSelect,
@@ -246,7 +249,7 @@ export const PanelRowView = memo(function PanelRowView({
     );
   }
   if (row.kind === "note") return <p className="diff-note">{row.text}</p>;
-  const tokens = drawn.get(row.path)?.colours.tokens ?? EMPTY_TOKENS;
+  const tokens = drawing?.colours.tokens ?? EMPTY_TOKENS;
   if (row.kind === "line") {
     const key = `${row.path}\n${row.index}`;
     return (
@@ -269,7 +272,7 @@ export const PanelRowView = memo(function PanelRowView({
       left={row.row.left}
       right={row.row.right}
       tokens={tokens}
-      indexByKey={drawn.get(row.path)?.indexByKey}
+      indexByKey={drawing?.indexByKey}
       comments={comments}
       selected={selected}
       onSelect={(key, extend) => onSelect(row.path, key, extend)}
