@@ -20,7 +20,7 @@ test("a side chat ignores foreign conversation events while its fork is opening"
   const item: ThreadItem = { type: "mcpToolCall", id: "main-tool", server: "aicodingtool", tool: "read_thread", arguments: {}, status: "inProgress", appContext: null, mcpAppUi: null, pluginId: null, readOnlyHint: true, result: null, error: null, durationMs: null };
   client.notify("item/started", { threadId: "main-thread", turnId: "main-turn", item, startedAtMs: 1 });
   client.notify("item/completed", { threadId: "main-thread", turnId: "main-turn", item: { ...item, status: "completed" }, completedAtMs: 2 });
-  client.notify("turn/completed", { threadId: "main-thread", turn: { id: "main-turn", status: "completed", items: [], itemsView: "summary", error: null, startedAt: 1, completedAt: 2, durationMs: 1000 } });
+  client.notify("turn/completed", { threadId: "main-thread", turn: { id: "main-turn", rootTurnId: null, status: "completed", items: [], itemsView: "summary", error: null, startedAt: 1, completedAt: 2, durationMs: 1000 } });
   await tick();
   const beforeOpened = [...events];
   const settledBeforeOpened = settled;

@@ -11,7 +11,7 @@ import { completeTurn, harness, input, opened, sentBy, tick, turn as runTurn } f
 const rootId = "thread-1";
 
 function activity(id: string, childId: string, path: string, kind: "started" | "interacted" | "interrupted" | "completed" = "started"): ThreadItem {
-  return { type: "subAgentActivity", id, kind, agentThreadId: childId, agentPath: path };
+  return { type: "subAgentActivity", id, kind, agentThreadId: childId, agentPath: path, model: null, reasoningEffort: null };
 }
 
 function itemStarted(threadId: string, turnId: string, item: ThreadItem): NotificationParams<"item/started"> {
@@ -25,7 +25,7 @@ function itemCompleted(threadId: string, turnId: string, item: ThreadItem): Noti
 function turn(threadId: string, id: string, status: "inProgress" | "completed" | "interrupted" | "failed" = "inProgress"): NotificationParams<"turn/started"> {
   return {
     threadId,
-    turn: { id, status, items: [], itemsView: "summary", error: null, startedAt: 1, completedAt: status === "inProgress" ? null : 2, durationMs: null },
+    turn: { id, rootTurnId: null, status, items: [], itemsView: "summary", error: null, startedAt: 1, completedAt: status === "inProgress" ? null : 2, durationMs: null },
   };
 }
 

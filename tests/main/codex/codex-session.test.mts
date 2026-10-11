@@ -134,9 +134,9 @@ test("Codex sets a native goal and keeps the run through its follow-up turns", a
   await tick();
   assert.equal(settled, false, "an active goal owns the next native turn");
 
-  client.notify("turn/started", { threadId, turn: { id: "turn-2", items: [], itemsView: "notLoaded", status: "inProgress", error: null, startedAt: 2, completedAt: null, durationMs: null } });
+  client.notify("turn/started", { threadId, turn: { id: "turn-2", rootTurnId: null, items: [], itemsView: "notLoaded", status: "inProgress", error: null, startedAt: 2, completedAt: null, durationMs: null } });
   client.notify("thread/goal/cleared", { threadId });
-  client.notify("turn/completed", { threadId, turn: { id: "turn-2", items: [], itemsView: "summary", status: "completed", error: null, startedAt: 2, completedAt: 3, durationMs: 1000 } });
+  client.notify("turn/completed", { threadId, turn: { id: "turn-2", rootTurnId: null, items: [], itemsView: "summary", status: "completed", error: null, startedAt: 2, completedAt: 3, durationMs: 1000 } });
 
   assert.deepEqual(await running, { status: "succeeded" });
   assert.deepEqual(goals, [
@@ -485,7 +485,7 @@ test("an MCP tool prompt is the call the agent has going against that server, an
 test("MCP approval correlation stays inside the requesting root or child thread", async () => {
   const session = await asking();
   session.client.notify("item/started", started(mcpCall("mcp-root", "probe", "root_probe", { owner: "root" })));
-  session.client.notify("item/started", started({ type: "subAgentActivity", id: "discover-child", kind: "started", agentThreadId: "child-a", agentPath: "/root/reviewer" }));
+  session.client.notify("item/started", started({ type: "subAgentActivity", id: "discover-child", kind: "started", agentThreadId: "child-a", agentPath: "/root/reviewer", model: null, reasoningEffort: null }));
   session.client.notify("item/started", {
     threadId: "child-a",
     turnId: "child-turn",
