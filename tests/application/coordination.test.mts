@@ -39,6 +39,16 @@ test("a coordinator's new thread works under it, carries the brief, and runs as 
   assert.equal(command.coordinationRole, "member");
 });
 
+test("a thread started with a brief but no coordinator keeps neither", () => {
+  const state = workspace({ threads: [] });
+  const sending = reduce(state, { type: "task.send", text: "Fix it", brief: BRIEF });
+  const started = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: PROJECTLESS });
+  const thread = required(started.state.threads[0]);
+
+  assert.equal(thread.brief, undefined);
+  assert.doesNotMatch(effectAt(started, "start-run").command.prompt, /Brief from the coordinator/);
+});
+
 test("a coordinator's run is read its threads and runs as a coordinator", () => {
   const state = workspace({ threads: [lead(), task("worker", { parentId: "lead", title: "Fix login", report: { state: "done", summary: "PR #42", at: 1 } })], currentId: "lead" });
   const sending = reduce(state, { type: "task.send", taskId: "lead", text: "How is it going?" });

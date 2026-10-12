@@ -14,10 +14,10 @@ export type CoordinationSend = {
   notes?: string[];
 };
 
-/** What a send that starts a thread carries for a coordinator, if anything. */
+/** What a send that starts a thread carries for a coordinator, if anything. A brief is a coordinator's, so one with no coordinator is dropped. */
 export function coordinationSendOf({ coordinatorId, brief }: CoordinationSend): { coordination?: CoordinationSend } {
-  if (!coordinatorId && !brief) return {};
-  return { coordination: { ...(coordinatorId ? { coordinatorId } : {}), ...(brief ? { brief } : {}) } };
+  if (!coordinatorId) return {};
+  return { coordination: { coordinatorId, ...(brief ? { brief } : {}) } };
 }
 
 /**
