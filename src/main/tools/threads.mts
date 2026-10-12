@@ -203,6 +203,24 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
     }),
   }),
   defineTool({
+    name: "move_to_worktree",
+    description: "Move a thread into a worktree the project already has, or back to the project checkout, as the thread menu's Move to worktree does. File changes already made stay in the old checkout. Moving this thread waits for this turn to end, and its next turn starts in the new checkout. Another thread must not be running.",
+    input: {
+      threadId: z.string().optional().describe("The thread to move: its ID, an unambiguous prefix of it, or its exact title. Omit to move this thread."),
+      worktreeId: z.string().nullable().describe("The worktree's ID, as list_threads reports it, or null for the project checkout."),
+    },
+    readOnly: false,
+    run: ({ bridge, now }, args) => report(async () => {
+      const { thread, notice } = await bridge.command({
+        type: "task.move-worktree",
+        ...(args.threadId ? { taskId: args.threadId } : {}),
+        destination: args.worktreeId ? { kind: "worktree", id: args.worktreeId } : { kind: "local" },
+      });
+      if (notice) return notice;
+      return thread ? `Moved ${describe(thread, now())}` : "The thread was not moved.";
+    }),
+  }),
+  defineTool({
     name: "delete_worktree",
     description: "Delete a worktree the app made, by the id list_threads reports. Uncommitted work is committed first so it stays recoverable, then the folder is removed; git-ignored files are lost. Every thread in it moves back to the project checkout. Refused while any of those threads is running. Only delete when the user asked for it, such as cleaning up after coordinated work is done.",
     input: { worktreeId: z.string().describe("The worktree's ID, as list_threads reports it.") },

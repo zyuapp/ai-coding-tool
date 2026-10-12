@@ -7,6 +7,7 @@ import { WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
 import { beginRun, clearedDraft, drainQueue, queuedFor, resolveWorkspaceEffect, sideChannelFor, startRunCommand, threadBusy, withAttendedRun, withDeliveredMessage, withPending, withQueued, withSideChat, withSteeringFailure, withoutPending } from "./run-queue.js";
 import { followUps, now, settled, targetId, rejected } from "./shared.js";
 import { withUsedWorktree } from "./worktree-claims.js";
+import { settleMoveAfterRun } from "./worktree-moves.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { threadTitleFor } from "../attachments.js";
 import { fileTitle } from "../files.js";
@@ -179,9 +180,11 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
         ? [{ type: "refresh-environment", workspaceId, taskId: event.taskId, runId: event.runId, followUp: true }, ...settledDiff.effects]
         : [];
       if (event.type !== "run.status" || event.status === "running" || event.status === "awaiting-approval") return settled(next, [...environment, ...said]);
+      const moved = settleMoveAfterRun(next, event.taskId);
+      next = moved.state;
       if (event.status === "failed" && event.limit) next = pausedForLimit(next, event.taskId, event.limit, now());
       const drained = drainQueue(noteTurnEnded(next, event.taskId, event.status), event.taskId, event.status);
-      return settled(drained.state, [...environment, ...said, ...drained.effects]);
+      return settled(drained.state, [...environment, ...said, ...moved.effects, ...drained.effects]);
     }
 
     case "thread.event": {

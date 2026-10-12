@@ -64,7 +64,7 @@ import { legacyProjectId, projectName, type Project } from "../domain/project.js
 import { retainedThreads } from "../domain/thread-retention.js";
 import type { ThreadStoreData } from "../domain/thread-storage.js";
 import type { Thread } from "../domain/thread.js";
-import { worktreeName, type ManagedWorktree, type Worktree } from "../domain/worktree.js";
+import { worktreeName, type ManagedWorktree, type Worktree, type WorktreeDestination } from "../domain/worktree.js";
 import {
   locationOf,
   projectFor,
@@ -236,6 +236,8 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   releasingWorktrees: string[];
   /** Roots of checkouts being deleted, so the list shows the wait and refuses a second delete. */
   deletingWorktrees: string[];
+  /** Where each thread that moved itself goes once the run that asked has ended. */
+  movesAfterRun: Record<string, WorktreeDestination>;
   lastFolder: string | null;
   currentId: string | null;
   /** Threads the user has landed on this session, oldest first, with a cursor for back and forward. */
@@ -418,6 +420,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     creatingWorktrees: [],
     releasingWorktrees: [],
     deletingWorktrees: [],
+    movesAfterRun: {},
     lastFolder: null,
     currentId: null,
     history: [],

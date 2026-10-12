@@ -1,9 +1,13 @@
 import { AUTOMATION_SERVER_NAME } from "../tools/automation.mjs";
+import { THREAD_SERVER_NAME } from "../tools/threads.mjs";
 import type { RunChannel } from "../../contracts/ipc.js";
 import { mcpToolName } from "./claude-mcp-host.mjs";
 
-/** Asked through the UI instead, on every channel. */
-const ALWAYS_WITHHELD = ["AskUserQuestion"];
+/**
+ * Asked through the UI instead, on every channel. A thread's checkout is the app's to keep, so it
+ * changes through move_to_worktree, never behind the app's back.
+ */
+const ALWAYS_WITHHELD = ["AskUserQuestion", "EnterWorktree", "ExitWorktree"];
 
 /** One of the app's own tools, by the server it is filed under. */
 export type WithheldTool = { server: string; tool: string };
@@ -26,6 +30,8 @@ export const WITHHELD_BY_CHANNEL: Record<RunChannel, readonly WithheldTool[]> = 
     /** A side chat is in no list the user can reach, so a finding raised there could never be read. */
     { server: AUTOMATION_SERVER_NAME, tool: "notify" },
     { server: AUTOMATION_SERVER_NAME, tool: "nothing_to_report" },
+    /** A side chat works in its thread's checkout, so it has none of its own to move. */
+    { server: THREAD_SERVER_NAME, tool: "move_to_worktree" },
   ],
 };
 

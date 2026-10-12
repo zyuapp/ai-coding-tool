@@ -148,6 +148,14 @@ function deletesWorktreeById(command: Extract<AppCommand, { type: "worktree.dele
   return isString(command.worktreeId) && command.taskId === undefined && command.root === undefined && command.missingOnly === undefined;
 }
 
+/**
+ * Into a checkout that already exists, or back to the project's own. Without a thread named it is the
+ * thread that asked, and only the window says whether a move waits for that thread's run to end.
+ */
+function movesToCheckout(command: Extract<AppCommand, { type: "task.move-worktree" }>): boolean {
+  return agentId(command.taskId) && command.destination.kind !== "new" && command.afterRun === undefined;
+}
+
 const MAX_URL_LENGTH = 8_192;
 
 /** A run drives the browser as itself, so every browser command names the thread that asked. */
@@ -257,7 +265,7 @@ const commands = {
   "task.set-fast-mode": { fields: { taskId: optionalText, fastMode: boolean }, at: "thread" },
   "task.set-effort": { fields: { taskId: optionalText, engine: isAgentEngine, effort: isAgentEffort }, at: "thread" },
   "task.set-worktree": { fields: { taskId: optionalText, worktree: boolean }, at: "thread" },
-  "task.move-worktree": { fields: { taskId: optionalText, destination: isWorktreeDestination }, at: "thread" },
+  "task.move-worktree": { fields: { taskId: optionalText, destination: isWorktreeDestination, afterRun: optional(literals(true)) }, at: "thread", agent: movesToCheckout },
   "task.set-branch": { fields: { branch: nullableText, create: optionalBoolean }, at: "thread" },
   "task.checkout-branch": { fields: { taskId: optionalText, branch: text, create: optionalBoolean }, at: "thread" },
   "attachments.send": { fields: { taskId: optionalText, steer: optionalBoolean, attachments: array(outgoingAttachment) }, at: "own" },

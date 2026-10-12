@@ -142,6 +142,21 @@ test("deleting a worktree names it by id and reports what became of its loose wo
   assert.equal(textOf(deleted), "Deleted /worktrees/repo-wt1. Recover it with git show refs/aicodingtool/wt1.");
 });
 
+test("moving names the thread and the checkout, and passes on a move that waits for this turn", async () => {
+  const bridge = fakeBridge();
+  const moved = await toolNamed(bridge, "move_to_worktree").handler({ threadId: "task-2", worktreeId: "wt1" }, {});
+  assert.deepEqual(bridge.calls.at(-1), ["command", { type: "task.move-worktree", taskId: "task-2", destination: { kind: "worktree", id: "wt1" } }]);
+  assert.match(textOf(moved), /^Moved Rework the sidebar \[task-2\]/);
+
+  await toolNamed(bridge, "move_to_worktree").handler({ threadId: "task-2", worktreeId: null }, {});
+  assert.deepEqual(bridge.calls.at(-1), ["command", { type: "task.move-worktree", taskId: "task-2", destination: { kind: "local" } }]);
+
+  const own = fakeBridge({ command: async (command) => { own.calls.push(["command", command]); return { thread: summary(), notice: "This thread moves to /worktrees/app-wt1 when this turn ends." }; } });
+  const waiting = await toolNamed(own, "move_to_worktree").handler({ worktreeId: "wt1" }, {});
+  assert.deepEqual(own.calls.at(-1), ["command", { type: "task.move-worktree", destination: { kind: "worktree", id: "wt1" } }]);
+  assert.equal(textOf(waiting), "This thread moves to /worktrees/app-wt1 when this turn ends.");
+});
+
 test("a thread's role is set when it starts, changed later, or taken off", async () => {
   const bridge = fakeBridge();
 

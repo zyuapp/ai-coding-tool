@@ -162,7 +162,7 @@ test("Codex grants app tools unasked exactly where Claude does", async () => {
     codex.provider.closeAll();
   }
   const confirmed = codexConfig({ channel: "main", policy: "confirm", computerUse: { status: "unavailable", message: "off" } }, { url: "http://127.0.0.1:1/mcp", token: "t", release: () => {} }, sets);
-  for (const name of ["start_thread", "message_thread", "archive_thread", "delete_worktree", "stop_thread", "browser_open", "browser_click", "browser_type", "terminal_read"]) {
+  for (const name of ["start_thread", "message_thread", "archive_thread", "move_to_worktree", "delete_worktree", "stop_thread", "browser_open", "browser_click", "browser_type", "terminal_read"]) {
     assert.equal(codexApproves(confirmed, name), false, `${name} asks under confirm`);
   }
   for (const name of ["list_threads", "read_thread", "browser_read", "schedule"]) assert.equal(codexApproves(confirmed, name), true, `${name} runs unasked`);

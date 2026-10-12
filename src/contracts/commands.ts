@@ -119,8 +119,11 @@ export type TaskCommand =
    * only made on the next send; switching back commits whatever the worktree still holds.
    */
   | { type: "task.set-worktree"; taskId?: string; worktree: boolean }
-  /** Moves the thread while leaving existing files and checkouts in place. */
-  | { type: "task.move-worktree"; taskId?: string; destination: WorktreeDestination }
+  /**
+   * Moves the thread while leaving existing files and checkouts in place. `afterRun` is a thread
+   * moving itself: the run that asked waits to end before the move instead of refusing it.
+   */
+  | { type: "task.move-worktree"; taskId?: string; destination: WorktreeDestination; afterRun?: true }
   /** The branch a thread starts from. Only a thread that does not exist yet can be told. */
   | { type: "task.set-branch"; branch: string | null; create?: boolean }
   /**

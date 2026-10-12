@@ -6,6 +6,8 @@ import { listAcrossComputers, namedComputer, online, readAcrossComputers, remote
 import { computerOfPlace, type PairedComputer } from "../application/computers.js";
 import { findProject, folderName, matchingProjects, projectName, type Project } from "../domain/project.js";
 import type { Thread } from "../domain/thread.js";
+import type { WorktreeDestination } from "../domain/worktree.js";
+import { projectFor, worktreeById, worktreeFor } from "../application/thread-location.js";
 import { isNews, unreadFindings } from "../domain/attention.js";
 import { scheduledRun } from "../application/run-testimony.js";
 import type { WorkspaceInput } from "../application/workspace-reducer.js";
@@ -155,10 +157,14 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
     /** A thread is named the way the tools name it, and found on this computer or a paired one. */
     const target = command.taskId === undefined ? null : resolveThreadRead(before, command.taskId);
     const caller = before.threads.find((thread) => thread.id === request.taskId);
-    if (command.type === "task.send" && command.taskId === undefined && !caller) {
+    if ((command.type === "task.send" || command.type === "task.move-worktree") && command.taskId === undefined && !caller) {
       return failed(`No thread has the ID ${request.taskId}.`);
     }
-    const named = target ? { ...command, taskId: target.thread.id } as typeof command : command;
+    /** A thread moving itself is mid-run, so it goes once that run ends; a move naming no thread is the caller's. */
+    const ownMove = command.type === "task.move-worktree" && caller && (command.taskId === undefined || target?.thread.id === caller.id && !target.computer)
+      ? { ...command, taskId: caller.id, afterRun: true as const }
+      : undefined;
+    const named = ownMove ?? (target ? { ...command, taskId: target.thread.id } as typeof command : command);
     const selected: { command: typeof command } | { error: string } = named.type === "task.send" && named.taskId === undefined && caller
       ? (() => {
           const model = named.model ?? caller.model ?? defaultModelFor(caller.engine);
@@ -201,10 +207,20 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
     const after = host.state();
     const taskId = result.taskId ?? named.taskId;
     const thread = after.threads.find((thread) => thread.id === taskId);
-    return ok({ thread: thread ? threadSummary(after, thread) : null });
+    const waiting = ownMove && thread && after.movesAfterRun[thread.id];
+    const notice = waiting ? movesAfterTurn(after, thread, waiting) : undefined;
+    return ok({ thread: thread ? threadSummary(after, thread) : null, ...(notice ? { notice } : {}) });
   } catch (error) {
     return failed(errorMessage(error));
   }
+}
+
+/** What a thread moving itself is told: where it is until this turn ends, and where its next turn starts. */
+function movesAfterTurn(state: WorkspaceState, thread: Thread, destination: WorktreeDestination) {
+  const project = projectFor(state, thread)?.root;
+  const there = destination.kind === "worktree" ? worktreeById(state, destination.id)?.root : project;
+  const here = worktreeFor(state, thread)?.root ?? project;
+  return `This thread moves to ${there} when this turn ends, and its next turn starts there. Until then it stays in ${here}, and file changes already made there stay behind.`;
 }
 
 /** Holds the call until `pending` stops holding, or until the time runs out. */

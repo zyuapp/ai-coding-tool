@@ -70,6 +70,7 @@ export function pruneDeletedThreads(state: WorkspaceState, removed: Set<string>)
     ...state,
     creatingWorktrees: withoutMatching(state.creatingWorktrees, (threadId) => removed.has(threadId)),
     releasingWorktrees: withoutMatching(state.releasingWorktrees, (threadId) => removed.has(threadId)),
+    movesAfterRun: withoutThreadKeys(state.movesAfterRun, removed),
     history,
     historyIndex: Math.min(historyIndex, history.length - 1),
     prompts: withoutThreadKeys(state.prompts, removed),

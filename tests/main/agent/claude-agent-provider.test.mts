@@ -301,11 +301,12 @@ test("the channel tool table is the only thing a side chat is short of", async (
   const side: QueryCapture = {};
   await new ClaudeAgentProvider(queryFactory([], side)).execute(input({ channel: "side", automations, threads }));
 
-  assert.deepEqual(optionsOf(main).disallowedTools, ["AskUserQuestion"]);
+  assert.deepEqual(optionsOf(main).disallowedTools, ["AskUserQuestion", "EnterWorktree", "ExitWorktree"], "a thread's checkout changes only through the app");
   assert.deepEqual(optionsOf(side).disallowedTools, [
-    "AskUserQuestion",
+    "AskUserQuestion", "EnterWorktree", "ExitWorktree",
     ...["schedule", "update", "stop", "notify", "nothing_to_report"].map((name) => `mcp__aicodingtool-automation__${name}`),
-  ], "a side chat reads automations, writes none, and raises nothing where nothing could be read");
+    "mcp__aicodingtool-threads__move_to_worktree",
+  ], "a side chat reads automations, writes none, raises nothing where nothing could be read, and has no checkout to move");
 
   assert.deepEqual(
     Object.keys(optionsOf(side).mcpServers ?? {}).sort(),

@@ -26,8 +26,8 @@ test("a coordinator runs without file edits, shell, or subagents, and with the c
   const member: QueryCapture = {};
   await new ClaudeAgentProvider(queryFactory([], member)).execute(input({ coordinationRole: "member", coordination }));
 
-  assert.deepEqual(optionsOf(coordinator).disallowedTools, ["AskUserQuestion", "Edit", "MultiEdit", "Write", "NotebookEdit", "Bash", "Task", "Agent"]);
-  assert.deepEqual(optionsOf(member).disallowedTools, ["AskUserQuestion"], "a thread under a coordinator does the work, so it keeps every tool");
+  assert.deepEqual(optionsOf(coordinator).disallowedTools, ["AskUserQuestion", "EnterWorktree", "ExitWorktree", "Edit", "MultiEdit", "Write", "NotebookEdit", "Bash", "Task", "Agent"]);
+  assert.deepEqual(optionsOf(member).disallowedTools, ["AskUserQuestion", "EnterWorktree", "ExitWorktree"], "a thread under a coordinator does the work, so it keeps every tool");
   assert.match(systemAppend(optionsOf(coordinator)), /Never change anything yourself/);
   assert.match(systemAppend(optionsOf(member)), /Call report_status/);
   assert.ok(optionsOf(coordinator).mcpServers?.["aicodingtool-coordination"]);

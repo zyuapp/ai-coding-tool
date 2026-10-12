@@ -84,9 +84,10 @@ export type ThreadTranscript = {
 /**
  * The commands anything outside the window may dispatch. Starting a thread (in the project checkout,
  * in a worktree of its own, or in one the project already has), continuing, archiving and stopping
- * one is allowed, as is deleting a worktree by its id, giving a thread its role and driving the browser panel; moving the user around the app, changing how much
- * a thread is allowed to do, moving a thread between checkouts once it exists, removing projects,
- * clearing the browser session, and answering approvals — the browser's own included — are not.
+ * one is allowed, as is moving one into a worktree the project already has or back to the project,
+ * deleting a worktree by its id, giving a thread its role and driving the browser panel; moving the
+ * user around the app, changing how much a thread is allowed to do, removing projects, clearing the
+ * browser session, and answering approvals — the browser's own included — are not.
  */
 export type ExternalCommand = Extract<AppCommand, { type: AgentCommandType }>;
 

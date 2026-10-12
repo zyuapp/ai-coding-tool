@@ -60,7 +60,8 @@ export function worktreeMenuView(state: WorkspaceState, current: Thread | undefi
       const name = worktreeName(checkout);
       let branch = record ? record.branch ?? "Detached" : "Branch not loaded";
       if (environment?.status === "available") branch = environment.branch ?? "Detached";
-      if (!`${name} ${branch}`.toLocaleLowerCase().includes(query)) continue;
+      /** The folder carries the ID the thread tools report, so either finds the checkout too. */
+      if (!`${name} ${branch} ${checkout.root.split("/").at(-1)} ${checkout.id}`.toLocaleLowerCase().includes(query)) continue;
       const removing = deleting.has(checkout.root) || releasingCheckouts.has(checkout.id);
       if (removing) branch = "Deleting…";
       destinations.push({ id: checkout.id, title: name, detail: branch, disabled: state.worktreeManagementLoading || removing || busy.has(current.id), command: { type: "task.move-worktree", taskId: current.id, destination: { kind: "worktree", id: checkout.id } } });
