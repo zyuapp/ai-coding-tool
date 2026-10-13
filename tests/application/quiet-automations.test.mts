@@ -679,7 +679,7 @@ function sidebar(overrides: Partial<ProjectSidebarProps> = {}) {
     worktreeGroups: [],
     sidebarCoordination: { threadsByCoordinator: new Map(), coordinators: [], onSetCoordinator() {} },
     worktreeThreadIds: new Set<string>(),
-    activityThreads: { priority: [], running: [], threads: [] },
+    activityThreads: { priority: [], running: [], threads: [], snoozed: [] },
     threadHosts: new Map(),
     projectHosts: new Map(),
     computerLinks: [],
@@ -687,7 +687,7 @@ function sidebar(overrides: Partial<ProjectSidebarProps> = {}) {
     computerFilter: "all",
     onSetComputerFilter() {},
     mode: "activity",
-    sections: { projects: true, recents: true, priority: true, running: true, threads: true },
+    sections: { projects: true, recents: true, priority: true, running: true, threads: true, snoozed: true },
     openMenu: null,
     settingsOpen: false,
     canGoBack: false,
@@ -695,7 +695,7 @@ function sidebar(overrides: Partial<ProjectSidebarProps> = {}) {
     onGoBack() {}, onGoForward() {},
     onNewThread() {}, onOpenFolder() {}, onToggleProject() {}, onRenameProject() {}, onEditProject() {}, onRemoveProject() {},
     onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
-    onSelectThread() {}, onArchiveThread() {}, onRenameThread() {}, onDismissThread() {}, onSnoozeThread() {}, onDismissAll() {},
+    onSelectThread() {}, onArchiveThread() {}, onRenameThread() {}, onDismissThread() {}, onSnoozeThread() {}, onUnsnoozeThread() {}, onDismissAll() {},
     onMoveThread() {}, onForkThread() {}, onSetThreadRole() {}, onMoveProject() {}, onOpenSettings() {},
     appUpdate: { status: "idle" }, onDownloadUpdate() {}, onInstallUpdate() {},
     ...overrides,
@@ -707,13 +707,13 @@ test("a priority row says what was found rather than where it lives and when it 
     projectId: "project-1",
     findings: [{ id: "f1", headline: "Checkout is returning 5xx", at: 1 }],
   });
-  const view = await mount(sidebar({ activityThreads: { priority: [found], running: [], threads: [] } }));
+  const view = await mount(sidebar({ activityThreads: { priority: [found], running: [], threads: [], snoozed: [] } }));
 
   assert.equal(query(view.container, ".task-row-text small").textContent, "Checkout is returning 5xx");
   assert.equal(query(view.container, ".task-attention").getAttribute("aria-label"), "Checkout is returning 5xx", "a screen reader hears the reason, not \"Finished\"");
 
   const read: Thread = { ...found, findings: [{ ...item(found.findings?.[0]), read: true }] };
-  await view.render(sidebar({ activityThreads: { priority: [read], running: [], threads: [] } }));
+  await view.render(sidebar({ activityThreads: { priority: [read], running: [], threads: [], snoozed: [] } }));
   assert.equal(view.container.querySelector(".task-attention"), null, "read takes the dot off");
   assert.match(query(view.container, ".task-row-text small").textContent ?? "", /^api · /, "and the row goes back to saying where it lives");
   await view.unmount();
@@ -734,7 +734,7 @@ test("priority says when it holds nothing, speaks its changes, and running does 
 test("the schedule mark and the dismiss button both say what state the schedule is in", async () => {
   const scheduled = task("task-a", { outcome: "finished", outcomeUnread: true });
   const marks = (schedule: Partial<AutomationView>) => sidebar({
-    activityThreads: { priority: [scheduled], running: [], threads: [] },
+    activityThreads: { priority: [scheduled], running: [], threads: [], snoozed: [] },
     schedules: new Map([["task-a", automationView({ nextRunAt: 2, ...schedule })]]),
   });
   const view = await mount(marks({}));

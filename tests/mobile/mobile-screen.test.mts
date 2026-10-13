@@ -50,7 +50,7 @@ Object.defineProperty(globalThis, "WebSocket", { configurable: true, value: Fake
 function view(): MobileView {
   return {
     groups: [{ projectId: "p", name: "App", threads: [{ id: "t1", title: "Fix the parser", projectName: "App", attention: false, status: "awaiting-approval", lastActivityAt: Date.now(), unread: true }] }],
-    activity: { priority: [], running: [], threads: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" },
+    activity: { priority: [], running: [], threads: [], snoozed: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" },
     thread: {
       id: "t1",
       title: "Fix the parser",
@@ -315,7 +315,7 @@ test("a group folds shut and stays shut across a reload", () => {
 test("a Mac with no threads still shows a group to start one in", () => {
   const line = openPhone({ paired: true });
   act(() => line.onopen?.());
-  const bare: MobileView = { groups: [{ projectId: null, name: "Recents", threads: [] }], activity: { priority: [], running: [], threads: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" }, thread: null, draft: null, error: null };
+  const bare: MobileView = { groups: [{ projectId: null, name: "Recents", threads: [] }], activity: { priority: [], running: [], threads: [], snoozed: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" }, thread: null, draft: null, error: null };
   act(() => line.onmessage?.({ data: JSON.stringify({ kind: "snapshot", sequence: 1, sessionId: "s6", build: BUILD, view: bare }) }));
   assert.ok(document.querySelector(".group-header .section-action"), "the empty group still offers New");
   assert.equal(document.querySelector(".group-empty"), null, "one empty line for the whole list, not one per group");
@@ -351,6 +351,7 @@ test("the list ranks by what wants the user when asked, and a Priority row can b
     ],
     running: [{ id: "t2", title: "Rewrite the docs", projectName: "App", status: "running", lastActivityAt: 1, unread: false, attention: false }],
     threads: [],
+    snoozed: [],
   };
   live(line, ranked);
   assert.equal(localStorage.getItem("aicodingtool.mobile.list"), null);

@@ -256,6 +256,7 @@ const commands = {
   "decision.answer": { fields: { taskId: text, decisionId: text, answer: text }, at: "thread" },
   "task.dismiss": { fields: { taskId: text }, at: "thread" },
   "task.snooze": { fields: { taskId: text, hours: isSnoozeHours }, at: "thread" },
+  "task.unsnooze": { fields: { taskId: text }, at: "thread" },
   /** The reducer itself carries this to the computers shown in the sidebar. */
   "task.dismiss-all": { fields: { localOnly: optionalBoolean }, at: "local" },
   "task.move": { fields: { taskId: text, target: dropTarget }, at: "thread" },

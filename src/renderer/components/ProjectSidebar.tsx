@@ -72,6 +72,7 @@ export type ProjectSidebarProps = {
   /** Takes the dot off one thread, and off every thread carrying one. */
   onDismissThread: (threadId: string) => void;
   onSnoozeThread: (threadId: string, hours: SnoozeHours) => void;
+  onUnsnoozeThread: (threadId: string) => void;
   onDismissAll: () => void;
   onRenameThread: (threadId: string, title: string) => void;
   onMoveThread: (threadId: string, target: ThreadDropTarget) => void;
@@ -177,7 +178,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
   onSelectThread,
   onArchiveThread,
   onDismissThread,
-  onSnoozeThread,
+  onSnoozeThread, onUnsnoozeThread,
   onDismissAll,
   onRenameThread,
   onMoveThread,
@@ -212,6 +213,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
     onArchiveThread,
     onDismissThread,
     onSnoozeThread,
+    onUnsnoozeThread,
     onRenameThread,
     onForkThread,
     onSetThreadRole,

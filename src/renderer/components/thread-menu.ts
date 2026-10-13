@@ -10,6 +10,7 @@ export function threadMenuEntries(thread: Thread, actions: {
   onFork: (worktree: boolean) => void;
   onArchive: () => void;
   onSnooze?: (hours: SnoozeHours) => void;
+  onUnsnooze?: () => void;
   onSetRole: (role: ThreadRole | null) => void;
   coordinators: Thread[];
   onSetCoordinator: (coordinatorId: string | null) => void;
@@ -23,6 +24,7 @@ export function threadMenuEntries(thread: Thread, actions: {
   ];
   return [
     { label: "Rename", command: { type: "task.rename", taskId: thread.id, title: thread.title }, onSelect: actions.onRename },
+    ...(actions.onUnsnooze ? [{ label: "Unsnooze", command: { type: "task.unsnooze" as const, taskId: thread.id }, onSelect: actions.onUnsnooze }] : []),
     ...(actions.onSnooze ? [{ label: "Snooze", items: SNOOZE_OPTIONS.map(({ label, hours }) => ({ label, command: { type: "task.snooze" as const, taskId: thread.id, hours }, onSelect: () => actions.onSnooze!(hours) })) }] : []),
     { label: "Role", items: [
       ...THREAD_ROLES.map(({ role, label }) => ({ label, command: { type: "task.set-role" as const, taskId: thread.id, role }, checked: thread.role === role, onSelect: () => actions.onSetRole(role) })),

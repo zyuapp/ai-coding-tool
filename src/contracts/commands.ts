@@ -100,6 +100,8 @@ export type TaskCommand =
   /** Takes the dot off a thread, which is the only thing that does. Opening the thread only dims it. */
   | { type: "task.dismiss"; taskId: string }
   | { type: "task.snooze"; taskId: string; hours: SnoozeHours }
+  /** Brings a snoozed thread back before its time. */
+  | { type: "task.unsnooze"; taskId: string }
   /** Dismisses Priority in the sidebar's computer filter. Forwarded requests stop at the receiving computer. */
   | { type: "task.dismiss-all"; localOnly?: boolean }
   | { type: "task.move"; taskId: string; target: TaskDropTarget }

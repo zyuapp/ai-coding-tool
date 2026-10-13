@@ -32,11 +32,12 @@ function groupKey(group: MobileProjectGroup): string {
 
 type Section = { key: string; label: string; threads: MobileThreadEntry[] };
 
-/** The activity list's three sections, drawn in the order the desktop draws them. */
+/** The activity list's sections, drawn in the order the desktop draws them. */
 const ACTIVITY_SECTIONS: ReadonlyArray<{ key: keyof MobileActivity; label: string }> = [
   { key: "priority", label: "Priority" },
   { key: "running", label: "Running" },
   { key: "threads", label: "Threads" },
+  { key: "snoozed", label: "Snoozed" },
 ];
 
 export const ThreadList = memo(function ThreadList({ mode, groups, activity, now, initialScrollTop, onScroll, onOpen, onNew, onDismiss, onDismissAll }: {
@@ -107,7 +108,8 @@ export const ThreadList = memo(function ThreadList({ mode, groups, activity, now
           project: () => project,
         });
       })}
-      {mode === "activity" && ACTIVITY_SECTIONS.map(({ key, label }) => section({ key: `activity:${key}`, label, threads: activity[key] }, {
+      {/** Snoozed only shows while something is in it, as on the desktop. */}
+      {mode === "activity" && ACTIVITY_SECTIONS.filter(({ key }) => key !== "snoozed" || activity.snoozed.length).map(({ key, label }) => section({ key: `activity:${key}`, label, threads: activity[key] }, {
         action: key === "priority" && activity.priority.some((thread) => thread.attention)
           ? <button type="button" className="section-action" aria-label="Dismiss all" onClick={onDismissAll}><CheckCheck size={16} strokeWidth={1.8} /></button>
           : undefined,

@@ -9,7 +9,7 @@ import { activeRun, effectOf, task, workspace } from "./workspace-reducer-fixtur
 
 const at = 1_800_000_000_000;
 
-test("each snooze duration moves Priority into Threads without dismissing its attention or changing selection", () => {
+test("each snooze duration moves Priority into Snoozed without dismissing its attention or changing selection", () => {
   const clock = vi.spyOn(Date, "now").mockReturnValue(at);
   try {
     for (const { hours } of SNOOZE_OPTIONS) {
@@ -26,7 +26,8 @@ test("each snooze duration moves Priority into Threads without dismissing its at
       assert.equal(snoozed.state.currentId, thread.id);
       assert.equal(snoozed.state.threads[0].updatedAt, thread.updatedAt);
       assert.deepEqual(deriveView(snoozed.state).activityThreads.priority, []);
-      assert.equal(deriveView(snoozed.state).activityThreads.threads[0].id, thread.id);
+      assert.deepEqual(deriveView(snoozed.state).activityThreads.threads, []);
+      assert.equal(deriveView(snoozed.state).activityThreads.snoozed[0].id, thread.id);
       assert.deepEqual(effectOf(snoozed, "schedule-snooze-expiry"), { type: "schedule-snooze-expiry", at: deadline });
       const filed = reduce(snoozed.state, { type: "task.dismiss-all" });
       assert.equal(filed.state.threads[0].findings, thread.findings);
@@ -47,7 +48,7 @@ test("approval rows can snooze, while running, settled, archived, and side-chat 
     sideChats: [{ id: "chat", sourceThreadId: "blocked", error: null }],
   });
   const snoozed = reduce(state, { type: "task.snooze", taskId: "blocked", hours: 1 });
-  assert.equal(deriveView(snoozed.state).activityThreads.threads.some((thread) => thread.id === "blocked"), true);
+  assert.equal(deriveView(snoozed.state).activityThreads.snoozed.some((thread) => thread.id === "blocked"), true);
   assert.equal(snoozed.state.activeRuns, state.activeRuns);
   for (const taskId of ["busy", "quiet", "archived", "chat", "missing"]) {
     assert.equal(reduce(state, { type: "task.snooze", taskId, hours: 1 }).state.threads, state.threads);
@@ -56,6 +57,29 @@ test("approval rows can snooze, while running, settled, archived, and side-chat 
     assert.equal(isWorkspaceViewInput({ type: "task.snooze", taskId: "blocked", hours }), false);
   }
   assert.equal(isWorkspaceViewInput({ type: "snoozes.elapsed", at }), false);
+});
+
+test("Snoozed lists the next to wake first, and unsnoozing returns a thread early", () => {
+  const clock = vi.spyOn(Date, "now").mockReturnValue(at);
+  try {
+    const state = workspace({ threads: [
+      task("later", { outcome: "finished", snoozedUntil: at + 7_200_000, updatedAt: 2 }),
+      task("sooner", { outcome: "finished", snoozedUntil: at + 3_600_000, updatedAt: 1 }),
+      task("awake", { outcome: "finished" }),
+    ] });
+    assert.deepEqual(deriveView(state).activityThreads.snoozed.map((thread) => thread.id), ["sooner", "later"]);
+    const input = { type: "task.unsnooze", taskId: "later" } as const;
+    assert.equal(isWorkspaceViewInput(input), true);
+    const woken = reduce(state, input);
+    assert.equal(woken.state.threads[0].snoozedUntil, undefined);
+    assert.deepEqual(deriveView(woken.state).activityThreads.snoozed.map((thread) => thread.id), ["sooner"]);
+    assert.ok(deriveView(woken.state).activityThreads.priority.some((thread) => thread.id === "later"));
+    assert.equal(woken.effects.some((effect) => effect.type === "schedule-snooze-expiry"), false, "the earliest deadline still stands");
+    const last = reduce(woken.state, { type: "task.unsnooze", taskId: "sooner" });
+    assert.equal(effectOf(last, "schedule-snooze-expiry").at, null);
+    for (const taskId of ["awake", "missing"]) assert.equal(reduce(state, { type: "task.unsnooze", taskId }).state.threads, state.threads);
+    assert.equal(isWorkspaceViewInput({ type: "task.unsnooze" }), false);
+  } finally { clock.mockRestore(); }
 });
 
 test("reading, drafting, renaming and background findings leave snooze in place", () => {

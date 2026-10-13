@@ -39,7 +39,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
   switch (input.type) {
     case "worktree.menu-open": case "worktree.menu-search":
       return reduceWorktreeMenu(state, input);
-    case "task.new": case "task.select": case "task.dismiss": case "task.snooze": case "snoozes.elapsed":
+    case "task.new": case "task.select": case "task.dismiss": case "task.snooze": case "task.unsnooze": case "snoozes.elapsed":
     case "task.dismiss-all": case "task.archive": case "task.restore":
     case "task.clear-archive": case "task.rename": case "task.set-role": case "title.suggested":
     case "task.fork": case "task.move": case "task.set-policy":

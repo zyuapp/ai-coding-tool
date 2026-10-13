@@ -151,13 +151,14 @@ export function coordinationSections(threads: Thread[], busy: Set<string>, block
   const sections = activitySections(listed, ranked, asking);
   if (!attention.size) return sections;
   /** A coordinator a finished thread is waiting behind leads as that thread would have. */
-  const promoted = sections.threads.filter((thread) => attention.has(thread.id) && thread.snoozedUntil === undefined);
+  const promoted = sections.threads.filter((thread) => attention.has(thread.id));
   if (!promoted.length) return sections;
   const moved = new Set(promoted.map((thread) => thread.id));
   return {
     priority: [...sections.priority, ...promoted],
     running: sections.running,
     threads: sections.threads.filter((thread) => !moved.has(thread.id)),
+    snoozed: sections.snoozed,
   };
 }
 

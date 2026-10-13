@@ -38,8 +38,16 @@ const SIDE_CHAT_LABEL = "A side chat is waiting";
 
 const TIME_FORMAT = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
 
+const DAY_FORMAT = new Intl.DateTimeFormat(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" });
+
 function formatTime(value: number) {
   return TIME_FORMAT.format(value);
+}
+
+/** When a snoozed thread comes back: the time alone today, else the day too. */
+function snoozeLabel(until: number) {
+  const today = new Date().toDateString() === new Date(until).toDateString();
+  return `Until ${(today ? TIME_FORMAT : DAY_FORMAT).format(until)}`;
 }
 
 /** The mark says the thread runs on a schedule; whether that schedule is well is the part worth hearing. */
@@ -69,7 +77,7 @@ function decisionLabel(count: number) {
 /**
  * What a row says under its title in activity mode: which computer and folder it lives in, and when
  * it last moved. A row carrying something a run found says that instead — the headline is why the
- * row is in Priority.
+ * row is in Priority. A snoozed row says when it comes back.
  */
 function activityMeta(thread: Thread, host: ThreadHost | undefined, projectLabel: string | undefined, decisions: number, memberBlocked: boolean, pauseLabel: string | null) {
   if (decisions) return decisionLabel(decisions);
@@ -77,6 +85,7 @@ function activityMeta(thread: Thread, host: ThreadHost | undefined, projectLabel
   const finding = newestUnreadFinding(thread);
   if (finding) return finding.headline;
   if (pauseLabel !== null) return hostMeta(host, pauseLabel);
+  if (thread.snoozedUntil !== undefined) return hostMeta(host, ...[projectLabel, snoozeLabel(thread.snoozedUntil)].filter((part): part is string => Boolean(part)));
   return hostMeta(host, ...[projectLabel, formatTime(threadActivityAt(thread))].filter((part): part is string => Boolean(part)));
 }
 
@@ -125,6 +134,7 @@ export type ThreadRowsOptions = {
   onArchiveThread: (threadId: string) => void;
   onDismissThread: (threadId: string) => void;
   onSnoozeThread: (threadId: string, hours: SnoozeHours) => void;
+  onUnsnoozeThread: (threadId: string) => void;
   onRenameThread: (threadId: string, title: string) => void;
   onForkThread: (threadId: string, worktree: boolean) => void;
   onSetThreadRole: (threadId: string, role: ThreadRole | null) => void;
@@ -208,6 +218,7 @@ type RowHandlers = {
   archive: (threadId: string) => void;
   dismiss: (threadId: string) => void;
   snooze: (threadId: string, hours: SnoozeHours) => void;
+  unsnooze: (threadId: string) => void;
   fork: (threadId: string, worktree: boolean) => void;
   setRole: (threadId: string, role: ThreadRole | null) => void;
   setCoordinator: (threadId: string, coordinatorId: string | null) => void;
@@ -298,6 +309,7 @@ function rowBody(row: RowState, className: string, content: ReactNode, action: R
         coordinators: row.coordinators,
         onSetCoordinator: (coordinatorId) => handlers.setCoordinator(thread.id, coordinatorId),
         ...(priority ? { onSnooze: (hours: SnoozeHours) => handlers.snooze(thread.id, hours) } : {}),
+        ...(thread.snoozedUntil !== undefined ? { onUnsnooze: () => handlers.unsnooze(thread.id) } : {}),
       })}
     />}
     </>
@@ -369,6 +381,7 @@ export function useThreadRows({
   onArchiveThread,
   onDismissThread,
   onSnoozeThread,
+  onUnsnoozeThread,
   onRenameThread,
   onForkThread,
   onSetThreadRole,
@@ -384,14 +397,15 @@ export function useThreadRows({
     if (openMenu?.startsWith("task:") && offline(openMenu.slice("task:".length))) onSetOpenMenu(null);
   });
 
-  const latest = useRef({ onSelectThread, onArchiveThread, onDismissThread, onSnoozeThread, onForkThread, onSetThreadRole, onSetOpenMenu, coordination, threadNames });
-  latest.current = { onSelectThread, onArchiveThread, onDismissThread, onSnoozeThread, onForkThread, onSetThreadRole, onSetOpenMenu, coordination, threadNames };
+  const latest = useRef({ onSelectThread, onArchiveThread, onDismissThread, onSnoozeThread, onUnsnoozeThread, onForkThread, onSetThreadRole, onSetOpenMenu, coordination, threadNames });
+  latest.current = { onSelectThread, onArchiveThread, onDismissThread, onSnoozeThread, onUnsnoozeThread, onForkThread, onSetThreadRole, onSetOpenMenu, coordination, threadNames };
   const { input: renameInput, row: menuReturn } = threadNames;
   const handlers = useMemo<RowHandlers>(() => ({
     select: (threadId) => latest.current.onSelectThread(threadId),
     archive: (threadId) => latest.current.onArchiveThread(threadId),
     dismiss: (threadId) => latest.current.onDismissThread(threadId),
     snooze: (threadId, hours) => latest.current.onSnoozeThread(threadId, hours),
+    unsnooze: (threadId) => latest.current.onUnsnoozeThread(threadId),
     fork: (threadId, worktree) => latest.current.onForkThread(threadId, worktree),
     setRole: (threadId, role) => latest.current.onSetThreadRole(threadId, role),
     setCoordinator: (threadId, coordinatorId) => latest.current.coordination.onSetCoordinator(threadId, coordinatorId),

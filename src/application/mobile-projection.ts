@@ -44,7 +44,7 @@ export const MOBILE_APPROVAL_DETAIL_LIMIT = 4_000;
 export function emptyMobileView(): MobileView {
   return {
     groups: [],
-    activity: { priority: [], running: [], threads: [] },
+    activity: { priority: [], running: [], threads: [], snoozed: [] },
     theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" },
     thread: null,
     draft: null,
@@ -96,7 +96,7 @@ export function projectMobileView(state: WorkspaceState, at: number): MobileView
 }
 
 /**
- * The same three lists the desktop's activity sidebar draws, over the threads the list carries. A
+ * The same lists the desktop's activity sidebar draws, over the threads the list carries. A
  * thread past the list's limit is not ranked either: it is too old to be waiting on anyone.
  */
 function projectMobileActivity(state: WorkspaceState, view: ReturnType<typeof deriveView>, entriesById: Map<string, MobileThreadEntry>): MobileActivity {
@@ -104,7 +104,7 @@ function projectMobileActivity(state: WorkspaceState, view: ReturnType<typeof de
   const listed = visibleThreads.filter((thread) => entriesById.has(thread.id));
   const sections = activitySections(listed, everyRanked, view.blockedThreadIds);
   const rows = (threads: Thread[]) => threads.flatMap((thread) => entriesById.get(thread.id) ?? []);
-  return { priority: rows(sections.priority), running: rows(sections.running), threads: rows(sections.threads) };
+  return { priority: rows(sections.priority), running: rows(sections.running), threads: rows(sections.threads), snoozed: rows(sections.snoozed) };
 }
 
 /** The desktop's family in both faces, so a phone on "auto" can pick its own without asking. */
@@ -250,7 +250,8 @@ function sameGroups(previous: MobileProjectGroup[], next: MobileProjectGroup[]):
 }
 
 function sameActivity(previous: MobileActivity, next: MobileActivity): boolean {
-  return sameRows(previous.priority, next.priority) && sameRows(previous.running, next.running) && sameRows(previous.threads, next.threads);
+  return sameRows(previous.priority, next.priority) && sameRows(previous.running, next.running) && sameRows(previous.threads, next.threads)
+    && sameRows(previous.snoozed, next.snoozed);
 }
 
 /** Rows in the same order that differ only in when they last moved, and by less than the drift, are the same rows. */

@@ -150,7 +150,7 @@ test("rows on a paired computer carry its name, and rows on one that cannot be r
   const view = await mount(renderProjectSidebar({
     mode: "activity",
     projects: [{ id: "remote-project", root: "/linux/app" }],
-    activityThreads: { priority: [], running: [], threads: [here, there, elsewhere] },
+    activityThreads: { priority: [], running: [], threads: [here, there, elsewhere], snoozed: [] },
     threadHosts: new Map([["there", linux], ["elsewhere", gone]]),
     projectHosts: new Map([["remote-project", linux]]),
     computerLinks: [{ id: "linux", name: "linux-box", host: "linux.tail.ts.net", status: "connected", error: null, pairedAt: 1 }],

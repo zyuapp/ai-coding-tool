@@ -21,12 +21,12 @@ import { threadActivity, threadLists } from "../thread-activity.js";
 import { dismissableThreads, dismissed, readAttention } from "../../domain/attention.js";
 import { clampTitle, type Thread } from "../../domain/thread.js";
 import { coordinatorOf, withCoordinated } from "../../domain/coordination.js";
-import { isSnoozeHours } from "../../domain/thread-snooze.js";
+import { isSnoozeHours, withoutSnooze } from "../../domain/thread-snooze.js";
 import { cancelPause } from "../limit-pauses.js";
 import { capabilitiesFor, defaultModelFor, effortForModel, engineHasModel, modelHasEffort } from "../../domain/agent-engine.js";
 
 type ThreadCommandInput = Extract<WorkspaceInput, {
-  type: "task.new" | "task.select" | "task.dismiss" | "task.dismiss-all" | "task.archive" | "task.snooze" | "snoozes.elapsed"
+  type: "task.new" | "task.select" | "task.dismiss" | "task.dismiss-all" | "task.archive" | "task.snooze" | "task.unsnooze" | "snoozes.elapsed"
     | "task.restore" | "task.clear-archive" | "task.rename" | "task.set-role" | "title.suggested" | "task.fork"
     | "task.move" | "task.set-policy" | "task.set-model" | "task.set-effort" | "task.set-fast-mode";
 }>;
@@ -127,6 +127,10 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
       const snoozedUntil = now() + input.hours * 60 * 60 * 1000;
       return settled({ ...updateThread(state, input.taskId, (thread) => ({ ...thread, snoozedUntil })), openMenu: null });
     }
+
+    case "task.unsnooze":
+      if (!state.threads.some((thread) => thread.id === input.taskId && thread.snoozedUntil !== undefined)) return settled(state);
+      return settled({ ...updateThread(state, input.taskId, withoutSnooze), openMenu: null });
 
     case "task.new": {
       /** A checkout names the project it was cut from, so starting in one settles both answers. */

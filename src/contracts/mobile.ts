@@ -58,6 +58,7 @@ export type MobileActivity = {
   priority: MobileThreadEntry[];
   running: MobileThreadEntry[];
   threads: MobileThreadEntry[];
+  snoozed: MobileThreadEntry[];
 };
 
 /** The list, grouped the way the sidebar groups it. `projectId` is null for threads in no project. */

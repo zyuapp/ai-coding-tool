@@ -4,8 +4,8 @@ import { wantsAttention } from "../domain/attention.js";
 import { coordinatedThreadIds } from "../domain/coordination.js";
 import type { SidebarMode, SidebarSections } from "../domain/sidebar.js";
 
-/** The activity sidebar's three lists, in the order they are drawn. */
-export type ActivitySections = Record<"priority" | "running" | "threads", Thread[]>;
+/** The activity sidebar's lists, in the order they are drawn. */
+export type ActivitySections = Record<"priority" | "running" | "threads" | "snoozed", Thread[]>;
 
 type RankedThread = { thread: Thread; activity: number };
 
@@ -17,7 +17,8 @@ function newestFirst(threads: RankedThread[]): Thread[] {
  * Ranks threads by what wants the user rather than by where they live. A thread leads when it is
  * blocked on the user, or when it is idle and its last run left a verdict or a run found something;
  * a thread still working belongs among the runs however it ended last time. Reviewers stay in Threads
- * unless blocked on the user. Every thread appears once.
+ * unless blocked on the user. A snoozed thread waits in Snoozed, the next to wake first. Every thread
+ * appears once.
  *
  * Running holds its rows in the sidebar's own order instead, because ranking live threads by their
  * newest activity reshuffles the list under the user every time one of them speaks.
@@ -26,9 +27,10 @@ export function activitySections(threads: Thread[], busy: Set<string>, blocked: 
   const priority: RankedThread[] = [];
   const running: Thread[] = [];
   const settled: RankedThread[] = [];
+  const snoozed: Thread[] = [];
   for (const thread of threads) {
     if (thread.snoozedUntil !== undefined) {
-      settled.push({ thread, activity: threadActivityAt(thread) });
+      snoozed.push(thread);
     } else if (blocked.has(thread.id)) {
       priority.push({ thread, activity: threadActivityAt(thread) });
     } else if (thread.role === "reviewer") {
@@ -43,6 +45,7 @@ export function activitySections(threads: Thread[], busy: Set<string>, blocked: 
     priority: newestFirst(priority),
     running: orderThreads(running),
     threads: newestFirst(settled),
+    snoozed: snoozed.sort((left, right) => left.snoozedUntil! - right.snoozedUntil!),
   };
 }
 
@@ -121,7 +124,7 @@ export type SidebarShape = {
   activityThreads: ActivitySections;
 };
 
-const ACTIVITY_ORDER = ["priority", "running", "threads"] as const;
+const ACTIVITY_ORDER = ["priority", "running", "threads", "snoozed"] as const;
 
 /**
  * The threads a digit reaches: the first nine rows the sidebar draws, top to bottom. A folded

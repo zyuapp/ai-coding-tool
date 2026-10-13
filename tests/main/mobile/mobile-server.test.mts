@@ -16,7 +16,7 @@ import { MOBILE_PROTOCOL_VERSION, type MobileClientMessage, type MobileCommand, 
 const PAGE = "<!doctype html><title>phone</title>";
 
 function view(title: string): MobileView {
-  return { groups: [{ projectId: null, name: title, threads: [] }], activity: { priority: [], running: [], threads: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" }, thread: null, draft: null, error: null };
+  return { groups: [{ projectId: null, name: title, threads: [] }], activity: { priority: [], running: [], threads: [], snoozed: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" }, thread: null, draft: null, error: null };
 }
 
 async function until<T>(check: () => T | null | false | undefined, message: string): Promise<T> {

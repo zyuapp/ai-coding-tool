@@ -35,6 +35,7 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     openFolder: () => dispatch({ type: "project.open" }),
     selectThread: (threadId: string) => dispatch({ type: "task.select", taskId: threadId }),
     snoozeThread: (threadId: string, hours: SnoozeHours) => dispatch({ type: "task.snooze", taskId: threadId, hours }),
+    unsnoozeThread: (threadId: string) => dispatch({ type: "task.unsnooze", taskId: threadId }),
     archiveThread: (threadId: string) => dispatch({ type: "task.archive", taskId: threadId }),
     restoreThread: (threadId: string) => dispatch({ type: "task.restore", taskId: threadId }),
     clearArchive: () => dispatch({ type: "task.clear-archive" }),

@@ -4,11 +4,12 @@ import type { SidebarSection, SidebarSections } from "../../domain/sidebar";
 import type { ActivitySections } from "../../application/thread-order";
 import type { ActivityRowRenderer } from "./SidebarThreadRow";
 
-/** The activity mode's three lists, top to bottom, with the heading each is drawn under. */
+/** The activity mode's lists, top to bottom, with the heading each is drawn under. */
 const ACTIVITY_SECTIONS = [
   { key: "priority", label: "Priority" },
   { key: "running", label: "Running" },
   { key: "threads", label: "Threads" },
+  { key: "snoozed", label: "Snoozed" },
 ] as const satisfies ReadonlyArray<{ key: keyof ActivitySections & SidebarSection; label: string }>;
 
 export type SidebarActivityProps = {
@@ -26,6 +27,8 @@ export function SidebarActivity({ activityThreads, sections, blockedThreadIds, o
     <>
       {ACTIVITY_SECTIONS.map(({ key, label }) => {
         const threads = activityThreads[key];
+        /** Snoozed only shows while something is in it, so a user who never snoozes never meets it. */
+        if (key === "snoozed" && threads.length === 0) return null;
         const dottedCount = key === "priority" ? dismissableThreads(threads).length : 0;
         return (
           <section className="activity-group" key={key}>

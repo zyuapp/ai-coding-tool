@@ -14,7 +14,7 @@ function menuItem(label: string) {
   return [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((button) => button.textContent === label);
 }
 
-test("Priority's right-click submenu snoozes a thread, and opening it in Threads keeps it there", async () => {
+test("Priority's right-click submenu snoozes a thread into Snoozed, and Unsnooze brings it back", async () => {
   seedProjectTasks([
     { id: "quiet", title: "Quiet", updatedAt: 1 },
     { id: "waiting", title: "Review me", updatedAt: 2, outcome: "finished" },
@@ -33,7 +33,8 @@ test("Priority's right-click submenu snoozes a thread, and opening it in Threads
     await act(async () => { menuItem("3 days")!.click(); });
     assert.equal(view.container.querySelector('nav[aria-label="Priority"] .task-row'), null);
     assert.equal(document.querySelector('[role="menu"]'), null);
-    const snoozed = query<HTMLElement>(view.container, 'nav[aria-label="Threads"] .task-row[title="Review me"]');
+    const snoozed = query<HTMLElement>(view.container, 'nav[aria-label="Snoozed"] .task-row[title="Review me"]');
+    assert.match(snoozed.querySelector("small")?.textContent ?? "", / · Until /);
     await act(async () => { snoozed.click(); });
     assert.ok(snoozed.classList.contains("active"));
     assert.equal(view.container.querySelector('nav[aria-label="Priority"] .task-row'), null);
@@ -43,6 +44,9 @@ test("Priority's right-click submenu snoozes a thread, and opening it in Threads
     const stored = desktop.persisted.flatMap((delta) => delta.tasks).findLast(({ task }) => task.id === "waiting");
     assert.ok(stored?.task.snoozedUntil);
     assert.ok(Math.abs(stored.task.snoozedUntil - Date.now() - 72 * 3_600_000) < 5000);
+    await act(async () => { menuItem("Unsnooze")!.click(); });
+    assert.ok(query(view.container, 'nav[aria-label="Priority"] .task-row[title="Review me"]'));
+    assert.equal(view.container.querySelector('nav[aria-label="Snoozed"]'), null, "an empty Snoozed is not drawn");
   } finally { await view.unmount(); }
 });
 
@@ -55,7 +59,7 @@ test("snooze is offered on approval rows and gated by the actual section, includ
     return renderProjectSidebar({
       mode: projects ? "projects" : "activity", openMenu, onSetOpenMenu,
       recentThreads: [asked, busy], orderedThreads: [asked, busy],
-      activityThreads: { priority: [asked], running: [busy], threads: [] },
+      activityThreads: { priority: [asked], running: [busy], threads: [], snoozed: [] },
       blockedThreadIds: new Set([asked.id]), runningThreadIds: new Set([asked.id, busy.id]),
       onSnoozeThread: (id, hours) => { snoozed = { id, hours }; },
     });
