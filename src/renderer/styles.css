@@ -2389,7 +2389,10 @@ pre {
 .storage-notice button.storage-notice-link { border: 1px solid var(--info-line); border-radius: 7px; padding: 3px 9px; font-size: var(--text-meta); font-weight: 560; white-space: nowrap; }
 .storage-notice button.storage-notice-link:hover { border-color: var(--info); }
 
-/** Cards over everything but tooltips, under the top bar so its controls stay in reach. */
+/**
+ * Cards over everything but tooltips, under the top bar so its controls stay in reach. Each card opts
+ * out of the drag region it covers, such as a settings heading, which would otherwise take its clicks.
+ */
 .toasts {
   position: fixed;
   z-index: 1050;
@@ -2412,6 +2415,7 @@ pre {
   box-shadow: var(--shadow-menu);
   color: var(--ink);
   pointer-events: auto;
+  -webkit-app-region: no-drag;
   animation: toast-in 220ms cubic-bezier(0.2, 0.9, 0.3, 1.15);
 }
 .toast-icon { flex: none; margin-top: 1px; }
