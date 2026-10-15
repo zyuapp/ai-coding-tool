@@ -125,8 +125,8 @@ test("starting, messaging, archiving and stopping go through the command surface
   await toolNamed(bridge, "start_thread").handler({ prompt: "Take the other half", worktree: true, worktreeId: "wt1", model: "sonnet", effort: "max" }, {});
   assert.deepEqual(bridge.calls.at(-1), ["command", { type: "task.send", text: "Take the other half", worktreeId: "wt1", model: "sonnet", effort: "max" }], "a checkout that already exists is entered rather than a second one being made");
 
-  await toolNamed(bridge, "message_thread").handler({ threadId: "task-2", text: "also update the README", steer: true }, {});
-  assert.deepEqual(bridge.calls.at(-1), ["command", { type: "task.send", taskId: "task-2", text: "also update the README", steer: true }]);
+  await toolNamed(bridge, "message_thread").handler({ threadId: "task-2", text: "also update the README" }, {});
+  assert.deepEqual(bridge.calls.at(-1), ["command", { type: "task.send", taskId: "task-2", text: "also update the README", steer: true }], "a message joins the run already going rather than queueing behind it");
 
   await toolNamed(bridge, "archive_thread").handler({ threadId: "task-3" }, {});
   assert.deepEqual(bridge.calls.at(-1), ["command", { type: "task.archive", taskId: "task-3" }]);

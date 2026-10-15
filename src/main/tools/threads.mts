@@ -167,15 +167,15 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
   }),
   defineTool({
     name: "message_thread",
-    description: "Send a message to another thread, on this computer or a paired one. It waits for that thread's current run to finish unless steer is true, which pushes it into the run already going.",
+    description: "Send a message to another thread, on this computer or a paired one. A thread that is working reads it in the run already going, and an idle one starts a run on it. To learn where a thread stands, read it with read_thread instead.",
     input: {
       threadId: threadIdField,
       text: z.string().describe("The message to send."),
-      steer: z.boolean().optional().describe("Interrupt the run already going instead of queueing behind it."),
     },
     readOnly: false,
+    /** A message from another thread is meant for the work in hand, so it joins the run rather than waiting behind it as a run of its own. */
     run: ({ bridge, now }, args) => report(async () => {
-      const { thread } = await bridge.command({ type: "task.send", taskId: args.threadId, text: args.text, ...(args.steer ? { steer: true } : {}) });
+      const { thread } = await bridge.command({ type: "task.send", taskId: args.threadId, text: args.text, steer: true });
       return thread ? `Sent to ${describe(thread, now())}` : "The message was not delivered.";
     }),
   }),
