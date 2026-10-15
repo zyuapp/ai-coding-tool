@@ -58,6 +58,7 @@ test("every call the window makes is relayed on one channel, refused from anyone
     projectlessWorkspace: { valid: [], invalid: [[1]] },
     commands: { valid: ["workspace", "claude"], invalid: [["", "claude"], ["workspace", "gpt"], [1, "claude"], ["workspace"]] },
     branches: { valid: ["workspace"], invalid: [[""], ["x".repeat(257)], [null], []] },
+    commits: { valid: ["workspace", ["35995b7"]], invalid: [["workspace", []], ["workspace", ["main"]], ["workspace", Array(65).fill("35995b7")], ["", ["35995b7"]]] },
     diffPatch: {
       valid: ["workspace", { kind: "uncommitted" }, "src/app.ts", "src/old.ts", true],
       invalid: [["workspace", { kind: "nope" }, "src/app.ts"], ["workspace", { kind: "uncommitted" }, ""], ["workspace", { kind: "uncommitted" }, "src/app.ts", 3], ["workspace", { kind: "uncommitted" }, "src/app.ts", undefined, "yes"]],

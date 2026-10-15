@@ -254,6 +254,8 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   diffPatch(workspaceId: WorkspaceId, range: DiffRange, path: string, previousPath?: string, ignoreWhitespace?: boolean): Promise<DiffPatchResult>;
   /** The local branches a thread can start from, newest first. */
   branches(workspaceId: WorkspaceId): Promise<BranchesResult>;
+  /** Which of these hashes are commits the checkout's repository holds. */
+  commits(workspaceId: WorkspaceId, hashes: string[]): Promise<string[]>;
   /** What the checkout has to say about its pull request, including that `gh` is not installed. */
   pullRequest(workspaceId: WorkspaceId): Promise<PullRequestAnswer>;
   /** Moves a project checkout onto a branch. Never forced, so uncommitted work stops it. */
@@ -386,7 +388,7 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
 
 /** The calls a window's own views make on the desktop, each relayed to main by name. */
 export type WindowDesktopCall =
-  | "openFolder" | "projectlessWorkspace" | "commands" | "branches" | "diffPatch"
+  | "openFolder" | "projectlessWorkspace" | "commands" | "branches" | "commits" | "diffPatch"
   | "describeFiles" | "saveAttachment" | "readAttachment" | "readAttachmentContext"
   | "setBrowserBounds" | "focusBrowserTab" | "terminalSnapshot" | "readRemoteTerminal" | "setTheme";
 

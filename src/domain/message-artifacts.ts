@@ -24,6 +24,13 @@ export function isCommitHash(value: unknown): value is string {
   return typeof value === "string" && /^[a-f\d]{7,40}$/i.test(value);
 }
 
+/** How many hashes one check may ask about: a reply rarely names more than a few. */
+export const MAX_COMMIT_CHECKS = 64;
+
+export function isCommitHashes(value: unknown): value is string[] {
+  return Array.isArray(value) && value.length > 0 && value.length <= MAX_COMMIT_CHECKS && value.every(isCommitHash);
+}
+
 /** The message id keeps two replies linking the same filename from sharing a snapshot. */
 export function messageImageUrl(file: string, root: string, messageId: string, thumbnail = false, taskId?: string) {
   const query = new URLSearchParams({ path: file, root, message: messageId });

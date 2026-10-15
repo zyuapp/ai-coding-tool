@@ -4,6 +4,7 @@ import path from "node:path";
 import { isBrowserBounds, isString, isWindowTheme, type WindowDesktopAPI, type WindowDesktopCall, type WindowTheme } from "../contracts/ipc.js";
 import { isAgentEngine } from "../domain/agent-engine.js";
 import { isDiffRange } from "../domain/diff.js";
+import { isCommitHashes } from "../domain/message-artifacts.js";
 import type { RuntimeDesktop } from "../host/runtime-desktop.js";
 import { readAttachmentContext, savedAttachmentPath } from "./attachment-store.js";
 import { setBounds } from "./browser-host.js";
@@ -64,6 +65,7 @@ export function windowDesktopCalls(host: WindowDesktopHost): { [Name in WindowDe
       run: (workspaceId, engine) => host.reads.read({ kind: "commands", workspaceId, engine }, { workspace: workspaceId }),
     },
     branches: { args: [isId], run: (workspaceId) => host.reads.read({ kind: "branches", workspaceId }, { workspace: workspaceId }) },
+    commits: { args: [isId, isCommitHashes], run: (workspaceId, hashes) => host.reads.read({ kind: "commits", workspaceId, hashes }, { workspace: workspaceId }) },
     diffPatch: {
       args: [isId, isDiffRange, isPath, optional(isPath), optional((value) => typeof value === "boolean")],
       run: (workspaceId, range, filePath, previousPath, ignoreWhitespace) => host.desktop.diffPatch(workspaceId, range, filePath, previousPath, ignoreWhitespace),

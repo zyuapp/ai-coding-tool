@@ -39,6 +39,7 @@ type Answers = {
   "message-image": { bytes: Buffer<ArrayBuffer>; contentType: string };
   "diff-patch": DiffPatchResult;
   branches: BranchesResult;
+  commits: string[];
   commands: CommandDiscoveryResult;
 };
 
@@ -147,6 +148,13 @@ const reads: { [K in Kind]: Read<K> } = {
       return isFailure(result) ? result : refuse("branch");
     },
     failed,
+  },
+  commits: {
+    here: async (query, host) => {
+      const { knownCommits } = await import("./workspace/git.mjs");
+      return knownCommits((await resolved(host, query.workspaceId)).root, query.hashes);
+    },
+    received: (value, query) => isStrings(value) && value.every((hash) => query.hashes.includes(hash)) ? value : refuse("commit"),
   },
   commands: {
     here: async (query, host) => {

@@ -138,14 +138,22 @@ test("generated artifacts remain visible beside the final answer after work fold
   await view.unmount();
 });
 
-test("commit hashes in inline code open that transcript's commit, while fenced code stays code", async () => {
+test("commit hashes the thread's checkout holds open its commit, while other hashes and fenced code stay code", async () => {
+  const asked: Array<[string, string[]]> = [];
+  window.desktop = { commits: async (workspaceId: string, hashes: string[]) => {
+    asked.push([workspaceId, hashes]);
+    return hashes.filter((hash) => hash === "60cceb8");
+  } } as unknown as typeof window.desktop;
   const opened: Array<[string, string | undefined]> = [];
   const view = await mount(React.createElement(MessageLinkProvider, { actions: { openCommit: (hash, taskId) => opened.push([hash, taskId]) },
-    children: React.createElement(MessageArtifactScope.Provider, { value: { root: "/repo", taskId: "old-thread" } },
-      React.createElement(MarkdownMessage, { children: "Committed as `60cceb8`.\n\n```\n60cceb8\n```" })) }));
+    children: React.createElement(MessageArtifactScope.Provider, { value: { root: "/repo", taskId: "old-thread", workspaceId: "commit-checkout" } },
+      React.createElement(MarkdownMessage, { children: "Committed as `60cceb8`, and pushed `35995b7` to another repository.\n\n```\n60cceb8\n```" })) }));
+  await act(async () => {});
+  assert.deepEqual(asked, [["commit-checkout", ["60cceb8", "35995b7"]]], "one read asks about every hash in the reply");
   assert.equal(view.container.querySelectorAll(".message-commit").length, 1);
   await act(async () => query<HTMLButtonElement>(view.container, ".message-commit").click());
   assert.deepEqual(opened, [["60cceb8", "old-thread"]]);
+  assert.match(view.container.textContent ?? "", /pushed 35995b7 to/);
   assert.equal(view.container.querySelector("pre code")?.textContent, "60cceb8\n");
   await view.unmount();
 });

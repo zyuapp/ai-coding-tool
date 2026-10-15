@@ -1,5 +1,5 @@
 import { MAX_ATTACHMENTS, MAX_ATTACHMENT_ENCODED_BYTES } from "../domain/conversation.js";
-import { isMessageImageReference } from "../domain/message-artifacts.js";
+import { isCommitHashes, isMessageImageReference } from "../domain/message-artifacts.js";
 import type { WorkspaceCommandResult, WorkspaceInput } from "../application/workspace-reducer.js";
 import { isAppCommandType, isWorkspaceViewInput } from "./workspace-view-input.js";
 import { isAgentEngine, type AgentEngine } from "../domain/agent-engine.js";
@@ -36,6 +36,7 @@ export type ComputerQuery =
   | { kind: "message-image"; path: string; root: string; message: string; thumbnail?: boolean }
   | { kind: "diff-patch"; workspaceId: string; range: DiffRange; path: string; previousPath?: string; ignoreWhitespace?: boolean }
   | { kind: "branches"; workspaceId: string }
+  | { kind: "commits"; workspaceId: string; hashes: string[] }
   | { kind: "commands"; workspaceId: string; engine: AgentEngine };
 
 export type ComputerPairRequest = { kind: "pair"; version: number; code: string; deviceName: string };
@@ -109,6 +110,7 @@ const queryShapes = {
   "message-image": { path: (v) => typeof v === "string", root: (v) => typeof v === "string", message: (v) => typeof v === "string", thumbnail: (v) => v === undefined || typeof v === "boolean" },
   "diff-patch": { workspaceId: isString, range: isDiffRange, path: (v) => isString(v, MAX_PATH_LENGTH), previousPath: (v) => v === undefined || isString(v, MAX_PATH_LENGTH), ignoreWhitespace: (v) => v === undefined || typeof v === "boolean" },
   branches: { workspaceId: isString },
+  commits: { workspaceId: isString, hashes: isCommitHashes },
   commands: { workspaceId: isString, engine: isAgentEngine },
 } satisfies { [Kind in ComputerQuery["kind"]]: { [Field in keyof Omit<Extract<ComputerQuery, { kind: Kind }>, "kind">]-?: (value: unknown) => boolean } };
 

@@ -23,6 +23,7 @@ const api: WindowDesktopAPI = {
   projectlessWorkspace: relay("projectlessWorkspace"),
   commands: relay("commands"),
   branches: relay("branches"),
+  commits: relay("commits"),
   diffPatch: relay("diffPatch"),
   describeFiles: relay("describeFiles"),
   saveAttachment: relay("saveAttachment"),

@@ -87,6 +87,7 @@ export function DockConversation({ chat, engineLabel, focusToken = 0, find = nul
           engine={chat.thread.engine}
           engineLabel={engineLabel}
           folder={folder}
+          {...(workspaceId ? { workspaceId } : {})}
           status={chat.status}
           compacting={chat.compacting}
           retrying={chat.retrying}

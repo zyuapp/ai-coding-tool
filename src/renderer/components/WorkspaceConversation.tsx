@@ -34,6 +34,7 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
           engine={workspace.engine}
           engineLabel={workspace.engineLabel}
           folder={workspace.folder}
+          {...(workspace.workspaceId ? { workspaceId: workspace.workspaceId } : {})}
           status={workspace.status}
           compacting={workspace.compacting}
           retrying={workspace.retrying}

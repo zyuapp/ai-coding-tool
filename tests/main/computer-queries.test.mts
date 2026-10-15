@@ -186,6 +186,10 @@ test("every read answers in one shape from this computer, over a link, and when 
     }) as unknown as WorkspaceService,
   };
   const image = { kind: "message-image", path: "shot.jpg", root: folder, message: "reply" } as const;
+  const head = (await execFileAsync("git", ["rev-parse", "--short=9", "HEAD"], { cwd: checkout })).stdout.trim();
+  const blob = (await execFileAsync("git", ["rev-parse", "--short=9", "HEAD:tracked.txt"], { cwd: checkout })).stdout.trim();
+  const commits = { kind: "commits", workspaceId: "repo", hashes: [head, "35995b7", blob] } as const;
+  assert.deepEqual(await readsHere(local).read({ ...commits, hashes: [...commits.hashes] }, { workspace: "repo" }), [head], "only a commit this repository holds is known");
   const rows: Row[] = [
     { query: { kind: "thread-read", threadId: "remote", limit: 5 }, owner: { thread: "remote" }, settles: false },
     { query: { kind: "thread-list", search: "needle" }, owner: { computer: "holder" }, settles: false },
@@ -198,6 +202,7 @@ test("every read answers in one shape from this computer, over a link, and when 
     { query: { kind: "branches", workspaceId: "gone" }, owner: { workspace: "gone" }, settles: true },
     { query: { kind: "diff-patch", workspaceId: "repo", range: { kind: "uncommitted" }, path: "tracked.txt" }, owner: { workspace: "repo" }, settles: true },
     { query: { kind: "commands", workspaceId: "gone", engine: "claude" }, owner: { workspace: "gone" }, settles: true },
+    { query: { ...commits, hashes: [...commits.hashes] }, owner: { workspace: "repo" }, settles: false },
   ];
   for (const row of rows) {
     const label = JSON.stringify(row.query);

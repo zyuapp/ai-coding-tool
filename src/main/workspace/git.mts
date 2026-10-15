@@ -115,6 +115,12 @@ export async function listBranches(root: string) {
   return { branches: names(local), remotes: names(remote).filter((name) => !name.endsWith("/HEAD")), current };
 }
 
+/** Which of these hashes name a commit the checkout's repository holds, read in one go however many there are. */
+export async function knownCommits(root: string, hashes: string[]) {
+  const answers = (await git(root, ["cat-file", "--batch-check=%(objecttype)"], hashes.map((hash) => `${hash}^{commit}\n`).join(""))).split("\n");
+  return hashes.filter((_, index) => answers[index] === "commit");
+}
+
 /** Makes `branch` at the checkout's HEAD. Git refuses a name the repository already has. */
 export async function createBranch(root: string, branch: string) {
   await git(root, ["branch", refArgument(branch)]);

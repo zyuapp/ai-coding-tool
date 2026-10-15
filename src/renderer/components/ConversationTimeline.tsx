@@ -34,6 +34,8 @@ export type ConversationTimelineProps = {
   /** What the engine running this thread is called. */
   engineLabel: string;
   folder: string;
+  /** The checkout the thread works in, where the commits its replies name are looked up. */
+  workspaceId?: string;
   status: "idle" | "running" | "stopped";
   compacting: boolean;
   /** The request the engine is retrying, while it is. */
@@ -83,9 +85,9 @@ function retryLabel(retry: RetryNotice) {
   return `${retry.message} Retrying${count}…`;
 }
 
-export function ConversationTimeline({ currentThread, engine, engineLabel, folder, status, compacting, retrying = null, limitPause = null, waitingOn = null, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, restored = true, place, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide }: ConversationTimelineProps) {
+export function ConversationTimeline({ currentThread, engine, engineLabel, folder, workspaceId, status, compacting, retrying = null, limitPause = null, waitingOn = null, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, restored = true, place, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide }: ConversationTimelineProps) {
   const messages = currentThread?.messages ?? [];
-  const artifactScope = useMemo(() => ({ root: folder, taskId: currentThread?.id }), [folder, currentThread?.id]);
+  const artifactScope = useMemo(() => ({ root: folder, taskId: currentThread?.id, workspaceId }), [folder, currentThread?.id, workspaceId]);
   const timelineRef = useRef<HTMLDivElement>(null);
   const links = useMessageLinks();
   const viewAttachment = useCallback((source: string) => links.openImage?.(source), [links.openImage]);

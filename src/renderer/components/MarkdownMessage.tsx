@@ -8,6 +8,7 @@ import { VisualBlock } from "./VisualBlock";
 import { ContextMenu } from "./PopoverMenu";
 import { isCommitHash, messageImagePath, messageImageUrl } from "../../domain/message-artifacts";
 import { messageImages, type MessageImage } from "../../application/message-images";
+import { useKnownCommit } from "../known-commits";
 import { MAX_VISUAL_SOURCE, VISUAL_LANGUAGE } from "../../domain/visual-frame";
 
 const APP_HREF = /^aicodingtool:/i;
@@ -23,7 +24,8 @@ export type MessageLinkActions = {
   openCommit?: (commit: string, taskId?: string) => void;
 };
 
-export const MessageArtifactScope = createContext<{ root: string; taskId?: string }>({ root: "" });
+/** The thread a transcript belongs to, and the checkout its commits are looked up in. */
+export const MessageArtifactScope = createContext<{ root: string; taskId?: string; workspaceId?: string }>({ root: "" });
 const MessageId = createContext("");
 const CodeBlock = createContext(false);
 
@@ -144,8 +146,10 @@ function MarkdownCode({ children, ...props }: ComponentProps<"code">) {
   const actions = useContext(MessageLinks);
   const scope = useContext(MessageArtifactScope);
   const block = useContext(CodeBlock);
-  const hash = typeof children === "string" ? children : "";
-  return !block && isCommitHash(hash) && actions.openCommit
+  const hash = typeof children === "string" && !block && isCommitHash(children) ? children : null;
+  /** A reply can name a commit in some other repository, which has no diff here to open. */
+  const known = useKnownCommit(actions.openCommit ? scope.workspaceId : undefined, hash);
+  return hash && known && actions.openCommit
     ? <button type="button" className="message-commit" aria-label={`View commit ${hash}`} onClick={() => actions.openCommit!(hash, scope.taskId)}><code {...props}>{children}</code></button>
     : <code {...props}>{children}</code>;
 }
