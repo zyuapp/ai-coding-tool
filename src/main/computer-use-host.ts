@@ -28,7 +28,8 @@ async function cuaElectron() {
 
 async function probeScreenRecordingRegistration() {
   const { CuaDriver } = await cuaDriver();
-  const driver = CuaDriver.create(undefined) as ReturnType<typeof CuaDriver.create> & { uniffiDestroy(): void };
+  /** The grant must land on this app, not on a CuaDriver.app daemon that create() would otherwise prefer on macOS. */
+  const driver = CuaDriver.create({ embedded: true, claudeCodeCompatibility: false }) as ReturnType<typeof CuaDriver.create> & { uniffiDestroy(): void };
   try {
     await driver.getDesktopState({});
   } finally {

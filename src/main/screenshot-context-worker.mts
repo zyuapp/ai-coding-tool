@@ -11,7 +11,7 @@ parentPort.once("message", ({ data }) => void capture(data));
 async function capture(target: ScreenshotTarget) {
   try {
     const { CuaDriver } = await import(process.argv[2]) as typeof import("@trycua/cua-driver");
-    const driver = CuaDriver.create(undefined) as ReturnType<typeof CuaDriver.create> & { uniffiDestroy(): void };
+    const driver = CuaDriver.create({ embedded: true, claudeCodeCompatibility: false }) as ReturnType<typeof CuaDriver.create> & { uniffiDestroy(): void };
     try {
       parentPort.postMessage(await snapshotWindowAccessibility(driver, target, (partial) => parentPort.postMessage({ partial })));
     } finally {
