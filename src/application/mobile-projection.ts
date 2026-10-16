@@ -68,6 +68,7 @@ export function projectMobileView(state: WorkspaceState, at: number): MobileView
     const entry: MobileThreadEntry = {
       id: summary.id,
       title: summary.title || "Untitled thread",
+      projectId: project?.id ?? null,
       projectName: project ? projectName(project) : null,
       status: view.blockedThreadIds.has(summary.id) ? "awaiting-approval" : summary.status,
       lastActivityAt: summary.lastActivityAt,

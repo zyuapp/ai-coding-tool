@@ -137,7 +137,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
 
     case "view.set-theme": case "view.set-theme-family": case "view.set-theme-mode":
     case "view.system-scheme": case "view.set-ui-font": case "view.set-mono-font":
-    case "view.set-reading-size": case "view.set-terminal-size": case "view.set-sidebar-mode":
+    case "view.set-reading-size": case "view.set-terminal-size": case "view.set-sidebar-mode": case "view.set-activity-project":
     case "view.set-sidebar-open": case "view.focus-composer": case "view.set-shortcut":
     case "view.reset-shortcuts": case "view.capture-shortcut": case "shortcut.captured": case "shortcut.unavailable":
     case "view.inspect-subagent": case "subagent.activity.loaded": case "view.set-capture-options":

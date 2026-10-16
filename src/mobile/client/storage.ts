@@ -139,3 +139,15 @@ export function readListMode(store: CredentialStore): MobileListMode {
 export function writeListMode(store: CredentialStore, mode: MobileListMode): void {
   store.setItem(MOBILE_LIST_KEY, mode);
 }
+
+/** The one project the activity list is narrowed to. Absent for every project. */
+export const MOBILE_ACTIVITY_PROJECT_KEY = "aicodingtool.mobile.activity-project";
+
+export function readActivityProject(store: CredentialStore): string | null {
+  return store.getItem(MOBILE_ACTIVITY_PROJECT_KEY) || null;
+}
+
+export function writeActivityProject(store: CredentialStore, projectId: string | null): void {
+  if (projectId) store.setItem(MOBILE_ACTIVITY_PROJECT_KEY, projectId);
+  else store.removeItem(MOBILE_ACTIVITY_PROJECT_KEY);
+}

@@ -39,7 +39,8 @@ export type MobileRunStatus = "idle" | "running" | "stopped" | "awaiting-approva
 export type MobileThreadEntry = {
   id: string;
   title: string;
-  /** What the thread's folder is called, for a list that is not grouped by folder. Null in no project. */
+  /** Which folder the thread is in, and what it is called, for a list that is not grouped by folder. Null in no project. */
+  projectId: string | null;
   projectName: string | null;
   status: MobileRunStatus;
   lastActivityAt: number;
@@ -346,7 +347,8 @@ function isThreadCommand(command: Record<string, unknown>, named: boolean) {
     case "task.dismiss":
       return isString(command.taskId);
     case "task.dismiss-all":
-      return command.localOnly === undefined || typeof command.localOnly === "boolean";
+      return (command.localOnly === undefined || typeof command.localOnly === "boolean")
+        && (command.projectId === undefined || isString(command.projectId));
     case "task.rename":
       return isString(command.taskId) && isBlankable(command.title, MAX_TITLE_LENGTH);
     case "task.fork":

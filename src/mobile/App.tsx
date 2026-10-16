@@ -138,7 +138,7 @@ export function App() {
   }, []);
 
   const dismiss = useCallback((taskId: string) => send({ type: "task.dismiss", taskId }), [send]);
-  const dismissAll = useCallback(() => send({ type: "task.dismiss-all" }), [send]);
+  const dismissAll = useCallback((projectId?: string) => send({ type: "task.dismiss-all", ...(projectId ? { projectId } : {}) }), [send]);
 
   const back = useCallback(() => {
     setOpening(null);

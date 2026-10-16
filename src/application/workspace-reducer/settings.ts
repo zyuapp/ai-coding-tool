@@ -16,7 +16,7 @@ import { READING_SIZE, TERMINAL_SIZE, monoFontById, sizeById, uiFontById } from 
 
 type SettingsInput = Extract<WorkspaceInput, {
   type: "view.set-theme" | "view.set-theme-family" | "view.set-theme-mode" | "view.system-scheme" | "view.set-ui-font"
-    | "view.set-mono-font" | "view.set-reading-size" | "view.set-terminal-size" | "view.set-sidebar-mode" | "view.set-sidebar-open"
+    | "view.set-mono-font" | "view.set-reading-size" | "view.set-terminal-size" | "view.set-sidebar-mode" | "view.set-activity-project" | "view.set-sidebar-open"
     | "view.focus-composer" | "view.set-shortcut" | "view.reset-shortcuts" | "view.capture-shortcut" | "shortcut.captured" | "shortcut.unavailable"
     | "view.inspect-subagent" | "subagent.activity.loaded" | "view.set-capture-options" | "view.set-chrome-browser"
     | "view.set-computer-use" | "view.set-browser-tools" | "view.set-notifications" | "view.set-session-panel-open" | "view.set-settings-open"
@@ -43,6 +43,13 @@ function inspectSubagent(state: WorkspaceState, taskId: string | null, subagentI
     effects.push({ type: "load-subagent-metadata", taskId, subagentId, engine, sessionId: thread?.continuation?.value });
   }
   return settled(state, effects);
+}
+
+/** Keeps one remembered choice, and writes nothing when it already holds. */
+function setPreference<Key extends "sidebarMode" | "activityProject" | "sidebarOpen">(state: WorkspaceState, key: Key, value: WorkspaceState[Key]): WorkspaceTransition {
+  if (state[key] === value) return settled(state);
+  const next = { ...state, [key]: value };
+  return settled(next, persistView(next));
 }
 
 export function reduceSettings(state: WorkspaceState, input: SettingsInput): WorkspaceTransition {
@@ -105,17 +112,14 @@ export function reduceSettings(state: WorkspaceState, input: SettingsInput): Wor
       return settled(next, persistView(next));
     }
 
-    case "view.set-sidebar-mode": {
-      if (state.sidebarMode === input.mode) return settled(state);
-      const next = { ...state, sidebarMode: input.mode };
-      return settled(next, persistView(next));
-    }
+    case "view.set-sidebar-mode":
+      return setPreference(state, "sidebarMode", input.mode);
 
-    case "view.set-sidebar-open": {
-      if (state.sidebarOpen === input.open) return settled(state);
-      const next = { ...state, sidebarOpen: input.open };
-      return settled(next, persistView(next));
-    }
+    case "view.set-activity-project":
+      return setPreference(state, "activityProject", input.projectId);
+
+    case "view.set-sidebar-open":
+      return setPreference(state, "sidebarOpen", input.open);
 
     case "view.set-section-open": {
       if (!isSidebarSection(input.section) || state.sections[input.section] === input.open) return settled(state);

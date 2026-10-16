@@ -7,12 +7,13 @@ import { closeSideChats } from "./side-chats.js";
 import { fileThread } from "./run-queue.js";
 import { followUps, now, rejected, settled, targetId } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
+import type { AppCommand } from "../../contracts/commands.js";
 import { focusComposer } from "../composer-drafts.js";
 import { shownComputers } from "../computers.js";
 import { REMOTE_UNSUPPORTED, supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import { forkedThreads } from "../thread-fork.js";
 import { moveThread as moveThreadInList } from "../thread-order.js";
-import { coordinationSections } from "../coordination.js";
+import { coordinationSections, projectActivity } from "../coordination.js";
 import { pruneDeletedThreads } from "../thread-pruning.js";
 import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeById } from "../thread-location.js";
@@ -49,34 +50,44 @@ function landOnThread(state: WorkspaceState, taskId: string): WorkspaceState {
   }, taskId);
 }
 
-/** Priority as the sidebar draws it. A side chat has no row of its own, so it is not one of them. */
-function priorityThreads(state: WorkspaceState): Thread[] {
+/**
+ * Priority as the sidebar draws it, narrowed to one project when `projectId` names one. A side chat
+ * has no row of its own, so it is not one of them.
+ */
+function priorityThreads(state: WorkspaceState, projectId?: string): Thread[] {
   const { ranked, blocked } = threadActivity(state);
-  return coordinationSections(threadLists(state).visibleThreads, ranked, blocked).priority;
+  const threads = threadLists(state).visibleThreads;
+  const sections = coordinationSections(threads, ranked, blocked);
+  return projectId ? projectActivity(sections, threads, projectId).priority : sections.priority;
 }
 
 /** The row Priority moves on to once this one leaves it: the one below, or the one above when it was last. */
 function priorityNeighbour(state: WorkspaceState, taskId: string): string | undefined {
-  const priority = priorityThreads(state);
+  /** Only a project of this computer's narrows its rows; a filter the sidebar ignores is ignored here too. */
+  const narrowed = state.activityProject !== null && state.projects.some((project) => project.id === state.activityProject && !project.unlisted);
+  const priority = priorityThreads(state, narrowed ? state.activityProject! : undefined);
   const index = priority.findIndex((thread) => thread.id === taskId);
   if (index === -1) return undefined;
   return (priority[index + 1] ?? priority[index - 1])?.id;
 }
 
-/** Dismisses the listed computers' Priority; each host owns its changes and reports them back. */
-function dismissPriority(state: WorkspaceState, localOnly = false): WorkspaceTransition {
+/**
+ * Dismisses the listed computers' Priority, or only one project's rows of it; each host owns its
+ * changes and reports them back.
+ */
+function dismissPriority(state: WorkspaceState, localOnly = false, projectId?: string): WorkspaceTransition {
   const own = localOnly || state.computers.filter === "all" || state.computers.filter === "this";
   /** A coordinator in Priority is there for its threads too, so filing it away files them with it. */
-  const dotted = withCoordinated(state.threads, new Set(own ? priorityThreads(state).map((thread) => thread.id) : []));
+  const dotted = withCoordinated(state.threads, new Set(own ? priorityThreads(state, projectId).map((thread) => thread.id) : []));
   const next = dotted.size ? { ...state, threads: dismissed(state.threads, dotted) } : state;
   if (localOnly) return settled(next);
   const effects: WorkspaceEffect[] = [];
   const errors: string[] = [];
   for (const computer of shownComputers(state.computers)) {
-    if (computer.status !== "connected" || !computer.state || !dismissableThreads(priorityThreads(computer.state)).length) continue;
-    const scoped = { type: "task.dismiss-all", localOnly: true } as const;
-    /** Older hosts already dismiss only their own threads and do not know the scope field. */
-    const command = supportsComputerCommand(computer.capabilities, scoped) ? scoped : { type: "task.dismiss-all" } as const;
+    if (computer.status !== "connected" || !computer.state || !dismissableThreads(priorityThreads(computer.state, projectId)).length) continue;
+    const scoped: AppCommand = { type: "task.dismiss-all", localOnly: true, ...(projectId ? { projectId } : {}) };
+    /** Older hosts already dismiss only their own threads and do not know the scope field, but nothing narrower holds without the project. */
+    const command: AppCommand = projectId || supportsComputerCommand(computer.capabilities, scoped) ? scoped : { type: "task.dismiss-all" };
     if (!supportsComputerCommand(computer.capabilities, command)) {
       errors.push(`${computer.name}: ${REMOTE_UNSUPPORTED}`);
       continue;
@@ -184,7 +195,7 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
     }
 
     case "task.dismiss-all":
-      return dismissPriority(state, input.localOnly);
+      return dismissPriority(state, input.localOnly, input.projectId);
 
     case "task.archive":
       return archiveThread(state, input.taskId);

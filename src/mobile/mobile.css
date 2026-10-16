@@ -395,6 +395,38 @@ button {
   color: var(--ink-dim);
 }
 
+/* Narrows the activity list to one project; it reads as plain until it is narrowed. */
+.list-filter {
+  flex: none;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  margin: 8px 0 0 4px;
+  padding: 0 10px 0 8px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 540;
+  color: var(--muted);
+}
+
+.list-filter > span {
+  max-width: 60vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list-filter[data-narrowed] {
+  background: var(--surface-raised);
+  color: var(--ink);
+}
+
+.list-filter:active {
+  background: var(--surface-active);
+}
+
 .group-empty {
   margin: 0;
   padding: 4px 12px 10px;

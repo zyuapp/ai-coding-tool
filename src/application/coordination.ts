@@ -162,6 +162,23 @@ export function coordinationSections(threads: Thread[], busy: Set<string>, block
   };
 }
 
+/**
+ * The activity lists narrowed to one project. A coordinator's row stays while any thread under it
+ * works there, since its row is where those threads are drawn.
+ */
+export function projectActivity(sections: ActivitySections, threads: Thread[], projectId: string): ActivitySections {
+  const members = coordinatedThreadIds(threads);
+  const leads = new Set<string>();
+  for (const thread of threads) if (members.has(thread.id) && thread.projectId === projectId) leads.add(thread.parentId!);
+  const keep = (thread: Thread) => thread.projectId === projectId || leads.has(thread.id);
+  return {
+    priority: sections.priority.filter(keep),
+    running: sections.running.filter(keep),
+    threads: sections.threads.filter(keep),
+    snoozed: sections.snoozed.filter(keep),
+  };
+}
+
 /** Where a thread under a coordinator stands, in the words its card shows. */
 export type CoordinatedThreadStatus = "approval" | "asking" | "working" | "blocked" | "done" | "failed" | "finished" | "idle";
 

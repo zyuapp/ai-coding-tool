@@ -4375,10 +4375,11 @@ button.setting-hint:hover { color: var(--ink); }
 
 /* ── Computers ───────────────────────────────────────────────────────────── */
 
-.computer-switch { position: relative; }
-.computer-switch-trigger[aria-expanded="true"] { background: var(--wash); color: var(--muted-strong); }
-.computer-switch-trigger.offline, .computer-switch-trigger.offline:hover { color: var(--quiet-soft); }
-.computer-switch-menu { top: calc(100% + 4px); right: 0; max-width: min(320px, calc(100vw - 28px)); }
+.filter-switch { position: relative; }
+.filter-switch-trigger[aria-expanded="true"] { background: var(--wash); color: var(--muted-strong); }
+.filter-switch-trigger.offline, .filter-switch-trigger.offline:hover { color: var(--quiet-soft); }
+.filter-switch-menu { top: calc(100% + 4px); right: 0; max-width: min(320px, calc(100vw - 28px)); }
+.project-switch-menu { max-height: min(420px, calc(100vh - 80px)); overflow-y: auto; }
 .computer-switch-menu button.offline { color: var(--quiet); }
 .computer-switch-menu .offline .menu-label::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: currentColor; vertical-align: middle; }
 .task-row.offline, .project-task-row.offline { opacity: 0.45; cursor: default; }

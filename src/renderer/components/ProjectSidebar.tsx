@@ -48,6 +48,9 @@ export type ProjectSidebarProps = {
   computerName: string;
   computerFilter: ComputerFilter;
   onSetComputerFilter: (filter: ComputerFilter) => void;
+  /** The one project the activity lists are narrowed to, or null for every project. */
+  activityProject: string | null;
+  onSetActivityProject: (projectId: string | null) => void;
   mode: SidebarMode;
   sections: SidebarSections;
   openMenu: string | null;
@@ -73,7 +76,8 @@ export type ProjectSidebarProps = {
   onDismissThread: (threadId: string) => void;
   onSnoozeThread: (threadId: string, hours: SnoozeHours) => void;
   onUnsnoozeThread: (threadId: string) => void;
-  onDismissAll: () => void;
+  /** Takes the dot off every thread in Priority, or only off those in `projectId`. */
+  onDismissAll: (projectId: string | null) => void;
   onRenameThread: (threadId: string, title: string) => void;
   onMoveThread: (threadId: string, target: ThreadDropTarget) => void;
   /** Copies the thread into a new one beside it, with a checkout of its own when `worktree`. */
@@ -156,8 +160,8 @@ export const ProjectSidebar = memo(function ProjectSidebar({
   projectHosts,
   computerLinks,
   computerName,
-  computerFilter,
-  onSetComputerFilter,
+  computerFilter, onSetComputerFilter,
+  activityProject, onSetActivityProject,
   mode,
   sections,
   openMenu,
@@ -239,7 +243,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
       inert={inactive || !open}
       style={{ "--row-slots": railSlots } as React.CSSProperties}
     >
-      <SidebarHeader mode={mode} canGoBack={canGoBack} canGoForward={canGoForward} onSetMode={onSetMode} onGoBack={onGoBack} onGoForward={onGoForward} computerLinks={computerLinks} computerName={computerName} computerFilter={computerFilter} onSetComputerFilter={onSetComputerFilter} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />
+      <SidebarHeader mode={mode} canGoBack={canGoBack} canGoForward={canGoForward} onSetMode={onSetMode} onGoBack={onGoBack} onGoForward={onGoForward} computerLinks={computerLinks} computerName={computerName} computerFilter={computerFilter} onSetComputerFilter={onSetComputerFilter} projects={projects} projectHosts={projectHosts} activityProject={activityProject} onSetActivityProject={onSetActivityProject} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />
       <button className="new-task-button" onClick={() => onNewThread()} aria-label="New task" data-tip="New task">
         {/** Two copies of one outline: the resting hairline, and the accent that draws over it on hover. */}
         <svg className="new-task-edge" aria-hidden="true" focusable="false">
@@ -260,7 +264,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
           sections={sections}
           blockedThreadIds={blockedThreadIds}
           onSetSectionOpen={onSetSectionOpen}
-          onDismissAll={onDismissAll}
+          onDismissAll={() => onDismissAll(activityProject)}
           renderRow={activityRow}
         />}
 

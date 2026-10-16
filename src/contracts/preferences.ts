@@ -27,6 +27,8 @@ export type ViewPreferences = {
   captureFocus: boolean;
   /** Which shape the sidebar reopens in. */
   sidebarMode: SidebarMode;
+  /** The one project the activity lists are narrowed to. Every project when absent. */
+  activityProject?: string;
   /** Which of the sidebar's lists are unfolded, across both shapes. */
   sections: SidebarSections;
   /** Which subagent groups are unfolded: the sidebar's list, and each status heading in the panel. */

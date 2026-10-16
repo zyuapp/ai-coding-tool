@@ -297,7 +297,8 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   monoFont: string;
   readingSize: number;
   terminalSize: number;
-  sidebarMode: SidebarMode;
+  /** The sidebar's shape, and the one project its activity lists are narrowed to, or null for every project. */
+  sidebarMode: SidebarMode; activityProject: string | null;
   sidebarOpen: boolean;
   sessionPanelOpen: boolean;
   /** Whether grabbing a window plays the shutter, and whether it brings the window forward. */
@@ -464,7 +465,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     monoFont: DEFAULT_MONO_FONT,
     readingSize: READING_SIZE.default,
     terminalSize: TERMINAL_SIZE.default,
-    sidebarMode: "projects",
+    sidebarMode: "projects", activityProject: null,
     sidebarOpen: true,
     subagentGroups: OPEN_SUBAGENT_GROUPS,
     overviewFolds: {},

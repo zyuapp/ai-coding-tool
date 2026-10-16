@@ -106,7 +106,8 @@ export type TaskCommand =
   /** Brings a snoozed thread back before its time. */
   | { type: "task.unsnooze"; taskId: string }
   /** Dismisses Priority in the sidebar's computer filter. Forwarded requests stop at the receiving computer. */
-  | { type: "task.dismiss-all"; localOnly?: boolean }
+  /** `projectId` narrows it to one project's threads, as a narrowed Priority shows them. */
+  | { type: "task.dismiss-all"; localOnly?: boolean; projectId?: string }
   | { type: "task.move"; taskId: string; target: TaskDropTarget }
   /**
    * Copies a thread into a new one beside it, carrying its conversation and its session. The copy
@@ -457,6 +458,8 @@ export type ViewCommand =
   | { type: "view.set-reading-size"; size: number }
   | { type: "view.set-terminal-size"; size: number }
   | { type: "view.set-sidebar-mode"; mode: SidebarMode }
+  /** Narrows the activity lists to one project, or null for every project. */
+  | { type: "view.set-activity-project"; projectId: string | null }
   | { type: "view.set-sidebar-open"; open: boolean }
   | { type: "view.set-session-panel-open"; open: boolean }
   | { type: "view.set-capture-options"; options: CaptureOptions }

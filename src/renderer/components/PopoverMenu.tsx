@@ -19,6 +19,8 @@ export type MenuItem = {
   checked?: boolean;
   /** The keystroke that does the same thing, drawn against the item's right edge. */
   shortcut?: string;
+  /** Quiet words in the same place when there is no keystroke, such as which computer holds the item. */
+  detail?: string;
   /** Opens beside the item. An item with a list of its own chooses nothing itself. */
   items?: MenuItem[];
   /** A submenu with its own search field or virtual list. */
@@ -194,7 +196,7 @@ export function MenuList({ entries: supplied, onClose, className, style, menuRef
             >
               <span className="menu-tick" aria-hidden="true">{entry.checked && <Check size={12} />}</span>
               <span className="menu-label">{entry.label}</span>
-              {entry.shortcut && <span className="menu-shortcut">{entry.shortcut}</span>}
+              {(entry.shortcut ?? entry.detail) && <span className="menu-shortcut">{entry.shortcut ?? entry.detail}</span>}
               {nested && <ChevronRight className="menu-chevron" size={12} aria-hidden="true" />}
             </button>
             {entry.panel && sub?.index === index && <SubmenuPanel top={(buttons.current[index]?.offsetTop ?? 0) - 4} autoFocus={sub.focus} onLeave={() => {

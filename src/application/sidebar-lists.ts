@@ -1,6 +1,6 @@
 import { orderProjects } from "./project-order.js";
 import { orderThreads, slotThreadIds } from "./thread-order.js";
-import { coordinationSections } from "./coordination.js";
+import { coordinationSections, projectActivity } from "./coordination.js";
 import { coordinatedThreadIds } from "../domain/coordination.js";
 import { SLOT_COUNT } from "../domain/shortcuts.js";
 import type { Project } from "../domain/project.js";
@@ -24,6 +24,8 @@ export type SidebarPreferences = {
   sidebarMode: SidebarMode;
   sections: SidebarSections;
   expandedProjects: Set<string>;
+  /** The one project the activity lists are narrowed to, or null for every project. */
+  activityProject: string | null;
 };
 
 /** Every list the sidebar draws, in the order it draws them. */
@@ -45,8 +47,11 @@ export function sidebarLists(
     else if (thread.projectId) threadsByProject.get(thread.projectId)?.push(thread) ?? threadsByProject.set(thread.projectId, [thread]);
   }
   const ordered = orderSidebarProjects(projects.filter((project) => !project.unlisted), projectHosts);
+  /** A project no longer listed narrows nothing, so a removed or unreachable one never empties the lists. */
+  const activityProject = preferences.activityProject !== null && ordered.some((project) => project.id === preferences.activityProject) ? preferences.activityProject : null;
   /** The same threads ranked by what wants the user, which is the sidebar's other shape. */
-  const activityThreads = coordinationSections(visibleThreads, busy, blocked);
+  const ranked = coordinationSections(visibleThreads, busy, blocked);
+  const activityThreads = activityProject ? projectActivity(ranked, visibleThreads, activityProject) : ranked;
   /** Ranked and stamped by when each chat last did something, so a tick that surfaced nothing moves none of them. */
   const recentThreads = visibleThreads.filter((thread) => !thread.projectId && !members.has(thread.id)).sort((a, b) => threadActivityAt(b) - threadActivityAt(a));
   return {
@@ -55,6 +60,7 @@ export function sidebarLists(
     threadsByProject,
     threadsByCoordinator,
     activityThreads,
+    activityProject,
     recentThreads,
     /** The threads ⌘1 through ⌘9 reach, in the order they are drawn. */
     threadSlots: slotThreadIds({

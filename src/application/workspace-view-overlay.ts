@@ -14,7 +14,7 @@ const OWN_VIEW_KEYS = [
   "managedWorktrees", "worktreeSettings", "worktreeManagementError", "worktreeManagementNotice", "worktreeDeleteConfirmation",
   "installedApps", "cli", "planUsage", "computerUsePermissions", "computerUseSetup", "storageError", "hiddenThreads", "restored", "viewingImage",
   "expandedProjects", "projectAdd", "projectEditor", "worktreeMove", "sections", "subagentGroups", "theme", "themeMode", "uiFont", "monoFont", "readingSize", "terminalSize",
-  "sidebarMode", "sidebarOpen", "sessionPanelOpen", "captureSound", "captureFocus", "chromeBrowser", "computerUse", "browserTools", "notifications",
+  "sidebarMode", "activityProject", "sidebarOpen", "sessionPanelOpen", "captureSound", "captureFocus", "chromeBrowser", "computerUse", "browserTools", "notifications",
   "favoriteModels", "shortcuts", "capturingShortcut", "desktopShortcutUnavailable", "composerFocus", "settingsOpen", "settingsSection", "settingsFocus",
   "openMenu", "jump", "remote", "remoteChecking", "appUpdate", "toasts", "canGoBack", "canGoForward", "browserOrigins", "browserImport",
   "computerLinks", "computerUsage", "computerUpkeep", "activeComputer", "computerName", "computerFilter", "computerPairing", "computersFound", "computersSearching", "computersSearchError", "threadHosts", "projectHosts",

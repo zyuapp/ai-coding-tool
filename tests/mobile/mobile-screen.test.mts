@@ -49,7 +49,7 @@ Object.defineProperty(globalThis, "WebSocket", { configurable: true, value: Fake
 
 function view(): MobileView {
   return {
-    groups: [{ projectId: "p", name: "App", threads: [{ id: "t1", title: "Fix the parser", projectName: "App", attention: false, status: "awaiting-approval", lastActivityAt: Date.now(), unread: true }] }],
+    groups: [{ projectId: "p", name: "App", threads: [{ id: "t1", title: "Fix the parser", projectId: "p", projectName: "App", attention: false, status: "awaiting-approval", lastActivityAt: Date.now(), unread: true }] }],
     activity: { priority: [], running: [], threads: [], snoozed: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" },
     thread: {
       id: "t1",
@@ -233,7 +233,7 @@ test("a tap shows the thread it asked for, never the one the Mac still has open"
     act(() => line.onmessage?.({ data: JSON.stringify(message) }));
   }
   const two = view();
-  two.groups[0]!.threads.push({ id: "t2", title: "Rewrite the docs", projectName: "App", attention: false, status: "idle", lastActivityAt: 1, unread: false });
+  two.groups[0]!.threads.push({ id: "t2", title: "Rewrite the docs", projectId: "p", projectName: "App", attention: false, status: "idle", lastActivityAt: 1, unread: false });
   receive({ kind: "snapshot", sequence: 1, sessionId: "s7", build: BUILD, view: two });
 
   click(".thread-row:nth-of-type(2) .thread-open");
@@ -346,10 +346,10 @@ test("the list ranks by what wants the user when asked, and a Priority row can b
   const ranked = view();
   ranked.activity = {
     priority: [
-      { id: "t1", title: "Fix the parser", projectName: "App", status: "awaiting-approval", lastActivityAt: 1, unread: true, attention: false },
-      { id: "t3", title: "Nightly check", projectName: null, status: "idle", lastActivityAt: 1, unread: true, attention: true, outcome: "finished", headline: "Tests are red on main" },
+      { id: "t1", title: "Fix the parser", projectId: "p", projectName: "App", status: "awaiting-approval", lastActivityAt: 1, unread: true, attention: false },
+      { id: "t3", title: "Nightly check", projectId: null, projectName: null, status: "idle", lastActivityAt: 1, unread: true, attention: true, outcome: "finished", headline: "Tests are red on main" },
     ],
-    running: [{ id: "t2", title: "Rewrite the docs", projectName: "App", status: "running", lastActivityAt: 1, unread: false, attention: false }],
+    running: [{ id: "t2", title: "Rewrite the docs", projectId: "p", projectName: "App", status: "running", lastActivityAt: 1, unread: false, attention: false }],
     threads: [],
     snoozed: [],
   };
@@ -367,6 +367,34 @@ test("the list ranks by what wants the user when asked, and a Priority row can b
   assert.deepEqual(lastCommand(line), { type: "task.dismiss-all" });
   click(".thread-row .thread-open");
   assert.deepEqual(lastCommand(line), { type: "task.select", taskId: "t1" });
+});
+
+test("the activity list narrows to one project, remembers it, and dismisses only its rows", () => {
+  const line = openPhone({ paired: true });
+  const ranked = view();
+  ranked.groups.push({ projectId: "q", name: "Docs", threads: [] }, { projectId: null, name: "Recents", threads: [] });
+  ranked.activity = {
+    priority: [
+      { id: "t1", title: "Fix the parser", projectId: "p", projectName: "App", status: "idle", lastActivityAt: 1, unread: true, attention: true, outcome: "finished" },
+      { id: "t3", title: "Write the guide", projectId: "q", projectName: "Docs", status: "idle", lastActivityAt: 1, unread: true, attention: true, outcome: "finished" },
+    ],
+    running: [], threads: [], snoozed: [],
+  };
+  live(line, ranked);
+  click('.segmented button[aria-checked="false"]');
+  const titles = () => [...document.querySelectorAll(".thread-title")].map((node) => node.textContent);
+  assert.equal(document.querySelector(".list-filter")?.textContent, "All projects");
+  assert.deepEqual(titles(), ["Fix the parser", "Write the guide"]);
+  click(".list-filter");
+  assert.deepEqual([...document.querySelectorAll('.sheet [role="radio"]')].map((node) => node.textContent), ["All projects", "App", "Docs"]);
+  click('.sheet [role="radio"]:nth-of-type(3)');
+  assert.equal(localStorage.getItem("aicodingtool.mobile.activity-project"), "q", "the choice survives a visit");
+  assert.equal(document.querySelector(".list-filter")?.textContent, "Docs");
+  assert.deepEqual(titles(), ["Write the guide"]);
+  click('button[aria-label="Dismiss all"]');
+  assert.deepEqual(lastCommand(line), { type: "task.dismiss-all", projectId: "q" });
+  localStorage.removeItem("aicodingtool.mobile.activity-project");
+  localStorage.removeItem("aicodingtool.mobile.list");
 });
 
 test("while a run is going a message may join the queue or cut into it, and a queued one can be steered or dropped", () => {

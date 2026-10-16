@@ -119,7 +119,7 @@ function createViewCollections() {
 
   /** The sidebar draws every computer's threads together, filed under every computer's folders. */
   const sidebar = selector(
-    (state) => [threadLists(state).visibleThreads, state.projects, everyRanked(state), everyBlocked(state), remote(state), state.computers.filter, state.sidebarMode, state.sections, state.expandedProjects],
+    (state) => [threadLists(state).visibleThreads, state.projects, everyRanked(state), everyBlocked(state), remote(state), state.computers.filter, state.sidebarMode, state.activityProject, state.sections, state.expandedProjects],
     (state) => {
       const others = remote(state);
       /** A filter naming one paired computer leaves this computer's own out. */

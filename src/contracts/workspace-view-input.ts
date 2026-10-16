@@ -258,7 +258,7 @@ const commands = {
   "task.snooze": { fields: { taskId: text, hours: isSnoozeHours }, at: "thread" },
   "task.unsnooze": { fields: { taskId: text }, at: "thread" },
   /** The reducer itself carries this to the computers shown in the sidebar. */
-  "task.dismiss-all": { fields: { localOnly: optionalBoolean }, at: "local" },
+  "task.dismiss-all": { fields: { localOnly: optionalBoolean, projectId: optionalText }, at: "local" },
   "task.move": { fields: { taskId: text, target: dropTarget }, at: "thread" },
   "task.fork": { fields: { taskId: optionalText, worktree: optionalBoolean }, at: "thread" },
   "task.set-policy": { fields: { taskId: optionalText, policy: policy }, at: "thread" },
@@ -399,6 +399,7 @@ const commands = {
   "view.set-reading-size": { fields: { size: number }, at: "local" },
   "view.set-terminal-size": { fields: { size: number }, at: "local" },
   "view.set-sidebar-mode": { fields: { mode: isSidebarMode }, at: "local" },
+  "view.set-activity-project": { fields: { projectId: nullableText }, at: "local" },
   "view.set-sidebar-open": { fields: { open: boolean }, at: "local" },
   "view.set-session-panel-open": { fields: { open: boolean }, at: "local" },
   "view.set-capture-options": { fields: { options: isCaptureOptions }, at: "local" },

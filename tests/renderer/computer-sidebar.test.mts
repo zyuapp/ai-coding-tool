@@ -282,6 +282,42 @@ test("a sidebar with no paired computer draws no computer button", async () => {
   }
 });
 
+test("activity mode narrows to one project, naming the computer that holds each one elsewhere", async () => {
+  const picked: (string | null)[] = [];
+  const dismissed: (string | null)[] = [];
+  const projects = [{ id: "web", root: "/work/web" }, { id: "remote-api", root: "/linux/api" }];
+  const props = (activityProject: string | null, openMenu: string | null = null) => renderProjectSidebar({
+    mode: "activity",
+    projects,
+    projectHosts: new Map([["remote-api", linux]]),
+    activityThreads: { priority: [task("done", { projectId: "web", outcome: "finished" })], running: [], threads: [], snoozed: [] },
+    activityProject,
+    openMenu,
+    onSetActivityProject: (projectId) => picked.push(projectId),
+    onDismissAll: (projectId) => dismissed.push(projectId),
+  });
+  const view = await mount(props(null));
+  try {
+    const trigger = () => query<HTMLButtonElement>(view.container, ".traffic-space .sidebar-modes .project-switch-trigger");
+    assert.equal(trigger().parentElement?.previousElementSibling?.getAttribute("aria-label"), "Rank threads by activity");
+    assert.deepEqual([trigger().getAttribute("aria-label"), trigger().dataset.tip, trigger().classList.contains("active")], ["Projects", "Projects", false]);
+    await view.render(props(null, "sidebar:projects"));
+    const choices = [...view.container.querySelectorAll<HTMLButtonElement>('[role="menuitemcheckbox"]')];
+    assert.deepEqual(choices.map((choice) => choice.textContent), ["All projects", "web", "apilinux-box"]);
+    assert.deepEqual(choices.map((choice) => choice.getAttribute("aria-checked")), ["true", "false", "false"]);
+    await act(async () => { choices[2]!.click(); });
+    assert.deepEqual(picked, ["remote-api"]);
+    await view.render(props("remote-api"));
+    assert.deepEqual([trigger().dataset.tip, trigger().classList.contains("active")], ["Only api", true]);
+    await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Dismiss all"]').click(); });
+    assert.deepEqual(dismissed, ["remote-api"], "dismiss all keeps to the project shown");
+    await view.render(renderProjectSidebar({ mode: "projects", projects }));
+    assert.equal(view.container.querySelector(".project-switch") === null, true, "folders already sort by project");
+  } finally {
+    await view.unmount();
+  }
+});
+
 test("an unreachable computer's row offers nothing: no rename, no menu, no archive", async () => {
   const menus: (string | null)[] = [];
   const here = task("here", { title: "Local work" });

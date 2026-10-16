@@ -686,6 +686,8 @@ function sidebar(overrides: Partial<ProjectSidebarProps> = {}) {
     computerName: "This Mac",
     computerFilter: "all",
     onSetComputerFilter() {},
+    activityProject: null,
+    onSetActivityProject() {},
     mode: "activity",
     sections: { projects: true, recents: true, priority: true, running: true, threads: true, snoozed: true },
     openMenu: null,

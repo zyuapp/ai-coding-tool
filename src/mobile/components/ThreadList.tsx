@@ -1,8 +1,9 @@
-import { LuCheck as Check, LuCheckCheck as CheckCheck, LuSquarePen as SquarePen } from "react-icons/lu";
-import { memo, useLayoutEffect, useRef, useState } from "react";
+import { LuCheck as Check, LuCheckCheck as CheckCheck, LuChevronDown as ChevronDown, LuFolder as Folder, LuSquarePen as SquarePen } from "react-icons/lu";
+import { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MobileActivity, MobileProjectGroup, MobileThreadEntry } from "../../contracts/mobile";
-import { readFolded, writeFolded, type MobileListMode } from "../client/storage";
+import { readActivityProject, readFolded, writeActivityProject, writeFolded, type MobileListMode } from "../client/storage";
 import { activityMeta, groupMark, threadMeta } from "../format";
+import { ProjectSheet } from "./ProjectSheet";
 
 function ThreadRow({ thread, meta, onOpen, onDismiss }: {
   thread: MobileThreadEntry;
@@ -32,6 +33,11 @@ function groupKey(group: MobileProjectGroup): string {
 
 type Section = { key: string; label: string; threads: MobileThreadEntry[] };
 
+function narrowActivity(activity: MobileActivity, projectId: string): MobileActivity {
+  const keep = (thread: MobileThreadEntry) => thread.projectId === projectId;
+  return { priority: activity.priority.filter(keep), running: activity.running.filter(keep), threads: activity.threads.filter(keep), snoozed: activity.snoozed.filter(keep) };
+}
+
 /** The activity list's sections, drawn in the order the desktop draws them. */
 const ACTIVITY_SECTIONS: ReadonlyArray<{ key: keyof MobileActivity; label: string }> = [
   { key: "priority", label: "Priority" },
@@ -52,9 +58,17 @@ export const ThreadList = memo(function ThreadList({ mode, groups, activity, now
   onOpen: (threadId: string, title: string, project: string | null) => void;
   onNew: (projectId: string | null, project: string | null) => void;
   onDismiss: (threadId: string) => void;
-  onDismissAll: () => void;
+  /** Files away every Priority row, or only those in `projectId`. */
+  onDismissAll: (projectId?: string) => void;
 }) {
   const [folded, setFolded] = useState(() => readFolded(localStorage));
+  const [chosenProject, setChosenProject] = useState(() => readActivityProject(localStorage));
+  const [picking, setPicking] = useState(false);
+  const projects = useMemo(() => groups.filter((group) => group.projectId !== null), [groups]);
+  /** A project the Mac no longer lists narrows nothing, so the list is never emptied by one that is gone. */
+  const narrowed = projects.find((group) => group.projectId === chosenProject);
+  const project = narrowed?.projectId ?? null;
+  const shown = useMemo(() => project ? narrowActivity(activity, project) : activity, [activity, project]);
   /** A list with nothing in it keeps its groups, which are how a project is started into, under one plain way to start. */
   const bare = !groups.some((group) => group.threads.length);
   const scroller = useRef<HTMLDivElement>(null);
@@ -62,6 +76,11 @@ export const ThreadList = memo(function ThreadList({ mode, groups, activity, now
   useLayoutEffect(() => {
     if (scroller.current) scroller.current.scrollTop = restore.current;
   }, []);
+  function chooseProject(projectId: string | null) {
+    writeActivityProject(localStorage, projectId);
+    setChosenProject(projectId);
+  }
+
   function toggle(key: string) {
     const next = new Set(folded);
     if (!next.delete(key)) next.add(key);
@@ -108,16 +127,24 @@ export const ThreadList = memo(function ThreadList({ mode, groups, activity, now
           project: () => project,
         });
       })}
+      {mode === "activity" && projects.length > 0 && (
+        <button type="button" className="list-filter" data-narrowed={narrowed ? true : undefined} aria-haspopup="dialog" onClick={() => setPicking(true)}>
+          <Folder size={15} strokeWidth={1.8} aria-hidden="true" />
+          <span>{narrowed?.name ?? "All projects"}</span>
+          <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
+        </button>
+      )}
       {/** Snoozed only shows while something is in it, as on the desktop. */}
-      {mode === "activity" && ACTIVITY_SECTIONS.filter(({ key }) => key !== "snoozed" || activity.snoozed.length).map(({ key, label }) => section({ key: `activity:${key}`, label, threads: activity[key] }, {
-        action: key === "priority" && activity.priority.some((thread) => thread.attention)
-          ? <button type="button" className="section-action" aria-label="Dismiss all" onClick={onDismissAll}><CheckCheck size={16} strokeWidth={1.8} /></button>
+      {mode === "activity" && ACTIVITY_SECTIONS.filter(({ key }) => key !== "snoozed" || shown.snoozed.length).map(({ key, label }) => section({ key: `activity:${key}`, label, threads: shown[key] }, {
+        action: key === "priority" && shown.priority.some((thread) => thread.attention)
+          ? <button type="button" className="section-action" aria-label="Dismiss all" onClick={() => onDismissAll(project ?? undefined)}><CheckCheck size={16} strokeWidth={1.8} /></button>
           : undefined,
         empty: key === "priority" ? "Nothing waiting" : undefined,
         meta: (thread) => activityMeta(thread, now),
         dismissable: key === "priority",
         project: (thread) => thread.projectName,
       }))}
+      {picking && <ProjectSheet projects={projects} selected={project} onClose={() => setPicking(false)} onSelect={chooseProject} />}
       {bare && (
         <div className="empty">
           <p>No threads yet</p>

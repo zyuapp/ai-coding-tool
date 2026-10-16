@@ -40,6 +40,8 @@ export function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
       computerName={workspace.computerName}
       computerFilter={workspace.computerFilter}
       onSetComputerFilter={workspace.actions.setComputerFilter}
+      activityProject={workspace.activityProject}
+      onSetActivityProject={workspace.actions.setActivityProject}
       mode={workspace.sidebarMode}
       sections={workspace.sections}
       openMenu={workspace.openMenu}

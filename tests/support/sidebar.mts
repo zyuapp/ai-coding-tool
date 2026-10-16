@@ -31,6 +31,8 @@ export function renderProjectSidebar(overrides: Partial<ProjectSidebarProps>) {
     computerName: "This Mac",
     computerFilter: "all",
     onSetComputerFilter() {},
+    activityProject: null,
+    onSetActivityProject() {},
     mode: "projects",
     sections: { projects: true, recents: true, priority: true, running: true, threads: true, snoozed: true },
     openMenu: null,
