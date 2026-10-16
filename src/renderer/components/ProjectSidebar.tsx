@@ -158,8 +158,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
   activityThreads,
   threadHosts,
   projectHosts,
-  computerLinks,
-  computerName,
+  computerLinks, computerName,
   computerFilter, onSetComputerFilter,
   activityProject, onSetActivityProject,
   mode,
@@ -243,7 +242,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
       inert={inactive || !open}
       style={{ "--row-slots": railSlots } as React.CSSProperties}
     >
-      <SidebarHeader mode={mode} canGoBack={canGoBack} canGoForward={canGoForward} onSetMode={onSetMode} onGoBack={onGoBack} onGoForward={onGoForward} computerLinks={computerLinks} computerName={computerName} computerFilter={computerFilter} onSetComputerFilter={onSetComputerFilter} projects={projects} projectHosts={projectHosts} activityProject={activityProject} onSetActivityProject={onSetActivityProject} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />
+      <SidebarHeader mode={mode} canGoBack={canGoBack} canGoForward={canGoForward} onSetMode={onSetMode} onGoBack={onGoBack} onGoForward={onGoForward} computerLinks={computerLinks} computerName={computerName} computerFilter={computerFilter} onSetComputerFilter={onSetComputerFilter} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />
       <button className="new-task-button" onClick={() => onNewThread()} aria-label="New task" data-tip="New task">
         {/** Two copies of one outline: the resting hairline, and the accent that draws over it on hover. */}
         <svg className="new-task-edge" aria-hidden="true" focusable="false">
@@ -266,6 +265,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
           onSetSectionOpen={onSetSectionOpen}
           onDismissAll={() => onDismissAll(activityProject)}
           renderRow={activityRow}
+          projectFilter={{ projects, projectHosts, project: activityProject, onSetProject: onSetActivityProject, openMenu, onSetOpenMenu }}
         />}
 
         {mode === "projects" && <SidebarProjects

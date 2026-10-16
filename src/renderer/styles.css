@@ -419,6 +419,29 @@ button, select { color: inherit; }
 }
 .projects-heading { grid-template-columns: minmax(0, 1fr) var(--row-slot); margin-top: 8px; }
 .recents-heading { margin-top: 12px; }
+/** Narrows activity mode to one project. Quiet at rest, and filled while it narrows the lists. */
+.activity-filter { position: relative; margin: 6px var(--row-inset) 4px 4px; }
+.activity-filter-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  height: 28px;
+  padding: 0 8px 0 6px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--quiet-soft);
+  font: inherit;
+  font-size: var(--text-control);
+  cursor: pointer;
+}
+.activity-filter-trigger > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activity-filter-trigger > svg { flex: none; }
+.activity-filter-trigger:hover, .activity-filter-trigger[aria-expanded="true"] { background: var(--wash); color: var(--muted-strong); }
+.activity-filter-trigger.narrowed { background: var(--surface-active); color: var(--ink-dim); }
+.activity-filter-host { color: var(--quiet); }
+.activity-filter-menu { top: calc(100% + 4px); left: 0; right: auto; max-height: min(420px, calc(100vh - 160px)); overflow-y: auto; }
 /** Activity mode's three headings share one shape: label, fold, and at most one action. */
 .activity-heading { grid-template-columns: minmax(0, 1fr) var(--row-slot); }
 .activity-group + .activity-group .activity-heading { margin-top: 12px; }
@@ -4375,11 +4398,10 @@ button.setting-hint:hover { color: var(--ink); }
 
 /* ── Computers ───────────────────────────────────────────────────────────── */
 
-.filter-switch { position: relative; }
-.filter-switch-trigger[aria-expanded="true"] { background: var(--wash); color: var(--muted-strong); }
-.filter-switch-trigger.offline, .filter-switch-trigger.offline:hover { color: var(--quiet-soft); }
-.filter-switch-menu { top: calc(100% + 4px); right: 0; max-width: min(320px, calc(100vw - 28px)); }
-.project-switch-menu { max-height: min(420px, calc(100vh - 80px)); overflow-y: auto; }
+.computer-switch { position: relative; }
+.computer-switch-trigger[aria-expanded="true"] { background: var(--wash); color: var(--muted-strong); }
+.computer-switch-trigger.offline, .computer-switch-trigger.offline:hover { color: var(--quiet-soft); }
+.computer-switch-menu { top: calc(100% + 4px); right: 0; max-width: min(320px, calc(100vw - 28px)); }
 .computer-switch-menu button.offline { color: var(--quiet); }
 .computer-switch-menu .offline .menu-label::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: currentColor; vertical-align: middle; }
 .task-row.offline, .project-task-row.offline { opacity: 0.45; cursor: default; }

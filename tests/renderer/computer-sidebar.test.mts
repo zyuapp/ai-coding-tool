@@ -282,7 +282,7 @@ test("a sidebar with no paired computer draws no computer button", async () => {
   }
 });
 
-test("activity mode narrows to one project, naming the computer that holds each one elsewhere", async () => {
+test("the Priority view narrows to one project from its own list, naming the computer that holds each one elsewhere", async () => {
   const picked: (string | null)[] = [];
   const dismissed: (string | null)[] = [];
   const projects = [{ id: "web", root: "/work/web" }, { id: "remote-api", root: "/linux/api" }];
@@ -298,21 +298,24 @@ test("activity mode narrows to one project, naming the computer that holds each 
   });
   const view = await mount(props(null));
   try {
-    const trigger = () => query<HTMLButtonElement>(view.container, ".traffic-space .sidebar-modes .project-switch-trigger");
-    assert.equal(trigger().parentElement?.previousElementSibling?.getAttribute("aria-label"), "Rank threads by activity");
-    assert.deepEqual([trigger().getAttribute("aria-label"), trigger().dataset.tip, trigger().classList.contains("active")], ["Projects", "Projects", false]);
-    await view.render(props(null, "sidebar:projects"));
+    const trigger = () => query<HTMLButtonElement>(view.container, ".sidebar-scroll .activity-filter-trigger");
+    assert.equal(view.container.querySelector(".traffic-space .activity-filter-trigger"), null, "the header stays the same in both views");
+    assert.equal(query(view.container, ".activity-filter").nextElementSibling?.querySelector(".section-toggle")?.textContent, "Priority", "it heads the Priority list");
+    assert.deepEqual([trigger().textContent, trigger().classList.contains("narrowed")], ["All projects", false]);
+    await view.render(props(null, "activity:project"));
     const choices = [...view.container.querySelectorAll<HTMLButtonElement>('[role="menuitemcheckbox"]')];
     assert.deepEqual(choices.map((choice) => choice.textContent), ["All projects", "web", "apilinux-box"]);
     assert.deepEqual(choices.map((choice) => choice.getAttribute("aria-checked")), ["true", "false", "false"]);
     await act(async () => { choices[2]!.click(); });
     assert.deepEqual(picked, ["remote-api"]);
     await view.render(props("remote-api"));
-    assert.deepEqual([trigger().dataset.tip, trigger().classList.contains("active")], ["Only api", true]);
+    assert.deepEqual([trigger().textContent, trigger().classList.contains("narrowed")], ["apilinux-box", true]);
     await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Dismiss all"]').click(); });
     assert.deepEqual(dismissed, ["remote-api"], "dismiss all keeps to the project shown");
     await view.render(renderProjectSidebar({ mode: "projects", projects }));
-    assert.equal(view.container.querySelector(".project-switch") === null, true, "folders already sort by project");
+    assert.equal(view.container.querySelector(".activity-filter"), null, "the projects view is untouched");
+    await view.render(renderProjectSidebar({ mode: "activity", projects: projects.slice(0, 1) }));
+    assert.equal(view.container.querySelector(".activity-filter"), null, "one project has nothing to narrow to");
   } finally {
     await view.unmount();
   }

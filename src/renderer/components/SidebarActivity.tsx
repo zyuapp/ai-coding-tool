@@ -1,8 +1,72 @@
-import { LuCheckCheck as CheckCheck } from "react-icons/lu";
+import { useRef } from "react";
+import { LuCheckCheck as CheckCheck, LuChevronDown as ChevronDown, LuFolder as Folder } from "react-icons/lu";
 import { dismissableThreads } from "../../domain/attention";
+import { projectName, type Project } from "../../domain/project";
 import type { SidebarSection, SidebarSections } from "../../domain/sidebar";
+import type { ThreadHost } from "../../application/computers";
 import type { ActivitySections } from "../../application/thread-order";
+import { useDismissibleLayer } from "../focus";
+import { MenuList, type MenuEntry } from "./PopoverMenu";
 import type { ActivityRowRenderer } from "./SidebarThreadRow";
+
+const PROJECT_MENU = "activity:project";
+
+export type ProjectFilterProps = {
+  projects: Project[];
+  projectHosts: Map<string, ThreadHost>;
+  project: string | null;
+  onSetProject: (projectId: string | null) => void;
+  openMenu: string | null;
+  onSetOpenMenu: (menu: string | null) => void;
+};
+
+/**
+ * Which project's threads the lists below rank: every one, or one. A project on a paired computer
+ * names the computer that holds it, the way its rows do.
+ */
+function ProjectFilter({ projects, projectHosts, project, onSetProject, openMenu, onSetOpenMenu }: ProjectFilterProps) {
+  const open = openMenu === PROJECT_MENU;
+  const root = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  useDismissibleLayer(open, [root], () => onSetOpenMenu(null), trigger);
+  const selected = projects.find((item) => item.id === project);
+  const entries: MenuEntry[] = [
+    { label: "All projects", checked: !selected, onSelect: () => onSetProject(null) },
+    "separator",
+    ...projects.map((item) => ({
+      label: projectName(item),
+      detail: projectHosts.get(item.id)?.name,
+      checked: item.id === selected?.id,
+      onSelect: () => onSetProject(item.id),
+    })),
+  ];
+  return (
+    <div ref={root} className="activity-filter" data-popover-menu onBlur={(event) => {
+      if (open && !event.currentTarget.contains(event.relatedTarget)) onSetOpenMenu(null);
+    }}>
+      <button
+        ref={trigger}
+        type="button"
+        className={`activity-filter-trigger${selected ? " narrowed" : ""}`}
+        aria-label={`Project: ${selected ? projectName(selected) : "All projects"}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => onSetOpenMenu(open ? null : PROJECT_MENU)}
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+          event.preventDefault();
+          onSetOpenMenu(PROJECT_MENU);
+        }}
+      >
+        <Folder size={14} aria-hidden="true" />
+        <span>{selected ? projectName(selected) : "All projects"}</span>
+        {selected && projectHosts.get(selected.id) && <span className="activity-filter-host">{projectHosts.get(selected.id)!.name}</span>}
+        <ChevronDown size={13} aria-hidden="true" />
+      </button>
+      {open && <MenuList entries={entries} onClose={() => onSetOpenMenu(null)} className="activity-filter-menu" />}
+    </div>
+  );
+}
 
 /** The activity mode's lists, top to bottom, with the heading each is drawn under. */
 const ACTIVITY_SECTIONS = [
@@ -20,11 +84,15 @@ export type SidebarActivityProps = {
   onSetSectionOpen: (section: SidebarSection, open: boolean) => void;
   onDismissAll: () => void;
   renderRow: ActivityRowRenderer;
+  /** The projects the lists can be narrowed to, and the one they are. */
+  projectFilter: ProjectFilterProps;
 };
 
-export function SidebarActivity({ activityThreads, sections, blockedThreadIds, onSetSectionOpen, onDismissAll, renderRow }: SidebarActivityProps) {
+export function SidebarActivity({ activityThreads, sections, blockedThreadIds, onSetSectionOpen, onDismissAll, renderRow, projectFilter }: SidebarActivityProps) {
   return (
     <>
+      {/** One project has nothing to narrow to, unless the lists are narrowed to it already. */}
+      {(projectFilter.projects.length > 1 || projectFilter.project !== null) && <ProjectFilter {...projectFilter} />}
       {ACTIVITY_SECTIONS.map(({ key, label }) => {
         const threads = activityThreads[key];
         /** Snoozed only shows while something is in it, so a user who never snoozes never meets it. */
