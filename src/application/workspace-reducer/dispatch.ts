@@ -30,6 +30,7 @@ import { reduceToasts } from "../toasts.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import { cancelPause, resumeThread } from "../limit-pauses.js";
 import { settled } from "./shared.js";
+import { reduceAppUpdate } from "../app-updates.js";
 
 /** Every input {@link reduce} has not already unpacked into the several inputs it stands for. */
 export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "view.shortcut" | "view.escape" | "agent.events" }>): WorkspaceTransition {
@@ -128,8 +129,11 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
 
     case "view.set-model-favorite": return reduceModelFavorite(state, input);
 
-    case "view.dismiss-toast": case "app.launched":
+    case "view.dismiss-toast":
       return reduceToasts(state, input);
+
+    case "app.update": case "app.cancel-update": case "app.build": case "app.launched":
+      return reduceAppUpdate(state, input);
 
     case "view.set-theme": case "view.set-theme-family": case "view.set-theme-mode":
     case "view.system-scheme": case "view.set-ui-font": case "view.set-mono-font":

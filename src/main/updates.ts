@@ -26,6 +26,8 @@ let downloading = false;
 /** A failed background check stays in the log; one the user asked for is theirs to hear about. */
 let announceFailure = false;
 let confirming = false;
+/** The version an unattended install is putting in place, until the app quits for it. */
+let unattendedInstall: string | null = null;
 
 async function updaterFor(host: UpdateHost) {
   if (updater) return updater;
@@ -40,6 +42,8 @@ async function updaterFor(host: UpdateHost) {
     // that never emit an updater event, and download failures by `downloadUpdate`.
     // Install errors still arrive here.
     if (downloading) return;
+    /** An install nobody watched offers its version again, which the computer that asked reports. */
+    if (unattendedInstall !== null) return failUnattendedInstall(host);
     if (!checking?.pending && announceFailure) void reportUpdateFailure(host.window(), error);
   });
   autoUpdater.on("update-available", ({ version }) => {
@@ -122,27 +126,45 @@ export async function checkForUpdates(host: UpdateHost, options: { userRequested
   return check.promise;
 }
 
-/** Downloads the update a check found. A failed download offers it again. */
-export async function downloadUpdate(host: UpdateHost) {
+/**
+ * Downloads the update a check found. A failed download offers it again. An unattended one, asked
+ * from another computer, says nothing on this screen: the computer that asked reports it.
+ */
+export async function downloadUpdate(host: UpdateHost, options: { unattended?: boolean } = {}) {
   if (state.status !== "available" || !updater) return;
   const { version } = state;
-  announceFailure = true;
+  /** An unattended download, and the install it leads to, keep their errors off this screen. */
+  announceFailure = !options.unattended;
   setState(host, { status: "downloading", version, percent: 0 });
   downloading = true;
   try {
     await updater.downloadUpdate();
   } catch (error) {
     setState(host, { status: "available", version });
-    await reportUpdateFailure(host.window(), error instanceof Error ? error : new Error(String(error)));
+    const failure = error instanceof Error ? error : new Error(String(error));
+    if (options.unattended) console.error("Update download failed:", failure);
+    else await reportUpdateFailure(host.window(), failure);
   } finally {
     downloading = false;
   }
 }
 
-export function installUpdate(host: UpdateHost) {
+export function installUpdate(host: UpdateHost, options: { unattended?: boolean } = {}) {
   if (state.status !== "ready") return;
+  if (options.unattended) unattendedInstall = state.version;
   host.onInstall();
-  updater?.quitAndInstall(false, true);
+  try {
+    updater?.quitAndInstall(false, true);
+  } catch (error) {
+    console.error("Update install failed:", error);
+    if (options.unattended) failUnattendedInstall(host);
+  }
+}
+
+function failUnattendedInstall(host: UpdateHost) {
+  const version = unattendedInstall;
+  unattendedInstall = null;
+  if (version !== null) setState(host, { status: "available", version });
 }
 
 /** Asks before restarting into the downloaded update. */

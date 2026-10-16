@@ -1,6 +1,8 @@
 import { LuCheck as Check, LuMonitor as Monitor, LuRefreshCw as RefreshCw } from "react-icons/lu";
 import { useEffect, useState } from "react";
 import { MAX_COMPUTER_NAME, type ComputerLink, type ComputerPairing, type DiscoveredComputer } from "../../domain/computers";
+import type { ComputerUpkeep, UpkeepLine } from "../../application/computer-updates";
+import type { AppCommand } from "../../contracts/commands";
 import { RenameInput, useRenaming } from "./SidebarRename";
 import { SettingGroup } from "./SettingRow";
 import { settingControl } from "../../domain/settings-catalog";
@@ -23,7 +25,27 @@ export type ComputerSettingsProps = {
   onRename: (name: string) => void;
   /** What this computer will call a paired one. Empty goes back to what that computer calls itself. */
   onLabel: (id: string, name: string) => void;
+  /** Each paired computer's version, and what moves it or its engines on. Absent where a test has none. */
+  upkeep?: readonly ComputerUpkeep[];
+  /** Runs the command an upkeep line offers, such as updating that computer. */
+  onCommand?: (command: AppCommand) => void;
 };
+
+const NO_UPKEEP: readonly ComputerUpkeep[] = [];
+
+function Upkeep({ lines, onCommand }: { lines: readonly UpkeepLine[]; onCommand?: (command: AppCommand) => void }) {
+  if (!lines.length) return null;
+  return (
+    <ul className="computer-upkeep" aria-live="polite">
+      {lines.map((line) => (
+        <li key={line.key} className={line.tone ?? ""} data-upkeep={line.key}>
+          <span>{line.text}</span>
+          {line.action && onCommand && <button type="button" onClick={() => onCommand(line.action!.command)}>{line.action.label}</button>}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 /** Where the line stands, and while it is down, the last fault it reported. */
 function statusLabel(link: ComputerLink): string {
@@ -135,11 +157,12 @@ function NameEntry({ name, onRename }: { name: string; onRename: (name: string) 
  * Other computers running this app on the tailnet, and the ones this computer already pairs with.
  * Pairing takes the code the other computer shows; from then on its threads sit in the sidebar.
  */
-export function ComputerSettings({ found, searching, searchError, name, links, pairing, onDiscover, onPair, onCancelPairing, onForget, onReconnect, onRename, onLabel }: ComputerSettingsProps) {
+export function ComputerSettings({ found, searching, searchError, name, links, pairing, onDiscover, onPair, onCancelPairing, onForget, onReconnect, onRename, onLabel, upkeep = NO_UPKEEP, onCommand }: ComputerSettingsProps) {
   useEffect(() => { onDiscover(); }, []);
   const labels = useRenaming(onLabel);
   const paired = new Set(links.map((link) => link.host));
   const offered = found.filter((computer) => !paired.has(computer.host));
+  const upkeepOf = new Map(upkeep.map((item) => [item.id, item]));
   return (
     <SettingGroup setting="phone.computers" aria-labelledby="computers-heading">
       <div className="settings-group-heading">
@@ -173,7 +196,8 @@ export function ComputerSettings({ found, searching, searchError, name, links, p
                   onCancel={labels.cancel}
                 />
               : <strong onDoubleClick={(event) => labels.start(link.id, event.currentTarget.closest(".setting-row"))}>{link.name}</strong>}
-            <p className={`phone-device-state${link.status === "connected" ? " live" : ""}`}>{link.host} · {statusLabel(link)}</p>
+            <p className={`phone-device-state${link.status === "connected" ? " live" : ""}`}>{link.host} · {statusLabel(link)}{upkeepOf.get(link.id)?.version ? ` · v${upkeepOf.get(link.id)!.version}` : ""}</p>
+            <Upkeep lines={upkeepOf.get(link.id)?.lines ?? []} onCommand={onCommand} />
           </div>
           <div className="setting-row-action">
             {link.status !== "connected" && <button type="button" onClick={() => onReconnect(link.id)}>Reconnect</button>}

@@ -11,7 +11,7 @@ import type { PlanUsage } from "../../domain/plan-usage.js";
 import type { AgentEvent, AnswerQuestionCommand, ApprovalDecisionCommand, ArchiveThreadCommand, AutomationAck, AutomationFire, BrowserPageEvent, CancelRunCommand, ChangedFilesResult, CreatedWorktree, DiffSummaryResult, LabelThreadCommand, RunEvent, StartRunCommand, SteerRunCommand, StopProcessCommand, ThreadEvent, ThreadNotice, WorktreeSnapshotResult } from "../../contracts/ipc.js";
 import type { ViewPreferences } from "../../contracts/preferences.js";
 import type { AgentEngine } from "../../domain/agent-engine.js";
-import type { AppUpdate } from "../../domain/app-update.js";
+import type { AppBuild, AppUpdate } from "../../domain/app-update.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
 import type { BrowserAction, BrowserPermissions } from "../../domain/browser.js";
 import type { BrowserImportResult, BrowserImportSite, BrowserImportSource } from "../../domain/browser-import.js";
@@ -90,6 +90,8 @@ export type WorkspaceEvent =
   /** The applications this machine has, as the main process last found them. */
   | { type: "apps.listed"; apps: InstalledApp[] }
   | { type: "app.update-changed"; update: AppUpdate }
+  /** The build this computer runs, as main reports it once on the way up. */
+  | { type: "app.build"; build: AppBuild | null }
   /** This launch is the first since the app was updated to `version`. */
   | { type: "app.launched"; version: string }
   /** What the platform lets the app see and operate, and whether an enable was waiting on it. */
@@ -195,8 +197,9 @@ type WorkspaceWork =
   /** The thread's checkout, opened in another application on the machine. */
   | { type: "app.open-folder"; root: string; appId: string }
   | { type: "app.check-for-updates" }
-  | { type: "app.download-update" }
-  | { type: "app.install-update" }
+  /** `unattended` is for an update asked from another computer: nobody may be at this screen to answer a dialog. */
+  | { type: "app.download-update"; unattended?: true }
+  | { type: "app.install-update"; unattended?: true }
   | { type: "app.open-source-licenses" }
   /** The terminal panel's shells. `start` is idempotent: a terminal that already runs keeps its process. */
   | { type: "terminal.start"; terminalId: string; cwd: string }

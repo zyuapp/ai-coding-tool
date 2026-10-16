@@ -105,7 +105,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       onEffortChange={workspace.actions.setEffort}
       onEngineRead={workspace.actions.readEngineStatus}
       onSignIn={workspace.actions.signInEngine}
-      onOpenEngineSettings={() => void workspace.actions.openSettingsSection("engines")}
+      onOpenEngineSettings={() => void workspace.actions.openSettingsSection(workspace.engineSettingsPage.section, workspace.engineSettingsPage.settingId)}
       outbox={{
         state: attachmentSendFor(workspace.attachmentSends),
         send: (attachments, steer) => void workspace.dispatch({ type: "attachments.send", attachments, ...(steer ? { steer } : {}) }),

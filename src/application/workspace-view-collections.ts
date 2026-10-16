@@ -12,6 +12,8 @@ import { isCoordinator } from "../domain/coordination.js";
 import type { WorkspaceState, WorktreeGroup } from "./workspace-state.js";
 import { threadActivity, threadLists } from "./thread-activity.js";
 import { worktreeSettingsPage, worktreeSettingsViews } from "./worktree-settings.js";
+import { computerUsage, sameComputerUsage } from "./plan-limits.js";
+import { computerUpkeep, sameComputerUpkeep } from "./computer-updates.js";
 
 /** A selector retains one projection while its immutable input references stay unchanged. */
 function heldSelector<Value>(
@@ -104,6 +106,8 @@ function createViewCollections() {
 
   /** The paired computers without their states, which the chrome draws and which move only when a line does. */
   const links = selector((state) => [state.computers.paired], (state) => state.computers.paired.map(linkOf), sameLinks);
+  const usage = selector((state) => [state.computers.paired], (state) => computerUsage(state.computers.paired), sameComputerUsage);
+  const upkeep = selector((state) => [state.computers.paired, state.appBuild], (state) => computerUpkeep(state.computers.paired, state.appBuild), sameComputerUpkeep);
 
   /** Every computer's running and blocked threads together, which is what the rows of a merged list read. */
   const everyBusy = selector((state) => [busy(state), remote(state)], (state) => union(busy(state), remote(state).busy), sameIds);
@@ -196,6 +200,8 @@ function createViewCollections() {
       everyBlocked: everyBlocked(state),
       remote: remote(state),
       computerLinks: links(state),
+      computerUsage: usage(state),
+      computerUpkeep: upkeep(state),
       managedWorktrees: managed(state),
       worktreeSettings: settings(state),
       worktreeGroups: groups(state),

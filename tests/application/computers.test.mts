@@ -598,6 +598,7 @@ test("a forward the line refused is the window's error once, and housekeeping th
   const raised: WorkspaceInput[] = [];
   const host = { dispatch: async (input: WorkspaceInput) => { raised.push(input); }, desktop: { sendToComputer: async () => { throw new Error("That computer cannot be reached right now."); } } } as unknown as EffectHost;
   await computerEffects["computer.forward"]({ type: "computer.forward", id: "linux", inputs: [{ type: "view.set-focused", focused: true }] }, host);
+  await computerEffects["computer.forward"]({ type: "computer.forward", id: "linux", inputs: [{ type: "usage.read" }] }, host);
   assert.deepEqual(raised, []);
   await computerEffects["computer.forward"]({ type: "computer.forward", id: "linux", inputs: [{ type: "view.set-focused", focused: true }, { type: "task.select", taskId: "remote-thread" }] }, host);
   assert.deepEqual(raised, [{ type: "action.failed", message: "That computer cannot be reached right now." }]);

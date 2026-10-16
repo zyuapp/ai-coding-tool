@@ -59,8 +59,11 @@ export type ComputerUseAccessCommand =
   | { type: "computer-use.enable"; permission: ComputerUsePermission }
   | { type: "computer-use.restart" };
 
-/** The plan limits every provider reports, read again whenever the Usage page asks for them. */
-export type PlanUsageCommand = { type: "usage.read" };
+/**
+ * The plan limits every provider reports, read again whenever the Usage page asks for them.
+ * `everywhere` asks every connected paired computer for its own as well.
+ */
+export type PlanUsageCommand = { type: "usage.read"; everywhere?: boolean };
 
 export type CliCommand =
   | { type: "cli.read" }
@@ -333,6 +336,13 @@ export type ExternalAppCommand =
   | { type: "app.download-update" }
   /** Quits and installs the downloaded build. */
   | { type: "app.install-update" }
+  /**
+   * Moves the named computer, or this one, to the newest build: downloading it, then installing once
+   * nothing runs there, then upgrading any engine the new build needs.
+   */
+  | { type: "app.update"; computerId?: string }
+  /** Drops an update still waiting for the computer's threads to finish. */
+  | { type: "app.cancel-update"; computerId?: string }
   /** Opens the notices shipped with this exact build in the system text viewer. */
   | { type: "app.open-source-licenses" };
 
@@ -397,7 +407,8 @@ export type EngineCommand =
   /** `refresh` throws away what the app was told before, for a user who just installed or upgraded one. */
   | { type: "engine.read"; refresh?: boolean }
   | { type: "engine.sign-in"; engine: AgentEngine }
-  | { type: "engine.update"; engine: AgentEngine }
+  /** `computerId` names a paired computer whose engine is upgraded there. */
+  | { type: "engine.update"; engine: AgentEngine; computerId?: string }
   | { type: "engine.reload-settings" };
 
 /** Presentation state. Nothing here reaches the agent process; only `view.set-session-panel-open` outlives the window. */

@@ -63,8 +63,11 @@ export const computerEffects = {
       if (effect.projectAddRequest !== undefined) await dispatch({ type: "project.add-finished", request: effect.projectAddRequest });
       if (effect.draft) await dispatch({ type: "computers.forwarded", draft: effect.draft });
     } catch (error) {
-      /** Whether anyone here is looking is told anew when the thread is next selected, so a line that dropped it is no error. */
-      if (effect.inputs.every((input) => input.type === "view.set-focused")) return;
+      /**
+       * Whether anyone here is looking is told anew when the thread is next selected, and a computer's
+       * limits are asked anew on the next refresh, so a line that dropped either is no error.
+       */
+      if (effect.inputs.every((input) => input.type === "view.set-focused" || input.type === "usage.read")) return;
       if (effect.projectAddRequest !== undefined) {
         await dispatch({ type: "project.add-finished", request: effect.projectAddRequest, error: errorMessage(error) });
         return;

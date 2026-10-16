@@ -25,9 +25,9 @@ export const surfaceEffects = {
 
   "app.check-for-updates": (_effect, { desktop }) => desktop.checkForUpdates(),
 
-  "app.download-update": (_effect, { desktop }) => desktop.downloadUpdate(),
+  "app.download-update": (effect, { desktop }) => desktop.downloadUpdate(effect.unattended),
 
-  "app.install-update": (_effect, { desktop }) => desktop.installUpdate(),
+  "app.install-update": (effect, { desktop }) => desktop.installUpdate(effect.unattended),
 
   "app.open-source-licenses": (_effect, host) => reportFailure(host, host.desktop.openSourceLicenses()),
 

@@ -49,6 +49,7 @@ export type FakeDesktop = DesktopAPI & {
 
 const updateDesktop = {
   appUpdate: async () => ({ status: "idle" }) as const,
+  appBuild: async () => null,
   launchedUpdate: async () => null,
   onAppUpdate: () => () => {},
   downloadUpdate: () => {},

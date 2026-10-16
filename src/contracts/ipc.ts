@@ -7,7 +7,7 @@ import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type Automa
 import type { BrowserRead, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
 import type { BrowserAction, BrowserPermissions, BrowserBounds, BrowserInspection, BrowserInspectionResult, BrowserShot, BrowserSnapshot } from "../domain/browser.js";
 import type { BrowserImportResult, BrowserImportSite, BrowserImportSource } from "../domain/browser-import.js";
-import type { AppUpdate } from "../domain/app-update.js";
+import type { AppBuild, AppUpdate } from "../domain/app-update.js";
 import type { CaptureOptions } from "../domain/capture.js";
 import { isUsageLimit, type UsageLimit } from "../domain/usage-limit.js";
 import type { ComputerUsePermission, ComputerUsePermissions, ComputerUseRunConfig } from "../domain/computer-use.js";
@@ -289,9 +289,12 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   onAppUpdate(listener: (update: AppUpdate) => void): () => void;
   /** The version this launch updated the app to, answered once; null when it is not the first launch since an update. */
   launchedUpdate(): Promise<string | null>;
-  downloadUpdate(): void;
-  /** Asks to restart, then quits and installs the downloaded update. */
-  installUpdate(): void;
+  /** The build this computer runs, or null for a host that cannot say. */
+  appBuild(): Promise<AppBuild | null>;
+  /** `unattended` keeps a failure off this screen, for a download asked from another computer. */
+  downloadUpdate(unattended?: boolean): void;
+  /** Asks to restart, then quits and installs the downloaded update. `unattended` installs without asking. */
+  installUpdate(unattended?: boolean): void;
   openSourceLicenses(): Promise<void>;
   loadTaskStore(): Promise<LoadedTaskStore | null>;
   loadThreadMessages(taskId: string): Promise<import("../domain/conversation.js").ConversationMessage[]>;

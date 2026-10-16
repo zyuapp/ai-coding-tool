@@ -7,3 +7,15 @@ export type AppUpdate =
   | { status: "ready"; version: string };
 
 export const NO_APP_UPDATE: AppUpdate = { status: "idle" };
+
+/** The build a computer runs, and whether it can move itself to a newer one. */
+export type AppBuild = { version: string; selfUpdating: boolean };
+
+/**
+ * A standing ask, usually from another computer, to move to the newest build: it downloads, then
+ * installs once nothing is running there. `failed` says why the last one stopped.
+ */
+export type AppUpdateRequest =
+  | { status: "waiting" }
+  | { status: "installing"; version: string }
+  | { status: "failed"; message: string };

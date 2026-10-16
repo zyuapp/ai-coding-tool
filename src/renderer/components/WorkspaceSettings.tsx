@@ -19,6 +19,7 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
       onReadCli={() => void workspace.actions.readCli()}
       onSetCliInstalled={(installed) => void workspace.actions.setCliInstalled(installed)}
       planUsage={workspace.planUsage}
+      computerUsage={workspace.computerUsage}
       onReadPlanUsage={() => void workspace.actions.readPlanUsage()}
       computerUseAccess={workspace.computerUsePermissions}
       onEnableComputerUse={(permission) => void workspace.actions.enableComputerUse(permission)}
@@ -74,6 +75,8 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
         onReconnect: (id) => void workspace.actions.reconnectComputer(id),
         onRename: (name) => void workspace.actions.renameComputer(name),
         onLabel: (id, name) => void workspace.actions.labelComputer(id, name),
+        upkeep: workspace.computerUpkeep,
+        onCommand: (command) => void workspace.dispatch(command),
       }}
       onResetShortcuts={() => void workspace.actions.resetShortcuts()} onSetRemoteEnabled={(enabled) => void workspace.actions.setRemoteEnabled(enabled)} onCreateRemotePairingCode={() => void workspace.actions.createRemotePairingCode()} onRevokeRemoteDevice={(deviceId) => void workspace.actions.revokeRemoteDevice(deviceId)} onRefreshRemote={() => void workspace.actions.refreshRemote()}
     />

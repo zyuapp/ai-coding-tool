@@ -71,3 +71,28 @@ test("a computer that is not connected says whether it is being dialled and why 
     await view.unmount();
   }
 });
+
+test("a paired computer's row shows its version and runs the step each line offers", async () => {
+  const commands: unknown[] = [];
+  const view = await mount(settings({
+    links: [{ id: "mac", name: "MacBook", host: "mac.tail.ts.net", status: "connected", error: null, pairedAt: 1 }],
+    upkeep: [{
+      id: "mac",
+      version: "0.7.10",
+      lines: [
+        { key: "app", text: "0.7.11 is available.", action: { label: "Update", command: { type: "app.update", computerId: "mac" } } },
+        { key: "engine:codex", text: "Updating Codex…", tone: "progress" },
+      ],
+    }],
+    onCommand: (command) => commands.push(command),
+  }));
+  try {
+    const row = view.container.querySelector("[data-computer='mac']")!;
+    assert.match(row.querySelector(".phone-device-state")!.textContent!, /Connected · v0\.7\.10$/);
+    assert.equal(row.querySelector("[data-upkeep='engine:codex']")!.className, "progress");
+    await act(async () => { row.querySelector<HTMLButtonElement>("[data-upkeep='app'] button")!.click(); });
+    assert.deepEqual(commands, [{ type: "app.update", computerId: "mac" }]);
+  } finally {
+    await view.unmount();
+  }
+});

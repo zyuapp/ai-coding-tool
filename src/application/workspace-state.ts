@@ -37,7 +37,7 @@ export type { FindView } from "./workspace-find.js";
 export { EMPTY_DIFF, diffFor, diffMatches, foldedOnLoad, retainedViews, withDiff } from "./workspace-diff.js";
 export type { DiffState } from "./workspace-diff.js";
 import type { AutomationView } from "../domain/automation.js";
-import { NO_APP_UPDATE, type AppUpdate } from "../domain/app-update.js";
+import { NO_APP_UPDATE, type AppBuild, type AppUpdate, type AppUpdateRequest } from "../domain/app-update.js";
 import type { Toast } from "../domain/toast.js";
 import { emptyMobileServerState, type MobileServerState } from "../domain/mobile.js";
 import { selectedComputer, NO_COMPUTERS, type ComputersState } from "./computers.js";
@@ -266,6 +266,8 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   engineUpdateQueue: AgentEngine[];
   /** True once the launch's first answer about the engines has offered their updates. */
   engineUpdatesOffered: boolean;
+  /** True from the first launch after an app update until every engine it needs has been upgraded. */
+  engineUpgradesOwed: boolean;
   agentSettingsReload: "idle" | "reloading" | "pending" | "reloaded" | "failed";
   prompts: Record<string, string>;
   /** Annotations waiting in each composer, keyed the way `prompts` is. */
@@ -380,6 +382,10 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   remoteChecking: boolean;
   /** A newer build of the app, as the updater in main last reported it. */
   appUpdate: AppUpdate;
+  /** The build this computer runs, which paired computers show. Null until main says, and on hosts that cannot. */
+  appBuild: AppBuild | null;
+  /** An update asked of this computer that waits to install, or why the last one stopped. Session-only. */
+  appUpdateRequest: AppUpdateRequest | null;
   /** The cards in the window's corner, oldest first. Session-only. */
   toasts: Toast[];
   /** The id the last toast took, so each one has its own. */
@@ -440,6 +446,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     engineUpdating: null,
     engineUpdateQueue: [],
     engineUpdatesOffered: false,
+    engineUpgradesOwed: false,
     agentSettingsReload: "idle",
     prompts: {},
     annotations: {},
@@ -502,6 +509,8 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     remote: emptyMobileServerState(),
     remoteChecking: false,
     appUpdate: NO_APP_UPDATE,
+    appBuild: null,
+    appUpdateRequest: null,
     toasts: [],
     toastSequence: 0,
     dismissedToasts: [],
@@ -723,6 +732,9 @@ export function threadSlots(state: WorkspaceState): string[] {
 
 const NO_OVERVIEW_FOLDS: OverviewFolds = {};
 
+/** The settings page an engine notice opens, and the setting it lands on. */
+const ENGINE_SETTINGS: { section: SettingsSection; settingId: string | null } = { section: "engines", settingId: null };
+
 /** Everything the UI reads, derived in one place so components never reach into raw state. */
 export function deriveView(state: WorkspaceState) {
   const own = deriveOwnView(state);
@@ -854,6 +866,8 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state,
     settingsFocus: state.computerUseSetup ? null : state.settingsFocus,
     engineChecking: state.engineChecking,
     engineUpdating: state.engineUpdating,
+    /** Where the composer's engine notice sends the user to fix it. */
+    engineSettingsPage: ENGINE_SETTINGS,
     agentSettingsReload: state.agentSettingsReload,
     dockOpen: dock.open,
     dockExpanded: dock.expanded,
@@ -880,6 +894,10 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state,
     toasts: state.toasts,
     /** The paired computers as the chrome draws them, and the one whose thread is on screen. */
     computerLinks: collections.computerLinks,
+    /** Each paired computer's own plan limits, beside this computer's `planUsage`. */
+    computerUsage: collections.computerUsage,
+    /** Each paired computer's version, and what moves it or its engines to a newer one. */
+    computerUpkeep: collections.computerUpkeep,
     activeComputer: collections.computerLinks.find((link) => link.id === state.computers.active) ?? null,
     computerName: state.computers.name,
     computerFilter: state.computers.filter,

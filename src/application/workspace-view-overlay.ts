@@ -17,10 +17,12 @@ const OWN_VIEW_KEYS = [
   "sidebarMode", "sidebarOpen", "sessionPanelOpen", "captureSound", "captureFocus", "chromeBrowser", "computerUse", "browserTools", "notifications",
   "favoriteModels", "shortcuts", "capturingShortcut", "desktopShortcutUnavailable", "composerFocus", "settingsOpen", "settingsSection", "settingsFocus",
   "openMenu", "jump", "remote", "remoteChecking", "appUpdate", "toasts", "canGoBack", "canGoForward", "browserOrigins", "browserImport",
-  "computerLinks", "activeComputer", "computerName", "computerFilter", "computerPairing", "computersFound", "computersSearching", "computersSearchError", "threadHosts", "projectHosts",
+  "computerLinks", "computerUsage", "computerUpkeep", "activeComputer", "computerName", "computerFilter", "computerPairing", "computersFound", "computersSearching", "computersSearchError", "threadHosts", "projectHosts",
 ] as const;
 
 type OwnView = Pick<OwnWorkspaceView, (typeof OWN_VIEW_KEYS)[number]>;
+
+const REMOTE_ENGINE_SETTINGS: OwnWorkspaceView["engineSettingsPage"] = { section: "phone", settingId: "phone.computers" };
 
 const reusedSideChats = heldViews<SideChatView>();
 const NO_OVERVIEW_FOLDS: OverviewFolds = {};
@@ -62,6 +64,8 @@ export function overlaidView(state: WorkspaceState, own: OwnWorkspaceView, remot
     browserApproval: null,
     /** A delete confirmed here may name the other computer's checkout, which only its list has. */
     worktreeDeleteConfirmation: own.worktreeDeleteConfirmation ?? shown.managedWorktrees?.find((item) => item.root === state.worktreeSettings.confirming && !item.deleting) ?? null,
+    /** That computer's engines are upgraded from its row on the Computers page, not this one's Engines page. */
+    engineSettingsPage: REMOTE_ENGINE_SETTINGS,
     actionError: state.actionError ?? shown.actionError,
     actionErrorPage: state.actionError ? state.actionErrorPage : shown.actionErrorPage,
   };

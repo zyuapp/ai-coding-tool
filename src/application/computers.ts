@@ -267,6 +267,9 @@ const OWN: { [Type in Exclude<PlacedCommand<"own">["type"], "project.add">]: Rou
       : input.taskId !== undefined ? computerOfThread(state, input.taskId) : active;
     return toward(computer, (holder) => forwarded(holder, [input]));
   },
+  "app.update": namedComputer,
+  "app.cancel-update": namedComputer,
+  "engine.update": namedComputer,
   /** The confirmation is drawn from the holder's list, which it is asked for when it has none with this checkout. */
   "worktree.confirm-delete": (state, input) => {
     const root = input.root;
@@ -277,19 +280,38 @@ const OWN: { [Type in Exclude<PlacedCommand<"own">["type"], "project.add">]: Rou
   },
 };
 
+/**
+ * A command about a whole computer goes to the one it names, without the name, so it lands there as
+ * that computer's own. None, or `this`, is this computer.
+ */
+function namedComputer<C extends { computerId?: string }>(state: WorkspaceState, input: C): InputRoute {
+  const { computerId: _named, ...command } = input;
+  return towardNamed(state, input.computerId, (holder) => forwarded(holder, [command as unknown as WorkspaceInput]));
+}
+
+/** The computer a command names by id, which must still be paired. None, or `this`, is this computer. */
+function towardNamed(state: WorkspaceState, computerId: string | undefined, route: (computer: PairedComputer) => InputRoute): InputRoute {
+  if (!computerId || computerId === "this") return LOCAL;
+  const computer = state.computers.paired.find((item) => item.id === computerId);
+  if (!computer) return { kind: "refuse", message: "That computer is no longer paired." };
+  return toward(computer, route);
+}
+
+/** Commands that name their computer, which must be refused rather than run here once it is no longer paired. */
+function namesComputer(input: WorkspaceInput): input is Extract<AppCommand, { type: "project.add" | "app.update" | "app.cancel-update" | "engine.update" }> {
+  return input.type === "project.add" || input.type === "app.update" || input.type === "app.cancel-update" || input.type === "engine.update";
+}
+
 /** A folder is added on the computer the dialog names, whether or not any other is on screen. */
 function addingProject(state: WorkspaceState, input: Extract<AppCommand, { type: "project.add" }>): InputRoute {
-  if (!input.computerId || input.computerId === "this") return LOCAL;
-  const computer = state.computers.paired.find((item) => item.id === input.computerId);
-  if (!computer) return { kind: "refuse", message: "That computer is no longer paired." };
-  return toward(computer, (holder) => input.start
+  return towardNamed(state, input.computerId, (holder) => input.start
     ? selecting(state, holder, [{ type: "project.add", root: input.root, start: true }])
     : forwarded(holder, [{ type: "project.add", root: input.root }]));
 }
 
 /** Where a command goes, by the placement it declares. Events, and everything once no computer is paired, stay here. */
 export function routeInput(state: WorkspaceState, input: WorkspaceInput): InputRoute {
-  if (input.type === "project.add") return addingProject(state, input);
+  if (namesComputer(input)) return input.type === "project.add" ? addingProject(state, input) : namedComputer(state, input);
   if (!state.computers.paired.length || !isAppCommandType(input.type)) return LOCAL;
   const command = input as AppCommand;
   const at = commandPlacement(command.type);

@@ -22,7 +22,7 @@ import { UsageSettings } from "./UsageSettings";
 import { useFocusReturn } from "../focus";
 import type { CliState } from "../../application/cli-installation";
 import type { ComputerUseAccessState } from "../../application/computer-use-access";
-import type { PlanUsageState } from "../../application/plan-limits";
+import type { ComputerUsage, PlanUsageState } from "../../application/plan-limits";
 import type { DesktopShortcutUnavailable } from "../../application/workspace-state";
 import type { ComputerUsePermission } from "../../contracts/ipc";
 import type { WorktreeSettingsPage } from "../../application/worktree-settings";
@@ -65,6 +65,8 @@ export type SettingsPanelProps = {
   onSetCliInstalled: (installed: boolean) => void;
   /** The plan limits each provider reports, and the ask that reads them again. */
   planUsage: PlanUsageState;
+  /** Each paired computer's own plan limits. Absent where a test has none. */
+  computerUsage?: readonly ComputerUsage[];
   onReadPlanUsage: () => void;
   /** What the platform lets the app see and operate, and the two things settings can do about it. */
   computerUseAccess: ComputerUseAccessState;
@@ -142,7 +144,7 @@ export function SettingsPanel({
   settingMark,
   onLand,
   archivedThreads,
-  cli, onReadCli, onSetCliInstalled, planUsage, onReadPlanUsage,
+  cli, onReadCli, onSetCliInstalled, planUsage, computerUsage, onReadPlanUsage,
   computerUseAccess, onEnableComputerUse, onRestartForComputerUse,
   worktreeSettings,
   worktreeManagementError,
@@ -250,7 +252,7 @@ export function SettingsPanel({
           <p>Plan limits across your signed-in accounts.</p>
         </div>
 
-        <UsageSettings usage={planUsage} onRefresh={onReadPlanUsage} />
+        <UsageSettings usage={planUsage} name={computers.name} computers={computerUsage} onRefresh={onReadPlanUsage} />
       </main>
       )}
 
