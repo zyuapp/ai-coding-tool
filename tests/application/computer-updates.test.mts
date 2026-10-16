@@ -88,26 +88,43 @@ test("a command about a whole computer is carried there as that computer's own",
   assert.deepEqual(routeInput(state, { type: "engine.update", engine: "codex" }), { kind: "local" });
 });
 
-test("a paired computer's row is one status line with at most one next step", () => {
-  const row = (remote: Partial<WorkspaceState>, overrides: Partial<ComputerLink> = {}) => {
-    const [upkeep] = computerUpkeep([paired("mac", workspace({ appBuild: { version: "0.7.10", selfUpdating: true }, ...remote }), overrides)], { version: "0.7.11", selfUpdating: true });
-    return [upkeep!.parts.map((part) => part.text).join(" · "), upkeep!.action?.label];
-  };
+test("a paired computer's row lists its app and engines, each with where it stands and its own step", () => {
+  const upkeep = (remote: Partial<WorkspaceState>, overrides: Partial<ComputerLink> = {}) =>
+    computerUpkeep([paired("mac", workspace({ appBuild: { version: "0.7.10", selfUpdating: true }, ...remote }), overrides)], { version: "0.7.11", selfUpdating: true })[0]!;
+  const lines = (remote: Partial<WorkspaceState>, overrides: Partial<ComputerLink> = {}) =>
+    Object.fromEntries(upkeep(remote, overrides).items.map((item) => [item.key, [item.version, item.state.text, item.action?.label]]));
+  const app = (remote: Partial<WorkspaceState>, overrides: Partial<ComputerLink> = {}) => lines(remote, overrides).app;
 
-  assert.deepEqual(row({}), ["Connected · v0.7.10", undefined]);
-  assert.deepEqual(row({ appUpdate: available }), ["Connected · v0.7.10 · 0.7.11 available", "Update"]);
-  assert.deepEqual(row({ appUpdate: available, activeRuns: { a: activeRun("a", "r") }, threads: [task("a")] }), ["Connected · v0.7.10 · 0.7.11 available", "Update when idle"]);
-  assert.deepEqual(row({ appUpdate: ready, appUpdateRequest: { status: "waiting" }, activeRuns: { a: activeRun("a", "r"), b: activeRun("b", "s") } }), ["Connected · v0.7.10 · Updates after 2 threads finish", "Cancel"]);
-  assert.deepEqual(row({ appUpdate: { status: "downloading", version: "0.7.11", percent: 42 }, appUpdateRequest: { status: "waiting" } }), ["Connected · v0.7.10 · Downloading 0.7.11… 42%", undefined]);
-  assert.deepEqual(row({ appUpdate: available, appUpdateRequest: { status: "failed", message: "Couldn't download 0.7.11." } }), ["Connected · v0.7.10 · Couldn't download 0.7.11", "Try again"]);
-  assert.deepEqual(row({ appUpdateRequest: { status: "installing", version: "0.7.11" } }, { status: "connecting" }), ["Restarting into 0.7.11…", undefined], "it comes back on its own");
-  assert.deepEqual(row({}, { status: "offline", error: "The bridge was turned off." }), ["Offline · The bridge was turned off · v0.7.10", "Reconnect"]);
-  assert.deepEqual(row({ appBuild: { version: "0.7.9", selfUpdating: false } }), ["Connected · v0.7.9 · Update to 0.7.11 there", undefined]);
-  assert.deepEqual(row({ appBuild: null }, { capabilities: ["command:task.send"] }), ["Connected · Update the app there to manage it from here", undefined]);
-  assert.deepEqual(row({ engineStatus: { codex: { access: "outdated", version: "0.160.0", required: "0.162.1", fix: "npm i -g @openai/codex" } } }), ["Connected · v0.7.10 · Codex 0.160.0 needs 0.162.1", "Upgrade Codex"]);
-  assert.deepEqual(row({ appUpdate: available, engineStatus: { codex: { access: "outdated", version: "0.160.0", required: "0.162.1", fix: "npm i -g @openai/codex" } } }), ["Connected · v0.7.10 · 0.7.11 available · Codex 0.160.0 needs 0.162.1", "Update"], "the app goes first, since the new build upgrades the engine itself");
-  assert.deepEqual(row({ engineStatus: { claude: { access: "ready", version: "2.1.0", latest: "2.2.0", fix: "claude update" } } }), ["Connected · v0.7.10", undefined], "a release that is merely available is that computer's to offer");
-  assert.deepEqual(row({ engineUpdating: "codex" }), ["Connected · v0.7.10 · Updating Codex…", undefined]);
+  assert.deepEqual(lines({ engineStatus: { claude: { access: "ready", version: "2.1.301" }, codex: { access: "missing" } } }), {
+    app: ["0.7.10", "Up to date", undefined],
+    claude: ["2.1.301", "Up to date", undefined],
+    codex: [null, "Not installed", undefined],
+  });
+  assert.deepEqual(app({ appUpdate: available }), ["0.7.10", "0.7.11 available", "Update"]);
+  assert.deepEqual(app({ appUpdate: available, activeRuns: { a: activeRun("a", "r") }, threads: [task("a")] }), ["0.7.10", "0.7.11 available · waits for 1 thread", "Update"]);
+  assert.deepEqual(app({ appUpdate: ready, appUpdateRequest: { status: "waiting" }, activeRuns: { a: activeRun("a", "r"), b: activeRun("b", "s") } }), ["0.7.10", "Waiting for 2 threads", "Cancel"]);
+  assert.deepEqual(app({ appUpdate: { status: "downloading", version: "0.7.11", percent: 42 }, appUpdateRequest: { status: "waiting" } }), ["0.7.10", "Downloading 0.7.11 · 42%", undefined]);
+  assert.deepEqual(app({ appUpdate: available, appUpdateRequest: { status: "failed", message: "Couldn't download 0.7.11." } }), ["0.7.10", "Couldn't download 0.7.11", "Try again"]);
+  assert.deepEqual(app({ appBuild: { version: "0.7.9", selfUpdating: false } }), ["0.7.9", "0.7.11 available · update it there", undefined]);
+  assert.deepEqual(app({ appBuild: null }, { capabilities: ["command:task.send", "command:engine.update", "command:engine.update:engine"] }), [null, "Update it there once to manage it from here", undefined]);
+
+  const engines = (status: WorkspaceState["engineStatus"], extra: Partial<WorkspaceState> = {}) => { const all = lines({ engineStatus: status, ...extra }); return [all.claude, all.codex]; };
+  assert.deepEqual(engines({
+    claude: { access: "ready", version: "2.1.0", required: "2.1.250", latest: "2.2.0", fix: "claude update" },
+    codex: { access: "outdated", version: "0.160.0", required: "0.162.1", fix: "npm i -g @openai/codex" },
+  }), [["2.1.0", "Needs 2.1.250 for newer models", "Update"], ["0.160.0", "Needs 0.162.1 to run", "Update"]]);
+  assert.deepEqual(engines({
+    claude: { access: "ready", version: "2.1.291", latest: "2.1.301" },
+    codex: { access: "ready", version: "0.162.1", latest: "0.163.0", fix: "npm i -g @openai/codex" },
+  }), [["2.1.291", "2.1.301 available · update it there", undefined], ["0.162.1", "0.163.0 available", "Update"]], "a newer release is offered, and one the app cannot install says where to do it");
+  assert.deepEqual(engines({ codex: { access: "ready", version: "0.162.1", latest: "0.163.0", fix: "npm i -g @openai/codex" } }, { engineUpdating: "claude", engineUpdateQueue: ["codex"] }), [[null, "Updating…", undefined], ["0.162.1", "Waiting to update", undefined]]);
+  assert.deepEqual(upkeep({ engineStatus: { codex: { access: "ready", version: "0.162.1", latest: "0.163.0", fix: "npm i" } } }).items.find((item) => item.key === "codex")!.action!.command, { type: "engine.update", engine: "codex", computerId: "mac" });
+
+  assert.deepEqual(upkeep({}).status.map((part) => part.text), ["Connected"]);
+  const restarting = upkeep({ appUpdateRequest: { status: "installing", version: "0.7.11" } }, { status: "connecting" });
+  assert.deepEqual([restarting.status.map((part) => part.text), restarting.action, restarting.items], [["Restarting into 0.7.11…"], null, []], "it comes back on its own");
+  const away = upkeep({}, { status: "offline", error: "The bridge was turned off." });
+  assert.deepEqual([away.status.map((part) => part.text), away.action?.label, away.items], [["Offline", "The bridge was turned off"], "Reconnect", []]);
 });
 
 test("the Computers page keeps its rows while nothing it shows has changed", () => {

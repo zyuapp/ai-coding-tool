@@ -2194,7 +2194,22 @@ pre {
 .computer-status .progress { color: var(--info-soft); }
 .computer-status .error { color: var(--danger-soft); }
 .setting-row-action.computer-actions { gap: 6px; }
-.setting-row-action.computer-actions button.primary { border-color: var(--info-soft); color: var(--ink); }
+.computer-software { grid-column: 2 / -1; display: grid; grid-template-columns: minmax(118px, max-content) minmax(76px, max-content) minmax(0, 1fr) max-content; align-items: center; margin: 2px 0 0; padding: 4px 0 0; list-style: none; border-top: 1px solid var(--line); }
+.computer-software li { display: contents; }
+.computer-software li > span { min-height: 40px; display: flex; align-items: center; padding-right: 18px; border-bottom: 1px solid var(--line); font-size: var(--text-meta); }
+.computer-software li:last-child > span { border-bottom: 0; }
+.computer-software-name { color: var(--ink-dim); font-weight: 560; }
+.computer-software-version { color: var(--quiet-strong); font-variant-numeric: tabular-nums; }
+.computer-software-state { color: var(--quiet-strong); }
+.computer-software-state.quiet { color: var(--quiet); }
+.computer-software-state.offer { color: var(--info-soft); }
+.computer-software-state.progress { color: var(--info-soft); }
+.computer-software-state.error { color: var(--danger-soft); }
+.computer-software-action { justify-content: flex-end; padding-right: 0 !important; }
+.computer-software-action button { min-width: 96px; justify-content: center; border: 1px solid var(--line-strong); border-radius: 8px; padding: 6px 11px; background: var(--control); color: var(--ink-dim); font-size: var(--text-meta); font-weight: 560; cursor: pointer; }
+.computer-software-action button:hover { border-color: var(--line-bright); background: var(--control-hover); }
+.computer-software-action button.primary { border-color: var(--info-soft); background: var(--info-surface); color: var(--ink); }
+.computer-software-action button.primary:hover { border-color: var(--info); background: var(--info-surface); }
 .setting-row-action.computer-actions button.icon { padding: 7px; border-color: transparent; background: transparent; color: var(--quiet-strong); }
 .setting-row-action.computer-actions button.icon:hover { border-color: var(--line-strong); background: var(--control-hover); color: var(--ink-dim); }
 .setting-row-action.computer-actions button.icon.danger:hover { border-color: var(--danger-line); background: var(--danger-surface); color: var(--danger-soft); }

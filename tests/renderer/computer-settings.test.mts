@@ -74,23 +74,32 @@ test("a computer that is not connected says whether it is being dialled and why 
   }
 });
 
-test("a paired computer's row reads as one line and runs its one step", async () => {
+test("a paired computer's row lists its software in one column of steps", async () => {
   const commands: unknown[] = [];
   const view = await mount(settings({
     links: [{ id: "mac", name: "MacBook", host: "mac.tail.ts.net", status: "connected", error: null, pairedAt: 1 }],
     upkeep: [{
       id: "mac",
-      parts: [{ text: "Connected", tone: "live" }, { text: "v0.7.10" }, { text: "0.7.11 available" }],
-      action: { label: "Update", command: { type: "app.update", computerId: "mac" } },
+      status: [{ text: "Connected", tone: "live" }],
+      action: null,
+      items: [
+        { key: "app", label: "AI Coding Tool", version: "0.7.10", state: { text: "0.7.11 available", tone: "offer" }, action: { label: "Update", command: { type: "app.update", computerId: "mac" } } },
+        { key: "claude", label: "Claude", version: "2.1.301", state: { text: "Up to date", tone: "quiet" }, action: null },
+        { key: "codex", label: "Codex", version: "0.160.0", state: { text: "Needs 0.162.1 to run", tone: "error" }, action: { label: "Update", command: { type: "engine.update", engine: "codex", computerId: "mac" } } },
+      ],
     }],
     onCommand: (command) => commands.push(command),
   }));
   try {
     const row = view.container.querySelector("[data-computer='mac']")!;
-    assert.deepEqual([...row.querySelectorAll(".computer-status span")].map((part) => part.textContent), ["Connected", "v0.7.10", "0.7.11 available"]);
-    assert.equal(row.querySelector(".computer-status .live")!.textContent, "Connected");
-    await act(async () => { row.querySelector<HTMLButtonElement>("button.primary")!.click(); });
-    assert.deepEqual(commands, [{ type: "app.update", computerId: "mac" }]);
+    assert.equal(row.querySelector(".computer-status")!.textContent, "Connected");
+    assert.deepEqual([...row.querySelectorAll("[data-software]")].map((line) => line.textContent), ["AI Coding Tool0.7.100.7.11 availableUpdate", "Claude2.1.301Up to date", "Codex0.160.0Needs 0.162.1 to runUpdate"]);
+    assert.equal(row.querySelector("[data-software='claude'] button"), null, "nothing to do, nothing to press");
+    assert.ok(row.querySelector("[data-software='codex'] button.primary"), "the update that unblocks runs stands out");
+    assert.equal(row.querySelector("[data-software='app'] button.primary"), null);
+    await act(async () => { row.querySelector<HTMLButtonElement>("[data-software='codex'] button")!.click(); });
+    await act(async () => { row.querySelector<HTMLButtonElement>("[data-software='app'] button")!.click(); });
+    assert.deepEqual(commands, [{ type: "engine.update", engine: "codex", computerId: "mac" }, { type: "app.update", computerId: "mac" }]);
     assert.ok(row.querySelector("button[aria-label='Rename MacBook']") && row.querySelector("button[aria-label='Remove MacBook']"));
   } finally {
     await view.unmount();

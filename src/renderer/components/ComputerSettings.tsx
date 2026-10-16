@@ -1,7 +1,7 @@
 import { LuCheck as Check, LuMonitor as Monitor, LuPencil as Pencil, LuRefreshCw as RefreshCw, LuTrash2 as Trash } from "react-icons/lu";
 import { useEffect, useState } from "react";
 import { MAX_COMPUTER_NAME, type ComputerLink, type ComputerPairing, type DiscoveredComputer } from "../../domain/computers";
-import type { ComputerUpkeep, UpkeepPart } from "../../application/computer-updates";
+import type { ComputerUpkeep, UpkeepItem, UpkeepPart } from "../../application/computer-updates";
 import type { AppCommand } from "../../contracts/commands";
 import { RenameInput, useRenaming } from "./SidebarRename";
 import { SettingGroup } from "./SettingRow";
@@ -45,6 +45,25 @@ function StatusLine({ parts }: { parts: readonly UpkeepPart[] }) {
     <p className="computer-status" aria-live="polite">
       {parts.map((part, index) => <span key={index} className={part.tone}>{part.text}</span>)}
     </p>
+  );
+}
+
+/** The software that computer runs, one line each, with every step in one column. */
+function Software({ items, onCommand }: { items: readonly UpkeepItem[]; onCommand?: (command: AppCommand) => void }) {
+  if (!items.length) return null;
+  return (
+    <ul className="computer-software" aria-live="polite">
+      {items.map((item) => (
+        <li key={item.key} data-software={item.key}>
+          <span className="computer-software-name">{item.label}</span>
+          <span className="computer-software-version">{item.version ?? "—"}</span>
+          <span className={`computer-software-state ${item.state.tone ?? ""}`}>{item.state.text}</span>
+          <span className="computer-software-action">
+            {item.action && onCommand && <button type="button" className={item.state.tone === "error" ? "primary" : ""} onClick={() => onCommand(item.action!.command)}>{item.action.label}</button>}
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -190,14 +209,15 @@ export function ComputerSettings({ found, searching, searchError, name, links, p
                   onCancel={labels.cancel}
                 />
               : <strong data-tip={link.host} onDoubleClick={(event) => labels.start(link.id, event.currentTarget.closest(".setting-row"))}>{link.name}</strong>}
-            <StatusLine parts={upkeepOf.get(link.id)?.parts ?? linkParts(link)} />
+            <StatusLine parts={upkeepOf.get(link.id)?.status ?? linkParts(link)} />
           </div>
           <div className="setting-row-action computer-actions">
             {link.status !== "connected" && !upkeepOf.has(link.id) && <button type="button" onClick={() => onReconnect(link.id)}>Reconnect</button>}
-            {upkeepOf.get(link.id)?.action && onCommand && <button type="button" className="primary" onClick={() => onCommand(upkeepOf.get(link.id)!.action!.command)}>{upkeepOf.get(link.id)!.action!.label}</button>}
+            {upkeepOf.get(link.id)?.action && onCommand && <button type="button" onClick={() => onCommand(upkeepOf.get(link.id)!.action!.command)}>{upkeepOf.get(link.id)!.action!.label}</button>}
             <button type="button" className="icon" aria-label={`Rename ${link.name}`} data-tip="Rename" disabled={labels.editing === link.id} onClick={(event) => labels.start(link.id, event.currentTarget.closest(".setting-row"))}><Pencil size={14} aria-hidden="true" /></button>
             <button type="button" className="icon danger" aria-label={`Remove ${link.name}`} data-tip="Remove" onClick={() => onForget(link.id)}><Trash size={14} aria-hidden="true" /></button>
           </div>
+          <Software items={upkeepOf.get(link.id)?.items ?? []} onCommand={onCommand} />
         </div>
       ))}
 
