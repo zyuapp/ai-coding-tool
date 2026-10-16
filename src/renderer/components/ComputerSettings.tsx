@@ -1,7 +1,7 @@
-import { LuCheck as Check, LuMonitor as Monitor, LuRefreshCw as RefreshCw } from "react-icons/lu";
+import { LuCheck as Check, LuMonitor as Monitor, LuPencil as Pencil, LuRefreshCw as RefreshCw, LuTrash2 as Trash } from "react-icons/lu";
 import { useEffect, useState } from "react";
 import { MAX_COMPUTER_NAME, type ComputerLink, type ComputerPairing, type DiscoveredComputer } from "../../domain/computers";
-import type { ComputerUpkeep, UpkeepLine } from "../../application/computer-updates";
+import type { ComputerUpkeep, UpkeepPart } from "../../application/computer-updates";
 import type { AppCommand } from "../../contracts/commands";
 import { RenameInput, useRenaming } from "./SidebarRename";
 import { SettingGroup } from "./SettingRow";
@@ -25,33 +25,27 @@ export type ComputerSettingsProps = {
   onRename: (name: string) => void;
   /** What this computer will call a paired one. Empty goes back to what that computer calls itself. */
   onLabel: (id: string, name: string) => void;
-  /** Each paired computer's version, and what moves it or its engines on. Absent where a test has none. */
+  /** Each paired computer's status line and the step that moves it on. Absent where a test has none. */
   upkeep?: readonly ComputerUpkeep[];
-  /** Runs the command an upkeep line offers, such as updating that computer. */
+  /** Runs the step a row offers, such as updating that computer. */
   onCommand?: (command: AppCommand) => void;
 };
 
 const NO_UPKEEP: readonly ComputerUpkeep[] = [];
 
-function Upkeep({ lines, onCommand }: { lines: readonly UpkeepLine[]; onCommand?: (command: AppCommand) => void }) {
-  if (!lines.length) return null;
-  return (
-    <ul className="computer-upkeep" aria-live="polite">
-      {lines.map((line) => (
-        <li key={line.key} className={line.tone ?? ""} data-upkeep={line.key}>
-          <span>{line.text}</span>
-          {line.action && onCommand && <button type="button" onClick={() => onCommand(line.action!.command)}>{line.action.label}</button>}
-        </li>
-      ))}
-    </ul>
-  );
+/** Where the line stands, and while it is down, the last fault it reported, for a row nothing else describes. */
+function linkParts(link: ComputerLink): UpkeepPart[] {
+  if (link.status === "connected") return [{ text: "Connected", tone: "live" }];
+  const away: UpkeepPart = { text: link.status === "connecting" ? "Reconnecting…" : "Offline" };
+  return link.error ? [away, { text: link.error }] : [away];
 }
 
-/** Where the line stands, and while it is down, the last fault it reported. */
-function statusLabel(link: ComputerLink): string {
-  if (link.status === "connected") return "Connected";
-  const status = link.status === "connecting" ? "Reconnecting…" : "Offline";
-  return link.error ? `${status} · ${link.error}` : status;
+function StatusLine({ parts }: { parts: readonly UpkeepPart[] }) {
+  return (
+    <p className="computer-status" aria-live="polite">
+      {parts.map((part, index) => <span key={index} className={part.tone}>{part.text}</span>)}
+    </p>
+  );
 }
 
 /** The code the other computer printed, typed here, which is the whole of pairing. */
@@ -195,14 +189,14 @@ export function ComputerSettings({ found, searching, searchError, name, links, p
                   onCommit={(value) => labels.commit(link.id, value)}
                   onCancel={labels.cancel}
                 />
-              : <strong onDoubleClick={(event) => labels.start(link.id, event.currentTarget.closest(".setting-row"))}>{link.name}</strong>}
-            <p className={`phone-device-state${link.status === "connected" ? " live" : ""}`}>{link.host} · {statusLabel(link)}{upkeepOf.get(link.id)?.version ? ` · v${upkeepOf.get(link.id)!.version}` : ""}</p>
-            <Upkeep lines={upkeepOf.get(link.id)?.lines ?? []} onCommand={onCommand} />
+              : <strong data-tip={link.host} onDoubleClick={(event) => labels.start(link.id, event.currentTarget.closest(".setting-row"))}>{link.name}</strong>}
+            <StatusLine parts={upkeepOf.get(link.id)?.parts ?? linkParts(link)} />
           </div>
-          <div className="setting-row-action">
-            {link.status !== "connected" && <button type="button" onClick={() => onReconnect(link.id)}>Reconnect</button>}
-            <button type="button" disabled={labels.editing === link.id} onClick={(event) => labels.start(link.id, event.currentTarget.closest(".setting-row"))}>Rename</button>
-            <button className="danger" type="button" onClick={() => onForget(link.id)}>Remove</button>
+          <div className="setting-row-action computer-actions">
+            {link.status !== "connected" && !upkeepOf.has(link.id) && <button type="button" onClick={() => onReconnect(link.id)}>Reconnect</button>}
+            {upkeepOf.get(link.id)?.action && onCommand && <button type="button" className="primary" onClick={() => onCommand(upkeepOf.get(link.id)!.action!.command)}>{upkeepOf.get(link.id)!.action!.label}</button>}
+            <button type="button" className="icon" aria-label={`Rename ${link.name}`} data-tip="Rename" disabled={labels.editing === link.id} onClick={(event) => labels.start(link.id, event.currentTarget.closest(".setting-row"))}><Pencil size={14} aria-hidden="true" /></button>
+            <button type="button" className="icon danger" aria-label={`Remove ${link.name}`} data-tip="Remove" onClick={() => onForget(link.id)}><Trash size={14} aria-hidden="true" /></button>
           </div>
         </div>
       ))}

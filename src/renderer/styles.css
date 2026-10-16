@@ -2188,12 +2188,16 @@ pre {
 .setting-row-action em.granted { color: var(--success-soft); }
 .setting-row-action button, .settings-restart button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 7px 11px; background: var(--control); color: var(--ink-dim); font-size: var(--text-meta); font-weight: 560; cursor: pointer; }
 .setting-row-action button:hover, .settings-restart button:hover { border-color: var(--line-bright); background: var(--control-hover); }
-.computer-upkeep { display: grid; gap: 7px; margin: 9px 0 0; padding: 0; list-style: none; }
-.computer-upkeep li { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; color: var(--quiet-strong); font-size: var(--text-meta); }
-.computer-upkeep li.progress { color: var(--info-soft); }
-.computer-upkeep li.error { color: var(--accent-soft); }
-.computer-upkeep button { border: 1px solid var(--line-strong); border-radius: 7px; padding: 4px 9px; background: var(--control); color: var(--ink-dim); font-size: var(--text-meta); font-weight: 560; cursor: pointer; }
-.computer-upkeep button:hover { border-color: var(--line-bright); background: var(--control-hover); }
+.computer-status { display: flex; flex-wrap: wrap; margin: 4px 0 0; color: var(--quiet-strong); font-size: var(--text-meta); }
+.computer-status span + span::before { content: "·"; margin: 0 6px; color: var(--quiet); }
+.computer-status .live { color: var(--success-soft); }
+.computer-status .progress { color: var(--info-soft); }
+.computer-status .error { color: var(--danger-soft); }
+.setting-row-action.computer-actions { gap: 6px; }
+.setting-row-action.computer-actions button.primary { border-color: var(--info-soft); color: var(--ink); }
+.setting-row-action.computer-actions button.icon { padding: 7px; border-color: transparent; background: transparent; color: var(--quiet-strong); }
+.setting-row-action.computer-actions button.icon:hover { border-color: var(--line-strong); background: var(--control-hover); color: var(--ink-dim); }
+.setting-row-action.computer-actions button.icon.danger:hover { border-color: var(--danger-line); background: var(--danger-surface); color: var(--danger-soft); }
 .setting-row-action button:disabled { color: var(--quiet-strong); cursor: default; }
 .setting-row-action button.danger { border-color: var(--danger-line); color: var(--danger-soft); }
 .setting-row-action button.danger:hover { border-color: var(--danger-line-hover); background: var(--danger-surface); }

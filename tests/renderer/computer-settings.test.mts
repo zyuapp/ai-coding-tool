@@ -60,9 +60,11 @@ test("a computer that is not connected says whether it is being dialled and why 
   try {
     const row = (id: string) => view.container.querySelector(`[data-computer="${id}"]`)!;
     const reconnect = (id: string) => [...row(id).querySelectorAll("button")].find((button) => button.textContent === "Reconnect");
-    assert.equal(row("up").querySelector(".phone-device-state")!.textContent, "up.tail.ts.net · Connected");
-    assert.equal(row("dialling").querySelector(".phone-device-state")!.textContent, "dialling.tail.ts.net · Reconnecting… · That computer cannot be reached right now.");
-    assert.equal(row("down").querySelector(".phone-device-state")!.textContent, "down.tail.ts.net · Offline");
+    const status = (id: string) => [...row(id).querySelectorAll(".computer-status span")].map((part) => part.textContent).join(" · ");
+    assert.equal(status("up"), "Connected");
+    assert.equal(status("dialling"), "Reconnecting… · That computer cannot be reached right now.");
+    assert.equal(status("down"), "Offline");
+    assert.equal(row("up").querySelector("strong")!.dataset.tip, "up.tail.ts.net", "the address is a hover away");
     assert.equal(reconnect("up"), undefined);
     await act(async () => { reconnect("dialling")!.click(); });
     await act(async () => { reconnect("down")!.click(); });
@@ -72,26 +74,24 @@ test("a computer that is not connected says whether it is being dialled and why 
   }
 });
 
-test("a paired computer's row shows its version and runs the step each line offers", async () => {
+test("a paired computer's row reads as one line and runs its one step", async () => {
   const commands: unknown[] = [];
   const view = await mount(settings({
     links: [{ id: "mac", name: "MacBook", host: "mac.tail.ts.net", status: "connected", error: null, pairedAt: 1 }],
     upkeep: [{
       id: "mac",
-      version: "0.7.10",
-      lines: [
-        { key: "app", text: "0.7.11 is available.", action: { label: "Update", command: { type: "app.update", computerId: "mac" } } },
-        { key: "engine:codex", text: "Updating Codex…", tone: "progress" },
-      ],
+      parts: [{ text: "Connected", tone: "live" }, { text: "v0.7.10" }, { text: "0.7.11 available" }],
+      action: { label: "Update", command: { type: "app.update", computerId: "mac" } },
     }],
     onCommand: (command) => commands.push(command),
   }));
   try {
     const row = view.container.querySelector("[data-computer='mac']")!;
-    assert.match(row.querySelector(".phone-device-state")!.textContent!, /Connected · v0\.7\.10$/);
-    assert.equal(row.querySelector("[data-upkeep='engine:codex']")!.className, "progress");
-    await act(async () => { row.querySelector<HTMLButtonElement>("[data-upkeep='app'] button")!.click(); });
+    assert.deepEqual([...row.querySelectorAll(".computer-status span")].map((part) => part.textContent), ["Connected", "v0.7.10", "0.7.11 available"]);
+    assert.equal(row.querySelector(".computer-status .live")!.textContent, "Connected");
+    await act(async () => { row.querySelector<HTMLButtonElement>("button.primary")!.click(); });
     assert.deepEqual(commands, [{ type: "app.update", computerId: "mac" }]);
+    assert.ok(row.querySelector("button[aria-label='Rename MacBook']") && row.querySelector("button[aria-label='Remove MacBook']"));
   } finally {
     await view.unmount();
   }

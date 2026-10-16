@@ -58,7 +58,7 @@ test("a paired computer is renamed in its row, and Escape leaves it as it was", 
   try {
     const row = query(view.container, "[data-computer='linux']");
     assert.equal(query(row, "strong").textContent, "linux-box");
-    const rename = [...row.querySelectorAll("button")].find((button) => button.textContent === "Rename")!;
+    const rename = query<HTMLButtonElement>(row, "button[aria-label^='Rename']");
     await act(async () => { rename.click(); });
     const input = query<HTMLInputElement>(row, ".computer-rename");
     assert.equal(input.value, "linux-box");

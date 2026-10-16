@@ -152,14 +152,13 @@ export type EngineNotice = {
 
 /**
  * What is wrong with this engine on this machine, or nothing when it is fine. A signed-out engine is
- * left out: signing in is a button rather than a sentence. `place` names the machine when the
- * engine's version is unknown, for a notice about another computer's engine.
+ * left out: signing in is a button rather than a sentence.
  */
-export function engineNotice(engine: AgentEngine, readiness: EngineReadiness, place = "on this machine"): EngineNotice | null {
+export function engineNotice(engine: AgentEngine, readiness: EngineReadiness): EngineNotice | null {
   const label = engineLabel(engine);
   const fix = readiness.fix ? { fix: readiness.fix } : {};
   const update = readiness.fix ? { fix: readiness.fix, updatable: true as const } : {};
-  const named = `${label} ${readiness.version ?? place}`;
+  const named = `${label} ${readiness.version ?? "on this machine"}`;
   if (readiness.access === "missing") return { blocking: true, message: `${label} is not installed.`, ...fix };
   if (readiness.access === "outdated") return { blocking: true, message: `${named} is too old. Update to ${readiness.required}.`, ...update };
   if (readiness.access === "unavailable") return { blocking: true, message: `${label} is installed but would not start.` };
