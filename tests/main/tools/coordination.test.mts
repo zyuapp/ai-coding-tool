@@ -79,7 +79,7 @@ test("a blank note is refused on its own field", () => {
   assert.deepEqual(input.safeParse({ text: " Ask before merging\n" }).data, { text: "Ask before merging" });
 });
 
-test("a decision refuses a blank question or label on its own field and leaves a blank context or description out", async () => {
+test("a decision refuses a blank question, a blank label or a shared label on its own field and leaves a blank context or description out", async () => {
   const raised: DecisionRequest[] = [];
   const bridge: CoordinationBridge = { ...fakeBridge(), decide: async (request) => { raised.push(request); return { recorded: true, note: "" }; } };
   const tool = coordinationTools(bridge, "member").find((entry) => entry.name === "raise_decision")!;
@@ -87,6 +87,7 @@ test("a decision refuses a blank question or label on its own field and leaves a
   const option = { label: "Keep it" };
   assert.equal(input.safeParse({ question: "  ", options: [option] }).success, false);
   assert.equal(input.safeParse({ question: "Drop the cache?", options: [option, { label: " " }] }).success, false);
+  assert.equal(input.safeParse({ question: "Drop the cache?", options: [option, { label: "keep it ", description: "For now" }] }).success, false, "two options cannot share a label");
 
   await (tool as unknown as TestTool).handler(input.parse({ question: "Drop the cache?", context: " ", options: [{ label: "Drop it", description: "\n", recommended: true }, option] }), {});
 

@@ -658,14 +658,24 @@ export function isDecisionOption(value: unknown): value is DecisionOption {
 /** What a run may ask: the question, and the options it offers. The window stamps the rest. */
 export type DecisionRequest = Pick<Decision, "question" | "context" | "options">;
 
-export function isDecisionRequest(value: unknown): value is DecisionRequest {
+/** Each option names itself, so the answer, which is only its label, says which one the user chose. */
+export function distinctLabels(options: readonly Pick<DecisionOption, "label">[]): boolean {
+  return new Set(options.map((option) => option.label.trim().toLowerCase())).size === options.length;
+}
+
+function isDecisionShape(value: unknown): value is DecisionRequest {
   return isRecord(value) && text(value.question, MAX_QUESTION)
     && (value.context === undefined || text(value.context, MAX_DECISION_CONTEXT))
     && Array.isArray(value.options) && value.options.length <= MAX_OPTIONS && value.options.every(isDecisionOption);
 }
 
+export function isDecisionRequest(value: unknown): value is DecisionRequest {
+  return isDecisionShape(value) && distinctLabels(value.options);
+}
+
+/** Shape only, so a decision saved before its labels had to differ still loads. */
 export function isDecision(value: unknown): value is Decision {
-  if (!isRecord(value) || !isDecisionRequest(value)) return false;
+  if (!isRecord(value) || !isDecisionShape(value)) return false;
   const decision = value as Record<string, unknown>;
   return text(decision.id, 200) && finite(decision.raisedAt)
     && (decision.answer === undefined || text(decision.answer, MAX_ANSWER))

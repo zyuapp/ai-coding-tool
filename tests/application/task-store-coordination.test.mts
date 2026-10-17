@@ -160,6 +160,18 @@ test("a thread's report survives a reload, and a blank one an older build saved 
   }
 });
 
+test("a decision an older build saved with two options sharing a label still loads", () => {
+  const migrated = migrateV1ToV2(legacyValues());
+  assert.equal(migrated.ok, true);
+  if (!migrated.ok) return;
+  const decision = { id: "d1", question: "Merge?", options: [{ label: "Yes", description: "Merge now" }, { label: "Yes", description: "Merge after CI" }], raisedAt: 5 };
+  const parsed = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...migrated.data.tasks[0], decisions: [decision] }] }));
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  assert.equal(parsed.hiddenTasks, 0);
+  assert.deepEqual(parsed.data.tasks[0].decisions, [decision]);
+});
+
 test("a thread's coordinator on another computer, and how far a coordinator heard its threads there and which were working, survive a reload, and what cannot be read is dropped", () => {
   const migrated = migrateV1ToV2(legacyValues());
   assert.equal(migrated.ok, true);

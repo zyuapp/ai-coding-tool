@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { COORDINATION_STATES, MAX_DECISION_CONTEXT, MAX_MEMORY_NOTE, MAX_OPTION_DESCRIPTION, MAX_OPTION_LABEL, MAX_OPTIONS, MAX_PROPOSAL_TITLE, MAX_PROPOSALS, MAX_PURPOSE, MAX_QUESTION, MAX_SUMMARY } from "../../domain/coordination.js";
+import { COORDINATION_STATES, distinctLabels, MAX_DECISION_CONTEXT, MAX_MEMORY_NOTE, MAX_OPTION_DESCRIPTION, MAX_OPTION_LABEL, MAX_OPTIONS, MAX_PROPOSAL_TITLE, MAX_PROPOSALS, MAX_PURPOSE, MAX_QUESTION, MAX_SUMMARY } from "../../domain/coordination.js";
 import type { CoordinationRole } from "../../domain/coordination.js";
 import type { CoordinationBridge } from "../agent/agent-provider.mjs";
 import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";
@@ -32,7 +32,7 @@ const REPORT_STATUS = defineTool({
 });
 
 /**
- * A blank question or label is refused here, on its own field, as the window would refuse it unnamed;
+ * A blank question or label, or a label two options share, is refused here, on its own field, as the window would refuse it unnamed;
  * a blank context or description is trimmed to nothing and left out.
  */
 const RAISE_DECISION = defineTool({
@@ -45,7 +45,7 @@ const RAISE_DECISION = defineTool({
       label: z.string().trim().min(1).max(MAX_OPTION_LABEL),
       description: z.string().trim().max(MAX_OPTION_DESCRIPTION).optional(),
       recommended: z.boolean().optional(),
-    })).max(MAX_OPTIONS).describe("The choices, each with a short label and what it means. Mark the one you recommend."),
+    })).max(MAX_OPTIONS).refine(distinctLabels, "Give each option its own label.").describe("The choices, each with a short label of its own and what it means. Mark the one you recommend."),
   },
   readOnly: false,
   run: (bridge: CoordinationBridge, args) => report(() => bridge.decide({
