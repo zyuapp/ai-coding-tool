@@ -55,6 +55,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       onAnswerQuestion={(question) => { if (thread) void workspace.dispatch({ type: "question.answer", taskId: thread.id, runId: question.runId, requestId: question.requestId, questionId: question.questionId }); }}
       goal={workspace.goal}
       decisions={(coordination.approvals.length > 0 || coordination.decisions.length > 0 || coordination.proposals.length > 0) && <NeedsYouCard
+        key={thread?.id}
         approvals={coordination.approvals}
         decisions={coordination.decisions}
         suggestions={thread && coordination.proposals.length ? { taskId: thread.id, threadModel: coordination.threadModel, proposals: coordination.proposals } : null}

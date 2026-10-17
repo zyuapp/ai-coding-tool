@@ -324,6 +324,28 @@ test("clearing a goal targets its existing thread", async () => {
   await view.unmount();
 });
 
+test("another coordinator's Needs-you card opens on its first page", async () => {
+  window.desktop = composerDesktop();
+  const thread = (id: string): Thread => ({
+    id, title: id, engine: "claude", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+  });
+  const dispatch = async (_input: WorkspaceInput) => {};
+  const render = (lead: Thread) => {
+    const derived = deriveView({ ...emptyWorkspaceState(), threads: [lead], currentId: lead.id });
+    const decisions = ["first", "second"].map((question) => ({ thread: lead, decision: { id: `${lead.id}-${question}`, question: `${lead.id} ${question}?`, options: [], raisedAt: 1 } }));
+    return React.createElement(WorkspaceComposer, {
+      workspace: { ...derived, coordination: { ...derived.coordination, decisions }, threadHandles: [], threadHandlesFor: () => [], dispatch, actions: workspaceActions(dispatch) } as never,
+      actions: [],
+    });
+  };
+  const view = await mount(render(thread("lead-a")));
+  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Next"]').click(); });
+  assert.equal(query(view.container, ".decision-question").textContent, "lead-a second?");
+  await view.render(render(thread("lead-b")));
+  assert.equal(query(view.container, ".decision-question").textContent, "lead-b first?");
+  await view.unmount();
+});
+
 test("the effort menu offers what the model takes, and is gone for a model that takes none", async () => {
   window.desktop = composerDesktop();
   const composer = (engine: "claude" | "codex", model: AgentModel) => React.createElement(ConversationComposer, {

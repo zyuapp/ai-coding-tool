@@ -24,14 +24,18 @@ export type SuggestionsProps = {
 /** A thread asked for on another computer, with where it would run. */
 type ElsewhereRequest = ProposalView & { elsewhere: ElsewhereView };
 
-/** One page of the card. Every kind of thing that waits on the user is a page of its own. */
-type NeedsYouItem =
+/** One page of the card, under a key of its own. Every kind of thing that waits on the user is a page of its own. */
+type NeedsYouItem = { key: string } & (
   | { kind: "approval"; view: CoordinationApprovalView }
   | { kind: "elsewhere"; taskId: string; request: ElsewhereRequest }
   | { kind: "decision"; view: CoordinationDecisionView }
-  | { kind: "suggestions"; suggestions: SuggestionsProps };
+  | { kind: "suggestions"; suggestions: SuggestionsProps }
+);
 
 type Pager = { index: number; count: number } | null;
+
+/** The page on screen, and where it sat, which is where the card goes on once that page is settled. */
+type Page = { key: string; index: number };
 
 /**
  * Everything waiting on the user from a coordinator and its threads, one page at a time: approvals,
@@ -45,28 +49,34 @@ export function NeedsYouCard({ approvals, decisions, suggestions = null, onDecid
   onAnswer: (threadId: string, decisionId: string, answer: string) => void;
   onSelect: (threadId: string) => void;
 }) {
-  const [index, setIndex] = useState(0);
+  const [page, setPage] = useState<Page | null>(null);
   const proposals = suggestions?.proposals ?? [];
   const here = proposals.filter((view) => !view.elsewhere);
   const items: NeedsYouItem[] = [
-    ...approvals.map((view) => ({ kind: "approval" as const, view })),
-    ...(suggestions ? proposals.flatMap((view) => view.elsewhere ? [{ kind: "elsewhere" as const, taskId: suggestions.taskId, request: view as ElsewhereRequest }] : []) : []),
-    ...decisions.map((view) => ({ kind: "decision" as const, view })),
-    ...(suggestions && here.length ? [{ kind: "suggestions" as const, suggestions: { ...suggestions, proposals: here } }] : []),
+    ...approvals.map((view) => ({ key: `approval:${view.approval.taskId}:${view.approval.approvalId}`, kind: "approval" as const, view })),
+    ...(suggestions ? proposals.flatMap((view) => view.elsewhere ? [{ key: `elsewhere:${view.proposal.id}`, kind: "elsewhere" as const, taskId: suggestions.taskId, request: view as ElsewhereRequest }] : []) : []),
+    ...decisions.map((view) => ({ key: `decision:${view.thread.id}:${view.decision.id}`, kind: "decision" as const, view })),
+    ...(suggestions && here.length ? [{ key: "suggestions", kind: "suggestions" as const, suggestions: { ...suggestions, proposals: here } }] : []),
   ];
-  const shown = Math.min(index, items.length - 1);
+  /** The page stays on what the user is looking at as others arrive ahead of it, and moves on to what takes its place once it is settled. */
+  const found = page ? items.findIndex((item) => item.key === page.key) : -1;
+  const shown = found >= 0 ? found : Math.min(page?.index ?? 0, items.length - 1);
   const current = items[shown];
+  if (current && (current.key !== page?.key || shown !== page.index)) setPage({ key: current.key, index: shown });
   if (!current) return null;
   const position = items.length > 1 ? { index: shown, count: items.length } : null;
-  const onStep = (delta: 1 | -1) => setIndex((shown + delta + items.length) % items.length);
+  const onStep = (delta: 1 | -1) => {
+    const next = (shown + delta + items.length) % items.length;
+    setPage({ key: items[next]!.key, index: next });
+  };
   switch (current.kind) {
     case "approval":
-      return <ApprovalForm key={current.view.approval.approvalId} view={current.view} position={position} onStep={onStep} onDecide={onDecide} onSelect={onSelect} />;
+      return <ApprovalForm key={current.key} view={current.view} position={position} onStep={onStep} onDecide={onDecide} onSelect={onSelect} />;
     case "elsewhere":
-      return <ElsewhereForm key={current.request.proposal.id} taskId={current.taskId} request={current.request} position={position} onStep={onStep} />;
+      return <ElsewhereForm key={current.key} taskId={current.taskId} request={current.request} position={position} onStep={onStep} />;
     case "decision":
       return <DecisionForm
-        key={current.view.decision.id}
+        key={current.key}
         view={current.view}
         position={position}
         onStep={onStep}
@@ -74,7 +84,7 @@ export function NeedsYouCard({ approvals, decisions, suggestions = null, onDecid
         onSelect={onSelect}
       />;
     case "suggestions":
-      return <SuggestionsForm suggestions={current.suggestions} position={position} onStep={onStep} />;
+      return <SuggestionsForm key={current.key} suggestions={current.suggestions} position={position} onStep={onStep} />;
   }
 }
 

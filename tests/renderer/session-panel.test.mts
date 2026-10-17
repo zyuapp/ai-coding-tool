@@ -10,6 +10,7 @@ import { NO_PULL_REQUEST } from "../../src/domain/pull-request.ts";
 import { OPEN_SUBAGENT_GROUPS, type BackgroundProcess, type Subagent, type SubagentActivity } from "../../src/domain/run.ts";
 import type { Thread } from "../../src/domain/thread.ts";
 import type { ThreadProposal } from "../../src/domain/coordination.ts";
+import type { CoordinationApprovalView, CoordinationDecisionView, ProposalView } from "../../src/application/coordination-view.ts";
 
 import type { SessionPanelProps } from "../../src/renderer/components/SessionPanel.tsx";
 
@@ -98,6 +99,45 @@ test("the Needs-you card pages through approvals and decisions and answers each"
   await view.unmount();
 });
 
+test("the Needs-you card stays on the page the user is working in as others arrive ahead of it", async () => {
+  const answered: string[] = [];
+  const approval: CoordinationApprovalView = { thread: member("a", "Login flake"), approval: { approvalId: "a1", taskId: "a", runId: "run-a", title: "Run a command?", description: "", toolName: "Bash", input: { command: "rm -rf dist" } } };
+  const decision = (id: string): CoordinationDecisionView => ({ thread: member("b", "Settings"), decision: { id, question: `Keep ${id}?`, options: [{ label: "Keep it", recommended: true }], raisedAt: 1 } });
+  const request: ProposalView = { proposal: { id: "p1", title: "GPU tests", prompt: "Run them", place: { computer: { id: "studio", name: "Studio" }, worktree: false }, proposedAt: 1 }, starting: false, elsewhere: { computer: { id: "studio", name: "Studio", offline: false }, projects: [], project: null, refusal: null } };
+  const card = (approvals: CoordinationApprovalView[], decisions: CoordinationDecisionView[], proposals: ProposalView[] = []) => React.createElement(CommandControlsProvider, { value: { available: () => true, dispatch() {} } },
+    React.createElement(NeedsYouCard, {
+      approvals,
+      decisions,
+      suggestions: proposals.length ? { taskId: "lead", threadModel: null, proposals } : null,
+      onDecide() {},
+      onAnswer: (_thread: string, _decision: string, answer: string) => { answered.push(answer); },
+      onSelect() {},
+    }));
+  const view = await mount(card([], [decision("d1")]));
+  const own = query<HTMLInputElement>(view.container, 'input[aria-label="Your own answer"]');
+  const setValue = item(Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")).set;
+  await act(async () => {
+    own.focus();
+    item(setValue).call(own, "Drop it");
+    own.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: "Drop it" }));
+    own.dispatchEvent(new dom.window.KeyboardEvent("keyup", { bubbles: true }));
+  });
+
+  await view.render(card([approval], [decision("d1")], [request]));
+  const page = query(view.container, '[aria-label="Decision waiting on you"]');
+  assert.match(page.textContent, /3 of 3/, "an approval and a request ahead of it leave the decision on screen");
+  assert.equal(query<HTMLInputElement>(page, 'input[aria-label="Your own answer"]'), own, "with what was typed in it");
+  assert.equal(document.activeElement, own, "and where the user was typing");
+  await act(async () => { required([...page.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === "Decide")).click(); });
+  assert.deepEqual(answered, ["Drop it"]);
+
+  await view.render(card([approval], [decision("d2")], [request]));
+  assert.match(query(view.container, '[aria-label="Decision waiting on you"]').textContent, /Keep d2\?/, "a settled page gives way to the one that takes its place");
+  await view.render(card([approval], [], [request]));
+  assert.match(query(view.container, '[aria-label="Run on Studio?"]').textContent, /2 of 2/, "and to the last one once nothing takes it");
+  await view.unmount();
+});
+
 test("the Needs-you card's Suggested threads page starts and dismisses each suggestion, or all of them", async () => {
   const dispatched: AppCommand[] = [];
   const brief = { intent: "fix the flaky login test", doneWhen: "it passes", delivers: "pull-request" as const };
@@ -139,9 +179,9 @@ test("the Needs-you card's Suggested threads page starts and dismisses each sugg
   assert.equal(button("Start all").disabled, true, "nothing is left to start while every suggestion is starting");
 
   await view.render(card([{ proposal: fix, starting: false }], 1));
-  assert.ok(query(view.container, '[aria-label="Decision waiting on you"]'), "decisions come first");
+  assert.match(query(view.container, '[aria-label="Suggested threads"]').textContent, /2 of 2/, "decisions come first, and one arriving leaves the suggestions on screen");
   await act(async () => { required([...view.container.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === "Later")).click(); });
-  assert.ok(query(view.container, '[aria-label="Suggested threads"]'), "the suggestions are the page after them");
+  assert.ok(query(view.container, '[aria-label="Decision waiting on you"]'), "the decision is the page before them");
   await view.unmount();
 });
 
