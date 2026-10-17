@@ -9,6 +9,9 @@ import type { LimitPause } from "./usage-limit.js";
 import type { PullRequestLink } from "./pull-request.js";
 import type { RemoteSender } from "./message-origin.js";
 
+/** A thread elsewhere last heard working: the paired computer holding it, and what it was called. */
+export type HeardWork = { computer: string; title: string };
+
 /** The canonical conversation aggregate. Persisted property names stay unchanged for compatibility. */
 export type Thread = {
   id: string;
@@ -51,10 +54,11 @@ export type Thread = {
    */
   remoteHeard?: Record<string, number>;
   /**
-   * On a coordinator: each of its threads that a paired computer last said was working, by that
-   * computer's id, so a computer silent since this app started is not taken for their work ending.
+   * On a coordinator: each of its threads that a paired computer last said was working, with that
+   * computer's id and the thread's title, so a computer silent since this app started is not taken
+   * for their work ending, and the coordinator can still name them.
    */
-  remoteWorking?: Record<string, string>;
+  remoteWorking?: Record<string, HeardWork>;
   projectId?: string;
   executionPolicy: ExecutionPolicy;
   engine: AgentEngine;

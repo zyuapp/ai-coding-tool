@@ -25,9 +25,10 @@ const failing: CoordinatedThreadView = {
   steps: ["fix-ci"],
   startedAt: 10,
   host: null,
+  lastHeard: false,
 };
 
-const working: CoordinatedThreadView = { thread: member("dark", "Dark mode", { engine: "codex" }), status: "working", summary: "Tokens pass", pullRequest: null, steps: [], startedAt: 10, host: null };
+const working: CoordinatedThreadView = { thread: member("dark", "Dark mode", { engine: "codex" }), status: "working", summary: "Tokens pass", pullRequest: null, steps: [], startedAt: 10, host: null, lastHeard: false };
 
 test("a card shows how its thread stands, opens it, and offers what to do next beside that", async () => {
   window.desktop = fakeDesktop();
@@ -71,6 +72,18 @@ test("a card shows how its thread stands, opens it, and offers what to do next b
 
   await view.render(cards(false));
   assert.equal(query<HTMLButtonElement>(view.container, "button.coordination-card-step").disabled, true, "a computer whose build cannot take a step offers none");
+  await view.unmount();
+});
+
+test("a thread working as a computer out of reach last said says so, and moves no more", async () => {
+  window.desktop = fakeDesktop();
+  const away = { ...working, host: { id: "studio", name: "studio", offline: true }, lastHeard: true };
+  const view = await mount(React.createElement(ThreadCardsContext.Provider, { value: { cards: new Map([[away.thread.id, away]]), worktrees: new Map(), onSelect: () => {} } }, React.createElement(ThreadCards, { threadIds: ["dark"] })));
+  const card = query(view.container, ".coordination-card");
+  assert.equal(query(card, ".coordination-card-open > small").textContent, "Working when last heard · Tokens pass");
+  assert.equal(query(card, ".coordination-card-open > small").className, "");
+  assert.equal(card.querySelector(".task-spinner"), null);
+  assert.ok(query(card, ".coordination-dot.working"));
   await view.unmount();
 });
 

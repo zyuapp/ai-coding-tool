@@ -86,6 +86,7 @@ const FAR_RUNNING = workspace({ threads: [far()], activeRuns: { far: activeRun("
 const FAR_ENDED = workspace({ threads: [far({ runEndedAt: 40, outcome: "finished" })] });
 const holdingNews = () => mirrored(withComputers(workspace({ threads: [lead("lead", { title: "Lead", coordinationNotes: [ONE_ENDED] }), task("one", { title: "One", parentId: "lead" })] }), [paired("studio", workspace(), { capabilities: COMPUTER_CAPABILITIES })]), FAR_RUNNING).state;
 const studioLine = (status: ComputerLink["status"]): WorkspaceInput => ({ type: "computers.changed", name: "This Mac", links: [link("studio", { status, capabilities: COMPUTER_CAPABILITIES })] });
+const memberOf = (state: WorkspaceState) => coordinationView(state, state.threads[0], new Set(), new Set()).members.flatMap(({ thread, status, lastHeard }) => thread.id === "far" ? [status, lastHeard] : []);
 const rosterOf = (state: WorkspaceState) => coordinationContext(state, required(state.threads.find((thread) => thread.id === "lead"))).split("\n").filter((line) => line.includes("[far]"));
 
 test("a line that drops is not taken for its thread's work ending", () => {
@@ -95,7 +96,9 @@ test("a line that drops is not taken for its thread's work ending", () => {
     const dropped = reduce(holding, studioLine(status)).state;
     assert.deepEqual(wakesOf(dropped), [], `going ${status} says nothing of its work`);
     assert.deepEqual(rosterOf(dropped), ["- \"Far work\" [far] on studio, which cannot be reached now · working when last heard"]);
+    assert.deepEqual(memberOf(dropped), ["working", true], "its card says why the coordinator still waits");
   }
+  assert.deepEqual(memberOf(holding), ["working", false]);
   const dropped = reduce(holding, studioLine("offline")).state;
   const back = reduce(dropped, studioLine("connected")).state;
   assert.deepEqual(wakesOf(back), []);
@@ -106,13 +109,13 @@ test("a line that drops is not taken for its thread's work ending", () => {
 
 test("a computer that has yet to answer after a restart here holds the news its thread was holding", () => {
   const holding = holdingNews();
-  assert.deepEqual(holding.threads[0]!.remoteWorking, { far: "studio" }, "kept with the coordinator, which outlives a restart");
+  assert.deepEqual(holding.threads[0]!.remoteWorking, { far: { computer: "studio", title: "Far work" } }, "kept with the coordinator, which outlives a restart");
   const restarted = reduce(workspace(), { type: "store.loaded", data: { version: THREAD_STORE_VERSION, tasks: holding.threads, projects: [], worktrees: [], lastFolder: null } }).state;
   assert.deepEqual(wakesOf(restarted), [], "before the paired computers come in");
-  assert.deepEqual(rosterOf(restarted), ["- A thread [far] on a paired computer, which cannot be reached now · working when last heard"]);
+  assert.deepEqual(rosterOf(restarted), ["- \"Far work\" [far] on a paired computer, which cannot be reached now · working when last heard"]);
   const away = reduce(restarted, studioLine("offline")).state;
   assert.deepEqual(wakesOf(away), [], "while its line is down");
-  assert.deepEqual(rosterOf(away), ["- A thread [far] on studio, which cannot be reached now · working when last heard"]);
+  assert.deepEqual(rosterOf(away), ["- \"Far work\" [far] on studio, which cannot be reached now · working when last heard"]);
 
   const answered = mirrored(reduce(away, studioLine("connected")).state, FAR_RUNNING).state;
   assert.deepEqual(wakesOf(answered), [], "still working once it answers");

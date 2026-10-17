@@ -16,6 +16,8 @@ export type CoordinatedThreadView = CoordinatedThreadStanding & {
   startedAt: number | null;
   /** The paired computer holding the thread, or null for one of this computer's own. */
   host: ThreadHost | null;
+  /** Working as the computer holding it last said, that computer being out of reach now. */
+  lastHeard: boolean;
 };
 
 /** A thread the coordinator started, and when, which is where its card sits in the coordinator's conversation. */
@@ -141,7 +143,7 @@ const NO_PROPOSALS: readonly ProposalView[] = [];
 /**
  * What the open thread shows. `previous` is the view last made, whose objects are handed back for
  * every thread under the coordinator whose view is unchanged, so its row and card draw nothing anew.
- * A thread on a paired computer stands, and waits on approvals, as that computer says.
+ * A thread on a paired computer stands, and waits on approvals, as that computer last said.
  */
 export function coordinationView(
   state: Pick<WorkspaceState, "threads" | "computers" | "projects" | "worktrees" | "memberPullRequests" | "startingProposals">,
@@ -198,7 +200,7 @@ function memberView(state: Pick<WorkspaceState, "projects" | "worktrees" | "memb
   const host = member.computer ? threadHostOf(member.computer) : null;
   /** The pull request and the start are read off the thread, so the same thread has the same ones. */
   if (held?.thread === thread && held.status === status && held.summary === summary && sameItems(held.steps, steps) === held.steps && sameHost(held.host, host)) return held;
-  return { thread, status, summary, pullRequest: ownPullRequest(thread), steps, startedAt: thread.brief ? threadCreatedAt(thread) : null, host };
+  return { thread, status, summary, pullRequest: ownPullRequest(thread), steps, startedAt: thread.brief ? threadCreatedAt(thread) : null, host, lastHeard: status === "working" && Boolean(host?.offline) };
 }
 
 function sameHost(before: ThreadHost | null, next: ThreadHost | null): boolean {

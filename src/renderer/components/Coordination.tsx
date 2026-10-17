@@ -33,14 +33,16 @@ const STATUS_LABELS: Record<CoordinatedThreadStatus, string> = {
   idle: "Idle",
 };
 
-export function CoordinationStatusMark({ status }: { status: CoordinatedThreadStatus }) {
-  return status === "working"
+/** A thread working as a computer out of reach last said spins no more, since nothing says it still is. */
+export function CoordinationStatusMark({ status, lastHeard = false }: { status: CoordinatedThreadStatus; lastHeard?: boolean }) {
+  return status === "working" && !lastHeard
     ? <span className="task-spinner" aria-hidden="true" />
     : <span className={`coordination-dot ${status}`} aria-hidden="true" />;
 }
 
-export function coordinationStatusLine(status: CoordinatedThreadStatus, summary: string | null) {
-  return summary ? `${STATUS_LABELS[status]} · ${summary}` : STATUS_LABELS[status];
+export function coordinationStatusLine(status: CoordinatedThreadStatus, summary: string | null, lastHeard = false) {
+  const label = lastHeard ? `${STATUS_LABELS[status]} when last heard` : STATUS_LABELS[status];
+  return summary ? `${label} · ${summary}` : label;
 }
 
 /** How many threads a group shows before it asks to show the rest. */
@@ -353,7 +355,7 @@ function ThreadGroup({ group, members, fold, worktrees, action, onSetFold, ...ac
  * One thread under the coordinator: a button that opens it, and beside it, never inside, what else its
  * row does. Memoized on its view, which is held while its thread does not move.
  */
-const ThreadRow = memo(function ThreadRow({ view: { thread, status, summary, host }, worktrees, onSelect }: RowActions & { view: CoordinatedThreadView; worktrees: ReadonlyMap<string, Worktree> }) {
+const ThreadRow = memo(function ThreadRow({ view: { thread, status, summary, host, lastHeard }, worktrees, onSelect }: RowActions & { view: CoordinatedThreadView; worktrees: ReadonlyMap<string, Worktree> }) {
   return (
     <div className={`coordination-item ${status}`}>
       <button
@@ -363,8 +365,8 @@ const ThreadRow = memo(function ThreadRow({ view: { thread, status, summary, hos
         title={thread.title}
         onClick={() => onSelect(thread.id)}
       >
-        <span className="coordination-row-mark"><CoordinationStatusMark status={status} /></span>
-        <span><strong>{thread.title}</strong><small>{coordinationStatusLine(status, summary)}</small></span>
+        <span className="coordination-row-mark"><CoordinationStatusMark status={status} lastHeard={lastHeard} /></span>
+        <span><strong>{thread.title}</strong><small>{coordinationStatusLine(status, summary, lastHeard)}</small></span>
         <ThreadMarks thread={thread} host={host} worktree={thread.worktreeId ? worktrees.get(thread.worktreeId) : undefined} />
       </button>
       <ResolutionButton taskId={thread.id} title={thread.title} status={status} className="coordination-row-action" />
@@ -437,19 +439,19 @@ const ThreadCard = memo(function ThreadCard({ view, worktree, onSelect }: {
   onSelect: (threadId: string) => void;
 }) {
   const links = useMessageLinks();
-  const { thread, status, summary, pullRequest, steps, host } = view;
+  const { thread, status, summary, pullRequest, steps, host, lastHeard } = view;
   /** A thread whose pull request needs work or a review is summed up by it, which the card shows on its own. */
-  const line = coordinationStatusLine(status, pullRequest && (status === "needs-work" || status === "review") ? null : summary);
+  const line = coordinationStatusLine(status, pullRequest && (status === "needs-work" || status === "review") ? null : summary, lastHeard);
   const Icon = pullRequest ? PULL_REQUEST_ICONS[pullRequest.state] : null;
   return (
     <div className={`coordination-card ${status}`} role="listitem">
       <button type="button" className="coordination-card-open" aria-label={`Open ${thread.title}`} title={thread.title} onClick={() => onSelect(thread.id)}>
         <span className="coordination-card-head">
-          <span className="coordination-row-mark"><CoordinationStatusMark status={status} /></span>
+          <span className="coordination-row-mark"><CoordinationStatusMark status={status} lastHeard={lastHeard} /></span>
           <strong>{thread.title}</strong>
           <ThreadMarks thread={thread} host={host} worktree={worktree} />
         </span>
-        <small className={status === "working" ? "text-sweep" : undefined} title={line}>{line}</small>
+        <small className={status === "working" && !lastHeard ? "text-sweep" : undefined} title={line}>{line}</small>
         {pullRequest && Icon && (
           <span className="coordination-card-pull-request" data-state={pullRequest.state}>
             <Icon size={11} aria-hidden="true" />

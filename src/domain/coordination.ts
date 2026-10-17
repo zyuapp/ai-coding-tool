@@ -4,7 +4,7 @@
  * role off lets every one of its threads stand on its own again, with nothing to undo. A thread on a
  * paired computer works under one through its `remoteLead`, which names the coordinator here.
  */
-import type { Thread } from "./thread.js";
+import type { HeardWork, Thread } from "./thread.js";
 import type { RemoteSender } from "./message-origin.js";
 import type { AgentEffort } from "./run.js";
 import { isThreadRole, type ThreadRole } from "./thread-role.js";
@@ -589,9 +589,9 @@ export function isRemoteHeard(value: unknown): value is Record<string, number> {
   return isRecord(value) && Object.values(value).every(finite);
 }
 
-/** Shape only: each of a coordinator's threads last seen working elsewhere, by id, with the computer holding it. */
-export function isRemoteWorking(value: unknown): value is Record<string, string> {
-  return isRecord(value) && Object.values(value).every((id) => typeof id === "string");
+/** Shape only: each of a coordinator's threads last seen working elsewhere, by id, with the computer holding it and its title. */
+export function isRemoteWorking(value: unknown): value is Record<string, HeardWork> {
+  return isRecord(value) && Object.values(value).every((work) => isRecord(work) && typeof work.computer === "string" && typeof work.title === "string");
 }
 
 export function isCoordinationReport(value: unknown): value is CoordinationReport {
