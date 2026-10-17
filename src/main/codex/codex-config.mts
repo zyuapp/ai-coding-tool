@@ -36,7 +36,10 @@ export const APP_FEATURES = ["--enable", "fast_mode", "--enable", "goals", "--en
   "-c", `plugins=${toml(Object.fromEntries(APP_SURFACE_PLUGINS.map((name) => [`${name}@openai-bundled`, { enabled: false }])) )}`,
 ];
 
-export type ConfigSources = Pick<ProviderRunInput, "channel" | "policy" | "computerUse">;
+/** A coordinator hands work only to threads the user can see, so it runs without Codex's own subagents, as it does without Claude's. */
+const COORDINATOR_WITHHELD_FEATURES = ["--disable", "multi_agent", "--disable", "multi_agent_v2"];
+
+export type ConfigSources = Pick<ProviderRunInput, "channel" | "policy" | "computerUse" | "coordinationRole">;
 
 /**
  * The config overrides a Codex app server is spawned with. The app's own tools are served flat
@@ -64,5 +67,6 @@ export function codexConfig(input: ConfigSources, served: ServedTools | undefine
     config[`mcp_servers.${COMPUTER_USE_SERVER_NAME}.env`] = env;
     if (grantsTool("computer-use", input)) config[`mcp_servers.${COMPUTER_USE_SERVER_NAME}.default_tools_approval_mode`] = "approve";
   }
-  return [...APP_FEATURES, ...Object.entries(config).flatMap(([key, value]) => ["-c", `${key}=${toml(value)}`])];
+  const withheld = input.coordinationRole === "coordinator" ? COORDINATOR_WITHHELD_FEATURES : [];
+  return [...APP_FEATURES, ...withheld, ...Object.entries(config).flatMap(([key, value]) => ["-c", `${key}=${toml(value)}`])];
 }

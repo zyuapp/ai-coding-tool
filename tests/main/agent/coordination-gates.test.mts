@@ -3,6 +3,7 @@ import { test } from "vitest";
 import { z } from "zod";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { ClaudeAgentProvider } from "../../../src/main/agent/claude-agent-provider.mts";
+import { codexConfig } from "../../../src/main/codex/codex-config.mts";
 import { codexPolicy } from "../../../src/main/codex/codex-policy.mts";
 import { runTools } from "../../../src/main/agent/run-tools.mts";
 import { input, queryFactory, type QueryCapture } from "../../support/claude-session.mjs";
@@ -33,6 +34,14 @@ test("a coordinator runs without file edits, shell, or subagents, and with the c
   assert.match(systemAppend(optionsOf(member)), /say exactly what's missing and stop/);
   assert.doesNotMatch(systemAppend(optionsOf(coordinator)), /say exactly what's missing and stop/, "a coordinator delegates, so it is never told to stop at a wall");
   assert.ok(optionsOf(coordinator).mcpServers?.["aicodingtool-coordination"]);
+});
+
+test("a coordinator on Codex runs without Codex's own subagents, as it does on Claude, while its threads keep them", () => {
+  const spawnedWith = (coordinationRole?: "coordinator" | "member") => codexConfig({ channel: "main", policy: "confirm", computerUse: { status: "unavailable", message: "off" }, ...(coordinationRole ? { coordinationRole } : {}) }, undefined);
+  const disabled = (args: readonly string[]) => args.flatMap((arg, index) => args[index - 1] === "--disable" ? [arg] : []);
+  assert.deepEqual(disabled(spawnedWith("coordinator")), ["multi_agent", "multi_agent_v2"]);
+  assert.deepEqual(disabled(spawnedWith("member")), [], "a thread under a coordinator does the work, so it keeps every tool");
+  assert.deepEqual(spawnedWith("member"), spawnedWith());
 });
 
 test("only a coordinator keeps a memory and suggests threads, so a member is offered none of those tools", () => {
