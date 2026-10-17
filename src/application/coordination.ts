@@ -207,16 +207,32 @@ export function memberActivity(member: CoordinationMember, working: ReadonlySet<
   return member.computer ? remoteActivity(member.computer, member.holder) : { working, blocked };
 }
 
-/** Whether a thread under a coordinator is still doing work, wherever it is. One waiting on the user's approval is not. */
-export function memberWorking(state: WorkspaceState, member: CoordinationMember): boolean {
-  const { working, blocked } = threadActivity(state);
-  return doingWork(memberActivity(member, working, blocked), member.thread.id);
+/**
+ * The state that last said where a thread under a coordinator stands: this computer's, or what the
+ * computer holding it last sent, whether or not its line is up now. What the coordinator is told and
+ * when it wakes read this, so a line that drops is never taken for the thread's work ending.
+ */
+function lastWord(state: WorkspaceState, member: CoordinationMember): WorkspaceState {
+  return member.computer ? member.holder : state;
 }
 
-/** Where a thread under a coordinator stands, as the computer holding it says. One whose line is down claims nothing going on. */
-export function memberStatus(state: WorkspaceState, member: CoordinationMember): ThreadStatus {
-  if (!member.computer) return threadStatus(state, member.thread.id);
-  return member.computer.status === "connected" ? threadStatus(member.holder, member.thread.id) : "idle";
+/** Whether a thread under a coordinator is still doing work, wherever it is, as last said. One waiting on the user's approval is not. */
+export function memberWorking(state: WorkspaceState, member: CoordinationMember): boolean {
+  return doingWork(threadActivity(lastWord(state, member)), member.thread.id);
+}
+
+/**
+ * The threads under a coordinator that a paired computer last said were working, which that computer
+ * has said nothing of since this app started: its line, or the list of computers, has yet to come
+ * in. They hold its news as a working thread does, since silence is not their work ending.
+ */
+export function unheardWork(state: Pick<WorkspaceState, "computers">, lead: Thread): { threadId: string; computer: PairedComputer | undefined }[] {
+  const working = lead.remoteWorking;
+  if (!working) return [];
+  return Object.entries(working).flatMap(([threadId, id]) => {
+    const computer = state.computers.paired.find((item) => item.id === id);
+    return computer?.state ? [] : [{ threadId, computer }];
+  });
 }
 
 /** A thread under a coordinator on a paired computer whose line is up, and the run or usage-limit wait it has going there. */
@@ -273,9 +289,9 @@ export function stoppableCoordinators(state: Pick<WorkspaceState, "threads" | "c
   return stoppable;
 }
 
-/** Threads under a coordinator still doing work, wherever each is. One waiting on the user's approval is not. */
-export function workingMembers(state: WorkspaceState, leadId: string): Thread[] {
-  return coordinationMembers(state, leadId).flatMap((member) => memberWorking(state, member) ? [member.thread] : []);
+/** How many threads under a coordinator are still doing work, wherever each is, as last said. One waiting on the user's approval is not. */
+export function workingMembers(state: WorkspaceState, lead: Thread): number {
+  return coordinationMembers(state, lead.id).filter((member) => memberWorking(state, member)).length + unheardWork(state, lead).length;
 }
 
 const ROSTER_STATUS: Record<ThreadStatus, string> = {
@@ -293,18 +309,18 @@ const ROSTER_DONE = 10;
  * and per thread among the most recently done, as each stands right now. Every other thread is
  * counted, so the roster stays small however long the coordinator lives.
  */
-function roster(state: WorkspaceState, leadId: string): string[] {
-  const { working, blocked } = threadActivity(state);
-  const standing = coordinationMembers(state, leadId).map((member) => {
-    const activity = memberActivity(member, working, blocked);
-    return { ...coordinatedThreadStatus(member.thread, activity.working, activity.blocked), member, busy: activity.working.has(member.thread.id) };
+function roster(state: WorkspaceState, lead: Thread): string[] {
+  const standing = coordinationMembers(state, lead.id).map((member) => {
+    const said = lastWord(state, member);
+    const activity = threadActivity(said);
+    return { ...coordinatedThreadStatus(member.thread, activity.working, activity.blocked), member, busy: activity.working.has(member.thread.id), stands: threadStatus(said, member.thread.id) };
   });
   const done = standing.filter(({ status }) => GROUP_OF[status] === "done");
   const recent = new Set(done.map(({ thread }) => thread).sort((left, right) => threadActivityAt(right) - threadActivityAt(left)).slice(0, ROSTER_DONE));
-  const lines = standing.flatMap(({ thread, status, summary, member, busy }) => {
+  const lines = standing.flatMap(({ thread, status, summary, member, busy, stands }) => {
     const group = GROUP_OF[status];
     if (group === "resolved" || group === "done" && !recent.has(thread)) return [];
-    const parts = [`- "${thread.title}" [${thread.id}]${member.computer ? ` on ${member.computer.name}` : ""} · ${ROSTER_STATUS[memberStatus(state, member)]}`];
+    const parts = [`- "${thread.title}" [${thread.id}]${member.computer ? elsewhere(member.computer.name, member.computer.status === "connected", stands) : ` · ${ROSTER_STATUS[stands]}`}`];
     /** A report that it is working says nothing once its turn has ended, as its card reads it. */
     const report = thread.report && (busy || thread.report.state !== "working") ? thread.report : undefined;
     if (report) parts.push(`reported ${report.state}: ${report.summary}`);
@@ -314,9 +330,16 @@ function roster(state: WorkspaceState, leadId: string): string[] {
     for (const decision of openDecisions(thread)) parts.push(`waiting on the user to decide: ${decision.question}`);
     return [parts.join(" · ")];
   });
+  /** One on a computer that has said nothing since this app started is known only by its id, and as working when last heard. */
+  const unheard = unheardWork(state, lead).map(({ threadId, computer }) => `- A thread [${threadId}]${elsewhere(computer?.name ?? "a paired computer", false, "working")}`);
   const resolved = standing.filter(({ status }) => status === "resolved").length;
   const rest = uncounted(done.length - recent.size, resolved);
-  return rest ? [...lines, rest] : lines;
+  return [...lines, ...unheard, ...rest ? [rest] : []];
+}
+
+/** Where a thread on a paired computer is and how it stands; one on a computer out of reach stands as that computer last said. */
+function elsewhere(name: string, reached: boolean, status: ThreadStatus): string {
+  return reached ? ` on ${name} · ${ROSTER_STATUS[status]}` : ` on ${name}, which cannot be reached now · ${ROSTER_STATUS[status]} when last heard`;
 }
 
 /** The threads the roster leaves out, and where the coordinator reads them instead. */
@@ -354,7 +377,7 @@ function memoryContext(lead: Thread, fresh: boolean): string[] {
  */
 export function coordinationContext(state: WorkspaceState, lead: Thread, { carried = [], fresh = false }: { carried?: readonly string[]; fresh?: boolean } = {}): string {
   const notes = (lead.coordinationNotes ?? []).filter((note) => !carried.includes(note.id));
-  const lines = roster(state, lead.id);
+  const lines = roster(state, lead);
   const own = openDecisions(lead).map((decision) => `- ${decision.question}`);
   const suggested = (lead.proposals ?? []).map((proposal) => `- "${proposal.title}" [${proposal.id}]`);
   const recent = fresh ? recentConversation(lead) : [];

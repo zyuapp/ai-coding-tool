@@ -5,7 +5,7 @@ import { released, remoteNews } from "./coordination-remote.js";
 import { withProposalFailure } from "./proposals.js";
 import { now, rejected, settled } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { canResolve, checkoutAnswer, coordinatedThreadStatus, coordinationMembers, coordinatorWork, coordinationUpdate, decisionHeadline, decisionNote, memberWorking, nextSteps, reportHeadline, reportNote, turnNote, workingMembers } from "../coordination.js";
+import { canResolve, checkoutAnswer, coordinatedThreadStatus, coordinationMembers, coordinatorWork, coordinationUpdate, decisionHeadline, decisionNote, memberWorking, nextSteps, reportHeadline, reportNote, turnNote, unheardWork, workingMembers } from "../coordination.js";
 import { activityChanges, threadActivity, threadChanges } from "../thread-activity.js";
 import { cancelPause, heldByLimit } from "../limit-pauses.js";
 import { announced } from "../notices.js";
@@ -333,14 +333,16 @@ function coordinatorsOf(previous: WorkspaceState, next: WorkspaceState, touched:
 
 /**
  * The news that wakes a coordinator: notes not quiet, and not written during a run of one of its
- * threads that is still working, here or on the computer that holds it. A run waiting for the user's
- * approval no longer counts as working.
+ * threads that is still working, here or on the computer that holds it, as that computer last said.
+ * A run waiting for the user's approval no longer counts as working.
  */
 function wakingNews(state: WorkspaceState, lead: Thread): CoordinationNote[] {
   const notes = (lead.coordinationNotes ?? []).filter((note) => !note.quiet);
   if (!notes.some((note) => note.runId)) return notes;
   const members = new Map(coordinationMembers(state, lead.id).map((member) => [member.thread.id, member]));
+  const unheard = new Set(unheardWork(state, lead).map(({ threadId }) => threadId));
   const going = (id: string, runId: string) => {
+    if (unheard.has(id)) return true;
     const member = members.get(id);
     if (!member) return false;
     const runs = member.computer ? member.holder.activeRuns : state.activeRuns;
@@ -360,7 +362,7 @@ function deliverCoordinationNotes(state: WorkspaceState, leadId: string): Worksp
   if (!lead || !isCoordinator(lead) || !notes.length || threadBusy(state, leadId) || queuedFor(state, leadId).length || heldByLimit(state, leadId, now())) return settled(state);
   const news = wakingNews(state, lead);
   if (!news.length) return settled(state);
-  const working = workingMembers(state, leadId).length;
+  const working = workingMembers(state, lead);
   if (working && !news.some((note) => note.urgent)) return settled(state);
   const project = projectFor(state, lead);
   const update = coordinationUpdate(notes, working);

@@ -589,6 +589,11 @@ export function isRemoteHeard(value: unknown): value is Record<string, number> {
   return isRecord(value) && Object.values(value).every(finite);
 }
 
+/** Shape only: each of a coordinator's threads last seen working elsewhere, by id, with the computer holding it. */
+export function isRemoteWorking(value: unknown): value is Record<string, string> {
+  return isRecord(value) && Object.values(value).every((id) => typeof id === "string");
+}
+
 export function isCoordinationReport(value: unknown): value is CoordinationReport {
   return isRecord(value) && isCoordinationState(value.state) && text(value.summary, MAX_SUMMARY) && finite(value.at);
 }

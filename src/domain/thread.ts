@@ -50,6 +50,11 @@ export type Thread = {
    * computer's clock whose news it has taken, so news from while the link was down is caught up.
    */
   remoteHeard?: Record<string, number>;
+  /**
+   * On a coordinator: each of its threads that a paired computer last said was working, by that
+   * computer's id, so a computer silent since this app started is not taken for their work ending.
+   */
+  remoteWorking?: Record<string, string>;
   projectId?: string;
   executionPolicy: ExecutionPolicy;
   engine: AgentEngine;

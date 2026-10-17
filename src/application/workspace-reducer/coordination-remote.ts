@@ -6,7 +6,7 @@ import type { ThreadChange } from "../thread-activity.js";
 import { announced, waitingHeadline } from "../notices.js";
 import { settledHeadline } from "../run-testimony.js";
 import { updateThread } from "../thread-run-state.js";
-import { remoteWorkingIds, type PairedComputer } from "../computers.js";
+import { lastWorkingIds, type PairedComputer } from "../computers.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import type { AppCommand } from "../../contracts/commands.js";
@@ -37,8 +37,8 @@ export function remoteNews(previous: WorkspaceState, next: WorkspaceState): Remo
     const members = remotelyLedThreads(holder.threads);
     const earlier = prior ? remotelyLedThreads(prior.threads) : [];
     if (!members.length && !earlier.length) continue;
-    const working = remoteWorkingIds(computer, holder);
-    const workedBefore = was && prior ? remoteWorkingIds(was, prior) : new Set<string>();
+    const working = lastWorkingIds(holder);
+    const workedBefore = prior ? lastWorkingIds(prior) : new Set<string>();
     const kept = new Set(members.map((thread) => thread.id));
     /** A thread that left, or stopped being one of a coordinator's, may have been what held its coordinator's news. */
     for (const thread of earlier) if (!kept.has(thread.id) && workedBefore.has(thread.id)) news.leads.add(thread.remoteLead!.threadId);
@@ -55,10 +55,49 @@ export function remoteNews(previous: WorkspaceState, next: WorkspaceState): Remo
   /** A computer no longer paired takes its threads' work with it. */
   for (const gone of before.values()) {
     if (!gone.state) continue;
-    const working = remoteWorkingIds(gone, gone.state);
+    const working = lastWorkingIds(gone.state);
     for (const thread of remotelyLedThreads(gone.state.threads)) if (working.has(thread.id)) news.leads.add(thread.remoteLead!.threadId);
   }
-  return news;
+  return keptWork(previous, news);
+}
+
+/**
+ * Each coordinator here keeps which of its threads each paired computer last said was working, so a
+ * restart here, after which a computer says nothing until its line is back, does not take that
+ * silence for their work ending. What a computer says anew replaces what it said before, and one no
+ * longer paired keeps nothing. A coordinator whose kept work changed is looked at again.
+ */
+function keptWork(previous: WorkspaceState, news: RemoteNews): RemoteNews {
+  const before = new Map(previous.computers.paired.map((computer) => [computer.id, computer.state]));
+  const paired = new Set<string>();
+  const fresh = new Set<string>();
+  const said = new Map<string, [string, string][]>();
+  for (const computer of news.state.computers.paired) {
+    paired.add(computer.id);
+    const holder = computer.state;
+    if (!holder || holder === before.get(computer.id)) continue;
+    fresh.add(computer.id);
+    const working = lastWorkingIds(holder);
+    for (const thread of remotelyLedThreads(holder.threads)) {
+      if (!working.has(thread.id)) continue;
+      const leadId = thread.remoteLead!.threadId;
+      const heard = said.get(leadId);
+      if (heard) heard.push([thread.id, computer.id]);
+      else said.set(leadId, [[thread.id, computer.id]]);
+    }
+  }
+  let state = news.state;
+  const leads = new Set(news.leads);
+  for (const lead of news.state.threads) {
+    if (!lead.remoteWorking && !said.has(lead.id)) continue;
+    const kept = Object.entries(lead.remoteWorking ?? {}).filter(([, id]) => paired.has(id) && !fresh.has(id));
+    const working = [...kept, ...isCoordinator(lead) ? said.get(lead.id) ?? [] : []];
+    const held = lead.remoteWorking ?? {};
+    if (working.length === Object.keys(held).length && working.every(([threadId, id]) => held[threadId] === id)) continue;
+    state = updateThread(state, lead.id, ({ remoteWorking: _said, ...thread }) => working.length ? { ...thread, remoteWorking: Object.fromEntries(working) } : thread);
+    leads.add(lead.id);
+  }
+  return state === news.state ? news : { ...news, state, leads };
 }
 
 /**

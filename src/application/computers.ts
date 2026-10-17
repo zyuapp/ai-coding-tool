@@ -420,9 +420,12 @@ export function remoteActivity(computer: Pick<PairedComputer, "status">, holder:
   return computer.status === "connected" ? activity : { ...activity, working: NO_ACTIVITY };
 }
 
-/** The threads a paired computer says are doing work, none while its line is down. One waiting on an approval is not. */
-export function remoteWorkingIds(computer: Pick<PairedComputer, "status">, holder: WorkspaceState): Set<string> {
-  const activity = remoteActivity(computer, holder);
+/**
+ * The threads a paired computer last said are doing work, whether or not its line is up now, so a
+ * line that drops is never taken for their work ending. One waiting on an approval is not.
+ */
+export function lastWorkingIds(holder: WorkspaceState): Set<string> {
+  const activity = threadActivity(holder);
   return new Set([...activity.working].filter((id) => doingWork(activity, id)));
 }
 

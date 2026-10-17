@@ -2,13 +2,14 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
-import { coordinationMembers, coordinationRole } from "../../src/application/coordination.ts";
+import { coordinationContext, coordinationMembers, coordinationRole } from "../../src/application/coordination.ts";
 import { coordinationView } from "../../src/application/coordination-view.ts";
 import { sidebarLists } from "../../src/application/sidebar-lists.ts";
 import type { PairedComputer } from "../../src/application/computers.ts";
 import { COMPUTER_CAPABILITIES } from "../../src/contracts/computer-capabilities.ts";
 import type { ComputerLink } from "../../src/domain/computers.ts";
 import type { Thread } from "../../src/domain/thread.ts";
+import { THREAD_STORE_VERSION } from "../../src/domain/thread-storage.ts";
 import { createFailureMessage } from "../../src/domain/conversation.ts";
 import { activeRun, effectAt, effectOf, required, task, workspace } from "./workspace-reducer-fixtures.mts";
 import { viewPreferences } from "../../src/application/view-preferences.ts";
@@ -77,6 +78,54 @@ test("its turn end, report and decision reach the coordinator, once each, even a
 
   const again = mirrored(caught.state, { ...finished, activeRuns: {} });
   assert.deepEqual(notesOf(again.state), notesOf(caught.state), "each is heard once");
+});
+
+/** A coordinator here holding news from "one" while "far" works on studio, as studio said with its line up. */
+const ONE_ENDED = { id: "n1", threadId: "one", text: "\"One\" ended its turn.", at: 1 };
+const FAR_RUNNING = workspace({ threads: [far()], activeRuns: { far: activeRun("far", "run-far") } });
+const FAR_ENDED = workspace({ threads: [far({ runEndedAt: 40, outcome: "finished" })] });
+const holdingNews = () => mirrored(withComputers(workspace({ threads: [lead("lead", { title: "Lead", coordinationNotes: [ONE_ENDED] }), task("one", { title: "One", parentId: "lead" })] }), [paired("studio", workspace(), { capabilities: COMPUTER_CAPABILITIES })]), FAR_RUNNING).state;
+const studioLine = (status: ComputerLink["status"]): WorkspaceInput => ({ type: "computers.changed", name: "This Mac", links: [link("studio", { status, capabilities: COMPUTER_CAPABILITIES })] });
+const rosterOf = (state: WorkspaceState) => coordinationContext(state, required(state.threads.find((thread) => thread.id === "lead"))).split("\n").filter((line) => line.includes("[far]"));
+
+test("a line that drops is not taken for its thread's work ending", () => {
+  const holding = holdingNews();
+  assert.deepEqual(wakesOf(holding), [], "a thread working there holds the news");
+  for (const status of ["offline", "connecting"] as const) {
+    const dropped = reduce(holding, studioLine(status)).state;
+    assert.deepEqual(wakesOf(dropped), [], `going ${status} says nothing of its work`);
+    assert.deepEqual(rosterOf(dropped), ["- \"Far work\" [far] on studio, which cannot be reached now · working when last heard"]);
+  }
+  const dropped = reduce(holding, studioLine("offline")).state;
+  const back = reduce(dropped, studioLine("connected")).state;
+  assert.deepEqual(wakesOf(back), []);
+  const woke = wakesOf(mirrored(back, FAR_ENDED).state);
+  assert.equal(woke.length, 1, "its turn ending there wakes the coordinator, once");
+  assert.match(woke[0]!.prompt, /"One" ended its turn\.[\s\S]*"Far work" ended its turn\.[\s\S]*None of your threads is working now/);
+});
+
+test("a computer that has yet to answer after a restart here holds the news its thread was holding", () => {
+  const holding = holdingNews();
+  assert.deepEqual(holding.threads[0]!.remoteWorking, { far: "studio" }, "kept with the coordinator, which outlives a restart");
+  const restarted = reduce(workspace(), { type: "store.loaded", data: { version: THREAD_STORE_VERSION, tasks: holding.threads, projects: [], worktrees: [], lastFolder: null } }).state;
+  assert.deepEqual(wakesOf(restarted), [], "before the paired computers come in");
+  assert.deepEqual(rosterOf(restarted), ["- A thread [far] on a paired computer, which cannot be reached now · working when last heard"]);
+  const away = reduce(restarted, studioLine("offline")).state;
+  assert.deepEqual(wakesOf(away), [], "while its line is down");
+  assert.deepEqual(rosterOf(away), ["- A thread [far] on studio, which cannot be reached now · working when last heard"]);
+
+  const answered = mirrored(reduce(away, studioLine("connected")).state, FAR_RUNNING).state;
+  assert.deepEqual(wakesOf(answered), [], "still working once it answers");
+  const woke = wakesOf(mirrored(answered, FAR_ENDED).state);
+  assert.equal(woke.length, 1);
+  assert.match(woke[0]!.prompt, /None of your threads is working now/);
+  assert.equal(mirrored(answered, FAR_ENDED).state.threads[0]!.remoteWorking, undefined);
+
+  const unpaired = reduce(restarted, { type: "computers.changed", name: "This Mac", links: [] });
+  assert.equal(wakesOf(unpaired.state).length, 1, "a computer no longer paired holds nothing");
+  assert.equal(unpaired.state.threads[0]!.remoteWorking, undefined);
+  const gone = mirrored(reduce(away, studioLine("connected")).state, workspace());
+  assert.equal(wakesOf(gone.state).length, 1, "nor does one whose thread is no longer there");
 });
 
 test("a coordinator with more threads there than it keeps watermarks for hears each of them once", () => {
