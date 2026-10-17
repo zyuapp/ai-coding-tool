@@ -6,7 +6,7 @@ import { promptWithAttachments } from "../attachments.js";
 import { annotationsFor, composerDraft, filesFor, imagesFor, pastesFor, withAnnotations, withFiles, withImages, withPastes } from "../composer-drafts.js";
 import { promptWithFiles } from "../files.js";
 import { promptWithPastes } from "../pastes.js";
-import { ATTENDED_RUN, runStatusFor, threadMark, updateThread, withActiveRun, withRunStatus, type RunProvenance, type ThreadMark } from "../thread-run-state.js";
+import { ATTENDED_RUN, runStatusFor, threadMark, updateThread, withActiveRun, withBackgroundProcesses, withRunStatus, withSubagents, withWorkflows, type RunProvenance, type ThreadMark } from "../thread-run-state.js";
 import { projectFor, threadWorkspaceId, worktreeFor } from "../thread-location.js";
 import { withPrompt, type DraftBranch, type PendingRun, type QueuedMessage, type SideChat, type WorkspaceState } from "../workspace-state.js";
 import type { ClaudeRunSettings, StartRunCommand } from "../../contracts/ipc.js";
@@ -154,8 +154,15 @@ export function beginRun(state: WorkspaceState, taskId: string, runId: string, p
   const threads = withoutOutcome(state.threads, new Set([taskId])).map((thread) => thread.id === taskId ? pickedUp(thread, pickup) : thread);
   const messagesBefore = threads.find((thread) => thread.id === taskId)?.messages.length ?? 0;
   const mark = before ?? threadMark(state.threads.find((thread) => thread.id === taskId));
+  /**
+   * The turn the agent opens itself on hearing that what Stop all stopped has stopped ends quietly too;
+   * any other run is the thread picked back up, so a later turn of the agent's own is news again.
+   */
+  const hushed = state.quietSessions.includes(taskId)
+    ? { quietSessions: state.quietSessions.filter((id) => id !== taskId), ...(pickup === "agent" ? { quietStops: [...state.quietStops, runId] } : {}) }
+    : {};
   return withRunStatus(
-    withActiveRun({ ...state, threads, actionError: null, lastRunIds: { ...state.lastRunIds, [taskId]: runId } }, taskId, { taskId, runId, sequence: 0, status: "running", ...provenance, notified: false, acknowledged: false, reportedIssues: [], messagesBefore, before: mark, ...(pickup === "warming" ? { warming: true as const } : {}) }),
+    withActiveRun({ ...state, ...hushed, threads, actionError: null, lastRunIds: { ...state.lastRunIds, [taskId]: runId } }, taskId, { taskId, runId, sequence: 0, status: "running", ...provenance, notified: false, acknowledged: false, reportedIssues: [], messagesBefore, before: mark, ...(pickup === "warming" ? { warming: true as const } : {}) }),
     taskId,
     "running",
   );
@@ -202,6 +209,35 @@ export function withSteeringFailure(state: WorkspaceState, taskId: string, messa
   return next.sideChats.some((chat) => chat.id === taskId)
     ? withSideChat(next, taskId, (chat) => ({ ...chat, error }))
     : { ...next, actionError: error, actionErrorPage: null };
+}
+
+/** The kill is the agent process's to make; the row only says a stop is on its way. */
+export function stoppingProcess(state: WorkspaceState, taskId: string, processId: string): WorkspaceTransition {
+  const stop: WorkspaceEffect[] = [{ type: "send-run-command", command: { type: "stop-process", taskId, processId } }];
+  const processes = state.backgroundProcesses[taskId] ?? [];
+  const target = processes.find((process) => process.id === processId);
+  if (target) {
+    const marked = processes.map((process) => process.id === target.id ? { ...process, stopping: true } : process);
+    return target.stopping ? settled(state) : settled(withBackgroundProcesses(state, taskId, marked), stop);
+  }
+  /** A workflow is a task of the agent process like any other, so the same stop reaches it. */
+  const workflows = state.workflows[taskId] ?? [];
+  const workflow = workflows.find((candidate) => candidate.id === processId);
+  if (workflow) {
+    if (workflow.stopping || workflow.status !== "running") return settled(state);
+    return settled(
+      withWorkflows(state, taskId, workflows.map((candidate) => candidate.id === workflow.id ? { ...candidate, stopping: true } : candidate)),
+      stop,
+    );
+  }
+  /** So is a subagent the session is still running. */
+  const subagents = state.subagents[taskId] ?? [];
+  const subagent = subagents.find((candidate) => candidate.id === processId);
+  if (!subagent || subagent.stopping || subagent.status !== "working") return settled(state);
+  return settled(
+    withSubagents(state, taskId, subagents.map((candidate) => candidate.id === subagent.id ? { ...candidate, stopping: true as const } : candidate)),
+    stop,
+  );
 }
 
 /**

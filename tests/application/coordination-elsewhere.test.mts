@@ -205,6 +205,10 @@ test("Stop all stops a remote member's workflows and subagents there, which alon
   ] });
   const stopping = mirrored(stopped.state, { ...holder, workflows: { far: [{ ...work, stopping: true }] }, subagents: { far: [{ ...child, stopping: true }] } }).state;
   assert.equal(deriveView(stopping).stoppableCoordinatorIds.has("lead"), false, "once it is stopping there");
+
+  const older = COMPUTER_CAPABILITIES.filter((capability) => !capability.startsWith("command:run.stop-process"));
+  const unreachable = mirrored(coordinating(workspace(), { capabilities: older }), holder).state;
+  assert.equal(deriveView(unreachable).stoppableCoordinatorIds.has("lead"), false, "by a computer whose build cannot stop them");
 });
 
 test("a relayed notice for a remote member of a local coordinator is dropped", () => {

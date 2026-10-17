@@ -10,6 +10,7 @@ import type { PullRequestAnswer, PullRequestChecks, PullRequestLink, PullRequest
 import { wantsAttention } from "../domain/attention.js";
 import { originLabel } from "../domain/message-origin.js";
 import { replyLine } from "./reply-line.js";
+import { supportsComputerCommand } from "../contracts/computer-capabilities.js";
 
 /**
  * What a send carries for a coordinator: the thread it starts works under it, or under `lead` on
@@ -249,7 +250,7 @@ export function unheardWork(state: Pick<WorkspaceState, "computers">, lead: Thre
 
 /**
  * A thread under a coordinator on a paired computer whose line is up, and the run, usage-limit wait,
- * workflows and subagents it has going there.
+ * and workflows and subagents that computer can stop, it has going there.
  */
 export type RemoteWork = { thread: Thread; computer: PairedComputer; runId?: string; processIds: string[] };
 
@@ -294,9 +295,12 @@ export function coordinatorWork(state: Pick<WorkspaceState, "threads" | "compute
   });
   const elsewhere = coordinated.flatMap((member): RemoteWork[] => {
     if (!member.computer || member.computer.status !== "connected") return [];
-    const run = member.holder.activeRuns[member.thread.id];
-    const processIds = unstoppedSessionWork(member.holder, member.thread.id);
-    return run || member.thread.limitPause || processIds.length ? [{ thread: member.thread, computer: member.computer, ...(run ? { runId: run.runId } : {}), processIds }] : [];
+    const { thread, computer, holder } = member;
+    const run = holder.activeRuns[thread.id];
+    /** Only what that computer's build can stop counts, so Stop all is never offered for work it cannot reach. */
+    const processIds = unstoppedSessionWork(holder, thread.id)
+      .filter((processId) => supportsComputerCommand(computer.capabilities, { type: "run.stop-process", taskId: thread.id, processId }));
+    return run || thread.limitPause || processIds.length ? [{ thread, computer, ...(run ? { runId: run.runId } : {}), processIds }] : [];
   });
   const caught = new Set(state.stoppedStarts.map((start) => start.proposalId));
   const landing = (lead.proposals ?? []).filter((proposal) => proposal.place.computer && state.startingProposals.includes(proposal.id) && !caught.has(proposal.id));

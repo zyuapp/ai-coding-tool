@@ -6,7 +6,7 @@ import { coordinatedStart, withSuggestionStarted } from "./coordinated-start.js"
 import { readDiffFrom, rereadReviewsOf } from "./diff-reads.js";
 import { handOverDraftDock } from "./dock-tabs.js";
 import { WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
-import { beginRun, clearedDraft, drainQueue, queuedFor, resolveWorkspaceEffect, sideChannelFor, startRunCommand, threadBusy, withAttendedRun, withDeliveredMessage, withPending, withQueued, withSideChat, withSteeringFailure, withoutPending } from "./run-queue.js";
+import { beginRun, clearedDraft, drainQueue, queuedFor, resolveWorkspaceEffect, sideChannelFor, startRunCommand, stoppingProcess, threadBusy, withAttendedRun, withDeliveredMessage, withPending, withQueued, withSideChat, withSteeringFailure, withoutPending } from "./run-queue.js";
 import { followUps, now, settled, targetId, rejected } from "./shared.js";
 import { memberPullRequestRead } from "./pull-requests.js";
 import { withUsedWorktree } from "./worktree-claims.js";
@@ -18,7 +18,7 @@ import { announced, postedHeadline, waitingHeadline, type NoticeReason } from ".
 import { pasteTitle } from "../pastes.js";
 import { outcomeFor, settledHeadline, whyRunSurfaces, withSettledTick, type RunSurfacing } from "../run-testimony.js";
 import { nextSortIndex } from "../thread-order.js";
-import { answerPartId, applyRunEvent, applyThreadEvent, ATTENDED_RUN, threadMark, updateThread, withBackgroundProcesses, withSubagents, withWorkflows, type ActiveRun, type ThreadMark } from "../thread-run-state.js";
+import { answerPartId, applyRunEvent, applyThreadEvent, ATTENDED_RUN, threadMark, updateThread, type ActiveRun, type ThreadMark } from "../thread-run-state.js";
 import { threadOnScreen } from "../thread-attention.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, threadWorkspaceRoot, worktreeById, worktreeFor } from "../thread-location.js";
 import { DRAFT_DOCK, type PendingRun, type WorkspaceState } from "../workspace-state.js";
@@ -390,35 +390,9 @@ function startResume(state: WorkspaceState, pending: PendingRun, workspace: Work
   return settled(beginRun(resumed, thread.id, pending.runId, ATTENDED_RUN, undefined, "warming"), [{ type: "start-run", command }]);
 }
 
-/** The kill is the agent process's to make; the row only says a stop is on its way. */
 function stopProcess(state: WorkspaceState, input: Extract<RunInput, { type: "run.stop-process" }>): WorkspaceTransition {
   const taskId = targetId(state, input.taskId);
-  if (!taskId) return settled(state);
-  const stop: WorkspaceEffect[] = [{ type: "send-run-command", command: { type: "stop-process", taskId, processId: input.processId } }];
-  const processes = state.backgroundProcesses[taskId] ?? [];
-  const target = processes.find((process) => process.id === input.processId);
-  if (target) {
-    const marked = processes.map((process) => process.id === target.id ? { ...process, stopping: true } : process);
-    return target.stopping ? settled(state) : settled(withBackgroundProcesses(state, taskId, marked), stop);
-  }
-  /** A workflow is a task of the agent process like any other, so the same stop reaches it. */
-  const workflows = state.workflows[taskId] ?? [];
-  const workflow = workflows.find((candidate) => candidate.id === input.processId);
-  if (workflow) {
-    if (workflow.stopping || workflow.status !== "running") return settled(state);
-    return settled(
-      withWorkflows(state, taskId, workflows.map((candidate) => candidate.id === workflow.id ? { ...candidate, stopping: true } : candidate)),
-      stop,
-    );
-  }
-  /** So is a subagent the session is still running. */
-  const subagents = state.subagents[taskId] ?? [];
-  const subagent = subagents.find((candidate) => candidate.id === input.processId);
-  if (!subagent || subagent.stopping || subagent.status !== "working") return settled(state);
-  return settled(
-    withSubagents(state, taskId, subagents.map((candidate) => candidate.id === subagent.id ? { ...candidate, stopping: true as const } : candidate)),
-    stop,
-  );
+  return taskId ? stoppingProcess(state, taskId, input.processId) : settled(state);
 }
 
 function startAutomationRun(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord, worktree?: CreatedWorktree): WorkspaceTransition {

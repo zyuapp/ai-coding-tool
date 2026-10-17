@@ -242,6 +242,28 @@ test("stopping all stops each workflow and subagent that outlives its thread's r
   assert.equal(deriveView(ended.state).stoppableCoordinatorIds.has("lead"), false, "what is left is already on its way to stopping");
 });
 
+test("a turn the agent takes itself after stopping all stopped its workflow ends quietly, and only that one", () => {
+  const state = workspace({ threads: [lead(), member("one")], workflows: { one: [workflow("wf")] } });
+  const stopped = reduce(state, { type: "coordination.stop-all", taskId: "lead" });
+  assert.deepEqual(stopped.state.quietSessions, ["one"]);
+  const answering = reduce(stopped.state, correlatedRunEvent("one", "run-a", 1, { type: "run.started", agentInitiated: true }));
+  assert.deepEqual(answering.state.quietSessions, [], "only its next turn of its own");
+  const answered = reduce(answering.state, correlatedRunEvent("one", "run-a", 2, { type: "run.status", status: "succeeded" }));
+  assert.equal(answered.state.threads[0]!.coordinationNotes?.at(-1)?.quiet, true);
+  assert.deepEqual(answered.state.quietStops, []);
+  slept(answered, "the agent answering the stop");
+
+  const later = reduce(answered.state, correlatedRunEvent("one", "run-b", 1, { type: "run.started", agentInitiated: true }));
+  const news = reduce(later.state, correlatedRunEvent("one", "run-b", 2, { type: "run.status", status: "succeeded" }));
+  assert.equal(news.state.threads[0]!.coordinationNotes?.at(-1)?.quiet, undefined, "a later turn of its own is news again");
+
+  const messaged = reduce(stopped.state, { type: "task.send", taskId: "one", text: "Carry on" });
+  const pendingId = required(Object.values(messaged.state.pendingRuns).find((pending) => pending.taskId === "one")).id;
+  const sent = reduce(messaged.state, { type: "run.resolved", pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+  assert.deepEqual(sent.state.quietSessions, [], "the user picking the thread back up");
+  assert.equal(sent.state.quietStops.includes(required(sent.state.activeRuns.one).runId), false);
+});
+
 test("stopping all drops a coordinator's wake and hands back what its threads were about to send", () => {
   const wake = { id: "wake", runId: "run-w", origin: "composer" as const, taskId: "lead", text: "Update", prompt: "Update", attachments: [], coordination: { notes: ["n1"] } };
   const drained = { id: "next", runId: "run-n", origin: "composer" as const, taskId: "one", text: "Then this", prompt: "Then this", attachments: [], queuedIds: ["q1"] };
