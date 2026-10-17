@@ -15,7 +15,7 @@ import type { Worktree } from "../domain/worktree.js";
 import { MAIN_COMPOSER } from "./composer-attachments.js";
 import { annotationsFor, filesFor, pastesFor } from "./composer-drafts.js";
 import { promptKey, type WorkspaceState } from "./workspace-state.js";
-import { threadActivity, threadLists } from "./thread-activity.js";
+import { threadActivity, threadLists, type ThreadActivity } from "./thread-activity.js";
 import { stoppableCoordinators } from "./coordination.js";
 import type { WorkspaceInput } from "./workspace-reducer.js";
 import { frontDock } from "./workspace-dock.js";
@@ -385,6 +385,29 @@ export function shownComputers(computers: ComputersState): PairedComputer[] {
 /** One row's tag: which computer holds it, whether that computer can be reached, and whether it is being dialled again. */
 export type ThreadHost = { id: string; name: string; offline: boolean; reconnecting?: boolean };
 
+/** How a paired computer is named on what it holds, and whether its line is up. */
+export function threadHostOf(computer: Pick<PairedComputer, "id" | "name" | "status">): ThreadHost {
+  return { id: computer.id, name: computer.name, offline: computer.status !== "connected", reconnecting: computer.status === "connecting" };
+}
+
+/** No work going on, which nothing adds to. */
+const NO_ACTIVITY = new Set<string>();
+
+/**
+ * Which of a paired computer's threads are working and which wait on an approval, as it says. One
+ * whose line is down claims no work going on, as its sidebar rows do.
+ */
+export function remoteActivity(computer: Pick<PairedComputer, "status">, holder: WorkspaceState): ThreadActivity {
+  const activity = threadActivity(holder);
+  return computer.status === "connected" ? activity : { ...activity, working: NO_ACTIVITY };
+}
+
+/** The threads a paired computer says are doing work, none while its line is down. One waiting on an approval is not. */
+export function remoteWorkingIds(computer: Pick<PairedComputer, "status">, holder: WorkspaceState): Set<string> {
+  const { working, blocked } = remoteActivity(computer, holder);
+  return new Set([...working].filter((id) => !blocked.has(id)));
+}
+
 /** Everything the sidebar needs from the paired computers, gathered once per state. */
 export type RemoteCollections = {
   threads: Thread[];
@@ -417,7 +440,7 @@ export function remoteCollections(computers: ComputersState): RemoteCollections 
      * threads stay where the user left them. It claims no work going on and nothing unread meanwhile.
      */
     const live = computer.status === "connected";
-    const host: ThreadHost = { id: computer.id, name: computer.name, offline: !live, reconnecting: computer.status === "connecting" };
+    const host = threadHostOf(computer);
     const lists = threadLists(remote);
     for (const thread of lists.visibleThreads) {
       gathered.threads.push(thread);
@@ -428,9 +451,9 @@ export function remoteCollections(computers: ComputersState): RemoteCollections 
       gathered.projectHosts.set(project.id, host);
     }
     for (const worktree of remote.worktrees) gathered.worktrees.push(worktree);
-    const activity = threadActivity(remote);
+    const activity = remoteActivity(computer, remote);
     for (const id of lists.worktreeThreadIds) gathered.worktreeThreadIds.add(id);
-    if (live) for (const id of activity.working) gathered.busy.add(id);
+    for (const id of activity.working) gathered.busy.add(id);
     if (live) for (const id of stoppableCoordinators(remote)) gathered.stoppable.add(id);
     for (const id of activity.ranked) gathered.ranked.add(id);
     for (const id of activity.blocked) gathered.blocked.add(id);

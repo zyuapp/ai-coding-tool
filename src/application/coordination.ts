@@ -1,7 +1,7 @@
 /** What a coordinator and its threads are told, and how the sidebar groups them. */
 import type { PendingRun, WorkspaceState } from "./workspace-state.js";
 import type { ApprovalView } from "./thread-run-state.js";
-import { ledStartRefusal, type PairedComputer, type ThreadHost } from "./computers.js";
+import { ledStartRefusal, remoteActivity, threadHostOf, type PairedComputer, type ThreadHost } from "./computers.js";
 import { threadActivity, threadStatus, type ThreadStatus } from "./thread-activity.js";
 import { activitySections, type ActivitySections } from "./thread-order.js";
 import { threadWorkspaceId } from "./thread-location.js";
@@ -178,16 +178,14 @@ export function coordinationMembers(state: Pick<WorkspaceState, "threads" | "com
   return found;
 }
 
-const NONE: ReadonlySet<string> = new Set();
-
 /**
  * Which threads are working and which wait on an approval, as the computer holding a thread under a
  * coordinator says. One whose line is down claims no work going on, as its sidebar rows do.
  */
 export function memberActivity(member: CoordinationMember, busy: ReadonlySet<string>, blocked: ReadonlySet<string>): { busy: ReadonlySet<string>; blocked: ReadonlySet<string> } {
   if (!member.computer) return { busy, blocked };
-  const activity = threadActivity(member.holder);
-  return { busy: member.computer.status === "connected" ? activity.working : NONE, blocked: activity.blocked };
+  const activity = remoteActivity(member.computer, member.holder);
+  return { busy: activity.working, blocked: activity.blocked };
 }
 
 /** Whether a thread under a coordinator is still doing work, wherever it is. One waiting on the user's approval is not. */
@@ -718,15 +716,10 @@ function memberView(state: Pick<WorkspaceState, "projects" | "worktrees" | "memb
   const { status, summary } = coordinatedThreadStatus(thread, activity.busy, activity.blocked);
   /** What GitHub said of its checkout is known where the checkout is. */
   const steps = nextSteps(thread, status, checkoutAnswer(member.computer ? member.holder : state, thread));
-  const host = member.computer ? hostOf(member.computer) : null;
+  const host = member.computer ? threadHostOf(member.computer) : null;
   /** The pull request and the start are read off the thread, so the same thread has the same ones. */
   if (held?.thread === thread && held.status === status && held.summary === summary && sameItems(held.steps, steps) === held.steps && sameHost(held.host, host)) return held;
   return { thread, status, summary, pullRequest: ownPullRequest(thread), steps, startedAt: thread.brief ? threadCreatedAt(thread) : null, host };
-}
-
-/** How a paired computer is named on what it holds, and whether its line is up. */
-function hostOf(computer: Pick<PairedComputer, "id" | "name" | "status">): ThreadHost {
-  return { id: computer.id, name: computer.name, offline: computer.status !== "connected", ...(computer.status === "connecting" ? { reconnecting: true } : {}) };
 }
 
 function sameHost(before: ThreadHost | null, next: ThreadHost | null): boolean {
@@ -754,7 +747,7 @@ function elsewhereView(proposal: ThreadProposal, paired: readonly PairedComputer
   if (!place) return null;
   const computer = paired.find((item) => item.id === place.id);
   const projects = computer?.state?.projects.filter((project) => !project.unlisted || project.id === proposal.place.project) ?? [];
-  return { computer: hostOf(computer ?? { id: place.id, name: place.name, status: "offline" }), projects, refusal: ledStartRefusal(computer) };
+  return { computer: threadHostOf(computer ?? { id: place.id, name: place.name, status: "offline" }), projects, refusal: ledStartRefusal(computer) };
 }
 
 function sameElsewhere(before: ElsewhereView | null, next: ElsewhereView | null): boolean {

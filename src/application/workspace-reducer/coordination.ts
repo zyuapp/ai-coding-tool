@@ -10,7 +10,7 @@ import { announced } from "../notices.js";
 import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import { newThreadSend, proposalSend } from "../thread-starts.js";
-import { ledStartRefusal, type PairedComputer } from "../computers.js";
+import { ledStartRefusal, remoteWorkingIds, type PairedComputer } from "../computers.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import type { AppCommand } from "../../contracts/commands.js";
@@ -27,6 +27,8 @@ type CoordinationInput = Extract<WorkspaceInput, {
 }>;
 
 const STEP_GONE = "That step is no longer offered.";
+
+const ASKER_GONE = "The thread that asked for this no longer works under this coordinator.";
 
 const JOIN_REFUSED = "Only a coordinator can take threads under it, and a coordinator cannot work under another.";
 
@@ -338,6 +340,7 @@ function startElsewhere(state: WorkspaceState, leadId: string, proposalId: strin
   const place = { ...proposal.place, project, worktree: chosen?.worktree ?? proposal.place.worktree === true };
   /** A thread under the coordinator that asked starts it as itself, so it runs as that thread's own start would have. */
   const asker = proposal.from ? retried.threads.find((item) => item.id === proposal.from && coordinatorOf(retried.threads, item) === lead) : undefined;
+  if (proposal.from && !asker) return refused(ASKER_GONE);
   const caller = asker ?? lead;
   const start = newThreadSend(retried, caller, proposalSend({ ...proposal, place }), computer);
   if ("error" in start) return refused(start.error);
@@ -419,7 +422,7 @@ export function reconcileCoordination(previous: WorkspaceState, transition: Work
     if (!before || !after || before.parentId !== after.parentId || before.role !== after.role || before.archivedAt !== after.archivedAt || before.coordinationNotes !== after.coordinationNotes) touched.add(id);
   }
   for (const id of remote.leads) touched.add(id);
-  const said = [...remote.effects, ...released(previous, state, input, threads)];
+  const said = [...remote.effects, ...released(previous, state, threads)];
   if (!touched.size) return state === transition.state && !said.length ? transition : { ...transition, state, effects: [...transition.effects, ...said] };
   const effects = [...transition.effects, ...said];
   for (const leadId of coordinatorsOf(previous, state, touched)) {
@@ -505,8 +508,8 @@ function remoteNews(previous: WorkspaceState, next: WorkspaceState): RemoteNews 
     const members = remotelyLedThreads(holder.threads);
     const earlier = prior ? remotelyLedThreads(prior.threads) : [];
     if (!members.length && !earlier.length) continue;
-    const working = remoteWorking(computer, holder);
-    const workedBefore = was && prior ? remoteWorking(was, prior) : new Set<string>();
+    const working = remoteWorkingIds(computer, holder);
+    const workedBefore = was && prior ? remoteWorkingIds(was, prior) : new Set<string>();
     const kept = new Set(members.map((thread) => thread.id));
     /** A thread that left, or stopped being one of a coordinator's, may have been what held its coordinator's news. */
     for (const thread of earlier) if (!kept.has(thread.id) && workedBefore.has(thread.id)) news.leads.add(thread.remoteLead!.threadId);
@@ -523,17 +526,10 @@ function remoteNews(previous: WorkspaceState, next: WorkspaceState): RemoteNews 
   /** A computer no longer paired takes its threads' work with it. */
   for (const gone of before.values()) {
     if (!gone.state) continue;
-    const working = remoteWorking(gone, gone.state);
+    const working = remoteWorkingIds(gone, gone.state);
     for (const thread of remotelyLedThreads(gone.state.threads)) if (working.has(thread.id)) news.leads.add(thread.remoteLead!.threadId);
   }
   return news;
-}
-
-/** The threads a paired computer says are doing work, none while its line is down. One waiting on an approval is not. */
-function remoteWorking(computer: PairedComputer, holder: WorkspaceState): Set<string> {
-  if (computer.status !== "connected") return new Set();
-  const { working, blocked } = threadActivity(holder);
-  return new Set([...working].filter((id) => !blocked.has(id)));
 }
 
 /**
@@ -541,7 +537,9 @@ function remoteWorking(computer: PairedComputer, holder: WorkspaceState): Set<st
  * that computer's clock: that it showed up there, quietly, then each decision it raised, the report
  * it made, and its turn ending, as a thread here would have been heard. What the user would have been
  * told of a thread here is told of it here, under the coordinator's notices, and what that computer
- * carries of the same is dropped. A run Stop all asked to end is heard quietly.
+ * carries of the same is dropped: what its scheduled runs found, and its turns ending and waiting on
+ * the user as a thread here is heard, for a run someone started. A run Stop all asked to end is heard
+ * quietly.
  */
 function memberNews(state: WorkspaceState, lead: Thread, member: Thread, computer: PairedComputer, holder: WorkspaceState, prior: WorkspaceState | null): { state: WorkspaceState; effects: WorkspaceEffect[] } {
   const heard = lead.remoteHeard?.[member.id];
@@ -566,6 +564,11 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
     if (report.state !== "done") effects.push(...announced(state, member, `${report.state === "blocked" ? "Blocked" : "Failed"}: ${report.summary}`, "blocked"));
     newest = Math.max(newest, report.at);
   }
+  for (const finding of member.findings ?? []) {
+    if (finding.at <= since) continue;
+    effects.push(...announced(state, member, finding.headline, "finding"));
+    newest = Math.max(newest, finding.at);
+  }
   /** A thread waiting out a session limit carries on by itself, so its turn has not ended. */
   const ended = member.runEndedAt !== undefined && member.runEndedAt > since && !run && !(member.limitPause && resumesOnItsOwn(member.limitPause));
   if (ended) {
@@ -573,40 +576,43 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
     if (quiet) quietStops = quietStops.filter((runId) => runId !== ran.runId);
     const status = quiet || member.outcome === "stopped" ? "cancelled" : member.outcome === "failed" ? "failed" : "succeeded";
     notes.push(turnNote(member, status, at, { quiet }));
-    if (status !== "cancelled") effects.push(...announced(state, member, status === "failed" ? "The run failed." : "The run finished.", status === "failed" ? "failed" : "finished"));
+    /** A scheduled run that finished speaks through what it found. One this computer never saw go is taken as someone's. */
+    if (status === "failed") effects.push(...announced(state, member, "The run failed.", "failed"));
+    else if (status === "succeeded" && ran?.origin !== "automation") effects.push(...announced(state, member, "The run finished.", "finished"));
     newest = Math.max(newest, member.runEndedAt!);
   }
   /** Waiting on the user is said as it starts, as it is of a thread here. */
-  if (run && computer.status === "connected") {
+  if (run?.origin === "composer" && computer.status === "connected") {
     const approval = run.status === "awaiting-approval" ? holder.approvals[run.runId] : undefined;
     if (approval && (ran?.runId !== run.runId || ran.status !== "awaiting-approval")) effects.push(...announced(state, member, `Waiting for your permission to use ${approval.toolName}`, "waiting"));
     const question = run.questions?.[0];
     if (question && !(ran?.runId === run.runId && ran.questions?.length)) effects.push(...announced(state, member, question.question, "waiting"));
   }
   if (!notes.length && newest === heard) return { state: quietStops === state.quietStops ? state : { ...state, quietStops }, effects };
-  const told = notes.reduce(withCoordinationNote, withRemoteHeard(lead, member.id, newest));
+  const led = new Set(coordinationMembers(state, lead.id).flatMap(({ thread, computer: there }) => there ? [thread.id] : []));
+  const told = notes.reduce(withCoordinationNote, withRemoteHeard(lead, member.id, newest, led));
   return { state: updateThread({ ...state, quietStops }, lead.id, () => told), effects };
 }
 
 /**
  * Each thread on a paired computer still working under a thread here that is no longer a live
  * coordinator is let go there, as this computer's own threads stand on their own once their
- * coordinator goes. A computer that was away is told once its line is back. What cannot be carried
- * is left to the next time that computer's line comes back.
+ * coordinator goes. It is read off what each computer says it holds, so one that was away, or whose
+ * state comes in only after its line is back, is told once it says so, and what could not be carried
+ * is tried again the next time its threads move.
  */
-function released(previous: WorkspaceState, state: WorkspaceState, input: WorkspaceInput, threads: readonly ThreadChange[]): WorkspaceEffect[] {
-  const ended = new Set(threads.flatMap(({ id, before, after }) => isCoordinator(before) && !isCoordinator(after) ? [id] : []));
-  const back = input.type === "computers.changed"
-    ? new Set(state.computers.paired.filter((computer) => computer.status === "connected" && previous.computers.paired.find((item) => item.id === computer.id)?.status !== "connected").map((computer) => computer.id))
-    : new Set<string>();
-  if (!ended.size && !back.size) return [];
+function released(previous: WorkspaceState, state: WorkspaceState, threads: readonly ThreadChange[]): WorkspaceEffect[] {
+  const ended = threads.some(({ before, after }) => isCoordinator(before) && !isCoordinator(after));
+  if (!ended && previous.computers.paired === state.computers.paired) return [];
+  const before = new Map(previous.computers.paired.map((computer) => [computer.id, computer]));
   const effects: WorkspaceEffect[] = [];
   for (const computer of state.computers.paired) {
     if (computer.status !== "connected" || !computer.state) continue;
+    const was = before.get(computer.id);
+    if (!ended && was?.status === "connected" && was.state?.threads === computer.state.threads) continue;
     const inputs = remotelyLedThreads(computer.state.threads).flatMap((thread): AppCommand[] => {
-      const leadId = thread.remoteLead!.threadId;
-      const lead = back.has(computer.id) ? state.threads.find((item) => item.id === leadId) : undefined;
-      return ended.has(leadId) || lead && !isCoordinator(lead) ? [{ type: "task.set-coordinator", taskId: thread.id, coordinatorId: null }] : [];
+      const lead = state.threads.find((item) => item.id === thread.remoteLead!.threadId);
+      return lead && !isCoordinator(lead) ? [{ type: "task.set-coordinator", taskId: thread.id, coordinatorId: null }] : [];
     }).filter((command) => supportsComputerCommand(computer.capabilities, command));
     if (inputs.length) effects.push({ type: "computer.forward", id: computer.id, inputs, silent: true });
   }

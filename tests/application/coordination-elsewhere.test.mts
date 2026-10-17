@@ -19,7 +19,7 @@ const PROJECTLESS = { id: "projectless", kind: "projectless" as const, root: "/t
 
 const link = (id: string, overrides: Partial<ComputerLink> = {}): ComputerLink => ({ id, name: id, host: `${id}.tail.ts.net`, status: "connected", error: null, pairedAt: 1, ...overrides });
 
-function paired(id: string, remote: WorkspaceState, overrides: Partial<ComputerLink> = {}): PairedComputer {
+function paired(id: string, remote: WorkspaceState | null, overrides: Partial<ComputerLink> = {}): PairedComputer {
   return { ...link(id, overrides), state: remote };
 }
 
@@ -76,6 +76,28 @@ test("its turn end, report and decision reach the coordinator, once each, even a
   assert.deepEqual(notesOf(again.state), notesOf(caught.state), "each is heard once");
 });
 
+test("a coordinator with more threads there than it keeps watermarks for hears each of them once", () => {
+  const many = Array.from({ length: 101 }, (_, index) => far({ id: `m${index}`, title: `M${index}`, createdAt: index + 1, runEndedAt: 1_000 + index, outcome: "finished" }));
+  let state = mirrored(coordinating(workspace()), workspace({ threads: many })).state;
+  const heard = notesOf(state).length;
+  assert.equal(Object.keys(state.threads[0]!.remoteHeard ?? {}).length, 101, "none still working under it is forgotten");
+  state = mirrored(state, workspace({ threads: [...many] })).state;
+  state = mirrored(state, workspace({ threads: [...many] })).state;
+  assert.equal(notesOf(state).length, heard, "a patch from there is not heard all over again");
+
+  const left = mirrored(state, workspace({ threads: [...many.slice(1), far({ id: "new", title: "New", createdAt: 5_000 })] })).state;
+  assert.equal(left.threads[0]!.remoteHeard?.m0, undefined, "one no longer there is what makes room");
+  assert.equal(left.threads[0]!.remoteHeard?.new, 5_000);
+});
+
+test("what a member's scheduled runs find is said here, and a scheduled run that finished is not", () => {
+  const ticking = workspace({ threads: [far()], activeRuns: { far: activeRun("far", "tick", { origin: "automation" }) } });
+  const state = mirrored(coordinating(workspace()), ticking).state;
+  const found = mirrored(state, workspace({ threads: [far({ runEndedAt: 30, outcome: "finished", findings: [{ id: "f1", headline: "Disk almost full", at: 25 }] })] }));
+  assert.deepEqual(found.effects.filter((effect) => effect.type === "announce-thread").map((effect) => effect.notice.headline), ["Disk almost full"]);
+  assert.equal(notesOf(found.state).at(-1), "\"Far work\" ended its turn.", "its coordinator still hears the turn end");
+});
+
 test("a member stopped by Stop all is heard quietly", () => {
   const holder = workspace({ threads: [far()], activeRuns: { far: activeRun("far", "run-far") } });
   let state = mirrored(coordinating(workspace()), holder).state;
@@ -107,6 +129,16 @@ test("archiving the coordinator releases its remote members, and a computer that
   assert.deepEqual(forwards, [{ type: "computer.forward", id: "studio", inputs: [released], silent: true }], "only a line that is up carries it");
   const back = reduce(archived.state, { type: "computers.changed", name: "This Mac", links: [link("studio", { capabilities: COMPUTER_CAPABILITIES }), link("linux", { capabilities: COMPUTER_CAPABILITIES })] });
   assert.deepEqual(back.effects.filter((effect) => effect.type === "computer.forward" && effect.silent), [{ type: "computer.forward", id: "linux", inputs: [{ ...released, taskId: "away" }], silent: true }]);
+});
+
+test("a computer that restarted is released once its state comes in after its line", () => {
+  const restarted = withComputers(workspace({ threads: [task("lead", { role: "coordinator", title: "Lead", archivedAt: 5 })] }), [paired("studio", null, { status: "offline", capabilities: COMPUTER_CAPABILITIES })]);
+  const connected = reduce(restarted, { type: "computers.changed", name: "This Mac", links: [link("studio", { capabilities: COMPUTER_CAPABILITIES })] });
+  assert.deepEqual(connected.effects.filter((effect) => effect.type === "computer.forward"), [], "nothing is known there yet");
+  const said = mirrored(connected.state, workspace({ threads: [far(), task("other")] }));
+  assert.deepEqual(said.effects.filter((effect) => effect.type === "computer.forward"), [{ type: "computer.forward", id: "studio", inputs: [{ type: "task.set-coordinator", taskId: "far", coordinatorId: null }], silent: true }]);
+  const letGo = mirrored(said.state, workspace({ threads: [far({ remoteLead: undefined }), task("other")] }));
+  assert.deepEqual(letGo.effects.filter((effect) => effect.type === "computer.forward"), [], "once it is let go there is nothing more to say");
 });
 
 /** A coordinator on a paired computer, as the thread it started here names it. */

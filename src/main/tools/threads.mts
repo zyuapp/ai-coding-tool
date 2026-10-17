@@ -42,6 +42,8 @@ const effortField = effortFieldOf("inherit the calling thread's effort when the 
 const computerField = z.string().optional().describe('A paired computer to start it on, named by its name or ID, or "this" (the default). There it starts in the project checkout unless worktree or worktreeId says otherwise.');
 /** A thread under a coordinator starts on another computer only once the user allows it there. */
 const ledComputerField = z.string().optional().describe("A paired computer to run it on. It starts there once the user allows it.");
+/** Only a coordinator on this computer can ask the user for a start on another, so a member led from elsewhere is told so. */
+const memberComputerField = z.string().optional().describe("A paired computer to run it on. It starts there once the user allows it. A thread whose coordinator is on another computer starts its threads on this one.");
 
 /** What a start takes beyond the computer it runs on. */
 const NEW_THREAD_INPUT = {
@@ -286,7 +288,7 @@ const COORDINATOR_THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = T
 
 /** A thread one working under a coordinator starts works under that coordinator too. */
 const MEMBER_THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = THREAD_TOOLS
-  .map((tool) => tool.name === "start_thread" ? { ...tool, input: { ...ledStartInput("your coordinator's"), computer: ledComputerField } } : tool);
+  .map((tool) => tool.name === "start_thread" ? { ...tool, input: { ...ledStartInput("your coordinator's"), computer: memberComputerField } } : tool);
 
 export function threadTools(bridge: ThreadBridge, now: () => number = Date.now, role?: CoordinationRole) {
   return bindTools({ bridge, now }, role === "coordinator" ? COORDINATOR_THREAD_TOOLS : role === "member" ? MEMBER_THREAD_TOOLS : THREAD_TOOLS);

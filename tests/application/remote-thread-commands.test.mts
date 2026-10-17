@@ -215,6 +215,19 @@ test("a thread under the coordinator asks for one elsewhere as itself, and it wo
   assert.equal(sent.lead?.threadId, "caller");
 });
 
+test("one asked for by a thread that has since left the coordinator says so on the Allow page", async () => {
+  const { host, linux } = pair();
+  lead(host);
+  host.state().threads.push({ ...host.state().threads[0]!, id: "member", title: "Builder", role: undefined, parentId: "caller", memory: undefined, threadModel: undefined });
+  await answerThreadRequest(host, { type: "thread.request", requestId: "m", taskId: "member", op: "command", command: { type: "task.send", text: "Profile it" }, computer: "Linux" });
+  await host.dispatch({ type: "task.set-coordinator", taskId: "member", coordinatorId: null });
+  const [waiting] = proposals(host);
+  const refused = await host.execute({ type: "proposal.start", taskId: "caller", proposalId: waiting!.id }).completed;
+  assert.deepEqual(refused, { ok: false, message: "The thread that asked for this no longer works under this coordinator." });
+  assert.equal(proposals(host)[0]?.error, "The thread that asked for this no longer works under this coordinator.");
+  assert.equal(linux.inputs.length, 0);
+});
+
 test("denying it is heard quietly", async () => {
   const { host, linux } = pair();
   lead(host);

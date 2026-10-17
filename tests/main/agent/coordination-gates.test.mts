@@ -90,6 +90,9 @@ test("a coordinator's start_thread and propose_threads name a paired computer, w
   const sets = runTools({ channel: "main", computerUse: { status: "unavailable" }, emit: () => {}, ...sources } as Parameters<typeof runTools>[0]);
   const start = sets.find((set) => set.server === "aicodingtool-threads")!.tools.find((tool) => tool.name === "start_thread")!;
   assert.match((start.input.computer as z.ZodType).description ?? "", /It starts there once the user allows it/);
+  const memberStart = runTools({ channel: "main", computerUse: { status: "unavailable" }, emit: () => {}, ...sources, coordinationRole: "member" } as Parameters<typeof runTools>[0])
+    .find((set) => set.server === "aicodingtool-threads")!.tools.find((tool) => tool.name === "start_thread")!;
+  assert.match((memberStart.input.computer as z.ZodType).description ?? "", /A thread whose coordinator is on another computer starts its threads on this one/, "a member led from elsewhere is not promised a start it cannot get");
   const started = await start.handler({ prompt: "Run the GPU tests", intent: "gpu", doneWhen: "pass", delivers: "report", computer: "Studio" });
   assert.deepEqual(asked, ["Studio"]);
   assert.match(started.content[0]!.text, /^Waiting for the user to allow it on Studio/);
