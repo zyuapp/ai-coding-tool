@@ -48,6 +48,10 @@ test("becoming a coordinator keeps what it ran on for its threads", () => {
   const moved = reduce(reduce(made, { type: "task.set-model", taskId: "planner", engine: "claude", model: "opus" }).state, { type: "task.set-effort", taskId: "planner", engine: "claude", effort: "max" }).state;
   assert.equal(moved.threads[0].model, "opus");
   assert.deepEqual(moved.threads[0].threadModel, { model: "sonnet", effort: "low" }, "the coordinator's own model and effort no longer reach its threads");
+  const dropped = reduce(moved, { type: "task.set-role", taskId: "planner", role: null }).state;
+  assert.equal(dropped.threads[0].threadModel, undefined, "a thread that stops coordinating forgets the choice");
+  const again = reduce(dropped, { type: "task.set-role", taskId: "planner", role: "coordinator" }).state;
+  assert.deepEqual(again.threads[0].threadModel, { model: "opus", effort: "max" }, "becoming one again snapshots what it runs on now");
 
   const light = reduce(state, { type: "task.set-role", taskId: "light", role: "coordinator" }).state;
   assert.deepEqual(light.threads[1].threadModel, { model: "opus", effort: "high" }, "a Haiku thread's threads run on its engine's default");

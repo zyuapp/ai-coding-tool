@@ -116,6 +116,11 @@ export function threadModelOf(lead: Thread): ThreadModelChoice {
   return { model, effort: effortForModel(model, lead.threadModel?.effort ?? lead.effort ?? defaultEffortFor(engineForModel(model))) };
 }
 
+/** Why a thread under a coordinator, started or chosen for, may not run on `model`. */
+export function undelegable(model: AgentModel): string {
+  return `Threads under a coordinator cannot run on the ${model} model. Pick another model.`;
+}
+
 /** A thread taking the coordinator role, its threads to run on what it runs on until the user picks otherwise. */
 export function asCoordinator(thread: Thread): Thread {
   return { ...thread, role: "coordinator", threadModel: thread.threadModel ?? threadModelOf(thread) };

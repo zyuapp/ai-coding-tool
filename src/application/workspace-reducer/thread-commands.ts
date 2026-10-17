@@ -238,8 +238,11 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
       const thread = taskId ? state.threads.find((item) => item.id === taskId) : undefined;
       if (!thread) return settled(input.taskId === undefined ? { ...state, draftRole: input.role } : state);
       if ((thread.role ?? null) === input.role) return settled(state);
-      /** A thread becoming a coordinator starts its threads on what it runs on itself, until the user picks otherwise. */
-      return settled(updateThread(state, thread.id, ({ role: _previous, ...item }) => {
+      /**
+       * A thread becoming a coordinator starts its threads on what it runs on itself, until the user
+       * picks otherwise; one that stops being one forgets the choice, so the next time is fresh.
+       */
+      return settled(updateThread(state, thread.id, ({ role: _previous, threadModel: _choice, ...item }) => {
         if (input.role === "coordinator") return { ...asCoordinator(item), updatedAt: now() };
         return { ...item, ...(input.role ? { role: input.role } : {}), updatedAt: now() };
       }));

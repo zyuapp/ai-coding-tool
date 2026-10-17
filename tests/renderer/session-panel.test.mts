@@ -13,11 +13,15 @@ import type { SessionPanelProps } from "../../src/renderer/components/SessionPan
 
 import { dom, item, mount, pumpResizeObservers, query, rowHeights, sizeOf } from "../support/renderer-dom.mts";
 import { required } from "../application/workspace-reducer-fixtures.mts";
+import { emptyWorkspaceState, deriveView, OVERVIEW_PANEL } from "../../src/application/workspace-state.ts";
+import type { WorkspaceInput } from "../../src/application/workspace-reducer.ts";
+import { workspaceActions } from "../../src/renderer/task-workspace/workspace-actions.ts";
 
 const { MemberPullRequestList, SessionPanel } = await import("../../src/renderer/components/SessionPanel.tsx");
 const { CoordinatorOverview, MemberWorktreeList, NeedsYouCard } = await import("../../src/renderer/components/Coordination.tsx");
 const { EVERY_ENGINE_READY } = await import("../../src/renderer/components/ComposerSettings.tsx");
 const { CommandControlsProvider } = await import("../../src/renderer/components/CommandControl.tsx");
+const { buildDock } = await import("../../src/renderer/components/dock-registry.tsx");
 const { SubagentInspector } = await import("../../src/renderer/components/SubagentInspector.tsx");
 const { AgentsPanel, matchSubagents } = await import("../../src/renderer/components/SubagentList.tsx");
 const { WorkspaceHeader } = await import("../../src/renderer/components/WorkspaceHeader.tsx");
@@ -145,6 +149,27 @@ test("the Overview says what a coordinator's threads run on, and picks another w
   await view.render(overview(false));
   assert.equal(view.container.querySelectorAll(".coordination-overview-header .setting-menu").length, 0, "a computer whose build cannot take the choice offers none");
   await view.unmount();
+});
+
+test("the Overview tab sets what the coordinator in front runs its threads on", async () => {
+  window.desktop = fakeDesktop();
+  const dispatched: WorkspaceInput[] = [];
+  const dispatch = async (input: WorkspaceInput) => { dispatched.push(input); };
+  const lead: Thread = { ...member("lead", "Plan"), parentId: undefined, role: "coordinator", model: "sonnet", effort: "low" };
+  const view = deriveView({ ...emptyWorkspaceState(), threads: [lead], currentId: lead.id });
+  const commandControls = { available: () => true, dispatch() {} };
+  const workspace = { ...view, threadHandles: [], threadHandlesFor: () => [], commandControls, dispatch, actions: workspaceActions(dispatch) } as never;
+  const dock = buildDock({ workspace, inspectedSubagent: undefined, workingSubagents: 0, unreviewedFiles: 0, onInspectSubagent() {}, onCloseInspector() {}, onOpenPanel() {}, onAddSideChat() {} });
+  const panel = required(dock.panels.find((item) => item.id === OVERVIEW_PANEL));
+  const mounted = await mount(React.createElement(CommandControlsProvider, { value: commandControls }, panel.render()));
+  const [model] = mounted.container.querySelectorAll<HTMLDetailsElement>(".coordination-overview-header .setting-menu");
+  await act(async () => { query<HTMLElement>(item(model), "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+  await act(async () => {
+    [...item(model).querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((button) => button.textContent?.includes("All models"))!.click();
+  });
+  await act(async () => { [...item(model).querySelectorAll<HTMLButtonElement>(".model-choice")].find((button) => button.textContent?.includes("Opus"))!.click(); });
+  assert.deepEqual(dispatched.filter((input) => input.type === "coordination.set-thread-model"), [{ type: "coordination.set-thread-model", taskId: "lead", model: "opus" }], "a model alone leaves the effort for the reducer to fit");
+  await mounted.unmount();
 });
 
 test("the Needs-you card pages through approvals and decisions and answers each", async () => {

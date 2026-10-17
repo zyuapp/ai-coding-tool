@@ -6,7 +6,7 @@
 import type { WorkspaceState } from "./workspace-state.js";
 import { computerOfPlace, type PairedComputer } from "./computers.js";
 import type { AppCommand } from "../contracts/commands.js";
-import { coordinatorOf, isCoordinator, threadModelOf } from "../domain/coordination.js";
+import { coordinatorOf, isCoordinator, threadModelOf, undelegable } from "../domain/coordination.js";
 import type { Thread } from "../domain/thread.js";
 import { defaultEffortFor, defaultModelFor, effortForModel, engineForModel, modelDelegable, modelHasEffort, modelTakesEffort } from "../domain/agent-engine.js";
 
@@ -34,7 +34,7 @@ export function newThreadSend(state: WorkspaceState, caller: Thread, command: Ne
   const lead = isCoordinator(caller) ? caller : coordinatorOf(state.threads, caller);
   const inherited = lead ? threadModelOf(lead) : { model: caller.model ?? defaultModelFor(caller.engine), effort: caller.effort };
   const model = command.model ?? inherited.model;
-  if (lead && !modelDelegable(model)) return { error: `Threads under a coordinator cannot run on the ${model} model. Pick another model.` };
+  if (lead && !modelDelegable(model)) return { error: undelegable(model) };
   if (command.effort && !modelHasEffort(model, command.effort)) return { error: `The ${model} model does not support ${command.effort} effort.` };
   /** An inherited effort the new model does not take drops to the nearest one it does. */
   const effort = command.effort ?? effortForModel(model, inherited.effort ?? defaultEffortFor(engineForModel(model)));
