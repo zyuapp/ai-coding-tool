@@ -11,6 +11,7 @@ import type { WorktreeGroup } from "../../application/workspace-state";
 import type { MemberWorktree } from "../../application/member-worktrees";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
 import { CommandButton, CommandGate } from "./CommandControl";
+import { compactTokens } from "./ContextUsageMeter";
 import { EffortMenu, ModelMenu } from "./ComposerSettings";
 import { useMessageLinks, WebLink } from "./MarkdownMessage";
 import { PULL_REQUEST_ICONS } from "./SessionPanel";
@@ -77,12 +78,12 @@ type RowActions = {
 };
 
 /** A coordinator's purpose, what its threads run on, its threads by what they need from the user, its memory, then what it all spent. */
-export function CoordinatorOverview({ header, memory, members, usage = null, worktreeGroups, folds, onSetFold, stoppable, onStopAll, onSelect, onResolve, onReopen }: RowActions & {
+export function CoordinatorOverview({ header, memory, members, usage, worktreeGroups, folds, onSetFold, stoppable, onStopAll, onSelect, onResolve, onReopen }: RowActions & {
   header: OverviewHeaderProps;
   memory: OverviewMemoryProps;
   members: readonly CoordinatedThreadView[];
   /** Null until the coordinator or a thread under it has spent anything. */
-  usage?: CoordinationUsage | null;
+  usage: CoordinationUsage | null;
   worktreeGroups: WorktreeGroup[];
   folds: OverviewFolds;
   onSetFold: FoldChange;
@@ -231,11 +232,6 @@ function FoldHead({ label, count, title, open, action, onToggle }: { label: stri
     </button>
   );
   return action ? <div className="coordination-group-heading">{head}{action}</div> : head;
-}
-
-/** A count of tokens in the few characters the context meter uses: 3.1M, 240K. */
-function compactTokens(tokens: number): string {
-  return tokens.toLocaleString("en-US", { notation: "compact" });
 }
 
 function shareOf(tokens: number, total: number): number {

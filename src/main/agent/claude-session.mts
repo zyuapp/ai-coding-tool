@@ -14,6 +14,14 @@ import { TurnSlot, type SessionTurn } from "./session-turn.mjs";
 /** The model the agent process stamps on replies it produced itself: slash commands, interrupts, error notices. */
 const SYNTHETIC_MODEL = "<synthetic>";
 
+/** A response's usage as the API reports it, whole on a message or in part on a stream frame. */
+type ResponseUsage = { input_tokens?: number | null; cache_creation_input_tokens?: number | null; cache_read_input_tokens?: number | null; output_tokens?: number | null };
+
+/** What a response spent: all it read, cached or not, and all it wrote, as Codex counts its totalTokens. */
+function tokensOf(usage: ResponseUsage) {
+  return (usage.input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0) + (usage.output_tokens ?? 0);
+}
+
 /** Why a request is being retried, in the user's terms. */
 function retryReason(message: SDKAPIRetryMessage): string {
   if (message.error === "overloaded") return "Claude is overloaded.";
@@ -143,8 +151,8 @@ export class ClaudeSession {
   private agentTurn: (Owing & { turn: AgentTurn; stream: Stream }) | null = null;
   /** Opens that run. Taken when the session opens: what the agent says between runs is the thread's. */
   private beginAgentTurn: () => AgentTurn | null = () => null;
-  /** The workflows running here. One outlives the turn that started it, so the set outlives the turn too. */
-  private readonly workflowIds = new Set<string>();
+  /** The workflows running here, with what each has reported spending. One outlives the turn that started it, so the map outlives the turn too. */
+  private readonly workflows = new Map<string, number>();
   /** Where those workflows report. Taken when the session opens: they belong to the thread, not to a run. */
   private reportWorkflow: (report: WorkflowReport) => void = () => {};
   /** Where subagents report. Taken when the session opens: one launched in the background outlives the turn that launched it. */
@@ -161,6 +169,8 @@ export class ClaudeSession {
   private rateLimit: SDKRateLimitInfo | null = null;
   /** What each model response this turn has been counted for so far, by its API message id. */
   private readonly spentById = new Map<string, number>();
+  /** The response each stream has open and what it read, the main loop's under "" and a subagent's under the call that launched it. */
+  private readonly openResponses = new Map<string, { id: string; usage: ResponseUsage }>();
   /** What the agent process left running here: a shell, a monitor, or a task of its own. */
   private readonly background = new BackgroundWork(() => this.busy, () => this.onIdle());
   /** What the agent process called this session. A later run resumes it by this id. */
@@ -254,8 +264,8 @@ export class ClaudeSession {
     this.subagentMetadata.clear();
     this.subagentEfforts.clear();
     /** The session ending is the end of the workflows it holds: their own notification can no longer come. */
-    for (const id of this.workflowIds) this.reportWorkflow({ type: "workflow.finished", id, status: "stopped", summary: "" });
-    this.workflowIds.clear();
+    for (const id of this.workflows.keys()) this.reportWorkflow({ type: "workflow.finished", id, status: "stopped", summary: "" });
+    this.workflows.clear();
     this.turns.settle({ status: "cancelled" });
     this.wake(null);
     this.query?.close();
@@ -403,7 +413,7 @@ export class ClaudeSession {
     if (message.type === "system" && message.subtype === "background_tasks_changed") {
       this.background.replace(backgroundProcesses(message.tasks), message.tasks.map((task) => task.task_id));
     }
-    /** Taken before subagents and workflows claim their messages, since what they spend is the run's too. */
+    /** Taken before subagents claim their messages, since what they spend is the run's too. */
     this.receiveSpend(message);
     if (this.receiveWorkflow(message)) return;
     this.receiveSubagentMetadata(message);
@@ -476,22 +486,55 @@ export class ClaudeSession {
   }
 
   /**
-   * Counts what a model response spent on the run in flight, whether the main loop, a subagent or a
-   * workflow asked for it. The SDK sends one message per content block, each under the response's id
-   * with its usage so far, so a response adds only what it grew by since it was last seen. Work going
-   * on between runs has no run to count it, and a synthetic reply spent nothing.
+   * Counts what a model response spent on the run in flight, whether the main loop or a subagent asked
+   * for it. The SDK sends one message per content block, each under the response's id with its usage
+   * so far, and only the stream's closing delta carries all the response wrote, so a response adds only
+   * what it grew by since it was last seen. Work going on between runs has no run to count it, and a
+   * synthetic reply spent nothing.
    */
   private receiveSpend(message: SDKMessage) {
-    if (message.type === "result") this.spentById.clear();
-    if (message.type !== "assistant" || message.message.model === SYNTHETIC_MODEL) return;
+    if (message.type === "result") {
+      this.spentById.clear();
+      this.openResponses.clear();
+    } else if (message.type === "assistant" && message.message.model !== SYNTHETIC_MODEL && message.message.usage) {
+      this.spend(message, message.message.id, tokensOf(message.message.usage));
+    } else if (message.type === "stream_event" && message.event.type === "message_start" && message.event.message.model !== SYNTHETIC_MODEL) {
+      const { id, usage } = message.event.message;
+      if (id && usage) this.openResponses.set(message.parent_tool_use_id ?? "", { id, usage });
+    } else if (message.type === "stream_event" && message.event.type === "message_delta") {
+      const key = message.parent_tool_use_id ?? "";
+      const response = this.openResponses.get(key);
+      if (!response) return;
+      this.openResponses.delete(key);
+      const { usage } = message.event;
+      this.spend(message, response.id, tokensOf({
+        input_tokens: usage.input_tokens ?? response.usage.input_tokens,
+        cache_creation_input_tokens: usage.cache_creation_input_tokens ?? response.usage.cache_creation_input_tokens,
+        cache_read_input_tokens: usage.cache_read_input_tokens ?? response.usage.cache_read_input_tokens,
+        output_tokens: usage.output_tokens,
+      }));
+    }
+  }
+
+  /** Adds what a response grew to since it was last counted. A subagent's spend is the run's, though its messages are its own. */
+  private spend(message: SDKMessage & { parent_tool_use_id: string | null }, responseId: string, total: number) {
     const stream = message.parent_tool_use_id ? (this.turn ?? this.agentTurn)?.stream : this.streamFor(message);
-    const usage = message.message.usage;
-    if (!stream || !usage) return;
-    const total = usage.input_tokens + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0) + (usage.output_tokens ?? 0);
-    const counted = this.spentById.get(message.message.id) ?? 0;
-    if (total <= counted) return;
-    this.spentById.set(message.message.id, total);
+    const counted = this.spentById.get(responseId) ?? 0;
+    if (!stream || !Number.isSafeInteger(total) || total <= counted) return;
+    this.spentById.set(responseId, total);
     stream.emit({ type: "spend", tokens: total - counted });
+  }
+
+  /**
+   * Counts what a workflow spent on the run in flight. Its agents' replies never reach this stream,
+   * so the running total its progress reports is all there is to read; each report adds what it grew
+   * by, and one arriving between runs moves the total without counting.
+   */
+  private spendWorkflow(id: string, total: number) {
+    const counted = this.workflows.get(id) ?? 0;
+    if (!Number.isSafeInteger(total) || total <= counted) return;
+    this.workflows.set(id, total);
+    (this.turn ?? this.agentTurn)?.stream.emit({ type: "spend", tokens: total - counted });
   }
 
   /** Hooks report the child's effective effort, including model downgrades and agent-definition overrides. */
@@ -588,7 +631,7 @@ export class ClaudeSession {
   private receiveWorkflow(message: SDKMessage) {
     if (message.type !== "system") return false;
     if (message.subtype === "task_started" && message.task_type === "local_workflow") {
-      this.workflowIds.add(message.task_id);
+      this.workflows.set(message.task_id, 0);
       this.reportWorkflow({
         type: "workflow.started",
         id: message.task_id,
@@ -597,7 +640,8 @@ export class ClaudeSession {
       });
       return true;
     }
-    if (message.subtype === "task_progress" && this.workflowIds.has(message.task_id)) {
+    if (message.subtype === "task_progress" && this.workflows.has(message.task_id)) {
+      this.spendWorkflow(message.task_id, message.usage.total_tokens);
       /** The tree rides along with some frames and not others; a frame without one has nothing to say. */
       const progress = parseWorkflowProgress(workflowProgressOf(message));
       if (progress) {
@@ -612,8 +656,9 @@ export class ClaudeSession {
       }
       return true;
     }
-    if (message.subtype === "task_notification" && this.workflowIds.has(message.task_id)) {
-      this.workflowIds.delete(message.task_id);
+    if (message.subtype === "task_notification" && this.workflows.has(message.task_id)) {
+      if (message.usage) this.spendWorkflow(message.task_id, message.usage.total_tokens);
+      this.workflows.delete(message.task_id);
       this.reportWorkflow({
         type: "workflow.finished",
         id: message.task_id,
