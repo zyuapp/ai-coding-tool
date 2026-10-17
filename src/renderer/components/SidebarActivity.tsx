@@ -111,6 +111,8 @@ export function SidebarActivity({ activityThreads, sections, blockedThreadIds, o
               <button className="section-toggle" onClick={() => onSetSectionOpen(key, !sections[key])} aria-expanded={sections[key]}>
                 <span>{label}</span>
                 <span className="section-chevron" aria-hidden="true" />
+                {/** A folded list still says how much it holds. */}
+                {!sections[key] && threads.length > 0 && <span className="section-count">{threads.length}</span>}
               </button>
               {key === "priority" && dottedCount > 0 && (
                 <button className="section-action" onClick={onDismissAll} aria-label="Dismiss all">

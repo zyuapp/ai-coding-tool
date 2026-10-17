@@ -473,6 +473,7 @@ button, select { color: inherit; }
   transform: translateY(-2px) rotate(45deg);
   transition: transform 120ms ease;
 }
+.section-count { margin-left: -3px; color: var(--quiet-soft); font-size: var(--text-meta); font-weight: 400; letter-spacing: 0; font-variant-numeric: tabular-nums; }
 .section-toggle[aria-expanded="false"] .section-chevron,
 .subagent-group[aria-expanded="false"] .section-chevron { transform: rotate(-45deg); }
 .section-menu { position: relative; height: 34px; }
