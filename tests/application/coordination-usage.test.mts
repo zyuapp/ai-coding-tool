@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { coordinationMembers } from "../../src/application/coordination.ts";
 import { coordinationUsage, coordinationView } from "../../src/application/coordination-view.ts";
+import { modelLabel } from "../../src/domain/agent-engine.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 import { task, workspace } from "./workspace-reducer-fixtures.mts";
 
 const lead = task("lead", { role: "coordinator", model: "opus", usage: { opus: 240_000 } });
@@ -51,4 +53,18 @@ test("a coordinator nothing was counted for shows no usage, and its view keeps i
   const grown = coordinationView(workspace({ threads: spent }), spent[0], new Set(), new Set(), undefined, unchanged);
   assert.notEqual(grown.usage, first.usage);
   assert.equal(grown.usage?.total, 3_104_720);
+});
+
+test("a thread on a paired computer counts toward the name its model goes by here, or by its own id for a model this build does not know", () => {
+  const far = task("far", { engine: "codex", remoteLead: { threadId: "lead", title: "Lead", computer: "This Mac" }, usage: { "gpt-7-nova": 500, "gpt-5.6-sol": 200, "gpt-6.1-sol": 100 } as Thread["usage"] });
+  const holder = workspace({ threads: [far] });
+  const studio = { id: "studio", name: "studio", host: "studio.tail.ts.net", status: "connected" as const, error: null, pairedAt: 1, state: holder };
+  const usage = coordinationUsage([{ thread: far, computer: studio, holder }], lead);
+
+  assert.deepEqual(usage?.byModel, [
+    { model: "opus", tokens: 240_000 },
+    { model: "gpt-7-nova", tokens: 500 },
+    { model: "gpt-6.1-sol", tokens: 300 },
+  ], "a retired name counts toward its successor");
+  assert.deepEqual(usage?.byModel.map(({ model }) => modelLabel(model)), ["Opus", "gpt-7-nova", "Sol"]);
 });

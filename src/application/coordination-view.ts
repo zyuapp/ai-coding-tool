@@ -5,7 +5,7 @@ import { ledStartRefusal, threadHostOf, type PairedComputer, type ThreadHost } f
 import { checkoutAnswer, coordinatedThreadStatus, coordinationMembers, GROUP_OF, memberActivity, nextSteps, ownPullRequest, type CoordinatedThreadStanding, type CoordinationMember, type OwnPullRequest } from "./coordination.js";
 import { coordinationDecisions, coordinatorOf, isCoordinator, openDecisions, remoteLeadOf, threadModelOf, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type ThreadBrief, type ThreadModelChoice, type ThreadProposal } from "../domain/coordination.js";
 import { threadCreatedAt, type Thread } from "../domain/thread.js";
-import type { AgentModel } from "../domain/agent-engine.js";
+import { currentModel } from "../domain/agent-engine.js";
 import type { Project } from "../domain/project.js";
 
 /** One thread under a coordinator as its Overview row and its card in the coordinator's conversation show it. */
@@ -55,7 +55,8 @@ export type CoordinatorMemoryView = {
 export type CoordinationUsage = {
   total: number;
   coordinator: number;
-  byModel: readonly { model: AgentModel; tokens: number }[];
+  /** Each spend under the name its model now goes by; a thread on a paired computer may name one this build does not know. */
+  byModel: readonly { model: string; tokens: number }[];
   /** The threads under it that spent anything; the coordinator's own share is `coordinator`. */
   byThread: readonly { thread: Thread; computer: PairedComputer | null; tokens: number }[];
 };
@@ -65,10 +66,11 @@ export type CoordinationUsage = {
  * has spent anything. Threads archived out from under it no longer count.
  */
 export function coordinationUsage(members: readonly CoordinationMember[], lead: Thread): CoordinationUsage | null {
-  const byModel = new Map<AgentModel, number>();
+  const byModel = new Map<string, number>();
   const spent = (thread: Thread) => {
     let tokens = 0;
-    for (const [model, count] of Object.entries(thread.usage ?? {}) as [AgentModel, number][]) {
+    for (const [recorded, count] of Object.entries(thread.usage ?? {}) as [string, number][]) {
+      const model = currentModel(recorded) as string;
       byModel.set(model, (byModel.get(model) ?? 0) + count);
       tokens += count;
     }

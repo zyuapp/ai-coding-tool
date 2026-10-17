@@ -295,9 +295,9 @@ export function engineLabel(engine: AgentEngine): string {
   return ENGINES[engine].label;
 }
 
-/** A model by the name the composer gives it. */
-export function modelLabel(model: AgentModel): string {
-  return modelsFor(engineForModel(model)).find((spec) => spec.id === model)?.label ?? model;
+/** A model by the name the composer gives it, or by its id for one this build does not know, such as one a paired computer's newer build ran. */
+export function modelLabel(model: string): string {
+  return MODEL_SPECS.get(model)?.label ?? model;
 }
 
 /** One value per engine, built now so a picker reads a stable list instead of building one per render. */
