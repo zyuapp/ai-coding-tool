@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { constants, type PathLike } from "node:fs";
-import { lstat, mkdir, mkdtemp, open, readFile, readlink, realpath, rm, stat, symlink, unlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, open, readFile, readlink, realpath, rm, stat, symlink, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test, vi } from "vitest";
 import { codexAppServer } from "../../../src/main/codex/app-server-client.mts";
 import { codexChildEnvironment, preparePrivateCodexHome, PRIVATE_CODEX_HOME_ENV } from "../../../src/main/codex/codex-home.mts";
 import { privateHomeConfig } from "../../../src/main/codex/codex-home-config.mts";
+import { suggestCodexTitle } from "../../../src/main/codex/codex-title-writer.mts";
 
 const filesystems = vi.hoisted(() => ({ foreign: "" }));
 vi.mock("node:fs/promises", async (original) => {
@@ -102,6 +103,45 @@ test("a private home on another filesystem moves beside the shared home and keep
     assert.equal(await preparePrivateCodexHome(privateHome, source), destination);
     assert.equal((await stat(privateCredentials)).ino, (await stat(path.join(source, ".credentials.json"))).ino);
   } finally {
+    filesystems.foreign = "";
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("a title run on another filesystem stores its databases in the moved home, and earlier title leftovers do not block the move", async () => {
+  const root = await realpath(await mkdtemp(path.join(tmpdir(), "codex-cross-device-title-")));
+  const source = path.join(root, "shared");
+  const privateHome = path.join(root, "app-data", "codex-private");
+  const bin = path.join(root, "bin");
+  filesystems.foreign = path.join(root, "app-data");
+  const original = { PATH: process.env.PATH, CODEX_HOME: process.env.CODEX_HOME, [PRIVATE_CODEX_HOME_ENV]: process.env[PRIVATE_CODEX_HOME_ENV] };
+  try {
+    await mkdir(source); await mkdir(path.join(privateHome, "log"), { recursive: true }); await mkdir(bin);
+    // A title that ran while launches failed wrote straight into the unprepared home.
+    for (const name of ["state_5.sqlite", "state_5.sqlite-wal", "state_5.sqlite-shm", "logs_2.sqlite", "log/codex-tui.log"]) await writeFile(path.join(privateHome, name), "title");
+    await symlink(path.join(source, "auth.json"), path.join(privateHome, "auth.json"));
+    // Stands in for `codex exec`: records its database in sqlite_home and answers with a title.
+    await writeFile(path.join(bin, "codex"), `#!/bin/sh
+for arg; do
+  case "$arg" in sqlite_home=*) home=$(printf %s "$arg" | sed 's/^sqlite_home="//; s/"$//') ;; esac
+  [ "$previous" = --output-last-message ] && output="$arg"
+  previous="$arg"
+done
+cat > /dev/null
+printf title > "$home/state_5.sqlite"
+printf '{"title":"Sidebar overlap"}' > "$output"
+`);
+    await chmod(path.join(bin, "codex"), 0o755);
+    Object.assign(process.env, { PATH: `${bin}${path.delimiter}${original.PATH}`, CODEX_HOME: source, [PRIVATE_CODEX_HOME_ENV]: privateHome });
+    assert.equal(await suggestCodexTitle("Fix the sidebar overlap"), "Sidebar overlap");
+    const destination = await realpath(privateHome);
+    assert.equal(path.dirname(path.dirname(destination)), source);
+    assert.equal(await readFile(path.join(destination, "state_5.sqlite"), "utf8"), "title");
+    assert.equal(await lstat(path.join(destination, "log")).catch(() => null), null, "leftovers from the unprepared home are discarded");
+    assert.equal((await codexChildEnvironment(process.env)).CODEX_HOME, destination, "Codex still starts");
+    assert.equal((await stat(path.join(destination, ".credentials.json"))).ino, (await stat(path.join(source, ".credentials.json"))).ino);
+  } finally {
+    for (const [name, value] of Object.entries(original)) if (value === undefined) delete process.env[name]; else process.env[name] = value;
     filesystems.foreign = "";
     await rm(root, { recursive: true, force: true });
   }

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { TITLE_INSTRUCTIONS, TITLE_SCHEMA, readableImages, titleOf, titleQuestion } from "../agent/title-text.mjs";
 import { codexExecutable } from "./codex-executable.mjs";
-import { sharedCodexHome, PRIVATE_CODEX_HOME_ENV } from "./codex-home.mjs";
+import { privateCodexHome, sharedCodexHome } from "./codex-home.mjs";
 import { readHomeConfig } from "./codex-home-config.mjs";
 import { toml } from "./codex-config.mjs";
 
@@ -30,10 +30,11 @@ export function codexTitleArgs(schemaFile: string, outputFile: string, images: s
 
 const execCodex: CodexExec = async (args, input, cwd) => {
   // An ephemeral title can use native authentication in its original home. Its databases and logs
-  // still go to private storage; --ignore-user-config keeps unrelated user behavior out of titles.
+  // still go to private storage, prepared as for any launch so they never land where it must move
+  // from; --ignore-user-config keeps unrelated user behavior out of titles.
+  const privateHome = await privateCodexHome();
   const env: NodeJS.ProcessEnv = { ...process.env, CODEX_HOME: sharedCodexHome() };
   const config = await readHomeConfig(env.CODEX_HOME!);
-  const privateHome = env[PRIVATE_CODEX_HOME_ENV];
   const secretAuth = (config.features as { secret_auth_storage?: unknown } | undefined)?.secret_auth_storage;
   const overrides = [
     ...(typeof config.cli_auth_credentials_store === "string" ? ["-c", `cli_auth_credentials_store=${toml(config.cli_auth_credentials_store)}`] : []),

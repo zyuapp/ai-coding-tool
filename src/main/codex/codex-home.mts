@@ -79,10 +79,15 @@ async function privateDirectory(privateHome: string) {
   return realpath(privateHome);
 }
 
-/** A home that never started Codex holds only links to shared inputs, so nothing is lost moving it. */
-async function onlyLinks(directory: string): Promise<boolean> {
+/** Storage an ephemeral title run writes: databases indexing no conversation, and their logs. */
+const EPHEMERAL_STORAGE = /^[a-z]+_\d+\.sqlite(-wal|-shm)?$/;
+
+/** A home that never started Codex holds only links to shared inputs and what title runs left, so
+ * nothing is lost moving it. Any session, credential, or retained cache keeps it in place. */
+async function disposable(directory: string, top = true): Promise<boolean> {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
-    if (entry.isDirectory() ? !(await onlyLinks(path.join(directory, entry.name))) : !entry.isSymbolicLink()) return false;
+    if (entry.isSymbolicLink() || (top && (entry.name === "log" || EPHEMERAL_STORAGE.test(entry.name)))) continue;
+    if (!entry.isDirectory() || !(await disposable(path.join(directory, entry.name), false))) return false;
   }
   return true;
 }
@@ -91,7 +96,7 @@ async function onlyLinks(directory: string): Promise<boolean> {
  * filesystem. The app data path becomes a link to it and keeps naming the same home later. */
 async function relocate(privateHome: string, source: string) {
   const unrelocatable = new Error(`Codex MCP sign-ins can only be shared when ${privateHome} is on the same filesystem as ${source}.`);
-  if ((await lstat(privateHome)).isSymbolicLink() || !(await onlyLinks(privateHome))) throw unrelocatable;
+  if ((await lstat(privateHome)).isSymbolicLink() || !(await disposable(privateHome))) throw unrelocatable;
   const home = path.join(source, ".aicodingtool", createHash("sha256").update(path.resolve(privateHome)).digest("hex").slice(0, 16));
   await mkdir(home, { recursive: true, mode: 0o700 });
   await rm(privateHome, { recursive: true });
@@ -135,12 +140,15 @@ async function prepare(privateHome: string, sourceHome: string) {
   return destination;
 }
 
-export async function codexChildEnvironment(environment: NodeJS.ProcessEnv = process.env): Promise<NodeJS.ProcessEnv> {
+/** Where Codex children keep their state, prepared for launch, or undefined when they use the user's home. */
+export async function privateCodexHome(environment: NodeJS.ProcessEnv = process.env): Promise<string | undefined> {
   const privateHome = environment[PRIVATE_CODEX_HOME_ENV];
-  if (!privateHome) return environment;
-  const source = sharedCodexHome(environment);
-  const home = await preparePrivateCodexHome(privateHome, source);
-  return { ...environment, CODEX_HOME: home, CODEX_SQLITE_HOME: home };
+  return privateHome ? preparePrivateCodexHome(privateHome, sharedCodexHome(environment)) : undefined;
+}
+
+export async function codexChildEnvironment(environment: NodeJS.ProcessEnv = process.env): Promise<NodeJS.ProcessEnv> {
+  const home = await privateCodexHome(environment);
+  return home ? { ...environment, CODEX_HOME: home, CODEX_SQLITE_HOME: home } : environment;
 }
 
 export function sharedCodexHome(environment: NodeJS.ProcessEnv = process.env) {
