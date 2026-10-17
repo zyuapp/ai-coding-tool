@@ -138,6 +138,28 @@ test("a muted coordinator stays muted across a reload, and a mute it cannot read
   }
 });
 
+test("a thread's report survives a reload, and a blank one an older build saved costs the thread nothing else", () => {
+  const migrated = migrateV1ToV2(legacyValues());
+  assert.equal(migrated.ok, true);
+  if (!migrated.ok) return;
+  const report = { state: "blocked" as const, summary: "Needs the staging key", at: 5 };
+  const member = { ...migrated.data.tasks[0], parentId: "lead", report };
+  const parsed = parseThreadStore(serializeThreadStore({ ...migrated.data, tasks: [member] }));
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  assert.deepEqual(parsed.data.tasks[0].report, report);
+
+  for (const broken of [{ ...report, summary: "   " }, { ...report, state: "stuck" }, "blocked"]) {
+    const loaded = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...member, report: broken }] }));
+    assert.equal(loaded.ok, true);
+    if (!loaded.ok) return;
+    assert.equal(loaded.hiddenTasks, 0, "the thread still loads");
+    assert.equal(loaded.data.tasks[0].report, undefined, "without the report it could not read");
+    assert.equal(loaded.data.tasks[0].parentId, "lead");
+    assert.deepEqual(loaded.data.tasks[0].messages, member.messages);
+  }
+});
+
 test("a thread's coordinator on another computer, and how far a coordinator heard its threads there and which were working, survive a reload, and what cannot be read is dropped", () => {
   const migrated = migrateV1ToV2(legacyValues());
   assert.equal(migrated.ok, true);

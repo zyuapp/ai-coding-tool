@@ -374,7 +374,6 @@ function isThreadBase(value: unknown): value is StoredThread {
     (value.role === undefined || isThreadRole(value.role)) &&
     (value.parentId === undefined || nonEmptyString(value.parentId)) &&
     (value.brief === undefined || isThreadBrief(value.brief)) &&
-    (value.report === undefined || isCoordinationReport(value.report)) &&
     (value.decisions === undefined || Array.isArray(value.decisions) && value.decisions.every(isDecision)) &&
     (value.coordinationNotes === undefined || Array.isArray(value.coordinationNotes) && value.coordinationNotes.every(isCoordinationNote)) &&
     (value.projectId === undefined || nonEmptyString(value.projectId)) &&
@@ -527,6 +526,7 @@ function heldWithOrigins(pause: unknown) {
 const DROPPABLE_FIELDS: Readonly<Record<string, (value: unknown) => boolean>> = {
   threadModel: isThreadModelChoice,
   memory: isCoordinatorMemory,
+  report: isCoordinationReport,
   resolvedAt: finiteNumber,
   pullRequest: isPullRequestLink,
   muted: (value) => value === true,
