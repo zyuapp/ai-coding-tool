@@ -18,6 +18,7 @@ import { outcomeFor, settledHeadline, whyRunSurfaces, withSettledTick, type RunS
 import { nextSortIndex } from "../thread-order.js";
 import { answerPartId, applyRunEvent, applyThreadEvent, ATTENDED_RUN, threadMark, updateThread, withBackgroundProcesses, withSubagents, withWorkflows, type ActiveRun, type ThreadMark } from "../thread-run-state.js";
 import { threadOnScreen } from "../thread-attention.js";
+import { sessionHoldsWork } from "../thread-activity.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, threadWorkspaceRoot, worktreeById, worktreeFor } from "../thread-location.js";
 import { DRAFT_DOCK, type PendingRun, type WorkspaceState } from "../workspace-state.js";
 import type { CreatedWorktree, RunEvent } from "../../contracts/ipc.js";
@@ -359,7 +360,12 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   /** A thread starting under a coordinator reads the brief it was handed and the memory it was started with. */
   const standing = joining ? briefPrompt(pending.coordination?.brief, pending.coordination?.memory) : briefPrompt(pending.coordination?.brief);
   const sent = `${pending.prompt}${standing ? `\n\n${standing}` : ""}`;
-  const prompt = coordinating ? coordinatorPrompt(state, located, sent, { carried: pending.coordination?.notes, fresh }) : sent;
+  /**
+   * Any coordinator session that starts over history reads the seed, so one whose last session failed
+   * before naming itself, or was dropped, still knows what came before and where read_thread finds it.
+   */
+  const seeded = fresh || coordinating && updated.continuation === undefined && (located.messages.length > 0 || located.historySummary !== undefined);
+  const prompt = coordinating ? coordinatorPrompt(state, located, sent, { carried: pending.coordination?.notes, fresh: seeded }) : sent;
   const listed = existing ? state.threads.map((item) => item.id === thread.id ? updated : item) : [updated, ...state.threads];
   /** A suggestion the user started is this thread now, which its coordinator hears without being woken by it. */
   const proposalId = existing ? undefined : pending.coordination?.proposalId;
@@ -392,17 +398,6 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     [{ type: "start-run", command }, ...titling, ...followUps(reviewing.effects)],
     { ok: true, taskId: thread.id },
   );
-}
-
-/**
- * Whether a thread's session holds work a fresh one would silently end: a native goal, a workflow,
- * a background shell or monitor, or a subagent still working.
- */
-function sessionHoldsWork(state: WorkspaceState, taskId: string): boolean {
-  return Boolean(state.goals[taskId])
-    || (state.workflows[taskId] ?? []).some((workflow) => workflow.status === "running")
-    || (state.backgroundProcesses[taskId]?.length ?? 0) > 0
-    || (state.subagents[taskId] ?? []).some((subagent) => subagent.status === "working");
 }
 
 /** A thread that resumes no session: its next run starts one, and its context meter starts over with it. */

@@ -4,8 +4,10 @@
  * computer's state are read through the same functions, each answer derived once per state.
  */
 import { withWatchedThreads } from "../domain/automation.js";
+import type { Subagent } from "../domain/run.js";
 import type { Thread } from "../domain/thread.js";
 import { resumesOnItsOwn } from "../domain/usage-limit.js";
+import type { Workflow } from "../domain/workflow.js";
 import { unreadView } from "./thread-attention.js";
 import { leavingThreadIds } from "./thread-location.js";
 import { sideChatIds, type WorkspaceState } from "./workspace-state.js";
@@ -69,8 +71,8 @@ function deriveActivity(state: WorkspaceState): ThreadActivity {
   /** A checkout on its way out is ground about to move, so every thread standing on it waits. */
   for (const taskId of leavingThreadIds(state)) working.add(taskId);
   /** A workflow outlives the run that started it. Background shells and monitors only keep a session alive. */
-  for (const [taskId, workflows] of Object.entries(state.workflows)) if (workflows.some((workflow) => workflow.status === "running")) working.add(taskId);
-  for (const [taskId, subagents] of Object.entries(state.subagents)) if (subagents.some((subagent) => subagent.status === "working")) working.add(taskId);
+  for (const [taskId, workflows] of Object.entries(state.workflows)) if (runsWorkflow(workflows)) working.add(taskId);
+  for (const [taskId, subagents] of Object.entries(state.subagents)) if (runsSubagent(subagents)) working.add(taskId);
   const paused = new Set<string>();
   for (const thread of state.threads) {
     if (!thread.limitPause) continue;
@@ -80,6 +82,25 @@ function deriveActivity(state: WorkspaceState): ThreadActivity {
   /** A paused thread's queue is what it holds for the user's return, not work of its own. */
   for (const [taskId, queued] of Object.entries(state.queuedMessages)) if (queued.length && !paused.has(taskId)) working.add(taskId);
   return { working, blocked, paused, ranked: withWatchedThreads(working, state.automations) };
+}
+
+/**
+ * Whether a thread's session holds work a fresh one would silently end: a native goal, a workflow,
+ * a background shell or monitor, or a subagent still working.
+ */
+export function sessionHoldsWork(state: WorkspaceState, taskId: string): boolean {
+  return Boolean(state.goals[taskId])
+    || runsWorkflow(state.workflows[taskId])
+    || (state.backgroundProcesses[taskId]?.length ?? 0) > 0
+    || runsSubagent(state.subagents[taskId]);
+}
+
+function runsWorkflow(workflows: readonly Workflow[] | undefined): boolean {
+  return Boolean(workflows?.some((workflow) => workflow.status === "running"));
+}
+
+function runsSubagent(subagents: readonly Subagent[] | undefined): boolean {
+  return Boolean(subagents?.some((subagent) => subagent.status === "working"));
 }
 
 export function isWorking(state: WorkspaceState, taskId: string): boolean {
@@ -175,8 +196,8 @@ export function activityChanges(before: WorkspaceState, after: WorkspaceState, t
   if (before.releasingWorktrees !== after.releasingWorktrees || before.deletingWorktrees !== after.deletingWorktrees || before.worktrees !== after.worktrees) {
     symmetricDifference(leavingThreadIds(before), leavingThreadIds(after), changed);
   }
-  changedKeys(before.workflows, after.workflows, (was, is) => Boolean(was?.some((item) => item.status === "running")) === Boolean(is?.some((item) => item.status === "running")), changed);
-  changedKeys(before.subagents, after.subagents, (was, is) => Boolean(was?.some((item) => item.status === "working")) === Boolean(is?.some((item) => item.status === "working")), changed);
+  changedKeys(before.workflows, after.workflows, (was, is) => runsWorkflow(was) === runsWorkflow(is), changed);
+  changedKeys(before.subagents, after.subagents, (was, is) => runsSubagent(was) === runsSubagent(is), changed);
   changedKeys(before.queuedMessages, after.queuedMessages, (was, is) => Boolean(was?.length) === Boolean(is?.length), changed);
   for (const { id, before: was, after: is } of threads) {
     if (!was || !is || was.limitPause !== is.limitPause || was.worktreeId !== is.worktreeId) changed.add(id);

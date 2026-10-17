@@ -92,6 +92,22 @@ test("a coordinator past its context budget starts fresh, carrying its threads, 
   assert.doesNotMatch(next.prompt, /fresh session|The last messages/);
 });
 
+test("a coordinator whose fresh session failed before naming itself is seeded again on its next run", () => {
+  const coordinator = lead("lead", { ...GROWN, messages: [createConversationMessage("user", "Plan the reader"), createConversationMessage("assistant", "I started Fix login.")] });
+  const run = started(workspace({ threads: [coordinator], currentId: "lead" }), { type: "task.send", taskId: "lead", text: "What next?" });
+  const failed = reduce(run.state, correlatedRunEvent("lead", run.command.runId, 1, { type: "run.status", status: "failed" }));
+  const next = started(failed.state, { type: "task.send", taskId: "lead", text: "Try again" });
+  assert.equal(next.command.continuation, undefined);
+  assert.equal(next.command.freshSession, undefined, "there is no warm session left to avoid");
+  const [seed, message] = next.prompt.split("\n\n---\n");
+  assert.equal(message, "Try again");
+  assert.match(seed!, /^This coordinator continues in a fresh session[^]*The user: Plan the reader\nYou: I started Fix login\.\nThe user: What next\?$/);
+  assert.equal(required(next.state.threads.find((thread) => thread.id === "lead")).messages.filter(({ kind }) => kind === "system").length, 1, "the notice is said once");
+
+  const opened = started(workspace({ threads: [lead()], currentId: "lead" }), { type: "task.send", taskId: "lead", text: "Plan the reader" });
+  assert.equal(opened.prompt, "Plan the reader", "a coordinator with no history yet has nothing to be seeded with");
+});
+
 test("a coordinator woken past its context budget starts fresh with the news after its seed", () => {
   const worker = task("worker", { parentId: "lead", title: "Fix login" });
   const state = workspace({ threads: [lead("lead", GROWN), worker], activeRuns: { worker: activeRun("worker", "run-w") }, runStatuses: { worker: "running" } });
