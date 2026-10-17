@@ -313,6 +313,18 @@ test("the Overview's purpose line and memory rows edit what the coordinator keep
   assert.equal(add.value, "Keep updates short", "a note not yet saved, or refused, stays to be changed");
   await mounted.render(overview({ ...lead, memory: { ...kept, notes: [...kept.notes, { id: "n3", text: "Keep updates short", at: 2 }], revision: 4 } }));
   assert.equal(add.value, "", "once saved, the row is empty for the next");
+
+  const before = dispatched.length;
+  await act(async () => { query<HTMLButtonElement>(container, 'button[aria-label="Edit Purpose"]').click(); });
+  await mounted.render(overview({ ...lead, memory: { ...kept, purpose: "Ship the v3 reader", revision: 5 } }));
+  await act(async () => { query<HTMLInputElement>(container, 'input[aria-label="Purpose"]').blur(); });
+  assert.equal(dispatched.length, before, "leaving the purpose untouched keeps what the coordinator wrote while it was open");
+  await act(async () => { query<HTMLButtonElement>(section, 'button[aria-label="Edit Note"]').click(); });
+  await mounted.render(overview({ ...lead, memory: { purpose: "Ship the v3 reader", notes: [{ id: "n1", text: "Propose threads only when asked", at: 3 }], revision: 6 } }));
+  await act(async () => { query<HTMLTextAreaElement>(section, 'textarea[aria-label="Note"]').blur(); });
+  assert.equal(dispatched.length, before, "and so does leaving a note untouched");
+  assert.equal(query(section, 'button[aria-label="Edit Note"]').textContent, "Propose threads only when asked");
+  assert.equal(query(container, 'button[aria-label="Edit Purpose"]').textContent, "Ship the v3 reader");
   await mounted.unmount();
 });
 

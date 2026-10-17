@@ -131,6 +131,8 @@ function InlineEdit({ value, label, placeholder, className, maxLength, multiline
   const [draft, setDraft] = useState<string | null>(null);
   /** Set once the edit is saved or put back, so the field leaving the page cannot save it a second time. */
   const settled = useRef(false);
+  /** The text as the edit found it, so leaving it untouched saves nothing even if the coordinator has changed the text since. */
+  const opened = useRef("");
   /** An edit the keyboard ended hands focus back to what was edited; one ended by leaving the field leaves it where it went. */
   const refocus = useRef(false);
   const reading = useRef<HTMLButtonElement>(null);
@@ -141,7 +143,7 @@ function InlineEdit({ value, label, placeholder, className, maxLength, multiline
   }, [draft]);
   if (draft === null) {
     return (
-      <button ref={reading} type="button" className={className} aria-label={`Edit ${label}`} title={value || undefined} onClick={() => { settled.current = false; setDraft(value); }}>
+      <button ref={reading} type="button" className={className} aria-label={`Edit ${label}`} title={value || undefined} onClick={() => { settled.current = false; opened.current = value; setDraft(value); }}>
         {value || <span className="coordination-placeholder">{placeholder}</span>}
       </button>
     );
@@ -149,7 +151,8 @@ function InlineEdit({ value, label, placeholder, className, maxLength, multiline
   const finish = (text: string | null) => {
     if (settled.current) return;
     settled.current = true;
-    if (text !== null && text.trim() !== value) onSave(text.trim());
+    const saved = text?.trim();
+    if (saved !== undefined && saved !== opened.current && saved !== value) onSave(saved);
     setDraft(null);
   };
   const field = {
