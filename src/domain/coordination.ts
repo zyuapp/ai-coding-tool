@@ -220,6 +220,15 @@ export function isCoordinator(thread: Thread | undefined): boolean {
 }
 
 /**
+ * Whether threads on paired computers may still work under this one: it is a coordinator, archived
+ * or not, or it has heard from a thread there, since taking its role off lets those go only where
+ * the line is up.
+ */
+export function mayLeadElsewhere(thread: Thread): boolean {
+  return thread.role === "coordinator" || thread.remoteHeard !== undefined && Object.keys(thread.remoteHeard).length > 0;
+}
+
+/**
  * Whether a coordinator's next run starts a fresh session rather than resuming one whose context has
  * grown past its budget. A native goal, a workflow or background work lives in its session, so a
  * session still holding any of it is kept until that work ends.

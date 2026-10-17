@@ -1,4 +1,5 @@
 /** What the store and the preferences hand back on the way in, and what failed on the way out. */
+import { discardedLeads } from "./coordination-remote.js";
 import { settled, rejected } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { viewPreferenceState } from "../view-preferences.js";
@@ -11,8 +12,12 @@ type StoreInput = Extract<WorkspaceInput, {
 
 export function reduceStore(state: WorkspaceState, input: StoreInput): WorkspaceTransition {
   switch (input.type) {
-    case "store.loaded":
-      return settled({ ...withStoreData(state, input.data), hiddenThreads: input.hiddenTasks ?? 0, restored: true });
+    case "store.loaded": {
+      const arrived = withStoreData(state, input.data);
+      /** A thread that outlived its time in the archive goes as one cleared from it does. */
+      const kept = new Set(arrived.threads.map((thread) => thread.id));
+      return discardedLeads({ ...arrived, hiddenThreads: input.hiddenTasks ?? 0, restored: true }, input.data.tasks.filter((thread) => !kept.has(thread.id)));
+    }
 
     case "store.thread-loaded": {
       const thread = state.threads.find((item) => item.id === input.taskId);

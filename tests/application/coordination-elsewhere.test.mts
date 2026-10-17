@@ -10,6 +10,7 @@ import { COMPUTER_CAPABILITIES } from "../../src/contracts/computer-capabilities
 import type { ComputerLink } from "../../src/domain/computers.ts";
 import type { Thread } from "../../src/domain/thread.ts";
 import { THREAD_STORE_VERSION } from "../../src/domain/thread-storage.ts";
+import { ARCHIVE_RETENTION_MS } from "../../src/domain/thread-retention.ts";
 import { createFailureMessage } from "../../src/domain/conversation.ts";
 import { activeRun, effectAt, effectOf, required, task, workspace } from "./workspace-reducer-fixtures.mts";
 import { viewPreferences } from "../../src/application/view-preferences.ts";
@@ -225,6 +226,38 @@ test("a coordinator cleared from the archive while a computer holding its thread
     assert.ok(forwards.length > 0);
     assert.deepEqual(new Set(forwards.map((effect) => JSON.stringify(effect))), new Set([JSON.stringify({ type: "computer.forward", id: "studio", inputs: [{ type: "task.set-coordinator", taskId: "far", coordinatorId: null }], silent: true })]));
   }
+});
+
+test("a coordinator that outlived its time in the archive while a computer holding its thread was away still lets that thread go once it is back", () => {
+  const expired = task("lead", { role: "coordinator", title: "Lead", archivedAt: Date.now() - ARCHIVE_RETENTION_MS - 1 });
+  const recent = task("recent", { role: "coordinator", archivedAt: Date.now() });
+  const away = withComputers(workspace(), [paired("studio", null, { status: "offline", capabilities: COMPUTER_CAPABILITIES })]);
+  const loaded = reduce(away, { type: "store.loaded", data: { version: THREAD_STORE_VERSION, tasks: [expired, recent, task("plain", { archivedAt: 1 })], projects: [], worktrees: [], lastFolder: null } });
+  assert.deepEqual(loaded.state.threads.map((thread) => thread.id), ["recent"]);
+  assert.deepEqual(loaded.state.computers.discardedLeads, ["lead"], "only a coordinator gone from here is remembered");
+  const remembered = required(loaded.effects.find((effect) => effect.type === "persist-preferences"));
+  assert.deepEqual(remembered.type === "persist-preferences" && remembered.preferences.discardedLeads, ["lead"], "it is kept between launches");
+  const again = reduce(loaded.state, { type: "store.loaded", data: { version: THREAD_STORE_VERSION, tasks: [expired], projects: [], worktrees: [], lastFolder: null } });
+  assert.deepEqual([again.state.computers.discardedLeads, again.effects.some((effect) => effect.type === "persist-preferences")], [["lead"], false], "one remembered already is not said twice");
+
+  const back = reduce(loaded.state, { type: "computers.changed", name: "This Mac", links: [link("studio", { capabilities: COMPUTER_CAPABILITIES })] });
+  const said = mirrored(back.state, workspace({ threads: [far()] }));
+  assert.deepEqual(said.effects.filter((effect) => effect.type === "computer.forward"), [{ type: "computer.forward", id: "studio", inputs: [{ type: "task.set-coordinator", taskId: "far", coordinatorId: null }], silent: true }]);
+});
+
+test("a coordinator whose role was taken off while a computer holding its thread was away still lets that thread go once it is cleared from the archive", () => {
+  const state = withComputers(workspace({ threads: [task("lead", { role: "coordinator", title: "Lead", remoteHeard: { far: 10 } }), task("plain")] }), [paired("studio", workspace({ threads: [far()] }), { status: "offline", capabilities: COMPUTER_CAPABILITIES })]);
+  const plain = reduce(state, { type: "task.set-role", taskId: "lead", role: null }).state;
+  assert.equal(plain.threads[0]!.role, undefined);
+  const archived = ["lead", "plain"].reduce((held, taskId) => reduce(held, { type: "task.archive", taskId }).state, plain);
+  const cleared = reduce(archived, { type: "task.clear-archive" });
+  assert.deepEqual(cleared.state.computers.discardedLeads, ["lead"], "a thread that never led one there is not remembered");
+
+  const back = reduce(cleared.state, { type: "computers.changed", name: "This Mac", links: [link("studio", { capabilities: COMPUTER_CAPABILITIES })] });
+  const said = mirrored(back.state, workspace({ threads: [far()] }));
+  const forwards = [...back.effects, ...said.effects].filter((effect) => effect.type === "computer.forward");
+  assert.ok(forwards.length > 0);
+  assert.deepEqual(new Set(forwards.map((effect) => JSON.stringify(effect))), new Set([JSON.stringify({ type: "computer.forward", id: "studio", inputs: [{ type: "task.set-coordinator", taskId: "far", coordinatorId: null }], silent: true })]));
 });
 
 /** A coordinator on a paired computer, as the thread it started here names it. */

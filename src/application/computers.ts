@@ -38,13 +38,14 @@ export type ComputersState = {
   dropped: string | null;
   filter: ComputerFilter;
   /**
-   * Coordinators cleared from the archive here, whose threads on paired computers are let go once
-   * each computer says it still holds one. Kept between launches, newest last.
+   * Coordinators gone from here, cleared from the archive or outliving their time in it, whose threads
+   * on paired computers are let go once each computer says it still holds one. Kept between launches,
+   * newest last.
    */
   discardedLeads: string[];
 };
 
-/** How many cleared coordinators are remembered for threads elsewhere that may still work under them. */
+/** How many coordinators gone from here are remembered for threads elsewhere that may still work under them. */
 export const MAX_DISCARDED_LEADS = 50;
 
 export const NO_COMPUTERS: ComputersState = { name: "", found: [], searching: false, searchError: null, paired: [], pairing: null, active: null, dropped: null, filter: "all", discardedLeads: [] };

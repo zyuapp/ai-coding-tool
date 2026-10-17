@@ -1,17 +1,18 @@
 /** What a coordinator here hears of the threads it started on paired computers, and how they are let go once it is gone. */
 import { proposalLanded } from "./proposals.js";
 import { now, settled } from "./shared.js";
-import type { WorkspaceEffect } from "./types.js";
+import type { WorkspaceEffect, WorkspaceTransition } from "./types.js";
 import { coordinationMembers, coordinationNote, decisionHeadline, decisionNote, remotelyLedThreads, reportHeadline, reportNote, turnNote } from "../coordination.js";
 import type { ThreadChange } from "../thread-activity.js";
 import { announced, waitingHeadline } from "../notices.js";
 import { settledHeadline } from "../run-testimony.js";
 import { updateThread } from "../thread-run-state.js";
-import { lastWorkingIds, type PairedComputer } from "../computers.js";
+import { lastWorkingIds, MAX_DISCARDED_LEADS, type PairedComputer } from "../computers.js";
+import { viewPreferences } from "../view-preferences.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import type { AppCommand } from "../../contracts/commands.js";
-import { isCoordinator, openDecisions, withCoordinationNote, withRemoteHeard, type CoordinationNote } from "../../domain/coordination.js";
+import { isCoordinator, mayLeadElsewhere, openDecisions, withCoordinationNote, withRemoteHeard, type CoordinationNote } from "../../domain/coordination.js";
 import { lastRunOutcome, threadCreatedAt, type HeardWork, type Thread } from "../../domain/thread.js";
 import { resumesOnItsOwn } from "../../domain/usage-limit.js";
 
@@ -180,10 +181,10 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
 
 /**
  * Each thread on a paired computer still working under a thread here that is no longer a live
- * coordinator, or under one cleared from the archive here, is let go there, as this computer's own
- * threads stand on their own once their coordinator goes. It is read off what each computer says it
- * holds, so one that was away, or whose state comes in only after its line is back, is told once it
- * says so, and what could not be carried is tried again the next time its threads move.
+ * coordinator, or under one gone from here, is let go there, as this computer's own threads stand on
+ * their own once their coordinator goes. It is read off what each computer says it holds, so one
+ * that was away, or whose state comes in only after its line is back, is told once it says so, and
+ * what could not be carried is tried again the next time its threads move.
  */
 export function released(previous: WorkspaceState, state: WorkspaceState, threads: readonly ThreadChange[]): WorkspaceEffect[] {
   const ended = threads.some(({ before, after }) => isCoordinator(before) && !isCoordinator(after));
@@ -205,3 +206,15 @@ export function released(previous: WorkspaceState, state: WorkspaceState, thread
   return effects;
 }
 
+/**
+ * Threads leaving this computer for good, cleared from the archive or outliving their time in it,
+ * that may still lead threads on paired computers. Once gone they can no longer say those threads
+ * are let go, so that is remembered for them, between launches too.
+ */
+export function discardedLeads(state: WorkspaceState, threads: readonly Thread[]): WorkspaceTransition {
+  const held = new Set(state.computers.discardedLeads);
+  const leads = new Set(threads.flatMap((thread) => mayLeadElsewhere(thread) && !held.has(thread.id) ? [thread.id] : []));
+  if (!leads.size) return settled(state);
+  const remembered = { ...state, computers: { ...state.computers, discardedLeads: [...state.computers.discardedLeads, ...leads].slice(-MAX_DISCARDED_LEADS) } };
+  return { state: remembered, effects: [{ type: "persist-preferences", preferences: viewPreferences(remembered) }] };
+}
