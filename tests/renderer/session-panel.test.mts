@@ -188,6 +188,30 @@ test("the Needs-you card asks to run a thread on another computer, in the folder
   await view.unmount();
 });
 
+test("a thread asked for on another computer starts in the folder on screen once that computer's projects arrive", async () => {
+  const dispatched: AppCommand[] = [];
+  const request: ThreadProposal = { id: "p1", title: "GPU tests", prompt: "Run them", place: { computer: { id: "studio", name: "Studio" }, project: "app", worktree: false }, proposedAt: 1 };
+  const card = (projects: { id: string; root: string }[]) => React.createElement(CommandControlsProvider, { value: { available: () => true, dispatch: (command: AppCommand) => { dispatched.push(command); } } },
+    React.createElement(NeedsYouCard, {
+      approvals: [],
+      decisions: [],
+      suggestions: {
+        taskId: "lead",
+        threadModel: null,
+        proposals: [{ proposal: request, starting: false, elsewhere: { computer: { id: "studio", name: "Studio", offline: false }, projects, project: projects[0]?.id ?? null, refusal: projects.length ? null : "Studio is offline." } }],
+      },
+      onDecide() {},
+      onAnswer() {},
+      onSelect() {},
+    }));
+  const view = await mount(card([]));
+  await view.render(card([{ id: "app", root: "/code/app" }, { id: "lab", root: "/code/lab" }]));
+  assert.equal(query<HTMLSelectElement>(view.container, ".elsewhere-folder select").value, "app");
+  await act(async () => { required([...view.container.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === "Allow")).click(); });
+  assert.deepEqual(dispatched, [{ type: "proposal.start", taskId: "lead", proposalId: "p1", place: { project: "app", worktree: false } }]);
+  await view.unmount();
+});
+
 test("a coordinator's session panel keeps its own rows and adds its threads' worktrees and pull requests", async () => {
   window.desktop = fakeDesktop();
   const revealed: string[] = [];

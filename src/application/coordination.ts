@@ -643,12 +643,16 @@ function sameUsage(before: CoordinationUsage | null | undefined, next: Coordinat
   return same ? before : next;
 }
 
-/** What the open thread shows: a coordinator its threads, their approvals and open decisions, a thread its coordinator and brief. */
-export type CoordinationView = {
-  /** On a coordinator, what its threads run on; null on any other thread. */
-  threadModel: ThreadModelChoice | null;
-  /** On a coordinator, its purpose and notes; null on any other thread. */
-  memory: CoordinatorMemoryView | null;
+/**
+ * What the open thread shows: a coordinator its threads, their approvals and open decisions, what
+ * they run on and its memory; a thread its coordinator and brief.
+ */
+export type CoordinationView = CoordinationParts & (
+  | { coordinator: true; threadModel: ThreadModelChoice; memory: CoordinatorMemoryView }
+  | { coordinator: false; threadModel: null; memory: null }
+);
+
+type CoordinationParts = {
   members: readonly CoordinatedThreadView[];
   /** The threads it started, oldest first. */
   starts: readonly ThreadStart[];
@@ -670,7 +674,7 @@ export type CoordinationView = {
   asking: boolean;
 };
 
-const NO_COORDINATION: CoordinationView = { threadModel: null, memory: null, members: [], starts: [], approvals: [], decisions: [], proposals: [], usage: null, lead: null, remoteLead: null, brief: null, asking: false };
+const NO_COORDINATION: CoordinationView = { coordinator: false, threadModel: null, memory: null, members: [], starts: [], approvals: [], decisions: [], proposals: [], usage: null, lead: null, remoteLead: null, brief: null, asking: false };
 
 const NO_NOTES: readonly MemoryNote[] = [];
 
@@ -730,7 +734,7 @@ export function coordinationView(
     const memory = { purpose: thread.memory?.purpose ?? null, notes: thread.memory?.notes ?? NO_NOTES };
     const proposals = proposalViews(previous?.proposals, thread.proposals ?? [], state.startingProposals, state.computers.paired);
     const usage = sameUsage(previous?.usage, coordinationUsage(coordinated, thread));
-    return { ...NO_COORDINATION, threadModel: threadModelOf(thread), memory, members, starts, approvals, decisions, proposals, usage, brief: thread.brief ?? null };
+    return { ...NO_COORDINATION, coordinator: true, threadModel: threadModelOf(thread), memory, members, starts, approvals, decisions, proposals, usage, brief: thread.brief ?? null };
   }
   const lead = coordinatorOf(threads, thread) ?? null;
   const remote = lead ? undefined : remoteLeadOf(thread);

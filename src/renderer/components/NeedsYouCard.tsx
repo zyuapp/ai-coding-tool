@@ -1,12 +1,13 @@
 import { useId, useState } from "react";
 import { LuArrowUp as ArrowUp, LuChevronDown as ChevronDown, LuChevronUp as ChevronUp, LuX as X } from "react-icons/lu";
 import type { ThreadModelChoice } from "../../domain/coordination";
+import { modelLabel } from "../../domain/agent-engine";
 import { projectName } from "../../domain/project";
 import type { Thread } from "../../domain/thread";
 import type { CoordinationApprovalView, CoordinationDecisionView, ElsewhereView, ProposalView } from "../../application/coordination";
 import type { ApprovalView } from "../../application/thread-run-state";
 import { CommandButton } from "./CommandControl";
-import { BriefList, modelName } from "./Coordination";
+import { BriefDetails } from "./Coordination";
 import { HostMark } from "./HostMark";
 import "./coordination.css";
 
@@ -133,7 +134,7 @@ function SuggestionRow({ taskId, threadModel, view }: { taskId: string; threadMo
         <small title={proposal.brief?.intent ?? proposal.prompt}>{proposal.brief?.intent ?? proposal.prompt}</small>
         {proposal.error && !starting && <small className="suggestion-error" role="alert">{proposal.error}</small>}
       </span>
-      {model && <span className="suggestion-chip">{modelName(model)}</span>}
+      {model && <span className="suggestion-chip">{modelLabel(model)}</span>}
       {worktree && <span className="suggestion-chip">Worktree</span>}
       {!starting && <CommandButton
         type="button"
@@ -161,8 +162,10 @@ function SuggestionRow({ taskId, threadModel, view }: { taskId: string; threadMo
 function ElsewhereForm({ taskId, request, position, onStep }: { taskId: string; request: ElsewhereRequest; position: Pager; onStep: (delta: 1 | -1) => void }) {
   const { proposal, starting, elsewhere } = request;
   const { computer, projects, refusal } = elsewhere;
-  const [project, setProject] = useState(() => elsewhere.project ?? "");
+  const [picked, setPicked] = useState<string | null>(null);
   const [worktree, setWorktree] = useState(proposal.place.worktree === true);
+  /** A folder picked while that computer still holds it, else the one the view settles on, which follows its projects as they arrive. */
+  const project = picked !== null && projects.some((item) => item.id === picked) ? picked : elsewhere.project ?? "";
   return (
     <section className="decision-card elsewhere-card" aria-label={`Run on ${computer.name}?`}>
       <div className="decision-head">
@@ -174,7 +177,7 @@ function ElsewhereForm({ taskId, request, position, onStep }: { taskId: string; 
         <div className="elsewhere-place">
           {projects.length > 0 && <label className="elsewhere-folder">
             <span>Folder</span>
-            <select value={project} onChange={(event) => setProject(event.currentTarget.value)}>
+            <select value={project} onChange={(event) => setPicked(event.currentTarget.value)}>
               {projects.map((item) => <option key={item.id} value={item.id} title={item.root}>{projectName(item)}</option>)}
             </select>
           </label>}
@@ -183,12 +186,7 @@ function ElsewhereForm({ taskId, request, position, onStep }: { taskId: string; 
             New worktree
           </label>
         </div>
-        {proposal.brief && (
-          <details className="coordination-brief">
-            <summary>Brief</summary>
-            <BriefList brief={proposal.brief} />
-          </details>
-        )}
+        {proposal.brief && <BriefDetails brief={proposal.brief} />}
         {refusal
           ? <p className="suggestion-error" role="status">{refusal}</p>
           : proposal.error && !starting && <p className="suggestion-error" role="alert">{proposal.error}</p>}

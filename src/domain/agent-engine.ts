@@ -295,6 +295,11 @@ export function engineLabel(engine: AgentEngine): string {
   return ENGINES[engine].label;
 }
 
+/** A model by the name the composer gives it. */
+export function modelLabel(model: AgentModel): string {
+  return modelsFor(engineForModel(model)).find((spec) => spec.id === model)?.label ?? model;
+}
+
 /** One value per engine, built now so a picker reads a stable list instead of building one per render. */
 export function byEngine<T>(build: (engine: AgentEngine) => T): Record<AgentEngine, T> {
   return Object.fromEntries(AGENT_ENGINES.map((engine) => [engine, build(engine)])) as Record<AgentEngine, T>;

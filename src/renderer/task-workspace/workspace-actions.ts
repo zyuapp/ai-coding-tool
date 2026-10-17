@@ -33,8 +33,6 @@ function coordinationActions(dispatch: (input: WorkspaceInput) => Promise<void>)
   return {
     setThreadRole: (threadId: string, role: ThreadRole | null) => dispatch({ type: "task.set-role", taskId: threadId, role }),
     setCoordinator: (threadId: string, coordinatorId: string | null) => dispatch({ type: "task.set-coordinator", taskId: threadId, coordinatorId }),
-    resolveThread: (threadId: string) => dispatch({ type: "task.resolve", taskId: threadId }),
-    reopenThread: (threadId: string) => dispatch({ type: "task.reopen", taskId: threadId }),
     answerDecision: (threadId: string, decisionId: string, answer: string) => dispatch({ type: "decision.answer", taskId: threadId, decisionId, answer }),
     setThreadModel: (taskId: string, model: AgentModel, effort?: AgentEffort) => dispatch({ type: "coordination.set-thread-model", taskId, model, ...(effort ? { effort } : {}) }),
     setMuted: (taskId: string, muted: boolean) => dispatch({ type: "coordination.set-muted", taskId, muted }),
@@ -43,7 +41,6 @@ function coordinationActions(dispatch: (input: WorkspaceInput) => Promise<void>)
     setPurpose: (taskId: string, purpose: string | null) => dispatch({ type: "memory.set-purpose", taskId, purpose }),
     addNote: (taskId: string, text: string) => dispatch({ type: "memory.add", taskId, text }),
     editNote: (taskId: string, noteId: string, text: string) => dispatch({ type: "memory.edit", taskId, noteId, text }),
-    forgetNote: (taskId: string, noteId: string) => dispatch({ type: "memory.forget", taskId, noteId }),
   };
 }
 

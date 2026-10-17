@@ -185,7 +185,7 @@ button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
 /** A row's own action sits beside its open button, over the marks it takes the place of while pointed at. */
 .coordination-item { position: relative; min-width: 0; }
 .coordination-item.resolved > .coordination-row { opacity: 0.62; }
-.coordination-item.resolved > .coordination-row:hover { opacity: 1; }
+.coordination-item.resolved:is(:hover, :focus-within) > .coordination-row { opacity: 1; }
 .coordination-row-action {
   position: absolute;
   top: 50%;

@@ -20,7 +20,7 @@ const { buildDock } = await import("../../src/renderer/components/dock-registry.
 const header = { taskId: "lead", threadModel: { model: "opus" as const, effort: "high" as const }, engineAccess: EVERY_ENGINE_READY, onSetThreadModel() {}, onEngineRead() {}, onSignIn() {} };
 
 /** A coordinator that keeps nothing in memory yet. */
-const memory = { taskId: "lead", purpose: null, notes: [], onSetPurpose() {}, onAdd() {}, onEdit() {}, onForget() {} };
+const memory = { taskId: "lead", purpose: null, notes: [], onSetPurpose() {}, onAdd() {}, onEdit() {} };
 
 const member = (id: string, title: string): Thread => ({ id, title, engine: "claude", executionPolicy: "allow-edits", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, parentId: "lead" });
 
@@ -48,10 +48,7 @@ test("a coordinator's Overview groups its threads by what they need, each openin
     folds,
     onSetFold: (group: string, change: object) => { folded.push([group, change]); },
     onSelect: (id: string) => { opened = id; },
-    onResolve() {},
-    onReopen() {},
     stoppable: true,
-    onStopAll() {},
   });
   const view = await mount(overview({}));
   const needs = query(view.container, '[aria-label="Needs you"]');
@@ -74,7 +71,7 @@ test("a coordinator's Overview groups its threads by what they need, each openin
   await act(async () => { query<HTMLButtonElement>(busy, 'button[aria-label="Open Dark mode"]').click(); });
   assert.equal(opened, "a");
 
-  await view.render(React.createElement(CoordinatorOverview, { header, memory, members: [], usage: null, worktreeGroups: [], folds: {}, onSetFold() {}, onSelect() {}, onResolve() {}, onReopen() {}, stoppable: true, onStopAll() {} }));
+  await view.render(React.createElement(CoordinatorOverview, { header, memory, members: [], usage: null, worktreeGroups: [], folds: {}, onSetFold() {}, onSelect() {}, stoppable: true }));
   assert.match(view.container.textContent, /Threads run onModelOpusEffortHigh/, "a coordinator with no threads yet still says what they will run on");
   assert.match(view.container.textContent, /No threads yet/);
   await view.unmount();
@@ -82,10 +79,9 @@ test("a coordinator's Overview groups its threads by what they need, each openin
 
 test("the Overview files threads ready for review and resolved apart, and resolves or reopens one from its row", async () => {
   window.desktop = fakeDesktop();
-  const resolving: string[] = [];
-  const reopening: string[] = [];
+  const dispatched: unknown[] = [];
   const folded: unknown[] = [];
-  const overview = (folds: object) => React.createElement(CoordinatorOverview, {
+  const overview = (folds: object) => React.createElement(CommandControlsProvider, { value: { available: () => true, dispatch: (command) => { dispatched.push(command); } } }, React.createElement(CoordinatorOverview, {
     header,
     memory,
     members: [
@@ -101,11 +97,8 @@ test("the Overview files threads ready for review and resolved apart, and resolv
     folds,
     onSetFold: (group: string, change: object) => { folded.push([group, change]); },
     onSelect() {},
-    onResolve: (id: string) => { resolving.push(id); },
-    onReopen: (id: string) => { reopening.push(id); },
     stoppable: true,
-    onStopAll() {},
-  });
+  }));
   const view = await mount(overview({}));
   const labels = [...view.container.querySelectorAll(".coordination-group:not(.coordination-memory) .coordination-group-head > span:not(.coordination-group-count)")].map((node) => node.textContent);
   assert.deepEqual(labels, ["Needs you", "Ready for review", "Working", "Done", "Resolved"]);
@@ -127,8 +120,7 @@ test("the Overview files threads ready for review and resolved apart, and resolv
   await view.render(overview({ resolved: { open: true } }));
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Reopen Old work"]').click(); });
 
-  assert.deepEqual(resolving, ["review"]);
-  assert.deepEqual(reopening, ["old"]);
+  assert.deepEqual(dispatched, [{ type: "task.resolve", taskId: "review" }, { type: "task.reopen", taskId: "old" }]);
   assert.deepEqual(folded, [["resolved", { open: true }]]);
   await view.unmount();
 });
@@ -138,7 +130,7 @@ test("the Overview says what a coordinator's threads run on, and picks another w
   const overview = (available: boolean) => React.createElement(CommandControlsProvider, { value: { available: (command) => available || command.type !== "coordination.set-thread-model", dispatch() {} } },
     React.createElement(CoordinatorOverview, {
       header: { ...header, threadModel: { model: "gpt-6-luna", effort: "max" }, onSetThreadModel: (model: string, effort?: string) => { picked.push([model, effort]); } },
-      memory, members: [], usage: null, worktreeGroups: [], folds: {}, onSetFold() {}, onSelect() {}, onResolve() {}, onReopen() {}, stoppable: true, onStopAll() {},
+      memory, members: [], usage: null, worktreeGroups: [], folds: {}, onSetFold() {}, onSelect() {}, stoppable: true,
     }));
   const view = await mount(overview(true));
   const head = query(view.container, ".coordination-overview-header");
@@ -188,7 +180,7 @@ test("the Overview's Working group stops the coordinator and every thread under 
   const lead: Thread = { ...member("lead", "Plan"), parentId: undefined, role: "coordinator" };
   const view = deriveView({ ...emptyWorkspaceState(), threads: [lead, member("busy", "Login flake"), member("idle", "Docs")], currentId: lead.id, activeRuns: { busy: activeRun("busy", "run-busy") } });
   const shown = (available: boolean) => {
-    const commandControls = { available: (command: { type: string }) => available || command.type !== "coordination.stop-all", dispatch() {} };
+    const commandControls = { available: (command: { type: string }) => available || command.type !== "coordination.stop-all", dispatch: (command: WorkspaceInput) => void dispatch(command) };
     const workspace = { ...view, threadHandles: [], threadHandlesFor: () => [], commandControls, dispatch, actions: workspaceActions(dispatch) } as never;
     const dock = buildDock({ workspace, inspectedSubagent: undefined, workingSubagents: 0, unreviewedFiles: 0, onInspectSubagent() {}, onCloseInspector() {}, onOpenPanel() {}, onAddSideChat() {} });
     return React.createElement(CommandControlsProvider, { value: commandControls }, required(dock.panels.find((item) => item.id === OVERVIEW_PANEL)).render());
@@ -247,7 +239,7 @@ test("the Overview's Usage section shows what the coordinator and its threads sp
   assert.equal(mounted.container.querySelectorAll(".coordination-usage-thread").length, 7);
   await mounted.unmount();
 
-  const quiet = await mount(React.createElement(CoordinatorOverview, { header, memory, members: [], usage: null, worktreeGroups: [], folds: {}, onSetFold() {}, onSelect() {}, onResolve() {}, onReopen() {}, stoppable: false, onStopAll() {} }));
+  const quiet = await mount(React.createElement(CoordinatorOverview, { header, memory, members: [], usage: null, worktreeGroups: [], folds: {}, onSetFold() {}, onSelect() {}, stoppable: false }));
   assert.equal(quiet.container.querySelector('[aria-label="Usage"]'), null, "nothing counted yet draws no section");
   await quiet.unmount();
 });
@@ -260,7 +252,7 @@ test("the Overview's purpose line and memory rows edit what the coordinator keep
     ...member("lead", "Plan"), parentId: undefined, role: "coordinator",
     memory: { purpose: "Ship the v2 reader", notes: [{ id: "n1", text: "Propose threads first", at: 1 }, { id: "n2", text: "Use Sonnet for docs", at: 1 }], revision: 2 },
   };
-  const commandControls = { available: () => true, dispatch() {} };
+  const commandControls = { available: () => true, dispatch: (command: WorkspaceInput) => void dispatch(command) };
   const overview = (thread: Thread) => {
     const view = deriveView({ ...emptyWorkspaceState(), threads: [thread], currentId: thread.id });
     const workspace = { ...view, threadHandles: [], threadHandlesFor: () => [], commandControls, dispatch, actions: workspaceActions(dispatch) } as never;
@@ -285,8 +277,10 @@ test("the Overview's purpose line and memory rows edit what the coordinator keep
   await act(async () => { purpose.click(); });
   await type(query<HTMLInputElement>(container, 'input[aria-label="Purpose"]'), "Never mind", "Escape");
   assert.equal(dispatched.length, 0, "Esc leaves the purpose as it was");
+  assert.equal(dom.window.document.activeElement, query(container, 'button[aria-label="Edit Purpose"]'), "and hands focus back to it");
   await act(async () => { query<HTMLButtonElement>(container, 'button[aria-label="Edit Purpose"]').click(); });
   await type(query<HTMLInputElement>(container, 'input[aria-label="Purpose"]'), "  ", "Enter");
+  assert.equal(dom.window.document.activeElement, query(container, 'button[aria-label="Edit Purpose"]'), "so does saving it with Enter");
 
   const section = query(container, '[aria-label="Memory"]');
   assert.match(query(section, ".coordination-group-head").textContent, /Memory2/);
@@ -297,7 +291,10 @@ test("the Overview's purpose line and memory rows edit what the coordinator keep
   const forget = section.querySelectorAll<HTMLButtonElement>('button[aria-label="Forget"]')[1];
   assert.ok(forget.parentElement?.querySelector('button[aria-label="Edit Note"]'), "Forget sits beside the note it drops, not inside it");
   await act(async () => { forget.click(); });
+  const kept = { ...item(lead.memory), notes: [item(lead.memory).notes[0]!], revision: 3 };
+  await mounted.render(overview({ ...lead, memory: kept }));
   const add = query<HTMLTextAreaElement>(section, 'textarea[aria-label="Add a note"]');
+  assert.equal(dom.window.document.activeElement, add, "forgetting the last note hands focus to the row that adds one");
   assert.equal(add.maxLength, 500, "a note longer than memory keeps cannot be typed");
   await type(add, "Keep updates short", "Enter");
 
@@ -308,7 +305,7 @@ test("the Overview's purpose line and memory rows edit what the coordinator keep
     { type: "memory.add", taskId: "lead", text: "Keep updates short" },
   ], "saving the purpose empty clears it");
   assert.equal(add.value, "Keep updates short", "a note not yet saved, or refused, stays to be changed");
-  await mounted.render(overview({ ...lead, memory: { ...item(lead.memory), notes: [...item(lead.memory).notes, { id: "n3", text: "Keep updates short", at: 2 }], revision: 3 } }));
+  await mounted.render(overview({ ...lead, memory: { ...kept, notes: [...kept.notes, { id: "n3", text: "Keep updates short", at: 2 }], revision: 4 } }));
   assert.equal(add.value, "", "once saved, the row is empty for the next");
   await mounted.unmount();
 });

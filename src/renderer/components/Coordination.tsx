@@ -1,9 +1,10 @@
-import { createContext, memo, useContext, useRef, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
+import { createContext, memo, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
 import { LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuChevronDown as ChevronDown, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuRotateCcw as Reopen, LuTrash2 as Trash, LuX as X } from "react-icons/lu";
 import { deliveryLabel, MAX_MEMORY_NOTE, MAX_PURPOSE, nextStepOf, OVERVIEW_GROUPS, type MemoryNote, type OverviewFold, type OverviewFolds, type OverviewGroup, type OverviewSection, type ThreadBrief, type ThreadModelChoice } from "../../domain/coordination";
-import { engineForModel, modelDelegable, modelsFor, type AgentEngine, type AgentModel, type EngineReadiness } from "../../domain/agent-engine";
+import { engineForModel, modelDelegable, modelLabel, type AgentEngine, type AgentModel, type EngineReadiness } from "../../domain/agent-engine";
 import type { AgentEffort } from "../../domain/run";
 import { worktreeHue, worktreeName, type Worktree } from "../../domain/worktree";
+import type { Thread } from "../../domain/thread";
 import { canResolve, overviewGroups, pullRequestLine, type CoordinationUsage, type CoordinatedThreadStatus, type CoordinatedThreadView, type CoordinationView, type CoordinatorMemoryView } from "../../application/coordination";
 import type { ThreadHost } from "../../application/computers";
 import type { WorktreeGroup } from "../../application/workspace-state";
@@ -65,20 +66,17 @@ export type OverviewMemoryProps = CoordinatorMemoryView & {
   onSetPurpose: (purpose: string | null) => void;
   onAdd: (text: string) => void;
   onEdit: (noteId: string, text: string) => void;
-  onForget: (noteId: string) => void;
 };
 
 type FoldChange = (section: OverviewSection, change: { open?: boolean; all?: boolean }) => void;
 
-/** What a thread's row does beside opening it: resolve it once nothing waits on it, or reopen it. */
+/** What a thread's row does when it is opened; resolving and reopening it are commands of their own. */
 type RowActions = {
   onSelect: (threadId: string) => void;
-  onResolve: (threadId: string) => void;
-  onReopen: (threadId: string) => void;
 };
 
 /** A coordinator's purpose, what its threads run on, its threads by what they need from the user, its memory, then what it all spent. */
-export function CoordinatorOverview({ header, memory, members, usage, worktreeGroups, folds, onSetFold, stoppable, onStopAll, onSelect, onResolve, onReopen }: RowActions & {
+export function CoordinatorOverview({ header, memory, members, usage, worktreeGroups, folds, onSetFold, stoppable, onSelect }: RowActions & {
   header: OverviewHeaderProps;
   memory: OverviewMemoryProps;
   members: readonly CoordinatedThreadView[];
@@ -89,11 +87,10 @@ export function CoordinatorOverview({ header, memory, members, usage, worktreeGr
   onSetFold: FoldChange;
   /** Whether Stop all has anything under the coordinator to stop. */
   stoppable: boolean;
-  /** Stops the coordinator and every thread under it. */
-  onStopAll: () => void;
 }) {
-  const worktrees = new Map(worktreeGroups.map(({ worktree }) => [worktree.id, worktree]));
-  const groups = overviewGroups(members);
+  /** Held while nothing they are made from moves, so a row whose thread did not move draws nothing anew. */
+  const worktrees = useMemo(() => new Map(worktreeGroups.map(({ worktree }) => [worktree.id, worktree])), [worktreeGroups]);
+  const groups = useMemo(() => overviewGroups(members), [members]);
   return (
     <div className="coordination-overview" aria-label="Threads under this coordinator">
       <CommandGate command={{ type: "memory.set-purpose", taskId: memory.taskId, purpose: memory.purpose }}>
@@ -102,8 +99,8 @@ export function CoordinatorOverview({ header, memory, members, usage, worktreeGr
       <OverviewHeader {...header} />
       {members.length
         ? OVERVIEW_GROUPS.map((group) => groups[group].length > 0 && (
-            <ThreadGroup key={group} group={group} members={groups[group]} fold={folds[group] ?? {}} worktrees={worktrees} onSetFold={onSetFold} onSelect={onSelect} onResolve={onResolve} onReopen={onReopen}
-              {...(group === "working" ? { action: <StopAllButton taskId={header.taskId} stoppable={stoppable} onStopAll={onStopAll} /> } : {})} />
+            <ThreadGroup key={group} group={group} members={groups[group]} fold={folds[group] ?? {}} worktrees={worktrees} onSetFold={onSetFold} onSelect={onSelect}
+              {...(group === "working" ? { action: <StopAllButton taskId={header.taskId} stoppable={stoppable} /> } : {})} />
           ))
         : <p className="session-empty coordination-empty">No threads yet</p>}
       <CommandGate command={{ type: "memory.add", taskId: memory.taskId, text: "" }}>
@@ -131,9 +128,17 @@ function InlineEdit({ value, label, placeholder, className, maxLength, multiline
   const [draft, setDraft] = useState<string | null>(null);
   /** Set once the edit is saved or put back, so the field leaving the page cannot save it a second time. */
   const settled = useRef(false);
+  /** An edit the keyboard ended hands focus back to what was edited; one ended by leaving the field leaves it where it went. */
+  const refocus = useRef(false);
+  const reading = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (draft !== null || !refocus.current) return;
+    refocus.current = false;
+    reading.current?.focus();
+  }, [draft]);
   if (draft === null) {
     return (
-      <button type="button" className={className} aria-label={`Edit ${label}`} title={value || undefined} onClick={() => { settled.current = false; setDraft(value); }}>
+      <button ref={reading} type="button" className={className} aria-label={`Edit ${label}`} title={value || undefined} onClick={() => { settled.current = false; setDraft(value); }}>
         {value || <span className="coordination-placeholder">{placeholder}</span>}
       </button>
     );
@@ -154,8 +159,8 @@ function InlineEdit({ value, label, placeholder, className, maxLength, multiline
     onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => { if (!settled.current) setDraft(event.currentTarget.value); },
     onBlur: (event: FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => finish(event.currentTarget.value),
     onKeyDown: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); finish(event.currentTarget.value); }
-      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); finish(null); }
+      if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); refocus.current = true; finish(event.currentTarget.value); }
+      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); refocus.current = true; finish(null); }
     },
   };
   return multiline ? <textarea rows={1} {...field} /> : <input {...field} />;
@@ -166,14 +171,25 @@ function PurposeLine({ purpose, onSave }: { purpose: string | null; onSave: (pur
   return <InlineEdit value={purpose ?? ""} label="Purpose" placeholder="Add a purpose" className="coordination-purpose" maxLength={MAX_PURPOSE} onSave={(text) => onSave(text || null)} />;
 }
 
-/** The notes the coordinator keeps, each edited in place, with a last row that adds one. */
+/**
+ * The notes the coordinator keeps, each edited in place, with a last row that adds one. A note the
+ * user forgets hands focus to the one that took its place, or to the row that adds one.
+ */
 function MemorySection({ memory, fold, onSetFold }: { memory: OverviewMemoryProps; fold: OverviewFold; onSetFold: FoldChange }) {
   const open = fold.open ?? true;
+  const list = useRef<HTMLDivElement>(null);
+  const forgotten = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const index = forgotten.current;
+    if (index === null || !list.current) return;
+    forgotten.current = null;
+    (list.current.querySelectorAll<HTMLElement>(".coordination-note-text")[index] ?? list.current.querySelector<HTMLElement>(".coordination-note-add"))?.focus();
+  }, [memory.notes]);
   return (
     <section className="coordination-group coordination-memory" aria-label="Memory">
       <FoldHead label="Memory" count={memory.notes.length} open={open} onToggle={() => onSetFold("memory", { open: !open })} />
-      {open && <div className="subagent-list">
-        {memory.notes.map((note) => (
+      {open && <div className="subagent-list" ref={list}>
+        {memory.notes.map((note, index) => (
           <div key={note.id} className="coordination-note">
             {/** A note emptied while editing is left as it was; Forget is how one goes. */}
             <InlineEdit value={note.text} label="Note" className="coordination-note-text" maxLength={MAX_MEMORY_NOTE} multiline onSave={(text) => { if (text) memory.onEdit(note.id, text); }} />
@@ -182,7 +198,7 @@ function MemorySection({ memory, fold, onSetFold }: { memory: OverviewMemoryProp
               className="coordination-note-forget"
               aria-label="Forget"
               title="Forget"
-              onClick={() => memory.onForget(note.id)}
+              onClickCapture={() => { forgotten.current = index; }}
             >
               <X size={12} aria-hidden="true" />
             </CommandButton>
@@ -252,7 +268,7 @@ function UsageSection({ usage, fold, onSetFold, onSelect }: { usage: Coordinatio
         <h4>By model</h4>
         {byModel.map(({ model, tokens }) => (
           <div key={model} className="coordination-usage-model" title={`${tokens.toLocaleString("en-US")} tokens`}>
-            <span>{modelName(model)}</span>
+            <span>{modelLabel(model)}</span>
             <span className="coordination-usage-track" aria-hidden="true"><span className="coordination-usage-fill" style={{ width: `${shareOf(tokens, total)}%` }} /></span>
             <span className="coordination-usage-tokens">{compactTokens(tokens)}</span>
           </div>
@@ -275,8 +291,8 @@ function UsageSection({ usage, fold, onSetFold, onSelect }: { usage: Coordinatio
 }
 
 /** Stops the coordinator and everything working under it, as its thread menu does. */
-function StopAllButton({ taskId, stoppable, onStopAll }: { taskId: string; stoppable: boolean; onStopAll: () => void }) {
-  return <CommandButton type="button" className="coordination-stop-all" command={{ type: "coordination.stop-all", taskId }} disabled={!stoppable} onClick={onStopAll}>Stop all</CommandButton>;
+function StopAllButton({ taskId, stoppable }: { taskId: string; stoppable: boolean }) {
+  return <CommandButton type="button" className="coordination-stop-all" command={{ type: "coordination.stop-all", taskId }} disabled={!stoppable}>Stop all</CommandButton>;
 }
 
 /** What the coordinator's new threads run on, picked with the composer's own chips. */
@@ -332,8 +348,11 @@ function ThreadGroup({ group, members, fold, worktrees, action, onSetFold, ...ac
   );
 }
 
-/** One thread under the coordinator: a button that opens it, and beside it, never inside, what else its row does. */
-function ThreadRow({ view: { thread, status, summary, host }, worktrees, onSelect, onResolve, onReopen }: RowActions & { view: CoordinatedThreadView; worktrees: Map<string, Worktree> }) {
+/**
+ * One thread under the coordinator: a button that opens it, and beside it, never inside, what else its
+ * row does. Memoized on its view, which is held while its thread does not move.
+ */
+const ThreadRow = memo(function ThreadRow({ view: { thread, status, summary, host }, worktrees, onSelect }: RowActions & { view: CoordinatedThreadView; worktrees: ReadonlyMap<string, Worktree> }) {
   return (
     <div className={`coordination-item ${status}`}>
       <button
@@ -345,40 +364,34 @@ function ThreadRow({ view: { thread, status, summary, host }, worktrees, onSelec
       >
         <span className="coordination-row-mark"><CoordinationStatusMark status={status} /></span>
         <span><strong>{thread.title}</strong><small>{coordinationStatusLine(status, summary)}</small></span>
-        <span className="coordination-row-marks">
-          {host && <MemberHost host={host} />}
-          {thread.worktreeId && <WorktreeMark worktreeId={thread.worktreeId} worktree={worktrees.get(thread.worktreeId)} />}
-          <ThreadEngineIcon engine={thread.engine} className="coordination-row-engine" size={12} />
-        </span>
+        <ThreadMarks thread={thread} host={host} worktree={thread.worktreeId ? worktrees.get(thread.worktreeId) : undefined} />
       </button>
-      <ResolutionButton taskId={thread.id} title={thread.title} status={status} className="coordination-row-action" onResolve={onResolve} onReopen={onReopen} />
+      <ResolutionButton taskId={thread.id} title={thread.title} status={status} className="coordination-row-action" />
     </div>
   );
-}
+});
 
 /**
  * Resolves a thread with nothing left waiting on it, or reopens a resolved one; nothing for a thread
  * that is working or waiting on the user.
  */
-export function ResolutionButton({ taskId, title, status, className, size = 13, onResolve, onReopen }: {
+export function ResolutionButton({ taskId, title, status, className, size = 13 }: {
   taskId: string;
   title: string;
   status: CoordinatedThreadStatus;
   className: string;
   size?: number;
-  onResolve: (taskId: string) => void;
-  onReopen: (taskId: string) => void;
 }) {
   if (status === "resolved") {
     return (
-      <CommandButton command={{ type: "task.reopen", taskId }} className={className} data-action="reopen" aria-label={`Reopen ${title}`} title="Reopen" onClick={() => onReopen(taskId)}>
+      <CommandButton command={{ type: "task.reopen", taskId }} className={className} data-action="reopen" aria-label={`Reopen ${title}`} title="Reopen">
         <Reopen size={size} aria-hidden="true" />
       </CommandButton>
     );
   }
   if (!canResolve(status)) return null;
   return (
-    <CommandButton command={{ type: "task.resolve", taskId }} className={className} data-action="resolve" aria-label={`Resolve ${title}`} title="Resolve" onClick={() => onResolve(taskId)}>
+    <CommandButton command={{ type: "task.resolve", taskId }} className={className} data-action="resolve" aria-label={`Resolve ${title}`} title="Resolve">
       <Check size={size} aria-hidden="true" />
     </CommandButton>
   );
@@ -433,11 +446,7 @@ const ThreadCard = memo(function ThreadCard({ view, worktree, onSelect }: {
         <span className="coordination-card-head">
           <span className="coordination-row-mark"><CoordinationStatusMark status={status} /></span>
           <strong>{thread.title}</strong>
-          <span className="coordination-row-marks">
-            {host && <MemberHost host={host} />}
-            {thread.worktreeId && <WorktreeMark worktreeId={thread.worktreeId} worktree={worktree} />}
-            <ThreadEngineIcon engine={thread.engine} className="coordination-row-engine" size={12} />
-          </span>
+          <ThreadMarks thread={thread} host={host} worktree={worktree} />
         </span>
         <small className={status === "working" ? "text-sweep" : undefined} title={line}>{line}</small>
         {pullRequest && Icon && (
@@ -512,14 +521,18 @@ export function MemberWorktreeList({ worktrees, onReveal, onDelete }: {
   );
 }
 
-/** The computer a thread under the coordinator runs on, when it is not this one, as its sidebar row names it. */
-function MemberHost({ host }: { host: ThreadHost }) {
-  return <HostMark name={host.name} offline={host.offline} reconnecting={host.reconnecting} className="coordination-row-host" />;
-}
-
-/** The same mark a thread's sidebar row carries, in its checkout's colour. */
-function WorktreeMark({ worktreeId, worktree }: { worktreeId: string; worktree: Worktree | undefined }) {
-  return <FolderSymlink className={`task-worktree worktree-mark hue-${worktreeHue(worktreeId)}`} size={12} aria-label={`Works in ${worktree ? worktreeName(worktree) : "a worktree"}`} />;
+/**
+ * Where a thread under the coordinator runs, as its sidebar row marks it: the computer, when it is not
+ * this one, the checkout it works in, in that checkout's colour, and its engine.
+ */
+function ThreadMarks({ thread, host, worktree }: { thread: Thread; host: ThreadHost | null; worktree: Worktree | undefined }) {
+  return (
+    <span className="coordination-row-marks">
+      {host && <HostMark name={host.name} offline={host.offline} reconnecting={host.reconnecting} className="coordination-row-host" />}
+      {thread.worktreeId && <FolderSymlink className={`task-worktree worktree-mark hue-${worktreeHue(thread.worktreeId)}`} size={12} aria-label={`Works in ${worktree ? worktreeName(worktree) : "a worktree"}`} />}
+      <ThreadEngineIcon engine={thread.engine} className="coordination-row-engine" size={12} />
+    </span>
+  );
 }
 
 /**
@@ -542,18 +555,23 @@ export function CoordinationBar({ lead, remoteLead, brief, asking, onSelect }: P
           {leadId && <button type="button" className="coordination-bar-answer" onClick={() => onSelect(leadId)}>Answer</button>}
         </>}
       </div>}
-      {brief && (
-        <details className="coordination-brief">
-          <summary>Brief</summary>
-          <BriefList brief={brief} />
-        </details>
-      )}
+      {brief && <BriefDetails brief={brief} />}
     </div>
   );
 }
 
+/** What a coordinator handed a thread, folded under its name until asked for. */
+export function BriefDetails({ brief }: { brief: ThreadBrief }) {
+  return (
+    <details className="coordination-brief">
+      <summary>Brief</summary>
+      <BriefList brief={brief} />
+    </details>
+  );
+}
+
 /** What a coordinator handed a thread: the user's words, what finished looks like, and how it lands. */
-export function BriefList({ brief }: { brief: ThreadBrief }) {
+function BriefList({ brief }: { brief: ThreadBrief }) {
   return (
     <dl>
       <dt>Your words</dt><dd className="coordination-brief-intent">{brief.intent}</dd>
@@ -561,9 +579,4 @@ export function BriefList({ brief }: { brief: ThreadBrief }) {
       <dt>Delivers</dt><dd>{deliveryLabel(brief.delivers)}</dd>
     </dl>
   );
-}
-
-/** A model by the name the composer gives it. */
-export function modelName(model: AgentModel): string {
-  return modelsFor(engineForModel(model)).find((spec) => spec.id === model)?.label ?? model;
 }

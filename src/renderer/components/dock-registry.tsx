@@ -87,10 +87,10 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
   /** What waits on the user here: the threads that need them, and the threads it suggested for them to start. */
   const needsYou = overviewGroups(workspace.coordination.members).needs.length + workspace.coordination.proposals.length;
   const lead = isCoordinator(workspace.currentThread) ? workspace.currentThread : undefined;
-  const { threadModel, memory } = workspace.coordination;
+  const { coordination } = workspace;
 
   const panels: DockPanel[] = [
-    ...(lead && threadModel && memory ? [{
+    ...(lead && coordination.coordinator ? [{
       id: OVERVIEW_PANEL,
       title: "Overview",
       description: "Follow the threads working under this coordinator",
@@ -102,7 +102,7 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
         <CoordinatorOverview
           header={{
             taskId: lead.id,
-            threadModel,
+            threadModel: coordination.threadModel,
             engineAccess: workspace.engineAccess,
             favoriteModels: workspace.favoriteModels,
             onModelFavorite: (model, favorite) => void workspace.dispatch({ type: "view.set-model-favorite", model, favorite }),
@@ -112,12 +112,11 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
             onOpenEngineSettings: () => void workspace.actions.openSettingsSection(workspace.engineSettingsPage.section, workspace.engineSettingsPage.settingId),
           }}
           memory={{
-            ...memory,
+            ...coordination.memory,
             taskId: lead.id,
             onSetPurpose: (purpose) => void workspace.actions.setPurpose(lead.id, purpose),
             onAdd: (text) => void workspace.actions.addNote(lead.id, text),
             onEdit: (noteId, text) => void workspace.actions.editNote(lead.id, noteId, text),
-            onForget: (noteId) => void workspace.actions.forgetNote(lead.id, noteId),
           }}
           members={workspace.coordination.members}
           usage={workspace.coordination.usage}
@@ -125,10 +124,7 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
           folds={workspace.overviewFolds}
           onSetFold={(group, change) => void workspace.actions.setOverviewGroup(lead.id, group, change)}
           stoppable={workspace.stoppableCoordinatorIds.has(lead.id)}
-          onStopAll={() => void workspace.actions.stopAll(lead.id)}
           onSelect={workspace.actions.selectThread}
-          onResolve={(threadId) => void workspace.actions.resolveThread(threadId)}
-          onReopen={(threadId) => void workspace.actions.reopenThread(threadId)}
         />
       ),
     }] : []),
