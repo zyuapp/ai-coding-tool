@@ -268,3 +268,20 @@ test("a start allowed on another computer that is still on its way when everythi
   assert.deepEqual(failed.state.threads[0]!.proposals?.map((item) => [item.id, item.error]), [["p1", undefined]], "one that never landed waits to be allowed again, with nothing to say");
   assert.deepEqual(failed.state.stoppedStarts, []);
 });
+
+test("a start allowed on another computer keeps its card's name there, and a build that cannot take one names it itself", () => {
+  const brief = { intent: "port the parser", doneWhen: "tests pass", delivers: "report" as const };
+  const proposal = { id: "p1", title: "Port the parser", prompt: "Port it", brief, place: { computer: { id: "studio", name: "studio" }, project: "far-project", worktree: false }, proposedAt: 1 };
+  const holder = workspace({ projects: [{ id: "far-project", root: "/far" }] });
+  const forwardedSend = (capabilities: readonly string[]) => {
+    const state = withComputers(workspace({ threads: [lead("lead", { title: "Lead", proposals: [proposal] })] }), [paired("studio", holder, { capabilities })]);
+    const allowed = reduce(state, { type: "proposal.start", taskId: "lead", proposalId: "p1" });
+    assert.deepEqual(allowed.state.startingProposals, ["p1"]);
+    const send = effectOf(allowed, "computer.forward").inputs.find((input) => input.type === "task.send");
+    assert.ok(send?.type === "task.send");
+    return send;
+  };
+  assert.equal(forwardedSend(COMPUTER_CAPABILITIES).title, "Port the parser");
+  const older = forwardedSend(COMPUTER_CAPABILITIES.filter((name) => name !== "command:task.send:title"));
+  assert.equal("title" in older, false, "the start still goes, named there from its prompt");
+});

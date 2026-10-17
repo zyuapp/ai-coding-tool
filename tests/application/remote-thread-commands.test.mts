@@ -169,10 +169,10 @@ test("a coordinator's start on another computer waits for the user to allow it",
   assert.equal(linux.inputs.length, 0, "nothing starts there until the user allows it");
 });
 
-test("allowing it forwards a send carrying the brief, memory, model and the coordinator it works under", async () => {
+test("allowing it forwards a send carrying the name, brief, memory, model and the coordinator it works under", async () => {
   const { host, linux } = pair();
   lead(host);
-  await answer(host, command({ type: "task.send", text: "Run the GPU tests", brief: BRIEF }, "Linux"));
+  await answer(host, command({ type: "task.send", text: "Run the GPU tests", brief: BRIEF, title: "GPU tests" }, "Linux"));
   const [waiting] = proposals(host);
   const allowed = await host.execute({ type: "proposal.start", taskId: "caller", proposalId: waiting!.id, place: { project: REMOTE_PROJECT.id, worktree: false } }).completed;
   assert.equal(allowed.ok, true);
@@ -183,9 +183,11 @@ test("allowing it forwards a send carrying the brief, memory, model and the coor
   assert.equal(sent.memory, "The coordinator's purpose: Ship v2\nWhat the coordinator keeps in memory:\n- [n1] Prefer small PRs");
   assert.deepEqual([sent.model, sent.effort, sent.project, sent.worktree], ["opus", "high", REMOTE_PROJECT.id, false]);
   assert.deepEqual(sent.brief, BRIEF);
+  assert.equal(sent.title, "GPU tests");
 
   const started = linux.state().threads.find((thread) => thread.remoteLead);
   assert.ok(started, "the thread starts there, under the coordinator here");
+  assert.equal(started.title, "GPU tests", "it is named there what its card said here");
   assert.deepEqual(started.remoteLead, { threadId: "caller", title: "Planner", computer: "Mac" });
   assert.deepEqual(started.brief, BRIEF);
   assert.equal(started.model, "opus");
@@ -196,7 +198,7 @@ test("allowing it forwards a send carrying the brief, memory, model and the coor
   assert.deepEqual(proposals(host), [], "an allowed request is done with once the thread exists");
   assert.deepEqual(host.state().startingProposals, []);
   const notes = host.state().threads[0]!.coordinationNotes ?? [];
-  assert.deepEqual(notes.map((note) => [note.text, note.quiet]), [["\"Run the GPU tests\" started on Linux.", true]], "it shows up quietly");
+  assert.deepEqual(notes.map((note) => [note.text, note.quiet]), [["\"GPU tests\" started on Linux.", true]], "it shows up quietly");
 });
 
 test("a thread under the coordinator asks for one elsewhere as itself, and it works under the coordinator", async () => {
@@ -266,6 +268,19 @@ test("a thread named into a paired computer's project by id starts there, signed
   const { notice } = await answer<ThreadCommandResult>(host, command({ type: "task.send", text: "Go", brief, project: REMOTE_PROJECT.id }));
   assert.match(notice ?? "", /^Waiting for the user to allow it on Linux/);
   assert.equal(linux.state().threads.length, 2);
+});
+
+test("a thread named at its start keeps that name on a paired computer, and one whose build cannot take a name names it itself", async () => {
+  const { host, linux } = pair();
+  const { thread } = await answer<ThreadCommandResult>(host, command({ type: "task.send", text: "Run the GPU tests", title: "GPU tests" }, "Linux"));
+  assert.equal(linux.state().threads.find((item) => item.id === thread?.id)?.title, "GPU tests");
+
+  const older = pair({ capabilities: COMPUTER_CAPABILITIES.filter((name) => name !== "command:task.send:title") });
+  const { thread: started } = await answer<ThreadCommandResult>(older.host, command({ type: "task.send", text: "Run the GPU tests", title: "GPU tests" }, "Linux"));
+  const sent = older.linux.inputs.find((input) => input.type === "task.send");
+  assert.ok(sent?.type === "task.send");
+  assert.equal("title" in sent, false, "the start goes without the name rather than being refused");
+  assert.equal(older.linux.state().threads.find((item) => item.id === started?.id)?.title, "Run the GPU tests");
 });
 
 test("a computer whose build predates signed messages refuses them rather than passing them off as the user's", async () => {

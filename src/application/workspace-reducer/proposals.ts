@@ -5,7 +5,7 @@ import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./typ
 import { coordinationNote, memoryPrompt } from "../coordination.js";
 import { updateThread } from "../thread-run-state.js";
 import { newThreadSend, proposalSend } from "../thread-starts.js";
-import { ledStartRefusal } from "../computers.js";
+import { ledStartRefusal, titledFor } from "../computers.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import type { AppCommand } from "../../contracts/commands.js";
@@ -116,8 +116,8 @@ function startProposal(state: WorkspaceState, leadId: string, proposalId: string
 /**
  * A thread asked for on a paired computer, allowed by the user in the project there they picked:
  * the start is carried to that computer as the coordinator would have started it here, with its
- * brief, the coordinator's memory as it stands, and the coordinator it works under, signed by the
- * thread that asked. It is allowed once; nothing here lets the next one through. A computer whose
+ * name, brief, the coordinator's memory as it stands, and the coordinator it works under, signed by
+ * the thread that asked. It is allowed once; nothing here lets the next one through. A computer whose
  * line is down, or whose build cannot take it, is refused, as is a project it no longer holds.
  */
 function startElsewhere(state: WorkspaceState, leadId: string, proposalId: string, chosen: { project: string; worktree: boolean } | undefined): WorkspaceTransition {
@@ -140,7 +140,7 @@ function startElsewhere(state: WorkspaceState, leadId: string, proposalId: strin
   const { command } = start;
   const name = retried.computers.name || "another computer";
   const memory = memoryPrompt(lead.memory);
-  const send: AppCommand = {
+  const send = titledFor(computer, {
     type: "task.send",
     text: proposal.prompt,
     project,
@@ -149,10 +149,11 @@ function startElsewhere(state: WorkspaceState, leadId: string, proposalId: strin
     ...(command.effort ? { effort: command.effort } : {}),
     ...(command.role ? { role: command.role } : {}),
     ...(command.brief ? { brief: command.brief } : {}),
+    ...(command.title ? { title: command.title } : {}),
     ...(memory ? { memory } : {}),
     lead: { threadId: lead.id, title: lead.title, computer: name },
     sender: { threadId: caller.id, title: caller.title, computer: name },
-  };
+  });
   if (!supportsComputerCommand(computer.capabilities, send)) return refused(`Update AI Coding Tool on ${computer.name} to run threads there.`);
   return settled(
     { ...retried, startingProposals: [...retried.startingProposals, proposalId] },

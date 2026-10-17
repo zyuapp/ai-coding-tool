@@ -166,7 +166,7 @@ function forwardedSend(state: WorkspaceState, computer: PairedComputer, command:
   if (command.type === "task.send" && command.attachments?.length) return { kind: "refuse", message: ATTACHMENTS_ELSEWHERE };
   const remote = computer.state;
   if (!remote) return { kind: "refuse", message: "That computer has not answered yet." };
-  const { attachments: _attachments, ...rest } = command;
+  const { attachments: _attachments, ...rest } = command.type === "task.send" ? titledFor(computer, command) : command;
   if (rest.type === "task.send" && rest.text !== undefined) return forwarded(computer, [rest]);
   /** The thread the send is for: the one named, else the one that computer has open, else its draft. */
   const key = command.taskId ?? promptKey(remote);
@@ -258,6 +258,16 @@ export function ledStartRefusal(computer: PairedComputer | undefined): string | 
   if (computer.status !== "connected") return offlineMessage(computer);
   if (!computer.capabilities || !LED_SEND.every((name) => computer.capabilities!.includes(name))) return `Update AI Coding Tool on ${computer.name} to run threads there.`;
   return null;
+}
+
+/**
+ * A new thread's name is only a name: a paired computer whose build cannot take one names the
+ * thread itself, as its own starts are named, rather than refusing the start over it.
+ */
+export function titledFor(computer: PairedComputer, send: Extract<AppCommand, { type: "task.send" }>): Extract<AppCommand, { type: "task.send" }> {
+  if (send.title === undefined || supportsComputerCommand(computer.capabilities, { type: "task.send", title: send.title })) return send;
+  const { title: _title, ...untitled } = send;
+  return untitled;
 }
 
 /** The paired computer holding a thread's queue, with the thread a command without a `taskId` means there. */
