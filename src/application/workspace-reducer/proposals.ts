@@ -48,7 +48,8 @@ export function reduceProposals(state: WorkspaceState, input: ProposalInput): Wo
     /**
      * What the user turned down is gone, and its coordinator hears so with its next wake. One already
      * starting is past turning down; dismissing them all means the suggestions here, each thread asked
-     * for on another computer being allowed or denied on its own.
+     * for on another computer being allowed or denied on its own. One elsewhere whose start failed was
+     * allowed, and may have started there with its answer lost, so it is given up on rather than denied.
      */
     case "proposal.dismiss": {
       const lead = state.threads.find((item) => item.id === input.taskId);
@@ -56,8 +57,10 @@ export function reduceProposals(state: WorkspaceState, input: ProposalInput): Wo
       const declined = targetedProposals(state, lead, input.proposalId);
       if (!declined.length) return settled(state);
       const titles = declined.map((proposal) => `"${proposal.title}"`);
-      const denied = declined[0]!.place.computer;
-      const text = denied ? `The user did not allow ${titles[0]} to run on ${denied.name}.`
+      const { place, error } = declined[0]!;
+      const denied = place.computer;
+      const text = denied ? error === undefined ? `The user did not allow ${titles[0]} to run on ${denied.name}.`
+        : `The user gave up on starting ${titles[0]} on ${denied.name}. If it started there after all, you will hear from it.`
         : titles.length === 1 ? `The user declined the suggested thread ${titles[0]}.` : `The user declined the suggested threads ${titles.slice(0, -1).join(", ")} and ${titles.at(-1)}.`;
       const note = coordinationNote(lead.id, text, now(), { quiet: true });
       return settled(updateThread(state, lead.id, (item) => withCoordinationNote(withoutProposals(item, new Set(declined.map((proposal) => proposal.id))), note)));

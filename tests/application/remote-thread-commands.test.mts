@@ -268,6 +268,20 @@ test("denying it is heard quietly", async () => {
   assert.equal(linux.inputs.length, 0);
 });
 
+test("dismissing one allowed whose answer was lost gives it up rather than denying it", async () => {
+  const { host, line } = pair();
+  lead(host);
+  await answer(host, command({ type: "task.send", text: "Run the GPU tests", brief: BRIEF }, "Linux"));
+  const [waiting] = proposals(host);
+  line.answers = false;
+  await host.execute({ type: "proposal.start", taskId: "caller", proposalId: waiting!.id }).completed;
+  await host.dispatch({ type: "proposal.dismiss", taskId: "caller", proposalId: waiting!.id });
+  assert.deepEqual(proposals(host), []);
+  const [note] = host.state().threads[0]!.coordinationNotes ?? [];
+  assert.equal(note?.text, "The user gave up on starting \"Run the GPU tests\" on Linux. If it started there after all, you will hear from it.");
+  assert.equal(note?.quiet, true);
+});
+
 test("an older computer, or one that advertises no capabilities, cannot take one", async () => {
   for (const capabilities of [COMPUTER_CAPABILITIES.filter((name) => name !== "command:task.send:lead"), undefined]) {
     const { host, linux } = pair({ capabilities });
