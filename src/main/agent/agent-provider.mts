@@ -122,6 +122,8 @@ export type ProviderRunInput = {
   claude?: ClaudeRunSettings;
   continuation?: Continuation;
   forkContinuation?: boolean;
+  /** The run starts a session of its own even where the thread has a warm one it could take. */
+  freshSession?: true;
   automations?: AutomationBridge;
   /** Only alongside `automations`: the two tools that use it live on the automation surface. */
   findings?: FindingBridge;

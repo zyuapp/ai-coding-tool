@@ -9,6 +9,7 @@ import { coordinationDecisions, coordinatorOf, coordinatedThreadIds, coordinated
 import { threadActivityAt, threadCreatedAt, type Thread } from "../domain/thread.js";
 import type { PullRequestAnswer, PullRequestChecks, PullRequestLink, PullRequestRef, PullRequestState } from "../domain/pull-request.js";
 import { wantsAttention } from "../domain/attention.js";
+import { originLabel } from "../domain/message-origin.js";
 import type { AgentModel } from "../domain/agent-engine.js";
 
 /**
@@ -101,7 +102,7 @@ export function lastReply(thread: Thread, from = 0): string | undefined {
 }
 
 function excerpt(text: string) {
-  return text.length > EXCERPT ? `${text.slice(0, EXCERPT - 1)}…` : text;
+  return clipped(text, EXCERPT);
 }
 
 /**
@@ -243,22 +244,63 @@ function memoryContext(lead: Thread, fresh: boolean): string[] {
 /**
  * What a coordinator's run is told beyond its prompt: its memory when its session has yet to read it,
  * the news it has not heard yet, where each of its threads stands, and the threads it suggested that
- * the user has yet to start, so it never suggests one twice. Notes the prompt already
- * carries are left out. A `fresh` session has read nothing before it.
+ * the user has yet to start, so it never suggests one twice. Notes the prompt already carries are left
+ * out. A `fresh` session has read nothing before it, so it is also told why it is new and what was
+ * last said, which makes this the seed it starts from.
  */
 export function coordinationContext(state: WorkspaceState, lead: Thread, { carried = [], fresh = false }: { carried?: readonly string[]; fresh?: boolean } = {}): string {
   const notes = (lead.coordinationNotes ?? []).filter((note) => !carried.includes(note.id));
   const lines = roster(state, lead.id);
   const own = openDecisions(lead).map((decision) => `- ${decision.question}`);
   const suggested = (lead.proposals ?? []).map((proposal) => `- "${proposal.title}" [${proposal.id}]`);
-  const sections = [
+  const recent = fresh ? recentConversation(lead) : [];
+  return [
+    ...(fresh ? [`This coordinator continues in a fresh session to keep its context small; read_thread with its ID [${lead.id}] reaches its full history.`] : []),
     ...memoryContext(lead, fresh),
     ...(notes.length ? ["Updates from your threads you have not seen yet:", ...notes.map((note) => `- ${note.text}`)] : []),
     ...(lines.length ? ["Your threads right now:", ...lines] : []),
     ...(suggested.length ? ["Suggested threads waiting on the user:", ...suggested] : []),
     ...(own.length ? ["Decisions you raised that the user has yet to answer:", ...own] : []),
-  ];
-  return sections.length ? `\n\n---\n${sections.join("\n")}` : "";
+    ...(recent.length ? ["The last messages of your conversation, oldest first:", ...recent] : []),
+  ].join("\n");
+}
+
+/**
+ * What a coordinator's run is sent: its prompt with its context after it, or, in a fresh session, the
+ * seed first and then the prompt that started the run.
+ */
+export function coordinatorPrompt(state: WorkspaceState, lead: Thread, prompt: string, options: { carried?: readonly string[]; fresh?: boolean }): string {
+  const context = coordinationContext(state, lead, options);
+  if (!context) return prompt;
+  return options.fresh ? `${context}\n\n---\n${prompt}` : `${prompt}\n\n---\n${context}`;
+}
+
+/** How many of a coordinator's last messages a fresh session reads, and how much of each and of all of them. */
+const RECENT_MESSAGES = 12;
+const RECENT_MESSAGE = 800;
+const RECENT_TOTAL = 10_000;
+
+/**
+ * The words a coordinator and whoever wrote to it last exchanged, oldest first, each under its sender
+ * and clipped, and the oldest dropped first while they run long. A conversation not loaded yet has
+ * nothing to read here; read_thread still reaches it.
+ */
+function recentConversation(lead: Thread): string[] {
+  if (lead.historySummary) return [];
+  const lines: string[] = [];
+  for (let index = lead.messages.length - 1; index >= 0 && lines.length < RECENT_MESSAGES; index -= 1) {
+    const message = lead.messages[index]!;
+    if (message.kind !== "user" && message.kind !== "assistant" || message.withdrawn || message.artifact || !message.text.trim()) continue;
+    const sender = message.kind === "assistant" ? "You" : message.origin ? originLabel(message.origin) : "The user";
+    lines.unshift(`${sender}: ${clipped(message.text.trim(), RECENT_MESSAGE)}`);
+  }
+  let total = lines.reduce((sum, line) => sum + line.length + 1, 0);
+  while (lines.length && total > RECENT_TOTAL) total -= lines.shift()!.length + 1;
+  return lines;
+}
+
+function clipped(text: string, max: number) {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
 /**

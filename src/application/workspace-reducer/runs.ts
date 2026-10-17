@@ -26,8 +26,8 @@ import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
 import { createConversationMessage, createSentMessage } from "../../domain/conversation.js";
 import { appendMessages } from "../../domain/conversation-updates.js";
 import { pausedForLimit } from "../limit-pauses.js";
-import { asCoordinator, canJoinCoordinator, coordinatorOf, isCoordinator, withCoordinationNote, withMemoryHeard, withoutCoordinationNotes, withoutProposals } from "../../domain/coordination.js";
-import { briefPrompt, coordinationContext, coordinationNote } from "../coordination.js";
+import { asCoordinator, canJoinCoordinator, coordinatorOf, isCoordinator, wantsFreshSession, withCoordinationNote, withMemoryHeard, withoutCoordinationNotes, withoutProposals } from "../../domain/coordination.js";
+import { briefPrompt, coordinationNote, coordinatorPrompt } from "../coordination.js";
 import type { Thread } from "../../domain/thread.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
 
@@ -344,15 +344,22 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
    * waiting any more, and reads its memory whenever its session has yet to, so that is read too.
    */
   const coordinating = isCoordinator(located);
-  const context = coordinating ? coordinationContext(state, located, { carried: pending.coordination?.notes }) : "";
+  /**
+   * A coordinator whose session has grown past its budget starts a fresh one, seeded from what this
+   * app keeps of it. A run picking up after a usage limit carries on in the session it left.
+   */
+  const fresh = !pending.warming && wantsFreshSession(located, Boolean(state.goals[located.id]));
   const told = coordinating && located.coordinationNotes ? withoutCoordinationNotes(located, new Set(located.coordinationNotes.map((note) => note.id))) : located;
   const heard = coordinating ? withMemoryHeard(told) : told;
   /** A message is more work for a thread, so one that was resolved is open again. */
   const { resolvedAt: _reopened, ...open } = heard;
-  const updated = { ...open, messages: [...open.messages, ...arrival, message], updatedAt: now() };
+  const restarted = fresh ? withoutSession(open) : open;
+  const notice = fresh ? [createConversationMessage("system", "Continued in a fresh session to keep this coordinator's context small.")] : [];
+  const updated = { ...restarted, messages: [...restarted.messages, ...arrival, ...notice, message], updatedAt: now() };
   /** A thread starting under a coordinator reads the brief it was handed and the memory it was started with. */
   const standing = joining ? briefPrompt(pending.coordination?.brief, pending.coordination?.memory) : briefPrompt(pending.coordination?.brief);
-  const prompt = `${pending.prompt}${standing ? `\n\n${standing}` : ""}${context}`;
+  const sent = `${pending.prompt}${standing ? `\n\n${standing}` : ""}`;
+  const prompt = coordinating ? coordinatorPrompt(state, located, sent, { carried: pending.coordination?.notes, fresh }) : sent;
   const listed = existing ? state.threads.map((item) => item.id === thread.id ? updated : item) : [updated, ...state.threads];
   /** A suggestion the user started is this thread now, which its coordinator hears without being woken by it. */
   const proposalId = existing ? undefined : pending.coordination?.proposalId;
@@ -371,6 +378,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   const command = {
     ...startRunCommand({ ...state, threads }, updated, pending.runId, prompt, workspace.id),
     ...((entering || inherited) && updated.continuation ? { forkContinuation: true as const } : {}),
+    ...(fresh ? { freshSession: true as const } : {}),
     ...sideChannelFor(state, updated),
   };
   /**
@@ -384,6 +392,11 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     [{ type: "start-run", command }, ...titling, ...followUps(reviewing.effects)],
     { ok: true, taskId: thread.id },
   );
+}
+
+/** A thread that resumes no session: its next run starts one, and its context meter starts over with it. */
+function withoutSession({ continuation: _continuation, inheritedContinuation: _inherited, contextUsage: _context, ...thread }: Thread): Thread {
+  return { ...thread, continuationStatus: "none" };
 }
 
 /** A coordinator whose suggestion became `thread`, told so quietly. */

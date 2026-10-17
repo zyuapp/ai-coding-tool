@@ -46,6 +46,15 @@ test("external start commands carry only a workspace ID", () => {
   assert.equal(isRunCommand({ ...command, channel: "side", continuation: { provider: "claude", value: "session" }, forkContinuation: true }), true);
 });
 
+test("a start that asks for a fresh session resumes nothing", () => {
+  const continuation = { provider: "claude", value: "session" };
+  assert.equal(isRunCommand({ ...command, freshSession: true }), true);
+  assert.equal(isRunCommand({ ...command, freshSession: true, continuation }), false);
+  assert.equal(isRunCommand({ ...command, freshSession: true, continuation, forkContinuation: true }), false);
+  assert.equal(isRunCommand({ ...command, freshSession: false }), false);
+  assert.equal(isInternalRunCommand({ ...command, freshSession: true, workspaceRoot: "/tmp/project", projectless: false, computerUse: { status: "setup-required" } }), true);
+});
+
 test("start commands require a bounded thread title", () => {
   for (const title of [undefined, null, 1, "", "x".repeat(65)]) {
     assert.equal(isRunCommand({ ...command, title }), false);

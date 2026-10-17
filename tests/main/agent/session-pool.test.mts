@@ -91,6 +91,24 @@ for (const name of ["claude", "codex"] as const) {
   });
 }
 
+for (const name of ["claude", "codex"] as const) {
+  test(`${name}: a fresh session never reuses a warm one`, async () => {
+    const pool = new SessionPool();
+    const opened: FakeSession[] = [];
+    const run = engine(name, pool, opened);
+    await run(input({ engine: name, taskId: "lead" }));
+    opened[0].continuation = "grown-conversation";
+    await run(input({ engine: name, taskId: "lead" }));
+    assert.equal(opened.length, 1, "a run naming no session would otherwise take the warm one");
+
+    await run(input({ engine: name, taskId: "lead", freshSession: true }));
+    assert.equal(opened.length, 2);
+    assert.equal(opened[0].live, false, "the grown session is let go");
+    assert.equal(pool.liveSession("lead"), opened[1]);
+    pool.closeAll();
+  });
+}
+
 test("reload waits for an active run and its background work, while new sessions remain warm", async () => {
   const pool = new SessionPool();
   const opened: FakeSession[] = [];

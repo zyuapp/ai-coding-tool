@@ -159,6 +159,7 @@ export class RunCoordinator {
         claude: command.claude,
         continuation: command.continuation,
         forkContinuation: command.forkContinuation,
+        ...(command.freshSession ? { freshSession: true as const } : {}),
         automations: this.options.automations?.(command.taskId, () => {
           const current = this.runs.get(command.taskId);
           if (!current || current.terminal || current.abortController.signal.aborted) throw new Error("This task has no active run to change its automation.");

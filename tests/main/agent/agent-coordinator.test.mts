@@ -104,6 +104,17 @@ test("the coordinator carries a manual compaction operation to Codex", async () 
   provider.runs[0].resolve({ status: "succeeded" });
 });
 
+test("the coordinator carries a fresh session to the engine, and nothing for a run that resumes", async () => {
+  const provider = new FakeProvider();
+  const coordinator = new RunCoordinator(provider, () => {});
+  coordinator.start({ ...base("task-f", "run-f"), freshSession: true });
+  coordinator.start({ ...base("task-g", "run-g"), continuation: { provider: "claude", value: "session-1" } });
+  await tick();
+  assert.equal(provider.runs[0]!.input.freshSession, true);
+  assert.equal("freshSession" in provider.runs[1]!.input, false);
+  for (const run of provider.runs) run.resolve({ status: "succeeded" });
+});
+
 test("provider failure remains correlated and terminal", async () => {
   const provider = new FakeProvider();
   const events: AgentEvent[] = [];

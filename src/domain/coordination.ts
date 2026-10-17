@@ -87,6 +87,11 @@ export const MAX_MEMORY_NOTE = 500;
 export const MAX_MEMORY_NOTES = 30;
 export const MAX_PROPOSALS = 12;
 export const MAX_PROPOSAL_TITLE = 120;
+/**
+ * How much context a coordinator's session may hold before its next run starts a fresh one. It is a
+ * count rather than a share of the window, so a large window never means every wake re-reads more.
+ */
+export const COORDINATOR_CONTEXT_TOKENS = 80_000;
 
 /** The groups a coordinator's Overview sorts its threads into, by what each one needs, most pressing first. */
 export type OverviewGroup = "needs" | "review" | "working" | "done" | "resolved";
@@ -193,6 +198,14 @@ export function nextStepOf(id: NextStep): (typeof NEXT_STEPS)[number] {
 
 export function isCoordinator(thread: Thread | undefined): boolean {
   return thread?.role === "coordinator" && thread.archivedAt === undefined;
+}
+
+/**
+ * Whether a coordinator's next run starts a fresh session rather than resuming one whose context has
+ * grown past its budget. A native goal lives in its session, so one still running keeps it.
+ */
+export function wantsFreshSession(thread: Thread, goalActive: boolean): boolean {
+  return isCoordinator(thread) && thread.continuation !== undefined && (thread.contextUsage?.tokens ?? 0) >= COORDINATOR_CONTEXT_TOKENS && !goalActive;
 }
 
 /** What a coordinator's threads run on unless one is started on something else. */

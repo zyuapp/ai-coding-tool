@@ -107,6 +107,7 @@ export class SessionPool {
       && held.session.key === key
       && !held.session.answering
       && !input.forkContinuation
+      && !input.freshSession
       && held.session.continues(continuationOf(input));
     if (held && reusable) {
       clearTimeout(held.idle);
