@@ -115,6 +115,18 @@ test("the coordinator carries a fresh session to the engine, and nothing for a r
   for (const run of provider.runs) run.resolve({ status: "succeeded" });
 });
 
+test("the coordinator carries a worktree thread's project checkout to the engine, and nothing for a thread in that checkout", async () => {
+  const provider = new FakeProvider();
+  const coordinator = new RunCoordinator(provider, () => {});
+  coordinator.start({ ...base("task-w", "run-w"), workspaceRoot: "/tmp/worktrees/task-w", projectRoot: "/tmp/project" });
+  coordinator.start(base("task-p", "run-p"));
+  await tick();
+  assert.equal(provider.runs[0]!.input.workspaceRoot, "/tmp/worktrees/task-w");
+  assert.equal(provider.runs[0]!.input.projectRoot, "/tmp/project");
+  assert.equal("projectRoot" in provider.runs[1]!.input, false);
+  for (const run of provider.runs) run.resolve({ status: "succeeded" });
+});
+
 test("provider failure remains correlated and terminal", async () => {
   const provider = new FakeProvider();
   const events: AgentEvent[] = [];

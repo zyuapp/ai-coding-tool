@@ -57,11 +57,12 @@ export type TemporaryFolders = { slashTmp: readonly string[]; tmpdir: readonly s
  * The sandbox a turn runs in. Workspace-write lets a command write in /tmp and $TMPDIR as well as its
  * own checkout, so a run that must leave `kept` alone gives up whichever of them holds it.
  */
-export function sandboxPolicy(sandbox: CodexSandbox, kept?: string, temporary: TemporaryFolders = temporaryFolders()): SandboxPolicy {
+export function sandboxPolicy(sandbox: CodexSandbox, kept?: string, temporary?: TemporaryFolders): SandboxPolicy {
   const policy = sandboxPolicies[sandbox];
   if (policy.type !== "workspaceWrite" || !kept) return policy;
-  const holdsKept = (folders: readonly string[]) => folders.some((folder) => isPathInside(folder, kept));
-  return { ...policy, excludeSlashTmp: holdsKept(temporary.slashTmp), excludeTmpdirEnvVar: holdsKept(temporary.tmpdir) };
+  const folders = temporary ?? temporaryFolders();
+  const holdsKept = (candidates: readonly string[]) => candidates.some((folder) => isPathInside(folder, kept));
+  return { ...policy, excludeSlashTmp: holdsKept(folders.slashTmp), excludeTmpdirEnvVar: holdsKept(folders.tmpdir) };
 }
 
 /** A checkout's root is kept resolved, and /tmp is /private/tmp on macOS, so each folder is matched both ways. */
