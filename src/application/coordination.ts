@@ -5,7 +5,7 @@ import { ledStartRefusal, remoteActivity, threadHostOf, type PairedComputer, typ
 import { threadActivity, threadStatus, type ThreadStatus } from "./thread-activity.js";
 import { activitySections, type ActivitySections } from "./thread-order.js";
 import { threadWorkspaceId } from "./thread-location.js";
-import { coordinationDecisions, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, leadIdOf, openDecisions, remoteLeadOf, threadModelOf, type CoordinationNote, type CoordinatorMemory, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type ThreadBrief, type ThreadModelChoice, type ThreadProposal } from "../domain/coordination.js";
+import { coordinationDecisions, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, leadIdOf, openDecisions, remoteLeadOf, threadModelOf, type CoordinationNote, type CoordinationReport, type CoordinatorMemory, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type ThreadBrief, type ThreadModelChoice, type ThreadProposal } from "../domain/coordination.js";
 import { threadActivityAt, threadCreatedAt, type Thread } from "../domain/thread.js";
 import type { PullRequestAnswer, PullRequestChecks, PullRequestLink, PullRequestRef, PullRequestState } from "../domain/pull-request.js";
 import { wantsAttention } from "../domain/attention.js";
@@ -125,6 +125,29 @@ export function turnNote(thread: Thread, status: "succeeded" | "failed" | "cance
 /** A note for a coordinator about one thread. A quiet one is what the user did, heard with the next wake but never one by itself. */
 export function coordinationNote(threadId: string, text: string, at: number, { urgent = false, runId, quiet = false }: { urgent?: boolean; runId?: string | undefined; quiet?: boolean } = {}): CoordinationNote {
   return { id: crypto.randomUUID(), threadId, text, at, ...(urgent ? { urgent: true as const } : {}), ...(runId ? { runId } : {}), ...(quiet ? { quiet: true as const } : {}) };
+}
+
+/**
+ * What a coordinator hears when one of its threads reports it is blocked, done or failed, heard with
+ * the rest when that thread's run `runId` ends. One that cannot go on is news that cannot wait.
+ */
+export function reportNote(thread: Thread, report: CoordinationReport, at: number, runId: string | undefined): CoordinationNote {
+  return coordinationNote(thread.id, `"${thread.title}" reported ${report.state}: ${report.summary}`, at, { urgent: report.state !== "done", runId });
+}
+
+/** What a coordinator hears when one of its threads puts a decision to the user, heard with the rest when that thread's run `runId` ends. */
+export function decisionNote(thread: Thread, decision: Decision, at: number, runId: string | undefined): CoordinationNote {
+  return coordinationNote(thread.id, `"${thread.title}" asked the user to decide: ${decision.question}`, at, { runId });
+}
+
+/** What a thread reporting it cannot go on says on the desktop. */
+export function reportHeadline(report: CoordinationReport): string {
+  return `${report.state === "blocked" ? "Blocked" : "Failed"}: ${report.summary}`;
+}
+
+/** What a decision put to the user says on the desktop. */
+export function decisionHeadline(decision: Decision): string {
+  return `Needs you: ${decision.question}`;
 }
 
 /**

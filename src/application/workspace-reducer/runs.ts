@@ -12,7 +12,7 @@ import { settleMoveAfterRun } from "./worktree-moves.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { threadTitleFor } from "../attachments.js";
 import { fileTitle } from "../files.js";
-import { announced, postedHeadline, type NoticeReason } from "../notices.js";
+import { announced, postedHeadline, waitingHeadline, type NoticeReason } from "../notices.js";
 import { pasteTitle } from "../pastes.js";
 import { outcomeFor, settledHeadline, whyRunSurfaces, withSettledTick, type RunSurfacing } from "../run-testimony.js";
 import { nextSortIndex } from "../thread-order.js";
@@ -206,8 +206,8 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
  * person is the one it waits on.
  */
 function runNotice(thread: Thread, active: ActiveRun, event: RunEvent, surfacing: RunSurfacing | null): { headline: string; reason: NoticeReason } | null {
-  if (active.origin === "composer" && event.type === "approval.requested") return { headline: `Waiting for your permission to use ${event.intent.name}`, reason: "waiting" };
-  if (active.origin === "composer" && event.type === "question.requested") return { headline: event.request.questions[0].question, reason: "waiting" };
+  if (active.origin === "composer" && event.type === "approval.requested") return { headline: waitingHeadline({ toolName: event.intent.name }), reason: "waiting" };
+  if (active.origin === "composer" && event.type === "question.requested") return { headline: waitingHeadline(event.request.questions[0]), reason: "waiting" };
   const headline = settledHeadline(surfacing, event.type === "run.status" ? event.message : undefined);
   if (!headline) return null;
   if (surfacing === "failed") return { headline, reason: "failed" };

@@ -78,6 +78,11 @@ function latestUserMessage(thread: Thread) {
   return undefined;
 }
 
+/** What a run waiting on the user says on the desktop: the tool it asks to use, or the question it asks. */
+export function waitingHeadline(waiting: { toolName: string } | { question: string }): string {
+  return "toolName" in waiting ? `Waiting for your permission to use ${waiting.toolName}` : waiting.question;
+}
+
 /** A line a thread wants in front of the user, kept back while notifications are off or the user does not want it. */
 export function announced(state: NoticeState, thread: Thread, headline: string, reason: NoticeReason): WorkspaceEffect[] {
   if (!wanted(state, thread, reason)) return [];

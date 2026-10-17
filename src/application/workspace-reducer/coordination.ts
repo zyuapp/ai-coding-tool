@@ -3,10 +3,10 @@ import { drainQueue, queuedFor, resolveWorkspaceEffect, threadBusy, withPending,
 import { reduceSending } from "./sending.js";
 import { now, rejected, settled } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { canResolve, checkoutAnswer, coordinatedThreadStatus, coordinationMembers, coordinationNote, coordinatorWork, coordinationUpdate, memberWorking, memoryPrompt, nextSteps, remotelyLedThreads, turnNote, workingMembers } from "../coordination.js";
+import { canResolve, checkoutAnswer, coordinatedThreadStatus, coordinationMembers, coordinationNote, coordinatorWork, coordinationUpdate, decisionHeadline, decisionNote, memberWorking, memoryPrompt, nextSteps, remotelyLedThreads, reportHeadline, reportNote, turnNote, workingMembers } from "../coordination.js";
 import { activityChanges, threadActivity, threadChanges, type ThreadChange } from "../thread-activity.js";
 import { cancelPause, heldByLimit } from "../limit-pauses.js";
-import { announced } from "../notices.js";
+import { announced, waitingHeadline } from "../notices.js";
 import { settledHeadline } from "../run-testimony.js";
 import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
@@ -204,10 +204,10 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       const at = now();
       const reported = updateThread(state, thread.id, (item) => ({ ...item, report: { state: input.state, summary: input.summary, at } }));
       if (!lead || input.state === "working") return settled(reported);
-      const note = coordinationNote(thread.id, `"${thread.title}" reported ${input.state}: ${input.summary}`, at, { urgent: input.state !== "done", runId: state.activeRuns[thread.id]?.runId });
-      const noted = updateThread(reported, lead.id, (item) => withCoordinationNote(item, note));
+      const report = { state: input.state, summary: input.summary, at };
+      const noted = updateThread(reported, lead.id, (item) => withCoordinationNote(item, reportNote(thread, report, at, state.activeRuns[thread.id]?.runId)));
       if (input.state === "done") return settled(noted);
-      return settled(noted, announced(noted, thread, `${input.state === "blocked" ? "Blocked" : "Failed"}: ${input.summary}`, "blocked"));
+      return settled(noted, announced(noted, thread, reportHeadline(report), "blocked"));
     }
 
     /**
@@ -228,10 +228,9 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       };
       const raised = updateThread(state, thread.id, (item) => withDecision(item, decision));
       if (!lead) return settled(raised);
-      if (lead === thread) return settled(raised, announced(raised, lead, `Needs you: ${decision.question}`, "decision"));
-      const asked = coordinationNote(thread.id, `"${thread.title}" asked the user to decide: ${decision.question}`, at, { runId: state.activeRuns[thread.id]?.runId });
-      const noted = updateThread(raised, lead.id, (item) => withCoordinationNote(item, asked));
-      return settled(noted, announced(noted, lead, `Needs you: ${decision.question}`, "decision"));
+      if (lead === thread) return settled(raised, announced(raised, lead, decisionHeadline(decision), "decision"));
+      const noted = updateThread(raised, lead.id, (item) => withCoordinationNote(item, decisionNote(thread, decision, at, state.activeRuns[thread.id]?.runId)));
+      return settled(noted, announced(noted, lead, decisionHeadline(decision), "decision"));
     }
   }
 }
@@ -586,14 +585,14 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
   if (heard === undefined) notes.push(coordinationNote(member.id, `"${member.title}" started on ${computer.name}.`, at, { quiet: true }));
   for (const decision of openDecisions(member)) {
     if (decision.raisedAt <= since) continue;
-    notes.push(coordinationNote(member.id, `"${member.title}" asked the user to decide: ${decision.question}`, at, { runId: run?.runId }));
-    effects.push(...announced(state, lead, `Needs you: ${decision.question}`, "decision"));
+    notes.push(decisionNote(member, decision, at, run?.runId));
+    effects.push(...announced(state, lead, decisionHeadline(decision), "decision"));
     newest = Math.max(newest, decision.raisedAt);
   }
   const report = member.report;
   if (report && report.at > since && report.state !== "working") {
-    notes.push(coordinationNote(member.id, `"${member.title}" reported ${report.state}: ${report.summary}`, at, { urgent: report.state !== "done", runId: run?.runId }));
-    if (report.state !== "done") effects.push(...announced(state, member, `${report.state === "blocked" ? "Blocked" : "Failed"}: ${report.summary}`, "blocked"));
+    notes.push(reportNote(member, report, at, run?.runId));
+    if (report.state !== "done") effects.push(...announced(state, member, reportHeadline(report), "blocked"));
     newest = Math.max(newest, report.at);
   }
   for (const finding of member.findings ?? []) {
@@ -625,9 +624,9 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
   /** Waiting on the user is said as it starts, as it is of a thread here. */
   if (run?.origin === "composer" && computer.status === "connected") {
     const approval = run.status === "awaiting-approval" ? holder.approvals[run.runId] : undefined;
-    if (approval && (ran?.runId !== run.runId || ran.status !== "awaiting-approval")) effects.push(...announced(state, member, `Waiting for your permission to use ${approval.toolName}`, "waiting"));
+    if (approval && (ran?.runId !== run.runId || ran.status !== "awaiting-approval")) effects.push(...announced(state, member, waitingHeadline(approval), "waiting"));
     const question = run.questions?.[0];
-    if (question && !(ran?.runId === run.runId && ran.questions?.length)) effects.push(...announced(state, member, question.question, "waiting"));
+    if (question && !(ran?.runId === run.runId && ran.questions?.length)) effects.push(...announced(state, member, waitingHeadline(question), "waiting"));
   }
   const stops = quietStops === state.quietStops && stoppedStarts === state.stoppedStarts ? state : { ...state, quietStops, stoppedStarts };
   if (!notes.length && newest === heard) return { state: stops, effects };
