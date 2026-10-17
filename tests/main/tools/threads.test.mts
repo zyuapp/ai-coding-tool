@@ -151,6 +151,18 @@ test("a thread can be started under a name of a few words, by any thread and any
   }
 });
 
+test("an optional start field sent blank is left out, as if never given", async () => {
+  const computers: (string | undefined)[] = [];
+  const bridge = fakeBridge({ command: async (command, computer) => { bridge.calls.push(["command", command]); computers.push(computer); return { thread: summary() }; } });
+  const input = z.object(threadTools(bridge, () => NOW, "coordinator").find((tool) => tool.name === "start_thread")!.input);
+  const parsed = input.parse({ prompt: "Fix it", project: " ", worktreeId: "\n", computer: "  ", intent: " ", doneWhen: " it passes ", delivers: "commit" });
+
+  await toolNamed(bridge, "start_thread").handler(parsed, {});
+
+  assert.deepEqual(bridge.calls.at(-1), ["command", { type: "task.send", text: "Fix it" }], "a brief with a blank part is not whole");
+  assert.deepEqual(computers, [undefined], "a blank computer starts it on this one");
+});
+
 test("a blank message is refused rather than answered as sent", () => {
   const input = z.object(threadTools(fakeBridge(), () => NOW).find((tool) => tool.name === "message_thread")!.input);
   assert.equal(input.safeParse({ threadId: "task-2", text: "  \n " }).success, false);

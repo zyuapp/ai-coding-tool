@@ -39,25 +39,29 @@ const effortFieldOf = (omitted: string) => z.enum(effortIds as [AgentEffort, ...
 );
 const effortField = effortFieldOf("inherit the calling thread's effort when the selected model supports it, otherwise use that engine's default.");
 
-const computerField = z.string().optional().describe('A paired computer to start it on, named by its name or ID, or "this" (the default). There it starts in the project checkout unless worktree or worktreeId says otherwise.');
+const computerField = z.string().trim().optional().describe('A paired computer to start it on, named by its name or ID, or "this" (the default). There it starts in the project checkout unless worktree or worktreeId says otherwise.');
 /** A thread under a coordinator starts on another computer only once the user allows it there. */
-const ledComputerField = z.string().optional().describe("A paired computer to run it on. It starts there once the user allows it.");
+const ledComputerField = z.string().trim().optional().describe("A paired computer to run it on. It starts there once the user allows it.");
 /** Only a coordinator on this computer can ask the user for a start on another, so a member led from elsewhere is told so. */
-const memberComputerField = z.string().optional().describe("A paired computer to run it on. It starts there once the user allows it. A thread whose coordinator is on another computer starts its threads on this one.");
+const memberComputerField = z.string().trim().optional().describe("A paired computer to run it on. It starts there once the user allows it. A thread whose coordinator is on another computer starts its threads on this one.");
 
-/** What a start takes beyond the computer it runs on. */
+/**
+ * What a start takes beyond the computer it runs on. An optional field sent blank says the same as
+ * one left out, so it is trimmed to nothing and dropped here, never refused unnamed where the window
+ * reads the start, along with every other suggestion in the call.
+ */
 const NEW_THREAD_INPUT = {
   /** A blank prompt is refused here, on its own field, since it would start nothing. */
   prompt: z.string().trim().min(1).describe("The first message of the new thread. It has none of this conversation's context, so say everything it needs."),
   title: z.string().trim().min(1).max(MAX_PROPOSAL_TITLE).optional().describe("A few words naming what the new thread does, shown wherever it is listed. Omit to have it named from its prompt."),
-  project: z.string().optional().describe("Which project to start it in: its folder name, its path, or its id. Defaults to this thread's project, or on a paired computer the project there at the same path or with the same folder name."),
+  project: z.string().trim().optional().describe("Which project to start it in: its folder name, its path, or its id. Defaults to this thread's project, or on a paired computer the project there at the same path or with the same folder name."),
   worktree: z.boolean().optional().describe("Run the new thread in its own new git worktree, detached at whatever the project has checked out, so its edits never touch this thread's checkout. Name files in its prompt relative to the project, never by this checkout's absolute path, which would send it back here."),
-  worktreeId: z.string().optional().describe("Start the thread in another worktree that already exists, as list_threads reports it, on the computer it starts on. Omit both worktree fields to share this thread's checkout. Takes precedence over worktree."),
+  worktreeId: z.string().trim().optional().describe("Start the thread in another worktree that already exists, as list_threads reports it, on the computer it starts on. Omit both worktree fields to share this thread's checkout. Takes precedence over worktree."),
   model: modelField,
   effort: effortField,
   role: roleField,
-  intent: z.string().max(MAX_BRIEF_FIELD).optional().describe("Part of the brief a coordinator must give: the user's own words for this piece of work."),
-  doneWhen: z.string().max(MAX_BRIEF_FIELD).optional().describe("Part of the brief a coordinator must give: what finished looks like, checkably."),
+  intent: z.string().trim().max(MAX_BRIEF_FIELD).optional().describe("Part of the brief a coordinator must give: the user's own words for this piece of work."),
+  doneWhen: z.string().trim().max(MAX_BRIEF_FIELD).optional().describe("Part of the brief a coordinator must give: what finished looks like, checkably."),
   delivers: z.enum(DELIVERIES.map((delivery) => delivery.id) as [Delivery, ...Delivery[]]).optional().describe("Part of the brief a coordinator must give: pull-request, commit, or report (knowledge only, no code changes)."),
 };
 
@@ -204,7 +208,7 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
     input: START_INPUT,
     readOnly: false,
     run: ({ bridge, now }, args) => report(async () => {
-      const { thread, notice } = await bridge.command({ type: "task.send", text: args.prompt, ...newThreadFields(args) }, args.computer);
+      const { thread, notice } = await bridge.command({ type: "task.send", text: args.prompt, ...newThreadFields(args) }, args.computer || undefined);
       return thread ? `Started ${describe(thread, now())}` : notice ?? "The thread did not start.";
     }),
   }),

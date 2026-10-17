@@ -31,15 +31,19 @@ const REPORT_STATUS = defineTool({
   run: (bridge: CoordinationBridge, args) => report(() => bridge.report(args.state, args.summary)),
 });
 
+/**
+ * A blank question or label is refused here, on its own field, as the window would refuse it unnamed;
+ * a blank context or description is trimmed to nothing and left out.
+ */
 const RAISE_DECISION = defineTool({
   name: "raise_decision",
   description: "Put a choice to the user that only they can make: one that changes scope, product behaviour, or anything destructive. It shows in the app at once; their answer arrives in this thread as a message. Offer the options you see with your recommendation, then end your turn if you cannot go on without the answer.",
   input: {
-    question: z.string().max(MAX_QUESTION).describe("The decision, as one question."),
-    context: z.string().max(MAX_DECISION_CONTEXT).optional().describe("What the user needs to know to decide, including the consequences either way."),
+    question: z.string().trim().min(1).max(MAX_QUESTION).describe("The decision, as one question."),
+    context: z.string().trim().max(MAX_DECISION_CONTEXT).optional().describe("What the user needs to know to decide, including the consequences either way."),
     options: z.array(z.object({
-      label: z.string().max(MAX_OPTION_LABEL),
-      description: z.string().max(MAX_OPTION_DESCRIPTION).optional(),
+      label: z.string().trim().min(1).max(MAX_OPTION_LABEL),
+      description: z.string().trim().max(MAX_OPTION_DESCRIPTION).optional(),
       recommended: z.boolean().optional(),
     })).max(MAX_OPTIONS).describe("The choices, each with a short label and what it means. Mark the one you recommend."),
   },
@@ -55,11 +59,12 @@ const RAISE_DECISION = defineTool({
   })),
 });
 
+/** A blank note is refused here, on its own field, as the window would refuse it unnamed. */
 const REMEMBER = defineTool({
   name: "remember",
   description: "Save a note to your memory: something the user asked you to remember, or how they want you to work. You and every thread you start from now on read it.",
   input: {
-    text: z.string().min(1).max(MAX_MEMORY_NOTE).describe("The note, in one or two sentences."),
+    text: z.string().trim().min(1).max(MAX_MEMORY_NOTE).describe("The note, in one or two sentences."),
   },
   readOnly: false,
   run: (bridge: CoordinationBridge, args) => answered(() => bridge.remember({ kind: "remember", text: args.text })),
@@ -69,7 +74,7 @@ const FORGET = defineTool({
   name: "forget",
   description: "Drop a note from your memory when the user asks you to forget it or it no longer holds.",
   input: {
-    noteId: z.string().min(1).max(200).describe("The note's ID, such as n3."),
+    noteId: z.string().trim().min(1).max(200).describe("The note's ID, such as n3."),
   },
   readOnly: false,
   run: (bridge: CoordinationBridge, args) => answered(() => bridge.remember({ kind: "forget", noteId: args.noteId })),

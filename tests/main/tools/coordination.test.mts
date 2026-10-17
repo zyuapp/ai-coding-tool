@@ -3,7 +3,7 @@ import { test } from "vitest";
 import { z } from "zod";
 import { coordinationTools } from "../../../src/main/tools/coordination.mts";
 import type { CoordinationBridge } from "../../../src/main/agent/agent-provider.mts";
-import type { MemoryChange, ProposalRequest } from "../../../src/domain/coordination.js";
+import type { DecisionRequest, MemoryChange, ProposalRequest } from "../../../src/domain/coordination.js";
 
 type FakeCoordinationBridge = CoordinationBridge & { changes: MemoryChange[]; proposed: ProposalRequest[][] };
 
@@ -73,6 +73,26 @@ test("the tools hold notes and purposes to the limits the window writes them und
   assert.equal(accepts("set_purpose", { purpose: null }), true);
 });
 
+test("a blank note is refused on its own field", () => {
+  const input = z.object(coordinationTools(fakeBridge(), "coordinator").find((tool) => tool.name === "remember")!.input);
+  assert.equal(input.safeParse({ text: " \n " }).success, false);
+  assert.deepEqual(input.safeParse({ text: " Ask before merging\n" }).data, { text: "Ask before merging" });
+});
+
+test("a decision refuses a blank question or label on its own field and leaves a blank context or description out", async () => {
+  const raised: DecisionRequest[] = [];
+  const bridge: CoordinationBridge = { ...fakeBridge(), decide: async (request) => { raised.push(request); return { recorded: true, note: "" }; } };
+  const tool = coordinationTools(bridge, "member").find((entry) => entry.name === "raise_decision")!;
+  const input = z.object(tool.input);
+  const option = { label: "Keep it" };
+  assert.equal(input.safeParse({ question: "  ", options: [option] }).success, false);
+  assert.equal(input.safeParse({ question: "Drop the cache?", options: [option, { label: " " }] }).success, false);
+
+  await (tool as unknown as TestTool).handler(input.parse({ question: "Drop the cache?", context: " ", options: [{ label: "Drop it", description: "\n", recommended: true }, option] }), {});
+
+  assert.deepEqual(raised, [{ question: "Drop the cache?", options: [{ label: "Drop it", recommended: true }, { label: "Keep it" }] }]);
+});
+
 test("a thread's report holds a summary the window can save it with", () => {
   const input = z.object(coordinationTools(fakeBridge(), "member").find((tool) => tool.name === "report_status")!.input);
   assert.equal(input.safeParse({ state: "done", summary: "PR #42" }).success, true);
@@ -94,6 +114,25 @@ test("a coordinator's suggestions carry start_thread's fields and a title, with 
     { title: "Survey the docs", prompt: "List what the docs miss.", project: "docs", worktreeId: "wt-1" },
   ]]);
   assert.equal(textOf(answer), "Suggested 2 threads.");
+});
+
+test("a suggestion's optional field sent blank is left out, so the window checks each suggestion on its own", async () => {
+  const bridge = fakeBridge();
+  const input = z.object(coordinationTools(bridge, "coordinator").find((tool) => tool.name === "propose_threads")!.input);
+  const brief = { intent: "fix the flaky login test", doneWhen: "it passes 50 runs", delivers: "pull-request" };
+  const parsed = input.parse({
+    threads: [
+      { title: "Fix the login flake", prompt: "Make the login test pass reliably.", ...brief, project: " ", worktreeId: "  ", computer: "\n" },
+      { title: "Survey the docs", prompt: "List what the docs miss.", ...brief, intent: " " },
+    ],
+  });
+
+  await toolNamed(bridge, "propose_threads").handler(parsed, {});
+
+  assert.deepEqual(bridge.proposed, [[
+    { title: "Fix the login flake", prompt: "Make the login test pass reliably.", brief },
+    { title: "Survey the docs", prompt: "List what the docs miss." },
+  ]], "one without a whole brief is refused by the window on its own, not with the whole call");
 });
 
 test("suggestions that cannot be kept come back as an error in their own words, and the tool holds them to the window's limits", async () => {
