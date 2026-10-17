@@ -82,7 +82,7 @@ function createViewCollections() {
 
   /** The pull requests the open coordinator's threads work on. */
   const memberPullRequests = selector(
-    (state) => [state.threads, state.currentId, state.projects, state.worktrees, state.environments, state.memberPullRequests],
+    (state) => [state.threads, state.currentId, state.projects, state.worktrees, state.computers.paired, state.environments, state.memberPullRequests],
     (state) => {
       const current = state.threads.find((thread) => thread.id === state.currentId);
       return memberPullRequestsView(state, isCoordinator(current) ? current : undefined);

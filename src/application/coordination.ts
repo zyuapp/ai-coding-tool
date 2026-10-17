@@ -251,7 +251,8 @@ export function coordinationSections(threads: Thread[], busy: Set<string>, block
     const coordination = [lead, ...coordinatedThreads(threads, lead.id)];
     if (coordination.some((thread) => blocked.has(thread.id) || openDecisions(thread).length)) asking.add(lead.id);
     if (coordination.some((thread) => busy.has(thread.id))) ranked.add(lead.id);
-    if (coordination.some((thread) => thread !== lead && wantsAttention(thread))) attention.add(lead.id);
+    /** A resolved thread is filed away, so whatever a later run left on it is no reason to lead. */
+    if (coordination.some((thread) => thread !== lead && thread.resolvedAt === undefined && wantsAttention(thread))) attention.add(lead.id);
   }
   for (const thread of threads) if (!members.has(thread.id) && thread.role !== "coordinator" && openDecisions(thread).length) asking.add(thread.id);
   const listed = threads.filter((thread) => !members.has(thread.id));

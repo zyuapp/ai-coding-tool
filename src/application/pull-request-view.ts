@@ -1,11 +1,11 @@
 import type { ChangedFilesResult } from "../contracts/ipc.js";
-import { coordinatedThreads } from "../domain/coordination.js";
 import { NO_PULL_REQUEST, pullRequestSettled, type PullRequestAnswer, type PullRequestRead } from "../domain/pull-request.js";
 import type { Project } from "../domain/project.js";
 import type { Thread } from "../domain/thread.js";
 import type { Worktree } from "../domain/worktree.js";
 import { threadWorkspaceId } from "./thread-location.js";
-import { ownPullRequest, type OwnPullRequest } from "./coordination.js";
+import { coordinationMembers, ownPullRequest, type OwnPullRequest } from "./coordination.js";
+import type { ComputersState } from "./computers.js";
 
 /** The branch a checkout sits on, or null while Git has not said or could not. */
 export function branchOf(environment: ChangedFilesResult | null) {
@@ -27,14 +27,19 @@ type MemberState = {
   threads: Thread[];
   projects: Project[];
   worktrees: Worktree[];
+  computers: ComputersState;
   environments: Record<string, ChangedFilesResult>;
   memberPullRequests: Record<string, PullRequestRead>;
 };
 
-/** The checkouts a coordinator's threads work in, each with the threads in it, in the order the list holds them. */
+/**
+ * The checkouts on this computer a coordinator's threads work in, each with the threads in it, in the
+ * order the list holds them. A pull request is read on the computer that holds its thread.
+ */
 export function memberCheckouts(state: Omit<MemberState, "environments" | "memberPullRequests">, leadId: string): Map<string, Thread[]> {
   const checkouts = new Map<string, Thread[]>();
-  for (const thread of coordinatedThreads(state.threads, leadId)) {
+  for (const { thread, computer } of coordinationMembers(state, leadId)) {
+    if (computer) continue;
     const workspaceId = threadWorkspaceId(state, thread);
     if (workspaceId) checkouts.set(workspaceId, [...checkouts.get(workspaceId) ?? [], thread]);
   }
@@ -70,7 +75,7 @@ export function memberPullRequestsView(state: MemberState, lead: Thread | undefi
     if (!pullRequestSettled(state.memberPullRequests[workspaceId]?.answer ?? NO_PULL_REQUEST)) settled = false;
   }
   const found = new Map<string, MemberPullRequest>();
-  for (const thread of coordinatedThreads(state.threads, lead.id)) {
+  for (const { thread } of coordinationMembers(state, lead.id)) {
     const pullRequest = ownPullRequest(thread);
     if (!pullRequest) continue;
     const known = found.get(pullRequest.url);

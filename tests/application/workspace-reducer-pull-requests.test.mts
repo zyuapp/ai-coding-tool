@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { deriveView } from "../../src/application/workspace-state.ts";
+import { coordinationSections } from "../../src/application/coordination.ts";
 import type { PullRequestAnswer } from "../../src/domain/pull-request.ts";
 import { activeRun, correlatedRunEvent, effectOf, heldWorktree, projected, required, task } from "./workspace-reducer-fixtures.mts";
 import type { WorkspaceState } from "../../src/application/workspace-state.ts";
@@ -218,6 +219,27 @@ test("a member resolves itself when its own pull request merges, once", () => {
   assert.equal(thread(users, "one").pullRequest?.state, "merged", "the link is still kept for search");
   assert.equal(thread(users, "one").resolvedAt, undefined, "a member in the project's checkout does not resolve with the user's branch");
   assert.notEqual(deriveView(users).coordination.members[0]?.status, "review");
+});
+
+test("a member that merges while it works stays filed away when its turn ends", () => {
+  const running = { ...delivering({ pullRequest: { number: 7, url: PULL_REQUEST.url, state: "open", title: "Poll me" } }), activeRuns: { one: activeRun("one", "run-one") } };
+  const merged = memberAnswer(running, MERGED);
+  assert.equal(typeof thread(merged, "one").resolvedAt, "number");
+  const ended = reduce(merged, correlatedRunEvent("one", "run-one", 1, { type: "run.status", status: "succeeded" })).state;
+  assert.equal(thread(ended, "one").outcome, "finished", "the turn still says how it ended");
+  assert.equal(deriveView(ended).coordination.members[0]?.status, "resolved");
+  assert.deepEqual(coordinationSections(ended.threads, new Set(), new Set()).priority.map((item) => item.id), [], "a resolved thread does not hold its coordinator up");
+});
+
+test("an archived member neither counts toward its checkout's read nor resolves", () => {
+  const state = delivering({ archivedAt: 1, pullRequest: { number: 7, url: PULL_REQUEST.url, state: "open" } });
+  const asked = reduce(state, { type: "pull-request.read-members" });
+  assert.equal(asked.effects.some((effect) => effect.type === "read-pull-request"), false, "a coordinator whose only thread is archived asks nothing");
+  const answered = reduce(state, { type: "pull-request.read", taskId: "one" });
+  const read = effectOf(answered, "read-pull-request");
+  const merged = reduce(answered.state, { type: "pull-request.answered", workspaceId: read.workspaceId, branch: read.branch, read: read.read, answer: MERGED }).state;
+  assert.equal(thread(merged, "one").pullRequest?.state, "merged", "its own tab still records what it shows");
+  assert.equal(thread(merged, "one").resolvedAt, undefined);
 });
 
 test("a member's turn ending reads its pull request again on the computer that holds it", () => {

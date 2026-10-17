@@ -669,6 +669,12 @@ test("a resolved thread no longer promotes its coordinator", () => {
   const resolved = reduce(state, { type: "task.resolve", taskId: "worker" }).state;
   const after = coordinationSections(resolved.threads, new Set(), new Set());
   assert.deepEqual(after.priority.map((thread) => thread.id), []);
+
+  const fired = reduce(resolved, { type: "automation.fired", fire: { automationId: "automation-1", taskId: "worker", runId: "run-tick", prompt: "Poll", runNumber: 2 } });
+  const ticking = reduce(fired.state, { type: "run.resolved", pendingId: effectAt(fired, "resolve-run-workspace").pendingId, workspace: PROJECTLESS }).state;
+  const surfaced = reduce(ticking, correlatedRunEvent("worker", "run-tick", 1, { type: "run.status", status: "succeeded" })).state;
+  assert.equal(required(surfaced.threads[1]).outcome, "finished", "a tick that surfaces still leaves its verdict");
+  assert.deepEqual(coordinationSections(surfaced.threads, new Set(), new Set()).priority.map((thread) => thread.id), [], "but a resolved thread is not one to lead with");
 });
 
 test("the roster lists what needs attention and counts the rest", () => {

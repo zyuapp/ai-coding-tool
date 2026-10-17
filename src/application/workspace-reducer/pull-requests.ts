@@ -7,7 +7,7 @@ import { ownPullRequest } from "../coordination.js";
 import { branchOf, memberCheckouts } from "../pull-request-view.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import { dismissed } from "../../domain/attention.js";
-import { coordinatedThreadIds, coordinatorOf, isCoordinator } from "../../domain/coordination.js";
+import { coordinatorOf, isCoordinator } from "../../domain/coordination.js";
 import { linkMatches, linkOf, NO_PULL_REQUEST, samePullRequest, type PullRequestAnswer, type PullRequestRead } from "../../domain/pull-request.js";
 import type { Thread } from "../../domain/thread.js";
 
@@ -98,12 +98,10 @@ function checkoutRead(state: WorkspaceState, workspaceId: string, threads: Threa
 
 /** Every checkout a thread under any live coordinator works in, each with those threads. */
 function everyMemberCheckout(state: WorkspaceState): Map<string, Thread[]> {
-  const members = coordinatedThreadIds(state.threads);
   const checkouts = new Map<string, Thread[]>();
-  for (const thread of state.threads) {
-    if (!members.has(thread.id)) continue;
-    const workspaceId = threadWorkspaceId(state, thread);
-    if (workspaceId) checkouts.set(workspaceId, [...checkouts.get(workspaceId) ?? [], thread]);
+  for (const lead of state.threads) {
+    if (!isCoordinator(lead)) continue;
+    for (const [workspaceId, threads] of memberCheckouts(state, lead.id)) checkouts.set(workspaceId, [...checkouts.get(workspaceId) ?? [], ...threads]);
   }
   return checkouts;
 }
@@ -125,7 +123,7 @@ function linked(state: WorkspaceState, threadIds: string[] | undefined, answer: 
     changed = true;
     const recorded: Thread = { ...thread, pullRequest: linkOf(pullRequest) };
     const merged = thread.pullRequest?.state !== "merged" && ownPullRequest(recorded)?.state === "merged";
-    if (!merged || recorded.resolvedAt !== undefined || !coordinatorOf(state.threads, recorded)) return recorded;
+    if (!merged || recorded.resolvedAt !== undefined || recorded.archivedAt !== undefined || !coordinatorOf(state.threads, recorded)) return recorded;
     resolving.add(thread.id);
     return { ...recorded, resolvedAt: now() };
   });
