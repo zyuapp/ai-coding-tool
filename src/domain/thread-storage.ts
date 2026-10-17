@@ -367,22 +367,16 @@ function isMessageKind(value: string): value is ConversationMessageKind {
 
 function isThreadBase(value: unknown): value is StoredThread {
   return isRecord(value) &&
+    droppableFieldsReadable(value) &&
     nonEmptyString(value.id) &&
     nonEmptyString(value.title) &&
     (value.titleByUser === undefined || typeof value.titleByUser === "boolean") &&
     (value.role === undefined || isThreadRole(value.role)) &&
     (value.parentId === undefined || nonEmptyString(value.parentId)) &&
-    (value.remoteLead === undefined || isRemoteSender(value.remoteLead)) &&
     (value.brief === undefined || isThreadBrief(value.brief)) &&
     (value.report === undefined || isCoordinationReport(value.report)) &&
-    (value.resolvedAt === undefined || finiteNumber(value.resolvedAt)) &&
     (value.decisions === undefined || Array.isArray(value.decisions) && value.decisions.every(isDecision)) &&
     (value.coordinationNotes === undefined || Array.isArray(value.coordinationNotes) && value.coordinationNotes.every(isCoordinationNote)) &&
-    (value.threadModel === undefined || isThreadModelChoice(value.threadModel)) &&
-    (value.memory === undefined || isCoordinatorMemory(value.memory)) &&
-    (value.proposals === undefined || Array.isArray(value.proposals) && value.proposals.every(isThreadProposal)) &&
-    (value.muted === undefined || value.muted === true) &&
-    (value.remoteHeard === undefined || isRemoteHeard(value.remoteHeard)) &&
     (value.projectId === undefined || nonEmptyString(value.projectId)) &&
     isExecutionPolicy(value.executionPolicy) &&
     isAgentEngine(value.engine) &&
@@ -390,7 +384,6 @@ function isThreadBase(value: unknown): value is StoredThread {
     (value.fastMode === undefined || capabilitiesFor(value.engine).fastMode && typeof value.fastMode === "boolean") &&
     (value.effort === undefined || isAgentEffort(value.effort) && engineHasEffort(value.engine, value.effort)) &&
     (value.contextUsage === undefined || isContextUsage(value.contextUsage)) &&
-    (value.usage === undefined || isThreadUsage(value.usage)) &&
     Array.isArray(value.messages) &&
     value.messages.every(isConversationMessage) &&
     (value.subagents === undefined || Array.isArray(value.subagents) && value.subagents.every(isSubagent)) &&
@@ -406,7 +399,6 @@ function isThreadBase(value: unknown): value is StoredThread {
     (value.lastChecked === undefined || (isRecord(value.lastChecked) && finiteNumber(value.lastChecked.at) && nonEmptyString(value.lastChecked.note))) &&
     (value.worktreeId === undefined || nonEmptyString(value.worktreeId)) &&
     (value.worktreeEnteredAt === undefined || finiteNumber(value.worktreeEnteredAt)) &&
-    (value.pullRequest === undefined || isPullRequestLink(value.pullRequest)) &&
     (value.inheritedContinuation === undefined || value.inheritedContinuation === true) &&
     (value.runEndedAt === undefined || finiteNumber(value.runEndedAt)) &&
     (value.createdAt === undefined || finiteNumber(value.createdAt)) &&
@@ -546,6 +538,15 @@ const DROPPABLE_FIELDS: Readonly<Record<string, (value: unknown) => boolean>> = 
 const DROPPABLE_ITEMS: Readonly<Record<string, (value: unknown) => boolean>> = {
   proposals: isThreadProposal,
 };
+
+/** Whether every field and list item a thread can do without is one this build reads, which the tables alone say. */
+function droppableFieldsReadable(value: Record<string, unknown>): boolean {
+  return Object.entries(DROPPABLE_FIELDS).every(([field, readable]) => value[field] === undefined || readable(value[field]))
+    && Object.entries(DROPPABLE_ITEMS).every(([field, readable]) => {
+      const items = value[field];
+      return items === undefined || Array.isArray(items) && items.every(readable);
+    });
+}
 
 function withoutUnreadableFields(value: unknown) {
   if (!isRecord(value)) return value;
