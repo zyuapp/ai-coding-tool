@@ -1,13 +1,13 @@
 import { capabilitiesFor, currentModel, engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, type AgentEngine } from "./agent-engine.js";
 import type { Annotation, AttachedFile, ConversationMessage, ConversationMessageKind, PastedText } from "./conversation.js";
-import { isRemoteSender, legacyOrigin, type MessageOrigin } from "./message-origin.js";
+import { legacyOrigin, type MessageOrigin } from "./message-origin.js";
 import type { AutomationFinding } from "./finding.js";
 import { isProject, legacyProjectId, normalizeProjectRoot, type Project } from "./project.js";
 import type { Continuation, ExecutionPolicy, Subagent } from "./run.js";
 import { isThreadUsage, type ContextUsage, type ContinuationStatus, type ThreadOutcome } from "./thread-run.js";
 import type { Thread } from "./thread.js";
 import { isThreadRole } from "./thread-role.js";
-import { isCoordinationNote, isCoordinationReport, isCoordinatorMemory, isDecision, isRemoteHeard, isRemoteWorking, isThreadBrief, isThreadModelChoice, isThreadProposal } from "./coordination.js";
+import { isCoordinationNote, isCoordinationReport, isCoordinatorMemory, isDecision, isRemoteHeard, isRemoteLead, isRemoteWorking, isThreadBrief, isThreadModelChoice, isThreadProposal } from "./coordination.js";
 import { isWorktree, type Worktree } from "./worktree.js";
 import { isLimitPause } from "./usage-limit.js";
 import { isPullRequestLink } from "./pull-request.js";
@@ -531,7 +531,7 @@ const DROPPABLE_FIELDS: Readonly<Record<string, (value: unknown) => boolean>> = 
   pullRequest: isPullRequestLink,
   muted: (value) => value === true,
   usage: isThreadUsage,
-  remoteLead: isRemoteSender,
+  remoteLead: isRemoteLead,
   remoteHeard: isRemoteHeard,
   remoteWorking: isRemoteWorking,
 };

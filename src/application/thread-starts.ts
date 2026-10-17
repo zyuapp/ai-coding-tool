@@ -64,8 +64,8 @@ export function newThreadSend(state: WorkspaceState, caller: Thread, command: Ne
   /** With no place named it starts where the caller lives: its project, and its worktree when it has one. */
   const project = chosen.project === undefined && caller.projectId ? { project: caller.projectId } : {};
   const worktree = chosen.worktree === undefined && chosen.worktreeId === undefined && caller.worktreeId ? { worktreeId: caller.worktreeId } : {};
-  /** It works under the lead, and its first message names the thread that sent it. */
-  const under = lead ? { coordinatorId: lead.id } : remote ? { lead: remote } : {};
+  /** It works under the lead, and its first message names the thread that sent it. The suggestion the caller was is the caller's alone. */
+  const under = lead ? { coordinatorId: lead.id } : remote ? { lead: { threadId: remote.threadId, title: remote.title, computer: remote.computer } } : {};
   return { command: { ...chosen, ...project, ...worktree, ...under, from: caller.id } };
 }
 

@@ -45,6 +45,8 @@ function pair(overrides: Partial<PairedComputer> = {}) {
   const initial = workspace({ projects: [PROJECT], threads: [task("caller", { projectId: PROJECT.id, title: "Planner", model: "opus" })] });
   initial.computers = { ...initial.computers, name: "Mac", paired: [{ id: "linux", name: "Linux", host: "linux.test", pairedAt: 1, status: "connected", error: null, state: linux.state(), capabilities: COMPUTER_CAPABILITIES, ...overrides }] };
   let state = initial;
+  /** A line that drops once that computer has taken the inputs loses what it would have answered. */
+  const line = { answers: true };
   const waiters: ThreadRequestHost["waiters"] = { current: [] };
   const execution: WorkspaceExecutionHost = {
     state: () => state,
@@ -58,6 +60,7 @@ function pair(overrides: Partial<PairedComputer> = {}) {
           result = await linux.execute(input).completed;
           if (!result.ok) break;
         }
+        if (!line.answers) return { ok: false, message: "That computer cannot be reached right now." };
         await dispatch({ type: "computer.state", id: "linux", state: linux.state() });
         return result;
       } } } as unknown as EffectHost;
@@ -72,7 +75,7 @@ function pair(overrides: Partial<PairedComputer> = {}) {
     waiters,
   };
   const mirror = () => host.dispatch({ type: "computer.state", id: "linux", state: linux.state() });
-  return { host, linux, mirror };
+  return { host, linux, mirror, line };
 }
 
 function command(command: ExternalCommand, computer?: string): ThreadRequest {
@@ -178,7 +181,7 @@ test("allowing it forwards a send carrying the name, brief, memory, model and th
   assert.equal(allowed.ok, true);
   const sent = linux.inputs.find((input) => input.type === "task.send");
   assert.ok(sent?.type === "task.send");
-  assert.deepEqual(sent.lead, { threadId: "caller", title: "Planner", computer: "Mac" });
+  assert.deepEqual(sent.lead, { threadId: "caller", title: "Planner", computer: "Mac", proposalId: waiting!.id });
   assert.deepEqual(sent.sender, { threadId: "caller", title: "Planner", computer: "Mac" });
   assert.equal(sent.memory, "The coordinator's purpose: Ship v2\nWhat the coordinator keeps in memory:\n- [n1] Prefer small PRs");
   assert.deepEqual([sent.model, sent.effort, sent.project, sent.worktree], ["opus", "high", REMOTE_PROJECT.id, false]);
@@ -188,7 +191,7 @@ test("allowing it forwards a send carrying the name, brief, memory, model and th
   const started = linux.state().threads.find((thread) => thread.remoteLead);
   assert.ok(started, "the thread starts there, under the coordinator here");
   assert.equal(started.title, "GPU tests", "it is named there what its card said here");
-  assert.deepEqual(started.remoteLead, { threadId: "caller", title: "Planner", computer: "Mac" });
+  assert.deepEqual(started.remoteLead, { threadId: "caller", title: "Planner", computer: "Mac", proposalId: waiting!.id });
   assert.deepEqual(started.brief, BRIEF);
   assert.equal(started.model, "opus");
   const run = linux.runs.find((item) => item.taskId === started.id);
@@ -199,6 +202,26 @@ test("allowing it forwards a send carrying the name, brief, memory, model and th
   assert.deepEqual(host.state().startingProposals, []);
   const notes = host.state().threads[0]!.coordinationNotes ?? [];
   assert.deepEqual(notes.map((note) => [note.text, note.quiet]), [["\"GPU tests\" started on Linux.", true]], "it shows up quietly");
+});
+
+test("allowing it again after its answer was lost starts nothing new there, and its card settles on the thread that did start", async () => {
+  const { host, linux, mirror, line } = pair();
+  lead(host);
+  await answer(host, command({ type: "task.send", text: "Run the GPU tests", brief: BRIEF, title: "GPU tests" }, "Linux"));
+  const [waiting] = proposals(host);
+  line.answers = false;
+  await host.execute({ type: "proposal.start", taskId: "caller", proposalId: waiting!.id }).completed;
+  assert.equal(proposals(host)[0]?.error, "That computer cannot be reached right now.", "the start went through there, but nothing here heard so");
+
+  line.answers = true;
+  const again = await host.execute({ type: "proposal.start", taskId: "caller", proposalId: waiting!.id }).completed;
+  assert.equal(again.ok, true);
+  const started = linux.state().threads.filter((thread) => thread.remoteLead);
+  assert.equal(started.length, 1, "that computer names the thread it already started");
+  assert.deepEqual(proposals(host), []);
+  assert.deepEqual(host.state().startingProposals, []);
+  await mirror();
+  assert.deepEqual(proposals(host), []);
 });
 
 test("a thread under the coordinator asks for one elsewhere as itself, and it works under the coordinator", async () => {

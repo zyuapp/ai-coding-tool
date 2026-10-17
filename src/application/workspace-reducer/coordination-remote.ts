@@ -1,5 +1,6 @@
 /** What a coordinator here hears of the threads it started on paired computers, and how they are let go once it is gone. */
-import { now } from "./shared.js";
+import { proposalLanded } from "./proposals.js";
+import { now, settled } from "./shared.js";
 import type { WorkspaceEffect } from "./types.js";
 import { coordinationMembers, coordinationNote, decisionHeadline, decisionNote, remotelyLedThreads, reportHeadline, reportNote, turnNote } from "../coordination.js";
 import type { ThreadChange } from "../thread-activity.js";
@@ -48,8 +49,11 @@ export function remoteNews(previous: WorkspaceState, next: WorkspaceState): Remo
       if (working.has(member.id) !== workedBefore.has(member.id)) news.leads.add(lead.id);
       const heard = memberNews(news.state, lead, member, computer, holder, prior);
       if (heard.state !== news.state) news.leads.add(lead.id);
-      news.state = heard.state;
-      news.effects.push(...heard.effects);
+      /** A thread the user allowed there settles its card as it shows up, even when that computer's answer was lost. */
+      const proposalId = member.remoteLead!.proposalId;
+      const landed = proposalId ? proposalLanded(heard.state, lead.id, proposalId, member.id, computer) : settled(heard.state);
+      news.state = landed.state;
+      news.effects.push(...heard.effects, ...landed.effects);
     }
   }
   /** A computer no longer paired takes its threads' work with it. */

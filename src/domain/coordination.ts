@@ -5,7 +5,7 @@
  * paired computer works under one through its `remoteLead`, which names the coordinator here.
  */
 import type { HeardWork, Thread } from "./thread.js";
-import type { RemoteSender } from "./message-origin.js";
+import { isRemoteSender, type RemoteSender } from "./message-origin.js";
 import type { AgentEffort } from "./run.js";
 import { isThreadRole, type ThreadRole } from "./thread-role.js";
 import { defaultEffortFor, defaultModelFor, effortForModel, engineForModel, isAgentEffort, isAgentModel, modelDelegable, modelTakesEffort, type AgentModel } from "./agent-engine.js";
@@ -274,8 +274,15 @@ export function leadIdOf(thread: Thread): string | undefined {
   return thread.parentId ?? thread.remoteLead?.threadId;
 }
 
+/**
+ * The coordinator on another computer a thread works under, and, for a thread the user allowed there,
+ * which of that coordinator's suggestions it is, so the start is made once and its card settles as
+ * the thread shows up, however its answer fared.
+ */
+export type RemoteLead = RemoteSender & { proposalId?: string };
+
 /** The coordinator on another computer a thread works under, as the thread names it, unless one here outranks it. */
-export function remoteLeadOf(thread: Thread | undefined): RemoteSender | undefined {
+export function remoteLeadOf(thread: Thread | undefined): RemoteLead | undefined {
   return thread?.remoteLead && thread.parentId === undefined && thread.role !== "coordinator" ? thread.remoteLead : undefined;
 }
 
@@ -582,6 +589,13 @@ export function isThreadProposal(value: unknown): value is ThreadProposal {
     && (value.from === undefined || text(value.from, 200))
     && finite(value.proposedAt)
     && (value.error === undefined || typeof value.error === "string");
+}
+
+/** Shape only, as a thread stores the coordinator elsewhere it works under. */
+export function isRemoteLead(value: unknown): value is RemoteLead {
+  if (!isRemoteSender(value)) return false;
+  const { proposalId } = value as RemoteLead;
+  return proposalId === undefined || text(proposalId, 200);
 }
 
 /** Shape only: each of a coordinator's threads elsewhere, by id, with when its news was last taken. */

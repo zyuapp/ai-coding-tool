@@ -5,7 +5,7 @@ import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./typ
 import { coordinationNote, memoryPrompt } from "../coordination.js";
 import { updateThread } from "../thread-run-state.js";
 import { newThreadSend, proposalSend } from "../thread-starts.js";
-import { ledStartRefusal, titledFor } from "../computers.js";
+import { ledStartRefusal, titledFor, type PairedComputer } from "../computers.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import type { AppCommand } from "../../contracts/commands.js";
@@ -71,22 +71,35 @@ export function reduceProposals(state: WorkspaceState, input: ProposalInput): Wo
 /**
  * A thread a coordinator here allowed on another computer starting there, or failing to, which is a
  * thread on that computer now that tells the coordinator so itself once it shows up there. A start
- * Stop all caught on its way is stopped as it lands; one that never landed has nothing left to say.
+ * whose answer was lost settles all the same once its thread shows up there; one that never landed
+ * has nothing left to say if Stop all caught it on its way, and waits to be allowed again otherwise.
  */
 function proposalSettled(state: WorkspaceState, input: Extract<ProposalInput, { type: "proposal.settled" }>): WorkspaceTransition {
-  const caught = state.stoppedStarts.some((start) => start.proposalId === input.proposalId && start.threadId === undefined);
-  const stoppedStarts = caught ? state.stoppedStarts.filter((start) => start.proposalId !== input.proposalId) : state.stoppedStarts;
-  if (input.threadId === undefined) {
-    return settled(caught ? withoutStarting({ ...state, stoppedStarts }, input.proposalId) : withProposalFailure(state, input.taskId, input.proposalId, input.message ?? "The thread did not start."));
+  if (input.threadId !== undefined) {
+    const proposal = state.threads.find((item) => item.id === input.taskId)?.proposals?.find((item) => item.id === input.proposalId);
+    return proposalLanded(state, input.taskId, input.proposalId, input.threadId, state.computers.paired.find((item) => item.id === proposal?.place.computer?.id));
   }
-  const lead = state.threads.find((item) => item.id === input.taskId);
-  const proposal = lead?.proposals?.find((item) => item.id === input.proposalId);
-  const started = withoutStarting(lead?.proposals ? updateThread(state, lead.id, (item) => withoutProposals(item, new Set([input.proposalId]))) : state, input.proposalId);
+  const caught = state.stoppedStarts.some((start) => start.proposalId === input.proposalId && start.threadId === undefined);
+  const stoppedStarts = state.stoppedStarts.filter((start) => start.proposalId !== input.proposalId);
+  return settled(caught ? withoutStarting({ ...state, stoppedStarts }, input.proposalId) : withProposalFailure(state, input.taskId, input.proposalId, input.message ?? "The thread did not start."));
+}
+
+/**
+ * A thread a coordinator here allowed on `computer` having landed there as `threadId`, as that
+ * computer answered or as the thread itself shows up there, whichever is first heard: its card is
+ * gone, and a start Stop all caught on its way is stopped as it lands. Hearing it again changes nothing.
+ */
+export function proposalLanded(state: WorkspaceState, leadId: string, proposalId: string, threadId: string, computer: PairedComputer | undefined): WorkspaceTransition {
+  const lead = state.threads.find((item) => item.id === leadId);
+  const carded = lead?.proposals?.some((item) => item.id === proposalId) === true;
+  const caught = state.stoppedStarts.some((start) => start.proposalId === proposalId && start.threadId === undefined);
+  if (!carded && !caught && !state.startingProposals.includes(proposalId)) return settled(state);
+  const started = withoutStarting(carded ? updateThread(state, leadId, (item) => withoutProposals(item, new Set([proposalId]))) : state, proposalId);
   if (!caught) return settled(started);
-  const computer = state.computers.paired.find((item) => item.id === proposal?.place.computer?.id);
-  const cancel: AppCommand = { type: "run.cancel", taskId: input.threadId };
+  const stoppedStarts = state.stoppedStarts.filter((start) => start.proposalId !== proposalId);
+  const cancel: AppCommand = { type: "run.cancel", taskId: threadId };
   const effects: WorkspaceEffect[] = computer && supportsComputerCommand(computer.capabilities, cancel) ? [{ type: "computer.forward", id: computer.id, inputs: [cancel] }] : [];
-  return settled({ ...started, stoppedStarts: [...stoppedStarts, { proposalId: input.proposalId, threadId: input.threadId }] }, effects);
+  return settled({ ...started, stoppedStarts: [...stoppedStarts, { proposalId, threadId }] }, effects);
 }
 
 /**
@@ -116,8 +129,9 @@ function startProposal(state: WorkspaceState, leadId: string, proposalId: string
 /**
  * A thread asked for on a paired computer, allowed by the user in the project there they picked:
  * the start is carried to that computer as the coordinator would have started it here, with its
- * name, brief, the coordinator's memory as it stands, and the coordinator it works under, signed by
- * the thread that asked. It is allowed once; nothing here lets the next one through. A computer whose
+ * name, brief, the coordinator's memory as it stands, and the coordinator and suggestion it works
+ * under, signed by the thread that asked. It is allowed once: nothing here lets the next one through,
+ * and that computer starts a suggestion only once however often it is asked. A computer whose
  * line is down, or whose build cannot take it, is refused, as is a project it no longer holds.
  */
 function startElsewhere(state: WorkspaceState, leadId: string, proposalId: string, chosen: { project: string; worktree: boolean } | undefined): WorkspaceTransition {
@@ -151,7 +165,7 @@ function startElsewhere(state: WorkspaceState, leadId: string, proposalId: strin
     ...(command.brief ? { brief: command.brief } : {}),
     ...(command.title ? { title: command.title } : {}),
     ...(memory ? { memory } : {}),
-    lead: { threadId: lead.id, title: lead.title, computer: name },
+    lead: { threadId: lead.id, title: lead.title, computer: name, proposalId },
     sender: { threadId: caller.id, title: caller.title, computer: name },
   });
   if (!supportsComputerCommand(computer.capabilities, send)) return refused(`Update AI Coding Tool on ${computer.name} to run threads there.`);

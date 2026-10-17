@@ -321,6 +321,54 @@ test("a start allowed on another computer that is still on its way when everythi
   assert.deepEqual(failed.state.stoppedStarts, []);
 });
 
+test("a start allowed on another computer whose answer is lost settles its card once its thread shows up there", () => {
+  const brief = { intent: "port the parser", doneWhen: "tests pass", delivers: "report" as const };
+  const proposal = { id: "p1", title: "Far work", prompt: "Port it", brief, place: { computer: { id: "studio", name: "studio" }, project: "far-project", worktree: false }, proposedAt: 1 };
+  const holder = workspace({ projects: [{ id: "far-project", root: "/far" }] });
+  const state = withComputers(workspace({ threads: [lead("lead", { title: "Lead", proposals: [proposal] })] }), [paired("studio", holder, { capabilities: COMPUTER_CAPABILITIES })]);
+  const allowed = reduce(state, { type: "proposal.start", taskId: "lead", proposalId: "p1" });
+  const send = effectOf(allowed, "computer.forward").inputs.find((input) => input.type === "task.send");
+  assert.ok(send?.type === "task.send");
+  assert.deepEqual(send.lead, { ...FAR, proposalId: "p1" }, "the start names the suggestion it is");
+  const there = { ...holder, threads: [far({ remoteLead: { ...FAR, proposalId: "p1" } })] };
+
+  const lost = reduce(allowed.state, { type: "proposal.settled", taskId: "lead", proposalId: "p1", message: "That computer cannot be reached right now." });
+  assert.deepEqual(lost.state.threads[0]!.proposals?.map((item) => item.error), ["That computer cannot be reached right now."]);
+  const landed = mirrored(lost.state, there);
+  assert.equal(landed.state.threads[0]!.proposals, undefined, "its card is gone, so it cannot be allowed twice");
+  assert.deepEqual(notesOf(landed.state), ["\"Far work\" started on studio."]);
+  assert.equal(reduce(landed.state, { type: "proposal.settled", taskId: "lead", proposalId: "p1", threadId: "far" }).state, landed.state, "an answer that comes late changes nothing");
+  assert.equal(reduce(landed.state, { type: "proposal.settled", taskId: "lead", proposalId: "p1", message: "Lost." }).state.threads[0]!.proposals, undefined);
+
+  const reloaded = mirrored({ ...allowed.state, startingProposals: [] }, there);
+  assert.equal(reloaded.state.threads[0]!.proposals, undefined, "nor after a restart here, which forgets what was starting");
+  const early = mirrored(allowed.state, there);
+  assert.deepEqual([early.state.threads[0]!.proposals, early.state.startingProposals], [undefined, []], "nor when the thread shows up before the answer");
+
+  const stopped = reduce(allowed.state, { type: "coordination.stop-all", taskId: "lead" });
+  const caught = mirrored(stopped.state, { ...there, activeRuns: { far: activeRun("far", "run-far") } });
+  assert.deepEqual(caught.effects.flatMap((effect) => effect.type === "computer.forward" ? [[effect.id, effect.inputs]] : []), [["studio", [{ type: "run.cancel", taskId: "far" }]]], "a start Stop all caught is stopped as it shows up");
+  assert.deepEqual(caught.state.stoppedStarts, [{ proposalId: "p1", threadId: "far" }]);
+  assert.deepEqual(reduce(caught.state, { type: "proposal.settled", taskId: "lead", proposalId: "p1", threadId: "far" }).effects, [], "and only once");
+});
+
+test("a computer asked again for a suggestion it started names that thread rather than starting another", () => {
+  const holder = workspace({ projects: [{ id: "far-project", root: "/far" }] });
+  const send = { type: "task.send", text: "Port it", project: "far-project", lead: { ...FAR, proposalId: "p1" } } satisfies WorkspaceInput;
+  const sending = reduce(holder, send);
+  assert.deepEqual(reduce(sending.state, send).result, { ok: false, message: "That thread is still starting." });
+  const started = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: { id: "far-project", kind: "project" as const, root: "/far" } });
+  const thread = required(started.state.threads[0]);
+  assert.deepEqual(thread.remoteLead, { ...FAR, proposalId: "p1" });
+
+  const again = reduce(started.state, send);
+  assert.deepEqual([again.result, again.effects], [{ ok: true, taskId: thread.id }, []]);
+  assert.equal(again.state, started.state);
+  const other = reduce(started.state, { ...send, lead: { ...FAR, proposalId: "p2" } });
+  assert.equal(Object.keys(other.state.pendingRuns).length, 1, "another suggestion starts as its own thread");
+  assert.equal(Object.keys(reduce(started.state, { ...send, lead: FAR }).state.pendingRuns).length, 1, "and so does a start that names none");
+});
+
 test("a start allowed on another computer keeps its card's name there, and a build that cannot take one names it itself", () => {
   const brief = { intent: "port the parser", doneWhen: "tests pass", delivers: "report" as const };
   const proposal = { id: "p1", title: "Port the parser", named: true as const, prompt: "Port it", brief, place: { computer: { id: "studio", name: "studio" }, project: "far-project", worktree: false }, proposedAt: 1 };

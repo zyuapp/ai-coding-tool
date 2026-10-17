@@ -15,6 +15,7 @@ import { expandThreadHandles } from "../../domain/thread-handles.js";
 import { withoutSnooze } from "../../domain/thread-snooze.js";
 import { updateThread } from "../thread-run-state.js";
 import { coordinationSendOf, senderPrompt, type CoordinationSend } from "../coordination.js";
+import type { RemoteLead } from "../../domain/coordination.js";
 import { originFields, type MessageOrigin } from "../../domain/message-origin.js";
 import { heldByLimit, nudged } from "../limit-pauses.js";
 
@@ -57,6 +58,8 @@ export function reduceSending(state: WorkspaceState, input: SendInput, coordinat
       const alreadySending = draftKey !== undefined && Object.values(state.pendingRuns).some((pending) => pending.draftKey === draftKey);
       if ((!text && attachments.length === 0 && annotations.length === 0 && pastes.length === 0 && files.length === 0) || alreadySending) return settled(state);
       if (input.taskId !== undefined && !targetId(state, input.taskId)) return settled(state);
+      const asked = input.taskId === undefined && input.lead ? askedBefore(state, input.lead) : undefined;
+      if (asked) return asked;
       /** A side chat has nothing to say until the thread it forks from has a session to fork. */
       if (input.taskId !== undefined && state.sideChats.some((chat) => chat.id === input.taskId) && !forkableContinuation(state, input.taskId)) return settled(state);
       /** Only the composer's own send falls back to the current thread; a send with its own text starts a thread. */
@@ -183,4 +186,19 @@ export function reduceSending(state: WorkspaceState, input: SendInput, coordinat
       return { ...handed, state: holder ? focusedTab(handed.state, holder, taskId) : focusComposer(handed.state) };
     }
   }
+}
+
+/**
+ * A suggestion a coordinator on another computer asked for is started here once, however often the
+ * asking arrives, as an answer lost on the way back has that computer ask again: one that started is
+ * named back, and one still starting says so.
+ */
+function askedBefore(state: WorkspaceState, lead: RemoteLead): WorkspaceTransition | undefined {
+  const { threadId, proposalId } = lead;
+  if (proposalId === undefined) return undefined;
+  const same = (held: RemoteLead | undefined) => held?.threadId === threadId && held.proposalId === proposalId;
+  const started = state.threads.find((thread) => same(thread.remoteLead));
+  if (started) return settled(state, [], { ok: true, taskId: started.id });
+  if (Object.values(state.pendingRuns).some((pending) => same(pending.coordination?.lead))) return settled(state, [], { ok: false, message: "That thread is still starting." });
+  return undefined;
 }

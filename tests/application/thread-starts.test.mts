@@ -156,6 +156,8 @@ test("a thread under a coordinator on another computer starts its threads under 
   const state = workspace({ projects: [PROJECT], threads: [task("member", { remoteLead: lead, model: "sonnet", effort: "low", projectId: PROJECT.id })] });
   const command = started(newThreadSend(state, thread(state, "member"), send()));
   assert.deepEqual(command, { type: "task.send", text: "Fix it", model: "sonnet", effort: "low", project: PROJECT.id, lead, from: "member" }, "on its own model, with no memory of the coordinator's");
+  const allowed = { ...state, threads: [{ ...thread(state, "member"), remoteLead: { ...lead, proposalId: "p1" } }] };
+  assert.deepEqual(started(newThreadSend(allowed, thread(allowed, "member"), send())).lead, lead, "the suggestion it was is its own, not its threads'");
   assert.equal(refused(newThreadSend(state, thread(state, "member"), send({ model: "haiku" }))), "Threads under a coordinator cannot run on the haiku model. Pick another model.");
   const linux = { id: "linux", name: "Linux", host: "linux.test", pairedAt: 1, status: "connected", error: null, state: workspace() } satisfies PairedComputer;
   assert.equal(refused(newThreadSend(state, thread(state, "member"), send(), linux)), REMOTE_LED_HERE);

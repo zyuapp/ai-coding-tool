@@ -4,11 +4,11 @@ import type { PairedComputer } from "./computers.js";
 import { doingWork, threadActivity, threadStatus, type ThreadStatus } from "./thread-activity.js";
 import { activitySections, type ActivitySections } from "./thread-order.js";
 import { threadWorkspaceId } from "./thread-location.js";
-import { coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, leadIdOf, MAX_SUMMARY, openDecisions, remoteLeadOf, type CoordinationNote, type CoordinationReport, type CoordinatorMemory, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type ThreadBrief, type ThreadProposal } from "../domain/coordination.js";
+import { coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, leadIdOf, MAX_SUMMARY, openDecisions, remoteLeadOf, type CoordinationNote, type CoordinationReport, type CoordinatorMemory, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type RemoteLead, type ThreadBrief, type ThreadProposal } from "../domain/coordination.js";
 import { lastRunOutcome, threadActivityAt, type Thread } from "../domain/thread.js";
 import type { PullRequestAnswer, PullRequestChecks, PullRequestLink, PullRequestRef, PullRequestState } from "../domain/pull-request.js";
 import { wantsAttention } from "../domain/attention.js";
-import { originLabel, type RemoteSender } from "../domain/message-origin.js";
+import { originLabel } from "../domain/message-origin.js";
 import { replyLine } from "./reply-line.js";
 
 /**
@@ -18,7 +18,7 @@ import { replyLine } from "./reply-line.js";
  */
 export type CoordinationSend = {
   coordinatorId?: string;
-  lead?: RemoteSender;
+  lead?: RemoteLead;
   brief?: ThreadBrief;
   memory?: string;
   proposalId?: string;

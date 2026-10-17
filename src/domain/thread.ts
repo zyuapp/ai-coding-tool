@@ -2,12 +2,11 @@ import type { AgentEngine, AgentModel } from "./agent-engine.js";
 import type { ConversationMessage } from "./conversation.js";
 import type { AutomationFinding } from "./finding.js";
 import type { AgentEffort, Continuation, ExecutionPolicy } from "./run.js";
-import type { CoordinationNote, CoordinationReport, CoordinatorMemory, Decision, ThreadBrief, ThreadModelChoice, ThreadProposal } from "./coordination.js";
+import type { CoordinationNote, CoordinationReport, CoordinatorMemory, Decision, RemoteLead, ThreadBrief, ThreadModelChoice, ThreadProposal } from "./coordination.js";
 import type { ThreadRole } from "./thread-role.js";
 import type { ChangeSnapshot, ContextUsage, ContinuationStatus, ThreadOutcome, ThreadUsage } from "./thread-run.js";
 import type { LimitPause } from "./usage-limit.js";
 import type { PullRequestLink } from "./pull-request.js";
-import type { RemoteSender } from "./message-origin.js";
 
 /** A thread elsewhere last heard working: the paired computer holding it, and what it was called. */
 export type HeardWork = { computer: string; title: string };
@@ -24,9 +23,10 @@ export type Thread = {
   parentId?: string;
   /**
    * The coordinator on a paired computer this thread works under, as that computer named it when it
-   * started the thread here. A coordinator of its own here outranks it.
+   * started the thread here, with the suggestion it is when the user allowed it there. A coordinator
+   * of its own here outranks it.
    */
-  remoteLead?: RemoteSender;
+  remoteLead?: RemoteLead;
   /** What the coordinator asked of this thread when it started it. */
   brief?: ThreadBrief;
   /** Where this thread last said its work stands. */

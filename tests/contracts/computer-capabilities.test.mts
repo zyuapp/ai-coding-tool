@@ -44,6 +44,8 @@ test("a computer says it takes threads under a coordinator elsewhere, and reads 
   const lead = { threadId: "lead", title: "Lead", computer: "Mac" };
   assert.ok(isWorkspaceViewInput({ type: "task.send", text: "Go", lead, memory: "The coordinator's purpose: Ship" }));
   assert.equal(isWorkspaceViewInput({ type: "task.send", text: "Go", lead: { ...lead, threadId: "" } }), false);
+  assert.ok(isWorkspaceViewInput({ type: "task.send", text: "Go", lead: { ...lead, proposalId: "p1" } }));
+  assert.equal(isWorkspaceViewInput({ type: "task.send", text: "Go", lead: { ...lead, proposalId: "" } }), false);
   assert.equal(isWorkspaceViewInput({ type: "task.send", text: "Go", memory: "x".repeat(64_001) }), false);
   assert.equal(isExternalCommand({ type: "task.send", text: "Go", lead }), false, "only the window says which coordinator a thread works under");
   assert.equal(isExternalCommand({ type: "task.send", text: "Go", memory: "Remember" }), false);

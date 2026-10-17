@@ -2,7 +2,7 @@ import type { ComputerFilter } from "../domain/computers.js";
 import type { AutomationDraft, AutomationPatch } from "../domain/automation.js";
 import type { SnoozeHours } from "../domain/thread-snooze.js";
 import type { ThreadRole } from "../domain/thread-role.js";
-import type { NextStep, OverviewSection, ThreadBrief } from "../domain/coordination.js";
+import type { NextStep, OverviewSection, RemoteLead, ThreadBrief } from "../domain/coordination.js";
 import type { ShortcutSurface } from "../domain/shortcuts.js";
 import type { BrowserAction } from "../domain/browser.js";
 import type { ComputerUsePermission } from "../domain/computer-use.js";
@@ -176,9 +176,10 @@ export type TaskCommand =
    * the `brief` it is handed, and `title`, which names it in place of a title written from its first
    * message. `from` names the thread that sent the message, which both the agent and the user are
    * shown. `lead` starts it under a coordinator on another computer, which hands it the `memory` it
-   * keeps as the thread reads it.
+   * keeps as the thread reads it; a lead naming a suggestion of its already started here names that
+   * thread back instead.
    */
-  | { type: "task.send"; taskId?: string; project?: string; text?: string; attachments?: RunAttachment[]; steer?: boolean; worktree?: boolean; worktreeId?: string; model?: AgentModel; effort?: AgentEffort; role?: ThreadRole; coordinatorId?: string; brief?: ThreadBrief; title?: string; from?: string; sender?: RemoteSender; lead?: RemoteSender; memory?: string }
+  | { type: "task.send"; taskId?: string; project?: string; text?: string; attachments?: RunAttachment[]; steer?: boolean; worktree?: boolean; worktreeId?: string; model?: AgentModel; effort?: AgentEffort; role?: ThreadRole; coordinatorId?: string; brief?: ThreadBrief; title?: string; from?: string; sender?: RemoteSender; lead?: RemoteLead; memory?: string }
   /**
    * Sends the composer's message with the images in its strip, which are written out to disk first:
    * the run is started only once they are all there, and a failure to write one stops the send.
