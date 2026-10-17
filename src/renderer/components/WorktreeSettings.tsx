@@ -3,6 +3,7 @@ import { LuCheck as Check, LuChevronDown as ChevronDown, LuChevronRight as Chevr
 import type { WorktreeSettingsPage, WorktreeSettingsView } from "../../application/worktree-settings";
 import type { WorktreeCommand } from "../../contracts/commands";
 import { WorktreeDeleteDialog } from "./WorktreeDeleteDialog";
+import { SpinningIcon } from "./SpinningIcon";
 
 type Dispatch = (command: WorktreeCommand) => void;
 
@@ -92,7 +93,7 @@ export function WorktreeSettings({ page, error, notice, dispatch }: WorktreeSett
               <ChevronDown size={13} aria-hidden="true" />
             </div>}
             <button type="button" className="worktree-refresh" disabled={page.loading} onClick={() => dispatch({ type: "worktree.refresh" })}>
-              <RefreshCw size={14} aria-hidden="true" className={page.loading ? "spinning" : ""} />{page.loading ? "Reading…" : "Refresh"}
+              <SpinningIcon icon={RefreshCw} spinning={page.loading} size={14} aria-hidden="true" />{page.loading ? "Reading…" : "Refresh"}
             </button>
           </div>
         </div>

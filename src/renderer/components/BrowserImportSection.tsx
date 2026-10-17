@@ -4,6 +4,7 @@ import { settingControl } from "../../domain/settings-catalog";
 import { LuCheck as Check, LuRotateCw as Again } from "react-icons/lu";
 import { NO_BROWSER_IMPORT, sourceName, type BrowserImportPicker, type BrowserImportState } from "../../application/browser-import";
 import type { BrowserImportSource } from "../../domain/browser-import";
+import { SpinningIcon } from "./SpinningIcon";
 
 /** A long list draws this many rows; searching reaches the rest. */
 const SHOWN_SITES = 200;
@@ -82,7 +83,7 @@ function SourceRow({ source, sources, settings }: { source: BrowserImportSource;
         </div>
         {!picking && (
           <div className="setting-row-action">
-            {last && <button type="button" onClick={settings.onAgain} disabled={state.importing}><Again size={12} /> {state.importing ? "Importing…" : "Import again"}</button>}
+            {last && <button type="button" onClick={settings.onAgain} disabled={state.importing}><SpinningIcon icon={Again} spinning={state.importing} size={12} /> {state.importing ? "Importing…" : "Import again"}</button>}
             <button type="button" onClick={() => settings.onChoose(source.id)} disabled={state.importing}>Choose sites</button>
           </div>
         )}

@@ -4,6 +4,7 @@ import { addressOrigin, type MobileAddress, type MobileConnectionState, type Mob
 import { SettingGroup, SettingRow } from "./SettingRow";
 import { settingControl } from "../../domain/settings-catalog";
 import { ComputerSettings, type ComputerSettingsProps } from "./ComputerSettings";
+import { SpinningIcon } from "./SpinningIcon";
 
 function statusLabel(remote: MobileServerState): string {
   if (!remote.enabled) return "Off";
@@ -110,7 +111,7 @@ function TailscaleSection({ remote, checking, onRefresh }: { remote: MobileServe
           <p>The phone reaches this computer over your tailnet, so both need Tailscale signed into the same account.</p>
         </div>
         <div className="settings-group-action">
-          <button type="button" disabled={checking} onClick={onRefresh}><RefreshCw size={13} aria-hidden="true" className={checking ? "spinning" : ""} />{checking ? "Checking…" : "Check again"}</button>
+          <button type="button" disabled={checking} onClick={onRefresh}><SpinningIcon icon={RefreshCw} spinning={checking} size={13} aria-hidden="true" />{checking ? "Checking…" : "Check again"}</button>
         </div>
       </div>
       {steps.map((step) => (

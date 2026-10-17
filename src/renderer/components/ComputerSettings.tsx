@@ -6,6 +6,7 @@ import type { AppCommand } from "../../contracts/commands";
 import { RenameInput, useRenaming } from "./SidebarRename";
 import { SettingGroup } from "./SettingRow";
 import { settingControl } from "../../domain/settings-catalog";
+import { SpinningIcon } from "./SpinningIcon";
 
 export type ComputerSettingsProps = {
   found: DiscoveredComputer[];
@@ -184,7 +185,7 @@ export function ComputerSettings({ found, searching, searchError, name, links, p
           <p>Another computer running AI Coding Tool, or <code>aic serve</code>, shows its threads here beside your own.</p>
         </div>
         <div className="settings-group-action">
-          <button type="button" disabled={searching} onClick={onDiscover}><RefreshCw size={13} aria-hidden="true" className={searching ? "spinning" : ""} />{searching ? "Looking…" : "Look again"}</button>
+          <button type="button" disabled={searching} onClick={onDiscover}><SpinningIcon icon={RefreshCw} spinning={searching} size={13} aria-hidden="true" />{searching ? "Looking…" : "Look again"}</button>
         </div>
       </div>
 

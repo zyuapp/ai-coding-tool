@@ -4,6 +4,7 @@ import type { DiffPatchResult, DiffSummaryResult } from "../../contracts/ipc";
 import type { MobileQuery, MobileThreadView } from "../../contracts/mobile";
 import { diffRows, fileFingerprint, languageForPath, parseFilePatch, rangeKey, UNCOMMITTED, type DiffFileSummary, type DiffRange, type DiffRow } from "../../domain/diff";
 import { ensureLanguage, fileTokens, type FileTokens, type ThemedToken } from "../../renderer/diff/highlight";
+import { SpinningIcon } from "../../renderer/components/SpinningIcon";
 
 /** A patch drawn whole would take a phone with it, so a long one is cut here until asked for. */
 const ROW_CAP = 1_500;
@@ -173,7 +174,7 @@ export function Changes({ thread, live, query }: {
           <button type="button" role="radio" aria-checked={mode === "branch"} onClick={() => setMode("branch")}>Against {base}</button>
         </div>
         <button type="button" className="ghost icon changes-refresh" aria-label="Read the comparison again" onClick={() => { asked.current.clear(); setPatches(new Map()); setReads((count) => count + 1); }}>
-          <RefreshCw size={17} className={summary.status === "reading" ? "spinning" : undefined} />
+          <SpinningIcon icon={RefreshCw} spinning={summary.status === "reading"} size={17} />
         </button>
       </div>
       {summary.status === "available" && summary.files.length > 0 && (

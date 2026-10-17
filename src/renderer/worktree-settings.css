@@ -11,7 +11,6 @@
 .worktree-refresh, .worktree-row-actions button, .worktree-delete-actions button { padding: 7px 13px; border: 1px solid var(--line-strong); border-radius: 7px; color: var(--ink-dim); background: transparent; font-size: var(--text-meta); font-weight: 550; white-space: nowrap; cursor: pointer; }
 .worktree-refresh:hover, .worktree-row-actions button:hover, .worktree-delete-actions button:hover { background: var(--wash); border-color: var(--line-bright); }
 .worktree-refresh { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); }
-.worktree-refresh .spinning { animation: spin .9s linear infinite; }
 .worktree-settings button:disabled, .worktree-delete-actions button:disabled { opacity: .5; cursor: default; }
 .worktree-setting-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 13px; padding: 23px 0; border-bottom: 1px solid var(--line-soft); }
 .worktree-setting-icon { display: grid; place-items: center; width: 27px; height: 27px; margin-top: 2px; border: 1px solid var(--info-line); border-radius: 8px; color: var(--info-soft); background: var(--info-surface-soft); }

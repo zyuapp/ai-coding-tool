@@ -5,6 +5,7 @@ import { AGENT_ENGINES, engineLabel, engineNotice, engineUpdate, type AgentEngin
 import type { WorkspaceState } from "../../application/workspace-state";
 import { CopyButton } from "./CopyButton";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
+import { SpinningIcon } from "./SpinningIcon";
 
 export type EngineSettingsProps = {
   engineAccess: Record<AgentEngine, EngineReadiness>;
@@ -54,7 +55,7 @@ export function EngineSettings({ engineAccess, checking, updating, onRefresh, on
           </div>
           <div className="settings-group-action">
             <button type="button" disabled={checking} onClick={onRefresh}>
-              <RefreshCw size={13} aria-hidden="true" className={checking ? "spinning" : ""} />{checking ? "Checking…" : "Check again"}
+              <SpinningIcon icon={RefreshCw} spinning={checking} size={13} aria-hidden="true" />{checking ? "Checking…" : "Check again"}
             </button>
           </div>
         </div>
@@ -99,7 +100,7 @@ export function EngineSettings({ engineAccess, checking, updating, onRefresh, on
           </div>
           <div className="settings-group-action">
             <button type="button" onClick={onReload} disabled={reloadStatus === "reloading" || reloadStatus === "pending"}>
-              <RefreshCw size={13} aria-hidden="true" />Reload agent settings
+              <SpinningIcon icon={RefreshCw} spinning={reloadStatus === "reloading"} size={13} aria-hidden="true" />Reload agent settings
             </button>
           </div>
         </div>

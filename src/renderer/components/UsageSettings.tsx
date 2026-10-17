@@ -5,6 +5,7 @@ import { useEffect, type ReactNode } from "react";
 import type { ComputerUsage, PlanUsageState } from "../../application/plan-limits";
 import { AGENT_ENGINES, engineLabel, type AgentEngine } from "../../domain/agent-engine";
 import { barShare, formatReset, formatShare, planLabel, type PlanUsage } from "../../domain/plan-usage";
+import { SpinningIcon } from "./SpinningIcon";
 
 const HIGH_SHARE = 90;
 
@@ -43,7 +44,7 @@ export function UsageSettings({ usage, name = "", computers = [], onRefresh, tim
         </div>
         <div className="settings-group-action">
           <button type="button" disabled={reading} onClick={onRefresh}>
-            <RefreshCw size={13} aria-hidden="true" className={reading ? "spinning" : ""} />
+            <SpinningIcon icon={RefreshCw} spinning={reading} size={13} aria-hidden="true" />
             <span>{reading ? "Reading…" : "Refresh"}</span>
           </button>
         </div>
