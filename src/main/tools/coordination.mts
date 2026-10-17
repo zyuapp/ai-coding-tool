@@ -1,8 +1,9 @@
 import { z } from "zod";
-import { COORDINATION_STATES, MAX_DECISION_CONTEXT, MAX_MEMORY_NOTE, MAX_OPTION_DESCRIPTION, MAX_OPTION_LABEL, MAX_OPTIONS, MAX_PURPOSE, MAX_QUESTION, MAX_SUMMARY } from "../../domain/coordination.js";
+import { COORDINATION_STATES, MAX_DECISION_CONTEXT, MAX_MEMORY_NOTE, MAX_OPTION_DESCRIPTION, MAX_OPTION_LABEL, MAX_OPTIONS, MAX_PROPOSAL_TITLE, MAX_PROPOSALS, MAX_PURPOSE, MAX_QUESTION, MAX_SUMMARY } from "../../domain/coordination.js";
 import type { CoordinationRole } from "../../domain/coordination.js";
 import type { CoordinationBridge } from "../agent/agent-provider.mjs";
 import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";
+import { COORDINATOR_START_INPUT, newThreadFields } from "./threads.mjs";
 
 export const COORDINATION_SERVER_NAME = "aicodingtool-coordination";
 
@@ -14,8 +15,8 @@ async function report(work: () => Promise<{ note: string }>, failure = "Coordina
   }
 }
 
-/** A refused memory change already says what to do instead, so it is answered in its own words. */
-function remember(work: () => Promise<{ note: string }>) {
+/** A refused memory change or suggestion already says what to do instead, so it is answered in its own words. */
+function answered(work: () => Promise<{ note: string }>) {
   return report(work, "");
 }
 
@@ -61,7 +62,7 @@ const REMEMBER = defineTool({
     text: z.string().min(1).max(MAX_MEMORY_NOTE).describe("The note, in one or two sentences."),
   },
   readOnly: false,
-  run: (bridge: CoordinationBridge, args) => remember(() => bridge.remember({ kind: "remember", text: args.text })),
+  run: (bridge: CoordinationBridge, args) => answered(() => bridge.remember({ kind: "remember", text: args.text })),
 });
 
 const FORGET = defineTool({
@@ -71,7 +72,7 @@ const FORGET = defineTool({
     noteId: z.string().min(1).max(200).describe("The note's ID, such as n3."),
   },
   readOnly: false,
-  run: (bridge: CoordinationBridge, args) => remember(() => bridge.remember({ kind: "forget", noteId: args.noteId })),
+  run: (bridge: CoordinationBridge, args) => answered(() => bridge.remember({ kind: "forget", noteId: args.noteId })),
 });
 
 const SET_PURPOSE = defineTool({
@@ -81,11 +82,24 @@ const SET_PURPOSE = defineTool({
     purpose: z.string().max(MAX_PURPOSE).nullable().describe("One line, or null to clear it."),
   },
   readOnly: false,
-  run: (bridge: CoordinationBridge, args) => remember(() => bridge.remember({ kind: "purpose", purpose: args.purpose })),
+  run: (bridge: CoordinationBridge, args) => answered(() => bridge.remember({ kind: "purpose", purpose: args.purpose })),
 });
 
-/** A coordinator reports to no one, so it raises decisions and keeps its memory. */
+const PROPOSE_THREADS = defineTool({
+  name: "propose_threads",
+  description: "Suggest threads for the user to start, rather than starting them. Each takes what start_thread takes, brief included, and a short title. Nothing starts until the user starts it; you hear from each one they start once it ends a turn.",
+  input: {
+    threads: z.array(z.object({
+      title: z.string().min(1).max(MAX_PROPOSAL_TITLE).describe("A few words that label the suggestion for the user."),
+      ...COORDINATOR_START_INPUT,
+    })).min(1).max(MAX_PROPOSALS).describe("The threads to suggest, one per piece of work."),
+  },
+  readOnly: false,
+  run: (bridge: CoordinationBridge, args) => answered(() => bridge.propose(args.threads.map((thread) => ({ title: thread.title, prompt: thread.prompt, ...newThreadFields(thread) })))),
+});
+
+/** A coordinator reports to no one, so it raises decisions, keeps its memory, and suggests threads. */
 export function coordinationTools(bridge: CoordinationBridge, role: CoordinationRole) {
-  const definitions: ToolDefinition<CoordinationBridge>[] = role === "member" ? [REPORT_STATUS, RAISE_DECISION] : [RAISE_DECISION, REMEMBER, FORGET, SET_PURPOSE];
+  const definitions: ToolDefinition<CoordinationBridge>[] = role === "member" ? [REPORT_STATUS, RAISE_DECISION] : [RAISE_DECISION, REMEMBER, FORGET, SET_PURPOSE, PROPOSE_THREADS];
   return bindTools(bridge, definitions);
 }

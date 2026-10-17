@@ -49,6 +49,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
 
     case "task.set-coordinator": case "task.resolve": case "task.reopen": case "decision.answer": case "coordination.set-thread-model": case "coordination.reported": case "coordination.decision-raised":
     case "memory.set-purpose": case "memory.add": case "memory.edit": case "memory.forget": case "coordination.remembered": case "coordination.next-step":
+    case "coordination.proposed": case "proposal.start": case "proposal.dismiss":
       return reduceCoordination(state, input);
 
     case "view.move-worktree": case "task.set-worktree": case "task.move-worktree": case "task.set-branch": case "task.checkout-branch":

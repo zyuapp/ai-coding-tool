@@ -3,19 +3,25 @@ import { test } from "vitest";
 import { z } from "zod";
 import { coordinationTools } from "../../../src/main/tools/coordination.mts";
 import type { CoordinationBridge } from "../../../src/main/agent/agent-provider.mts";
-import type { MemoryChange } from "../../../src/domain/coordination.js";
+import type { MemoryChange, ProposalRequest } from "../../../src/domain/coordination.js";
 
-type FakeCoordinationBridge = CoordinationBridge & { changes: MemoryChange[] };
+type FakeCoordinationBridge = CoordinationBridge & { changes: MemoryChange[]; proposed: ProposalRequest[][] };
 
 function fakeBridge(answer: (change: MemoryChange) => string = () => "Saved as [n1]. You and every thread you start from now on read it."): FakeCoordinationBridge {
   const changes: MemoryChange[] = [];
+  const proposed: ProposalRequest[][] = [];
   return {
     changes,
+    proposed,
     report: async () => ({ recorded: true, note: "" }),
     decide: async () => ({ recorded: true, note: "" }),
     remember: async (change) => {
       changes.push(change);
       return { note: answer(change) };
+    },
+    propose: async (proposals) => {
+      proposed.push(proposals);
+      return { note: `Suggested ${proposals.length} threads.` };
     },
   };
 }
@@ -65,4 +71,36 @@ test("the tools hold notes and purposes to the limits the window writes them und
   assert.equal(accepts("remember", { text: "x".repeat(500) }), true);
   assert.equal(accepts("set_purpose", { purpose: "x".repeat(201) }), false);
   assert.equal(accepts("set_purpose", { purpose: null }), true);
+});
+
+test("a coordinator's suggestions carry start_thread's fields and a title, with a brief only once it is whole", async () => {
+  const bridge = fakeBridge();
+  const answer = await toolNamed(bridge, "propose_threads").handler({
+    threads: [
+      { title: "Fix the login flake", prompt: "Make the login test pass reliably.", intent: "fix the flaky login test", doneWhen: "it passes 50 runs", delivers: "pull-request", worktree: true, model: "gpt-6-luna", effort: "low", role: "implementer" },
+      { title: "Survey the docs", prompt: "List what the docs miss.", intent: "find gaps in the docs", doneWhen: "a list exists", project: "docs", worktreeId: "wt-1", worktree: true },
+    ],
+  }, {});
+
+  assert.deepEqual(bridge.proposed, [[
+    { title: "Fix the login flake", prompt: "Make the login test pass reliably.", brief: { intent: "fix the flaky login test", doneWhen: "it passes 50 runs", delivers: "pull-request" }, worktree: true, model: "gpt-6-luna", effort: "low", role: "implementer" },
+    { title: "Survey the docs", prompt: "List what the docs miss.", project: "docs", worktreeId: "wt-1" },
+  ]]);
+  assert.equal(textOf(answer), "Suggested 2 threads.");
+});
+
+test("suggestions that cannot be kept come back as an error in their own words, and the tool holds them to the window's limits", async () => {
+  const bridge: CoordinationBridge = { ...fakeBridge(), propose: async () => { throw new Error('Not suggested "Docs": A coordinator hands every thread it starts a brief.'); } };
+  const refused = await toolNamed(bridge, "propose_threads").handler({ threads: [{ title: "Docs", prompt: "Write them." }] }, {});
+  assert.equal(refused.isError, true);
+  assert.equal(textOf(refused), 'Not suggested "Docs": A coordinator hands every thread it starts a brief.');
+
+  const input = z.object(coordinationTools(fakeBridge(), "coordinator").find((tool) => tool.name === "propose_threads")!.input);
+  const item = { title: "Docs", prompt: "Write them." };
+  assert.equal(input.safeParse({ threads: [item] }).success, true);
+  assert.equal(input.safeParse({ threads: [] }).success, false);
+  assert.equal(input.safeParse({ threads: Array.from({ length: 13 }, () => item) }).success, false, "at most 12 wait at once");
+  assert.equal(input.safeParse({ threads: [{ ...item, title: "x".repeat(121) }] }).success, false);
+  assert.equal(input.safeParse({ threads: [{ ...item, model: "haiku" }] }).success, false, "a thread under a coordinator never runs on Haiku");
+  assert.equal(input.safeParse({ threads: [{ prompt: "Write them." }] }).success, false, "every suggestion has a title");
 });

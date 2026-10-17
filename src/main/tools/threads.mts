@@ -39,6 +39,61 @@ const effortFieldOf = (omitted: string) => z.enum(effortIds as [AgentEffort, ...
 );
 const effortField = effortFieldOf("inherit the calling thread's effort when the selected model supports it, otherwise use that engine's default.");
 
+const computerField = z.string().optional().describe('A paired computer to start it on, named by its name or ID, or "this" (the default). There it starts in the project checkout unless worktree or worktreeId says otherwise.');
+
+/** What a start takes beyond the computer it runs on. */
+const NEW_THREAD_INPUT = {
+  prompt: z.string().describe("The first message of the new thread. It has none of this conversation's context, so say everything it needs."),
+  project: z.string().optional().describe("Which project to start it in: its folder name, its path, or its id. Defaults to this thread's project, or on a paired computer the project there at the same path or with the same folder name."),
+  worktree: z.boolean().optional().describe("Run the new thread in its own new git worktree, detached at whatever the project has checked out, so its edits never touch this thread's checkout."),
+  worktreeId: z.string().optional().describe("Start the thread in another worktree that already exists, as list_threads reports it, on the computer it starts on. Omit both worktree fields to share this thread's checkout. Takes precedence over worktree."),
+  model: modelField,
+  effort: effortField,
+  role: roleField,
+  intent: z.string().max(MAX_BRIEF_FIELD).optional().describe("Part of the brief a coordinator must give: the user's own words for this piece of work."),
+  doneWhen: z.string().max(MAX_BRIEF_FIELD).optional().describe("Part of the brief a coordinator must give: what finished looks like, checkably."),
+  delivers: z.enum(DELIVERIES.map((delivery) => delivery.id) as [Delivery, ...Delivery[]]).optional().describe("Part of the brief a coordinator must give: pull-request, commit, or report (knowledge only, no code changes)."),
+};
+
+const START_INPUT = { ...NEW_THREAD_INPUT, computer: computerField };
+
+/** What a start for a thread that will work under a coordinator takes: it runs, unless it names otherwise, on what the coordinator's threads run on. */
+function ledStartInput(whose: string) {
+  return {
+    ...NEW_THREAD_INPUT,
+    model: delegableModelField(`run it on the model ${whose} threads run on.`),
+    effort: effortFieldOf(`run it at the effort ${whose} threads run at, or the nearest one the selected model takes.`),
+  };
+}
+
+/** What a coordinator's start_thread takes, and so each thread it suggests. It starts threads only on its own computer, so it names none. */
+export const COORDINATOR_START_INPUT = ledStartInput("this coordinator's");
+
+type NewThreadArgs = {
+  intent?: string | undefined;
+  doneWhen?: string | undefined;
+  delivers?: Delivery | undefined;
+  project?: string | undefined;
+  worktree?: boolean | undefined;
+  worktreeId?: string | undefined;
+  model?: AgentModel | undefined;
+  effort?: AgentEffort | undefined;
+  role?: ThreadRole | undefined;
+};
+
+/** What a start's arguments ask of the new thread beyond its prompt. A brief counts only once it is whole. */
+export function newThreadFields(args: NewThreadArgs) {
+  const { intent, doneWhen, delivers } = args;
+  return {
+    ...(intent && doneWhen && delivers ? { brief: { intent, doneWhen, delivers } } : {}),
+    ...(args.project ? { project: args.project } : {}),
+    ...(args.worktreeId ? { worktreeId: args.worktreeId } : args.worktree ? { worktree: true } : {}),
+    ...(args.model ? { model: args.model } : {}),
+    ...(args.effort ? { effort: args.effort } : {}),
+    ...(args.role ? { role: args.role } : {}),
+  };
+}
+
 function elapsed(ms: number) {
   const minutes = Math.floor(ms / MINUTE);
   if (minutes < 60) return `${minutes}m`;
@@ -138,32 +193,10 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
   defineTool({
     name: "start_thread",
     description: "Start a new AICodingTool thread on its own prompt and run it. Use when the user asks for separate pieces of work to run side by side, one thread per piece. The new thread runs with the permission policy the app is set to on the computer it runs on, so write a prompt that stands on its own. It starts in this thread's checkout, worktree included. Pass worktree to give it an isolated checkout instead, which is what you want when it edits the same files as this thread.",
-    input: {
-      prompt: z.string().describe("The first message of the new thread. It has none of this conversation's context, so say everything it needs."),
-      computer: z.string().optional().describe('A paired computer to start it on, named by its name or ID, or "this" (the default). There it starts in the project checkout unless worktree or worktreeId says otherwise.'),
-      project: z.string().optional().describe("Which project to start it in: its folder name, its path, or its id. Defaults to this thread's project, or on a paired computer the project there at the same path or with the same folder name."),
-      worktree: z.boolean().optional().describe("Run the new thread in its own new git worktree, detached at whatever the project has checked out, so its edits never touch this thread's checkout."),
-      worktreeId: z.string().optional().describe("Start the thread in another worktree that already exists, as list_threads reports it, on the computer it starts on. Omit both worktree fields to share this thread's checkout. Takes precedence over worktree."),
-      model: modelField,
-      effort: effortField,
-      role: roleField,
-      intent: z.string().max(MAX_BRIEF_FIELD).optional().describe("Part of the brief a coordinator must give: the user's own words for this piece of work."),
-      doneWhen: z.string().max(MAX_BRIEF_FIELD).optional().describe("Part of the brief a coordinator must give: what finished looks like, checkably."),
-      delivers: z.enum(DELIVERIES.map((delivery) => delivery.id) as [Delivery, ...Delivery[]]).optional().describe("Part of the brief a coordinator must give: pull-request, commit, or report (knowledge only, no code changes)."),
-    },
+    input: START_INPUT,
     readOnly: false,
     run: ({ bridge, now }, args) => report(async () => {
-      const { intent, doneWhen, delivers } = args;
-      const { thread, notice } = await bridge.command({
-        type: "task.send",
-        text: args.prompt,
-        ...(intent && doneWhen && delivers ? { brief: { intent, doneWhen, delivers } } : {}),
-        ...(args.project ? { project: args.project } : {}),
-        ...(args.worktreeId ? { worktreeId: args.worktreeId } : args.worktree ? { worktree: true } : {}),
-        ...(args.model ? { model: args.model } : {}),
-        ...(args.effort ? { effort: args.effort } : {}),
-        ...(args.role ? { role: args.role } : {}),
-      }, args.computer);
+      const { thread, notice } = await bridge.command({ type: "task.send", text: args.prompt, ...newThreadFields(args) }, args.computer);
       return thread ? `Started ${describe(thread, now())}` : notice ?? "The thread did not start.";
     }),
   }),
@@ -244,33 +277,17 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
   }),
 ];
 
-/** A start_thread whose new thread runs, unless it names otherwise, on what the coordinator's threads run on. */
-function ledStart(tool: ToolDefinition<ThreadToolContext>, whose: string): ToolDefinition<ThreadToolContext> {
-  return {
-    ...tool,
-    input: {
-      ...tool.input,
-      model: delegableModelField(`run it on the model ${whose} threads run on.`),
-      effort: effortFieldOf(`run it at the effort ${whose} threads run at, or the nearest one the selected model takes.`),
-    },
-  };
-}
-
 /**
  * A coordinator is woken with its threads' news, so it never holds its turn open waiting on one, and
  * it starts threads only on its own computer.
  */
 const COORDINATOR_THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = THREAD_TOOLS
   .filter((tool) => tool.name !== "wait_for_thread")
-  .map((tool) => {
-    if (tool.name !== "start_thread") return tool;
-    const { computer: _elsewhere, ...input } = tool.input;
-    return ledStart({ ...tool, input }, "this coordinator's");
-  });
+  .map((tool) => tool.name === "start_thread" ? { ...tool, input: COORDINATOR_START_INPUT } : tool);
 
 /** A thread one working under a coordinator starts works under that coordinator too. */
 const MEMBER_THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = THREAD_TOOLS
-  .map((tool) => tool.name === "start_thread" ? ledStart(tool, "your coordinator's") : tool);
+  .map((tool) => tool.name === "start_thread" ? { ...tool, input: { ...ledStartInput("your coordinator's"), computer: computerField } } : tool);
 
 export function threadTools(bridge: ThreadBridge, now: () => number = Date.now, role?: CoordinationRole) {
   return bindTools({ bridge, now }, role === "coordinator" ? COORDINATOR_THREAD_TOOLS : role === "member" ? MEMBER_THREAD_TOOLS : THREAD_TOOLS);

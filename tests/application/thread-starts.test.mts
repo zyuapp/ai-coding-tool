@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { BRIEF_REQUIRED, newThreadSend, type NewThreadSend, type NewThreadStart } from "../../src/application/thread-starts.ts";
+import { BRIEF_REQUIRED, newThreadSend, proposalSend, threadProposal, type NewThreadSend, type NewThreadStart } from "../../src/application/thread-starts.ts";
+import { WORKTREE_ELSEWHERE_ERROR, WORKTREE_MISSING_ERROR } from "../../src/application/workspace-reducer/errors.ts";
 import type { PairedComputer } from "../../src/application/computers.ts";
 import type { WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { ThreadBrief } from "../../src/domain/coordination.ts";
 import { COMPUTER_CAPABILITIES } from "../../src/contracts/computer-capabilities.ts";
-import { PROJECT, task, workspace } from "./workspace-reducer-fixtures.mts";
+import { heldWorktree, PROJECT, task, workspace } from "./workspace-reducer-fixtures.mts";
 
 const BRIEF: ThreadBrief = { intent: "fix the login test", doneWhen: "it passes", delivers: "commit" };
 
@@ -84,4 +85,39 @@ test("a thread named onto a paired computer starts there, unless the request nam
   const led = newThreadSend(state, thread(state, "lead"), send({ brief: BRIEF }), linux);
   assert.ok(led.elsewhere, "a coordinator's start elsewhere is that computer's too");
   assert.equal(led.lead?.id, "lead", "and says which coordinator it would work under");
+});
+
+test("a suggestion is checked as its start would be, and kept in the place that start resolves to", () => {
+  const other = { id: "project-b", root: "/other", workspaceId: "workspace-b" };
+  const base = coordinated();
+  const state = { ...base, projects: [PROJECT, other], worktrees: [heldWorktree("wt-lead"), { ...heldWorktree("wt-other"), projectId: other.id }] };
+  const lead = thread(state, "lead");
+  const suggest = (asked: object) => threadProposal(state, lead, { title: " Fix login ", prompt: "Fix it", brief: BRIEF, ...asked }, 5);
+  const kept = (asked: object = {}) => {
+    const made = suggest(asked);
+    assert.ok(!("error" in made), "error" in made ? made.error : "");
+    return made.proposal;
+  };
+
+  const plain = kept();
+  assert.deepEqual({ ...plain, id: "" }, { id: "", title: "Fix login", prompt: "Fix it", brief: BRIEF, place: { project: PROJECT.id, worktreeId: "wt-lead" }, proposedAt: 5 }, "it inherits the coordinator's project and worktree, and names no model of its own");
+  const named = kept({ model: "gpt-6-luna", role: "reviewer" });
+  assert.equal(named.model, "gpt-6-luna");
+  assert.equal(named.role, "reviewer");
+  assert.equal(named.effort, undefined, "an effort the coordinator did not name is left to what its threads run on then");
+  assert.deepEqual(kept({ project: "/other", worktree: true }).place, { project: other.id, worktree: true }, "a project named by its path is kept by its id");
+  assert.deepEqual(kept({ worktree: false }).place, { project: PROJECT.id, worktree: false }, "sharing the project checkout is said, so a start never falls back to the user's draft");
+
+  assert.deepEqual(suggest({ brief: undefined }), { error: BRIEF_REQUIRED });
+  assert.deepEqual(suggest({ model: "haiku" }), { error: "Threads under a coordinator cannot run on the haiku model. Pick another model." });
+  const unknown = suggest({ project: "nowhere" });
+  assert.ok("error" in unknown && /No project matches "nowhere"/.test(unknown.error), "an unknown project comes straight back");
+  assert.deepEqual(suggest({ worktreeId: "wt-gone" }), { error: WORKTREE_MISSING_ERROR });
+  assert.deepEqual(suggest({ project: PROJECT.id, worktreeId: "wt-other" }), { error: WORKTREE_ELSEWHERE_ERROR });
+
+  /** Starting it later asks for exactly what it was suggested with, in the place it was suggested for. */
+  assert.deepEqual(proposalSend(kept({ model: "gpt-6-luna", effort: "low", role: "reviewer" })), {
+    type: "task.send", text: "Fix it", brief: BRIEF, project: PROJECT.id, worktreeId: "wt-lead", model: "gpt-6-luna", effort: "low", role: "reviewer",
+  });
+  assert.deepEqual(started(newThreadSend(state, lead, proposalSend(plain), null)), started(newThreadSend(state, lead, send({ brief: BRIEF }))), "a suggestion starts as the coordinator would have started it");
 });

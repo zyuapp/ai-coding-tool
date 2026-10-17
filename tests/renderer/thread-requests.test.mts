@@ -245,6 +245,48 @@ test("only a coordinator keeps a memory, and its tool answer names the note it s
   await workspace.view.unmount();
 });
 
+test("only a coordinator suggests threads, each checked as its start would be and kept where it would start", async () => {
+  const project = { id: "project-1", root: "/project", workspaceId: "workspace-1" };
+  const worktree = { id: "wt-lead", projectId: project.id, root: "/worktrees/repo-lead", workspaceId: "worktree-lead", baseCommit: "abcdef1", createdAt: 1, lastUsedAt: 1 };
+  const thread = (id: string, overrides: Partial<Thread>): Thread => ({
+    id, title: id, engine: "claude", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, projectId: project.id, ...overrides,
+  });
+  const lead = thread("lead", { role: "coordinator", worktreeId: worktree.id, threadModel: { model: "opus", effort: "high" } });
+  const desktop = fakeDesktop({ loadTaskStore: async () => ({ version: 2, hiddenTasks: 0, projects: [project], worktrees: [worktree], tasks: [lead, thread("solo", {})], lastFolder: project.root }) });
+  const workspace = await mountWorkspace(desktop);
+  await settleFrame();
+  const brief = { intent: "fix it", doneWhen: "it works", delivers: "commit" as const };
+  const propose = async (taskId: string, proposals: Extract<ThreadRequest, { op: "propose" }>["proposals"]) => {
+    await act(async () => {
+      await desktop.askThreads({ type: "thread.request", requestId: crypto.randomUUID(), taskId, op: "propose", proposals });
+    });
+    return item(desktop.threadAnswers.at(-1));
+  };
+  const sent = desktop.sent.length;
+
+  assert.equal(failedThreadResponse(await propose("solo", [{ title: "Docs", prompt: "Write them", brief }])).message, "Only a coordinator suggests threads.");
+  const answer = responseRecord(await propose("lead", [
+    { title: "Fix login", prompt: "Fix the login test", brief },
+    { title: "Light work", prompt: "Tidy up", brief, model: "haiku" },
+    { title: "Docs", prompt: "Write the docs", brief, model: "gpt-6-luna", worktree: true },
+  ]));
+  assert.equal(answer.note, [
+    "Suggested 2 threads. The user starts the ones they want; you hear from each once it ends a turn.",
+    'Not suggested "Light work": Threads under a coordinator cannot run on the haiku model. Pick another model.',
+  ].join("\n"));
+  const proposals = item(workspace.get().threads.find((candidate) => candidate.id === "lead")).proposals ?? [];
+  assert.deepEqual(proposals.map(({ title, place, model }) => ({ title, place, model })), [
+    { title: "Fix login", place: { project: project.id, worktreeId: worktree.id }, model: undefined },
+    { title: "Docs", place: { project: project.id, worktree: true }, model: "gpt-6-luna" },
+  ], "suggestions inherit the coordinator's project and worktree");
+  assert.equal(desktop.sent.length, sent, "nothing starts until the user starts it");
+
+  assert.match(failedThreadResponse(await propose("lead", [{ title: "No brief", prompt: "Do it" }])).message, /^Not suggested "No brief": A coordinator hands every thread it starts a brief/);
+  assert.equal(workspace.get().actionError, null, "a refusal answers the tool, never the user");
+
+  await workspace.view.unmount();
+});
+
 test("a new thread starts in the caller's worktree unless the command places it elsewhere", async () => {
   const project = { id: "project-1", root: "/project", workspaceId: "workspace-1" };
   const worktree = { id: "wt-caller", projectId: project.id, root: "/worktrees/repo-caller", workspaceId: "worktree-caller", baseCommit: "abcdef1", createdAt: 1, lastUsedAt: 1 };

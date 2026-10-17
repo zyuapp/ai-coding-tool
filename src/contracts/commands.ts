@@ -112,6 +112,10 @@ export type TaskCommand =
   | { type: "memory.forget"; taskId: string; noteId: string }
   /** Tells a thread under a coordinator, in the user's own words, to take a next step its card offers. */
   | { type: "coordination.next-step"; taskId: string; step: NextStep }
+  /** Starts a thread a coordinator suggested, as it would have started it, or with no `proposalId` every one it suggested. */
+  | { type: "proposal.start"; taskId: string; proposalId?: string }
+  /** Turns a suggested thread down, or with no `proposalId` every one. The coordinator hears so without being woken. */
+  | { type: "proposal.dismiss"; taskId: string; proposalId?: string }
   /** Takes the dot off a thread, which is the only thing that does. Opening the thread only dims it. */
   | { type: "task.dismiss"; taskId: string }
   | { type: "task.snooze"; taskId: string; hours: SnoozeHours }

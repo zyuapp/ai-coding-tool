@@ -5,19 +5,21 @@ import type { PairedComputer } from "./computers.js";
 import { threadActivity, threadStatus, type ThreadStatus } from "./thread-activity.js";
 import { activitySections, type ActivitySections } from "./thread-order.js";
 import { threadWorkspaceId } from "./thread-location.js";
-import { coordinationDecisions, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, openDecisions, threadModelOf, type CoordinationNote, type CoordinatorMemory, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type ThreadBrief, type ThreadModelChoice } from "../domain/coordination.js";
+import { coordinationDecisions, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, openDecisions, threadModelOf, type CoordinationNote, type CoordinatorMemory, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type ThreadBrief, type ThreadModelChoice, type ThreadProposal } from "../domain/coordination.js";
 import { threadActivityAt, threadCreatedAt, type Thread } from "../domain/thread.js";
 import type { PullRequestAnswer, PullRequestChecks, PullRequestLink, PullRequestRef, PullRequestState } from "../domain/pull-request.js";
 import { wantsAttention } from "../domain/attention.js";
 
 /**
  * What a send carries for a coordinator: the thread it starts works under it with this brief and
- * reads its memory as it stood, or its run delivers these waiting notes.
+ * reads its memory as it stood, and is the suggestion the user started, or its run delivers these
+ * waiting notes.
  */
 export type CoordinationSend = {
   coordinatorId?: string;
   brief?: ThreadBrief;
   memory?: string;
+  proposalId?: string;
   notes?: string[];
 };
 
@@ -26,11 +28,11 @@ export type CoordinationSend = {
  * so one with no coordinator is dropped. The coordinator's memory is read now, so later edits never
  * change what a thread was started with.
  */
-export function coordinationSendOf(state: WorkspaceState, { coordinatorId, brief }: Pick<CoordinationSend, "coordinatorId" | "brief">): { coordination?: CoordinationSend } {
+export function coordinationSendOf(state: WorkspaceState, { coordinatorId, brief, proposalId }: Pick<CoordinationSend, "coordinatorId" | "brief" | "proposalId">): { coordination?: CoordinationSend } {
   if (!coordinatorId) return {};
   const lead = state.threads.find((thread) => thread.id === coordinatorId);
   const memory = lead && isCoordinator(lead) ? memoryPrompt(lead.memory) : "";
-  return { coordination: { coordinatorId, ...(brief ? { brief } : {}), ...(memory ? { memory } : {}) } };
+  return { coordination: { coordinatorId, ...(brief ? { brief } : {}), ...(memory ? { memory } : {}), ...(proposalId ? { proposalId } : {}) } };
 }
 
 /** A coordinator's purpose and notes as a thread it starts reads them, or nothing when it keeps neither. */
@@ -104,11 +106,12 @@ function excerpt(text: string) {
 export function turnNote(thread: Thread, status: "succeeded" | "failed" | "cancelled", at: number): CoordinationNote {
   const ended = status === "succeeded" ? "ended its turn" : status === "failed" ? "failed" : "was stopped";
   const reply = lastReply(thread);
-  return coordinationNote(thread.id, `"${thread.title}" ${ended}.${reply ? ` It last said: ${excerpt(reply)}` : ""}`, at, status === "failed");
+  return coordinationNote(thread.id, `"${thread.title}" ${ended}.${reply ? ` It last said: ${excerpt(reply)}` : ""}`, at, { urgent: status === "failed" });
 }
 
-export function coordinationNote(threadId: string, text: string, at: number, urgent = false, runId?: string): CoordinationNote {
-  return { id: crypto.randomUUID(), threadId, text, at, ...(urgent ? { urgent: true as const } : {}), ...(runId ? { runId } : {}) };
+/** A note for a coordinator about one thread. A quiet one is what the user did, heard with the next wake but never one by itself. */
+export function coordinationNote(threadId: string, text: string, at: number, { urgent = false, runId, quiet = false }: { urgent?: boolean; runId?: string | undefined; quiet?: boolean } = {}): CoordinationNote {
+  return { id: crypto.randomUUID(), threadId, text, at, ...(urgent ? { urgent: true as const } : {}), ...(runId ? { runId } : {}), ...(quiet ? { quiet: true as const } : {}) };
 }
 
 /** A thread working under a coordinator, and the computer that holds it: null for this one. */
@@ -206,17 +209,20 @@ function memoryContext(lead: Thread, fresh: boolean): string[] {
 
 /**
  * What a coordinator's run is told beyond its prompt: its memory when its session has yet to read it,
- * the news it has not heard yet, and where each of its threads stands. Notes the prompt already
+ * the news it has not heard yet, where each of its threads stands, and the threads it suggested that
+ * the user has yet to start, so it never suggests one twice. Notes the prompt already
  * carries are left out. A `fresh` session has read nothing before it.
  */
 export function coordinationContext(state: WorkspaceState, lead: Thread, { carried = [], fresh = false }: { carried?: readonly string[]; fresh?: boolean } = {}): string {
   const notes = (lead.coordinationNotes ?? []).filter((note) => !carried.includes(note.id));
   const lines = roster(state, lead.id);
   const own = openDecisions(lead).map((decision) => `- ${decision.question}`);
+  const suggested = (lead.proposals ?? []).map((proposal) => `- "${proposal.title}" [${proposal.id}]`);
   const sections = [
     ...memoryContext(lead, fresh),
     ...(notes.length ? ["Updates from your threads you have not seen yet:", ...notes.map((note) => `- ${note.text}`)] : []),
     ...(lines.length ? ["Your threads right now:", ...lines] : []),
+    ...(suggested.length ? ["Suggested threads waiting on the user:", ...suggested] : []),
     ...(own.length ? ["Decisions you raised that the user has yet to answer:", ...own] : []),
   ];
   return sections.length ? `\n\n---\n${sections.join("\n")}` : "";
@@ -388,6 +394,9 @@ export type CoordinationApprovalView = {
   approval: ApprovalView;
 };
 
+/** A thread the coordinator suggested, and whether the user's start of it is on its way. */
+export type ProposalView = { proposal: ThreadProposal; starting: boolean };
+
 /** What a coordinator keeps, as its Overview shows it. */
 export type CoordinatorMemoryView = {
   purpose: string | null;
@@ -406,15 +415,19 @@ export type CoordinationView = {
   /** Tool approvals it and its threads are waiting on, answered beside its decisions. */
   approvals: CoordinationApprovalView[];
   decisions: CoordinationDecisionView[];
+  /** Threads it suggested that wait for the user to start or dismiss them. */
+  proposals: readonly ProposalView[];
   lead: Thread | null;
   brief: ThreadBrief | null;
   /** A thread under a coordinator with a decision of its own waiting on the user. */
   asking: boolean;
 };
 
-const NO_COORDINATION: CoordinationView = { threadModel: null, memory: null, members: [], starts: [], approvals: [], decisions: [], lead: null, brief: null, asking: false };
+const NO_COORDINATION: CoordinationView = { threadModel: null, memory: null, members: [], starts: [], approvals: [], decisions: [], proposals: [], lead: null, brief: null, asking: false };
 
 const NO_NOTES: readonly MemoryNote[] = [];
+
+const NO_PROPOSALS: readonly ProposalView[] = [];
 
 /**
  * Where a thread under a coordinator stands, most pressing first: waiting on the user, working,
@@ -443,7 +456,7 @@ export function coordinatedThreadStatus(thread: Thread, busy: Set<string>, block
  * every thread under the coordinator whose view is unchanged, so its row and card draw nothing anew.
  */
 export function coordinationView(
-  state: Pick<WorkspaceState, "threads" | "computers" | "projects" | "worktrees" | "memberPullRequests">,
+  state: Pick<WorkspaceState, "threads" | "computers" | "projects" | "worktrees" | "memberPullRequests" | "startingProposals">,
   thread: Thread | undefined,
   busy: Set<string>,
   blocked: Set<string>,
@@ -466,7 +479,8 @@ export function coordinationView(
     ];
     const decisions = coordinationDecisions(threads, thread.id);
     const memory = { purpose: thread.memory?.purpose ?? null, notes: thread.memory?.notes ?? NO_NOTES };
-    return { ...NO_COORDINATION, threadModel: threadModelOf(thread), memory, members, starts, approvals, decisions, brief: thread.brief ?? null };
+    const proposals = proposalViews(previous?.proposals, thread.proposals ?? [], state.startingProposals);
+    return { ...NO_COORDINATION, threadModel: threadModelOf(thread), memory, members, starts, approvals, decisions, proposals, brief: thread.brief ?? null };
   }
   const lead = coordinatorOf(threads, thread) ?? null;
   /** A thread that left its coordinator with a decision still open is where that decision is answered now. */
@@ -482,6 +496,17 @@ function memberView(state: Pick<WorkspaceState, "projects" | "worktrees" | "memb
   /** The pull request and the start are read off the thread, so the same thread has the same ones. */
   if (held?.thread === member && held.status === status && held.summary === summary && sameItems(held.steps, steps) === held.steps) return held;
   return { thread: member, status, summary, pullRequest: ownPullRequest(member), steps, startedAt: member.brief ? threadCreatedAt(member) : null };
+}
+
+/** Each suggestion's view, the one held before while neither it nor whether it is starting changed. */
+function proposalViews(before: readonly ProposalView[] | undefined, proposals: readonly ThreadProposal[], starting: readonly string[]): readonly ProposalView[] {
+  if (!proposals.length) return NO_PROPOSALS;
+  const held = new Map(before?.map((view) => [view.proposal, view]));
+  return sameItems(before, proposals.map((proposal) => {
+    const view = held.get(proposal);
+    const isStarting = starting.includes(proposal.id);
+    return view && view.starting === isStarting ? view : { proposal, starting: isStarting };
+  }));
 }
 
 /** The list held before when it holds the same items in the same order, else the new one. */

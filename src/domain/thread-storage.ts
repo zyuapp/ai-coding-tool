@@ -7,7 +7,7 @@ import type { Continuation, ExecutionPolicy, Subagent } from "./run.js";
 import type { ContextUsage, ContinuationStatus, ThreadOutcome } from "./thread-run.js";
 import type { Thread } from "./thread.js";
 import { isThreadRole } from "./thread-role.js";
-import { isCoordinationNote, isCoordinationReport, isCoordinatorMemory, isDecision, isThreadBrief, isThreadModelChoice } from "./coordination.js";
+import { isCoordinationNote, isCoordinationReport, isCoordinatorMemory, isDecision, isThreadBrief, isThreadModelChoice, isThreadProposal } from "./coordination.js";
 import { isWorktree, type Worktree } from "./worktree.js";
 import { isLimitPause } from "./usage-limit.js";
 import { isPullRequestLink } from "./pull-request.js";
@@ -379,6 +379,7 @@ function isThreadBase(value: unknown): value is StoredThread {
     (value.coordinationNotes === undefined || Array.isArray(value.coordinationNotes) && value.coordinationNotes.every(isCoordinationNote)) &&
     (value.threadModel === undefined || isThreadModelChoice(value.threadModel)) &&
     (value.memory === undefined || isCoordinatorMemory(value.memory)) &&
+    (value.proposals === undefined || Array.isArray(value.proposals) && value.proposals.every(isThreadProposal)) &&
     (value.projectId === undefined || nonEmptyString(value.projectId)) &&
     isExecutionPolicy(value.executionPolicy) &&
     isAgentEngine(value.engine) &&
@@ -451,6 +452,11 @@ function renamedFields(value: unknown) {
   if (model !== task.model) task = { ...task, model };
   const threadModel = isRecord(task.threadModel) ? currentModel(task.threadModel.model) : undefined;
   if (threadModel !== undefined && threadModel !== task.threadModel.model) task = { ...task, threadModel: { ...task.threadModel, model: threadModel } };
+  if (Array.isArray(task.proposals)) {
+    const before: unknown[] = task.proposals;
+    const proposals = before.map((proposal) => isRecord(proposal) && proposal.model !== undefined && currentModel(proposal.model) !== proposal.model ? { ...proposal, model: currentModel(proposal.model) } : proposal);
+    if (proposals.some((proposal, index) => proposal !== before[index])) task = { ...task, proposals };
+  }
   if (value.silencedKeys !== undefined) {
     const { silencedKeys: handled, ...renamed } = value;
     if (renamed.handledIssues === undefined) renamed.handledIssues = handled;
@@ -508,6 +514,11 @@ const DROPPABLE_FIELDS: Readonly<Record<string, (value: unknown) => boolean>> = 
   pullRequest: isPullRequestLink,
 };
 
+/** Lists a thread can do without, each item checked on its own: one this build cannot read is dropped and the rest kept. */
+const DROPPABLE_ITEMS: Readonly<Record<string, (value: unknown) => boolean>> = {
+  proposals: isThreadProposal,
+};
+
 function withoutUnreadableFields(value: unknown) {
   if (!isRecord(value)) return value;
   let task = value;
@@ -515,6 +526,13 @@ function withoutUnreadableFields(value: unknown) {
     if (task[field] === undefined || readable(task[field])) continue;
     const { [field]: _unreadable, ...rest } = task;
     task = rest;
+  }
+  for (const [field, readable] of Object.entries(DROPPABLE_ITEMS)) {
+    const items = task[field];
+    if (items === undefined || Array.isArray(items) && items.every(readable)) continue;
+    const { [field]: _unreadable, ...rest } = task;
+    const kept = Array.isArray(items) ? items.filter(readable) : [];
+    task = kept.length ? { ...rest, [field]: kept } : rest;
   }
   return task;
 }

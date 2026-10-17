@@ -9,8 +9,9 @@ import { heldByLimit } from "../limit-pauses.js";
 import { announced } from "../notices.js";
 import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
+import { COORDINATED_HERE, newThreadSend, proposalSend } from "../thread-starts.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
-import { canJoinCoordinator, coordinatorOf, isCoordinator, MAX_ANSWER, nextStepOf, openDecisions, threadModelOf, undelegable, withAnswer, withCoordinationNote, withDecision, withMemoryChange, type CoordinationNote, type MemoryChange } from "../../domain/coordination.js";
+import { canJoinCoordinator, coordinatorOf, isCoordinator, MAX_ANSWER, nextStepOf, openDecisions, threadModelOf, undelegable, withAnswer, withCoordinationNote, withDecision, withMemoryChange, withoutProposals, withProposalError, withProposals, type CoordinationNote, type MemoryChange } from "../../domain/coordination.js";
 import { defaultEffortFor, effortForModel, engineForModel, modelDelegable, modelHasEffort, modelTakesEffort } from "../../domain/agent-engine.js";
 import type { Thread } from "../../domain/thread.js";
 import { dismissed } from "../../domain/attention.js";
@@ -18,7 +19,8 @@ import { resumesOnItsOwn } from "../../domain/usage-limit.js";
 
 type CoordinationInput = Extract<WorkspaceInput, {
   type: "task.set-coordinator" | "task.resolve" | "task.reopen" | "decision.answer" | "coordination.set-thread-model" | "coordination.reported" | "coordination.decision-raised"
-    | "memory.set-purpose" | "memory.add" | "memory.edit" | "memory.forget" | "coordination.remembered" | "coordination.next-step";
+    | "memory.set-purpose" | "memory.add" | "memory.edit" | "memory.forget" | "coordination.remembered" | "coordination.next-step"
+    | "coordination.proposed" | "proposal.start" | "proposal.dismiss";
 }>;
 
 const STEP_GONE = "That step is no longer offered.";
@@ -118,6 +120,44 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       return changed.result?.ok === false ? settled(state) : changed;
     }
 
+    /** Suggestions wait for the user, as many as there is room for. Nothing starts until the user starts it. */
+    case "coordination.proposed": {
+      const lead = state.threads.find((item) => item.id === input.taskId);
+      if (!lead || !isCoordinator(lead)) return settled(state);
+      const proposed = withProposals(lead, input.proposals);
+      return proposed === lead ? settled(state) : settled(updateThread(state, lead.id, () => proposed));
+    }
+
+    /**
+     * The user starts a suggestion, or every one not already starting, as its coordinator would have
+     * started it then. One that cannot start keeps its row and says why.
+     */
+    case "proposal.start": {
+      const lead = state.threads.find((item) => item.id === input.taskId);
+      if (!lead || !isCoordinator(lead)) return settled(state);
+      const waiting = (lead.proposals ?? []).filter((proposal) => (input.proposalId === undefined || proposal.id === input.proposalId) && !state.startingProposals.includes(proposal.id));
+      /** Start all is every start in turn; a refusal among them is the one said back. */
+      let transition = settled(state);
+      for (const proposal of waiting) {
+        const started = startProposal(transition.state, lead.id, proposal.id);
+        const result = started.result?.ok === false ? started.result : transition.result;
+        transition = { state: started.state, effects: [...transition.effects, ...started.effects], ...(result ? { result } : {}) };
+      }
+      return transition;
+    }
+
+    /** What the user turned down is gone, and its coordinator hears so with its next wake. One already starting is past turning down. */
+    case "proposal.dismiss": {
+      const lead = state.threads.find((item) => item.id === input.taskId);
+      if (!lead || !isCoordinator(lead)) return settled(state);
+      const declined = (lead.proposals ?? []).filter((proposal) => (input.proposalId === undefined || proposal.id === input.proposalId) && !state.startingProposals.includes(proposal.id));
+      if (!declined.length) return settled(state);
+      const titles = declined.map((proposal) => `"${proposal.title}"`);
+      const text = titles.length === 1 ? `The user declined the suggested thread ${titles[0]}.` : `The user declined the suggested threads ${titles.slice(0, -1).join(", ")} and ${titles.at(-1)}.`;
+      const note = coordinationNote(lead.id, text, now(), { quiet: true });
+      return settled(updateThread(state, lead.id, (item) => withCoordinationNote(withoutProposals(item, new Set(declined.map((proposal) => proposal.id))), note)));
+    }
+
     /**
      * Progress is not news: only a thread that is blocked, done or failed leaves its coordinator a
      * note, which it hears with the rest when the thread's turn ends.
@@ -129,7 +169,7 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       const at = now();
       const reported = updateThread(state, thread.id, (item) => ({ ...item, report: { state: input.state, summary: input.summary, at } }));
       if (input.state === "working") return settled(reported);
-      const note = coordinationNote(thread.id, `"${thread.title}" reported ${input.state}: ${input.summary}`, at, input.state !== "done", state.activeRuns[thread.id]?.runId);
+      const note = coordinationNote(thread.id, `"${thread.title}" reported ${input.state}: ${input.summary}`, at, { urgent: input.state !== "done", runId: state.activeRuns[thread.id]?.runId });
       return settled(updateThread(reported, lead.id, (item) => withCoordinationNote(item, note)));
     }
 
@@ -148,11 +188,47 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       };
       const raised = updateThread(state, thread.id, (item) => withDecision(item, decision));
       if (lead === thread) return settled(raised, announced(raised, lead, `Needs you: ${decision.question}`));
-      const asked = coordinationNote(thread.id, `"${thread.title}" asked the user to decide: ${decision.question}`, at, false, state.activeRuns[thread.id]?.runId);
+      const asked = coordinationNote(thread.id, `"${thread.title}" asked the user to decide: ${decision.question}`, at, { runId: state.activeRuns[thread.id]?.runId });
       const noted = updateThread(raised, lead.id, (item) => withCoordinationNote(item, asked));
       return settled(noted, announced(noted, lead, `Needs you: ${decision.question}`));
     }
   }
+}
+
+/**
+ * One suggestion starting by the same rules as every start, under the coordinator that suggested it.
+ * A refusal, from those rules or from the send itself, is said on the suggestion's row rather than
+ * in the banner, and leaves it there to start again.
+ */
+function startProposal(state: WorkspaceState, leadId: string, proposalId: string): WorkspaceTransition {
+  const retried = withProposalFailure(state, leadId, proposalId, undefined);
+  const lead = retried.threads.find((item) => item.id === leadId)!;
+  const proposal = lead.proposals!.find((item) => item.id === proposalId)!;
+  const start = newThreadSend(retried, lead, proposalSend(proposal), null);
+  if ("error" in start || start.elsewhere) {
+    const message = "error" in start ? start.error : COORDINATED_HERE;
+    return settled(withProposalFailure(retried, leadId, proposalId, message), [], { ok: false, message });
+  }
+  const sent = reduceSending(retried, start.command, { proposalId });
+  if (sent.result?.ok === false) {
+    const kept = { ...sent.state, actionError: state.actionError, actionErrorPage: state.actionErrorPage };
+    return { ...sent, state: withProposalFailure(kept, leadId, proposalId, sent.result.message) };
+  }
+  /** Only a send that set a run on its way has anything left to finish starting. */
+  const going = Object.values(sent.state.pendingRuns).some((pending) => pending.coordination?.proposalId === proposalId);
+  return going ? { ...sent, state: { ...sent.state, startingProposals: [...sent.state.startingProposals, proposalId] } } : sent;
+}
+
+/**
+ * A suggestion's start failing, with why, or a new start clearing that. Either way it is no longer
+ * starting, which only the thread it becomes ends otherwise.
+ */
+export function withProposalFailure(state: WorkspaceState, leadId: string, proposalId: string, error: string | undefined): WorkspaceState {
+  const lead = state.threads.find((item) => item.id === leadId);
+  const marked = lead ? withProposalError(lead, proposalId, error) : lead;
+  const threads = marked === lead ? state.threads : state.threads.map((item) => item === lead ? marked! : item);
+  const startingProposals = state.startingProposals.includes(proposalId) ? state.startingProposals.filter((id) => id !== proposalId) : state.startingProposals;
+  return threads === state.threads && startingProposals === state.startingProposals ? state : { ...state, threads, startingProposals };
 }
 
 /** Only a coordinator keeps a memory; a change that alters nothing writes nothing. */

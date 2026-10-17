@@ -4,7 +4,7 @@ import { threadSummary, threadWaitResult } from "../application/thread-projectio
 import { isWorking } from "../application/thread-activity.js";
 import { listAcrossComputers, namedComputer, online, readAcrossComputers, remoteSummary, resolveThreadRead, tag, type PreparedThreadRequest } from "./thread-reads.js";
 import type { PairedComputer } from "../application/computers.js";
-import { newThreadSend } from "../application/thread-starts.js";
+import { COORDINATED_HERE, newThreadSend, threadProposal } from "../application/thread-starts.js";
 import { findProject, folderName, matchingProjects, projectName, type Project } from "../domain/project.js";
 import type { Thread } from "../domain/thread.js";
 import type { WorktreeDestination } from "../domain/worktree.js";
@@ -17,7 +17,7 @@ import type { AppCommand } from "../contracts/commands.js";
 import type { ExternalCommand, FindingReport, FindingResult, ThreadCommandResult, ThreadRequest, ThreadResponse, ThreadTranscript } from "../contracts/threads.js";
 import { REMOTE_UNSUPPORTED } from "../contracts/computer-capabilities.js";
 import { terminalLineLimit } from "../domain/terminal.js";
-import { coordinatorOf, isCoordinator, withMemoryChange, type CoordinationState, type DecisionRequest, type MemoryChange } from "../domain/coordination.js";
+import { coordinatorOf, isCoordinator, MAX_PROPOSALS, withMemoryChange, type CoordinationState, type DecisionRequest, type MemoryChange, type ProposalRequest, type ThreadProposal } from "../domain/coordination.js";
 import { errorMessage } from "./errors.js";
 import type { RuntimeDesktop } from "./runtime-desktop.js";
 
@@ -140,6 +140,7 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
     if (request.op === "report") return ok(await reportToCoordinator(host, request.taskId, request.state, request.summary));
     if (request.op === "decision") return ok(await raiseDecision(host, request.taskId, request.request));
     if (request.op === "memory") return ok(await rememberFor(host, request.taskId, request.change));
+    if (request.op === "propose") return ok(await proposeThreads(host, request.taskId, request.proposals));
     const { command } = request;
     const before = host.state();
     /** A browser command acts on a tab rather than a thread, so it answers with the panel's own error. */
@@ -226,8 +227,6 @@ function lastReply(transcript: ThreadTranscript): string | null {
 }
 
 const SIGNED_SEND = "command:task.send:sender";
-
-const COORDINATED_HERE = "A coordinator and the threads under it start threads only on their own computer.";
 
 /** How long a thread just started on a paired computer is given to show up in the state that computer publishes. */
 const ARRIVAL_MS = 5_000;
@@ -369,4 +368,37 @@ async function rememberFor(host: ThreadRequestHost, threadId: string, change: Me
   const saved = memory?.notes.find((note) => note.id === tried.noteId);
   if (!saved || saved.text !== change.text.trim()) throw new Error("The note could not be saved. Try again.");
   return { note: `Saved as [${saved.id}]. ${READ_FROM_NOW}` };
+}
+
+const PROPOSALS_FULL = `At most ${MAX_PROPOSALS} suggestions wait at once. Wait for the user to start or dismiss some.`;
+
+/**
+ * A coordinator suggesting threads. Each is checked now as its start would be, so what cannot start
+ * comes straight back, item by item, and only what can waits for the user. Nothing starts here.
+ */
+async function proposeThreads(host: ThreadRequestHost, threadId: string, requests: ProposalRequest[]): Promise<{ note: string }> {
+  const state = host.state();
+  const lead = state.threads.find((item) => item.id === threadId);
+  if (!lead || !isCoordinator(lead)) throw new Error("Only a coordinator suggests threads.");
+  let room = MAX_PROPOSALS - (lead.proposals?.length ?? 0);
+  const accepted: ThreadProposal[] = [];
+  const refused: string[] = [];
+  const at = Date.now();
+  for (const request of requests) {
+    const made = threadProposal(state, lead, request, at);
+    if ("error" in made) refused.push(`Not suggested "${request.title}": ${made.error}`);
+    else if (room <= 0) refused.push(`Not suggested "${request.title}": ${PROPOSALS_FULL}`);
+    else {
+      accepted.push(made.proposal);
+      room -= 1;
+    }
+  }
+  if (accepted.length) await host.dispatch({ type: "coordination.proposed", taskId: threadId, proposals: accepted });
+  /** Read back, since the user may have filled the room meanwhile. */
+  const kept = new Set(host.state().threads.find((item) => item.id === threadId)?.proposals?.map((proposal) => proposal.id));
+  const suggested = accepted.filter((proposal) => kept.has(proposal.id)).length;
+  const lines = [...refused, ...accepted.filter((proposal) => !kept.has(proposal.id)).map((proposal) => `Not suggested "${proposal.title}": ${PROPOSALS_FULL}`)];
+  if (!suggested) throw new Error(lines.join("\n"));
+  const said = `Suggested ${suggested === 1 ? "1 thread" : `${suggested} threads`}. The user starts the ones they want; you hear from each once it ends a turn.`;
+  return { note: [said, ...lines].join("\n") };
 }

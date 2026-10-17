@@ -13,6 +13,7 @@ type Workspace = ReturnType<typeof useTaskWorkspace>;
 /** The composer for the thread on screen, with every command its controls dispatch. */
 export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace; actions: ComposerAction[] }) {
   const thread = workspace.currentThread;
+  const { coordination } = workspace;
   const controls = useCommandControls();
   const compact = controls.available({ type: "run.compact" }) && thread && modelSupportsManualCompaction(thread.engine, workspace.model)
     && thread.continuation?.provider === thread.engine
@@ -53,9 +54,10 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       onQuestionAnswerChange={(question, text) => { if (thread) void workspace.dispatch({ type: "question.set-answer", taskId: thread.id, runId: question.runId, requestId: question.requestId, questionId: question.questionId, text }); }}
       onAnswerQuestion={(question) => { if (thread) void workspace.dispatch({ type: "question.answer", taskId: thread.id, runId: question.runId, requestId: question.requestId, questionId: question.questionId }); }}
       goal={workspace.goal}
-      decisions={(workspace.coordination.approvals.length > 0 || workspace.coordination.decisions.length > 0) && <NeedsYouCard
-        approvals={workspace.coordination.approvals}
-        decisions={workspace.coordination.decisions}
+      decisions={(coordination.approvals.length > 0 || coordination.decisions.length > 0 || coordination.proposals.length > 0) && <NeedsYouCard
+        approvals={coordination.approvals}
+        decisions={coordination.decisions}
+        suggestions={thread && coordination.proposals.length ? { taskId: thread.id, threadModel: coordination.threadModel, proposals: coordination.proposals } : null}
         onDecide={workspace.actions.decideApproval}
         onAnswer={workspace.actions.answerDecision}
         onSelect={workspace.actions.selectThread}

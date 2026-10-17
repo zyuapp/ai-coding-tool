@@ -5,6 +5,7 @@
  */
 import type { Thread } from "./thread.js";
 import type { AgentEffort } from "./run.js";
+import { isThreadRole, type ThreadRole } from "./thread-role.js";
 import { defaultEffortFor, defaultModelFor, effortForModel, engineForModel, isAgentEffort, isAgentModel, modelDelegable, modelTakesEffort, type AgentModel } from "./agent-engine.js";
 
 /** A coordinator's run delegates and changes no files; a thread under one reports back to it. */
@@ -84,6 +85,8 @@ const MAX_NOTES = 50;
 export const MAX_PURPOSE = 200;
 export const MAX_MEMORY_NOTE = 500;
 export const MAX_MEMORY_NOTES = 30;
+export const MAX_PROPOSALS = 12;
+export const MAX_PROPOSAL_TITLE = 120;
 
 /** The groups a coordinator's Overview sorts its threads into, by what each one needs, most pressing first. */
 export type OverviewGroup = "needs" | "review" | "working" | "done" | "resolved";
@@ -128,6 +131,43 @@ export type MemoryChange =
   | { kind: "remember"; text: string }
   | { kind: "edit"; noteId: string; text: string }
   | { kind: "forget"; noteId: string };
+
+/**
+ * A thread a coordinator suggests rather than starts: what start_thread takes, and a short title that
+ * only labels the suggestion.
+ */
+export type ProposalRequest = {
+  title: string;
+  prompt: string;
+  brief?: ThreadBrief;
+  project?: string;
+  worktree?: boolean;
+  worktreeId?: string;
+  model?: AgentModel;
+  effort?: AgentEffort;
+  role?: ThreadRole;
+};
+
+/** Where a suggested thread starts: the project and checkout the coordinator's start resolved to when it was suggested. */
+export type ProposalPlace = { project?: string; worktree?: boolean; worktreeId?: string };
+
+/**
+ * A thread a coordinator suggested, waiting for the user to start or dismiss it. A model and effort
+ * are kept only when the coordinator named them, so a suggestion started later runs on whatever the
+ * coordinator's threads run on by then. `error` says why the user's last start of it failed.
+ */
+export type ThreadProposal = {
+  id: string;
+  title: string;
+  prompt: string;
+  brief: ThreadBrief;
+  place: ProposalPlace;
+  model?: AgentModel;
+  effort?: AgentEffort;
+  role?: ThreadRole;
+  proposedAt: number;
+  error?: string;
+};
 
 /**
  * What the user can tell a thread under a coordinator to do next about its pull request, most
@@ -328,6 +368,32 @@ export function withMemoryUnheard(thread: Thread): Thread {
   return { ...thread, memory };
 }
 
+/** A coordinator with more suggestions waiting, as many as there is room for; the ones already waiting stay first. */
+export function withProposals(lead: Thread, proposals: readonly ThreadProposal[]): Thread {
+  const held = lead.proposals ?? [];
+  const added = proposals.slice(0, Math.max(0, MAX_PROPOSALS - held.length));
+  return added.length ? { ...lead, proposals: [...held, ...added] } : lead;
+}
+
+/** A coordinator with the named suggestions gone, started or dismissed. */
+export function withoutProposals(lead: Thread, ids: ReadonlySet<string>): Thread {
+  const held = lead.proposals ?? [];
+  const rest = held.filter((proposal) => !ids.has(proposal.id));
+  if (rest.length === held.length) return lead;
+  if (rest.length) return { ...lead, proposals: rest };
+  const { proposals: _gone, ...thread } = lead;
+  return thread;
+}
+
+/** A suggestion with why its last start failed, or with that cleared for another try. */
+export function withProposalError(lead: Thread, id: string, error: string | undefined): Thread {
+  const proposal = lead.proposals?.find((item) => item.id === id);
+  if (!proposal || proposal.error === error) return lead;
+  const { error: _cleared, ...rest } = proposal;
+  const marked: ThreadProposal = error === undefined ? rest : { ...rest, error };
+  return { ...lead, proposals: lead.proposals!.map((item) => item === proposal ? marked : item) };
+}
+
 export function withCoordinationNote(lead: Thread, note: CoordinationNote): Thread {
   return { ...lead, coordinationNotes: [...lead.coordinationNotes ?? [], note].slice(-MAX_NOTES) };
 }
@@ -397,6 +463,40 @@ export function isMemoryChange(value: unknown): value is MemoryChange {
     case "forget": return text(value.noteId, 200);
     default: return false;
   }
+}
+
+function optionalText(value: unknown, max: number): boolean {
+  return value === undefined || text(value, max);
+}
+
+/** A suggestion as it arrives from a run, held to the limits a new one is written under. */
+export function isProposalRequest(value: unknown): value is ProposalRequest {
+  return isRecord(value) && text(value.title, MAX_PROPOSAL_TITLE) && typeof value.prompt === "string" && value.prompt.trim().length > 0
+    && (value.brief === undefined || isThreadBrief(value.brief))
+    && optionalText(value.project, 4_096)
+    && (value.worktree === undefined || typeof value.worktree === "boolean")
+    && optionalText(value.worktreeId, 200)
+    && (value.model === undefined || isAgentModel(value.model))
+    && (value.effort === undefined || isAgentEffort(value.effort))
+    && (value.role === undefined || isThreadRole(value.role));
+}
+
+function isProposalPlace(value: unknown): value is ProposalPlace {
+  return isRecord(value)
+    && (value.project === undefined || typeof value.project === "string")
+    && (value.worktree === undefined || typeof value.worktree === "boolean")
+    && (value.worktreeId === undefined || typeof value.worktreeId === "string");
+}
+
+/** Shape only, so a suggestion written under a longer limit still loads. */
+export function isThreadProposal(value: unknown): value is ThreadProposal {
+  return isRecord(value) && text(value.id, 200) && typeof value.title === "string" && typeof value.prompt === "string"
+    && isThreadBrief(value.brief) && isProposalPlace(value.place)
+    && (value.model === undefined || isAgentModel(value.model))
+    && (value.effort === undefined || isAgentEffort(value.effort))
+    && (value.role === undefined || isThreadRole(value.role))
+    && finite(value.proposedAt)
+    && (value.error === undefined || typeof value.error === "string");
 }
 
 export function isCoordinationReport(value: unknown): value is CoordinationReport {

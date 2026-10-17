@@ -1,6 +1,6 @@
 /** A run's life: the checkout it resolves to, what it reports, and how it ends. */
 import { ack } from "./automations.js";
-import { noteTurnEnded } from "./coordination.js";
+import { noteTurnEnded, withProposalFailure } from "./coordination.js";
 import { readDiffFrom, rereadReviewsOf } from "./diff-reads.js";
 import { handOverDraftDock } from "./dock-tabs.js";
 import { WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
@@ -26,8 +26,8 @@ import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
 import { createConversationMessage, createSentMessage } from "../../domain/conversation.js";
 import { appendMessages } from "../../domain/conversation-updates.js";
 import { pausedForLimit } from "../limit-pauses.js";
-import { asCoordinator, canJoinCoordinator, coordinatorOf, isCoordinator, withMemoryHeard, withoutCoordinationNotes } from "../../domain/coordination.js";
-import { briefPrompt, coordinationContext } from "../coordination.js";
+import { asCoordinator, canJoinCoordinator, coordinatorOf, isCoordinator, withCoordinationNote, withMemoryHeard, withoutCoordinationNotes, withoutProposals } from "../../domain/coordination.js";
+import { briefPrompt, coordinationContext, coordinationNote } from "../coordination.js";
 import type { Thread } from "../../domain/thread.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
 
@@ -68,6 +68,11 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       if (!pending) return settled(state);
       const next = withoutPending(state, input.pendingId);
       if (pending.origin === "automation") return settled(next, ack(pending, false));
+      /** A suggestion that could not start says so on its row, ready to start again. */
+      const proposalId = pending.coordination?.proposalId;
+      if (proposalId && pending.coordination?.coordinatorId) {
+        return settled(withProposalFailure(next, pending.coordination.coordinatorId, proposalId, input.message), [], { ok: false, message: input.message });
+      }
       /** A side chat lives in the dock, so its failure belongs there and not in the main thread's banner. */
       if (pending.taskId && next.sideChats.some((chat) => chat.id === pending.taskId)) {
         return settled(withSideChat(next, pending.taskId, (chat) => ({ ...chat, error: input.message })), [], { ok: false, message: input.message });
@@ -339,12 +344,16 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   /** A thread starting under a coordinator reads the brief it was handed and the memory it was started with. */
   const standing = joining ? briefPrompt(pending.coordination?.brief, pending.coordination?.memory) : briefPrompt(pending.coordination?.brief);
   const prompt = `${pending.prompt}${standing ? `\n\n${standing}` : ""}${context}`;
-  const threads = existing ? state.threads.map((item) => item.id === thread.id ? updated : item) : [updated, ...state.threads];
+  const listed = existing ? state.threads.map((item) => item.id === thread.id ? updated : item) : [updated, ...state.threads];
+  /** A suggestion the user started is this thread now, which its coordinator hears without being woken by it. */
+  const proposalId = existing ? undefined : pending.coordination?.proposalId;
+  const threads = proposalId && lead ? listed.map((item) => item.id === lead.id ? withSuggestionStarted(item, proposalId, updated) : item) : listed;
+  const startingProposals = proposalId ? state.startingProposals.filter((id) => id !== proposalId) : state.startingProposals;
   /** Only a thread the user's own send just created needs looking at; anything else leaves them where they are. */
   const focusing = !existing && pending.draftKey !== undefined;
   const spent = existing ? {} : { draftBranch: null, draftWorktree: false, draftWorktreeId: null, ...(pending.draftKey === undefined ? {} : { draftRole: null }) };
   const owning = withUsedWorktree(focusing ? handOverDraftDock(state, thread.id) : state, created, arriving?.id);
-  const started = beginRun({ ...owning, threads, ...spent, ...(focusing ? { currentId: thread.id } : {}) }, thread.id, pending.runId, ATTENDED_RUN, undefined, pending.warming === true);
+  const started = beginRun({ ...owning, threads, startingProposals, ...spent, ...(focusing ? { currentId: thread.id } : {}) }, thread.id, pending.runId, ATTENDED_RUN, undefined, pending.warming === true);
   const drained = pending.queuedIds
     ? withQueued(started, thread.id, queuedFor(started, thread.id).filter((message) => !pending.queuedIds!.includes(message.id)))
     : started;
@@ -365,6 +374,14 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     [{ type: "start-run", command }, ...titling, ...followUps(reviewing.effects)],
     { ok: true, taskId: thread.id },
   );
+}
+
+/** A coordinator whose suggestion became `thread`, told so quietly. */
+function withSuggestionStarted(lead: Thread, proposalId: string, thread: Thread): Thread {
+  const proposal = lead.proposals?.find((item) => item.id === proposalId);
+  const settledLead = withoutProposals(lead, new Set([proposalId]));
+  if (!proposal || !isCoordinator(lead)) return settledLead;
+  return withCoordinationNote(settledLead, coordinationNote(thread.id, `The user started your suggested thread "${proposal.title}" [${thread.id}].`, now(), { quiet: true }));
 }
 
 /** A thread picked back up after its usage limit lifted: nobody wrote to it, so it is told to carry on. */

@@ -84,7 +84,8 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
   const reviewedEnvironment = reviewed ? reviewed.environment : workspace.environment;
   const reviewedWorkspaceId = reviewed ? reviewed.workspaceId : workspace.workspaceId;
 
-  const needsYou = overviewGroups(workspace.coordination.members).needs.length;
+  /** What waits on the user here: the threads that need them, and the threads it suggested for them to start. */
+  const needsYou = overviewGroups(workspace.coordination.members).needs.length + workspace.coordination.proposals.length;
   const lead = isCoordinator(workspace.currentThread) ? workspace.currentThread : undefined;
   const { threadModel, memory } = workspace.coordination;
 

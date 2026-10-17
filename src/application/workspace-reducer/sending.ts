@@ -15,7 +15,7 @@ import { findProject } from "../../domain/project.js";
 import { expandThreadHandles } from "../../domain/thread-handles.js";
 import { withoutSnooze } from "../../domain/thread-snooze.js";
 import { updateThread } from "../thread-run-state.js";
-import { coordinationSendOf, senderPrompt } from "../coordination.js";
+import { coordinationSendOf, senderPrompt, type CoordinationSend } from "../coordination.js";
 import { originFields, type MessageOrigin } from "../../domain/message-origin.js";
 import { heldByLimit, nudged } from "../limit-pauses.js";
 
@@ -23,7 +23,11 @@ type SendInput = Extract<WorkspaceInput, {
   type: "task.send" | "question.answer" | "question.set-answer" | "task.steer-queued" | "task.drop-queued" | "task.edit-queued";
 }>;
 
-export function reduceSending(state: WorkspaceState, input: SendInput): WorkspaceTransition {
+/**
+ * `coordination` is what the reducer itself adds to a send that starts a thread, never a field of the
+ * command: which suggestion the thread is, when the user started one.
+ */
+export function reduceSending(state: WorkspaceState, input: SendInput, coordination: Pick<CoordinationSend, "proposalId"> = {}): WorkspaceTransition {
   switch (input.type) {
     case "question.set-answer":
     case "question.answer": {
@@ -122,7 +126,7 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
         ...(thread || input.model === undefined ? {} : { model: input.model }),
         ...(thread || input.effort === undefined ? {} : { effort: input.effort }),
         ...(role ? { role } : {}),
-        ...(thread ? {} : coordinationSendOf(state, input)),
+        ...(thread ? {} : coordinationSendOf(state, { ...input, ...coordination })),
         ...(draftKey === undefined ? {} : { draftKey }),
         text,
         prompt: signed,

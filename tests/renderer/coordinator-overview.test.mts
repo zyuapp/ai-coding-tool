@@ -235,3 +235,17 @@ test("the Overview's purpose line and memory rows edit what the coordinator keep
   assert.equal(add.value, "", "once saved, the row is empty for the next");
   await mounted.unmount();
 });
+
+test("the Overview's badge counts the threads that need the user and the threads the coordinator suggested", () => {
+  const brief = { intent: "fix it", doneWhen: "it works", delivers: "commit" as const };
+  const lead: Thread = {
+    ...member("lead", "Plan"), parentId: undefined, role: "coordinator",
+    proposals: [{ id: "p1", title: "Docs", prompt: "Write them", brief, place: { worktree: false }, proposedAt: 1 }, { id: "p2", title: "Tests", prompt: "Add them", brief, place: { worktree: false }, proposedAt: 2 }],
+  };
+  const asking = { ...member("b", "Login flake"), decisions: [{ id: "d1", question: "Retry or skip?", options: [], raisedAt: 1 }] };
+  const view = deriveView({ ...emptyWorkspaceState(), threads: [lead, asking], currentId: lead.id });
+  const dispatch = async () => {};
+  const workspace = { ...view, threadHandles: [], threadHandlesFor: () => [], commandControls: { available: () => true, dispatch() {} }, dispatch, actions: workspaceActions(dispatch) } as never;
+  const dock = buildDock({ workspace, inspectedSubagent: undefined, workingSubagents: 0, unreviewedFiles: 0, onInspectSubagent() {}, onCloseInspector() {}, onOpenPanel() {}, onAddSideChat() {} });
+  assert.equal(required(dock.panels.find((item) => item.id === OVERVIEW_PANEL)).badge, 3);
+});

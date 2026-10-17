@@ -1,8 +1,8 @@
 /** The guards a thread tool request has to pass on its way from the agent process to the window. */
-import { isBlankable, isBrowserRead, isCount, isString, isTerminalRead, MAX_THREAD_WAIT_MS } from "./ipc.js";
+import { isBlankable, isBrowserRead, isCount, isString, isTerminalRead, MAX_PROMPT_LENGTH, MAX_THREAD_WAIT_MS } from "./ipc.js";
 import { isExternalCommand } from "./workspace-view-input.js";
 import type { FindingReport, ThreadRequest } from "./threads.js";
-import { isCoordinationState, isDecisionRequest, isMemoryChange, MAX_SUMMARY } from "../domain/coordination.js";
+import { isCoordinationState, isDecisionRequest, isMemoryChange, isProposalRequest, MAX_PROPOSALS, MAX_SUMMARY } from "../domain/coordination.js";
 import { MAX_DETAIL, MAX_FINDING_KEY, MAX_HEADLINE } from "../domain/finding.js";
 
 export function isThreadRequest(value: unknown): value is ThreadRequest {
@@ -28,6 +28,10 @@ export function isThreadRequest(value: unknown): value is ThreadRequest {
   if (request.op === "report") return isCoordinationState(request.state) && isString(request.summary, MAX_SUMMARY);
   if (request.op === "decision") return isDecisionRequest(request.request);
   if (request.op === "memory") return isMemoryChange(request.change) && request.change.kind !== "edit";
+  if (request.op === "propose") {
+    return Array.isArray(request.proposals) && request.proposals.length > 0 && request.proposals.length <= MAX_PROPOSALS
+      && request.proposals.every((proposal) => isProposalRequest(proposal) && isString(proposal.prompt, MAX_PROMPT_LENGTH));
+  }
   return false;
 }
 

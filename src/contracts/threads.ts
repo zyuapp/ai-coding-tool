@@ -4,7 +4,7 @@ import type { BrowserInspection, BrowserInspectionResult, BrowserShot, BrowserSn
 import type { ConversationMessageKind } from "../domain/conversation.js";
 import type { TerminalSession, TerminalSnapshot } from "../domain/terminal.js";
 import type { ThreadRole } from "../domain/thread-role.js";
-import type { CoordinationState, DecisionRequest, MemoryChange } from "../domain/coordination.js";
+import type { CoordinationState, DecisionRequest, MemoryChange, ProposalRequest } from "../domain/coordination.js";
 
 export type TaskMessageKind = ConversationMessageKind;
 
@@ -144,6 +144,8 @@ export type ThreadRequest = {
   | { op: "decision"; request: DecisionRequest }
   /** A coordinator remembering, forgetting, or setting its purpose. Editing a note in place is the user's alone. */
   | { op: "memory"; change: Exclude<MemoryChange, { kind: "edit" }> }
+  /** A coordinator suggesting threads for the user to start. */
+  | { op: "propose"; proposals: ProposalRequest[] }
 );
 
 /** What a scheduled run says it found. The window keeps it; the run only reports it. */

@@ -262,6 +262,8 @@ const commands = {
   "memory.edit": { fields: { taskId: text, noteId: text, text }, at: "thread" },
   "memory.forget": { fields: { taskId: text, noteId: text }, at: "thread" },
   "coordination.next-step": { fields: { taskId: text, step: isNextStep }, at: "thread" },
+  "proposal.start": { fields: { taskId: text, proposalId: optionalText }, at: "thread" },
+  "proposal.dismiss": { fields: { taskId: text, proposalId: optionalText }, at: "thread" },
   "task.dismiss": { fields: { taskId: text }, at: "thread" },
   "task.snooze": { fields: { taskId: text, hours: isSnoozeHours }, at: "thread" },
   "task.unsnooze": { fields: { taskId: text }, at: "thread" },

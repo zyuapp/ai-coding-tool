@@ -75,11 +75,11 @@ function createViewCollections() {
   const coordinators = selector((state) => [threadLists(state).listedThreads], (state) => threadLists(state).listedThreads.filter((thread) => isCoordinator(thread)));
 
   /**
-   * What the open thread shows: a coordinator's threads and open decisions, or a thread's coordinator
-   * and brief. Each of a coordinator's threads keeps its view object while nothing it shows moves.
+   * What the open thread shows: a coordinator's threads, open decisions and suggestions, or a thread's
+   * coordinator and brief. Each of a coordinator's threads keeps its view object while nothing it shows moves.
    */
   const coordination = selector<CoordinationView>(
-    (state) => [state.threads, state.currentId, state.computers.paired, busy(state), blocked(state), state.activeRuns, state.approvals, state.projects, state.worktrees, state.memberPullRequests],
+    (state) => [state.threads, state.currentId, state.computers.paired, busy(state), blocked(state), state.activeRuns, state.approvals, state.projects, state.worktrees, state.memberPullRequests, state.startingProposals],
     (state, previous) => coordinationView(state, state.threads.find((thread) => thread.id === state.currentId), busy(state), blocked(state), (threadId) => {
       const run = state.activeRuns[threadId];
       return run?.status === "awaiting-approval" ? state.approvals[run.runId] : undefined;

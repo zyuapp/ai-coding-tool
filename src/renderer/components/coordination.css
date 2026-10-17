@@ -101,6 +101,25 @@
 .decision-foot button.secondary { background: transparent; color: var(--ink-dim); font-weight: 500; }
 .decision-foot button:disabled { opacity: 0.4; cursor: default; }
 .decision-foot-gap { flex: 1; }
+/** A coordinator's suggested threads: one row each, started by its round arrow, dismissed by the ✕ that shows on hover. */
+.suggestion-list { margin: 0; padding: 0 8px 8px; list-style: none; }
+.suggestion-row { display: flex; align-items: center; gap: 6px; min-width: 0; border-radius: 9px; padding: 5px 6px 5px 8px; }
+.suggestion-row:hover, .suggestion-row:focus-within { background: var(--surface-hover); }
+.suggestion-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.suggestion-text strong { color: var(--ink); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.suggestion-text small { color: var(--muted); font-size: var(--text-meta); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.suggestion-text .suggestion-error { color: var(--danger-soft); white-space: normal; }
+.suggestion-row.starting .suggestion-text { opacity: 0.7; }
+.suggestion-chip { flex: none; border-radius: 5px; padding: 0 6px; background: var(--wash); color: var(--quiet-strong); font-size: var(--text-badge); line-height: 18px; white-space: nowrap; }
+.suggestion-dismiss, .suggestion-start { flex: none; display: grid; place-items: center; padding: 0; cursor: pointer; }
+.suggestion-dismiss { width: 22px; height: 22px; border: 0; border-radius: 7px; background: transparent; color: var(--quiet-strong); opacity: 0; transition: opacity 0.15s ease; }
+.suggestion-row:hover .suggestion-dismiss, .suggestion-dismiss:focus-visible { opacity: 1; }
+.suggestion-dismiss:hover:not(:disabled) { background: var(--danger-chip); color: var(--danger); }
+button.suggestion-start { width: 26px; height: 26px; border: 0; border-radius: 50%; background: var(--surface-inverse); color: var(--ink-inverse); }
+button.suggestion-start:hover:not(:disabled) { opacity: 0.85; }
+button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
+.suggestion-dismiss:disabled { cursor: default; }
+.suggestion-start.task-spinner { width: 14px; height: 14px; margin: 0 6px; }
 .decision-command, .decision-tool pre {
   margin: 6px 14px 10px;
   border: 1px solid var(--line-soft);

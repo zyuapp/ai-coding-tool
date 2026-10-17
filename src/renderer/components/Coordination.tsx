@@ -1,11 +1,11 @@
 import { createContext, memo, useContext, useId, useRef, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent } from "react";
-import { LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuChevronDown as ChevronDown, LuChevronUp as ChevronUp, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuRotateCcw as Reopen, LuTrash2 as Trash, LuX as X } from "react-icons/lu";
+import { LuArrowUp as ArrowUp, LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuChevronDown as ChevronDown, LuChevronUp as ChevronUp, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuRotateCcw as Reopen, LuTrash2 as Trash, LuX as X } from "react-icons/lu";
 import { deliveryLabel, MAX_MEMORY_NOTE, MAX_PURPOSE, nextStepOf, OVERVIEW_GROUPS, type MemoryNote, type OverviewFold, type OverviewFolds, type OverviewGroup, type OverviewSection, type ThreadBrief, type ThreadModelChoice } from "../../domain/coordination";
-import { engineForModel, modelDelegable, type AgentEngine, type AgentModel, type EngineReadiness } from "../../domain/agent-engine";
+import { engineForModel, modelDelegable, modelsFor, type AgentEngine, type AgentModel, type EngineReadiness } from "../../domain/agent-engine";
 import type { AgentEffort } from "../../domain/run";
 import type { Thread } from "../../domain/thread";
 import { worktreeHue, worktreeName, type Worktree } from "../../domain/worktree";
-import { canResolve, overviewGroups, pullRequestLine, type CoordinationApprovalView, type CoordinationDecisionView, type CoordinatedThreadStatus, type CoordinatedThreadView, type CoordinatorMemoryView } from "../../application/coordination";
+import { canResolve, overviewGroups, pullRequestLine, type CoordinationApprovalView, type CoordinationDecisionView, type CoordinatedThreadStatus, type CoordinatedThreadView, type CoordinatorMemoryView, type ProposalView } from "../../application/coordination";
 import type { ApprovalView } from "../../application/thread-run-state";
 import type { WorktreeGroup } from "../../application/workspace-state";
 import type { MemberWorktree } from "../../application/member-worktrees";
@@ -481,16 +481,29 @@ export function CoordinationBar({ lead, brief, asking, onSelect }: { lead: Threa
   );
 }
 
+/** The threads a coordinator suggested, with what its threads run on so a suggestion naming another model can say so. */
+export type SuggestionsProps = {
+  taskId: string;
+  threadModel: ThreadModelChoice | null;
+  proposals: readonly ProposalView[];
+};
+
+/** One page of the card. Every kind of thing that waits on the user is a page of its own. */
 type NeedsYouItem =
   | { kind: "approval"; view: CoordinationApprovalView }
-  | { kind: "decision"; view: CoordinationDecisionView };
+  | { kind: "decision"; view: CoordinationDecisionView }
+  | { kind: "suggestions"; suggestions: SuggestionsProps };
 
 type Pager = { index: number; count: number } | null;
 
-/** Every approval and decision waiting on the user from a coordinator's threads, answered one at a time. */
-export function NeedsYouCard({ approvals, decisions, onDecide, onAnswer, onSelect }: {
+/**
+ * Everything waiting on the user from a coordinator and its threads, one page at a time: approvals,
+ * decisions, then the threads it suggested.
+ */
+export function NeedsYouCard({ approvals, decisions, suggestions = null, onDecide, onAnswer, onSelect }: {
   approvals: CoordinationApprovalView[];
   decisions: CoordinationDecisionView[];
+  suggestions?: SuggestionsProps | null;
   onDecide: (approval: Pick<ApprovalView, "taskId" | "runId" | "approvalId">, allow: boolean) => void;
   onAnswer: (threadId: string, decisionId: string, answer: string) => void;
   onSelect: (threadId: string) => void;
@@ -499,15 +512,18 @@ export function NeedsYouCard({ approvals, decisions, onDecide, onAnswer, onSelec
   const items: NeedsYouItem[] = [
     ...approvals.map((view) => ({ kind: "approval" as const, view })),
     ...decisions.map((view) => ({ kind: "decision" as const, view })),
+    ...(suggestions?.proposals.length ? [{ kind: "suggestions" as const, suggestions }] : []),
   ];
   const shown = Math.min(index, items.length - 1);
   const current = items[shown];
   if (!current) return null;
   const position = items.length > 1 ? { index: shown, count: items.length } : null;
   const onStep = (delta: 1 | -1) => setIndex((shown + delta + items.length) % items.length);
-  return current.kind === "approval"
-    ? <ApprovalForm key={current.view.approval.approvalId} view={current.view} position={position} onStep={onStep} onDecide={onDecide} onSelect={onSelect} />
-    : <DecisionForm
+  switch (current.kind) {
+    case "approval":
+      return <ApprovalForm key={current.view.approval.approvalId} view={current.view} position={position} onStep={onStep} onDecide={onDecide} onSelect={onSelect} />;
+    case "decision":
+      return <DecisionForm
         key={current.view.decision.id}
         view={current.view}
         position={position}
@@ -515,6 +531,9 @@ export function NeedsYouCard({ approvals, decisions, onDecide, onAnswer, onSelec
         onAnswer={(answer) => onAnswer(current.view.thread.id, current.view.decision.id, answer)}
         onSelect={onSelect}
       />;
+    case "suggestions":
+      return <SuggestionsForm suggestions={current.suggestions} position={position} onStep={onStep} />;
+  }
 }
 
 function NeedsYouHead({ thread, position, onStep, onSelect }: { thread: Thread; position: Pager; onStep: (delta: 1 | -1) => void; onSelect: (threadId: string) => void }) {
@@ -522,12 +541,78 @@ function NeedsYouHead({ thread, position, onStep, onSelect }: { thread: Thread; 
     <div className="decision-head">
       <strong>Needs you</strong>
       <button type="button" className="decision-from" onClick={() => onSelect(thread.id)}>{thread.title}</button>
-      {position && <span className="decision-pager">
-        <span>{position.index + 1} of {position.count}</span>
-        <button type="button" aria-label="Previous" onClick={() => onStep(-1)}><ChevronUp size={14} aria-hidden="true" /></button>
-        <button type="button" aria-label="Next" onClick={() => onStep(1)}><ChevronDown size={14} aria-hidden="true" /></button>
-      </span>}
+      <PagerControls position={position} onStep={onStep} />
     </div>
+  );
+}
+
+function PagerControls({ position, onStep }: { position: Pager; onStep: (delta: 1 | -1) => void }) {
+  if (!position) return null;
+  return (
+    <span className="decision-pager">
+      <span>{position.index + 1} of {position.count}</span>
+      <button type="button" aria-label="Previous" onClick={() => onStep(-1)}><ChevronUp size={14} aria-hidden="true" /></button>
+      <button type="button" aria-label="Next" onClick={() => onStep(1)}><ChevronDown size={14} aria-hidden="true" /></button>
+    </span>
+  );
+}
+
+/** The threads a coordinator suggested, each started or dismissed on its own row, or all at once. */
+function SuggestionsForm({ suggestions, position, onStep }: { suggestions: SuggestionsProps; position: Pager; onStep: (delta: 1 | -1) => void }) {
+  const { taskId, threadModel, proposals } = suggestions;
+  const waiting = proposals.some(({ starting }) => !starting);
+  return (
+    <section className="decision-card" aria-label="Suggested threads">
+      <div className="decision-head">
+        <strong>Suggested threads</strong>
+        <PagerControls position={position} onStep={onStep} />
+      </div>
+      <ul className="decision-body suggestion-list">
+        {proposals.map((view) => <SuggestionRow key={view.proposal.id} taskId={taskId} threadModel={threadModel} view={view} />)}
+      </ul>
+      <div className="decision-foot">
+        {position && <button type="button" className="secondary" onClick={() => onStep(1)}>Later</button>}
+        <span className="decision-foot-gap" />
+        <CommandButton type="button" className="secondary" command={{ type: "proposal.dismiss", taskId }} disabled={!waiting}>Dismiss all</CommandButton>
+        <CommandButton type="button" command={{ type: "proposal.start", taskId }} disabled={!waiting}>Start all</CommandButton>
+      </div>
+    </section>
+  );
+}
+
+function modelName(model: AgentModel): string {
+  return modelsFor(engineForModel(model)).find((spec) => spec.id === model)?.label ?? model;
+}
+
+/** One suggestion: what it is for, and anything about where or on what it runs that differs from the rest. */
+function SuggestionRow({ taskId, threadModel, view }: { taskId: string; threadModel: ThreadModelChoice | null; view: ProposalView }) {
+  const { proposal, starting } = view;
+  const model = proposal.model && proposal.model !== threadModel?.model ? proposal.model : null;
+  const worktree = proposal.place.worktree === true || proposal.place.worktreeId !== undefined;
+  return (
+    <li className={`suggestion-row${starting ? " starting" : ""}`}>
+      <span className="suggestion-text">
+        <strong>{proposal.title}</strong>
+        <small title={proposal.brief.intent}>{proposal.brief.intent}</small>
+        {proposal.error && !starting && <small className="suggestion-error" role="alert">{proposal.error}</small>}
+      </span>
+      {model && <span className="suggestion-chip">{modelName(model)}</span>}
+      {worktree && <span className="suggestion-chip">Worktree</span>}
+      {!starting && <CommandButton
+        type="button"
+        className="suggestion-dismiss"
+        aria-label={`Dismiss ${proposal.title}`}
+        title="Dismiss"
+        command={{ type: "proposal.dismiss", taskId, proposalId: proposal.id }}
+      >
+        <X size={12} aria-hidden="true" />
+      </CommandButton>}
+      {starting
+        ? <span className="suggestion-start task-spinner" role="status" aria-label={`Starting ${proposal.title}`} />
+        : <CommandButton type="button" className="suggestion-start" aria-label={`Start ${proposal.title}`} title="Start" command={{ type: "proposal.start", taskId, proposalId: proposal.id }}>
+            <ArrowUp size={14} aria-hidden="true" />
+          </CommandButton>}
+    </li>
   );
 }
 
