@@ -160,10 +160,9 @@ function SuggestionRow({ taskId, threadModel, view }: { taskId: string; threadMo
  */
 function ElsewhereForm({ taskId, request, position, onStep }: { taskId: string; request: ElsewhereRequest; position: Pager; onStep: (delta: 1 | -1) => void }) {
   const { proposal, starting, elsewhere } = request;
-  const { computer, projects } = elsewhere;
-  const [project, setProject] = useState(() => proposal.place.project ?? projects[0]?.id ?? "");
+  const { computer, projects, refusal } = elsewhere;
+  const [project, setProject] = useState(() => elsewhere.project ?? "");
   const [worktree, setWorktree] = useState(proposal.place.worktree === true);
-  const refusal = elsewhere.refusal ?? (projects.some((item) => item.id === project) ? null : `That folder is no longer on ${computer.name}.`);
   return (
     <section className="decision-card elsewhere-card" aria-label={`Run on ${computer.name}?`}>
       <div className="decision-head">

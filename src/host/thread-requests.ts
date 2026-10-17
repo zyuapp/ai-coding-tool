@@ -276,7 +276,8 @@ async function proposeElsewhere(host: ThreadRequestHost, caller: Thread, lead: T
   const kept = host.state().threads.find((item) => item.id === lead.id)?.proposals?.some((proposal) => proposal.id === made.proposal.id);
   if (!kept) throw new Error(PROPOSALS_FULL);
   const folder = computer.state?.projects.find((project) => project.id === made.proposal.place.project)?.root ?? "its project";
-  return { thread: null, notice: `Waiting for the user to allow it on ${computer.name} in ${folder}. You hear once it starts and when it ends a turn.` };
+  const news = caller.id === lead.id ? "You hear once it starts and when it ends a turn." : "Your coordinator hears once it starts.";
+  return { thread: null, notice: `Waiting for the user to allow it on ${computer.name} in ${folder}. ${news}` };
 }
 
 /** What the tools say when the caller is not a scheduled run at all. Nothing is written for one. */

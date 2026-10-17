@@ -7,6 +7,7 @@ import { canResolve, checkoutAnswer, coordinatedThreadStatus, coordinationMember
 import { activityChanges, threadActivity, threadChanges, type ThreadChange } from "../thread-activity.js";
 import { cancelPause, heldByLimit } from "../limit-pauses.js";
 import { announced } from "../notices.js";
+import { settledHeadline } from "../run-testimony.js";
 import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import { newThreadSend, proposalSend } from "../thread-starts.js";
@@ -576,9 +577,14 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
     if (quiet) quietStops = quietStops.filter((runId) => runId !== ran.runId);
     const status = quiet || member.outcome === "stopped" ? "cancelled" : member.outcome === "failed" ? "failed" : "succeeded";
     notes.push(turnNote(member, status, at, { quiet }));
-    /** A scheduled run that finished speaks through what it found. One this computer never saw go is taken as someone's. */
-    if (status === "failed") effects.push(...announced(state, member, "The run failed.", "failed"));
-    else if (status === "succeeded" && ran?.origin !== "automation") effects.push(...announced(state, member, "The run finished.", "finished"));
+    /**
+     * Said as a run here would say it: a failure in the words that computer left on the thread, and a
+     * finish only for a run someone started, so one this computer never saw go speaks only if it failed.
+     */
+    const surfacing = status === "failed" ? "failed" : status === "succeeded" && ran && ran.origin !== "automation" ? "attended" : null;
+    const failure = member.messages.at(-1);
+    const headline = settledHeadline(surfacing, failure?.kind === "system" && failure.tone === "error" ? failure.text : undefined);
+    if (headline) effects.push(...announced(state, member, headline, surfacing === "failed" ? "failed" : "finished"));
     newest = Math.max(newest, member.runEndedAt!);
   }
   /** Waiting on the user is said as it starts, as it is of a thread here. */

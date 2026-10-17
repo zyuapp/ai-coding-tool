@@ -538,7 +538,7 @@ export type CoordinationApprovalView = {
  * Where a thread asked for on a paired computer would run: that computer, the projects it holds to
  * start the thread in, and why it cannot take one right now, or null when it can.
  */
-export type ElsewhereView = { computer: ThreadHost; projects: readonly Project[]; refusal: string | null };
+export type ElsewhereView = { computer: ThreadHost; projects: readonly Project[]; project: string | null; refusal: string | null };
 
 /**
  * A thread the coordinator suggested or asked for on another computer, whether the user's start of
@@ -741,18 +741,23 @@ function proposalViews(before: readonly ProposalView[] | undefined, proposals: r
   }));
 }
 
-/** Where a thread asked for on another computer would run, as that computer now stands. */
+/**
+ * Where a thread asked for on another computer would run, as that computer now stands: the folder
+ * asked for while it is still there, else the first one there is.
+ */
 function elsewhereView(proposal: ThreadProposal, paired: readonly PairedComputer[]): ElsewhereView | null {
   const place = proposal.place.computer;
   if (!place) return null;
   const computer = paired.find((item) => item.id === place.id);
   const projects = computer?.state?.projects.filter((project) => !project.unlisted || project.id === proposal.place.project) ?? [];
-  return { computer: threadHostOf(computer ?? { id: place.id, name: place.name, status: "offline" }), projects, refusal: ledStartRefusal(computer) };
+  const project = (projects.find((item) => item.id === proposal.place.project) ?? projects[0])?.id ?? null;
+  const refusal = ledStartRefusal(computer) ?? (project ? null : `That folder is no longer on ${computer!.name}.`);
+  return { computer: threadHostOf(computer ?? { id: place.id, name: place.name, status: "offline" }), projects, project, refusal };
 }
 
 function sameElsewhere(before: ElsewhereView | null, next: ElsewhereView | null): boolean {
   if (!before || !next) return before === next;
-  return sameHost(before.computer, next.computer) && before.refusal === next.refusal
+  return sameHost(before.computer, next.computer) && before.project === next.project && before.refusal === next.refusal
     && before.projects.length === next.projects.length && before.projects.every((project, index) => project === next.projects[index]);
 }
 

@@ -8,6 +8,7 @@ import type { PairedComputer } from "../../src/application/computers.ts";
 import { COMPUTER_CAPABILITIES } from "../../src/contracts/computer-capabilities.ts";
 import type { ComputerLink } from "../../src/domain/computers.ts";
 import type { Thread } from "../../src/domain/thread.ts";
+import { createFailureMessage } from "../../src/domain/conversation.ts";
 import { activeRun, effectAt, effectOf, task, workspace } from "./workspace-reducer-fixtures.mts";
 
 /**
@@ -96,6 +97,20 @@ test("what a member's scheduled runs find is said here, and a scheduled run that
   const found = mirrored(state, workspace({ threads: [far({ runEndedAt: 30, outcome: "finished", findings: [{ id: "f1", headline: "Disk almost full", at: 25 }] })] }));
   assert.deepEqual(found.effects.filter((effect) => effect.type === "announce-thread").map((effect) => effect.notice.headline), ["Disk almost full"]);
   assert.equal(notesOf(found.state).at(-1), "\"Far work\" ended its turn.", "its coordinator still hears the turn end");
+});
+
+test("a member's turn ending is said as a run here would say it, and one never seen to start says only that it failed", () => {
+  const announcedOf = (effects: ReturnType<typeof reduce>["effects"]) => effects.flatMap((effect) => effect.type === "announce-thread" ? [effect.notice.headline] : []);
+  const running = mirrored(coordinating(workspace()), workspace({ threads: [far()], activeRuns: { far: activeRun("far", "run-far") } })).state;
+  const failure = createFailureMessage("The engine ran out of credit.");
+  const failed = mirrored(running, workspace({ threads: [far({ runEndedAt: 30, outcome: "failed", messages: [failure] })] }));
+  assert.deepEqual(announcedOf(failed.effects), ["The engine ran out of credit."], "in the words that computer left on the thread");
+
+  const unseen = mirrored(coordinating(workspace()), workspace({ threads: [far({ runEndedAt: 30, outcome: "finished" })] }));
+  assert.deepEqual(announcedOf(unseen.effects), [], "a run this computer never saw go could have been a scheduled one");
+  assert.equal(notesOf(unseen.state).at(-1), "\"Far work\" ended its turn.", "its coordinator still hears it");
+  const unseenFailure = mirrored(coordinating(workspace()), workspace({ threads: [far({ runEndedAt: 30, outcome: "failed" })] }));
+  assert.deepEqual(announcedOf(unseenFailure.effects), ["The run failed."]);
 });
 
 test("a member stopped by Stop all is heard quietly", () => {

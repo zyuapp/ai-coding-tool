@@ -203,8 +203,8 @@ test("a thread under the coordinator asks for one elsewhere as itself, and it wo
   const { host, linux } = pair();
   lead(host);
   host.state().threads.push({ ...host.state().threads[0]!, id: "member", title: "Builder", role: undefined, parentId: "caller", memory: undefined, threadModel: undefined });
-  const asked = await answerThreadRequest(host, { type: "thread.request", requestId: "m", taskId: "member", op: "command", command: { type: "task.send", text: "Profile it" }, computer: "Linux" });
-  assert.equal(asked.ok, true);
+  const asked = await answer<ThreadCommandResult>(host, { type: "thread.request", requestId: "m", taskId: "member", op: "command", command: { type: "task.send", text: "Profile it" }, computer: "Linux" });
+  assert.deepEqual(asked, { thread: null, notice: "Waiting for the user to allow it on Linux in /repo. Your coordinator hears once it starts." }, "what a thread there says is told to the coordinator");
   const [waiting] = proposals(host);
   assert.equal(waiting?.from, "member");
   assert.equal(waiting?.brief, undefined);

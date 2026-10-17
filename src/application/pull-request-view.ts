@@ -4,8 +4,8 @@ import type { Project } from "../domain/project.js";
 import type { Thread } from "../domain/thread.js";
 import type { Worktree } from "../domain/worktree.js";
 import { threadWorkspaceId } from "./thread-location.js";
-import { coordinationMembers, ownPullRequest, ownsPullRequest, type OwnPullRequest } from "./coordination.js";
-import type { ComputersState } from "./computers.js";
+import { coordinationMembers, ownPullRequest, ownsPullRequest, type CoordinationMember, type OwnPullRequest } from "./coordination.js";
+import type { ComputersState, PairedComputer } from "./computers.js";
 
 /** The branch a checkout sits on, or null while Git has not said or could not. */
 export function branchOf(environment: ChangedFilesResult | null) {
@@ -84,7 +84,7 @@ export function memberPullRequestsView(state: MemberState, lead: Thread | undefi
   }
   const checkouts = memberCheckouts(state, lead.id, awaitsPullRequest);
   /** A thread on a paired computer is read there; what that computer last answered says whether to ask again. */
-  const elsewhere = coordinationMembers(state, lead.id).flatMap((member) => member.computer && awaitsPullRequest(member.thread) ? [member] : []);
+  const elsewhere = coordinationMembers(state, lead.id).flatMap((member): Extract<CoordinationMember, { computer: PairedComputer }>[] => member.computer && awaitsPullRequest(member.thread) ? [member] : []);
   if (!found.size && !checkouts.size && !elsewhere.length) return NO_MEMBER_PULL_REQUESTS;
   const asking: string[] = [];
   let settled = true;
@@ -93,7 +93,6 @@ export function memberPullRequestsView(state: MemberState, lead: Thread | undefi
     if (!pullRequestSettled(state.memberPullRequests[workspaceId]?.answer ?? NO_PULL_REQUEST)) settled = false;
   }
   for (const member of elsewhere) {
-    if (!member.computer) continue;
     const workspaceId = threadWorkspaceId(member.holder, member.thread);
     asking.push(`${member.computer.id}\0${member.thread.id}\0${workspaceId ? branchOf(member.holder.environments[workspaceId] ?? null) ?? "" : ""}`);
     if (workspaceId && !pullRequestSettled(member.holder.memberPullRequests[workspaceId]?.answer ?? NO_PULL_REQUEST)) settled = false;

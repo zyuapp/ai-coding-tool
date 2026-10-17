@@ -150,7 +150,7 @@ test("the Needs-you card asks to run a thread on another computer, in the folder
   const brief = { intent: "run the GPU tests", doneWhen: "they pass", delivers: "report" as const };
   const projects = [{ id: "app", root: "/code/app", workspaceId: "w1" }, { id: "lab", root: "/code/lab", workspaceId: "w2" }];
   const request: ThreadProposal = { id: "p1", title: "GPU tests", prompt: "Run them", brief, place: { computer: { id: "studio", name: "Studio" }, project: "app", worktree: true }, proposedAt: 1 };
-  const elsewhere = (refusal: string | null = null, offline = false) => ({ computer: { id: "studio", name: "Studio", offline }, projects, refusal });
+  const elsewhere = (refusal: string | null = null, offline = false) => ({ computer: { id: "studio", name: "Studio", offline }, projects, project: "app", refusal });
   const card = (where = elsewhere()) => React.createElement(CommandControlsProvider, { value: { available: () => true, dispatch: (command: AppCommand) => { dispatched.push(command); } } },
     React.createElement(NeedsYouCard, {
       approvals: [],
