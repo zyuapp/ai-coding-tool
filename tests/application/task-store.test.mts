@@ -716,3 +716,28 @@ test("what a thread's runs found survives being written and read back, and a mal
   assert.deepEqual(broken.data.tasks, [], "a finding with nothing to say is not a finding");
   assert.equal(broken.hiddenTasks, 1);
 });
+
+test("what a coordinator's threads run on survives a reload, on a replaced model's successor, and a malformed one costs the thread nothing else", () => {
+  const migrated = migrateV1ToV2(legacyValues());
+  assert.equal(migrated.ok, true);
+  if (!migrated.ok) return;
+  const lead = { ...migrated.data.tasks[0], role: "coordinator" as const, threadModel: { model: "gpt-6.1-sol" as const, effort: "ultra" as const } };
+  const parsed = parseThreadStore(serializeThreadStore({ ...migrated.data, tasks: [lead] }));
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  assert.deepEqual(parsed.data.tasks[0].threadModel, { model: "gpt-6.1-sol", effort: "ultra" });
+
+  const retired = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...lead, threadModel: { model: "gpt-5.6-luna", effort: "max" } }] }));
+  assert.equal(retired.ok, true);
+  if (!retired.ok) return;
+  assert.deepEqual(retired.data.tasks[0].threadModel, { model: "gpt-6-luna", effort: "max" });
+
+  for (const threadModel of [{ model: "gpt-0" }, { model: "opus", effort: "furious" }, "opus"]) {
+    const broken = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...lead, threadModel }] }));
+    assert.equal(broken.ok, true);
+    if (!broken.ok) return;
+    assert.equal(broken.hiddenTasks, 0, "the thread still loads");
+    assert.equal(broken.data.tasks[0].threadModel, undefined, "without the choice it could not read");
+    assert.deepEqual(broken.data.tasks[0].messages, lead.messages);
+  }
+});

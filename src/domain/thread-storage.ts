@@ -7,7 +7,7 @@ import type { Continuation, ExecutionPolicy, Subagent } from "./run.js";
 import type { ContextUsage, ContinuationStatus, ThreadOutcome } from "./thread-run.js";
 import type { Thread } from "./thread.js";
 import { isThreadRole } from "./thread-role.js";
-import { isCoordinationNote, isCoordinationReport, isDecision, isThreadBrief } from "./coordination.js";
+import { isCoordinationNote, isCoordinationReport, isDecision, isThreadBrief, isThreadModelChoice } from "./coordination.js";
 import { isWorktree, type Worktree } from "./worktree.js";
 import { isLimitPause } from "./usage-limit.js";
 import { isPullRequestLink } from "./pull-request.js";
@@ -376,6 +376,7 @@ function isThreadBase(value: unknown): value is StoredThread {
     (value.report === undefined || isCoordinationReport(value.report)) &&
     (value.decisions === undefined || Array.isArray(value.decisions) && value.decisions.every(isDecision)) &&
     (value.coordinationNotes === undefined || Array.isArray(value.coordinationNotes) && value.coordinationNotes.every(isCoordinationNote)) &&
+    (value.threadModel === undefined || isThreadModelChoice(value.threadModel)) &&
     (value.projectId === undefined || nonEmptyString(value.projectId)) &&
     isExecutionPolicy(value.executionPolicy) &&
     isAgentEngine(value.engine) &&
@@ -446,6 +447,8 @@ function renamedFields(value: unknown) {
   let task = value;
   const model = currentModel(task.model);
   if (model !== task.model) task = { ...task, model };
+  const threadModel = isRecord(task.threadModel) ? currentModel(task.threadModel.model) : undefined;
+  if (threadModel !== undefined && threadModel !== task.threadModel.model) task = { ...task, threadModel: { ...task.threadModel, model: threadModel } };
   if (value.silencedKeys !== undefined) {
     const { silencedKeys: handled, ...renamed } = value;
     if (renamed.handledIssues === undefined) renamed.handledIssues = handled;
@@ -492,6 +495,25 @@ function heldWithOrigins(pause: unknown) {
   return held.some((message, index) => message !== before[index]) ? { ...pause, held } : pause;
 }
 
+/**
+ * Settings a thread can do without, each checked on its own: one this build cannot read is dropped
+ * rather than costing the thread its conversation.
+ */
+const DROPPABLE_FIELDS: Readonly<Record<string, (value: unknown) => boolean>> = {
+  threadModel: isThreadModelChoice,
+};
+
+function withoutUnreadableFields(value: unknown) {
+  if (!isRecord(value)) return value;
+  let task = value;
+  for (const [field, readable] of Object.entries(DROPPABLE_FIELDS)) {
+    if (task[field] === undefined || readable(task[field])) continue;
+    const { [field]: _unreadable, ...rest } = task;
+    task = rest;
+  }
+  return task;
+}
+
 /** A conversation loaded separately uses the same migrations and validation as a complete store. */
 export function parseStoredConversationMessages(values: unknown[]): ConversationMessage[] {
   return values.map((value, index) => {
@@ -508,7 +530,7 @@ function recordedEngine(value: unknown) {
 
 /** Null for a thread this build cannot read, which the caller counts and leaves out. */
 function sanitizeV2Thread(raw: unknown, lifted: Worktree[]): StoredThread | null {
-  const retired = renamedFields(dropRetiredSettings(recordedEngine(raw)));
+  const retired = withoutUnreadableFields(renamedFields(dropRetiredSettings(recordedEngine(raw))));
   const value = isRecord(retired) ? liftEmbeddedWorktree(retired, lifted) : retired;
   if (!isThreadBase(value)) return null;
 

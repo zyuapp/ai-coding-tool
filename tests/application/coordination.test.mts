@@ -39,6 +39,51 @@ test("a coordinator's new thread works under it, carries the brief, and runs as 
   assert.equal(command.coordinationRole, "member");
 });
 
+test("becoming a coordinator keeps what it ran on for its threads", () => {
+  const state = workspace({ threads: [task("planner", { model: "sonnet", effort: "low" }), task("light", { model: "haiku" })], currentId: "planner" });
+  const made = reduce(state, { type: "task.set-role", taskId: "planner", role: "coordinator" }).state;
+  assert.deepEqual(made.threads[0].threadModel, { model: "sonnet", effort: "low" });
+  assert.deepEqual(deriveView(made).coordination.threadModel, { model: "sonnet", effort: "low" }, "its Overview says so before any thread starts");
+
+  const moved = reduce(reduce(made, { type: "task.set-model", taskId: "planner", engine: "claude", model: "opus" }).state, { type: "task.set-effort", taskId: "planner", engine: "claude", effort: "max" }).state;
+  assert.equal(moved.threads[0].model, "opus");
+  assert.deepEqual(moved.threads[0].threadModel, { model: "sonnet", effort: "low" }, "the coordinator's own model and effort no longer reach its threads");
+
+  const light = reduce(state, { type: "task.set-role", taskId: "light", role: "coordinator" }).state;
+  assert.deepEqual(light.threads[1].threadModel, { model: "opus", effort: "high" }, "a Haiku thread's threads run on its engine's default");
+
+  const drafted = reduce(reduce(reduce(reduce(workspace(), { type: "task.set-model", engine: "codex", model: "gpt-6-luna" }).state, { type: "task.set-effort", engine: "codex", effort: "low" }).state, { type: "task.set-role", role: "coordinator" }).state, { type: "view.set-prompt", prompt: "Split this work up" }).state;
+  const sending = reduce(drafted, { type: "task.send" });
+  const started = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: PROJECTLESS });
+  assert.deepEqual(started.state.threads[0].threadModel, { model: "gpt-6-luna", effort: "low" }, "a draft made a coordinator snapshots its first run's model");
+});
+
+test("a coordinator's threads cannot run on Haiku or an effort their model lacks", () => {
+  const state = workspace({ threads: [lead("lead", { threadModel: { model: "gpt-6.1-sol", effort: "ultra" } }), task("solo")] });
+  const haiku = reduce(state, { type: "coordination.set-thread-model", taskId: "lead", model: "haiku" });
+  assert.equal(haiku.result?.ok, false);
+  assert.equal(haiku.state.threads, state.threads);
+
+  const luna = reduce(state, { type: "coordination.set-thread-model", taskId: "lead", model: "gpt-6-luna" }).state;
+  assert.deepEqual(luna.threads[0].threadModel, { model: "gpt-6-luna", effort: "max" }, "an effort the new model lacks moves to the nearest it takes");
+  const mapped = reduce(luna, { type: "coordination.set-thread-model", taskId: "lead", model: "opus", effort: "ultra" }).state;
+  assert.deepEqual(mapped.threads[0].threadModel, { model: "opus", effort: "max" });
+  const low = reduce(mapped, { type: "coordination.set-thread-model", taskId: "lead", model: "opus", effort: "low" }).state;
+  assert.deepEqual(low.threads[0].threadModel, { model: "opus", effort: "low" });
+  assert.equal(reduce(low, { type: "coordination.set-thread-model", taskId: "lead", model: "opus", effort: "low" }).state.threads, low.threads, "an unchanged choice writes nothing");
+
+  const solo = reduce(state, { type: "coordination.set-thread-model", taskId: "solo", model: "opus" });
+  assert.equal(solo.result?.ok, false, "only a coordinator has threads to choose for");
+  assert.equal(solo.state.threads[1].threadModel, undefined);
+});
+
+test("a coordinator made before it chose what its threads run on reads what it runs on itself", () => {
+  const legacy = workspace({ threads: [lead("lead", { model: "sonnet", effort: "medium" })], currentId: "lead" });
+  assert.deepEqual(deriveView(legacy).coordination.threadModel, { model: "sonnet", effort: "medium" });
+  const gone = workspace({ threads: [lead("lead", { model: "haiku", threadModel: { model: "haiku" } })], currentId: "lead" });
+  assert.deepEqual(deriveView(gone).coordination.threadModel, { model: "opus", effort: "high" }, "a choice its threads can no longer run on falls back to the engine's default");
+});
+
 test("a thread started with a brief but no coordinator keeps neither", () => {
   const state = workspace({ threads: [] });
   const sending = reduce(state, { type: "task.send", text: "Fix it", brief: BRIEF });
@@ -348,10 +393,7 @@ test("a thread that leaves its coordinator with a decision open is where it is a
   assert.equal(deriveView(state).coordination.decisions.length, 1);
 });
 
-test("a coordinator's dock leads with an Overview once a thread works under it and never closes", () => {
-  const alone = reduce(workspace({ threads: [lead()], currentId: "lead" }), { type: "view.set-dock-open", open: false }).state;
-  assert.equal(alone.docks.lead?.panels.includes("overview") ?? false, false, "a coordinator with nobody under it has no Overview");
-
+test("a coordinator's dock leads with an Overview and never closes it", () => {
   const joined = reduce(workspace({ threads: [lead(), task("worker"), task("second")], currentId: "lead" }), { type: "task.set-coordinator", taskId: "worker", coordinatorId: "lead" }).state;
   assert.deepEqual(joined.docks.lead?.panels, ["overview"]);
   assert.equal(joined.docks.lead?.tab, "overview", "the dock opens on the Overview");

@@ -85,9 +85,11 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
   const reviewedWorkspaceId = reviewed ? reviewed.workspaceId : workspace.workspaceId;
 
   const needsYou = overviewGroups(workspace.coordination.members).needs.length;
+  const lead = isCoordinator(workspace.currentThread) ? workspace.currentThread : undefined;
+  const { threadModel } = workspace.coordination;
 
   const panels: DockPanel[] = [
-    ...(isCoordinator(workspace.currentThread) ? [{
+    ...(lead && threadModel ? [{
       id: OVERVIEW_PANEL,
       title: "Overview",
       description: "Follow the threads working under this coordinator",
@@ -97,10 +99,21 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
       pinned: true,
       render: () => (
         <CoordinatorOverview
+          header={{
+            taskId: lead.id,
+            threadModel,
+            engineAccess: workspace.engineAccess,
+            favoriteModels: workspace.favoriteModels,
+            onModelFavorite: (model, favorite) => void workspace.dispatch({ type: "view.set-model-favorite", model, favorite }),
+            onSetThreadModel: (model, effort) => void workspace.actions.setThreadModel(lead.id, model, effort),
+            onEngineRead: workspace.actions.readEngineStatus,
+            onSignIn: workspace.actions.signInEngine,
+            onOpenEngineSettings: () => void workspace.actions.openSettingsSection(workspace.engineSettingsPage.section, workspace.engineSettingsPage.settingId),
+          }}
           members={workspace.coordination.members}
           worktreeGroups={workspace.worktreeGroups}
           folds={workspace.overviewFolds}
-          onSetFold={(group, change) => { if (workspace.currentThread) void workspace.actions.setOverviewGroup(workspace.currentThread.id, group, change); }}
+          onSetFold={(group, change) => void workspace.actions.setOverviewGroup(lead.id, group, change)}
           onSelect={workspace.actions.selectThread}
         />
       ),

@@ -19,8 +19,8 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
   /** A side chat is a thread too, so the main transcript only claims the bar when it is the one named. */
   const mine = find?.target.kind === "thread" && find.target.taskId === (workspace.currentThread?.id ?? null) ? find : null;
   const { coordination } = workspace;
-  /** A coordinator's threads are listed in the session panel; a thread opened on its own says whom it works under. */
-  const bar = coordination.members.length === 0 && (coordination.lead !== null || coordination.brief !== null);
+  /** A coordinator follows its threads in its Overview; a thread opened on its own says whom it works under. */
+  const bar = coordination.threadModel === null && (coordination.lead !== null || coordination.brief !== null);
   return (
     <div className={`work-area ${bar ? (coordination.lead ? "coordination-bar-on" : "coordination-brief-on") : ""}`}>
       {mine && findBar}

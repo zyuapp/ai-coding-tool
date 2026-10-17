@@ -155,6 +155,23 @@
   scrollbar-width: thin;
   scrollbar-color: var(--scroll-thumb) transparent;
 }
+/** What the coordinator's threads run on, picked with the composer's own chips, whose menus open downward here. */
+.coordination-overview-header {
+  position: relative;
+  z-index: 2;
+  container-type: inline-size;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 4px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--line-soft);
+  padding: 0 0 6px 8px;
+}
+.coordination-overview-label { color: var(--quiet-strong); font-size: var(--text-meta); white-space: nowrap; }
+.coordination-thread-model { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.coordination-overview-header .setting-popover { top: calc(100% + 4px); bottom: auto; left: 0; }
+.coordination-overview > .coordination-empty { padding: 6px 8px; }
 .coordination-group + .coordination-group { margin-top: 6px; }
 .coordination-group > .subagent-list { margin-top: 2px; }
 .coordination-group-head {

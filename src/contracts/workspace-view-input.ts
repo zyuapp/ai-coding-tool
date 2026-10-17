@@ -254,6 +254,7 @@ const commands = {
   "task.set-role": { fields: { taskId: optionalText, role: nullable(isThreadRole) }, at: "thread", agent: namesThread },
   "task.set-coordinator": { fields: { taskId: text, coordinatorId: nullableText }, at: "thread" },
   "decision.answer": { fields: { taskId: text, decisionId: text, answer: text }, at: "thread" },
+  "coordination.set-thread-model": { fields: { taskId: text, model: isAgentModel, effort: optional(isAgentEffort) }, at: "thread" },
   "task.dismiss": { fields: { taskId: text }, at: "thread" },
   "task.snooze": { fields: { taskId: text, hours: isSnoozeHours }, at: "thread" },
   "task.unsnooze": { fields: { taskId: text }, at: "thread" },

@@ -121,9 +121,11 @@ type ModelLibraryProps = {
   onChange: (engine: AgentEngine, model: AgentModel) => void;
   onSignIn: (engine: AgentEngine) => void;
   onOpenEngineSettings?: () => void;
+  /** Narrows the library to the models this choice may take. */
+  models?: (model: AgentModel) => boolean;
 };
 
-function ModelLibrary({ engine, engineLocked, engineAccess, model, favoriteModels = [], onModelFavorite, onChange, onSignIn, onOpenEngineSettings, close }: ModelLibraryProps & { close: () => void }) {
+function ModelLibrary({ engine, engineLocked, engineAccess, model, favoriteModels = [], onModelFavorite, onChange, onSignIn, onOpenEngineSettings, models, close }: ModelLibraryProps & { close: () => void }) {
   const [filter, setFilter] = useState<AgentEngine | "favorites" | "all">(() => {
     if (engineLocked) return engine;
     return favoriteModels.length ? "favorites" : "all";
@@ -134,7 +136,7 @@ function ModelLibrary({ engine, engineLocked, engineAccess, model, favoriteModel
   const search = query.trim().toLocaleLowerCase();
   const available = modelGroups.map((group) => {
     const readiness = engineAccess[group.engine];
-    return { ...group, choices: group.choices.filter((item) => !readiness.models || readiness.models.includes(item.value)) };
+    return { ...group, choices: group.choices.filter((item) => (!readiness.models || readiness.models.includes(item.value)) && (!models || models(item.value))) };
   });
   const groups = available.filter((group) => search || filter === "all" || filter === "favorites" || filter === group.engine).map((group) => ({
     ...group,
@@ -212,11 +214,18 @@ function ModelLibrary({ engine, engineLocked, engineAccess, model, favoriteModel
   </>;
 }
 
-function ModelMenu({ onOpen, ...props }: ModelLibraryProps & { onOpen: () => void }) {
+/** The model chip and the library it opens. `onOpen` asks after the engines, so the library can say which it can pick. */
+export function ModelMenu({ onOpen, ...props }: ModelLibraryProps & { onOpen: () => void }) {
   const selected = modelsOf[props.engine].find((item) => item.value === props.model) ?? modelsOf[props.engine][0];
   return <SettingMenu label="Model" axis="Model" heading="Choose a model" value={selected.label} library onOpen={props.engineLocked ? undefined : onOpen}>
     {(close) => <ModelLibrary {...props} close={close} />}
   </SettingMenu>;
+}
+
+/** The effort chip for a model, drawn only for a model that takes an effort. */
+export function EffortMenu({ model, effort, heading, onChange }: { model: AgentModel; effort: AgentEffort; heading: string; onChange: (effort: AgentEffort) => void }) {
+  if (!effortsOf[model].length) return null;
+  return <ChoiceMenu label="Effort" axis="Effort" heading={heading} choices={effortsOf[model]} value={effortForModel(model, effort)} onChange={onChange} />;
 }
 
 export function ComposerSettings({ taskId, mode, engine, engineLabel, engineLocked, engineAccess, model, effort, fastMode, onFastModeChange, onModeChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onEngineRead, onSignIn, onOpenEngineSettings }: {
@@ -246,7 +255,7 @@ export function ComposerSettings({ taskId, mode, engine, engineLabel, engineLock
     <div className="composer-settings">
       <CommandGate command={{ type: "task.set-policy", taskId, policy: mode }}><ChoiceMenu label="Permission mode" axis="Mode" heading={`How should ${engineLabel} actions be approved?`} choices={modes} value={mode} onChange={onModeChange} /></CommandGate>
       <CommandGate command={{ type: "task.set-model", taskId, engine, model }}><ModelMenu engine={engine} engineLocked={engineLocked} engineAccess={engineAccess} model={model} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onChange={onModelChange} onOpen={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} /></CommandGate>
-      {effortsOf[model].length > 0 && <CommandGate command={{ type: "task.set-effort", taskId, engine, effort }}><ChoiceMenu label="Effort" axis="Effort" heading={`How hard should ${engineLabel} think?`} choices={effortsOf[model]} value={effortForModel(model, effort)} onChange={(choice) => onEffortChange(engine, choice)} /></CommandGate>}
+      <CommandGate command={{ type: "task.set-effort", taskId, engine, effort }}><EffortMenu model={model} effort={effort} heading={`How hard should ${engineLabel} think?`} onChange={(choice) => onEffortChange(engine, choice)} /></CommandGate>
       {capabilitiesFor(engine).fastMode && <CommandButton command={{ type: "task.set-fast-mode", taskId, fastMode: !fastMode }} type="button" className="fast-mode-toggle" aria-label="Fast mode" aria-pressed={fastMode} title={`Fast mode ${fastMode ? "on" : "off"} · faster responses use more of your plan`} onClick={() => onFastModeChange(!fastMode)}><Zap size={16} aria-hidden="true" /></CommandButton>}
     </div>
   );

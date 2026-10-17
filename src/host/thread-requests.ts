@@ -3,7 +3,8 @@ import { browserTarget, dockFor, dockOwner, terminalTarget, type WorkspaceState 
 import { threadSummary, threadWaitResult } from "../application/thread-projection.js";
 import { isWorking } from "../application/thread-activity.js";
 import { listAcrossComputers, namedComputer, online, readAcrossComputers, remoteSummary, resolveThreadRead, tag, type PreparedThreadRequest } from "./thread-reads.js";
-import { computerOfPlace, type PairedComputer } from "../application/computers.js";
+import type { PairedComputer } from "../application/computers.js";
+import { newThreadSend } from "../application/thread-starts.js";
 import { findProject, folderName, matchingProjects, projectName, type Project } from "../domain/project.js";
 import type { Thread } from "../domain/thread.js";
 import type { WorktreeDestination } from "../domain/worktree.js";
@@ -19,7 +20,6 @@ import { terminalLineLimit } from "../domain/terminal.js";
 import { coordinatorOf, isCoordinator, type CoordinationState, type DecisionRequest } from "../domain/coordination.js";
 import { errorMessage } from "./errors.js";
 import type { RuntimeDesktop } from "./runtime-desktop.js";
-import { defaultEffortFor, defaultModelFor, effortForModel, engineForModel, modelDelegable, modelHasEffort, modelTakesEffort } from "../domain/agent-engine.js";
 
 /** How much page text a read returns when the caller does not say. */
 const DEFAULT_PAGE_TEXT = 4_000;
@@ -165,43 +165,18 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
       ? { ...command, taskId: caller.id, afterRun: true as const }
       : undefined;
     const named = ownMove ?? (target ? { ...command, taskId: target.thread.id } as typeof command : command);
-    const selected: { command: typeof command } | { error: string } = named.type === "task.send" && named.taskId === undefined && caller
-      ? (() => {
-          const model = named.model ?? caller.model ?? defaultModelFor(caller.engine);
-          if (isCoordinator(caller) && !modelDelegable(model)) return { error: `A coordinator cannot start a thread on the ${model} model. Pick another model.` };
-          if (named.effort && !modelHasEffort(model, named.effort)) return { error: `The ${model} model does not support ${named.effort} effort.` };
-          /** An inherited effort the new model does not take drops to the nearest one it does. */
-          const effort = named.effort ?? effortForModel(model, caller.effort ?? defaultEffortFor(engineForModel(model)));
-          const { effort: _asked, ...rest } = named;
-          return { command: modelTakesEffort(model) ? { ...named, model, effort } : { ...rest, model } };
-        })()
-      : { command: named };
-    if ("error" in selected) return failed(selected.error);
-    /** A coordinator's new thread works under it and starts from the brief it was handed; one its threads start joins them under it. */
-    const starting = selected.command.type === "task.send" && selected.command.taskId === undefined;
-    const coordinating = starting && isCoordinator(caller);
-    if (coordinating && selected.command.type === "task.send" && !selected.command.brief) return failed(BRIEF_REQUIRED);
-    const lead = !starting ? undefined : coordinating ? caller : coordinatorOf(before.threads, caller);
-    /** A thread on a paired computer, or a new one asked for there or named into a checkout or project there, is that computer's to act on. */
-    const placedOn = starting && selected.command.type === "task.send" ? computerOfPlace(before, selected.command) ?? null : null;
-    const asked = starting && request.computer !== undefined ? namedComputer(before, request.computer) : undefined;
-    if (placedOn && asked !== undefined && asked?.id !== placedOn.id) return failed(`That project or worktree is on ${placedOn.name}. Pass computer "${placedOn.name}" to start the thread there.`);
-    const elsewhere = target ? target.computer : asked ?? placedOn;
-    if (elsewhere) {
-      if (lead) return failed(COORDINATED_HERE);
-      return ok(await commandElsewhere(host, elsewhere, selected.command, caller));
+    /** A new thread starts by the rules every start shares; a command for an existing thread goes where that thread is. */
+    const start = named.type === "task.send" && named.taskId === undefined && caller
+      ? newThreadSend(before, caller, named, request.computer === undefined ? undefined : namedComputer(before, request.computer))
+      : null;
+    if (start && "error" in start) return failed(start.error);
+    if (start?.elsewhere) {
+      if (start.lead) return failed(COORDINATED_HERE);
+      return ok(await commandElsewhere(host, start.elsewhere, start.command, caller));
     }
-    /** A new thread with no place named starts where the thread that asked for it lives: its project, and its worktree when it has one. */
-    const callerProjectId = caller?.projectId;
-    const placed = selected.command.type === "task.send" && selected.command.taskId === undefined && selected.command.project === undefined && callerProjectId
-      ? { ...selected.command, project: callerProjectId }
-      : selected.command;
-    const targeted = placed.type === "task.send" && placed.taskId === undefined && placed.worktree === undefined && placed.worktreeId === undefined && caller?.worktreeId
-      ? { ...placed, worktreeId: caller.worktreeId }
-      : placed;
-    const led = lead && targeted.type === "task.send" ? { ...targeted, coordinatorId: lead.id } : targeted;
+    if (target?.computer) return ok(await commandElsewhere(host, target.computer, named, caller));
     /** A message one thread sends another names the thread it came from. */
-    const signed = led.type === "task.send" && caller && led.taskId !== caller.id ? { ...led, from: caller.id } : led;
+    const signed = start ? start.command : named.type === "task.send" && caller && named.taskId !== caller.id ? { ...named, from: caller.id } : named;
     const result = await host.execute(signed).completed;
     if (!result.ok) return failed(result.message);
     const after = host.state();
@@ -350,8 +325,6 @@ async function reportNothing(host: ThreadRequestHost, threadId: string, checked:
   if (!active.quiet) return { recorded: true, note: "Noted. This automation has no quiet sentence, so every run of it surfaces, this one included." };
   return { recorded: true, note: "Noted. This run settles without reaching the user." };
 }
-
-const BRIEF_REQUIRED = "A coordinator hands every thread it starts a brief: pass intent (the user's own words), doneWhen, and delivers.";
 
 const NO_COORDINATOR = "This thread works under no coordinator, so there is no one to report to and nothing was recorded. Say it in your reply instead.";
 

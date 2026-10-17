@@ -214,15 +214,18 @@ test("a thread started by one working under a coordinator joins it without a bri
   assert.equal(host.state().threads.filter((thread) => thread.parentId === "lead").length, 2);
 });
 
-test("a coordinator cannot start a thread on Haiku, whether asked for or inherited", async () => {
+test("a coordinator's thread never runs on Haiku, whether asked for or what the coordinator runs on", async () => {
   const brief = { intent: "fix it", doneWhen: "it works", delivers: "commit" as const };
-  const host = driver(workspace({ threads: [task("lead", { role: "coordinator" }), task("light", { role: "coordinator", model: "haiku" })] }));
+  const host = driver(workspace({ threads: [task("lead", { role: "coordinator" }), task("light", { role: "coordinator", model: "haiku" })] }), async (effect, dispatch) => {
+    if (effect.type === "resolve-run-workspace") await dispatch({ type: "run.resolved", pendingId: effect.pendingId, workspace: { id: "scratch", kind: "projectless", root: "/scratch" } });
+  });
   const asked = await answerThreadRequest(host, { type: "thread.request", requestId: "r1", taskId: "lead", op: "command", command: { type: "task.send", text: "Fix it", brief, model: "haiku" } });
   assert.equal(asked.ok, false);
   if (!asked.ok) assert.match(asked.message, /haiku/);
-  const inherited = await answerThreadRequest(host, { type: "thread.request", requestId: "r2", taskId: "light", op: "command", command: { type: "task.send", text: "Fix it", brief } });
-  assert.equal(inherited.ok, false);
   assert.equal(host.state().threads.length, 2);
+  const inherited = await answerThreadRequest(host, { type: "thread.request", requestId: "r2", taskId: "light", op: "command", command: { type: "task.send", text: "Fix it", brief } });
+  assert.equal(inherited.ok, true);
+  assert.equal(host.state().threads.find((thread) => thread.parentId === "light")?.model, "opus", "a Haiku coordinator's threads run on its engine's default");
 });
 
 test("a message one thread sends another names the thread it came from", async () => {

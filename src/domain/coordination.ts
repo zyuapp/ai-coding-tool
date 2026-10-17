@@ -4,6 +4,8 @@
  * role off lets every one of its threads stand on its own again, with nothing to undo.
  */
 import type { Thread } from "./thread.js";
+import type { AgentEffort } from "./run.js";
+import { defaultEffortFor, defaultModelFor, effortForModel, engineForModel, isAgentEffort, isAgentModel, modelDelegable, modelTakesEffort, type AgentModel } from "./agent-engine.js";
 
 /** A coordinator's run delegates and changes no files; a thread under one reports back to it. */
 export type CoordinationRole = "coordinator" | "member";
@@ -96,6 +98,27 @@ export type OverviewFolds = Partial<Record<OverviewGroup, OverviewFold>>;
 
 export function isCoordinator(thread: Thread | undefined): boolean {
   return thread?.role === "coordinator" && thread.archivedAt === undefined;
+}
+
+/** What a coordinator's threads run on unless one is started on something else. */
+export type ThreadModelChoice = { model: AgentModel; effort?: AgentEffort };
+
+/**
+ * What a coordinator's threads run on: the user's choice, else what the coordinator runs on itself,
+ * else its engine's default, whichever is first that a thread under a coordinator may run on. An
+ * effort the model does not take moves to the nearest one it does.
+ */
+export function threadModelOf(lead: Thread): ThreadModelChoice {
+  const chosen = lead.threadModel?.model;
+  const own = lead.model ?? defaultModelFor(lead.engine);
+  const model = chosen && modelDelegable(chosen) ? chosen : modelDelegable(own) ? own : defaultModelFor(lead.engine);
+  if (!modelTakesEffort(model)) return { model };
+  return { model, effort: effortForModel(model, lead.threadModel?.effort ?? lead.effort ?? defaultEffortFor(engineForModel(model))) };
+}
+
+/** A thread taking the coordinator role, its threads to run on what it runs on until the user picks otherwise. */
+export function asCoordinator(thread: Thread): Thread {
+  return { ...thread, role: "coordinator", threadModel: thread.threadModel ?? threadModelOf(thread) };
 }
 
 /** The thread itself when it is a live coordinator. */
@@ -206,6 +229,11 @@ function finite(value: unknown): value is number {
 
 export function isThreadBrief(value: unknown): value is ThreadBrief {
   return isRecord(value) && text(value.intent, MAX_BRIEF_FIELD) && text(value.doneWhen, MAX_BRIEF_FIELD) && isDelivery(value.delivers);
+}
+
+/** Shape only: whether the model may run a coordinator's threads, and takes the effort, is decided where it is read. */
+export function isThreadModelChoice(value: unknown): value is ThreadModelChoice {
+  return isRecord(value) && isAgentModel(value.model) && (value.effort === undefined || isAgentEffort(value.effort));
 }
 
 export function isCoordinationReport(value: unknown): value is CoordinationReport {

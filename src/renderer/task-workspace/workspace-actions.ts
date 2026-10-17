@@ -28,6 +28,17 @@ function noticeActions(dispatch: (input: WorkspaceInput) => Promise<void>) {
   };
 }
 
+/** Roles, coordinators, and what a coordinator and its threads ask of the user. */
+function coordinationActions(dispatch: (input: WorkspaceInput) => Promise<void>) {
+  return {
+    setThreadRole: (threadId: string, role: ThreadRole | null) => dispatch({ type: "task.set-role", taskId: threadId, role }),
+    setCoordinator: (threadId: string, coordinatorId: string | null) => dispatch({ type: "task.set-coordinator", taskId: threadId, coordinatorId }),
+    answerDecision: (threadId: string, decisionId: string, answer: string) => dispatch({ type: "decision.answer", taskId: threadId, decisionId, answer }),
+    setThreadModel: (taskId: string, model: AgentModel, effort?: AgentEffort) => dispatch({ type: "coordination.set-thread-model", taskId, model, ...(effort ? { effort } : {}) }),
+    setOverviewGroup: (taskId: string, group: OverviewGroup, change: { open?: boolean; all?: boolean }) => dispatch({ type: "view.set-overview-group", taskId, group, ...change }),
+  };
+}
+
 /** The named shorthands the UI reaches for, each one a single command through the same door. */
 export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<void>) {
   return {
@@ -40,9 +51,6 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     restoreThread: (threadId: string) => dispatch({ type: "task.restore", taskId: threadId }),
     clearArchive: () => dispatch({ type: "task.clear-archive" }),
     renameThread: (threadId: string, title: string) => dispatch({ type: "task.rename", taskId: threadId, title }),
-    setThreadRole: (threadId: string, role: ThreadRole | null) => dispatch({ type: "task.set-role", taskId: threadId, role }),
-    setCoordinator: (threadId: string, coordinatorId: string | null) => dispatch({ type: "task.set-coordinator", taskId: threadId, coordinatorId }),
-    answerDecision: (threadId: string, decisionId: string, answer: string) => dispatch({ type: "decision.answer", taskId: threadId, decisionId, answer }),
     moveThread: (threadId: string, target: ThreadDropTarget) => dispatch({ type: "task.move", taskId: threadId, target }),
     forkThread: (threadId: string, worktree = false) => dispatch({ type: "task.fork", taskId: threadId, ...(worktree ? { worktree } : {}) }),
     toggleProject: (projectId: string) => dispatch({ type: "view.toggle-project", projectId }),
@@ -55,7 +63,6 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     dismissAllThreads: (projectId: string | null) => dispatch({ type: "task.dismiss-all", ...(projectId ? { projectId } : {}) }),
     setSectionOpen: (section: SidebarSection, open: boolean) => dispatch({ type: "view.set-section-open", section, open }),
     setSubagentGroup: (group: SubagentGroup, open: boolean) => dispatch({ type: "view.set-subagent-group", group, open }),
-    setOverviewGroup: (taskId: string, group: OverviewGroup, change: { open?: boolean; all?: boolean }) => dispatch({ type: "view.set-overview-group", taskId, group, ...change }),
     setTheme: (theme: string) => dispatch({ type: "view.set-theme", theme }),
     setThemeFamily: (family: string) => dispatch({ type: "view.set-theme-family", family, systemDark: systemPrefersDark() }),
     setThemeMode: (mode: ThemeMode) => dispatch({ type: "view.set-theme-mode", mode, systemDark: systemPrefersDark() }),
@@ -153,6 +160,7 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     openTerminal: () => dispatch({ type: "terminal.open" }),
     openFolderInApp: (appId: string) => dispatch({ type: "app.open-folder", appId }),
     ...noticeActions(dispatch),
+    ...coordinationActions(dispatch),
     closeTerminal: (terminalId: string) => dispatch({ type: "terminal.close", terminalId }),
     sendToTerminal: (terminalId: string, data: string) => dispatch({ type: "terminal.input", terminalId, data }),
     setJumpQuery: (query: string) => dispatch({ type: "view.jump-query", query }),

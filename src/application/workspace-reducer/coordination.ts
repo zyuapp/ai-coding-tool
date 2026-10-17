@@ -10,12 +10,13 @@ import { announced } from "../notices.js";
 import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
-import { canJoinCoordinator, coordinatedThreads, coordinatorOf, isCoordinator, MAX_ANSWER, openDecisions, withAnswer, withCoordinationNote, withDecision, type CoordinationNote } from "../../domain/coordination.js";
+import { canJoinCoordinator, coordinatedThreads, coordinatorOf, isCoordinator, MAX_ANSWER, openDecisions, threadModelOf, withAnswer, withCoordinationNote, withDecision, type CoordinationNote } from "../../domain/coordination.js";
+import { defaultEffortFor, effortForModel, engineForModel, modelDelegable, modelHasEffort, modelTakesEffort } from "../../domain/agent-engine.js";
 import type { Thread } from "../../domain/thread.js";
 import { resumesOnItsOwn } from "../../domain/usage-limit.js";
 
 type CoordinationInput = Extract<WorkspaceInput, {
-  type: "task.set-coordinator" | "decision.answer" | "coordination.reported" | "coordination.decision-raised";
+  type: "task.set-coordinator" | "decision.answer" | "coordination.set-thread-model" | "coordination.reported" | "coordination.decision-raised";
 }>;
 
 const JOIN_REFUSED = "Only a coordinator can take threads under it, and a coordinator cannot work under another.";
@@ -47,6 +48,19 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       /** A decision only closes once its answer is on its way, so one that could not be sent can be answered again. */
       const sent = reduceSending(state, { type: "task.send", taskId: thread.id, text: `The user decided "${decision.question}": ${answer}`, steer: true });
       return sent.result?.ok === false ? sent : { ...sent, state: answered(sent.state) };
+    }
+
+    case "coordination.set-thread-model": {
+      const lead = state.threads.find((item) => item.id === input.taskId);
+      if (!lead || !isCoordinator(lead)) return rejected(state, "Only a coordinator chooses what its threads run on.");
+      if (!modelDelegable(input.model)) return rejected(state, `Threads under a coordinator cannot run on the ${input.model} model. Pick another model.`);
+      /** An effort the model lacks, or none, keeps the depth the threads run at as near as that model allows. */
+      const effort = input.effort && modelHasEffort(input.model, input.effort)
+        ? input.effort
+        : effortForModel(input.model, threadModelOf(lead).effort ?? defaultEffortFor(engineForModel(input.model)));
+      const threadModel = modelTakesEffort(input.model) ? { model: input.model, effort } : { model: input.model };
+      if (lead.threadModel?.model === threadModel.model && lead.threadModel.effort === threadModel.effort) return settled(state);
+      return settled(updateThread(state, lead.id, (item) => ({ ...item, threadModel, updatedAt: now() })));
     }
 
     /**

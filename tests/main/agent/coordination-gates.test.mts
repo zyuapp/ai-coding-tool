@@ -56,7 +56,7 @@ test("a coordinator never waits on a thread, while every other run still can", (
   assert.ok(threadToolNames({}).includes("wait_for_thread"));
 });
 
-test("a coordinator is not offered Haiku for a thread it starts", () => {
+test("a coordinator and its threads are not offered Haiku for a thread they start", () => {
   const threads = { list: async () => [], read: async () => { throw new Error("unused"); }, wait: async () => { throw new Error("unused"); }, command: async () => ({ thread: null }) };
   const coordination = { report: async () => ({ recorded: true, note: "" }), decide: async () => ({ recorded: true, note: "" }) };
   const startModel = (sources: Partial<Parameters<typeof runTools>[0]>) => runTools({ channel: "main", computerUse: { status: "unavailable" }, threads, emit: () => {}, ...sources } as Parameters<typeof runTools>[0])
@@ -64,7 +64,13 @@ test("a coordinator is not offered Haiku for a thread it starts", () => {
   const accepts = (sources: Partial<Parameters<typeof runTools>[0]>, model: string) => z.object({ model: startModel(sources) }).safeParse({ model }).success;
   assert.equal(accepts({ coordinationRole: "coordinator", coordination }, "haiku"), false);
   assert.equal(accepts({ coordinationRole: "coordinator", coordination }, "sonnet"), true);
+  assert.equal(accepts({ coordinationRole: "member", coordination }, "haiku"), false, "a thread one of its threads starts works under the coordinator too");
+  assert.equal(accepts({ coordinationRole: "member", coordination }, "sonnet"), true);
   assert.equal(accepts({}, "haiku"), true);
+  const said = (sources: Partial<Parameters<typeof runTools>[0]>) => (startModel(sources) as z.ZodType).description ?? "";
+  assert.match(said({ coordinationRole: "coordinator", coordination }), /Omit to run it on the model this coordinator's threads run on/);
+  assert.match(said({ coordinationRole: "member", coordination }), /Omit to run it on the model your coordinator's threads run on/);
+  assert.match(said({}), /Omit to inherit the calling thread's model/);
 });
 
 test("a coordinator can read automations but not schedule, change, or stop one", async () => {

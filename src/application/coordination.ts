@@ -3,7 +3,7 @@ import type { WorkspaceState } from "./workspace-state.js";
 import type { ApprovalView } from "./thread-run-state.js";
 import { threadActivity, threadStatus, type ThreadStatus } from "./thread-activity.js";
 import { activitySections, type ActivitySections } from "./thread-order.js";
-import { coordinationDecisions, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, openDecisions, type CoordinationNote, type Decision, type OverviewGroup, type ThreadBrief } from "../domain/coordination.js";
+import { coordinationDecisions, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, openDecisions, threadModelOf, type CoordinationNote, type Decision, type OverviewGroup, type ThreadBrief, type ThreadModelChoice } from "../domain/coordination.js";
 import type { Thread } from "../domain/thread.js";
 import { wantsAttention } from "../domain/attention.js";
 
@@ -200,6 +200,8 @@ export type CoordinationApprovalView = {
 
 /** What the open thread shows: a coordinator its threads, their approvals and open decisions, a thread its coordinator and brief. */
 export type CoordinationView = {
+  /** On a coordinator, what its threads run on; null on any other thread. */
+  threadModel: ThreadModelChoice | null;
   members: CoordinatedThreadView[];
   /** Tool approvals it and its threads are waiting on, answered beside its decisions. */
   approvals: CoordinationApprovalView[];
@@ -210,7 +212,7 @@ export type CoordinationView = {
   asking: boolean;
 };
 
-const NO_COORDINATION: CoordinationView = { members: [], approvals: [], decisions: [], lead: null, brief: null, asking: false };
+const NO_COORDINATION: CoordinationView = { threadModel: null, members: [], approvals: [], decisions: [], lead: null, brief: null, asking: false };
 
 export function coordinatedThreadStatus(thread: Thread, busy: Set<string>, blocked: Set<string>): CoordinatedThreadView {
   const question = openDecisions(thread)[0]?.question;
@@ -243,7 +245,7 @@ export function coordinationView(
       }),
     ];
     const decisions = coordinationDecisions(threads, thread.id);
-    return members.length || approvals.length || decisions.length ? { ...NO_COORDINATION, members, approvals, decisions, brief: thread.brief ?? null } : NO_COORDINATION;
+    return { ...NO_COORDINATION, threadModel: threadModelOf(thread), members, approvals, decisions, brief: thread.brief ?? null };
   }
   const lead = coordinatorOf(threads, thread) ?? null;
   /** A thread that left its coordinator with a decision still open is where that decision is answered now. */

@@ -1,6 +1,8 @@
 import { useId, useState } from "react";
 import { LuChevronDown as ChevronDown, LuChevronUp as ChevronUp, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuTrash2 as Trash } from "react-icons/lu";
-import { deliveryLabel, OVERVIEW_GROUPS, type OverviewFold, type OverviewFolds, type OverviewGroup, type ThreadBrief } from "../../domain/coordination";
+import { deliveryLabel, OVERVIEW_GROUPS, type OverviewFold, type OverviewFolds, type OverviewGroup, type ThreadBrief, type ThreadModelChoice } from "../../domain/coordination";
+import { engineForModel, modelDelegable, type AgentEngine, type AgentModel, type EngineReadiness } from "../../domain/agent-engine";
+import type { AgentEffort } from "../../domain/run";
 import type { Thread } from "../../domain/thread";
 import { worktreeHue, worktreeName, type Worktree } from "../../domain/worktree";
 import { overviewGroups, type CoordinationApprovalView, type CoordinationDecisionView, type CoordinatedThreadStatus, type CoordinatedThreadView } from "../../application/coordination";
@@ -8,6 +10,8 @@ import type { ApprovalView } from "../../application/thread-run-state";
 import type { WorktreeGroup } from "../../application/workspace-state";
 import type { MemberWorktree } from "../../application/member-worktrees";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
+import { CommandGate } from "./CommandControl";
+import { EffortMenu, ModelMenu } from "./ComposerSettings";
 import { MAC } from "../platform";
 import "./coordination.css";
 
@@ -37,22 +41,66 @@ const OVERVIEW_LIMIT = 5;
 
 const OVERVIEW_LABELS: Record<OverviewGroup, string> = { needs: "Needs you", working: "Working", done: "Done" };
 
+/** What the Overview's header needs to pick what a coordinator's threads run on, with the same readiness the composer shows. */
+export type OverviewHeaderProps = {
+  taskId: string;
+  threadModel: ThreadModelChoice;
+  engineAccess: Record<AgentEngine, EngineReadiness>;
+  favoriteModels?: AgentModel[];
+  onModelFavorite?: (model: AgentModel, favorite: boolean) => void;
+  onSetThreadModel: (model: AgentModel, effort?: AgentEffort) => void;
+  onEngineRead: () => void;
+  onSignIn: (engine: AgentEngine) => void;
+  onOpenEngineSettings?: () => void;
+};
+
 /** A coordinator's threads by what they need from the user, each opening as a tab beside its conversation. */
-export function CoordinatorOverview({ members, worktreeGroups, folds, onSetFold, onSelect }: {
+export function CoordinatorOverview({ header, members, worktreeGroups, folds, onSetFold, onSelect }: {
+  header: OverviewHeaderProps;
   members: CoordinatedThreadView[];
   worktreeGroups: WorktreeGroup[];
   folds: OverviewFolds;
   onSetFold: (group: OverviewGroup, change: { open?: boolean; all?: boolean }) => void;
   onSelect: (threadId: string) => void;
 }) {
-  if (!members.length) return <p className="session-empty coordination-empty">No threads yet</p>;
   const worktrees = new Map(worktreeGroups.map(({ worktree }) => [worktree.id, worktree]));
   const groups = overviewGroups(members);
   return (
     <div className="coordination-overview" aria-label="Threads under this coordinator">
-      {OVERVIEW_GROUPS.map((group) => groups[group].length > 0 && (
-        <OverviewSection key={group} group={group} members={groups[group]} fold={folds[group] ?? {}} worktrees={worktrees} onSetFold={onSetFold} onSelect={onSelect} />
-      ))}
+      <OverviewHeader {...header} />
+      {members.length
+        ? OVERVIEW_GROUPS.map((group) => groups[group].length > 0 && (
+            <OverviewSection key={group} group={group} members={groups[group]} fold={folds[group] ?? {}} worktrees={worktrees} onSetFold={onSetFold} onSelect={onSelect} />
+          ))
+        : <p className="session-empty coordination-empty">No threads yet</p>}
+    </div>
+  );
+}
+
+/** What the coordinator's new threads run on, picked with the composer's own chips. */
+export function OverviewHeader({ taskId, threadModel, engineAccess, favoriteModels, onModelFavorite, onSetThreadModel, onEngineRead, onSignIn, onOpenEngineSettings }: OverviewHeaderProps) {
+  const { model, effort } = threadModel;
+  return (
+    <div className="coordination-overview-header">
+      <span className="coordination-overview-label">Threads run on</span>
+      <CommandGate command={{ type: "coordination.set-thread-model", taskId, model, ...(effort ? { effort } : {}) }}>
+        <div className="coordination-thread-model">
+          <ModelMenu
+            engine={engineForModel(model)}
+            engineLocked={false}
+            engineAccess={engineAccess}
+            model={model}
+            models={modelDelegable}
+            favoriteModels={favoriteModels}
+            onModelFavorite={onModelFavorite}
+            onChange={(_engine, next) => onSetThreadModel(next)}
+            onOpen={onEngineRead}
+            onSignIn={onSignIn}
+            {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})}
+          />
+          {effort && <EffortMenu model={model} effort={effort} heading="How hard should its threads think?" onChange={(next) => onSetThreadModel(model, next)} />}
+        </div>
+      </CommandGate>
     </div>
   );
 }

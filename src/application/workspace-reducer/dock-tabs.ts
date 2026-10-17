@@ -3,7 +3,7 @@ import { settled } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceTransition } from "./types.js";
 import { focusedTab } from "../composer-drafts.js";
 import { viewPreferences } from "../view-preferences.js";
-import { coordinatedThreadIds } from "../../domain/coordination.js";
+import { isCoordinator } from "../../domain/coordination.js";
 import { DOCK_PICKER, DRAFT_DOCK, OVERVIEW_PANEL, WORKFLOW_PANEL, dockFor, dockTabAfterClosing, withDock, workflowById, type WorkspaceState } from "../workspace-state.js";
 
 /** The window has the keys again, which a page in the panel is otherwise holding. */
@@ -76,16 +76,14 @@ export function prunedWorkflowPanels(state: WorkspaceState): WorkspaceState {
 const checkedOverviews = new WeakMap<WorkspaceState["docks"], WeakSet<WorkspaceState["threads"]>>();
 
 /**
- * A coordinator's dock leads with its Overview once a thread works under it. A thread usually arrives
- * from an agent while the user is elsewhere, so the dock is never opened or switched for it: a closed
- * dock with nothing chosen just opens on the Overview next time. A thread with nobody working under
- * it any more loses the tab.
+ * A coordinator's dock leads with its Overview, where its threads are followed and what they run on
+ * is chosen. Threads usually arrive from an agent while the user is elsewhere, so the dock is never
+ * opened or switched for it: a closed dock with nothing chosen just opens on the Overview next time.
+ * A thread that stops coordinating loses the tab.
  */
 export function withOverviewPanels(state: WorkspaceState): WorkspaceState {
   if (checkedOverviews.get(state.docks)?.has(state.threads)) return state;
-  const members = coordinatedThreadIds(state.threads);
-  const leads = new Set<string>();
-  for (const thread of state.threads) if (thread.parentId && members.has(thread.id)) leads.add(thread.parentId);
+  const leads = new Set(state.threads.filter((thread) => isCoordinator(thread)).map((thread) => thread.id));
   let next = state;
   for (const owner of leads) {
     const dock = dockFor(next, owner);

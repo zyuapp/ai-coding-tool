@@ -21,7 +21,7 @@ import { DRAFT_DOCK, dockFor, frontDock, sideChatIds, withDock, type WorkspaceSt
 import { threadActivity, threadLists } from "../thread-activity.js";
 import { dismissableThreads, dismissed, readAttention } from "../../domain/attention.js";
 import { clampTitle, type Thread } from "../../domain/thread.js";
-import { coordinatorOf, withCoordinated } from "../../domain/coordination.js";
+import { asCoordinator, coordinatorOf, withCoordinated } from "../../domain/coordination.js";
 import { isSnoozeHours, withoutSnooze } from "../../domain/thread-snooze.js";
 import { cancelPause } from "../limit-pauses.js";
 import { capabilitiesFor, defaultModelFor, effortForModel, engineHasModel, modelHasEffort } from "../../domain/agent-engine.js";
@@ -238,7 +238,11 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
       const thread = taskId ? state.threads.find((item) => item.id === taskId) : undefined;
       if (!thread) return settled(input.taskId === undefined ? { ...state, draftRole: input.role } : state);
       if ((thread.role ?? null) === input.role) return settled(state);
-      return settled(updateThread(state, thread.id, ({ role: _previous, ...item }) => ({ ...item, ...(input.role ? { role: input.role } : {}), updatedAt: now() })));
+      /** A thread becoming a coordinator starts its threads on what it runs on itself, until the user picks otherwise. */
+      return settled(updateThread(state, thread.id, ({ role: _previous, ...item }) => {
+        if (input.role === "coordinator") return { ...asCoordinator(item), updatedAt: now() };
+        return { ...item, ...(input.role ? { role: input.role } : {}), updatedAt: now() };
+      }));
     }
 
     /** A name the user typed outranks a suggested one, whenever the suggestion lands. */

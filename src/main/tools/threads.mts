@@ -24,18 +24,20 @@ const projectField = z.string().optional().describe(
 
 const modelIds = AGENT_ENGINES.flatMap((engine) => modelsFor(engine).map((model) => model.id));
 const effortIds = [...new Set(AGENT_ENGINES.flatMap((engine) => modelsFor(engine).flatMap((model) => model.efforts.map((effort) => effort.id))))];
-const modelFieldOf = (ids: AgentModel[]) => z.enum(ids as [AgentModel, ...AgentModel[]]).refine(isAgentModel).optional().describe(
-  "Model for the new thread. Omit to inherit the calling thread's model.",
+const modelFieldOf = (ids: AgentModel[], omitted: string) => z.enum(ids as [AgentModel, ...AgentModel[]]).refine(isAgentModel).optional().describe(
+  `Model for the new thread. Omit to ${omitted}`,
 );
-const modelField = modelFieldOf(modelIds);
-const delegableModelField = modelFieldOf(modelIds.filter(modelDelegable));
+const modelField = modelFieldOf(modelIds, "inherit the calling thread's model.");
+/** A thread that will work under a coordinator never runs on a model one may not hand work to. */
+const delegableModelField = (omitted: string) => modelFieldOf(modelIds.filter(modelDelegable), omitted);
 const roleIds = THREAD_ROLES.map((option) => option.role);
 const roleField = z.enum(roleIds as [ThreadRole, ...ThreadRole[]]).optional().describe(
   "The part the new thread plays beside the others: coordinator, implementer, reviewer, or researcher. Set reviewer for review threads; they stay in Threads unless awaiting the user's approval.",
 );
-const effortField = z.enum(effortIds as [AgentEffort, ...AgentEffort[]]).refine(isAgentEffort).optional().describe(
-  "Effort for the new thread. Omit to inherit the calling thread's effort when the selected model supports it, otherwise use that engine's default.",
+const effortFieldOf = (omitted: string) => z.enum(effortIds as [AgentEffort, ...AgentEffort[]]).refine(isAgentEffort).optional().describe(
+  `Effort for the new thread. Omit to ${omitted}`,
 );
+const effortField = effortFieldOf("inherit the calling thread's effort when the selected model supports it, otherwise use that engine's default.");
 
 function elapsed(ms: number) {
   const minutes = Math.floor(ms / MINUTE);
@@ -242,18 +244,34 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
   }),
 ];
 
+/** A start_thread whose new thread runs, unless it names otherwise, on what the coordinator's threads run on. */
+function ledStart(tool: ToolDefinition<ThreadToolContext>, whose: string): ToolDefinition<ThreadToolContext> {
+  return {
+    ...tool,
+    input: {
+      ...tool.input,
+      model: delegableModelField(`run it on the model ${whose} threads run on.`),
+      effort: effortFieldOf(`run it at the effort ${whose} threads run at, or the nearest one the selected model takes.`),
+    },
+  };
+}
+
 /**
  * A coordinator is woken with its threads' news, so it never holds its turn open waiting on one, and
- * it is offered only the models it may start a thread on, on its own computer.
+ * it starts threads only on its own computer.
  */
 const COORDINATOR_THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = THREAD_TOOLS
   .filter((tool) => tool.name !== "wait_for_thread")
   .map((tool) => {
     if (tool.name !== "start_thread") return tool;
     const { computer: _elsewhere, ...input } = tool.input;
-    return { ...tool, input: { ...input, model: delegableModelField } };
+    return ledStart({ ...tool, input }, "this coordinator's");
   });
 
+/** A thread one working under a coordinator starts works under that coordinator too. */
+const MEMBER_THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = THREAD_TOOLS
+  .map((tool) => tool.name === "start_thread" ? ledStart(tool, "your coordinator's") : tool);
+
 export function threadTools(bridge: ThreadBridge, now: () => number = Date.now, role?: CoordinationRole) {
-  return bindTools({ bridge, now }, role === "coordinator" ? COORDINATOR_THREAD_TOOLS : THREAD_TOOLS);
+  return bindTools({ bridge, now }, role === "coordinator" ? COORDINATOR_THREAD_TOOLS : role === "member" ? MEMBER_THREAD_TOOLS : THREAD_TOOLS);
 }

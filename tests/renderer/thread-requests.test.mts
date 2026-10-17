@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test, vi } from "vitest";
 import { act } from "react";
 import type { RunCommand } from "../../src/contracts/ipc.ts";
-import type { ThreadResponse } from "../../src/contracts/threads.ts";
+import type { ExternalCommand, ThreadResponse } from "../../src/contracts/threads.ts";
 import type { Thread } from "../../src/domain/thread.ts";
 
 import { item } from "../support/renderer-dom.mts";
@@ -180,6 +180,39 @@ test("a new thread inherits agent settings and can select any registered model",
     await desktop.askThreads({ type: "thread.request", requestId: "invalid", taskId: caller.id, op: "command", command: { type: "task.send", text: "Use Luna", model: "gpt-6-luna", effort: "ultra" } });
   });
   assert.match(failedThreadResponse(desktop.threadAnswers.at(-1)).message, /does not support ultra effort/);
+
+  await workspace.view.unmount();
+});
+
+test("a coordinator's threads run on the model chosen for them, not its own", async () => {
+  const thread = (id: string, overrides: Partial<Thread>): Thread => ({
+    id, title: id, engine: "claude", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, ...overrides,
+  });
+  const lead = thread("lead", { role: "coordinator", model: "sonnet", effort: "low", threadModel: { model: "opus", effort: "high" } });
+  const worker = thread("worker", { parentId: "lead", model: "sonnet", effort: "low" });
+  const desktop = fakeDesktop({ loadTaskStore: async () => ({ version: 2, hiddenTasks: 0, projects: [], worktrees: [], tasks: [lead, worker], lastFolder: null }) });
+  const workspace = await mountWorkspace(desktop);
+  await settleFrame();
+  const brief = { intent: "fix it", doneWhen: "it works", delivers: "commit" as const };
+  /** What the thread a request starts runs on, or why it was refused. */
+  const start = async (taskId: string, asked: Partial<Extract<ExternalCommand, { type: "task.send" }>> = {}) => {
+    const before = desktop.sent.length;
+    await act(async () => {
+      await desktop.askThreads({ type: "thread.request", requestId: crypto.randomUUID(), taskId, op: "command", command: { type: "task.send", text: "Fix it", ...(taskId === "lead" ? { brief } : {}), ...asked } });
+    });
+    const answer = item(desktop.threadAnswers.at(-1));
+    if (!answer.ok) return answer.message;
+    const { engine, model, effort } = startCommand(desktop.sent.slice(before).find((sent) => sent.type === "start"));
+    return { engine, model, effort };
+  };
+
+  assert.deepEqual(await start("lead"), { engine: "claude", model: "opus", effort: "high" }, "the coordinator's own sonnet/low does not reach its threads");
+  assert.deepEqual(await start("lead", { model: "gpt-6-luna" }), { engine: "codex", model: "gpt-6-luna", effort: "high" }, "a named model keeps the threads' effort");
+  assert.deepEqual(await start("lead", { effort: "low" }), { engine: "claude", model: "opus", effort: "low" }, "a named effort keeps the threads' model");
+  assert.equal(await start("lead", { model: "gpt-6-luna", effort: "ultra" }), "The gpt-6-luna model does not support ultra effort.");
+  assert.equal(await start("lead", { model: "haiku" }), "Threads under a coordinator cannot run on the haiku model. Pick another model.");
+  assert.equal(await start("worker", { model: "haiku" }), "Threads under a coordinator cannot run on the haiku model. Pick another model.", "a thread one of its threads starts works under it too");
+  assert.deepEqual(await start("worker"), { engine: "claude", model: "opus", effort: "high" });
 
   await workspace.view.unmount();
 });

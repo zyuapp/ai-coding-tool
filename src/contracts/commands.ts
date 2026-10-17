@@ -100,6 +100,8 @@ export type TaskCommand =
   | { type: "task.set-coordinator"; taskId: string; coordinatorId: string | null }
   /** Answers a choice a thread put to the user. The answer reaches that thread as a message. */
   | { type: "decision.answer"; taskId: string; decisionId: string; answer: string }
+  /** What a coordinator's new threads run on unless it names another. An effort the model lacks moves to the nearest it takes. */
+  | { type: "coordination.set-thread-model"; taskId: string; model: AgentModel; effort?: AgentEffort }
   /** Takes the dot off a thread, which is the only thing that does. Opening the thread only dims it. */
   | { type: "task.dismiss"; taskId: string }
   | { type: "task.snooze"; taskId: string; hours: SnoozeHours }

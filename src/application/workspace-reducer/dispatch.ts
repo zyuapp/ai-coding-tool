@@ -47,7 +47,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "task.set-model": case "task.set-effort": case "task.set-fast-mode":
       return reduceThreadCommands(state, input);
 
-    case "task.set-coordinator": case "decision.answer": case "coordination.reported": case "coordination.decision-raised":
+    case "task.set-coordinator": case "decision.answer": case "coordination.set-thread-model": case "coordination.reported": case "coordination.decision-raised":
       return reduceCoordination(state, input);
 
     case "view.move-worktree": case "task.set-worktree": case "task.move-worktree": case "task.set-branch": case "task.checkout-branch":

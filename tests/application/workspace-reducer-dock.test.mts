@@ -293,3 +293,17 @@ test("opening settings puts the dock away, and closing them forgets the computer
   assert.equal(closed.state.computerUseSetup, false);
   assert.equal(deriveView(closed.state).settingsOpen, false);
 });
+
+test("a coordinator with no threads yet leads its dock with the Overview, and a thread whose role is taken off loses it", () => {
+  const state = workspace({ threads: [task("lead"), task("other")], currentId: "lead" });
+  const made = reduce(state, { type: "task.set-role", taskId: "lead", role: "coordinator" }).state;
+  assert.deepEqual(dock(made, "lead").panels, ["overview"], "what its threads will run on is chosen there before the first one starts");
+  assert.equal(dock(made, "lead").tab, "overview");
+  assert.deepEqual(dock(made, "other").panels, [], "a thread that coordinates nothing has none");
+
+  const loaded = reduce(workspace({ threads: [task("lead", { role: "coordinator" })], currentId: "lead" }), { type: "view.set-dock-open", open: true }).state;
+  assert.deepEqual(dock(loaded, "lead").panels, ["overview"], "a coordinator saved before it had threads gets one too");
+
+  const stepped = reduce(made, { type: "task.set-role", taskId: "lead", role: "implementer" }).state;
+  assert.deepEqual(dock(stepped, "lead").panels, []);
+});

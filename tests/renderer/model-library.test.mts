@@ -3,8 +3,8 @@ import { test } from "vitest";
 import React, { act } from "react";
 import { mount, query } from "../support/renderer-dom.mts";
 import { readViewPreferences } from "../../src/application/view-preferences.ts";
-import type { AgentModel } from "../../src/domain/agent-engine.ts";
-const { ComposerSettings, EVERY_ENGINE_READY } = await import("../../src/renderer/components/ComposerSettings.tsx");
+import { modelDelegable, type AgentModel } from "../../src/domain/agent-engine.ts";
+const { ComposerSettings, EVERY_ENGINE_READY, ModelMenu } = await import("../../src/renderer/components/ComposerSettings.tsx");
 
 test("the library filters providers, searches globally, pins without choosing, and selects by keyboard", async () => {
   const selected: AgentModel[] = [];
@@ -76,5 +76,23 @@ test("the Codex speed toggle follows effort and dispatches both speed changes", 
   assert.deepEqual(selected, [true, false]);
   await view.render(React.createElement(ComposerSettings, { ...props, engine: "claude", engineLabel: "Claude", model: "opus" }));
   assert.equal(view.container.querySelector('button[aria-label="Fast mode"]'), null);
+  await view.unmount();
+});
+
+test("a library narrowed to some models offers only those, in its counts as well", async () => {
+  const props = {
+    engine: "claude" as const, engineLocked: false, engineAccess: EVERY_ENGINE_READY, model: "opus" as const,
+    onChange() {}, onOpen() {}, onSignIn() {},
+  };
+  const view = await mount(React.createElement(ModelMenu, { ...props, models: modelDelegable }));
+  await act(async () => { query<HTMLElement>(view.container, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+  const names = () => [...view.container.querySelectorAll(".model-choice strong")].map((node) => node.textContent);
+  assert.ok(names().includes("Sonnet"));
+  assert.ok(!names().includes("Haiku"), "Haiku cannot run a coordinator's threads, so it is not offered");
+  const claude = [...view.container.querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((button) => button.textContent?.includes("Claude"))!;
+  assert.match(claude.textContent!, /Claude3$/);
+
+  await view.render(React.createElement(ModelMenu, props));
+  assert.ok(names().includes("Haiku"), "the composer's own library still offers every model");
   await view.unmount();
 });

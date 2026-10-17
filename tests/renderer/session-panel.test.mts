@@ -16,6 +16,8 @@ import { required } from "../application/workspace-reducer-fixtures.mts";
 
 const { MemberPullRequestList, SessionPanel } = await import("../../src/renderer/components/SessionPanel.tsx");
 const { CoordinatorOverview, MemberWorktreeList, NeedsYouCard } = await import("../../src/renderer/components/Coordination.tsx");
+const { EVERY_ENGINE_READY } = await import("../../src/renderer/components/ComposerSettings.tsx");
+const { CommandControlsProvider } = await import("../../src/renderer/components/CommandControl.tsx");
 const { SubagentInspector } = await import("../../src/renderer/components/SubagentInspector.tsx");
 const { AgentsPanel, matchSubagents } = await import("../../src/renderer/components/SubagentList.tsx");
 const { WorkspaceHeader } = await import("../../src/renderer/components/WorkspaceHeader.tsx");
@@ -66,6 +68,9 @@ const liveWorkflow: Workflow = {
   startedAt: workflowStart,
 };
 
+/** What the Overview's header picks from, with every engine ready and nothing chosen yet. */
+const header = { taskId: "lead", threadModel: { model: "opus" as const, effort: "high" as const }, engineAccess: EVERY_ENGINE_READY, onSetThreadModel() {}, onEngineRead() {}, onSignIn() {} };
+
 const member = (id: string, title: string): Thread => ({ id, title, engine: "claude", executionPolicy: "allow-edits", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, parentId: "lead" });
 
 test("a coordinator's Overview groups its threads by what they need, each opening as a tab", async () => {
@@ -76,6 +81,7 @@ test("a coordinator's Overview groups its threads by what they need, each openin
   const done = Array.from({ length: 7 }, (_, index) => ({ thread: member(`d${index}`, `Done ${index}`), status: "done" as const, summary: null }));
   const working = Array.from({ length: 7 }, (_, index) => ({ thread: member(`w${index}`, `Working ${index}`), status: "working" as const, summary: null }));
   const overview = (folds: object) => React.createElement(CoordinatorOverview, {
+    header,
     members: [
       { thread: { ...member("a", "Dark mode"), worktreeId: "wt-1" }, status: "working", summary: "Tokens pass" },
       { thread: member("b", "Login flake"), status: "asking", summary: "Retry or skip?" },
@@ -108,8 +114,36 @@ test("a coordinator's Overview groups its threads by what they need, each openin
   await act(async () => { query<HTMLButtonElement>(busy, 'button[aria-label="Open Dark mode"]').click(); });
   assert.equal(opened, "a");
 
-  await view.render(React.createElement(CoordinatorOverview, { members: [], worktreeGroups: [], folds: {}, onSetFold() {}, onSelect() {} }));
+  await view.render(React.createElement(CoordinatorOverview, { header, members: [], worktreeGroups: [], folds: {}, onSetFold() {}, onSelect() {} }));
+  assert.match(view.container.textContent, /Threads run onModelOpusEffortHigh/, "a coordinator with no threads yet still says what they will run on");
   assert.match(view.container.textContent, /No threads yet/);
+  await view.unmount();
+});
+
+test("the Overview says what a coordinator's threads run on, and picks another with the composer's chips", async () => {
+  const picked: unknown[] = [];
+  const overview = (available: boolean) => React.createElement(CommandControlsProvider, { value: { available: (command) => available || command.type !== "coordination.set-thread-model", dispatch() {} } },
+    React.createElement(CoordinatorOverview, {
+      header: { ...header, threadModel: { model: "gpt-6-luna", effort: "max" }, onSetThreadModel: (model: string, effort?: string) => { picked.push([model, effort]); } },
+      members: [], worktreeGroups: [], folds: {}, onSetFold() {}, onSelect() {},
+    }));
+  const view = await mount(overview(true));
+  const head = query(view.container, ".coordination-overview-header");
+  assert.match(head.textContent, /Threads run onModelLunaEffortMax/);
+  const [model, effort] = head.querySelectorAll<HTMLDetailsElement>(".setting-menu");
+  await act(async () => { query<HTMLElement>(item(model), "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+  await act(async () => {
+    [...item(model).querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((button) => button.textContent?.includes("All models"))!.click();
+  });
+  const offered = [...item(model).querySelectorAll(".model-choice strong")].map((node) => node.textContent);
+  assert.ok(offered.includes("Opus") && !offered.includes("Haiku"), "a coordinator's threads are never offered Haiku");
+  await act(async () => { [...item(model).querySelectorAll<HTMLButtonElement>(".model-choice")].find((button) => button.textContent?.includes("Opus"))!.click(); });
+  await act(async () => { query<HTMLElement>(item(effort), "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+  await act(async () => { [...item(effort).querySelectorAll<HTMLButtonElement>(".setting-option")].find((button) => button.textContent?.includes("Low"))!.click(); });
+  assert.deepEqual(picked, [["opus", undefined], ["gpt-6-luna", "low"]], "a new model keeps the effort for the reducer to fit, and a new effort keeps the model");
+
+  await view.render(overview(false));
+  assert.equal(view.container.querySelectorAll(".coordination-overview-header .setting-menu").length, 0, "a computer whose build cannot take the choice offers none");
   await view.unmount();
 });
 

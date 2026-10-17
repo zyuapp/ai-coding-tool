@@ -25,7 +25,7 @@ import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
 import { createConversationMessage, createSentMessage } from "../../domain/conversation.js";
 import { appendMessages } from "../../domain/conversation-updates.js";
 import { pausedForLimit } from "../limit-pauses.js";
-import { canJoinCoordinator, isCoordinator, withoutCoordinationNotes } from "../../domain/coordination.js";
+import { asCoordinator, canJoinCoordinator, isCoordinator, withoutCoordinationNotes } from "../../domain/coordination.js";
 import { briefPrompt, coordinationContext } from "../coordination.js";
 import type { Thread } from "../../domain/thread.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
@@ -302,7 +302,9 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   if (created && !created.name) created.name = thread.title;
   /** A thread a coordinator starts works under it from its first run. */
   const lead = existing ? undefined : state.threads.find((item) => item.id === pending.coordination?.coordinatorId);
-  const joined = lead && canJoinCoordinator(thread, lead) ? { ...thread, parentId: lead.id } : thread;
+  /** A new coordinator's threads run on what it runs on itself until the user picks otherwise. */
+  const opened = !existing && pending.role === "coordinator" ? asCoordinator(thread) : thread;
+  const joined = lead && canJoinCoordinator(opened, lead) ? { ...opened, parentId: lead.id } : opened;
   const message = createSentMessage({ ...pending, origin: pending.messageOrigin });
   /** Only a thread that was somewhere else is arriving; one already in this checkout has said so. */
   const arrival = arriving && existing?.worktreeId !== arriving.id
