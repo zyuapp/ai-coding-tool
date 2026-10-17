@@ -39,9 +39,9 @@ export const APP_FEATURES = ["--enable", "fast_mode", "--enable", "goals",
 /**
  * Codex asks the user in chat only outside a coordinator. Under one, a coordinator and its threads put
  * a question to the user with raise_decision, which the coordinator's Overview and Needs you show, as
- * Claude there must.
+ * Claude there must. It is disabled there, not just left off, so the user's own config cannot turn it on.
  */
-const QUESTION_FEATURES = ["--enable", "default_mode_request_user_input"];
+const questionFeatures = (coordinated: boolean) => [coordinated ? "--disable" : "--enable", "default_mode_request_user_input"];
 
 /** A coordinator hands work only to threads the user can see, so it runs without Codex's own subagents, as it does without Claude's. */
 const COORDINATOR_WITHHELD_FEATURES = ["--disable", "multi_agent", "--disable", "multi_agent_v2"];
@@ -74,6 +74,6 @@ export function codexConfig(input: ConfigSources, served: ServedTools | undefine
     config[`mcp_servers.${COMPUTER_USE_SERVER_NAME}.env`] = env;
     if (grantsTool("computer-use", input)) config[`mcp_servers.${COMPUTER_USE_SERVER_NAME}.default_tools_approval_mode`] = "approve";
   }
-  const features = input.coordinationRole === undefined ? QUESTION_FEATURES : input.coordinationRole === "coordinator" ? COORDINATOR_WITHHELD_FEATURES : [];
+  const features = [...questionFeatures(input.coordinationRole !== undefined), ...input.coordinationRole === "coordinator" ? COORDINATOR_WITHHELD_FEATURES : []];
   return [...APP_FEATURES, ...features, ...Object.entries(config).flatMap(([key, value]) => ["-c", `${key}=${toml(value)}`])];
 }
