@@ -48,7 +48,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "task.set-model": case "task.set-effort": case "task.set-fast-mode":
       return reduceThreadCommands(state, input);
 
-    case "task.set-coordinator": case "task.resolve": case "task.reopen": case "decision.answer": case "coordination.set-thread-model": case "coordination.set-muted": case "coordination.stop-all": case "coordination.reported": case "coordination.decision-raised":
+    case "task.set-coordinator": case "task.set-lead-away": case "task.resolve": case "task.reopen": case "decision.answer": case "coordination.set-thread-model": case "coordination.set-muted": case "coordination.stop-all": case "coordination.reported": case "coordination.decision-raised":
     case "memory.set-purpose": case "memory.add": case "memory.edit": case "memory.forget": case "coordination.remembered": case "coordination.next-step":
       return reduceCoordination(state, input);
     case "coordination.proposed": case "proposal.start": case "proposal.dismiss": case "proposal.settled":

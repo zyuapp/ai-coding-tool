@@ -22,7 +22,7 @@ import { dismissed } from "../../domain/attention.js";
 import { resumesOnItsOwn } from "../../domain/usage-limit.js";
 
 type CoordinationInput = Extract<WorkspaceInput, {
-  type: "task.set-coordinator" | "task.resolve" | "task.reopen" | "decision.answer" | "coordination.set-thread-model" | "coordination.set-muted" | "coordination.stop-all" | "coordination.reported" | "coordination.decision-raised"
+  type: "task.set-coordinator" | "task.set-lead-away" | "task.resolve" | "task.reopen" | "decision.answer" | "coordination.set-thread-model" | "coordination.set-muted" | "coordination.stop-all" | "coordination.reported" | "coordination.decision-raised"
     | "memory.set-purpose" | "memory.add" | "memory.edit" | "memory.forget" | "coordination.remembered" | "coordination.next-step";
 }>;
 
@@ -47,6 +47,18 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       if (!canJoinCoordinator(thread, lead)) return rejected(state, JOIN_REFUSED);
       if (thread.parentId === lead.id && thread.remoteLead === undefined) return settled(state);
       return settled({ ...updateThread(state, thread.id, ({ resolvedAt: _settled, remoteLead: _left, ...item }) => ({ ...item, parentId: lead.id, updatedAt: now() })), openMenu: null });
+    }
+
+    /**
+     * A thread keeps the coordinator elsewhere it works under while that one is away, as a thread here
+     * keeps its own, and what it settled under it, so it is back as it was once that coordinator is.
+     */
+    case "task.set-lead-away": {
+      const thread = state.threads.find((item) => item.id === input.taskId);
+      const held = thread?.parentId === undefined ? thread?.remoteLead : undefined;
+      if (!held || (held.away === true) === input.away) return settled(state);
+      const { away: _was, ...lead } = held;
+      return settled(updateThread(state, input.taskId, (item) => ({ ...item, remoteLead: input.away ? { ...lead, away: true } : { ...lead, backAt: now() }, updatedAt: now() })));
     }
 
     /**

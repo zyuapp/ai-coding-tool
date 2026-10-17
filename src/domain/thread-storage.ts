@@ -7,7 +7,7 @@ import type { Continuation, ExecutionPolicy, Subagent } from "./run.js";
 import { isThreadUsage, type ContextUsage, type ContinuationStatus, type ThreadOutcome } from "./thread-run.js";
 import type { Thread } from "./thread.js";
 import { isThreadRole } from "./thread-role.js";
-import { isCoordinationNote, isCoordinationReport, isCoordinatorMemory, isDecision, isRemoteHeard, isRemoteLead, isRemoteWorking, isThreadBrief, isThreadModelChoice, isThreadProposal } from "./coordination.js";
+import { isCoordinationNote, isCoordinationReport, isCoordinatorMemory, isDecision, isHeldLead, isRemoteHeard, isRemoteWorking, isThreadBrief, isThreadModelChoice, isThreadProposal } from "./coordination.js";
 import { isWorktree, type Worktree } from "./worktree.js";
 import { isLimitPause } from "./usage-limit.js";
 import { isPullRequestLink } from "./pull-request.js";
@@ -531,7 +531,7 @@ const DROPPABLE_FIELDS: Readonly<Record<string, (value: unknown) => boolean>> = 
   pullRequest: isPullRequestLink,
   muted: (value) => value === true,
   usage: isThreadUsage,
-  remoteLead: isRemoteLead,
+  remoteLead: isHeldLead,
   remoteHeard: isRemoteHeard,
   remoteWorking: isRemoteWorking,
 };

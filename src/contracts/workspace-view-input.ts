@@ -258,6 +258,7 @@ const commands = {
   "task.rename": { fields: { taskId: text, title: text }, at: "thread" },
   "task.set-role": { fields: { taskId: optionalText, role: nullable(isThreadRole) }, at: "thread", agent: namesThread },
   "task.set-coordinator": { fields: { taskId: text, coordinatorId: nullableText }, at: "thread" },
+  "task.set-lead-away": { fields: { taskId: text, away: boolean }, at: "thread" },
   "task.resolve": { fields: { taskId: text }, at: "thread" },
   "task.reopen": { fields: { taskId: text }, at: "thread" },
   "decision.answer": { fields: { taskId: text, decisionId: text, answer: text }, at: "thread" },

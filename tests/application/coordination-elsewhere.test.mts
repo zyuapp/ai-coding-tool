@@ -188,8 +188,8 @@ test("a relayed notice for a remote member of a local coordinator is dropped", (
   assert.deepEqual(reduce(state, { type: "computer.notice", id: "studio", notice: other }).effects, [{ type: "announce-thread", notice: other }]);
 });
 
-test("archiving the coordinator releases its remote members, and a computer that was offline is released when it reconnects", () => {
-  const released = { type: "task.set-coordinator", taskId: "far", coordinatorId: null };
+test("archiving the coordinator lets its remote members stand on their own, and a computer that was offline is told when it reconnects", () => {
+  const released = { type: "task.set-lead-away", taskId: "far", away: true };
   const state = withComputers(workspace({ threads: [task("lead", { role: "coordinator", title: "Lead" })] }), [
     paired("studio", workspace({ threads: [far()] }), { capabilities: COMPUTER_CAPABILITIES }),
     paired("linux", workspace({ threads: [far({ id: "away" })] }), { status: "offline", capabilities: COMPUTER_CAPABILITIES }),
@@ -201,14 +201,49 @@ test("archiving the coordinator releases its remote members, and a computer that
   assert.deepEqual(back.effects.filter((effect) => effect.type === "computer.forward" && effect.silent), [{ type: "computer.forward", id: "linux", inputs: [{ ...released, taskId: "away" }], silent: true }]);
 });
 
-test("a computer that restarted is released once its state comes in after its line", () => {
+test("a computer that restarted is told once its state comes in after its line", () => {
   const restarted = withComputers(workspace({ threads: [task("lead", { role: "coordinator", title: "Lead", archivedAt: 5 })] }), [paired("studio", null, { status: "offline", capabilities: COMPUTER_CAPABILITIES })]);
   const connected = reduce(restarted, { type: "computers.changed", name: "This Mac", links: [link("studio", { capabilities: COMPUTER_CAPABILITIES })] });
   assert.deepEqual(connected.effects.filter((effect) => effect.type === "computer.forward"), [], "nothing is known there yet");
   const said = mirrored(connected.state, workspace({ threads: [far(), task("other")] }));
-  assert.deepEqual(said.effects.filter((effect) => effect.type === "computer.forward"), [{ type: "computer.forward", id: "studio", inputs: [{ type: "task.set-coordinator", taskId: "far", coordinatorId: null }], silent: true }]);
-  const letGo = mirrored(said.state, workspace({ threads: [far({ remoteLead: undefined }), task("other")] }));
+  assert.deepEqual(said.effects.filter((effect) => effect.type === "computer.forward"), [{ type: "computer.forward", id: "studio", inputs: [{ type: "task.set-lead-away", taskId: "far", away: true }], silent: true }]);
+  const letGo = mirrored(said.state, workspace({ threads: [far({ remoteLead: { ...FAR, away: true } }), task("other")] }));
   assert.deepEqual(letGo.effects.filter((effect) => effect.type === "computer.forward"), [], "once it is let go there is nothing more to say");
+});
+
+test("restoring the coordinator, or giving its role back, brings its remote members back under it", () => {
+  const away = far({ remoteLead: { ...FAR, away: true } });
+  const back = { type: "computer.forward", id: "studio", inputs: [{ type: "task.set-lead-away", taskId: "far", away: false }], silent: true };
+  const forwards = (transition: ReturnType<typeof reduce>) => transition.effects.filter((effect) => effect.type === "computer.forward");
+  const archived = coordinating(workspace({ threads: [away] }));
+  const filed = { ...archived, threads: [{ ...archived.threads[0]!, archivedAt: 5 }] };
+  assert.deepEqual(coordinationMembers(filed, "lead"), []);
+  assert.deepEqual(forwards(reduce(filed, { type: "task.restore", taskId: "lead" })), [back]);
+  const plain = { ...archived, threads: [{ ...archived.threads[0]!, role: undefined }] };
+  assert.deepEqual(forwards(reduce(plain, { type: "task.set-role", taskId: "lead", role: "coordinator" })), [back]);
+  assert.deepEqual(forwards(mirrored(archived, workspace({ threads: [away, task("other")] }))), [back], "a computer that was offline is told once it says so");
+  const returned = mirrored(archived, workspace({ threads: [far({ remoteLead: { ...FAR, backAt: 20 } })] })).state;
+  assert.deepEqual(coordinationMembers(returned, "lead").map(({ thread }) => thread.id), ["far"]);
+  const cleared = { ...filed, threads: [], computers: { ...filed.computers, discardedLeads: ["lead"] } };
+  assert.deepEqual(forwards(mirrored(cleared, workspace({ threads: [away] }))), [{ ...back, inputs: [{ type: "task.set-coordinator", taskId: "far", coordinatorId: null }] }], "one gone from here lets it go for good");
+});
+
+test("a remote member back under its coordinator brings only what it did since", () => {
+  const heard = mirrored(coordinating(workspace()), workspace({ threads: [far()] })).state;
+  const notes = notesOf(heard).length;
+  const returned = mirrored(heard, workspace({ threads: [far({ remoteLead: { ...FAR, backAt: 40 }, runEndedAt: 30, outcome: "failed", findings: [{ id: "f1", headline: "Disk almost full", at: 25 }] })] }));
+  assert.equal(notesOf(returned.state).length, notes, "its turn ended while its coordinator was away");
+  assert.deepEqual(returned.effects.filter((effect) => effect.type === "announce-thread"), [], "that computer said so itself");
+  assert.deepEqual(wakesOf(returned.state), []);
+  const later = mirrored(returned.state, workspace({ threads: [far({ remoteLead: { ...FAR, backAt: 40 }, runEndedAt: 50, outcome: "finished" })] })).state;
+  assert.equal(notesOf(later).at(-1), "\"Far work\" ended its turn.");
+});
+
+test("a computer from before a coordinator could be away lets its thread go for good", () => {
+  const older = COMPUTER_CAPABILITIES.filter((capability) => !capability.startsWith("command:task.set-lead-away"));
+  const state = coordinating(workspace({ threads: [far()] }), { capabilities: older });
+  const archived = reduce(state, { type: "task.archive", taskId: "lead" });
+  assert.deepEqual(archived.effects.filter((effect) => effect.type === "computer.forward"), [{ type: "computer.forward", id: "studio", inputs: [{ type: "task.set-coordinator", taskId: "far", coordinatorId: null }], silent: true }]);
 });
 
 test("a coordinator cleared from the archive while a computer holding its thread was away still lets that thread go once it is back, after a restart too", () => {
@@ -311,6 +346,22 @@ test("a remote member's decision and approval are answered on its own computer",
     const carried = reduce(state, input);
     assert.deepEqual(effectOf(carried, "computer.forward"), { type: "computer.forward", id: "studio", inputs: [input] }, `${input.type} is decided where the thread is`);
   }
+});
+
+test("a remote member whose coordinator is away stands on its own, and works under it again once it is back", () => {
+  const state = workspace({ threads: [task("member", { remoteLead: LEAD_THERE, resolvedAt: 3 })] });
+  const away = reduce(state, { type: "task.set-lead-away", taskId: "member", away: true }).state;
+  assert.deepEqual(away.threads[0]!.remoteLead, { ...LEAD_THERE, away: true }, "it keeps whom it worked under");
+  assert.equal(coordinationRole(away.threads, away.threads[0]!), undefined);
+  assert.equal(coordinationView(away, away.threads[0], new Set(), new Set()).remoteLead, null);
+  assert.equal(reduce(away, { type: "task.set-lead-away", taskId: "member", away: true }).state, away, "saying it twice changes nothing");
+
+  const back = reduce(away, { type: "task.set-lead-away", taskId: "member", away: false }).state;
+  const lead = required(back.threads[0]!.remoteLead);
+  assert.deepEqual([lead.away, typeof lead.backAt, back.threads[0]!.resolvedAt], [undefined, "number", 3], "it is back as it was");
+  assert.equal(coordinationRole(back.threads, back.threads[0]!), "member");
+  const moved = reduce(away, { type: "task.set-coordinator", taskId: "member", coordinatorId: null }).state;
+  assert.equal(moved.threads[0]!.remoteLead, undefined, "moving it out lets it go for good");
 });
 
 test("moving a remote member out clears its remote lead", () => {

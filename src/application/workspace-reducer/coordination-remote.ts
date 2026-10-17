@@ -2,7 +2,7 @@
 import { proposalLanded } from "./proposals.js";
 import { now, settled } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceTransition } from "./types.js";
-import { coordinationMembers, coordinationNote, decisionHeadline, decisionNote, remotelyLedThreads, reportHeadline, reportNote, turnNote } from "../coordination.js";
+import { coordinationMembers, coordinationNote, decisionHeadline, decisionNote, leadAwayThreads, remotelyLedThreads, reportHeadline, reportNote, turnNote } from "../coordination.js";
 import type { ThreadChange } from "../thread-activity.js";
 import { announced, waitingHeadline } from "../notices.js";
 import { settledHeadline } from "../run-testimony.js";
@@ -117,15 +117,17 @@ function keptWork(previous: WorkspaceState, news: RemoteNews): RemoteNews {
  */
 function memberNews(state: WorkspaceState, lead: Thread, member: Thread, computer: PairedComputer, holder: WorkspaceState, prior: WorkspaceState | null): { state: WorkspaceState; effects: WorkspaceEffect[] } {
   const heard = lead.remoteHeard?.[member.id];
-  const since = heard ?? 0;
+  /** What it did while its coordinator was away is none of that coordinator's news, as for a thread here. */
+  const back = member.remoteLead!.backAt;
+  const since = Math.max(heard ?? 0, back ?? 0);
   const at = now();
   const notes: CoordinationNote[] = [];
   const effects: WorkspaceEffect[] = [];
-  let newest = heard ?? threadCreatedAt(member);
+  let newest = Math.max(heard ?? threadCreatedAt(member), back ?? 0);
   let { quietStops, stoppedStarts } = state;
   const run = holder.activeRuns[member.id];
   const ran = prior?.activeRuns[member.id];
-  if (heard === undefined) notes.push(coordinationNote(member.id, `"${member.title}" started on ${computer.name}.`, at, { quiet: true }));
+  if (heard === undefined && back === undefined) notes.push(coordinationNote(member.id, `"${member.title}" started on ${computer.name}.`, at, { quiet: true }));
   for (const decision of openDecisions(member)) {
     if (decision.raisedAt <= since) continue;
     notes.push(decisionNote(member, decision, at, run?.runId));
@@ -180,30 +182,43 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
 }
 
 /**
- * Each thread on a paired computer still working under a thread here that is no longer a live
- * coordinator, or under one gone from here, is let go there, as this computer's own threads stand on
- * their own once their coordinator goes. It is read off what each computer says it holds, so one
- * that was away, or whose state comes in only after its line is back, is told once it says so, and
- * what could not be carried is tried again the next time its threads move.
+ * Each thread on a paired computer working under a thread here that is no longer a live coordinator
+ * is told its coordinator is away, so it stands on its own as this computer's own threads do once
+ * theirs goes, and is told it is back once it is a coordinator again, as this computer's own are back
+ * under it. One under a coordinator gone from here is let go for good. It is read off what each
+ * computer says it holds, so one that was away, or whose state comes in only after its line is back,
+ * is told once it says so, and what could not be carried is tried again the next time its threads move.
  */
 export function released(previous: WorkspaceState, state: WorkspaceState, threads: readonly ThreadChange[]): WorkspaceEffect[] {
-  const ended = threads.some(({ before, after }) => isCoordinator(before) && !isCoordinator(after));
-  if (!ended && previous.computers.paired === state.computers.paired) return [];
+  const changed = threads.some(({ before, after }) => isCoordinator(before) !== isCoordinator(after));
+  if (!changed && previous.computers.paired === state.computers.paired) return [];
   const before = new Map(previous.computers.paired.map((computer) => [computer.id, computer]));
   const effects: WorkspaceEffect[] = [];
   for (const computer of state.computers.paired) {
     if (computer.status !== "connected" || !computer.state) continue;
     const was = before.get(computer.id);
-    if (!ended && was?.status === "connected" && was.state?.threads === computer.state.threads) continue;
-    const inputs = remotelyLedThreads(computer.state.threads).flatMap((thread): AppCommand[] => {
-      const leadId = thread.remoteLead!.threadId;
-      const lead = state.threads.find((item) => item.id === leadId);
-      const gone = lead ? !isCoordinator(lead) : state.computers.discardedLeads.includes(leadId);
-      return gone ? [{ type: "task.set-coordinator", taskId: thread.id, coordinatorId: null }] : [];
-    }).filter((command) => supportsComputerCommand(computer.capabilities, command));
+    if (!changed && was?.status === "connected" && was.state?.threads === computer.state.threads) continue;
+    const held = computer.state.threads;
+    const inputs = [...remotelyLedThreads(held), ...leadAwayThreads(held)].flatMap((thread) => leadChange(state, thread, computer));
     if (inputs.length) effects.push({ type: "computer.forward", id: computer.id, inputs, silent: true });
   }
   return effects;
+}
+
+/**
+ * What a thread on a paired computer is to be told of the coordinator it names, if that is one here
+ * whose standing it has not been told. A computer from before a coordinator could be away lets the
+ * thread go for good instead.
+ */
+function leadChange(state: WorkspaceState, thread: Thread, computer: PairedComputer): AppCommand[] {
+  const { threadId: leadId, away = false } = thread.remoteLead!;
+  const lead = state.threads.find((item) => item.id === leadId);
+  const release: AppCommand = { type: "task.set-coordinator", taskId: thread.id, coordinatorId: null };
+  if (!lead) return state.computers.discardedLeads.includes(leadId) && supportsComputerCommand(computer.capabilities, release) ? [release] : [];
+  if (isCoordinator(lead) !== away) return [];
+  const told: AppCommand = { type: "task.set-lead-away", taskId: thread.id, away: !away };
+  if (supportsComputerCommand(computer.capabilities, told)) return [told];
+  return !away && supportsComputerCommand(computer.capabilities, release) ? [release] : [];
 }
 
 /**

@@ -100,6 +100,11 @@ export type TaskCommand =
   | { type: "task.set-role"; taskId?: string; role: ThreadRole | null }
   /** Moves a thread under a coordinator, or out from under one with `null`. */
   | { type: "task.set-coordinator"; taskId: string; coordinatorId: string | null }
+  /**
+   * Said by the computer holding a thread's coordinator: it is archived or no longer a coordinator, so
+   * the thread stands on its own, or it is back, and the thread works under it again.
+   */
+  | { type: "task.set-lead-away"; taskId: string; away: boolean }
   /** Files a thread under a coordinator away as resolved once nothing is left for it, or opens it again. */
   | { type: "task.resolve"; taskId: string }
   | { type: "task.reopen"; taskId: string }

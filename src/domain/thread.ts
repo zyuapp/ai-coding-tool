@@ -2,7 +2,7 @@ import type { AgentEngine, AgentModel } from "./agent-engine.js";
 import type { ConversationMessage } from "./conversation.js";
 import type { AutomationFinding } from "./finding.js";
 import type { AgentEffort, Continuation, ExecutionPolicy } from "./run.js";
-import type { CoordinationNote, CoordinationReport, CoordinatorMemory, Decision, RemoteLead, ThreadBrief, ThreadModelChoice, ThreadProposal } from "./coordination.js";
+import type { CoordinationNote, CoordinationReport, CoordinatorMemory, Decision, HeldLead, ThreadBrief, ThreadModelChoice, ThreadProposal } from "./coordination.js";
 import type { ThreadRole } from "./thread-role.js";
 import type { ChangeSnapshot, ContextUsage, ContinuationStatus, ThreadOutcome, ThreadUsage } from "./thread-run.js";
 import type { LimitPause } from "./usage-limit.js";
@@ -26,7 +26,7 @@ export type Thread = {
    * started the thread here, with the suggestion it is when the user allowed it there. A coordinator
    * of its own here outranks it.
    */
-  remoteLead?: RemoteLead;
+  remoteLead?: HeldLead;
   /** What the coordinator asked of this thread when it started it. */
   brief?: ThreadBrief;
   /** Where this thread last said its work stands. */

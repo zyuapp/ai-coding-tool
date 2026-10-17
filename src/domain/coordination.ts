@@ -2,7 +2,8 @@
  * A coordinator and the threads it has handed work to. A thread works under a coordinator while its
  * `parentId` names a live thread whose role is coordinator; archiving the coordinator or taking its
  * role off lets every one of its threads stand on its own again, with nothing to undo. A thread on a
- * paired computer works under one through its `remoteLead`, which names the coordinator here.
+ * paired computer works under one through its `remoteLead`, which names the coordinator here and is
+ * kept, away, while that coordinator is not live, so it is back under it once it is again.
  */
 import type { HeardWork, Thread } from "./thread.js";
 import { isRemoteSender, type RemoteSender } from "./message-origin.js";
@@ -290,9 +291,21 @@ export function leadIdOf(thread: Thread): string | undefined {
  */
 export type RemoteLead = RemoteSender & { proposalId?: string };
 
+/**
+ * The coordinator on another computer as a thread holds it: `away` while that coordinator is archived
+ * or has had its role taken off there, when the thread stands on its own, and `backAt`, on this
+ * computer's clock, when it last came back, before which nothing the thread did is that coordinator's news.
+ */
+export type HeldLead = RemoteLead & { away?: true; backAt?: number };
+
 /** The coordinator on another computer a thread works under, as the thread names it, unless one here outranks it. */
-export function remoteLeadOf(thread: Thread | undefined): RemoteLead | undefined {
-  return thread?.remoteLead && thread.parentId === undefined && thread.role !== "coordinator" ? thread.remoteLead : undefined;
+export function remoteLeadOf(thread: Thread | undefined): HeldLead | undefined {
+  return thread?.remoteLead && !thread.remoteLead.away && thread.parentId === undefined && thread.role !== "coordinator" ? thread.remoteLead : undefined;
+}
+
+/** The coordinator on another computer a thread worked under until it went away, and works under again once it is back. */
+export function awayLeadOf(thread: Thread | undefined): HeldLead | undefined {
+  return thread?.remoteLead?.away && thread.parentId === undefined && thread.role !== "coordinator" ? thread.remoteLead : undefined;
 }
 
 /** Whether a thread works under a coordinator, on this computer or on the one that started it. */
@@ -605,6 +618,13 @@ export function isRemoteLead(value: unknown): value is RemoteLead {
   if (!isRemoteSender(value)) return false;
   const { proposalId } = value as RemoteLead;
   return proposalId === undefined || text(proposalId, 200);
+}
+
+/** Shape only, as a thread stores the coordinator elsewhere it works under, away or not. */
+export function isHeldLead(value: unknown): value is HeldLead {
+  if (!isRemoteLead(value)) return false;
+  const { away, backAt } = value as HeldLead;
+  return (away === undefined || away === true) && (backAt === undefined || finite(backAt));
 }
 
 /** Shape only: each of a coordinator's threads elsewhere, by id, with when its news was last taken. */
