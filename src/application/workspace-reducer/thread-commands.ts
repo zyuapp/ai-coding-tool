@@ -9,12 +9,13 @@ import { followUps, now, rejected, settled, targetId } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import type { AppCommand } from "../../contracts/commands.js";
 import { focusComposer } from "../composer-drafts.js";
-import { shownComputers } from "../computers.js";
+import { MAX_DISCARDED_LEADS, shownComputers } from "../computers.js";
 import { REMOTE_UNSUPPORTED, supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import { forkedThreads } from "../thread-fork.js";
 import { moveThread as moveThreadInList } from "../thread-order.js";
 import { coordinationSections, projectActivity } from "../coordination.js";
 import { pruneDeletedThreads } from "../thread-pruning.js";
+import { viewPreferences } from "../view-preferences.js";
 import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeById } from "../thread-location.js";
 import { DRAFT_DOCK, dockFor, frontDock, sideChatIds, withDock, type WorkspaceState } from "../workspace-state.js";
@@ -214,13 +215,18 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
       const forks = closeSideChats(state, state.sideChats.filter((chat) => discarded.has(chat.sourceThreadId)));
       const disposed = disposeDocks(forks.state, discarded);
       const threads = disposed.state.threads.filter((thread) => !discarded.has(thread.id));
+      /** A coordinator that is gone can no longer say its threads on paired computers are let go, so that is remembered for it. */
+      const leads = archived.flatMap((thread) => thread.role === "coordinator" ? [thread.id] : []);
+      const { computers } = disposed.state;
+      const cleared = pruneDeletedThreads({
+        ...disposed.state,
+        threads,
+        currentId: threads.some((thread) => thread.id === state.currentId) ? state.currentId : null,
+        ...(leads.length ? { computers: { ...computers, discardedLeads: [...computers.discardedLeads, ...leads].slice(-MAX_DISCARDED_LEADS) } } : {}),
+      }, discarded);
       return {
-        state: pruneDeletedThreads({
-          ...disposed.state,
-          threads,
-          currentId: threads.some((thread) => thread.id === state.currentId) ? state.currentId : null,
-        }, discarded),
-        effects: [...forks.effects, ...disposed.effects],
+        state: cleared,
+        effects: [...forks.effects, ...disposed.effects, ...leads.length ? [{ type: "persist-preferences" as const, preferences: viewPreferences(cleared) }] : []],
       };
     }
 

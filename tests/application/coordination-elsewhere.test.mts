@@ -9,7 +9,8 @@ import { COMPUTER_CAPABILITIES } from "../../src/contracts/computer-capabilities
 import type { ComputerLink } from "../../src/domain/computers.ts";
 import type { Thread } from "../../src/domain/thread.ts";
 import { createFailureMessage } from "../../src/domain/conversation.ts";
-import { activeRun, effectAt, effectOf, task, workspace } from "./workspace-reducer-fixtures.mts";
+import { activeRun, effectAt, effectOf, required, task, workspace } from "./workspace-reducer-fixtures.mts";
+import { viewPreferences } from "../../src/application/view-preferences.ts";
 
 /**
  * A coordinator here and the threads it started on paired computers, as each side sees them: here,
@@ -154,6 +155,23 @@ test("a computer that restarted is released once its state comes in after its li
   assert.deepEqual(said.effects.filter((effect) => effect.type === "computer.forward"), [{ type: "computer.forward", id: "studio", inputs: [{ type: "task.set-coordinator", taskId: "far", coordinatorId: null }], silent: true }]);
   const letGo = mirrored(said.state, workspace({ threads: [far({ remoteLead: undefined }), task("other")] }));
   assert.deepEqual(letGo.effects.filter((effect) => effect.type === "computer.forward"), [], "once it is let go there is nothing more to say");
+});
+
+test("a coordinator cleared from the archive while a computer holding its thread was away still lets that thread go once it is back, after a restart too", () => {
+  const state = withComputers(workspace({ threads: [task("lead", { role: "coordinator", title: "Lead", archivedAt: 5 })] }), [paired("studio", workspace({ threads: [far()] }), { status: "offline", capabilities: COMPUTER_CAPABILITIES })]);
+  const cleared = reduce(state, { type: "task.clear-archive" });
+  assert.deepEqual(cleared.state.computers.discardedLeads, ["lead"]);
+  const remembered = required(cleared.effects.find((effect) => effect.type === "persist-preferences"));
+  assert.deepEqual(remembered.type === "persist-preferences" && remembered.preferences.discardedLeads, ["lead"], "it is kept between launches");
+
+  const restarted = reduce(withComputers(workspace(), [paired("studio", null, { status: "offline", capabilities: COMPUTER_CAPABILITIES })]), { type: "preferences.loaded", preferences: { ...viewPreferences(workspace()), discardedLeads: ["lead"] } }).state;
+  for (const before of [cleared.state, restarted]) {
+    const back = reduce(before, { type: "computers.changed", name: "This Mac", links: [link("studio", { capabilities: COMPUTER_CAPABILITIES })] });
+    const said = mirrored(back.state, workspace({ threads: [far()] }));
+    const forwards = [...back.effects, ...said.effects].filter((effect) => effect.type === "computer.forward");
+    assert.ok(forwards.length > 0);
+    assert.deepEqual(new Set(forwards.map((effect) => JSON.stringify(effect))), new Set([JSON.stringify({ type: "computer.forward", id: "studio", inputs: [{ type: "task.set-coordinator", taskId: "far", coordinatorId: null }], silent: true })]));
+  }
 });
 
 /** A coordinator on a paired computer, as the thread it started here names it. */

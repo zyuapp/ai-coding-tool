@@ -50,4 +50,6 @@ export type ViewPreferences = {
   browserImport?: BrowserImportMemory;
   /** What the user closed toasts about, such as an engine release they chose not to install. */
   dismissedToasts?: string[];
+  /** Coordinators cleared from the archive whose threads on paired computers may still work under them. */
+  discardedLeads?: string[];
 };

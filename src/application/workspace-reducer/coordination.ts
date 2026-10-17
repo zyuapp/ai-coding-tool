@@ -638,10 +638,10 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
 
 /**
  * Each thread on a paired computer still working under a thread here that is no longer a live
- * coordinator is let go there, as this computer's own threads stand on their own once their
- * coordinator goes. It is read off what each computer says it holds, so one that was away, or whose
- * state comes in only after its line is back, is told once it says so, and what could not be carried
- * is tried again the next time its threads move.
+ * coordinator, or under one cleared from the archive here, is let go there, as this computer's own
+ * threads stand on their own once their coordinator goes. It is read off what each computer says it
+ * holds, so one that was away, or whose state comes in only after its line is back, is told once it
+ * says so, and what could not be carried is tried again the next time its threads move.
  */
 function released(previous: WorkspaceState, state: WorkspaceState, threads: readonly ThreadChange[]): WorkspaceEffect[] {
   const ended = threads.some(({ before, after }) => isCoordinator(before) && !isCoordinator(after));
@@ -653,8 +653,10 @@ function released(previous: WorkspaceState, state: WorkspaceState, threads: read
     const was = before.get(computer.id);
     if (!ended && was?.status === "connected" && was.state?.threads === computer.state.threads) continue;
     const inputs = remotelyLedThreads(computer.state.threads).flatMap((thread): AppCommand[] => {
-      const lead = state.threads.find((item) => item.id === thread.remoteLead!.threadId);
-      return lead && !isCoordinator(lead) ? [{ type: "task.set-coordinator", taskId: thread.id, coordinatorId: null }] : [];
+      const leadId = thread.remoteLead!.threadId;
+      const lead = state.threads.find((item) => item.id === leadId);
+      const gone = lead ? !isCoordinator(lead) : state.computers.discardedLeads.includes(leadId);
+      return gone ? [{ type: "task.set-coordinator", taskId: thread.id, coordinatorId: null }] : [];
     }).filter((command) => supportsComputerCommand(computer.capabilities, command));
     if (inputs.length) effects.push({ type: "computer.forward", id: computer.id, inputs, silent: true });
   }

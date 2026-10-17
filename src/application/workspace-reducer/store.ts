@@ -37,7 +37,8 @@ export function reduceStore(state: WorkspaceState, input: StoreInput): Workspace
         });
         if (browserTabs.length) docks[owner] = { ...dockFor(state, owner), browserTabs, browserTabId: browserTabs[0].id };
       }
-      return settled({ ...state, ...viewPreferenceState(input.preferences), browserImport: { ...state.browserImport, last: input.preferences.browserImport ?? null }, docks });
+      const computers = { ...state.computers, discardedLeads: input.preferences.discardedLeads ?? [] };
+      return settled({ ...state, ...viewPreferenceState(input.preferences), browserImport: { ...state.browserImport, last: input.preferences.browserImport ?? null }, docks, computers });
     }
 
     case "store.persisted":
