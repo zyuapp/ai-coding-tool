@@ -1,9 +1,11 @@
 /**
  * A coordinator and the threads it has handed work to. A thread works under a coordinator while its
  * `parentId` names a live thread whose role is coordinator; archiving the coordinator or taking its
- * role off lets every one of its threads stand on its own again, with nothing to undo.
+ * role off lets every one of its threads stand on its own again, with nothing to undo. A thread on a
+ * paired computer works under one through its `remoteLead`, which names the coordinator here.
  */
 import type { Thread } from "./thread.js";
+import type { RemoteSender } from "./message-origin.js";
 import type { AgentEffort } from "./run.js";
 import { isThreadRole, type ThreadRole } from "./thread-role.js";
 import { defaultEffortFor, defaultModelFor, effortForModel, engineForModel, isAgentEffort, isAgentModel, modelDelegable, modelTakesEffort, type AgentModel } from "./agent-engine.js";
@@ -87,6 +89,13 @@ export const MAX_MEMORY_NOTE = 500;
 export const MAX_MEMORY_NOTES = 30;
 export const MAX_PROPOSALS = 12;
 export const MAX_PROPOSAL_TITLE = 120;
+/** How many of a coordinator's threads on paired computers it keeps the news it took of, the newest kept. */
+const MAX_REMOTE_HEARD = 100;
+/**
+ * The most a coordinator's purpose and notes run to as a new thread reads them, written under today's
+ * limits with room to spare, which a thread started on another computer carries.
+ */
+export const MAX_MEMORY_PROMPT = 64_000;
 /**
  * How much context a coordinator's session may hold before its next run starts a fresh one. It is a
  * count rather than a share of the window, so a large window never means every wake re-reads more.
@@ -151,25 +160,33 @@ export type ProposalRequest = {
   model?: AgentModel;
   effort?: AgentEffort;
   role?: ThreadRole;
+  /** The paired computer to run it on, by its name or id. */
+  computer?: string;
 };
 
-/** Where a suggested thread starts: the project and checkout the coordinator's start resolved to when it was suggested. */
-export type ProposalPlace = { project?: string; worktree?: boolean; worktreeId?: string };
+/**
+ * Where a suggested thread starts: the project and checkout the coordinator's start resolved to when
+ * it was suggested, and the paired computer that holds them when they are not this one's.
+ */
+export type ProposalPlace = { project?: string; worktree?: boolean; worktreeId?: string; computer?: { id: string; name: string } };
 
 /**
- * A thread a coordinator suggested, waiting for the user to start or dismiss it. A model and effort
- * are kept only when the coordinator named them, so a suggestion started later runs on whatever the
- * coordinator's threads run on by then. `error` says why the user's last start of it failed.
+ * A thread a coordinator suggested, or one asked for on another computer, waiting for the user to
+ * start, allow or dismiss it. A model and effort are kept only when they were named, so one started
+ * later runs on whatever the coordinator's threads run on by then. A thread the coordinator asked for
+ * carries its brief; one a thread under it asked for names that thread in `from` instead. `error`
+ * says why the user's last start of it failed.
  */
 export type ThreadProposal = {
   id: string;
   title: string;
   prompt: string;
-  brief: ThreadBrief;
+  brief?: ThreadBrief;
   place: ProposalPlace;
   model?: AgentModel;
   effort?: AgentEffort;
   role?: ThreadRole;
+  from?: string;
   proposedAt: number;
   error?: string;
 };
@@ -246,11 +263,33 @@ export function coordinatorOf(threads: readonly Thread[], thread: Thread | undef
   return coordinator(threads.find((item) => item.id === thread.parentId));
 }
 
-/** The threads working under a coordinator, in the order the list holds them. */
+/**
+ * The id of the coordinator a thread names as the one it works under: its own computer's, else the
+ * one on another computer that started it. Whether that is still a live coordinator is the reader's
+ * to check, wherever it is.
+ */
+export function leadIdOf(thread: Thread): string | undefined {
+  return thread.parentId ?? thread.remoteLead?.threadId;
+}
+
+/** The coordinator on another computer a thread works under, as the thread names it, unless one here outranks it. */
+export function remoteLeadOf(thread: Thread | undefined): RemoteSender | undefined {
+  return thread?.remoteLead && thread.parentId === undefined && thread.role !== "coordinator" ? thread.remoteLead : undefined;
+}
+
+/** Whether a thread works under a coordinator, on this computer or on the one that started it. */
+export function worksUnderCoordinator(threads: readonly Thread[], thread: Thread | undefined): boolean {
+  return coordinatorOf(threads, thread) !== undefined || remoteLeadOf(thread) !== undefined;
+}
+
+/**
+ * The threads working under a coordinator, in the order the list holds them. A list that holds
+ * another computer's threads beside this one's finds that computer's threads under it too.
+ */
 export function coordinatedThreads(threads: readonly Thread[], leadId: string): Thread[] {
   const lead = threads.find((thread) => thread.id === leadId);
   if (!isCoordinator(lead)) return [];
-  return threads.filter((thread) => thread.parentId === leadId && thread.archivedAt === undefined && thread.role !== "coordinator");
+  return threads.filter((thread) => leadIdOf(thread) === leadId && thread.archivedAt === undefined && thread.role !== "coordinator");
 }
 
 /** Every thread drawn under a coordinator rather than in a list of its own. */
@@ -258,7 +297,8 @@ export function coordinatedThreadIds(threads: readonly Thread[]): Set<string> {
   const leads = new Set(threads.filter(isCoordinator).map((thread) => thread.id));
   const members = new Set<string>();
   for (const thread of threads) {
-    if (thread.parentId && leads.has(thread.parentId) && thread.role !== "coordinator") members.add(thread.id);
+    const leadId = leadIdOf(thread);
+    if (leadId && leads.has(leadId) && thread.role !== "coordinator") members.add(thread.id);
   }
   return members;
 }
@@ -268,7 +308,10 @@ export function withCoordinated(threads: readonly Thread[], ids: Set<string>): S
   const leads = new Set(threads.filter((thread) => ids.has(thread.id) && isCoordinator(thread)).map((thread) => thread.id));
   if (!leads.size) return ids;
   const all = new Set(ids);
-  for (const thread of threads) if (thread.parentId && leads.has(thread.parentId) && thread.role !== "coordinator") all.add(thread.id);
+  for (const thread of threads) {
+    const leadId = leadIdOf(thread);
+    if (leadId && leads.has(leadId) && thread.role !== "coordinator") all.add(thread.id);
+  }
   return all;
 }
 
@@ -281,11 +324,10 @@ export function openDecisions(thread: Thread): Decision[] {
   return (thread.decisions ?? []).filter((decision) => decision.answer === undefined);
 }
 
-/** Every decision waiting on the user from a coordinator and its threads, oldest first. */
-export function coordinationDecisions(threads: readonly Thread[], leadId: string): Array<{ thread: Thread; decision: Decision }> {
-  const lead = coordinator(threads.find((thread) => thread.id === leadId));
-  if (!lead) return [];
-  return [lead, ...coordinatedThreads(threads, leadId)]
+/** Every decision waiting on the user from a coordinator and the threads under it, wherever each is held, oldest first. */
+export function coordinationDecisions(lead: Thread, members: readonly Thread[]): Array<{ thread: Thread; decision: Decision }> {
+  if (!isCoordinator(lead)) return [];
+  return [lead, ...members]
     .flatMap((thread) => openDecisions(thread).map((decision) => ({ thread, decision })))
     .sort((left, right) => left.decision.raisedAt - right.decision.raisedAt);
 }
@@ -387,6 +429,18 @@ export function withProposals(lead: Thread, proposals: readonly ThreadProposal[]
   const held = lead.proposals ?? [];
   const added = proposals.slice(0, Math.max(0, MAX_PROPOSALS - held.length));
   return added.length ? { ...lead, proposals: [...held, ...added] } : lead;
+}
+
+/**
+ * A coordinator that has taken a thread on another computer's news up to `at`, on that computer's
+ * clock. Only the newest are kept, so a coordinator that lives long never carries every thread it had.
+ */
+export function withRemoteHeard(lead: Thread, threadId: string, at: number): Thread {
+  const held = lead.remoteHeard ?? {};
+  if (held[threadId] === at) return lead;
+  const entries = Object.entries({ ...held, [threadId]: at });
+  const kept = entries.length > MAX_REMOTE_HEARD ? entries.sort((left, right) => right[1] - left[1]).slice(0, MAX_REMOTE_HEARD) : entries;
+  return { ...lead, remoteHeard: Object.fromEntries(kept) };
 }
 
 /** A coordinator with the named suggestions gone, started or dismissed. */
@@ -492,25 +546,33 @@ export function isProposalRequest(value: unknown): value is ProposalRequest {
     && optionalText(value.worktreeId, 200)
     && (value.model === undefined || isAgentModel(value.model))
     && (value.effort === undefined || isAgentEffort(value.effort))
-    && (value.role === undefined || isThreadRole(value.role));
+    && (value.role === undefined || isThreadRole(value.role))
+    && optionalText(value.computer, 256);
 }
 
 function isProposalPlace(value: unknown): value is ProposalPlace {
   return isRecord(value)
     && (value.project === undefined || typeof value.project === "string")
     && (value.worktree === undefined || typeof value.worktree === "boolean")
-    && (value.worktreeId === undefined || typeof value.worktreeId === "string");
+    && (value.worktreeId === undefined || typeof value.worktreeId === "string")
+    && (value.computer === undefined || isRecord(value.computer) && text(value.computer.id, 256) && typeof value.computer.name === "string");
 }
 
 /** Shape only, so a suggestion written under a longer limit still loads. */
 export function isThreadProposal(value: unknown): value is ThreadProposal {
   return isRecord(value) && text(value.id, 200) && typeof value.title === "string" && typeof value.prompt === "string"
-    && isThreadBrief(value.brief) && isProposalPlace(value.place)
+    && (value.brief === undefined || isThreadBrief(value.brief)) && isProposalPlace(value.place)
     && (value.model === undefined || isAgentModel(value.model))
     && (value.effort === undefined || isAgentEffort(value.effort))
     && (value.role === undefined || isThreadRole(value.role))
+    && (value.from === undefined || text(value.from, 200))
     && finite(value.proposedAt)
     && (value.error === undefined || typeof value.error === "string");
+}
+
+/** Shape only: each of a coordinator's threads elsewhere, by id, with when its news was last taken. */
+export function isRemoteHeard(value: unknown): value is Record<string, number> {
+  return isRecord(value) && Object.values(value).every(finite);
 }
 
 export function isCoordinationReport(value: unknown): value is CoordinationReport {

@@ -83,12 +83,20 @@ export function memberPullRequestsView(state: MemberState, lead: Thread | undefi
     found.set(pullRequest.url, { pullRequest: known?.pullRequest ?? pullRequest, threads: [...known?.threads ?? [], thread] });
   }
   const checkouts = memberCheckouts(state, lead.id, awaitsPullRequest);
-  if (!found.size && !checkouts.size) return NO_MEMBER_PULL_REQUESTS;
+  /** A thread on a paired computer is read there; what that computer last answered says whether to ask again. */
+  const elsewhere = coordinationMembers(state, lead.id).flatMap((member) => member.computer && awaitsPullRequest(member.thread) ? [member] : []);
+  if (!found.size && !checkouts.size && !elsewhere.length) return NO_MEMBER_PULL_REQUESTS;
   const asking: string[] = [];
   let settled = true;
   for (const workspaceId of checkouts.keys()) {
     asking.push(`${workspaceId}\0${branchOf(state.environments[workspaceId] ?? null) ?? ""}`);
     if (!pullRequestSettled(state.memberPullRequests[workspaceId]?.answer ?? NO_PULL_REQUEST)) settled = false;
+  }
+  for (const member of elsewhere) {
+    if (!member.computer) continue;
+    const workspaceId = threadWorkspaceId(member.holder, member.thread);
+    asking.push(`${member.computer.id}\0${member.thread.id}\0${workspaceId ? branchOf(member.holder.environments[workspaceId] ?? null) ?? "" : ""}`);
+    if (workspaceId && !pullRequestSettled(member.holder.memberPullRequests[workspaceId]?.answer ?? NO_PULL_REQUEST)) settled = false;
   }
   return { asking: asking.join("\n"), settled, found: [...found.values()] };
 }

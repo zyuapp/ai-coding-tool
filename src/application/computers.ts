@@ -9,7 +9,7 @@ import type { AppCommand } from "../contracts/commands.js";
 import { commandLeaves, commandPlacement, isAppCommandType, type CommandPlacement, type PlacedCommand } from "../contracts/workspace-view-input.js";
 import type { Annotation, PastedText } from "../domain/conversation.js";
 import { offlineMessage, type ComputerFilter, type ComputerLink, type ComputerPairing, type DiscoveredComputer } from "../domain/computers.js";
-import type { Project } from "../domain/project.js";
+import { findProject, folderName, matchingProjects, projectName, type Project } from "../domain/project.js";
 import type { Thread } from "../domain/thread.js";
 import type { Worktree } from "../domain/worktree.js";
 import { MAIN_COMPOSER } from "./composer-attachments.js";
@@ -219,6 +219,37 @@ export function computerOfPlace(state: WorkspaceState, place: { project?: string
     if (holder) return holder;
   }
   return undefined;
+}
+
+/**
+ * The project on a paired computer a new thread starts in: the one named, else the one at the asking
+ * thread's project's path, else the one with its folder's name.
+ */
+export function projectOnComputer(computer: PairedComputer, named: string | undefined, own: Project | undefined): { project: Project } | { error: string } {
+  const projects = computer.state?.projects ?? [];
+  if (named !== undefined) {
+    const found = findProject(projects, named);
+    return "error" in found ? { error: `On ${computer.name}: ${found.error}` } : found;
+  }
+  if (!own) return { error: `Name the project on ${computer.name} to start the thread in.` };
+  const atRoot = matchingProjects(projects, own.root);
+  const matches = atRoot.length ? atRoot : matchingProjects(projects, folderName(own.root));
+  if (matches.length === 1) return { project: matches[0]! };
+  return { error: `${matches.length ? "More than one" : "No"} project on ${computer.name} matches ${projectName(own)}. Name the project to start the thread in.` };
+}
+
+/**
+ * The fields a paired computer must say it takes before it is handed a thread to run under a
+ * coordinator here. A build that names none predates them, so it is asked by name, never assumed.
+ */
+const LED_SEND = ["command:task.send:lead", "command:task.send:memory"];
+
+/** Why a paired computer cannot take a thread under a coordinator here right now, or null when it can. */
+export function ledStartRefusal(computer: PairedComputer | undefined): string | null {
+  if (!computer) return "That computer is no longer paired.";
+  if (computer.status !== "connected") return offlineMessage(computer);
+  if (!computer.capabilities || !LED_SEND.every((name) => computer.capabilities!.includes(name))) return `Update AI Coding Tool on ${computer.name} to run threads there.`;
+  return null;
 }
 
 /** The paired computer holding a thread's queue, with the thread a command without a `taskId` means there. */

@@ -27,7 +27,7 @@ import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
 import { createConversationMessage, createSentMessage } from "../../domain/conversation.js";
 import { appendMessages } from "../../domain/conversation-updates.js";
 import { pausedForLimit } from "../limit-pauses.js";
-import { asCoordinator, canJoinCoordinator, coordinatorOf, isCoordinator, wantsFreshSession, withCoordinationNote, withMemoryHeard, withoutCoordinationNotes, withoutProposals } from "../../domain/coordination.js";
+import { asCoordinator, canJoinCoordinator, isCoordinator, wantsFreshSession, worksUnderCoordinator, withCoordinationNote, withMemoryHeard, withoutCoordinationNotes, withoutProposals } from "../../domain/coordination.js";
 import { briefPrompt, coordinationNote, coordinatorPrompt } from "../coordination.js";
 import type { Thread } from "../../domain/thread.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
@@ -244,10 +244,13 @@ function reduceReview(state: WorkspaceState, input: ReviewInput): WorkspaceTrans
   return settled(withPending({ ...state, reviewPicker: null }, pending), [resolving]);
 }
 
-/** The read a thread under a coordinator asks for as its turn ends, if its work is or has been on a pull request. */
+/**
+ * The read a thread under a coordinator asks for as its turn ends, if its work is or has been on a
+ * pull request. One under a coordinator on another computer is read here, which holds its checkout.
+ */
 function turnPullRequestRead(state: WorkspaceState, taskId: string) {
   const thread = state.threads.find((item) => item.id === taskId);
-  if (!thread || !coordinatorOf(state.threads, thread)) return null;
+  if (!thread || !worksUnderCoordinator(state.threads, thread)) return null;
   return thread.brief?.delivers === "pull-request" || thread.pullRequest ? memberPullRequestRead(state, thread) : null;
 }
 
@@ -326,11 +329,12 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     updatedAt: now(),
   };
   if (created && !created.name) created.name = thread.title;
-  /** A thread a coordinator starts works under it from its first run. */
+  /** A thread a coordinator starts works under it from its first run, and so does one a coordinator on another computer starts here. */
   const lead = existing ? undefined : state.threads.find((item) => item.id === pending.coordination?.coordinatorId);
+  const remoteLead = existing || pending.role === "coordinator" ? undefined : pending.coordination?.lead;
   /** A new coordinator's threads run on what it runs on itself until the user picks otherwise. */
   const opened = !existing && pending.role === "coordinator" ? asCoordinator(thread) : thread;
-  const joined = lead && canJoinCoordinator(opened, lead) ? { ...opened, parentId: lead.id } : opened;
+  const joined = lead && canJoinCoordinator(opened, lead) ? { ...opened, parentId: lead.id } : remoteLead ? { ...opened, remoteLead } : opened;
   const joining = joined !== opened;
   const message = createSentMessage({ ...pending, origin: pending.messageOrigin });
   /** Only a thread that was somewhere else is arriving; one already in this checkout has said so. */

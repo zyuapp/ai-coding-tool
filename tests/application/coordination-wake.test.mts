@@ -272,3 +272,14 @@ test("Stop all is offered exactly while it has something to stop", () => {
   assert.equal(stoppable({ activeRuns: { solo: activeRun("solo", "run-s") } }), false, "a thread outside it");
   assert.equal(stoppable({ creatingWorktrees: ["one"] }), false, "a checkout being made is no run to stop");
 });
+
+test("a working thread on a paired computer holds non-urgent news, and its turn ending there delivers it", () => {
+  const far = task("far", { title: "Far", remoteLead: { threadId: "lead", title: "Lead", computer: "Mac" }, createdAt: 1 });
+  const holder = workspace({ threads: [far], activeRuns: { far: activeRun("far", "run-far") } });
+  const studio = { id: "studio", name: "Studio", host: "studio.test", pairedAt: 1, status: "connected" as const, error: null, state: holder };
+  const state = workspace({ threads: [lead({ coordinationNotes: [NEWS], remoteHeard: { far: 1 } }), member("one")], computers: { ...workspace().computers, paired: [studio] } });
+  slept(reduce(state, { type: "view.set-focused", focused: false }), "a thread working there holds the news here");
+  const ended = { ...holder, threads: [{ ...far, runEndedAt: 9, outcome: "finished" as const }], activeRuns: {} };
+  const woke = woken(reduce(state, { type: "computer.state", id: "studio", state: ended }));
+  assert.match(woke.text, /"One" ended its turn\.\n"Far" ended its turn\./);
+});

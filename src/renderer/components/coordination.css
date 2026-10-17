@@ -120,6 +120,17 @@ button.suggestion-start:hover:not(:disabled) { opacity: 0.85; }
 button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
 .suggestion-dismiss:disabled { cursor: default; }
 .suggestion-start.task-spinner { width: 14px; height: 14px; margin: 0 6px; }
+/** A thread asked for on another computer: that computer in the heading, then where there it would run and what it was asked. */
+.elsewhere-heading { display: inline-flex; align-items: center; gap: 5px; }
+.elsewhere-heading .host-mark { color: inherit; font-size: inherit; font-weight: inherit; }
+.elsewhere-place { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 8px 14px 10px; color: var(--muted); font-size: var(--text-meta); }
+.elsewhere-folder, .elsewhere-worktree { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+.elsewhere-folder select { min-width: 0; max-width: 240px; border: 1px solid var(--line); border-radius: 7px; padding: 3px 6px; background: var(--canvas); color: var(--ink); font: inherit; }
+.elsewhere-folder select:focus { border-color: var(--line-strong); outline: none; }
+.elsewhere-worktree { cursor: pointer; }
+.elsewhere-worktree input { margin: 0; accent-color: var(--accent); }
+.elsewhere-card .coordination-brief { margin: 0 14px 10px; border: 1px solid var(--line-soft); border-radius: 9px; }
+.elsewhere-card .suggestion-error { margin: 0 14px 10px; color: var(--danger-soft); font-size: var(--text-meta); }
 .decision-command, .decision-tool pre {
   margin: 6px 14px 10px;
   border: 1px solid var(--line-soft);
@@ -169,6 +180,7 @@ button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
 :is(.coordination-row, .coordination-card):is(.blocked, .failed) small { color: var(--danger-soft); }
 .coordination-row-marks { display: flex; align-items: center; gap: 6px; transition: opacity 0.15s ease; }
 .coordination-row-engine { color: var(--quiet); }
+.coordination-row-host { flex: none; max-width: 96px; }
 :is(.coordination-row, .coordination-card).review .coordination-row-mark { background: var(--success-surface); }
 /** A row's own action sits beside its open button, over the marks it takes the place of while pointed at. */
 .coordination-item { position: relative; min-width: 0; }

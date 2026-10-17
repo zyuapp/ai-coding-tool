@@ -25,7 +25,7 @@ const memory = { taskId: "lead", purpose: null, notes: [], onSetPurpose() {}, on
 const member = (id: string, title: string): Thread => ({ id, title, engine: "claude", executionPolicy: "allow-edits", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, parentId: "lead" });
 
 /** A thread's row as the Overview is handed it, with no pull request and nothing to do next. */
-const row = (thread: Thread, status: CoordinatedThreadStatus, summary: string | null = null): CoordinatedThreadView => ({ thread, status, summary, pullRequest: null, steps: [], startedAt: null });
+const row = (thread: Thread, status: CoordinatedThreadStatus, summary: string | null = null): CoordinatedThreadView => ({ thread, status, summary, pullRequest: null, steps: [], startedAt: null, host: null });
 
 test("a coordinator's Overview groups its threads by what they need, each opening as a tab", async () => {
   window.desktop = fakeDesktop();

@@ -40,6 +40,8 @@ const effortFieldOf = (omitted: string) => z.enum(effortIds as [AgentEffort, ...
 const effortField = effortFieldOf("inherit the calling thread's effort when the selected model supports it, otherwise use that engine's default.");
 
 const computerField = z.string().optional().describe('A paired computer to start it on, named by its name or ID, or "this" (the default). There it starts in the project checkout unless worktree or worktreeId says otherwise.');
+/** A thread under a coordinator starts on another computer only once the user allows it there. */
+const ledComputerField = z.string().optional().describe("A paired computer to run it on. It starts there once the user allows it.");
 
 /** What a start takes beyond the computer it runs on. */
 const NEW_THREAD_INPUT = {
@@ -66,8 +68,8 @@ function ledStartInput(whose: string) {
   };
 }
 
-/** What a coordinator's start_thread takes, and so each thread it suggests. It starts threads only on its own computer, so it names none. */
-export const COORDINATOR_START_INPUT = ledStartInput("this coordinator's");
+/** What a coordinator's start_thread takes, and so each thread it suggests. */
+export const COORDINATOR_START_INPUT = { ...ledStartInput("this coordinator's"), computer: ledComputerField };
 
 type NewThreadArgs = {
   intent?: string | undefined;
@@ -277,17 +279,14 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
   }),
 ];
 
-/**
- * A coordinator is woken with its threads' news, so it never holds its turn open waiting on one, and
- * it starts threads only on its own computer.
- */
+/** A coordinator is woken with its threads' news, so it never holds its turn open waiting on one. */
 const COORDINATOR_THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = THREAD_TOOLS
   .filter((tool) => tool.name !== "wait_for_thread")
   .map((tool) => tool.name === "start_thread" ? { ...tool, input: COORDINATOR_START_INPUT } : tool);
 
 /** A thread one working under a coordinator starts works under that coordinator too. */
 const MEMBER_THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = THREAD_TOOLS
-  .map((tool) => tool.name === "start_thread" ? { ...tool, input: { ...ledStartInput("your coordinator's"), computer: computerField } } : tool);
+  .map((tool) => tool.name === "start_thread" ? { ...tool, input: { ...ledStartInput("your coordinator's"), computer: ledComputerField } } : tool);
 
 export function threadTools(bridge: ThreadBridge, now: () => number = Date.now, role?: CoordinationRole) {
   return bindTools({ bridge, now }, role === "coordinator" ? COORDINATOR_THREAD_TOOLS : role === "member" ? MEMBER_THREAD_TOOLS : THREAD_TOOLS);

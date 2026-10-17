@@ -3,15 +3,17 @@ import { currentWorkspaceId } from "./environment.js";
 import { threadWorkspaceId } from "../thread-location.js";
 import { now, settled } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { ownPullRequest } from "../coordination.js";
+import { coordinationMembers, ownPullRequest, remotelyLedThreads } from "../coordination.js";
 import { awaitsPullRequest, branchOf, memberCheckouts } from "../pull-request-view.js";
 import type { WorkspaceState } from "../workspace-state.js";
+import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
+import type { AppCommand } from "../../contracts/commands.js";
 import { dismissed } from "../../domain/attention.js";
-import { coordinatorOf, isCoordinator } from "../../domain/coordination.js";
+import { isCoordinator, worksUnderCoordinator } from "../../domain/coordination.js";
 import { linkMatches, linkOf, NO_PULL_REQUEST, samePullRequest, type PullRequestAnswer, type PullRequestRead } from "../../domain/pull-request.js";
 import type { Thread } from "../../domain/thread.js";
 
-type PullRequestInput = Extract<WorkspaceInput, { type: "pull-request.read" | "pull-request.read-members" | "pull-request.answered" }>;
+type PullRequestInput = Extract<WorkspaceInput, { type: "pull-request.read" | "pull-request.read-members" | "pull-request.read-member" | "pull-request.answered" }>;
 
 export function reducePullRequests(state: WorkspaceState, input: PullRequestInput): WorkspaceTransition {
   switch (input.type) {
@@ -49,7 +51,13 @@ export function reducePullRequests(state: WorkspaceState, input: PullRequestInpu
         next = read.state;
         effects.push(read.effect);
       }
-      return settled(next, effects);
+      return settled(next, [...effects, ...(lead && isCoordinator(lead) ? remoteReads(state, lead.id) : [])]);
+    }
+    /** One thread's checkout, asked for by the coordinator it works under on another computer, which reads the answer off this computer's state. */
+    case "pull-request.read-member": {
+      const thread = state.threads.find((item) => item.id === input.taskId);
+      const read = thread && thread.archivedAt === undefined && worksUnderCoordinator(state.threads, thread) && awaitsPullRequest(thread) ? memberPullRequestRead(state, thread) : null;
+      return read ? settled(read.state, [read.effect]) : settled(state);
     }
     case "pull-request.answered": {
       /** Answers to asks older than the latest are dropped, whichever order they arrive in. */
@@ -102,12 +110,35 @@ function checkoutRead(state: WorkspaceState, workspaceId: string, threads: Threa
   };
 }
 
-/** Every checkout a thread under any live coordinator works in, each with those threads. */
+/**
+ * What a coordinator's threads on paired computers need read: each computer that can take it is asked
+ * to read the checkout of each such thread there that an answer could still move, and the answer is
+ * recorded on the thread there, which is where this computer reads it. Like a read of a plan's limits,
+ * one the line drops is asked again on the next poll.
+ */
+function remoteReads(state: WorkspaceState, leadId: string): WorkspaceEffect[] {
+  const asks = new Map<string, AppCommand[]>();
+  for (const member of coordinationMembers(state, leadId)) {
+    if (!member.computer || member.computer.status !== "connected" || !awaitsPullRequest(member.thread)) continue;
+    const read: AppCommand = { type: "pull-request.read-member", taskId: member.thread.id };
+    if (supportsComputerCommand(member.computer.capabilities, read)) asks.set(member.computer.id, [...asks.get(member.computer.id) ?? [], read]);
+  }
+  return [...asks].map(([id, inputs]) => ({ type: "computer.forward", id, inputs }));
+}
+
+/**
+ * Every checkout a thread under any live coordinator works in, each with those threads, and every
+ * one a thread under a coordinator on another computer works in here.
+ */
 function everyMemberCheckout(state: WorkspaceState): Map<string, Thread[]> {
   const checkouts = new Map<string, Thread[]>();
   for (const lead of state.threads) {
     if (!isCoordinator(lead)) continue;
     for (const [workspaceId, threads] of memberCheckouts(state, lead.id)) checkouts.set(workspaceId, [...checkouts.get(workspaceId) ?? [], ...threads]);
+  }
+  for (const thread of remotelyLedThreads(state.threads)) {
+    const workspaceId = threadWorkspaceId(state, thread);
+    if (workspaceId) checkouts.set(workspaceId, [...checkouts.get(workspaceId) ?? [], thread]);
   }
   return checkouts;
 }
@@ -129,7 +160,7 @@ function linked(state: WorkspaceState, threadIds: string[] | undefined, answer: 
     changed = true;
     const recorded: Thread = { ...thread, pullRequest: linkOf(pullRequest) };
     const merged = thread.pullRequest?.state !== "merged" && ownPullRequest(recorded)?.state === "merged";
-    if (!merged || recorded.resolvedAt !== undefined || recorded.archivedAt !== undefined || !coordinatorOf(state.threads, recorded)) return recorded;
+    if (!merged || recorded.resolvedAt !== undefined || recorded.archivedAt !== undefined || !worksUnderCoordinator(state.threads, recorded)) return recorded;
     resolving.add(thread.id);
     return { ...recorded, resolvedAt: now() };
   });

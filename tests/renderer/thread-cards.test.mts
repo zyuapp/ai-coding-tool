@@ -24,9 +24,10 @@ const failing: CoordinatedThreadView = {
   pullRequest: PULL_REQUEST,
   steps: ["fix-ci"],
   startedAt: 10,
+  host: null,
 };
 
-const working: CoordinatedThreadView = { thread: member("dark", "Dark mode", { engine: "codex" }), status: "working", summary: "Tokens pass", pullRequest: null, steps: [], startedAt: 10 };
+const working: CoordinatedThreadView = { thread: member("dark", "Dark mode", { engine: "codex" }), status: "working", summary: "Tokens pass", pullRequest: null, steps: [], startedAt: 10, host: null };
 
 test("a card shows how its thread stands, opens it, and offers what to do next beside that", async () => {
   window.desktop = fakeDesktop();

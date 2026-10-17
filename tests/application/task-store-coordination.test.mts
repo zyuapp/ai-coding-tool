@@ -137,3 +137,27 @@ test("a muted coordinator stays muted across a reload, and a mute it cannot read
     assert.deepEqual(loaded.data.tasks[0].messages, lead.messages);
   }
 });
+
+test("a thread's coordinator on another computer, and how far a coordinator heard its threads there, survive a reload, and what cannot be read is dropped", () => {
+  const migrated = migrateV1ToV2(legacyValues());
+  assert.equal(migrated.ok, true);
+  if (!migrated.ok) return;
+  const remoteLead = { threadId: "lead-there", title: "Lead", computer: "Laptop" };
+  const place = { computer: { id: "studio", name: "Studio" }, project: "app", worktree: true };
+  const member = { ...migrated.data.tasks[0], remoteLead };
+  const lead = { ...migrated.data.tasks[0], id: "lead", role: "coordinator" as const, remoteHeard: { far: 40 }, proposals: [{ id: "p1", title: "GPU", prompt: "Run them", place, from: "task-1", proposedAt: 1 }] };
+  const parsed = parseThreadStore(serializeThreadStore({ ...migrated.data, tasks: [member, lead] }));
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  assert.deepEqual(parsed.data.tasks[0].remoteLead, remoteLead);
+  assert.deepEqual(parsed.data.tasks[1].remoteHeard, { far: 40 });
+  assert.deepEqual(parsed.data.tasks[1].proposals?.[0]?.place, place, "a thread asked for elsewhere waits across a reload, with no brief when a thread under it asked");
+
+  const broken = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...member, remoteLead: { threadId: 7 } }, { ...lead, remoteHeard: { far: "late" } }] }));
+  assert.equal(broken.ok, true);
+  if (!broken.ok) return;
+  assert.equal(broken.hiddenTasks, 0, "both threads still load");
+  assert.equal(broken.data.tasks[0].remoteLead, undefined);
+  assert.equal(broken.data.tasks[1].remoteHeard, undefined);
+  assert.deepEqual(broken.data.tasks[0].messages, member.messages);
+});

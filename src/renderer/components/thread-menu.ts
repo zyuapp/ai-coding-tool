@@ -3,6 +3,7 @@ import { SNOOZE_OPTIONS, type SnoozeHours } from "../../domain/thread-snooze";
 import { threadLink } from "../../domain/thread-handles";
 import { THREAD_ROLES, type ThreadRole } from "../../domain/thread-role";
 import type { MenuEntry } from "./PopoverMenu";
+import { leadIdOf, remoteLeadOf } from "../../domain/coordination";
 
 /** The same thread actions from its sidebar row and its heading. */
 export function threadMenuEntries(thread: Thread, actions: {
@@ -22,7 +23,9 @@ export function threadMenuEntries(thread: Thread, actions: {
   onStopAll: () => void;
 }): MenuEntry[] {
   const leads = actions.coordinators.filter((lead) => lead.id !== thread.id);
-  const lead = leads.find((item) => item.id === thread.parentId);
+  /** The coordinator it works under, here or, for a thread one on another computer started, there. */
+  const lead = leads.find((item) => item.id === leadIdOf(thread));
+  const under = lead?.title ?? remoteLeadOf(thread)?.title;
   /**
    * A coordinator takes threads under it; it never works under another, and stops with them. Its
    * mute says what choosing it does rather than carrying a tick, which would mark the whole menu as
@@ -40,7 +43,7 @@ export function threadMenuEntries(thread: Thread, actions: {
     onSelect: () => actions.onSetMuted(!thread.muted),
   }] : [
     ...(leads.length ? [{ label: "Move under", items: leads.map((item) => ({ label: item.title, command: { type: "task.set-coordinator" as const, taskId: thread.id, coordinatorId: item.id }, checked: item.id === lead?.id, onSelect: () => actions.onSetCoordinator(item.id) })) }] : []),
-    ...(lead ? [{ label: `Move out of ${lead.title}`, command: { type: "task.set-coordinator" as const, taskId: thread.id, coordinatorId: null }, onSelect: () => actions.onSetCoordinator(null) }] : []),
+    ...(under !== undefined ? [{ label: `Move out of ${under}`, command: { type: "task.set-coordinator" as const, taskId: thread.id, coordinatorId: null }, onSelect: () => actions.onSetCoordinator(null) }] : []),
   ];
   return [
     { label: "Rename", command: { type: "task.rename", taskId: thread.id, title: thread.title }, onSelect: actions.onRename },

@@ -44,7 +44,9 @@ export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ImageC
 export type PullRequestCommand =
   | { type: "pull-request.read"; taskId?: string }
   /** Reads the pull request of every checkout a coordinator's threads work in. */
-  | { type: "pull-request.read-members"; taskId?: string };
+  | { type: "pull-request.read-members"; taskId?: string }
+  /** Reads the pull request of the checkout one thread under a coordinator works in, on the computer that holds it. */
+  | { type: "pull-request.read-member"; taskId: string };
 
 /**
  * The terminal command the app installs. Reading says whether it is there; installing and removing
@@ -116,9 +118,13 @@ export type TaskCommand =
   | { type: "memory.forget"; taskId: string; noteId: string }
   /** Tells a thread under a coordinator, in the user's own words, to take a next step its card offers. */
   | { type: "coordination.next-step"; taskId: string; step: NextStep }
-  /** Starts a thread a coordinator suggested, as it would have started it, or with no `proposalId` every one it suggested. */
-  | { type: "proposal.start"; taskId: string; proposalId?: string }
-  /** Turns a suggested thread down, or with no `proposalId` every one. The coordinator hears so without being woken. */
+  /**
+   * Starts a thread a coordinator suggested, as it would have started it, or with no `proposalId` every
+   * one it suggested here. One asked for on a paired computer starts there in the `place` the user
+   * picked: a project there, and whether it gets a worktree of its own.
+   */
+  | { type: "proposal.start"; taskId: string; proposalId?: string; place?: { project: string; worktree: boolean } }
+  /** Turns a suggested thread down, or with no `proposalId` every one suggested here. The coordinator hears so without being woken. */
   | { type: "proposal.dismiss"; taskId: string; proposalId?: string }
   /** Takes the dot off a thread, which is the only thing that does. Opening the thread only dims it. */
   | { type: "task.dismiss"; taskId: string }
@@ -168,9 +174,10 @@ export type TaskCommand =
    * precedence over asking for a new one. `model`, `effort` and `role` apply only to a new task and leave
    * the shared draft settings alone, as do `coordinatorId`, which starts it under that coordinator, and
    * the `brief` it is handed. `from` names the thread that sent the message, which both the agent and
-   * the user are shown.
+   * the user are shown. `lead` starts it under a coordinator on another computer, which hands it the
+   * `memory` it keeps as the thread reads it.
    */
-  | { type: "task.send"; taskId?: string; project?: string; text?: string; attachments?: RunAttachment[]; steer?: boolean; worktree?: boolean; worktreeId?: string; model?: AgentModel; effort?: AgentEffort; role?: ThreadRole; coordinatorId?: string; brief?: ThreadBrief; from?: string; sender?: RemoteSender }
+  | { type: "task.send"; taskId?: string; project?: string; text?: string; attachments?: RunAttachment[]; steer?: boolean; worktree?: boolean; worktreeId?: string; model?: AgentModel; effort?: AgentEffort; role?: ThreadRole; coordinatorId?: string; brief?: ThreadBrief; from?: string; sender?: RemoteSender; lead?: RemoteSender; memory?: string }
   /**
    * Sends the composer's message with the images in its strip, which are written out to disk first:
    * the run is started only once they are all there, and a failure to write one stops the send.

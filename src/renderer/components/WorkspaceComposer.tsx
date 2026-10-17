@@ -1,5 +1,5 @@
 import { ConversationComposer, type ComposerAction } from "./ConversationComposer";
-import { NeedsYouCard } from "./Coordination";
+import { NeedsYouCard } from "./NeedsYouCard";
 import { ThreadStartOptions } from "./ThreadStartOptions";
 import { attachDroppedFiles, imageSources } from "../dropped-files";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";

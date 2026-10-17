@@ -3,7 +3,7 @@
  * the user is somewhere it has to be reached; this only decides whether there is anything to say.
  */
 import type { ThreadNotice } from "../contracts/ipc.js";
-import { coordinatorOf, isCoordinator } from "../domain/coordination.js";
+import { coordinatorOf, isCoordinator, remoteLeadOf, worksUnderCoordinator } from "../domain/coordination.js";
 import type { Thread } from "../domain/thread.js";
 import { lastReply } from "./coordination.js";
 import type { WorkspaceEffect } from "./workspace-reducer.js";
@@ -35,20 +35,27 @@ function ownerOf(state: NoticeState, thread: Thread): Thread | undefined {
   return chat ? state.threads.find((item) => item.id === chat.sourceThreadId) : thread;
 }
 
-/** The coordinator a thread's notices answer to: the thread itself when it is one, else the one it works under. */
+/**
+ * The coordinator a thread's notices answer to: the thread itself when it is one, else the one it
+ * works under, which for a paired computer's thread a coordinator here started is that coordinator.
+ */
 function leadOf(state: NoticeState, thread: Thread | undefined): Thread | undefined {
-  return isCoordinator(thread) ? thread : coordinatorOf(state.threads, thread);
+  if (isCoordinator(thread)) return thread;
+  const remote = remoteLeadOf(thread);
+  if (!remote) return coordinatorOf(state.threads, thread);
+  const lead = state.threads.find((item) => item.id === remote.threadId);
+  return isCoordinator(lead) ? lead : undefined;
 }
 
 /**
  * What a notice calls the thread. A side chat only exists beside another thread, and a thread under
- * a coordinator is one of its threads, so each names both.
+ * a coordinator is one of its threads, so each names both, wherever that coordinator is.
  */
 function noticeTitle(state: NoticeState, thread: Thread): string {
   const owner = ownerOf(state, thread);
   if (owner !== thread) return owner ? `${owner.title} · ${thread.title}` : thread.title;
-  const lead = coordinatorOf(state.threads, thread);
-  return lead ? `${lead.title} · ${thread.title}` : thread.title;
+  const lead = isCoordinator(thread) ? undefined : leadOf(state, thread)?.title ?? remoteLeadOf(thread)?.title;
+  return lead ? `${lead} · ${thread.title}` : thread.title;
 }
 
 /**
@@ -59,7 +66,7 @@ function noticeTitle(state: NoticeState, thread: Thread): string {
 function wanted(state: NoticeState, thread: Thread, reason: NoticeReason): boolean {
   const lead = leadOf(state, ownerOf(state, thread));
   if (lead?.muted) return false;
-  if (reason !== "finished" || !coordinatorOf(state.threads, thread)) return true;
+  if (reason !== "finished" || !worksUnderCoordinator(state.threads, thread)) return true;
   return latestUserMessage(thread)?.origin === undefined;
 }
 

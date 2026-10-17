@@ -31,7 +31,7 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
   const mine = find?.target.kind === "thread" && find.target.taskId === (workspace.currentThread?.id ?? null) ? find : null;
   const { coordination, worktreeGroups, actions } = workspace;
   /** A coordinator follows its threads in its Overview; a thread opened on its own says whom it works under. */
-  const bar = coordination.threadModel === null && (coordination.lead !== null || coordination.brief !== null);
+  const bar = coordination.threadModel === null && (coordination.lead !== null || coordination.remoteLead !== null || coordination.brief !== null);
   /** Rebuilt only when one of its threads' views moves, which each card holds still against on its own. */
   const threadCards = useMemo((): ThreadCardsView | null => coordination.threadModel === null ? null : {
     cards: new Map(coordination.members.map((view) => [view.thread.id, view])),
@@ -39,7 +39,7 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
     onSelect: actions.selectThread,
   }, [coordination.threadModel, coordination.members, worktreeGroups, actions]);
   return (
-    <div className={`work-area ${bar ? (coordination.lead ? "coordination-bar-on" : "coordination-brief-on") : ""}`}>
+    <div className={`work-area ${bar ? (coordination.lead || coordination.remoteLead ? "coordination-bar-on" : "coordination-brief-on") : ""}`}>
       {isCoordinator(workspace.currentThread) && <CoordinatorReads
         asking={workspace.memberPullRequests.asking}
         settled={workspace.memberPullRequests.settled}
@@ -47,7 +47,7 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
       />}
       {mine && findBar}
       {bar && <div className="coordination-head">
-        <CoordinationBar lead={coordination.lead} brief={coordination.brief} asking={coordination.asking} onSelect={workspace.actions.selectThread} />
+        <CoordinationBar lead={coordination.lead} remoteLead={coordination.remoteLead} brief={coordination.brief} asking={coordination.asking} onSelect={workspace.actions.selectThread} />
       </div>}
       <div className="conversation" ref={transcriptRef}>
         <ConversationTimeline

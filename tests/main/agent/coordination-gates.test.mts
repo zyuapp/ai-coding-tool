@@ -81,6 +81,23 @@ test("a coordinator and its threads are not offered Haiku for a thread they star
   assert.match(said({}), /Omit to inherit the calling thread's model/);
 });
 
+test("a coordinator's start_thread and propose_threads name a paired computer, which the user allows the thread on", async () => {
+  const asked: Array<string | undefined> = [];
+  const proposed: unknown[] = [];
+  const threads = { list: async () => [], read: async () => { throw new Error("unused"); }, wait: async () => { throw new Error("unused"); }, command: async (_command: unknown, computer?: string) => { asked.push(computer); return { thread: null, notice: "Waiting for the user to allow it on Studio in /repo." }; } };
+  const coordination = { report: async () => ({ recorded: true, note: "" }), decide: async () => ({ recorded: true, note: "" }), remember: async () => ({ note: "" }), propose: async (requests: unknown[]) => { proposed.push(...requests); return { note: "Suggested 1 thread." }; } };
+  const sources: Partial<Parameters<typeof runTools>[0]> = { threads, coordination, coordinationRole: "coordinator" };
+  const sets = runTools({ channel: "main", computerUse: { status: "unavailable" }, emit: () => {}, ...sources } as Parameters<typeof runTools>[0]);
+  const start = sets.find((set) => set.server === "aicodingtool-threads")!.tools.find((tool) => tool.name === "start_thread")!;
+  assert.match((start.input.computer as z.ZodType).description ?? "", /It starts there once the user allows it/);
+  const started = await start.handler({ prompt: "Run the GPU tests", intent: "gpu", doneWhen: "pass", delivers: "report", computer: "Studio" });
+  assert.deepEqual(asked, ["Studio"]);
+  assert.match(started.content[0]!.text, /^Waiting for the user to allow it on Studio/);
+  const propose = sets.find((set) => set.server === "aicodingtool-coordination")!.tools.find((tool) => tool.name === "propose_threads")!;
+  await propose.handler({ threads: [{ title: "GPU", prompt: "Run them", intent: "gpu", doneWhen: "pass", delivers: "report", computer: "Studio" }] });
+  assert.deepEqual(proposed, [{ title: "GPU", prompt: "Run them", brief: { intent: "gpu", doneWhen: "pass", delivers: "report" }, computer: "Studio" }]);
+});
+
 test("a coordinator can read automations but not schedule, change, or stop one", async () => {
   const automations = { save: async () => { throw new Error("unused"); }, read: async () => null, update: async () => { throw new Error("unused"); }, remove: async () => false, list: async () => [] };
   const coordination = { report: async () => ({ recorded: true, note: "" }), decide: async () => ({ recorded: true, note: "" }), remember: async () => ({ note: "" }), propose: async () => ({ note: "" }) };

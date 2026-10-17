@@ -65,6 +65,8 @@ export type WorkspaceEvent =
   | { type: "coordination.remembered"; taskId: string; change: MemoryChange }
   /** A coordinator suggesting threads for the user to start, each already checked as a start of it would be. */
   | { type: "coordination.proposed"; taskId: string; proposals: ThreadProposal[] }
+  /** A paired computer took, or refused, a thread the user allowed it to run under a coordinator here. */
+  | { type: "proposal.settled"; taskId: string; proposalId: string; threadId?: string; message?: string }
   | { type: "worktree.created"; taskId: string; worktree: CreatedWorktree; move?: boolean; projectId?: string }
   | { type: "worktree.failed"; taskId: string; message: string }
   | { type: "worktrees.loaded"; worktrees: ManagedWorktree[] }

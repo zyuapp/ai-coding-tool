@@ -1,13 +1,13 @@
 import { capabilitiesFor, currentModel, engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, type AgentEngine } from "./agent-engine.js";
 import type { Annotation, AttachedFile, ConversationMessage, ConversationMessageKind, PastedText } from "./conversation.js";
-import { legacyOrigin, type MessageOrigin } from "./message-origin.js";
+import { isRemoteSender, legacyOrigin, type MessageOrigin } from "./message-origin.js";
 import type { AutomationFinding } from "./finding.js";
 import { isProject, legacyProjectId, normalizeProjectRoot, type Project } from "./project.js";
 import type { Continuation, ExecutionPolicy, Subagent } from "./run.js";
 import { isThreadUsage, type ContextUsage, type ContinuationStatus, type ThreadOutcome } from "./thread-run.js";
 import type { Thread } from "./thread.js";
 import { isThreadRole } from "./thread-role.js";
-import { isCoordinationNote, isCoordinationReport, isCoordinatorMemory, isDecision, isThreadBrief, isThreadModelChoice, isThreadProposal } from "./coordination.js";
+import { isCoordinationNote, isCoordinationReport, isCoordinatorMemory, isDecision, isRemoteHeard, isThreadBrief, isThreadModelChoice, isThreadProposal } from "./coordination.js";
 import { isWorktree, type Worktree } from "./worktree.js";
 import { isLimitPause } from "./usage-limit.js";
 import { isPullRequestLink } from "./pull-request.js";
@@ -372,6 +372,7 @@ function isThreadBase(value: unknown): value is StoredThread {
     (value.titleByUser === undefined || typeof value.titleByUser === "boolean") &&
     (value.role === undefined || isThreadRole(value.role)) &&
     (value.parentId === undefined || nonEmptyString(value.parentId)) &&
+    (value.remoteLead === undefined || isRemoteSender(value.remoteLead)) &&
     (value.brief === undefined || isThreadBrief(value.brief)) &&
     (value.report === undefined || isCoordinationReport(value.report)) &&
     (value.resolvedAt === undefined || finiteNumber(value.resolvedAt)) &&
@@ -381,6 +382,7 @@ function isThreadBase(value: unknown): value is StoredThread {
     (value.memory === undefined || isCoordinatorMemory(value.memory)) &&
     (value.proposals === undefined || Array.isArray(value.proposals) && value.proposals.every(isThreadProposal)) &&
     (value.muted === undefined || value.muted === true) &&
+    (value.remoteHeard === undefined || isRemoteHeard(value.remoteHeard)) &&
     (value.projectId === undefined || nonEmptyString(value.projectId)) &&
     isExecutionPolicy(value.executionPolicy) &&
     isAgentEngine(value.engine) &&
@@ -536,6 +538,8 @@ const DROPPABLE_FIELDS: Readonly<Record<string, (value: unknown) => boolean>> = 
   pullRequest: isPullRequestLink,
   muted: (value) => value === true,
   usage: isThreadUsage,
+  remoteLead: isRemoteSender,
+  remoteHeard: isRemoteHeard,
 };
 
 /** Lists a thread can do without, each item checked on its own: one this build cannot read is dropped and the rest kept. */

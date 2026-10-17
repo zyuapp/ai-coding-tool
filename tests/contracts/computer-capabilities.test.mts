@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { COMPUTER_CAPABILITIES, supportsComputerCommand, supportsComputerQuery } from "../../src/contracts/computer-capabilities.ts";
 import { isComputerClientMessage, isComputerQuery } from "../../src/contracts/computers.ts";
-import { isWorkspaceViewInput } from "../../src/contracts/workspace-view-input.ts";
+import { isExternalCommand, isWorkspaceViewInput } from "../../src/contracts/workspace-view-input.ts";
 import { isMobileCommand } from "../../src/contracts/mobile.ts";
 
 test("dismiss-all scope is validated and advertised across command entry points", () => {
@@ -37,4 +37,14 @@ test("unknown names are harmless, absent discovery is best effort, and an empty 
   assert.equal(supportsComputerCommand([], command), false);
   assert.equal(supportsComputerCommand(["command:task.rename"], command), false);
   assert.equal(isComputerClientMessage({ kind: "input", requestId: "id", inputs: [{ type: "action.failed", message: "injected" }] }), false);
+});
+
+test("a computer says it takes threads under a coordinator elsewhere, and reads their pull requests, only by name", () => {
+  for (const name of ["command:task.send:lead", "command:task.send:memory", "command:pull-request.read-member", "command:proposal.start:place"]) assert.ok(COMPUTER_CAPABILITIES.includes(name), name);
+  const lead = { threadId: "lead", title: "Lead", computer: "Mac" };
+  assert.ok(isWorkspaceViewInput({ type: "task.send", text: "Go", lead, memory: "The coordinator's purpose: Ship" }));
+  assert.equal(isWorkspaceViewInput({ type: "task.send", text: "Go", lead: { ...lead, threadId: "" } }), false);
+  assert.equal(isWorkspaceViewInput({ type: "task.send", text: "Go", memory: "x".repeat(64_001) }), false);
+  assert.equal(isExternalCommand({ type: "task.send", text: "Go", lead }), false, "only the window says which coordinator a thread works under");
+  assert.equal(isExternalCommand({ type: "task.send", text: "Go", memory: "Remember" }), false);
 });

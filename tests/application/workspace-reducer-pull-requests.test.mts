@@ -6,6 +6,7 @@ import { coordinationSections } from "../../src/application/coordination.ts";
 import { NO_PULL_REQUEST, type PullRequestAnswer } from "../../src/domain/pull-request.ts";
 import { activeRun, correlatedRunEvent, effectOf, heldWorktree, projected, required, task } from "./workspace-reducer-fixtures.mts";
 import type { WorkspaceState } from "../../src/application/workspace-state.ts";
+import { COMPUTER_CAPABILITIES } from "../../src/contracts/computer-capabilities.ts";
 
 const PULL_REQUEST = { number: 7, title: "Poll me", url: "https://github.com/o/r/pull/7", state: "open" } as const;
 const OPEN: PullRequestAnswer = { status: "found", pullRequest: PULL_REQUEST };
@@ -319,4 +320,25 @@ test("a thread that delivers a pull request is offered to open one only once Git
   assert.deepEqual(steps(reduce(none, { type: "pull-request.read-members" }).state), ["create-pull-request"], "asking again keeps the last answer until the next lands");
   assert.deepEqual(steps(memberAnswer(state, { status: "gh-missing" })), [], "without gh nothing can be asked, so nothing is offered");
   assert.deepEqual(steps(memberAnswer(none, OPEN)), ["merge"], "once it has one, what it needs is offered instead");
+});
+
+test("a coordinator's poll asks a paired computer for each of its threads there, and that computer records the answer on the thread", () => {
+  const far = task("far", { projectId: "project-a", brief: DELIVERS, remoteLead: { threadId: "lead", title: "Lead", computer: "Mac" } });
+  const holder = { ...checkedOut(), threads: [far, task("filed", { ...far, id: "filed", resolvedAt: 2 })], currentId: null };
+  const studio = { id: "studio", name: "Studio", host: "studio.test", pairedAt: 1, status: "connected" as const, error: null, capabilities: COMPUTER_CAPABILITIES, state: holder };
+  const coordinator = projected({ threads: [task("lead", { role: "coordinator" })], currentId: "lead", computers: { ...projected().computers, paired: [studio] } });
+  const polled = reduce(coordinator, { type: "pull-request.read-members" });
+  assert.deepEqual(effectOf(polled, "computer.forward"), { type: "computer.forward", id: "studio", inputs: [{ type: "pull-request.read-member", taskId: "far" }] }, "only a thread an answer could still move is asked about");
+  assert.equal(deriveView(polled.state).memberPullRequests.settled, false, "the poll keeps going until that computer's answer settles");
+  const older = { ...studio, capabilities: COMPUTER_CAPABILITIES.filter((name) => name !== "command:pull-request.read-member") };
+  assert.equal(reduce({ ...coordinator, computers: { ...coordinator.computers, paired: [older] } }, { type: "pull-request.read-members" }).effects.some((effect) => effect.type === "computer.forward"), false, "a build that cannot read one is not asked");
+
+  const asked = reduce(holder, { type: "pull-request.read-member", taskId: "far" });
+  const read = effectOf(asked, "read-pull-request");
+  assert.deepEqual(read, { type: "read-pull-request", workspaceId: "workspace-a", branch: "pr-poll", read: 1, members: true });
+  const answered = reduce(asked.state, { type: "pull-request.answered", workspaceId: read.workspaceId, branch: read.branch, read: read.read, members: true, answer: MERGED });
+  const recorded = required(answered.state.threads.find((thread) => thread.id === "far"));
+  assert.equal(recorded.pullRequest?.state, "merged");
+  assert.equal(typeof recorded.resolvedAt, "number", "its own pull request merging resolves it there too");
+  assert.deepEqual(reduce(holder, { type: "pull-request.read-member", taskId: "filed" }).effects, [], "a resolved thread has nothing to learn");
 });

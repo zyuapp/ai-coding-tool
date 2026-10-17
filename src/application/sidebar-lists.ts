@@ -1,7 +1,7 @@
 import { orderProjects } from "./project-order.js";
 import { orderThreads, slotThreadIds } from "./thread-order.js";
 import { coordinationSections, projectActivity } from "./coordination.js";
-import { coordinatedThreadIds } from "../domain/coordination.js";
+import { coordinatedThreadIds, leadIdOf } from "../domain/coordination.js";
 import { SLOT_COUNT } from "../domain/shortcuts.js";
 import type { Project } from "../domain/project.js";
 import type { SidebarMode, SidebarSections } from "../domain/sidebar.js";
@@ -38,12 +38,18 @@ export function sidebarLists(
   projectHosts?: ReadonlyMap<string, ThreadHost>,
 ) {
   const orderedThreads = orderThreads(visibleThreads);
-  /** A thread working under a coordinator is drawn under that coordinator's row, in no list of its own. */
+  /**
+   * A thread working under a coordinator is drawn under that coordinator's row, in no list of its own,
+   * as is a paired computer's thread a coordinator here started.
+   */
   const members = coordinatedThreadIds(visibleThreads);
   const threadsByCoordinator = new Map<string, Thread[]>();
   const threadsByProject = new Map<string, Thread[]>();
   for (const thread of orderedThreads) {
-    if (members.has(thread.id)) threadsByCoordinator.get(thread.parentId!)?.push(thread) ?? threadsByCoordinator.set(thread.parentId!, [thread]);
+    if (members.has(thread.id)) {
+      const leadId = leadIdOf(thread)!;
+      threadsByCoordinator.get(leadId)?.push(thread) ?? threadsByCoordinator.set(leadId, [thread]);
+    }
     else if (thread.projectId) threadsByProject.get(thread.projectId)?.push(thread) ?? threadsByProject.set(thread.projectId, [thread]);
   }
   const ordered = orderSidebarProjects(projects.filter((project) => !project.unlisted), projectHosts);

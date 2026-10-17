@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { BRIEF_REQUIRED, newThreadSend, proposalSend, threadProposal, type NewThreadSend, type NewThreadStart } from "../../src/application/thread-starts.ts";
+import { BRIEF_REQUIRED, newThreadSend, proposalSend, REMOTE_LED_HERE, threadProposal, type NewThreadSend, type NewThreadStart } from "../../src/application/thread-starts.ts";
 import { WORKTREE_ELSEWHERE_ERROR, WORKTREE_MISSING_ERROR } from "../../src/application/workspace-reducer/errors.ts";
 import type { PairedComputer } from "../../src/application/computers.ts";
 import type { WorkspaceState } from "../../src/application/workspace-state.ts";
@@ -120,4 +120,36 @@ test("a suggestion is checked as its start would be, and kept in the place that 
     type: "task.send", text: "Fix it", brief: BRIEF, project: PROJECT.id, worktreeId: "wt-lead", model: "gpt-6-luna", effort: "low", role: "reviewer",
   });
   assert.deepEqual(started(newThreadSend(state, lead, proposalSend(plain), null)), started(newThreadSend(state, lead, send({ brief: BRIEF }))), "a suggestion starts as the coordinator would have started it");
+});
+
+test("a thread asked for on a paired computer waits in the project there its start resolves to", () => {
+  const remote = { id: "remote-project", root: PROJECT.root, workspaceId: "remote-workspace" };
+  const linux: PairedComputer = {
+    id: "linux", name: "Linux", host: "linux.test", pairedAt: 1, status: "connected", error: null, capabilities: COMPUTER_CAPABILITIES,
+    state: workspace({ projects: [remote] }),
+  };
+  const base = coordinated();
+  const state = { ...base, computers: { ...base.computers, paired: [linux] } };
+  const made = threadProposal(state, thread(state, "lead"), { title: "GPU", prompt: "Run the GPU tests", brief: BRIEF, worktree: true }, 5, linux);
+  assert.ok(!("error" in made), "error" in made ? made.error : "");
+  assert.deepEqual(made.proposal.place, { computer: { id: "linux", name: "Linux" }, project: remote.id, worktree: true }, "the project there at the coordinator's own path");
+  assert.deepEqual(made.proposal.brief, BRIEF);
+
+  const asked = threadProposal(state, thread(state, "worker"), { title: "Profile", prompt: "Profile it" }, 5, linux);
+  assert.ok(!("error" in asked), "error" in asked ? asked.error : "");
+  assert.equal(asked.proposal.from, "worker", "a thread under the coordinator asks as itself, and hands no brief");
+  assert.equal(asked.proposal.brief, undefined);
+  assert.deepEqual(threadProposal(state, thread(state, "solo"), { title: "Mine", prompt: "Go" }, 5, linux), { error: "Only a coordinator and the threads under it ask for threads on another computer." });
+  const unknown = threadProposal(state, thread(state, "lead"), { title: "GPU", prompt: "Go", brief: BRIEF, project: "nowhere" }, 5, linux);
+  assert.ok("error" in unknown && /^On Linux: No project matches "nowhere"/.test(unknown.error));
+});
+
+test("a thread under a coordinator on another computer starts its threads under that coordinator, here", () => {
+  const lead = { threadId: "lead-there", title: "Lead", computer: "Laptop" };
+  const state = workspace({ projects: [PROJECT], threads: [task("member", { remoteLead: lead, model: "sonnet", effort: "low", projectId: PROJECT.id })] });
+  const command = started(newThreadSend(state, thread(state, "member"), send()));
+  assert.deepEqual(command, { type: "task.send", text: "Fix it", model: "sonnet", effort: "low", project: PROJECT.id, lead, from: "member" }, "on its own model, with no memory of the coordinator's");
+  assert.equal(refused(newThreadSend(state, thread(state, "member"), send({ model: "haiku" }))), "Threads under a coordinator cannot run on the haiku model. Pick another model.");
+  const linux = { id: "linux", name: "Linux", host: "linux.test", pairedAt: 1, status: "connected", error: null, state: workspace() } satisfies PairedComputer;
+  assert.equal(refused(newThreadSend(state, thread(state, "member"), send(), linux)), REMOTE_LED_HERE);
 });

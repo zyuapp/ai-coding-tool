@@ -1,6 +1,7 @@
 import type { ComputerCommand } from "../contracts/commands.js";
 import type { ThreadNotice } from "../contracts/ipc.js";
 import { MAX_COMPUTER_NAME, type ComputerLink, type DiscoveredComputer } from "../domain/computers.js";
+import { isCoordinator, remoteLeadOf } from "../domain/coordination.js";
 import type { PairedComputer, SentDraft } from "./computers.js";
 import { annotationsFor, imagesFor, pastesFor, withAnnotations, withImages, withPastes } from "./composer-drafts.js";
 import { announcedNotice } from "./notices.js";
@@ -33,8 +34,12 @@ export type ComputerEffect =
   /** What this computer will call itself, or a paired one, from now on. Empty goes back to the default. */
   | { type: "computer.rename"; name: string }
   | { type: "computer.label"; id: string; name: string }
-  /** Inputs on their way to the computer that holds the thread they are about, with the draft a send carries. */
-  | { type: "computer.forward"; id: string; inputs: WorkspaceInput[]; projectAddRequest?: number; draft?: SentDraft };
+  /**
+   * Inputs on their way to the computer that holds the thread they are about, with the draft a send
+   * carries, or the thread a coordinator here asked for there. A `silent` one is housekeeping, whose
+   * failure is no error.
+   */
+  | { type: "computer.forward"; id: string; inputs: WorkspaceInput[]; projectAddRequest?: number; draft?: SentDraft; proposal?: { taskId: string; proposalId: string }; silent?: true };
 
 export type ComputerInput = ComputerCommand | ComputerEvent;
 
@@ -165,7 +170,16 @@ export function reduceComputers(state: WorkspaceState, input: ComputerInput): Wo
       if (!computer) return settled(state);
       return settled(withComputers(state, { paired: computers.paired.map((item) => item === computer ? { ...item, state: input.state } : item) }));
     }
-    case "computer.notice":
-      return settled(state, computers.paired.some((computer) => computer.id === input.id) ? announcedNotice(state, input.notice) : []);
+    /**
+     * A thread there working under a coordinator here is announced here, under that coordinator's
+     * notices, so what that computer carries of the same thread is dropped.
+     */
+    case "computer.notice": {
+      const computer = computers.paired.find((item) => item.id === input.id);
+      if (!computer) return settled(state);
+      const lead = remoteLeadOf(computer.state?.threads.find((thread) => thread.id === input.notice.taskId));
+      if (lead && isCoordinator(state.threads.find((thread) => thread.id === lead.threadId))) return settled(state);
+      return settled(state, announcedNotice(state, input.notice));
+    }
   }
 }

@@ -7,6 +7,7 @@ import type { ThreadRole } from "./thread-role.js";
 import type { ChangeSnapshot, ContextUsage, ContinuationStatus, ThreadOutcome, ThreadUsage } from "./thread-run.js";
 import type { LimitPause } from "./usage-limit.js";
 import type { PullRequestLink } from "./pull-request.js";
+import type { RemoteSender } from "./message-origin.js";
 
 /** The canonical conversation aggregate. Persisted property names stay unchanged for compatibility. */
 export type Thread = {
@@ -18,6 +19,11 @@ export type Thread = {
   role?: ThreadRole;
   /** The coordinator this thread works under. It only counts while that thread is a live coordinator. */
   parentId?: string;
+  /**
+   * The coordinator on a paired computer this thread works under, as that computer named it when it
+   * started the thread here. A coordinator of its own here outranks it.
+   */
+  remoteLead?: RemoteSender;
   /** What the coordinator asked of this thread when it started it. */
   brief?: ThreadBrief;
   /** Where this thread last said its work stands. */
@@ -39,6 +45,11 @@ export type Thread = {
   proposals?: ThreadProposal[];
   /** On a coordinator: set while the user wants no desktop notice from it or its threads. */
   muted?: true;
+  /**
+   * On a coordinator: for each of its threads on a paired computer, the newest moment on that
+   * computer's clock whose news it has taken, so news from while the link was down is caught up.
+   */
+  remoteHeard?: Record<string, number>;
   projectId?: string;
   executionPolicy: ExecutionPolicy;
   engine: AgentEngine;

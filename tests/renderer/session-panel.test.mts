@@ -17,7 +17,8 @@ import { dom, item, mount, pumpResizeObservers, query, rowHeights, sizeOf } from
 import { required } from "../application/workspace-reducer-fixtures.mts";
 
 const { MemberPullRequestList, SessionPanel } = await import("../../src/renderer/components/SessionPanel.tsx");
-const { MemberWorktreeList, NeedsYouCard } = await import("../../src/renderer/components/Coordination.tsx");
+const { MemberWorktreeList } = await import("../../src/renderer/components/Coordination.tsx");
+const { NeedsYouCard } = await import("../../src/renderer/components/NeedsYouCard.tsx");
 const { CommandControlsProvider } = await import("../../src/renderer/components/CommandControl.tsx");
 const { SubagentInspector } = await import("../../src/renderer/components/SubagentInspector.tsx");
 const { AgentsPanel, matchSubagents } = await import("../../src/renderer/components/SubagentList.tsx");
@@ -107,7 +108,7 @@ test("the Needs-you card's Suggested threads page starts and dismisses each sugg
     React.createElement(NeedsYouCard, {
       approvals: [],
       decisions: Array.from({ length: decisions }, (_, index) => ({ thread: member("b", "Settings"), decision: { id: `d${index}`, question: "Keep the v2 reader?", options: [], raisedAt: 1 } })),
-      suggestions: { taskId: "lead", threadModel: { model: "opus", effort: "high" }, proposals },
+      suggestions: { taskId: "lead", threadModel: { model: "opus", effort: "high" }, proposals: proposals.map((view) => ({ ...view, elsewhere: null })) },
       onDecide() {},
       onAnswer() {},
       onSelect() {},
@@ -141,6 +142,49 @@ test("the Needs-you card's Suggested threads page starts and dismisses each sugg
   assert.ok(query(view.container, '[aria-label="Decision waiting on you"]'), "decisions come first");
   await act(async () => { required([...view.container.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === "Later")).click(); });
   assert.ok(query(view.container, '[aria-label="Suggested threads"]'), "the suggestions are the page after them");
+  await view.unmount();
+});
+
+test("the Needs-you card asks to run a thread on another computer, in the folder and checkout the user picks", async () => {
+  const dispatched: AppCommand[] = [];
+  const brief = { intent: "run the GPU tests", doneWhen: "they pass", delivers: "report" as const };
+  const projects = [{ id: "app", root: "/code/app", workspaceId: "w1" }, { id: "lab", root: "/code/lab", workspaceId: "w2" }];
+  const request: ThreadProposal = { id: "p1", title: "GPU tests", prompt: "Run them", brief, place: { computer: { id: "studio", name: "Studio" }, project: "app", worktree: true }, proposedAt: 1 };
+  const elsewhere = (refusal: string | null = null, offline = false) => ({ computer: { id: "studio", name: "Studio", offline }, projects, refusal });
+  const card = (where = elsewhere()) => React.createElement(CommandControlsProvider, { value: { available: () => true, dispatch: (command: AppCommand) => { dispatched.push(command); } } },
+    React.createElement(NeedsYouCard, {
+      approvals: [],
+      decisions: [],
+      suggestions: { taskId: "lead", threadModel: { model: "opus", effort: "high" }, proposals: [{ proposal: request, starting: false, elsewhere: where }] },
+      onDecide() {},
+      onAnswer() {},
+      onSelect() {},
+    }));
+  const view = await mount(card());
+  const page = query(view.container, '[aria-label="Run on Studio?"]');
+  assert.match(page.textContent, /Run on Studio\?GPU tests/);
+  assert.match(page.textContent, /FolderapplabNew worktree/, "the folder there and the worktree start as the coordinator asked");
+  assert.ok(query(page, "details.coordination-brief"), "the brief can be read before allowing it");
+  const box = query<HTMLInputElement>(page, ".elsewhere-worktree input");
+  assert.equal(box.checked, true);
+  const folder = query<HTMLSelectElement>(page, ".elsewhere-folder select");
+  assert.equal(folder.value, "app");
+  await act(async () => { folder.value = "lab"; folder.dispatchEvent(new Event("change", { bubbles: true })); });
+  await act(async () => { box.click(); });
+  const button = (label: string) => required([...page.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === label));
+  await act(async () => { button("Allow").click(); });
+  await act(async () => { button("Deny").click(); });
+  assert.deepEqual(dispatched, [
+    { type: "proposal.start", taskId: "lead", proposalId: "p1", place: { project: "lab", worktree: false } },
+    { type: "proposal.dismiss", taskId: "lead", proposalId: "p1" },
+  ]);
+
+  for (const [refusal, offline] of [["Studio is offline.", true], ["Update AI Coding Tool on Studio to run threads there.", false]] as const) {
+    await view.render(card(elsewhere(refusal, offline)));
+    const allow = button("Allow");
+    assert.equal(allow.disabled, true, refusal);
+    assert.match(query(view.container, '[aria-label="Run on Studio?"]').textContent, new RegExp(refusal.replace(".", "\\.")));
+  }
   await view.unmount();
 });
 

@@ -51,3 +51,12 @@ test("a coordinator's menu stops it and its threads, while there is work to stop
   assert.equal(stop(lead, false)?.disabled, true, "with nothing going there is nothing to stop");
   assert.equal(stop(task("solo"), true), undefined, "only a coordinator stops threads under it");
 });
+
+test("a thread a coordinator on another computer started moves out from under it, from either computer", () => {
+  const remoteLead = { threadId: "lead", title: "Planner", computer: "Laptop" };
+  const there = entries(task("far", { remoteLead })).find((entry) => entry.label.startsWith("Move out"));
+  assert.equal(there?.label, "Move out of Planner");
+  assert.deepEqual(there?.command, { type: "task.set-coordinator", taskId: "far", coordinatorId: null });
+  const menu = threadMenuEntries(task("far", { remoteLead }), { onRename: () => {}, onFork: () => {}, onArchive: () => {}, onSetRole: () => {}, coordinators: [task("lead", { role: "coordinator", title: "Lead here" })], onSetCoordinator: () => {}, notifications: true, onSetMuted: () => {}, stoppable: false, onStopAll: () => {} });
+  assert.ok(menu.some((entry) => entry !== "separator" && entry.label === "Move out of Lead here"), "the coordinator's own computer names it as it is called there");
+});

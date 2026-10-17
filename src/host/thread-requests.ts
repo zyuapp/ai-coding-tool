@@ -3,10 +3,9 @@ import { browserTarget, dockFor, dockOwner, terminalTarget, type WorkspaceState 
 import { threadSummary, threadWaitResult } from "../application/thread-projection.js";
 import { isWorking } from "../application/thread-activity.js";
 import { listAcrossComputers, namedComputer, online, readAcrossComputers, remoteSummary, resolveThreadRead, tag, type PreparedThreadRequest } from "./thread-reads.js";
-import type { PairedComputer } from "../application/computers.js";
-import { COORDINATED_HERE, newThreadSend, threadProposal } from "../application/thread-starts.js";
-import { findProject, folderName, matchingProjects, projectName, type Project } from "../domain/project.js";
-import type { Thread } from "../domain/thread.js";
+import { projectOnComputer, type PairedComputer } from "../application/computers.js";
+import { newThreadSend, threadProposal, type NewThreadSend } from "../application/thread-starts.js";
+import { clampTitle, type Thread } from "../domain/thread.js";
 import type { WorktreeDestination } from "../domain/worktree.js";
 import { projectFor, worktreeById, worktreeFor } from "../application/thread-location.js";
 import { isNews, unreadFindings } from "../domain/attention.js";
@@ -17,7 +16,7 @@ import type { AppCommand } from "../contracts/commands.js";
 import type { ExternalCommand, FindingReport, FindingResult, ThreadCommandResult, ThreadRequest, ThreadResponse, ThreadTranscript } from "../contracts/threads.js";
 import { REMOTE_UNSUPPORTED } from "../contracts/computer-capabilities.js";
 import { terminalLineLimit } from "../domain/terminal.js";
-import { coordinatorOf, isCoordinator, MAX_PROPOSALS, withMemoryChange, type CoordinationState, type DecisionRequest, type MemoryChange, type ProposalRequest, type ThreadProposal } from "../domain/coordination.js";
+import { coordinatorOf, isCoordinator, MAX_PROPOSALS, withMemoryChange, worksUnderCoordinator, type CoordinationState, type DecisionRequest, type MemoryChange, type ProposalRequest, type ThreadProposal } from "../domain/coordination.js";
 import { errorMessage } from "./errors.js";
 import type { RuntimeDesktop } from "./runtime-desktop.js";
 
@@ -173,7 +172,7 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
       : null;
     if (start && "error" in start) return failed(start.error);
     if (start?.elsewhere) {
-      if (start.lead) return failed(COORDINATED_HERE);
+      if (start.lead) return ok(await proposeElsewhere(host, caller!, start.lead, start.elsewhere, named as NewThreadSend));
       return ok(await commandElsewhere(host, start.elsewhere, start.command, caller));
     }
     if (target?.computer) return ok(await commandElsewhere(host, target.computer, named, caller));
@@ -246,7 +245,9 @@ async function commandElsewhere(host: ThreadRequestHost, computer: PairedCompute
   if (command.type === "task.send" && sender && !computer.capabilities?.includes(SIGNED_SEND)) throw new Error(REMOTE_UNSUPPORTED);
   if (command.type === "task.send" && command.taskId === undefined) {
     const own = state.projects.find((project) => project.id === caller?.projectId);
-    const project = projectThere(computer, command.project, own);
+    const found = projectOnComputer(computer, command.project, own);
+    if ("error" in found) throw new Error(found.error);
+    const { project } = found;
     const result = await host.execute({ ...command, project: project.id, ...(sender ? { sender } : {}) }).completed;
     if (!result.ok) throw new Error(result.message);
     const taskId = result.taskId;
@@ -260,19 +261,22 @@ async function commandElsewhere(host: ThreadRequestHost, computer: PairedCompute
   return { thread: command.taskId === undefined ? null : remoteSummary(host.state(), computer.id, command.taskId) };
 }
 
-/** The project on a paired computer a new thread starts in: the one named, else the one at this thread's project's path or with its folder's name. */
-function projectThere(computer: PairedComputer, named: string | undefined, own: Project | undefined): Project {
-  const projects = computer.state?.projects ?? [];
-  if (named !== undefined) {
-    const found = findProject(projects, named);
-    if ("error" in found) throw new Error(`On ${computer.name}: ${found.error}`);
-    return found.project;
-  }
-  if (!own) throw new Error(`Name the project on ${computer.name} to start the thread in.`);
-  const atRoot = matchingProjects(projects, own.root);
-  const matches = atRoot.length ? atRoot : matchingProjects(projects, folderName(own.root));
-  if (matches.length === 1) return matches[0]!;
-  throw new Error(`${matches.length ? "More than one" : "No"} project on ${computer.name} matches ${projectName(own)}. Name the project to start the thread in.`);
+/**
+ * A thread a coordinator, or one of the threads under it, asks to start on a paired computer. Nothing
+ * starts there until the user allows it: the request is checked as its start would be, placed in the
+ * project there it would start in, and waits beside the coordinator's suggestions for the user.
+ */
+async function proposeElsewhere(host: ThreadRequestHost, caller: Thread, lead: Thread, computer: PairedComputer, command: NewThreadSend): Promise<ThreadCommandResult> {
+  const { type: _type, text, taskId: _new, attachments: _attachments, steer: _steer, ...asked } = command;
+  const prompt = text ?? "";
+  const made = threadProposal(host.state(), caller, { ...asked, title: clampTitle(prompt), prompt }, Date.now(), computer);
+  if ("error" in made) throw new Error(made.error);
+  if ((lead.proposals?.length ?? 0) >= MAX_PROPOSALS) throw new Error(PROPOSALS_FULL);
+  await host.dispatch({ type: "coordination.proposed", taskId: lead.id, proposals: [made.proposal] });
+  const kept = host.state().threads.find((item) => item.id === lead.id)?.proposals?.some((proposal) => proposal.id === made.proposal.id);
+  if (!kept) throw new Error(PROPOSALS_FULL);
+  const folder = computer.state?.projects.find((project) => project.id === made.proposal.place.project)?.root ?? "its project";
+  return { thread: null, notice: `Waiting for the user to allow it on ${computer.name} in ${folder}. You hear once it starts and when it ends a turn.` };
 }
 
 /** What the tools say when the caller is not a scheduled run at all. Nothing is written for one. */
@@ -331,7 +335,7 @@ const NO_COORDINATOR = "This thread works under no coordinator, so there is no o
 /** A thread under a coordinator saying where its work stands. Its coordinator hears it when this turn ends. */
 async function reportToCoordinator(host: ThreadRequestHost, threadId: string, state: CoordinationState, summary: string): Promise<FindingResult> {
   const thread = host.state().threads.find((item) => item.id === threadId);
-  if (!coordinatorOf(host.state().threads, thread)) return { recorded: false, note: NO_COORDINATOR };
+  if (!worksUnderCoordinator(host.state().threads, thread)) return { recorded: false, note: NO_COORDINATOR };
   await host.dispatch({ type: "coordination.reported", taskId: threadId, state, summary });
   if (state === "working") return { recorded: true, note: "Noted. Progress is not passed on; report again when you are blocked, done, or failed." };
   return { recorded: true, note: "Reported. Your coordinator hears it when this turn ends." };
@@ -341,7 +345,7 @@ async function reportToCoordinator(host: ThreadRequestHost, threadId: string, st
 async function raiseDecision(host: ThreadRequestHost, threadId: string, request: DecisionRequest): Promise<FindingResult> {
   const threads = host.state().threads;
   const thread = threads.find((item) => item.id === threadId);
-  if (!isCoordinator(thread) && !coordinatorOf(threads, thread)) {
+  if (!isCoordinator(thread) && !worksUnderCoordinator(threads, thread)) {
     return { recorded: false, note: "Only a coordinator and the threads working under it can raise decisions, so nothing was recorded. Ask the user in your reply instead." };
   }
   await host.dispatch({ type: "coordination.decision-raised", taskId: threadId, request });
@@ -372,6 +376,15 @@ async function rememberFor(host: ThreadRequestHost, threadId: string, change: Me
 
 const PROPOSALS_FULL = `At most ${MAX_PROPOSALS} suggestions wait at once. Wait for the user to start or dismiss some.`;
 
+/** One suggestion checked as its start would be, on the paired computer it names when it names one. */
+function checkedProposal(state: WorkspaceState, lead: Thread, request: ProposalRequest, at: number): ReturnType<typeof threadProposal> {
+  try {
+    return threadProposal(state, lead, request, at, request.computer === undefined ? undefined : namedComputer(state, request.computer));
+  } catch (error) {
+    return { error: errorMessage(error) };
+  }
+}
+
 /**
  * A coordinator suggesting threads. Each is checked now as its start would be, so what cannot start
  * comes straight back, item by item, and only what can waits for the user. Nothing starts here.
@@ -385,7 +398,7 @@ async function proposeThreads(host: ThreadRequestHost, threadId: string, request
   const refused: string[] = [];
   const at = Date.now();
   for (const request of requests) {
-    const made = threadProposal(state, lead, request, at);
+    const made = checkedProposal(state, lead, request, at);
     if ("error" in made) refused.push(`Not suggested "${request.title}": ${made.error}`);
     else if (room <= 0) refused.push(`Not suggested "${request.title}": ${PROPOSALS_FULL}`);
     else {

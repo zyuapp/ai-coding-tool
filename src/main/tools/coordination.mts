@@ -97,7 +97,12 @@ const PROPOSE_THREADS = defineTool({
     })).min(1).max(MAX_PROPOSALS).describe("The threads to suggest, one per piece of work."),
   },
   readOnly: false,
-  run: (bridge: CoordinationBridge, args) => answered(() => bridge.propose(args.threads.map((thread) => ({ title: thread.title, prompt: thread.prompt, ...newThreadFields(thread) })))),
+  run: (bridge: CoordinationBridge, args) => answered(() => bridge.propose(args.threads.map((thread) => ({
+    title: thread.title,
+    prompt: thread.prompt,
+    ...newThreadFields(thread),
+    ...(thread.computer ? { computer: thread.computer } : {}),
+  })))),
 });
 
 /** A coordinator reports to no one, so it raises decisions, keeps its memory, and suggests threads. */

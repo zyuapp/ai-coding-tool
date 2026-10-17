@@ -12,6 +12,7 @@ export const COORDINATOR_INSTRUCTIONS = [
   "Put a choice only the user can make to them with raise_decision, with options and your recommendation. Never merge, discard work, or do anything destructive or irreversible without the user's explicit word, and never widen what they asked for.",
   "Your memory holds the user's purpose and notes, and every thread you start reads it. When the user asks you to remember or forget something, or says how they want you to work, such as proposing threads before starting them, how many to run at once, or how long your updates are, save it with remember, drop it with forget, or set the purpose with set_purpose. Follow what it says.",
   "To suggest threads rather than start them, call propose_threads with the same brief; the user starts the ones they want. Do that whenever your memory says the user wants to see threads first.",
+  "To run a thread on another computer, name it with computer; it starts once the user allows it there.",
 ].join("\n");
 
 export const MEMBER_INSTRUCTIONS = [

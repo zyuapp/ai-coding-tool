@@ -2,7 +2,7 @@ import type { AppCommand } from "./commands.js";
 import { isTerminalDimension, MAX_TERMINAL_INPUT } from "./terminal.js";
 import { isSnoozeHours } from "../domain/thread-snooze.js";
 import { isThreadRole } from "../domain/thread-role.js";
-import { isNextStep, isOverviewSection, isThreadBrief } from "../domain/coordination.js";
+import { isNextStep, isOverviewSection, isThreadBrief, MAX_MEMORY_PROMPT } from "../domain/coordination.js";
 import type { WorkspaceEvent } from "../application/workspace-reducer.js";
 import { isBrowserAction, isString, MAX_PROMPT_LENGTH } from "./ipc.js";
 import type { ExternalCommand } from "./threads.js";
@@ -80,6 +80,8 @@ const dropTarget = object({ projectId: nullableText, index: number });
 const runAttachment = object<RunAttachment>({ path: text, labels: array(text), context: optional(isScreenshotContext) });
 const pastedText = object<PastedText>({ id: text, text });
 const remoteSender = object<RemoteSender>({ threadId: deviceId, title: text, computer: deviceId });
+const memoryText: Validator<string> = (value): value is string => typeof value === "string" && value.length <= MAX_MEMORY_PROMPT;
+const proposalPlace = object<{ project: string; worktree: boolean }>({ project: text, worktree: boolean });
 const attachedFileDraft = object<AttachedFileDraft>({ path: text, name: text, folder: optional(literals(true)) });
 const attachedFile = object<AttachedFile>({ id: text, path: text, name: text, folder: optional(literals(true)) });
 const imageAnnotation = object<ImageAnnotation>({ kind: literals("box", "arrow"), x: number, y: number, width: number, height: number, text });
@@ -137,8 +139,8 @@ function agentSend(command: Extract<AppCommand, { type: "task.send" }>): boolean
     && command.attachments === undefined
     /** An id, never a path: the reducer resolves it against the checkouts the app itself made. */
     && agentId(command.worktreeId)
-    /** Only the window says which coordinator a thread works under, and which thread a message came from. */
-    && command.coordinatorId === undefined && command.from === undefined && command.sender === undefined
+    /** Only the window says which coordinator a thread works under, what it reads of it, and which thread a message came from. */
+    && command.coordinatorId === undefined && command.lead === undefined && command.memory === undefined && command.from === undefined && command.sender === undefined
     /** Agent selection, the role and the brief belong to a thread being created, never one that already exists. */
     && (command.taskId === undefined || command.model === undefined && command.effort === undefined && command.role === undefined && command.brief === undefined);
 }
@@ -264,7 +266,7 @@ const commands = {
   "memory.edit": { fields: { taskId: text, noteId: text, text }, at: "thread" },
   "memory.forget": { fields: { taskId: text, noteId: text }, at: "thread" },
   "coordination.next-step": { fields: { taskId: text, step: isNextStep }, at: "thread" },
-  "proposal.start": { fields: { taskId: text, proposalId: optionalText }, at: "thread" },
+  "proposal.start": { fields: { taskId: text, proposalId: optionalText, place: optional(proposalPlace) }, at: "thread" },
   "proposal.dismiss": { fields: { taskId: text, proposalId: optionalText }, at: "thread" },
   "task.dismiss": { fields: { taskId: text }, at: "thread" },
   "task.snooze": { fields: { taskId: text, hours: isSnoozeHours }, at: "thread" },
@@ -283,7 +285,7 @@ const commands = {
   "task.checkout-branch": { fields: { taskId: optionalText, branch: text, create: optionalBoolean }, at: "thread" },
   "attachments.send": { fields: { taskId: optionalText, steer: optionalBoolean, attachments: array(outgoingAttachment) }, at: "own" },
   "attachments.notice": { fields: { taskId: optionalText, message: nullableText }, at: "local" },
-  "task.send": { fields: { taskId: optionalText, project: optionalText, text: optionalText, attachments: optional(array(runAttachment)), steer: optionalBoolean, worktree: optionalBoolean, worktreeId: optionalText, model: optional(isAgentModel), effort: optional(isAgentEffort), role: optional(isThreadRole), coordinatorId: optionalText, brief: optional(isThreadBrief), from: optionalText, sender: optional(remoteSender) }, at: "own", agent: agentSend },
+  "task.send": { fields: { taskId: optionalText, project: optionalText, text: optionalText, attachments: optional(array(runAttachment)), steer: optionalBoolean, worktree: optionalBoolean, worktreeId: optionalText, model: optional(isAgentModel), effort: optional(isAgentEffort), role: optional(isThreadRole), coordinatorId: optionalText, brief: optional(isThreadBrief), from: optionalText, sender: optional(remoteSender), lead: optional(remoteSender), memory: optional(memoryText) }, at: "own", agent: agentSend },
   "task.steer-queued": { fields: { taskId: optionalText, messageId: text }, at: "thread" },
   "task.drop-queued": { fields: { taskId: optionalText, messageId: text }, at: "thread" },
   "task.edit-queued": { fields: { taskId: optionalText, messageId: text }, at: "own" },
@@ -445,6 +447,7 @@ const commands = {
   "view.refresh-environment": { fields: {}, at: "local" },
   "pull-request.read": { fields: { taskId: optionalText }, at: "thread" },
   "pull-request.read-members": { fields: { taskId: optionalText }, at: "thread" },
+  "pull-request.read-member": { fields: { taskId: text }, at: "thread" },
   "app.list": { fields: {}, at: "local" },
   "usage.read": { fields: { everywhere: optionalBoolean }, at: "local" },
   "computer-use.read": { fields: {}, at: "local" },

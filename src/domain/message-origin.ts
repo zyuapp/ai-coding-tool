@@ -14,6 +14,13 @@ export type MessageOrigin =
 /** A thread on another computer saying who it is, since the computer it reaches may not hold it. */
 export type RemoteSender = { threadId: string; title: string; computer: string };
 
+/** Shape only, as a thread stores the coordinator elsewhere it works under. */
+export function isRemoteSender(value: unknown): value is RemoteSender {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const sender = value as Record<string, unknown>;
+  return typeof sender.threadId === "string" && sender.threadId.length > 0 && typeof sender.title === "string" && typeof sender.computer === "string";
+}
+
 const FROM = "From ";
 const ON = " on ";
 const SEPARATOR = " · ";

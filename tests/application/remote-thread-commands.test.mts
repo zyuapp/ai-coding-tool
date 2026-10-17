@@ -9,6 +9,8 @@ import { computerEffects } from "../../src/host/computer-effects.ts";
 import type { EffectHost } from "../../src/host/effect-host.ts";
 import { COMPUTER_CAPABILITIES, REMOTE_UNSUPPORTED } from "../../src/contracts/computer-capabilities.ts";
 import type { ExternalCommand, ThreadCommandResult, ThreadRequest, ThreadWaitResult } from "../../src/contracts/threads.ts";
+import type { StartRunCommand } from "../../src/contracts/ipc.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 import type { ComputerThreadQuery } from "../../src/contracts/computers.ts";
 import { queryLocalThreads } from "../../src/host/thread-reads.ts";
 import { PROJECT, activeRun, task, workspace } from "./workspace-reducer-fixtures.mts";
@@ -19,14 +21,16 @@ const REMOTE_PROJECT = { id: "remote-project", root: PROJECT.root, workspaceId: 
 function computer(initial: WorkspaceState) {
   let state = initial;
   const inputs: WorkspaceInput[] = [];
+  const runs: StartRunCommand[] = [];
   const execution: WorkspaceExecutionHost = {
     state: () => state,
     commit: (next) => { state = next; },
     perform: async (effect, dispatch) => {
       if (effect.type === "resolve-run-workspace") await dispatch({ type: "run.resolved", pendingId: effect.pendingId, workspace: { id: "scratch", kind: "projectless", root: "/scratch" } });
+      if (effect.type === "start-run") runs.push(effect.command);
     },
   };
-  return { state: () => state, set: (next: WorkspaceState) => { state = next; }, inputs, execute: (input: WorkspaceInput) => { inputs.push(input); return executeWorkspaceInput(input, execution); } };
+  return { state: () => state, set: (next: WorkspaceState) => { state = next; }, inputs, runs, execute: (input: WorkspaceInput) => { inputs.push(input); return executeWorkspaceInput(input, execution); } };
 }
 
 /**
@@ -121,16 +125,121 @@ test("a thread starts on a paired computer in the project at the same path, inhe
   assert.equal(host.state().threads.length, 1);
 });
 
-test("a remote start names its project there, and a coordinator keeps its threads on its own computer", async () => {
+test("a remote start names its project there", async () => {
   const { host, linux, mirror } = pair();
   assert.match(await refusal(host, command({ type: "task.send", text: "Go", project: "elsewhere" }, "linux")), /^On Linux: No project matches "elsewhere"/);
   linux.set({ ...linux.state(), projects: [{ ...REMOTE_PROJECT, root: "/other/place" }] });
   await mirror();
   assert.match(await refusal(host, command({ type: "task.send", text: "Go" }, "linux")), /No project on Linux matches repo/);
-  host.state().threads[0] = { ...host.state().threads[0], role: "coordinator" };
-  const brief = { intent: "go", doneWhen: "done", delivers: "report" as const };
-  assert.match(await refusal(host, command({ type: "task.send", text: "Go", brief, project: "place" }, "linux")), /own computer/);
   assert.equal(linux.inputs.length, 0);
+});
+
+const BRIEF = { intent: "run the GPU tests", doneWhen: "they pass", delivers: "report" as const };
+
+/** Makes the caller a coordinator here, keeping what its threads run on and its memory. */
+function lead(host: ThreadRequestHost, overrides: Partial<Thread> = {}) {
+  host.state().threads[0] = {
+    ...host.state().threads[0]!,
+    role: "coordinator",
+    threadModel: { model: "opus", effort: "high" },
+    memory: { purpose: "Ship v2", notes: [{ id: "n1", text: "Prefer small PRs", at: 1 }], revision: 1, heard: 1 },
+    ...overrides,
+  };
+}
+
+function proposals(host: ThreadRequestHost) {
+  return host.state().threads.find((thread) => thread.id === "caller")?.proposals ?? [];
+}
+
+test("a coordinator's start on another computer waits for the user to allow it", async () => {
+  const { host, linux } = pair();
+  lead(host);
+  const asked = await answer<ThreadCommandResult>(host, command({ type: "task.send", text: "Run the GPU tests", brief: BRIEF, worktree: true }, "Linux"));
+  assert.deepEqual(asked, { thread: null, notice: "Waiting for the user to allow it on Linux in /repo. You hear once it starts and when it ends a turn." });
+  const [waiting] = proposals(host);
+  assert.equal(waiting?.title, "Run the GPU tests");
+  assert.deepEqual(waiting?.brief, BRIEF);
+  assert.deepEqual(waiting?.place, { computer: { id: "linux", name: "Linux" }, project: REMOTE_PROJECT.id, worktree: true });
+  assert.equal(waiting?.model, undefined, "it runs on what the coordinator's threads run on when it starts");
+
+  const suggested = await answer<{ note: string }>(host, { type: "thread.request", requestId: "p", taskId: "caller", op: "propose", proposals: [{ title: "Bench", prompt: "Time it", brief: BRIEF, computer: "linux" }] });
+  assert.match(suggested.note, /^Suggested 1 thread\./);
+  assert.equal(proposals(host)[1]?.place.computer?.id, "linux");
+  assert.match(await refusal(host, command({ type: "task.send", text: "Go", brief: BRIEF, worktreeId: "wt-there" }, "Linux")), /cannot be named/);
+  assert.equal(linux.inputs.length, 0, "nothing starts there until the user allows it");
+});
+
+test("allowing it forwards a send carrying the brief, memory, model and the coordinator it works under", async () => {
+  const { host, linux } = pair();
+  lead(host);
+  await answer(host, command({ type: "task.send", text: "Run the GPU tests", brief: BRIEF }, "Linux"));
+  const [waiting] = proposals(host);
+  const allowed = await host.execute({ type: "proposal.start", taskId: "caller", proposalId: waiting!.id, place: { project: REMOTE_PROJECT.id, worktree: false } }).completed;
+  assert.equal(allowed.ok, true);
+  const sent = linux.inputs.find((input) => input.type === "task.send");
+  assert.ok(sent?.type === "task.send");
+  assert.deepEqual(sent.lead, { threadId: "caller", title: "Planner", computer: "Mac" });
+  assert.deepEqual(sent.sender, { threadId: "caller", title: "Planner", computer: "Mac" });
+  assert.equal(sent.memory, "The coordinator's purpose: Ship v2\nWhat the coordinator keeps in memory:\n- [n1] Prefer small PRs");
+  assert.deepEqual([sent.model, sent.effort, sent.project, sent.worktree], ["opus", "high", REMOTE_PROJECT.id, false]);
+  assert.deepEqual(sent.brief, BRIEF);
+
+  const started = linux.state().threads.find((thread) => thread.remoteLead);
+  assert.ok(started, "the thread starts there, under the coordinator here");
+  assert.deepEqual(started.remoteLead, { threadId: "caller", title: "Planner", computer: "Mac" });
+  assert.deepEqual(started.brief, BRIEF);
+  assert.equal(started.model, "opus");
+  const run = linux.runs.find((item) => item.taskId === started.id);
+  assert.equal(run?.coordinationRole, "member", "it runs with a member's instructions and tools there");
+  assert.match(run?.prompt ?? "", /Brief from the coordinator that started this thread:[\s\S]*The coordinator's purpose: Ship v2[\s\S]*- \[n1\] Prefer small PRs/);
+
+  assert.deepEqual(proposals(host), [], "an allowed request is done with once the thread exists");
+  assert.deepEqual(host.state().startingProposals, []);
+  const notes = host.state().threads[0]!.coordinationNotes ?? [];
+  assert.deepEqual(notes.map((note) => [note.text, note.quiet]), [["\"Run the GPU tests\" started on Linux.", true]], "it shows up quietly");
+});
+
+test("a thread under the coordinator asks for one elsewhere as itself, and it works under the coordinator", async () => {
+  const { host, linux } = pair();
+  lead(host);
+  host.state().threads.push({ ...host.state().threads[0]!, id: "member", title: "Builder", role: undefined, parentId: "caller", memory: undefined, threadModel: undefined });
+  const asked = await answerThreadRequest(host, { type: "thread.request", requestId: "m", taskId: "member", op: "command", command: { type: "task.send", text: "Profile it" }, computer: "Linux" });
+  assert.equal(asked.ok, true);
+  const [waiting] = proposals(host);
+  assert.equal(waiting?.from, "member");
+  assert.equal(waiting?.brief, undefined);
+  await host.execute({ type: "proposal.start", taskId: "caller", proposalId: waiting!.id }).completed;
+  const sent = linux.inputs.find((input) => input.type === "task.send");
+  assert.ok(sent?.type === "task.send");
+  assert.equal(sent.sender?.threadId, "member");
+  assert.equal(sent.lead?.threadId, "caller");
+});
+
+test("denying it is heard quietly", async () => {
+  const { host, linux } = pair();
+  lead(host);
+  await answer(host, command({ type: "task.send", text: "Run the GPU tests", brief: BRIEF }, "Linux"));
+  await host.dispatch({ type: "proposal.dismiss", taskId: "caller", proposalId: proposals(host)[0]!.id });
+  assert.deepEqual(proposals(host), []);
+  const [note] = host.state().threads[0]!.coordinationNotes ?? [];
+  assert.equal(note?.text, "The user did not allow \"Run the GPU tests\" to run on Linux.");
+  assert.equal(note?.quiet, true);
+  assert.deepEqual(Object.keys(host.state().pendingRuns), [], "nothing wakes the coordinator");
+  assert.equal(linux.inputs.length, 0);
+});
+
+test("an older computer, or one that advertises no capabilities, cannot take one", async () => {
+  for (const capabilities of [COMPUTER_CAPABILITIES.filter((name) => name !== "command:task.send:lead"), undefined]) {
+    const { host, linux } = pair({ capabilities });
+    lead(host);
+    await answer(host, command({ type: "task.send", text: "Run the GPU tests", brief: BRIEF }, "Linux"));
+    const [waiting] = proposals(host);
+    const refused = await host.execute({ type: "proposal.start", taskId: "caller", proposalId: waiting!.id }).completed;
+    assert.deepEqual(refused, { ok: false, message: "Update AI Coding Tool on Linux to run threads there." });
+    assert.equal(proposals(host)[0]?.error, "Update AI Coding Tool on Linux to run threads there.");
+    assert.deepEqual(host.state().startingProposals, []);
+    assert.equal(linux.inputs.length, 0);
+  }
 });
 
 test("a thread named into a paired computer's project by id starts there, signed and under the same rules", async () => {
@@ -141,7 +250,8 @@ test("a thread named into a paired computer's project by id starts there, signed
   assert.match(await refusal(host, command({ type: "task.send", text: "Go", project: REMOTE_PROJECT.id }, "this")), /That project or worktree is on Linux/);
   host.state().threads[0] = { ...host.state().threads[0], role: "coordinator" };
   const brief = { intent: "go", doneWhen: "done", delivers: "report" as const };
-  assert.match(await refusal(host, command({ type: "task.send", text: "Go", brief, project: REMOTE_PROJECT.id })), /own computer/);
+  const { notice } = await answer<ThreadCommandResult>(host, command({ type: "task.send", text: "Go", brief, project: REMOTE_PROJECT.id }));
+  assert.match(notice ?? "", /^Waiting for the user to allow it on Linux/);
   assert.equal(linux.state().threads.length, 2);
 });
 

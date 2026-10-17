@@ -59,15 +59,27 @@ export const computerEffects = {
     try {
       const result = await desktop.sendToComputer(effect.id, effect.inputs);
       if (!result.ok) throw new Error(result.message);
+      if (effect.proposal) {
+        const { taskId, proposalId } = effect.proposal;
+        await dispatch(result.taskId === undefined
+          ? { type: "proposal.settled", taskId, proposalId, message: "That computer did not say which thread it started." }
+          : { type: "proposal.settled", taskId, proposalId, threadId: result.taskId });
+        return;
+      }
       if (result.taskId !== undefined) await dispatch({ type: "computers.answered", taskId: result.taskId });
       if (effect.projectAddRequest !== undefined) await dispatch({ type: "project.add-finished", request: effect.projectAddRequest });
       if (effect.draft) await dispatch({ type: "computers.forwarded", draft: effect.draft });
     } catch (error) {
       /**
        * Whether anyone here is looking is told anew when the thread is next selected, and a computer's
-       * limits are asked anew on the next refresh, so a line that dropped either is no error.
+       * limits and its threads' pull requests are asked anew on the next refresh, so a line that
+       * dropped any of them is no error, and neither is housekeeping retried once the line is back.
        */
-      if (effect.inputs.every((input) => input.type === "view.set-focused" || input.type === "usage.read")) return;
+      if (effect.silent || effect.inputs.every((input) => input.type === "view.set-focused" || input.type === "usage.read" || input.type === "pull-request.read-member")) return;
+      if (effect.proposal) {
+        await dispatch({ type: "proposal.settled", ...effect.proposal, message: errorMessage(error) });
+        return;
+      }
       if (effect.projectAddRequest !== undefined) {
         await dispatch({ type: "project.add-finished", request: effect.projectAddRequest, error: errorMessage(error) });
         return;

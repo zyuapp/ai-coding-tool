@@ -486,7 +486,7 @@ test("a coordinator's threads appear where they began", async () => {
   const view = (role?: "coordinator") => {
     const plain = timelineView(messages.slice(0, 4), "idle");
     const member = (id: string, title: string): Thread => ({ ...plain.props.currentThread!, id, title, parentId: "t1", messages: [] });
-    const cards = new Map(["one", "two"].map((id) => [id, { thread: member(id, id === "one" ? "Fix login" : "Dark mode"), status: "working" as const, summary: null, pullRequest: null, steps: [], startedAt: 1500 }]));
+    const cards = new Map(["one", "two"].map((id) => [id, { thread: member(id, id === "one" ? "Fix login" : "Dark mode"), status: "working" as const, summary: null, pullRequest: null, steps: [], startedAt: 1500, host: null }]));
     return React.cloneElement(plain, {
       currentThread: { ...plain.props.currentThread!, ...(role ? { role } : {}) },
       threadCards: { cards, worktrees: new Map(), onSelect() {} },
