@@ -222,8 +222,8 @@ export function isCoordinator(thread: Thread | undefined): boolean {
 
 /**
  * Whether threads on paired computers may still work under this one: it is a coordinator, archived
- * or not, or it has heard from a thread there, since taking its role off lets those go only where
- * the line is up.
+ * or not, or it has heard from a thread there, since taking its role off keeps those away under it
+ * rather than letting them go, so they still need letting go once it is cleared.
  */
 export function mayLeadElsewhere(thread: Thread): boolean {
   return thread.role === "coordinator" || thread.remoteHeard !== undefined && Object.keys(thread.remoteHeard).length > 0;
@@ -277,11 +277,11 @@ export function coordinatorOf(threads: readonly Thread[], thread: Thread | undef
 
 /**
  * The id of the coordinator a thread names as the one it works under: its own computer's, else the
- * one on another computer that started it. Whether that is still a live coordinator is the reader's
- * to check, wherever it is.
+ * one on another computer that started it, unless that one is away. Whether that is still a live
+ * coordinator is the reader's to check, wherever it is.
  */
 export function leadIdOf(thread: Thread): string | undefined {
-  return thread.parentId ?? thread.remoteLead?.threadId;
+  return thread.parentId ?? (thread.remoteLead?.away ? undefined : thread.remoteLead?.threadId);
 }
 
 /**

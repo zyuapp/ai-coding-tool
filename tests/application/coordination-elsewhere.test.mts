@@ -56,6 +56,15 @@ test("a paired computer's member folds under its coordinator", () => {
   assert.deepEqual(coordinationMembers({ ...state, threads: [{ ...lead, role: undefined }] }, "lead"), [], "only a live coordinator here has threads there");
 });
 
+test("a paired computer's member whose coordinator is away stays in a list of its own until it hears the coordinator is back", () => {
+  const holder = workspace({ threads: [far({ remoteLead: { ...FAR, away: true } })] });
+  const state = coordinating(holder);
+  const lists = sidebarLists(state, [], [state.threads[0]!, ...holder.threads], new Set(), new Set());
+  assert.equal(lists.threadsByCoordinator.get("lead"), undefined);
+  assert.ok(lists.recentThreads.some((thread) => thread.id === "far"));
+  assert.deepEqual(coordinationMembers(state, "lead"), [], "as its Overview and roster leave it out");
+});
+
 test("its turn end, report and decision reach the coordinator, once each, even across a dropped link", () => {
   let state = coordinating(workspace());
   state = mirrored(state, workspace({ threads: [far()], activeRuns: { far: activeRun("far", "run-far") } })).state;
