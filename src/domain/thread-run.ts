@@ -1,4 +1,5 @@
 import { isAgentModel, type AgentModel } from "./agent-engine.js";
+import type { RunStatus } from "./run.js";
 
 export type ChangeSnapshot = {
   files: string[];
@@ -9,6 +10,13 @@ export type ContinuationStatus = "none" | "available" | "invalid";
 
 /** How the thread's newest settled run ended. Whether it is blocked on an approval lives in `activeRuns`. */
 export type ThreadOutcome = "finished" | "failed" | "stopped";
+
+/** How a run that reached its end ended, or null while it has yet to. A stopped run ended too. */
+export function runOutcome(status: RunStatus): ThreadOutcome | null {
+  if (status === "succeeded") return "finished";
+  if (status === "failed") return "failed";
+  return status === "cancelled" ? "stopped" : null;
+}
 
 export type ContextUsage = {
   tokens: number;

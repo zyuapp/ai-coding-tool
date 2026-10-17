@@ -4,7 +4,7 @@ import type { BackgroundProcess, RetryNotice, Subagent, SubagentMetadata, Subage
 import type { Workflow } from "../domain/workflow.js";
 import type { ActiveGoal } from "../domain/goal.js";
 import { createConversationMessage, createFailureMessage } from "../domain/conversation.js";
-import type { ThreadOutcome } from "../domain/thread-run.js";
+import { runOutcome, type ThreadOutcome } from "../domain/thread-run.js";
 import type { Thread } from "../domain/thread.js";
 import { appendMessages, replaceLastMessage, withdrawMessages } from "../domain/conversation-updates.js";
 import { withMemoryUnheard, type CoordinationReport } from "../domain/coordination.js";
@@ -38,13 +38,14 @@ export type ActiveRun = RunProvenance & {
 };
 
 /**
- * What a tick has to put back to have said nothing at all: the verdict of the run before it and the
- * report that run made, which beginning a run always supersedes, and the moments the sidebar orders
- * threads by.
+ * What a tick has to put back to have said nothing at all: how the run before it ended, its verdict
+ * and the report it made, which beginning a run always supersedes, and the moments the sidebar
+ * orders threads by.
  */
 export type ThreadMark = {
   updatedAt: number;
   runEndedAt?: number;
+  runEndedAs?: ThreadOutcome;
   outcome?: ThreadOutcome;
   outcomeUnread?: true;
   report?: CoordinationReport;
@@ -54,6 +55,7 @@ export function threadMark(thread: Thread | undefined): ThreadMark {
   return {
     updatedAt: thread?.updatedAt ?? 0,
     ...(thread?.runEndedAt === undefined ? {} : { runEndedAt: thread.runEndedAt }),
+    ...(thread?.runEndedAs === undefined ? {} : { runEndedAs: thread.runEndedAs }),
     ...(thread?.outcome === undefined ? {} : { outcome: thread.outcome }),
     ...(thread?.outcomeUnread ? { outcomeUnread: true as const } : {}),
     ...(thread?.report ? { report: thread.report } : {}),
@@ -68,12 +70,13 @@ export function threadMark(thread: Thread | undefined): ThreadMark {
  * since one that it was working ended with the tick.
  */
 export function withdrawRun(thread: Thread, from: number, before: ThreadMark): Thread {
-  const { runEndedAt: _stamped, outcome: _superseded, outcomeUnread: _unread, ...rest } = thread;
+  const { runEndedAt: _stamped, runEndedAs: _ended, outcome: _superseded, outcomeUnread: _unread, ...rest } = thread;
   return {
     ...rest,
     messages: withdrawMessages(thread.messages, from),
     updatedAt: before.updatedAt,
     ...(before.runEndedAt === undefined ? {} : { runEndedAt: before.runEndedAt }),
+    ...(before.runEndedAs === undefined ? {} : { runEndedAs: before.runEndedAs }),
     ...(before.outcome === undefined ? {} : { outcome: before.outcome }),
     ...(before.outcomeUnread ? { outcomeUnread: true as const } : {}),
     ...(before.report && (!thread.report || thread.report.state === "working") ? { report: before.report } : {}),
@@ -380,7 +383,8 @@ function applyRunFinished<T extends RunTransitionState>(state: T, event: Extract
   let next = withRunStatus(withActiveRun(withStreamingTail(state, event.taskId, null), event.taskId, null), event.taskId, event.status === "cancelled" ? "stopped" : "idle");
   const { [event.runId]: _expired, ...approvals } = next.approvals;
   next = { ...next, approvals } as T;
-  next = updateThread(next, event.taskId, (thread) => ({ ...thread, runEndedAt: now() }));
+  const ended = runOutcome(event.status);
+  next = updateThread(next, event.taskId, (thread) => ({ ...thread, runEndedAt: now(), ...(ended ? { runEndedAs: ended } : {}) }));
   const subagents = next.subagents[event.taskId];
   if (subagents?.some((subagent) => subagent.status === "working" && !subagent.sessionScoped)) {
     const status = event.status === "succeeded" ? "completed" : event.status === "failed" ? "failed" : "stopped";

@@ -5,7 +5,7 @@ import { doingWork, threadActivity, threadStatus, type ThreadStatus } from "./th
 import { activitySections, type ActivitySections } from "./thread-order.js";
 import { threadWorkspaceId } from "./thread-location.js";
 import { coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, leadIdOf, MAX_SUMMARY, openDecisions, remoteLeadOf, type CoordinationNote, type CoordinationReport, type CoordinatorMemory, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type ThreadBrief, type ThreadProposal } from "../domain/coordination.js";
-import { threadActivityAt, type Thread } from "../domain/thread.js";
+import { lastRunOutcome, threadActivityAt, type Thread } from "../domain/thread.js";
 import type { PullRequestAnswer, PullRequestChecks, PullRequestLink, PullRequestRef, PullRequestState } from "../domain/pull-request.js";
 import { wantsAttention } from "../domain/attention.js";
 import { originLabel, type RemoteSender } from "../domain/message-origin.js";
@@ -583,7 +583,9 @@ export function coordinatedThreadStatus(thread: Thread, busy: ReadonlySet<string
   if (thread.resolvedAt !== undefined) return { thread, status: "resolved", summary: null };
   const report = thread.report && thread.report.state !== "working" ? thread.report : undefined;
   if (report && report.state !== "done") return { thread, status: report.state, summary: report.summary };
-  if (!report && thread.outcome === "failed") return { thread, status: "failed", summary: null };
+  /** Read by how its turn ended rather than by its verdict, which the user filing it away takes off. */
+  const ended = lastRunOutcome(thread);
+  if (!report && ended === "failed") return { thread, status: "failed", summary: null };
   const pullRequest = ownPullRequest(thread);
   if (pullRequest && pullRequestFixes(pullRequest).length) return { thread, status: "needs-work", summary: pullRequestLine(pullRequest) };
   if (pullRequest?.state === "open") return { thread, status: "review", summary: pullRequestLine(pullRequest) };
@@ -592,7 +594,7 @@ export function coordinatedThreadStatus(thread: Thread, busy: ReadonlySet<string
    * A thread that ended its turn without reporting, and left nothing waiting on the user, said where
    * it stands in its reply, which reads as its report: whatever engine it runs on, it is done.
    */
-  if (thread.outcome === "finished") return { thread, status: "done", summary: closingLine(thread) };
+  if (ended === "finished") return { thread, status: "done", summary: closingLine(thread) };
   return { thread, status: "idle", summary: null };
 }
 

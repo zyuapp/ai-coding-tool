@@ -17,7 +17,7 @@ import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel } fr
 import type { RunStatus } from "../../domain/run.js";
 import { createSentMessage, type Annotation, type AttachedFile, type PastedText, type RunAttachment } from "../../domain/conversation.js";
 import type { Project } from "../../domain/project.js";
-import type { Thread } from "../../domain/thread.js";
+import { lastRunOutcome, type Thread } from "../../domain/thread.js";
 import { withoutLimitPause } from "../../domain/usage-limit.js";
 import type { Worktree } from "../../domain/worktree.js";
 
@@ -59,7 +59,7 @@ export function sideChatPrompt(state: WorkspaceState, taskId: string, prompt: st
     ...(parent ? {
       title: parent.title,
       status: state.activeRuns[parent.id]?.status ?? (threadBusy(state, parent.id) ? "running" : runStatusFor(state, parent.id)),
-      lastRunOutcome: parent.outcome ?? null,
+      lastRunOutcome: lastRunOutcome(parent) ?? null,
       workingAgents: workingAgents.length,
       // Identify the same helpers mentioned in inherited notices without copying their activity logs.
       workingAgentIds: workingAgents.slice(0, 16).map((agent) => agent.id),
@@ -145,12 +145,13 @@ type RunPickup = "warming" | "agent";
 
 /**
  * Records the run against the thread and marks it the thread's latest, so stale replies can be dropped.
- * The new run supersedes whatever the last one concluded, so its verdict and the report it made never
- * outlive it, and it keeps where the thread stood, which is what a run that settles unseen puts back.
+ * The new run supersedes whatever the last one concluded, so how it ended, its verdict and the report
+ * it made never outlive it, and it keeps where the thread stood, which is what a run that settles
+ * unseen puts back.
  */
 export function beginRun(state: WorkspaceState, taskId: string, runId: string, provenance: RunProvenance = ATTENDED_RUN, before?: ThreadMark, pickup?: RunPickup): WorkspaceState {
   /** A run that starts is the thread picked back up, whatever its place in line. */
-  const threads = withoutOutcome(state.threads, new Set([taskId])).map((thread) => thread.id === taskId ? withoutLimitPause(reportStands(thread, pickup) ? thread : withoutReport(thread)) : thread);
+  const threads = withoutOutcome(state.threads, new Set([taskId])).map((thread) => thread.id === taskId ? pickedUp(thread, pickup) : thread);
   const messagesBefore = threads.find((thread) => thread.id === taskId)?.messages.length ?? 0;
   const mark = before ?? threadMark(state.threads.find((thread) => thread.id === taskId));
   return withRunStatus(
@@ -158,6 +159,11 @@ export function beginRun(state: WorkspaceState, taskId: string, runId: string, p
     taskId,
     "running",
   );
+}
+
+function pickedUp(thread: Thread, pickup: RunPickup | undefined): Thread {
+  const { runEndedAs: _superseded, ...rest } = thread;
+  return withoutLimitPause(reportStands(thread, pickup) ? rest : withoutReport(rest));
 }
 
 /**

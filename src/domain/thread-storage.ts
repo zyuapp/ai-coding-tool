@@ -401,6 +401,7 @@ function isThreadBase(value: unknown): value is StoredThread {
     (value.worktreeEnteredAt === undefined || finiteNumber(value.worktreeEnteredAt)) &&
     (value.inheritedContinuation === undefined || value.inheritedContinuation === true) &&
     (value.runEndedAt === undefined || finiteNumber(value.runEndedAt)) &&
+    (value.runEndedAs === undefined || isThreadOutcome(value.runEndedAs)) &&
     (value.createdAt === undefined || finiteNumber(value.createdAt)) &&
     finiteNumber(value.updatedAt) &&
     (value.archivedAt === undefined || finiteNumber(value.archivedAt));

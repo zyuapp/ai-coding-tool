@@ -11,7 +11,7 @@ import { limitLines, resumePrompt, resumesOnItsOwn, withEngineLimit, withoutLimi
 
 /**
  * Puts a thread whose run hit the limit in line. A session limit lifts on its own, so the failure is
- * not news; a weekly one waits for the user and keeps its verdict to say so.
+ * not news, nor the end of its turn; a weekly one waits for the user and keeps its verdict to say so.
  */
 export function pausedForLimit(state: WorkspaceState, taskId: string, limit: UsageLimit, at: number): WorkspaceState {
   const thread = state.threads.find((item) => item.id === taskId);
@@ -21,7 +21,7 @@ export function pausedForLimit(state: WorkspaceState, taskId: string, limit: Usa
   const threads = withEngineLimit(state.threads, thread.engine, limit);
   return updateThread({ ...state, threads }, taskId, (item) => {
     if (pause.window === "weekly") return { ...item, limitPause: pause };
-    const { outcome: _expected, outcomeUnread: _unread, ...rest } = item;
+    const { outcome: _expected, outcomeUnread: _unread, runEndedAs: _carriedOn, ...rest } = item;
     return { ...rest, limitPause: pause };
   });
 }

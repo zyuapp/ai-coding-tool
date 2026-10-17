@@ -96,6 +96,11 @@ export type Thread = {
   /** When this thread's newest run settled. A turn the run left unfinished ends there. */
   runEndedAt?: number;
   /**
+   * How that run ended, until the next one begins. Its verdict says the same until the user files it
+   * away; this stays, since filing a thread away changes nothing it did.
+   */
+  runEndedAs?: ThreadOutcome;
+  /**
    * The checkout this thread's runs happen in, named by id because other threads may work in the
    * same one. Absent while the thread runs in the project itself.
    */
@@ -164,4 +169,12 @@ function lastAudibleAt(thread: Thread): number {
     if (!message.withdrawn) return message.at;
   }
   return 0;
+}
+
+/**
+ * How the thread's newest run ended. One that ended before threads kept this, as on a paired computer
+ * on an older build, is read by its verdict.
+ */
+export function lastRunOutcome(thread: Thread): ThreadOutcome | undefined {
+  return thread.runEndedAs ?? thread.outcome;
 }

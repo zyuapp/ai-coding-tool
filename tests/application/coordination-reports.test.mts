@@ -96,6 +96,33 @@ test("a report belongs to the turn that made it, so a later turn is read by how 
   assert.deepEqual(standing(failed), ["failed", null], "a turn that failed after an earlier done report needs the user");
 });
 
+/** A thread mid-turn under the lead that says `reply`, reports nothing, and ends that turn `status`. */
+function unreportedTurn(status: "succeeded" | "failed", reply: string): WorkspaceState {
+  const threads = [lead(), member("worker", { title: "Worker" })];
+  return run(workspace({ threads, activeRuns: { worker: activeRun("worker", "run-1") }, runStatuses: { worker: "running" } }), [
+    correlatedRunEvent("worker", "run-1", 1, { type: "assistant.delta", messageId: "reply", text: reply }),
+    correlatedRunEvent("worker", "run-1", 2, { type: "run.status", status }),
+  ]);
+}
+
+/** The coordinator has taken its thread's news and ended a turn of its own, which leaves it in Priority. */
+function heard(state: WorkspaceState): WorkspaceState {
+  return { ...state, pendingRuns: {}, threads: state.threads.map((thread) => thread.id === "lead" ? { ...thread, outcome: "finished" as const } : thread) };
+}
+
+test("filing a coordinator away takes its threads' verdicts off, but not how their turns ended", () => {
+  for (const dismiss of [{ type: "task.dismiss", taskId: "lead" }, { type: "task.dismiss-all" }] as const) {
+    const finished = heard(unreportedTurn("succeeded", "Migrated the database."));
+    const filed = reduce(finished, dismiss).state;
+    assert.equal(filed.threads.find((thread) => thread.id === "worker")?.outcome, undefined, `${dismiss.type} filed the verdict away`);
+    assert.deepEqual(standing(filed), ["done", "Migrated the database."], `${dismiss.type} leaves an unreported finish done in its own words`);
+    assert.match(coordinationContext(filed, filed.threads[0]!), /"Worker" \[worker\] · idle · ended its turn without reporting; it last said: Migrated the database\.$/m);
+
+    const failed = reduce(heard(unreportedTurn("failed", "Starting.")), dismiss).state;
+    assert.deepEqual(standing(failed), ["failed", null], `${dismiss.type} leaves a failed turn failed`);
+  }
+});
+
 /** The agent opens a turn of its own on the worker, says `reply` and ends it without reporting. */
 function agentTurn(state: WorkspaceState, reply: string): WorkspaceState {
   return run(state, [
@@ -127,6 +154,15 @@ test("a thread picked back up after its usage limit, or compacted, keeps what it
   const runId = effectAt(compacted, "start-run").command.runId;
   const settled = reduce(compacted.state, correlatedRunEvent("worker", runId, 1, { type: "run.status", status: "succeeded" })).state;
   assert.deepEqual(standing(settled), ["done", "Shipped"], "compacting is not a turn");
+});
+
+test("a run that starts takes how the last one ended off, and a tick that settles unseen puts it back", () => {
+  const finished = unreportedTurn("succeeded", "Migrated the database.");
+  const sending = reduce(finished, { type: "task.send", taskId: "worker", text: "Next" });
+  const started = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: PROJECTLESS }).state;
+  assert.equal(started.threads.find((thread) => thread.id === "worker")?.runEndedAs, undefined);
+  const before = threadMark(finished.threads.find((thread) => thread.id === "worker"));
+  assert.equal(withdrawRun(member("worker", { runEndedAs: "failed" }), 0, before).runEndedAs, "finished");
 });
 
 test("a tick that settles unseen puts back the report it superseded, but keeps one it made of where its work ended up", () => {

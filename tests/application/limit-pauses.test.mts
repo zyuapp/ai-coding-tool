@@ -54,6 +54,7 @@ test("a session limit pauses the thread in line and wakes up when the limit lift
   const pause = required(thread(paused.state, "a").limitPause);
   assert.equal(pause.resetsAt, session.resetsAt);
   assert.equal(thread(paused.state, "a").outcome, undefined, "a limit that lifts on its own is not a failure to look at");
+  assert.equal(thread(paused.state, "a").runEndedAs, undefined, "nor the end of its turn");
   assert.deepEqual(effectOf(paused, "schedule-limit-reset"), { type: "schedule-limit-reset", at: session.resetsAt });
   assert.equal(isWorking(paused.state, "a"), true, "a wait on the thread keeps waiting through the pause");
   assert.equal(threadSummary(paused.state, thread(paused.state, "a")).status, "running");

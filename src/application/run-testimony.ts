@@ -5,15 +5,12 @@
 import type { RunEvent } from "../contracts/ipc.js";
 import type { FindingReport } from "../contracts/threads.js";
 import { isNews, withClosedIssues, withFinding } from "../domain/attention.js";
-import type { ThreadOutcome } from "../domain/thread-run.js";
+import { runOutcome, type ThreadOutcome } from "../domain/thread-run.js";
 import { updateThread, withdrawRun, type ActiveRun, type RunTransitionState } from "./thread-run-state.js";
 
 /** Every run that ends leaves a verdict, including the one the user stopped: it still waits on them. */
 export function outcomeFor(event: RunEvent): ThreadOutcome | null {
-  if (event.type !== "run.status") return null;
-  if (event.status === "succeeded") return "finished";
-  if (event.status === "failed") return "failed";
-  return event.status === "cancelled" ? "stopped" : null;
+  return event.type === "run.status" ? runOutcome(event.status) : null;
 }
 
 /** The run a scheduled tick is executing, and nothing else. Silence is only ever a schedule's to earn. */

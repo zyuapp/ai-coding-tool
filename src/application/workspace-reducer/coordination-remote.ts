@@ -11,7 +11,7 @@ import type { WorkspaceState } from "../workspace-state.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import type { AppCommand } from "../../contracts/commands.js";
 import { isCoordinator, openDecisions, withCoordinationNote, withRemoteHeard, type CoordinationNote } from "../../domain/coordination.js";
-import { threadCreatedAt, type Thread } from "../../domain/thread.js";
+import { lastRunOutcome, threadCreatedAt, type Thread } from "../../domain/thread.js";
 import { resumesOnItsOwn } from "../../domain/usage-limit.js";
 
 /** What a coordinator here hears of its threads on paired computers, and the coordinators that may now be due a wake. */
@@ -107,7 +107,8 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
     const stopped = ran !== undefined && quietStops.includes(ran.runId);
     if (stopped) quietStops = quietStops.filter((runId) => runId !== ran.runId);
     const quiet = stopped || caught;
-    const status = quiet || member.outcome === "stopped" ? "cancelled" : member.outcome === "failed" ? "failed" : "succeeded";
+    const ending = lastRunOutcome(member);
+    const status = quiet || ending === "stopped" ? "cancelled" : ending === "failed" ? "failed" : "succeeded";
     notes.push(turnNote(member, status, at, { quiet }));
     /**
      * Said as a run here would say it: a failure in the words that computer left on the thread, and a
