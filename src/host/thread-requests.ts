@@ -271,10 +271,8 @@ async function proposeElsewhere(host: ThreadRequestHost, caller: Thread, lead: T
   const prompt = text ?? "";
   const made = threadProposal(host.state(), caller, { ...asked, title: clampTitle(prompt), prompt }, Date.now(), computer);
   if ("error" in made) throw new Error(made.error);
-  if ((lead.proposals?.length ?? 0) >= MAX_PROPOSALS) throw new Error(PROPOSALS_FULL);
-  await host.dispatch({ type: "coordination.proposed", taskId: lead.id, proposals: [made.proposal] });
-  const kept = host.state().threads.find((item) => item.id === lead.id)?.proposals?.some((proposal) => proposal.id === made.proposal.id);
-  if (!kept) throw new Error(PROPOSALS_FULL);
+  const kept = await fileProposals(host, lead.id, [made.proposal]);
+  if (!kept.has(made.proposal.id)) throw new Error(PROPOSALS_FULL);
   const folder = computer.state?.projects.find((project) => project.id === made.proposal.place.project)?.root ?? "its project";
   const news = caller.id === lead.id ? "You hear once it starts and when it ends a turn." : "Your coordinator hears once it starts.";
   return { thread: null, notice: `Waiting for the user to allow it on ${computer.name} in ${folder}. ${news}` };
@@ -387,6 +385,16 @@ function checkedProposal(state: WorkspaceState, lead: Thread, request: ProposalR
 }
 
 /**
+ * Files suggestions on their coordinator, as many as it has room for, and reads back the ones it
+ * kept, since the user may have filled the room meanwhile.
+ */
+async function fileProposals(host: ThreadRequestHost, leadId: string, proposals: readonly ThreadProposal[]): Promise<Set<string>> {
+  if (proposals.length) await host.dispatch({ type: "coordination.proposed", taskId: leadId, proposals: [...proposals] });
+  const held = new Set(host.state().threads.find((item) => item.id === leadId)?.proposals?.map((proposal) => proposal.id));
+  return new Set(proposals.flatMap((proposal) => held.has(proposal.id) ? [proposal.id] : []));
+}
+
+/**
  * A coordinator suggesting threads. Each is checked now as its start would be, so what cannot start
  * comes straight back, item by item, and only what can waits for the user. Nothing starts here.
  */
@@ -394,25 +402,14 @@ async function proposeThreads(host: ThreadRequestHost, threadId: string, request
   const state = host.state();
   const lead = state.threads.find((item) => item.id === threadId);
   if (!lead || !isCoordinator(lead)) throw new Error("Only a coordinator suggests threads.");
-  let room = MAX_PROPOSALS - (lead.proposals?.length ?? 0);
-  const accepted: ThreadProposal[] = [];
-  const refused: string[] = [];
   const at = Date.now();
-  for (const request of requests) {
-    const made = checkedProposal(state, lead, request, at);
-    if ("error" in made) refused.push(`Not suggested "${request.title}": ${made.error}`);
-    else if (room <= 0) refused.push(`Not suggested "${request.title}": ${PROPOSALS_FULL}`);
-    else {
-      accepted.push(made.proposal);
-      room -= 1;
-    }
-  }
-  if (accepted.length) await host.dispatch({ type: "coordination.proposed", taskId: threadId, proposals: accepted });
-  /** Read back, since the user may have filled the room meanwhile. */
-  const kept = new Set(host.state().threads.find((item) => item.id === threadId)?.proposals?.map((proposal) => proposal.id));
-  const suggested = accepted.filter((proposal) => kept.has(proposal.id)).length;
-  const lines = [...refused, ...accepted.filter((proposal) => !kept.has(proposal.id)).map((proposal) => `Not suggested "${proposal.title}": ${PROPOSALS_FULL}`)];
-  if (!suggested) throw new Error(lines.join("\n"));
-  const said = `Suggested ${suggested === 1 ? "1 thread" : `${suggested} threads`}. The user starts the ones they want; you hear from each once it ends a turn.`;
+  const checked = requests.map((request) => ({ request, made: checkedProposal(state, lead, request, at) }));
+  const kept = await fileProposals(host, threadId, checked.flatMap(({ made }) => "error" in made ? [] : [made.proposal]));
+  const lines = checked.flatMap(({ request, made }) => {
+    if ("error" in made) return [`Not suggested "${request.title}": ${made.error}`];
+    return kept.has(made.proposal.id) ? [] : [`Not suggested "${made.proposal.title}": ${PROPOSALS_FULL}`];
+  });
+  if (!kept.size) throw new Error(lines.join("\n"));
+  const said = `Suggested ${kept.size === 1 ? "1 thread" : `${kept.size} threads`}. The user starts the ones they want; you hear from each once it ends a turn.`;
   return { note: [said, ...lines].join("\n") };
 }

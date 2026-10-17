@@ -1,6 +1,6 @@
 /** A run's life: the checkout it resolves to, what it reports, and how it ends. */
 import { ack } from "./automations.js";
-import { noteTurnEnded, withProposalFailure } from "./coordination.js";
+import { noteTurnEnded, withProposalFailure, withoutStarting } from "./coordination.js";
 import { readDiffFrom, rereadReviewsOf } from "./diff-reads.js";
 import { handOverDraftDock } from "./dock-tabs.js";
 import { WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
@@ -374,7 +374,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   /** A suggestion the user started is this thread now, which its coordinator hears without being woken by it. */
   const proposalId = existing ? undefined : pending.coordination?.proposalId;
   const threads = proposalId && lead ? listed.map((item) => item.id === lead.id ? withSuggestionStarted(item, proposalId, updated) : item) : listed;
-  const startingProposals = proposalId ? state.startingProposals.filter((id) => id !== proposalId) : state.startingProposals;
+  const { startingProposals } = proposalId ? withoutStarting(state, proposalId) : state;
   /** Only a thread the user's own send just created needs looking at; anything else leaves them where they are. */
   const focusing = !existing && pending.draftKey !== undefined;
   /** Only the composer's own send spent the draft's placement; a thread started any other way leaves it alone. */

@@ -5,11 +5,9 @@
  */
 import type { WorkspaceState } from "./workspace-state.js";
 import { computerOfPlace, projectOnComputer, type PairedComputer } from "./computers.js";
-import { projectFor, worktreeById } from "./thread-location.js";
-import { WORKTREE_ELSEWHERE_ERROR, WORKTREE_MISSING_ERROR } from "./workspace-reducer/errors.js";
+import { namedPlace, projectFor } from "./thread-location.js";
 import type { AppCommand } from "../contracts/commands.js";
 import { coordinatorOf, isCoordinator, remoteLeadOf, threadModelOf, undelegable, type ProposalPlace, type ProposalRequest, type ThreadProposal } from "../domain/coordination.js";
-import { findProject } from "../domain/project.js";
 import type { Thread } from "../domain/thread.js";
 import { defaultEffortFor, defaultModelFor, effortForModel, engineForModel, modelDelegable, modelHasEffort, modelTakesEffort } from "../domain/agent-engine.js";
 
@@ -82,50 +80,41 @@ export function threadProposal(state: WorkspaceState, caller: Thread, request: P
   const { title, prompt, computer: _named, ...rest } = request;
   const start = newThreadSend(state, caller, { type: "task.send", text: prompt, ...rest }, asked);
   if ("error" in start) return start;
-  const agent = {
-    ...(request.model ? { model: request.model } : {}),
-    ...(request.effort ? { effort: request.effort } : {}),
-    ...(request.role ? { role: request.role } : {}),
-  };
-  if (start.elsewhere) {
-    if (!start.lead) return { error: "Only a coordinator and the threads under it ask for threads on another computer." };
-    const placed = elsewherePlace(state, caller, start.elsewhere, start.command);
-    if ("error" in placed) return placed;
-    const { command } = start;
-    return {
-      proposal: {
-        id: crypto.randomUUID(),
-        title: title.trim(),
-        prompt,
-        ...(command.brief ? { brief: command.brief } : {}),
-        place: placed.place,
-        ...agent,
-        ...(caller.id === start.lead.id ? {} : { from: caller.id }),
-        proposedAt: at,
-      },
-    };
-  }
-  const { command } = start;
-  if (!command.brief) return { error: BRIEF_REQUIRED };
-  const named = command.project === undefined ? undefined : findProject(state.projects, command.project);
-  if (named && "error" in named) return named;
-  const worktree = worktreeById(state, command.worktreeId);
-  if (command.worktreeId && !worktree) return { error: WORKTREE_MISSING_ERROR };
-  if (worktree && named && named.project.id !== worktree.projectId) return { error: WORKTREE_ELSEWHERE_ERROR };
-  const project = named?.project.id ?? worktree?.projectId;
-  /** Whether it gets a checkout of its own is said either way, so starting it never moves into one the coordinator entered since. */
-  const place: ProposalPlace = { ...(project ? { project } : {}), ...(worktree ? { worktreeId: worktree.id } : { worktree: command.worktree === true }) };
+  const placed = proposalPlace(state, caller, start);
+  if ("error" in placed) return placed;
   return {
     proposal: {
       id: crypto.randomUUID(),
       title: title.trim(),
       prompt,
-      brief: command.brief,
-      place,
-      ...agent,
+      ...placed,
+      ...(request.model ? { model: request.model } : {}),
+      ...(request.effort ? { effort: request.effort } : {}),
+      ...(request.role ? { role: request.role } : {}),
       proposedAt: at,
     },
   };
+}
+
+/**
+ * Where a suggestion starts, the brief it carries, and, for one a thread under the coordinator asked
+ * for on another computer, which thread that was. A place here is checked as the send will check it.
+ */
+function proposalPlace(state: WorkspaceState, caller: Thread, start: Exclude<NewThreadStart, { error: string }>): Pick<ThreadProposal, "place" | "brief" | "from"> | { error: string } {
+  const { command } = start;
+  const brief = command.brief ? { brief: command.brief } : {};
+  if (start.elsewhere) {
+    if (!start.lead) return { error: "Only a coordinator and the threads under it ask for threads on another computer." };
+    const placed = elsewherePlace(state, caller, start.elsewhere, command);
+    if ("error" in placed) return placed;
+    return { place: placed.place, ...brief, ...(caller.id === start.lead.id ? {} : { from: caller.id }) };
+  }
+  if (!command.brief) return { error: BRIEF_REQUIRED };
+  const named = namedPlace(state, command);
+  if ("error" in named) return named;
+  const project = named.project?.id ?? named.worktree?.projectId;
+  /** Whether it gets a checkout of its own is said either way, so starting it never moves into one the coordinator entered since. */
+  return { place: { ...(project ? { project } : {}), ...(named.worktree ? { worktreeId: named.worktree.id } : { worktree: command.worktree === true }) }, ...brief };
 }
 
 /**

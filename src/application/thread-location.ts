@@ -1,4 +1,5 @@
-import type { Project } from "../domain/project.js";
+import { WORKTREE_ELSEWHERE_ERROR, WORKTREE_MISSING_ERROR } from "./workspace-reducer/errors.js";
+import { findProject, type Project } from "../domain/project.js";
 import type { Thread } from "../domain/thread.js";
 import type { Worktree } from "../domain/worktree.js";
 
@@ -22,6 +23,20 @@ export function projectFor(state: ProjectState, thread: Thread | undefined) {
 
 export function worktreeById(state: WorktreeState, worktreeId: string | undefined) {
   return worktreeId ? state.worktrees.find((worktree) => worktree.id === worktreeId) : undefined;
+}
+
+/**
+ * The project and checkout a send names, as they are kept here. The checkout says which project the
+ * thread belongs to, so a project that disagrees is a contradiction rather than something to
+ * silently pick a winner for.
+ */
+export function namedPlace(state: ProjectState & WorktreeState, { project, worktreeId }: { project?: string | undefined; worktreeId?: string | undefined }): { project?: Project; worktree?: Worktree } | { error: string } {
+  const worktree = worktreeById(state, worktreeId);
+  if (worktreeId && !worktree) return { error: WORKTREE_MISSING_ERROR };
+  const named = project === undefined ? undefined : findProject(state.projects, project);
+  if (named && "error" in named) return named;
+  if (worktree && named && named.project.id !== worktree.projectId) return { error: WORKTREE_ELSEWHERE_ERROR };
+  return { ...(named ? { project: named.project } : {}), ...(worktree ? { worktree } : {}) };
 }
 
 /** The checkout a thread works in, when it works in one rather than in its project. */

@@ -15,7 +15,7 @@ import { ledStartRefusal, remoteWorkingIds, type PairedComputer } from "../compu
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import type { AppCommand } from "../../contracts/commands.js";
-import { canJoinCoordinator, coordinatorOf, isCoordinator, MAX_ANSWER, nextStepOf, openDecisions, remoteLeadOf, threadModelOf, undelegable, withAnswer, withCoordinationNote, withDecision, withMemoryChange, withoutProposals, withProposalError, withProposals, withRemoteHeard, worksUnderCoordinator, type CoordinationNote, type MemoryChange } from "../../domain/coordination.js";
+import { canJoinCoordinator, coordinatorOf, isCoordinator, MAX_ANSWER, nextStepOf, openDecisions, remoteLeadOf, threadModelOf, undelegable, withAnswer, withCoordinationNote, withDecision, withMemoryChange, withoutProposals, withProposalError, withProposals, withRemoteHeard, worksUnderCoordinator, type CoordinationNote, type MemoryChange, type ThreadProposal } from "../../domain/coordination.js";
 import { defaultEffortFor, effortForModel, engineForModel, modelDelegable, modelHasEffort, modelTakesEffort } from "../../domain/agent-engine.js";
 import { threadCreatedAt, type Thread } from "../../domain/thread.js";
 import { dismissed } from "../../domain/attention.js";
@@ -159,7 +159,7 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
     case "proposal.start": {
       const lead = state.threads.find((item) => item.id === input.taskId);
       if (!lead || !isCoordinator(lead)) return settled(state);
-      const waiting = (lead.proposals ?? []).filter((proposal) => (input.proposalId === undefined ? !proposal.place.computer : proposal.id === input.proposalId) && !state.startingProposals.includes(proposal.id));
+      const waiting = targetedProposals(state, lead, input.proposalId);
       /** Start all is every start in turn; a refusal among them is the one said back. */
       let transition = settled(state);
       for (const proposal of waiting) {
@@ -178,7 +178,7 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
     case "proposal.dismiss": {
       const lead = state.threads.find((item) => item.id === input.taskId);
       if (!lead || !isCoordinator(lead)) return settled(state);
-      const declined = (lead.proposals ?? []).filter((proposal) => (input.proposalId === undefined ? !proposal.place.computer : proposal.id === input.proposalId) && !state.startingProposals.includes(proposal.id));
+      const declined = targetedProposals(state, lead, input.proposalId);
       if (!declined.length) return settled(state);
       const titles = declined.map((proposal) => `"${proposal.title}"`);
       const denied = declined[0]!.place.computer;
@@ -194,7 +194,7 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
      */
     case "proposal.settled": {
       if (input.threadId === undefined) return settled(withProposalFailure(state, input.taskId, input.proposalId, input.message ?? "The thread did not start."));
-      const started = state.startingProposals.includes(input.proposalId) ? { ...state, startingProposals: state.startingProposals.filter((id) => id !== input.proposalId) } : state;
+      const started = withoutStarting(state, input.proposalId);
       const lead = started.threads.find((item) => item.id === input.taskId);
       return settled(lead?.proposals ? updateThread(started, lead.id, (item) => withoutProposals(item, new Set([input.proposalId]))) : started);
     }
@@ -374,10 +374,22 @@ function startElsewhere(state: WorkspaceState, leadId: string, proposalId: strin
  */
 export function withProposalFailure(state: WorkspaceState, leadId: string, proposalId: string, error: string | undefined): WorkspaceState {
   const lead = state.threads.find((item) => item.id === leadId);
-  const marked = lead ? withProposalError(lead, proposalId, error) : lead;
-  const threads = marked === lead ? state.threads : state.threads.map((item) => item === lead ? marked! : item);
-  const startingProposals = state.startingProposals.includes(proposalId) ? state.startingProposals.filter((id) => id !== proposalId) : state.startingProposals;
-  return threads === state.threads && startingProposals === state.startingProposals ? state : { ...state, threads, startingProposals };
+  const marked = lead && withProposalError(lead, proposalId, error);
+  return withoutStarting(marked === lead ? state : updateThread(state, leadId, () => marked!), proposalId);
+}
+
+/** A suggestion no longer starting, whether it started, failed, or was stopped. */
+export function withoutStarting(state: WorkspaceState, proposalId: string): WorkspaceState {
+  return state.startingProposals.includes(proposalId) ? { ...state, startingProposals: state.startingProposals.filter((id) => id !== proposalId) } : state;
+}
+
+/**
+ * The suggestions a start or a dismissal is for: the one named, or every one here when none is, as
+ * each thread asked for on another computer is allowed or denied on its own. One already starting is
+ * past either.
+ */
+function targetedProposals(state: WorkspaceState, lead: Thread, proposalId: string | undefined): ThreadProposal[] {
+  return (lead.proposals ?? []).filter((proposal) => (proposalId === undefined ? !proposal.place.computer : proposal.id === proposalId) && !state.startingProposals.includes(proposal.id));
 }
 
 /** Only a coordinator keeps a memory; a change that alters nothing writes nothing. */

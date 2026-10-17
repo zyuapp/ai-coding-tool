@@ -1,5 +1,5 @@
 /** A send: the prompt the composer hands over, and the queue behind a run already going. */
-import { CHECKOUT_RUNNING_ERROR, MISSING_PROJECT_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_ELSEWHERE_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
+import { CHECKOUT_RUNNING_ERROR, MISSING_PROJECT_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
 import { clearedDraft, forkableContinuation, handedBack, queuedFor, resolveWorkspaceEffect, runsInWorkspace, sentPrompt, sideChatPrompt, withAttendedRun, withPending, withQueued } from "./run-queue.js";
 import { settled, targetId, rejected } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
@@ -7,11 +7,10 @@ import { annotationsFor, filesFor, focusComposer, focusedTab, pastesFor } from "
 import { tabHolderOf } from "../workspace-dock.js";
 import { queueHolder } from "../computers.js";
 import { threadHandleOptions } from "../thread-projection.js";
-import { leavingThreadIds, worktreeById, worktreeFor } from "../thread-location.js";
+import { leavingThreadIds, namedPlace, worktreeFor } from "../thread-location.js";
 import { promptKey, type PendingRun, type QueuedMessage, type WorkspaceState } from "../workspace-state.js";
 import { engineBlocker } from "../../domain/agent-engine.js";
 import { engineReadinessOf, refreshEngines } from "../engine-access.js";
-import { findProject } from "../../domain/project.js";
 import { expandThreadHandles } from "../../domain/thread-handles.js";
 import { withoutSnooze } from "../../domain/thread-snooze.js";
 import { updateThread } from "../thread-run-state.js";
@@ -98,20 +97,11 @@ export function reduceSending(state: WorkspaceState, input: SendInput, coordinat
         const next = withQueued(held ? nudged(sent, thread.id, Date.now()) : sent, thread.id, [...queuedFor(state, thread.id), queued]);
         return input.steer && !held ? reduceSending(next, { type: "task.steer-queued", taskId: thread.id, messageId: queued.id }) : settled(next);
       }
-      /**
-       * Which checkout a thread yet to exist starts in: one the caller named, else the one the draft
-       * is pointed at. The checkout says which project the thread belongs to, so a `project` that
-       * disagrees is a contradiction rather than something to silently pick a winner for.
-       */
-      const namedWorktreeId = thread ? undefined : (input.worktreeId ?? (draftKey === undefined ? undefined : state.draftWorktreeId ?? undefined));
-      const namedWorktree = namedWorktreeId ? worktreeById(state, namedWorktreeId) : undefined;
-      if (namedWorktreeId && !namedWorktree) return rejected(state, WORKTREE_MISSING_ERROR);
-      const named = input.project === undefined ? undefined : findProject(state.projects, input.project);
-      if (named && "error" in named) return rejected(state, named.error);
-      if (namedWorktree && named && named.project.id !== namedWorktree.projectId) {
-        return rejected(state, WORKTREE_ELSEWHERE_ERROR);
-      }
-      const projectId = thread?.projectId ?? namedWorktree?.projectId ?? named?.project.id ?? (draftKey === undefined ? null : state.draftProjectId);
+      /** Which checkout a thread yet to exist starts in: one the caller named, else the one the draft is pointed at. */
+      const named = namedPlace(state, { project: input.project, worktreeId: thread ? undefined : (input.worktreeId ?? (draftKey === undefined ? undefined : state.draftWorktreeId ?? undefined)) });
+      if ("error" in named) return rejected(state, named.error);
+      const namedWorktree = named.worktree;
+      const projectId = thread?.projectId ?? namedWorktree?.projectId ?? named.project?.id ?? (draftKey === undefined ? null : state.draftProjectId);
       const project = projectId ? state.projects.find((item) => item.id === projectId) : undefined;
       if (projectId && !project) return rejected(state, MISSING_PROJECT_ERROR);
       /** The composer's own send takes the role the draft was given; a caller's `role` outranks it. */
