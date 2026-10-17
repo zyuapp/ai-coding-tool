@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce, type WorkspaceInput, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
-import type { WorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { CoordinationNote } from "../../src/domain/coordination.ts";
 import type { Thread } from "../../src/domain/thread.ts";
 import { THREAD_STORE_VERSION } from "../../src/domain/thread-storage.ts";
@@ -203,6 +203,10 @@ test("stopping all cancels every run under a coordinator and never wakes it", ()
   const failing = reduce(stopped.state, correlatedRunEvent("one", "run-1", 1, { type: "run.status", status: "failed" }));
   assert.equal(failing.state.threads[0]!.coordinationNotes?.at(-1)?.urgent, undefined, "a stopped run that fails on its way out is no urgent news");
   slept(failing, "a thread it stopped failing");
+  const limited = reduce(stopped.state, correlatedRunEvent("one", "run-1", 1, { type: "run.status", status: "failed", limit: SESSION }));
+  assert.equal(limited.state.threads.find((thread) => thread.id === "one")?.limitPause, undefined, "a usage limit reached before the stop landed never puts it back in line");
+  assert.equal(limited.state.threads[0]!.coordinationNotes?.at(-1)?.quiet, true);
+  slept(limited, "a thread it stopped hitting its limit");
 
   assert.equal(reduce(state, { type: "coordination.stop-all", taskId: "one" }).effects.length, 0, "only a coordinator stops threads under it");
 });
@@ -253,4 +257,18 @@ test("a suggestion that was starting when everything stopped can be started agai
   const again = reduce(stopped.state, { type: "proposal.start", taskId: "lead", proposalId: "p1" });
   assert.deepEqual(again.state.startingProposals, ["p1"]);
   assert.equal(Object.values(again.state.pendingRuns).filter((pending) => pending.coordination?.proposalId === "p1").length, 1);
+});
+
+test("Stop all is offered exactly while it has something to stop", () => {
+  const stoppable = (state: Partial<WorkspaceState>) => deriveView(workspace({ threads: [lead(), member("one"), task("solo")], ...state })).stoppableCoordinatorIds.has("lead");
+  assert.equal(stoppable({}), false, "an idle coordinator has nothing to stop");
+  assert.equal(stoppable({ activeRuns: { one: activeRun("one", "run-1") } }), true, "a thread's run");
+  assert.equal(stoppable({ activeRuns: { lead: activeRun("lead", "run-l") } }), true, "its own run");
+  assert.equal(stoppable({ threads: [lead(), member("one", { limitPause: { ...SESSION, pausedAt: 1 } })] }), true, "a wait on a usage limit");
+  const start = { id: "start", runId: "run-new", origin: "composer" as const, text: "Write docs", prompt: "Write docs", attachments: [], coordination: { coordinatorId: "lead" } };
+  assert.equal(stoppable({ pendingRuns: { start } }), true, "a new thread still being started under it, though nothing runs yet");
+  const tick = { id: "tick", runId: "run-t", origin: "automation" as const, taskId: "one", text: "Check", prompt: "Check", attachments: [], automationId: "a1" };
+  assert.equal(stoppable({ pendingRuns: { tick } }), false, "a scheduled tick is not its to stop");
+  assert.equal(stoppable({ activeRuns: { solo: activeRun("solo", "run-s") } }), false, "a thread outside it");
+  assert.equal(stoppable({ creatingWorktrees: ["one"] }), false, "a checkout being made is no run to stop");
 });

@@ -802,7 +802,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state,
     question: currentRun?.questions?.[0],
     queuedMessages: (state.currentId ? state.queuedMessages[state.currentId] : undefined) ?? NO_QUEUED,
     runningThreadIds: collections.everyBusy,
-    blockedThreadIds: collections.everyBlocked,
+    blockedThreadIds: collections.everyBlocked, stoppableCoordinatorIds: collections.everyStoppable,
     approval: currentRun?.status === "awaiting-approval" ? state.approvals[currentRun.runId] as ApprovalView | undefined : undefined,
     backgroundProcesses: (state.currentId ? state.backgroundProcesses[state.currentId] : undefined) ?? [],
     /** The workflow this thread's panel is on, which outlives a move to another thread and back. */

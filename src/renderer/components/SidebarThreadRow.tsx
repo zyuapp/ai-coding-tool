@@ -11,7 +11,7 @@ import { worktreeHue, worktreeName, type Worktree } from "../../domain/worktree"
 import type { AutomationView } from "../../domain/automation";
 import type { WorktreeGroup } from "../../application/workspace-state";
 import { ContextMenu } from "./PopoverMenu";
-import { threadMenuEntries, workGoing } from "./thread-menu";
+import { threadMenuEntries } from "./thread-menu";
 import type { SnoozeHours } from "../../domain/thread-snooze";
 import { RenameInput, useRenaming } from "./SidebarRename";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
@@ -149,6 +149,8 @@ export type SidebarCoordination = {
   /** Whether desktop notices are on at all, which a coordinator's mute only narrows. */
   notifications: boolean;
   onSetMuted: (threadId: string, muted: boolean) => void;
+  /** The coordinators Stop all has something to stop under. */
+  stoppable: Set<string>;
   onStopAll: (threadId: string) => void;
 };
 
@@ -211,8 +213,9 @@ type RowState = {
   pauseLabel: string | null;
   editing: boolean;
   menuAt: { x: number; y: number } | null;
-  /** Only a row with its menu open is handed the coordinators. */
+  /** Only a row with its menu open is handed the coordinators, and whether Stop all has work to stop. */
   coordinators: Thread[];
+  stoppable: boolean;
   notifications: boolean;
   handlers: RowHandlers;
 };
@@ -317,7 +320,7 @@ function rowBody(row: RowState, className: string, content: ReactNode, action: R
         onSetCoordinator: (coordinatorId) => handlers.setCoordinator(thread.id, coordinatorId),
         notifications: row.notifications,
         onSetMuted: (muted) => handlers.setMuted(thread.id, muted),
-        working: row.running,
+        stoppable: row.stoppable,
         onStopAll: () => handlers.stopAll(thread.id),
         ...(priority ? { onSnooze: (hours: SnoozeHours) => handlers.snooze(thread.id, hours) } : {}),
         ...(thread.snoozedUntil !== undefined ? { onUnsnooze: () => handlers.unsnooze(thread.id) } : {}),
@@ -446,7 +449,7 @@ export function useThreadRows({
       thread,
       active: thread.id === currentId,
       away,
-      running: workGoing(thread, members, runningThreadIds),
+      running: runningThreadIds.has(thread.id) || members.some((member) => runningThreadIds.has(member.id)),
       blocked: blockedThreadIds.has(thread.id),
       memberBlocked: members.some((member) => blockedThreadIds.has(member.id)),
       sideChatWaiting: sideChatAttention.has(thread.id),
@@ -459,6 +462,7 @@ export function useThreadRows({
       editing: threadNames.editing === thread.id,
       menuAt: menuOpen ? threadMenuPosition : null,
       coordinators: menuOpen ? coordination.coordinators : NO_THREADS,
+      stoppable: menuOpen && coordination.stoppable.has(thread.id),
       notifications: coordination.notifications,
       handlers,
     };

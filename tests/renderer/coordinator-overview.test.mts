@@ -49,6 +49,7 @@ test("a coordinator's Overview groups its threads by what they need, each openin
     onSelect: (id: string) => { opened = id; },
     onResolve() {},
     onReopen() {},
+    stoppable: true,
     onStopAll() {},
   });
   const view = await mount(overview({}));
@@ -72,7 +73,7 @@ test("a coordinator's Overview groups its threads by what they need, each openin
   await act(async () => { query<HTMLButtonElement>(busy, 'button[aria-label="Open Dark mode"]').click(); });
   assert.equal(opened, "a");
 
-  await view.render(React.createElement(CoordinatorOverview, { header, memory, members: [], worktreeGroups: [], folds: {}, onSetFold() {}, onSelect() {}, onResolve() {}, onReopen() {}, onStopAll() {} }));
+  await view.render(React.createElement(CoordinatorOverview, { header, memory, members: [], worktreeGroups: [], folds: {}, onSetFold() {}, onSelect() {}, onResolve() {}, onReopen() {}, stoppable: true, onStopAll() {} }));
   assert.match(view.container.textContent, /Threads run onModelOpusEffortHigh/, "a coordinator with no threads yet still says what they will run on");
   assert.match(view.container.textContent, /No threads yet/);
   await view.unmount();
@@ -100,6 +101,7 @@ test("the Overview files threads ready for review and resolved apart, and resolv
     onSelect() {},
     onResolve: (id: string) => { resolving.push(id); },
     onReopen: (id: string) => { reopening.push(id); },
+    stoppable: true,
     onStopAll() {},
   });
   const view = await mount(overview({}));
@@ -134,7 +136,7 @@ test("the Overview says what a coordinator's threads run on, and picks another w
   const overview = (available: boolean) => React.createElement(CommandControlsProvider, { value: { available: (command) => available || command.type !== "coordination.set-thread-model", dispatch() {} } },
     React.createElement(CoordinatorOverview, {
       header: { ...header, threadModel: { model: "gpt-6-luna", effort: "max" }, onSetThreadModel: (model: string, effort?: string) => { picked.push([model, effort]); } },
-      memory, members: [], worktreeGroups: [], folds: {}, onSetFold() {}, onSelect() {}, onResolve() {}, onReopen() {}, onStopAll() {},
+      memory, members: [], worktreeGroups: [], folds: {}, onSetFold() {}, onSelect() {}, onResolve() {}, onReopen() {}, stoppable: true, onStopAll() {},
     }));
   const view = await mount(overview(true));
   const head = query(view.container, ".coordination-overview-header");

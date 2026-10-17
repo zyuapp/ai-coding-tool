@@ -400,6 +400,7 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
   cursor: pointer;
 }
 .coordination-stop-all:hover:not(:disabled) { background: var(--wash); color: var(--ink-soft); }
+.coordination-stop-all:disabled { opacity: 0.4; cursor: default; }
 .coordination-group-head > svg { color: var(--quiet); transition: transform 140ms ease; }
 .coordination-group-head[aria-expanded="false"] > svg { transform: rotate(-90deg); }
 .coordination-group-count { color: var(--quiet); font-size: var(--text-meta); font-weight: 550; }

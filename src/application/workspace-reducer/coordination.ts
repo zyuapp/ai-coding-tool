@@ -3,7 +3,7 @@ import { drainQueue, queuedFor, resolveWorkspaceEffect, threadBusy, withPending,
 import { reduceSending } from "./sending.js";
 import { now, rejected, settled } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { canResolve, checkoutAnswer, coordinatedThreadStatus, coordinationMembers, coordinationNote, coordinationUpdate, nextSteps, turnNote, workingMembers } from "../coordination.js";
+import { canResolve, checkoutAnswer, coordinatedThreadStatus, coordinationMembers, coordinationNote, coordinatorWork, coordinationUpdate, nextSteps, turnNote, workingMembers } from "../coordination.js";
 import { activityChanges, threadActivity, threadChanges } from "../thread-activity.js";
 import { cancelPause, heldByLimit } from "../limit-pauses.js";
 import { announced } from "../notices.js";
@@ -217,16 +217,14 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
 function stopAll(state: WorkspaceState, leadId: string): WorkspaceTransition {
   const lead = state.threads.find((item) => item.id === leadId);
   if (!lead || !isCoordinator(lead)) return settled(state);
-  const stopping = new Set([lead.id, ...coordinationMembers(state, lead.id).map(({ thread }) => thread.id)]);
-  const cancelled = [...stopping].flatMap((id) => state.activeRuns[id] ?? []);
+  const { threads, starts } = coordinatorWork(state, lead);
+  const cancelled = threads.flatMap(({ id }) => state.activeRuns[id] ?? []);
   /** A run that never said it ended leaves its id behind, so only runs still going are kept. */
   const going = new Set(Object.values(state.activeRuns).map((run) => run.runId));
   const quietStops = [...state.quietStops.filter((runId) => going.has(runId)), ...cancelled.map((run) => run.runId)];
   let next = settled({ ...state, quietStops }, cancelled.map((run): WorkspaceEffect => ({ type: "send-run-command", command: { type: "cancel", taskId: run.taskId, runId: run.runId } })));
-  for (const id of stopping) next = followedBy(next, cancelPause(next.state, id));
-  const dropped = Object.values(next.state.pendingRuns).filter((pending) => pending.origin === "composer"
-    && (pending.taskId ? stopping.has(pending.taskId) : pending.coordination?.coordinatorId === lead.id));
-  for (const { id, taskId, coordination } of dropped) {
+  for (const { id } of threads) next = followedBy(next, cancelPause(next.state, id));
+  for (const { id, taskId, coordination } of starts) {
     const without = withoutPending(next.state, id);
     next = { ...next, state: coordination?.proposalId ? withProposalFailure(without, lead.id, coordination.proposalId, undefined) : without };
     /** What was queued behind it goes back to its composer, as any stop hands it back. */

@@ -1,5 +1,5 @@
 /** What a coordinator and its threads are told, and how the sidebar groups them. */
-import type { WorkspaceState } from "./workspace-state.js";
+import type { PendingRun, WorkspaceState } from "./workspace-state.js";
 import type { ApprovalView } from "./thread-run-state.js";
 import type { PairedComputer } from "./computers.js";
 import { threadActivity, threadStatus, type ThreadStatus } from "./thread-activity.js";
@@ -143,6 +143,34 @@ export function coordinationMembers(state: Pick<WorkspaceState, "threads" | "com
     held.byLead.set(leadId, found);
   }
   return found;
+}
+
+/** The work Stop all stops under a coordinator, its own included. */
+export type CoordinatorWork = {
+  /** The coordinator and each thread under it on this computer. */
+  threads: readonly Thread[];
+  /** The runs on their way: each for one of those threads, and each start of a new thread under it. */
+  starts: PendingRun[];
+};
+
+/** What Stop all would stop under a coordinator, read the same way by the stop and by what offers it. */
+export function coordinatorWork(state: Pick<WorkspaceState, "threads" | "computers" | "pendingRuns">, lead: Thread): CoordinatorWork {
+  const threads = [lead, ...coordinationMembers(state, lead.id).flatMap(({ thread, computer }) => computer ? [] : [thread])];
+  const ids = new Set(threads.map((thread) => thread.id));
+  const starts = Object.values(state.pendingRuns).filter((pending) => pending.origin === "composer"
+    && (pending.taskId ? ids.has(pending.taskId) : pending.coordination?.coordinatorId === lead.id));
+  return { threads, starts };
+}
+
+/** Each live coordinator with a run going, a wait on a usage limit, or a run on its way under it. */
+export function stoppableCoordinators(state: Pick<WorkspaceState, "threads" | "computers" | "pendingRuns" | "activeRuns">): Set<string> {
+  const stoppable = new Set<string>();
+  for (const lead of state.threads) {
+    if (!isCoordinator(lead)) continue;
+    const { threads, starts } = coordinatorWork(state, lead);
+    if (starts.length || threads.some((thread) => state.activeRuns[thread.id] || thread.limitPause)) stoppable.add(lead.id);
+  }
+  return stoppable;
 }
 
 /** Threads under a coordinator still doing work. One waiting on the user's approval is not. */

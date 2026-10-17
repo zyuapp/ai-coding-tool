@@ -185,7 +185,8 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       if (event.type !== "run.status" || event.status === "running" || event.status === "awaiting-approval") return settled(next, [...environment, ...said]);
       const moved = settleMoveAfterRun(next, event.taskId);
       next = moved.state;
-      if (event.status === "failed" && event.limit) next = pausedForLimit(next, event.taskId, event.limit, now());
+      /** A run Stop all asked to end stays ended, even when a usage limit got to it first. */
+      if (event.status === "failed" && event.limit && !next.quietStops.includes(event.runId)) next = pausedForLimit(next, event.taskId, event.limit, now());
       const drained = drainQueue(noteTurnEnded(next, event.taskId, event.status, event.runId), event.taskId, event.status);
       return settled(drained.state, [...environment, ...said, ...moved.effects, ...drained.effects]);
     }

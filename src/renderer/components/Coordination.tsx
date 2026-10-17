@@ -77,13 +77,15 @@ type RowActions = {
 };
 
 /** A coordinator's purpose, what its threads run on, its threads by what they need from the user, then its memory. */
-export function CoordinatorOverview({ header, memory, members, worktreeGroups, folds, onSetFold, onStopAll, onSelect, onResolve, onReopen }: RowActions & {
+export function CoordinatorOverview({ header, memory, members, worktreeGroups, folds, onSetFold, stoppable, onStopAll, onSelect, onResolve, onReopen }: RowActions & {
   header: OverviewHeaderProps;
   memory: OverviewMemoryProps;
   members: readonly CoordinatedThreadView[];
   worktreeGroups: WorktreeGroup[];
   folds: OverviewFolds;
   onSetFold: FoldChange;
+  /** Whether Stop all has anything under the coordinator to stop. */
+  stoppable: boolean;
   /** Stops the coordinator and every thread under it. */
   onStopAll: () => void;
 }) {
@@ -98,7 +100,7 @@ export function CoordinatorOverview({ header, memory, members, worktreeGroups, f
       {members.length
         ? OVERVIEW_GROUPS.map((group) => groups[group].length > 0 && (
             <ThreadGroup key={group} group={group} members={groups[group]} fold={folds[group] ?? {}} worktrees={worktrees} onSetFold={onSetFold} onSelect={onSelect} onResolve={onResolve} onReopen={onReopen}
-              {...(group === "working" ? { action: <StopAllButton taskId={header.taskId} onStopAll={onStopAll} /> } : {})} />
+              {...(group === "working" ? { action: <StopAllButton taskId={header.taskId} stoppable={stoppable} onStopAll={onStopAll} /> } : {})} />
           ))
         : <p className="session-empty coordination-empty">No threads yet</p>}
       <CommandGate command={{ type: "memory.add", taskId: memory.taskId, text: "" }}>
@@ -226,8 +228,8 @@ function FoldHead({ label, count, open, action, onToggle }: { label: string; cou
 }
 
 /** Stops the coordinator and everything working under it, as its thread menu does. */
-function StopAllButton({ taskId, onStopAll }: { taskId: string; onStopAll: () => void }) {
-  return <CommandButton type="button" className="coordination-stop-all" command={{ type: "coordination.stop-all", taskId }} onClick={onStopAll}>Stop all</CommandButton>;
+function StopAllButton({ taskId, stoppable, onStopAll }: { taskId: string; stoppable: boolean; onStopAll: () => void }) {
+  return <CommandButton type="button" className="coordination-stop-all" command={{ type: "coordination.stop-all", taskId }} disabled={!stoppable} onClick={onStopAll}>Stop all</CommandButton>;
 }
 
 /** What the coordinator's new threads run on, picked with the composer's own chips. */

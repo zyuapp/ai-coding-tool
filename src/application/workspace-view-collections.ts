@@ -5,7 +5,7 @@ import type { Project } from "../domain/project.js";
 import { orderProjects } from "./project-order.js";
 import type { ComputerLink } from "../domain/computers.js";
 import { sidebarLists } from "./sidebar-lists.js";
-import { coordinationView, type CoordinationView } from "./coordination.js";
+import { coordinationView, stoppableCoordinators, type CoordinationView } from "./coordination.js";
 import { memberPullRequestsView } from "./pull-request-view.js";
 import { memberWorktreesView } from "./member-worktrees.js";
 import { isCoordinator } from "../domain/coordination.js";
@@ -74,6 +74,9 @@ function createViewCollections() {
   /** The threads that can take others under them, for the menu that moves a thread under one. */
   const coordinators = selector((state) => [threadLists(state).listedThreads], (state) => threadLists(state).listedThreads.filter((thread) => isCoordinator(thread)));
 
+  /** The coordinators Stop all has something to stop under, read by every place that offers it. */
+  const stoppable = selector((state) => [state.threads, state.computers.paired, state.activeRuns, state.pendingRuns], stoppableCoordinators, sameIds);
+
   /**
    * What the open thread shows: a coordinator's threads, open decisions and suggestions, or a thread's
    * coordinator and brief. Each of a coordinator's threads keeps its view object while nothing it shows moves.
@@ -119,6 +122,7 @@ function createViewCollections() {
   const everyBusy = selector((state) => [busy(state), remote(state)], (state) => union(busy(state), remote(state).busy), sameIds);
   /** What the activity list ranks as running: every busy thread, and every thread a live watch holds between its ticks. */
   const everyRanked = selector((state) => [ranked(state), remote(state)], (state) => union(ranked(state), remote(state).ranked), sameIds);
+  const everyStoppable = selector((state) => [stoppable(state), remote(state)], (state) => union(stoppable(state), remote(state).stoppable), sameIds);
   const everyBlocked = selector((state) => [blocked(state), remote(state)], (state) => union(blocked(state), remote(state).blocked), sameIds);
   const everySideChatAttention = selector((state) => [threadLists(state).sideChatAttention, remote(state)], (state) => union(threadLists(state).sideChatAttention, remote(state).sideChatAttention), sameIds);
   const everyWorktree = selector((state) => [threadLists(state).worktreeThreadIds, remote(state)], (state) => union(threadLists(state).worktreeThreadIds, remote(state).worktreeThreadIds), sameIds);
@@ -204,6 +208,7 @@ function createViewCollections() {
       everyBusy: everyBusy(state),
       everyRanked: everyRanked(state),
       everyBlocked: everyBlocked(state),
+      everyStoppable: everyStoppable(state),
       remote: remote(state),
       computerLinks: links(state),
       computerUsage: usage(state),
