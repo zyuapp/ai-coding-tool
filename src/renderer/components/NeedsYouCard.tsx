@@ -37,6 +37,11 @@ type Pager = { index: number; count: number } | null;
 /** The page on screen, and where it sat, which is where the card goes on once that page is settled. */
 type Page = { key: string; index: number };
 
+/** What the user has chosen or typed on a page, kept under its key while they look at the others. */
+type Draft = DecisionDraft | ElsewhereDraft;
+type DecisionDraft = { kind: "decision"; choice: string; own: string };
+type ElsewhereDraft = { kind: "elsewhere"; picked: string | null; worktree: boolean };
+
 /**
  * Everything waiting on the user from a coordinator and its threads, one page at a time: approvals,
  * each thread asked for on another computer, decisions, then the threads it suggested here.
@@ -50,6 +55,7 @@ export function NeedsYouCard({ approvals, decisions, suggestions = null, onDecid
   onSelect: (threadId: string) => void;
 }) {
   const [page, setPage] = useState<Page | null>(null);
+  const [drafts, setDrafts] = useState<Readonly<Record<string, Draft>>>({});
   const proposals = suggestions?.proposals ?? [];
   const here = proposals.filter((view) => !view.elsewhere);
   const items: NeedsYouItem[] = [
@@ -69,17 +75,33 @@ export function NeedsYouCard({ approvals, decisions, suggestions = null, onDecid
     const next = (shown + delta + items.length) % items.length;
     setPage({ key: items[next]!.key, index: next });
   };
+  /** A page's draft replaces what it held, and those of pages already settled are let go. */
+  const onDraft = (draft: Draft) => setDrafts((all) => ({
+    ...Object.fromEntries(items.flatMap((item) => all[item.key] ? [[item.key, all[item.key]]] : [])),
+    [current.key]: draft,
+  }));
+  const draft = drafts[current.key];
   switch (current.kind) {
     case "approval":
       return <ApprovalForm key={current.key} view={current.view} position={position} onStep={onStep} onDecide={onDecide} onSelect={onSelect} />;
     case "elsewhere":
-      return <ElsewhereForm key={current.key} taskId={current.taskId} request={current.request} position={position} onStep={onStep} />;
+      return <ElsewhereForm
+        key={current.key}
+        taskId={current.taskId}
+        request={current.request}
+        draft={draft?.kind === "elsewhere" ? draft : null}
+        position={position}
+        onStep={onStep}
+        onDraft={onDraft}
+      />;
     case "decision":
       return <DecisionForm
         key={current.key}
         view={current.view}
+        draft={draft?.kind === "decision" ? draft : null}
         position={position}
         onStep={onStep}
+        onDraft={onDraft}
         onAnswer={(answer) => onAnswer(current.view.thread.id, current.view.decision.id, answer)}
         onSelect={onSelect}
       />;
@@ -167,13 +189,19 @@ function SuggestionRow({ taskId, threadModel, view }: { taskId: string; threadMo
 /**
  * A thread asked for on another computer, which starts there only once the user allows it, in the
  * folder there they pick and with a worktree of its own if they want one. Allowing it lets this one
- * through and no other. What is picked is only typed here until Allow carries it.
+ * through and no other. What is picked stays on the card, through paging away and back, until Allow carries it.
  */
-function ElsewhereForm({ taskId, request, position, onStep }: { taskId: string; request: ElsewhereRequest; position: Pager; onStep: (delta: 1 | -1) => void }) {
+function ElsewhereForm({ taskId, request, draft, position, onStep, onDraft }: {
+  taskId: string;
+  request: ElsewhereRequest;
+  draft: ElsewhereDraft | null;
+  position: Pager;
+  onStep: (delta: 1 | -1) => void;
+  onDraft: (draft: ElsewhereDraft) => void;
+}) {
   const { proposal, starting, elsewhere } = request;
   const { computer, projects, refusal } = elsewhere;
-  const [picked, setPicked] = useState<string | null>(null);
-  const [worktree, setWorktree] = useState(proposal.place.worktree === true);
+  const { picked, worktree } = draft ?? { picked: null, worktree: proposal.place.worktree === true };
   /** A folder picked while that computer still holds it, else the one the view settles on, which follows its projects as they arrive. */
   const project = picked !== null && projects.some((item) => item.id === picked) ? picked : elsewhere.project ?? "";
   return (
@@ -187,12 +215,12 @@ function ElsewhereForm({ taskId, request, position, onStep }: { taskId: string; 
         <div className="elsewhere-place">
           {projects.length > 0 && <label className="elsewhere-folder">
             <span>Folder</span>
-            <select value={project} onChange={(event) => setPicked(event.currentTarget.value)}>
+            <select value={project} onChange={(event) => onDraft({ kind: "elsewhere", picked: event.currentTarget.value, worktree })}>
               {projects.map((item) => <option key={item.id} value={item.id} title={item.root}>{projectName(item)}</option>)}
             </select>
           </label>}
           <label className="elsewhere-worktree">
-            <input type="checkbox" checked={worktree} onChange={(event) => setWorktree(event.currentTarget.checked)} />
+            <input type="checkbox" checked={worktree} onChange={(event) => onDraft({ kind: "elsewhere", picked, worktree: event.currentTarget.checked })} />
             New worktree
           </label>
         </div>
@@ -248,17 +276,19 @@ function ApprovalForm({ view, position, onStep, onDecide, onSelect }: {
   );
 }
 
-function DecisionForm({ view, position, onStep, onAnswer, onSelect }: {
+/** A question a thread under the coordinator asked, whose answer stays on the card through paging away and back. */
+function DecisionForm({ view, draft, position, onStep, onDraft, onAnswer, onSelect }: {
   view: CoordinationDecisionView;
+  draft: DecisionDraft | null;
   position: Pager;
   onStep: (delta: 1 | -1) => void;
+  onDraft: (draft: DecisionDraft) => void;
   onAnswer: (answer: string) => void;
   onSelect: (threadId: string) => void;
 }) {
   const id = useId();
   const { thread, decision } = view;
-  const [choice, setChoice] = useState(() => decision.options.find((option) => option.recommended)?.label ?? "");
-  const [own, setOwn] = useState("");
+  const { choice, own } = draft ?? { choice: decision.options.find((option) => option.recommended)?.label ?? "", own: "" };
   const answer = own.trim() || choice;
   return (
     <form className="decision-card" aria-label="Decision waiting on you" onSubmit={(event) => {
@@ -272,7 +302,7 @@ function DecisionForm({ view, position, onStep, onAnswer, onSelect }: {
         {decision.options.length > 0 && <div className="decision-options" role="radiogroup" aria-labelledby={id}>
           {decision.options.map((option) => (
             <label className="decision-option" key={option.label}>
-              <input type="radio" name={id} value={option.label} checked={!own.trim() && choice === option.label} onChange={() => { setChoice(option.label); setOwn(""); }} />
+              <input type="radio" name={id} value={option.label} checked={!own.trim() && choice === option.label} onChange={() => onDraft({ kind: "decision", choice: option.label, own: "" })} />
               <span>
                 <span className="decision-option-label">{option.label}{option.recommended && <span className="decision-recommended">Recommended</span>}</span>
                 {option.description && <span className="decision-option-description">{option.description}</span>}
@@ -286,7 +316,7 @@ function DecisionForm({ view, position, onStep, onAnswer, onSelect }: {
           value={own}
           placeholder={decision.options.length ? "Or answer in your own words" : "Your answer"}
           aria-label="Your own answer"
-          onChange={(event) => setOwn(event.currentTarget.value)}
+          onChange={(event) => onDraft({ kind: "decision", choice, own: event.currentTarget.value })}
         />
         {position && <button type="button" className="secondary" onClick={() => onStep(1)}>Later</button>}
         <button type="submit" disabled={!answer}>Decide</button>
