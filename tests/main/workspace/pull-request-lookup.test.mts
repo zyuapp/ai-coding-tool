@@ -1,7 +1,7 @@
 import { temporaryDirectory } from "../../support/temporary-directory.mts";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { symlink, writeFile } from "node:fs/promises";
+import { chmod, readFile, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -63,6 +63,47 @@ test("a checkout with no remote at all is a checkout with no pull request", asyn
   try {
     process.env.PATH = bin;
     assert.deepEqual(await pullRequestFor(root), { status: "none" });
+  } finally {
+    process.env.PATH = started;
+  }
+});
+
+/**
+ * A search path whose `gh` answers the commit lookup with a pull request in `state`, and the details
+ * view with what it still needs, writing down each thing it was asked.
+ */
+async function pathWithGh(state: "open" | "closed", mergedAt: string | null) {
+  const bin = await pathWithoutGh();
+  const log = path.join(bin, "asked.log");
+  const found = JSON.stringify([{ number: 5, title: "Ship it", html_url: "https://github.com/o/r/pull/5", state, draft: false, merged_at: mergedAt }]);
+  const details = JSON.stringify({ mergeable: "CONFLICTING", reviewDecision: "APPROVED", statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "FAILURE" }] });
+  await writeFile(path.join(bin, "gh"), `#!/bin/sh\necho "$*" >> '${log}'\nif [ "$1" = api ]; then echo '${found}'; else echo '${details}'; fi\n`);
+  await chmod(path.join(bin, "gh"), 0o755);
+  return { bin, asked: async () => (await readFile(log, "utf8")).trim().split("\n") };
+}
+
+async function detached() {
+  const root = await repository("https://github.com/o/r.git");
+  await git(root, "checkout", "--detach");
+  return root;
+}
+
+test("a worktree's open pull request is asked what it still needs, and a merged one is not", async () => {
+  const started = process.env.PATH;
+  try {
+    const [root, gh] = await Promise.all([detached(), pathWithGh("open", null)]);
+    process.env.PATH = gh.bin;
+    assert.deepEqual(await pullRequestFor(root), {
+      status: "found",
+      pullRequest: { number: 5, title: "Ship it", url: "https://github.com/o/r/pull/5", state: "open", checks: "failing", review: "approved", conflicts: true },
+    });
+    const commit = (await git(root, "rev-parse", "HEAD")).stdout.trim();
+    assert.deepEqual(await gh.asked(), [`api repos/{owner}/{repo}/commits/${commit}/pulls`, "pr view 5 --json mergeable,reviewDecision,statusCheckRollup"]);
+
+    const [merged, done] = await Promise.all([detached(), pathWithGh("closed", "2026-10-01T00:00:00Z")]);
+    process.env.PATH = done.bin;
+    assert.equal((await pullRequestFor(merged)).status, "found");
+    assert.equal((await done.asked()).some((asked) => asked.startsWith("pr view")), false, "a merged pull request needs nothing more");
   } finally {
     process.env.PATH = started;
   }

@@ -27,9 +27,9 @@ export function WorkspaceSession(props: WorkspaceSessionProps) {
   );
 }
 
+/** Only draws: the coordinator asks after its threads' pull requests whether this panel is open or not. */
 function CoordinatorSections({ workspace }: { workspace: Workspace }) {
-  const { asking, settled, found } = workspace.memberPullRequests;
-  usePullRequestReads(asking, settled, workspace.actions.readMemberPullRequests);
+  const { found } = workspace.memberPullRequests;
   return (
     <>
       {workspace.memberWorktrees.length > 0 && <MemberWorktreeList

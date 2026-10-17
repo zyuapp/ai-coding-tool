@@ -463,23 +463,31 @@ test("a coordinator's Overview remembers how the user folded each group, per coo
 });
 
 test("a coordinator's Overview groups its threads by what they need, and its tool approvals wait beside its decisions", () => {
+  const pullRequest = { number: 212, url: "https://github.com/o/r/pull/212", title: "Fix it", state: "open" as const, checks: "failing" as const };
   const threads = [
     lead(),
     task("approval", { parentId: "lead" }),
     task("asking", { parentId: "lead", decisions: [{ id: "d1", question: "Keep it?", options: [], raisedAt: 1 }] }),
     task("failed", { parentId: "lead", outcome: "failed" }),
+    task("review", { parentId: "lead", brief: BRIEF, pullRequest, report: { state: "done", summary: "Opened #212", at: 1 } }),
     task("busy", { parentId: "lead" }),
     task("done", { parentId: "lead", report: { state: "done", summary: "Shipped", at: 1 } }),
+    task("draft", { parentId: "lead", brief: BRIEF, pullRequest: { ...pullRequest, state: "draft" } }),
     task("idle", { parentId: "lead" }),
+    task("resolved", { parentId: "lead", resolvedAt: 2, outcome: "failed" }),
+    task("reworking", { parentId: "lead", resolvedAt: 2 }),
+    task("reasking", { parentId: "lead", resolvedAt: 2, decisions: [{ id: "d2", question: "Again?", options: [], raisedAt: 2 }] }),
   ];
   const approval = { approvalId: "a1", taskId: "approval", runId: "run-a", title: "Run a command?", description: "", toolName: "Bash", input: { command: "yarn test" } };
-  const view = coordinationView(threads, threads[0], new Set(["approval", "busy"]), new Set(["approval"]), (id) => id === "approval" ? approval : undefined);
+  const view = coordinationView(workspace({ threads }), threads[0], new Set(["approval", "busy", "reworking"]), new Set(["approval"]), (id) => id === "approval" ? approval : undefined);
   const groups = overviewGroups(view.members);
-  assert.deepEqual(groups.needs.map(({ thread }) => thread.id), ["approval", "asking", "failed"]);
-  assert.deepEqual(groups.working.map(({ thread }) => thread.id), ["busy"]);
-  assert.deepEqual(groups.done.map(({ thread }) => thread.id), ["done", "idle"]);
+  assert.deepEqual(groups.needs.map(({ thread }) => thread.id), ["approval", "asking", "failed", "reasking"], "an open decision outranks being resolved");
+  assert.deepEqual(groups.review.map(({ thread, summary }) => [thread.id, summary]), [["review", "#212 · Checks failing"]], "its own open pull request outranks saying it is done");
+  assert.deepEqual(groups.working.map(({ thread }) => thread.id), ["busy", "reworking"], "work going outranks being resolved");
+  assert.deepEqual(groups.done.map(({ thread }) => thread.id), ["done", "draft", "idle"], "a draft is not ready for review");
+  assert.deepEqual(groups.resolved.map(({ thread }) => thread.id), ["resolved"], "being resolved outranks a failure");
   assert.deepEqual(view.approvals.map(({ thread, approval: item }) => [thread.id, item.approvalId]), [["approval", "a1"]]);
-  assert.deepEqual(view.decisions.map(({ decision }) => decision.id), ["d1"]);
+  assert.deepEqual(view.decisions.map(({ decision }) => decision.id), ["d1", "d2"]);
 
   const own = { ...approval, approvalId: "a0", taskId: "lead", runId: "run-lead" };
   const state = workspace({
@@ -490,7 +498,7 @@ test("a coordinator's Overview groups its threads by what they need, and its too
   });
   assert.deepEqual(deriveView(state).coordination.approvals.map(({ approval: item }) => item.approvalId), ["a0", "a1"], "the open coordinator's own approval waits first, beside its threads'");
 
-  const alone = coordinationView([lead()], lead(), new Set(), new Set(), (id) => id === "lead" ? own : undefined);
+  const alone = coordinationView(workspace({ threads: [lead()] }), lead(), new Set(), new Set(), (id) => id === "lead" ? own : undefined);
   assert.deepEqual(alone.approvals.map(({ approval: item }) => item.approvalId), ["a0"], "a coordinator with nobody under it still answers its own approval in the card");
 });
 
@@ -603,4 +611,90 @@ test("a coordinator reads its memory again only after the user changes it, after
   assert.match(first.prompt, /Your purpose: Ship the v2 reader\nYour memory:\n- \[n1\] Propose threads first/, "a coordinator with no session to resume always reads it");
   assert.doesNotMatch(first.prompt, /the user changed it/);
   assert.match(coordinationContext(warm, warm.threads[0], { fresh: true }), /Your memory:/, "so does a fresh session started over an old one");
+});
+
+/** A thread under the coordinator that has finished, with what its run and a finding left behind. */
+function finished(id = "worker", overrides = {}) {
+  return task(id, { parentId: "lead", title: "Fix login", outcome: "finished" as const, outcomeUnread: true as const, findings: [{ id: "f1", headline: "Found it", at: 1 }], ...overrides });
+}
+
+test("the user resolves and reopens a thread, and a message reopens it but a scheduled tick does not", () => {
+  const state = workspace({ threads: [lead(), finished()], currentId: "lead" });
+  const resolved = reduce(state, { type: "task.resolve", taskId: "worker" }).state;
+  const worker = required(resolved.threads[1]);
+  assert.equal(typeof worker.resolvedAt, "number");
+  assert.equal(worker.outcome, undefined, "its last run is filed away with it");
+  assert.equal(worker.findings, undefined);
+  assert.equal(deriveView(resolved).coordination.members[0]?.status, "resolved");
+  assert.equal(reduce(resolved, { type: "task.resolve", taskId: "worker" }).state, resolved, "resolving twice changes nothing");
+
+  const reopened = reduce(resolved, { type: "task.reopen", taskId: "worker" }).state;
+  assert.equal(reopened.threads[1].resolvedAt, undefined);
+
+  const messaged = started(resolved, { type: "task.send", taskId: "worker", text: "One more thing" }).state;
+  assert.equal(messaged.threads.find((thread) => thread.id === "worker")?.resolvedAt, undefined, "a message is more work, so the thread is open again");
+
+  const fired = reduce(resolved, { type: "automation.fired", fire: { automationId: "automation-1", taskId: "worker", runId: "run-tick", prompt: "Poll", runNumber: 2 } });
+  const ticking = reduce(fired.state, { type: "run.resolved", pendingId: effectAt(fired, "resolve-run-workspace").pendingId, workspace: PROJECTLESS }).state;
+  assert.equal(typeof ticking.threads[1].resolvedAt, "number", "a scheduled tick leaves it resolved");
+  assert.equal(deriveView(ticking).coordination.members[0]?.status, "working", "while it works it shows as working");
+
+  const moved = reduce(resolved, { type: "task.set-coordinator", taskId: "worker", coordinatorId: null }).state;
+  assert.equal(moved.threads[1].resolvedAt, undefined, "a thread moved out from under its coordinator leaves its resolution behind");
+  const other = reduce(workspace({ threads: [...resolved.threads, lead("other")] }), { type: "task.set-coordinator", taskId: "worker", coordinatorId: "other" }).state;
+  assert.equal(other.threads[1].resolvedAt, undefined, "and so does one moved under another");
+
+  const solo = workspace({ threads: [task("solo", { outcome: "finished" })] });
+  assert.equal(reduce(solo, { type: "task.resolve", taskId: "solo" }).state, solo, "only a thread under a coordinator resolves");
+});
+
+test("a thread that is working or waiting on the user cannot be resolved", () => {
+  const decision = { id: "d1", question: "Keep it?", options: [], raisedAt: 1 };
+  const state = workspace({
+    threads: [lead(), finished("busy"), finished("approval"), finished("asking", { decisions: [decision] })],
+    activeRuns: { busy: activeRun("busy", "run-b"), approval: activeRun("approval", "run-a", { status: "awaiting-approval" }) },
+  });
+  for (const taskId of ["busy", "approval", "asking"]) {
+    const refused = reduce(state, { type: "task.resolve", taskId });
+    assert.equal(refused.result?.ok, false, taskId);
+    assert.equal(refused.result?.ok === false && refused.result.message, "Finish or answer what this thread is waiting on first.");
+    assert.equal(refused.state.threads, state.threads, taskId);
+  }
+});
+
+test("a resolved thread no longer promotes its coordinator", () => {
+  const state = workspace({ threads: [lead(), finished()] });
+  const before = coordinationSections(state.threads, new Set(), new Set());
+  assert.deepEqual(before.priority.map((thread) => thread.id), ["lead"], "a finished thread holds its coordinator up");
+  const resolved = reduce(state, { type: "task.resolve", taskId: "worker" }).state;
+  const after = coordinationSections(resolved.threads, new Set(), new Set());
+  assert.deepEqual(after.priority.map((thread) => thread.id), []);
+});
+
+test("the roster lists what needs attention and counts the rest", () => {
+  const done = Array.from({ length: 13 }, (_, index) => task(`done-${index}`, { parentId: "lead", title: `Done ${index}`, report: { state: "done" as const, summary: "Shipped", at: 1 }, runEndedAt: 100 + index }));
+  const resolved = Array.from({ length: 2 }, (_, index) => task(`resolved-${index}`, { parentId: "lead", title: `Resolved ${index}`, resolvedAt: 1 }));
+  const state = workspace({
+    threads: [
+      lead(),
+      task("asking", { parentId: "lead", title: "Asking", decisions: [{ id: "d1", question: "Keep it?", options: [], raisedAt: 1 }] }),
+      task("busy", { parentId: "lead", title: "Busy" }),
+      task("review", { parentId: "lead", title: "Review", brief: BRIEF, pullRequest: { number: 212, url: "https://github.com/o/r/pull/212", title: "Fix it", state: "open", checks: "passing" } }),
+      ...done,
+      ...resolved,
+    ],
+    activeRuns: { busy: activeRun("busy", "run-b") },
+  });
+  const context = coordinationContext(state, state.threads[0]);
+  assert.match(context, /"Asking" \[asking\] · idle · waiting on the user to decide: Keep it\?/);
+  assert.match(context, /"Busy" \[busy\] · working/);
+  assert.match(context, /"Review" \[review\] · idle · ready for review: #212 · Checks passing/);
+  assert.match(context, /"Done 12" \[done-12\]/);
+  assert.match(context, /"Done 3" \[done-3\]/, "the ten most recently active done threads are listed");
+  assert.doesNotMatch(context, /"Done 2" \[done-2\]/);
+  assert.doesNotMatch(context, /Resolved 0/);
+  assert.match(context, /3 more finished and 2 resolved threads; read_thread reaches them\./);
+
+  const one = workspace({ threads: [lead(), resolved[0]!] });
+  assert.match(coordinationContext(one, one.threads[0]), /1 resolved thread; read_thread reaches it\./);
 });

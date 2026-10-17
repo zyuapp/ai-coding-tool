@@ -19,6 +19,9 @@
 .coordination-dot.done { background: var(--success); }
 .coordination-dot.blocked, .coordination-dot.failed { background: var(--danger); }
 .coordination-dot.asking, .coordination-dot.approval { background: var(--accent); }
+/** An open pull request is a ring: the work is there, and only the user's review closes it. */
+.coordination-dot.review { background: transparent; box-shadow: inset 0 0 0 1.6px var(--success); }
+.coordination-dot.resolved { background: var(--quiet); }
 
 .coordination-bar {
   max-width: 860px;
@@ -144,8 +147,35 @@
 .coordination-row.asking .coordination-row-mark, .coordination-row.approval .coordination-row-mark { background: var(--accent-chip); }
 .coordination-row.asking small, .coordination-row.approval small { color: var(--accent); }
 .coordination-row.blocked small, .coordination-row.failed small { color: var(--danger-soft); }
-.coordination-row-marks { display: flex; align-items: center; gap: 6px; }
+.coordination-row-marks { display: flex; align-items: center; gap: 6px; transition: opacity 0.15s ease; }
 .coordination-row-engine { color: var(--quiet); }
+.coordination-row.review .coordination-row-mark { background: var(--success-surface); }
+/** A row's own action sits beside its open button, over the marks it takes the place of while pointed at. */
+.coordination-item { position: relative; min-width: 0; }
+.coordination-item.resolved > .coordination-row { opacity: 0.62; }
+.coordination-item.resolved > .coordination-row:hover { opacity: 1; }
+.coordination-row-action {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  padding: 0;
+  background: transparent;
+  color: var(--quiet-strong);
+  opacity: 0;
+  transform: translateY(-50%);
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+.coordination-item:hover > .coordination-row-action, .coordination-item:focus-within > .coordination-row-action { opacity: 1; }
+.coordination-item:has(> .coordination-row-action):is(:hover, :focus-within) .coordination-row-marks { opacity: 0; }
+.coordination-row-action:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-soft); }
+.coordination-row-action[data-action="resolve"]:hover:not(:disabled), .thread-tab-resolution[data-action="resolve"]:hover:not(:disabled) { background: var(--success-surface); color: var(--success); }
 /* A coordinator's Overview: its threads in groups, in a dock tab that scrolls as one list. */
 .coordination-overview {
   height: 100%;
@@ -313,6 +343,10 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
 /* A thread under the coordinator, talked to from its tab in the dock. */
 .side-chat.thread-tab { display: flex; flex-direction: column; }
 .thread-tab > .side-chat-header { flex: 0 0 var(--chrome-head); }
+/** Resolve sits right beside close, the two read as the tab's own controls. */
+.thread-tab-header > .side-chat-title { flex: 1; }
+.thread-tab-header > .thread-tab-resolution { margin-right: -12px; }
+.side-chat-title .thread-tab-status.review { color: var(--success-soft); }
 .thread-tab > .side-chat-transcript { flex: 1 1 0; }
 .thread-tab-mark {
   position: relative;

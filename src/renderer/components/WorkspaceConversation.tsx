@@ -3,10 +3,21 @@ import { ApprovalCard } from "./ApprovalCard";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { CoordinationBar } from "./Coordination";
 import { projectName } from "../../domain/project";
+import { isCoordinator } from "../../domain/coordination";
+import { usePullRequestReads } from "../task-workspace/pull-request-reads";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import type { FindView } from "../../application/workspace-state";
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;
+
+/**
+ * Asks after the pull requests of a coordinator's threads for as long as it is on screen, whatever
+ * panel is open, so its Overview stays current and a merge resolves the thread that made it.
+ */
+function CoordinatorReads({ asking, settled, read }: { asking: string; settled: boolean; read: () => void }) {
+  usePullRequestReads(asking, settled, read);
+  return null;
+}
 
 /** The transcript and everything drawn alongside it: the find bar and approvals. */
 export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide }: {
@@ -23,6 +34,11 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
   const bar = coordination.threadModel === null && (coordination.lead !== null || coordination.brief !== null);
   return (
     <div className={`work-area ${bar ? (coordination.lead ? "coordination-bar-on" : "coordination-brief-on") : ""}`}>
+      {isCoordinator(workspace.currentThread) && <CoordinatorReads
+        asking={workspace.memberPullRequests.asking}
+        settled={workspace.memberPullRequests.settled}
+        read={workspace.actions.readMemberPullRequests}
+      />}
       {mine && findBar}
       {bar && <div className="coordination-head">
         <CoordinationBar lead={coordination.lead} brief={coordination.brief} asking={coordination.asking} onSelect={workspace.actions.selectThread} />

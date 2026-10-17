@@ -123,6 +123,8 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
           folds={workspace.overviewFolds}
           onSetFold={(group, change) => void workspace.actions.setOverviewGroup(lead.id, group, change)}
           onSelect={workspace.actions.selectThread}
+          onResolve={(threadId) => void workspace.actions.resolveThread(threadId)}
+          onReopen={(threadId) => void workspace.actions.reopenThread(threadId)}
         />
       ),
     }] : []),

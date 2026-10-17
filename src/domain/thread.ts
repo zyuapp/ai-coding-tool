@@ -22,6 +22,11 @@ export type Thread = {
   brief?: ThreadBrief;
   /** Where this thread last said its work stands. */
   report?: CoordinationReport;
+  /**
+   * Under a coordinator: when its work was settled, by the user or by its own pull request merging,
+   * which files it away under Resolved until a message starts it again.
+   */
+  resolvedAt?: number;
   /** Choices this thread has put to the user, answered or not. */
   decisions?: Decision[];
   /** On a coordinator: what its threads have done that it has yet to be told. */

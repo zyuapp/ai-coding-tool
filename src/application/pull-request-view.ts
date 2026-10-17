@@ -1,10 +1,11 @@
 import type { ChangedFilesResult } from "../contracts/ipc.js";
 import { coordinatedThreads } from "../domain/coordination.js";
-import { NO_PULL_REQUEST, pullRequestSettled, type PullRequestAnswer, type PullRequestRead, type PullRequestRef } from "../domain/pull-request.js";
+import { NO_PULL_REQUEST, pullRequestSettled, type PullRequestAnswer, type PullRequestRead } from "../domain/pull-request.js";
 import type { Project } from "../domain/project.js";
 import type { Thread } from "../domain/thread.js";
 import type { Worktree } from "../domain/worktree.js";
 import { threadWorkspaceId } from "./thread-location.js";
+import { ownPullRequest, type OwnPullRequest } from "./coordination.js";
 
 /** The branch a checkout sits on, or null while Git has not said or could not. */
 export function branchOf(environment: ChangedFilesResult | null) {
@@ -40,8 +41,8 @@ export function memberCheckouts(state: Omit<MemberState, "environments" | "membe
   return checkouts;
 }
 
-/** A pull request one or more of a coordinator's threads work on. */
-export type MemberPullRequest = { pullRequest: PullRequestRef; threads: Thread[] };
+/** A pull request one or more of a coordinator's threads have as their own. */
+export type MemberPullRequest = { pullRequest: OwnPullRequest; threads: Thread[] };
 
 export type MemberPullRequestsView = {
   /** Changes whenever a checkout joins, leaves, or moves branch, which is when to ask again. */
@@ -53,20 +54,27 @@ export type MemberPullRequestsView = {
 
 const NO_MEMBER_PULL_REQUESTS: MemberPullRequestsView = { asking: "", settled: true, found: [] };
 
+/**
+ * What a coordinator's threads' pull requests are and when to ask about them again. What each one is
+ * comes from the threads, each of which records its own; when to ask comes from the reads of the
+ * checkouts they work in.
+ */
 export function memberPullRequestsView(state: MemberState, lead: Thread | undefined): MemberPullRequestsView {
   if (!lead) return NO_MEMBER_PULL_REQUESTS;
   const checkouts = memberCheckouts(state, lead.id);
   if (!checkouts.size) return NO_MEMBER_PULL_REQUESTS;
-  const found = new Map<string, MemberPullRequest>();
   const asking: string[] = [];
   let settled = true;
-  for (const [workspaceId, threads] of checkouts) {
+  for (const workspaceId of checkouts.keys()) {
     asking.push(`${workspaceId}\0${branchOf(state.environments[workspaceId] ?? null) ?? ""}`);
-    const answer = state.memberPullRequests[workspaceId]?.answer ?? NO_PULL_REQUEST;
-    if (!pullRequestSettled(answer)) settled = false;
-    if (answer.status !== "found") continue;
-    const known = found.get(answer.pullRequest.url);
-    found.set(answer.pullRequest.url, { pullRequest: answer.pullRequest, threads: [...known?.threads ?? [], ...threads] });
+    if (!pullRequestSettled(state.memberPullRequests[workspaceId]?.answer ?? NO_PULL_REQUEST)) settled = false;
+  }
+  const found = new Map<string, MemberPullRequest>();
+  for (const thread of coordinatedThreads(state.threads, lead.id)) {
+    const pullRequest = ownPullRequest(thread);
+    if (!pullRequest) continue;
+    const known = found.get(pullRequest.url);
+    found.set(pullRequest.url, { pullRequest: known?.pullRequest ?? pullRequest, threads: [...known?.threads ?? [], thread] });
   }
   return { asking: asking.join("\n"), settled, found: [...found.values()] };
 }

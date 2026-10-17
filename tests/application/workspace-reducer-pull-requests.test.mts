@@ -3,11 +3,14 @@ import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { deriveView } from "../../src/application/workspace-state.ts";
 import type { PullRequestAnswer } from "../../src/domain/pull-request.ts";
-import { effectOf, projected, task } from "./workspace-reducer-fixtures.mts";
+import { activeRun, correlatedRunEvent, effectOf, heldWorktree, projected, required, task } from "./workspace-reducer-fixtures.mts";
+import type { WorkspaceState } from "../../src/application/workspace-state.ts";
 
 const PULL_REQUEST = { number: 7, title: "Poll me", url: "https://github.com/o/r/pull/7", state: "open" } as const;
 const OPEN: PullRequestAnswer = { status: "found", pullRequest: PULL_REQUEST };
 const MERGED: PullRequestAnswer = { status: "found", pullRequest: { ...PULL_REQUEST, state: "merged" } };
+/** A thread whose work lands as a pull request, which makes the one its checkout is on its own. */
+const DELIVERS = { intent: "Ship it", doneWhen: "It merges", delivers: "pull-request" } as const;
 
 /** A project whose checkout Git has already answered for, which is what names the branch. */
 function checkedOut(branch: string | null = "pr-poll") {
@@ -94,7 +97,7 @@ test("a found pull request is recorded on the thread read, even when the checkou
   };
 
   const first = answer(reduce(state, { type: "pull-request.read" }));
-  assert.deepEqual(first.threads.map((thread) => thread.pullRequest), [{ number: 7, url: PULL_REQUEST.url }, undefined]);
+  assert.deepEqual(first.threads.map((thread) => thread.pullRequest), [{ number: 7, url: PULL_REQUEST.url, state: "open", title: "Poll me" }, undefined]);
 
   const second = answer(reduce(first, { type: "pull-request.read", taskId: "task-b" }));
   assert.deepEqual(second.threads.map((thread) => thread.pullRequest?.number), [7, 7]);
@@ -106,8 +109,8 @@ test("a coordinator reads the pull request of every checkout its threads work in
     projects,
     threads: [
       task("lead", { projectId: "a", role: "coordinator" }),
-      task("one", { projectId: "b", parentId: "lead", title: "One" }),
-      task("two", { projectId: "b", parentId: "lead", title: "Two" }),
+      task("one", { projectId: "b", parentId: "lead", title: "One", brief: DELIVERS }),
+      task("two", { projectId: "b", parentId: "lead", title: "Two", brief: DELIVERS }),
       task("elsewhere", { projectId: "a" }),
     ],
     currentId: "lead",
@@ -150,4 +153,104 @@ test("a thread that is not a coordinator reads no member pull requests", () => {
   const read = reduce(checkedOut(), { type: "pull-request.read-members" });
   assert.equal(read.effects.length, 0);
   assert.deepEqual(deriveView(read.state).memberPullRequests.found, []);
+});
+
+/** A coordinator with one thread in a worktree of its own, whose brief delivers a pull request. */
+function delivering(overrides: Partial<ReturnType<typeof task>> = {}) {
+  const worktree = heldWorktree();
+  return projected({
+    worktrees: [worktree],
+    threads: [task("lead", { projectId: "project-a", role: "coordinator" }), task("one", { projectId: "project-a", parentId: "lead", worktreeId: worktree.id, brief: DELIVERS, ...overrides })],
+    currentId: "lead",
+    environments: { [worktree.workspaceId]: { status: "available", files: [], branch: null, baseline: null, additions: 0, deletions: 0 } },
+  });
+}
+
+/** The coordinator on screen asks after its threads, and GitHub answers with `answer`. */
+function memberAnswer(state: WorkspaceState, answer: PullRequestAnswer) {
+  const asked = reduce(state, { type: "pull-request.read-members" });
+  const read = effectOf(asked, "read-pull-request");
+  return reduce(asked.state, { type: "pull-request.answered", workspaceId: read.workspaceId, branch: read.branch, read: read.read, members: true, answer }).state;
+}
+
+const thread = (state: WorkspaceState, id: string) => required(state.threads.find((item) => item.id === id));
+
+test("a pull request's state and what it still needs are recorded on the thread", () => {
+  const failing = memberAnswer(delivering(), { status: "found", pullRequest: { ...PULL_REQUEST, checks: "failing", review: "changes-requested", conflicts: true } });
+  assert.deepEqual(thread(failing, "one").pullRequest, { number: 7, url: PULL_REQUEST.url, state: "open", title: "Poll me", checks: "failing", review: "changes-requested", conflicts: true });
+  assert.equal(deriveView({ ...failing, currentId: "lead" }).coordination.members[0]?.status, "review");
+  assert.equal(deriveView({ ...failing, currentId: "lead" }).coordination.members[0]?.summary, "#7 · Checks failing");
+
+  const passing = memberAnswer(failing, { status: "found", pullRequest: { ...PULL_REQUEST, checks: "passing", review: "changes-requested", conflicts: true } });
+  assert.equal(thread(passing, "one").pullRequest?.checks, "passing", "a change in checks alone is written");
+  const fixed = memberAnswer(passing, { status: "found", pullRequest: { ...PULL_REQUEST, checks: "passing" } });
+  assert.deepEqual(thread(fixed, "one").pullRequest, { number: 7, url: PULL_REQUEST.url, state: "open", title: "Poll me", checks: "passing" }, "what it no longer needs goes");
+  const unchanged = reduce(reduce(fixed, { type: "pull-request.read-members" }).state, { type: "pull-request.answered", ...readOf(fixed), members: true, answer: { status: "found", pullRequest: { ...PULL_REQUEST, checks: "passing" } } });
+  assert.equal(thread(unchanged.state, "one"), thread(fixed, "one"), "an answer that says the same leaves the thread alone");
+});
+
+function readOf(state: WorkspaceState) {
+  const read = effectOf(reduce(state, { type: "pull-request.read-members" }), "read-pull-request");
+  return { workspaceId: read.workspaceId, branch: read.branch, read: read.read };
+}
+
+test("a member resolves itself when its own pull request merges, once", () => {
+  const open = memberAnswer(delivering({ outcome: "finished", outcomeUnread: true }), OPEN);
+  assert.equal(thread(open, "one").resolvedAt, undefined);
+
+  const merged = memberAnswer(open, MERGED);
+  assert.equal(typeof thread(merged, "one").resolvedAt, "number");
+  assert.equal(thread(merged, "one").outcome, undefined, "resolving files its last run away, so it no longer holds its coordinator up");
+  assert.equal(deriveView(merged).coordination.members[0]?.status, "resolved");
+
+  const reopened = reduce(merged, { type: "task.reopen", taskId: "one" }).state;
+  const again = memberAnswer(reopened, MERGED);
+  assert.equal(thread(again, "one").resolvedAt, undefined, "a member the user reopened after its merge stays open");
+
+  const legacy = memberAnswer(delivering({ pullRequest: { number: 7, url: PULL_REQUEST.url } }), MERGED);
+  assert.equal(typeof thread(legacy, "one").resolvedAt, "number", "a link kept before its state was counts its first merged answer as the merge");
+
+  const sharing = projected({
+    threads: [task("lead", { projectId: "project-a", role: "coordinator" }), task("one", { projectId: "project-a", parentId: "lead" })],
+    currentId: "lead",
+  });
+  const users = memberAnswer(memberAnswer(sharing, OPEN), MERGED);
+  assert.equal(thread(users, "one").pullRequest?.state, "merged", "the link is still kept for search");
+  assert.equal(thread(users, "one").resolvedAt, undefined, "a member in the project's checkout does not resolve with the user's branch");
+  assert.notEqual(deriveView(users).coordination.members[0]?.status, "review");
+});
+
+test("a member's turn ending reads its pull request again on the computer that holds it", () => {
+  const state = { ...delivering(), activeRuns: { one: activeRun("one", "run-one") } };
+  const ended = reduce(state, correlatedRunEvent("one", "run-one", 1, { type: "run.status", status: "succeeded" }));
+  const read = ended.effects.find((effect) => effect.type === "read-pull-request");
+  assert.deepEqual(read, { type: "read-pull-request", workspaceId: "worktree-wt1", branch: null, read: 1, members: true, followUp: true });
+  assert.deepEqual(ended.state.memberPullRequests["worktree-wt1"]?.threadIds, ["one"]);
+
+  const merged = reduce(ended.state, { type: "pull-request.answered", workspaceId: "worktree-wt1", branch: null, read: 1, members: true, answer: MERGED }).state;
+  assert.equal(typeof thread(merged, "one").resolvedAt, "number", "a merge the thread made itself resolves it at once");
+
+  const reporting = { ...delivering({ brief: { ...DELIVERS, delivers: "report" } }), activeRuns: { one: activeRun("one", "run-one") } };
+  const told = reduce(reporting, correlatedRunEvent("one", "run-one", 1, { type: "run.status", status: "succeeded" }));
+  assert.equal(told.effects.some((effect) => effect.type === "read-pull-request"), false, "a thread with no pull request to deliver or show asks nothing");
+});
+
+test("reading one coordinator's pull requests keeps another's read in flight", () => {
+  const projects = [{ id: "a", root: "/a", workspaceId: "workspace-a" }, { id: "b", root: "/b", workspaceId: "workspace-b" }];
+  const state = projected({
+    projects,
+    threads: [
+      task("lead", { projectId: "a", role: "coordinator" }),
+      task("other", { projectId: "a", role: "coordinator" }),
+      task("one", { projectId: "a", parentId: "lead", brief: DELIVERS }),
+      task("two", { projectId: "b", parentId: "other", brief: DELIVERS }),
+    ],
+    currentId: "lead",
+  });
+  const first = reduce(state, { type: "pull-request.read-members" });
+  const inFlight = effectOf(first, "read-pull-request");
+  const second = reduce(first.state, { type: "pull-request.read-members", taskId: "other" });
+  assert.deepEqual(Object.keys(second.state.memberPullRequests).sort(), ["workspace-a", "workspace-b"]);
+  const landed = reduce(second.state, { type: "pull-request.answered", workspaceId: inFlight.workspaceId, branch: inFlight.branch, read: inFlight.read, members: true, answer: OPEN }).state;
+  assert.equal(thread(landed, "one").pullRequest?.state, "open", "the first coordinator's answer still lands");
 });

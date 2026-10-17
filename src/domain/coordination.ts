@@ -85,10 +85,10 @@ export const MAX_PURPOSE = 200;
 export const MAX_MEMORY_NOTE = 500;
 export const MAX_MEMORY_NOTES = 30;
 
-/** The groups a coordinator's Overview sorts its threads into, by what each one needs. */
-export type OverviewGroup = "needs" | "working" | "done";
+/** The groups a coordinator's Overview sorts its threads into, by what each one needs, most pressing first. */
+export type OverviewGroup = "needs" | "review" | "working" | "done" | "resolved";
 
-export const OVERVIEW_GROUPS: readonly OverviewGroup[] = ["needs", "working", "done"];
+export const OVERVIEW_GROUPS: readonly OverviewGroup[] = ["needs", "review", "working", "done", "resolved"];
 
 /** What folds in a coordinator's Overview: its groups of threads, and the sections below them. */
 export type OverviewSection = OverviewGroup | "memory";

@@ -3,20 +3,21 @@ import { queuedFor, resolveWorkspaceEffect, threadBusy, withPending } from "./ru
 import { reduceSending } from "./sending.js";
 import { now, rejected, settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { coordinationNote, coordinationUpdate, turnNote, workingMembers } from "../coordination.js";
+import { canResolve, coordinatedThreadStatus, coordinationMembers, coordinationNote, coordinationUpdate, turnNote, workingMembers } from "../coordination.js";
 import { activityChanges, threadActivity, threadChanges } from "../thread-activity.js";
 import { heldByLimit } from "../limit-pauses.js";
 import { announced } from "../notices.js";
 import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
-import { canJoinCoordinator, coordinatedThreads, coordinatorOf, isCoordinator, MAX_ANSWER, openDecisions, threadModelOf, undelegable, withAnswer, withCoordinationNote, withDecision, withMemoryChange, type CoordinationNote, type MemoryChange } from "../../domain/coordination.js";
+import { canJoinCoordinator, coordinatorOf, isCoordinator, MAX_ANSWER, openDecisions, threadModelOf, undelegable, withAnswer, withCoordinationNote, withDecision, withMemoryChange, type CoordinationNote, type MemoryChange } from "../../domain/coordination.js";
 import { defaultEffortFor, effortForModel, engineForModel, modelDelegable, modelHasEffort, modelTakesEffort } from "../../domain/agent-engine.js";
 import type { Thread } from "../../domain/thread.js";
+import { dismissed } from "../../domain/attention.js";
 import { resumesOnItsOwn } from "../../domain/usage-limit.js";
 
 type CoordinationInput = Extract<WorkspaceInput, {
-  type: "task.set-coordinator" | "decision.answer" | "coordination.set-thread-model" | "coordination.reported" | "coordination.decision-raised"
+  type: "task.set-coordinator" | "task.resolve" | "task.reopen" | "decision.answer" | "coordination.set-thread-model" | "coordination.reported" | "coordination.decision-raised"
     | "memory.set-purpose" | "memory.add" | "memory.edit" | "memory.forget" | "coordination.remembered";
 }>;
 
@@ -27,14 +28,34 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
     case "task.set-coordinator": {
       const thread = state.threads.find((item) => item.id === input.taskId);
       if (!thread) return settled(state);
+      /** Resolved only means anything under the coordinator that saw the work settle, so a move leaves it behind. */
       if (input.coordinatorId === null) {
         if (thread.parentId === undefined) return settled(state);
-        return settled({ ...updateThread(state, thread.id, ({ parentId: _left, ...item }) => ({ ...item, updatedAt: now() })), openMenu: null });
+        return settled({ ...updateThread(state, thread.id, ({ parentId: _left, resolvedAt: _settled, ...item }) => ({ ...item, updatedAt: now() })), openMenu: null });
       }
       const lead = state.threads.find((item) => item.id === input.coordinatorId);
       if (!canJoinCoordinator(thread, lead)) return rejected(state, JOIN_REFUSED);
       if (thread.parentId === lead.id) return settled(state);
-      return settled({ ...updateThread(state, thread.id, (item) => ({ ...item, parentId: lead.id, updatedAt: now() })), openMenu: null });
+      return settled({ ...updateThread(state, thread.id, ({ resolvedAt: _settled, ...item }) => ({ ...item, parentId: lead.id, updatedAt: now() })), openMenu: null });
+    }
+
+    /**
+     * Resolving files away what the thread's last run and its findings had to say, so a thread with
+     * nothing left to do never holds its coordinator's row up in the list.
+     */
+    case "task.resolve": {
+      const thread = state.threads.find((item) => item.id === input.taskId);
+      if (!thread || !coordinatorOf(state.threads, thread) || thread.resolvedAt !== undefined) return settled(state);
+      const { working, blocked } = threadActivity(state);
+      if (!canResolve(coordinatedThreadStatus(thread, working, blocked).status)) return rejected(state, "Finish or answer what this thread is waiting on first.");
+      const resolved = updateThread(state, thread.id, (item) => ({ ...item, resolvedAt: now(), updatedAt: now() }));
+      return settled({ ...resolved, threads: dismissed(resolved.threads, new Set([thread.id])) });
+    }
+
+    case "task.reopen": {
+      const thread = state.threads.find((item) => item.id === input.taskId);
+      if (!thread || !coordinatorOf(state.threads, thread) || thread.resolvedAt === undefined) return settled(state);
+      return settled(updateThread(state, thread.id, ({ resolvedAt: _reopened, ...item }) => ({ ...item, updatedAt: now() })));
     }
 
     /** The answer is recorded, then said to the thread that asked, steered into a run already going. */
@@ -203,7 +224,7 @@ function coordinatorsOf(previous: WorkspaceState, next: WorkspaceState, touched:
 function wakingNews(state: WorkspaceState, lead: Thread): CoordinationNote[] {
   const notes = (lead.coordinationNotes ?? []).filter((note) => !note.quiet);
   if (!notes.some((note) => note.runId)) return notes;
-  const members = new Set(coordinatedThreads(state.threads, lead.id).map((thread) => thread.id));
+  const members = new Set(coordinationMembers(state, lead.id).map(({ thread }) => thread.id));
   const { working, blocked } = threadActivity(state);
   const going = (id: string, runId: string) => members.has(id) && state.activeRuns[id]?.runId === runId && working.has(id) && !blocked.has(id);
   return notes.filter((note) => !note.runId || !going(note.threadId, note.runId));

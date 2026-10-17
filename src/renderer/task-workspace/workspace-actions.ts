@@ -33,6 +33,8 @@ function coordinationActions(dispatch: (input: WorkspaceInput) => Promise<void>)
   return {
     setThreadRole: (threadId: string, role: ThreadRole | null) => dispatch({ type: "task.set-role", taskId: threadId, role }),
     setCoordinator: (threadId: string, coordinatorId: string | null) => dispatch({ type: "task.set-coordinator", taskId: threadId, coordinatorId }),
+    resolveThread: (threadId: string) => dispatch({ type: "task.resolve", taskId: threadId }),
+    reopenThread: (threadId: string) => dispatch({ type: "task.reopen", taskId: threadId }),
     answerDecision: (threadId: string, decisionId: string, answer: string) => dispatch({ type: "decision.answer", taskId: threadId, decisionId, answer }),
     setThreadModel: (taskId: string, model: AgentModel, effort?: AgentEffort) => dispatch({ type: "coordination.set-thread-model", taskId, model, ...(effort ? { effort } : {}) }),
     setOverviewGroup: (taskId: string, group: OverviewSection, change: { open?: boolean; all?: boolean }) => dispatch({ type: "view.set-overview-group", taskId, group, ...change }),

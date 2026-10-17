@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { pullRequestFromCommit, pullRequestFromList, type PullRequestAnswer, type PullRequestRef } from "../../domain/pull-request.js";
+import { pullRequestDetails, pullRequestFromCommit, pullRequestFromList, type PullRequestAnswer, type PullRequestRef } from "../../domain/pull-request.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -74,10 +74,15 @@ async function remembered(key: string, ask: () => Promise<PullRequestAnswer>) {
   return answer;
 }
 
+/** A merged or closed pull request needs nothing more, so nothing more is asked of it. */
+const STILL_MOVING: readonly PullRequestRef["state"][] = ["open", "draft"];
+
 /**
- * The pull request the checkout's work belongs to. A branch is asked about by name, so commits it
- * has not pushed yet still find it; a worktree is detached and has no name to give, so its commit is
- * asked about instead and only a pushed one is ever recognised.
+ * The pull request the checkout's work belongs to, and what it still needs before it can merge. A
+ * branch is asked about by name, so commits it has not pushed yet still find it; a worktree is
+ * detached and has no name to give, so its commit is asked about instead and only a pushed one is
+ * ever recognised. REST says nothing of checks, review or conflicts, so a pull request found that
+ * way that can still move is asked about once more by number.
  *
  * "None" covers every way there might not be an answer — no pull request, no authentication, no
  * remote, a slow network. A `gh` that is not installed is the one exception: nothing could be asked
@@ -86,12 +91,16 @@ async function remembered(key: string, ask: () => Promise<PullRequestAnswer>) {
 export async function pullRequestFor(root: string): Promise<PullRequestAnswer> {
   const branch = await read("git", ["symbolic-ref", "--quiet", "--short", "HEAD"], root);
   if (branch) {
-    const fields = "number,title,url,state,isDraft";
+    const fields = "number,title,url,state,isDraft,mergeable,reviewDecision,statusCheckRollup";
     return await remembered(`${root}\0${branch}`, async () =>
       answerFrom(root, await readJson(["pr", "list", "--head", branch, "--state", "all", "--limit", "1", "--json", fields], root), pullRequestFromList));
   }
   const commit = await read("git", ["rev-parse", "HEAD"], root);
   if (!commit) return NONE;
-  return await remembered(`${root}\0${commit}`, async () =>
-    answerFrom(root, await readJson(["api", `repos/{owner}/{repo}/commits/${commit}/pulls`], root), pullRequestFromCommit));
+  return await remembered(`${root}\0${commit}`, async () => {
+    const answer = await answerFrom(root, await readJson(["api", `repos/{owner}/{repo}/commits/${commit}/pulls`], root), pullRequestFromCommit);
+    if (answer.status !== "found" || !STILL_MOVING.includes(answer.pullRequest.state)) return answer;
+    const details = await readJson(["pr", "view", String(answer.pullRequest.number), "--json", "mergeable,reviewDecision,statusCheckRollup"], root);
+    return { status: "found", pullRequest: { ...answer.pullRequest, ...pullRequestDetails(details.value) } };
+  });
 }

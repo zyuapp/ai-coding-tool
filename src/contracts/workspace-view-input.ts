@@ -253,6 +253,8 @@ const commands = {
   "task.rename": { fields: { taskId: text, title: text }, at: "thread" },
   "task.set-role": { fields: { taskId: optionalText, role: nullable(isThreadRole) }, at: "thread", agent: namesThread },
   "task.set-coordinator": { fields: { taskId: text, coordinatorId: nullableText }, at: "thread" },
+  "task.resolve": { fields: { taskId: text }, at: "thread" },
+  "task.reopen": { fields: { taskId: text }, at: "thread" },
   "decision.answer": { fields: { taskId: text, decisionId: text, answer: text }, at: "thread" },
   "coordination.set-thread-model": { fields: { taskId: text, model: isAgentModel, effort: optional(isAgentEffort) }, at: "thread" },
   "memory.set-purpose": { fields: { taskId: text, purpose: nullableText }, at: "thread" },

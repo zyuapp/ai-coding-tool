@@ -1,11 +1,11 @@
 import { useId, useRef, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent } from "react";
-import { LuChevronDown as ChevronDown, LuChevronUp as ChevronUp, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuTrash2 as Trash, LuX as X } from "react-icons/lu";
+import { LuCheck as Check, LuChevronDown as ChevronDown, LuChevronUp as ChevronUp, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuRotateCcw as Reopen, LuTrash2 as Trash, LuX as X } from "react-icons/lu";
 import { deliveryLabel, MAX_MEMORY_NOTE, MAX_PURPOSE, OVERVIEW_GROUPS, type MemoryNote, type OverviewFold, type OverviewFolds, type OverviewGroup, type OverviewSection, type ThreadBrief, type ThreadModelChoice } from "../../domain/coordination";
 import { engineForModel, modelDelegable, type AgentEngine, type AgentModel, type EngineReadiness } from "../../domain/agent-engine";
 import type { AgentEffort } from "../../domain/run";
 import type { Thread } from "../../domain/thread";
 import { worktreeHue, worktreeName, type Worktree } from "../../domain/worktree";
-import { overviewGroups, type CoordinationApprovalView, type CoordinationDecisionView, type CoordinatedThreadStatus, type CoordinatedThreadView, type CoordinatorMemoryView } from "../../application/coordination";
+import { canResolve, overviewGroups, type CoordinationApprovalView, type CoordinationDecisionView, type CoordinatedThreadStatus, type CoordinatedThreadView, type CoordinatorMemoryView } from "../../application/coordination";
 import type { ApprovalView } from "../../application/thread-run-state";
 import type { WorktreeGroup } from "../../application/workspace-state";
 import type { MemberWorktree } from "../../application/member-worktrees";
@@ -19,9 +19,11 @@ const STATUS_LABELS: Record<CoordinatedThreadStatus, string> = {
   approval: "Needs approval",
   asking: "Needs you",
   working: "Working",
+  resolved: "Resolved",
   blocked: "Blocked",
-  done: "Done",
   failed: "Failed",
+  review: "Ready for review",
+  done: "Done",
   finished: "Finished its turn",
   idle: "Idle",
 };
@@ -39,7 +41,7 @@ export function coordinationStatusLine(status: CoordinatedThreadStatus, summary:
 /** How many threads a group shows before it asks to show the rest. */
 const OVERVIEW_LIMIT = 5;
 
-const OVERVIEW_LABELS: Record<OverviewGroup, string> = { needs: "Needs you", working: "Working", done: "Done" };
+const OVERVIEW_LABELS: Record<OverviewGroup, string> = { needs: "Needs you", review: "Ready for review", working: "Working", done: "Done", resolved: "Resolved" };
 
 /** What the Overview's header needs to pick what a coordinator's threads run on, with the same readiness the composer shows. */
 export type OverviewHeaderProps = {
@@ -65,15 +67,21 @@ export type OverviewMemoryProps = CoordinatorMemoryView & {
 
 type FoldChange = (section: OverviewSection, change: { open?: boolean; all?: boolean }) => void;
 
+/** What a thread's row does beside opening it: resolve it once nothing waits on it, or reopen it. */
+type RowActions = {
+  onSelect: (threadId: string) => void;
+  onResolve: (threadId: string) => void;
+  onReopen: (threadId: string) => void;
+};
+
 /** A coordinator's purpose, what its threads run on, its threads by what they need from the user, then its memory. */
-export function CoordinatorOverview({ header, memory, members, worktreeGroups, folds, onSetFold, onSelect }: {
+export function CoordinatorOverview({ header, memory, members, worktreeGroups, folds, onSetFold, onSelect, onResolve, onReopen }: RowActions & {
   header: OverviewHeaderProps;
   memory: OverviewMemoryProps;
   members: CoordinatedThreadView[];
   worktreeGroups: WorktreeGroup[];
   folds: OverviewFolds;
   onSetFold: FoldChange;
-  onSelect: (threadId: string) => void;
 }) {
   const worktrees = new Map(worktreeGroups.map(({ worktree }) => [worktree.id, worktree]));
   const groups = overviewGroups(members);
@@ -85,7 +93,7 @@ export function CoordinatorOverview({ header, memory, members, worktreeGroups, f
       <OverviewHeader {...header} />
       {members.length
         ? OVERVIEW_GROUPS.map((group) => groups[group].length > 0 && (
-            <ThreadGroup key={group} group={group} members={groups[group]} fold={folds[group] ?? {}} worktrees={worktrees} onSetFold={onSetFold} onSelect={onSelect} />
+            <ThreadGroup key={group} group={group} members={groups[group]} fold={folds[group] ?? {}} worktrees={worktrees} onSetFold={onSetFold} onSelect={onSelect} onResolve={onResolve} onReopen={onReopen} />
           ))
         : <p className="session-empty coordination-empty">No threads yet</p>}
       <CommandGate command={{ type: "memory.add", taskId: memory.taskId, text: "" }}>
@@ -239,44 +247,78 @@ export function OverviewHeader({ taskId, threadModel, engineAccess, favoriteMode
   );
 }
 
-/** One group of threads. Done starts folded once it is longer than a group shows. */
-function ThreadGroup({ group, members, fold, worktrees, onSetFold, onSelect }: {
+/** One group of threads. Resolved starts folded, and Done once it is longer than a group shows. */
+function ThreadGroup({ group, members, fold, worktrees, onSetFold, ...actions }: RowActions & {
   group: OverviewGroup;
   members: CoordinatedThreadView[];
   fold: OverviewFold;
   worktrees: Map<string, Worktree>;
   onSetFold: FoldChange;
-  onSelect: (threadId: string) => void;
 }) {
-  const open = fold.open ?? (group !== "done" || members.length <= OVERVIEW_LIMIT);
+  const open = fold.open ?? (group === "resolved" ? false : group !== "done" || members.length <= OVERVIEW_LIMIT);
   const label = OVERVIEW_LABELS[group];
   const shown = fold.all ? members : members.slice(0, OVERVIEW_LIMIT);
   return (
     <section className={`coordination-group ${group}`} aria-label={label}>
       <FoldHead label={label} count={members.length} open={open} onToggle={() => onSetFold(group, { open: !open })} />
       {open && <div className="subagent-list" aria-live="polite">
-        {shown.map(({ thread, status, summary }) => (
-          <button
-            type="button"
-            key={thread.id}
-            className={`coordination-row ${status}`}
-            aria-label={`Open ${thread.title}`}
-            title={thread.title}
-            onClick={() => onSelect(thread.id)}
-          >
-            <span className="coordination-row-mark"><CoordinationStatusMark status={status} /></span>
-            <span><strong>{thread.title}</strong><small>{coordinationStatusLine(status, summary)}</small></span>
-            <span className="coordination-row-marks">
-              {thread.worktreeId && <WorktreeMark worktreeId={thread.worktreeId} worktree={worktrees.get(thread.worktreeId)} />}
-              <ThreadEngineIcon engine={thread.engine} className="coordination-row-engine" size={12} />
-            </span>
-          </button>
-        ))}
+        {shown.map((view) => <ThreadRow key={view.thread.id} view={view} worktrees={worktrees} {...actions} />)}
         {members.length > shown.length && (
           <button type="button" className="coordination-more" onClick={() => onSetFold(group, { all: true })}>Show {members.length - shown.length} more</button>
         )}
       </div>}
     </section>
+  );
+}
+
+/** One thread under the coordinator: a button that opens it, and beside it, never inside, what else its row does. */
+function ThreadRow({ view: { thread, status, summary }, worktrees, onSelect, onResolve, onReopen }: RowActions & { view: CoordinatedThreadView; worktrees: Map<string, Worktree> }) {
+  return (
+    <div className={`coordination-item ${status}`}>
+      <button
+        type="button"
+        className={`coordination-row ${status}`}
+        aria-label={`Open ${thread.title}`}
+        title={thread.title}
+        onClick={() => onSelect(thread.id)}
+      >
+        <span className="coordination-row-mark"><CoordinationStatusMark status={status} /></span>
+        <span><strong>{thread.title}</strong><small>{coordinationStatusLine(status, summary)}</small></span>
+        <span className="coordination-row-marks">
+          {thread.worktreeId && <WorktreeMark worktreeId={thread.worktreeId} worktree={worktrees.get(thread.worktreeId)} />}
+          <ThreadEngineIcon engine={thread.engine} className="coordination-row-engine" size={12} />
+        </span>
+      </button>
+      <ResolutionButton taskId={thread.id} title={thread.title} status={status} className="coordination-row-action" onResolve={onResolve} onReopen={onReopen} />
+    </div>
+  );
+}
+
+/**
+ * Resolves a thread with nothing left waiting on it, or reopens a resolved one; nothing for a thread
+ * that is working or waiting on the user.
+ */
+export function ResolutionButton({ taskId, title, status, className, size = 13, onResolve, onReopen }: {
+  taskId: string;
+  title: string;
+  status: CoordinatedThreadStatus;
+  className: string;
+  size?: number;
+  onResolve: (taskId: string) => void;
+  onReopen: (taskId: string) => void;
+}) {
+  if (status === "resolved") {
+    return (
+      <CommandButton command={{ type: "task.reopen", taskId }} className={className} data-action="reopen" aria-label={`Reopen ${title}`} title="Reopen" onClick={() => onReopen(taskId)}>
+        <Reopen size={size} aria-hidden="true" />
+      </CommandButton>
+    );
+  }
+  if (!canResolve(status)) return null;
+  return (
+    <CommandButton command={{ type: "task.resolve", taskId }} className={className} data-action="resolve" aria-label={`Resolve ${title}`} title="Resolve" onClick={() => onResolve(taskId)}>
+      <Check size={size} aria-hidden="true" />
+    </CommandButton>
   );
 }
 

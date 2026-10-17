@@ -1,10 +1,12 @@
 /** What a coordinator and its threads are told, and how the sidebar groups them. */
 import type { WorkspaceState } from "./workspace-state.js";
 import type { ApprovalView } from "./thread-run-state.js";
+import type { PairedComputer } from "./computers.js";
 import { threadActivity, threadStatus, type ThreadStatus } from "./thread-activity.js";
 import { activitySections, type ActivitySections } from "./thread-order.js";
 import { coordinationDecisions, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, openDecisions, threadModelOf, type CoordinationNote, type CoordinatorMemory, type Decision, type MemoryNote, type OverviewGroup, type ThreadBrief, type ThreadModelChoice } from "../domain/coordination.js";
-import type { Thread } from "../domain/thread.js";
+import { threadActivityAt, type Thread } from "../domain/thread.js";
+import type { PullRequestChecks, PullRequestLink, PullRequestRef } from "../domain/pull-request.js";
 import { wantsAttention } from "../domain/attention.js";
 
 /**
@@ -108,10 +110,37 @@ export function coordinationNote(threadId: string, text: string, at: number, urg
   return { id: crypto.randomUUID(), threadId, text, at, ...(urgent ? { urgent: true as const } : {}), ...(runId ? { runId } : {}) };
 }
 
+/** A thread working under a coordinator, and the computer that holds it: null for this one. */
+export type CoordinationMember = { thread: Thread; computer: PairedComputer | null };
+
+const NO_MEMBERS: readonly CoordinationMember[] = [];
+
+/** Held per list of threads and of paired computers, so every view of one coordinator reads the same members. */
+const members = new WeakMap<readonly Thread[], { paired: readonly PairedComputer[]; byLead: Map<string, readonly CoordinationMember[]> }>();
+
+/**
+ * Every thread working under a live coordinator, in the order the list holds them. This is the one
+ * set its views, its roster and its wake read.
+ */
+export function coordinationMembers(state: Pick<WorkspaceState, "threads" | "computers">, leadId: string): readonly CoordinationMember[] {
+  let held = members.get(state.threads);
+  if (!held || held.paired !== state.computers.paired) {
+    held = { paired: state.computers.paired, byLead: new Map() };
+    members.set(state.threads, held);
+  }
+  let found = held.byLead.get(leadId);
+  if (!found) {
+    const threads = coordinatedThreads(state.threads, leadId);
+    found = threads.length ? threads.map((thread) => ({ thread, computer: null })) : NO_MEMBERS;
+    held.byLead.set(leadId, found);
+  }
+  return found;
+}
+
 /** Threads under a coordinator still doing work. One waiting on the user's approval is not. */
 export function workingMembers(state: WorkspaceState, leadId: string): Thread[] {
   const { working, blocked } = threadActivity(state);
-  return coordinatedThreads(state.threads, leadId).filter((thread) => working.has(thread.id) && !blocked.has(thread.id));
+  return coordinationMembers(state, leadId).flatMap(({ thread }) => working.has(thread.id) && !blocked.has(thread.id) ? [thread] : []);
 }
 
 const ROSTER_STATUS: Record<ThreadStatus, string> = {
@@ -121,14 +150,39 @@ const ROSTER_STATUS: Record<ThreadStatus, string> = {
   idle: "idle",
 };
 
-/** One line per thread working under the coordinator, as it stands right now. */
+/** How many done threads the coordinator reads one by one; the rest, like resolved ones, are only counted. */
+const ROSTER_DONE = 10;
+
+/**
+ * One line per thread under the coordinator that needs the user, is working, or is ready for review,
+ * and per thread among the most recently done, as each stands right now. Every other thread is
+ * counted, so the roster stays small however long the coordinator lives.
+ */
 function roster(state: WorkspaceState, leadId: string): string[] {
-  return coordinatedThreads(state.threads, leadId).map((thread) => {
+  const { working, blocked } = threadActivity(state);
+  const standing = coordinationMembers(state, leadId).map(({ thread }) => coordinatedThreadStatus(thread, working, blocked));
+  const done = standing.filter(({ status }) => GROUP_OF[status] === "done");
+  const recent = new Set(done.map(({ thread }) => thread).sort((left, right) => threadActivityAt(right) - threadActivityAt(left)).slice(0, ROSTER_DONE));
+  const lines = standing.flatMap(({ thread, status, summary }) => {
+    const group = GROUP_OF[status];
+    if (group === "resolved" || group === "done" && !recent.has(thread)) return [];
     const parts = [`- "${thread.title}" [${thread.id}] · ${ROSTER_STATUS[threadStatus(state, thread.id)]}`];
     if (thread.report) parts.push(`reported ${thread.report.state}: ${thread.report.summary}`);
+    if (status === "review" && summary) parts.push(`ready for review: ${summary}`);
     for (const decision of openDecisions(thread)) parts.push(`waiting on the user to decide: ${decision.question}`);
-    return parts.join(" · ");
+    return [parts.join(" · ")];
   });
+  const resolved = standing.filter(({ status }) => status === "resolved").length;
+  const rest = uncounted(done.length - recent.size, resolved);
+  return rest ? [...lines, rest] : lines;
+}
+
+/** The threads the roster leaves out, and where the coordinator reads them instead. */
+function uncounted(finished: number, resolved: number): string | null {
+  const total = finished + resolved;
+  if (!total) return null;
+  const parts = [...finished ? [`${finished} more finished`] : [], ...resolved ? [`${resolved} resolved`] : []];
+  return `${parts.join(" and ")} ${total === 1 ? "thread; read_thread reaches it." : "threads; read_thread reaches them."}`;
 }
 
 /**
@@ -233,7 +287,37 @@ export function projectActivity(sections: ActivitySections, threads: Thread[], p
 }
 
 /** Where a thread under a coordinator stands, in the words its card shows. */
-export type CoordinatedThreadStatus = "approval" | "asking" | "working" | "blocked" | "done" | "failed" | "finished" | "idle";
+export type CoordinatedThreadStatus = "approval" | "asking" | "working" | "resolved" | "blocked" | "failed" | "review" | "done" | "finished" | "idle";
+
+/** A pull request that is a thread's own work, as last read: its state and title are known. */
+export type OwnPullRequest = PullRequestLink & Pick<PullRequestRef, "state" | "title">;
+
+/**
+ * The pull request that is a thread's own work, if it has one. A thread whose brief delivers a pull
+ * request owns the one its checkout is on, and so does a thread with no brief working in a worktree.
+ * Any other thread shares the project's checkout with the user, whose own branch's pull request is
+ * not its work. A link read before its state was kept says too little to count.
+ */
+export function ownPullRequest(member: Thread): OwnPullRequest | null {
+  const link = member.pullRequest;
+  if (!link?.state || link.title === undefined) return null;
+  const owns = member.brief ? member.brief.delivers === "pull-request" : member.worktreeId !== undefined;
+  return owns ? link as OwnPullRequest : null;
+}
+
+const CHECKS_LINE: Record<PullRequestChecks, string> = { failing: "Checks failing", passing: "Checks passing", pending: "Checks pending" };
+
+function reviewSummary(pullRequest: OwnPullRequest): string {
+  return pullRequest.checks ? `#${pullRequest.number} · ${CHECKS_LINE[pullRequest.checks]}` : `#${pullRequest.number}`;
+}
+
+/** Statuses the user cannot resolve a thread from: it is working or waiting on them, or already resolved. */
+const UNRESOLVABLE: readonly CoordinatedThreadStatus[] = ["approval", "asking", "working", "resolved"];
+
+/** Whether the user can file a thread away under Resolved as it stands now. */
+export function canResolve(status: CoordinatedThreadStatus): boolean {
+  return !UNRESOLVABLE.includes(status);
+}
 
 export type CoordinatedThreadView = {
   thread: Thread;
@@ -277,28 +361,39 @@ const NO_COORDINATION: CoordinationView = { threadModel: null, memory: null, mem
 
 const NO_NOTES: readonly MemoryNote[] = [];
 
+/**
+ * Where a thread under a coordinator stands, most pressing first: waiting on the user, working,
+ * filed away as resolved, stuck, its own pull request open for review, then done in some way. Work
+ * going or a question waiting outranks resolution, since either needs the user to see it again.
+ */
 export function coordinatedThreadStatus(thread: Thread, busy: Set<string>, blocked: Set<string>): CoordinatedThreadView {
   const question = openDecisions(thread)[0]?.question;
   if (blocked.has(thread.id)) return { thread, status: "approval", summary: null };
   if (question) return { thread, status: "asking", summary: question };
   if (busy.has(thread.id)) return { thread, status: "working", summary: thread.report?.state === "working" ? thread.report.summary : null };
-  if (thread.report && thread.report.state !== "working") return { thread, status: thread.report.state, summary: thread.report.summary };
-  if (thread.outcome === "failed") return { thread, status: "failed", summary: null };
+  if (thread.resolvedAt !== undefined) return { thread, status: "resolved", summary: null };
+  const report = thread.report && thread.report.state !== "working" ? thread.report : undefined;
+  if (report && report.state !== "done") return { thread, status: report.state, summary: report.summary };
+  if (!report && thread.outcome === "failed") return { thread, status: "failed", summary: null };
+  const pullRequest = ownPullRequest(thread);
+  if (pullRequest?.state === "open") return { thread, status: "review", summary: reviewSummary(pullRequest) };
+  if (report) return { thread, status: "done", summary: report.summary };
   /** A thread that ended its turn without reporting has still finished it, which says more than idle. */
   if (thread.outcome === "finished") return { thread, status: "finished", summary: null };
   return { thread, status: "idle", summary: null };
 }
 
 export function coordinationView(
-  threads: readonly Thread[],
+  state: Pick<WorkspaceState, "threads" | "computers">,
   thread: Thread | undefined,
   busy: Set<string>,
   blocked: Set<string>,
   approvalOf: (threadId: string) => ApprovalView | undefined = () => undefined,
 ): CoordinationView {
+  const { threads } = state;
   if (!thread) return NO_COORDINATION;
   if (isCoordinator(thread)) {
-    const members = coordinatedThreads(threads, thread.id).map((member) => coordinatedThreadStatus(member, busy, blocked));
+    const members = coordinationMembers(state, thread.id).map((member) => coordinatedThreadStatus(member.thread, busy, blocked));
     const own = approvalOf(thread.id);
     const approvals = [
       ...(own ? [{ thread, approval: own }] : []),
@@ -323,14 +418,16 @@ const GROUP_OF: Record<CoordinatedThreadStatus, OverviewGroup> = {
   asking: "needs",
   blocked: "needs",
   failed: "needs",
+  review: "review",
   working: "working",
   done: "done",
   finished: "done",
   idle: "done",
+  resolved: "resolved",
 };
 
 export function overviewGroups(members: readonly CoordinatedThreadView[]): Record<OverviewGroup, CoordinatedThreadView[]> {
-  const groups: Record<OverviewGroup, CoordinatedThreadView[]> = { needs: [], working: [], done: [] };
+  const groups: Record<OverviewGroup, CoordinatedThreadView[]> = { needs: [], review: [], working: [], done: [], resolved: [] };
   for (const member of members) groups[GROUP_OF[member.status]].push(member);
   return groups;
 }

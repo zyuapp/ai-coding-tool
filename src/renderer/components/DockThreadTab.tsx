@@ -2,7 +2,7 @@ import { memo, useMemo, type ReactNode } from "react";
 import { LuWaypoints as Waypoints, LuX as X } from "react-icons/lu";
 import { DockConversation } from "./SideChat";
 import { chatHandlers } from "./DockSideChat";
-import { CoordinationStatusMark, coordinationStatusLine } from "./Coordination";
+import { CoordinationStatusMark, ResolutionButton, coordinationStatusLine } from "./Coordination";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
 import { ThreadTabStrip } from "./ThreadTabStrip";
 import { threadAsking } from "../../application/pull-request-view";
@@ -48,6 +48,15 @@ function ThreadTabHeader({ tab, leadTitle, dispatch, branchMenuOpen, onClose }: 
             <p className={`thread-tab-status ${standing}`} title={coordinationStatusLine(standing, summary)}>{coordinationStatusLine(standing, summary)}</p>
           </div>
         </div>
+        <ResolutionButton
+          taskId={tab.id}
+          title={thread.title}
+          status={standing}
+          className="thread-tab-resolution"
+          size={17}
+          onResolve={(taskId) => void dispatch({ type: "task.resolve", taskId })}
+          onReopen={(taskId) => void dispatch({ type: "task.reopen", taskId })}
+        />
         <button type="button" aria-label={`Close ${thread.title}`} title={`Back to ${leadTitle}`} onClick={onClose}><X size={18} /></button>
       </header>
       <ThreadTabStrip

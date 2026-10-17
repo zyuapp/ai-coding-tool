@@ -6,6 +6,7 @@ import { handOverDraftDock } from "./dock-tabs.js";
 import { WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
 import { beginRun, clearedDraft, drainQueue, queuedFor, resolveWorkspaceEffect, sideChannelFor, startRunCommand, threadBusy, withAttendedRun, withDeliveredMessage, withPending, withQueued, withSideChat, withSteeringFailure, withoutPending } from "./run-queue.js";
 import { followUps, now, settled, targetId, rejected } from "./shared.js";
+import { memberPullRequestRead } from "./pull-requests.js";
 import { withUsedWorktree } from "./worktree-claims.js";
 import { settleMoveAfterRun } from "./worktree-moves.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
@@ -25,7 +26,7 @@ import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
 import { createConversationMessage, createSentMessage } from "../../domain/conversation.js";
 import { appendMessages } from "../../domain/conversation-updates.js";
 import { pausedForLimit } from "../limit-pauses.js";
-import { asCoordinator, canJoinCoordinator, isCoordinator, withMemoryHeard, withoutCoordinationNotes } from "../../domain/coordination.js";
+import { asCoordinator, canJoinCoordinator, coordinatorOf, isCoordinator, withMemoryHeard, withoutCoordinationNotes } from "../../domain/coordination.js";
 import { briefPrompt, coordinationContext } from "../coordination.js";
 import type { Thread } from "../../domain/thread.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
@@ -176,8 +177,11 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       /** A review the thread has open is only as current as the run that was writing under it. */
       const settledDiff = finished && workspaceId ? rereadReviewsOf(next, event.taskId, workspaceId) : settled(next);
       next = settledDiff.state;
+      /** A turn under a coordinator may have opened, pushed or merged its pull request, so it is read again here. */
+      const reread = finished ? turnPullRequestRead(next, event.taskId) : null;
+      if (reread) next = reread.state;
       const environment: WorkspaceEffect[] = finished && workspaceId
-        ? [{ type: "refresh-environment", workspaceId, taskId: event.taskId, runId: event.runId, followUp: true }, ...settledDiff.effects]
+        ? [{ type: "refresh-environment", workspaceId, taskId: event.taskId, runId: event.runId, followUp: true }, ...settledDiff.effects, ...reread ? [{ ...reread.effect, followUp: true as const }] : []]
         : [];
       if (event.type !== "run.status" || event.status === "running" || event.status === "awaiting-approval") return settled(next, [...environment, ...said]);
       const moved = settleMoveAfterRun(next, event.taskId);
@@ -223,6 +227,13 @@ function reduceReview(state: WorkspaceState, input: ReviewInput): WorkspaceTrans
   };
   const resolving = resolveWorkspaceEffect(pending.id, thread, project, worktreeFor(state, thread), false);
   return settled(withPending({ ...state, reviewPicker: null }, pending), [resolving]);
+}
+
+/** The read a thread under a coordinator asks for as its turn ends, if its work is or has been on a pull request. */
+function turnPullRequestRead(state: WorkspaceState, taskId: string) {
+  const thread = state.threads.find((item) => item.id === taskId);
+  if (!thread || !coordinatorOf(state.threads, thread)) return null;
+  return thread.brief?.delivers === "pull-request" || thread.pullRequest ? memberPullRequestRead(state, thread) : null;
 }
 
 /** Compaction updates the transcript, but it does not replace the verdict of the last thread run. */
@@ -322,7 +333,9 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   const context = coordinating ? coordinationContext(state, located, { carried: pending.coordination?.notes }) : "";
   const told = coordinating && located.coordinationNotes ? withoutCoordinationNotes(located, new Set(located.coordinationNotes.map((note) => note.id))) : located;
   const heard = coordinating ? withMemoryHeard(told) : told;
-  const updated = { ...heard, messages: [...heard.messages, ...arrival, message], updatedAt: now() };
+  /** A message is more work for a thread, so one that was resolved is open again. */
+  const { resolvedAt: _reopened, ...open } = heard;
+  const updated = { ...open, messages: [...open.messages, ...arrival, message], updatedAt: now() };
   /** A thread starting under a coordinator reads the brief it was handed and the memory it was started with. */
   const standing = joining ? briefPrompt(pending.coordination?.brief, pending.coordination?.memory) : briefPrompt(pending.coordination?.brief);
   const prompt = `${pending.prompt}${standing ? `\n\n${standing}` : ""}${context}`;

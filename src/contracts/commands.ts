@@ -98,6 +98,9 @@ export type TaskCommand =
   | { type: "task.set-role"; taskId?: string; role: ThreadRole | null }
   /** Moves a thread under a coordinator, or out from under one with `null`. */
   | { type: "task.set-coordinator"; taskId: string; coordinatorId: string | null }
+  /** Files a thread under a coordinator away as resolved once nothing is left for it, or opens it again. */
+  | { type: "task.resolve"; taskId: string }
+  | { type: "task.reopen"; taskId: string }
   /** Answers a choice a thread put to the user. The answer reaches that thread as a message. */
   | { type: "decision.answer"; taskId: string; decisionId: string; answer: string }
   /** What a coordinator's new threads run on unless it names another. An effort the model lacks moves to the nearest it takes. */
