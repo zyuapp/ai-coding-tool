@@ -8,7 +8,10 @@ type CodexSandbox = "read-only" | "workspace-write" | "danger-full-access";
 
 export type CodexPolicy = { approvalPolicy: AskForApproval; sandbox: CodexSandbox; approvalsReviewer: ApprovalsReviewer };
 
-/** Codex refuses every way out of the sandbox without asking, and puts only MCP tool calls to the reviewer. */
+/**
+ * Codex puts MCP tool calls to the reviewer and refuses escalations out of the sandbox without asking.
+ * Granular has no switch for network review, so a managed network proxy's misses still go to the reviewer.
+ */
 const TOOL_CALLS_ONLY: AskForApproval = { granular: { sandbox_approval: false, rules: false, skill_approval: false, request_permissions: false, mcp_elicitations: true } };
 
 /**
@@ -21,7 +24,7 @@ export function codexPolicy(policy: ExecutionPolicy, coordinationRole?: Coordina
   const granted = policyGrants(policy);
   if (coordinationRole !== "coordinator") return granted;
   return policy === "autonomous"
-    ? { approvalPolicy: TOOL_CALLS_ONLY, sandbox: "read-only", approvalsReviewer: "auto_review" }
+    ? { ...granted, approvalPolicy: TOOL_CALLS_ONLY, sandbox: "read-only" }
     : { ...granted, sandbox: "read-only", approvalsReviewer: "user" };
 }
 
