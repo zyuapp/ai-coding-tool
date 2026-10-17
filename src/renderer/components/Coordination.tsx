@@ -357,6 +357,7 @@ function ThreadGroup({ group, members, fold, worktrees, action, onSetFold, ...ac
  * row does. Memoized on its view, which is held while its thread does not move.
  */
 const ThreadRow = memo(function ThreadRow({ view: { thread, status, summary, host, lastHeard }, worktrees, onSelect }: RowActions & { view: CoordinatedThreadView; worktrees: ReadonlyMap<string, Worktree> }) {
+  const line = coordinationStatusLine(status, summary, lastHeard);
   return (
     <div className={`coordination-item ${status}`}>
       <button
@@ -367,7 +368,7 @@ const ThreadRow = memo(function ThreadRow({ view: { thread, status, summary, hos
         onClick={() => onSelect(thread.id)}
       >
         <span className="coordination-row-mark"><CoordinationStatusMark status={status} lastHeard={lastHeard} /></span>
-        <span><strong>{thread.title}</strong><small>{coordinationStatusLine(status, summary, lastHeard)}</small></span>
+        <span><strong>{thread.title}</strong><small title={line}>{line}</small></span>
         <ThreadMarks thread={thread} host={host} worktree={thread.worktreeId ? worktrees.get(thread.worktreeId) : undefined} />
       </button>
       <ResolutionButton taskId={thread.id} title={thread.title} status={status} className="coordination-row-action" />

@@ -131,6 +131,26 @@ test("the Overview files threads ready for review and resolved apart, and resolv
   await view.unmount();
 });
 
+test("an Overview row shows its whole status line on hover, where the row clips it", async () => {
+  window.desktop = fakeDesktop();
+  const reason = "Missing STRIPE_TEST_KEY needed to run the payment integration tests in CI";
+  const view = await mount(React.createElement(CoordinatorOverview, {
+    header,
+    memory,
+    members: [row(member("pay", "Payments"), "blocked", reason)],
+    usage: null,
+    worktrees: new Map(),
+    folds: {},
+    onSetFold() {},
+    onSelect() {},
+    stoppable: true,
+  }));
+  const line = query(view.container, 'button[aria-label="Open Payments"] small');
+  assert.equal(line.title, `Blocked · ${reason}`);
+  assert.equal(line.textContent, line.title);
+  await view.unmount();
+});
+
 test("the Overview says what a coordinator's threads run on, and picks another with the composer's chips", async () => {
   const picked: unknown[] = [];
   const overview = (available: boolean) => React.createElement(CommandControlsProvider, { value: { available: (command) => available || command.type !== "coordination.set-thread-model", dispatch() {} } },
