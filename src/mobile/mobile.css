@@ -1418,6 +1418,16 @@ button {
   padding: 4px 9px 8px;
 }
 
+/* Narrows a long list of choices; it stays above them while they scroll. */
+.sheet-search {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 4px 9px 8px;
+  background: var(--surface-menu);
+}
+
+.sheet-search input,
 .rename-form input {
   width: 100%;
   min-height: 44px;
@@ -1431,6 +1441,7 @@ button {
   outline: none;
 }
 
+.sheet-search input:focus,
 .rename-form input:focus {
   border-color: var(--accent-line-strong);
 }

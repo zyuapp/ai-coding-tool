@@ -91,7 +91,7 @@ function lastCommand(line: FakeSocket) {
 function typeInto(selector: string, text: string) {
   const node = document.querySelector(selector);
   assert.ok(node, `no ${selector}`);
-  const setter = Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value")?.set;
+  const setter = Object.getOwnPropertyDescriptor((node instanceof dom.window.HTMLInputElement ? dom.window.HTMLInputElement : dom.window.HTMLTextAreaElement).prototype, "value")?.set;
   assert.ok(setter);
   act(() => {
     setter.call(node, text);
@@ -387,6 +387,10 @@ test("the activity list narrows to one project, remembers it, and dismisses only
   assert.deepEqual(titles(), ["Fix the parser", "Write the guide"]);
   click(".list-filter");
   assert.deepEqual([...document.querySelectorAll('.sheet [role="radio"]')].map((node) => node.textContent), ["All projects", "App", "Docs"]);
+  assert.equal(document.activeElement?.textContent, "All projects", "the keyboard stays down until the field is tapped");
+  typeInto('.sheet-search input', "do");
+  assert.deepEqual([...document.querySelectorAll('.sheet [role="radio"]')].map((node) => node.textContent), ["Docs"]);
+  typeInto('.sheet-search input', "");
   click('.sheet [role="radio"]:nth-of-type(3)');
   assert.equal(localStorage.getItem("aicodingtool.mobile.activity-project"), "q", "the choice survives a visit");
   assert.equal(document.querySelector(".list-filter")?.textContent, "Docs");

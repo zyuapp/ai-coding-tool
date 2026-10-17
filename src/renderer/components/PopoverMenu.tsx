@@ -86,16 +86,19 @@ type MenuListProps = {
   autoFocus?: boolean;
   /** Set on a list opened from an item, which draws it beside that item and answers ArrowLeft. */
   onLeave?: () => void;
+  /** A field above the items that narrows them. It holds the caret while the list is open, and Enter picks the top item. */
+  search?: { value: string; label: string; onChange: (value: string) => void };
 };
 
 /** Choosing an item always closes the menu, so no item has to remember to. */
-export function MenuList({ entries: supplied, onClose, className, style, menuRef, autoFocus, onLeave }: MenuListProps) {
+export function MenuList({ entries: supplied, onClose, className, style, menuRef, autoFocus, onLeave, search }: MenuListProps) {
   const controls = useCommandControls();
   const entries = supplied.map((entry) => entry !== "separator" && entry.command && !controls.available(entry.command)
     ? { ...entry, disabled: true, title: REMOTE_UNSUPPORTED } : entry);
   /** Which item's own list is open, and whether the keyboard asked for it, which is what focuses it. */
   const [sub, setSub] = useState<{ index: number; focus: boolean } | null>(null);
   const buttons = useRef<Array<HTMLButtonElement | null>>([]);
+  const field = useRef<HTMLInputElement>(null);
   const fallback = useRef<HTMLDivElement>(null);
   const list = menuRef ?? fallback;
   const usable = usableIndexes(entries);
@@ -120,13 +123,22 @@ export function MenuList({ entries: supplied, onClose, className, style, menuRef
   const first = usable[0];
   /** A top-level list takes focus without highlighting a row; a keyboard-opened nested list selects its first row. */
   useEffect(() => {
+    if (search) return;
     if (autoFocus) buttons.current[first ?? -1]?.focus();
     else if (!isSubmenu) list.current?.focus();
-  }, [autoFocus, first, isSubmenu, list]);
+  }, [autoFocus, first, isSubmenu, list, search]);
+  /** A searchable list opens with the caret in its field, once, however the items change under it. */
+  const searchable = Boolean(search);
+  useEffect(() => { if (searchable) field.current?.focus(); }, [searchable]);
 
   function move(delta: number) {
     if (!usable.length) return;
     const at = usable.indexOf(buttons.current.findIndex((button) => button === document.activeElement));
+    /** Above the first item is the field, and the field goes down to the first item. */
+    if (search && ((at === 0 && delta < 0) || (at < 0 && delta < 0 && document.activeElement === field.current))) {
+      field.current?.focus();
+      return;
+    }
     const next = at < 0 ? usable[delta > 0 ? 0 : usable.length - 1]! : usable[(at + delta + usable.length) % usable.length]!;
     buttons.current[next]?.focus();
   }
@@ -165,6 +177,22 @@ export function MenuList({ entries: supplied, onClose, className, style, menuRef
       style={placement.lift && typeof style?.top === "number" ? { ...style, top: style.top - placement.lift } : style}
       onKeyDown={onKeyDown}
     >
+      {search && <div className="menu-search">
+        <input
+          ref={field}
+          type="search"
+          value={search.value}
+          placeholder={search.label}
+          aria-label={search.label}
+          onInput={(event) => search.onChange(event.currentTarget.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" || first === undefined) return;
+            event.preventDefault();
+            buttons.current[first]?.click();
+          }}
+        />
+      </div>}
+      {search && !usable.length && <p className="menu-empty">No matches</p>}
       {entries.map((entry, index) => {
         if (entry === "separator") return <div key={`separator-${index}`} className="menu-separator" role="separator" />;
         const nested = Boolean(entry.items?.length || entry.panel);

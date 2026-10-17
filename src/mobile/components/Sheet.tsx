@@ -17,11 +17,14 @@ export function Sheet({ title, label, action, children, onClose }: {
   /** Set once close is asked for; the sheet leaves when its exit animation ends. */
   const [closing, setClosing] = useState(false);
 
-  /** Focus lands on the chosen option and goes back to where it came from once the sheet is gone. */
+  /**
+   * Focus lands on the chosen option, or else the field to type in, and goes back to where it came
+   * from once the sheet is gone. A sheet that lists choices does not raise the keyboard over them.
+   */
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const node = sheet.current;
-    const chosen = node?.querySelector<HTMLElement>('[aria-checked="true"], input, textarea');
+    const chosen = node?.querySelector<HTMLElement>('[aria-checked="true"]') ?? node?.querySelector<HTMLElement>("input, textarea");
     (chosen ?? node)?.focus({ preventScroll: true });
     return () => opener?.focus({ preventScroll: true });
   }, []);

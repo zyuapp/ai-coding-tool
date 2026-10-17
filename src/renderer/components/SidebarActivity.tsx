@@ -1,6 +1,7 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { LuCheckCheck as CheckCheck, LuChevronDown as ChevronDown, LuFolder as Folder } from "react-icons/lu";
 import { dismissableThreads } from "../../domain/attention";
+import { rankedMatches } from "../../domain/match-rank";
 import { projectName, type Project } from "../../domain/project";
 import type { SidebarSection, SidebarSections } from "../../domain/sidebar";
 import type { ThreadHost } from "../../application/computers";
@@ -20,6 +21,22 @@ export type ProjectFilterProps = {
   onSetOpenMenu: (menu: string | null) => void;
 };
 
+/** The choices, narrowed by what is typed above them. A query matches a project's name or the computer that holds it. */
+function ProjectMenu({ projects, projectHosts, selected, onSetProject, onClose }: Pick<ProjectFilterProps, "projects" | "projectHosts" | "onSetProject"> & { selected: Project | undefined; onClose: () => void }) {
+  const [query, setQuery] = useState("");
+  const matches = rankedMatches(projects, query, (item) => [projectName(item), projectHosts.get(item.id)?.name]);
+  const entries: MenuEntry[] = [
+    ...(query.trim() ? [] : [{ label: "All projects", checked: !selected, onSelect: () => onSetProject(null) }, "separator" as const]),
+    ...matches.map((item) => ({
+      label: projectName(item),
+      detail: projectHosts.get(item.id)?.name,
+      checked: item.id === selected?.id,
+      onSelect: () => onSetProject(item.id),
+    })),
+  ];
+  return <MenuList entries={entries} onClose={onClose} className="activity-filter-menu" search={{ value: query, label: "Search projects", onChange: setQuery }} />;
+}
+
 /**
  * Which project's threads the lists below rank: every one, or one. A project on a paired computer
  * names the computer that holds it, the way its rows do.
@@ -30,16 +47,6 @@ function ProjectFilter({ projects, projectHosts, project, onSetProject, openMenu
   const trigger = useRef<HTMLButtonElement>(null);
   useDismissibleLayer(open, [root], () => onSetOpenMenu(null), trigger);
   const selected = projects.find((item) => item.id === project);
-  const entries: MenuEntry[] = [
-    { label: "All projects", checked: !selected, onSelect: () => onSetProject(null) },
-    "separator",
-    ...projects.map((item) => ({
-      label: projectName(item),
-      detail: projectHosts.get(item.id)?.name,
-      checked: item.id === selected?.id,
-      onSelect: () => onSetProject(item.id),
-    })),
-  ];
   return (
     <div ref={root} className="activity-filter" data-popover-menu onBlur={(event) => {
       if (open && !event.currentTarget.contains(event.relatedTarget)) onSetOpenMenu(null);
@@ -63,7 +70,7 @@ function ProjectFilter({ projects, projectHosts, project, onSetProject, openMenu
         {selected && projectHosts.get(selected.id) && <span className="activity-filter-host">{projectHosts.get(selected.id)!.name}</span>}
         <ChevronDown size={13} aria-hidden="true" />
       </button>
-      {open && <MenuList entries={entries} onClose={() => onSetOpenMenu(null)} className="activity-filter-menu" />}
+      {open && <ProjectMenu projects={projects} projectHosts={projectHosts} selected={selected} onSetProject={onSetProject} onClose={() => onSetOpenMenu(null)} />}
     </div>
   );
 }
