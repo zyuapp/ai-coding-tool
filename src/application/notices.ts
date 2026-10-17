@@ -6,6 +6,7 @@ import type { ThreadNotice } from "../contracts/ipc.js";
 import { coordinatorOf, isCoordinator, remoteLeadOf, worksUnderCoordinator } from "../domain/coordination.js";
 import type { Thread } from "../domain/thread.js";
 import { lastReply } from "./coordination.js";
+import { replyLine } from "./reply-line.js";
 import type { WorkspaceEffect } from "./workspace-reducer.js";
 import type { WorkspaceState } from "./workspace-state.js";
 
@@ -19,15 +20,6 @@ export type NoticeReason = "finished" | "failed" | "waiting" | "decision" | "blo
 
 /** The longest line a coordinator's reply puts on the desktop. */
 const POSTED = 120;
-
-/** A line that only fences code or rules a section off, which says nothing. */
-const BARE = /^(?:`{3,}|~{3,}|(?:[-*_]\s*){3,}$)/;
-
-/** What opens a markdown line rather than saying something: quote marks, then a heading's, a list item's or a task's. */
-const OPENING = /^(?:>\s?)*(?:#{1,6}\s+|(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?)?/;
-
-/** Inline markdown: a code span, a link or image, emphasis or strikethrough, and underscore emphasis that is not part of a word. */
-const INLINE = /(`+)(.+?)\1|!?\[([^\]]*)\]\([^)]*\)|(\*\*|\*|~~)(?=\S)(.+?)(?<=\S)\4|(?<!\w)(__|_)(?=\S)(.+?)(?<=\S)\6(?!\w)/g;
 
 /** The thread a side chat sits beside, which is whose notices it shares; any other thread is its own. */
 function ownerOf(state: NoticeState, thread: Thread): Thread | undefined {
@@ -102,26 +94,5 @@ export function announcedNotice(state: Pick<NoticeState, "notifications">, notic
  */
 export function postedHeadline(thread: Thread, from: number): string | undefined {
   const reply = lastReply(thread, from);
-  if (!reply) return undefined;
-  for (let start = 0; start < reply.length; ) {
-    const end = reply.indexOf("\n", start);
-    const line = plainLine(reply.slice(start, end === -1 ? reply.length : end));
-    if (line) return line.length > POSTED ? `${line.slice(0, POSTED - 1)}…` : line;
-    if (end === -1) break;
-    start = end + 1;
-  }
-  return undefined;
-}
-
-/** A markdown line as the words it reads as, or nothing when it only shapes the reply. */
-function plainLine(line: string): string {
-  const trimmed = line.trim();
-  if (BARE.test(trimmed)) return "";
-  return inlineText(trimmed.replace(OPENING, "")).trim();
-}
-
-/** Text with its inline markdown read as words: a code span keeps what it says as written, the rest keep their words. */
-function inlineText(text: string): string {
-  return text.replace(INLINE, (...[, , code, link, , marked, , underlined]: (string | undefined)[]) =>
-    code ?? inlineText(link ?? marked ?? underlined ?? ""));
+  return reply ? replyLine(reply, POSTED) : undefined;
 }

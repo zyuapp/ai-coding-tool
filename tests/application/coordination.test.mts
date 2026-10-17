@@ -257,7 +257,7 @@ test("a thread under a coordinator opens as a tab in the coordinator's dock rath
   assert.equal(opened.threads[1].outcomeUnread, undefined, "what the thread had to say is read");
   const view = deriveView(opened);
   assert.deepEqual(view.threadTabs.map((tab) => tab.id), ["worker"]);
-  assert.equal(view.threadTabs[0]?.standing, "finished");
+  assert.equal(view.threadTabs[0]?.standing, "done");
 
   const again = reduce(opened, { type: "task.select", taskId: "worker" }).state;
   assert.deepEqual(again.docks.lead?.threadTabs, ["worker"], "a thread already open is not opened twice");

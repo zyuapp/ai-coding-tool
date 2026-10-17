@@ -4,11 +4,12 @@ import { remoteActivity, type PairedComputer } from "./computers.js";
 import { doingWork, threadActivity, threadStatus, type ThreadStatus } from "./thread-activity.js";
 import { activitySections, type ActivitySections } from "./thread-order.js";
 import { threadWorkspaceId } from "./thread-location.js";
-import { coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, leadIdOf, openDecisions, remoteLeadOf, type CoordinationNote, type CoordinationReport, type CoordinatorMemory, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type ThreadBrief, type ThreadProposal } from "../domain/coordination.js";
+import { coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, leadIdOf, MAX_SUMMARY, openDecisions, remoteLeadOf, type CoordinationNote, type CoordinationReport, type CoordinatorMemory, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type ThreadBrief, type ThreadProposal } from "../domain/coordination.js";
 import { threadActivityAt, type Thread } from "../domain/thread.js";
 import type { PullRequestAnswer, PullRequestChecks, PullRequestLink, PullRequestRef, PullRequestState } from "../domain/pull-request.js";
 import { wantsAttention } from "../domain/attention.js";
 import { originLabel, type RemoteSender } from "../domain/message-origin.js";
+import { replyLine } from "./reply-line.js";
 
 /**
  * What a send carries for a coordinator: the thread it starts works under it, or under `lead` on
@@ -305,6 +306,7 @@ function roster(state: WorkspaceState, leadId: string): string[] {
     if (group === "resolved" || group === "done" && !recent.has(thread)) return [];
     const parts = [`- "${thread.title}" [${thread.id}]${member.computer ? ` on ${member.computer.name}` : ""} · ${ROSTER_STATUS[memberStatus(state, member)]}`];
     if (thread.report) parts.push(`reported ${thread.report.state}: ${thread.report.summary}`);
+    else if (status === "done") parts.push(`ended its turn without reporting${summary ? `; it last said: ${summary}` : ""}`);
     if (status === "needs-work" && summary) parts.push(`its pull request needs work: ${summary}`);
     if (status === "review" && summary) parts.push(`ready for review: ${summary}`);
     for (const decision of openDecisions(thread)) parts.push(`waiting on the user to decide: ${decision.question}`);
@@ -470,7 +472,7 @@ export function projectActivity(sections: ActivitySections, threads: Thread[], p
 }
 
 /** Where a thread under a coordinator stands, in the words its card shows. */
-export type CoordinatedThreadStatus = "approval" | "asking" | "working" | "resolved" | "blocked" | "failed" | "needs-work" | "review" | "done" | "finished" | "idle";
+export type CoordinatedThreadStatus = "approval" | "asking" | "working" | "resolved" | "blocked" | "failed" | "needs-work" | "review" | "done" | "idle";
 
 /** A pull request that is a thread's own work, as last read: its state and title are known. */
 export type OwnPullRequest = PullRequestLink & Pick<PullRequestRef, "state" | "title">;
@@ -584,9 +586,18 @@ export function coordinatedThreadStatus(thread: Thread, busy: ReadonlySet<string
   if (pullRequest && pullRequestFixes(pullRequest).length) return { thread, status: "needs-work", summary: pullRequestLine(pullRequest) };
   if (pullRequest?.state === "open") return { thread, status: "review", summary: pullRequestLine(pullRequest) };
   if (report) return { thread, status: "done", summary: report.summary };
-  /** A thread that ended its turn without reporting has still finished it, which says more than idle. */
-  if (thread.outcome === "finished") return { thread, status: "finished", summary: null };
+  /**
+   * A thread that ended its turn without reporting, and left nothing waiting on the user, said where
+   * it stands in its reply, which reads as its report: whatever engine it runs on, it is done.
+   */
+  if (thread.outcome === "finished") return { thread, status: "done", summary: closingLine(thread) };
   return { thread, status: "idle", summary: null };
+}
+
+/** The first line of what a thread last said that says something, in plain words, as a report's summary would be. */
+function closingLine(thread: Thread): string | null {
+  const reply = lastReply(thread);
+  return (reply && replyLine(reply, MAX_SUMMARY)) ?? null;
 }
 
 /** The Overview group each status files a thread under, which the coordinator's roster reads too. */
@@ -599,7 +610,6 @@ export const GROUP_OF: Record<CoordinatedThreadStatus, OverviewGroup> = {
   review: "review",
   working: "working",
   done: "done",
-  finished: "done",
   idle: "done",
   resolved: "resolved",
 };

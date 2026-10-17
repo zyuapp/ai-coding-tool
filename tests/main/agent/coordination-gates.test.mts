@@ -29,7 +29,7 @@ test("a coordinator runs without file edits, shell, or subagents, and with the c
   assert.deepEqual(optionsOf(coordinator).disallowedTools, ["AskUserQuestion", "EnterWorktree", "ExitWorktree", "Edit", "MultiEdit", "Write", "NotebookEdit", "Bash", "Task", "Agent"]);
   assert.deepEqual(optionsOf(member).disallowedTools, ["AskUserQuestion", "EnterWorktree", "ExitWorktree"], "a thread under a coordinator does the work, so it keeps every tool");
   assert.match(systemAppend(optionsOf(coordinator)), /Never change anything yourself/);
-  assert.match(systemAppend(optionsOf(member)), /Call report_status/);
+  assert.match(systemAppend(optionsOf(member)), /call report_status as done, blocked, or failed: your closing message is not a report/);
   assert.match(systemAppend(optionsOf(member)), /say exactly what's missing and stop/);
   assert.doesNotMatch(systemAppend(optionsOf(coordinator)), /say exactly what's missing and stop/, "a coordinator delegates, so it is never told to stop at a wall");
   assert.ok(optionsOf(coordinator).mcpServers?.["aicodingtool-coordination"]);

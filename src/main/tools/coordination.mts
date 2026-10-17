@@ -22,7 +22,7 @@ function answered(work: () => Promise<{ note: string }>) {
 
 const REPORT_STATUS = defineTool({
   name: "report_status",
-  description: "Tell the coordinator this thread works under where your work stands. Call it when you are blocked, done, or failed; it hears the report when your turn ends. A done report names what you delivered: the pull request URL, the commits, or the report.",
+  description: "Tell the coordinator this thread works under where your work stands. Call it before you end the turn in which you finish, get blocked, or fail: your closing message is not a report. The coordinator hears it when your turn ends. A done report names what you delivered: the pull request URL, the commits, or the report.",
   input: {
     state: z.enum(COORDINATION_STATES).describe("working, blocked, done, or failed."),
     summary: z.string().max(MAX_SUMMARY).describe("One or two sentences: the outcome, or what stops you."),

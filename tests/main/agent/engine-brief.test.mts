@@ -18,8 +18,8 @@ const cua = { command: "/app/cua-driver", args: ["mcp", "--embedded"], env: {} }
 
 type Settings = Partial<ProviderRunInput>;
 
-/** What one engine's run was told and offered: its instructions, and its tools by bare name, with bundled computer use as `cua-driver`. */
-type Brief = { instructions: string; tools: string[] };
+/** What one engine's run was told and offered: its instructions, its tools by bare name, with bundled computer use as `cua-driver`, and what each app tool says of itself. */
+type Brief = { instructions: string; tools: string[]; descriptions: Record<string, string | undefined> };
 
 const clients: Client[] = [];
 afterEach(async () => {
@@ -35,6 +35,7 @@ async function claudeBrief(settings: Settings): Promise<Brief> {
   assert.ok(prompt && typeof prompt === "object" && !Array.isArray(prompt) && "append" in prompt);
   const disallowed = new Set(options.disallowedTools ?? []);
   const tools: string[] = [];
+  const descriptions: Record<string, string | undefined> = {};
   for (const [server, config] of Object.entries(options.mcpServers ?? {})) {
     if (config.type !== "sdk") {
       tools.push(server);
@@ -46,10 +47,12 @@ async function claudeBrief(settings: Settings): Promise<Brief> {
     clients.push(client);
     await client.connect(clientSide);
     for (const tool of (await client.listTools()).tools) {
-      if (!disallowed.has(`mcp__${server}__${tool.name}`)) tools.push(tool.name);
+      if (disallowed.has(`mcp__${server}__${tool.name}`)) continue;
+      tools.push(tool.name);
+      descriptions[tool.name] = tool.description;
     }
   }
-  return { instructions: prompt.append ?? "", tools: tools.sort() };
+  return { instructions: prompt.append ?? "", tools: tools.sort(), descriptions };
 }
 
 async function codexBrief(settings: Settings): Promise<Brief> {
@@ -57,9 +60,10 @@ async function codexBrief(settings: Settings): Promise<Brief> {
   const { client } = await codexTurn(codex, settings);
   codex.provider.closeAll();
   const started = client.calls("thread/start")[0] as { developerInstructions: string };
-  const tools = (codex.host.served[0]?.tools ?? []).map((tool) => tool.name);
+  const served = codex.host.served[0]?.tools ?? [];
+  const tools = served.map((tool) => tool.name);
   if (client.command.args.some((arg) => arg.startsWith("mcp_servers.cua-driver.command="))) tools.push("cua-driver");
-  return { instructions: started.developerInstructions, tools: tools.sort() };
+  return { instructions: started.developerInstructions, tools: tools.sort(), descriptions: Object.fromEntries(served.map((tool) => [tool.name, tool.description])) };
 }
 
 async function briefs(settings: Settings) {
@@ -75,7 +79,8 @@ const features: { name: string; on: Settings; told?: RegExp; offered?: string }[
   { name: "threads", on: { threads }, told: /App task IDs identify AICodingTool threads/, offered: "start_thread" },
   { name: "worktrees", on: { threads }, told: /When the user asks for work in a worktree, use the AICodingTool worktree tools/, offered: "move_to_worktree" },
   { name: "coordinator", on: { coordinationRole: "coordinator", coordination }, told: /You are a coordinator/, offered: "raise_decision" },
-  { name: "coordinated member", on: { coordinationRole: "member", coordination }, told: /Call report_status/, offered: "report_status" },
+  { name: "coordinated member", on: { coordinationRole: "member", coordination }, told: /Before you end the turn in which you finish your brief, get blocked, or fail, call report_status as done, blocked, or failed: your closing message is not a report\./, offered: "report_status" },
+  { name: "a coordinator hearing a thread end its turn without reporting", on: { coordinationRole: "coordinator", coordination }, told: /A thread that ends its turn without reporting tells you where it stands only in its last reply/ },
   { name: "coordinator memory", on: { coordinationRole: "coordinator", coordination }, told: /Your memory holds/, offered: "remember" },
   { name: "suggested threads", on: { coordinationRole: "coordinator", coordination }, told: /call propose_threads/, offered: "propose_threads" },
   { name: "a member that cannot reach something", on: { coordinationRole: "member", coordination }, told: /say exactly what's missing and stop\. Don't substitute, mock, or guess\. Say it with report_status as blocked\./ },
@@ -97,9 +102,11 @@ for (const feature of features) {
       if (feature.offered) {
         assert.ok(on[engine].tools.includes(feature.offered), `${engine} is offered ${feature.offered} when it is on`);
         assert.ok(!off[engine].tools.includes(feature.offered), `${engine} is not offered ${feature.offered} when it is off`);
+        if (feature.offered !== "cua-driver") assert.ok(on[engine].descriptions[feature.offered], `${engine} reads what ${feature.offered} is for`);
       }
     }
     assert.deepEqual(on.claude.tools, on.codex.tools, "both engines are offered the same tools");
+    assert.deepEqual(on.claude.descriptions, on.codex.descriptions, "and each says the same of itself to both");
   });
 }
 

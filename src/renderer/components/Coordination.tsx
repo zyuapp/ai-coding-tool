@@ -30,7 +30,6 @@ const STATUS_LABELS: Record<CoordinatedThreadStatus, string> = {
   "needs-work": "Needs work",
   review: "Ready for review",
   done: "Done",
-  finished: "Finished its turn",
   idle: "Idle",
 };
 
