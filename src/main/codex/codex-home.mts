@@ -1,5 +1,5 @@
-import { randomUUID } from "node:crypto";
-import { link, lstat, mkdir, readFile, readdir, readlink, realpath, rename, stat, symlink, unlink, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { link, lstat, mkdir, readFile, readdir, readlink, realpath, rename, rm, stat, symlink, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 
@@ -69,10 +69,36 @@ async function shareMcpCredentials(source: string, destination: string) {
     await link(canonical, temporary);
     await rename(temporary, target);
     await remember();
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "EXDEV") throw new Error("Codex MCP file credentials require the shared and private homes to be on the same filesystem.");
-    throw error;
   } finally { await unlink(temporary).catch(() => {}); }
+}
+
+/** A link left by an earlier relocation is followed, and recreated if its target was removed. */
+async function privateDirectory(privateHome: string) {
+  const target = await readlink(privateHome).catch(() => null);
+  await mkdir(target === null ? privateHome : path.resolve(path.dirname(privateHome), target), { recursive: true, mode: 0o700 });
+  return realpath(privateHome);
+}
+
+/** A home that never started Codex holds only links to shared inputs, so nothing is lost moving it. */
+async function onlyLinks(directory: string): Promise<boolean> {
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    if (entry.isDirectory() ? !(await onlyLinks(path.join(directory, entry.name))) : !entry.isSymbolicLink()) return false;
+  }
+  return true;
+}
+
+/** Hard links cannot cross filesystems, so the private home moves into the shared home's
+ * filesystem. The app data path becomes a link to it and keeps naming the same home later. */
+async function relocate(privateHome: string, source: string) {
+  const unrelocatable = new Error(`Codex MCP sign-ins can only be shared when ${privateHome} is on the same filesystem as ${source}.`);
+  if ((await lstat(privateHome)).isSymbolicLink() || !(await onlyLinks(privateHome))) throw unrelocatable;
+  const home = path.join(source, ".aicodingtool", createHash("sha256").update(path.resolve(privateHome)).digest("hex").slice(0, 16));
+  await mkdir(home, { recursive: true, mode: 0o700 });
+  await rm(privateHome, { recursive: true });
+  await symlink(home, privateHome);
+  const destination = await realpath(privateHome);
+  await shareMcpCredentials(source, destination).catch((error: NodeJS.ErrnoException) => { throw error.code === "EXDEV" ? unrelocatable : error; });
+  return destination;
 }
 
 /** Recheck before each launch, including after logout removed a link or a profile was added. */
@@ -85,14 +111,17 @@ export async function preparePrivateCodexHome(privateHome: string, sourceHome: s
 }
 
 async function prepare(privateHome: string, sourceHome: string) {
-  await mkdir(privateHome, { recursive: true, mode: 0o700 });
   await mkdir(sourceHome, { recursive: true, mode: 0o700 });
-  const destination = await realpath(privateHome);
+  const home = await privateDirectory(privateHome);
   const source = await realpath(sourceHome).catch((error: unknown) => {
     if (missing(error)) return path.resolve(sourceHome);
     throw error;
   });
-  if (source === destination) throw new Error("Private Codex storage must be separate from the shared Codex home.");
+  if (source === home) throw new Error("Private Codex storage must be separate from the shared Codex home.");
+  const destination = await shareMcpCredentials(source, home).then(() => home, (error: NodeJS.ErrnoException) => {
+    if (error.code !== "EXDEV") throw error;
+    return relocate(privateHome, source);
+  });
   const entries = await readdir(source).catch((error: unknown) => {
     if (missing(error)) return [];
     throw error;
@@ -103,7 +132,6 @@ async function prepare(privateHome: string, sourceHome: string) {
     if (writable) await mkdir(path.join(source, name), { recursive: true, mode: 0o700 });
     await share(path.join(source, name), path.join(destination, name), writable);
   }));
-  await shareMcpCredentials(source, destination);
   return destination;
 }
 

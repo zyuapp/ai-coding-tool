@@ -1,12 +1,24 @@
 import assert from "node:assert/strict";
-import { constants } from "node:fs";
-import { mkdir, mkdtemp, open, readFile, readlink, realpath, rm, stat, symlink, unlink, writeFile } from "node:fs/promises";
+import { constants, type PathLike } from "node:fs";
+import { lstat, mkdir, mkdtemp, open, readFile, readlink, realpath, rm, stat, symlink, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import { codexAppServer } from "../../../src/main/codex/app-server-client.mts";
 import { codexChildEnvironment, preparePrivateCodexHome, PRIVATE_CODEX_HOME_ENV } from "../../../src/main/codex/codex-home.mts";
 import { privateHomeConfig } from "../../../src/main/codex/codex-home-config.mts";
+
+const filesystems = vi.hoisted(() => ({ foreign: "" }));
+vi.mock("node:fs/promises", async (original) => {
+  const fs = await original<typeof import("node:fs/promises")>();
+  // Paths under `foreign` stand for a second filesystem: hard links across it fail as the kernel's do.
+  const inside = (file: PathLike) => filesystems.foreign !== "" && path.resolve(String(file)).startsWith(filesystems.foreign);
+  const link: typeof fs.link = async (existing, created) => {
+    if (inside(existing) !== inside(created)) throw Object.assign(new Error("EXDEV: cross-device link not permitted"), { code: "EXDEV" });
+    return fs.link(existing, created);
+  };
+  return { ...fs, link, default: { ...fs, link } };
+});
 
 test("shared inputs follow edits and late sign-in, while each launch repairs missing links and discovers profiles", async () => {
   const root = await realpath(await mkdtemp(path.join(tmpdir(), "codex-home-")));
@@ -64,12 +76,61 @@ test("MCP credentials support no-follow writes, common locks, and source replace
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
+test("a private home on another filesystem moves beside the shared home and keeps one credential file", async () => {
+  const root = await realpath(await mkdtemp(path.join(tmpdir(), "codex-cross-device-home-")));
+  const source = path.join(root, "shared");
+  const privateHome = path.join(root, "app-data", "codex-private");
+  filesystems.foreign = path.join(root, "app-data");
+  try {
+    await mkdir(source); await mkdir(path.join(privateHome, "plugins"), { recursive: true });
+    await writeFile(path.join(source, "config.toml"), 'model = "shared"');
+    // Launches that failed before relocation existed left only links behind.
+    await symlink(path.join(source, "auth.json"), path.join(privateHome, "auth.json"));
+    await symlink(path.join(source, "plugins", "cache"), path.join(privateHome, "plugins", "cache"));
+    const destination = await preparePrivateCodexHome(privateHome, source);
+    assert.equal(path.dirname(path.dirname(destination)), source);
+    assert.equal(await realpath(privateHome), destination);
+    assert.equal(await readFile(path.join(privateHome, "config.toml"), "utf8"), 'model = "shared"');
+    const privateCredentials = path.join(destination, ".credentials.json");
+    assert((await lstat(privateCredentials)).isFile());
+    const file = await open(privateCredentials, constants.O_WRONLY | constants.O_TRUNC | constants.O_NOFOLLOW);
+    await file.writeFile('{"fixture":"refreshed"}'); await file.close();
+    assert.equal(await readFile(path.join(source, ".credentials.json"), "utf8"), '{"fixture":"refreshed"}');
+    const child = await codexChildEnvironment({ CODEX_HOME: source, [PRIVATE_CODEX_HOME_ENV]: privateHome });
+    assert.equal(child.CODEX_HOME, destination);
+    await rm(destination, { recursive: true });
+    assert.equal(await preparePrivateCodexHome(privateHome, source), destination);
+    assert.equal((await stat(privateCredentials)).ino, (await stat(path.join(source, ".credentials.json"))).ino);
+  } finally {
+    filesystems.foreign = "";
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("a private home with conversation state on another filesystem is never moved or discarded", async () => {
+  const root = await realpath(await mkdtemp(path.join(tmpdir(), "codex-cross-device-state-")));
+  const source = path.join(root, "shared");
+  const privateHome = path.join(root, "app-data", "codex-private");
+  filesystems.foreign = path.join(root, "app-data");
+  try {
+    await mkdir(source); await mkdir(path.join(privateHome, "sessions"), { recursive: true });
+    await writeFile(path.join(privateHome, "sessions", "rollout.jsonl"), "conversation");
+    await assert.rejects(preparePrivateCodexHome(privateHome, source), /same filesystem/);
+    assert.equal(await readFile(path.join(privateHome, "sessions", "rollout.jsonl"), "utf8"), "conversation");
+    assert(!(await lstat(privateHome)).isSymbolicLink());
+  } finally {
+    filesystems.foreign = "";
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("file references remain relative to the declaring home and saved hook state follows its source", () => {
   const args = privateHomeConfig({ model_instructions_file: "../instructions.md", agents: { reviewer: { config_file: "custom/reviewer.toml" } }, hooks: { state: {
     "/shared/config.toml:session_start:0:0": { trusted_hash: "sha256:original", enabled: false },
-  } } }, "/shared", "/private");
+    "/shared/.aicodingtool/home/config.toml:session_start:0:0": { trusted_hash: "sha256:private", enabled: true },
+  } } }, "/shared", "/shared/.aicodingtool/home");
   assert.deepEqual(args, ["-c", 'model_instructions_file="/instructions.md"', "-c", 'agents={ "reviewer" = { "config_file" = "/shared/custom/reviewer.toml" } }',
-    "-c", 'hooks.state={ "/private/config.toml:session_start:0:0" = { "trusted_hash" = "sha256:original", "enabled" = false } }']);
+    "-c", 'hooks.state={ "/shared/.aicodingtool/home/config.toml:session_start:0:0" = { "trusted_hash" = "sha256:original", "enabled" = false } }']);
 });
 
 test("Keychain configurations keep native credential lookup in the source home and private auth in memory", async () => {

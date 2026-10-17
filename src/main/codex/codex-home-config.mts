@@ -34,7 +34,8 @@ export function privateHomeConfig(config: TomlTable, source: string, destination
   // changes. Never invent a hash, approve a new hook, or write aliases into the user's config.
   const states: Record<string, Record<string, string | boolean>> = {};
   for (const [key, state] of Object.entries(table(table(config.hooks).state))) {
-    if (!key.startsWith(`${source}${path.sep}`)) continue;
+    // A relocated private home sits inside the source, and its own keys need no alias.
+    if (!key.startsWith(`${source}${path.sep}`) || key.startsWith(`${destination}${path.sep}`)) continue;
     const alias = `${destination}${key.slice(source.length)}`;
     for (const field of ["trusted_hash", "enabled"]) {
       const value = table(state)[field];
