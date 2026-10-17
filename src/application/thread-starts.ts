@@ -38,8 +38,10 @@ export function newThreadSend(state: WorkspaceState, caller: Thread, command: Ne
   if (command.effort && !modelHasEffort(model, command.effort)) return { error: `The ${model} model does not support ${command.effort} effort.` };
   /** An inherited effort the new model does not take drops to the nearest one it does. */
   const effort = command.effort ?? effortForModel(model, inherited.effort ?? defaultEffortFor(engineForModel(model)));
-  const { effort: _asked, ...rest } = command;
-  const chosen: NewThreadSend = modelTakesEffort(model) ? { ...command, model, effort } : { ...rest, model };
+  /** A brief is what a coordinator hands the threads it starts, so one any other thread passes is dropped. */
+  const { effort: _asked, brief, ...rest } = command;
+  const briefed = lead === caller && brief ? { brief } : {};
+  const chosen: NewThreadSend = modelTakesEffort(model) ? { ...rest, ...briefed, model, effort } : { ...rest, ...briefed, model };
   /** A coordinator's new thread starts from the brief it was handed. */
   if (lead === caller && !chosen.brief) return { error: BRIEF_REQUIRED };
 

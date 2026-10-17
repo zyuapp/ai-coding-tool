@@ -1,5 +1,6 @@
 import { senderLabel } from "../../domain/message-origin";
 import type { ConversationMessage } from "../../domain/conversation";
+import type { ThreadStart } from "../../application/coordination";
 
 type TimelineEntry =
   /** `from` names what a folded message's row says it is: its threads' news, or the thread that sent it. */
@@ -18,10 +19,8 @@ export type TurnSegment =
   | { kind: "note"; id: string; message: ConversationMessage }
   | { kind: "tools"; id: string; steps: TimedStep[] };
 
-/** A thread a coordinator started, and when. */
-export type TimelineStart = { id: string; at: number };
-
-type TimelineOptions = { running: boolean; tailMessageId?: string; runEndedAt?: number; coordinator?: boolean; starts?: readonly TimelineStart[] };
+/** `starts` are the threads a coordinator started, oldest first, as its view holds them. */
+type TimelineOptions = { running: boolean; tailMessageId?: string; runEndedAt?: number; coordinator?: boolean; starts?: readonly ThreadStart[] };
 
 function startOf(group: TimelineEntry) {
   if (group.kind === "threads") return null;
@@ -78,11 +77,11 @@ export function groupTimeline(messages: ConversationMessage[], { running, tailMe
  * is the turn that started it, or where the user stood when they started it. Threads that land
  * after the same entry share one row.
  */
-function withStarts(entries: TimelineEntry[], starts: readonly TimelineStart[]): TimelineEntry[] {
-  /** Entries begin in the order they were written, so one walk down them places every start, oldest first. */
+function withStarts(entries: TimelineEntry[], starts: readonly ThreadStart[]): TimelineEntry[] {
+  /** Entries begin in the order they were written and starts come oldest first, so one walk down them places every start. */
   const after = new Map<number, string[]>();
   let index = -1;
-  for (const start of [...starts].sort((left, right) => left.at - right.at)) {
+  for (const start of starts) {
     while (index + 1 < entries.length && (startOf(entries[index + 1]!) ?? Infinity) <= start.at) index += 1;
     after.set(index, [...after.get(index) ?? [], start.id]);
   }

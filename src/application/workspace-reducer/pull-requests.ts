@@ -85,13 +85,16 @@ export function memberPullRequestRead(state: WorkspaceState, thread: Thread): { 
 
 function checkoutRead(state: WorkspaceState, workspaceId: string, threads: Thread[]): { state: WorkspaceState; effect: WorkspaceEffect } {
   const held = state.memberPullRequests[workspaceId];
+  const branch = branchOf(state.environments[workspaceId] ?? null);
+  /** What GitHub said of another branch says nothing of this one, so the checkout waits for its answer again. */
+  const kept = held?.branch === branch ? held : undefined;
   const read: PullRequestRead = {
     workspaceId,
-    branch: branchOf(state.environments[workspaceId] ?? null),
+    branch,
     read: (held?.read ?? 0) + 1,
-    answer: held?.answer ?? NO_PULL_REQUEST,
+    answer: kept?.answer ?? NO_PULL_REQUEST,
     threadIds: threads.map((thread) => thread.id),
-    ...(held?.answered ? { answered: true as const } : {}),
+    ...(kept?.answered ? { answered: true as const } : {}),
   };
   return {
     state: { ...state, memberPullRequests: { ...state.memberPullRequests, [workspaceId]: read } },

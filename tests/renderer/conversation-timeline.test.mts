@@ -489,7 +489,7 @@ test("a coordinator's threads appear where they began", async () => {
     const cards = new Map(["one", "two"].map((id) => [id, { thread: member(id, id === "one" ? "Fix login" : "Dark mode"), status: "working" as const, summary: null, pullRequest: null, steps: [], startedAt: 1500 }]));
     return React.cloneElement(plain, {
       currentThread: { ...plain.props.currentThread!, ...(role ? { role } : {}) },
-      threadCards: { cards, worktrees: new Map(), onSelect() {}, onStep() {} },
+      threadCards: { cards, worktrees: new Map(), onSelect() {} },
       starts: starts.slice(0, 2),
     });
   };

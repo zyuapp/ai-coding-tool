@@ -3,7 +3,7 @@ import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { deriveView } from "../../src/application/workspace-state.ts";
 import { coordinationSections } from "../../src/application/coordination.ts";
-import type { PullRequestAnswer } from "../../src/domain/pull-request.ts";
+import { NO_PULL_REQUEST, type PullRequestAnswer } from "../../src/domain/pull-request.ts";
 import { activeRun, correlatedRunEvent, effectOf, heldWorktree, projected, required, task } from "./workspace-reducer-fixtures.mts";
 import type { WorkspaceState } from "../../src/application/workspace-state.ts";
 
@@ -148,6 +148,24 @@ test("a member read takes only answers to member asks on its branch", () => {
   const answer = { type: "pull-request.answered" as const, workspaceId: read.workspaceId, branch: read.branch, read: read.read, answer: MERGED };
   assert.equal(reduce(asked.state, { ...answer, members: true, branch: "elsewhere" }).state, asked.state, "another branch");
   assert.equal(reduce(asked.state, answer).state, asked.state, "an ordinary read with the same count");
+});
+
+test("what GitHub said of a checkout stands only while its branch does", () => {
+  const environment = (branch: string) => ({ "workspace-b": { status: "available" as const, files: [], branch, baseline: null, additions: 0, deletions: 0 } });
+  const state = projected({
+    projects: [{ id: "a", root: "/a", workspaceId: "workspace-a" }, { id: "b", root: "/b", workspaceId: "workspace-b" }],
+    threads: [task("lead", { projectId: "a", role: "coordinator" }), task("one", { projectId: "b", parentId: "lead", brief: DELIVERS })],
+    currentId: "lead",
+    environments: environment("work"),
+  });
+  const asked = reduce(state, { type: "pull-request.read-members" });
+  const read = effectOf(asked, "read-pull-request");
+  const none = reduce(asked.state, { type: "pull-request.answered", workspaceId: read.workspaceId, branch: read.branch, read: read.read, members: true, answer: NO_PULL_REQUEST }).state;
+  const steps = (from: WorkspaceState) => deriveView(from).coordination.members[0]?.steps;
+  assert.deepEqual(steps(none), ["create-pull-request"]);
+  assert.deepEqual(steps(reduce(none, { type: "pull-request.read-members" }).state), ["create-pull-request"], "asking again on the same branch keeps the answer");
+  const moved = reduce({ ...none, environments: environment("other") }, { type: "pull-request.read-members" }).state;
+  assert.deepEqual(steps(moved), [], "a new branch waits for its own answer");
 });
 
 test("a thread that is not a coordinator reads no member pull requests", () => {

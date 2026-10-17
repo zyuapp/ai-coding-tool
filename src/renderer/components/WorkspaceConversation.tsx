@@ -37,7 +37,6 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
     cards: new Map(coordination.members.map((view) => [view.thread.id, view])),
     worktrees: new Map(worktreeGroups.map(({ worktree }) => [worktree.id, worktree])),
     onSelect: actions.selectThread,
-    onStep: (threadId, step) => void actions.takeNextStep(threadId, step),
   }, [coordination.threadModel, coordination.members, worktreeGroups, actions]);
   return (
     <div className={`work-area ${bar ? (coordination.lead ? "coordination-bar-on" : "coordination-brief-on") : ""}`}>

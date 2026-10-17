@@ -4,7 +4,6 @@ import { test } from "vitest";
 import React, { act } from "react";
 
 import type { Thread } from "../../src/domain/thread.ts";
-import type { NextStep } from "../../src/domain/coordination.ts";
 import type { AppCommand } from "../../src/contracts/commands.ts";
 import type { CoordinatedThreadView } from "../../src/application/coordination.ts";
 import { mount, query } from "../support/renderer-dom.mts";
@@ -32,15 +31,14 @@ const working: CoordinatedThreadView = { thread: member("dark", "Dark mode", { e
 test("a card shows how its thread stands, opens it, and offers what to do next beside that", async () => {
   window.desktop = fakeDesktop();
   const selected: string[] = [];
-  const stepped: Array<[string, NextStep]> = [];
+  const dispatched: AppCommand[] = [];
   const worktree = { id: "wt-1", name: "fix-login", projectId: "p", root: "/tmp/wt-1", workspaceId: "ws-1", baseCommit: "abc", createdAt: 1, lastUsedAt: 1 };
-  const cards = (available: boolean) => React.createElement(CommandControlsProvider, { value: { available: (command: AppCommand) => available || command.type !== "coordination.next-step", dispatch() {} } },
+  const cards = (available: boolean) => React.createElement(CommandControlsProvider, { value: { available: (command: AppCommand) => available || command.type !== "coordination.next-step", dispatch: (command: AppCommand) => { dispatched.push(command); } } },
     React.createElement(ThreadCardsContext.Provider, {
       value: {
         cards: new Map([[failing.thread.id, failing], [working.thread.id, working]]),
         worktrees: new Map([[worktree.id, worktree]]),
         onSelect: (id: string) => { selected.push(id); },
-        onStep: (id: string, step: NextStep) => { stepped.push([id, step]); },
       },
     }, React.createElement(ThreadCards, { threadIds: ["fix", "gone", "dark"] })));
   const view = await mount(cards(true));
@@ -63,7 +61,7 @@ test("a card shows how its thread stands, opens it, and offers what to do next b
   assert.deepEqual(step.map((button) => button.textContent), ["Fix CI"]);
   assert.equal(step[0]!.closest(".coordination-card-open"), null, "a step sits beside the open button, never inside it");
   await act(async () => { step[0]!.click(); });
-  assert.deepEqual(stepped, [["fix", "fix-ci"]]);
+  assert.deepEqual(dispatched, [{ type: "coordination.next-step", taskId: "fix", step: "fix-ci" }]);
 
   const review = query<HTMLAnchorElement>(fix, "a.coordination-card-step");
   assert.equal(review.textContent, "Review PR");

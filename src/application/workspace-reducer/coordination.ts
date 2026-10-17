@@ -80,7 +80,9 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
      */
     case "coordination.next-step": {
       const thread = state.threads.find((item) => item.id === input.taskId);
-      if (!thread || !coordinatorOf(state.threads, thread)) return rejected(state, STEP_GONE);
+      const lead = coordinatorOf(state.threads, thread);
+      /** Only a thread its coordinator's views draw has a card to take a step from, so an archived one has none. */
+      if (!thread || !lead || !coordinationMembers(state, lead.id).some((member) => member.thread === thread)) return rejected(state, STEP_GONE);
       const { working, blocked } = threadActivity(state);
       const { status } = coordinatedThreadStatus(thread, working, blocked);
       if (!nextSteps(thread, status, checkoutAnswer(state, thread)).includes(input.step)) return rejected(state, STEP_GONE);

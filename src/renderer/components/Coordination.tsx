@@ -1,6 +1,6 @@
 import { createContext, memo, useContext, useId, useRef, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent } from "react";
 import { LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuChevronDown as ChevronDown, LuChevronUp as ChevronUp, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuRotateCcw as Reopen, LuTrash2 as Trash, LuX as X } from "react-icons/lu";
-import { deliveryLabel, MAX_MEMORY_NOTE, MAX_PURPOSE, nextStepOf, OVERVIEW_GROUPS, type MemoryNote, type NextStep, type OverviewFold, type OverviewFolds, type OverviewGroup, type OverviewSection, type ThreadBrief, type ThreadModelChoice } from "../../domain/coordination";
+import { deliveryLabel, MAX_MEMORY_NOTE, MAX_PURPOSE, nextStepOf, OVERVIEW_GROUPS, type MemoryNote, type OverviewFold, type OverviewFolds, type OverviewGroup, type OverviewSection, type ThreadBrief, type ThreadModelChoice } from "../../domain/coordination";
 import { engineForModel, modelDelegable, type AgentEngine, type AgentModel, type EngineReadiness } from "../../domain/agent-engine";
 import type { AgentEffort } from "../../domain/run";
 import type { Thread } from "../../domain/thread";
@@ -329,7 +329,6 @@ export type ThreadCardsView = {
   cards: ReadonlyMap<string, CoordinatedThreadView>;
   worktrees: ReadonlyMap<string, Worktree>;
   onSelect: (threadId: string) => void;
-  onStep: (threadId: string, step: NextStep) => void;
 };
 
 /** Held by the coordinator's own transcript, so only its rows of cards redraw when one of its threads moves. */
@@ -348,7 +347,6 @@ export function ThreadCards({ threadIds }: { threadIds: readonly string[] }) {
           view={view}
           worktree={view.thread.worktreeId ? shown.worktrees.get(view.thread.worktreeId) : undefined}
           onSelect={shown.onSelect}
-          onStep={shown.onStep}
         />
       ))}
     </div>
@@ -359,11 +357,10 @@ export function ThreadCards({ threadIds }: { threadIds: readonly string[] }) {
  * One thread as it stands, in the marks and colours of its Overview row. The card opens the thread,
  * and its next steps sit beside that, never inside it.
  */
-const ThreadCard = memo(function ThreadCard({ view, worktree, onSelect, onStep }: {
+const ThreadCard = memo(function ThreadCard({ view, worktree, onSelect }: {
   view: CoordinatedThreadView;
   worktree: Worktree | undefined;
   onSelect: (threadId: string) => void;
-  onStep: (threadId: string, step: NextStep) => void;
 }) {
   const links = useMessageLinks();
   const { thread, status, summary, pullRequest, steps } = view;
@@ -392,7 +389,7 @@ const ThreadCard = memo(function ThreadCard({ view, worktree, onSelect, onStep }
       {(steps.length > 0 || pullRequest) && (
         <div className="coordination-card-steps">
           {steps.map((step) => (
-            <CommandButton key={step} type="button" className="coordination-card-step" command={{ type: "coordination.next-step", taskId: thread.id, step }} onClick={() => onStep(thread.id, step)}>
+            <CommandButton key={step} type="button" className="coordination-card-step" command={{ type: "coordination.next-step", taskId: thread.id, step }}>
               {nextStepOf(step).label}
             </CommandButton>
           ))}

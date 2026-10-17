@@ -47,6 +47,9 @@ test("a thread under a coordinator works under it, from the brief it was handed,
   assert.deepEqual(started(newThreadSend(state, thread(state, "worker"), send({ role: "reviewer" }))), {
     type: "task.send", text: "Fix it", role: "reviewer", model: "opus", effort: "high", project: PROJECT.id, coordinatorId: "lead", from: "worker",
   });
+  /** A brief is the coordinator's to hand out, so a thread one of its threads starts never reads as one the coordinator started. */
+  assert.equal(started(newThreadSend(state, thread(state, "worker"), send({ brief: BRIEF }))).brief, undefined);
+  assert.equal(started(newThreadSend(state, thread(state, "solo"), send({ brief: BRIEF }))).brief, undefined);
 });
 
 test("a thread under no coordinator starts on the caller's own model, in the caller's own place", () => {

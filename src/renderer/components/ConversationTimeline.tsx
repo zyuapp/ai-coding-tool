@@ -2,6 +2,7 @@ import { elementScroll, useVirtualizer } from "@tanstack/react-virtual";
 import type { IconType } from "react-icons";
 import { LuChevronDown as ChevronDown, LuFolderSymlink as FolderSymlink, LuHourglass as Hourglass } from "react-icons/lu";
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import type { ThreadStart } from "../../application/coordination";
 import type { StreamingTail } from "../../application/thread-run-state";
 import type { FindView, ReadingPoint, ThreadWait } from "../../application/workspace-state";
 import type { AgentEngine } from "../../domain/agent-engine";
@@ -11,7 +12,7 @@ import { liftTime, resumesOnItsOwn, type LimitPause } from "../../domain/usage-l
 import { CommandButton } from "./CommandControl";
 import type { Annotation, AnnotationAnchor } from "../../domain/conversation";
 import type { Thread } from "../../domain/thread";
-import { groupTimeline, messageRows, type TimelineStart } from "../timeline/grouping";
+import { groupTimeline, messageRows } from "../timeline/grouping";
 import { MAX_FIND_HITS, targetKey } from "../../domain/find";
 import { drawnMatches, paintMatches } from "../find/paint";
 import { useAnnotationMarkers, useAnnotationSelection, useSelectionCapture } from "../timeline/use-annotations";
@@ -28,7 +29,7 @@ export { formatElapsed } from "./TurnWork";
 export { READING_SETTLE_MS } from "../timeline/use-reading-view";
 
 const EMPTY_ANNOTATIONS: Annotation[] = [];
-const NO_STARTS: readonly TimelineStart[] = [];
+const NO_STARTS: readonly ThreadStart[] = [];
 
 export type ConversationTimelineProps = {
   currentThread?: Thread;
@@ -69,7 +70,7 @@ export type ConversationTimelineProps = {
   onAnnotateSide?: (quote: string) => void;
   /** On a coordinator's own transcript: the threads it started, drawn as cards where each began. */
   threadCards?: ThreadCardsView | null;
-  starts?: readonly TimelineStart[];
+  starts?: readonly ThreadStart[];
 };
 
 /** What each wait is called, in the thread the wait is happening in. */

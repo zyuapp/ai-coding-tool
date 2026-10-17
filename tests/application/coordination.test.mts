@@ -762,6 +762,9 @@ test("a next step reaches the thread as the user's own message", () => {
 
   const solo = workspace({ threads: [{ ...failing, parentId: undefined }] });
   assert.equal(reduce(solo, { type: "coordination.next-step", taskId: "worker", step: "fix-ci" }).result?.ok, false, "only a thread under a coordinator takes a next step");
+  const archived = reduce(workspace({ threads: [lead(), { ...failing, archivedAt: 5 }] }), { type: "coordination.next-step", taskId: "worker", step: "fix-ci" });
+  assert.equal(archived.result?.ok, false, "an archived thread has left its coordinator's cards");
+  assert.deepEqual(archived.effects, []);
 
   const waiting = workspace({ threads: [lead(), { ...failing, limitPause: { resetsAt: Date.now() + 86_400_000, window: "weekly", pausedAt: 1 } }] });
   const held = reduce(waiting, { type: "coordination.next-step", taskId: "worker", step: "fix-ci" });
