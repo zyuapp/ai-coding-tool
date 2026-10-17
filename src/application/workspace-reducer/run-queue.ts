@@ -11,7 +11,7 @@ import { projectFor, threadWorkspaceId, worktreeFor } from "../thread-location.j
 import { withPrompt, type DraftBranch, type PendingRun, type QueuedMessage, type SideChat, type WorkspaceState } from "../workspace-state.js";
 import type { ClaudeRunSettings, StartRunCommand } from "../../contracts/ipc.js";
 import { withoutOutcome } from "../../domain/attention.js";
-import { coordinationRole } from "../coordination.js";
+import { coordinationRole, GROUP_OF } from "../coordination.js";
 import { withoutReport } from "../../domain/coordination.js";
 import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel } from "../../domain/agent-engine.js";
 import type { RunStatus } from "../../domain/run.js";
@@ -138,22 +138,35 @@ export function forkableContinuation(state: WorkspaceState, taskId: string) {
 }
 
 /**
+ * How a run picks a thread up when nobody has written to it: `warming` resumes it after its usage
+ * limit lifted, and `agent` is a turn the agent opened itself.
+ */
+type RunPickup = "warming" | "agent";
+
+/**
  * Records the run against the thread and marks it the thread's latest, so stale replies can be dropped.
  * The new run supersedes whatever the last one concluded, so its verdict and the report it made never
  * outlive it, and it keeps where the thread stood, which is what a run that settles unseen puts back.
- * A run resuming a thread after its usage limit lifted carries on the turn the limit cut short, so
- * what that turn reported still stands.
  */
-export function beginRun(state: WorkspaceState, taskId: string, runId: string, provenance: RunProvenance = ATTENDED_RUN, before?: ThreadMark, warming = false): WorkspaceState {
+export function beginRun(state: WorkspaceState, taskId: string, runId: string, provenance: RunProvenance = ATTENDED_RUN, before?: ThreadMark, pickup?: RunPickup): WorkspaceState {
   /** A run that starts is the thread picked back up, whatever its place in line. */
-  const threads = withoutOutcome(state.threads, new Set([taskId])).map((thread) => thread.id === taskId ? withoutLimitPause(warming ? thread : withoutReport(thread)) : thread);
+  const threads = withoutOutcome(state.threads, new Set([taskId])).map((thread) => thread.id === taskId ? withoutLimitPause(reportStands(thread, pickup) ? thread : withoutReport(thread)) : thread);
   const messagesBefore = threads.find((thread) => thread.id === taskId)?.messages.length ?? 0;
   const mark = before ?? threadMark(state.threads.find((thread) => thread.id === taskId));
   return withRunStatus(
-    withActiveRun({ ...state, threads, actionError: null, lastRunIds: { ...state.lastRunIds, [taskId]: runId } }, taskId, { taskId, runId, sequence: 0, status: "running", ...provenance, notified: false, acknowledged: false, reportedIssues: [], messagesBefore, before: mark, ...(warming ? { warming: true as const } : {}) }),
+    withActiveRun({ ...state, threads, actionError: null, lastRunIds: { ...state.lastRunIds, [taskId]: runId } }, taskId, { taskId, runId, sequence: 0, status: "running", ...provenance, notified: false, acknowledged: false, reportedIssues: [], messagesBefore, before: mark, ...(pickup === "warming" ? { warming: true as const } : {}) }),
     taskId,
     "running",
   );
+}
+
+/**
+ * A run resuming after a usage limit carries on the turn the limit cut short, so what that turn
+ * reported still stands. A turn the agent opened itself was answered by nobody, so a report that the
+ * thread needs the user stands through it until the user writes or the agent reports again.
+ */
+function reportStands(thread: Thread, pickup: RunPickup | undefined) {
+  return pickup === "warming" || pickup === "agent" && thread.report !== undefined && GROUP_OF[thread.report.state] === "needs";
 }
 
 /** A human who joins a scheduled run owns it from then on: what it finds is an answer to them. */

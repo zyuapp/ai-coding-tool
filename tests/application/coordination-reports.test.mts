@@ -96,6 +96,22 @@ test("a report belongs to the turn that made it, so a later turn is read by how 
   assert.deepEqual(standing(failed), ["failed", null], "a turn that failed after an earlier done report needs the user");
 });
 
+/** The agent opens a turn of its own on the worker, says `reply` and ends it without reporting. */
+function agentTurn(state: WorkspaceState, reply: string): WorkspaceState {
+  return run(state, [
+    correlatedRunEvent("worker", "run-agent", 1, { type: "run.started", agentInitiated: true }),
+    correlatedRunEvent("worker", "run-agent", 2, { type: "assistant.delta", messageId: "woke", text: reply }),
+    correlatedRunEvent("worker", "run-agent", 3, { type: "run.status", status: "succeeded" }),
+  ]);
+}
+
+test("a turn the agent opens itself leaves a report that it needs the user standing, but not one that it is done", () => {
+  const blocked = agentTurn(reportedTurn("blocked", "need DB credentials"), "The build finished.");
+  assert.deepEqual(standing(blocked), ["blocked", "need DB credentials"], "nobody has answered the blocker");
+  assert.match(coordinationContext(blocked, blocked.threads[0]!), /"Worker" \[worker\] [^\n]*· reported blocked: need DB credentials$/m);
+  assert.deepEqual(standing(agentTurn(reportedTurn("done", "Shipped"), "The build finished.")), ["done", "The build finished."], "what it said since is newer than its report");
+});
+
 test("a thread picked back up after its usage limit, or compacted, keeps what its turn reported", () => {
   const limitPause = { resetsAt: Date.now() + 3_600_000, window: "session" as const, pausedAt: 1 };
   const paused = workspace({ threads: [lead(), member("worker", { title: "Worker", outcome: "finished", report: { state: "working", summary: "Halfway", at: 1 }, limitPause })] });
@@ -113,8 +129,9 @@ test("a thread picked back up after its usage limit, or compacted, keeps what it
   assert.deepEqual(standing(settled), ["done", "Shipped"], "compacting is not a turn");
 });
 
-test("a tick that settles unseen puts back the report it superseded, but keeps one it made", () => {
+test("a tick that settles unseen puts back the report it superseded, but keeps one it made of where its work ended up", () => {
   const before = threadMark(member("worker", { report: { state: "done", summary: "Shipped", at: 1 } }));
   assert.deepEqual(withdrawRun(member("worker"), 0, before).report, { state: "done", summary: "Shipped", at: 1 });
   assert.deepEqual(withdrawRun(member("worker", { report: { state: "blocked", summary: "No access", at: 2 } }), 0, before).report, { state: "blocked", summary: "No access", at: 2 });
+  assert.deepEqual(withdrawRun(member("worker", { report: { state: "working", summary: "Looking", at: 2 } }), 0, before).report, { state: "done", summary: "Shipped", at: 1 }, "a report that it was working ended with the tick");
 });

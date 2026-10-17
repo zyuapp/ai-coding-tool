@@ -129,7 +129,7 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       const { event } = input;
       /** A turn the agent started itself belongs to no run yet, so the thread takes one on for it. */
       const opening = event.type === "run.started" && event.agentInitiated && !state.activeRuns[event.taskId] && state.threads.some((thread) => thread.id === event.taskId);
-      const opened = opening ? beginRun(state, event.taskId, event.runId) : state;
+      const opened = opening ? beginRun(state, event.taskId, event.runId, ATTENDED_RUN, undefined, "agent") : state;
       const active = opened.activeRuns[event.taskId];
       if (!active || event.runId !== active.runId || event.sequence <= active.sequence) return settled(state);
       const applied = applyRunEvent(opened, event);
@@ -347,7 +347,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   /** Only the composer's own send spent the draft's placement; a thread started any other way leaves it alone. */
   const spent = focusing ? { draftBranch: null, draftWorktree: false, draftWorktreeId: null, draftRole: null } : {};
   const owning = withUsedWorktree(focusing ? handOverDraftDock(state, thread.id) : state, created, arriving?.id);
-  const started = beginRun({ ...owning, threads, startingProposals, ...spent, ...(focusing ? { currentId: thread.id } : {}) }, thread.id, pending.runId, ATTENDED_RUN, undefined, pending.warming === true);
+  const started = beginRun({ ...owning, threads, startingProposals, ...spent, ...(focusing ? { currentId: thread.id } : {}) }, thread.id, pending.runId, ATTENDED_RUN, undefined, pending.warming ? "warming" : undefined);
   const drained = pending.queuedIds
     ? withQueued(started, thread.id, queuedFor(started, thread.id).filter((message) => !pending.queuedIds!.includes(message.id)))
     : started;
@@ -386,7 +386,7 @@ function startResume(state: WorkspaceState, pending: PendingRun, workspace: Work
     ...(thread.inheritedContinuation && thread.continuation ? { forkContinuation: true as const } : {}),
     ...sideChannelFor(state, thread),
   };
-  return settled(beginRun(resumed, thread.id, pending.runId, ATTENDED_RUN, undefined, true), [{ type: "start-run", command }]);
+  return settled(beginRun(resumed, thread.id, pending.runId, ATTENDED_RUN, undefined, "warming"), [{ type: "start-run", command }]);
 }
 
 /** The kill is the agent process's to make; the row only says a stop is on its way. */

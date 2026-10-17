@@ -64,7 +64,8 @@ export function threadMark(thread: Thread | undefined): ThreadMark {
  * Puts a thread back where a tick found it: the messages that tick wrote are withdrawn, so they
  * count for nothing in the thread's activity, the moments it moved are rolled back, and the verdict
  * and report beginning the run superseded are returned, unread as they were. A tick that says
- * nothing takes nothing away either, and a report the tick made itself stands.
+ * nothing takes nothing away either: only a report the tick made of where its work ended up stands,
+ * since one that it was working ended with the tick.
  */
 export function withdrawRun(thread: Thread, from: number, before: ThreadMark): Thread {
   const { runEndedAt: _stamped, outcome: _superseded, outcomeUnread: _unread, ...rest } = thread;
@@ -75,7 +76,7 @@ export function withdrawRun(thread: Thread, from: number, before: ThreadMark): T
     ...(before.runEndedAt === undefined ? {} : { runEndedAt: before.runEndedAt }),
     ...(before.outcome === undefined ? {} : { outcome: before.outcome }),
     ...(before.outcomeUnread ? { outcomeUnread: true as const } : {}),
-    ...(!thread.report && before.report ? { report: before.report } : {}),
+    ...(before.report && (!thread.report || thread.report.state === "working") ? { report: before.report } : {}),
   };
 }
 
