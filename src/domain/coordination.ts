@@ -111,10 +111,12 @@ export type MemoryNote = { id: string; text: string; at: number };
  * What a coordinator keeps for the user: what it is for, and notes on how they want it to work.
  * `revision` grows with every change, so a note added by one is named `n<revision>` and no two notes
  * ever share a name. `heard` is the revision the coordinator's session last read, absent when it has
- * read none.
+ * read none. `purposeCleared` is the revision that took the purpose off, kept until one is set
+ * again, so a session that read the old one is told it is gone.
  */
 export type CoordinatorMemory = {
   purpose?: string;
+  purposeCleared?: number;
   notes: MemoryNote[];
   revision: number;
   heard?: number;
@@ -236,7 +238,7 @@ export function withMemoryChange(thread: Thread, change: MemoryChange, at: numbe
   /** A coordinator with nothing in memory has, in effect, read all of it. */
   const memory: CoordinatorMemory = thread.memory ?? { notes: [], revision: 0, heard: 0 };
   const revision = memory.revision + 1;
-  let { purpose, notes } = memory;
+  let { purpose, purposeCleared, notes } = memory;
   let noteId: string | undefined;
   switch (change.kind) {
     case "purpose": {
@@ -244,6 +246,7 @@ export function withMemoryChange(thread: Thread, change: MemoryChange, at: numbe
       if (asked.length > MAX_PURPOSE) return { error: `A purpose can be at most ${MAX_PURPOSE} characters.` };
       if (asked === (purpose ?? "")) return { thread };
       purpose = asked || undefined;
+      purposeCleared = purpose ? undefined : revision;
       break;
     }
     case "remember": {
@@ -273,7 +276,13 @@ export function withMemoryChange(thread: Thread, change: MemoryChange, at: numbe
   }
   /** A memory the session had not finished reading stays unread, whoever changed it. */
   const read = heard && memory.heard === memory.revision ? revision : memory.heard;
-  const changed: CoordinatorMemory = { ...(purpose ? { purpose } : {}), notes, revision, ...(read === undefined ? {} : { heard: read }) };
+  const changed: CoordinatorMemory = {
+    ...(purpose ? { purpose } : {}),
+    ...(purposeCleared === undefined ? {} : { purposeCleared }),
+    notes,
+    revision,
+    ...(read === undefined ? {} : { heard: read }),
+  };
   return { thread: { ...thread, memory: changed }, ...(noteId ? { noteId } : {}) };
 }
 
@@ -350,6 +359,7 @@ function isMemoryNote(value: unknown): value is MemoryNote {
 export function isCoordinatorMemory(value: unknown): value is CoordinatorMemory {
   return isRecord(value)
     && (value.purpose === undefined || typeof value.purpose === "string")
+    && (value.purposeCleared === undefined || Number.isSafeInteger(value.purposeCleared))
     && Array.isArray(value.notes) && value.notes.every(isMemoryNote)
     && Number.isSafeInteger(value.revision) && (value.revision as number) >= 0
     && (value.heard === undefined || finite(value.heard));

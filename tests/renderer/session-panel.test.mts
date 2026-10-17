@@ -184,18 +184,20 @@ test("the Overview's purpose line and memory rows edit what the coordinator keep
     ...member("lead", "Plan"), parentId: undefined, role: "coordinator",
     memory: { purpose: "Ship the v2 reader", notes: [{ id: "n1", text: "Propose threads first", at: 1 }, { id: "n2", text: "Use Sonnet for docs", at: 1 }], revision: 2 },
   };
-  const view = deriveView({ ...emptyWorkspaceState(), threads: [lead], currentId: lead.id });
   const commandControls = { available: () => true, dispatch() {} };
-  const workspace = { ...view, threadHandles: [], threadHandlesFor: () => [], commandControls, dispatch, actions: workspaceActions(dispatch) } as never;
-  const dock = buildDock({ workspace, inspectedSubagent: undefined, workingSubagents: 0, unreviewedFiles: 0, onInspectSubagent() {}, onCloseInspector() {}, onOpenPanel() {}, onAddSideChat() {} });
-  const panel = required(dock.panels.find((item) => item.id === OVERVIEW_PANEL));
-  const mounted = await mount(React.createElement(CommandControlsProvider, { value: commandControls }, panel.render()));
+  const overview = (thread: Thread) => {
+    const view = deriveView({ ...emptyWorkspaceState(), threads: [thread], currentId: thread.id });
+    const workspace = { ...view, threadHandles: [], threadHandlesFor: () => [], commandControls, dispatch, actions: workspaceActions(dispatch) } as never;
+    const dock = buildDock({ workspace, inspectedSubagent: undefined, workingSubagents: 0, unreviewedFiles: 0, onInspectSubagent() {}, onCloseInspector() {}, onOpenPanel() {}, onAddSideChat() {} });
+    const panel = required(dock.panels.find((item) => item.id === OVERVIEW_PANEL));
+    return React.createElement(CommandControlsProvider, { value: commandControls }, panel.render());
+  };
+  const mounted = await mount(overview(lead));
   const container = mounted.container;
-  const setValue = item(Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")).set;
-  const type = async (input: HTMLInputElement, text: string, key: string) => {
+  const type = async (input: HTMLInputElement | HTMLTextAreaElement, text: string, key: string) => {
     await act(async () => {
       input.focus();
-      setValue?.call(input, text);
+      item(Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), "value")).set?.call(input, text);
       input.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
       input.dispatchEvent(new dom.window.KeyboardEvent("keyup", { bubbles: true }));
     });
@@ -215,11 +217,13 @@ test("the Overview's purpose line and memory rows edit what the coordinator keep
   const [first] = section.querySelectorAll<HTMLButtonElement>('button[aria-label="Edit Note"]');
   assert.equal(first.textContent, "Propose threads first");
   await act(async () => { first.click(); });
-  await type(query<HTMLInputElement>(section, 'input[aria-label="Note"]'), "Propose threads before starting any", "Enter");
+  await type(query<HTMLTextAreaElement>(section, 'textarea[aria-label="Note"]'), "Propose threads before starting any", "Enter");
   const forget = section.querySelectorAll<HTMLButtonElement>('button[aria-label="Forget"]')[1];
   assert.ok(forget.parentElement?.querySelector('button[aria-label="Edit Note"]'), "Forget sits beside the note it drops, not inside it");
   await act(async () => { forget.click(); });
-  await type(query<HTMLInputElement>(section, 'input[aria-label="Add a note"]'), "Keep updates short", "Enter");
+  const add = query<HTMLTextAreaElement>(section, 'textarea[aria-label="Add a note"]');
+  assert.equal(add.maxLength, 500, "a note longer than memory keeps cannot be typed");
+  await type(add, "Keep updates short", "Enter");
 
   assert.deepEqual(dispatched, [
     { type: "memory.set-purpose", taskId: "lead", purpose: null },
@@ -227,7 +231,9 @@ test("the Overview's purpose line and memory rows edit what the coordinator keep
     { type: "memory.forget", taskId: "lead", noteId: "n2" },
     { type: "memory.add", taskId: "lead", text: "Keep updates short" },
   ], "saving the purpose empty clears it");
-  assert.equal(query<HTMLInputElement>(section, 'input[aria-label="Add a note"]').value, "", "an added note leaves the row empty for the next");
+  assert.equal(add.value, "Keep updates short", "a note not yet saved, or refused, stays to be changed");
+  await mounted.render(overview({ ...lead, memory: { ...item(lead.memory), notes: [...item(lead.memory).notes, { id: "n3", text: "Keep updates short", at: 2 }], revision: 3 } }));
+  assert.equal(add.value, "", "once saved, the row is empty for the next");
   await mounted.unmount();
 });
 

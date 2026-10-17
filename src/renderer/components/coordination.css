@@ -214,7 +214,9 @@
   overflow-wrap: anywhere;
   cursor: text;
 }
-.coordination-note-text:not(.editing) { padding-right: 32px; }
+/** A note being written wraps as it reads, and an edited one keeps the room Forget leaves beside it. */
+textarea.coordination-note-text, .coordination-note-add { display: block; width: 100%; resize: none; overflow: hidden; field-sizing: content; }
+.coordination-note-text { padding-right: 32px; }
 .coordination-note-text:not(.editing):hover { background: var(--surface-hover); color: var(--ink-soft); }
 .coordination-note-add::placeholder { color: var(--quiet); }
 .coordination-note-add:hover:not(:focus) { background: var(--wash); }

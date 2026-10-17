@@ -1,6 +1,6 @@
-import { useId, useRef, useState, type KeyboardEvent } from "react";
+import { useId, useRef, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent } from "react";
 import { LuChevronDown as ChevronDown, LuChevronUp as ChevronUp, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuTrash2 as Trash, LuX as X } from "react-icons/lu";
-import { deliveryLabel, OVERVIEW_GROUPS, type OverviewFold, type OverviewFolds, type OverviewGroup, type OverviewSection, type ThreadBrief, type ThreadModelChoice } from "../../domain/coordination";
+import { deliveryLabel, MAX_MEMORY_NOTE, MAX_PURPOSE, OVERVIEW_GROUPS, type MemoryNote, type OverviewFold, type OverviewFolds, type OverviewGroup, type OverviewSection, type ThreadBrief, type ThreadModelChoice } from "../../domain/coordination";
 import { engineForModel, modelDelegable, type AgentEngine, type AgentModel, type EngineReadiness } from "../../domain/agent-engine";
 import type { AgentEffort } from "../../domain/run";
 import type { Thread } from "../../domain/thread";
@@ -97,13 +97,16 @@ export function CoordinatorOverview({ header, memory, members, worktreeGroups, f
 
 /**
  * Text edited where it is read: a click turns it into a field, Enter or leaving it saves, and Esc
- * puts it back as it was.
+ * puts it back as it was. A `multiline` one wraps as it is read rather than scrolling sideways, and
+ * Enter still saves it.
  */
-function InlineEdit({ value, label, placeholder, className, onSave }: {
+function InlineEdit({ value, label, placeholder, className, maxLength, multiline = false, onSave }: {
   value: string;
   label: string;
   placeholder?: string;
   className: string;
+  maxLength: number;
+  multiline?: boolean;
   onSave: (text: string) => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
@@ -122,26 +125,26 @@ function InlineEdit({ value, label, placeholder, className, onSave }: {
     if (text !== null && text.trim() !== value) onSave(text.trim());
     setDraft(null);
   };
-  return (
-    <input
-      className={`${className} editing`}
-      aria-label={label}
-      value={draft}
-      placeholder={placeholder}
-      autoFocus
-      onChange={(event) => { if (!settled.current) setDraft(event.currentTarget.value); }}
-      onBlur={(event) => finish(event.currentTarget.value)}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); finish(event.currentTarget.value); }
-        if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); finish(null); }
-      }}
-    />
-  );
+  const field = {
+    className: `${className} editing`,
+    "aria-label": label,
+    value: draft,
+    placeholder,
+    maxLength,
+    autoFocus: true,
+    onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => { if (!settled.current) setDraft(event.currentTarget.value); },
+    onBlur: (event: FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => finish(event.currentTarget.value),
+    onKeyDown: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); finish(event.currentTarget.value); }
+      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); finish(null); }
+    },
+  };
+  return multiline ? <textarea rows={1} {...field} /> : <input {...field} />;
 }
 
 /** What the coordinator is for, in one line. Saving it empty takes it off. */
 function PurposeLine({ purpose, onSave }: { purpose: string | null; onSave: (purpose: string | null) => void }) {
-  return <InlineEdit value={purpose ?? ""} label="Purpose" placeholder="Add a purpose" className="coordination-purpose" onSave={(text) => onSave(text || null)} />;
+  return <InlineEdit value={purpose ?? ""} label="Purpose" placeholder="Add a purpose" className="coordination-purpose" maxLength={MAX_PURPOSE} onSave={(text) => onSave(text || null)} />;
 }
 
 /** The notes the coordinator keeps, each edited in place, with a last row that adds one. */
@@ -154,7 +157,7 @@ function MemorySection({ memory, fold, onSetFold }: { memory: OverviewMemoryProp
         {memory.notes.map((note) => (
           <div key={note.id} className="coordination-note">
             {/** A note emptied while editing is left as it was; Forget is how one goes. */}
-            <InlineEdit value={note.text} label="Note" className="coordination-note-text" onSave={(text) => { if (text) memory.onEdit(note.id, text); }} />
+            <InlineEdit value={note.text} label="Note" className="coordination-note-text" maxLength={MAX_MEMORY_NOTE} multiline onSave={(text) => { if (text) memory.onEdit(note.id, text); }} />
             <CommandButton
               command={{ type: "memory.forget", taskId: memory.taskId, noteId: note.id }}
               className="coordination-note-forget"
@@ -166,24 +169,35 @@ function MemorySection({ memory, fold, onSetFold }: { memory: OverviewMemoryProp
             </CommandButton>
           </div>
         ))}
-        <NoteInput onAdd={memory.onAdd} />
+        <NoteInput notes={memory.notes} onAdd={memory.onAdd} />
       </div>}
     </section>
   );
 }
 
-function NoteInput({ onAdd }: { onAdd: (text: string) => void }) {
+/**
+ * The row that adds a note. What was typed stays until the note it sent shows up in memory, so a
+ * refused one, as when memory is full, is still there to change once the user has made room.
+ */
+function NoteInput({ notes, onAdd }: { notes: readonly MemoryNote[]; onAdd: (text: string) => void }) {
   const [text, setText] = useState("");
-  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    const typed = event.currentTarget.value;
-    if (event.key === "Enter" && !event.nativeEvent.isComposing && typed.trim()) {
+  /** The note last sent, and the notes memory held when it was, so a note it already held does not count as saved. */
+  const [sent, setSent] = useState<{ text: string; held: ReadonlySet<string> } | null>(null);
+  if (sent && notes.some((note) => note.text === sent.text && !sent.held.has(note.id))) {
+    setSent(null);
+    if (text.trim() === sent.text) setText("");
+  }
+  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    const typed = event.currentTarget.value.trim();
+    if (event.key === "Enter" && !event.nativeEvent.isComposing) {
       event.preventDefault();
-      onAdd(typed.trim());
-      setText("");
+      if (!typed) return;
+      setSent({ text: typed, held: new Set(notes.map((note) => note.id)) });
+      onAdd(typed);
     }
-    if (event.key === "Escape" && typed) { event.preventDefault(); event.stopPropagation(); setText(""); }
+    if (event.key === "Escape" && event.currentTarget.value) { event.preventDefault(); event.stopPropagation(); setText(""); }
   };
-  return <input className="coordination-note-add" aria-label="Add a note" placeholder="Add a note" value={text} onChange={(event) => setText(event.currentTarget.value)} onKeyDown={onKeyDown} />;
+  return <textarea rows={1} className="coordination-note-add" aria-label="Add a note" placeholder="Add a note" maxLength={MAX_MEMORY_NOTE} value={text} onChange={(event) => setText(event.currentTarget.value)} onKeyDown={onKeyDown} />;
 }
 
 /** The head of a section that folds: its label and how many rows it holds. */

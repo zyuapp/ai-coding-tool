@@ -365,8 +365,8 @@ async function rememberFor(host: ThreadRequestHost, threadId: string, change: Me
   const memory = host.state().threads.find((item) => item.id === threadId)?.memory;
   if (change.kind === "purpose") return { note: memory?.purpose ? `Purpose set. ${READ_FROM_NOW}` : "Purpose cleared." };
   if (change.kind === "forget") return { note: `Forgot [${change.noteId}].` };
-  const text = change.text.trim();
-  const saved = memory?.notes.filter((note) => note.text === text).at(-1);
-  if (!saved) throw new Error("The note could not be saved. Try again.");
+  /** The trial named the note the change adds, so a note that matches it only in text is never taken for it. */
+  const saved = memory?.notes.find((note) => note.id === tried.noteId);
+  if (!saved || saved.text !== change.text.trim()) throw new Error("The note could not be saved. Try again.");
   return { note: `Saved as [${saved.id}]. ${READ_FROM_NOW}` };
 }

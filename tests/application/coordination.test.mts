@@ -587,6 +587,11 @@ test("a coordinator reads its memory again only after the user changes it, after
   const settledRun = { ...told.state, activeRuns: {}, runStatuses: {} };
   assert.doesNotMatch(started(settledRun, { type: "task.send", taskId: "lead", text: "And now?" }).prompt, /Your memory/, "read once, it is not sent on the following run");
 
+  const cleared = started(reduce(warm, { type: "memory.set-purpose", taskId: "lead", purpose: null }).state, { type: "task.send", taskId: "lead", text: "Next?" });
+  assert.match(cleared.prompt, /Your purpose: none\nYour memory \(the user changed it since you last read it\):/, "a purpose taken off is said to be gone");
+  const reread = reduce({ ...cleared.state, activeRuns: {}, runStatuses: {} }, { type: "memory.edit", taskId: "lead", noteId: "n1", text: "Propose threads first, always" }).state;
+  assert.doesNotMatch(started(reread, { type: "task.send", taskId: "lead", text: "And now?" }).prompt, /Your purpose/, "a purpose it already knows is gone is not mentioned again");
+
   const own = reduce(warm, { type: "coordination.remembered", taskId: "lead", change: { kind: "remember", text: "Keep updates short" } }).state;
   assert.doesNotMatch(started(own, { type: "task.send", taskId: "lead", text: "Next?" }).prompt, /Your memory/, "its own writes count as read");
 

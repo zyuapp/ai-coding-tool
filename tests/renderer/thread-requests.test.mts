@@ -236,6 +236,7 @@ test("only a coordinator keeps a memory, and its tool answer names the note it s
     type: "thread.response", requestId: item(desktop.threadAnswers.at(-1)).requestId, ok: true,
     result: { note: "Saved as [n3]. You and every thread you start from now on read it." },
   });
+  assert.equal(responseRecord(await ask("lead", { kind: "remember", text: "Use Sonnet for docs" })).note, "Saved as [n4]. You and every thread you start from now on read it.", "a note saved again is named as the new one");
   assert.equal(responseRecord(await ask("lead", { kind: "forget", noteId: "n1" })).note, "Forgot [n1].");
   assert.equal(failedThreadResponse(await ask("lead", { kind: "forget", noteId: "n9" })).message, "No note has the ID n9.");
   assert.equal(failedThreadResponse(await ask("solo", { kind: "remember", text: "Remember this" })).message, "Only a coordinator keeps a memory.");

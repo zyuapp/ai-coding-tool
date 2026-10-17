@@ -140,7 +140,8 @@ function memoryContext(lead: Thread, fresh: boolean): string[] {
   if (!memory || !fresh && lead.continuation !== undefined && memory.heard === memory.revision) return [];
   /** A session that read an earlier revision is told what changed under it, even when nothing is left. */
   const changed = !fresh && lead.continuation !== undefined && memory.heard !== undefined;
-  const purpose = memory.purpose ?? (changed ? "none" : undefined);
+  /** A purpose taken off since the session last read it is said to be gone; one it never had is not mentioned. */
+  const purpose = memory.purpose ?? (changed && (memory.purposeCleared ?? 0) > (memory.heard ?? 0) ? "none" : undefined);
   const notes = memory.notes.length ? memory.notes.map(noteLine) : changed ? ["- none"] : [];
   return [
     ...(purpose ? [`Your purpose: ${purpose}`] : []),
