@@ -4,6 +4,11 @@ import { threadLink } from "../../domain/thread-handles";
 import { THREAD_ROLES, type ThreadRole } from "../../domain/thread-role";
 import type { MenuEntry } from "./PopoverMenu";
 
+/** Whether a thread, or for a coordinator any thread under it, has work going. */
+export function workGoing(thread: Thread, members: readonly Thread[], running: ReadonlySet<string>): boolean {
+  return running.has(thread.id) || members.some((member) => running.has(member.id));
+}
+
 /** The same thread actions from its sidebar row and its heading. */
 export function threadMenuEntries(thread: Thread, actions: {
   onRename: () => void;
@@ -17,14 +22,23 @@ export function threadMenuEntries(thread: Thread, actions: {
   /** Whether desktop notices are on at all, which a coordinator's mute only narrows. */
   notifications: boolean;
   onSetMuted: (muted: boolean) => void;
+  /** Whether the thread, or one working under it, has work going for Stop all to stop. */
+  working: boolean;
+  onStopAll: () => void;
 }): MenuEntry[] {
   const leads = actions.coordinators.filter((lead) => lead.id !== thread.id);
   const lead = leads.find((item) => item.id === thread.parentId);
   /**
-   * A coordinator takes threads under it; it never works under another. Its mute says what choosing
-   * it does rather than carrying a tick, which would mark the whole menu as one to tick.
+   * A coordinator takes threads under it; it never works under another, and stops with them. Its
+   * mute says what choosing it does rather than carrying a tick, which would mark the whole menu as
+   * one to tick.
    */
   const coordination: MenuEntry[] = thread.role === "coordinator" ? [{
+    label: "Stop all",
+    command: { type: "coordination.stop-all", taskId: thread.id },
+    ...(actions.working ? {} : { disabled: true }),
+    onSelect: actions.onStopAll,
+  }, {
     label: thread.muted ? "Unmute notifications" : "Mute notifications",
     command: { type: "coordination.set-muted", taskId: thread.id, muted: !thread.muted },
     ...(actions.notifications ? {} : { disabled: true, title: "Notifications are off in Settings" }),

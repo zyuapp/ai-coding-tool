@@ -6,7 +6,7 @@ import React, { act } from "react";
 import type { Thread } from "../../src/domain/thread.ts";
 import type { CoordinatedThreadStatus, CoordinatedThreadView } from "../../src/application/coordination.ts";
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
-import { required } from "../application/workspace-reducer-fixtures.mts";
+import { activeRun, required } from "../application/workspace-reducer-fixtures.mts";
 import { emptyWorkspaceState, deriveView, OVERVIEW_PANEL } from "../../src/application/workspace-state.ts";
 import type { WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { workspaceActions } from "../../src/renderer/task-workspace/workspace-actions.ts";
@@ -49,6 +49,7 @@ test("a coordinator's Overview groups its threads by what they need, each openin
     onSelect: (id: string) => { opened = id; },
     onResolve() {},
     onReopen() {},
+    onStopAll() {},
   });
   const view = await mount(overview({}));
   const needs = query(view.container, '[aria-label="Needs you"]');
@@ -71,7 +72,7 @@ test("a coordinator's Overview groups its threads by what they need, each openin
   await act(async () => { query<HTMLButtonElement>(busy, 'button[aria-label="Open Dark mode"]').click(); });
   assert.equal(opened, "a");
 
-  await view.render(React.createElement(CoordinatorOverview, { header, memory, members: [], worktreeGroups: [], folds: {}, onSetFold() {}, onSelect() {}, onResolve() {}, onReopen() {} }));
+  await view.render(React.createElement(CoordinatorOverview, { header, memory, members: [], worktreeGroups: [], folds: {}, onSetFold() {}, onSelect() {}, onResolve() {}, onReopen() {}, onStopAll() {} }));
   assert.match(view.container.textContent, /Threads run onModelOpusEffortHigh/, "a coordinator with no threads yet still says what they will run on");
   assert.match(view.container.textContent, /No threads yet/);
   await view.unmount();
@@ -99,9 +100,10 @@ test("the Overview files threads ready for review and resolved apart, and resolv
     onSelect() {},
     onResolve: (id: string) => { resolving.push(id); },
     onReopen: (id: string) => { reopening.push(id); },
+    onStopAll() {},
   });
   const view = await mount(overview({}));
-  const labels = [...view.container.querySelectorAll(".coordination-group:not(.coordination-memory) > .coordination-group-head > span:not(.coordination-group-count)")].map((node) => node.textContent);
+  const labels = [...view.container.querySelectorAll(".coordination-group:not(.coordination-memory) .coordination-group-head > span:not(.coordination-group-count)")].map((node) => node.textContent);
   assert.deepEqual(labels, ["Needs you", "Ready for review", "Working", "Done", "Resolved"]);
   const review = query(view.container, '[aria-label="Ready for review"]');
   assert.match(review.textContent, /Ready for review · #212 · Checks failing/);
@@ -132,7 +134,7 @@ test("the Overview says what a coordinator's threads run on, and picks another w
   const overview = (available: boolean) => React.createElement(CommandControlsProvider, { value: { available: (command) => available || command.type !== "coordination.set-thread-model", dispatch() {} } },
     React.createElement(CoordinatorOverview, {
       header: { ...header, threadModel: { model: "gpt-6-luna", effort: "max" }, onSetThreadModel: (model: string, effort?: string) => { picked.push([model, effort]); } },
-      memory, members: [], worktreeGroups: [], folds: {}, onSetFold() {}, onSelect() {}, onResolve() {}, onReopen() {},
+      memory, members: [], worktreeGroups: [], folds: {}, onSetFold() {}, onSelect() {}, onResolve() {}, onReopen() {}, onStopAll() {},
     }));
   const view = await mount(overview(true));
   const head = query(view.container, ".coordination-overview-header");
@@ -172,6 +174,33 @@ test("the Overview tab sets what the coordinator in front runs its threads on", 
   });
   await act(async () => { [...item(model).querySelectorAll<HTMLButtonElement>(".model-choice")].find((button) => button.textContent?.includes("Opus"))!.click(); });
   assert.deepEqual(dispatched.filter((input) => input.type === "coordination.set-thread-model"), [{ type: "coordination.set-thread-model", taskId: "lead", model: "opus" }], "a model alone leaves the effort for the reducer to fit");
+  await mounted.unmount();
+});
+
+test("the Overview's Working group stops the coordinator and every thread under it", async () => {
+  window.desktop = fakeDesktop();
+  const dispatched: WorkspaceInput[] = [];
+  const dispatch = async (input: WorkspaceInput) => { dispatched.push(input); };
+  const lead: Thread = { ...member("lead", "Plan"), parentId: undefined, role: "coordinator" };
+  const view = deriveView({ ...emptyWorkspaceState(), threads: [lead, member("busy", "Login flake"), member("idle", "Docs")], currentId: lead.id, activeRuns: { busy: activeRun("busy", "run-busy") } });
+  const shown = (available: boolean) => {
+    const commandControls = { available: (command: { type: string }) => available || command.type !== "coordination.stop-all", dispatch() {} };
+    const workspace = { ...view, threadHandles: [], threadHandlesFor: () => [], commandControls, dispatch, actions: workspaceActions(dispatch) } as never;
+    const dock = buildDock({ workspace, inspectedSubagent: undefined, workingSubagents: 0, unreviewedFiles: 0, onInspectSubagent() {}, onCloseInspector() {}, onOpenPanel() {}, onAddSideChat() {} });
+    return React.createElement(CommandControlsProvider, { value: commandControls }, required(dock.panels.find((item) => item.id === OVERVIEW_PANEL)).render());
+  };
+  const mounted = await mount(shown(true));
+  const working = query(mounted.container, '[aria-label="Working"]');
+  const stop = query<HTMLButtonElement>(working, ".coordination-stop-all");
+  assert.equal(stop.textContent, "Stop all");
+  assert.equal(stop.closest(".coordination-group-head"), null, "it sits beside the fold button, never inside it");
+  assert.ok(stop.parentElement?.querySelector(".coordination-group-head"));
+  assert.equal(query(mounted.container, '[aria-label="Done"]').querySelector(".coordination-stop-all"), null, "only the Working group stops anything");
+  await act(async () => { stop.click(); });
+  assert.deepEqual(dispatched.filter((input) => input.type === "coordination.stop-all"), [{ type: "coordination.stop-all", taskId: "lead" }]);
+
+  await mounted.render(shown(false));
+  assert.equal(query<HTMLButtonElement>(mounted.container, ".coordination-stop-all").disabled, true, "a computer whose build cannot stop them all says so");
   await mounted.unmount();
 });
 

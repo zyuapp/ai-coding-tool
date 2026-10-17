@@ -15,6 +15,7 @@ import { WorkspaceComposer } from "./components/WorkspaceComposer";
 import { WorkspaceConversation } from "./components/WorkspaceConversation";
 import { WorkspaceSession } from "./components/WorkspaceSession";
 import { WorkspaceHeader } from "./components/WorkspaceHeader";
+import { workGoing } from "./components/thread-menu";
 import { buildDock, findLabel, unreviewedFileCount } from "./components/dock-registry";
 import { useTaskWorkspace } from "./task-workspace/useTaskWorkspace";
 import { useFileDrop, useRefusedStrayDrops } from "./file-drop";
@@ -180,6 +181,8 @@ export function App() {
           onArchiveThread={workspace.actions.archiveThread} onSetThreadRole={workspace.actions.setThreadRole}
           coordinators={workspace.coordinators} onSetCoordinator={workspace.actions.setCoordinator}
           notifications={workspace.notifications} onSetMuted={workspace.actions.setMuted}
+          working={Boolean(workspace.currentThread && workGoing(workspace.currentThread, workspace.threadsByCoordinator.get(workspace.currentThread.id) ?? [], workspace.runningThreadIds))}
+          onStopAll={workspace.actions.stopAll}
           onToggleSidebar={() => void workspace.actions.setSidebarOpen(!sidebarOpen)}
           onToggleSessionPanel={() => {
             void workspace.actions.setDockOpen(false);

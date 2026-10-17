@@ -1,4 +1,4 @@
-import { createContext, memo, useContext, useId, useRef, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent } from "react";
+import { createContext, memo, useContext, useId, useRef, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
 import { LuArrowUp as ArrowUp, LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuChevronDown as ChevronDown, LuChevronUp as ChevronUp, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuRotateCcw as Reopen, LuTrash2 as Trash, LuX as X } from "react-icons/lu";
 import { deliveryLabel, MAX_MEMORY_NOTE, MAX_PURPOSE, nextStepOf, OVERVIEW_GROUPS, type MemoryNote, type OverviewFold, type OverviewFolds, type OverviewGroup, type OverviewSection, type ThreadBrief, type ThreadModelChoice } from "../../domain/coordination";
 import { engineForModel, modelDelegable, modelsFor, type AgentEngine, type AgentModel, type EngineReadiness } from "../../domain/agent-engine";
@@ -77,13 +77,15 @@ type RowActions = {
 };
 
 /** A coordinator's purpose, what its threads run on, its threads by what they need from the user, then its memory. */
-export function CoordinatorOverview({ header, memory, members, worktreeGroups, folds, onSetFold, onSelect, onResolve, onReopen }: RowActions & {
+export function CoordinatorOverview({ header, memory, members, worktreeGroups, folds, onSetFold, onStopAll, onSelect, onResolve, onReopen }: RowActions & {
   header: OverviewHeaderProps;
   memory: OverviewMemoryProps;
   members: readonly CoordinatedThreadView[];
   worktreeGroups: WorktreeGroup[];
   folds: OverviewFolds;
   onSetFold: FoldChange;
+  /** Stops the coordinator and every thread under it. */
+  onStopAll: () => void;
 }) {
   const worktrees = new Map(worktreeGroups.map(({ worktree }) => [worktree.id, worktree]));
   const groups = overviewGroups(members);
@@ -95,7 +97,8 @@ export function CoordinatorOverview({ header, memory, members, worktreeGroups, f
       <OverviewHeader {...header} />
       {members.length
         ? OVERVIEW_GROUPS.map((group) => groups[group].length > 0 && (
-            <ThreadGroup key={group} group={group} members={groups[group]} fold={folds[group] ?? {}} worktrees={worktrees} onSetFold={onSetFold} onSelect={onSelect} onResolve={onResolve} onReopen={onReopen} />
+            <ThreadGroup key={group} group={group} members={groups[group]} fold={folds[group] ?? {}} worktrees={worktrees} onSetFold={onSetFold} onSelect={onSelect} onResolve={onResolve} onReopen={onReopen}
+              {...(group === "working" ? { action: <StopAllButton taskId={header.taskId} onStopAll={onStopAll} /> } : {})} />
           ))
         : <p className="session-empty coordination-empty">No threads yet</p>}
       <CommandGate command={{ type: "memory.add", taskId: memory.taskId, text: "" }}>
@@ -210,15 +213,21 @@ function NoteInput({ notes, onAdd }: { notes: readonly MemoryNote[]; onAdd: (tex
   return <textarea rows={1} className="coordination-note-add" aria-label="Add a note" placeholder="Add a note" maxLength={MAX_MEMORY_NOTE} value={text} onChange={(event) => setText(event.currentTarget.value)} onKeyDown={onKeyDown} />;
 }
 
-/** The head of a section that folds: its label and how many rows it holds. */
-function FoldHead({ label, count, open, onToggle }: { label: string; count: number; open: boolean; onToggle: () => void }) {
-  return (
+/** The head of a section that folds: its label and how many rows it holds, and beside it, never inside, what else it does. */
+function FoldHead({ label, count, open, action, onToggle }: { label: string; count: number; open: boolean; action?: ReactNode; onToggle: () => void }) {
+  const head = (
     <button type="button" className="coordination-group-head" aria-expanded={open} onClick={onToggle}>
       <ChevronDown size={13} aria-hidden="true" />
       <span>{label}</span>
       <span className="coordination-group-count">{count}</span>
     </button>
   );
+  return action ? <div className="coordination-group-heading">{head}{action}</div> : head;
+}
+
+/** Stops the coordinator and everything working under it, as its thread menu does. */
+function StopAllButton({ taskId, onStopAll }: { taskId: string; onStopAll: () => void }) {
+  return <CommandButton type="button" className="coordination-stop-all" command={{ type: "coordination.stop-all", taskId }} onClick={onStopAll}>Stop all</CommandButton>;
 }
 
 /** What the coordinator's new threads run on, picked with the composer's own chips. */
@@ -250,11 +259,12 @@ export function OverviewHeader({ taskId, threadModel, engineAccess, favoriteMode
 }
 
 /** One group of threads. Resolved starts folded, and Done once it is longer than a group shows. */
-function ThreadGroup({ group, members, fold, worktrees, onSetFold, ...actions }: RowActions & {
+function ThreadGroup({ group, members, fold, worktrees, action, onSetFold, ...actions }: RowActions & {
   group: OverviewGroup;
   members: readonly CoordinatedThreadView[];
   fold: OverviewFold;
   worktrees: Map<string, Worktree>;
+  action?: ReactNode;
   onSetFold: FoldChange;
 }) {
   const open = fold.open ?? (group === "resolved" ? false : group !== "done" || members.length <= OVERVIEW_LIMIT);
@@ -262,7 +272,7 @@ function ThreadGroup({ group, members, fold, worktrees, onSetFold, ...actions }:
   const shown = fold.all ? members : members.slice(0, OVERVIEW_LIMIT);
   return (
     <section className={`coordination-group ${group}`} aria-label={label}>
-      <FoldHead label={label} count={members.length} open={open} onToggle={() => onSetFold(group, { open: !open })} />
+      <FoldHead label={label} count={members.length} open={open} action={action} onToggle={() => onSetFold(group, { open: !open })} />
       {open && <div className="subagent-list" aria-live="polite">
         {shown.map((view) => <ThreadRow key={view.thread.id} view={view} worktrees={worktrees} {...actions} />)}
         {members.length > shown.length && (

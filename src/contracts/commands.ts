@@ -107,6 +107,8 @@ export type TaskCommand =
   | { type: "coordination.set-thread-model"; taskId: string; model: AgentModel; effort?: AgentEffort }
   /** Keeps every desktop notice from a coordinator and its threads back, or lets them through again. */
   | { type: "coordination.set-muted"; taskId: string; muted: boolean }
+  /** Stops a coordinator and every thread under it, none of which wakes it to carry on. */
+  | { type: "coordination.stop-all"; taskId: string }
   /** A coordinator's purpose and the notes it keeps, which it and every thread it starts read. An empty purpose clears it. */
   | { type: "memory.set-purpose"; taskId: string; purpose: string | null }
   | { type: "memory.add"; taskId: string; text: string }

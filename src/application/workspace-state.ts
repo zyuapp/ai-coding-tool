@@ -371,8 +371,12 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   computerUsePermissions: ComputerUseAccessState;
   computerUseSetup: boolean;
   automations: AutomationView[];
-  /** Runs resolving their checkout, and the coordinators' suggestions they start. Session-only, so a restart leaves none starting. */
-  pendingRuns: Record<string, PendingRun>; startingProposals: string[];
+  /**
+   * Runs resolving their checkout, the coordinators' suggestions they start, and the runs a Stop all
+   * cancelled, whose ending their coordinator hears without being woken. Session-only, so a restart
+   * leaves none starting.
+   */
+  pendingRuns: Record<string, PendingRun>; startingProposals: string[]; quietStops: string[];
   queuedMessages: Record<string, QueuedMessage[]>;
   sideChats: SideChat[];
   sideChatSequence: number;
@@ -503,7 +507,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     installedApps: null, cli: NO_CLI, planUsage: NO_PLAN_USAGE, computerUsePermissions: NO_COMPUTER_USE_ACCESS,
     computerUseSetup: false,
     automations: [],
-    pendingRuns: {}, startingProposals: [],
+    pendingRuns: {}, startingProposals: [], quietStops: [],
     queuedMessages: {},
     sideChats: [],
     sideChatSequence: 0,

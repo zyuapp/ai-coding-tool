@@ -384,6 +384,22 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
   text-align: left;
   cursor: pointer;
 }
+/** A head with an action of its own sticks as one bar, the fold button filling what the action leaves. */
+.coordination-group-heading { position: sticky; z-index: 1; top: -10px; display: flex; align-items: center; background: var(--sunken); }
+.coordination-group-heading > .coordination-group-head { position: static; flex: 1; min-width: 0; }
+.coordination-stop-all {
+  flex: none;
+  border: 0;
+  border-radius: 6px;
+  padding: 3px 8px;
+  background: transparent;
+  color: var(--quiet);
+  font: inherit;
+  font-size: var(--text-meta);
+  font-weight: 550;
+  cursor: pointer;
+}
+.coordination-stop-all:hover:not(:disabled) { background: var(--wash); color: var(--ink-soft); }
 .coordination-group-head > svg { color: var(--quiet); transition: transform 140ms ease; }
 .coordination-group-head[aria-expanded="false"] > svg { transform: rotate(-90deg); }
 .coordination-group-count { color: var(--quiet); font-size: var(--text-meta); font-weight: 550; }

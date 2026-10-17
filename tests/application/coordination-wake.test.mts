@@ -167,3 +167,90 @@ test("archiving a coordinator stops it, so restoring it wakes nothing until ther
     assert.match(woken(ended, how).text, /"two" ended its turn/);
   }
 });
+
+test("stopping all cancels every run under a coordinator and never wakes it", () => {
+  const runs = { lead: activeRun("lead", "run-l"), one: activeRun("one", "run-1") };
+  const start = { id: "start", runId: "run-new", origin: "composer" as const, text: "Write docs", prompt: "Write docs", attachments: [], coordination: { coordinatorId: "lead" } };
+  const elsewhere = { id: "other", runId: "run-other", origin: "composer" as const, text: "Hi", prompt: "Hi", attachments: [] };
+  const state = workspace({
+    threads: [lead({ coordinationNotes: [NEWS] }), member("one"), member("two", { limitPause: { ...SESSION, pausedAt: 1 } }), member("three"), task("solo", { title: "Solo" })],
+    activeRuns: { ...runs, solo: activeRun("solo", "run-s") },
+    runStatuses: { lead: "running", one: "running", solo: "running" },
+    pendingRuns: { start, other: elsewhere },
+    queuedMessages: { one: [{ id: "q1", text: "Also this", prompt: "Also this", attachments: [] }] },
+    quietStops: ["run-gone"],
+  });
+  const stopped = reduce(state, { type: "coordination.stop-all", taskId: "lead" });
+  const cancels = stopped.effects.flatMap((effect) => effect.type === "send-run-command" && effect.command.type === "cancel" ? [[effect.command.taskId, effect.command.runId]] : []);
+  assert.deepEqual(cancels, [["lead", "run-l"], ["one", "run-1"]], "the coordinator and its threads are stopped, nothing else");
+  assert.deepEqual(stopped.state.quietStops, ["run-l", "run-1"], "only runs still going are kept");
+  assert.equal(stopped.state.threads.find((thread) => thread.id === "two")?.limitPause, undefined, "a thread waiting out its limit is taken out of line");
+  assert.deepEqual(Object.keys(stopped.state.pendingRuns), ["other"], "a start under the coordinator is dropped");
+  assert.equal(stopped.state.threads[0]!.coordinationNotes?.every((note) => note.quiet), true, "what it held is heard with its next wake");
+  slept(stopped, "stopping it");
+
+  const memberEnds = reduce(stopped.state, correlatedRunEvent("one", "run-1", 1, { type: "run.status", status: "cancelled" }));
+  const note = required(memberEnds.state.threads[0]!.coordinationNotes?.at(-1));
+  assert.match(note.text, /"one" was stopped/);
+  assert.equal(note.quiet, true);
+  assert.deepEqual(memberEnds.state.quietStops, ["run-l"]);
+  assert.equal(memberEnds.state.prompts.one, "Also this", "what was queued goes back to its composer");
+  slept(memberEnds, "a thread it stopped ending");
+  const leadEnds = reduce(memberEnds.state, correlatedRunEvent("lead", "run-l", 1, { type: "run.status", status: "cancelled" }));
+  assert.deepEqual(leadEnds.state.quietStops, []);
+  slept(leadEnds, "its own run ending");
+
+  const failing = reduce(stopped.state, correlatedRunEvent("one", "run-1", 1, { type: "run.status", status: "failed" }));
+  assert.equal(failing.state.threads[0]!.coordinationNotes?.at(-1)?.urgent, undefined, "a stopped run that fails on its way out is no urgent news");
+  slept(failing, "a thread it stopped failing");
+
+  assert.equal(reduce(state, { type: "coordination.stop-all", taskId: "one" }).effects.length, 0, "only a coordinator stops threads under it");
+});
+
+test("stopping all drops a coordinator's wake and hands back what its threads were about to send", () => {
+  const wake = { id: "wake", runId: "run-w", origin: "composer" as const, taskId: "lead", text: "Update", prompt: "Update", attachments: [], coordination: { notes: ["n1"] } };
+  const drained = { id: "next", runId: "run-n", origin: "composer" as const, taskId: "one", text: "Then this", prompt: "Then this", attachments: [], queuedIds: ["q1"] };
+  const tick = { id: "tick", runId: "run-t", origin: "automation" as const, taskId: "one", text: "Check", prompt: "Check", attachments: [], automationId: "a1" };
+  const state = workspace({
+    threads: [lead({ coordinationNotes: [NEWS] }), member("one")],
+    pendingRuns: { wake, next: drained, tick },
+    queuedMessages: { one: [{ id: "q1", text: "Then this", prompt: "Then this", attachments: [] }] },
+  });
+  const stopped = reduce(state, { type: "coordination.stop-all", taskId: "lead" });
+  assert.deepEqual(Object.keys(stopped.state.pendingRuns), ["tick"], "a scheduled tick is the user's to stop on its own");
+  assert.equal(stopped.state.prompts.one, "Then this");
+  assert.deepEqual(stopped.state.queuedMessages, {});
+  assert.deepEqual(stopped.state.threads[0]!.coordinationNotes?.map((note) => note.quiet), [true], "the news its wake carried stays for the next one");
+  slept(stopped);
+});
+
+test("news after a stop-all wakes the coordinator as usual, carrying what it missed", () => {
+  const state = workspace({ threads: [lead(), member("one"), member("two")], activeRuns: { one: activeRun("one", "run-1"), two: activeRun("two", "run-2") }, runStatuses: { one: "running", two: "running" } });
+  const stopped = reduce(state, { type: "coordination.stop-all", taskId: "lead" });
+  const ended = [["one", "run-1"], ["two", "run-2"]].reduce((next, [id, runId]) => reduce(next, correlatedRunEvent(id!, runId!, 1, { type: "run.status", status: "cancelled" })).state, stopped.state);
+  assert.equal(ended.threads[0]!.coordinationNotes?.length, 2);
+  slept({ state: ended, effects: [] });
+
+  const messaged = reduce(ended, { type: "task.send", taskId: "one", text: "Carry on" });
+  const pendingId = required(Object.values(messaged.state.pendingRuns).find((pending) => pending.taskId === "one")).id;
+  const running = reduce(messaged.state, { type: "run.resolved", pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+  slept(running, "the user talking to a thread is not news yet");
+  const runId = required(running.state.activeRuns.one).runId;
+  const wake = woken(reduce(running.state, correlatedRunEvent("one", runId, 1, { type: "run.status", status: "succeeded" })));
+  assert.match(wake.text, /"one" was stopped[\s\S]*"two" was stopped[\s\S]*"one" ended its turn/);
+});
+
+test("a suggestion that was starting when everything stopped can be started again", () => {
+  const brief = { intent: "fix the flaky login test", doneWhen: "the suite passes", delivers: "report" as const };
+  const proposal = { id: "p1", title: "Fix login", prompt: "Fix it", brief, place: { worktree: false }, proposedAt: 1 };
+  const state = workspace({ threads: [lead({ threadModel: { model: "opus", effort: "high" }, proposals: [proposal] })] });
+  const starting = reduce(state, { type: "proposal.start", taskId: "lead", proposalId: "p1" });
+  assert.deepEqual(starting.state.startingProposals, ["p1"]);
+  const stopped = reduce(starting.state, { type: "coordination.stop-all", taskId: "lead" });
+  assert.deepEqual(stopped.state.pendingRuns, {});
+  assert.deepEqual(stopped.state.startingProposals, [], "its row stops spinning");
+  assert.deepEqual(stopped.state.threads[0]!.proposals?.map((item) => [item.id, item.error]), [["p1", undefined]], "it stays to start again");
+  const again = reduce(stopped.state, { type: "proposal.start", taskId: "lead", proposalId: "p1" });
+  assert.deepEqual(again.state.startingProposals, ["p1"]);
+  assert.equal(Object.values(again.state.pendingRuns).filter((pending) => pending.coordination?.proposalId === "p1").length, 1);
+});

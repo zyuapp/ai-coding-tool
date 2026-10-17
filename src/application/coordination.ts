@@ -103,11 +103,14 @@ function excerpt(text: string) {
   return text.length > EXCERPT ? `${text.slice(0, EXCERPT - 1)}…` : text;
 }
 
-/** What a coordinator hears when one of its threads ends a turn. A failed turn is news that cannot wait. */
-export function turnNote(thread: Thread, status: "succeeded" | "failed" | "cancelled", at: number): CoordinationNote {
+/**
+ * What a coordinator hears when one of its threads ends a turn. A failed turn is news that cannot
+ * wait, unless the user stopped it, which is heard quietly.
+ */
+export function turnNote(thread: Thread, status: "succeeded" | "failed" | "cancelled", at: number, { quiet = false }: { quiet?: boolean } = {}): CoordinationNote {
   const ended = status === "succeeded" ? "ended its turn" : status === "failed" ? "failed" : "was stopped";
   const reply = lastReply(thread);
-  return coordinationNote(thread.id, `"${thread.title}" ${ended}.${reply ? ` It last said: ${excerpt(reply)}` : ""}`, at, { urgent: status === "failed" });
+  return coordinationNote(thread.id, `"${thread.title}" ${ended}.${reply ? ` It last said: ${excerpt(reply)}` : ""}`, at, { urgent: status === "failed" && !quiet, quiet });
 }
 
 /** A note for a coordinator about one thread. A quiet one is what the user did, heard with the next wake but never one by itself. */

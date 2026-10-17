@@ -688,7 +688,7 @@ function sidebar(overrides: Partial<ProjectSidebarProps> = {}) {
     schedules: new Map<string, AutomationView>(),
     limitPositions: new Map<string, number>(),
     worktreeGroups: [],
-    sidebarCoordination: { threadsByCoordinator: new Map(), coordinators: [], onSetCoordinator() {}, notifications: true, onSetMuted() {} },
+    sidebarCoordination: { threadsByCoordinator: new Map(), coordinators: [], onSetCoordinator() {}, notifications: true, onSetMuted() {}, onStopAll() {} },
     worktreeThreadIds: new Set<string>(),
     activityThreads: { priority: [], running: [], threads: [], snoozed: [] },
     threadHosts: new Map(),

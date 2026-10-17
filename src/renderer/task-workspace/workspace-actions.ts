@@ -38,6 +38,7 @@ function coordinationActions(dispatch: (input: WorkspaceInput) => Promise<void>)
     answerDecision: (threadId: string, decisionId: string, answer: string) => dispatch({ type: "decision.answer", taskId: threadId, decisionId, answer }),
     setThreadModel: (taskId: string, model: AgentModel, effort?: AgentEffort) => dispatch({ type: "coordination.set-thread-model", taskId, model, ...(effort ? { effort } : {}) }),
     setMuted: (taskId: string, muted: boolean) => dispatch({ type: "coordination.set-muted", taskId, muted }),
+    stopAll: (taskId: string) => dispatch({ type: "coordination.stop-all", taskId }),
     setOverviewGroup: (taskId: string, group: OverviewSection, change: { open?: boolean; all?: boolean }) => dispatch({ type: "view.set-overview-group", taskId, group, ...change }),
     setPurpose: (taskId: string, purpose: string | null) => dispatch({ type: "memory.set-purpose", taskId, purpose }),
     addNote: (taskId: string, text: string) => dispatch({ type: "memory.add", taskId, text }),

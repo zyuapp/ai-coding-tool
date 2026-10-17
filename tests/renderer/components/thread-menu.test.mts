@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import type { MenuEntry, MenuItem } from "../../../src/renderer/components/PopoverMenu.tsx";
-import { threadMenuEntries } from "../../../src/renderer/components/thread-menu.ts";
+import { threadMenuEntries, workGoing } from "../../../src/renderer/components/thread-menu.ts";
 import type { Thread } from "../../../src/domain/thread.ts";
 import { task } from "../../application/workspace-reducer-fixtures.mts";
 
-function entries(thread: Thread, notifications = true, onSetMuted: (muted: boolean) => void = () => {}): MenuItem[] {
-  const menu: MenuEntry[] = threadMenuEntries(thread, { onRename: () => {}, onFork: () => {}, onArchive: () => {}, onSetRole: () => {}, coordinators: [], onSetCoordinator: () => {}, notifications, onSetMuted });
+function entries(thread: Thread, notifications = true, onSetMuted: (muted: boolean) => void = () => {}, working = false, onStopAll: () => void = () => {}): MenuItem[] {
+  const menu: MenuEntry[] = threadMenuEntries(thread, { onRename: () => {}, onFork: () => {}, onArchive: () => {}, onSetRole: () => {}, coordinators: [], onSetCoordinator: () => {}, notifications, onSetMuted, working, onStopAll });
   return menu.filter((entry): entry is MenuItem => entry !== "separator");
 }
 
@@ -37,4 +37,22 @@ test("muting waits on notifications being on in Settings", () => {
   assert.equal(off?.disabled, true);
   assert.equal(off?.title, "Notifications are off in Settings");
   assert.equal(mute(task("lead", { role: "coordinator" }), true)?.disabled, undefined);
+});
+
+test("a coordinator's menu stops it and its threads, while any of them has work going", () => {
+  const stopping: string[] = [];
+  const stop = (thread: Thread, working: boolean) => entries(thread, true, () => {}, working, () => stopping.push(thread.id)).find((entry) => entry.label === "Stop all");
+  const lead = task("lead", { role: "coordinator" });
+  const going = stop(lead, true);
+  assert.deepEqual(going?.command, { type: "coordination.stop-all", taskId: "lead" });
+  assert.equal(going?.disabled, undefined);
+  going?.onSelect?.();
+  assert.deepEqual(stopping, ["lead"]);
+  assert.equal(stop(lead, false)?.disabled, true, "with nothing going there is nothing to stop");
+  assert.equal(stop(task("solo"), true), undefined, "only a coordinator stops threads under it");
+
+  const members = [task("one", { parentId: "lead" }), task("two", { parentId: "lead" })];
+  assert.equal(workGoing(lead, members, new Set(["two"])), true, "one of its threads working is work going");
+  assert.equal(workGoing(lead, members, new Set(["lead"])), true);
+  assert.equal(workGoing(lead, members, new Set(["elsewhere"])), false);
 });

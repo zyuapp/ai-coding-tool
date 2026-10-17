@@ -186,7 +186,7 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       const moved = settleMoveAfterRun(next, event.taskId);
       next = moved.state;
       if (event.status === "failed" && event.limit) next = pausedForLimit(next, event.taskId, event.limit, now());
-      const drained = drainQueue(noteTurnEnded(next, event.taskId, event.status), event.taskId, event.status);
+      const drained = drainQueue(noteTurnEnded(next, event.taskId, event.status, event.runId), event.taskId, event.status);
       return settled(drained.state, [...environment, ...said, ...moved.effects, ...drained.effects]);
     }
 

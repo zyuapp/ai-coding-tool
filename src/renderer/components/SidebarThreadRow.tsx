@@ -11,7 +11,7 @@ import { worktreeHue, worktreeName, type Worktree } from "../../domain/worktree"
 import type { AutomationView } from "../../domain/automation";
 import type { WorktreeGroup } from "../../application/workspace-state";
 import { ContextMenu } from "./PopoverMenu";
-import { threadMenuEntries } from "./thread-menu";
+import { threadMenuEntries, workGoing } from "./thread-menu";
 import type { SnoozeHours } from "../../domain/thread-snooze";
 import { RenameInput, useRenaming } from "./SidebarRename";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
@@ -149,6 +149,7 @@ export type SidebarCoordination = {
   /** Whether desktop notices are on at all, which a coordinator's mute only narrows. */
   notifications: boolean;
   onSetMuted: (threadId: string, muted: boolean) => void;
+  onStopAll: (threadId: string) => void;
 };
 
 /** A coordinator's row speaks for the decisions its threads are waiting on as well as its own. */
@@ -227,6 +228,7 @@ type RowHandlers = {
   setRole: (threadId: string, role: ThreadRole | null) => void;
   setCoordinator: (threadId: string, coordinatorId: string | null) => void;
   setMuted: (threadId: string, muted: boolean) => void;
+  stopAll: (threadId: string) => void;
   startRename: (threadId: string, row?: HTMLElement | null) => void;
   commitRename: (threadId: string, value: string) => void;
   cancelRename: () => void;
@@ -315,6 +317,8 @@ function rowBody(row: RowState, className: string, content: ReactNode, action: R
         onSetCoordinator: (coordinatorId) => handlers.setCoordinator(thread.id, coordinatorId),
         notifications: row.notifications,
         onSetMuted: (muted) => handlers.setMuted(thread.id, muted),
+        working: row.running,
+        onStopAll: () => handlers.stopAll(thread.id),
         ...(priority ? { onSnooze: (hours: SnoozeHours) => handlers.snooze(thread.id, hours) } : {}),
         ...(thread.snoozedUntil !== undefined ? { onUnsnooze: () => handlers.unsnooze(thread.id) } : {}),
       })}
@@ -417,6 +421,7 @@ export function useThreadRows({
     setRole: (threadId, role) => latest.current.onSetThreadRole(threadId, role),
     setCoordinator: (threadId, coordinatorId) => latest.current.coordination.onSetCoordinator(threadId, coordinatorId),
     setMuted: (threadId, muted) => latest.current.coordination.onSetMuted(threadId, muted),
+    stopAll: (threadId) => latest.current.coordination.onStopAll(threadId),
     startRename: (threadId, row) => latest.current.threadNames.start(threadId, row),
     commitRename: (threadId, value) => latest.current.threadNames.commit(threadId, value),
     cancelRename: () => latest.current.threadNames.cancel(),
@@ -441,7 +446,7 @@ export function useThreadRows({
       thread,
       active: thread.id === currentId,
       away,
-      running: runningThreadIds.has(thread.id) || members.some((member) => runningThreadIds.has(member.id)),
+      running: workGoing(thread, members, runningThreadIds),
       blocked: blockedThreadIds.has(thread.id),
       memberBlocked: members.some((member) => blockedThreadIds.has(member.id)),
       sideChatWaiting: sideChatAttention.has(thread.id),

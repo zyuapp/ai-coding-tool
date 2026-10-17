@@ -1,11 +1,11 @@
 /** Coordinators and their threads: who works under whom, what they report, and what waits on the user. */
-import { queuedFor, resolveWorkspaceEffect, threadBusy, withPending } from "./run-queue.js";
+import { drainQueue, queuedFor, resolveWorkspaceEffect, threadBusy, withPending, withoutPending } from "./run-queue.js";
 import { reduceSending } from "./sending.js";
 import { now, rejected, settled } from "./shared.js";
-import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
+import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { canResolve, checkoutAnswer, coordinatedThreadStatus, coordinationMembers, coordinationNote, coordinationUpdate, nextSteps, turnNote, workingMembers } from "../coordination.js";
 import { activityChanges, threadActivity, threadChanges } from "../thread-activity.js";
-import { heldByLimit } from "../limit-pauses.js";
+import { cancelPause, heldByLimit } from "../limit-pauses.js";
 import { announced } from "../notices.js";
 import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
@@ -18,7 +18,7 @@ import { dismissed } from "../../domain/attention.js";
 import { resumesOnItsOwn } from "../../domain/usage-limit.js";
 
 type CoordinationInput = Extract<WorkspaceInput, {
-  type: "task.set-coordinator" | "task.resolve" | "task.reopen" | "decision.answer" | "coordination.set-thread-model" | "coordination.set-muted" | "coordination.reported" | "coordination.decision-raised"
+  type: "task.set-coordinator" | "task.resolve" | "task.reopen" | "decision.answer" | "coordination.set-thread-model" | "coordination.set-muted" | "coordination.stop-all" | "coordination.reported" | "coordination.decision-raised"
     | "memory.set-purpose" | "memory.add" | "memory.edit" | "memory.forget" | "coordination.remembered" | "coordination.next-step"
     | "coordination.proposed" | "proposal.start" | "proposal.dismiss";
 }>;
@@ -110,6 +110,9 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       if (!lead || !isCoordinator(lead) || (lead.muted === true) === input.muted) return settled(state);
       return settled(updateThread(state, lead.id, ({ muted: _was, ...item }) => ({ ...item, ...(input.muted ? { muted: true as const } : {}), updatedAt: now() })));
     }
+
+    case "coordination.stop-all":
+      return stopAll(state, input.taskId);
 
     /** The user's own edits, which the coordinator's session has yet to read. */
     case "memory.set-purpose":
@@ -206,6 +209,37 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
 }
 
 /**
+ * Stops a coordinator and every thread under it: each run is cancelled, each wait on a usage limit
+ * ends, and each run still on its way, the coordinator's wake and its threads' starts included, is
+ * dropped, handing back what was queued behind it. The runs it cancels end quietly, so nothing it
+ * stopped wakes the coordinator to carry on; scheduled ticks are the user's to stop one by one.
+ */
+function stopAll(state: WorkspaceState, leadId: string): WorkspaceTransition {
+  const lead = state.threads.find((item) => item.id === leadId);
+  if (!lead || !isCoordinator(lead)) return settled(state);
+  const stopping = new Set([lead.id, ...coordinationMembers(state, lead.id).map(({ thread }) => thread.id)]);
+  const cancelled = [...stopping].flatMap((id) => state.activeRuns[id] ?? []);
+  /** A run that never said it ended leaves its id behind, so only runs still going are kept. */
+  const going = new Set(Object.values(state.activeRuns).map((run) => run.runId));
+  const quietStops = [...state.quietStops.filter((runId) => going.has(runId)), ...cancelled.map((run) => run.runId)];
+  let next = settled({ ...state, quietStops }, cancelled.map((run): WorkspaceEffect => ({ type: "send-run-command", command: { type: "cancel", taskId: run.taskId, runId: run.runId } })));
+  for (const id of stopping) next = followedBy(next, cancelPause(next.state, id));
+  const dropped = Object.values(next.state.pendingRuns).filter((pending) => pending.origin === "composer"
+    && (pending.taskId ? stopping.has(pending.taskId) : pending.coordination?.coordinatorId === lead.id));
+  for (const { id, taskId, coordination } of dropped) {
+    const without = withoutPending(next.state, id);
+    next = { ...next, state: coordination?.proposalId ? withProposalFailure(without, lead.id, coordination.proposalId, undefined) : without };
+    /** What was queued behind it goes back to its composer, as any stop hands it back. */
+    if (taskId && !next.state.activeRuns[taskId]) next = followedBy(next, drainQueue(next.state, taskId, "cancelled"));
+  }
+  return next;
+}
+
+function followedBy(first: WorkspaceTransition, then: WorkspaceTransition): WorkspaceTransition {
+  return { state: then.state, effects: [...first.effects, ...then.effects] };
+}
+
+/**
  * One suggestion starting by the same rules as every start, under the coordinator that suggested it.
  * A refusal, from those rules or from the send itself, is said on the suggestion's row rather than
  * in the banner, and leaves it there to start again.
@@ -256,11 +290,14 @@ function remembered(state: WorkspaceState, taskId: string, change: MemoryChange,
  * A thread's turn ending is news for its coordinator. A thread waiting out a session limit carries on
  * by itself, so its turn has not ended.
  */
-export function noteTurnEnded(state: WorkspaceState, taskId: string, status: "succeeded" | "failed" | "cancelled"): WorkspaceState {
-  const thread = state.threads.find((item) => item.id === taskId);
-  const lead = coordinatorOf(state.threads, thread);
-  if (!thread || !lead || (thread.limitPause && resumesOnItsOwn(thread.limitPause))) return state;
-  return updateThread(state, lead.id, (item) => withCoordinationNote(item, turnNote(thread, status, now())));
+export function noteTurnEnded(state: WorkspaceState, taskId: string, status: "succeeded" | "failed" | "cancelled", runId: string): WorkspaceState {
+  /** A run Stop all cancelled is heard, but never wakes its coordinator by itself. */
+  const quiet = state.quietStops.includes(runId);
+  const ended = quiet ? { ...state, quietStops: state.quietStops.filter((id) => id !== runId) } : state;
+  const thread = ended.threads.find((item) => item.id === taskId);
+  const lead = coordinatorOf(ended.threads, thread);
+  if (!thread || !lead || (thread.limitPause && resumesOnItsOwn(thread.limitPause))) return ended;
+  return updateThread(ended, lead.id, (item) => withCoordinationNote(item, turnNote(thread, status, now(), { quiet })));
 }
 
 /**
@@ -269,14 +306,15 @@ export function noteTurnEnded(state: WorkspaceState, taskId: string, status: "su
  * coordinator the input stopped keeps what it holds quiet, so only news that arrives later wakes it.
  */
 export function reconcileCoordination(previous: WorkspaceState, transition: WorkspaceTransition, input: WorkspaceInput): WorkspaceTransition {
-  const threads = threadChanges(previous.threads, transition.state.threads);
-  const touched = activityChanges(previous, transition.state, threads);
+  /** Quieted first, since a stop may only have asked for runs to end and changed nothing else yet. */
+  const stopped = stoppedBy(previous, input);
+  let state = stopped ? quieted(transition.state, stopped) : transition.state;
+  const threads = threadChanges(previous.threads, state.threads);
+  const touched = activityChanges(previous, state, threads);
   for (const { id, before, after } of threads) {
     if (!before || !after || before.parentId !== after.parentId || before.role !== after.role || before.archivedAt !== after.archivedAt || before.coordinationNotes !== after.coordinationNotes) touched.add(id);
   }
-  if (!touched.size) return transition;
-  const stopped = stoppedBy(previous, input);
-  let state = stopped ? quieted(transition.state, stopped) : transition.state;
+  if (!touched.size) return state === transition.state ? transition : { ...transition, state };
   const effects = [...transition.effects];
   for (const leadId of coordinatorsOf(previous, state, touched)) {
     const delivered = deliverCoordinationNotes(state, leadId);
@@ -291,7 +329,7 @@ export function reconcileCoordination(previous: WorkspaceState, transition: Work
  * not pressed on it again at once.
  */
 function stoppedBy(previous: WorkspaceState, input: WorkspaceInput): string | undefined {
-  if (input.type === "task.archive") return input.taskId;
+  if (input.type === "task.archive" || input.type === "coordination.stop-all") return input.taskId;
   if (input.type === "run.event" && input.event.type === "run.status" && input.event.status === "cancelled") {
     return previous.activeRuns[input.event.taskId]?.runId === input.event.runId ? input.event.taskId : undefined;
   }
