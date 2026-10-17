@@ -90,6 +90,9 @@ export const MAX_MEMORY_NOTE = 500;
 export const MAX_MEMORY_NOTES = 30;
 export const MAX_PROPOSALS = 12;
 export const MAX_PROPOSAL_TITLE = 120;
+export const MAX_PROPOSAL_PROJECT = 4_096;
+export const MAX_PROPOSAL_WORKTREE_ID = 200;
+export const MAX_PROPOSAL_COMPUTER = 256;
 /** How many of a coordinator's threads on paired computers it keeps the news it took of, beyond those still working under it. */
 const MAX_REMOTE_HEARD = 100;
 /**
@@ -583,13 +586,13 @@ function optionalText(value: unknown, max: number): boolean {
 export function isProposalRequest(value: unknown): value is ProposalRequest {
   return isRecord(value) && text(value.title, MAX_PROPOSAL_TITLE) && typeof value.prompt === "string" && value.prompt.trim().length > 0
     && (value.brief === undefined || isThreadBrief(value.brief))
-    && optionalText(value.project, 4_096)
+    && optionalText(value.project, MAX_PROPOSAL_PROJECT)
     && (value.worktree === undefined || typeof value.worktree === "boolean")
-    && optionalText(value.worktreeId, 200)
+    && optionalText(value.worktreeId, MAX_PROPOSAL_WORKTREE_ID)
     && (value.model === undefined || isAgentModel(value.model))
     && (value.effort === undefined || isAgentEffort(value.effort))
     && (value.role === undefined || isThreadRole(value.role))
-    && optionalText(value.computer, 256);
+    && optionalText(value.computer, MAX_PROPOSAL_COMPUTER);
 }
 
 function isProposalPlace(value: unknown): value is ProposalPlace {
