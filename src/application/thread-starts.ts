@@ -83,7 +83,7 @@ export function threadProposal(state: WorkspaceState, lead: Thread, request: Pro
   if (command.worktreeId && !worktree) return { error: WORKTREE_MISSING_ERROR };
   if (worktree && named && named.project.id !== worktree.projectId) return { error: WORKTREE_ELSEWHERE_ERROR };
   const project = named?.project.id ?? worktree?.projectId;
-  /** Whether it gets a checkout of its own is said either way, so starting it never falls back to the user's draft. */
+  /** Whether it gets a checkout of its own is said either way, so starting it never moves into one the coordinator entered since. */
   const place: ProposalPlace = { ...(project ? { project } : {}), ...(worktree ? { worktreeId: worktree.id } : { worktree: command.worktree === true }) };
   return {
     proposal: {

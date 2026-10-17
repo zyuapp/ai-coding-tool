@@ -90,8 +90,10 @@ const PROPOSE_THREADS = defineTool({
   description: "Suggest threads for the user to start, rather than starting them. Each takes what start_thread takes, brief included, and a short title. Nothing starts until the user starts it; you hear from each one they start once it ends a turn.",
   input: {
     threads: z.array(z.object({
-      title: z.string().min(1).max(MAX_PROPOSAL_TITLE).describe("A few words that label the suggestion for the user."),
+      title: z.string().trim().min(1).max(MAX_PROPOSAL_TITLE).describe("A few words that label the suggestion for the user."),
       ...COORDINATOR_START_INPUT,
+      /** A blank item is refused here, on its own field, rather than failing every suggestion in the call. */
+      prompt: COORDINATOR_START_INPUT.prompt.trim().min(1),
     })).min(1).max(MAX_PROPOSALS).describe("The threads to suggest, one per piece of work."),
   },
   readOnly: false,

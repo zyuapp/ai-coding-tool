@@ -99,6 +99,25 @@ test("Start all starts every suggestion here, and one that cannot start stays wi
   assert.equal(unresolved.state.actionError, null);
 });
 
+test("starting a suggestion leaves where the user's own draft is pointed alone", () => {
+  const drafted = workspace({
+    projects: [PROJECT],
+    threads: [lead({ proposals: [proposal("p1", { place: { project: PROJECT.id } })] })],
+    currentId: "lead",
+    draftBranch: { name: "feature", create: true },
+    draftWorktree: true,
+  });
+  const asked = reduce(drafted, { type: "proposal.start", taskId: "lead", proposalId: "p1" });
+  const [request] = resolving(asked);
+  assert.equal(required(request).createWorktree, undefined, "it gets no checkout the user's draft asked for");
+  assert.equal(required(request).createBranch, undefined);
+  assert.equal(required(request).checkout, undefined, "nor moves the project onto the draft's branch");
+  const started = reduce(asked.state, { type: "run.resolved", pendingId: required(request).pendingId, workspace: { id: PROJECT.workspaceId!, kind: "project", root: PROJECT.root } });
+  assert.ok(started.state.threads.some((thread) => thread.parentId === "lead"));
+  assert.deepEqual(started.state.draftBranch, { name: "feature", create: true });
+  assert.equal(started.state.draftWorktree, true);
+});
+
 test("a declined suggestion is heard quietly", () => {
   const worker = task("worker", { parentId: "lead", title: "Fix login" });
   const state = workspace({

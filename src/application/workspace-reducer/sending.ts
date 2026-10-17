@@ -137,9 +137,12 @@ export function reduceSending(state: WorkspaceState, input: SendInput, coordinat
         ...(files.length ? { files } : {}),
       };
       /** Only a thread being created here reads the draft answers; an existing one keeps its own. */
-      /** Only a thread yet to exist can be told where to start; one that exists already moved. */
-      const wantsWorktree = thread ? false : !namedWorktree && (input.worktree ?? state.draftWorktree);
-      const branch = thread ? null : state.draftBranch;
+      /**
+       * Only a thread yet to exist can be told where to start; one that exists already moved. Where the
+       * draft is pointed is the composer's own, so a send with its own text never starts there.
+       */
+      const wantsWorktree = thread ? false : !namedWorktree && (input.worktree ?? (draftKey !== undefined && state.draftWorktree));
+      const branch = thread || draftKey === undefined ? null : state.draftBranch;
       /** Starting from a branch without a checkout of its own moves the project, so nothing may be running in it. */
       if (branch && !wantsWorktree && project && runsInWorkspace(state, project.workspaceId)) {
         return rejected(state, CHECKOUT_RUNNING_ERROR);

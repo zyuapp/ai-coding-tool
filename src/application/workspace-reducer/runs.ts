@@ -351,7 +351,8 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   const startingProposals = proposalId ? state.startingProposals.filter((id) => id !== proposalId) : state.startingProposals;
   /** Only a thread the user's own send just created needs looking at; anything else leaves them where they are. */
   const focusing = !existing && pending.draftKey !== undefined;
-  const spent = existing ? {} : { draftBranch: null, draftWorktree: false, draftWorktreeId: null, ...(pending.draftKey === undefined ? {} : { draftRole: null }) };
+  /** Only the composer's own send spent the draft's placement; a thread started any other way leaves it alone. */
+  const spent = focusing ? { draftBranch: null, draftWorktree: false, draftWorktreeId: null, draftRole: null } : {};
   const owning = withUsedWorktree(focusing ? handOverDraftDock(state, thread.id) : state, created, arriving?.id);
   const started = beginRun({ ...owning, threads, startingProposals, ...spent, ...(focusing ? { currentId: thread.id } : {}) }, thread.id, pending.runId, ATTENDED_RUN, undefined, pending.warming === true);
   const drained = pending.queuedIds

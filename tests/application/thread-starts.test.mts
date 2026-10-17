@@ -106,7 +106,7 @@ test("a suggestion is checked as its start would be, and kept in the place that 
   assert.equal(named.role, "reviewer");
   assert.equal(named.effort, undefined, "an effort the coordinator did not name is left to what its threads run on then");
   assert.deepEqual(kept({ project: "/other", worktree: true }).place, { project: other.id, worktree: true }, "a project named by its path is kept by its id");
-  assert.deepEqual(kept({ worktree: false }).place, { project: PROJECT.id, worktree: false }, "sharing the project checkout is said, so a start never falls back to the user's draft");
+  assert.deepEqual(kept({ worktree: false }).place, { project: PROJECT.id, worktree: false }, "sharing the project checkout is said, so a start never moves into a checkout the coordinator entered since");
 
   assert.deepEqual(suggest({ brief: undefined }), { error: BRIEF_REQUIRED });
   assert.deepEqual(suggest({ model: "haiku" }), { error: "Threads under a coordinator cannot run on the haiku model. Pick another model." });
