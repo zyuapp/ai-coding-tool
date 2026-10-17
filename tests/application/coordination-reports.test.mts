@@ -139,6 +139,9 @@ test("a turn the agent opens itself leaves a report that it needs the user stand
   assert.deepEqual(standing(agentTurn(reportedTurn("done", "Shipped"), "The build finished.")), ["done", "The build finished."], "what it said since is newer than its report");
 });
 
+/** A Codex session with enough context to compact. */
+const codexSession = { engine: "codex" as const, model: "gpt-6.1-sol" as const, continuation: { provider: "codex" as const, value: "codex-thread" }, contextUsage: { tokens: 100_000, limit: 400_000, model: "gpt-6.1-sol" } };
+
 test("a thread picked back up after its usage limit, or compacted, keeps what its turn reported", () => {
   const limitPause = { resetsAt: Date.now() + 3_600_000, window: "session" as const, pausedAt: 1 };
   const paused = workspace({ threads: [lead(), member("worker", { title: "Worker", outcome: "finished", report: { state: "working", summary: "Halfway", at: 1 }, limitPause })] });
@@ -148,12 +151,20 @@ test("a thread picked back up after its usage limit, or compacted, keeps what it
 
   const reported = reportedTurn("done", "Shipped");
   const worker = reported.threads.find((thread) => thread.id === "worker")!;
-  const codex = { ...worker, engine: "codex" as const, model: "gpt-6.1-sol" as const, continuation: { provider: "codex" as const, value: "codex-thread" }, contextUsage: { tokens: 100_000, limit: 400_000, model: "gpt-6.1-sol" } };
+  const codex = { ...worker, ...codexSession };
   const compacting = reduce({ ...reported, threads: reported.threads.map((thread) => thread.id === "worker" ? codex : thread) }, { type: "run.compact", taskId: "worker" });
   const compacted = reduce(compacting.state, { type: "run.resolved", pendingId: effectOf(compacting, "resolve-run-workspace").pendingId, workspace: PROJECTLESS });
   const runId = effectAt(compacted, "start-run").command.runId;
   const settled = reduce(compacted.state, correlatedRunEvent("worker", runId, 1, { type: "run.status", status: "succeeded" })).state;
   assert.deepEqual(standing(settled), ["done", "Shipped"], "compacting is not a turn");
+
+  const failed = unreportedTurn("failed", "Starting.");
+  const failedWorker = { ...failed.threads.find((thread) => thread.id === "worker")!, ...codexSession };
+  const recompacting = reduce({ ...failed, threads: failed.threads.map((thread) => thread.id === "worker" ? failedWorker : thread) }, { type: "run.compact", taskId: "worker" });
+  const recompacted = reduce(recompacting.state, { type: "run.resolved", pendingId: effectOf(recompacting, "resolve-run-workspace").pendingId, workspace: PROJECTLESS });
+  const resettled = reduce(recompacted.state, correlatedRunEvent("worker", effectAt(recompacted, "start-run").command.runId, 1, { type: "run.status", status: "succeeded" })).state;
+  assert.equal(resettled.threads.find((thread) => thread.id === "worker")?.runEndedAs, "failed", "compacting does not end a turn either");
+  assert.deepEqual(standing(resettled), ["failed", null]);
 });
 
 test("a run that starts takes how the last one ended off, and a tick that settles unseen puts it back", () => {

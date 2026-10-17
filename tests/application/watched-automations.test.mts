@@ -60,6 +60,17 @@ test("a watch that is removed lands its thread in Priority, unread when it ended
   assert.equal(onScreen.threads[0]!.outcomeUnread, undefined);
 });
 
+test("a watch that ends after a tick failed reads as finished, as its verdict says", () => {
+  const watched = workspace({ threads: [task("task-a", { outcome: "failed", runEndedAs: "failed" })], automations: [automationView({ endsWhen: "the PR is approved." })] });
+  const ended = reduce(watched, { type: "automations.changed", automations: [] }).state;
+  assert.equal(ended.threads[0]!.runEndedAs, "finished");
+
+  const tick = activeRun("task-a", "run-1", { origin: "automation", quiet: true, acknowledged: true });
+  const ticking = reduce({ ...watched, activeRuns: { "task-a": tick } }, { type: "automations.changed", automations: [] }).state;
+  const settled = reduce(ticking, correlatedRunEvent("task-a", "run-1", 1, { type: "run.status", status: "succeeded" })).state;
+  assert.equal(settled.threads[0]!.runEndedAs, "finished", "a tick that settles quietly returns it to the watch's ending");
+});
+
 test("a watch ended by a tick that settles quietly still lands its thread in Priority", () => {
   const tick = activeRun("task-a", "run-1", { origin: "automation", quiet: true, acknowledged: true });
   const watched = workspace({ threads: [task("task-a")], automations: [automationView({ endsWhen: "the PR is approved." })], activeRuns: { "task-a": tick } });

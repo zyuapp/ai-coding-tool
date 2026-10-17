@@ -163,6 +163,7 @@ test("the thread written to last goes first, and a send after the reset still wa
 test("a weekly limit keeps its verdict and waits for the user to resume", () => {
   const paused = limited(runningThreads("a"), "a", weekly);
   assert.equal(thread(paused.state, "a").outcome, "failed");
+  assert.equal(thread(paused.state, "a").runEndedAs, "failed", "and the end of its turn");
   assert.equal(paused.effects.some((effect) => effect.type === "schedule-limit-reset"), false, "nothing resumes on its own");
   const later = reduce(paused.state, { type: "limits.elapsed", at: weekly.resetsAt + 1 });
   assert.ok(thread(later.state, "a").limitPause);

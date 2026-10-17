@@ -75,8 +75,9 @@ export function reduceAutomations(state: WorkspaceState, input: AutomationInput)
 
 /**
  * A watch that is gone has finished, so its thread leaves Running for Priority the way a settled run
- * does. A tick still going when it ended replaces this verdict with its own as it settles, and one
- * that settles quietly returns the thread to this verdict.
+ * does, and its work reads as finished however an earlier tick ended. A tick still going when it
+ * ended replaces this verdict with its own as it settles, and one that settles quietly returns the
+ * thread to this verdict.
  */
 function withEndedWatches(state: WorkspaceState, before: readonly AutomationView[]): WorkspaceState {
   const kept = new Set(state.automations.map((automation) => automation.taskId));
@@ -85,7 +86,7 @@ function withEndedWatches(state: WorkspaceState, before: readonly AutomationView
   const activeRuns = { ...state.activeRuns };
   const threads = state.threads.map((thread) => {
     if (!ended.has(thread.id) || thread.archivedAt !== undefined) return thread;
-    const verdict = { outcome: "finished" as const, ...(threadOnScreen(state, thread.id) ? {} : { outcomeUnread: true as const }) };
+    const verdict = { outcome: "finished" as const, runEndedAs: "finished" as const, ...(threadOnScreen(state, thread.id) ? {} : { outcomeUnread: true as const }) };
     const run = activeRuns[thread.id];
     if (run) activeRuns[thread.id] = { ...run, before: { ...run.before, ...verdict } };
     return { ...thread, ...verdict };
