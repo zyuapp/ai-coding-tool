@@ -41,7 +41,19 @@ test("a coordinator on Codex runs without Codex's own subagents, as it does on C
   const disabled = (args: readonly string[]) => args.flatMap((arg, index) => args[index - 1] === "--disable" ? [arg] : []);
   assert.deepEqual(disabled(spawnedWith("coordinator")), ["multi_agent", "multi_agent_v2"]);
   assert.deepEqual(disabled(spawnedWith("member")), [], "a thread under a coordinator does the work, so it keeps every tool");
-  assert.deepEqual(spawnedWith("member"), spawnedWith());
+});
+
+test("under a coordinator, Codex asks the user only through raise_decision, as Claude does, so every question shows in its Needs you", () => {
+  const spawnedWith = (coordinationRole?: "coordinator" | "member") => codexConfig({ channel: "main", policy: "confirm", computerUse: { status: "unavailable", message: "off" }, ...(coordinationRole ? { coordinationRole } : {}) }, undefined);
+  const enabled = (args: readonly string[]) => args.flatMap((arg, index) => args[index - 1] === "--enable" ? [arg] : []);
+  assert.ok(enabled(spawnedWith()).includes("default_mode_request_user_input"), "a thread outside a coordinator asks in chat");
+  assert.ok(!enabled(spawnedWith("member")).includes("default_mode_request_user_input"));
+  assert.ok(!enabled(spawnedWith("coordinator")).includes("default_mode_request_user_input"));
+  const coordination = { report: async () => ({ recorded: true, note: "" }), decide: async () => ({ recorded: true, note: "" }), remember: async () => ({ note: "" }), propose: async () => ({ note: "" }) };
+  for (const coordinationRole of ["coordinator", "member"] as const) {
+    const tools = runTools({ channel: "main", computerUse: { status: "unavailable", message: "off" }, emit: () => {}, coordinationRole, coordination } as Parameters<typeof runTools>[0]).flatMap((set) => set.tools.map((tool) => tool.name));
+    assert.ok(tools.includes("raise_decision"), coordinationRole);
+  }
 });
 
 test("only a coordinator keeps a memory and suggests threads, so a member is offered none of those tools", () => {
