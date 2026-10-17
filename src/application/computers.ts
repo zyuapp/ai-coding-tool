@@ -15,7 +15,7 @@ import type { Worktree } from "../domain/worktree.js";
 import { MAIN_COMPOSER } from "./composer-attachments.js";
 import { annotationsFor, filesFor, pastesFor } from "./composer-drafts.js";
 import { promptKey, type WorkspaceState } from "./workspace-state.js";
-import { threadActivity, threadLists, type ThreadActivity } from "./thread-activity.js";
+import { doingWork, threadActivity, threadLists, type ThreadActivity } from "./thread-activity.js";
 import { stoppableCoordinators } from "./coordination.js";
 import type { WorkspaceInput } from "./workspace-reducer.js";
 import { frontDock } from "./workspace-dock.js";
@@ -412,8 +412,8 @@ export function remoteActivity(computer: Pick<PairedComputer, "status">, holder:
 
 /** The threads a paired computer says are doing work, none while its line is down. One waiting on an approval is not. */
 export function remoteWorkingIds(computer: Pick<PairedComputer, "status">, holder: WorkspaceState): Set<string> {
-  const { working, blocked } = remoteActivity(computer, holder);
-  return new Set([...working].filter((id) => !blocked.has(id)));
+  const activity = remoteActivity(computer, holder);
+  return new Set([...activity.working].filter((id) => doingWork(activity, id)));
 }
 
 /** Everything the sidebar needs from the paired computers, gathered once per state. */

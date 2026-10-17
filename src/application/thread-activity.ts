@@ -107,6 +107,11 @@ export function isWorking(state: WorkspaceState, taskId: string): boolean {
   return threadActivity(state).working.has(taskId);
 }
 
+/** Whether a thread is doing work: it has work going, and is not stopped on a question for the user. */
+export function doingWork({ working, blocked }: { working: ReadonlySet<string>; blocked: ReadonlySet<string> }, taskId: string): boolean {
+  return working.has(taskId) && !blocked.has(taskId);
+}
+
 export function threadStatus(state: WorkspaceState, taskId: string): ThreadStatus {
   const { blocked, paused, working } = threadActivity(state);
   return blocked.has(taskId) ? "blocked" : paused.has(taskId) ? "paused" : working.has(taskId) ? "working" : "idle";

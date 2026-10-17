@@ -2,7 +2,7 @@
 import type { PendingRun, WorkspaceState } from "./workspace-state.js";
 import type { ApprovalView } from "./thread-run-state.js";
 import { ledStartRefusal, remoteActivity, threadHostOf, type PairedComputer, type ThreadHost } from "./computers.js";
-import { threadActivity, threadStatus, type ThreadStatus } from "./thread-activity.js";
+import { doingWork, threadActivity, threadStatus, type ThreadStatus } from "./thread-activity.js";
 import { activitySections, type ActivitySections } from "./thread-order.js";
 import { threadWorkspaceId } from "./thread-location.js";
 import { coordinationDecisions, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, leadIdOf, openDecisions, remoteLeadOf, threadModelOf, type CoordinationNote, type CoordinationReport, type CoordinatorMemory, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type ThreadBrief, type ThreadModelChoice, type ThreadProposal } from "../domain/coordination.js";
@@ -205,17 +205,20 @@ export function coordinationMembers(state: Pick<WorkspaceState, "threads" | "com
  * Which threads are working and which wait on an approval, as the computer holding a thread under a
  * coordinator says. One whose line is down claims no work going on, as its sidebar rows do.
  */
-export function memberActivity(member: CoordinationMember, busy: ReadonlySet<string>, blocked: ReadonlySet<string>): { busy: ReadonlySet<string>; blocked: ReadonlySet<string> } {
-  if (!member.computer) return { busy, blocked };
-  const activity = remoteActivity(member.computer, member.holder);
-  return { busy: activity.working, blocked: activity.blocked };
+export function memberActivity(member: CoordinationMember, working: ReadonlySet<string>, blocked: ReadonlySet<string>): { working: ReadonlySet<string>; blocked: ReadonlySet<string> } {
+  return member.computer ? remoteActivity(member.computer, member.holder) : { working, blocked };
 }
 
 /** Whether a thread under a coordinator is still doing work, wherever it is. One waiting on the user's approval is not. */
 export function memberWorking(state: WorkspaceState, member: CoordinationMember): boolean {
   const { working, blocked } = threadActivity(state);
-  const activity = memberActivity(member, working, blocked);
-  return activity.busy.has(member.thread.id) && !activity.blocked.has(member.thread.id);
+  return doingWork(memberActivity(member, working, blocked), member.thread.id);
+}
+
+/** Where a thread under a coordinator stands, as the computer holding it says. One whose line is down claims nothing going on. */
+export function memberStatus(state: WorkspaceState, member: CoordinationMember): ThreadStatus {
+  if (!member.computer) return threadStatus(state, member.thread.id);
+  return member.computer.status === "connected" ? threadStatus(member.holder, member.thread.id) : "idle";
 }
 
 /** A thread under a coordinator on a paired computer whose line is up, and the run or usage-limit wait it has going there. */
@@ -296,16 +299,14 @@ function roster(state: WorkspaceState, leadId: string): string[] {
   const { working, blocked } = threadActivity(state);
   const standing = coordinationMembers(state, leadId).map((member) => {
     const activity = memberActivity(member, working, blocked);
-    return { ...coordinatedThreadStatus(member.thread, activity.busy, activity.blocked), member };
+    return { ...coordinatedThreadStatus(member.thread, activity.working, activity.blocked), member };
   });
   const done = standing.filter(({ status }) => GROUP_OF[status] === "done");
   const recent = new Set(done.map(({ thread }) => thread).sort((left, right) => threadActivityAt(right) - threadActivityAt(left)).slice(0, ROSTER_DONE));
   const lines = standing.flatMap(({ thread, status, summary, member }) => {
     const group = GROUP_OF[status];
     if (group === "resolved" || group === "done" && !recent.has(thread)) return [];
-    /** A thread on another computer stands as that computer says, unless its line is down, when it claims nothing going on. */
-    const there = member.computer ? (member.computer.status === "connected" ? threadStatus(member.holder, thread.id) : "idle") : threadStatus(state, thread.id);
-    const parts = [`- "${thread.title}" [${thread.id}]${member.computer ? ` on ${member.computer.name}` : ""} · ${ROSTER_STATUS[there]}`];
+    const parts = [`- "${thread.title}" [${thread.id}]${member.computer ? ` on ${member.computer.name}` : ""} · ${ROSTER_STATUS[memberStatus(state, member)]}`];
     if (thread.report) parts.push(`reported ${thread.report.state}: ${thread.report.summary}`);
     if (status === "review" && summary) parts.push(`ready for review: ${summary}`);
     for (const decision of openDecisions(thread)) parts.push(`waiting on the user to decide: ${decision.question}`);
@@ -751,7 +752,7 @@ function memberApproval(member: CoordinationMember, approvalOf: (threadId: strin
 function memberView(state: Pick<WorkspaceState, "projects" | "worktrees" | "memberPullRequests">, member: CoordinationMember, busy: Set<string>, blocked: Set<string>, held: CoordinatedThreadView | undefined): CoordinatedThreadView {
   const { thread } = member;
   const activity = memberActivity(member, busy, blocked);
-  const { status, summary } = coordinatedThreadStatus(thread, activity.busy, activity.blocked);
+  const { status, summary } = coordinatedThreadStatus(thread, activity.working, activity.blocked);
   /** What GitHub said of its checkout is known where the checkout is. */
   const steps = nextSteps(thread, status, checkoutAnswer(member.computer ? member.holder : state, thread));
   const host = member.computer ? threadHostOf(member.computer) : null;
