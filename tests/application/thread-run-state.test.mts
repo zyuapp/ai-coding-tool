@@ -360,7 +360,11 @@ test("a retried request shows as retrying until the run hears anything else", ()
   const delivered = applyRunEvent(again, { type: "queued.delivered", taskId: "task-a", runId: "run-a", sequence: 3, messageId: "queued-1" });
   assert.equal(delivered.activeRuns["task-a"].status, "retrying");
 
-  const through = applyRunEvent(delivered, { type: "assistant.delta", taskId: "task-a", runId: "run-a", sequence: 4, messageId: "message-1", text: "hello" });
+  const spent = applyRunEvent(delivered, { type: "context.spent", taskId: "task-a", runId: "run-a", sequence: 4, tokens: 1_200 });
+  assert.equal(spent.activeRuns["task-a"].status, "retrying", "a subagent's spend says nothing about the retried request");
+  assert.equal(spent.activeRuns["task-a"].retry?.attempt, 3);
+
+  const through = applyRunEvent(spent, { type: "assistant.delta", taskId: "task-a", runId: "run-a", sequence: 5, messageId: "message-1", text: "hello" });
   assert.equal(through.activeRuns["task-a"].status, "running");
   assert.equal("retry" in through.activeRuns["task-a"], false);
 });

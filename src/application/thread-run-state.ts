@@ -413,7 +413,7 @@ export function answerPartId(run: ActiveRun | undefined, messageId: string) {
 
 /** A run that hears anything from its engine other than another retry notice is through the retry. */
 function throughRetry(run: ActiveRun, event: RunEvent): ActiveRun {
-  if (run.status !== "retrying" || event.type === "run.retrying" || event.type === "queued.delivered" || event.type === "queued.steer-failed") return run;
+  if (run.status !== "retrying" || event.type === "run.retrying" || event.type === "queued.delivered" || event.type === "queued.steer-failed" || event.type === "context.spent") return run;
   const { retry: _retry, ...through } = run;
   return { ...through, status: "running" };
 }
