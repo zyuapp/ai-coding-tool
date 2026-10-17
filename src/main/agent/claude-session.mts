@@ -9,6 +9,7 @@ import { parseWorkflowProgress, workflowProgressOf } from "./workflow-progress.m
 import { appendCompleteMarkdown, openMarkdownBuffer, type MarkdownBuffer } from "./markdown-buffer.mjs";
 import { grantsTool, toolReach } from "./approval-grant.mjs";
 import { BackgroundWork } from "./background-work.mjs";
+import { RunningTotals } from "./running-totals.mjs";
 import { TurnSlot, type SessionTurn } from "./session-turn.mjs";
 
 /** The model the agent process stamps on replies it produced itself: slash commands, interrupts, error notices. */
@@ -152,7 +153,7 @@ export class ClaudeSession {
   /** Opens that run. Taken when the session opens: what the agent says between runs is the thread's. */
   private beginAgentTurn: () => AgentTurn | null = () => null;
   /** The workflows running here, with what each has reported spending. One outlives the turn that started it, so the map outlives the turn too. */
-  private readonly workflows = new Map<string, number>();
+  private readonly workflows = new RunningTotals();
   /** Where those workflows report. Taken when the session opens: they belong to the thread, not to a run. */
   private reportWorkflow: (report: WorkflowReport) => void = () => {};
   /** Where subagents report. Taken when the session opens: one launched in the background outlives the turn that launched it. */
@@ -168,7 +169,7 @@ export class ClaudeSession {
   /** The newest plan limit report; the agent process sends one whenever it changes. */
   private rateLimit: SDKRateLimitInfo | null = null;
   /** What each model response this turn has been counted for so far, by its API message id. */
-  private readonly spentById = new Map<string, number>();
+  private readonly spentById = new RunningTotals();
   /** The response each stream has open and what it read, the main loop's under "" and a subagent's under the call that launched it. */
   private readonly openResponses = new Map<string, { id: string; usage: ResponseUsage }>();
   /** What the agent process left running here: a shell, a monitor, or a task of its own. */
@@ -519,10 +520,9 @@ export class ClaudeSession {
   /** Adds what a response grew to since it was last counted. A subagent's spend is the run's, though its messages are its own. */
   private spend(message: SDKMessage & { parent_tool_use_id: string | null }, responseId: string, total: number) {
     const stream = message.parent_tool_use_id ? (this.turn ?? this.agentTurn)?.stream : this.streamFor(message);
-    const counted = this.spentById.get(responseId) ?? 0;
-    if (!stream || !Number.isSafeInteger(total) || total <= counted) return;
-    this.spentById.set(responseId, total);
-    stream.emit({ type: "spend", tokens: total - counted });
+    if (!stream) return;
+    const grown = this.spentById.grow(responseId, total);
+    if (grown) stream.emit({ type: "spend", tokens: grown });
   }
 
   /**
@@ -531,10 +531,8 @@ export class ClaudeSession {
    * by, and one arriving between runs moves the total without counting.
    */
   private spendWorkflow(id: string, total: number) {
-    const counted = this.workflows.get(id) ?? 0;
-    if (!Number.isSafeInteger(total) || total <= counted) return;
-    this.workflows.set(id, total);
-    (this.turn ?? this.agentTurn)?.stream.emit({ type: "spend", tokens: total - counted });
+    const grown = this.workflows.grow(id, total);
+    if (grown) (this.turn ?? this.agentTurn)?.stream.emit({ type: "spend", tokens: grown });
   }
 
   /** Hooks report the child's effective effort, including model downgrades and agent-definition overrides. */

@@ -1,4 +1,5 @@
 import type { ProviderEvent } from "../agent/agent-provider.mjs";
+import { RunningTotals } from "../agent/running-totals.mjs";
 import type { ThreadTokenUsage } from "./protocol/v2/ThreadTokenUsage.js";
 
 /**
@@ -10,16 +11,14 @@ import type { ThreadTokenUsage } from "./protocol/v2/ThreadTokenUsage.js";
  */
 export class CodexSpend {
   /** The last running total seen of each thread, by Codex's id for it. */
-  private readonly totals = new Map<string, number>();
+  private readonly totals = new RunningTotals();
 
   /** `emit` reaches the run in flight, and drops what arrives while there is none. */
   constructor(private readonly emit: (event: ProviderEvent) => void) {}
 
   report(threadId: string, usage: ThreadTokenUsage) {
     const total = usage.total.totalTokens;
-    if (!Number.isSafeInteger(total) || total < 0) return;
-    const seen = this.totals.get(threadId) ?? Math.max(0, total - Math.max(0, usage.last.totalTokens));
-    this.totals.set(threadId, total);
-    if (total > seen) this.emit({ type: "spend", tokens: total - seen });
+    const grown = this.totals.grow(threadId, total, Math.max(0, total - Math.max(0, usage.last.totalTokens)));
+    if (grown) this.emit({ type: "spend", tokens: grown });
   }
 }
