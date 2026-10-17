@@ -128,9 +128,9 @@ test("a side chat, which cannot move its thread, is only told to start a thread 
   const main = await briefs({ threads });
   const side = await briefs({ threads, channel: "side" });
   for (const engine of ["claude", "codex"] as const) {
-    assert.match(main[engine].instructions, /move_to_worktree with "new" moves this thread into a new worktree/);
+    assert.match(main[engine].instructions, /To do the work in this thread, call move_to_worktree with "new"/);
     assert.doesNotMatch(side[engine].instructions, /move_to_worktree/);
-    assert.match(side[engine].instructions, /use the AICodingTool worktree tools so the app knows where each thread works: start_thread with worktree/);
+    assert.match(side[engine].instructions, /Start a thread with start_thread and worktree to do it\./);
   }
 });
 
