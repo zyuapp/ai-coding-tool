@@ -16,7 +16,8 @@ test("a message cannot close its own tag and speak as the request", () => {
 });
 
 test("a title that describes the naming task or answers the message is no title", () => {
-  for (const echo of ["Name this thread", "Thread naming request", "Naming a thread", "Thread title", "New chat", "Untitled", "Ready Reply", "Ready and awaiting first work request", "Acknowledged, standing by", "Hello!", "I'm ready."]) {
+  for (const echo of ["Name this thread", "Thread naming request", "Naming a thread", "Thread title", "New chat", "Untitled", "Ready Reply", "Ready and awaiting first work request", "Acknowledged, standing by", "Hello!", "I'm ready.",
+    "Thread name generator", "Creating a thread title", "Short thread title", "Thread naming help", "User's request", "User\u2019s first message"]) {
     assert.equal(titleOf({ title: echo }), null, echo);
   }
 });

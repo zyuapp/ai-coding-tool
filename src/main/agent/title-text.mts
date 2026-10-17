@@ -44,12 +44,14 @@ export function cleanTitle(text: string) {
 /**
  * Words that name no work of their own: the naming task, a thread or message in general, a reply or
  * acknowledgement, and the filler between them. A title made of nothing else describes the writer's
- * task or answers the message, so the thread keeps the title its own first message gave it.
+ * task or answers the message, so the thread keeps the title its own first message gave it. A
+ * possessive is read as its word, so "User's request" says no more than "User request".
  */
 const EMPTY_WORDS = new Set([
   "name", "names", "named", "naming", "rename", "renaming", "title", "titles", "titled", "titling", "label", "labeling", "labelling",
   "thread", "threads", "chat", "chats", "conversation", "conversations", "message", "messages", "request", "requests", "untitled", "new",
-  "summary", "summarize", "summarise", "topic", "suggestion", "suggested", "generate", "generated", "generation", "coordinator",
+  "summary", "summarize", "summarise", "topic", "suggestion", "suggested", "generate", "generated", "generation", "generator", "coordinator",
+  "create", "creating", "creation", "help", "helping", "short", "word", "words", "six",
   "reply", "replies", "replying", "respond", "response", "answer", "answering", "ready", "await", "awaiting", "waiting", "wait",
   "standby", "standing", "acknowledge", "acknowledged", "acknowledgement", "acknowledgment", "ack", "confirm", "confirmed", "confirmation",
   "ok", "okay", "sure", "yes", "noted", "understood", "got", "hello", "hi", "hey", "greeting", "greetings", "introduction",
@@ -59,8 +61,8 @@ const EMPTY_WORDS = new Set([
 ]);
 
 function saysNothing(title: string) {
-  const words = title.toLowerCase().match(/[\p{L}\p{N}']+/gu) ?? [];
-  return words.every((word) => EMPTY_WORDS.has(word));
+  const words = title.toLowerCase().replace(/\u2019/g, "'").match(/[\p{L}\p{N}']+/gu) ?? [];
+  return words.every((word) => EMPTY_WORDS.has(word.replace(/'s$/, "")));
 }
 
 /** How many screenshots ride along with a first message, and how large each may be. */
