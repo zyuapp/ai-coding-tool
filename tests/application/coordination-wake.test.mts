@@ -228,6 +228,14 @@ test("stopping all drops a coordinator's wake and hands back what its threads we
   slept(stopped);
 });
 
+test("a decision the user answered just before stopping all still reaches the thread that asked", () => {
+  const decision = { id: "d1", question: "Keep the old API?", options: [], raisedAt: 1 };
+  const state = workspace({ threads: [lead(), member("one", { decisions: [decision] })], activeRuns: { lead: activeRun("lead", "run-l") }, runStatuses: { lead: "running" } });
+  const answered = reduce(state, { type: "decision.answer", taskId: "one", decisionId: "d1", answer: "A" });
+  const stopped = reduce(answered.state, { type: "coordination.stop-all", taskId: "lead" });
+  assert.deepEqual(Object.values(stopped.state.pendingRuns).map((pending) => [pending.taskId, pending.text]), [["one", "The user decided \"Keep the old API?\": A"]], "the answer is on its way, not dropped");
+});
+
 test("news after a stop-all wakes the coordinator as usual, carrying what it missed", () => {
   const state = workspace({ threads: [lead(), member("one"), member("two")], activeRuns: { one: activeRun("one", "run-1"), two: activeRun("two", "run-2") }, runStatuses: { one: "running", two: "running" } });
   const stopped = reduce(state, { type: "coordination.stop-all", taskId: "lead" });

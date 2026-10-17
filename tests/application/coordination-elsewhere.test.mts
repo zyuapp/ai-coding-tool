@@ -218,3 +218,34 @@ test("moving a remote member out clears its remote lead", () => {
   const moved = reduce(state, { type: "task.set-coordinator", taskId: "member", coordinatorId: "here" }).state;
   assert.deepEqual([moved.threads[0]!.parentId, moved.threads[0]!.remoteLead], ["here", undefined], "a coordinator here takes it from the one elsewhere");
 });
+
+test("a start allowed on another computer that is still on its way when everything stops is stopped there as it lands, and heard quietly", () => {
+  const brief = { intent: "port the parser", doneWhen: "tests pass", delivers: "report" as const };
+  const proposal = { id: "p1", title: "Far work", prompt: "Port it", brief, place: { computer: { id: "studio", name: "studio" }, project: "far-project", worktree: false }, proposedAt: 1 };
+  const holder = workspace({ projects: [{ id: "far-project", root: "/far" }] });
+  const state = withComputers(workspace({ threads: [lead("lead", { title: "Lead", proposals: [proposal] })] }), [paired("studio", holder, { capabilities: COMPUTER_CAPABILITIES })]);
+  const allowed = reduce(state, { type: "proposal.start", taskId: "lead", proposalId: "p1", place: { project: "far-project", worktree: false } });
+  assert.deepEqual(allowed.state.startingProposals, ["p1"]);
+  assert.equal(deriveView(allowed.state).stoppableCoordinatorIds.has("lead"), true, "a start on its way is something to stop");
+
+  const stopped = reduce(allowed.state, { type: "coordination.stop-all", taskId: "lead" });
+  assert.deepEqual(stopped.state.stoppedStarts, [{ proposalId: "p1" }]);
+  assert.deepEqual(stopped.state.startingProposals, ["p1"], "it cannot be called back, so it is not offered again until it lands");
+  assert.equal(deriveView(stopped.state).stoppableCoordinatorIds.has("lead"), false, "once caught, nothing is left to stop");
+
+  const landed = reduce(stopped.state, { type: "proposal.settled", taskId: "lead", proposalId: "p1", threadId: "far" });
+  assert.deepEqual(landed.effects.flatMap((effect) => effect.type === "computer.forward" ? [[effect.id, effect.inputs]] : []), [["studio", [{ type: "run.cancel", taskId: "far" }]]], "the thread is stopped where it landed");
+  assert.deepEqual(landed.state.startingProposals, []);
+  assert.equal(landed.state.threads[0]!.proposals, undefined);
+
+  const ended = mirrored(landed.state, { ...holder, threads: [far({ runEndedAt: 50, outcome: "stopped" })] });
+  assert.deepEqual(notesOf(ended.state), ["\"Far work\" started on studio.", "\"Far work\" was stopped."]);
+  assert.equal(ended.state.threads[0]!.coordinationNotes?.every((note) => note.quiet), true);
+  assert.deepEqual(wakesOf(ended.state), [], "its stop never wakes the coordinator");
+  assert.deepEqual(ended.state.stoppedStarts, []);
+
+  const failed = reduce(stopped.state, { type: "proposal.settled", taskId: "lead", proposalId: "p1", message: "No such folder." });
+  assert.deepEqual(failed.state.startingProposals, []);
+  assert.deepEqual(failed.state.threads[0]!.proposals?.map((item) => [item.id, item.error]), [["p1", undefined]], "one that never landed waits to be allowed again, with nothing to say");
+  assert.deepEqual(failed.state.stoppedStarts, []);
+});

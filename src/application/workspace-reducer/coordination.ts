@@ -188,16 +188,8 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       return settled(updateThread(state, lead.id, (item) => withCoordinationNote(withoutProposals(item, new Set(declined.map((proposal) => proposal.id))), note)));
     }
 
-    /**
-     * A thread a coordinator on another computer started has its start allowed there, and is a thread
-     * on that computer now, which tells the coordinator so itself once the thread shows up there.
-     */
-    case "proposal.settled": {
-      if (input.threadId === undefined) return settled(withProposalFailure(state, input.taskId, input.proposalId, input.message ?? "The thread did not start."));
-      const started = withoutStarting(state, input.proposalId);
-      const lead = started.threads.find((item) => item.id === input.taskId);
-      return settled(lead?.proposals ? updateThread(started, lead.id, (item) => withoutProposals(item, new Set([input.proposalId]))) : started);
-    }
+    case "proposal.settled":
+      return proposalSettled(state, input);
 
     /**
      * Progress is not news: only a thread that is blocked, done or failed leaves its coordinator a
@@ -245,22 +237,49 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
 }
 
 /**
+ * A thread a coordinator here allowed on another computer starting there, or failing to, which is a
+ * thread on that computer now that tells the coordinator so itself once it shows up there. A start
+ * Stop all caught on its way is stopped as it lands; one that never landed has nothing left to say.
+ */
+function proposalSettled(state: WorkspaceState, input: Extract<CoordinationInput, { type: "proposal.settled" }>): WorkspaceTransition {
+  const caught = state.stoppedStarts.some((start) => start.proposalId === input.proposalId && start.threadId === undefined);
+  const stoppedStarts = caught ? state.stoppedStarts.filter((start) => start.proposalId !== input.proposalId) : state.stoppedStarts;
+  if (input.threadId === undefined) {
+    return settled(caught ? withoutStarting({ ...state, stoppedStarts }, input.proposalId) : withProposalFailure(state, input.taskId, input.proposalId, input.message ?? "The thread did not start."));
+  }
+  const lead = state.threads.find((item) => item.id === input.taskId);
+  const proposal = lead?.proposals?.find((item) => item.id === input.proposalId);
+  const started = withoutStarting(lead?.proposals ? updateThread(state, lead.id, (item) => withoutProposals(item, new Set([input.proposalId]))) : state, input.proposalId);
+  if (!caught) return settled(started);
+  const computer = state.computers.paired.find((item) => item.id === proposal?.place.computer?.id);
+  const cancel: AppCommand = { type: "run.cancel", taskId: input.threadId };
+  const effects: WorkspaceEffect[] = computer && supportsComputerCommand(computer.capabilities, cancel) ? [{ type: "computer.forward", id: computer.id, inputs: [cancel] }] : [];
+  return settled({ ...started, stoppedStarts: [...stoppedStarts, { proposalId: input.proposalId, threadId: input.threadId }] }, effects);
+}
+
+/**
  * Stops a coordinator and every thread under it: each run is cancelled, each wait on a usage limit
- * ends, and each run still on its way, the coordinator's wake and its threads' starts included, is
- * dropped, handing back what was queued behind it. The runs it cancels end quietly, so nothing it
- * stopped wakes the coordinator to carry on; scheduled ticks are the user's to stop one by one. A
- * thread under it on another computer is stopped there, by a computer whose build can.
+ * ends, and the coordinator's wake and each start of a new thread under it are dropped, handing back
+ * what was queued. A start already carried to a paired computer cannot be called back, so it is
+ * stopped there as it lands. The runs it cancels end quietly, so nothing it stopped wakes the
+ * coordinator to carry on; scheduled ticks are the user's to stop one by one. A thread under it on
+ * another computer is stopped there, by a computer whose build can.
  */
 function stopAll(state: WorkspaceState, leadId: string): WorkspaceTransition {
   const lead = state.threads.find((item) => item.id === leadId);
   if (!lead || !isCoordinator(lead)) return settled(state);
-  const { threads, starts, elsewhere } = coordinatorWork(state, lead);
+  const { threads, starts, elsewhere, landing } = coordinatorWork(state, lead);
   const cancelled = threads.flatMap(({ id }) => state.activeRuns[id] ?? []);
   const remote = remoteStops(elsewhere);
   /** A run that never said it ended leaves its id behind, so only runs still going, here or on a paired computer, are kept. */
   const going = new Set([state, ...state.computers.paired.flatMap((computer) => computer.state ?? [])].flatMap((held) => Object.values(held.activeRuns).map((run) => run.runId)));
   const quietStops = [...state.quietStops.filter((runId) => going.has(runId)), ...cancelled.map((run) => run.runId), ...remote.runIds];
-  let next = settled({ ...state, quietStops }, [...cancelled.map((run): WorkspaceEffect => ({ type: "send-run-command", command: { type: "cancel", taskId: run.taskId, runId: run.runId } })), ...remote.effects]);
+  /** A caught start that never said it landed leaves nothing to stop, so only those still on their way, or landed and yet to be heard, are kept. */
+  const stoppedStarts = [
+    ...state.stoppedStarts.filter((start) => start.threadId !== undefined || state.startingProposals.includes(start.proposalId)),
+    ...landing.map((proposal) => ({ proposalId: proposal.id })),
+  ];
+  let next = settled({ ...state, quietStops, stoppedStarts }, [...cancelled.map((run): WorkspaceEffect => ({ type: "send-run-command", command: { type: "cancel", taskId: run.taskId, runId: run.runId } })), ...remote.effects]);
   for (const { id } of threads) next = followedBy(next, cancelPause(next.state, id));
   for (const { id, taskId, coordination } of starts) {
     const without = withoutPending(next.state, id);
@@ -561,7 +580,7 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
   const notes: CoordinationNote[] = [];
   const effects: WorkspaceEffect[] = [];
   let newest = heard ?? threadCreatedAt(member);
-  let { quietStops } = state;
+  let { quietStops, stoppedStarts } = state;
   const run = holder.activeRuns[member.id];
   const ran = prior?.activeRuns[member.id];
   if (heard === undefined) notes.push(coordinationNote(member.id, `"${member.title}" started on ${computer.name}.`, at, { quiet: true }));
@@ -585,8 +604,12 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
   /** A thread waiting out a session limit carries on by itself, so its turn has not ended. */
   const ended = member.runEndedAt !== undefined && member.runEndedAt > since && !run && !(member.limitPause && resumesOnItsOwn(member.limitPause));
   if (ended) {
-    const quiet = ran !== undefined && quietStops.includes(ran.runId);
-    if (quiet) quietStops = quietStops.filter((runId) => runId !== ran.runId);
+    /** So is one a start Stop all caught on its way stopped as it landed. */
+    const caught = stoppedStarts.some((start) => start.threadId === member.id);
+    if (caught) stoppedStarts = stoppedStarts.filter((start) => start.threadId !== member.id);
+    const stopped = ran !== undefined && quietStops.includes(ran.runId);
+    if (stopped) quietStops = quietStops.filter((runId) => runId !== ran.runId);
+    const quiet = stopped || caught;
     const status = quiet || member.outcome === "stopped" ? "cancelled" : member.outcome === "failed" ? "failed" : "succeeded";
     notes.push(turnNote(member, status, at, { quiet }));
     /**
@@ -606,10 +629,11 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
     const question = run.questions?.[0];
     if (question && !(ran?.runId === run.runId && ran.questions?.length)) effects.push(...announced(state, member, question.question, "waiting"));
   }
-  if (!notes.length && newest === heard) return { state: quietStops === state.quietStops ? state : { ...state, quietStops }, effects };
+  const stops = quietStops === state.quietStops && stoppedStarts === state.stoppedStarts ? state : { ...state, quietStops, stoppedStarts };
+  if (!notes.length && newest === heard) return { state: stops, effects };
   const led = new Set(coordinationMembers(state, lead.id).flatMap(({ thread, computer: there }) => there ? [thread.id] : []));
   const told = notes.reduce(withCoordinationNote, withRemoteHeard(lead, member.id, newest, led));
-  return { state: updateThread({ ...state, quietStops }, lead.id, () => told), effects };
+  return { state: updateThread(stops, lead.id, () => told), effects };
 }
 
 /**
