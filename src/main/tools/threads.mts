@@ -47,7 +47,8 @@ const memberComputerField = z.string().optional().describe("A paired computer to
 
 /** What a start takes beyond the computer it runs on. */
 const NEW_THREAD_INPUT = {
-  prompt: z.string().describe("The first message of the new thread. It has none of this conversation's context, so say everything it needs."),
+  /** A blank prompt is refused here, on its own field, since it would start nothing. */
+  prompt: z.string().trim().min(1).describe("The first message of the new thread. It has none of this conversation's context, so say everything it needs."),
   title: z.string().trim().min(1).max(MAX_PROPOSAL_TITLE).optional().describe("A few words naming what the new thread does, shown wherever it is listed. Omit to have it named from its prompt."),
   project: z.string().optional().describe("Which project to start it in: its folder name, its path, or its id. Defaults to this thread's project, or on a paired computer the project there at the same path or with the same folder name."),
   worktree: z.boolean().optional().describe("Run the new thread in its own new git worktree, detached at whatever the project has checked out, so its edits never touch this thread's checkout. Name files in its prompt relative to the project, never by this checkout's absolute path, which would send it back here."),
@@ -212,7 +213,8 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
     description: "Send a message to another thread, on this computer or a paired one. A thread that is working reads it in the run already going, and an idle one starts a run on it. To learn where a thread stands, read it with read_thread instead.",
     input: {
       threadId: threadIdField,
-      text: z.string().describe("The message to send."),
+      /** A blank message is refused here rather than answered as sent, since nothing would reach the thread. */
+      text: z.string().trim().min(1).describe("The message to send."),
     },
     readOnly: false,
     /** A message from another thread is meant for the work in hand, so it joins the run rather than waiting behind it as a run of its own. */

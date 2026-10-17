@@ -151,4 +151,5 @@ test("what an agent may send is a command the window itself accepts, held to the
   assert.equal(isExternalCommand({ type: "browser.go", taskId: "task-1", delta: 3 }), false);
   assert.equal(isWorkspaceViewInput({ type: "browser.go", delta: 1 }), true);
   assert.equal(isExternalCommand({ type: "browser.go", delta: 1 }), false, "an agent names the thread driving the browser");
+  assert.equal(isExternalCommand({ type: "task.send", taskId: "task-1", text: "  \n " }), false, "a blank message would be answered as sent with nothing sent");
 });

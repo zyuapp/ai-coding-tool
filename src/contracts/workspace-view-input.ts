@@ -138,7 +138,8 @@ function namesThread(command: { taskId?: string }): boolean {
 
 function agentSend(command: Extract<AppCommand, { type: "task.send" }>): boolean {
   return agentId(command.taskId) && agentId(command.project)
-    && isString(command.text, MAX_PROMPT_LENGTH)
+    /** An agent's send carries only its text, so a blank one would be answered as sent with nothing sent. */
+    && isString(command.text, MAX_PROMPT_LENGTH) && command.text.trim().length > 0
     && command.attachments === undefined
     /** An id, never a path: the reducer resolves it against the checkouts the app itself made. */
     && agentId(command.worktreeId)

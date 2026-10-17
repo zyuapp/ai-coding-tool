@@ -147,7 +147,14 @@ test("a thread can be started under a name of a few words, by any thread and any
     assert.equal(input.safeParse({ prompt: "Fix it" }).success, true, "a name is optional");
     assert.equal(input.safeParse({ prompt: "Fix it", title: "  " }).success, false, "a blank name is refused");
     assert.equal(input.safeParse({ prompt: "Fix it", title: "x".repeat(121) }).success, false);
+    assert.equal(input.safeParse({ prompt: "  \n " }).success, false, "a blank prompt is refused on its own field");
   }
+});
+
+test("a blank message is refused rather than answered as sent", () => {
+  const input = z.object(threadTools(fakeBridge(), () => NOW).find((tool) => tool.name === "message_thread")!.input);
+  assert.equal(input.safeParse({ threadId: "task-2", text: "  \n " }).success, false);
+  assert.deepEqual(input.safeParse({ threadId: "task-2", text: " also update the README\n" }).data, { threadId: "task-2", text: "also update the README" });
 });
 
 test("deleting a worktree names it by id and reports what became of its loose work", async () => {

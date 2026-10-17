@@ -93,8 +93,6 @@ const PROPOSE_THREADS = defineTool({
       ...COORDINATOR_START_INPUT,
       /** Every suggestion is labelled for the user, and the thread started from it keeps the label as its name. */
       title: z.string().trim().min(1).max(MAX_PROPOSAL_TITLE).describe("A few words naming what the thread does, which label the suggestion for the user and name the thread once it starts."),
-      /** A blank item is refused here, on its own field, rather than failing every suggestion in the call. */
-      prompt: COORDINATOR_START_INPUT.prompt.trim().min(1),
     })).min(1).max(MAX_PROPOSALS).describe("The threads to suggest, one per piece of work."),
   },
   readOnly: false,
