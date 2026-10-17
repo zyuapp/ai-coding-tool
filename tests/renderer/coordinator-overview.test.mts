@@ -4,7 +4,8 @@ import { test } from "vitest";
 import React, { act } from "react";
 
 import type { Thread } from "../../src/domain/thread.ts";
-import type { CoordinatedThreadStatus, CoordinatedThreadView } from "../../src/application/coordination.ts";
+import type { CoordinatedThreadStatus } from "../../src/application/coordination.ts";
+import type { CoordinatedThreadView } from "../../src/application/coordination-view.ts";
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
 import { activeRun, required } from "../application/workspace-reducer-fixtures.mts";
 import { emptyWorkspaceState, deriveView, OVERVIEW_PANEL } from "../../src/application/workspace-state.ts";

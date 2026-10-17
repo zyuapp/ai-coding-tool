@@ -5,7 +5,7 @@ import React, { act } from "react";
 
 import type { Thread } from "../../src/domain/thread.ts";
 import type { AppCommand } from "../../src/contracts/commands.ts";
-import type { CoordinatedThreadView } from "../../src/application/coordination.ts";
+import type { CoordinatedThreadView } from "../../src/application/coordination-view.ts";
 import { mount, query } from "../support/renderer-dom.mts";
 
 const { ThreadCards, ThreadCardsContext } = await import("../../src/renderer/components/Coordination.tsx");

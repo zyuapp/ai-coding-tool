@@ -8,7 +8,7 @@ import { SubagentInspector } from "./SubagentInspector";
 import { WorkflowPanel } from "./WorkflowPanel";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import { AUTOMATION_PANEL, DIFF_PANEL, OVERVIEW_PANEL } from "../../application/workspace-reducer";
-import { overviewGroups } from "../../application/coordination";
+import { overviewGroups } from "../../application/coordination-view";
 import { isCoordinator } from "../../domain/coordination";
 import { engineLabel } from "../../domain/agent-engine";
 import type { DiffState } from "../../application/workspace-state";

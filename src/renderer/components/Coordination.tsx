@@ -5,7 +5,8 @@ import { engineForModel, modelDelegable, modelLabel, type AgentEngine, type Agen
 import type { AgentEffort } from "../../domain/run";
 import { worktreeHue, worktreeName, type Worktree } from "../../domain/worktree";
 import type { Thread } from "../../domain/thread";
-import { canResolve, overviewGroups, pullRequestLine, type CoordinationUsage, type CoordinatedThreadStatus, type CoordinatedThreadView, type CoordinationView, type CoordinatorMemoryView } from "../../application/coordination";
+import { canResolve, pullRequestLine, type CoordinatedThreadStatus } from "../../application/coordination";
+import { overviewGroups, type CoordinationUsage, type CoordinatedThreadView, type CoordinationView, type CoordinatorMemoryView } from "../../application/coordination-view";
 import type { ThreadHost } from "../../application/computers";
 import type { WorktreeGroup } from "../../application/workspace-state";
 import type { MemberWorktree } from "../../application/member-worktrees";

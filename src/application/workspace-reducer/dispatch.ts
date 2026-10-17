@@ -1,6 +1,7 @@
 import { reduceThreadCommands } from "./thread-commands.js";
 import { reduceWorktrees } from "./worktrees.js";
 import { reduceCoordination } from "./coordination.js";
+import { reduceProposals } from "./proposals.js";
 import { reduceWorktreeMenu } from "./worktree-menu.js";
 import { reduceSending } from "./sending.js";
 import { reduceComposerAttachments } from "./composer-attachments.js";
@@ -49,8 +50,9 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
 
     case "task.set-coordinator": case "task.resolve": case "task.reopen": case "decision.answer": case "coordination.set-thread-model": case "coordination.set-muted": case "coordination.stop-all": case "coordination.reported": case "coordination.decision-raised":
     case "memory.set-purpose": case "memory.add": case "memory.edit": case "memory.forget": case "coordination.remembered": case "coordination.next-step":
-    case "coordination.proposed": case "proposal.start": case "proposal.dismiss": case "proposal.settled":
       return reduceCoordination(state, input);
+    case "coordination.proposed": case "proposal.start": case "proposal.dismiss": case "proposal.settled":
+      return reduceProposals(state, input);
 
     case "view.move-worktree": case "task.set-worktree": case "task.move-worktree": case "task.set-branch": case "task.checkout-branch":
     case "worktree.refresh": case "worktree.reveal": case "worktree.delete":

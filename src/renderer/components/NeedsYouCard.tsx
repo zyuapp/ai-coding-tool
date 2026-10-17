@@ -4,7 +4,7 @@ import type { ThreadModelChoice } from "../../domain/coordination";
 import { modelLabel } from "../../domain/agent-engine";
 import { projectName } from "../../domain/project";
 import type { Thread } from "../../domain/thread";
-import type { CoordinationApprovalView, CoordinationDecisionView, ElsewhereView, ProposalView } from "../../application/coordination";
+import type { CoordinationApprovalView, CoordinationDecisionView, ElsewhereView, ProposalView } from "../../application/coordination-view";
 import type { ApprovalView } from "../../application/thread-run-state";
 import { CommandButton } from "./CommandControl";
 import { BriefDetails } from "./Coordination";

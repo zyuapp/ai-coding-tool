@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import { coordinationContext, coordinationSections, coordinationView, nextSteps, overviewGroups, type CoordinatedThreadStatus } from "../../src/application/coordination.ts";
+import { coordinationContext, coordinationSections, nextSteps, type CoordinatedThreadStatus } from "../../src/application/coordination.ts";
+import { coordinationView, overviewGroups } from "../../src/application/coordination-view.ts";
 import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { NEXT_STEPS, withMemoryChange, type ThreadBrief } from "../../src/domain/coordination.ts";

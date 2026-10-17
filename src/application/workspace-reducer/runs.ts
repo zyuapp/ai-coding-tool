@@ -1,6 +1,8 @@
 /** A run's life: the checkout it resolves to, what it reports, and how it ends. */
 import { ack } from "./automations.js";
-import { noteTurnEnded, withProposalFailure, withoutStarting } from "./coordination.js";
+import { noteTurnEnded } from "./coordination.js";
+import { withProposalFailure } from "./proposals.js";
+import { coordinatedStart, withSuggestionStarted } from "./coordinated-start.js";
 import { readDiffFrom, rereadReviewsOf } from "./diff-reads.js";
 import { handOverDraftDock } from "./dock-tabs.js";
 import { WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
@@ -18,7 +20,6 @@ import { outcomeFor, settledHeadline, whyRunSurfaces, withSettledTick, type RunS
 import { nextSortIndex } from "../thread-order.js";
 import { answerPartId, applyRunEvent, applyThreadEvent, ATTENDED_RUN, threadMark, updateThread, withBackgroundProcesses, withSubagents, withWorkflows, type ActiveRun, type ThreadMark } from "../thread-run-state.js";
 import { threadOnScreen } from "../thread-attention.js";
-import { sessionHoldsWork } from "../thread-activity.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, threadWorkspaceRoot, worktreeById, worktreeFor } from "../thread-location.js";
 import { DRAFT_DOCK, type PendingRun, type WorkspaceState } from "../workspace-state.js";
 import type { CreatedWorktree, RunEvent } from "../../contracts/ipc.js";
@@ -27,8 +28,7 @@ import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
 import { createConversationMessage, createSentMessage } from "../../domain/conversation.js";
 import { appendMessages } from "../../domain/conversation-updates.js";
 import { pausedForLimit } from "../limit-pauses.js";
-import { asCoordinator, canJoinCoordinator, isCoordinator, wantsFreshSession, worksUnderCoordinator, withCoordinationNote, withMemoryHeard, withoutCoordinationNotes, withoutProposals } from "../../domain/coordination.js";
-import { briefPrompt, coordinationNote, coordinatorPrompt } from "../coordination.js";
+import { isCoordinator, worksUnderCoordinator } from "../../domain/coordination.js";
 import type { Thread } from "../../domain/thread.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
 
@@ -329,52 +329,18 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     updatedAt: now(),
   };
   if (created && !created.name) created.name = thread.title;
-  /** A thread a coordinator starts works under it from its first run, and so does one a coordinator on another computer starts here. */
-  const lead = existing ? undefined : state.threads.find((item) => item.id === pending.coordination?.coordinatorId);
-  const remoteLead = existing || pending.role === "coordinator" ? undefined : pending.coordination?.lead;
-  /** A new coordinator's threads run on what it runs on itself until the user picks otherwise. */
-  const opened = !existing && pending.role === "coordinator" ? asCoordinator(thread) : thread;
-  const joined = lead && canJoinCoordinator(opened, lead) ? { ...opened, parentId: lead.id } : remoteLead ? { ...opened, remoteLead } : opened;
-  const joining = joined !== opened;
   const message = createSentMessage({ ...pending, origin: pending.messageOrigin });
   /** Only a thread that was somewhere else is arriving; one already in this checkout has said so. */
   const arrival = arriving && existing?.worktreeId !== arriving.id
     ? [createConversationMessage("system", `Moved into a worktree at ${arriving.root}`, `Detached at ${arriving.baseCommit.slice(0, 7)}`)]
     : [];
-  const located = arriving ? { ...joined, worktreeId: arriving.id, worktreeEnteredAt: joined.worktreeEnteredAt ?? now() } : joined;
+  const located = arriving ? { ...thread, worktreeId: arriving.id, worktreeEnteredAt: thread.worktreeEnteredAt ?? now() } : thread;
   /** A copied thread forks the session it inherited until a session of its own comes back to continue. */
   const inherited = located.inheritedContinuation;
-  /**
-   * A coordinator's run hears everything its threads said since the last one, so none of it is
-   * waiting any more, and reads its memory whenever its session has yet to, so that is read too.
-   */
-  const coordinating = isCoordinator(located);
-  /**
-   * A coordinator whose session has grown past its budget starts a fresh one, seeded from what this
-   * app keeps of it. A run picking up after a usage limit carries on in the session it left.
-   */
-  const fresh = !pending.warming && wantsFreshSession(located, sessionHoldsWork(state, located.id));
-  const told = coordinating && located.coordinationNotes ? withoutCoordinationNotes(located, new Set(located.coordinationNotes.map((note) => note.id))) : located;
-  const heard = coordinating ? withMemoryHeard(told) : told;
-  /** A message is more work for a thread, so one that was resolved is open again. */
-  const { resolvedAt: _reopened, ...open } = heard;
-  const restarted = fresh ? withoutSession(open) : open;
-  const notice = fresh ? [createConversationMessage("system", "Continued in a fresh session to keep this coordinator's context small.")] : [];
-  const updated = { ...restarted, messages: [...restarted.messages, ...arrival, ...notice, message], updatedAt: now() };
-  /** A thread starting under a coordinator reads the brief it was handed and the memory it was started with. */
-  const standing = joining ? briefPrompt(pending.coordination?.brief, pending.coordination?.memory) : briefPrompt(pending.coordination?.brief);
-  const sent = `${pending.prompt}${standing ? `\n\n${standing}` : ""}`;
-  /**
-   * Any coordinator session that starts over history reads the seed, so one whose last session failed
-   * before naming itself, or was dropped, still knows what came before and where read_thread finds it.
-   */
-  const seeded = fresh || coordinating && updated.continuation === undefined && (located.messages.length > 0 || located.historySummary !== undefined);
-  const prompt = coordinating ? coordinatorPrompt(state, located, sent, { carried: pending.coordination?.notes, fresh: seeded }) : sent;
+  const { thread: coordinated, notice, prompt, fresh } = coordinatedStart(state, pending, located, existing);
+  const updated = { ...coordinated, messages: [...coordinated.messages, ...arrival, ...notice, message], updatedAt: now() };
   const listed = existing ? state.threads.map((item) => item.id === thread.id ? updated : item) : [updated, ...state.threads];
-  /** A suggestion the user started is this thread now, which its coordinator hears without being woken by it. */
-  const proposalId = existing ? undefined : pending.coordination?.proposalId;
-  const threads = proposalId && lead ? listed.map((item) => item.id === lead.id ? withSuggestionStarted(item, proposalId, updated) : item) : listed;
-  const { startingProposals } = proposalId ? withoutStarting(state, proposalId) : state;
+  const { threads, startingProposals } = withSuggestionStarted(state, pending, existing, listed, updated);
   /** Only a thread the user's own send just created needs looking at; anything else leaves them where they are. */
   const focusing = !existing && pending.draftKey !== undefined;
   /** Only the composer's own send spent the draft's placement; a thread started any other way leaves it alone. */
@@ -402,19 +368,6 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     [{ type: "start-run", command }, ...titling, ...followUps(reviewing.effects)],
     { ok: true, taskId: thread.id },
   );
-}
-
-/** A thread that resumes no session: its next run starts one, and its context meter starts over with it. */
-function withoutSession({ continuation: _continuation, inheritedContinuation: _inherited, contextUsage: _context, ...thread }: Thread): Thread {
-  return { ...thread, continuationStatus: "none" };
-}
-
-/** A coordinator whose suggestion became `thread`, told so quietly. */
-function withSuggestionStarted(lead: Thread, proposalId: string, thread: Thread): Thread {
-  const proposal = lead.proposals?.find((item) => item.id === proposalId);
-  const settledLead = withoutProposals(lead, new Set([proposalId]));
-  if (!proposal || !isCoordinator(lead)) return settledLead;
-  return withCoordinationNote(settledLead, coordinationNote(thread.id, `The user started your suggested thread "${proposal.title}" [${thread.id}].`, now(), { quiet: true }));
 }
 
 /** A thread picked back up after its usage limit lifted: nobody wrote to it, so it is told to carry on. */

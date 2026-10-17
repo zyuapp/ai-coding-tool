@@ -1,6 +1,6 @@
 import { senderLabel } from "../../domain/message-origin";
 import type { ConversationMessage } from "../../domain/conversation";
-import type { ThreadStart } from "../../application/coordination";
+import type { ThreadStart } from "../../application/coordination-view";
 
 type TimelineEntry =
   /** `from` names what a folded message's row says it is: its threads' news, or the thread that sent it. */

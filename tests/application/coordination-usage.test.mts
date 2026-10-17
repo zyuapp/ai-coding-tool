@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { coordinationMembers, coordinationUsage, coordinationView } from "../../src/application/coordination.ts";
+import { coordinationMembers } from "../../src/application/coordination.ts";
+import { coordinationUsage, coordinationView } from "../../src/application/coordination-view.ts";
 import { task, workspace } from "./workspace-reducer-fixtures.mts";
 
 const lead = task("lead", { role: "coordinator", model: "opus", usage: { opus: 240_000 } });
