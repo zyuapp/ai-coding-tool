@@ -449,6 +449,7 @@ test("coordination requests and briefs are checked at the boundary, and only the
   const request = { type: "thread.request", requestId: "r1", taskId: "task-1" };
   assert.equal(isThreadRequest({ ...request, op: "report", state: "done", summary: "PR #42" }), true);
   assert.equal(isThreadRequest({ ...request, op: "report", state: "finished", summary: "PR #42" }), false);
+  assert.equal(isThreadRequest({ ...request, op: "report", state: "done", summary: " \n" }), false, "a blank summary would cost the thread its place on the next launch");
   assert.equal(isThreadRequest({ ...request, op: "decision", request: { question: "Ship?", options: [{ label: "Yes", recommended: true }] } }), true);
   assert.equal(isThreadRequest({ ...request, op: "decision", request: { question: "Ship?", options: [{ label: "" }] } }), false);
 

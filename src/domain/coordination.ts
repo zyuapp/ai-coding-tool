@@ -637,8 +637,13 @@ export function isRemoteWorking(value: unknown): value is Record<string, HeardWo
   return isRecord(value) && Object.values(value).every((work) => isRecord(work) && typeof work.computer === "string" && typeof work.title === "string");
 }
 
+/** What a thread says in a report, held to what its thread is saved with. */
+export function isReportSummary(value: unknown): value is string {
+  return text(value, MAX_SUMMARY);
+}
+
 export function isCoordinationReport(value: unknown): value is CoordinationReport {
-  return isRecord(value) && isCoordinationState(value.state) && text(value.summary, MAX_SUMMARY) && finite(value.at);
+  return isRecord(value) && isCoordinationState(value.state) && isReportSummary(value.summary) && finite(value.at);
 }
 
 export function isDecisionOption(value: unknown): value is DecisionOption {

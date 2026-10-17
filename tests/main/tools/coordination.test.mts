@@ -73,6 +73,13 @@ test("the tools hold notes and purposes to the limits the window writes them und
   assert.equal(accepts("set_purpose", { purpose: null }), true);
 });
 
+test("a thread's report holds a summary the window can save it with", () => {
+  const input = z.object(coordinationTools(fakeBridge(), "member").find((tool) => tool.name === "report_status")!.input);
+  assert.equal(input.safeParse({ state: "done", summary: "PR #42" }).success, true);
+  assert.equal(input.safeParse({ state: "done", summary: "x".repeat(501) }).success, false);
+  assert.equal(input.safeParse({ state: "done", summary: " \n" }).success, false, "a blank summary is refused on its own field");
+});
+
 test("a coordinator's suggestions carry start_thread's fields and a title, with a brief only once it is whole", async () => {
   const bridge = fakeBridge();
   const answer = await toolNamed(bridge, "propose_threads").handler({
