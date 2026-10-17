@@ -271,7 +271,7 @@ test("a start allowed on another computer that is still on its way when everythi
 
 test("a start allowed on another computer keeps its card's name there, and a build that cannot take one names it itself", () => {
   const brief = { intent: "port the parser", doneWhen: "tests pass", delivers: "report" as const };
-  const proposal = { id: "p1", title: "Port the parser", prompt: "Port it", brief, place: { computer: { id: "studio", name: "studio" }, project: "far-project", worktree: false }, proposedAt: 1 };
+  const proposal = { id: "p1", title: "Port the parser", named: true as const, prompt: "Port it", brief, place: { computer: { id: "studio", name: "studio" }, project: "far-project", worktree: false }, proposedAt: 1 };
   const holder = workspace({ projects: [{ id: "far-project", root: "/far" }] });
   const forwardedSend = (capabilities: readonly string[]) => {
     const state = withComputers(workspace({ threads: [lead("lead", { title: "Lead", proposals: [proposal] })] }), [paired("studio", holder, { capabilities })]);

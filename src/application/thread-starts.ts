@@ -8,7 +8,7 @@ import { computerOfPlace, projectOnComputer, type PairedComputer } from "./compu
 import { namedPlace, projectFor } from "./thread-location.js";
 import type { AppCommand } from "../contracts/commands.js";
 import { coordinatorOf, isCoordinator, remoteLeadOf, threadModelOf, undelegable, type ProposalPlace, type ProposalRequest, type ThreadProposal } from "../domain/coordination.js";
-import type { Thread } from "../domain/thread.js";
+import { clampTitle, type Thread } from "../domain/thread.js";
 import { defaultEffortFor, defaultModelFor, effortForModel, engineForModel, modelDelegable, modelHasEffort, modelTakesEffort } from "../domain/agent-engine.js";
 
 export type NewThreadSend = Extract<AppCommand, { type: "task.send" }>;
@@ -74,9 +74,10 @@ export function newThreadSend(state: WorkspaceState, caller: Thread, command: Ne
  * placed in the project and checkout that start resolves to, or why it cannot be. A coordinator
  * suggests threads here or on `asked`, a paired computer; a thread under it asks only for one on a
  * paired computer, which the user allows there. Only a model and effort that were named are kept, so
- * starting it later runs on what the coordinator's threads run on by then.
+ * starting it later runs on what the coordinator's threads run on by then. One asked for without a
+ * title is labelled by its prompt and starts unnamed, so its name is written as any other start's is.
  */
-export function threadProposal(state: WorkspaceState, caller: Thread, request: ProposalRequest, at: number, asked?: PairedComputer | null): { proposal: ThreadProposal } | { error: string } {
+export function threadProposal(state: WorkspaceState, caller: Thread, request: Omit<ProposalRequest, "title"> & { title?: string }, at: number, asked?: PairedComputer | null): { proposal: ThreadProposal } | { error: string } {
   const { title, prompt, computer: _named, ...rest } = request;
   const start = newThreadSend(state, caller, { type: "task.send", text: prompt, ...rest }, asked);
   if ("error" in start) return start;
@@ -85,7 +86,7 @@ export function threadProposal(state: WorkspaceState, caller: Thread, request: P
   return {
     proposal: {
       id: crypto.randomUUID(),
-      title: title.trim(),
+      ...(title?.trim() ? { title: title.trim(), named: true as const } : { title: clampTitle(prompt) }),
       prompt,
       ...placed,
       ...(request.model ? { model: request.model } : {}),
@@ -131,14 +132,14 @@ function elsewherePlace(state: WorkspaceState, caller: Thread, computer: PairedC
 
 /**
  * The send a suggestion asks for, as the lead would have started it, in the place it was suggested
- * for, and named what the suggestion the user started was called.
+ * for, and named what the suggestion was called when that was given rather than read from its prompt.
  */
 export function proposalSend(proposal: ThreadProposal): NewThreadSend {
   const { place } = proposal;
   return {
     type: "task.send",
     text: proposal.prompt,
-    title: proposal.title,
+    ...(proposal.named ? { title: proposal.title } : {}),
     ...(proposal.brief ? { brief: proposal.brief } : {}),
     ...(place.project === undefined ? {} : { project: place.project }),
     ...(place.worktreeId ? { worktreeId: place.worktreeId } : place.worktree === undefined ? {} : { worktree: place.worktree }),

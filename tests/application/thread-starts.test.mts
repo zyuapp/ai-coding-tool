@@ -100,7 +100,7 @@ test("a suggestion is checked as its start would be, and kept in the place that 
   };
 
   const plain = kept();
-  assert.deepEqual({ ...plain, id: "" }, { id: "", title: "Fix login", prompt: "Fix it", brief: BRIEF, place: { project: PROJECT.id, worktreeId: "wt-lead" }, proposedAt: 5 }, "it inherits the coordinator's project and worktree, and names no model of its own");
+  assert.deepEqual({ ...plain, id: "" }, { id: "", title: "Fix login", named: true, prompt: "Fix it", brief: BRIEF, place: { project: PROJECT.id, worktreeId: "wt-lead" }, proposedAt: 5 }, "it inherits the coordinator's project and worktree, and names no model of its own");
   const named = kept({ model: "gpt-6-luna", role: "reviewer" });
   assert.equal(named.model, "gpt-6-luna");
   assert.equal(named.role, "reviewer");
@@ -120,6 +120,13 @@ test("a suggestion is checked as its start would be, and kept in the place that 
     type: "task.send", text: "Fix it", title: "Fix login", brief: BRIEF, project: PROJECT.id, worktreeId: "wt-lead", model: "gpt-6-luna", effort: "low", role: "reviewer",
   });
   assert.deepEqual(started(newThreadSend(state, lead, proposalSend(plain), null)), started(newThreadSend(state, lead, send({ brief: BRIEF, title: "Fix login" }))), "a suggestion starts as the coordinator would have started it");
+
+  /** One asked for without a title is labelled by its prompt, and starts unnamed so its name is written for it. */
+  const untitled = threadProposal(state, lead, { prompt: "Fix the login form", brief: BRIEF }, 5);
+  assert.ok(!("error" in untitled), "error" in untitled ? untitled.error : "");
+  assert.equal(untitled.proposal.title, "Fix the login form");
+  assert.equal(untitled.proposal.named, undefined);
+  assert.equal(proposalSend(untitled.proposal).title, undefined);
 });
 
 test("a thread asked for on a paired computer waits in the project there its start resolves to", () => {

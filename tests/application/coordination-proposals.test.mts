@@ -33,7 +33,7 @@ function startOne(state: WorkspaceState, proposalId: string) {
 test("a coordinator's suggestions wait for the user, and one started works under it with its brief and memory", () => {
   const memory = { purpose: "Ship the v2 reader", notes: [{ id: "n1", text: "Use Sonnet for docs", at: 1 }], revision: 1, heard: 1 };
   const state = workspace({ threads: [lead({ memory })], currentId: "lead" });
-  const proposed = reduce(state, { type: "coordination.proposed", taskId: "lead", proposals: [proposal("p1", { title: "Fix login" }), proposal("p2")] });
+  const proposed = reduce(state, { type: "coordination.proposed", taskId: "lead", proposals: [proposal("p1", { title: "Fix login", named: true }), proposal("p2")] });
   assert.deepEqual(coordinator(proposed.state).proposals?.map((item) => item.id), ["p1", "p2"]);
   assert.deepEqual(proposed.effects, [], "nothing starts until the user starts it");
   assert.deepEqual(deriveView(proposed.state).coordination.proposals.map(({ proposal: item, starting }) => [item.id, starting]), [["p1", false], ["p2", false]]);

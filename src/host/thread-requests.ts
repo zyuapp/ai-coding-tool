@@ -5,7 +5,7 @@ import { isWorking } from "../application/thread-activity.js";
 import { listAcrossComputers, namedComputer, online, readAcrossComputers, remoteSummary, resolveThreadRead, tag, type PreparedThreadRequest } from "./thread-reads.js";
 import { projectOnComputer, type PairedComputer } from "../application/computers.js";
 import { newThreadSend, threadProposal, type NewThreadSend } from "../application/thread-starts.js";
-import { clampTitle, type Thread } from "../domain/thread.js";
+import type { Thread } from "../domain/thread.js";
 import type { WorktreeDestination } from "../domain/worktree.js";
 import { projectFor, worktreeById, worktreeFor } from "../application/thread-location.js";
 import { isNews, unreadFindings } from "../domain/attention.js";
@@ -269,7 +269,7 @@ async function commandElsewhere(host: ThreadRequestHost, computer: PairedCompute
 async function proposeElsewhere(host: ThreadRequestHost, caller: Thread, lead: Thread, computer: PairedComputer, command: NewThreadSend): Promise<ThreadCommandResult> {
   const { type: _type, text, taskId: _new, attachments: _attachments, steer: _steer, ...asked } = command;
   const prompt = text ?? "";
-  const made = threadProposal(host.state(), caller, { ...asked, title: asked.title ?? clampTitle(prompt), prompt }, Date.now(), computer);
+  const made = threadProposal(host.state(), caller, { ...asked, prompt }, Date.now(), computer);
   if ("error" in made) throw new Error(made.error);
   const kept = await fileProposals(host, lead.id, [made.proposal]);
   if (!kept.has(made.proposal.id)) throw new Error(PROPOSALS_FULL);

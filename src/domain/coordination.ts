@@ -174,12 +174,14 @@ export type ProposalPlace = { project?: string; worktree?: boolean; worktreeId?:
  * A thread a coordinator suggested, or one asked for on another computer, waiting for the user to
  * start, allow or dismiss it. A model and effort are kept only when they were named, so one started
  * later runs on whatever the coordinator's threads run on by then. A thread the coordinator asked for
- * carries its brief; one a thread under it asked for names that thread in `from` instead. `error`
- * says why the user's last start of it failed.
+ * carries its brief; one a thread under it asked for names that thread in `from` instead. `named`
+ * says the title was given rather than read from the prompt, so the thread started from it keeps it
+ * as its name. `error` says why the user's last start of it failed.
  */
 export type ThreadProposal = {
   id: string;
   title: string;
+  named?: true;
   prompt: string;
   brief?: ThreadBrief;
   place: ProposalPlace;
@@ -564,7 +566,8 @@ function isProposalPlace(value: unknown): value is ProposalPlace {
 
 /** Shape only, so a suggestion written under a longer limit still loads. */
 export function isThreadProposal(value: unknown): value is ThreadProposal {
-  return isRecord(value) && text(value.id, 200) && typeof value.title === "string" && typeof value.prompt === "string"
+  return isRecord(value) && text(value.id, 200) && typeof value.title === "string" && (value.named === undefined || value.named === true)
+    && typeof value.prompt === "string"
     && (value.brief === undefined || isThreadBrief(value.brief)) && isProposalPlace(value.place)
     && (value.model === undefined || isAgentModel(value.model))
     && (value.effort === undefined || isAgentEffort(value.effort))

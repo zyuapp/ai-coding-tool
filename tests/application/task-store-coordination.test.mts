@@ -92,7 +92,7 @@ test("a coordinator's suggested threads survive a reload, on a replaced model's 
   assert.equal(migrated.ok, true);
   if (!migrated.ok) return;
   const brief = { intent: "fix the login test", doneWhen: "it passes", delivers: "pull-request" as const };
-  const suggested = { id: "p1", title: "Fix login", prompt: "Fix it", brief, place: { project: "project-1", worktree: true }, model: "gpt-6-luna" as const, effort: "low" as const, role: "implementer" as const, proposedAt: 3, error: "No project matches." };
+  const suggested = { id: "p1", title: "Fix login", named: true as const, prompt: "Fix it", brief, place: { project: "project-1", worktree: true }, model: "gpt-6-luna" as const, effort: "low" as const, role: "implementer" as const, proposedAt: 3, error: "No project matches." };
   const plain = { id: "p2", title: "Docs", prompt: "Write them", brief, place: { worktreeId: "wt-1" }, proposedAt: 4 };
   const lead = { ...migrated.data.tasks[0], role: "coordinator" as const, proposals: [suggested, plain] };
   const parsed = parseThreadStore(serializeThreadStore({ ...migrated.data, tasks: [lead] }));

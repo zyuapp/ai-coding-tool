@@ -215,6 +215,8 @@ test("a thread under the coordinator asks for one elsewhere as itself, and it wo
   assert.ok(sent?.type === "task.send");
   assert.equal(sent.sender?.threadId, "member");
   assert.equal(sent.lead?.threadId, "caller");
+  assert.equal(waiting?.title, "Profile it", "its card is labelled by its prompt");
+  assert.equal("title" in sent, false, "and it starts there unnamed, so its name is written there");
 });
 
 test("one asked for by a thread that has since left the coordinator says so on the Allow page", async () => {
