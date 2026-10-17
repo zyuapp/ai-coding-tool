@@ -8,14 +8,21 @@ type CodexSandbox = "read-only" | "workspace-write" | "danger-full-access";
 
 export type CodexPolicy = { approvalPolicy: AskForApproval; sandbox: CodexSandbox; approvalsReviewer: ApprovalsReviewer };
 
+/** Codex refuses every way out of the sandbox without asking, and puts only MCP tool calls to the reviewer. */
+const TOOL_CALLS_ONLY: AskForApproval = { granular: { sandbox_approval: false, rules: false, skill_approval: false, request_permissions: false, mcp_elicitations: true } };
+
 /**
  * Codex has no plan mode, so a plan run is held to what a confirm run may do. A coordinator changes
  * nothing itself: its shell is read-only, and every escalation out of that comes to the app, which
- * refuses it.
+ * refuses it. In Auto, Codex refuses those itself, so the reviewer that judges every other Auto
+ * run's tool calls judges the coordinator's app tools too, as Claude's auto mode does.
  */
 export function codexPolicy(policy: ExecutionPolicy, coordinationRole?: CoordinationRole): CodexPolicy {
   const granted = policyGrants(policy);
-  return coordinationRole === "coordinator" ? { ...granted, sandbox: "read-only", approvalsReviewer: "user" } : granted;
+  if (coordinationRole !== "coordinator") return granted;
+  return policy === "autonomous"
+    ? { approvalPolicy: TOOL_CALLS_ONLY, sandbox: "read-only", approvalsReviewer: "auto_review" }
+    : { ...granted, sandbox: "read-only", approvalsReviewer: "user" };
 }
 
 function policyGrants(policy: ExecutionPolicy): CodexPolicy {

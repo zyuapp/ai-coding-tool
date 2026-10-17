@@ -43,14 +43,22 @@ test("only a coordinator keeps a memory and suggests threads, so a member is off
   assert.deepEqual(coordinationToolNames({ coordinationRole: "member", coordination }), ["report_status", "raise_decision"]);
 });
 
-test("a coordinator's shell is read-only under every policy, and escalations come to the app", () => {
-  for (const policy of ["confirm", "allow-edits", "autonomous", "bypass"] as const) {
+test("outside Auto, a coordinator's shell is read-only and its escalations come to the app", () => {
+  for (const policy of ["confirm", "allow-edits", "bypass"] as const) {
     const held = codexPolicy(policy, "coordinator");
     assert.equal(held.sandbox, "read-only");
     assert.equal(held.approvalsReviewer, "user");
     assert.equal(held.approvalPolicy, codexPolicy(policy).approvalPolicy);
   }
   assert.deepEqual(codexPolicy("autonomous", "member"), codexPolicy("autonomous"));
+});
+
+test("an Auto coordinator on Codex has its app tools judged by the Auto reviewer, while every escalation is refused unasked", () => {
+  assert.deepEqual(codexPolicy("autonomous", "coordinator"), {
+    approvalPolicy: { granular: { sandbox_approval: false, rules: false, skill_approval: false, request_permissions: false, mcp_elicitations: true } },
+    sandbox: "read-only",
+    approvalsReviewer: codexPolicy("autonomous").approvalsReviewer,
+  });
 });
 
 test("a coordinator never waits on a thread, while every other run still can", () => {
