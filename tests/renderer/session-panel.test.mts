@@ -75,6 +75,9 @@ const liveWorkflow: Workflow = {
 /** What the Overview's header picks from, with every engine ready and nothing chosen yet. */
 const header = { taskId: "lead", threadModel: { model: "opus" as const, effort: "high" as const }, engineAccess: EVERY_ENGINE_READY, onSetThreadModel() {}, onEngineRead() {}, onSignIn() {} };
 
+/** A coordinator that keeps nothing in memory yet. */
+const memory = { taskId: "lead", purpose: null, notes: [], onSetPurpose() {}, onAdd() {}, onEdit() {}, onForget() {} };
+
 const member = (id: string, title: string): Thread => ({ id, title, engine: "claude", executionPolicy: "allow-edits", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, parentId: "lead" });
 
 test("a coordinator's Overview groups its threads by what they need, each opening as a tab", async () => {
@@ -86,6 +89,7 @@ test("a coordinator's Overview groups its threads by what they need, each openin
   const working = Array.from({ length: 7 }, (_, index) => ({ thread: member(`w${index}`, `Working ${index}`), status: "working" as const, summary: null }));
   const overview = (folds: object) => React.createElement(CoordinatorOverview, {
     header,
+    memory,
     members: [
       { thread: { ...member("a", "Dark mode"), worktreeId: "wt-1" }, status: "working", summary: "Tokens pass" },
       { thread: member("b", "Login flake"), status: "asking", summary: "Retry or skip?" },
@@ -118,7 +122,7 @@ test("a coordinator's Overview groups its threads by what they need, each openin
   await act(async () => { query<HTMLButtonElement>(busy, 'button[aria-label="Open Dark mode"]').click(); });
   assert.equal(opened, "a");
 
-  await view.render(React.createElement(CoordinatorOverview, { header, members: [], worktreeGroups: [], folds: {}, onSetFold() {}, onSelect() {} }));
+  await view.render(React.createElement(CoordinatorOverview, { header, memory, members: [], worktreeGroups: [], folds: {}, onSetFold() {}, onSelect() {} }));
   assert.match(view.container.textContent, /Threads run onModelOpusEffortHigh/, "a coordinator with no threads yet still says what they will run on");
   assert.match(view.container.textContent, /No threads yet/);
   await view.unmount();
@@ -129,7 +133,7 @@ test("the Overview says what a coordinator's threads run on, and picks another w
   const overview = (available: boolean) => React.createElement(CommandControlsProvider, { value: { available: (command) => available || command.type !== "coordination.set-thread-model", dispatch() {} } },
     React.createElement(CoordinatorOverview, {
       header: { ...header, threadModel: { model: "gpt-6-luna", effort: "max" }, onSetThreadModel: (model: string, effort?: string) => { picked.push([model, effort]); } },
-      members: [], worktreeGroups: [], folds: {}, onSetFold() {}, onSelect() {},
+      memory, members: [], worktreeGroups: [], folds: {}, onSetFold() {}, onSelect() {},
     }));
   const view = await mount(overview(true));
   const head = query(view.container, ".coordination-overview-header");
@@ -169,6 +173,61 @@ test("the Overview tab sets what the coordinator in front runs its threads on", 
   });
   await act(async () => { [...item(model).querySelectorAll<HTMLButtonElement>(".model-choice")].find((button) => button.textContent?.includes("Opus"))!.click(); });
   assert.deepEqual(dispatched.filter((input) => input.type === "coordination.set-thread-model"), [{ type: "coordination.set-thread-model", taskId: "lead", model: "opus" }], "a model alone leaves the effort for the reducer to fit");
+  await mounted.unmount();
+});
+
+test("the Overview's purpose line and memory rows edit what the coordinator keeps", async () => {
+  window.desktop = fakeDesktop();
+  const dispatched: WorkspaceInput[] = [];
+  const dispatch = async (input: WorkspaceInput) => { dispatched.push(input); };
+  const lead: Thread = {
+    ...member("lead", "Plan"), parentId: undefined, role: "coordinator",
+    memory: { purpose: "Ship the v2 reader", notes: [{ id: "n1", text: "Propose threads first", at: 1 }, { id: "n2", text: "Use Sonnet for docs", at: 1 }], revision: 2 },
+  };
+  const view = deriveView({ ...emptyWorkspaceState(), threads: [lead], currentId: lead.id });
+  const commandControls = { available: () => true, dispatch() {} };
+  const workspace = { ...view, threadHandles: [], threadHandlesFor: () => [], commandControls, dispatch, actions: workspaceActions(dispatch) } as never;
+  const dock = buildDock({ workspace, inspectedSubagent: undefined, workingSubagents: 0, unreviewedFiles: 0, onInspectSubagent() {}, onCloseInspector() {}, onOpenPanel() {}, onAddSideChat() {} });
+  const panel = required(dock.panels.find((item) => item.id === OVERVIEW_PANEL));
+  const mounted = await mount(React.createElement(CommandControlsProvider, { value: commandControls }, panel.render()));
+  const container = mounted.container;
+  const setValue = item(Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")).set;
+  const type = async (input: HTMLInputElement, text: string, key: string) => {
+    await act(async () => {
+      input.focus();
+      setValue?.call(input, text);
+      input.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
+      input.dispatchEvent(new dom.window.KeyboardEvent("keyup", { bubbles: true }));
+    });
+    await act(async () => { input.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key, bubbles: true })); });
+  };
+
+  const purpose = query<HTMLButtonElement>(container, 'button[aria-label="Edit Purpose"]');
+  assert.equal(purpose.textContent, "Ship the v2 reader");
+  await act(async () => { purpose.click(); });
+  await type(query<HTMLInputElement>(container, 'input[aria-label="Purpose"]'), "Never mind", "Escape");
+  assert.equal(dispatched.length, 0, "Esc leaves the purpose as it was");
+  await act(async () => { query<HTMLButtonElement>(container, 'button[aria-label="Edit Purpose"]').click(); });
+  await type(query<HTMLInputElement>(container, 'input[aria-label="Purpose"]'), "  ", "Enter");
+
+  const section = query(container, '[aria-label="Memory"]');
+  assert.match(query(section, ".coordination-group-head").textContent, /Memory2/);
+  const [first] = section.querySelectorAll<HTMLButtonElement>('button[aria-label="Edit Note"]');
+  assert.equal(first.textContent, "Propose threads first");
+  await act(async () => { first.click(); });
+  await type(query<HTMLInputElement>(section, 'input[aria-label="Note"]'), "Propose threads before starting any", "Enter");
+  const forget = section.querySelectorAll<HTMLButtonElement>('button[aria-label="Forget"]')[1];
+  assert.ok(forget.parentElement?.querySelector('button[aria-label="Edit Note"]'), "Forget sits beside the note it drops, not inside it");
+  await act(async () => { forget.click(); });
+  await type(query<HTMLInputElement>(section, 'input[aria-label="Add a note"]'), "Keep updates short", "Enter");
+
+  assert.deepEqual(dispatched, [
+    { type: "memory.set-purpose", taskId: "lead", purpose: null },
+    { type: "memory.edit", taskId: "lead", noteId: "n1", text: "Propose threads before starting any" },
+    { type: "memory.forget", taskId: "lead", noteId: "n2" },
+    { type: "memory.add", taskId: "lead", text: "Keep updates short" },
+  ], "saving the purpose empty clears it");
+  assert.equal(query<HTMLInputElement>(section, 'input[aria-label="Add a note"]').value, "", "an added note leaves the row empty for the next");
   await mounted.unmount();
 });
 

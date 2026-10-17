@@ -7,7 +7,7 @@ import type { Continuation, ExecutionPolicy, Subagent } from "./run.js";
 import type { ContextUsage, ContinuationStatus, ThreadOutcome } from "./thread-run.js";
 import type { Thread } from "./thread.js";
 import { isThreadRole } from "./thread-role.js";
-import { isCoordinationNote, isCoordinationReport, isDecision, isThreadBrief, isThreadModelChoice } from "./coordination.js";
+import { isCoordinationNote, isCoordinationReport, isCoordinatorMemory, isDecision, isThreadBrief, isThreadModelChoice } from "./coordination.js";
 import { isWorktree, type Worktree } from "./worktree.js";
 import { isLimitPause } from "./usage-limit.js";
 import { isPullRequestLink } from "./pull-request.js";
@@ -377,6 +377,7 @@ function isThreadBase(value: unknown): value is StoredThread {
     (value.decisions === undefined || Array.isArray(value.decisions) && value.decisions.every(isDecision)) &&
     (value.coordinationNotes === undefined || Array.isArray(value.coordinationNotes) && value.coordinationNotes.every(isCoordinationNote)) &&
     (value.threadModel === undefined || isThreadModelChoice(value.threadModel)) &&
+    (value.memory === undefined || isCoordinatorMemory(value.memory)) &&
     (value.projectId === undefined || nonEmptyString(value.projectId)) &&
     isExecutionPolicy(value.executionPolicy) &&
     isAgentEngine(value.engine) &&
@@ -496,11 +497,12 @@ function heldWithOrigins(pause: unknown) {
 }
 
 /**
- * Settings a thread can do without, each checked on its own: one this build cannot read is dropped
+ * Fields a thread can do without, each checked on its own: one this build cannot read is dropped
  * rather than costing the thread its conversation.
  */
 const DROPPABLE_FIELDS: Readonly<Record<string, (value: unknown) => boolean>> = {
   threadModel: isThreadModelChoice,
+  memory: isCoordinatorMemory,
 };
 
 function withoutUnreadableFields(value: unknown) {

@@ -7,7 +7,7 @@ import type { FindResults, FindTarget } from "../../domain/find";
 import type { AgentEngine, AgentModel } from "../../domain/agent-engine";
 import type { ComputerUsePermission } from "../../domain/computer-use";
 import type { AgentEffort, ExecutionPolicy, SubagentGroup } from "../../domain/run";
-import type { OverviewGroup } from "../../domain/coordination";
+import type { OverviewSection } from "../../domain/coordination";
 import type { SettingsSection } from "../../domain/settings-section";
 import type { SidebarMode, SidebarSection } from "../../domain/sidebar";
 import type { RunAttachment } from "../../domain/conversation";
@@ -35,7 +35,11 @@ function coordinationActions(dispatch: (input: WorkspaceInput) => Promise<void>)
     setCoordinator: (threadId: string, coordinatorId: string | null) => dispatch({ type: "task.set-coordinator", taskId: threadId, coordinatorId }),
     answerDecision: (threadId: string, decisionId: string, answer: string) => dispatch({ type: "decision.answer", taskId: threadId, decisionId, answer }),
     setThreadModel: (taskId: string, model: AgentModel, effort?: AgentEffort) => dispatch({ type: "coordination.set-thread-model", taskId, model, ...(effort ? { effort } : {}) }),
-    setOverviewGroup: (taskId: string, group: OverviewGroup, change: { open?: boolean; all?: boolean }) => dispatch({ type: "view.set-overview-group", taskId, group, ...change }),
+    setOverviewGroup: (taskId: string, group: OverviewSection, change: { open?: boolean; all?: boolean }) => dispatch({ type: "view.set-overview-group", taskId, group, ...change }),
+    setPurpose: (taskId: string, purpose: string | null) => dispatch({ type: "memory.set-purpose", taskId, purpose }),
+    addNote: (taskId: string, text: string) => dispatch({ type: "memory.add", taskId, text }),
+    editNote: (taskId: string, noteId: string, text: string) => dispatch({ type: "memory.edit", taskId, noteId, text }),
+    forgetNote: (taskId: string, noteId: string) => dispatch({ type: "memory.forget", taskId, noteId }),
   };
 }
 

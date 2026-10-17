@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { REMOTE_THREAD_READ_TIMEOUT_MS } from "../../contracts/threads.js";
 import type { BrowserRead, BrowserReadResult, BrowserWrite, ExternalCommand, FindingReport, FindingResult, TerminalRead, TerminalReadResult, ThreadCommandResult, ThreadListQuery, ThreadRequest, ThreadResponse, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
 import type { BrowserBridge, CoordinationBridge, FindingBridge, TerminalBridge, ThreadBridge } from "./agent-provider.mjs";
-import type { CoordinationState, DecisionRequest } from "../../domain/coordination.js";
+import type { CoordinationState, DecisionRequest, MemoryChange } from "../../domain/coordination.js";
 
 /** The request union minus the envelope, distributed so each op keeps its own payload. */
 type ThreadRequestPayload = ThreadRequest extends infer Request
@@ -58,6 +58,7 @@ export class ThreadChannel {
     return {
       report: (state: CoordinationState, summary: string) => this.request({ taskId, op: "report", state, summary }) as Promise<FindingResult>,
       decide: (request: DecisionRequest) => this.request({ taskId, op: "decision", request }) as Promise<FindingResult>,
+      remember: (change: Exclude<MemoryChange, { kind: "edit" }>) => this.request({ taskId, op: "memory", change }) as Promise<{ note: string }>,
     };
   }
 

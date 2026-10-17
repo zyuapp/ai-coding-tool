@@ -20,7 +20,7 @@ function systemAppend(options: Options): string {
 }
 
 test("a coordinator runs without file edits, shell, or subagents, and with the coordination tools for its part", async () => {
-  const coordination = { report: async () => ({ recorded: true, note: "" }), decide: async () => ({ recorded: true, note: "" }) };
+  const coordination = { report: async () => ({ recorded: true, note: "" }), decide: async () => ({ recorded: true, note: "" }), remember: async () => ({ note: "" }) };
   const coordinator: QueryCapture = {};
   await new ClaudeAgentProvider(queryFactory([], coordinator)).execute(input({ coordinationRole: "coordinator", coordination }));
   const member: QueryCapture = {};
@@ -35,6 +35,14 @@ test("a coordinator runs without file edits, shell, or subagents, and with the c
   assert.ok(optionsOf(coordinator).mcpServers?.["aicodingtool-coordination"]);
 });
 
+test("only a coordinator keeps a memory, so a member is offered none of its tools", () => {
+  const coordination = { report: async () => ({ recorded: true, note: "" }), decide: async () => ({ recorded: true, note: "" }), remember: async () => ({ note: "" }) };
+  const coordinationToolNames = (sources: Partial<Parameters<typeof runTools>[0]>) => runTools({ channel: "main", computerUse: { status: "unavailable" }, emit: () => {}, ...sources } as Parameters<typeof runTools>[0])
+    .find((set) => set.server === "aicodingtool-coordination")!.tools.map((tool) => tool.name);
+  assert.deepEqual(coordinationToolNames({ coordinationRole: "coordinator", coordination }), ["raise_decision", "remember", "forget", "set_purpose"]);
+  assert.deepEqual(coordinationToolNames({ coordinationRole: "member", coordination }), ["report_status", "raise_decision"]);
+});
+
 test("a coordinator's shell is read-only under every policy, and escalations come to the app", () => {
   for (const policy of ["confirm", "allow-edits", "autonomous", "bypass"] as const) {
     const held = codexPolicy(policy, "coordinator");
@@ -47,7 +55,7 @@ test("a coordinator's shell is read-only under every policy, and escalations com
 
 test("a coordinator never waits on a thread, while every other run still can", () => {
   const threads = { list: async () => [], read: async () => { throw new Error("unused"); }, wait: async () => { throw new Error("unused"); }, command: async () => ({ thread: null }) };
-  const coordination = { report: async () => ({ recorded: true, note: "" }), decide: async () => ({ recorded: true, note: "" }) };
+  const coordination = { report: async () => ({ recorded: true, note: "" }), decide: async () => ({ recorded: true, note: "" }), remember: async () => ({ note: "" }) };
   const threadToolNames = (sources: Partial<Parameters<typeof runTools>[0]>) => runTools({ channel: "main", computerUse: { status: "unavailable" }, threads, emit: () => {}, ...sources } as Parameters<typeof runTools>[0])
     .find((set) => set.server === "aicodingtool-threads")!.tools.map((tool) => tool.name);
   assert.equal(threadToolNames({ coordinationRole: "coordinator", coordination }).includes("wait_for_thread"), false);
@@ -58,7 +66,7 @@ test("a coordinator never waits on a thread, while every other run still can", (
 
 test("a coordinator and its threads are not offered Haiku for a thread they start", () => {
   const threads = { list: async () => [], read: async () => { throw new Error("unused"); }, wait: async () => { throw new Error("unused"); }, command: async () => ({ thread: null }) };
-  const coordination = { report: async () => ({ recorded: true, note: "" }), decide: async () => ({ recorded: true, note: "" }) };
+  const coordination = { report: async () => ({ recorded: true, note: "" }), decide: async () => ({ recorded: true, note: "" }), remember: async () => ({ note: "" }) };
   const startModel = (sources: Partial<Parameters<typeof runTools>[0]>) => runTools({ channel: "main", computerUse: { status: "unavailable" }, threads, emit: () => {}, ...sources } as Parameters<typeof runTools>[0])
     .find((set) => set.server === "aicodingtool-threads")!.tools.find((tool) => tool.name === "start_thread")!.input.model!;
   const accepts = (sources: Partial<Parameters<typeof runTools>[0]>, model: string) => z.object({ model: startModel(sources) }).safeParse({ model }).success;
@@ -75,7 +83,7 @@ test("a coordinator and its threads are not offered Haiku for a thread they star
 
 test("a coordinator can read automations but not schedule, change, or stop one", async () => {
   const automations = { save: async () => { throw new Error("unused"); }, read: async () => null, update: async () => { throw new Error("unused"); }, remove: async () => false, list: async () => [] };
-  const coordination = { report: async () => ({ recorded: true, note: "" }), decide: async () => ({ recorded: true, note: "" }) };
+  const coordination = { report: async () => ({ recorded: true, note: "" }), decide: async () => ({ recorded: true, note: "" }), remember: async () => ({ note: "" }) };
   const automationToolNames = (sources: Partial<Parameters<typeof runTools>[0]>) => runTools({ channel: "main", computerUse: { status: "unavailable" }, automations, emit: () => {}, ...sources } as Parameters<typeof runTools>[0])
     .find((set) => set.server === "aicodingtool-automation")!.tools.map((tool) => tool.name);
   assert.deepEqual(automationToolNames({ coordinationRole: "coordinator", coordination }), ["status", "list_all"]);

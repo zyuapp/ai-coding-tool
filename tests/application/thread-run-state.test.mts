@@ -224,6 +224,15 @@ test("records compaction and updates context usage", () => {
   assert.deepEqual(updated.threads[0].contextUsage, { tokens: 41_000, limit: 200_000, model: "claude-sonnet" });
 });
 
+test("a compacted coordinator reads its memory again on its next run", () => {
+  const initial = state();
+  const memory = { purpose: "Ship the v2 reader", notes: [{ id: "n1", text: "Propose threads first", at: 1 }], revision: 2, heard: 2 };
+  initial.threads[0] = { ...initial.threads[0], role: "coordinator", memory };
+  const compacted = applyRunEvent(initial, { type: "context.compacted", taskId: "task-a", runId: "run-a", sequence: 1, trigger: "auto", preTokens: 182_000, postTokens: 41_000 });
+  const { heard: _read, ...unheard } = memory;
+  assert.deepEqual(compacted.threads[0].memory, unheard, "the summary may have dropped it, so it counts as unread");
+});
+
 test("terminal runs finalize only working subagents", () => {
   for (const [runStatus, subagentStatus] of [["succeeded", "completed"], ["failed", "failed"], ["cancelled", "stopped"]] as const) {
     const initial = state();

@@ -3,21 +3,45 @@ import type { WorkspaceState } from "./workspace-state.js";
 import type { ApprovalView } from "./thread-run-state.js";
 import { threadActivity, threadStatus, type ThreadStatus } from "./thread-activity.js";
 import { activitySections, type ActivitySections } from "./thread-order.js";
-import { coordinationDecisions, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, openDecisions, threadModelOf, type CoordinationNote, type Decision, type OverviewGroup, type ThreadBrief, type ThreadModelChoice } from "../domain/coordination.js";
+import { coordinationDecisions, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, openDecisions, threadModelOf, type CoordinationNote, type CoordinatorMemory, type Decision, type MemoryNote, type OverviewGroup, type ThreadBrief, type ThreadModelChoice } from "../domain/coordination.js";
 import type { Thread } from "../domain/thread.js";
 import { wantsAttention } from "../domain/attention.js";
 
-/** What a send carries for a coordinator: the thread it starts works under it with this brief, or its run delivers these waiting notes. */
+/**
+ * What a send carries for a coordinator: the thread it starts works under it with this brief and
+ * reads its memory as it stood, or its run delivers these waiting notes.
+ */
 export type CoordinationSend = {
   coordinatorId?: string;
   brief?: ThreadBrief;
+  memory?: string;
   notes?: string[];
 };
 
-/** What a send that starts a thread carries for a coordinator, if anything. A brief is a coordinator's, so one with no coordinator is dropped. */
-export function coordinationSendOf({ coordinatorId, brief }: CoordinationSend): { coordination?: CoordinationSend } {
+/**
+ * What a send that starts a thread carries for a coordinator, if anything. A brief is a coordinator's,
+ * so one with no coordinator is dropped. The coordinator's memory is read now, so later edits never
+ * change what a thread was started with.
+ */
+export function coordinationSendOf(state: WorkspaceState, { coordinatorId, brief }: Pick<CoordinationSend, "coordinatorId" | "brief">): { coordination?: CoordinationSend } {
   if (!coordinatorId) return {};
-  return { coordination: { coordinatorId, ...(brief ? { brief } : {}) } };
+  const lead = state.threads.find((thread) => thread.id === coordinatorId);
+  const memory = lead && isCoordinator(lead) ? memoryPrompt(lead.memory) : "";
+  return { coordination: { coordinatorId, ...(brief ? { brief } : {}), ...(memory ? { memory } : {}) } };
+}
+
+/** A coordinator's purpose and notes as a thread it starts reads them, or nothing when it keeps neither. */
+export function memoryPrompt(memory: CoordinatorMemory | undefined): string {
+  if (!memory) return "";
+  const lines = [
+    ...(memory.purpose ? [`The coordinator's purpose: ${memory.purpose}`] : []),
+    ...(memory.notes.length ? ["What the coordinator keeps in memory:", ...memory.notes.map(noteLine)] : []),
+  ];
+  return lines.join("\n");
+}
+
+function noteLine(note: MemoryNote): string {
+  return `- [${note.id}] ${note.text}`;
 }
 
 /**
@@ -42,13 +66,22 @@ export function coordinationRole(threads: readonly Thread[], thread: Thread): "c
   return coordinatorOf(threads, thread) ? "member" : undefined;
 }
 
-export function briefPrompt(brief: ThreadBrief): string {
+/**
+ * What a new thread under a coordinator reads after its first message: the brief it was handed, then
+ * the coordinator's memory as it stood. A thread one of its threads started has no brief, only memory.
+ */
+export function briefPrompt(brief: ThreadBrief | undefined, memory = ""): string {
+  if (!brief && !memory) return "";
   return [
     "---",
-    "Brief from the coordinator that started this thread:",
-    `The user's words: ${brief.intent}`,
-    `Done when: ${brief.doneWhen}`,
-    `Delivers: ${deliveryLabel(brief.delivers)}${brief.delivers === "report" ? " (no code changes)" : ""}`,
+    ...(brief ? [
+      "Brief from the coordinator that started this thread:",
+      `The user's words: ${brief.intent}`,
+      `Done when: ${brief.doneWhen}`,
+      `Delivers: ${deliveryLabel(brief.delivers)}${brief.delivers === "report" ? " (no code changes)" : ""}`,
+    ] : []),
+    ...(brief && memory ? [""] : []),
+    ...(memory ? [memory] : []),
   ].join("\n");
 }
 
@@ -99,14 +132,33 @@ function roster(state: WorkspaceState, leadId: string): string[] {
 }
 
 /**
- * What a coordinator's run is told beyond its prompt: the news it has not heard yet, and where each of
- * its threads stands. Notes the prompt already carries are left out.
+ * What a coordinator reads of its memory: all of it in a session that has not read what it holds now,
+ * which is a fresh one, one whose context was compacted, or one the user changed it under; else nothing.
  */
-export function coordinationContext(state: WorkspaceState, lead: Thread, carried: readonly string[] = []): string {
+function memoryContext(lead: Thread, fresh: boolean): string[] {
+  const memory = lead.memory;
+  if (!memory || !fresh && lead.continuation !== undefined && memory.heard === memory.revision) return [];
+  /** A session that read an earlier revision is told what changed under it, even when nothing is left. */
+  const changed = !fresh && lead.continuation !== undefined && memory.heard !== undefined;
+  const purpose = memory.purpose ?? (changed ? "none" : undefined);
+  const notes = memory.notes.length ? memory.notes.map(noteLine) : changed ? ["- none"] : [];
+  return [
+    ...(purpose ? [`Your purpose: ${purpose}`] : []),
+    ...(notes.length ? [changed ? "Your memory (the user changed it since you last read it):" : "Your memory:", ...notes] : []),
+  ];
+}
+
+/**
+ * What a coordinator's run is told beyond its prompt: its memory when its session has yet to read it,
+ * the news it has not heard yet, and where each of its threads stands. Notes the prompt already
+ * carries are left out. A `fresh` session has read nothing before it.
+ */
+export function coordinationContext(state: WorkspaceState, lead: Thread, { carried = [], fresh = false }: { carried?: readonly string[]; fresh?: boolean } = {}): string {
   const notes = (lead.coordinationNotes ?? []).filter((note) => !carried.includes(note.id));
   const lines = roster(state, lead.id);
   const own = openDecisions(lead).map((decision) => `- ${decision.question}`);
   const sections = [
+    ...memoryContext(lead, fresh),
     ...(notes.length ? ["Updates from your threads you have not seen yet:", ...notes.map((note) => `- ${note.text}`)] : []),
     ...(lines.length ? ["Your threads right now:", ...lines] : []),
     ...(own.length ? ["Decisions you raised that the user has yet to answer:", ...own] : []),
@@ -198,10 +250,18 @@ export type CoordinationApprovalView = {
   approval: ApprovalView;
 };
 
+/** What a coordinator keeps, as its Overview shows it. */
+export type CoordinatorMemoryView = {
+  purpose: string | null;
+  notes: readonly MemoryNote[];
+};
+
 /** What the open thread shows: a coordinator its threads, their approvals and open decisions, a thread its coordinator and brief. */
 export type CoordinationView = {
   /** On a coordinator, what its threads run on; null on any other thread. */
   threadModel: ThreadModelChoice | null;
+  /** On a coordinator, its purpose and notes; null on any other thread. */
+  memory: CoordinatorMemoryView | null;
   members: CoordinatedThreadView[];
   /** Tool approvals it and its threads are waiting on, answered beside its decisions. */
   approvals: CoordinationApprovalView[];
@@ -212,7 +272,9 @@ export type CoordinationView = {
   asking: boolean;
 };
 
-const NO_COORDINATION: CoordinationView = { threadModel: null, members: [], approvals: [], decisions: [], lead: null, brief: null, asking: false };
+const NO_COORDINATION: CoordinationView = { threadModel: null, memory: null, members: [], approvals: [], decisions: [], lead: null, brief: null, asking: false };
+
+const NO_NOTES: readonly MemoryNote[] = [];
 
 export function coordinatedThreadStatus(thread: Thread, busy: Set<string>, blocked: Set<string>): CoordinatedThreadView {
   const question = openDecisions(thread)[0]?.question;
@@ -245,7 +307,8 @@ export function coordinationView(
       }),
     ];
     const decisions = coordinationDecisions(threads, thread.id);
-    return { ...NO_COORDINATION, threadModel: threadModelOf(thread), members, approvals, decisions, brief: thread.brief ?? null };
+    const memory = { purpose: thread.memory?.purpose ?? null, notes: thread.memory?.notes ?? NO_NOTES };
+    return { ...NO_COORDINATION, threadModel: threadModelOf(thread), memory, members, approvals, decisions, brief: thread.brief ?? null };
   }
   const lead = coordinatorOf(threads, thread) ?? null;
   /** A thread that left its coordinator with a decision still open is where that decision is answered now. */

@@ -172,6 +172,71 @@
 .coordination-thread-model { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .coordination-overview-header .setting-popover { top: calc(100% + 4px); bottom: auto; left: 0; }
 .coordination-overview > .coordination-empty { padding: 6px 8px; }
+/** What the coordinator is for, read as the Overview's title and edited where it stands. */
+.coordination-purpose {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 30px;
+  margin-bottom: 4px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 5px 8px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: var(--text-control);
+  font-weight: 550;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+}
+.coordination-purpose:hover { background: var(--surface-hover); }
+.coordination-purpose.editing, .coordination-note-text.editing, .coordination-note-add:focus { border-color: var(--line-strong); background: var(--canvas); color: var(--ink); outline: none; }
+.coordination-placeholder { color: var(--quiet); font-weight: 450; }
+.coordination-memory { margin-top: 6px; }
+.coordination-note { position: relative; display: flex; align-items: center; min-width: 0; }
+.coordination-note-text, .coordination-note-add {
+  box-sizing: border-box;
+  flex: 1;
+  min-width: 0;
+  min-height: 30px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 5px 8px 5px 12px;
+  background: transparent;
+  color: var(--ink-dim);
+  font: inherit;
+  font-size: var(--text-menu);
+  line-height: 1.45;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: text;
+}
+.coordination-note-text:not(.editing) { padding-right: 32px; }
+.coordination-note-text:not(.editing):hover { background: var(--surface-hover); color: var(--ink-soft); }
+.coordination-note-add::placeholder { color: var(--quiet); }
+.coordination-note-add:hover:not(:focus) { background: var(--wash); }
+.coordination-note-forget {
+  position: absolute;
+  right: 5px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  padding: 0;
+  background: transparent;
+  color: var(--quiet-strong);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+.coordination-note:hover .coordination-note-forget, .coordination-note-forget:focus-visible { opacity: 1; }
+.coordination-note:has(.editing) .coordination-note-forget { display: none; }
+.coordination-note-forget:hover:not(:disabled) { background: var(--danger-chip); color: var(--danger); }
 .coordination-group + .coordination-group { margin-top: 6px; }
 .coordination-group > .subagent-list { margin-top: 2px; }
 .coordination-group-head {

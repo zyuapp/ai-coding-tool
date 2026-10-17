@@ -86,10 +86,10 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
 
   const needsYou = overviewGroups(workspace.coordination.members).needs.length;
   const lead = isCoordinator(workspace.currentThread) ? workspace.currentThread : undefined;
-  const { threadModel } = workspace.coordination;
+  const { threadModel, memory } = workspace.coordination;
 
   const panels: DockPanel[] = [
-    ...(lead && threadModel ? [{
+    ...(lead && threadModel && memory ? [{
       id: OVERVIEW_PANEL,
       title: "Overview",
       description: "Follow the threads working under this coordinator",
@@ -109,6 +109,14 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
             onEngineRead: workspace.actions.readEngineStatus,
             onSignIn: workspace.actions.signInEngine,
             onOpenEngineSettings: () => void workspace.actions.openSettingsSection(workspace.engineSettingsPage.section, workspace.engineSettingsPage.settingId),
+          }}
+          memory={{
+            ...memory,
+            taskId: lead.id,
+            onSetPurpose: (purpose) => void workspace.actions.setPurpose(lead.id, purpose),
+            onAdd: (text) => void workspace.actions.addNote(lead.id, text),
+            onEdit: (noteId, text) => void workspace.actions.editNote(lead.id, noteId, text),
+            onForget: (noteId) => void workspace.actions.forgetNote(lead.id, noteId),
           }}
           members={workspace.coordination.members}
           worktreeGroups={workspace.worktreeGroups}

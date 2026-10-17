@@ -7,6 +7,7 @@ import { createConversationMessage, createFailureMessage } from "../domain/conve
 import type { ThreadOutcome } from "../domain/thread-run.js";
 import type { Thread } from "../domain/thread.js";
 import { appendMessages, replaceLastMessage, withdrawMessages } from "../domain/conversation-updates.js";
+import { withMemoryUnheard } from "../domain/coordination.js";
 
 export type ActiveRun = RunProvenance & {
   taskId: string;
@@ -502,8 +503,9 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
   }
   if (event.type === "context.compacted") {
     const activeState = withActiveRun(withSequence, event.taskId, { ...active, sequence: event.sequence, status: "running" });
+    /** A summary may have dropped what the coordinator read of its memory, so its next run reads it again. */
     return updateThread(activeState, event.taskId, (thread) => ({
-      ...thread,
+      ...withMemoryUnheard(thread),
       messages: appendMessages(thread.messages, [createConversationMessage(
         "system",
         event.postTokens === undefined

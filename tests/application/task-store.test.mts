@@ -741,3 +741,24 @@ test("what a coordinator's threads run on survives a reload, on a replaced model
     assert.deepEqual(broken.data.tasks[0].messages, lead.messages);
   }
 });
+
+test("a coordinator's memory round-trips, a note written under a longer limit still loads, and a memory it cannot read is dropped", () => {
+  const migrated = migrateV1ToV2(legacyValues());
+  assert.equal(migrated.ok, true);
+  if (!migrated.ok) return;
+  const memory = { purpose: "Ship the v2 reader", notes: [{ id: "n1", text: "Propose threads first", at: 1 }, { id: "n3", text: "x".repeat(2_000), at: 2 }], revision: 3, heard: 1 };
+  const lead = { ...migrated.data.tasks[0], role: "coordinator" as const, memory };
+  const parsed = parseThreadStore(serializeThreadStore({ ...migrated.data, tasks: [lead] }));
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  assert.deepEqual(parsed.data.tasks[0].memory, memory);
+
+  for (const broken of [{ notes: "none", revision: 1 }, { notes: [{ id: "n1", text: 3, at: 1 }], revision: 1 }, { notes: [], revision: -1 }, "remember this"]) {
+    const loaded = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...lead, memory: broken }] }));
+    assert.equal(loaded.ok, true);
+    if (!loaded.ok) return;
+    assert.equal(loaded.hiddenTasks, 0, "the thread still loads");
+    assert.equal(loaded.data.tasks[0].memory, undefined, "without the memory it could not read");
+    assert.deepEqual(loaded.data.tasks[0].messages, lead.messages);
+  }
+});

@@ -1,16 +1,16 @@
-import { useId, useState } from "react";
-import { LuChevronDown as ChevronDown, LuChevronUp as ChevronUp, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuTrash2 as Trash } from "react-icons/lu";
-import { deliveryLabel, OVERVIEW_GROUPS, type OverviewFold, type OverviewFolds, type OverviewGroup, type ThreadBrief, type ThreadModelChoice } from "../../domain/coordination";
+import { useId, useRef, useState, type KeyboardEvent } from "react";
+import { LuChevronDown as ChevronDown, LuChevronUp as ChevronUp, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuTrash2 as Trash, LuX as X } from "react-icons/lu";
+import { deliveryLabel, OVERVIEW_GROUPS, type OverviewFold, type OverviewFolds, type OverviewGroup, type OverviewSection, type ThreadBrief, type ThreadModelChoice } from "../../domain/coordination";
 import { engineForModel, modelDelegable, type AgentEngine, type AgentModel, type EngineReadiness } from "../../domain/agent-engine";
 import type { AgentEffort } from "../../domain/run";
 import type { Thread } from "../../domain/thread";
 import { worktreeHue, worktreeName, type Worktree } from "../../domain/worktree";
-import { overviewGroups, type CoordinationApprovalView, type CoordinationDecisionView, type CoordinatedThreadStatus, type CoordinatedThreadView } from "../../application/coordination";
+import { overviewGroups, type CoordinationApprovalView, type CoordinationDecisionView, type CoordinatedThreadStatus, type CoordinatedThreadView, type CoordinatorMemoryView } from "../../application/coordination";
 import type { ApprovalView } from "../../application/thread-run-state";
 import type { WorktreeGroup } from "../../application/workspace-state";
 import type { MemberWorktree } from "../../application/member-worktrees";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
-import { CommandGate } from "./CommandControl";
+import { CommandButton, CommandGate } from "./CommandControl";
 import { EffortMenu, ModelMenu } from "./ComposerSettings";
 import { MAC } from "../platform";
 import "./coordination.css";
@@ -54,26 +54,146 @@ export type OverviewHeaderProps = {
   onOpenEngineSettings?: () => void;
 };
 
-/** A coordinator's threads by what they need from the user, each opening as a tab beside its conversation. */
-export function CoordinatorOverview({ header, members, worktreeGroups, folds, onSetFold, onSelect }: {
+/** What the Overview shows of a coordinator's memory, and the edits the user makes to it. */
+export type OverviewMemoryProps = CoordinatorMemoryView & {
+  taskId: string;
+  onSetPurpose: (purpose: string | null) => void;
+  onAdd: (text: string) => void;
+  onEdit: (noteId: string, text: string) => void;
+  onForget: (noteId: string) => void;
+};
+
+type FoldChange = (section: OverviewSection, change: { open?: boolean; all?: boolean }) => void;
+
+/** A coordinator's purpose, what its threads run on, its threads by what they need from the user, then its memory. */
+export function CoordinatorOverview({ header, memory, members, worktreeGroups, folds, onSetFold, onSelect }: {
   header: OverviewHeaderProps;
+  memory: OverviewMemoryProps;
   members: CoordinatedThreadView[];
   worktreeGroups: WorktreeGroup[];
   folds: OverviewFolds;
-  onSetFold: (group: OverviewGroup, change: { open?: boolean; all?: boolean }) => void;
+  onSetFold: FoldChange;
   onSelect: (threadId: string) => void;
 }) {
   const worktrees = new Map(worktreeGroups.map(({ worktree }) => [worktree.id, worktree]));
   const groups = overviewGroups(members);
   return (
     <div className="coordination-overview" aria-label="Threads under this coordinator">
+      <CommandGate command={{ type: "memory.set-purpose", taskId: memory.taskId, purpose: memory.purpose }}>
+        <PurposeLine purpose={memory.purpose} onSave={memory.onSetPurpose} />
+      </CommandGate>
       <OverviewHeader {...header} />
       {members.length
         ? OVERVIEW_GROUPS.map((group) => groups[group].length > 0 && (
-            <OverviewSection key={group} group={group} members={groups[group]} fold={folds[group] ?? {}} worktrees={worktrees} onSetFold={onSetFold} onSelect={onSelect} />
+            <ThreadGroup key={group} group={group} members={groups[group]} fold={folds[group] ?? {}} worktrees={worktrees} onSetFold={onSetFold} onSelect={onSelect} />
           ))
         : <p className="session-empty coordination-empty">No threads yet</p>}
+      <CommandGate command={{ type: "memory.add", taskId: memory.taskId, text: "" }}>
+        <MemorySection memory={memory} fold={folds.memory ?? {}} onSetFold={onSetFold} />
+      </CommandGate>
     </div>
+  );
+}
+
+/**
+ * Text edited where it is read: a click turns it into a field, Enter or leaving it saves, and Esc
+ * puts it back as it was.
+ */
+function InlineEdit({ value, label, placeholder, className, onSave }: {
+  value: string;
+  label: string;
+  placeholder?: string;
+  className: string;
+  onSave: (text: string) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  /** Set once the edit is saved or put back, so the field leaving the page cannot save it a second time. */
+  const settled = useRef(false);
+  if (draft === null) {
+    return (
+      <button type="button" className={className} aria-label={`Edit ${label}`} title={value || undefined} onClick={() => { settled.current = false; setDraft(value); }}>
+        {value || <span className="coordination-placeholder">{placeholder}</span>}
+      </button>
+    );
+  }
+  const finish = (text: string | null) => {
+    if (settled.current) return;
+    settled.current = true;
+    if (text !== null && text.trim() !== value) onSave(text.trim());
+    setDraft(null);
+  };
+  return (
+    <input
+      className={`${className} editing`}
+      aria-label={label}
+      value={draft}
+      placeholder={placeholder}
+      autoFocus
+      onChange={(event) => { if (!settled.current) setDraft(event.currentTarget.value); }}
+      onBlur={(event) => finish(event.currentTarget.value)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); finish(event.currentTarget.value); }
+        if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); finish(null); }
+      }}
+    />
+  );
+}
+
+/** What the coordinator is for, in one line. Saving it empty takes it off. */
+function PurposeLine({ purpose, onSave }: { purpose: string | null; onSave: (purpose: string | null) => void }) {
+  return <InlineEdit value={purpose ?? ""} label="Purpose" placeholder="Add a purpose" className="coordination-purpose" onSave={(text) => onSave(text || null)} />;
+}
+
+/** The notes the coordinator keeps, each edited in place, with a last row that adds one. */
+function MemorySection({ memory, fold, onSetFold }: { memory: OverviewMemoryProps; fold: OverviewFold; onSetFold: FoldChange }) {
+  const open = fold.open ?? true;
+  return (
+    <section className="coordination-group coordination-memory" aria-label="Memory">
+      <FoldHead label="Memory" count={memory.notes.length} open={open} onToggle={() => onSetFold("memory", { open: !open })} />
+      {open && <div className="subagent-list">
+        {memory.notes.map((note) => (
+          <div key={note.id} className="coordination-note">
+            {/** A note emptied while editing is left as it was; Forget is how one goes. */}
+            <InlineEdit value={note.text} label="Note" className="coordination-note-text" onSave={(text) => { if (text) memory.onEdit(note.id, text); }} />
+            <CommandButton
+              command={{ type: "memory.forget", taskId: memory.taskId, noteId: note.id }}
+              className="coordination-note-forget"
+              aria-label="Forget"
+              title="Forget"
+              onClick={() => memory.onForget(note.id)}
+            >
+              <X size={12} aria-hidden="true" />
+            </CommandButton>
+          </div>
+        ))}
+        <NoteInput onAdd={memory.onAdd} />
+      </div>}
+    </section>
+  );
+}
+
+function NoteInput({ onAdd }: { onAdd: (text: string) => void }) {
+  const [text, setText] = useState("");
+  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    const typed = event.currentTarget.value;
+    if (event.key === "Enter" && !event.nativeEvent.isComposing && typed.trim()) {
+      event.preventDefault();
+      onAdd(typed.trim());
+      setText("");
+    }
+    if (event.key === "Escape" && typed) { event.preventDefault(); event.stopPropagation(); setText(""); }
+  };
+  return <input className="coordination-note-add" aria-label="Add a note" placeholder="Add a note" value={text} onChange={(event) => setText(event.currentTarget.value)} onKeyDown={onKeyDown} />;
+}
+
+/** The head of a section that folds: its label and how many rows it holds. */
+function FoldHead({ label, count, open, onToggle }: { label: string; count: number; open: boolean; onToggle: () => void }) {
+  return (
+    <button type="button" className="coordination-group-head" aria-expanded={open} onClick={onToggle}>
+      <ChevronDown size={13} aria-hidden="true" />
+      <span>{label}</span>
+      <span className="coordination-group-count">{count}</span>
+    </button>
   );
 }
 
@@ -106,12 +226,12 @@ export function OverviewHeader({ taskId, threadModel, engineAccess, favoriteMode
 }
 
 /** One group of threads. Done starts folded once it is longer than a group shows. */
-function OverviewSection({ group, members, fold, worktrees, onSetFold, onSelect }: {
+function ThreadGroup({ group, members, fold, worktrees, onSetFold, onSelect }: {
   group: OverviewGroup;
   members: CoordinatedThreadView[];
   fold: OverviewFold;
   worktrees: Map<string, Worktree>;
-  onSetFold: (group: OverviewGroup, change: { open?: boolean; all?: boolean }) => void;
+  onSetFold: FoldChange;
   onSelect: (threadId: string) => void;
 }) {
   const open = fold.open ?? (group !== "done" || members.length <= OVERVIEW_LIMIT);
@@ -119,11 +239,7 @@ function OverviewSection({ group, members, fold, worktrees, onSetFold, onSelect 
   const shown = fold.all ? members : members.slice(0, OVERVIEW_LIMIT);
   return (
     <section className={`coordination-group ${group}`} aria-label={label}>
-      <button type="button" className="coordination-group-head" aria-expanded={open} onClick={() => onSetFold(group, { open: !open })}>
-        <ChevronDown size={13} aria-hidden="true" />
-        <span>{label}</span>
-        <span className="coordination-group-count">{members.length}</span>
-      </button>
+      <FoldHead label={label} count={members.length} open={open} onToggle={() => onSetFold(group, { open: !open })} />
       {open && <div className="subagent-list" aria-live="polite">
         {shown.map(({ thread, status, summary }) => (
           <button

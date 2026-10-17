@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import { coordinationSections, coordinationView, overviewGroups } from "../../src/application/coordination.ts";
-import { deriveView } from "../../src/application/workspace-state.ts";
-import type { ThreadBrief } from "../../src/domain/coordination.ts";
+import { coordinationContext, coordinationSections, coordinationView, overviewGroups } from "../../src/application/coordination.ts";
+import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import type { WorkspaceInput } from "../../src/application/workspace-reducer.ts";
+import { withMemoryChange, type ThreadBrief } from "../../src/domain/coordination.ts";
 import { THREAD_STORE_VERSION } from "../../src/domain/thread-storage.ts";
 import { task, workspace, activeRun, effectAt, effectOf, correlatedRunEvent, required } from "./workspace-reducer-fixtures.mts";
 
@@ -491,4 +492,110 @@ test("a coordinator's Overview groups its threads by what they need, and its too
 
   const alone = coordinationView([lead()], lead(), new Set(), new Set(), (id) => id === "lead" ? own : undefined);
   assert.deepEqual(alone.approvals.map(({ approval: item }) => item.approvalId), ["a0"], "a coordinator with nobody under it still answers its own approval in the card");
+});
+
+const SESSION = { continuation: { provider: "claude", value: "session" }, continuationStatus: "available" as const };
+
+/** Sends a message and starts its run, answering with what the run is told and the state it starts in. */
+function started(state: WorkspaceState, input: Extract<WorkspaceInput, { type: "task.send" }>) {
+  const sending = reduce(state, input);
+  const run = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: PROJECTLESS });
+  return { state: run.state, prompt: effectAt(run, "start-run").command.prompt };
+}
+
+test("a coordinator remembers and forgets what the user tells it, and a full memory says so", () => {
+  const state = workspace({ threads: [lead()] });
+  const remembered = reduce(state, { type: "coordination.remembered", taskId: "lead", change: { kind: "remember", text: "  Propose threads before starting them  " } }).state;
+  assert.deepEqual(remembered.threads[0].memory?.notes.map(({ id, text }) => ({ id, text })), [{ id: "n1", text: "Propose threads before starting them" }]);
+  assert.equal(remembered.threads[0].memory?.heard, 1, "its own note is one its session already knows");
+  const purposed = reduce(remembered, { type: "coordination.remembered", taskId: "lead", change: { kind: "purpose", purpose: "Ship the v2 reader" } }).state;
+  assert.equal(purposed.threads[0].memory?.purpose, "Ship the v2 reader");
+  const forgot = reduce(purposed, { type: "coordination.remembered", taskId: "lead", change: { kind: "forget", noteId: "n1" } }).state;
+  assert.deepEqual(forgot.threads[0].memory, { purpose: "Ship the v2 reader", notes: [], revision: 3, heard: 3 });
+  const again = reduce(forgot, { type: "coordination.remembered", taskId: "lead", change: { kind: "remember", text: "Run at most two at a time" } }).state;
+  assert.equal(again.threads[0].memory?.notes[0]?.id, "n4", "a note's ID is never reused");
+
+  const notes = Array.from({ length: 30 }, (_, index) => ({ id: `n${index + 1}`, text: `Note ${index}`, at: 1 }));
+  const full = workspace({ threads: [lead("lead", { memory: { notes, revision: 30, heard: 30 } })] });
+  const tried = withMemoryChange(full.threads[0], { kind: "remember", text: "One more" }, 2, { heard: true });
+  assert.deepEqual(tried, { error: "Memory holds at most 30 notes. Forget one first." });
+  assert.deepEqual(withMemoryChange(full.threads[0], { kind: "forget", noteId: "n99" }, 2, { heard: true }), { error: "No note has the ID n99." });
+  const refused = reduce(full, { type: "coordination.remembered", taskId: "lead", change: { kind: "remember", text: "One more" } });
+  assert.equal(refused.state.threads, full.threads);
+  assert.equal(refused.state.actionError, null, "the coordinator's tool hears the refusal, not the user");
+});
+
+test("a non-coordinator keeps no memory", () => {
+  const state = workspace({ threads: [task("solo")] });
+  for (const input of [
+    { type: "memory.add", taskId: "solo", text: "Remember this" },
+    { type: "memory.set-purpose", taskId: "solo", purpose: "Ship it" },
+    { type: "coordination.remembered", taskId: "solo", change: { kind: "remember", text: "Remember this" } },
+  ] satisfies WorkspaceInput[]) {
+    const next = reduce(state, input);
+    assert.equal(next.state.threads, state.threads);
+    assert.notEqual(next.result?.ok, false);
+  }
+});
+
+test("the user edits a coordinator's memory from its Overview", () => {
+  const state = workspace({ threads: [lead("lead", { memory: { notes: [{ id: "n1", text: "Propose threads first", at: 1 }], revision: 1, heard: 1 } })], currentId: "lead" });
+  const purposed = reduce(state, { type: "memory.set-purpose", taskId: "lead", purpose: "Ship the v2 reader" }).state;
+  const added = reduce(purposed, { type: "memory.add", taskId: "lead", text: "Use Sonnet for docs" }).state;
+  const edited = reduce(added, { type: "memory.edit", taskId: "lead", noteId: "n1", text: "Propose threads before starting any" }).state;
+  const forgot = reduce(edited, { type: "memory.forget", taskId: "lead", noteId: "n3" }).state;
+  assert.deepEqual(deriveView(forgot).coordination.memory, { purpose: "Ship the v2 reader", notes: [{ id: "n1", text: "Propose threads before starting any", at: required(forgot.threads[0].memory).notes[0]!.at }] });
+  assert.equal(forgot.threads[0].memory?.heard, 1, "the coordinator's session has yet to read what the user changed");
+  const cleared = reduce(forgot, { type: "memory.set-purpose", taskId: "lead", purpose: "  " }).state;
+  assert.equal(cleared.threads[0].memory?.purpose, undefined, "an empty purpose clears it");
+  assert.equal(reduce(cleared, { type: "memory.set-purpose", taskId: "lead", purpose: null }).state.threads, cleared.threads, "an unchanged purpose writes nothing");
+
+  const long = reduce(state, { type: "memory.add", taskId: "lead", text: "x".repeat(501) });
+  assert.equal(long.result?.ok, false);
+  assert.equal(long.state.actionError, "A note can be at most 500 characters.");
+  assert.equal(reduce(state, { type: "memory.set-purpose", taskId: "lead", purpose: "x".repeat(201) }).state.actionError, "A purpose can be at most 200 characters.");
+  assert.equal(reduce(state, { type: "memory.edit", taskId: "lead", noteId: "n1", text: " " }).result?.ok, false, "an empty note is refused");
+});
+
+test("a thread a coordinator starts reads its purpose and memory as they stood", () => {
+  const memory = { purpose: "Ship the v2 reader", notes: [{ id: "n1", text: "Use Sonnet for docs", at: 1 }], revision: 1, heard: 1 };
+  const state = workspace({ threads: [lead("lead", { memory }), task("worker", { parentId: "lead" })] });
+  const sending = reduce(state, { type: "task.send", text: "Fix it", coordinatorId: "lead", brief: BRIEF });
+  const edited = reduce(sending.state, { type: "memory.add", taskId: "lead", text: "Added after it started" }).state;
+  const run = reduce(edited, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: PROJECTLESS });
+  const prompt = effectAt(run, "start-run").command.prompt;
+  assert.match(prompt, /Delivers: Pull request\n\nThe coordinator's purpose: Ship the v2 reader\nWhat the coordinator keeps in memory:\n- \[n1\] Use Sonnet for docs/, "the memory follows the brief");
+  assert.doesNotMatch(prompt, /Added after it started/, "later edits are not sent to a thread already started");
+
+  const fromMember = started(state, { type: "task.send", text: "Check the docs", coordinatorId: "lead", from: "worker" });
+  assert.match(fromMember.prompt, /Check the docs\n\n---\nThe coordinator's purpose: Ship the v2 reader/, "a thread one of its threads starts reads the memory on its own");
+  assert.doesNotMatch(fromMember.prompt, /Brief from the coordinator/);
+
+  const moved = reduce(workspace({ threads: [lead("lead", { memory }), task("solo")] }), { type: "task.set-coordinator", taskId: "solo", coordinatorId: "lead" }).state;
+  assert.doesNotMatch(started(moved, { type: "task.send", taskId: "solo", text: "Carry on" }).prompt, /coordinator's purpose/, "a thread moved under it by hand is told nothing");
+});
+
+test("a coordinator reads its memory again only after the user changes it, after a compaction, or in a fresh session", () => {
+  const memory = { purpose: "Ship the v2 reader", notes: [{ id: "n1", text: "Propose threads first", at: 1 }], revision: 1, heard: 1 };
+  const warm = workspace({ threads: [lead("lead", { ...SESSION, memory })], currentId: "lead" });
+  assert.doesNotMatch(started(warm, { type: "task.send", taskId: "lead", text: "Next?" }).prompt, /Your memory/, "a session that read it is not sent it again");
+
+  const edited = reduce(warm, { type: "memory.edit", taskId: "lead", noteId: "n1", text: "Propose threads before starting any" }).state;
+  const told = started(edited, { type: "task.send", taskId: "lead", text: "Next?" });
+  assert.match(told.prompt, /Your purpose: Ship the v2 reader\nYour memory \(the user changed it since you last read it\):\n- \[n1\] Propose threads before starting any/);
+  assert.equal(told.state.threads[0].memory?.heard, 2);
+  const settledRun = { ...told.state, activeRuns: {}, runStatuses: {} };
+  assert.doesNotMatch(started(settledRun, { type: "task.send", taskId: "lead", text: "And now?" }).prompt, /Your memory/, "read once, it is not sent on the following run");
+
+  const own = reduce(warm, { type: "coordination.remembered", taskId: "lead", change: { kind: "remember", text: "Keep updates short" } }).state;
+  assert.doesNotMatch(started(own, { type: "task.send", taskId: "lead", text: "Next?" }).prompt, /Your memory/, "its own writes count as read");
+
+  const compacted = workspace({ threads: [lead("lead", { ...SESSION, memory: { ...memory, heard: undefined } })], currentId: "lead" });
+  assert.match(started(compacted, { type: "task.send", taskId: "lead", text: "Next?" }).prompt, /Your memory:\n- \[n1\] Propose threads first/);
+
+  const fresh = workspace({ threads: [lead("lead", { memory })], currentId: "lead" });
+  const first = started(fresh, { type: "task.send", taskId: "lead", text: "Plan it" });
+  assert.match(first.prompt, /Your purpose: Ship the v2 reader\nYour memory:\n- \[n1\] Propose threads first/, "a coordinator with no session to resume always reads it");
+  assert.doesNotMatch(first.prompt, /the user changed it/);
+  assert.match(coordinationContext(warm, warm.threads[0], { fresh: true }), /Your memory:/, "so does a fresh session started over an old one");
 });

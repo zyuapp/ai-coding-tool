@@ -9,7 +9,7 @@ import { TAKE_KEYS, focusDockTab } from "./dock-tabs.js";
 import { followUps, settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { readAttention } from "../../domain/attention.js";
-import { isOverviewGroup } from "../../domain/coordination.js";
+import { isOverviewSection } from "../../domain/coordination.js";
 import { DIFF_PANEL, DOCK_PICKER, OVERVIEW_PANEL, WORKFLOW_PANEL, diffFor, dockOwner, dockTabAfterClosing, dockTabIds, dockTabKind, frontDock, withDock, type WorkspaceState } from "../workspace-state.js";
 
 type DockInput = Extract<WorkspaceInput, {
@@ -130,7 +130,7 @@ export function reduceDock(state: WorkspaceState, input: DockInput): WorkspaceTr
 
     case "view.set-overview-group": {
       /** The coordinator may run on a paired computer, so its id is not looked up here. */
-      if (!isOverviewGroup(input.group)) return settled(state);
+      if (!isOverviewSection(input.group)) return settled(state);
       const folds = state.overviewFolds[input.taskId] ?? {};
       const fold = folds[input.group] ?? {};
       const next = { ...fold, ...(input.open === undefined ? {} : { open: input.open }), ...(input.all ? { all: true as const } : {}) };

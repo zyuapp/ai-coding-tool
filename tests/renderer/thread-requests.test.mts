@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test, vi } from "vitest";
 import { act } from "react";
 import type { RunCommand } from "../../src/contracts/ipc.ts";
-import type { ExternalCommand, ThreadResponse } from "../../src/contracts/threads.ts";
+import type { ExternalCommand, ThreadRequest, ThreadResponse } from "../../src/contracts/threads.ts";
 import type { Thread } from "../../src/domain/thread.ts";
 
 import { item } from "../support/renderer-dom.mts";
@@ -213,6 +213,33 @@ test("a coordinator's threads run on the model chosen for them, not its own", as
   assert.equal(await start("lead", { model: "haiku" }), "Threads under a coordinator cannot run on the haiku model. Pick another model.");
   assert.equal(await start("worker", { model: "haiku" }), "Threads under a coordinator cannot run on the haiku model. Pick another model.", "a thread one of its threads starts works under it too");
   assert.deepEqual(await start("worker"), { engine: "claude", model: "opus", effort: "high" });
+
+  await workspace.view.unmount();
+});
+
+test("only a coordinator keeps a memory, and its tool answer names the note it saved", async () => {
+  const thread = (id: string, overrides: Partial<Thread>): Thread => ({
+    id, title: id, engine: "claude", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, ...overrides,
+  });
+  const lead = thread("lead", { role: "coordinator", memory: { notes: [{ id: "n1", text: "Use Sonnet for docs", at: 1 }], revision: 2, heard: 2 } });
+  const desktop = fakeDesktop({ loadTaskStore: async () => ({ version: 2, hiddenTasks: 0, projects: [], worktrees: [], tasks: [lead, thread("solo", {})], lastFolder: null }) });
+  const workspace = await mountWorkspace(desktop);
+  await settleFrame();
+  const ask = async (taskId: string, change: Extract<ThreadRequest, { op: "memory" }>["change"]) => {
+    await act(async () => {
+      await desktop.askThreads({ type: "thread.request", requestId: crypto.randomUUID(), taskId, op: "memory", change });
+    });
+    return item(desktop.threadAnswers.at(-1));
+  };
+
+  assert.deepEqual(await ask("lead", { kind: "remember", text: "Propose threads before starting them" }), {
+    type: "thread.response", requestId: item(desktop.threadAnswers.at(-1)).requestId, ok: true,
+    result: { note: "Saved as [n3]. You and every thread you start from now on read it." },
+  });
+  assert.equal(responseRecord(await ask("lead", { kind: "forget", noteId: "n1" })).note, "Forgot [n1].");
+  assert.equal(failedThreadResponse(await ask("lead", { kind: "forget", noteId: "n9" })).message, "No note has the ID n9.");
+  assert.equal(failedThreadResponse(await ask("solo", { kind: "remember", text: "Remember this" })).message, "Only a coordinator keeps a memory.");
+  assert.equal(workspace.get().actionError, null, "a refusal answers the tool, never the user");
 
   await workspace.view.unmount();
 });

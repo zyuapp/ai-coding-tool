@@ -26,7 +26,7 @@ import type { TerminalUpdate } from "../../domain/terminal.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
 import type { PullRequestAnswer } from "../../domain/pull-request.js";
 import type { ManagedWorktree } from "../../domain/worktree.js";
-import type { CoordinationState, DecisionRequest } from "../../domain/coordination.js";
+import type { CoordinationState, DecisionRequest, MemoryChange } from "../../domain/coordination.js";
 
 /** Things that happened: replies to effects, and pushes from the main process. */
 export type WorkspaceEvent =
@@ -61,6 +61,8 @@ export type WorkspaceEvent =
   | { type: "coordination.reported"; taskId: string; state: CoordinationState; summary: string }
   /** A thread putting a choice to the user that only they can make. */
   | { type: "coordination.decision-raised"; taskId: string; request: DecisionRequest }
+  /** A coordinator changing its own memory, which its session then knows without reading it again. */
+  | { type: "coordination.remembered"; taskId: string; change: MemoryChange }
   | { type: "worktree.created"; taskId: string; worktree: CreatedWorktree; move?: boolean; projectId?: string }
   | { type: "worktree.failed"; taskId: string; message: string }
   | { type: "worktrees.loaded"; worktrees: ManagedWorktree[] }

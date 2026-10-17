@@ -81,20 +81,51 @@ export const MAX_ANSWER = 4_000;
 /** Answered decisions are history; only the newest are kept. */
 const MAX_DECISIONS = 20;
 const MAX_NOTES = 50;
+export const MAX_PURPOSE = 200;
+export const MAX_MEMORY_NOTE = 500;
+export const MAX_MEMORY_NOTES = 30;
 
 /** The groups a coordinator's Overview sorts its threads into, by what each one needs. */
 export type OverviewGroup = "needs" | "working" | "done";
 
 export const OVERVIEW_GROUPS: readonly OverviewGroup[] = ["needs", "working", "done"];
 
-export function isOverviewGroup(value: unknown): value is OverviewGroup {
-  return typeof value === "string" && (OVERVIEW_GROUPS as readonly string[]).includes(value);
+/** What folds in a coordinator's Overview: its groups of threads, and the sections below them. */
+export type OverviewSection = OverviewGroup | "memory";
+
+const OVERVIEW_SECTIONS: readonly OverviewSection[] = [...OVERVIEW_GROUPS, "memory"];
+
+export function isOverviewSection(value: unknown): value is OverviewSection {
+  return typeof value === "string" && (OVERVIEW_SECTIONS as readonly string[]).includes(value);
 }
 
-/** How the user left one Overview group: folded or unfolded, and whether it shows every thread. */
+/** How the user left one Overview section: folded or unfolded, and whether it shows every row. */
 export type OverviewFold = { open?: boolean; all?: true };
 
-export type OverviewFolds = Partial<Record<OverviewGroup, OverviewFold>>;
+export type OverviewFolds = Partial<Record<OverviewSection, OverviewFold>>;
+
+/** One thing the user wants a coordinator, and every thread it starts, to keep in mind. */
+export type MemoryNote = { id: string; text: string; at: number };
+
+/**
+ * What a coordinator keeps for the user: what it is for, and notes on how they want it to work.
+ * `revision` grows with every change, so a note added by one is named `n<revision>` and no two notes
+ * ever share a name. `heard` is the revision the coordinator's session last read, absent when it has
+ * read none.
+ */
+export type CoordinatorMemory = {
+  purpose?: string;
+  notes: MemoryNote[];
+  revision: number;
+  heard?: number;
+};
+
+/** One change to a coordinator's memory. Only the user edits a note in place; a coordinator forgets and remembers. */
+export type MemoryChange =
+  | { kind: "purpose"; purpose: string | null }
+  | { kind: "remember"; text: string }
+  | { kind: "edit"; noteId: string; text: string }
+  | { kind: "forget"; noteId: string };
 
 export function isCoordinator(thread: Thread | undefined): boolean {
   return thread?.role === "coordinator" && thread.archivedAt === undefined;
@@ -196,6 +227,76 @@ export function withAnswer(thread: Thread, decisionId: string, answer: string, a
   };
 }
 
+/**
+ * A coordinator's memory with one change made, or why it cannot be. A change that alters nothing
+ * hands the thread back as it was. `heard` says the coordinator made the change itself, so its
+ * session knows of it, which counts only when that session had read everything before it.
+ */
+export function withMemoryChange(thread: Thread, change: MemoryChange, at: number, { heard }: { heard: boolean }): { thread: Thread; noteId?: string } | { error: string } {
+  /** A coordinator with nothing in memory has, in effect, read all of it. */
+  const memory: CoordinatorMemory = thread.memory ?? { notes: [], revision: 0, heard: 0 };
+  const revision = memory.revision + 1;
+  let { purpose, notes } = memory;
+  let noteId: string | undefined;
+  switch (change.kind) {
+    case "purpose": {
+      const asked = change.purpose?.trim() ?? "";
+      if (asked.length > MAX_PURPOSE) return { error: `A purpose can be at most ${MAX_PURPOSE} characters.` };
+      if (asked === (purpose ?? "")) return { thread };
+      purpose = asked || undefined;
+      break;
+    }
+    case "remember": {
+      const text = noteText(change.text);
+      if ("error" in text) return text;
+      if (notes.length >= MAX_MEMORY_NOTES) return { error: `Memory holds at most ${MAX_MEMORY_NOTES} notes. Forget one first.` };
+      noteId = `n${revision}`;
+      notes = [...notes, { id: noteId, text: text.text, at }];
+      break;
+    }
+    case "edit": {
+      const note = notes.find((item) => item.id === change.noteId);
+      if (!note) return { error: `No note has the ID ${change.noteId}.` };
+      const text = noteText(change.text);
+      if ("error" in text) return text;
+      if (text.text === note.text) return { thread };
+      noteId = note.id;
+      notes = notes.map((item) => item === note ? { ...item, text: text.text, at } : item);
+      break;
+    }
+    case "forget": {
+      if (!notes.some((item) => item.id === change.noteId)) return { error: `No note has the ID ${change.noteId}.` };
+      noteId = change.noteId;
+      notes = notes.filter((item) => item.id !== change.noteId);
+      break;
+    }
+  }
+  /** A memory the session had not finished reading stays unread, whoever changed it. */
+  const read = heard && memory.heard === memory.revision ? revision : memory.heard;
+  const changed: CoordinatorMemory = { ...(purpose ? { purpose } : {}), notes, revision, ...(read === undefined ? {} : { heard: read }) };
+  return { thread: { ...thread, memory: changed }, ...(noteId ? { noteId } : {}) };
+}
+
+function noteText(value: string): { text: string } | { error: string } {
+  const text = value.trim();
+  if (!text) return { error: "A note needs some text." };
+  if (text.length > MAX_MEMORY_NOTE) return { error: `A note can be at most ${MAX_MEMORY_NOTE} characters.` };
+  return { text };
+}
+
+/** The coordinator's session has read its memory as it stands. */
+export function withMemoryHeard(lead: Thread): Thread {
+  const memory = lead.memory;
+  return memory && memory.heard !== memory.revision ? { ...lead, memory: { ...memory, heard: memory.revision } } : lead;
+}
+
+/** The coordinator's session can no longer be trusted to hold its memory, as after its context was compacted. */
+export function withMemoryUnheard(thread: Thread): Thread {
+  if (thread.memory?.heard === undefined) return thread;
+  const { heard: _read, ...memory } = thread.memory;
+  return { ...thread, memory };
+}
+
 export function withCoordinationNote(lead: Thread, note: CoordinationNote): Thread {
   return { ...lead, coordinationNotes: [...lead.coordinationNotes ?? [], note].slice(-MAX_NOTES) };
 }
@@ -239,6 +340,31 @@ export function isThreadBrief(value: unknown): value is ThreadBrief {
 /** Shape only: whether the model may run a coordinator's threads, and takes the effort, is decided where it is read. */
 export function isThreadModelChoice(value: unknown): value is ThreadModelChoice {
   return isRecord(value) && isAgentModel(value.model) && (value.effort === undefined || isAgentEffort(value.effort));
+}
+
+function isMemoryNote(value: unknown): value is MemoryNote {
+  return isRecord(value) && text(value.id, 200) && typeof value.text === "string" && finite(value.at);
+}
+
+/** Shape only, so a memory written under a longer limit still loads. */
+export function isCoordinatorMemory(value: unknown): value is CoordinatorMemory {
+  return isRecord(value)
+    && (value.purpose === undefined || typeof value.purpose === "string")
+    && Array.isArray(value.notes) && value.notes.every(isMemoryNote)
+    && Number.isSafeInteger(value.revision) && (value.revision as number) >= 0
+    && (value.heard === undefined || finite(value.heard));
+}
+
+/** A change as it arrives from outside the window, held to the limits a new one is written under. */
+export function isMemoryChange(value: unknown): value is MemoryChange {
+  if (!isRecord(value)) return false;
+  switch (value.kind) {
+    case "purpose": return value.purpose === null || typeof value.purpose === "string" && value.purpose.length <= MAX_PURPOSE;
+    case "remember": return text(value.text, MAX_MEMORY_NOTE);
+    case "edit": return text(value.noteId, 200) && text(value.text, MAX_MEMORY_NOTE);
+    case "forget": return text(value.noteId, 200);
+    default: return false;
+  }
 }
 
 export function isCoordinationReport(value: unknown): value is CoordinationReport {

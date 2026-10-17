@@ -10,13 +10,14 @@ import { announced } from "../notices.js";
 import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
-import { canJoinCoordinator, coordinatedThreads, coordinatorOf, isCoordinator, MAX_ANSWER, openDecisions, threadModelOf, undelegable, withAnswer, withCoordinationNote, withDecision, type CoordinationNote } from "../../domain/coordination.js";
+import { canJoinCoordinator, coordinatedThreads, coordinatorOf, isCoordinator, MAX_ANSWER, openDecisions, threadModelOf, undelegable, withAnswer, withCoordinationNote, withDecision, withMemoryChange, type CoordinationNote, type MemoryChange } from "../../domain/coordination.js";
 import { defaultEffortFor, effortForModel, engineForModel, modelDelegable, modelHasEffort, modelTakesEffort } from "../../domain/agent-engine.js";
 import type { Thread } from "../../domain/thread.js";
 import { resumesOnItsOwn } from "../../domain/usage-limit.js";
 
 type CoordinationInput = Extract<WorkspaceInput, {
-  type: "task.set-coordinator" | "decision.answer" | "coordination.set-thread-model" | "coordination.reported" | "coordination.decision-raised";
+  type: "task.set-coordinator" | "decision.answer" | "coordination.set-thread-model" | "coordination.reported" | "coordination.decision-raised"
+    | "memory.set-purpose" | "memory.add" | "memory.edit" | "memory.forget" | "coordination.remembered";
 }>;
 
 const JOIN_REFUSED = "Only a coordinator can take threads under it, and a coordinator cannot work under another.";
@@ -63,6 +64,22 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       return settled(updateThread(state, lead.id, (item) => ({ ...item, threadModel, updatedAt: now() })));
     }
 
+    /** The user's own edits, which the coordinator's session has yet to read. */
+    case "memory.set-purpose":
+      return remembered(state, input.taskId, { kind: "purpose", purpose: input.purpose }, false);
+    case "memory.add":
+      return remembered(state, input.taskId, { kind: "remember", text: input.text }, false);
+    case "memory.edit":
+      return remembered(state, input.taskId, { kind: "edit", noteId: input.noteId, text: input.text }, false);
+    case "memory.forget":
+      return remembered(state, input.taskId, { kind: "forget", noteId: input.noteId }, false);
+
+    /** The coordinator's own change. Its tool call answers a refusal, so the user's banner never shows one. */
+    case "coordination.remembered": {
+      const changed = remembered(state, input.taskId, input.change, true);
+      return changed.result?.ok === false ? settled(state) : changed;
+    }
+
     /**
      * Progress is not news: only a thread that is blocked, done or failed leaves its coordinator a
      * note, which it hears with the rest when the thread's turn ends.
@@ -98,6 +115,17 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       return settled(noted, announced(noted, lead, `Needs you: ${decision.question}`));
     }
   }
+}
+
+/** Only a coordinator keeps a memory; a change that alters nothing writes nothing. */
+function remembered(state: WorkspaceState, taskId: string, change: MemoryChange, heard: boolean): WorkspaceTransition {
+  const lead = state.threads.find((item) => item.id === taskId);
+  if (!lead || !isCoordinator(lead)) return settled(state);
+  const at = now();
+  const changed = withMemoryChange(lead, change, at, { heard });
+  if ("error" in changed) return rejected(state, changed.error);
+  if (changed.thread === lead) return settled(state);
+  return settled(updateThread(state, lead.id, () => ({ ...changed.thread, updatedAt: at })));
 }
 
 /**

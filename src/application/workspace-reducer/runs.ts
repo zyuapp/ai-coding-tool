@@ -25,7 +25,7 @@ import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
 import { createConversationMessage, createSentMessage } from "../../domain/conversation.js";
 import { appendMessages } from "../../domain/conversation-updates.js";
 import { pausedForLimit } from "../limit-pauses.js";
-import { asCoordinator, canJoinCoordinator, isCoordinator, withoutCoordinationNotes } from "../../domain/coordination.js";
+import { asCoordinator, canJoinCoordinator, isCoordinator, withMemoryHeard, withoutCoordinationNotes } from "../../domain/coordination.js";
 import { briefPrompt, coordinationContext } from "../coordination.js";
 import type { Thread } from "../../domain/thread.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
@@ -305,6 +305,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   /** A new coordinator's threads run on what it runs on itself until the user picks otherwise. */
   const opened = !existing && pending.role === "coordinator" ? asCoordinator(thread) : thread;
   const joined = lead && canJoinCoordinator(opened, lead) ? { ...opened, parentId: lead.id } : opened;
+  const joining = joined !== opened;
   const message = createSentMessage({ ...pending, origin: pending.messageOrigin });
   /** Only a thread that was somewhere else is arriving; one already in this checkout has said so. */
   const arrival = arriving && existing?.worktreeId !== arriving.id
@@ -313,13 +314,18 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   const located = arriving ? { ...joined, worktreeId: arriving.id, worktreeEnteredAt: joined.worktreeEnteredAt ?? now() } : joined;
   /** A copied thread forks the session it inherited until a session of its own comes back to continue. */
   const inherited = located.inheritedContinuation;
-  /** A coordinator's run hears everything its threads said since the last one, so none of it is waiting any more. */
+  /**
+   * A coordinator's run hears everything its threads said since the last one, so none of it is
+   * waiting any more, and reads its memory whenever its session has yet to, so that is read too.
+   */
   const coordinating = isCoordinator(located);
-  const context = coordinating ? coordinationContext(state, located, pending.coordination?.notes) : "";
-  const heard = coordinating && located.coordinationNotes ? withoutCoordinationNotes(located, new Set(located.coordinationNotes.map((note) => note.id))) : located;
+  const context = coordinating ? coordinationContext(state, located, { carried: pending.coordination?.notes }) : "";
+  const told = coordinating && located.coordinationNotes ? withoutCoordinationNotes(located, new Set(located.coordinationNotes.map((note) => note.id))) : located;
+  const heard = coordinating ? withMemoryHeard(told) : told;
   const updated = { ...heard, messages: [...heard.messages, ...arrival, message], updatedAt: now() };
-  const brief = pending.coordination?.brief;
-  const prompt = `${pending.prompt}${brief ? `\n\n${briefPrompt(brief)}` : ""}${context}`;
+  /** A thread starting under a coordinator reads the brief it was handed and the memory it was started with. */
+  const standing = joining ? briefPrompt(pending.coordination?.brief, pending.coordination?.memory) : briefPrompt(pending.coordination?.brief);
+  const prompt = `${pending.prompt}${standing ? `\n\n${standing}` : ""}${context}`;
   const threads = existing ? state.threads.map((item) => item.id === thread.id ? updated : item) : [updated, ...state.threads];
   /** Only a thread the user's own send just created needs looking at; anything else leaves them where they are. */
   const focusing = !existing && pending.draftKey !== undefined;

@@ -122,7 +122,7 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
         ...(thread || input.model === undefined ? {} : { model: input.model }),
         ...(thread || input.effort === undefined ? {} : { effort: input.effort }),
         ...(role ? { role } : {}),
-        ...(thread ? {} : coordinationSendOf(input)),
+        ...(thread ? {} : coordinationSendOf(state, input)),
         ...(draftKey === undefined ? {} : { draftKey }),
         text,
         prompt: signed,

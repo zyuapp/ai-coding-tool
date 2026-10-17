@@ -17,7 +17,7 @@ import type { AppCommand } from "../contracts/commands.js";
 import type { ExternalCommand, FindingReport, FindingResult, ThreadCommandResult, ThreadRequest, ThreadResponse, ThreadTranscript } from "../contracts/threads.js";
 import { REMOTE_UNSUPPORTED } from "../contracts/computer-capabilities.js";
 import { terminalLineLimit } from "../domain/terminal.js";
-import { coordinatorOf, isCoordinator, type CoordinationState, type DecisionRequest } from "../domain/coordination.js";
+import { coordinatorOf, isCoordinator, withMemoryChange, type CoordinationState, type DecisionRequest, type MemoryChange } from "../domain/coordination.js";
 import { errorMessage } from "./errors.js";
 import type { RuntimeDesktop } from "./runtime-desktop.js";
 
@@ -139,6 +139,7 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
     if (request.op === "nothing-to-report") return ok(await reportNothing(host, request.taskId, request.checked));
     if (request.op === "report") return ok(await reportToCoordinator(host, request.taskId, request.state, request.summary));
     if (request.op === "decision") return ok(await raiseDecision(host, request.taskId, request.request));
+    if (request.op === "memory") return ok(await rememberFor(host, request.taskId, request.change));
     const { command } = request;
     const before = host.state();
     /** A browser command acts on a tab rather than a thread, so it answers with the panel's own error. */
@@ -346,4 +347,26 @@ async function raiseDecision(host: ThreadRequestHost, threadId: string, request:
   }
   await host.dispatch({ type: "coordination.decision-raised", taskId: threadId, request });
   return { recorded: true, note: "Raised. The user sees it now, and their answer arrives in this thread as a message. If you cannot go on without it, end your turn." };
+}
+
+/** What a coordinator and every thread it starts from now on read, said back as the coordinator's tools answer. */
+const READ_FROM_NOW = "You and every thread you start from now on read it.";
+
+/**
+ * A coordinator changing its own memory. The change is tried against the memory as it stands, so a
+ * refusal answers the tool rather than reaching the user; once made, the saved note is read back.
+ */
+async function rememberFor(host: ThreadRequestHost, threadId: string, change: MemoryChange): Promise<{ note: string }> {
+  const thread = host.state().threads.find((item) => item.id === threadId);
+  if (!thread || !isCoordinator(thread)) throw new Error("Only a coordinator keeps a memory.");
+  const tried = withMemoryChange(thread, change, Date.now(), { heard: true });
+  if ("error" in tried) throw new Error(tried.error);
+  await host.dispatch({ type: "coordination.remembered", taskId: threadId, change });
+  const memory = host.state().threads.find((item) => item.id === threadId)?.memory;
+  if (change.kind === "purpose") return { note: memory?.purpose ? `Purpose set. ${READ_FROM_NOW}` : "Purpose cleared." };
+  if (change.kind === "forget") return { note: `Forgot [${change.noteId}].` };
+  const text = change.text.trim();
+  const saved = memory?.notes.filter((note) => note.text === text).at(-1);
+  if (!saved) throw new Error("The note could not be saved. Try again.");
+  return { note: `Saved as [${saved.id}]. ${READ_FROM_NOW}` };
 }

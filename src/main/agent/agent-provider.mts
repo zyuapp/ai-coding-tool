@@ -1,6 +1,6 @@
 import type { QuestionAnswers, QuestionRequest } from "../../domain/agent-question.js";
 import type { BackgroundReport, ClaudeRunSettings, ComputerUseRunConfig, RunChannel, RunOperation, WorkflowReport } from "../../contracts/ipc.js";
-import type { CoordinationRole, CoordinationState, DecisionRequest } from "../../domain/coordination.js";
+import type { CoordinationRole, CoordinationState, DecisionRequest, MemoryChange } from "../../domain/coordination.js";
 import type { BrowserRead, BrowserReadResult, BrowserWrite, ExternalCommand, FindingReport, FindingResult, TerminalRead, TerminalReadResult, ThreadCommandResult, ThreadListQuery, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
 import type { AgentEngine, AgentModel } from "../../domain/agent-engine.js";
@@ -20,6 +20,8 @@ export type ThreadBridge = {
 export type CoordinationBridge = {
   report(state: CoordinationState, summary: string): Promise<FindingResult>;
   decide(request: DecisionRequest): Promise<FindingResult>;
+  /** A coordinator's own memory. It rejects with what to tell the coordinator when the change cannot be made. */
+  remember(change: Exclude<MemoryChange, { kind: "edit" }>): Promise<{ note: string }>;
 };
 
 /**

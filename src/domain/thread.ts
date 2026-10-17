@@ -2,7 +2,7 @@ import type { AgentEngine, AgentModel } from "./agent-engine.js";
 import type { ConversationMessage } from "./conversation.js";
 import type { AutomationFinding } from "./finding.js";
 import type { AgentEffort, Continuation, ExecutionPolicy } from "./run.js";
-import type { CoordinationNote, CoordinationReport, Decision, ThreadBrief, ThreadModelChoice } from "./coordination.js";
+import type { CoordinationNote, CoordinationReport, CoordinatorMemory, Decision, ThreadBrief, ThreadModelChoice } from "./coordination.js";
 import type { ThreadRole } from "./thread-role.js";
 import type { ChangeSnapshot, ContextUsage, ContinuationStatus, ThreadOutcome } from "./thread-run.js";
 import type { LimitPause } from "./usage-limit.js";
@@ -28,6 +28,8 @@ export type Thread = {
   coordinationNotes?: CoordinationNote[];
   /** On a coordinator: what the threads it starts run on unless it names another. */
   threadModel?: ThreadModelChoice;
+  /** On a coordinator: its purpose and the notes it keeps, which it and every thread it starts read. */
+  memory?: CoordinatorMemory;
   projectId?: string;
   executionPolicy: ExecutionPolicy;
   engine: AgentEngine;

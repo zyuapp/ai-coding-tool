@@ -2,7 +2,7 @@ import type { AppCommand } from "./commands.js";
 import { isTerminalDimension, MAX_TERMINAL_INPUT } from "./terminal.js";
 import { isSnoozeHours } from "../domain/thread-snooze.js";
 import { isThreadRole } from "../domain/thread-role.js";
-import { isOverviewGroup, isThreadBrief } from "../domain/coordination.js";
+import { isOverviewSection, isThreadBrief } from "../domain/coordination.js";
 import type { WorkspaceEvent } from "../application/workspace-reducer.js";
 import { isBrowserAction, isString, MAX_PROMPT_LENGTH } from "./ipc.js";
 import type { ExternalCommand } from "./threads.js";
@@ -255,6 +255,10 @@ const commands = {
   "task.set-coordinator": { fields: { taskId: text, coordinatorId: nullableText }, at: "thread" },
   "decision.answer": { fields: { taskId: text, decisionId: text, answer: text }, at: "thread" },
   "coordination.set-thread-model": { fields: { taskId: text, model: isAgentModel, effort: optional(isAgentEffort) }, at: "thread" },
+  "memory.set-purpose": { fields: { taskId: text, purpose: nullableText }, at: "thread" },
+  "memory.add": { fields: { taskId: text, text }, at: "thread" },
+  "memory.edit": { fields: { taskId: text, noteId: text, text }, at: "thread" },
+  "memory.forget": { fields: { taskId: text, noteId: text }, at: "thread" },
   "task.dismiss": { fields: { taskId: text }, at: "thread" },
   "task.snooze": { fields: { taskId: text, hours: isSnoozeHours }, at: "thread" },
   "task.unsnooze": { fields: { taskId: text }, at: "thread" },
@@ -389,7 +393,7 @@ const commands = {
   "view.move-worktree": { fields: { worktree: nullable(boolean) }, at: "local" },
   "view.set-section-open": { fields: { section: isSidebarSection, open: boolean }, at: "local" },
   "view.set-subagent-group": { fields: { group: isSubagentGroup, open: boolean }, at: "local" },
-  "view.set-overview-group": { fields: { taskId: text, group: isOverviewGroup, open: optionalBoolean, all: optionalBoolean }, at: "local" },
+  "view.set-overview-group": { fields: { taskId: text, group: isOverviewSection, open: optionalBoolean, all: optionalBoolean }, at: "local" },
   "view.set-model-favorite": { fields: { model: isAgentModel, favorite: boolean }, at: "local" },
   "view.set-theme": { fields: { theme: text }, at: "local" },
   "view.set-theme-family": { fields: { family: text, systemDark: boolean }, at: "local" },

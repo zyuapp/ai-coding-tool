@@ -1,17 +1,22 @@
 import { z } from "zod";
-import { COORDINATION_STATES, MAX_DECISION_CONTEXT, MAX_OPTION_DESCRIPTION, MAX_OPTION_LABEL, MAX_OPTIONS, MAX_QUESTION, MAX_SUMMARY } from "../../domain/coordination.js";
+import { COORDINATION_STATES, MAX_DECISION_CONTEXT, MAX_MEMORY_NOTE, MAX_OPTION_DESCRIPTION, MAX_OPTION_LABEL, MAX_OPTIONS, MAX_PURPOSE, MAX_QUESTION, MAX_SUMMARY } from "../../domain/coordination.js";
 import type { CoordinationRole } from "../../domain/coordination.js";
 import type { CoordinationBridge } from "../agent/agent-provider.mjs";
 import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";
 
 export const COORDINATION_SERVER_NAME = "aicodingtool-coordination";
 
-async function report(work: () => Promise<{ note: string }>) {
+async function report(work: () => Promise<{ note: string }>, failure = "Coordination error: ") {
   try {
     return { content: [{ type: "text" as const, text: (await work()).note }] };
   } catch (error) {
-    return { content: [{ type: "text" as const, text: `Coordination error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+    return { content: [{ type: "text" as const, text: `${failure}${error instanceof Error ? error.message : String(error)}` }], isError: true };
   }
+}
+
+/** A refused memory change already says what to do instead, so it is answered in its own words. */
+function remember(work: () => Promise<{ note: string }>) {
+  return report(work, "");
 }
 
 const REPORT_STATUS = defineTool({
@@ -49,8 +54,38 @@ const RAISE_DECISION = defineTool({
   })),
 });
 
-/** A coordinator reports to no one, so it only raises decisions. */
+const REMEMBER = defineTool({
+  name: "remember",
+  description: "Save a note to your memory: something the user asked you to remember, or how they want you to work. You and every thread you start from now on read it.",
+  input: {
+    text: z.string().min(1).max(MAX_MEMORY_NOTE).describe("The note, in one or two sentences."),
+  },
+  readOnly: false,
+  run: (bridge: CoordinationBridge, args) => remember(() => bridge.remember({ kind: "remember", text: args.text })),
+});
+
+const FORGET = defineTool({
+  name: "forget",
+  description: "Drop a note from your memory when the user asks you to forget it or it no longer holds.",
+  input: {
+    noteId: z.string().min(1).max(200).describe("The note's ID, such as n3."),
+  },
+  readOnly: false,
+  run: (bridge: CoordinationBridge, args) => remember(() => bridge.remember({ kind: "forget", noteId: args.noteId })),
+});
+
+const SET_PURPOSE = defineTool({
+  name: "set_purpose",
+  description: "Set what this coordinator is for, in the user's words, when they say what its purpose or goal is. Pass null to clear it.",
+  input: {
+    purpose: z.string().max(MAX_PURPOSE).nullable().describe("One line, or null to clear it."),
+  },
+  readOnly: false,
+  run: (bridge: CoordinationBridge, args) => remember(() => bridge.remember({ kind: "purpose", purpose: args.purpose })),
+});
+
+/** A coordinator reports to no one, so it raises decisions and keeps its memory. */
 export function coordinationTools(bridge: CoordinationBridge, role: CoordinationRole) {
-  const definitions: ToolDefinition<CoordinationBridge>[] = role === "member" ? [REPORT_STATUS, RAISE_DECISION] : [RAISE_DECISION];
+  const definitions: ToolDefinition<CoordinationBridge>[] = role === "member" ? [REPORT_STATUS, RAISE_DECISION] : [RAISE_DECISION, REMEMBER, FORGET, SET_PURPOSE];
   return bindTools(bridge, definitions);
 }

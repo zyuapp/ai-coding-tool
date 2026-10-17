@@ -2,7 +2,7 @@
 import { isBlankable, isBrowserRead, isCount, isString, isTerminalRead, MAX_THREAD_WAIT_MS } from "./ipc.js";
 import { isExternalCommand } from "./workspace-view-input.js";
 import type { FindingReport, ThreadRequest } from "./threads.js";
-import { isCoordinationState, isDecisionRequest, MAX_SUMMARY } from "../domain/coordination.js";
+import { isCoordinationState, isDecisionRequest, isMemoryChange, MAX_SUMMARY } from "../domain/coordination.js";
 import { MAX_DETAIL, MAX_FINDING_KEY, MAX_HEADLINE } from "../domain/finding.js";
 
 export function isThreadRequest(value: unknown): value is ThreadRequest {
@@ -27,6 +27,7 @@ export function isThreadRequest(value: unknown): value is ThreadRequest {
   if (request.op === "nothing-to-report") return isString(request.checked, MAX_HEADLINE);
   if (request.op === "report") return isCoordinationState(request.state) && isString(request.summary, MAX_SUMMARY);
   if (request.op === "decision") return isDecisionRequest(request.request);
+  if (request.op === "memory") return isMemoryChange(request.change) && request.change.kind !== "edit";
   return false;
 }
 

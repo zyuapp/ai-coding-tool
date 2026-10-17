@@ -2,7 +2,7 @@ import type { ComputerFilter } from "../domain/computers.js";
 import type { AutomationDraft, AutomationPatch } from "../domain/automation.js";
 import type { SnoozeHours } from "../domain/thread-snooze.js";
 import type { ThreadRole } from "../domain/thread-role.js";
-import type { OverviewGroup, ThreadBrief } from "../domain/coordination.js";
+import type { OverviewSection, ThreadBrief } from "../domain/coordination.js";
 import type { ShortcutSurface } from "../domain/shortcuts.js";
 import type { BrowserAction } from "../domain/browser.js";
 import type { ComputerUsePermission } from "../domain/computer-use.js";
@@ -102,6 +102,11 @@ export type TaskCommand =
   | { type: "decision.answer"; taskId: string; decisionId: string; answer: string }
   /** What a coordinator's new threads run on unless it names another. An effort the model lacks moves to the nearest it takes. */
   | { type: "coordination.set-thread-model"; taskId: string; model: AgentModel; effort?: AgentEffort }
+  /** A coordinator's purpose and the notes it keeps, which it and every thread it starts read. An empty purpose clears it. */
+  | { type: "memory.set-purpose"; taskId: string; purpose: string | null }
+  | { type: "memory.add"; taskId: string; text: string }
+  | { type: "memory.edit"; taskId: string; noteId: string; text: string }
+  | { type: "memory.forget"; taskId: string; noteId: string }
   /** Takes the dot off a thread, which is the only thing that does. Opening the thread only dims it. */
   | { type: "task.dismiss"; taskId: string }
   | { type: "task.snooze"; taskId: string; hours: SnoozeHours }
@@ -443,7 +448,7 @@ export type ViewCommand =
   /** Folds the sidebar's subagent list, or one status heading in the Subagents panel. */
   | { type: "view.set-subagent-group"; group: SubagentGroup; open: boolean }
   /** Folds or unfolds one group of a coordinator's Overview, or shows every thread in it. */
-  | { type: "view.set-overview-group"; taskId: string; group: OverviewGroup; open?: boolean; all?: boolean }
+  | { type: "view.set-overview-group"; taskId: string; group: OverviewSection; open?: boolean; all?: boolean }
   | { type: "view.set-model-favorite"; model: AgentModel; favorite: boolean }
   /** The theme the window paints in. An id the app does not ship is ignored. */
   | { type: "view.set-theme"; theme: string }
