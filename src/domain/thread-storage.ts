@@ -380,6 +380,7 @@ function isThreadBase(value: unknown): value is StoredThread {
     (value.threadModel === undefined || isThreadModelChoice(value.threadModel)) &&
     (value.memory === undefined || isCoordinatorMemory(value.memory)) &&
     (value.proposals === undefined || Array.isArray(value.proposals) && value.proposals.every(isThreadProposal)) &&
+    (value.muted === undefined || value.muted === true) &&
     (value.projectId === undefined || nonEmptyString(value.projectId)) &&
     isExecutionPolicy(value.executionPolicy) &&
     isAgentEngine(value.engine) &&
@@ -512,6 +513,7 @@ const DROPPABLE_FIELDS: Readonly<Record<string, (value: unknown) => boolean>> = 
   memory: isCoordinatorMemory,
   resolvedAt: finiteNumber,
   pullRequest: isPullRequestLink,
+  muted: (value) => value === true,
 };
 
 /** Lists a thread can do without, each item checked on its own: one this build cannot read is dropped and the rest kept. */

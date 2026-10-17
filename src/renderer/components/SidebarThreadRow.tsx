@@ -146,6 +146,9 @@ export type SidebarCoordination = {
   threadsByCoordinator: Map<string, Thread[]>;
   coordinators: Thread[];
   onSetCoordinator: (threadId: string, coordinatorId: string | null) => void;
+  /** Whether desktop notices are on at all, which a coordinator's mute only narrows. */
+  notifications: boolean;
+  onSetMuted: (threadId: string, muted: boolean) => void;
 };
 
 /** A coordinator's row speaks for the decisions its threads are waiting on as well as its own. */
@@ -209,6 +212,7 @@ type RowState = {
   menuAt: { x: number; y: number } | null;
   /** Only a row with its menu open is handed the coordinators. */
   coordinators: Thread[];
+  notifications: boolean;
   handlers: RowHandlers;
 };
 
@@ -222,6 +226,7 @@ type RowHandlers = {
   fork: (threadId: string, worktree: boolean) => void;
   setRole: (threadId: string, role: ThreadRole | null) => void;
   setCoordinator: (threadId: string, coordinatorId: string | null) => void;
+  setMuted: (threadId: string, muted: boolean) => void;
   startRename: (threadId: string, row?: HTMLElement | null) => void;
   commitRename: (threadId: string, value: string) => void;
   cancelRename: () => void;
@@ -308,6 +313,8 @@ function rowBody(row: RowState, className: string, content: ReactNode, action: R
         onSetRole: (role) => handlers.setRole(thread.id, role),
         coordinators: row.coordinators,
         onSetCoordinator: (coordinatorId) => handlers.setCoordinator(thread.id, coordinatorId),
+        notifications: row.notifications,
+        onSetMuted: (muted) => handlers.setMuted(thread.id, muted),
         ...(priority ? { onSnooze: (hours: SnoozeHours) => handlers.snooze(thread.id, hours) } : {}),
         ...(thread.snoozedUntil !== undefined ? { onUnsnooze: () => handlers.unsnooze(thread.id) } : {}),
       })}
@@ -409,6 +416,7 @@ export function useThreadRows({
     fork: (threadId, worktree) => latest.current.onForkThread(threadId, worktree),
     setRole: (threadId, role) => latest.current.onSetThreadRole(threadId, role),
     setCoordinator: (threadId, coordinatorId) => latest.current.coordination.onSetCoordinator(threadId, coordinatorId),
+    setMuted: (threadId, muted) => latest.current.coordination.onSetMuted(threadId, muted),
     startRename: (threadId, row) => latest.current.threadNames.start(threadId, row),
     commitRename: (threadId, value) => latest.current.threadNames.commit(threadId, value),
     cancelRename: () => latest.current.threadNames.cancel(),
@@ -446,6 +454,7 @@ export function useThreadRows({
       editing: threadNames.editing === thread.id,
       menuAt: menuOpen ? threadMenuPosition : null,
       coordinators: menuOpen ? coordination.coordinators : NO_THREADS,
+      notifications: coordination.notifications,
       handlers,
     };
   };

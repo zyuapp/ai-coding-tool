@@ -105,6 +105,8 @@ export type TaskCommand =
   | { type: "decision.answer"; taskId: string; decisionId: string; answer: string }
   /** What a coordinator's new threads run on unless it names another. An effort the model lacks moves to the nearest it takes. */
   | { type: "coordination.set-thread-model"; taskId: string; model: AgentModel; effort?: AgentEffort }
+  /** Keeps every desktop notice from a coordinator and its threads back, or lets them through again. */
+  | { type: "coordination.set-muted"; taskId: string; muted: boolean }
   /** A coordinator's purpose and the notes it keeps, which it and every thread it starts read. An empty purpose clears it. */
   | { type: "memory.set-purpose"; taskId: string; purpose: string | null }
   | { type: "memory.add"; taskId: string; text: string }

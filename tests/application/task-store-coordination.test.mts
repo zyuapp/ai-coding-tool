@@ -117,3 +117,23 @@ test("a coordinator's suggested threads survive a reload, on a replaced model's 
   if (!unreadable.ok) return;
   assert.equal(unreadable.data.tasks[0].proposals, undefined);
 });
+
+test("a muted coordinator stays muted across a reload, and a mute it cannot read is dropped", () => {
+  const migrated = migrateV1ToV2(legacyValues());
+  assert.equal(migrated.ok, true);
+  if (!migrated.ok) return;
+  const lead = { ...migrated.data.tasks[0], role: "coordinator" as const, muted: true as const };
+  const parsed = parseThreadStore(serializeThreadStore({ ...migrated.data, tasks: [lead] }));
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  assert.equal(parsed.data.tasks[0].muted, true);
+
+  for (const muted of [false, "yes", 1]) {
+    const loaded = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...lead, muted }] }));
+    assert.equal(loaded.ok, true);
+    if (!loaded.ok) return;
+    assert.equal(loaded.hiddenTasks, 0, "the thread still loads");
+    assert.equal(loaded.data.tasks[0].muted, undefined);
+    assert.deepEqual(loaded.data.tasks[0].messages, lead.messages);
+  }
+});

@@ -475,6 +475,8 @@ test("workspace header keeps session summary and right panel controls separate",
     onSetThreadRole: () => {},
     coordinators: [],
     onSetCoordinator: () => {},
+    notifications: true,
+    onSetMuted: () => {},
     onArchiveThread: () => {},
     onToggleSidebar: () => { sidebarToggles += 1; },
     onToggleSessionPanel: () => { summaryToggles += 1; },
@@ -638,7 +640,7 @@ test("the heading names the paired computer a thread lives on, ahead of its fold
     folderLabel: "just-speak-linux",
     sidebarOpen: false, sessionPanelOpen: false, rightDockOpen: false, workingSubagents: 0, openMenu: null, canOpenFolder: true, apps: null,
     onListApps: () => {}, onSetOpenMenu: () => {}, onOpenInApp: () => {}, onRenameThread: () => {}, onForkThread: () => {}, onSetThreadRole: () => {}, onArchiveThread: () => {},
-    coordinators: [], onSetCoordinator: () => {},
+    coordinators: [], onSetCoordinator: () => {}, notifications: true, onSetMuted: () => {},
     onToggleSidebar: () => {}, onToggleSessionPanel: () => {}, onToggleRightDock: () => {},
   };
   const local = await mount(React.createElement(WorkspaceHeader, props));

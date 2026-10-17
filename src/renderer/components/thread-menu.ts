@@ -14,11 +14,22 @@ export function threadMenuEntries(thread: Thread, actions: {
   onSetRole: (role: ThreadRole | null) => void;
   coordinators: Thread[];
   onSetCoordinator: (coordinatorId: string | null) => void;
+  /** Whether desktop notices are on at all, which a coordinator's mute only narrows. */
+  notifications: boolean;
+  onSetMuted: (muted: boolean) => void;
 }): MenuEntry[] {
   const leads = actions.coordinators.filter((lead) => lead.id !== thread.id);
   const lead = leads.find((item) => item.id === thread.parentId);
-  /** A coordinator takes threads under it; it never works under another. */
-  const coordination: MenuEntry[] = thread.role === "coordinator" ? [] : [
+  /**
+   * A coordinator takes threads under it; it never works under another. Its mute says what choosing
+   * it does rather than carrying a tick, which would mark the whole menu as one to tick.
+   */
+  const coordination: MenuEntry[] = thread.role === "coordinator" ? [{
+    label: thread.muted ? "Unmute notifications" : "Mute notifications",
+    command: { type: "coordination.set-muted", taskId: thread.id, muted: !thread.muted },
+    ...(actions.notifications ? {} : { disabled: true, title: "Notifications are off in Settings" }),
+    onSelect: () => actions.onSetMuted(!thread.muted),
+  }] : [
     ...(leads.length ? [{ label: "Move under", items: leads.map((item) => ({ label: item.title, command: { type: "task.set-coordinator" as const, taskId: thread.id, coordinatorId: item.id }, checked: item.id === lead?.id, onSelect: () => actions.onSetCoordinator(item.id) })) }] : []),
     ...(lead ? [{ label: `Move out of ${lead.title}`, command: { type: "task.set-coordinator" as const, taskId: thread.id, coordinatorId: null }, onSelect: () => actions.onSetCoordinator(null) }] : []),
   ];

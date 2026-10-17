@@ -83,6 +83,21 @@ test("a coordinator's threads cannot run on Haiku or an effort their model lacks
   assert.equal(solo.state.threads[1].threadModel, undefined);
 });
 
+test("only a coordinator is muted, and it forgets the mute once it stops being one", () => {
+  const state = workspace({ threads: [lead(), task("solo"), task("worker", { parentId: "lead" })] });
+  const muted = reduce(state, { type: "coordination.set-muted", taskId: "lead", muted: true }).state;
+  assert.equal(muted.threads[0].muted, true);
+  assert.equal(reduce(muted, { type: "coordination.set-muted", taskId: "lead", muted: true }).state.threads, muted.threads, "an unchanged mute writes nothing");
+  assert.equal(reduce(state, { type: "coordination.set-muted", taskId: "solo", muted: true }).state.threads, state.threads, "a thread under no coordinator has nothing to mute");
+  assert.equal(reduce(state, { type: "coordination.set-muted", taskId: "worker", muted: true }).state.threads, state.threads, "nor does one of its threads");
+
+  const restored = reduce(workspace(), { type: "store.loaded", data: { version: THREAD_STORE_VERSION, tasks: muted.threads, projects: [], worktrees: [], lastFolder: null } }).state;
+  assert.equal(restored.threads.find((thread) => thread.id === "lead")?.muted, true, "the mute is kept with the thread");
+
+  const dropped = reduce(muted, { type: "task.set-role", taskId: "lead", role: null }).state;
+  assert.equal(dropped.threads[0].muted, undefined);
+});
+
 test("a coordinator made before it chose what its threads run on reads what it runs on itself", () => {
   const legacy = workspace({ threads: [lead("lead", { model: "sonnet", effort: "medium" })], currentId: "lead" });
   assert.deepEqual(deriveView(legacy).coordination.threadModel, { model: "sonnet", effort: "medium" });

@@ -257,6 +257,7 @@ const commands = {
   "task.reopen": { fields: { taskId: text }, at: "thread" },
   "decision.answer": { fields: { taskId: text, decisionId: text, answer: text }, at: "thread" },
   "coordination.set-thread-model": { fields: { taskId: text, model: isAgentModel, effort: optional(isAgentEffort) }, at: "thread" },
+  "coordination.set-muted": { fields: { taskId: text, muted: boolean }, at: "thread" },
   "memory.set-purpose": { fields: { taskId: text, purpose: nullableText }, at: "thread" },
   "memory.add": { fields: { taskId: text, text }, at: "thread" },
   "memory.edit": { fields: { taskId: text, noteId: text, text }, at: "thread" },

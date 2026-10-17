@@ -322,6 +322,17 @@ test("a raised finding goes out to the desktop, and one the thread already carri
   assert.equal(watched.effects[0].type, "announce-thread", "main is the one that knows where the user is looking");
 });
 
+test("a coordinator's thread still says what its schedule found, unless the coordinator is muted", () => {
+  const member = midRun({}, { parentId: "lead", title: "Watch checkout" });
+  const lead = task("lead", { role: "coordinator", title: "Release" });
+  const raised = reduce({ ...member, threads: [lead, ...member.threads] }, { type: "automation.notify", taskId: "task-a", headline: "5xx on checkout" });
+  assert.deepEqual(raised.effects, [{ type: "announce-thread", notice: { taskId: "task-a", title: "Release · Watch checkout", headline: "5xx on checkout" } }]);
+
+  const muted = reduce({ ...member, threads: [{ ...lead, muted: true }, ...member.threads] }, { type: "automation.notify", taskId: "task-a", headline: "5xx on checkout" });
+  assert.deepEqual(muted.effects, []);
+  assert.equal(findingsOf(item(muted.state.threads.find((thread) => thread.id === "task-a"))).length, 1, "the thread still carries it");
+});
+
 test("a turn that is not a scheduled run raises nothing at all", () => {
   const attended = midRun({ origin: "composer" });
   const asked = said(attended, { type: "automation.notify", taskId: "task-a", headline: "Ignore me" });
@@ -677,7 +688,7 @@ function sidebar(overrides: Partial<ProjectSidebarProps> = {}) {
     schedules: new Map<string, AutomationView>(),
     limitPositions: new Map<string, number>(),
     worktreeGroups: [],
-    sidebarCoordination: { threadsByCoordinator: new Map(), coordinators: [], onSetCoordinator() {} },
+    sidebarCoordination: { threadsByCoordinator: new Map(), coordinators: [], onSetCoordinator() {}, notifications: true, onSetMuted() {} },
     worktreeThreadIds: new Set<string>(),
     activityThreads: { priority: [], running: [], threads: [], snoozed: [] },
     threadHosts: new Map(),

@@ -12,15 +12,15 @@ import { settleMoveAfterRun } from "./worktree-moves.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { threadTitleFor } from "../attachments.js";
 import { fileTitle } from "../files.js";
-import { announced } from "../notices.js";
+import { announced, postedHeadline, type NoticeReason } from "../notices.js";
 import { pasteTitle } from "../pastes.js";
-import { outcomeFor, settledHeadline, whyRunSurfaces, withSettledTick } from "../run-testimony.js";
+import { outcomeFor, settledHeadline, whyRunSurfaces, withSettledTick, type RunSurfacing } from "../run-testimony.js";
 import { nextSortIndex } from "../thread-order.js";
-import { answerPartId, applyRunEvent, applyThreadEvent, ATTENDED_RUN, threadMark, updateThread, withBackgroundProcesses, withSubagents, withWorkflows, type ThreadMark } from "../thread-run-state.js";
+import { answerPartId, applyRunEvent, applyThreadEvent, ATTENDED_RUN, threadMark, updateThread, withBackgroundProcesses, withSubagents, withWorkflows, type ActiveRun, type ThreadMark } from "../thread-run-state.js";
 import { threadOnScreen } from "../thread-attention.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, threadWorkspaceRoot, worktreeById, worktreeFor } from "../thread-location.js";
 import { DRAFT_DOCK, type PendingRun, type WorkspaceState } from "../workspace-state.js";
-import type { CreatedWorktree } from "../../contracts/ipc.js";
+import type { CreatedWorktree, RunEvent } from "../../contracts/ipc.js";
 import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel, engineForModel, engineHasEffort, modelSupportsManualCompaction } from "../../domain/agent-engine.js";
 import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
 import { createConversationMessage, createSentMessage } from "../../domain/conversation.js";
@@ -166,15 +166,9 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
         : applied;
       if (outcome) next = withSettledTick(next, event.taskId, active, surfacing);
       if (event.type === "computer-use.setup-required") next = { ...next, computerUseSetup: true };
-      /**
-       * What this event puts on the desktop. A run that settles says how it ended; a run that stops
-       * to ask says what it is waiting for, and only when a person is the one it waits on.
-       */
-      let headline = settledHeadline(surfacing, event.type === "run.status" ? event.message : undefined);
-      if (active.origin === "composer" && event.type === "approval.requested") headline = `Waiting for your permission to use ${event.intent.name}`;
-      if (active.origin === "composer" && event.type === "question.requested") headline = event.request.questions[0].question;
-      const noticed = headline ? next.threads.find((thread) => thread.id === event.taskId) : undefined;
-      const said = noticed && headline ? announced(next, noticed, headline) : [];
+      const noticed = next.threads.find((thread) => thread.id === event.taskId);
+      const notice = noticed ? runNotice(noticed, active, event, surfacing) : null;
+      const said = noticed && notice ? announced(next, noticed, notice.headline, notice.reason) : [];
       if (event.type === "queued.delivered") next = withDeliveredMessage(next, event.taskId, event.messageId);
       if (event.type === "queued.steer-failed") next = withSteeringFailure(next, event.taskId, event.messageId, event.message);
       const finished = event.type === "run.status" && (event.status === "succeeded" || event.status === "failed");
@@ -202,6 +196,20 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       return settled(applyThreadEvent(state, event));
     }
   }
+}
+
+/**
+ * What this event puts on the desktop, and why. A run that settles says how it ended, a coordinator's
+ * in the words it posted; a run that stops to ask says what it is waiting for, and only when a
+ * person is the one it waits on.
+ */
+function runNotice(thread: Thread, active: ActiveRun, event: RunEvent, surfacing: RunSurfacing | null): { headline: string; reason: NoticeReason } | null {
+  if (active.origin === "composer" && event.type === "approval.requested") return { headline: `Waiting for your permission to use ${event.intent.name}`, reason: "waiting" };
+  if (active.origin === "composer" && event.type === "question.requested") return { headline: event.request.questions[0].question, reason: "waiting" };
+  const headline = settledHeadline(surfacing, event.type === "run.status" ? event.message : undefined);
+  if (!headline) return null;
+  if (surfacing === "failed") return { headline, reason: "failed" };
+  return { headline: (isCoordinator(thread) && postedHeadline(thread, active.messagesBefore)) || headline, reason: "finished" };
 }
 
 function reduceReview(state: WorkspaceState, input: ReviewInput): WorkspaceTransition {

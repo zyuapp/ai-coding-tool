@@ -33,12 +33,15 @@ export type WorkspaceHeaderProps = {
   onSetThreadRole: (threadId: string, role: ThreadRole | null) => void;
   coordinators: Thread[];
   onSetCoordinator: (threadId: string, coordinatorId: string | null) => void;
+  /** Whether desktop notices are on at all, which a coordinator's mute only narrows. */
+  notifications: boolean;
+  onSetMuted: (threadId: string, muted: boolean) => void;
   onToggleSidebar: () => void;
   onToggleSessionPanel: () => void;
   onToggleRightDock: () => void;
 };
 
-function ThreadHeading({ currentThread, folder, folderLabel, host, openMenu, onSetOpenMenu, onRenameThread, onForkThread, onArchiveThread, onSetThreadRole, coordinators, onSetCoordinator }: Pick<WorkspaceHeaderProps, "currentThread" | "folder" | "folderLabel" | "host" | "openMenu" | "onSetOpenMenu" | "onRenameThread" | "onForkThread" | "onArchiveThread" | "onSetThreadRole" | "coordinators" | "onSetCoordinator">) {
+function ThreadHeading({ currentThread, folder, folderLabel, host, openMenu, onSetOpenMenu, onRenameThread, onForkThread, onArchiveThread, onSetThreadRole, coordinators, onSetCoordinator, notifications, onSetMuted }: Pick<WorkspaceHeaderProps, "currentThread" | "folder" | "folderLabel" | "host" | "openMenu" | "onSetOpenMenu" | "onRenameThread" | "onForkThread" | "onArchiveThread" | "onSetThreadRole" | "coordinators" | "onSetCoordinator" | "notifications" | "onSetMuted">) {
   const name = useRenaming((threadId, value) => { if (value.trim()) onRenameThread(threadId, value); });
   return (
     <div className="thread-heading-line">
@@ -76,13 +79,15 @@ function ThreadHeading({ currentThread, folder, folderLabel, host, openMenu, onS
           onSetRole: (role) => onSetThreadRole(currentThread.id, role),
           coordinators,
           onSetCoordinator: (coordinatorId) => onSetCoordinator(currentThread.id, coordinatorId),
+          notifications,
+          onSetMuted: (muted) => onSetMuted(currentThread.id, muted),
         })}
       />}
     </div>
   );
 }
 
-export function WorkspaceHeader({ currentThread, folder, folderLabel, host, sidebarOpen, sessionPanelOpen, rightDockOpen, workingSubagents, openMenu, canOpenFolder, apps, onListApps, onSetOpenMenu, onOpenInApp, onRenameThread, onForkThread, onArchiveThread, onSetThreadRole, coordinators, onSetCoordinator, onToggleSidebar, onToggleSessionPanel, onToggleRightDock }: WorkspaceHeaderProps) {
+export function WorkspaceHeader({ currentThread, folder, folderLabel, host, sidebarOpen, sessionPanelOpen, rightDockOpen, workingSubagents, openMenu, canOpenFolder, apps, onListApps, onSetOpenMenu, onOpenInApp, onRenameThread, onForkThread, onArchiveThread, onSetThreadRole, coordinators, onSetCoordinator, notifications, onSetMuted, onToggleSidebar, onToggleSessionPanel, onToggleRightDock }: WorkspaceHeaderProps) {
   return (
     <header className={`topbar ${sidebarOpen ? "" : "traffic-inset"}`.trimEnd()}>
       <div className="task-heading">
@@ -110,6 +115,8 @@ export function WorkspaceHeader({ currentThread, folder, folderLabel, host, side
             onSetThreadRole={onSetThreadRole}
             coordinators={coordinators}
             onSetCoordinator={onSetCoordinator}
+            notifications={notifications}
+            onSetMuted={onSetMuted}
           />
           {!folder && <p>Choose a project folder to begin</p>}
         </div>

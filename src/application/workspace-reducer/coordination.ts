@@ -18,7 +18,7 @@ import { dismissed } from "../../domain/attention.js";
 import { resumesOnItsOwn } from "../../domain/usage-limit.js";
 
 type CoordinationInput = Extract<WorkspaceInput, {
-  type: "task.set-coordinator" | "task.resolve" | "task.reopen" | "decision.answer" | "coordination.set-thread-model" | "coordination.reported" | "coordination.decision-raised"
+  type: "task.set-coordinator" | "task.resolve" | "task.reopen" | "decision.answer" | "coordination.set-thread-model" | "coordination.set-muted" | "coordination.reported" | "coordination.decision-raised"
     | "memory.set-purpose" | "memory.add" | "memory.edit" | "memory.forget" | "coordination.remembered" | "coordination.next-step"
     | "coordination.proposed" | "proposal.start" | "proposal.dismiss";
 }>;
@@ -104,6 +104,13 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       return settled(updateThread(state, lead.id, (item) => ({ ...item, threadModel, updatedAt: now() })));
     }
 
+    /** Muting is the user's word on a coordinator's notices; it marks nothing in the sidebar. */
+    case "coordination.set-muted": {
+      const lead = state.threads.find((item) => item.id === input.taskId);
+      if (!lead || !isCoordinator(lead) || (lead.muted === true) === input.muted) return settled(state);
+      return settled(updateThread(state, lead.id, ({ muted: _was, ...item }) => ({ ...item, ...(input.muted ? { muted: true as const } : {}), updatedAt: now() })));
+    }
+
     /** The user's own edits, which the coordinator's session has yet to read. */
     case "memory.set-purpose":
       return remembered(state, input.taskId, { kind: "purpose", purpose: input.purpose }, false);
@@ -160,7 +167,8 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
 
     /**
      * Progress is not news: only a thread that is blocked, done or failed leaves its coordinator a
-     * note, which it hears with the rest when the thread's turn ends.
+     * note, which it hears with the rest when the thread's turn ends. One that cannot go on is the
+     * user's to hear about at once.
      */
     case "coordination.reported": {
       const thread = state.threads.find((item) => item.id === input.taskId);
@@ -170,7 +178,9 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       const reported = updateThread(state, thread.id, (item) => ({ ...item, report: { state: input.state, summary: input.summary, at } }));
       if (input.state === "working") return settled(reported);
       const note = coordinationNote(thread.id, `"${thread.title}" reported ${input.state}: ${input.summary}`, at, { urgent: input.state !== "done", runId: state.activeRuns[thread.id]?.runId });
-      return settled(updateThread(reported, lead.id, (item) => withCoordinationNote(item, note)));
+      const noted = updateThread(reported, lead.id, (item) => withCoordinationNote(item, note));
+      if (input.state === "done") return settled(noted);
+      return settled(noted, announced(noted, thread, `${input.state === "blocked" ? "Blocked" : "Failed"}: ${input.summary}`, "blocked"));
     }
 
     /** The user is told at once; the coordinator hears it with the rest when the thread's turn ends. */
@@ -187,10 +197,10 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
         raisedAt: at,
       };
       const raised = updateThread(state, thread.id, (item) => withDecision(item, decision));
-      if (lead === thread) return settled(raised, announced(raised, lead, `Needs you: ${decision.question}`));
+      if (lead === thread) return settled(raised, announced(raised, lead, `Needs you: ${decision.question}`, "decision"));
       const asked = coordinationNote(thread.id, `"${thread.title}" asked the user to decide: ${decision.question}`, at, { runId: state.activeRuns[thread.id]?.runId });
       const noted = updateThread(raised, lead.id, (item) => withCoordinationNote(item, asked));
-      return settled(noted, announced(noted, lead, `Needs you: ${decision.question}`));
+      return settled(noted, announced(noted, lead, `Needs you: ${decision.question}`, "decision"));
     }
   }
 }

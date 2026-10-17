@@ -90,8 +90,9 @@ export function briefPrompt(brief: ThreadBrief | undefined, memory = ""): string
   ].join("\n");
 }
 
-function lastReply(thread: Thread): string | undefined {
-  for (let index = thread.messages.length - 1; index >= 0; index -= 1) {
+/** The last thing the thread said, from the message at `from` on, so a turn's reply is only ever its own. */
+export function lastReply(thread: Thread, from = 0): string | undefined {
+  for (let index = thread.messages.length - 1; index >= from; index -= 1) {
     const message = thread.messages[index]!;
     if (message.kind === "assistant" && message.text.trim()) return message.text.trim();
   }

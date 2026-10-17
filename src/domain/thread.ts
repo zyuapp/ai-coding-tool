@@ -37,6 +37,8 @@ export type Thread = {
   memory?: CoordinatorMemory;
   /** On a coordinator: threads it suggested that wait for the user to start or dismiss them. */
   proposals?: ThreadProposal[];
+  /** On a coordinator: set while the user wants no desktop notice from it or its threads. */
+  muted?: true;
   projectId?: string;
   executionPolicy: ExecutionPolicy;
   engine: AgentEngine;
