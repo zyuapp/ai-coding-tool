@@ -76,6 +76,7 @@ const features: { name: string; on: Settings; told?: RegExp; offered?: string }[
   { name: "worktrees", on: { threads }, told: /When the user asks for work in a worktree, use the AICodingTool worktree tools/, offered: "move_to_worktree" },
   { name: "coordinator", on: { coordinationRole: "coordinator", coordination }, told: /You are a coordinator/, offered: "raise_decision" },
   { name: "coordinated member", on: { coordinationRole: "member", coordination }, told: /Call report_status/, offered: "report_status" },
+  { name: "a member that cannot reach something", on: { coordinationRole: "member", coordination }, told: /say exactly what's missing and stop\. Don't substitute, mock, or guess\. Say it with report_status as blocked\./ },
   { name: "browser panel", on: { browser }, told: /browser panel is a real browser/, offered: "browser_open" },
   { name: "terminal panel", on: { terminal }, told: /terminal_list and terminal_read/, offered: "terminal_read" },
   { name: "side chat", on: { channel: "side" }, told: /You are in an AICodingTool side chat/ },

@@ -15,6 +15,7 @@ export const COORDINATOR_INSTRUCTIONS = [
 export const MEMBER_INSTRUCTIONS = [
   "This thread works under a coordinator thread in AI Coding Tool. Its brief is in your first message; stay within it.",
   "Call report_status when you are blocked, done, or failed. A done report names what you delivered: the pull request URL, the commits, or the report.",
+  "If you can't reach something you need, say exactly what's missing and stop. Don't substitute, mock, or guess. Say it with report_status as blocked.",
   "When a choice would change the scope of the brief, or only the user can make it, call raise_decision with the options and your recommendation, then end your turn; the answer arrives here as a message.",
   "A message another thread sent names that thread. Credit what it asks to that thread alone, and refer to threads by their ID.",
 ].join("\n");
