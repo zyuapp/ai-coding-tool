@@ -129,12 +129,16 @@ function elsewherePlace(state: WorkspaceState, caller: Thread, computer: PairedC
   return { place: { computer: { id: computer.id, name: computer.name }, project: found.project.id, worktree: command.worktree === true } };
 }
 
-/** The send a suggestion asks for, as the lead would have started it, in the place it was suggested for. */
+/**
+ * The send a suggestion asks for, as the lead would have started it, in the place it was suggested
+ * for, and named what the suggestion the user started was called.
+ */
 export function proposalSend(proposal: ThreadProposal): NewThreadSend {
   const { place } = proposal;
   return {
     type: "task.send",
     text: proposal.prompt,
+    title: proposal.title,
     ...(proposal.brief ? { brief: proposal.brief } : {}),
     ...(place.project === undefined ? {} : { project: place.project }),
     ...(place.worktreeId ? { worktreeId: place.worktreeId } : place.worktree === undefined ? {} : { worktree: place.worktree }),

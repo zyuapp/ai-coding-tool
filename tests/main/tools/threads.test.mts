@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
+import { z } from "zod";
 import { ThreadChannel } from "../../../src/main/agent/thread-channel.mts";
 import { threadTools } from "../../../src/main/tools/threads.mts";
 import type { ThreadBridge } from "../../../src/main/agent/agent-provider.mts";
@@ -133,6 +134,20 @@ test("starting, messaging, archiving and stopping go through the command surface
 
   await toolNamed(bridge, "stop_thread").handler({ threadId: "task-4" }, {});
   assert.deepEqual(bridge.calls.at(-1), ["command", { type: "run.cancel", taskId: "task-4" }]);
+});
+
+test("a thread can be started under a name of a few words, by any thread and any coordinator", async () => {
+  const bridge = fakeBridge();
+  await toolNamed(bridge, "start_thread").handler({ prompt: "Add multiply(a, b) to src/math.js", title: "Add multiply to math.js" }, {});
+  assert.deepEqual(bridge.calls.at(-1), ["command", { type: "task.send", text: "Add multiply(a, b) to src/math.js", title: "Add multiply to math.js" }]);
+
+  for (const role of [undefined, "coordinator", "member"] as const) {
+    const input = z.object(threadTools(bridge, () => NOW, role).find((tool) => tool.name === "start_thread")!.input);
+    assert.equal(input.safeParse({ prompt: "Fix it", title: "Fix login" }).success, true, role ?? "any thread");
+    assert.equal(input.safeParse({ prompt: "Fix it" }).success, true, "a name is optional");
+    assert.equal(input.safeParse({ prompt: "Fix it", title: "  " }).success, false, "a blank name is refused");
+    assert.equal(input.safeParse({ prompt: "Fix it", title: "x".repeat(121) }).success, false);
+  }
 });
 
 test("deleting a worktree names it by id and reports what became of its loose work", async () => {

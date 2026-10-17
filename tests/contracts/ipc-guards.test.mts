@@ -445,6 +445,9 @@ test("coordination requests and briefs are checked at the boundary, and only the
   assert.equal(isExternalCommand({ type: "task.send", text: "Fix", brief }), true);
   assert.equal(isExternalCommand({ type: "task.send", text: "Fix", brief: { ...brief, delivers: "merge" } }), false);
   assert.equal(isExternalCommand({ type: "task.send", taskId: "task-1", text: "Fix", brief }), false, "a brief belongs to a thread being started");
+  assert.equal(isExternalCommand({ type: "task.send", text: "Fix", brief, title: "Fix the login flake" }), true);
+  assert.equal(isExternalCommand({ type: "task.send", taskId: "task-1", text: "Fix", title: "Fix the login flake" }), false, "so does the name it starts with");
+  for (const title of ["", "   ", "x".repeat(121), 7]) assert.equal(isExternalCommand({ type: "task.send", text: "Fix", title }), false, "a name with no words, or one too long, is refused");
   assert.equal(isExternalCommand({ type: "task.send", text: "Fix", coordinatorId: "lead" }), false);
   assert.equal(isExternalCommand({ type: "task.send", taskId: "task-1", text: "Fix", from: "lead" }), false, "only the window names a message's sender");
 });

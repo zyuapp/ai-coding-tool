@@ -4,7 +4,7 @@ import type { ThreadSummary, ThreadTranscript } from "../../contracts/threads.js
 import { AGENT_ENGINES, isAgentEffort, isAgentModel, modelDelegable, modelsFor, type AgentModel } from "../../domain/agent-engine.js";
 import type { AgentEffort } from "../../domain/run.js";
 import { THREAD_ROLES, type ThreadRole } from "../../domain/thread-role.js";
-import { DELIVERIES, MAX_BRIEF_FIELD, type CoordinationRole, type Delivery } from "../../domain/coordination.js";
+import { DELIVERIES, MAX_BRIEF_FIELD, MAX_PROPOSAL_TITLE, type CoordinationRole, type Delivery } from "../../domain/coordination.js";
 import type { ThreadBridge } from "../agent/agent-provider.mjs";
 import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";
 
@@ -48,6 +48,7 @@ const memberComputerField = z.string().optional().describe("A paired computer to
 /** What a start takes beyond the computer it runs on. */
 const NEW_THREAD_INPUT = {
   prompt: z.string().describe("The first message of the new thread. It has none of this conversation's context, so say everything it needs."),
+  title: z.string().trim().min(1).max(MAX_PROPOSAL_TITLE).optional().describe("A few words naming what the new thread does, shown wherever it is listed. Omit to have it named from its prompt."),
   project: z.string().optional().describe("Which project to start it in: its folder name, its path, or its id. Defaults to this thread's project, or on a paired computer the project there at the same path or with the same folder name."),
   worktree: z.boolean().optional().describe("Run the new thread in its own new git worktree, detached at whatever the project has checked out, so its edits never touch this thread's checkout."),
   worktreeId: z.string().optional().describe("Start the thread in another worktree that already exists, as list_threads reports it, on the computer it starts on. Omit both worktree fields to share this thread's checkout. Takes precedence over worktree."),
@@ -74,6 +75,7 @@ function ledStartInput(whose: string) {
 export const COORDINATOR_START_INPUT = { ...ledStartInput("this coordinator's"), computer: ledComputerField };
 
 type NewThreadArgs = {
+  title?: string | undefined;
   intent?: string | undefined;
   doneWhen?: string | undefined;
   delivers?: Delivery | undefined;
@@ -90,6 +92,7 @@ export function newThreadFields(args: NewThreadArgs) {
   const { intent, doneWhen, delivers } = args;
   return {
     ...(intent && doneWhen && delivers ? { brief: { intent, doneWhen, delivers } } : {}),
+    ...(args.title ? { title: args.title } : {}),
     ...(args.project ? { project: args.project } : {}),
     ...(args.worktreeId ? { worktreeId: args.worktreeId } : args.worktree ? { worktree: true } : {}),
     ...(args.model ? { model: args.model } : {}),

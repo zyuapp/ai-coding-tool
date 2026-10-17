@@ -31,7 +31,7 @@ test("naming a thread on Codex runs one read-only, ephemeral exec held to a titl
   assert.equal(args[args.indexOf("-c") + 1], 'model_reasoning_effort="low"');
   assert.equal(args.at(-1), "-", "the prompt goes in on stdin");
   assert.equal(args.includes("-i"), false);
-  assert.match(capture.input!, /^You name chat threads\./);
+  assert.match(capture.input!, /^You title chat threads\./);
   assert.match(capture.input!, /<message>\nInspect the app and tell me what breaks\n<\/message>/);
   const schema = JSON.parse(await readFile(args[args.indexOf("--output-schema") + 1]!, "utf8").catch(() => "null"));
   assert.equal(schema, null, "the schema and the answer are cleaned up with the run");
@@ -42,11 +42,13 @@ test("a long message is cut before it is sent, and a long answer is cut to a tit
   const capture: Capture = {};
   const title = await suggestCodexTitle("x".repeat(5_000), [], exec(`{"title":"${"A".repeat(80)}"}`, capture));
   assert.ok(title && title.length < 80);
-  assert.ok(capture.input!.length < 2_300);
+  assert.ok(capture.input!.length < 2_500);
 });
 
 test("nothing usable comes back as no title, so the thread keeps the name it has", async () => {
   assert.equal(await suggestCodexTitle("hi", [], exec('{"title":"   "}')), null);
+  assert.equal(await suggestCodexTitle("Reply Ready and await my first request", [], exec('{"title":"Ready Reply"}')), null, "an answer to the message is no title");
+  assert.equal(await suggestCodexTitle("Add multiply to math.js", [], exec('{"title":"Thread naming request"}')), null, "nor is the writer's own task");
   assert.equal(await suggestCodexTitle("hi", [], exec("not json")), null);
   assert.equal(await suggestCodexTitle("hi", [], exec('{"name":"x"}')), null);
   assert.equal(await suggestCodexTitle("hi", [], exec(null)), null, "an exec that wrote nothing");
@@ -65,5 +67,5 @@ test("screenshots ride along as images, skipping ones that are missing or too bi
   assert.equal(title, "Sidebar overlap");
   const args = capture.args!;
   assert.deepEqual(args.filter((_arg, index) => args[index - 1] === "-i"), [shot]);
-  assert.match(capture.input!, /Name this thread from the screenshots it starts with\./);
+  assert.match(capture.input!, /Write the title of the thread that starts with these screenshots\./);
 });

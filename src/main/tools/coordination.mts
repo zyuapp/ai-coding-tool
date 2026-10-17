@@ -87,20 +87,21 @@ const SET_PURPOSE = defineTool({
 
 const PROPOSE_THREADS = defineTool({
   name: "propose_threads",
-  description: "Suggest threads for the user to start, rather than starting them. Each takes what start_thread takes, brief included, and a short title. Nothing starts until the user starts it; you hear from each one they start once it ends a turn.",
+  description: "Suggest threads for the user to start, rather than starting them. Each takes what start_thread takes, brief included, and must have a title. Nothing starts until the user starts it; you hear from each one they start once it ends a turn.",
   input: {
     threads: z.array(z.object({
-      title: z.string().trim().min(1).max(MAX_PROPOSAL_TITLE).describe("A few words that label the suggestion for the user."),
       ...COORDINATOR_START_INPUT,
+      /** Every suggestion is labelled for the user, and the thread started from it keeps the label as its name. */
+      title: z.string().trim().min(1).max(MAX_PROPOSAL_TITLE).describe("A few words naming what the thread does, which label the suggestion for the user and name the thread once it starts."),
       /** A blank item is refused here, on its own field, rather than failing every suggestion in the call. */
       prompt: COORDINATOR_START_INPUT.prompt.trim().min(1),
     })).min(1).max(MAX_PROPOSALS).describe("The threads to suggest, one per piece of work."),
   },
   readOnly: false,
   run: (bridge: CoordinationBridge, args) => answered(() => bridge.propose(args.threads.map((thread) => ({
+    ...newThreadFields(thread),
     title: thread.title,
     prompt: thread.prompt,
-    ...newThreadFields(thread),
     ...(thread.computer ? { computer: thread.computer } : {}),
   })))),
 });

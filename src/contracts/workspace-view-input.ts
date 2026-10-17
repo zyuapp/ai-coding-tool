@@ -2,7 +2,7 @@ import type { AppCommand } from "./commands.js";
 import { isTerminalDimension, MAX_TERMINAL_INPUT } from "./terminal.js";
 import { isSnoozeHours } from "../domain/thread-snooze.js";
 import { isThreadRole } from "../domain/thread-role.js";
-import { isNextStep, isOverviewSection, isThreadBrief, MAX_MEMORY_PROMPT } from "../domain/coordination.js";
+import { isNextStep, isOverviewSection, isThreadBrief, MAX_MEMORY_PROMPT, MAX_PROPOSAL_TITLE } from "../domain/coordination.js";
 import type { WorkspaceEvent } from "../application/workspace-reducer.js";
 import { isBrowserAction, isString, MAX_PROMPT_LENGTH } from "./ipc.js";
 import type { ExternalCommand } from "./threads.js";
@@ -81,6 +81,8 @@ const runAttachment = object<RunAttachment>({ path: text, labels: array(text), c
 const pastedText = object<PastedText>({ id: text, text });
 const remoteSender = object<RemoteSender>({ threadId: deviceId, title: text, computer: deviceId });
 const memoryText: Validator<string> = (value): value is string => typeof value === "string" && value.length <= MAX_MEMORY_PROMPT;
+/** The name a thread starts with holds words, and runs no longer than a suggestion's, which becomes one. */
+const startTitle: Validator<string> = (value): value is string => typeof value === "string" && value.trim().length > 0 && value.length <= MAX_PROPOSAL_TITLE;
 const proposalPlace = object<{ project: string; worktree: boolean }>({ project: text, worktree: boolean });
 const attachedFileDraft = object<AttachedFileDraft>({ path: text, name: text, folder: optional(literals(true)) });
 const attachedFile = object<AttachedFile>({ id: text, path: text, name: text, folder: optional(literals(true)) });
@@ -141,8 +143,8 @@ function agentSend(command: Extract<AppCommand, { type: "task.send" }>): boolean
     && agentId(command.worktreeId)
     /** Only the window says which coordinator a thread works under, what it reads of it, and which thread a message came from. */
     && command.coordinatorId === undefined && command.lead === undefined && command.memory === undefined && command.from === undefined && command.sender === undefined
-    /** Agent selection, the role and the brief belong to a thread being created, never one that already exists. */
-    && (command.taskId === undefined || command.model === undefined && command.effort === undefined && command.role === undefined && command.brief === undefined);
+    /** Agent selection, the role, the brief and the title belong to a thread being created, never one that already exists. */
+    && (command.taskId === undefined || command.model === undefined && command.effort === undefined && command.role === undefined && command.brief === undefined && command.title === undefined);
 }
 
 /** An id, never a path or the thread on screen, and never the folder-is-gone shortcut. */
@@ -285,7 +287,7 @@ const commands = {
   "task.checkout-branch": { fields: { taskId: optionalText, branch: text, create: optionalBoolean }, at: "thread" },
   "attachments.send": { fields: { taskId: optionalText, steer: optionalBoolean, attachments: array(outgoingAttachment) }, at: "own" },
   "attachments.notice": { fields: { taskId: optionalText, message: nullableText }, at: "local" },
-  "task.send": { fields: { taskId: optionalText, project: optionalText, text: optionalText, attachments: optional(array(runAttachment)), steer: optionalBoolean, worktree: optionalBoolean, worktreeId: optionalText, model: optional(isAgentModel), effort: optional(isAgentEffort), role: optional(isThreadRole), coordinatorId: optionalText, brief: optional(isThreadBrief), from: optionalText, sender: optional(remoteSender), lead: optional(remoteSender), memory: optional(memoryText) }, at: "own", agent: agentSend },
+  "task.send": { fields: { taskId: optionalText, project: optionalText, text: optionalText, attachments: optional(array(runAttachment)), steer: optionalBoolean, worktree: optionalBoolean, worktreeId: optionalText, model: optional(isAgentModel), effort: optional(isAgentEffort), role: optional(isThreadRole), coordinatorId: optionalText, brief: optional(isThreadBrief), title: optional(startTitle), from: optionalText, sender: optional(remoteSender), lead: optional(remoteSender), memory: optional(memoryText) }, at: "own", agent: agentSend },
   "task.steer-queued": { fields: { taskId: optionalText, messageId: text }, at: "thread" },
   "task.drop-queued": { fields: { taskId: optionalText, messageId: text }, at: "thread" },
   "task.edit-queued": { fields: { taskId: optionalText, messageId: text }, at: "own" },

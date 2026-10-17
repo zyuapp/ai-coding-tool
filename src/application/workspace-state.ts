@@ -25,9 +25,8 @@ import { AUTOMATION_PANEL, DIFF_PANEL, dockFor, dockOwner, dockSideChats, dockSu
 export {
   AUTOMATION_PANEL, DIFF_PANEL, DOCK_PICKER, DRAFT_DOCK, EMPTY_DOCK, OVERVIEW_PANEL, WORKFLOW_PANEL, activeBrowserTab, activeTerminal, browserTarget,
   dockFor, dockSubject, dockHoldsTab, dockOwner, dockSideChats, dockTabAfterClosing, dockTabIds, dockTabKind, frontDock,
-  keyboardTerminalId, keyboardThreadId, ownerOfBrowserTab, ownerOfTerminal, shownThreadTab, tabHolderOf, terminalTarget, withDock,
+  keyboardTerminalId, keyboardThreadId, ownerOfBrowserTab, ownerOfTerminal, shownThreadTab, tabHolderOf, terminalTarget, withDock, type ThreadDock,
 } from "./workspace-dock.js";
-export type { ThreadDock } from "./workspace-dock.js";
 import { diffFor, type DiffState } from "./workspace-diff.js";
 import { jumpView } from "./workspace-jump.js";
 import { shownViewCollections, workspaceViewCollections } from "./workspace-view-collections.js";
@@ -111,8 +110,9 @@ export type PendingRun = {
   coordination?: CoordinationSend;
   /** Composer only: which draft to clear once the run starts. */
   draftKey?: string;
-  /** What the user typed, before attachments are appended. Titles a brand new thread. */
+  /** What the user typed, before attachments are appended. Titles a brand new thread that `title` does not name. */
   text: string;
+  title?: string;
   prompt: string;
   attachments: string[];
   annotations?: Annotation[];

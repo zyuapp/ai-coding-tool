@@ -269,7 +269,7 @@ async function commandElsewhere(host: ThreadRequestHost, computer: PairedCompute
 async function proposeElsewhere(host: ThreadRequestHost, caller: Thread, lead: Thread, computer: PairedComputer, command: NewThreadSend): Promise<ThreadCommandResult> {
   const { type: _type, text, taskId: _new, attachments: _attachments, steer: _steer, ...asked } = command;
   const prompt = text ?? "";
-  const made = threadProposal(host.state(), caller, { ...asked, title: clampTitle(prompt), prompt }, Date.now(), computer);
+  const made = threadProposal(host.state(), caller, { ...asked, title: asked.title ?? clampTitle(prompt), prompt }, Date.now(), computer);
   if ("error" in made) throw new Error(made.error);
   const kept = await fileProposals(host, lead.id, [made.proposal]);
   if (!kept.has(made.proposal.id)) throw new Error(PROPOSALS_FULL);

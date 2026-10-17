@@ -217,6 +217,33 @@ test("a coordinator's threads run on the model chosen for them, not its own", as
   await workspace.view.unmount();
 });
 
+test("a thread its coordinator names keeps that name on either engine, and no title is written for it", async () => {
+  const lead: Thread = {
+    id: "lead", title: "lead", role: "coordinator", engine: "claude", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+  };
+  const titled: string[] = [];
+  const desktop = fakeDesktop({
+    loadTaskStore: async () => ({ version: 2, hiddenTasks: 0, projects: [], worktrees: [], tasks: [lead], lastFolder: null }),
+    suggestTaskTitle: async (text) => { titled.push(text); return "Written title"; },
+  });
+  const workspace = await mountWorkspace(desktop);
+  await settleFrame();
+  const brief = { intent: "add multiply", doneWhen: "it is merged", delivers: "pull-request" as const };
+
+  for (const model of ["opus", "gpt-6-luna"] as const) {
+    await act(async () => {
+      await desktop.askThreads({ type: "thread.request", requestId: crypto.randomUUID(), taskId: "lead", op: "command", command: { type: "task.send", text: "In this repo, add multiply(a, b) and open a pull request.", title: "Add multiply to math.js", brief, model } });
+    });
+    const started = item(threadCommandResult(desktop.threadAnswers.at(-1)).thread);
+    assert.equal(started.title, "Add multiply to math.js", model);
+  }
+  await settleFrame();
+  assert.deepEqual(titled, [], "a named thread costs no title");
+  assert.equal(workspace.get().threads.filter((thread) => thread.title === "Add multiply to math.js").length, 2);
+
+  await workspace.view.unmount();
+});
+
 test("only a coordinator keeps a memory, and its tool answer names the note it saved", async () => {
   const thread = (id: string, overrides: Partial<Thread>): Thread => ({
     id, title: id, engine: "claude", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, ...overrides,

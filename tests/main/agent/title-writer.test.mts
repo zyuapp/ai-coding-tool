@@ -57,6 +57,8 @@ test("a title longer than a row is clipped, and a message longer than the limit 
 
 test("a thread keeps the title it already has when naming produces nothing", async () => {
   assert.equal(await suggestTaskTitle("hi", [], queryFactory(result("  "))), null);
+  assert.equal(await suggestTaskTitle("Reply Ready and await my first request", [], queryFactory(result("Ready Reply"))), null, "an answer to the message is no title");
+  assert.equal(await suggestTaskTitle("Add multiply to math.js", [], queryFactory(result("Name this thread"))), null, "nor is the writer's own task");
   assert.equal(await suggestTaskTitle("hi", [], queryFactory([{ type: "result", subtype: "error_during_execution", errors: ["nope"] }])), null);
   assert.equal(await suggestTaskTitle("hi", [], queryFactory([])), null);
   assert.equal(await suggestTaskTitle("hi", [], queryFactory([{ type: "result", subtype: "success", is_error: false, result: "I don't have access to your previous chat threads" }])), null);

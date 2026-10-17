@@ -278,6 +278,21 @@ test("only a thread the send just created is named, from what the user typed and
   );
 });
 
+test("a thread started under a name keeps it, and no title is written for it", () => {
+  const sending = reduce(workspace(), { type: "task.send", text: "In this repo, add a multiply(a, b) function and open a pull request.", title: "  Add multiply to math.js  " });
+  const started = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+
+  assert.equal(started.state.threads[0].title, "Add multiply to math.js");
+  assert.equal(started.state.threads[0].titleByUser, undefined, "the user can still have it renamed for them later");
+  assert.equal(started.effects.some((effect) => effect.type === "suggest-title"), false);
+  assert.equal(effectAt(started, "start-run").command.title, "Add multiply to math.js");
+
+  const existing = task("task-a", { title: "Inspect the app" });
+  const followUp = reduce(workspace({ threads: [existing] }), { type: "task.send", taskId: "task-a", text: "Now check the reducer", title: "Reducer check" });
+  const resumed = reduce(followUp.state, { type: "run.resolved", pendingId: effectAt(followUp, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+  assert.equal(resumed.state.threads[0].title, "Inspect the app", "a thread that exists keeps its name");
+});
+
 test("choosing another engine's model moves the draft onto that engine, but never a thread that has a message", () => {
   const drafted = reduce(workspace({ draftEngine: "codex", draftModel: "gpt-6.1-sol", draftEffort: "ultra" }), { type: "task.set-model", engine: "claude", model: "sonnet" }).state;
   assert.equal(drafted.draftEngine, "claude");

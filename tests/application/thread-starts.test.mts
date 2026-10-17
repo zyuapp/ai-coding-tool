@@ -115,11 +115,11 @@ test("a suggestion is checked as its start would be, and kept in the place that 
   assert.deepEqual(suggest({ worktreeId: "wt-gone" }), { error: WORKTREE_MISSING_ERROR });
   assert.deepEqual(suggest({ project: PROJECT.id, worktreeId: "wt-other" }), { error: WORKTREE_ELSEWHERE_ERROR });
 
-  /** Starting it later asks for exactly what it was suggested with, in the place it was suggested for. */
+  /** Starting it later asks for exactly what it was suggested with, in the place it was suggested for, under the name it was suggested by. */
   assert.deepEqual(proposalSend(kept({ model: "gpt-6-luna", effort: "low", role: "reviewer" })), {
-    type: "task.send", text: "Fix it", brief: BRIEF, project: PROJECT.id, worktreeId: "wt-lead", model: "gpt-6-luna", effort: "low", role: "reviewer",
+    type: "task.send", text: "Fix it", title: "Fix login", brief: BRIEF, project: PROJECT.id, worktreeId: "wt-lead", model: "gpt-6-luna", effort: "low", role: "reviewer",
   });
-  assert.deepEqual(started(newThreadSend(state, lead, proposalSend(plain), null)), started(newThreadSend(state, lead, send({ brief: BRIEF }))), "a suggestion starts as the coordinator would have started it");
+  assert.deepEqual(started(newThreadSend(state, lead, proposalSend(plain), null)), started(newThreadSend(state, lead, send({ brief: BRIEF, title: "Fix login" }))), "a suggestion starts as the coordinator would have started it");
 });
 
 test("a thread asked for on a paired computer waits in the project there its start resolves to", () => {

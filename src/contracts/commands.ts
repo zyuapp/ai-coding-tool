@@ -173,11 +173,12 @@ export type TaskCommand =
    * and names the project itself, so a `project` that disagrees with it is refused. Naming one takes
    * precedence over asking for a new one. `model`, `effort` and `role` apply only to a new task and leave
    * the shared draft settings alone, as do `coordinatorId`, which starts it under that coordinator, and
-   * the `brief` it is handed. `from` names the thread that sent the message, which both the agent and
-   * the user are shown. `lead` starts it under a coordinator on another computer, which hands it the
-   * `memory` it keeps as the thread reads it.
+   * the `brief` it is handed, and `title`, which names it in place of a title written from its first
+   * message. `from` names the thread that sent the message, which both the agent and the user are
+   * shown. `lead` starts it under a coordinator on another computer, which hands it the `memory` it
+   * keeps as the thread reads it.
    */
-  | { type: "task.send"; taskId?: string; project?: string; text?: string; attachments?: RunAttachment[]; steer?: boolean; worktree?: boolean; worktreeId?: string; model?: AgentModel; effort?: AgentEffort; role?: ThreadRole; coordinatorId?: string; brief?: ThreadBrief; from?: string; sender?: RemoteSender; lead?: RemoteSender; memory?: string }
+  | { type: "task.send"; taskId?: string; project?: string; text?: string; attachments?: RunAttachment[]; steer?: boolean; worktree?: boolean; worktreeId?: string; model?: AgentModel; effort?: AgentEffort; role?: ThreadRole; coordinatorId?: string; brief?: ThreadBrief; title?: string; from?: string; sender?: RemoteSender; lead?: RemoteSender; memory?: string }
   /**
    * Sends the composer's message with the images in its strip, which are written out to disk first:
    * the run is started only once they are all there, and a failure to write one stops the send.

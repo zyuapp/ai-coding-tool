@@ -45,6 +45,8 @@ test("a coordinator's suggestions wait for the user, and one started works under
 
   const worker = required(started.state.threads.find((thread) => thread.parentId === "lead"));
   assert.deepEqual(worker.brief, BRIEF);
+  assert.equal(worker.title, "Fix login", "it is named what the suggestion the user started was called");
+  assert.equal(started.effects.some((effect) => effect.type === "suggest-title"), false);
   assert.equal(command.coordinationRole, "member");
   assert.equal(command.model, "opus");
   assert.equal(command.effort, "high");

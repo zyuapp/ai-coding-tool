@@ -29,7 +29,7 @@ import { createConversationMessage, createSentMessage } from "../../domain/conve
 import { appendMessages } from "../../domain/conversation-updates.js";
 import { pausedForLimit } from "../limit-pauses.js";
 import { isCoordinator, worksUnderCoordinator } from "../../domain/coordination.js";
-import type { Thread } from "../../domain/thread.js";
+import { clampTitle, type Thread } from "../../domain/thread.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
 
 type RunInput = Extract<WorkspaceInput, {
@@ -312,7 +312,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   const effort = effortForModel(model, pending.effort ?? (engineHasEffort(engine, state.draftEffort) ? state.draftEffort : defaultEffortFor(engine)));
   const thread: Thread = existing ?? {
     id: crypto.randomUUID(),
-    title: threadTitleFor(pending.text || pasteTitle(pending.pastes ?? []) || fileTitle(pending.files ?? []), pending.attachments.map((path) => ({ path, labels: [] }))),
+    title: pending.title ? clampTitle(pending.title) : threadTitleFor(pending.text || pasteTitle(pending.pastes ?? []) || fileTitle(pending.files ?? []), pending.attachments.map((path) => ({ path, labels: [] }))),
     ...(pending.projectId ? { projectId: pending.projectId } : {}),
     executionPolicy: state.draftPolicy,
     engine,
@@ -350,7 +350,8 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   const drained = pending.queuedIds
     ? withQueued(started, thread.id, queuedFor(started, thread.id).filter((message) => !pending.queuedIds!.includes(message.id)))
     : started;
-  const titling: WorkspaceEffect[] = existing || (!pending.text && pending.attachments.length === 0) ? [] : [{ type: "suggest-title", taskId: thread.id, engine: thread.engine, text: pending.text, attachments: pending.attachments }];
+  /** Only a new thread nobody named has a title written for it, read from what its first message says. */
+  const titling: WorkspaceEffect[] = existing || pending.title || (!pending.text && pending.attachments.length === 0) ? [] : [{ type: "suggest-title", taskId: thread.id, engine: thread.engine, text: pending.text, attachments: pending.attachments }];
   const command = {
     ...startRunCommand({ ...state, threads }, updated, pending.runId, prompt, workspace.id),
     ...((entering || inherited) && updated.continuation ? { forkContinuation: true as const } : {}),
