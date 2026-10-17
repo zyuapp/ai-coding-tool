@@ -297,15 +297,17 @@ function roster(state: WorkspaceState, leadId: string): string[] {
   const { working, blocked } = threadActivity(state);
   const standing = coordinationMembers(state, leadId).map((member) => {
     const activity = memberActivity(member, working, blocked);
-    return { ...coordinatedThreadStatus(member.thread, activity.working, activity.blocked), member };
+    return { ...coordinatedThreadStatus(member.thread, activity.working, activity.blocked), member, busy: activity.working.has(member.thread.id) };
   });
   const done = standing.filter(({ status }) => GROUP_OF[status] === "done");
   const recent = new Set(done.map(({ thread }) => thread).sort((left, right) => threadActivityAt(right) - threadActivityAt(left)).slice(0, ROSTER_DONE));
-  const lines = standing.flatMap(({ thread, status, summary, member }) => {
+  const lines = standing.flatMap(({ thread, status, summary, member, busy }) => {
     const group = GROUP_OF[status];
     if (group === "resolved" || group === "done" && !recent.has(thread)) return [];
     const parts = [`- "${thread.title}" [${thread.id}]${member.computer ? ` on ${member.computer.name}` : ""} · ${ROSTER_STATUS[memberStatus(state, member)]}`];
-    if (thread.report) parts.push(`reported ${thread.report.state}: ${thread.report.summary}`);
+    /** A report that it is working says nothing once its turn has ended, as its card reads it. */
+    const report = thread.report && (busy || thread.report.state !== "working") ? thread.report : undefined;
+    if (report) parts.push(`reported ${report.state}: ${report.summary}`);
     else if (status === "done") parts.push(`ended its turn without reporting${summary ? `; it last said: ${summary}` : ""}`);
     if (status === "needs-work" && summary) parts.push(`its pull request needs work: ${summary}`);
     if (status === "review" && summary) parts.push(`ready for review: ${summary}`);

@@ -4,7 +4,7 @@ import { coordinationContext } from "../../src/application/coordination.ts";
 import { coordinationView } from "../../src/application/coordination-view.ts";
 import type { ThreadBrief } from "../../src/domain/coordination.ts";
 import type { Thread } from "../../src/domain/thread.ts";
-import { task, workspace } from "./workspace-reducer-fixtures.mts";
+import { activeRun, task, workspace } from "./workspace-reducer-fixtures.mts";
 
 const BRIEF: ThreadBrief = { intent: "push the login fix", doneWhen: "it is on main", delivers: "commit" };
 
@@ -22,6 +22,7 @@ test("a thread that ends its turn without reporting reads as done in what it las
     lead(),
     member("unreported", { brief: BRIEF, outcome: "finished", messages: [reply] }),
     member("silent", { outcome: "finished" }),
+    member("progressed", { outcome: "finished", report: { state: "working", summary: "Halfway", at: 1 }, messages: [reply] }),
     member("reported", { outcome: "finished", report: { state: "done", summary: "Shipped", at: 1 }, messages: [reply] }),
     member("asking", { outcome: "finished", messages: [reply], decisions: [{ id: "d1", question: "Keep it?", options: [], raisedAt: 1 }] }),
     member("stopped", { outcome: "stopped", messages: [reply] }),
@@ -31,6 +32,7 @@ test("a thread that ends its turn without reporting reads as done in what it las
   assert.deepEqual(view.members.map(({ thread, status, summary }) => [thread.id, status, summary]), [
     ["unreported", "done", "Pushed commit a1b2c3d to main."],
     ["silent", "done", null],
+    ["progressed", "done", "Pushed commit a1b2c3d to main."],
     ["reported", "done", "Shipped"],
     ["asking", "asking", "Keep it?"],
     ["stopped", "idle", null],
@@ -39,7 +41,14 @@ test("a thread that ends its turn without reporting reads as done in what it las
   const context = coordinationContext(state, threads[0]);
   assert.match(context, /"Unreported" \[unreported\] · idle · ended its turn without reporting; it last said: Pushed commit a1b2c3d to main\.$/m);
   assert.match(context, /"Silent" \[silent\] · idle · ended its turn without reporting$/m);
+  assert.match(context, /"Progressed" \[progressed\] · idle · ended its turn without reporting; it last said: Pushed commit a1b2c3d to main\.$/m, "a report that it was working is no final report");
   assert.match(context, /"Reported" \[reported\] · idle · reported done: Shipped$/m, "a thread that reported says so instead");
   assert.doesNotMatch(context, /"Asking" [^\n]*without reporting/, "nor is one waiting on the user");
   assert.doesNotMatch(context, /"Stopped" [^\n]*without reporting/, "nor one that was stopped");
+});
+
+test("a thread still at work keeps the report that it is working in its coordinator's roster", () => {
+  const threads = [lead(), member("busy", { outcome: "finished", report: { state: "working", summary: "Halfway", at: 1 } })];
+  const context = coordinationContext(workspace({ threads, activeRuns: { busy: activeRun("busy", "run-busy") } }), threads[0]);
+  assert.match(context, /"Busy" \[busy\] · working · reported working: Halfway$/m);
 });
