@@ -367,6 +367,7 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
   box-shadow: 0 0 0 2.5px var(--sunken);
 }
 .thread-tab-mark > .coordination-dot { width: 9px; height: 9px; }
+.thread-tab-mark > .coordination-dot.review { box-shadow: inset 0 0 0 1.6px var(--success), 0 0 0 2.5px var(--sunken); }
 .thread-tab-mark > .task-spinner { width: 11px; height: 11px; border-width: 1.8px; background: var(--sunken); }
 .thread-tab-mark.asking, .thread-tab-mark.approval { border-color: var(--accent-line); background: var(--accent-surface); }
 .side-chat-title .thread-tab-status.asking, .side-chat-title .thread-tab-status.approval { color: var(--accent); }

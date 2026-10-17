@@ -302,8 +302,12 @@ export type OwnPullRequest = PullRequestLink & Pick<PullRequestRef, "state" | "t
 export function ownPullRequest(member: Thread): OwnPullRequest | null {
   const link = member.pullRequest;
   if (!link?.state || link.title === undefined) return null;
-  const owns = member.brief ? member.brief.delivers === "pull-request" : member.worktreeId !== undefined;
-  return owns ? link as OwnPullRequest : null;
+  return ownsPullRequest(member) ? link as OwnPullRequest : null;
+}
+
+/** Whether the pull request a thread's checkout is on would be its own work. */
+export function ownsPullRequest(member: Thread): boolean {
+  return member.brief ? member.brief.delivers === "pull-request" : member.worktreeId !== undefined;
 }
 
 const CHECKS_LINE: Record<PullRequestChecks, string> = { failing: "Checks failing", passing: "Checks passing", pending: "Checks pending" };

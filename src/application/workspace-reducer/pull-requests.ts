@@ -4,7 +4,7 @@ import { threadWorkspaceId } from "../thread-location.js";
 import { now, settled } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { ownPullRequest } from "../coordination.js";
-import { branchOf, memberCheckouts } from "../pull-request-view.js";
+import { awaitsPullRequest, branchOf, memberCheckouts } from "../pull-request-view.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import { dismissed } from "../../domain/attention.js";
 import { coordinatorOf, isCoordinator } from "../../domain/coordination.js";
@@ -32,7 +32,8 @@ export function reducePullRequests(state: WorkspaceState, input: PullRequestInpu
     }
     case "pull-request.read-members": {
       const lead = state.threads.find((thread) => thread.id === (input.taskId ?? state.currentId));
-      const ours = lead && isCoordinator(lead) ? memberCheckouts(state, lead.id) : new Map<string, Thread[]>();
+      /** Only checkouts an answer could still move a thread in are asked about; the answer is recorded on every thread in them. */
+      const ours = lead && isCoordinator(lead) ? memberCheckouts(state, lead.id, awaitsPullRequest) : new Map<string, Thread[]>();
       const everyone = everyMemberCheckout(state);
       /**
        * Merged, never replaced, so another coordinator's read still in flight keeps its place. Only a

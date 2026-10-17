@@ -140,7 +140,7 @@ test("a coordinator reads the pull request of every checkout its threads work in
 test("a member read takes only answers to member asks on its branch", () => {
   const state = projected({
     projects: [{ id: "a", root: "/a", workspaceId: "workspace-a" }, { id: "b", root: "/b", workspaceId: "workspace-b" }],
-    threads: [task("lead", { projectId: "a", role: "coordinator" }), task("one", { projectId: "b", parentId: "lead" })],
+    threads: [task("lead", { projectId: "a", role: "coordinator" }), task("one", { projectId: "b", parentId: "lead", brief: DELIVERS })],
     currentId: "lead",
   });
   const asked = reduce(state, { type: "pull-request.read-members" });
@@ -203,6 +203,7 @@ test("a member resolves itself when its own pull request merges, once", () => {
   assert.equal(typeof thread(merged, "one").resolvedAt, "number");
   assert.equal(thread(merged, "one").outcome, undefined, "resolving files its last run away, so it no longer holds its coordinator up");
   assert.equal(deriveView(merged).coordination.members[0]?.status, "resolved");
+  assert.equal(asksAfterMembers(merged), false, "a resolved member is not asked about again");
 
   const reopened = reduce(merged, { type: "task.reopen", taskId: "one" }).state;
   const again = memberAnswer(reopened, MERGED);
@@ -215,11 +216,23 @@ test("a member resolves itself when its own pull request merges, once", () => {
     threads: [task("lead", { projectId: "project-a", role: "coordinator" }), task("one", { projectId: "project-a", parentId: "lead" })],
     currentId: "lead",
   });
-  const users = memberAnswer(memberAnswer(sharing, OPEN), MERGED);
-  assert.equal(thread(users, "one").pullRequest?.state, "merged", "the link is still kept for search");
+  assert.equal(asksAfterMembers(sharing), false, "a member in the project's checkout is not asked about, as its branch is the user's");
+  const users = tabAnswer(tabAnswer(sharing, OPEN), MERGED);
+  assert.equal(thread(users, "one").pullRequest?.state, "merged", "its own tab still keeps the link for search");
   assert.equal(thread(users, "one").resolvedAt, undefined, "a member in the project's checkout does not resolve with the user's branch");
   assert.notEqual(deriveView(users).coordination.members[0]?.status, "review");
 });
+
+function asksAfterMembers(state: WorkspaceState) {
+  return reduce(state, { type: "pull-request.read-members" }).effects.some((effect) => effect.type === "read-pull-request");
+}
+
+/** The member's own dock tab asks after its checkout, and GitHub answers with `answer`. */
+function tabAnswer(state: WorkspaceState, answer: PullRequestAnswer) {
+  const asked = reduce(state, { type: "pull-request.read", taskId: "one" });
+  const read = effectOf(asked, "read-pull-request");
+  return reduce(asked.state, { type: "pull-request.answered", workspaceId: read.workspaceId, branch: read.branch, read: read.read, answer }).state;
+}
 
 test("a member that merges while it works stays filed away when its turn ends", () => {
   const running = { ...delivering({ pullRequest: { number: 7, url: PULL_REQUEST.url, state: "open", title: "Poll me" } }), activeRuns: { one: activeRun("one", "run-one") } };

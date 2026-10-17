@@ -4,7 +4,7 @@ import type { Project } from "../domain/project.js";
 import type { Thread } from "../domain/thread.js";
 import type { Worktree } from "../domain/worktree.js";
 import { threadWorkspaceId } from "./thread-location.js";
-import { coordinationMembers, ownPullRequest, type OwnPullRequest } from "./coordination.js";
+import { coordinationMembers, ownPullRequest, ownsPullRequest, type OwnPullRequest } from "./coordination.js";
 import type { ComputersState } from "./computers.js";
 
 /** The branch a checkout sits on, or null while Git has not said or could not. */
@@ -33,13 +33,22 @@ type MemberState = {
 };
 
 /**
- * The checkouts on this computer a coordinator's threads work in, each with the threads in it, in the
- * order the list holds them. A pull request is read on the computer that holds its thread.
+ * Whether reading a thread's checkout again can change how it stands under its coordinator. A thread
+ * already resolved, or one that would not own the pull request it found, has nothing to learn.
  */
-export function memberCheckouts(state: Omit<MemberState, "environments" | "memberPullRequests">, leadId: string): Map<string, Thread[]> {
+export function awaitsPullRequest(member: Thread): boolean {
+  return member.resolvedAt === undefined && ownsPullRequest(member);
+}
+
+/**
+ * The checkouts on this computer a coordinator's threads work in, each with the threads in it, in the
+ * order the list holds them, kept to the threads `counts` takes when given. A pull request is read on
+ * the computer that holds its thread.
+ */
+export function memberCheckouts(state: Omit<MemberState, "environments" | "memberPullRequests">, leadId: string, counts?: (member: Thread) => boolean): Map<string, Thread[]> {
   const checkouts = new Map<string, Thread[]>();
   for (const { thread, computer } of coordinationMembers(state, leadId)) {
-    if (computer) continue;
+    if (computer || (counts && !counts(thread))) continue;
     const workspaceId = threadWorkspaceId(state, thread);
     if (workspaceId) checkouts.set(workspaceId, [...checkouts.get(workspaceId) ?? [], thread]);
   }
@@ -62,24 +71,24 @@ const NO_MEMBER_PULL_REQUESTS: MemberPullRequestsView = { asking: "", settled: t
 /**
  * What a coordinator's threads' pull requests are and when to ask about them again. What each one is
  * comes from the threads, each of which records its own; when to ask comes from the reads of the
- * checkouts they work in.
+ * checkouts they work in, kept to the threads a new answer could still move.
  */
 export function memberPullRequestsView(state: MemberState, lead: Thread | undefined): MemberPullRequestsView {
   if (!lead) return NO_MEMBER_PULL_REQUESTS;
-  const checkouts = memberCheckouts(state, lead.id);
-  if (!checkouts.size) return NO_MEMBER_PULL_REQUESTS;
-  const asking: string[] = [];
-  let settled = true;
-  for (const workspaceId of checkouts.keys()) {
-    asking.push(`${workspaceId}\0${branchOf(state.environments[workspaceId] ?? null) ?? ""}`);
-    if (!pullRequestSettled(state.memberPullRequests[workspaceId]?.answer ?? NO_PULL_REQUEST)) settled = false;
-  }
   const found = new Map<string, MemberPullRequest>();
   for (const { thread } of coordinationMembers(state, lead.id)) {
     const pullRequest = ownPullRequest(thread);
     if (!pullRequest) continue;
     const known = found.get(pullRequest.url);
     found.set(pullRequest.url, { pullRequest: known?.pullRequest ?? pullRequest, threads: [...known?.threads ?? [], thread] });
+  }
+  const checkouts = memberCheckouts(state, lead.id, awaitsPullRequest);
+  if (!found.size && !checkouts.size) return NO_MEMBER_PULL_REQUESTS;
+  const asking: string[] = [];
+  let settled = true;
+  for (const workspaceId of checkouts.keys()) {
+    asking.push(`${workspaceId}\0${branchOf(state.environments[workspaceId] ?? null) ?? ""}`);
+    if (!pullRequestSettled(state.memberPullRequests[workspaceId]?.answer ?? NO_PULL_REQUEST)) settled = false;
   }
   return { asking: asking.join("\n"), settled, found: [...found.values()] };
 }
