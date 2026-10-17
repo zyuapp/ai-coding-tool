@@ -54,8 +54,9 @@ function computers(state: WorkspaceState, selected: string): { local: boolean; p
   return { local: false, paired: found };
 }
 
-/** The paired computer a caller names, or null for this one. */
+/** The paired computer a caller names, or null for this one. A thread starts on one computer, so "all" names none. */
 export function namedComputer(state: WorkspaceState, selected: string): PairedComputer | null {
+  if (selected === "all") throw new Error('A thread runs on one computer. Use "this", or a paired computer\'s name or ID.');
   return computers(state, selected).paired[0] ?? null;
 }
 

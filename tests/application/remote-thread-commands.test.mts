@@ -331,6 +331,22 @@ test("a computer whose build predates signed messages refuses them rather than p
   }
 });
 
+test("a start or suggestion for every computer is refused rather than going to one of them", async () => {
+  const ONE = 'A thread runs on one computer. Use "this", or a paired computer\'s name or ID.';
+  const { host, linux } = pair();
+  assert.equal(await refusal(host, command({ type: "task.send", text: "Go" }, "all")), ONE);
+  lead(host);
+  assert.equal(await refusal(host, command({ type: "task.send", text: "Go", brief: BRIEF }, "all")), ONE);
+  const propose: ThreadRequest = { type: "thread.request", requestId: "p", taskId: "caller", op: "propose", proposals: [{ title: "Bench", prompt: "Time it", brief: BRIEF, computer: "all" }] };
+  assert.equal(await refusal(host, propose), `Not suggested "Bench": ${ONE}`);
+  assert.deepEqual(proposals(host), []);
+  assert.equal(linux.inputs.length, 0);
+
+  host.state().computers.paired = [];
+  assert.equal(await refusal(host, command({ type: "task.send", text: "Go" }, "all")), ONE, "with nothing paired it does not start here instead");
+  assert.equal(host.state().threads.length, 1);
+});
+
 test("a new thread asked for here starts here even with a paired computer's thread on screen", async () => {
   const { host, linux } = pair();
   host.state().computers.active = "linux";
