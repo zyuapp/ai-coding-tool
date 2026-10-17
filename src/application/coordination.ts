@@ -1,7 +1,7 @@
 /** Who works under a coordinator and where each stands, what they are told, and how the sidebar groups them. */
 import type { PendingRun, WorkspaceState } from "./workspace-state.js";
 import type { PairedComputer } from "./computers.js";
-import { doingWork, threadActivity, threadStatus, type ThreadStatus } from "./thread-activity.js";
+import { doingWork, threadActivity, threadStatus, unstoppedSessionWork, type ThreadStatus } from "./thread-activity.js";
 import { activitySections, type ActivitySections } from "./thread-order.js";
 import { threadWorkspaceId } from "./thread-location.js";
 import { awayLeadOf, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, leadIdOf, MAX_SUMMARY, openDecisions, remoteLeadOf, type CoordinationNote, type CoordinationReport, type CoordinatorMemory, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type RemoteLead, type ThreadBrief, type ThreadProposal } from "../domain/coordination.js";
@@ -247,8 +247,14 @@ export function unheardWork(state: Pick<WorkspaceState, "computers">, lead: Thre
   });
 }
 
-/** A thread under a coordinator on a paired computer whose line is up, and the run or usage-limit wait it has going there. */
-export type RemoteWork = { thread: Thread; computer: PairedComputer; runId?: string };
+/**
+ * A thread under a coordinator on a paired computer whose line is up, and the run, usage-limit wait,
+ * workflows and subagents it has going there.
+ */
+export type RemoteWork = { thread: Thread; computer: PairedComputer; runId?: string; processIds: string[] };
+
+/** A thread's workflows and subagents that keep working once its run is stopped, so are stopped one by one. */
+export type SessionWork = { taskId: string; processIds: string[] };
 
 /** A start on a paired computer Stop all caught on its way: once it lands as `threadId` it is stopped there, quietly. */
 export type StoppedStart = { proposalId: string; threadId?: string };
@@ -262,7 +268,9 @@ export type CoordinatorWork = {
    * each run carrying what was queued for one of those threads, which goes back to its composer.
    */
   starts: PendingRun[];
-  /** Each thread under it on a paired computer with a run going or a usage limit to wait out there. */
+  /** What those threads' sessions keep working on past their runs. */
+  sessionWork: readonly SessionWork[];
+  /** Each thread under it on a paired computer with a run, a usage limit to wait out, or session work going there. */
   elsewhere: readonly RemoteWork[];
   /** Each thread the user allowed on a paired computer whose start is still on its way there, and not yet caught by a stop. */
   landing: readonly ThreadProposal[];
@@ -273,30 +281,38 @@ export type CoordinatorWork = {
  * A message on its way to a thread that exists already, as the user's or a decision's answer, is left
  * to arrive: only a run that has started is stopped.
  */
-export function coordinatorWork(state: Pick<WorkspaceState, "threads" | "computers" | "pendingRuns" | "startingProposals" | "stoppedStarts">, lead: Thread): CoordinatorWork {
+export function coordinatorWork(state: Pick<WorkspaceState, "threads" | "computers" | "pendingRuns" | "startingProposals" | "stoppedStarts" | "workflows" | "subagents">, lead: Thread): CoordinatorWork {
   const coordinated = coordinationMembers(state, lead.id);
   const threads = [lead, ...coordinated.flatMap((member) => member.computer ? [] : [member.thread])];
   const ids = new Set(threads.map((thread) => thread.id));
   const starts = Object.values(state.pendingRuns).filter((pending) => pending.origin === "composer" && (pending.taskId
     ? pending.taskId === lead.id && pending.coordination?.notes !== undefined || ids.has(pending.taskId) && pending.queuedIds !== undefined
     : pending.coordination?.coordinatorId === lead.id));
+  const sessionWork = threads.flatMap((thread): SessionWork[] => {
+    const processIds = unstoppedSessionWork(state, thread.id);
+    return processIds.length ? [{ taskId: thread.id, processIds }] : [];
+  });
   const elsewhere = coordinated.flatMap((member): RemoteWork[] => {
     if (!member.computer || member.computer.status !== "connected") return [];
     const run = member.holder.activeRuns[member.thread.id];
-    return run || member.thread.limitPause ? [{ thread: member.thread, computer: member.computer, ...(run ? { runId: run.runId } : {}) }] : [];
+    const processIds = unstoppedSessionWork(member.holder, member.thread.id);
+    return run || member.thread.limitPause || processIds.length ? [{ thread: member.thread, computer: member.computer, ...(run ? { runId: run.runId } : {}), processIds }] : [];
   });
   const caught = new Set(state.stoppedStarts.map((start) => start.proposalId));
   const landing = (lead.proposals ?? []).filter((proposal) => proposal.place.computer && state.startingProposals.includes(proposal.id) && !caught.has(proposal.id));
-  return { threads, starts, elsewhere, landing };
+  return { threads, starts, sessionWork, elsewhere, landing };
 }
 
-/** Each live coordinator with a run going, a wait on a usage limit, or a run or a start on its way under it. */
-export function stoppableCoordinators(state: Pick<WorkspaceState, "threads" | "computers" | "pendingRuns" | "activeRuns" | "startingProposals" | "stoppedStarts">): Set<string> {
+/**
+ * Each live coordinator with a run going, a wait on a usage limit, a workflow or subagent working, or
+ * a run or a start on its way under it.
+ */
+export function stoppableCoordinators(state: Pick<WorkspaceState, "threads" | "computers" | "pendingRuns" | "activeRuns" | "startingProposals" | "stoppedStarts" | "workflows" | "subagents">): Set<string> {
   const stoppable = new Set<string>();
   for (const lead of state.threads) {
     if (!isCoordinator(lead)) continue;
-    const { threads, starts, elsewhere, landing } = coordinatorWork(state, lead);
-    if (starts.length || elsewhere.length || landing.length || threads.some((thread) => state.activeRuns[thread.id] || thread.limitPause)) stoppable.add(lead.id);
+    const { threads, starts, sessionWork, elsewhere, landing } = coordinatorWork(state, lead);
+    if (starts.length || sessionWork.length || elsewhere.length || landing.length || threads.some((thread) => state.activeRuns[thread.id] || thread.limitPause)) stoppable.add(lead.id);
   }
   return stoppable;
 }

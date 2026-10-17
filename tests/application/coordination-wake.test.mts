@@ -3,8 +3,10 @@ import { test } from "vitest";
 import { reduce, type WorkspaceInput, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
 import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { CoordinationNote } from "../../src/domain/coordination.ts";
+import type { Subagent } from "../../src/domain/run.ts";
 import type { Thread } from "../../src/domain/thread.ts";
 import { THREAD_STORE_VERSION } from "../../src/domain/thread-storage.ts";
+import type { Workflow } from "../../src/domain/workflow.ts";
 import { task, workspace, activeRun, correlatedRunEvent, required } from "./workspace-reducer-fixtures.mts";
 
 const SESSION = { resetsAt: Date.now() + 3_600_000, window: "session" as const };
@@ -211,6 +213,35 @@ test("stopping all cancels every run under a coordinator and never wakes it", ()
   assert.equal(reduce(state, { type: "coordination.stop-all", taskId: "one" }).effects.length, 0, "only a coordinator stops threads under it");
 });
 
+const workflow = (id: string, overrides: Partial<Workflow> = {}): Workflow => ({ id, name: id, description: "Dynamic workflow", status: "running", phases: [], agents: [], totalTokens: 0, totalToolCalls: 0, startedAt: 1, ...overrides });
+const subagent = (id: string, overrides: Partial<Subagent> = {}): Subagent => ({ id, description: "Inspect", status: "working", sessionScoped: true, startedAt: 1, activity: [], ...overrides });
+
+test("stopping all stops each workflow and subagent that outlives its thread's run, and is then no longer offered", () => {
+  const state = workspace({
+    threads: [lead(), member("one"), member("two"), task("solo", { title: "Solo" })],
+    activeRuns: { one: activeRun("one", "run-1") },
+    runStatuses: { one: "running" },
+    workflows: { lead: [workflow("wf-lead")], one: [workflow("wf-1"), workflow("wf-done", { status: "completed" })], two: [workflow("wf-2", { stopping: true })], solo: [workflow("wf-solo")] },
+    subagents: { two: [subagent("child"), subagent("gone", { status: "completed" })] },
+  });
+  assert.equal(deriveView(state).stoppableCoordinatorIds.has("lead"), true);
+  const stopped = reduce(state, { type: "coordination.stop-all", taskId: "lead" });
+  const commands = stopped.effects.flatMap((effect) => effect.type === "send-run-command" ? [effect.command] : []);
+  assert.deepEqual(commands, [
+    { type: "cancel", taskId: "one", runId: "run-1" },
+    { type: "stop-process", taskId: "lead", processId: "wf-lead" },
+    { type: "stop-process", taskId: "one", processId: "wf-1" },
+    { type: "stop-process", taskId: "two", processId: "child" },
+  ], "only work still going under the coordinator, and not already stopping");
+  assert.deepEqual(stopped.state.workflows.one?.map((item) => [item.id, item.stopping]), [["wf-1", true], ["wf-done", undefined]]);
+  assert.deepEqual(stopped.state.subagents.two?.map((item) => [item.id, item.stopping]), [["child", true], ["gone", undefined]]);
+  assert.equal(stopped.state.workflows.solo?.[0]?.stopping, undefined, "a thread outside it");
+  slept(stopped);
+
+  const ended = reduce(stopped.state, correlatedRunEvent("one", "run-1", 1, { type: "run.status", status: "cancelled" }));
+  assert.equal(deriveView(ended.state).stoppableCoordinatorIds.has("lead"), false, "what is left is already on its way to stopping");
+});
+
 test("stopping all drops a coordinator's wake and hands back what its threads were about to send", () => {
   const wake = { id: "wake", runId: "run-w", origin: "composer" as const, taskId: "lead", text: "Update", prompt: "Update", attachments: [], coordination: { notes: ["n1"] } };
   const drained = { id: "next", runId: "run-n", origin: "composer" as const, taskId: "one", text: "Then this", prompt: "Then this", attachments: [], queuedIds: ["q1"] };
@@ -279,6 +310,10 @@ test("Stop all is offered exactly while it has something to stop", () => {
   assert.equal(stoppable({ pendingRuns: { tick } }), false, "a scheduled tick is not its to stop");
   assert.equal(stoppable({ activeRuns: { solo: activeRun("solo", "run-s") } }), false, "a thread outside it");
   assert.equal(stoppable({ creatingWorktrees: ["one"] }), false, "a checkout being made is no run to stop");
+  assert.equal(stoppable({ workflows: { one: [workflow("wf")] } }), true, "a workflow its run left going");
+  assert.equal(stoppable({ subagents: { lead: [subagent("child")] } }), true, "a subagent its run left going");
+  assert.equal(stoppable({ workflows: { one: [workflow("wf", { stopping: true })] }, subagents: { one: [subagent("child", { status: "completed" })] } }), false, "work stopping or done");
+  assert.equal(stoppable({ workflows: { solo: [workflow("wf")] } }), false, "a workflow outside it");
 });
 
 test("a working thread on a paired computer holds non-urgent news, and its turn ending there delivers it", () => {

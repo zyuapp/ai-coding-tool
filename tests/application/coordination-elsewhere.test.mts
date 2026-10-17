@@ -8,7 +8,9 @@ import { sidebarLists } from "../../src/application/sidebar-lists.ts";
 import type { PairedComputer } from "../../src/application/computers.ts";
 import { COMPUTER_CAPABILITIES } from "../../src/contracts/computer-capabilities.ts";
 import type { ComputerLink } from "../../src/domain/computers.ts";
+import type { Subagent } from "../../src/domain/run.ts";
 import type { Thread } from "../../src/domain/thread.ts";
+import type { Workflow } from "../../src/domain/workflow.ts";
 import { THREAD_STORE_VERSION } from "../../src/domain/thread-storage.ts";
 import { ARCHIVE_RETENTION_MS } from "../../src/domain/thread-retention.ts";
 import { createFailureMessage } from "../../src/domain/conversation.ts";
@@ -188,6 +190,21 @@ test("a member stopped by Stop all is heard quietly", () => {
   assert.equal(state.threads[0]!.coordinationNotes!.at(-1)!.quiet, true);
   assert.deepEqual(wakesOf(state), [], "nothing it stopped wakes the coordinator");
   assert.deepEqual(state.quietStops, []);
+});
+
+test("Stop all stops a remote member's workflows and subagents there, which alone offer it", () => {
+  const work: Workflow = { id: "wf", name: "audit", description: "Audit", status: "running", phases: [], agents: [], totalTokens: 0, totalToolCalls: 0, startedAt: 1 };
+  const child: Subagent = { id: "child", description: "Inspect", status: "working", sessionScoped: true, startedAt: 1, activity: [] };
+  const holder = workspace({ threads: [far()], workflows: { far: [work] }, subagents: { far: [child] } });
+  const state = mirrored(coordinating(workspace()), holder).state;
+  assert.equal(deriveView(state).stoppableCoordinatorIds.has("lead"), true, "though no run is going there");
+  const stopped = reduce(state, { type: "coordination.stop-all", taskId: "lead" });
+  assert.deepEqual(effectOf(stopped, "computer.forward"), { type: "computer.forward", id: "studio", inputs: [
+    { type: "run.stop-process", taskId: "far", processId: "wf" },
+    { type: "run.stop-process", taskId: "far", processId: "child" },
+  ] });
+  const stopping = mirrored(stopped.state, { ...holder, workflows: { far: [{ ...work, stopping: true }] }, subagents: { far: [{ ...child, stopping: true }] } }).state;
+  assert.equal(deriveView(stopping).stoppableCoordinatorIds.has("lead"), false, "once it is stopping there");
 });
 
 test("a relayed notice for a remote member of a local coordinator is dropped", () => {

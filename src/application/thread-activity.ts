@@ -95,6 +95,16 @@ export function sessionHoldsWork(state: WorkspaceState, taskId: string): boolean
     || runsSubagent(state.subagents[taskId]);
 }
 
+/**
+ * What a thread's session keeps working on past its run, which a stop of the run leaves going: each
+ * running workflow and working subagent not already on its way to stopping.
+ */
+export function unstoppedSessionWork(state: Pick<WorkspaceState, "workflows" | "subagents">, taskId: string): string[] {
+  const workflows = (state.workflows[taskId] ?? []).filter((workflow) => workflow.status === "running" && !workflow.stopping);
+  const subagents = (state.subagents[taskId] ?? []).filter((subagent) => subagent.status === "working" && !subagent.stopping);
+  return [...workflows, ...subagents].map((work) => work.id);
+}
+
 function runsWorkflow(workflows: readonly Workflow[] | undefined): boolean {
   return Boolean(workflows?.some((workflow) => workflow.status === "running"));
 }
