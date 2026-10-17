@@ -19,8 +19,9 @@
 .coordination-dot.done { background: var(--success); }
 .coordination-dot.blocked, .coordination-dot.failed { background: var(--danger); }
 .coordination-dot.asking, .coordination-dot.approval { background: var(--accent); }
-/** An open pull request is a ring: the work is there, and only the user's review closes it. */
+/** An open pull request is a ring: the work is there, and only the user's review closes it. One that needs work first rings in danger. */
 .coordination-dot.review { background: transparent; box-shadow: inset 0 0 0 1.6px var(--success); }
+.coordination-dot.needs-work { background: transparent; box-shadow: inset 0 0 0 1.6px var(--danger); }
 .coordination-dot.resolved { background: var(--quiet); }
 
 .coordination-bar {
@@ -174,10 +175,10 @@ button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
 /** A thread's card in its coordinator's conversation wears the marks and colours of its Overview row. */
 :is(.coordination-row, .coordination-card).working .coordination-row-mark { background: var(--info-surface); }
 :is(.coordination-row, .coordination-card).done .coordination-row-mark { background: var(--success-surface); }
-:is(.coordination-row, .coordination-card):is(.blocked, .failed) .coordination-row-mark { background: var(--danger-chip); }
+:is(.coordination-row, .coordination-card):is(.blocked, .failed, .needs-work) .coordination-row-mark { background: var(--danger-chip); }
 :is(.coordination-row, .coordination-card):is(.asking, .approval) .coordination-row-mark { background: var(--accent-chip); }
 :is(.coordination-row, .coordination-card):is(.asking, .approval) small { color: var(--accent); }
-:is(.coordination-row, .coordination-card):is(.blocked, .failed) small { color: var(--danger-soft); }
+:is(.coordination-row, .coordination-card):is(.blocked, .failed, .needs-work) small { color: var(--danger-soft); }
 .coordination-row-marks { display: flex; align-items: center; gap: 6px; transition: opacity 0.15s ease; }
 .coordination-row-engine { color: var(--quiet); }
 .coordination-row-host { flex: none; max-width: 96px; }
@@ -519,10 +520,11 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
 }
 .thread-tab-mark > .coordination-dot { width: 9px; height: 9px; }
 .thread-tab-mark > .coordination-dot.review { box-shadow: inset 0 0 0 1.6px var(--success), 0 0 0 2.5px var(--sunken); }
+.thread-tab-mark > .coordination-dot.needs-work { box-shadow: inset 0 0 0 1.6px var(--danger), 0 0 0 2.5px var(--sunken); }
 .thread-tab-mark > .task-spinner { width: 11px; height: 11px; border-width: 1.8px; background: var(--sunken); }
 .thread-tab-mark.asking, .thread-tab-mark.approval { border-color: var(--accent-line); background: var(--accent-surface); }
 .side-chat-title .thread-tab-status.asking, .side-chat-title .thread-tab-status.approval { color: var(--accent); }
-.side-chat-title .thread-tab-status.blocked, .side-chat-title .thread-tab-status.failed { color: var(--danger-soft); }
+.side-chat-title .thread-tab-status:is(.blocked, .failed, .needs-work) { color: var(--danger-soft); }
 .coordination-empty { margin: 0; padding: 14px 16px; }
 /** The thread's checkout and brief as one line of chips, read as part of the header above it. */
 .thread-tab > .thread-tab-header { border-bottom: 0; }

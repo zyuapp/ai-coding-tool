@@ -503,10 +503,15 @@ test("a coordinator's Overview groups its threads by what they need, and its too
     task("approval", { parentId: "lead" }),
     task("asking", { parentId: "lead", decisions: [{ id: "d1", question: "Keep it?", options: [], raisedAt: 1 }] }),
     task("failed", { parentId: "lead", outcome: "failed" }),
-    task("review", { parentId: "lead", brief: BRIEF, pullRequest, report: { state: "done", summary: "Opened #212", at: 1 } }),
+    task("review", { parentId: "lead", brief: BRIEF, pullRequest: { ...pullRequest, checks: "passing" }, report: { state: "done", summary: "Opened #212", at: 1 } }),
+    task("failing", { parentId: "lead", brief: BRIEF, pullRequest, report: { state: "done", summary: "Opened #212", at: 1 } }),
+    task("conflicting", { parentId: "lead", brief: BRIEF, pullRequest: { ...pullRequest, checks: "pending", conflicts: true } }),
+    task("changes", { parentId: "lead", brief: BRIEF, pullRequest: { number: 212, url: pullRequest.url, title: "Fix it", state: "open", review: "changes-requested" } }),
+    task("waiting", { parentId: "lead", brief: BRIEF, pullRequest: { ...pullRequest, checks: "pending", review: "required" } }),
     task("busy", { parentId: "lead" }),
     task("done", { parentId: "lead", report: { state: "done", summary: "Shipped", at: 1 } }),
-    task("draft", { parentId: "lead", brief: BRIEF, pullRequest: { ...pullRequest, state: "draft" } }),
+    task("draft", { parentId: "lead", brief: BRIEF, pullRequest: { ...pullRequest, state: "draft", checks: "passing" } }),
+    task("broken-draft", { parentId: "lead", brief: BRIEF, pullRequest: { ...pullRequest, state: "draft" } }),
     task("idle", { parentId: "lead" }),
     task("resolved", { parentId: "lead", resolvedAt: 2, outcome: "failed" }),
     task("reworking", { parentId: "lead", resolvedAt: 2 }),
@@ -515,8 +520,14 @@ test("a coordinator's Overview groups its threads by what they need, and its too
   const approval = { approvalId: "a1", taskId: "approval", runId: "run-a", title: "Run a command?", description: "", toolName: "Bash", input: { command: "yarn test" } };
   const view = coordinationView(workspace({ threads }), threads[0], new Set(["approval", "busy", "reworking"]), new Set(["approval"]), (id) => id === "approval" ? approval : undefined);
   const groups = overviewGroups(view.members);
-  assert.deepEqual(groups.needs.map(({ thread }) => thread.id), ["approval", "asking", "failed", "reasking"], "an open decision outranks being resolved");
-  assert.deepEqual(groups.review.map(({ thread, summary }) => [thread.id, summary]), [["review", "#212 · Checks failing"]], "its own open pull request outranks saying it is done");
+  assert.deepEqual(groups.needs.map(({ thread }) => thread.id), ["approval", "asking", "failed", "failing", "conflicting", "changes", "broken-draft", "reasking"], "an open decision outranks being resolved");
+  assert.deepEqual(groups.needs.filter(({ status }) => status === "needs-work").map(({ thread, summary, steps }) => [thread.id, summary, steps]), [
+    ["failing", "#212 · Checks failing", ["fix-ci"]],
+    ["conflicting", "#212 · Merge conflicts · Checks pending", ["resolve-conflicts"]],
+    ["changes", "#212 · Changes requested", ["address-comments"]],
+    ["broken-draft", "#212 · Draft · Checks failing", ["fix-ci"]],
+  ], "a pull request with something to fix says what and offers the fix, a draft's too");
+  assert.deepEqual(groups.review.map(({ thread, summary }) => [thread.id, summary]), [["review", "#212 · Checks passing"], ["waiting", "#212 · Checks pending"]], "only a pull request with nothing to fix is ready for review, and that outranks saying it is done");
   assert.deepEqual(groups.working.map(({ thread }) => thread.id), ["busy", "reworking"], "work going outranks being resolved");
   assert.deepEqual(groups.done.map(({ thread }) => thread.id), ["done", "draft", "idle"], "a draft is not ready for review");
   assert.deepEqual(groups.resolved.map(({ thread }) => thread.id), ["resolved"], "being resolved outranks a failure");
@@ -720,6 +731,7 @@ test("the roster lists what needs attention and counts the rest", () => {
       task("asking", { parentId: "lead", title: "Asking", decisions: [{ id: "d1", question: "Keep it?", options: [], raisedAt: 1 }] }),
       task("busy", { parentId: "lead", title: "Busy" }),
       task("review", { parentId: "lead", title: "Review", brief: BRIEF, pullRequest: { number: 212, url: "https://github.com/o/r/pull/212", title: "Fix it", state: "open", checks: "passing" } }),
+      task("failing", { parentId: "lead", title: "Failing", brief: BRIEF, pullRequest: { number: 213, url: "https://github.com/o/r/pull/213", title: "Fix that", state: "open", checks: "failing" } }),
       ...done,
       ...resolved,
     ],
@@ -729,6 +741,7 @@ test("the roster lists what needs attention and counts the rest", () => {
   assert.match(context, /"Asking" \[asking\] · idle · waiting on the user to decide: Keep it\?/);
   assert.match(context, /"Busy" \[busy\] · working/);
   assert.match(context, /"Review" \[review\] · idle · ready for review: #212 · Checks passing/);
+  assert.match(context, /"Failing" \[failing\] · idle · its pull request needs work: #213 · Checks failing/);
   assert.match(context, /"Done 12" \[done-12\]/);
   assert.match(context, /"Done 3" \[done-3\]/, "the ten most recently active done threads are listed");
   assert.doesNotMatch(context, /"Done 2" \[done-2\]/);

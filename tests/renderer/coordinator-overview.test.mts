@@ -86,7 +86,8 @@ test("the Overview files threads ready for review and resolved apart, and resolv
     header,
     memory,
     members: [
-      row(member("review", "Dark mode"), "review", "#212 · Checks failing"),
+      row(member("review", "Dark mode"), "review", "#212 · Checks passing"),
+      row(member("failing", "Theme tokens"), "needs-work", "#213 · Checks failing"),
       row(member("busy", "Login flake"), "working"),
       row(member("done", "Docs"), "done", "Shipped"),
       row(member("asking", "Retry"), "asking", "Retry or skip?"),
@@ -104,13 +105,17 @@ test("the Overview files threads ready for review and resolved apart, and resolv
   const labels = [...view.container.querySelectorAll(".coordination-group:not(.coordination-memory) .coordination-group-head > span:not(.coordination-group-count)")].map((node) => node.textContent);
   assert.deepEqual(labels, ["Needs you", "Ready for review", "Working", "Done", "Resolved"]);
   const review = query(view.container, '[aria-label="Ready for review"]');
-  assert.match(review.textContent, /Ready for review · #212 · Checks failing/);
+  assert.match(review.textContent, /Ready for review · #212 · Checks passing/);
+  assert.doesNotMatch(review.textContent, /#213/, "a pull request with something to fix is not ready for review");
+  const needs = query(view.container, '[aria-label="Needs you"]');
+  assert.match(needs.textContent, /Needs work · #213 · Checks failing/, "it says what it needs where the user acts on it");
   const resolve = query<HTMLButtonElement>(review, 'button[aria-label="Resolve Dark mode"]');
   assert.equal(resolve.closest('button[aria-label="Open Dark mode"]'), null, "the row's action sits beside its open button, never inside it");
   assert.ok(resolve.parentElement?.querySelector('button[aria-label="Open Dark mode"]'));
   await act(async () => { resolve.click(); });
   assert.equal(query(view.container, '[aria-label="Working"]').querySelector('button[aria-label^="Resolve"]'), null, "a working thread cannot be resolved");
-  assert.equal(query(view.container, '[aria-label="Needs you"]').querySelector('button[aria-label^="Resolve"]'), null, "nor one waiting on the user");
+  assert.equal(needs.querySelector('button[aria-label="Resolve Retry"]'), null, "nor one waiting on the user");
+  assert.ok(needs.querySelector('button[aria-label="Resolve Theme tokens"]'), "but one whose pull request needs work can be");
   assert.ok(query(view.container, '[aria-label="Done"]').querySelector('button[aria-label="Resolve Docs"]'));
 
   const resolved = query(view.container, '[aria-label="Resolved"]');

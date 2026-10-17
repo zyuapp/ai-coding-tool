@@ -198,13 +198,14 @@ const thread = (state: WorkspaceState, id: string) => required(state.threads.fin
 test("a pull request's state and what it still needs are recorded on the thread", () => {
   const failing = memberAnswer(delivering(), { status: "found", pullRequest: { ...PULL_REQUEST, checks: "failing", review: "changes-requested", conflicts: true } });
   assert.deepEqual(thread(failing, "one").pullRequest, { number: 7, url: PULL_REQUEST.url, state: "open", title: "Poll me", checks: "failing", review: "changes-requested", conflicts: true });
-  assert.equal(deriveView({ ...failing, currentId: "lead" }).coordination.members[0]?.status, "review");
-  assert.equal(deriveView({ ...failing, currentId: "lead" }).coordination.members[0]?.summary, "#7 · Checks failing");
+  assert.equal(deriveView({ ...failing, currentId: "lead" }).coordination.members[0]?.status, "needs-work", "a pull request with something to fix is not ready for review");
+  assert.equal(deriveView({ ...failing, currentId: "lead" }).coordination.members[0]?.summary, "#7 · Merge conflicts · Checks failing · Changes requested");
 
   const passing = memberAnswer(failing, { status: "found", pullRequest: { ...PULL_REQUEST, checks: "passing", review: "changes-requested", conflicts: true } });
   assert.equal(thread(passing, "one").pullRequest?.checks, "passing", "a change in checks alone is written");
   const fixed = memberAnswer(passing, { status: "found", pullRequest: { ...PULL_REQUEST, checks: "passing" } });
   assert.deepEqual(thread(fixed, "one").pullRequest, { number: 7, url: PULL_REQUEST.url, state: "open", title: "Poll me", checks: "passing" }, "what it no longer needs goes");
+  assert.equal(deriveView({ ...fixed, currentId: "lead" }).coordination.members[0]?.status, "review", "and with nothing left to fix it is ready for review");
   const unchanged = reduce(reduce(fixed, { type: "pull-request.read-members" }).state, { type: "pull-request.answered", ...readOf(fixed), members: true, answer: { status: "found", pullRequest: { ...PULL_REQUEST, checks: "passing" } } });
   assert.equal(thread(unchanged.state, "one"), thread(fixed, "one"), "an answer that says the same leaves the thread alone");
 });

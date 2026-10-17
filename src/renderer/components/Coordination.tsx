@@ -27,6 +27,7 @@ const STATUS_LABELS: Record<CoordinatedThreadStatus, string> = {
   resolved: "Resolved",
   blocked: "Blocked",
   failed: "Failed",
+  "needs-work": "Needs work",
   review: "Ready for review",
   done: "Done",
   finished: "Finished its turn",
@@ -438,8 +439,8 @@ const ThreadCard = memo(function ThreadCard({ view, worktree, onSelect }: {
 }) {
   const links = useMessageLinks();
   const { thread, status, summary, pullRequest, steps, host } = view;
-  /** A thread ready for review is summed up by its pull request, which the card shows on its own. */
-  const line = coordinationStatusLine(status, pullRequest && status === "review" ? null : summary);
+  /** A thread whose pull request needs work or a review is summed up by it, which the card shows on its own. */
+  const line = coordinationStatusLine(status, pullRequest && (status === "needs-work" || status === "review") ? null : summary);
   const Icon = pullRequest ? PULL_REQUEST_ICONS[pullRequest.state] : null;
   return (
     <div className={`coordination-card ${status}`} role="listitem">

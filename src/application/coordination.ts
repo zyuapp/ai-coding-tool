@@ -305,6 +305,7 @@ function roster(state: WorkspaceState, leadId: string): string[] {
     if (group === "resolved" || group === "done" && !recent.has(thread)) return [];
     const parts = [`- "${thread.title}" [${thread.id}]${member.computer ? ` on ${member.computer.name}` : ""} · ${ROSTER_STATUS[memberStatus(state, member)]}`];
     if (thread.report) parts.push(`reported ${thread.report.state}: ${thread.report.summary}`);
+    if (status === "needs-work" && summary) parts.push(`its pull request needs work: ${summary}`);
     if (status === "review" && summary) parts.push(`ready for review: ${summary}`);
     for (const decision of openDecisions(thread)) parts.push(`waiting on the user to decide: ${decision.question}`);
     return [parts.join(" · ")];
@@ -469,7 +470,7 @@ export function projectActivity(sections: ActivitySections, threads: Thread[], p
 }
 
 /** Where a thread under a coordinator stands, in the words its card shows. */
-export type CoordinatedThreadStatus = "approval" | "asking" | "working" | "resolved" | "blocked" | "failed" | "review" | "done" | "finished" | "idle";
+export type CoordinatedThreadStatus = "approval" | "asking" | "working" | "resolved" | "blocked" | "failed" | "needs-work" | "review" | "done" | "finished" | "idle";
 
 /** A pull request that is a thread's own work, as last read: its state and title are known. */
 export type OwnPullRequest = PullRequestLink & Pick<PullRequestRef, "state" | "title">;
@@ -495,10 +496,32 @@ const CHECKS_LINE: Record<PullRequestChecks, string> = { failing: "Checks failin
 
 const STATE_LINE: Record<Exclude<PullRequestState, "open">, string> = { draft: "Draft", merged: "Merged", closed: "Closed" };
 
-/** A thread's own pull request in a few words: an open one by where its checks stand, any other by how it stands. */
-export function pullRequestLine(pullRequest: OwnPullRequest): string {
-  if (pullRequest.state !== "open") return `#${pullRequest.number} · ${STATE_LINE[pullRequest.state]}`;
-  return pullRequest.checks ? `#${pullRequest.number} · ${CHECKS_LINE[pullRequest.checks]}` : `#${pullRequest.number}`;
+/**
+ * A thread's own pull request in a few words: how it stands unless it is simply open, then, while it
+ * can still move, its conflicts, where its checks stand, and any changes its review asks for.
+ */
+export function pullRequestLine({ number, state, conflicts, checks, review }: OwnPullRequest): string {
+  const parts = [`#${number}`];
+  if (state !== "open") parts.push(STATE_LINE[state]);
+  if (state === "open" || state === "draft") {
+    if (conflicts) parts.push("Merge conflicts");
+    if (checks) parts.push(CHECKS_LINE[checks]);
+    if (review === "changes-requested") parts.push("Changes requested");
+  }
+  return parts.join(" · ");
+}
+
+/**
+ * What a thread's own open or draft pull request needs fixed before anyone can review or merge it,
+ * most pressing first. One that needs nothing fixed is what a reviewer can read as it is.
+ */
+function pullRequestFixes({ state, conflicts, checks, review }: OwnPullRequest): NextStep[] {
+  if (state !== "open" && state !== "draft") return [];
+  const fixes: NextStep[] = [];
+  if (conflicts) fixes.push("resolve-conflicts");
+  if (checks === "failing") fixes.push("fix-ci");
+  if (review === "changes-requested") fixes.push("address-comments");
+  return fixes;
 }
 
 /** Statuses the user cannot resolve a thread from: it is working or waiting on them, or already resolved. */
@@ -529,15 +552,10 @@ export function nextSteps(member: Thread, status: CoordinatedThreadStatus, check
   if (!canResolve(status)) return [];
   const pullRequest = ownPullRequest(member);
   if (!pullRequest) return member.brief?.delivers === "pull-request" && checkout?.status === "none" ? ["create-pull-request"] : [];
-  if (pullRequest.state !== "open" && pullRequest.state !== "draft") return [];
-  const { conflicts, checks, review } = pullRequest;
-  const steps: NextStep[] = [];
-  if (conflicts) steps.push("resolve-conflicts");
-  if (checks === "failing") steps.push("fix-ci");
-  if (review === "changes-requested") steps.push("address-comments");
-  const mergeable = pullRequest.state === "open" && !conflicts && checks !== "failing" && checks !== "pending" && (review === undefined || review === "approved");
-  if (mergeable) steps.push("merge");
-  return steps;
+  const steps = pullRequestFixes(pullRequest);
+  const { checks, review } = pullRequest;
+  const mergeable = pullRequest.state === "open" && !steps.length && checks !== "pending" && (review === undefined || review === "approved");
+  return mergeable ? ["merge"] : steps;
 }
 
 /** Where a thread under a coordinator stands, as its status says it. */
@@ -549,8 +567,9 @@ export type CoordinatedThreadStanding = {
 
 /**
  * Where a thread under a coordinator stands, most pressing first: waiting on the user, working,
- * filed away as resolved, stuck, its own pull request open for review, then done in some way. Work
- * going or a question waiting outranks resolution, since either needs the user to see it again.
+ * filed away as resolved, stuck, its own pull request needing work, that pull request open for
+ * review, then done in some way. Work going or a question waiting outranks resolution, since either
+ * needs the user to see it again. Only a pull request with nothing to fix is ready for review.
  */
 export function coordinatedThreadStatus(thread: Thread, busy: ReadonlySet<string>, blocked: ReadonlySet<string>): CoordinatedThreadStanding {
   const question = openDecisions(thread)[0]?.question;
@@ -562,6 +581,7 @@ export function coordinatedThreadStatus(thread: Thread, busy: ReadonlySet<string
   if (report && report.state !== "done") return { thread, status: report.state, summary: report.summary };
   if (!report && thread.outcome === "failed") return { thread, status: "failed", summary: null };
   const pullRequest = ownPullRequest(thread);
+  if (pullRequest && pullRequestFixes(pullRequest).length) return { thread, status: "needs-work", summary: pullRequestLine(pullRequest) };
   if (pullRequest?.state === "open") return { thread, status: "review", summary: pullRequestLine(pullRequest) };
   if (report) return { thread, status: "done", summary: report.summary };
   /** A thread that ended its turn without reporting has still finished it, which says more than idle. */
@@ -575,6 +595,7 @@ export const GROUP_OF: Record<CoordinatedThreadStatus, OverviewGroup> = {
   asking: "needs",
   blocked: "needs",
   failed: "needs",
+  "needs-work": "needs",
   review: "review",
   working: "working",
   done: "done",

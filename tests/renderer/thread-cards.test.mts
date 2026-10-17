@@ -19,7 +19,7 @@ const PULL_REQUEST = { number: 212, url: "https://github.com/o/r/pull/212", titl
 
 const failing: CoordinatedThreadView = {
   thread: member("fix", "Fix login", { worktreeId: "wt-1" }),
-  status: "review",
+  status: "needs-work",
   summary: "#212 · Checks failing",
   pullRequest: PULL_REQUEST,
   steps: ["fix-ci"],
@@ -47,7 +47,7 @@ test("a card shows how its thread stands, opens it, and offers what to do next b
   assert.equal(shown.length, 2, "a thread no longer under the coordinator draws no card");
 
   const [fix, dark] = shown as [HTMLElement, HTMLElement];
-  assert.match(fix.textContent, /Ready for review/);
+  assert.match(query(fix, ".coordination-card-open > small").textContent, /^Needs work$/, "a pull request with something to fix is not ready for review");
   assert.doesNotMatch(query(fix, ".coordination-card-open > small").textContent, /#212/, "the pull request is said once, by its chip");
   assert.equal(query(fix, ".coordination-card-pull-request").textContent, "#212 · Checks failing");
   assert.ok(query(fix, '[aria-label="Works in fix-login"]'), "a thread in a worktree carries its mark");
