@@ -445,8 +445,23 @@ button, select { color: inherit; }
 /** Activity mode's three headings share one shape: label, fold, and at most one action. */
 .activity-heading { grid-template-columns: minmax(0, 1fr) var(--row-slot); }
 .activity-group + .activity-group .activity-heading { margin-top: 12px; }
-/** A folded list's count reads with its label: same size, colour, and baseline, set a word space after it and in a lighter weight. */
-.section-count { margin-left: -5px; font-weight: 400; font-variant-numeric: tabular-nums; }
+/** A folded list's count, as a chip beside its label. */
+.section-count {
+  min-width: 18px;
+  height: 18px;
+  margin-left: -3px;
+  padding: 0 6px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--chip);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  line-height: 1;
+}
 .section-toggle,
 .section-action,
 .menu-trigger {
