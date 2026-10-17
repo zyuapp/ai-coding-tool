@@ -7,7 +7,7 @@ import { answerThreadRequest, releaseThreadWaiters, type ThreadRequestHost } fro
 import { isExternalCommand } from "../../src/contracts/workspace-view-input.ts";
 import type { ExternalCommand, ThreadCommandResult, ThreadRequest } from "../../src/contracts/threads.ts";
 import type { ManagedWorktree } from "../../src/domain/worktree.ts";
-import { PROJECT, activeRun, heldWorktree, projected, required, task } from "./workspace-reducer-fixtures.mts";
+import { PROJECT, activeRun, heldWorktree, madeWorktree, projected, required, task } from "./workspace-reducer-fixtures.mts";
 
 /** The caller works in wt1 with a run going; wt2 is another checkout of the same project. */
 function fixture(): WorkspaceState {
@@ -109,11 +109,47 @@ test("a move waiting on the run is checked again when the run ends, and taken ba
   assert.ok(unasked.state.actionError, "without afterRun a running thread still refuses");
 });
 
-test("an agent moves into an existing checkout or back to the project, never into a new one or past the run", () => {
+test("an agent moves into a new checkout, an existing one or back to the project, never past the run", () => {
   assert.equal(isExternalCommand({ type: "task.move-worktree", destination: toWt2 }), true);
   assert.equal(isExternalCommand({ type: "task.move-worktree", taskId: "other", destination: { kind: "local" } }), true);
-  assert.equal(isExternalCommand({ type: "task.move-worktree", destination: { kind: "new" } }), false);
+  assert.equal(isExternalCommand({ type: "task.move-worktree", destination: { kind: "new" } }), true);
   assert.equal(isExternalCommand({ type: "task.move-worktree", destination: toWt2, afterRun: true }), false);
+});
+
+test("a thread moving itself into a new worktree makes it when its turn ends, and what it queued runs there", async () => {
+  const { host, started, dispatch } = desktop(fixture());
+  const result = await answer(host, move({ type: "task.move-worktree", destination: { kind: "new" } }));
+  assert.match(result.notice ?? "", /^This thread moves to a new worktree when this turn ends, .* stays in \/worktrees\/repo-wt1/);
+  assert.deepEqual(host.state().movesAfterRun, { caller: { kind: "new" } });
+
+  await dispatch({ type: "task.send", taskId: "caller", text: "Then run the tests", attachments: [] });
+  const ended = reduce(host.state(), { type: "run.event", event: { type: "run.status", taskId: "caller", runId: "run-1", sequence: 1, status: "succeeded" } });
+  assert.deepEqual(ended.effects.filter((effect) => effect.type === "create-worktree"), [
+    { type: "create-worktree", taskId: "caller", projectRoot: heldWorktree("wt1").root, move: true, name: "Planner", projectId: PROJECT.id },
+  ], "the new checkout is made from where the thread stands");
+  assert.ok(ended.effects.every((effect) => effect.type !== "resolve-run-workspace"), "the queued message waits for the new checkout");
+  assert.deepEqual(ended.state.creatingWorktrees, ["caller"]);
+  assert.deepEqual(ended.state.movesAfterRun, {});
+
+  await dispatch({ type: "run.event", event: { type: "run.status", taskId: "caller", runId: "run-1", sequence: 1, status: "succeeded" } });
+  await dispatch({ type: "worktree.created", taskId: "caller", worktree: madeWorktree("wt3"), move: true, projectId: PROJECT.id });
+  const moved = required(host.state().threads.find((item) => item.id === "caller"));
+  assert.equal(moved.worktreeId, "wt3");
+  const next = required(started.at(-1)).command;
+  assert.equal(next.workspaceId, heldWorktree("wt3").workspaceId, "the queued message runs in the new checkout");
+  assert.equal(next.forkContinuation, true);
+});
+
+test("a thread whose new worktree could not be made runs what it queued where it is", () => {
+  const waiting = reduce(fixture(), { type: "task.move-worktree", taskId: "caller", destination: { kind: "new" }, afterRun: true }).state;
+  const queued = reduce(waiting, { type: "task.send", taskId: "caller", text: "Then run the tests", attachments: [] }).state;
+  const ended = reduce(queued, { type: "run.event", event: { type: "run.status", taskId: "caller", runId: "run-1", sequence: 1, status: "succeeded" } }).state;
+  const failed = reduce(ended, { type: "worktree.failed", taskId: "caller", message: "Could not create the worktree: disk full" });
+  assert.equal(failed.result?.ok, false);
+  assert.deepEqual(failed.state.creatingWorktrees, []);
+  assert.equal(failed.state.threads[0].worktreeId, "wt1");
+  const resolving = failed.effects.find((effect) => effect.type === "resolve-run-workspace");
+  assert.equal(resolving?.type === "resolve-run-workspace" && resolving.workspace?.root, heldWorktree("wt1").root);
 });
 
 test("the move menu finds a checkout by the id or folder the thread tools report", () => {

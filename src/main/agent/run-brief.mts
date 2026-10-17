@@ -13,6 +13,8 @@ export type BriefSources = ToolSources & Pick<ProviderRunInput, "workspaceRoot" 
 export type BriefDialect = {
   /** The engine's own sessions and helpers, which an app thread ID never names. */
   nativeWork: string;
+  /** The engine's own way to make a worktree, which the app would never hear about. */
+  nativeWorktree?: string;
 };
 
 /** What every engine tells a run beyond its prompt, the tools it offers, and what a warm session must agree on. */
@@ -27,6 +29,7 @@ const linkInstructions = `Only Markdown links are clickable in your output. Link
 const computerUseInstructions = `When a requested outcome lives in another application's interface, use the provided computer-use MCP tools. Never invoke a separately installed cua-driver through Bash. Observe the exact target before every action and verify the result afterward. Prefer accessibility targets, then screenshot coordinates, and use foreground delivery only after background delivery fails.`;
 const automationInstructions = `This task can schedule itself. When the user asks to repeat, babysit, poll, or watch something on a cadence, use the schedule tool instead of looping yourself or reaching for cron.`;
 const threadInstructions = (dialect: BriefDialect) => `Use the AICodingTool thread tools, such as start_thread, list_threads and read_thread, when the user's request requires creating, fetching or acting on another AICodingTool thread. App task IDs identify AICodingTool threads, not ${dialect.nativeWork}. Conversation history and app-supplied thread context are already available evidence; answering from them does not require a tool call.`;
+const worktreeInstructions = (dialect: BriefDialect, moves: boolean) => `When the user asks for work in a worktree, use the AICodingTool worktree tools so the app knows where each thread works: ${moves ? `move_to_worktree with "new" moves this thread into a new worktree when this turn ends, and ` : ""}start_thread with worktree starts a new thread in one. Never make one yourself for that with git worktree${dialect.nativeWorktree ? ` or ${dialect.nativeWorktree}` : ""}.`;
 const browserInstructions = `The AICodingTool browser panel is a real browser sharing one session with the user, so every site they have signed into is signed in for you: use the browser panel tools, such as browser_open, browser_read and browser_screenshot, rather than curl or Bash for anything behind a login, and rather than guessing at a page you can read.`;
 const terminalInstructions = `Use terminal_list and terminal_read to see what the user's terminals in the AICodingTool terminal panel have printed. Those shells are the user's; run your own commands in your own.`;
 const workflowInstructions = `For ordinary AICodingTool operations, prefer the AICodingTool tools. They are defaults, not restrictions on the user's workflow: follow the user's explicitly requested target and method, and verify the result in the requested target before reporting success.`;
@@ -44,6 +47,7 @@ export function runBrief(input: BriefSources, dialect: BriefDialect): RunBrief {
     linkInstructions,
     ...(offers(tools, AUTOMATION_SERVER_NAME, "schedule") ? [automationInstructions] : []),
     ...(offers(tools, THREAD_SERVER_NAME) ? [threadInstructions(dialect)] : []),
+    ...(offers(tools, THREAD_SERVER_NAME, "start_thread") ? [worktreeInstructions(dialect, offers(tools, THREAD_SERVER_NAME, "move_to_worktree"))] : []),
     ...coordinationInstructions(input.coordinationRole),
     ...(offers(tools, BROWSER_SERVER_NAME) ? [browserInstructions] : []),
     ...(offers(tools, TERMINAL_SERVER_NAME) ? [terminalInstructions] : []),

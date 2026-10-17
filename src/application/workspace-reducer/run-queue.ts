@@ -205,6 +205,8 @@ export function drainQueue(state: WorkspaceState, taskId: string, status: RunSta
   if (!thread) return settled(withQueued(state, taskId, []));
   /** A thread waiting out its usage limit keeps its queue until the limit lifts. */
   if (thread.limitPause) return settled(state);
+  /** A thread moving into a checkout still being made keeps its queue until it lands there. */
+  if (state.creatingWorktrees.includes(taskId)) return settled(state);
   const [next] = queued;
   const project = projectFor(state, thread);
   const pending: PendingRun = {

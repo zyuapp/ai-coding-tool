@@ -218,7 +218,7 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
 /** What a thread moving itself is told: where it is until this turn ends, and where its next turn starts. */
 function movesAfterTurn(state: WorkspaceState, thread: Thread, destination: WorktreeDestination) {
   const project = projectFor(state, thread)?.root;
-  const there = destination.kind === "worktree" ? worktreeById(state, destination.id)?.root : project;
+  const there = destination.kind === "worktree" ? worktreeById(state, destination.id)?.root : destination.kind === "new" ? "a new worktree" : project;
   const here = worktreeFor(state, thread)?.root ?? project;
   return `This thread moves to ${there} when this turn ends, and its next turn starts there. Until then it stays in ${here}, and file changes already made there stay behind.`;
 }

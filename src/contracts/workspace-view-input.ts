@@ -149,11 +149,11 @@ function deletesWorktreeById(command: Extract<AppCommand, { type: "worktree.dele
 }
 
 /**
- * Into a checkout that already exists, or back to the project's own. Without a thread named it is the
- * thread that asked, and only the window says whether a move waits for that thread's run to end.
+ * Into a new checkout, one that already exists, or back to the project's own. Without a thread named
+ * it is the thread that asked, and only the window says whether a move waits for that thread's run to end.
  */
 function movesToCheckout(command: Extract<AppCommand, { type: "task.move-worktree" }>): boolean {
-  return agentId(command.taskId) && command.destination.kind !== "new" && command.afterRun === undefined;
+  return agentId(command.taskId) && command.afterRun === undefined;
 }
 
 const MAX_URL_LENGTH = 8_192;

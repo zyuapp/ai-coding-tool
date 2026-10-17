@@ -5,7 +5,7 @@ import { reduceDiffs } from "./diffs.js";
 import { rereadDiff } from "./diff-reads.js";
 import { refreshEnvironment } from "./environment.js";
 import { SWITCH_PROJECT_ERROR, SWITCH_RUNNING_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_PROJECT_ERROR, WORKTREE_RELEASING_ERROR, WORKTREE_RUNNING_ERROR } from "./errors.js";
-import { runsInWorkspace } from "./run-queue.js";
+import { drainQueue, runsInWorkspace } from "./run-queue.js";
 import { followUps, now, settled, targetId, rejected } from "./shared.js";
 import { dropWorktree, leaveWorktree, releaseWorktrees, withCreatingWorktree, withReleasingWorktree, withoutCreatingWorktree, withoutReleasingWorktree } from "./worktree-claims.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
@@ -138,7 +138,9 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
         const next = { ...settling, worktrees: [...settling.worktrees, worktree], managedWorktrees: null, worktreeManagementLoading: true };
         if (thread.projectId !== worktree.projectId) return settled(next, [{ type: "list-worktrees" }]);
         const moved = relocateThread(next, thread, worktree);
-        return { state: moved.state, effects: [...moved.effects, { type: "list-worktrees" }] };
+        /** What was queued behind a run that asked to move starts here, in the new checkout. */
+        const drained = drainQueue(moved.state, thread.id, "succeeded");
+        return { state: drained.state, effects: [...moved.effects, { type: "list-worktrees" }, ...drained.effects] };
       }
       const note = createConversationMessage("system", `Moved into a worktree at ${worktree.root}`, `Detached at ${worktree.baseCommit.slice(0, 7)}`);
       return rereadDiff(updateThread({ ...settling, worktrees: [...settling.worktrees, worktree] }, input.taskId, (item) => ({
@@ -149,8 +151,11 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
       })), input.taskId);
     }
 
-    case "worktree.failed":
-      return rejected(withoutCreatingWorktree(state, input.taskId), input.message);
+    case "worktree.failed": {
+      /** A thread that never moved runs what it had queued where it already is. */
+      const drained = drainQueue(withoutCreatingWorktree(state, input.taskId), input.taskId, "succeeded");
+      return rejected(drained.state, input.message, drained.effects);
+    }
 
     /** The checkout is still there and the thread is still in it, so only the wait and the error change. */
     case "worktree.release-failed":

@@ -46,6 +46,11 @@ function arrival(state: WorkspaceState, thread: Thread, projectId: string, desti
   return worktree;
 }
 
+/** A checkout made from where the thread stands; the thread moves in once it lands, as `worktree.created` says. */
+function moveToNewWorktree(state: WorkspaceState, thread: Thread, projectId: string): WorkspaceTransition {
+  return settled(withCreatingWorktree(state, thread.id), [{ type: "create-worktree", taskId: thread.id, projectRoot: threadWorkspaceRoot(state, thread)!, move: true, name: thread.title, projectId }]);
+}
+
 function withoutMoveAfterRun(state: WorkspaceState, taskId: string): WorkspaceState {
   if (!state.movesAfterRun[taskId]) return state;
   const { [taskId]: _settled, ...movesAfterRun } = state.movesAfterRun;
@@ -60,11 +65,7 @@ export function reduceWorktreeMove(state: WorkspaceState, input: Extract<TaskCom
   if (state.creatingWorktrees.includes(thread.id)) return rejected(state, WORKTREE_CREATING_ERROR);
   if (leavingThreadIds(state).has(thread.id)) return rejected(state, WORKTREE_RELEASING_ERROR);
   const destination = input.destination;
-  if (destination.kind === "new") {
-    if (isWorking(state, thread.id)) return rejected(state, WORKTREE_RUNNING_ERROR);
-    return settled(withCreatingWorktree(state, thread.id), [{ type: "create-worktree", taskId: thread.id, projectRoot: threadWorkspaceRoot(state, thread)!, move: true, name: thread.title, projectId: project.id }]);
-  }
-  const target = arrival(state, thread, project.id, destination);
+  const target = destination.kind === "new" ? undefined : arrival(state, thread, project.id, destination);
   if (typeof target === "string") return rejected(state, target);
   /** Asking for where the thread already is takes back a move it was waiting to make. */
   if (target === null) return settled(withoutMoveAfterRun(state, thread.id));
@@ -73,7 +74,9 @@ export function reduceWorktreeMove(state: WorkspaceState, input: Extract<TaskCom
     if (!input.afterRun || !state.activeRuns[thread.id]) return rejected(state, WORKTREE_RUNNING_ERROR);
     return settled({ ...state, actionError: null, movesAfterRun: { ...state.movesAfterRun, [thread.id]: destination } });
   }
-  return relocateThread({ ...withoutMoveAfterRun(state, thread.id), actionError: null }, thread, target);
+  const staying = withoutMoveAfterRun(state, thread.id);
+  if (destination.kind === "new") return moveToNewWorktree(staying, thread, project.id);
+  return relocateThread({ ...staying, actionError: null }, thread, target);
 }
 
 /**
@@ -86,13 +89,17 @@ export function settleMoveAfterRun(state: WorkspaceState, taskId: string): Works
   const rest = withoutMoveAfterRun(state, taskId);
   const thread = rest.threads.find((item) => item.id === taskId);
   const project = projectFor(rest, thread);
-  if (!thread || thread.archivedAt !== undefined || destination.kind === "new") return settled(rest);
-  const target = !project?.workspaceId ? WORKTREE_PROJECT_ERROR : leavingThreadIds(rest).has(taskId) ? WORKTREE_RELEASING_ERROR : arrival(rest, thread, project.id, destination);
+  if (!thread || thread.archivedAt !== undefined) return settled(rest);
+  const target = !project?.workspaceId ? WORKTREE_PROJECT_ERROR
+    : leavingThreadIds(rest).has(taskId) ? WORKTREE_RELEASING_ERROR
+    : destination.kind === "new" ? undefined
+    : arrival(rest, thread, project.id, destination);
   if (target === null) return settled(rest);
   if (typeof target === "string") {
     const note = createFailureMessage(`Did not move. ${target}`);
     return settled(updateThread(rest, taskId, (item) => ({ ...item, messages: [...item.messages, note], updatedAt: now() })));
   }
+  if (destination.kind === "new") return moveToNewWorktree(rest, thread, project!.id);
   const moved = relocateThread(rest, thread, target);
   /** Nothing on screen asked for this move, so whatever the user has open stays open. */
   return { ...moved, state: { ...moved.state, openMenu: rest.openMenu } };

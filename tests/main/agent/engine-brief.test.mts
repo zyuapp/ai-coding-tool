@@ -73,6 +73,7 @@ const features: { name: string; on: Settings; told?: RegExp; offered?: string }[
   { name: "automations", on: { automations }, told: /This task can schedule itself/, offered: "schedule" },
   { name: "findings", on: { automations, findings }, offered: "notify" },
   { name: "threads", on: { threads }, told: /App task IDs identify AICodingTool threads/, offered: "start_thread" },
+  { name: "worktrees", on: { threads }, told: /When the user asks for work in a worktree, use the AICodingTool worktree tools/, offered: "move_to_worktree" },
   { name: "coordinator", on: { coordinationRole: "coordinator", coordination }, told: /You are a coordinator/, offered: "raise_decision" },
   { name: "coordinated member", on: { coordinationRole: "member", coordination }, told: /Call report_status/, offered: "report_status" },
   { name: "browser panel", on: { browser }, told: /browser panel is a real browser/, offered: "browser_open" },
@@ -117,8 +118,20 @@ test("both engines are told the same thing in the same order, short of naming th
   const { claude, codex } = await briefs({ automations, findings, threads, browser, terminal, computerUse: { status: "setup-required" }, coordinationRole: "member", coordination, channel: "side" });
   assert.match(claude.instructions, /not Claude background tasks, sessions, or agents/);
   assert.match(codex.instructions, /not Codex sessions or subagents/);
-  const neutral = (text: string) => text.replace(/App task IDs identify AICodingTool threads, not [^.]*\./, "");
+  assert.match(claude.instructions, /with git worktree or the Agent tool's worktree isolation\./);
+  assert.match(codex.instructions, /with git worktree\./);
+  const neutral = (text: string) => text.replace(/App task IDs identify AICodingTool threads, not [^.]*\./, "").replace(" or the Agent tool's worktree isolation", "");
   assert.equal(neutral(claude.instructions), neutral(codex.instructions));
+});
+
+test("a side chat, which cannot move its thread, is only told to start a thread in a worktree", async () => {
+  const main = await briefs({ threads });
+  const side = await briefs({ threads, channel: "side" });
+  for (const engine of ["claude", "codex"] as const) {
+    assert.match(main[engine].instructions, /move_to_worktree with "new" moves this thread into a new worktree/);
+    assert.doesNotMatch(side[engine].instructions, /move_to_worktree/);
+    assert.match(side[engine].instructions, /use the AICodingTool worktree tools so the app knows where each thread works: start_thread with worktree/);
+  }
 });
 
 /** Settings that change what a run is told or offered, each of which a warm session cannot take on. */

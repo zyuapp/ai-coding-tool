@@ -151,6 +151,9 @@ test("moving names the thread and the checkout, and passes on a move that waits 
   await toolNamed(bridge, "move_to_worktree").handler({ threadId: "task-2", worktreeId: null }, {});
   assert.deepEqual(bridge.calls.at(-1), ["command", { type: "task.move-worktree", taskId: "task-2", destination: { kind: "local" } }]);
 
+  await toolNamed(bridge, "move_to_worktree").handler({ threadId: "task-2", worktreeId: "new" }, {});
+  assert.deepEqual(bridge.calls.at(-1), ["command", { type: "task.move-worktree", taskId: "task-2", destination: { kind: "new" } }]);
+
   const own = fakeBridge({ command: async (command) => { own.calls.push(["command", command]); return { thread: summary(), notice: "This thread moves to /worktrees/app-wt1 when this turn ends." }; } });
   const waiting = await toolNamed(own, "move_to_worktree").handler({ worktreeId: "wt1" }, {});
   assert.deepEqual(own.calls.at(-1), ["command", { type: "task.move-worktree", destination: { kind: "worktree", id: "wt1" } }]);
