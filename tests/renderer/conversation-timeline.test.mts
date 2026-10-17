@@ -8,6 +8,7 @@ import type { Thread } from "../../src/domain/thread.ts";
 import { fireResizeObservers, item, mount, query, rowHeights } from "../support/renderer-dom.mts";
 
 const { ConversationTimeline, groupTimeline, READING_SETTLE_MS } = await import("../../src/renderer/components/ConversationTimeline.tsx");
+const { groupMessageIds, messageRows } = await import("../../src/renderer/timeline/grouping.ts");
 
 type TimelineReadingPoint = Parameters<NonNullable<TimelineProps["onReadingPointMove"]>>[0];
 type ThreadMountedView = Awaited<ReturnType<typeof mount>>;
@@ -456,6 +457,49 @@ test("a coordinator's thread messages fold to one row naming the sender, and the
   await expand(folds[1]!);
   assert.equal(query(folds[1]!, ".thread-message-text").textContent, "Can I merge?");
   await view.unmount();
+});
+
+test("a coordinator's threads appear where they began", async () => {
+  const messages = transcript(
+    { kind: "user", text: "Ship it" },
+    { kind: "tool", text: "start_thread" },
+    { kind: "tool", text: "start_thread" },
+    { kind: "assistant", text: "Started two threads." },
+    { kind: "user", text: "\"One\" ended its turn.", origin: { kind: "coordination" }, detail: "Thread updates" },
+    { kind: "assistant", text: "One is done; starting a follow-up." },
+    { kind: "user", text: "\"Two\" ended its turn.", origin: { kind: "coordination" }, detail: "Thread updates" },
+    { kind: "assistant", text: "Both are done." },
+    { kind: "user", text: "Thanks" },
+    { kind: "assistant", text: "Anytime." },
+  );
+  const starts = [{ id: "one", at: 1500 }, { id: "two", at: 2500 }, { id: "follow-up", at: 5500 }, { id: "suggested", at: 8500 }];
+  const groups = groupTimeline(messages, { running: false, coordinator: true, starts });
+  assert.deepEqual(groups.map((group) => group.kind), ["message", "turn", "threads", "updates", "message", "turn", "message", "threads", "turn"]);
+  assert.deepEqual(groups[2], { kind: "threads", id: "threads-one", threadIds: ["one", "two"] }, "threads started in one turn share a row after it");
+  assert.deepEqual(groups[7], { kind: "threads", id: "threads-suggested", threadIds: ["suggested"] }, "one the user started later lands at its time");
+  const folded = item(groups[3]);
+  if (folded.kind !== "updates") assert.fail("expected folded updates");
+  assert.deepEqual(folded.entries.map((entry) => entry.id), ["m4", "m5", "threads-follow-up"], "a folded update cycle carries the threads it started");
+  assert.equal(messageRows(groups).get("threads-one"), 2);
+  assert.deepEqual(groupMessageIds(item(groups[2])), []);
+
+  const view = (role?: "coordinator") => {
+    const plain = timelineView(messages.slice(0, 4), "idle");
+    const member = (id: string, title: string): Thread => ({ ...plain.props.currentThread!, id, title, parentId: "t1", messages: [] });
+    const cards = new Map(["one", "two"].map((id) => [id, { thread: member(id, id === "one" ? "Fix login" : "Dark mode"), status: "working" as const, summary: null, pullRequest: null, steps: [], startedAt: 1500 }]));
+    return React.cloneElement(plain, {
+      currentThread: { ...plain.props.currentThread!, ...(role ? { role } : {}) },
+      threadCards: { cards, worktrees: new Map(), onSelect() {}, onStep() {} },
+      starts: starts.slice(0, 2),
+    });
+  };
+  const shown = await mount(view("coordinator"));
+  const row = query(shown.container, '.timeline-row.threads');
+  assert.deepEqual([...row.querySelectorAll(".coordination-card strong")].map((node) => node.textContent), ["Fix login", "Dark mode"]);
+  await shown.unmount();
+  const plain = await mount(view());
+  assert.equal(plain.container.querySelector(".coordination-card"), null, "a thread that coordinates nothing draws no cards");
+  await plain.unmount();
 });
 
 test("a settled turn times each step it folds away", async () => {

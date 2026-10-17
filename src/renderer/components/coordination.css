@@ -141,15 +141,16 @@
 .coordination-row-mark { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: var(--control); }
 .coordination-row-mark .task-spinner { width: 10px; height: 10px; border-width: 1.6px; }
 .coordination-row-mark .coordination-dot { width: 7px; height: 7px; }
-.coordination-row.working .coordination-row-mark { background: var(--info-surface); }
-.coordination-row.done .coordination-row-mark { background: var(--success-surface); }
-.coordination-row.blocked .coordination-row-mark, .coordination-row.failed .coordination-row-mark { background: var(--danger-chip); }
-.coordination-row.asking .coordination-row-mark, .coordination-row.approval .coordination-row-mark { background: var(--accent-chip); }
-.coordination-row.asking small, .coordination-row.approval small { color: var(--accent); }
-.coordination-row.blocked small, .coordination-row.failed small { color: var(--danger-soft); }
+/** A thread's card in its coordinator's conversation wears the marks and colours of its Overview row. */
+:is(.coordination-row, .coordination-card).working .coordination-row-mark { background: var(--info-surface); }
+:is(.coordination-row, .coordination-card).done .coordination-row-mark { background: var(--success-surface); }
+:is(.coordination-row, .coordination-card):is(.blocked, .failed) .coordination-row-mark { background: var(--danger-chip); }
+:is(.coordination-row, .coordination-card):is(.asking, .approval) .coordination-row-mark { background: var(--accent-chip); }
+:is(.coordination-row, .coordination-card):is(.asking, .approval) small { color: var(--accent); }
+:is(.coordination-row, .coordination-card):is(.blocked, .failed) small { color: var(--danger-soft); }
 .coordination-row-marks { display: flex; align-items: center; gap: 6px; transition: opacity 0.15s ease; }
 .coordination-row-engine { color: var(--quiet); }
-.coordination-row.review .coordination-row-mark { background: var(--success-surface); }
+:is(.coordination-row, .coordination-card).review .coordination-row-mark { background: var(--success-surface); }
 /** A row's own action sits beside its open button, over the marks it takes the place of while pointed at. */
 .coordination-item { position: relative; min-width: 0; }
 .coordination-item.resolved > .coordination-row { opacity: 0.62; }
@@ -176,6 +177,81 @@
 .coordination-item:has(> .coordination-row-action):is(:hover, :focus-within) .coordination-row-marks { opacity: 0; }
 .coordination-row-action:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-soft); }
 .coordination-row-action[data-action="resolve"]:hover:not(:disabled), .thread-tab-resolution[data-action="resolve"]:hover:not(:disabled) { background: var(--success-surface); color: var(--success); }
+/* The threads a coordinator started, as cards in its conversation where each began, wrapping across the column. */
+.coordination-cards { display: flex; flex-wrap: wrap; gap: 8px; }
+.coordination-card {
+  box-sizing: border-box;
+  width: 260px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+}
+.coordination-card:hover { border-color: var(--line-strong); }
+.coordination-card:is(.asking, .approval) { border-color: var(--accent-line); }
+.coordination-card.resolved { opacity: 0.62; }
+.coordination-card.resolved:hover { opacity: 1; }
+.coordination-card-open {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  border: 0;
+  padding: 9px 10px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.coordination-card-open:hover { background: var(--surface-hover); }
+.coordination-card-head { min-width: 0; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.coordination-card-head strong { min-width: 0; overflow: hidden; color: var(--ink-soft); font-size: var(--text-control); font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
+.coordination-card-open > small { min-width: 0; padding-left: 30px; overflow: hidden; font-size: var(--text-meta); text-overflow: ellipsis; white-space: nowrap; }
+.coordination-card-pull-request {
+  justify-self: start;
+  max-width: calc(100% - 30px);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 3px 0 0 30px;
+  border-radius: 6px;
+  padding: 1px 7px;
+  background: var(--wash);
+  color: var(--ink-dim);
+  font-size: var(--text-meta);
+  white-space: nowrap;
+}
+.coordination-card-pull-request > svg { flex: none; color: var(--muted); }
+.coordination-card-pull-request[data-state="open"] > svg { color: var(--success); }
+.coordination-card-pull-request[data-state="merged"] > svg { color: var(--pr-merged); }
+.coordination-card-pull-request[data-state="closed"] > svg { color: var(--danger); }
+/** Next steps sit under the card's open area, beside it rather than inside it. */
+.coordination-card-steps { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 10px 10px 40px; }
+.coordination-card-step {
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border: 1px solid var(--line-soft);
+  border-radius: 7px;
+  padding: 0 8px;
+  background: transparent;
+  color: var(--ink-dim);
+  font: inherit;
+  font-size: var(--text-meta);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.coordination-card-step:hover:not(:disabled) { border-color: var(--line); background: var(--surface-hover); color: var(--ink-soft); }
+.coordination-card-step:disabled { opacity: 0.45; cursor: default; }
+.coordination-card-step > svg { color: var(--quiet); }
+
 /* A coordinator's Overview: its threads in groups, in a dock tab that scrolls as one list. */
 .coordination-overview {
   height: 100%;

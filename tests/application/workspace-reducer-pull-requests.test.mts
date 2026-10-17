@@ -289,3 +289,16 @@ test("reading one coordinator's pull requests keeps another's read in flight", (
   const landed = reduce(second.state, { type: "pull-request.answered", workspaceId: inFlight.workspaceId, branch: inFlight.branch, read: inFlight.read, members: true, answer: OPEN }).state;
   assert.equal(thread(landed, "one").pullRequest?.state, "open", "the first coordinator's answer still lands");
 });
+
+test("a thread that delivers a pull request is offered to open one only once GitHub says its checkout has none", () => {
+  const state = delivering({ outcome: "finished" });
+  const steps = (next: WorkspaceState) => deriveView(next).coordination.members[0]?.steps;
+  const asked = reduce(state, { type: "pull-request.read-members" });
+  assert.deepEqual(steps(asked.state), [], "nothing is offered before the first answer");
+  const read = effectOf(asked, "read-pull-request");
+  const none = reduce(asked.state, { type: "pull-request.answered", workspaceId: read.workspaceId, branch: read.branch, read: read.read, members: true, answer: { status: "none" } }).state;
+  assert.deepEqual(steps(none), ["create-pull-request"]);
+  assert.deepEqual(steps(reduce(none, { type: "pull-request.read-members" }).state), ["create-pull-request"], "asking again keeps the last answer until the next lands");
+  assert.deepEqual(steps(memberAnswer(state, { status: "gh-missing" })), [], "without gh nothing can be asked, so nothing is offered");
+  assert.deepEqual(steps(memberAnswer(none, OPEN)), ["merge"], "once it has one, what it needs is offered instead");
+});

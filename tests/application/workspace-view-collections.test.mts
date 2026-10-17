@@ -160,3 +160,28 @@ test("a subagent stored mid-work comes back stopped, since its session did not s
   ]);
   assert.deepEqual([...deriveView(state).runningThreadIds], []);
 });
+
+test("one of a coordinator's threads moving keeps every other thread's view and where each started", () => {
+  const brief = { intent: "Ship it", doneWhen: "It merges", delivers: "pull-request" as const };
+  const state = workspace({
+    threads: [task("lead", { role: "coordinator" }), task("one", { parentId: "lead", brief, createdAt: 10 }), task("two", { parentId: "lead", brief, createdAt: 20 }), task("joined", { parentId: "lead" })],
+    currentId: "lead",
+  });
+  const before = deriveView(state).coordination;
+  assert.deepEqual(before.starts, [{ id: "one", at: 10 }, { id: "two", at: 20 }], "a thread moved under it by hand began nowhere in its conversation");
+
+  const working = deriveView({ ...state, activeRuns: { two: activeRun("two", "run") } }).coordination;
+  assert.equal(working.members[1]?.status, "working");
+  assert.notEqual(working.members[1], before.members[1]);
+  assert.equal(working.members[0], before.members[0]);
+  assert.equal(working.members[2], before.members[2]);
+  assert.equal(working.starts, before.starts);
+
+  const streaming = deriveView({ ...state, activeRuns: { two: activeRun("two", "run", { sequence: 4 }) } }).coordination;
+  assert.equal(streaming.members, working.members, "a run's progress that moves no thread's view keeps the list itself");
+
+  const renamed = deriveView({ ...state, activeRuns: { two: activeRun("two", "run", { sequence: 4 }) }, threads: state.threads.map((thread) => thread.id === "one" ? { ...thread, title: "Renamed" } : thread) }).coordination;
+  assert.equal(renamed.members[0]?.thread.title, "Renamed");
+  assert.equal(renamed.members[1], working.members[1]);
+  assert.equal(renamed.starts, before.starts);
+});

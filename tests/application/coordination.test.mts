@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import { coordinationContext, coordinationSections, coordinationView, overviewGroups } from "../../src/application/coordination.ts";
+import { coordinationContext, coordinationSections, coordinationView, nextSteps, overviewGroups, type CoordinatedThreadStatus } from "../../src/application/coordination.ts";
 import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { WorkspaceInput } from "../../src/application/workspace-reducer.ts";
-import { withMemoryChange, type ThreadBrief } from "../../src/domain/coordination.ts";
+import { NEXT_STEPS, withMemoryChange, type ThreadBrief } from "../../src/domain/coordination.ts";
+import type { PullRequestAnswer, PullRequestLink } from "../../src/domain/pull-request.ts";
 import { THREAD_STORE_VERSION } from "../../src/domain/thread-storage.ts";
 import { task, workspace, activeRun, effectAt, effectOf, correlatedRunEvent, required } from "./workspace-reducer-fixtures.mts";
 
@@ -703,4 +704,66 @@ test("the roster lists what needs attention and counts the rest", () => {
 
   const one = workspace({ threads: [lead(), resolved[0]!] });
   assert.match(coordinationContext(one, one.threads[0]), /1 resolved thread; read_thread reaches it\./);
+});
+
+const OWN_PULL_REQUEST: PullRequestLink = { number: 212, url: "https://github.com/o/r/pull/212", title: "Fix it", state: "open" };
+
+/** What a thread delivering a pull request is offered next, with its pull request standing as `link` says. */
+function offered(link: Partial<PullRequestLink> | null, status: CoordinatedThreadStatus = "review", checkout: PullRequestAnswer | null = null) {
+  const member = task("worker", { parentId: "lead", brief: BRIEF, ...(link ? { pullRequest: { ...OWN_PULL_REQUEST, ...link } } : {}) });
+  return nextSteps(member, status, checkout);
+}
+
+test("a thread is offered the next steps its own pull request needs, most pressing first", () => {
+  assert.deepEqual(offered({ conflicts: true, checks: "failing", review: "changes-requested" }), ["resolve-conflicts", "fix-ci", "address-comments"]);
+  assert.deepEqual(offered({ checks: "failing" }), ["fix-ci"]);
+  assert.deepEqual(offered({ review: "changes-requested", checks: "passing" }), ["address-comments"]);
+  assert.deepEqual(offered({ review: "approved", checks: "passing" }), ["merge"], "approved and passing can merge");
+  assert.deepEqual(offered({}), ["merge"], "a pull request no review is asked of can merge");
+  assert.deepEqual(offered({ review: "required", checks: "passing" }), [], "one still waiting on a review cannot");
+  assert.deepEqual(offered({ checks: "pending" }), [], "nor one whose checks are still going");
+  assert.deepEqual(offered({ conflicts: true }), ["resolve-conflicts"]);
+  assert.deepEqual(offered({ state: "draft", checks: "failing" }, "done"), ["fix-ci"], "a draft is fixed but never merged");
+  assert.deepEqual(offered({ state: "draft" }, "done"), []);
+  assert.deepEqual(offered({ state: "merged" }, "done"), [], "a merged pull request needs nothing more");
+  for (const status of ["working", "approval", "asking", "resolved"] as const) {
+    assert.deepEqual(offered({ checks: "failing" }, status), [], `nothing while it is ${status}`);
+  }
+  assert.deepEqual(offered({ checks: "failing" }, "blocked"), ["fix-ci"], "a thread that stopped on something can still be told what to do");
+
+  assert.deepEqual(offered(null, "done"), [], "no pull request yet, and GitHub has not been asked");
+  assert.deepEqual(offered(null, "done", { status: "none" }), ["create-pull-request"], "GitHub said it has none");
+  assert.deepEqual(offered(null, "done", { status: "gh-missing" }), [], "nothing can be asked without gh");
+  assert.deepEqual(offered(null, "working", { status: "none" }), []);
+  const reporting = task("worker", { parentId: "lead", brief: { ...BRIEF, delivers: "report" } });
+  assert.deepEqual(nextSteps(reporting, "done", { status: "none" }), [], "a thread that delivers a report is never asked for a pull request");
+  assert.deepEqual(NEXT_STEPS.map(({ label }) => label), ["Resolve conflicts", "Fix CI", "Address comments", "Merge it", "Create PR"]);
+});
+
+test("a next step reaches the thread as the user's own message", () => {
+  const failing = task("worker", { parentId: "lead", title: "Fix login", brief: BRIEF, pullRequest: { ...OWN_PULL_REQUEST, checks: "failing" } });
+  const state = workspace({ threads: [lead(), failing], currentId: "lead" });
+  assert.deepEqual(deriveView(state).coordination.members[0]?.steps, ["fix-ci"]);
+
+  const stepping = reduce(state, { type: "coordination.next-step", taskId: "worker", step: "fix-ci" });
+  const run = reduce(stepping.state, { type: "run.resolved", pendingId: effectAt(stepping, "resolve-run-workspace").pendingId, workspace: PROJECTLESS });
+  const message = required(run.state.threads.find((thread) => thread.id === "worker")?.messages.at(-1));
+  assert.equal(message.text, "The pull request's checks are failing. Find out why, fix them, and push.");
+  assert.equal(message.origin, undefined, "the step is the user's word, not the coordinator's");
+  assert.equal(effectAt(run, "start-run").command.taskId, "worker");
+
+  const again = reduce(stepping.state, { type: "coordination.next-step", taskId: "worker", step: "fix-ci" });
+  assert.equal(again.result?.ok === false && again.result.message, "That step is no longer offered.", "a thread already on its way is not told twice");
+  assert.equal(again.state.pendingRuns, stepping.state.pendingRuns);
+
+  const merging = reduce(state, { type: "coordination.next-step", taskId: "worker", step: "merge" });
+  assert.equal(merging.result?.ok === false && merging.result.message, "That step is no longer offered.", "failing checks cannot be merged");
+  assert.deepEqual(merging.effects, []);
+
+  const solo = workspace({ threads: [{ ...failing, parentId: undefined }] });
+  assert.equal(reduce(solo, { type: "coordination.next-step", taskId: "worker", step: "fix-ci" }).result?.ok, false, "only a thread under a coordinator takes a next step");
+
+  const waiting = workspace({ threads: [lead(), { ...failing, limitPause: { resetsAt: Date.now() + 86_400_000, window: "weekly", pausedAt: 1 } }] });
+  const held = reduce(waiting, { type: "coordination.next-step", taskId: "worker", step: "fix-ci" });
+  assert.deepEqual(held.state.queuedMessages.worker?.map(({ text, origin }) => [text, origin]), [["The pull request's checks are failing. Find out why, fix them, and push.", undefined]], "a thread waiting out its limit holds it as it would any message");
 });

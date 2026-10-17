@@ -46,6 +46,8 @@ export type PullRequestRead = {
   answer: PullRequestAnswer;
   /** The threads whose work the answer is about, which a found pull request is recorded on. */
   threadIds?: string[];
+  /** Set once GitHub has answered for the checkout, so its having none is known rather than not yet asked. */
+  answered?: true;
 };
 
 /**

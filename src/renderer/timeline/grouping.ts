@@ -4,7 +4,9 @@ import type { ConversationMessage } from "../../domain/conversation";
 type TimelineEntry =
   /** `from` names what a folded message's row says it is: its threads' news, or the thread that sent it. */
   | { kind: "message"; id: string; message: ConversationMessage; from?: string }
-  | { kind: "turn"; id: string; steps: ConversationMessage[]; final: ConversationMessage | null; endsAt: number | null; live: boolean };
+  | { kind: "turn"; id: string; steps: ConversationMessage[]; final: ConversationMessage | null; endsAt: number | null; live: boolean }
+  /** Threads a coordinator started, drawn as cards where they began. */
+  | { kind: "threads"; id: string; threadIds: string[] };
 
 /** `updates` holds a coordinator's thread updates, and its replies to them, that a newer update has since replaced. */
 export type TimelineGroup = TimelineEntry | { kind: "updates"; id: string; entries: TimelineEntry[]; count: number };
@@ -16,9 +18,13 @@ export type TurnSegment =
   | { kind: "note"; id: string; message: ConversationMessage }
   | { kind: "tools"; id: string; steps: TimedStep[] };
 
-type TimelineOptions = { running: boolean; tailMessageId?: string; runEndedAt?: number; coordinator?: boolean };
+/** A thread a coordinator started, and when. */
+export type TimelineStart = { id: string; at: number };
+
+type TimelineOptions = { running: boolean; tailMessageId?: string; runEndedAt?: number; coordinator?: boolean; starts?: readonly TimelineStart[] };
 
 function startOf(group: TimelineEntry) {
+  if (group.kind === "threads") return null;
   return group.kind === "message" ? group.message.at : (group.steps[0] ?? group.final)?.at ?? null;
 }
 
@@ -34,7 +40,7 @@ function endOf(group: TimelineEntry, next: TimelineEntry | undefined, runEndedAt
  * settled; the newest turn of a running task is live and keeps collecting steps. A turn no answer
  * closed ends where the next group opens, or where the run it belonged to stopped.
  */
-export function groupTimeline(messages: ConversationMessage[], { running, tailMessageId, runEndedAt, coordinator = false }: TimelineOptions): TimelineGroup[] {
+export function groupTimeline(messages: ConversationMessage[], { running, tailMessageId, runEndedAt, coordinator = false, starts = [] }: TimelineOptions): TimelineGroup[] {
   const groups: (TimelineEntry | ConversationMessage[])[] = [];
   for (const message of messages) {
     if (message.kind === "user" || message.kind === "system" || message.artifact) {
@@ -63,7 +69,34 @@ export function groupTimeline(messages: ConversationMessage[], { running, tailMe
   if (running && tailMessageId && !messages.some((message) => message.id === tailMessageId) && !liveTurn) {
     timeline.push({ kind: "turn", id: tailMessageId, steps: [], final: null, endsAt: null, live: true });
   }
-  return foldUpdates(timeline.map((group, index) => group.kind !== "turn" ? group : { ...group, endsAt: endOf(group, timeline[index + 1], runEndedAt) }));
+  const timed = timeline.map((group, index) => group.kind !== "turn" ? group : { ...group, endsAt: endOf(group, timeline[index + 1], runEndedAt) });
+  return foldUpdates(starts.length ? withStarts(timed, starts) : timed);
+}
+
+/**
+ * Each thread a coordinator started goes after the last entry that began by the time it did, which
+ * is the turn that started it, or where the user stood when they started it. Threads that land
+ * after the same entry share one row.
+ */
+function withStarts(entries: TimelineEntry[], starts: readonly TimelineStart[]): TimelineEntry[] {
+  /** Entries begin in the order they were written, so one walk down them places every start, oldest first. */
+  const after = new Map<number, string[]>();
+  let index = -1;
+  for (const start of [...starts].sort((left, right) => left.at - right.at)) {
+    while (index + 1 < entries.length && (startOf(entries[index + 1]!) ?? Infinity) <= start.at) index += 1;
+    after.set(index, [...after.get(index) ?? [], start.id]);
+  }
+  const placed: TimelineEntry[] = [];
+  const cards = (index: number) => {
+    const threadIds = after.get(index);
+    if (threadIds) placed.push({ kind: "threads", id: `threads-${threadIds[0]}`, threadIds });
+  };
+  cards(-1);
+  entries.forEach((entry, index) => {
+    placed.push(entry);
+    cards(index);
+  });
+  return placed;
 }
 
 /** A coordinator's threads speak to it often, so their messages fold to one row behind the user's own words and its answers. */
@@ -78,7 +111,7 @@ function isUpdate(entry: TimelineEntry) {
 /**
  * A coordinator is woken with each batch of its threads' news and answers every one. Of updates
  * with no word from the user between them, only the newest and its answer stay open; the rest fold
- * into one row before it.
+ * into one row before it, with the threads each one started.
  */
 function foldUpdates(entries: TimelineEntry[]): TimelineGroup[] {
   if (!entries.some(isUpdate)) return entries;
@@ -142,6 +175,7 @@ export function messageRows(groups: TimelineGroup[]) {
 }
 
 export function groupMessageIds(group: TimelineGroup): string[] {
+  if (group.kind === "threads") return [];
   if (group.kind === "message") return [group.message.id];
   if (group.kind === "updates") return group.entries.flatMap(groupMessageIds);
   return [...group.steps.map((step) => step.id), ...group.final ? [group.final.id] : []];

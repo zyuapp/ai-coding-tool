@@ -5,7 +5,7 @@ import type { Project } from "../domain/project.js";
 import { orderProjects } from "./project-order.js";
 import type { ComputerLink } from "../domain/computers.js";
 import { sidebarLists } from "./sidebar-lists.js";
-import { coordinationView } from "./coordination.js";
+import { coordinationView, type CoordinationView } from "./coordination.js";
 import { memberPullRequestsView } from "./pull-request-view.js";
 import { memberWorktreesView } from "./member-worktrees.js";
 import { isCoordinator } from "../domain/coordination.js";
@@ -15,10 +15,13 @@ import { worktreeSettingsPage, worktreeSettingsViews } from "./worktree-settings
 import { computerUsage, sameComputerUsage } from "./plan-limits.js";
 import { computerUpkeep, sameComputerUpkeep } from "./computer-updates.js";
 
-/** A selector retains one projection while its immutable input references stay unchanged. */
+/**
+ * A selector retains one projection while its immutable input references stay unchanged. A new one
+ * is handed the last, so it can keep whatever parts of it still stand.
+ */
 function heldSelector<Value>(
   inputs: (state: WorkspaceState) => readonly unknown[],
-  project: (state: WorkspaceState) => Value,
+  project: (state: WorkspaceState, previous: Value | undefined) => Value,
   equal?: (before: Value, next: Value) => boolean,
 ) {
   let held: { inputs: readonly unknown[]; value: Value } | undefined;
@@ -26,7 +29,7 @@ function heldSelector<Value>(
     const nextInputs = inputs(state);
     const previous = held;
     if (previous && nextInputs.every((value, index) => value === previous.inputs[index])) return previous.value;
-    let value = project(state);
+    let value = project(state, previous?.value);
     if (held && equal?.(held.value, value)) value = held.value;
     held = { inputs: nextInputs, value };
     return value;
@@ -71,13 +74,16 @@ function createViewCollections() {
   /** The threads that can take others under them, for the menu that moves a thread under one. */
   const coordinators = selector((state) => [threadLists(state).listedThreads], (state) => threadLists(state).listedThreads.filter((thread) => isCoordinator(thread)));
 
-  /** What the open thread shows: a coordinator's threads and open decisions, or a thread's coordinator and brief. */
-  const coordination = selector(
-    (state) => [state.threads, state.currentId, state.computers.paired, busy(state), blocked(state), state.activeRuns, state.approvals],
-    (state) => coordinationView(state, state.threads.find((thread) => thread.id === state.currentId), busy(state), blocked(state), (threadId) => {
+  /**
+   * What the open thread shows: a coordinator's threads and open decisions, or a thread's coordinator
+   * and brief. Each of a coordinator's threads keeps its view object while nothing it shows moves.
+   */
+  const coordination = selector<CoordinationView>(
+    (state) => [state.threads, state.currentId, state.computers.paired, busy(state), blocked(state), state.activeRuns, state.approvals, state.projects, state.worktrees, state.memberPullRequests],
+    (state, previous) => coordinationView(state, state.threads.find((thread) => thread.id === state.currentId), busy(state), blocked(state), (threadId) => {
       const run = state.activeRuns[threadId];
       return run?.status === "awaiting-approval" ? state.approvals[run.runId] : undefined;
-    }),
+    }, previous),
   );
 
   /** The pull requests the open coordinator's threads work on. */

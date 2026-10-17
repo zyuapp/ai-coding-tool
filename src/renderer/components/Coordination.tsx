@@ -1,17 +1,19 @@
-import { useId, useRef, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent } from "react";
-import { LuCheck as Check, LuChevronDown as ChevronDown, LuChevronUp as ChevronUp, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuRotateCcw as Reopen, LuTrash2 as Trash, LuX as X } from "react-icons/lu";
-import { deliveryLabel, MAX_MEMORY_NOTE, MAX_PURPOSE, OVERVIEW_GROUPS, type MemoryNote, type OverviewFold, type OverviewFolds, type OverviewGroup, type OverviewSection, type ThreadBrief, type ThreadModelChoice } from "../../domain/coordination";
+import { createContext, memo, useContext, useId, useRef, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent } from "react";
+import { LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuChevronDown as ChevronDown, LuChevronUp as ChevronUp, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuRotateCcw as Reopen, LuTrash2 as Trash, LuX as X } from "react-icons/lu";
+import { deliveryLabel, MAX_MEMORY_NOTE, MAX_PURPOSE, nextStepOf, OVERVIEW_GROUPS, type MemoryNote, type NextStep, type OverviewFold, type OverviewFolds, type OverviewGroup, type OverviewSection, type ThreadBrief, type ThreadModelChoice } from "../../domain/coordination";
 import { engineForModel, modelDelegable, type AgentEngine, type AgentModel, type EngineReadiness } from "../../domain/agent-engine";
 import type { AgentEffort } from "../../domain/run";
 import type { Thread } from "../../domain/thread";
 import { worktreeHue, worktreeName, type Worktree } from "../../domain/worktree";
-import { canResolve, overviewGroups, type CoordinationApprovalView, type CoordinationDecisionView, type CoordinatedThreadStatus, type CoordinatedThreadView, type CoordinatorMemoryView } from "../../application/coordination";
+import { canResolve, overviewGroups, pullRequestLine, type CoordinationApprovalView, type CoordinationDecisionView, type CoordinatedThreadStatus, type CoordinatedThreadView, type CoordinatorMemoryView } from "../../application/coordination";
 import type { ApprovalView } from "../../application/thread-run-state";
 import type { WorktreeGroup } from "../../application/workspace-state";
 import type { MemberWorktree } from "../../application/member-worktrees";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
 import { CommandButton, CommandGate } from "./CommandControl";
 import { EffortMenu, ModelMenu } from "./ComposerSettings";
+import { useMessageLinks, WebLink } from "./MarkdownMessage";
+import { PULL_REQUEST_ICONS } from "./SessionPanel";
 import { MAC } from "../platform";
 import "./coordination.css";
 
@@ -78,7 +80,7 @@ type RowActions = {
 export function CoordinatorOverview({ header, memory, members, worktreeGroups, folds, onSetFold, onSelect, onResolve, onReopen }: RowActions & {
   header: OverviewHeaderProps;
   memory: OverviewMemoryProps;
-  members: CoordinatedThreadView[];
+  members: readonly CoordinatedThreadView[];
   worktreeGroups: WorktreeGroup[];
   folds: OverviewFolds;
   onSetFold: FoldChange;
@@ -250,7 +252,7 @@ export function OverviewHeader({ taskId, threadModel, engineAccess, favoriteMode
 /** One group of threads. Resolved starts folded, and Done once it is longer than a group shows. */
 function ThreadGroup({ group, members, fold, worktrees, onSetFold, ...actions }: RowActions & {
   group: OverviewGroup;
-  members: CoordinatedThreadView[];
+  members: readonly CoordinatedThreadView[];
   fold: OverviewFold;
   worktrees: Map<string, Worktree>;
   onSetFold: FoldChange;
@@ -321,6 +323,95 @@ export function ResolutionButton({ taskId, title, status, className, size = 13, 
     </CommandButton>
   );
 }
+
+/** What a coordinator's conversation draws its threads' cards from, and what a card does. */
+export type ThreadCardsView = {
+  cards: ReadonlyMap<string, CoordinatedThreadView>;
+  worktrees: ReadonlyMap<string, Worktree>;
+  onSelect: (threadId: string) => void;
+  onStep: (threadId: string, step: NextStep) => void;
+};
+
+/** Held by the coordinator's own transcript, so only its rows of cards redraw when one of its threads moves. */
+export const ThreadCardsContext = createContext<ThreadCardsView | null>(null);
+
+/** The threads a coordinator started together, side by side where they began in its conversation. */
+export function ThreadCards({ threadIds }: { threadIds: readonly string[] }) {
+  const shown = useContext(ThreadCardsContext);
+  const views = shown ? threadIds.flatMap((id) => shown.cards.get(id) ?? []) : [];
+  if (!shown || !views.length) return null;
+  return (
+    <div className="coordination-cards" role="list" aria-label={views.length === 1 ? "Thread started here" : "Threads started here"}>
+      {views.map((view) => (
+        <ThreadCard
+          key={view.thread.id}
+          view={view}
+          worktree={view.thread.worktreeId ? shown.worktrees.get(view.thread.worktreeId) : undefined}
+          onSelect={shown.onSelect}
+          onStep={shown.onStep}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * One thread as it stands, in the marks and colours of its Overview row. The card opens the thread,
+ * and its next steps sit beside that, never inside it.
+ */
+const ThreadCard = memo(function ThreadCard({ view, worktree, onSelect, onStep }: {
+  view: CoordinatedThreadView;
+  worktree: Worktree | undefined;
+  onSelect: (threadId: string) => void;
+  onStep: (threadId: string, step: NextStep) => void;
+}) {
+  const links = useMessageLinks();
+  const { thread, status, summary, pullRequest, steps } = view;
+  /** A thread ready for review is summed up by its pull request, which the card shows on its own. */
+  const line = coordinationStatusLine(status, pullRequest && status === "review" ? null : summary);
+  const Icon = pullRequest ? PULL_REQUEST_ICONS[pullRequest.state] : null;
+  return (
+    <div className={`coordination-card ${status}`} role="listitem">
+      <button type="button" className="coordination-card-open" aria-label={`Open ${thread.title}`} title={thread.title} onClick={() => onSelect(thread.id)}>
+        <span className="coordination-card-head">
+          <span className="coordination-row-mark"><CoordinationStatusMark status={status} /></span>
+          <strong>{thread.title}</strong>
+          <span className="coordination-row-marks">
+            {thread.worktreeId && <WorktreeMark worktreeId={thread.worktreeId} worktree={worktree} />}
+            <ThreadEngineIcon engine={thread.engine} className="coordination-row-engine" size={12} />
+          </span>
+        </span>
+        <small className={status === "working" ? "text-sweep" : undefined} title={line}>{line}</small>
+        {pullRequest && Icon && (
+          <span className="coordination-card-pull-request" data-state={pullRequest.state}>
+            <Icon size={11} aria-hidden="true" />
+            {pullRequestLine(pullRequest)}
+          </span>
+        )}
+      </button>
+      {(steps.length > 0 || pullRequest) && (
+        <div className="coordination-card-steps">
+          {steps.map((step) => (
+            <CommandButton key={step} type="button" className="coordination-card-step" command={{ type: "coordination.next-step", taskId: thread.id, step }} onClick={() => onStep(thread.id, step)}>
+              {nextStepOf(step).label}
+            </CommandButton>
+          ))}
+          {pullRequest && (
+            <WebLink
+              className="coordination-card-step"
+              href={pullRequest.url}
+              title={`#${pullRequest.number} ${pullRequest.title}`}
+              openInApp={links.openUrlInApp && (() => links.openUrlInApp!(pullRequest.url))}
+            >
+              Review PR
+              <ArrowUpRight size={12} aria-hidden="true" />
+            </WebLink>
+          )}
+        </div>
+      )}
+    </div>
+  );
+});
 
 /** The checkouts a coordinator's threads work in. New threads start there only through the coordinator, so the list only reveals and deletes. */
 export function MemberWorktreeList({ worktrees, onReveal, onDelete }: {

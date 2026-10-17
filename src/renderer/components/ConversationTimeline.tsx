@@ -11,7 +11,7 @@ import { liftTime, resumesOnItsOwn, type LimitPause } from "../../domain/usage-l
 import { CommandButton } from "./CommandControl";
 import type { Annotation, AnnotationAnchor } from "../../domain/conversation";
 import type { Thread } from "../../domain/thread";
-import { groupTimeline, messageRows } from "../timeline/grouping";
+import { groupTimeline, messageRows, type TimelineStart } from "../timeline/grouping";
 import { MAX_FIND_HITS, targetKey } from "../../domain/find";
 import { drawnMatches, paintMatches } from "../find/paint";
 import { useAnnotationMarkers, useAnnotationSelection, useSelectionCapture } from "../timeline/use-annotations";
@@ -20,6 +20,7 @@ import { AnnotatePopover, AnnotationMarkers, NoteEditor } from "./AnnotateLayer"
 import { TimelineEmptyState } from "./TimelineEmptyState";
 import { TimelineRow } from "./TimelineRow";
 import { RevealedMessage } from "./TurnWork";
+import { ThreadCardsContext, type ThreadCardsView } from "./Coordination";
 import { MessageArtifactScope, useMessageLinks } from "./MarkdownMessage";
 
 export { groupTimeline } from "../timeline/grouping";
@@ -27,6 +28,7 @@ export { formatElapsed } from "./TurnWork";
 export { READING_SETTLE_MS } from "../timeline/use-reading-view";
 
 const EMPTY_ANNOTATIONS: Annotation[] = [];
+const NO_STARTS: readonly TimelineStart[] = [];
 
 export type ConversationTimelineProps = {
   currentThread?: Thread;
@@ -65,6 +67,9 @@ export type ConversationTimelineProps = {
   onAnnotateRemove?: (annotationId: string) => void;
   /** Offered next to it when this transcript can hand a selection to a side chat as a bare reference. */
   onAnnotateSide?: (quote: string) => void;
+  /** On a coordinator's own transcript: the threads it started, drawn as cards where each began. */
+  threadCards?: ThreadCardsView | null;
+  starts?: readonly TimelineStart[];
 };
 
 /** What each wait is called, in the thread the wait is happening in. */
@@ -85,7 +90,7 @@ function retryLabel(retry: RetryNotice) {
   return `${retry.message} Retrying${count}…`;
 }
 
-export function ConversationTimeline({ currentThread, engine, engineLabel, folder, workspaceId, status, compacting, retrying = null, limitPause = null, waitingOn = null, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, restored = true, place, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide }: ConversationTimelineProps) {
+export function ConversationTimeline({ currentThread, engine, engineLabel, folder, workspaceId, status, compacting, retrying = null, limitPause = null, waitingOn = null, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, restored = true, place, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide, threadCards = null, starts = NO_STARTS }: ConversationTimelineProps) {
   const messages = currentThread?.messages ?? [];
   const artifactScope = useMemo(() => ({ root: folder, taskId: currentThread?.id, workspaceId }), [folder, currentThread?.id, workspaceId]);
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -99,9 +104,11 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
   /** The gap above the timeline, which puts the virtualizer's offsets in the scroller's own terms. */
   const [scrollMargin, setScrollMargin] = useState(0);
   const coordinator = isCoordinator(currentThread);
+  /** Only a coordinator's transcript, with its cards to draw, places the threads it started. */
+  const placed = coordinator && threadCards ? starts : NO_STARTS;
   const groups = useMemo(
-    () => groupTimeline(messages, { running: status === "running", tailMessageId: streamingTail?.messageId, runEndedAt: currentThread?.runEndedAt, coordinator }),
-    [messages, status, streamingTail?.messageId, currentThread?.runEndedAt, coordinator],
+    () => groupTimeline(messages, { running: status === "running", tailMessageId: streamingTail?.messageId, runEndedAt: currentThread?.runEndedAt, coordinator, starts: placed }),
+    [messages, status, streamingTail?.messageId, currentThread?.runEndedAt, coordinator, placed],
   );
   /** Every scroll the virtualizer makes for itself passes through here, which is how the reading view knows it is not the reader's. */
   const virtualizerScrolledAt = useRef(-Infinity);
@@ -115,6 +122,7 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
     estimateSize: (index) => {
       const group = groups[index];
       if (group?.kind === "turn") return group.final ? 140 : 64;
+      if (group?.kind === "threads") return 120;
       if (group?.kind === "updates" || (group?.kind === "message" && group.from)) return 40;
       return group?.message.kind === "user" ? 88 : 64;
     },
@@ -156,6 +164,7 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
   return (
     <RevealedMessage.Provider value={hit?.messageId ?? null}>
     <MessageArtifactScope.Provider value={artifactScope}>
+    <ThreadCardsContext.Provider value={coordinator ? threadCards : null}>
     <div className="timeline" ref={timelineRef}>
       <div className="timeline-items" style={{ height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map((item) => {
@@ -238,6 +247,7 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
         />
       )}
     </div>
+    </ThreadCardsContext.Provider>
     </MessageArtifactScope.Provider>
     </RevealedMessage.Provider>
   );

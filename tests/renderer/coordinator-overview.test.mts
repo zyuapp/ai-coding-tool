@@ -4,6 +4,7 @@ import { test } from "vitest";
 import React, { act } from "react";
 
 import type { Thread } from "../../src/domain/thread.ts";
+import type { CoordinatedThreadStatus, CoordinatedThreadView } from "../../src/application/coordination.ts";
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
 import { required } from "../application/workspace-reducer-fixtures.mts";
 import { emptyWorkspaceState, deriveView, OVERVIEW_PANEL } from "../../src/application/workspace-state.ts";
@@ -23,19 +24,22 @@ const memory = { taskId: "lead", purpose: null, notes: [], onSetPurpose() {}, on
 
 const member = (id: string, title: string): Thread => ({ id, title, engine: "claude", executionPolicy: "allow-edits", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, parentId: "lead" });
 
+/** A thread's row as the Overview is handed it, with no pull request and nothing to do next. */
+const row = (thread: Thread, status: CoordinatedThreadStatus, summary: string | null = null): CoordinatedThreadView => ({ thread, status, summary, pullRequest: null, steps: [], startedAt: null });
+
 test("a coordinator's Overview groups its threads by what they need, each opening as a tab", async () => {
   window.desktop = fakeDesktop();
   const worktree = { id: "wt-1", name: "dark-mode", projectId: "p", root: "/tmp/wt-1", workspaceId: "ws-1", baseCommit: "abc", createdAt: 1, lastUsedAt: 1 };
   let opened: string | undefined;
   const folded: unknown[] = [];
-  const done = Array.from({ length: 7 }, (_, index) => ({ thread: member(`d${index}`, `Done ${index}`), status: "done" as const, summary: null }));
-  const working = Array.from({ length: 7 }, (_, index) => ({ thread: member(`w${index}`, `Working ${index}`), status: "working" as const, summary: null }));
+  const done = Array.from({ length: 7 }, (_, index) => row(member(`d${index}`, `Done ${index}`), "done"));
+  const working = Array.from({ length: 7 }, (_, index) => row(member(`w${index}`, `Working ${index}`), "working"));
   const overview = (folds: object) => React.createElement(CoordinatorOverview, {
     header,
     memory,
     members: [
-      { thread: { ...member("a", "Dark mode"), worktreeId: "wt-1" }, status: "working", summary: "Tokens pass" },
-      { thread: member("b", "Login flake"), status: "asking", summary: "Retry or skip?" },
+      row({ ...member("a", "Dark mode"), worktreeId: "wt-1" }, "working", "Tokens pass"),
+      row(member("b", "Login flake"), "asking", "Retry or skip?"),
       ...working,
       ...done,
     ],
@@ -82,12 +86,12 @@ test("the Overview files threads ready for review and resolved apart, and resolv
     header,
     memory,
     members: [
-      { thread: member("review", "Dark mode"), status: "review", summary: "#212 · Checks failing" },
-      { thread: member("busy", "Login flake"), status: "working", summary: null },
-      { thread: member("done", "Docs"), status: "done", summary: "Shipped" },
-      { thread: member("asking", "Retry"), status: "asking", summary: "Retry or skip?" },
-      { thread: member("old", "Old work"), status: "resolved", summary: null },
-      { thread: member("older", "Older work"), status: "resolved", summary: null },
+      row(member("review", "Dark mode"), "review", "#212 · Checks failing"),
+      row(member("busy", "Login flake"), "working"),
+      row(member("done", "Docs"), "done", "Shipped"),
+      row(member("asking", "Retry"), "asking", "Retry or skip?"),
+      row(member("old", "Old work"), "resolved"),
+      row(member("older", "Older work"), "resolved"),
     ],
     worktreeGroups: [],
     folds,

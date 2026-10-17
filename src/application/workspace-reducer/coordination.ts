@@ -3,14 +3,14 @@ import { queuedFor, resolveWorkspaceEffect, threadBusy, withPending } from "./ru
 import { reduceSending } from "./sending.js";
 import { now, rejected, settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { canResolve, coordinatedThreadStatus, coordinationMembers, coordinationNote, coordinationUpdate, turnNote, workingMembers } from "../coordination.js";
+import { canResolve, checkoutAnswer, coordinatedThreadStatus, coordinationMembers, coordinationNote, coordinationUpdate, nextSteps, turnNote, workingMembers } from "../coordination.js";
 import { activityChanges, threadActivity, threadChanges } from "../thread-activity.js";
 import { heldByLimit } from "../limit-pauses.js";
 import { announced } from "../notices.js";
 import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
-import { canJoinCoordinator, coordinatorOf, isCoordinator, MAX_ANSWER, openDecisions, threadModelOf, undelegable, withAnswer, withCoordinationNote, withDecision, withMemoryChange, type CoordinationNote, type MemoryChange } from "../../domain/coordination.js";
+import { canJoinCoordinator, coordinatorOf, isCoordinator, MAX_ANSWER, nextStepOf, openDecisions, threadModelOf, undelegable, withAnswer, withCoordinationNote, withDecision, withMemoryChange, type CoordinationNote, type MemoryChange } from "../../domain/coordination.js";
 import { defaultEffortFor, effortForModel, engineForModel, modelDelegable, modelHasEffort, modelTakesEffort } from "../../domain/agent-engine.js";
 import type { Thread } from "../../domain/thread.js";
 import { dismissed } from "../../domain/attention.js";
@@ -18,8 +18,10 @@ import { resumesOnItsOwn } from "../../domain/usage-limit.js";
 
 type CoordinationInput = Extract<WorkspaceInput, {
   type: "task.set-coordinator" | "task.resolve" | "task.reopen" | "decision.answer" | "coordination.set-thread-model" | "coordination.reported" | "coordination.decision-raised"
-    | "memory.set-purpose" | "memory.add" | "memory.edit" | "memory.forget" | "coordination.remembered";
+    | "memory.set-purpose" | "memory.add" | "memory.edit" | "memory.forget" | "coordination.remembered" | "coordination.next-step";
 }>;
+
+const STEP_GONE = "That step is no longer offered.";
 
 const JOIN_REFUSED = "Only a coordinator can take threads under it, and a coordinator cannot work under another.";
 
@@ -70,6 +72,19 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       /** A decision only closes once its answer is on its way, so one that could not be sent can be answered again. */
       const sent = reduceSending(state, { type: "task.send", taskId: thread.id, text: `The user decided "${decision.question}": ${answer}`, steer: true });
       return sent.result?.ok === false ? sent : { ...sent, state: answered(sent.state) };
+    }
+
+    /**
+     * A next step is the user's own word to the thread, sent as any message of theirs is. One the
+     * thread's card no longer offers, as once it has started working, is refused and nothing is sent.
+     */
+    case "coordination.next-step": {
+      const thread = state.threads.find((item) => item.id === input.taskId);
+      if (!thread || !coordinatorOf(state.threads, thread)) return rejected(state, STEP_GONE);
+      const { working, blocked } = threadActivity(state);
+      const { status } = coordinatedThreadStatus(thread, working, blocked);
+      if (!nextSteps(thread, status, checkoutAnswer(state, thread)).includes(input.step)) return rejected(state, STEP_GONE);
+      return reduceSending(state, { type: "task.send", taskId: thread.id, text: nextStepOf(input.step).text });
     }
 
     case "coordination.set-thread-model": {

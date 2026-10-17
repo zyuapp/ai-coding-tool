@@ -59,13 +59,14 @@ export function reducePullRequests(state: WorkspaceState, input: PullRequestInpu
       const answersMember = input.members && member && member.read === input.read && member.branch === input.branch;
       if (!answersHeld && !answersMember) return settled(state);
       const current = answersHeld && !samePullRequest(held.answer, input.answer);
-      const changedMember = answersMember && !samePullRequest(member.answer, input.answer);
+      /** A checkout's first answer is news even when it says none, since none is now GitHub's word. */
+      const changedMember = answersMember && (!member.answered || !samePullRequest(member.answer, input.answer));
       const next = linked(state, answersHeld ? held.threadIds : member?.threadIds, input.answer);
       if (!current && !changedMember) return settled(next);
       return settled({
         ...next,
         ...(current ? { pullRequest: { ...held, answer: input.answer } } : {}),
-        ...(changedMember ? { memberPullRequests: { ...state.memberPullRequests, [input.workspaceId]: { ...member, answer: input.answer } } } : {}),
+        ...(changedMember ? { memberPullRequests: { ...state.memberPullRequests, [input.workspaceId]: { ...member, answer: input.answer, answered: true } } } : {}),
       });
     }
   }
@@ -90,6 +91,7 @@ function checkoutRead(state: WorkspaceState, workspaceId: string, threads: Threa
     read: (held?.read ?? 0) + 1,
     answer: held?.answer ?? NO_PULL_REQUEST,
     threadIds: threads.map((thread) => thread.id),
+    ...(held?.answered ? { answered: true as const } : {}),
   };
   return {
     state: { ...state, memberPullRequests: { ...state.memberPullRequests, [workspaceId]: read } },

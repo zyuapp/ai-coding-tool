@@ -4,9 +4,10 @@ import type { ApprovalView } from "./thread-run-state.js";
 import type { PairedComputer } from "./computers.js";
 import { threadActivity, threadStatus, type ThreadStatus } from "./thread-activity.js";
 import { activitySections, type ActivitySections } from "./thread-order.js";
-import { coordinationDecisions, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, openDecisions, threadModelOf, type CoordinationNote, type CoordinatorMemory, type Decision, type MemoryNote, type OverviewGroup, type ThreadBrief, type ThreadModelChoice } from "../domain/coordination.js";
-import { threadActivityAt, type Thread } from "../domain/thread.js";
-import type { PullRequestChecks, PullRequestLink, PullRequestRef } from "../domain/pull-request.js";
+import { threadWorkspaceId } from "./thread-location.js";
+import { coordinationDecisions, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, openDecisions, threadModelOf, type CoordinationNote, type CoordinatorMemory, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type ThreadBrief, type ThreadModelChoice } from "../domain/coordination.js";
+import { threadActivityAt, threadCreatedAt, type Thread } from "../domain/thread.js";
+import type { PullRequestAnswer, PullRequestChecks, PullRequestLink, PullRequestRef, PullRequestState } from "../domain/pull-request.js";
 import { wantsAttention } from "../domain/attention.js";
 
 /**
@@ -312,7 +313,11 @@ export function ownsPullRequest(member: Thread): boolean {
 
 const CHECKS_LINE: Record<PullRequestChecks, string> = { failing: "Checks failing", passing: "Checks passing", pending: "Checks pending" };
 
-function reviewSummary(pullRequest: OwnPullRequest): string {
+const STATE_LINE: Record<Exclude<PullRequestState, "open">, string> = { draft: "Draft", merged: "Merged", closed: "Closed" };
+
+/** A thread's own pull request in a few words: an open one by where its checks stand, any other by how it stands. */
+export function pullRequestLine(pullRequest: OwnPullRequest): string {
+  if (pullRequest.state !== "open") return `#${pullRequest.number} · ${STATE_LINE[pullRequest.state]}`;
   return pullRequest.checks ? `#${pullRequest.number} · ${CHECKS_LINE[pullRequest.checks]}` : `#${pullRequest.number}`;
 }
 
@@ -324,11 +329,54 @@ export function canResolve(status: CoordinatedThreadStatus): boolean {
   return !UNRESOLVABLE.includes(status);
 }
 
-export type CoordinatedThreadView = {
+/**
+ * What GitHub last said of the pull request of the checkout a thread works in, or null before it has
+ * said anything, as while the first read is on its way or when nothing has asked yet.
+ */
+export function checkoutAnswer(state: Pick<WorkspaceState, "projects" | "worktrees" | "memberPullRequests">, member: Thread): PullRequestAnswer | null {
+  const workspaceId = threadWorkspaceId(state, member);
+  const read = workspaceId ? state.memberPullRequests[workspaceId] : undefined;
+  return read?.answered ? read.answer : null;
+}
+
+/**
+ * What the user can tell a thread under a coordinator to do next about its own pull request, most
+ * pressing first. A thread that is working, waiting on the user, or filed away is offered nothing.
+ * Opening a pull request waits until GitHub has said the thread's checkout has none, so it never
+ * shows before the first answer, nor when gh is missing and nothing can be asked.
+ */
+export function nextSteps(member: Thread, status: CoordinatedThreadStatus, checkout: PullRequestAnswer | null): NextStep[] {
+  if (!canResolve(status)) return [];
+  const pullRequest = ownPullRequest(member);
+  if (!pullRequest) return member.brief?.delivers === "pull-request" && checkout?.status === "none" ? ["create-pull-request"] : [];
+  if (pullRequest.state !== "open" && pullRequest.state !== "draft") return [];
+  const { conflicts, checks, review } = pullRequest;
+  const steps: NextStep[] = [];
+  if (conflicts) steps.push("resolve-conflicts");
+  if (checks === "failing") steps.push("fix-ci");
+  if (review === "changes-requested") steps.push("address-comments");
+  const mergeable = pullRequest.state === "open" && !conflicts && checks !== "failing" && checks !== "pending" && (review === undefined || review === "approved");
+  if (mergeable) steps.push("merge");
+  return steps;
+}
+
+/** Where a thread under a coordinator stands, as its status says it. */
+export type CoordinatedThreadStanding = {
   thread: Thread;
   status: CoordinatedThreadStatus;
   summary: string | null;
 };
+
+/** One thread under a coordinator as its Overview row and its card in the coordinator's conversation show it. */
+export type CoordinatedThreadView = CoordinatedThreadStanding & {
+  pullRequest: OwnPullRequest | null;
+  steps: readonly NextStep[];
+  /** When a thread the coordinator started began; null for one moved under it by hand or started by another of its threads. */
+  startedAt: number | null;
+};
+
+/** A thread the coordinator started, and when, which is where its card sits in the coordinator's conversation. */
+export type ThreadStart = { id: string; at: number };
 
 export type CoordinationDecisionView = {
   thread: Thread;
@@ -352,7 +400,9 @@ export type CoordinationView = {
   threadModel: ThreadModelChoice | null;
   /** On a coordinator, its purpose and notes; null on any other thread. */
   memory: CoordinatorMemoryView | null;
-  members: CoordinatedThreadView[];
+  members: readonly CoordinatedThreadView[];
+  /** The threads it started, oldest first. */
+  starts: readonly ThreadStart[];
   /** Tool approvals it and its threads are waiting on, answered beside its decisions. */
   approvals: CoordinationApprovalView[];
   decisions: CoordinationDecisionView[];
@@ -362,7 +412,7 @@ export type CoordinationView = {
   asking: boolean;
 };
 
-const NO_COORDINATION: CoordinationView = { threadModel: null, memory: null, members: [], approvals: [], decisions: [], lead: null, brief: null, asking: false };
+const NO_COORDINATION: CoordinationView = { threadModel: null, memory: null, members: [], starts: [], approvals: [], decisions: [], lead: null, brief: null, asking: false };
 
 const NO_NOTES: readonly MemoryNote[] = [];
 
@@ -371,7 +421,7 @@ const NO_NOTES: readonly MemoryNote[] = [];
  * filed away as resolved, stuck, its own pull request open for review, then done in some way. Work
  * going or a question waiting outranks resolution, since either needs the user to see it again.
  */
-export function coordinatedThreadStatus(thread: Thread, busy: Set<string>, blocked: Set<string>): CoordinatedThreadView {
+export function coordinatedThreadStatus(thread: Thread, busy: Set<string>, blocked: Set<string>): CoordinatedThreadStanding {
   const question = openDecisions(thread)[0]?.question;
   if (blocked.has(thread.id)) return { thread, status: "approval", summary: null };
   if (question) return { thread, status: "asking", summary: question };
@@ -381,24 +431,31 @@ export function coordinatedThreadStatus(thread: Thread, busy: Set<string>, block
   if (report && report.state !== "done") return { thread, status: report.state, summary: report.summary };
   if (!report && thread.outcome === "failed") return { thread, status: "failed", summary: null };
   const pullRequest = ownPullRequest(thread);
-  if (pullRequest?.state === "open") return { thread, status: "review", summary: reviewSummary(pullRequest) };
+  if (pullRequest?.state === "open") return { thread, status: "review", summary: pullRequestLine(pullRequest) };
   if (report) return { thread, status: "done", summary: report.summary };
   /** A thread that ended its turn without reporting has still finished it, which says more than idle. */
   if (thread.outcome === "finished") return { thread, status: "finished", summary: null };
   return { thread, status: "idle", summary: null };
 }
 
+/**
+ * What the open thread shows. `previous` is the view last made, whose objects are handed back for
+ * every thread under the coordinator whose view is unchanged, so its row and card draw nothing anew.
+ */
 export function coordinationView(
-  state: Pick<WorkspaceState, "threads" | "computers">,
+  state: Pick<WorkspaceState, "threads" | "computers" | "projects" | "worktrees" | "memberPullRequests">,
   thread: Thread | undefined,
   busy: Set<string>,
   blocked: Set<string>,
   approvalOf: (threadId: string) => ApprovalView | undefined = () => undefined,
+  previous?: CoordinationView,
 ): CoordinationView {
   const { threads } = state;
   if (!thread) return NO_COORDINATION;
   if (isCoordinator(thread)) {
-    const members = coordinationMembers(state, thread.id).map((member) => coordinatedThreadStatus(member.thread, busy, blocked));
+    const held = new Map(previous?.members.map((view) => [view.thread.id, view]));
+    const members = sameItems(previous?.members, coordinationMembers(state, thread.id).map((member) => memberView(state, member.thread, busy, blocked, held.get(member.thread.id))));
+    const starts = sameStarts(previous?.starts, members.flatMap(({ thread: member, startedAt }) => startedAt === null ? [] : [{ id: member.id, at: startedAt }]).sort((left, right) => left.at - right.at));
     const own = approvalOf(thread.id);
     const approvals = [
       ...(own ? [{ thread, approval: own }] : []),
@@ -409,13 +466,31 @@ export function coordinationView(
     ];
     const decisions = coordinationDecisions(threads, thread.id);
     const memory = { purpose: thread.memory?.purpose ?? null, notes: thread.memory?.notes ?? NO_NOTES };
-    return { ...NO_COORDINATION, threadModel: threadModelOf(thread), memory, members, approvals, decisions, brief: thread.brief ?? null };
+    return { ...NO_COORDINATION, threadModel: threadModelOf(thread), memory, members, starts, approvals, decisions, brief: thread.brief ?? null };
   }
   const lead = coordinatorOf(threads, thread) ?? null;
   /** A thread that left its coordinator with a decision still open is where that decision is answered now. */
   const decisions = lead ? [] : openDecisions(thread).map((decision) => ({ thread, decision }));
   if (!lead && !thread.brief && !decisions.length) return NO_COORDINATION;
   return { ...NO_COORDINATION, lead, decisions, brief: thread.brief ?? null, asking: Boolean(lead && openDecisions(thread).length) };
+}
+
+/** A thread's view, or the one held for it when nothing it shows has changed. */
+function memberView(state: Pick<WorkspaceState, "projects" | "worktrees" | "memberPullRequests">, member: Thread, busy: Set<string>, blocked: Set<string>, held: CoordinatedThreadView | undefined): CoordinatedThreadView {
+  const { status, summary } = coordinatedThreadStatus(member, busy, blocked);
+  const steps = nextSteps(member, status, checkoutAnswer(state, member));
+  /** The pull request and the start are read off the thread, so the same thread has the same ones. */
+  if (held?.thread === member && held.status === status && held.summary === summary && sameItems(held.steps, steps) === held.steps) return held;
+  return { thread: member, status, summary, pullRequest: ownPullRequest(member), steps, startedAt: member.brief ? threadCreatedAt(member) : null };
+}
+
+/** The list held before when it holds the same items in the same order, else the new one. */
+function sameItems<Item>(before: readonly Item[] | undefined, next: readonly Item[]): readonly Item[] {
+  return before && before.length === next.length && before.every((item, index) => item === next[index]) ? before : next;
+}
+
+function sameStarts(before: readonly ThreadStart[] | undefined, next: ThreadStart[]): readonly ThreadStart[] {
+  return before && before.length === next.length && before.every((start, index) => start.id === next[index]!.id && start.at === next[index]!.at) ? before : next;
 }
 
 const GROUP_OF: Record<CoordinatedThreadStatus, OverviewGroup> = {

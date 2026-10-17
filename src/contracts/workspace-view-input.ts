@@ -2,7 +2,7 @@ import type { AppCommand } from "./commands.js";
 import { isTerminalDimension, MAX_TERMINAL_INPUT } from "./terminal.js";
 import { isSnoozeHours } from "../domain/thread-snooze.js";
 import { isThreadRole } from "../domain/thread-role.js";
-import { isOverviewSection, isThreadBrief } from "../domain/coordination.js";
+import { isNextStep, isOverviewSection, isThreadBrief } from "../domain/coordination.js";
 import type { WorkspaceEvent } from "../application/workspace-reducer.js";
 import { isBrowserAction, isString, MAX_PROMPT_LENGTH } from "./ipc.js";
 import type { ExternalCommand } from "./threads.js";
@@ -261,6 +261,7 @@ const commands = {
   "memory.add": { fields: { taskId: text, text }, at: "thread" },
   "memory.edit": { fields: { taskId: text, noteId: text, text }, at: "thread" },
   "memory.forget": { fields: { taskId: text, noteId: text }, at: "thread" },
+  "coordination.next-step": { fields: { taskId: text, step: isNextStep }, at: "thread" },
   "task.dismiss": { fields: { taskId: text }, at: "thread" },
   "task.snooze": { fields: { taskId: text, hours: isSnoozeHours }, at: "thread" },
   "task.unsnooze": { fields: { taskId: text }, at: "thread" },

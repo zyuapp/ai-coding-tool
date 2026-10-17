@@ -129,6 +129,28 @@ export type MemoryChange =
   | { kind: "edit"; noteId: string; text: string }
   | { kind: "forget"; noteId: string };
 
+/**
+ * What the user can tell a thread under a coordinator to do next about its pull request, most
+ * pressing first, each said to the thread in the user's own words.
+ */
+export const NEXT_STEPS = [
+  { id: "resolve-conflicts", label: "Resolve conflicts", text: "The pull request has merge conflicts with its base branch. Resolve them and push." },
+  { id: "fix-ci", label: "Fix CI", text: "The pull request's checks are failing. Find out why, fix them, and push." },
+  { id: "address-comments", label: "Address comments", text: "The pull request has review comments asking for changes. Address each one, push, and reply on the pull request." },
+  { id: "merge", label: "Merge it", text: "Merge the pull request." },
+  { id: "create-pull-request", label: "Create PR", text: "Open a pull request for this work." },
+] as const;
+
+export type NextStep = (typeof NEXT_STEPS)[number]["id"];
+
+export function isNextStep(value: unknown): value is NextStep {
+  return NEXT_STEPS.some((step) => step.id === value);
+}
+
+export function nextStepOf(id: NextStep): (typeof NEXT_STEPS)[number] {
+  return NEXT_STEPS.find((step) => step.id === id)!;
+}
+
 export function isCoordinator(thread: Thread | undefined): boolean {
   return thread?.role === "coordinator" && thread.archivedAt === undefined;
 }

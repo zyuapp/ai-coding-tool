@@ -1,7 +1,7 @@
-import { useRef, type ReactNode } from "react";
+import { useMemo, useRef, type ReactNode } from "react";
 import { ApprovalCard } from "./ApprovalCard";
 import { ConversationTimeline } from "./ConversationTimeline";
-import { CoordinationBar } from "./Coordination";
+import { CoordinationBar, type ThreadCardsView } from "./Coordination";
 import { projectName } from "../../domain/project";
 import { isCoordinator } from "../../domain/coordination";
 import { usePullRequestReads } from "../task-workspace/pull-request-reads";
@@ -29,9 +29,16 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
   const transcriptRef = useRef<HTMLDivElement>(null);
   /** A side chat is a thread too, so the main transcript only claims the bar when it is the one named. */
   const mine = find?.target.kind === "thread" && find.target.taskId === (workspace.currentThread?.id ?? null) ? find : null;
-  const { coordination } = workspace;
+  const { coordination, worktreeGroups, actions } = workspace;
   /** A coordinator follows its threads in its Overview; a thread opened on its own says whom it works under. */
   const bar = coordination.threadModel === null && (coordination.lead !== null || coordination.brief !== null);
+  /** Rebuilt only when one of its threads' views moves, which each card holds still against on its own. */
+  const threadCards = useMemo((): ThreadCardsView | null => coordination.threadModel === null ? null : {
+    cards: new Map(coordination.members.map((view) => [view.thread.id, view])),
+    worktrees: new Map(worktreeGroups.map(({ worktree }) => [worktree.id, worktree])),
+    onSelect: actions.selectThread,
+    onStep: (threadId, step) => void actions.takeNextStep(threadId, step),
+  }, [coordination.threadModel, coordination.members, worktreeGroups, actions]);
   return (
     <div className={`work-area ${bar ? (coordination.lead ? "coordination-bar-on" : "coordination-brief-on") : ""}`}>
       {isCoordinator(workspace.currentThread) && <CoordinatorReads
@@ -69,6 +76,8 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
           onAnnotateNote={(annotationId, note) => void workspace.dispatch({ type: "annotation.note", annotationId, note })}
           onAnnotateRemove={(annotationId) => void workspace.dispatch({ type: "annotation.remove", annotationId })}
           onAnnotateSide={onAnnotateSide}
+          threadCards={threadCards}
+          starts={coordination.starts}
         />
         {/** A coordinator's own approval waits in its Needs-you card beside its threads'. */}
         {workspace.approval && !coordination.approvals.some(({ approval }) => approval.approvalId === workspace.approval?.approvalId) && (

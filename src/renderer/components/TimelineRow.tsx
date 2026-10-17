@@ -13,6 +13,7 @@ import { PasteRow } from "./PasteRow";
 import { StreamingText } from "./StreamingText";
 import { SystemNotice } from "./SystemNotice";
 import { Fold, SettledSteps, TurnSegments } from "./TurnWork";
+import { ThreadCards } from "./Coordination";
 
 let clockFormatter: Intl.DateTimeFormat | undefined;
 let momentFormatter: Intl.DateTimeFormat | undefined;
@@ -69,6 +70,7 @@ function LiveSteps({ engine, steps, tail }: { engine: AgentEngine; steps: Conver
 type Entry = Exclude<TimelineGroup, { kind: "updates" }>;
 
 function TimelineEntry({ engine, entry, streamingTail, onViewAttachment }: { engine: AgentEngine; entry: Entry; streamingTail?: StreamingTail | null; onViewAttachment: (source: string) => void }) {
+  if (entry.kind === "threads") return <ThreadCards threadIds={entry.threadIds} />;
   if (entry.kind === "turn") {
     return (
       <article className="message assistant turn">

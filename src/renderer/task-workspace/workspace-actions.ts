@@ -7,7 +7,7 @@ import type { FindResults, FindTarget } from "../../domain/find";
 import type { AgentEngine, AgentModel } from "../../domain/agent-engine";
 import type { ComputerUsePermission } from "../../domain/computer-use";
 import type { AgentEffort, ExecutionPolicy, SubagentGroup } from "../../domain/run";
-import type { OverviewSection } from "../../domain/coordination";
+import type { NextStep, OverviewSection } from "../../domain/coordination";
 import type { SettingsSection } from "../../domain/settings-section";
 import type { SidebarMode, SidebarSection } from "../../domain/sidebar";
 import type { RunAttachment } from "../../domain/conversation";
@@ -42,6 +42,7 @@ function coordinationActions(dispatch: (input: WorkspaceInput) => Promise<void>)
     addNote: (taskId: string, text: string) => dispatch({ type: "memory.add", taskId, text }),
     editNote: (taskId: string, noteId: string, text: string) => dispatch({ type: "memory.edit", taskId, noteId, text }),
     forgetNote: (taskId: string, noteId: string) => dispatch({ type: "memory.forget", taskId, noteId }),
+    takeNextStep: (threadId: string, step: NextStep) => dispatch({ type: "coordination.next-step", taskId: threadId, step }),
   };
 }
 

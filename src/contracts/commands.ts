@@ -2,7 +2,7 @@ import type { ComputerFilter } from "../domain/computers.js";
 import type { AutomationDraft, AutomationPatch } from "../domain/automation.js";
 import type { SnoozeHours } from "../domain/thread-snooze.js";
 import type { ThreadRole } from "../domain/thread-role.js";
-import type { OverviewSection, ThreadBrief } from "../domain/coordination.js";
+import type { NextStep, OverviewSection, ThreadBrief } from "../domain/coordination.js";
 import type { ShortcutSurface } from "../domain/shortcuts.js";
 import type { BrowserAction } from "../domain/browser.js";
 import type { ComputerUsePermission } from "../domain/computer-use.js";
@@ -110,6 +110,8 @@ export type TaskCommand =
   | { type: "memory.add"; taskId: string; text: string }
   | { type: "memory.edit"; taskId: string; noteId: string; text: string }
   | { type: "memory.forget"; taskId: string; noteId: string }
+  /** Tells a thread under a coordinator, in the user's own words, to take a next step its card offers. */
+  | { type: "coordination.next-step"; taskId: string; step: NextStep }
   /** Takes the dot off a thread, which is the only thing that does. Opening the thread only dims it. */
   | { type: "task.dismiss"; taskId: string }
   | { type: "task.snooze"; taskId: string; hours: SnoozeHours }
