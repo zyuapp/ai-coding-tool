@@ -334,6 +334,13 @@ export function coordinationDecisions(lead: Thread, members: readonly Thread[]):
     .sort((left, right) => left.decision.raisedAt - right.decision.raisedAt);
 }
 
+/** A thread's report belongs to the turn that made it, so a turn that starts takes it off. */
+export function withoutReport(thread: Thread): Thread {
+  if (!thread.report) return thread;
+  const { report: _superseded, ...rest } = thread;
+  return rest;
+}
+
 export function withDecision(thread: Thread, decision: Decision): Thread {
   const kept = [...thread.decisions ?? [], decision];
   const answered = kept.filter((item) => item.answer !== undefined);

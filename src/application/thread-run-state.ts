@@ -7,7 +7,7 @@ import { createConversationMessage, createFailureMessage } from "../domain/conve
 import type { ThreadOutcome } from "../domain/thread-run.js";
 import type { Thread } from "../domain/thread.js";
 import { appendMessages, replaceLastMessage, withdrawMessages } from "../domain/conversation-updates.js";
-import { withMemoryUnheard } from "../domain/coordination.js";
+import { withMemoryUnheard, type CoordinationReport } from "../domain/coordination.js";
 import { defaultModelFor } from "../domain/agent-engine.js";
 
 export type ActiveRun = RunProvenance & {
@@ -38,14 +38,16 @@ export type ActiveRun = RunProvenance & {
 };
 
 /**
- * What a tick has to put back to have said nothing at all: the verdict of the run before it, which
- * beginning a run always supersedes, and the moments the sidebar orders threads by.
+ * What a tick has to put back to have said nothing at all: the verdict of the run before it and the
+ * report that run made, which beginning a run always supersedes, and the moments the sidebar orders
+ * threads by.
  */
 export type ThreadMark = {
   updatedAt: number;
   runEndedAt?: number;
   outcome?: ThreadOutcome;
   outcomeUnread?: true;
+  report?: CoordinationReport;
 };
 
 export function threadMark(thread: Thread | undefined): ThreadMark {
@@ -54,14 +56,15 @@ export function threadMark(thread: Thread | undefined): ThreadMark {
     ...(thread?.runEndedAt === undefined ? {} : { runEndedAt: thread.runEndedAt }),
     ...(thread?.outcome === undefined ? {} : { outcome: thread.outcome }),
     ...(thread?.outcomeUnread ? { outcomeUnread: true as const } : {}),
+    ...(thread?.report ? { report: thread.report } : {}),
   };
 }
 
 /**
  * Puts a thread back where a tick found it: the messages that tick wrote are withdrawn, so they
  * count for nothing in the thread's activity, the moments it moved are rolled back, and the verdict
- * beginning the run superseded is returned, unread as it was. A tick that says nothing takes
- * nothing away either.
+ * and report beginning the run superseded are returned, unread as they were. A tick that says
+ * nothing takes nothing away either, and a report the tick made itself stands.
  */
 export function withdrawRun(thread: Thread, from: number, before: ThreadMark): Thread {
   const { runEndedAt: _stamped, outcome: _superseded, outcomeUnread: _unread, ...rest } = thread;
@@ -72,6 +75,7 @@ export function withdrawRun(thread: Thread, from: number, before: ThreadMark): T
     ...(before.runEndedAt === undefined ? {} : { runEndedAt: before.runEndedAt }),
     ...(before.outcome === undefined ? {} : { outcome: before.outcome }),
     ...(before.outcomeUnread ? { outcomeUnread: true as const } : {}),
+    ...(!thread.report && before.report ? { report: before.report } : {}),
   };
 }
 

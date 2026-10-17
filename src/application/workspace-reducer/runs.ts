@@ -254,13 +254,14 @@ function turnPullRequestRead(state: WorkspaceState, taskId: string) {
   return thread.brief?.delivers === "pull-request" || thread.pullRequest ? memberPullRequestRead(state, thread) : null;
 }
 
-/** Compaction updates the transcript, but it does not replace the verdict of the last thread run. */
+/** Compaction updates the transcript, but it does not replace the verdict of the last thread run, nor its report. */
 function restoreCompactionTestimony(state: WorkspaceState, taskId: string, before: ThreadMark) {
   return updateThread(state, taskId, ({ outcome: _outcome, outcomeUnread: _unread, runEndedAt: _ended, ...thread }) => ({
     ...thread,
     ...(before.outcome === undefined ? {} : { outcome: before.outcome }),
     ...(before.outcomeUnread ? { outcomeUnread: true as const } : {}),
     ...(before.runEndedAt === undefined ? {} : { runEndedAt: before.runEndedAt }),
+    ...(before.report ? { report: before.report } : {}),
   }));
 }
 

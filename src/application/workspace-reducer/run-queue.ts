@@ -12,6 +12,7 @@ import { withPrompt, type DraftBranch, type PendingRun, type QueuedMessage, type
 import type { ClaudeRunSettings, StartRunCommand } from "../../contracts/ipc.js";
 import { withoutOutcome } from "../../domain/attention.js";
 import { coordinationRole } from "../coordination.js";
+import { withoutReport } from "../../domain/coordination.js";
 import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel } from "../../domain/agent-engine.js";
 import type { RunStatus } from "../../domain/run.js";
 import { createSentMessage, type Annotation, type AttachedFile, type PastedText, type RunAttachment } from "../../domain/conversation.js";
@@ -138,12 +139,14 @@ export function forkableContinuation(state: WorkspaceState, taskId: string) {
 
 /**
  * Records the run against the thread and marks it the thread's latest, so stale replies can be dropped.
- * The new run supersedes whatever the last one concluded, so its verdict never outlives it, and it
- * keeps where the thread stood, which is what a run that settles unseen puts back.
+ * The new run supersedes whatever the last one concluded, so its verdict and the report it made never
+ * outlive it, and it keeps where the thread stood, which is what a run that settles unseen puts back.
+ * A run resuming a thread after its usage limit lifted carries on the turn the limit cut short, so
+ * what that turn reported still stands.
  */
 export function beginRun(state: WorkspaceState, taskId: string, runId: string, provenance: RunProvenance = ATTENDED_RUN, before?: ThreadMark, warming = false): WorkspaceState {
   /** A run that starts is the thread picked back up, whatever its place in line. */
-  const threads = withoutOutcome(state.threads, new Set([taskId])).map((thread) => thread.id === taskId ? withoutLimitPause(thread) : thread);
+  const threads = withoutOutcome(state.threads, new Set([taskId])).map((thread) => thread.id === taskId ? withoutLimitPause(warming ? thread : withoutReport(thread)) : thread);
   const messagesBefore = threads.find((thread) => thread.id === taskId)?.messages.length ?? 0;
   const mark = before ?? threadMark(state.threads.find((thread) => thread.id === taskId));
   return withRunStatus(
