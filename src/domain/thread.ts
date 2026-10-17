@@ -4,7 +4,7 @@ import type { AutomationFinding } from "./finding.js";
 import type { AgentEffort, Continuation, ExecutionPolicy } from "./run.js";
 import type { CoordinationNote, CoordinationReport, CoordinatorMemory, Decision, ThreadBrief, ThreadModelChoice, ThreadProposal } from "./coordination.js";
 import type { ThreadRole } from "./thread-role.js";
-import type { ChangeSnapshot, ContextUsage, ContinuationStatus, ThreadOutcome } from "./thread-run.js";
+import type { ChangeSnapshot, ContextUsage, ContinuationStatus, ThreadOutcome, ThreadUsage } from "./thread-run.js";
 import type { LimitPause } from "./usage-limit.js";
 import type { PullRequestLink } from "./pull-request.js";
 
@@ -48,6 +48,8 @@ export type Thread = {
   /** Codex only. Absent means standard speed. */
   fastMode?: boolean;
   contextUsage?: ContextUsage;
+  /** What this thread's runs have spent, which unlike its context only ever grows. */
+  usage?: ThreadUsage;
   messages: ConversationMessage[];
   /** Present while the persisted conversation has yet to be loaded. */
   historySummary?: {

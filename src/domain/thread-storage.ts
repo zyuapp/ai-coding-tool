@@ -4,7 +4,7 @@ import { legacyOrigin, type MessageOrigin } from "./message-origin.js";
 import type { AutomationFinding } from "./finding.js";
 import { isProject, legacyProjectId, normalizeProjectRoot, type Project } from "./project.js";
 import type { Continuation, ExecutionPolicy, Subagent } from "./run.js";
-import type { ContextUsage, ContinuationStatus, ThreadOutcome } from "./thread-run.js";
+import { isThreadUsage, type ContextUsage, type ContinuationStatus, type ThreadOutcome } from "./thread-run.js";
 import type { Thread } from "./thread.js";
 import { isThreadRole } from "./thread-role.js";
 import { isCoordinationNote, isCoordinationReport, isCoordinatorMemory, isDecision, isThreadBrief, isThreadModelChoice, isThreadProposal } from "./coordination.js";
@@ -388,6 +388,7 @@ function isThreadBase(value: unknown): value is StoredThread {
     (value.fastMode === undefined || capabilitiesFor(value.engine).fastMode && typeof value.fastMode === "boolean") &&
     (value.effort === undefined || isAgentEffort(value.effort) && engineHasEffort(value.engine, value.effort)) &&
     (value.contextUsage === undefined || isContextUsage(value.contextUsage)) &&
+    (value.usage === undefined || isThreadUsage(value.usage)) &&
     Array.isArray(value.messages) &&
     value.messages.every(isConversationMessage) &&
     (value.subagents === undefined || Array.isArray(value.subagents) && value.subagents.every(isSubagent)) &&
@@ -451,6 +452,8 @@ function renamedFields(value: unknown) {
   let task = value;
   const model = currentModel(task.model);
   if (model !== task.model) task = { ...task, model };
+  const usage = currentUsage(task.usage);
+  if (usage !== task.usage) task = { ...task, usage };
   const threadModel = isRecord(task.threadModel) ? currentModel(task.threadModel.model) : undefined;
   if (threadModel !== undefined && threadModel !== task.threadModel.model) task = { ...task, threadModel: { ...task.threadModel, model: threadModel } };
   if (Array.isArray(task.proposals)) {
@@ -481,6 +484,24 @@ function renamedFields(value: unknown) {
     if (messages) task = { ...task, messages };
   }
   return task;
+}
+
+/**
+ * What a thread spent, counted toward the model each spend is now known as. A model this build does
+ * not know, such as one a newer build ran, cannot be told apart from a mistake, so its count is dropped.
+ */
+function currentUsage(value: unknown) {
+  if (!isRecord(value)) return value;
+  const entries = Object.entries(value);
+  if (entries.every(([model]) => isAgentModel(model))) return value;
+  const usage: Record<string, unknown> = {};
+  for (const [recorded, tokens] of entries) {
+    const model = currentModel(recorded);
+    if (!isAgentModel(model)) continue;
+    const counted = usage[model];
+    usage[model] = typeof counted === "number" && typeof tokens === "number" ? counted + tokens : tokens;
+  }
+  return usage;
 }
 
 function renamedMessageFields(value: unknown) {
@@ -514,6 +535,7 @@ const DROPPABLE_FIELDS: Readonly<Record<string, (value: unknown) => boolean>> = 
   resolvedAt: finiteNumber,
   pullRequest: isPullRequestLink,
   muted: (value) => value === true,
+  usage: isThreadUsage,
 };
 
 /** Lists a thread can do without, each item checked on its own: one this build cannot read is dropped and the rest kept. */

@@ -10,6 +10,7 @@ import {
 import type { SubagentEvent } from "../../src/contracts/ipc.js";
 import type { Subagent } from "../../src/domain/run.js";
 import type { Thread } from "../../src/domain/thread.js";
+import { defaultModelFor } from "../../src/domain/agent-engine.js";
 
 function activeRun(taskId = "task-a", runId = "run-a"): ActiveRun {
   return {
@@ -196,6 +197,22 @@ test("an unchanged context usage report keeps the thread list but still settles 
   assert.equal(updated.threads, initial.threads);
   assert.equal(updated.activeRuns["task-a"]?.warming, undefined);
   assert.equal(updated.activeRuns["task-a"]?.sequence, 1);
+});
+
+test("what a run spends adds up on its thread by the model it runs on, without moving the thread", () => {
+  const at = { taskId: "task-a", runId: "run-a" };
+  const initial = state();
+  initial.threads[0] = { ...initial.threads[0]!, model: "opus", usage: { sonnet: 900 } };
+  let next = applyRunEvent(initial, { ...at, sequence: 1, type: "context.spent", tokens: 1_500 });
+  next = applyRunEvent(next, { ...at, sequence: 2, type: "context.spent", tokens: 250 });
+  assert.deepEqual(next.threads[0]!.usage, { sonnet: 900, opus: 1_750 });
+  assert.equal(next.threads[0]!.updatedAt, initial.threads[0]!.updatedAt);
+  assert.equal(next.threads[0]!.messages, initial.threads[0]!.messages);
+  assert.equal(next.threads[1], initial.threads[1]);
+
+  const unchosen = applyRunEvent(state(), { ...at, sequence: 1, type: "context.spent", tokens: 40 });
+  assert.deepEqual(unchosen.threads[0]!.usage, { [defaultModelFor("claude")]: 40 }, "a thread on its engine's default counts under that model");
+  assert.equal(applyRunEvent(next, { ...at, runId: "run-old", sequence: 3, type: "context.spent", tokens: 99 }), next, "a run that is no longer the thread's counts nothing");
 });
 
 test("records compaction and updates context usage", () => {

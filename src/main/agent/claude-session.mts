@@ -159,6 +159,8 @@ export class ClaudeSession {
   private hasGoal = false;
   /** The newest plan limit report; the agent process sends one whenever it changes. */
   private rateLimit: SDKRateLimitInfo | null = null;
+  /** What each model response this turn has been counted for so far, by its API message id. */
+  private readonly spentById = new Map<string, number>();
   /** What the agent process left running here: a shell, a monitor, or a task of its own. */
   private readonly background = new BackgroundWork(() => this.busy, () => this.onIdle());
   /** What the agent process called this session. A later run resumes it by this id. */
@@ -401,6 +403,8 @@ export class ClaudeSession {
     if (message.type === "system" && message.subtype === "background_tasks_changed") {
       this.background.replace(backgroundProcesses(message.tasks), message.tasks.map((task) => task.task_id));
     }
+    /** Taken before subagents and workflows claim their messages, since what they spend is the run's too. */
+    this.receiveSpend(message);
     if (this.receiveWorkflow(message)) return;
     this.receiveSubagentMetadata(message);
     if (this.receiveSubagent(message)) return;
@@ -469,6 +473,25 @@ export class ClaudeSession {
       }
       this.conclude({ status: "succeeded" });
     }
+  }
+
+  /**
+   * Counts what a model response spent on the run in flight, whether the main loop, a subagent or a
+   * workflow asked for it. The SDK sends one message per content block, each under the response's id
+   * with its usage so far, so a response adds only what it grew by since it was last seen. Work going
+   * on between runs has no run to count it, and a synthetic reply spent nothing.
+   */
+  private receiveSpend(message: SDKMessage) {
+    if (message.type === "result") this.spentById.clear();
+    if (message.type !== "assistant" || message.message.model === SYNTHETIC_MODEL) return;
+    const stream = message.parent_tool_use_id ? (this.turn ?? this.agentTurn)?.stream : this.streamFor(message);
+    const usage = message.message.usage;
+    if (!stream || !usage) return;
+    const total = usage.input_tokens + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0) + (usage.output_tokens ?? 0);
+    const counted = this.spentById.get(message.message.id) ?? 0;
+    if (total <= counted) return;
+    this.spentById.set(message.message.id, total);
+    stream.emit({ type: "spend", tokens: total - counted });
   }
 
   /** Hooks report the child's effective effort, including model downgrades and agent-definition overrides. */

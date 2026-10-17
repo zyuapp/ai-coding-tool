@@ -419,6 +419,33 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
   cursor: pointer;
 }
 .coordination-more:hover { background: var(--wash); color: var(--muted); }
+/** What a coordinator and its threads spent, lined up under its head's label, its bars thin cuts of the plan-usage ones. */
+.coordination-usage { margin-top: 6px; }
+.coordination-usage-body { padding: 0 8px 4px 29px; color: var(--muted); font-size: var(--text-menu); }
+.coordination-usage-own { margin: 2px 0 0; }
+.coordination-usage-own strong { color: var(--ink-soft); font-weight: 600; }
+.coordination-usage-body h4 { margin: 10px 0 2px; color: var(--quiet); font-size: var(--text-meta); font-weight: 550; }
+.coordination-usage-model, .coordination-usage-thread { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 26px; }
+.coordination-usage-model { grid-template-columns: 7.5em minmax(0, 1fr) auto; }
+:is(.coordination-usage-model, .coordination-usage-thread) > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.coordination-usage-track { height: 4px; overflow: hidden; border-radius: 2px; background: var(--meter-track); }
+.coordination-usage-fill { display: block; height: 100%; border-radius: 2px; background: var(--info); }
+.coordination-usage-tokens { color: var(--quiet-strong); font-size: var(--text-meta); font-variant-numeric: tabular-nums; }
+.coordination-usage-thread {
+  box-sizing: border-box;
+  width: calc(100% + 16px);
+  margin-left: -8px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 8px;
+  background: transparent;
+  color: var(--ink-dim);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.coordination-usage-thread:hover { background: var(--surface-hover); color: var(--ink-soft); }
+.coordination-usage-body > .coordination-more { width: calc(100% + 16px); margin-left: -8px; padding-left: 8px; }
 .right-dock-tabs [role="tab"] > em.attention { border-radius: 6px; padding: 0 6px; background: var(--accent-chip); color: var(--accent); font-weight: 650; }
 
 /* A coordinator's checkouts and pull requests in the session panel, each list scrolling on its own. */

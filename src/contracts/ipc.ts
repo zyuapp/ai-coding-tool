@@ -489,6 +489,8 @@ export type RunEvent =
   /** Streamed text that is not a complete Markdown block yet. Superseded by the next delta, never stored. */
   | (RunEventBase & { type: "assistant.tail"; messageId: string; text: string })
   | (RunEventBase & { type: "context.usage"; tokens: number; limit: number; model: string })
+  /** What a model response spent beyond what was already counted. Unlike `context.usage`, it only ever adds up. */
+  | (RunEventBase & { type: "context.spent"; tokens: number })
   | (RunEventBase & { type: "context.compaction-status"; compacting: boolean; error?: string })
   | (RunEventBase & { type: "run.retrying" } & RetryNotice)
   | (RunEventBase & { type: "context.compacted"; trigger: "manual" | "auto"; preTokens: number; postTokens?: number })
@@ -774,6 +776,9 @@ export function isAutomationAck(value: unknown): value is AutomationAck {
   return isString(ack.automationId) && isString(ack.runId) && typeof ack.started === "boolean";
 }
 
+/** More than any one model response could spend, so a larger count is a mistake rather than spend. */
+const MAX_SPENT_TOKENS = 1_000_000_000;
+
 export function isRunEvent(value: unknown): value is RunEvent {
   if (!value || typeof value !== "object") return false;
   const event = value as Record<string, unknown>;
@@ -786,6 +791,7 @@ export function isRunEvent(value: unknown): value is RunEvent {
   if (event.type === "assistant.delta") return isString(event.messageId) && typeof event.text === "string" && (event.append === undefined || event.append === true) && (event.artifact === undefined || event.artifact === true);
   if (event.type === "assistant.tail") return isString(event.messageId) && typeof event.text === "string" && event.text.length <= MAX_PROMPT_LENGTH;
   if (event.type === "context.usage") return typeof event.tokens === "number" && Number.isFinite(event.tokens) && event.tokens >= 0 && typeof event.limit === "number" && Number.isFinite(event.limit) && event.limit > 0 && isString(event.model);
+  if (event.type === "context.spent") return Number.isSafeInteger(event.tokens) && (event.tokens as number) >= 1 && (event.tokens as number) <= MAX_SPENT_TOKENS;
   if (event.type === "run.retrying") return isString(event.message, 100_000) && (event.attempt === undefined || isCount(event.attempt)) && (event.maxRetries === undefined || isCount(event.maxRetries));
   if (event.type === "context.compaction-status") return typeof event.compacting === "boolean" && (event.error === undefined || isString(event.error, 100_000));
   if (event.type === "context.compacted") return (event.trigger === "manual" || event.trigger === "auto") && typeof event.preTokens === "number" && Number.isFinite(event.preTokens) && event.preTokens >= 0 && (event.postTokens === undefined || (typeof event.postTokens === "number" && Number.isFinite(event.postTokens) && event.postTokens >= 0));

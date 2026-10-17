@@ -3,7 +3,7 @@ import { test } from "vitest";
 import { z } from "zod";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { ClaudeAgentProvider } from "../../../src/main/agent/claude-agent-provider.mts";
-import { codexPolicy } from "../../../src/main/codex/codex-session.mts";
+import { codexPolicy } from "../../../src/main/codex/codex-policy.mts";
 import { runTools } from "../../../src/main/agent/run-tools.mts";
 import { input, queryFactory, type QueryCapture } from "../../support/claude-session.mjs";
 

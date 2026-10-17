@@ -246,6 +246,17 @@ test("run guards enforce numeric and string boundaries", () => {
   assert.equal(isRunEvent({ ...usage, limit: 0 }), false);
 });
 
+test("what a run spent is a whole count of at least one token and no more than one response could spend", () => {
+  const spent = { type: "context.spent", taskId: "task-1", runId: "run-1", sequence: 1, tokens: 1 };
+  assert.equal(isRunEvent(spent), true);
+  assert.equal(isRunEvent({ ...spent, tokens: 1_000_000_000 }), true);
+  assert.equal(isRunEvent({ ...spent, tokens: 0 }), false);
+  assert.equal(isRunEvent({ ...spent, tokens: 2.5 }), false);
+  assert.equal(isRunEvent({ ...spent, tokens: 1_000_000_001 }), false);
+  assert.equal(isRunEvent({ ...spent, tokens: "12" }), false);
+  assert.equal(isRunEvent({ ...spent, tokens: undefined }), false);
+});
+
 const automationRequest = { type: "automation.request", requestId: "request-1", taskId: "task-1", runId: "run-1" };
 
 test("automation requests carry a task and a well-formed payload", () => {

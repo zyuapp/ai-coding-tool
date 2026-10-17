@@ -2,7 +2,6 @@ import { contextWindowLimit } from "../../../src/domain/agent-engine.ts";
 import assert from "node:assert/strict";
 import { test, expect, vi } from "vitest";
 import { AppServerError, AppServerExited } from "../../../src/main/codex/app-server-client.mts";
-import { codexPolicy } from "../../../src/main/codex/codex-session.mts";
 import type { ProviderEvent, ProviderResult } from "../../../src/main/agent/agent-provider.mts";
 import type { BackgroundReport, GoalReport } from "../../../src/contracts/ipc.ts";
 import type { ToolIntent } from "../../../src/domain/run.ts";
@@ -91,14 +90,6 @@ test("a run opens one app server in the workspace, signs in, starts a thread, an
   assert.equal(emitted.filter((event) => event.type === "continuation").length, 1, "the thread's id is reported once");
   codex.provider.closeAll();
   assert.equal(client.closed, true);
-});
-
-test("every execution policy maps onto Codex approvals, sandbox, and reviewer", () => {
-  assert.deepEqual(codexPolicy("confirm"), { approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user" });
-  assert.deepEqual(codexPolicy("plan"), codexPolicy("confirm"));
-  assert.deepEqual(codexPolicy("allow-edits"), { approvalPolicy: "on-request", sandbox: "workspace-write", approvalsReviewer: "user" });
-  assert.deepEqual(codexPolicy("autonomous"), { approvalPolicy: "on-request", sandbox: "workspace-write", approvalsReviewer: "auto_review" });
-  assert.deepEqual(codexPolicy("bypass"), { approvalPolicy: "never", sandbox: "danger-full-access", approvalsReviewer: "user" });
 });
 
 test("a bypass turn disables approvals and the sandbox", async () => {
@@ -376,6 +367,7 @@ test.each([
   expect(thread).toMatchObject({ model, config: { model_reasoning_effort: effort } });
   expect(request).toMatchObject({ model, effort });
   assert.deepEqual(emitted.filter((event) => event.type !== "continuation"), [
+    { type: "spend", tokens: 15_707 },
     { type: "usage", tokens: 15_707, limit: contextWindowLimit("codex", model), model },
     { type: "usage", tokens: 15_707, limit, model },
     { type: "compaction-status", compacting: true },

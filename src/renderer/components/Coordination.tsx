@@ -5,7 +5,7 @@ import { engineForModel, modelDelegable, modelsFor, type AgentEngine, type Agent
 import type { AgentEffort } from "../../domain/run";
 import type { Thread } from "../../domain/thread";
 import { worktreeHue, worktreeName, type Worktree } from "../../domain/worktree";
-import { canResolve, overviewGroups, pullRequestLine, type CoordinationApprovalView, type CoordinationDecisionView, type CoordinatedThreadStatus, type CoordinatedThreadView, type CoordinatorMemoryView, type ProposalView } from "../../application/coordination";
+import { canResolve, overviewGroups, pullRequestLine, type CoordinationApprovalView, type CoordinationUsage, type CoordinationDecisionView, type CoordinatedThreadStatus, type CoordinatedThreadView, type CoordinatorMemoryView, type ProposalView } from "../../application/coordination";
 import type { ApprovalView } from "../../application/thread-run-state";
 import type { WorktreeGroup } from "../../application/workspace-state";
 import type { MemberWorktree } from "../../application/member-worktrees";
@@ -76,11 +76,13 @@ type RowActions = {
   onReopen: (threadId: string) => void;
 };
 
-/** A coordinator's purpose, what its threads run on, its threads by what they need from the user, then its memory. */
-export function CoordinatorOverview({ header, memory, members, worktreeGroups, folds, onSetFold, stoppable, onStopAll, onSelect, onResolve, onReopen }: RowActions & {
+/** A coordinator's purpose, what its threads run on, its threads by what they need from the user, its memory, then what it all spent. */
+export function CoordinatorOverview({ header, memory, members, usage = null, worktreeGroups, folds, onSetFold, stoppable, onStopAll, onSelect, onResolve, onReopen }: RowActions & {
   header: OverviewHeaderProps;
   memory: OverviewMemoryProps;
   members: readonly CoordinatedThreadView[];
+  /** Null until the coordinator or a thread under it has spent anything. */
+  usage?: CoordinationUsage | null;
   worktreeGroups: WorktreeGroup[];
   folds: OverviewFolds;
   onSetFold: FoldChange;
@@ -106,6 +108,7 @@ export function CoordinatorOverview({ header, memory, members, worktreeGroups, f
       <CommandGate command={{ type: "memory.add", taskId: memory.taskId, text: "" }}>
         <MemorySection memory={memory} fold={folds.memory ?? {}} onSetFold={onSetFold} />
       </CommandGate>
+      {usage && <UsageSection usage={usage} fold={folds.usage ?? {}} onSetFold={onSetFold} onSelect={onSelect} />}
     </div>
   );
 }
@@ -215,16 +218,64 @@ function NoteInput({ notes, onAdd }: { notes: readonly MemoryNote[]; onAdd: (tex
   return <textarea rows={1} className="coordination-note-add" aria-label="Add a note" placeholder="Add a note" maxLength={MAX_MEMORY_NOTE} value={text} onChange={(event) => setText(event.currentTarget.value)} onKeyDown={onKeyDown} />;
 }
 
-/** The head of a section that folds: its label and how many rows it holds, and beside it, never inside, what else it does. */
-function FoldHead({ label, count, open, action, onToggle }: { label: string; count: number; open: boolean; action?: ReactNode; onToggle: () => void }) {
+/**
+ * The head of a section that folds: its label and how many rows it holds, or how much it adds up to,
+ * and beside it, never inside, what else it does.
+ */
+function FoldHead({ label, count, title, open, action, onToggle }: { label: string; count: number | string; title?: string; open: boolean; action?: ReactNode; onToggle: () => void }) {
   const head = (
-    <button type="button" className="coordination-group-head" aria-expanded={open} onClick={onToggle}>
+    <button type="button" className="coordination-group-head" aria-expanded={open} title={title} onClick={onToggle}>
       <ChevronDown size={13} aria-hidden="true" />
       <span>{label}</span>
       <span className="coordination-group-count">{count}</span>
     </button>
   );
   return action ? <div className="coordination-group-heading">{head}{action}</div> : head;
+}
+
+/** A count of tokens in the few characters the context meter uses: 3.1M, 240K. */
+function compactTokens(tokens: number): string {
+  return tokens.toLocaleString("en-US", { notation: "compact" });
+}
+
+function shareOf(tokens: number, total: number): number {
+  return total ? tokens / total * 100 : 0;
+}
+
+/** What the coordinator and its threads spent: its own share, then by model and by thread. Folded until asked for. */
+function UsageSection({ usage, fold, onSetFold, onSelect }: { usage: CoordinationUsage; fold: OverviewFold; onSetFold: FoldChange; onSelect: (threadId: string) => void }) {
+  const open = fold.open ?? false;
+  const { total, coordinator, byModel, byThread } = usage;
+  const shown = fold.all ? byThread : byThread.slice(0, OVERVIEW_LIMIT);
+  const own = shareOf(coordinator, total);
+  return (
+    <section className="coordination-group coordination-usage" aria-label="Usage">
+      <FoldHead label="Usage" count={compactTokens(total)} title={`${total.toLocaleString("en-US")} tokens`} open={open} onToggle={() => onSetFold("usage", { open: !open })} />
+      {open && <div className="coordination-usage-body">
+        <p className="coordination-usage-own">This coordinator <strong>{compactTokens(coordinator)}</strong> · {own > 0 && own < 1 ? "<1" : Math.round(own)}%</p>
+        <h4>By model</h4>
+        {byModel.map(({ model, tokens }) => (
+          <div key={model} className="coordination-usage-model" title={`${tokens.toLocaleString("en-US")} tokens`}>
+            <span>{modelName(model)}</span>
+            <span className="coordination-usage-track" aria-hidden="true"><span className="coordination-usage-fill" style={{ width: `${shareOf(tokens, total)}%` }} /></span>
+            <span className="coordination-usage-tokens">{compactTokens(tokens)}</span>
+          </div>
+        ))}
+        {byThread.length > 0 && <>
+          <h4>By thread</h4>
+          {shown.map(({ thread, tokens }) => (
+            <button key={thread.id} type="button" className="coordination-usage-thread" aria-label={`Open ${thread.title}`} title={`${tokens.toLocaleString("en-US")} tokens`} onClick={() => onSelect(thread.id)}>
+              <span>{thread.title}</span>
+              <span className="coordination-usage-tokens">{compactTokens(tokens)}</span>
+            </button>
+          ))}
+          {byThread.length > shown.length && (
+            <button type="button" className="coordination-more" onClick={() => onSetFold("usage", { all: true })}>Show {byThread.length - shown.length} more</button>
+          )}
+        </>}
+      </div>}
+    </section>
+  );
 }
 
 /** Stops the coordinator and everything working under it, as its thread menu does. */

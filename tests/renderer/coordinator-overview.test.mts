@@ -206,6 +206,50 @@ test("the Overview's Working group stops the coordinator and every thread under 
   await mounted.unmount();
 });
 
+test("the Overview's Usage section shows what the coordinator and its threads spent, folded until opened", async () => {
+  window.desktop = fakeDesktop();
+  const dispatched: WorkspaceInput[] = [];
+  const dispatch = async (input: WorkspaceInput) => { dispatched.push(input); };
+  const lead: Thread = { ...member("lead", "Plan"), parentId: undefined, role: "coordinator", usage: { opus: 240_000 } };
+  const spenders = Array.from({ length: 6 }, (_, index) => ({ ...member(`t${index}`, `Thread ${index}`), usage: { sonnet: 100_000 * (index + 1) } }));
+  const threads = [lead, ...spenders, { ...member("codex", "Docs"), engine: "codex" as const, usage: { "gpt-6.1-sol": 764_220 } }];
+  const shown = (folds: object) => {
+    const view = deriveView({ ...emptyWorkspaceState(), threads, currentId: lead.id, overviewFolds: { lead: folds } });
+    const commandControls = { available: () => true, dispatch() {} };
+    const workspace = { ...view, threadHandles: [], threadHandlesFor: () => [], commandControls, dispatch, actions: workspaceActions(dispatch) } as never;
+    const dock = buildDock({ workspace, inspectedSubagent: undefined, workingSubagents: 0, unreviewedFiles: 0, onInspectSubagent() {}, onCloseInspector() {}, onOpenPanel() {}, onAddSideChat() {} });
+    return React.createElement(CommandControlsProvider, { value: commandControls }, required(dock.panels.find((item) => item.id === OVERVIEW_PANEL)).render());
+  };
+  const mounted = await mount(shown({}));
+  const usage = query(mounted.container, '[aria-label="Usage"]');
+  const head = query<HTMLButtonElement>(usage, ".coordination-group-head");
+  assert.equal(head.textContent, "Usage3.1M");
+  assert.equal(head.title, "3,104,220 tokens");
+  assert.equal(head.getAttribute("aria-expanded"), "false", "it starts folded");
+  assert.equal(usage.querySelector(".coordination-usage-body"), null);
+  await act(async () => { head.click(); });
+  assert.deepEqual(dispatched.at(-1), { type: "view.set-overview-group", taskId: "lead", group: "usage", open: true });
+
+  await mounted.render(shown({ usage: { open: true } }));
+  const opened = query(mounted.container, '[aria-label="Usage"]');
+  assert.equal(query(opened, ".coordination-usage-own").textContent, "This coordinator 240K · 8%");
+  assert.deepEqual([...opened.querySelectorAll(".coordination-usage-model")].map((row) => row.textContent), ["Sonnet2.1M", "Sol764K", "Opus240K"]);
+  const rows = [...opened.querySelectorAll<HTMLButtonElement>(".coordination-usage-thread")];
+  assert.deepEqual(rows.map((row) => row.textContent), ["Docs764K", "Thread 5600K", "Thread 4500K", "Thread 3400K", "Thread 2300K"], "the five that spent most");
+  await act(async () => { rows[0]!.click(); });
+  assert.equal(dispatched.at(-1)?.type, "task.select");
+  await act(async () => { query<HTMLButtonElement>(opened, ".coordination-more").click(); });
+  assert.deepEqual(dispatched.at(-1), { type: "view.set-overview-group", taskId: "lead", group: "usage", all: true });
+
+  await mounted.render(shown({ usage: { open: true, all: true } }));
+  assert.equal(mounted.container.querySelectorAll(".coordination-usage-thread").length, 7);
+  await mounted.unmount();
+
+  const quiet = await mount(React.createElement(CoordinatorOverview, { header, memory, members: [], worktreeGroups: [], folds: {}, onSetFold() {}, onSelect() {}, onResolve() {}, onReopen() {}, stoppable: false, onStopAll() {} }));
+  assert.equal(quiet.container.querySelector('[aria-label="Usage"]'), null, "nothing counted yet draws no section");
+  await quiet.unmount();
+});
+
 test("the Overview's purpose line and memory rows edit what the coordinator keeps", async () => {
   window.desktop = fakeDesktop();
   const dispatched: WorkspaceInput[] = [];

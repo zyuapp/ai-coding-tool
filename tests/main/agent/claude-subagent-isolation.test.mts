@@ -24,7 +24,7 @@ for (const channel of ["main", "side"] as const) {
     const live = await liveTurn({ channel, emit: (event) => emitted.push(event) });
     live.capture.emit!(childMessage("inherited-parent"));
     await tick();
-    assert.deepEqual(emitted, []);
+    assert.deepEqual(emitted, [{ type: "spend", tokens: 100 }], "what it spent is the run's, and nothing it said is");
     await live.end();
   });
 
@@ -48,7 +48,7 @@ test("recognized subagent output is reported to the thread as that subagent's ac
   live.capture.emit!({ type: "system", subtype: "task_started", task_id: "child", tool_use_id: "parent", subagent_type: "Explore", description: "Explore" });
   live.capture.emit!(childMessage("parent"));
   await tick();
-  assert.deepEqual(emitted, []);
+  assert.deepEqual(emitted, [{ type: "spend", tokens: 100 }]);
   assert.deepEqual(reported.map((report) => report.type), ["subagent.started", "subagent.metadata", "subagent.activity", "subagent.activity"]);
   assert.equal(reported[0].type === "subagent.started" && reported[0].sessionScoped, true);
   await live.end();

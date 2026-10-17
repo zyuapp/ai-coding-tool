@@ -169,6 +169,7 @@ test("Claude streams only complete Markdown blocks and does not repeat final tex
     { type: "assistant-tail", messageId, text: "```ts\nconst x = 1;\n\n" },
     { type: "assistant", messageId, text: "```ts\nconst x = 1;\n\n```\n", append: true },
     { type: "assistant-tail", messageId, text: "" },
+    { type: "spend", tokens: 1 },
     { type: "usage", tokens: 1, limit: 1_000_000, model: "claude-sonnet" },
   ]);
 });
@@ -201,7 +202,7 @@ test("reported context usage tracks the widest window the chosen model offers", 
     const emitted: ProviderEvent[] = [];
     const provider = new ClaudeAgentProvider(queryFactory([assistant]));
     await provider.execute(input({ model, emit: (event) => emitted.push(event) }));
-    assert.deepEqual(emitted, [{ type: "usage", tokens: 1, limit, model: "claude-model" }]);
+    assert.deepEqual(emitted.filter((event) => event.type === "usage"), [{ type: "usage", tokens: 1, limit, model: "claude-model" }]);
   }
 });
 
@@ -416,6 +417,7 @@ test("Claude messages translate to provider events and normalized tool intents",
     { type: "compaction", trigger: "auto", preTokens: 190_000, postTokens: 40_000 },
     { type: "compaction-status", compacting: true },
     { type: "compaction-status", compacting: false, error: "compact failed" },
+    { type: "spend", tokens: 17 },
     { type: "assistant", messageId: "message-1", text: "hello" },
     { type: "tool", intent: { toolId: "edit-1", name: "Edit", input: { file_path: "/tmp/project/a.ts" }, writePath: "/tmp/project/a.ts" } },
     { type: "usage", tokens: 17, limit: 1_000_000, model: "claude-sonnet" },

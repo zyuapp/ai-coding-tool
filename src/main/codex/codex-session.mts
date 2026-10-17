@@ -1,7 +1,6 @@
 import { CodexQuestions } from "./codex-questions.mjs";
 import { contextWindowLimit } from "../../domain/agent-engine.js";
-import type { BackgroundProcess, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
-import type { CoordinationRole } from "../../domain/coordination.js";
+import type { BackgroundProcess, ToolIntent } from "../../domain/run.js";
 import { continuationOf, type ProviderResult, type ProviderRunInput } from "../agent/agent-provider.mjs";
 import { grantsTool } from "../agent/approval-grant.mjs";
 import { appendCompleteMarkdown, openMarkdownBuffer, type MarkdownBuffer } from "../agent/markdown-buffer.mjs";
@@ -15,13 +14,12 @@ import { SIDE_CHAT_BOUNDARY } from "../agent/side-chat-instructions.mjs";
 import { adoptAppSkills, CodexSkills } from "./codex-skills.mjs";
 import { codexImageOutput, type ImageOutput } from "./codex-images.mjs";
 import { CodexSubagents } from "./codex-subagents.mjs";
+import { codexPolicy, sandboxPolicies } from "./codex-policy.mjs";
+import { CodexSpend } from "./codex-spend.mjs";
 import { readCodexUsageLimit } from "./codex-plan-usage.mjs";
 import { CodexThreadRecord, resumeThread, type ReadOrigin } from "./codex-thread-record.mjs";
-import type { ApprovalsReviewer } from "./protocol/v2/ApprovalsReviewer.js";
-import type { AskForApproval } from "./protocol/v2/AskForApproval.js";
 import type { GrantedPermissionProfile } from "./protocol/v2/GrantedPermissionProfile.js";
 import type { RequestPermissionProfile } from "./protocol/v2/RequestPermissionProfile.js";
-import type { SandboxPolicy } from "./protocol/v2/SandboxPolicy.js";
 import type { ThreadItem } from "./protocol/v2/ThreadItem.js";
 import type { TurnError } from "./protocol/v2/TurnError.js";
 import type { ThreadGoal } from "./protocol/v2/ThreadGoal.js";
@@ -35,40 +33,6 @@ export type CodexConnect = (command: AppServerCommand) => CodexClient;
 const INTERRUPT_GRACE_MS = 10_000;
 
 const SIGN_IN = "Sign in to Codex to run this thread.";
-
-type CodexSandbox = "read-only" | "workspace-write" | "danger-full-access";
-
-export type CodexPolicy = { approvalPolicy: AskForApproval; sandbox: CodexSandbox; approvalsReviewer: ApprovalsReviewer };
-
-/**
- * Codex has no plan mode, so a plan run is held to what a confirm run may do. A coordinator changes
- * nothing itself: its shell is read-only, and every escalation out of that comes to the app, which
- * refuses it.
- */
-export function codexPolicy(policy: ExecutionPolicy, coordinationRole?: CoordinationRole): CodexPolicy {
-  const granted = policyGrants(policy);
-  return coordinationRole === "coordinator" ? { ...granted, sandbox: "read-only", approvalsReviewer: "user" } : granted;
-}
-
-function policyGrants(policy: ExecutionPolicy): CodexPolicy {
-  switch (policy) {
-    case "confirm":
-    case "plan":
-      return { approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user" };
-    case "allow-edits":
-      return { approvalPolicy: "on-request", sandbox: "workspace-write", approvalsReviewer: "user" };
-    case "autonomous":
-      return { approvalPolicy: "on-request", sandbox: "workspace-write", approvalsReviewer: "auto_review" };
-    case "bypass":
-      return { approvalPolicy: "never", sandbox: "danger-full-access", approvalsReviewer: "user" };
-  }
-}
-
-const sandboxPolicies: Record<CodexSandbox, SandboxPolicy> = {
-  "read-only": { type: "readOnly", networkAccess: false },
-  "workspace-write": { type: "workspaceWrite", writableRoots: [], networkAccess: false, excludeTmpdirEnvVar: false, excludeSlashTmp: false },
-  "danger-full-access": { type: "dangerFullAccess" },
-};
 
 function goalCommand(prompt: string) {
   const match = /^\/goal(?:\s+([\s\S]*))?$/.exec(prompt.trim());
@@ -198,6 +162,8 @@ export class CodexSession {
   private announced = false;
   /** The context the last request carried, which is what a compaction is measured from. */
   private lastTokens = 0;
+  /** What this session's threads spend, counted on the run in flight. */
+  private readonly spend = new CodexSpend((event) => this.turn?.input.emit(event));
   private goalActive = false;
   private reportGoal: ProviderRunInput["reportGoal"] = () => {};
   /** The terminals this thread's app-server session has running. */
@@ -455,7 +421,7 @@ export class CodexSession {
     const skills = this.skills = new CodexSkills(client, seed.workspaceRoot);
     const subagents = this.subagents = new CodexSubagents(seed.reportSubagent, (busy) => {
       if (!busy && !this.answering) this.onRested();
-    }, async (threadId) => (await client.request("thread/read", { threadId, includeTurns: false })).thread);
+    }, async (threadId) => (await client.request("thread/read", { threadId, includeTurns: false })).thread, this.spend);
     client.on("thread/started", (params) => { subagents.threadStarted(params); });
     client.on("thread/status/changed", (params) => { subagents.threadStatusChanged(params); });
     client.on("thread/closed", (params) => { subagents.threadClosed(params); });
@@ -488,7 +454,9 @@ export class CodexSession {
       }
     });
     client.on("thread/tokenUsage/updated", (params) => {
-      if (!subagents.tokenUsageUpdated(params) && params.threadId === this.threadId) this.receiveUsage(params.tokenUsage.last.totalTokens, params.tokenUsage.modelContextWindow);
+      if (subagents.tokenUsageUpdated(params) || params.threadId !== this.threadId) return;
+      this.spend.report(params.threadId, params.tokenUsage);
+      this.receiveUsage(params.tokenUsage.last.totalTokens, params.tokenUsage.modelContextWindow);
     });
     client.on("error", (params) => {
       if (subagents.error(params) || params.threadId !== this.threadId || !this.turn) return;

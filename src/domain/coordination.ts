@@ -94,9 +94,9 @@ export type OverviewGroup = "needs" | "review" | "working" | "done" | "resolved"
 export const OVERVIEW_GROUPS: readonly OverviewGroup[] = ["needs", "review", "working", "done", "resolved"];
 
 /** What folds in a coordinator's Overview: its groups of threads, and the sections below them. */
-export type OverviewSection = OverviewGroup | "memory";
+export type OverviewSection = OverviewGroup | "memory" | "usage";
 
-const OVERVIEW_SECTIONS: readonly OverviewSection[] = [...OVERVIEW_GROUPS, "memory"];
+const OVERVIEW_SECTIONS: readonly OverviewSection[] = [...OVERVIEW_GROUPS, "memory", "usage"];
 
 export function isOverviewSection(value: unknown): value is OverviewSection {
   return typeof value === "string" && (OVERVIEW_SECTIONS as readonly string[]).includes(value);

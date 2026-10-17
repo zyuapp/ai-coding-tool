@@ -71,6 +71,8 @@ export type ProviderEvent =
   | { type: "assistant-tail"; messageId: string; text: string }
   /** `model` is the id the engine reported on the wire, not an AgentModel. */
   | { type: "usage"; tokens: number; limit: number; model: string }
+  /** Tokens a model response spent, input and output, beyond what an earlier event already counted for it. */
+  | { type: "spend"; tokens: number }
   | { type: "compaction-status"; compacting: boolean; error?: string }
   | ({ type: "retry" } & RetryNotice)
   | { type: "compaction"; trigger: "manual" | "auto"; preTokens: number; postTokens?: number }

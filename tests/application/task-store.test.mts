@@ -512,6 +512,31 @@ test("v2 drops the retired default model and context window instead of rejecting
   assert.equal("contextWindow" in parsed.data.tasks[0], false);
 });
 
+test("what a thread spent survives a reload, counted toward a replaced model's successor, and a count it cannot read costs it nothing else", () => {
+  const migrated = migrateV1ToV2(legacyValues());
+  assert.equal(migrated.ok, true);
+  if (!migrated.ok) return;
+  const spent = { ...migrated.data.tasks[0], usage: { opus: 3_104_220, "gpt-6.1-sol": 12 } };
+  const parsed = parseThreadStore(serializeThreadStore({ ...migrated.data, tasks: [spent] }));
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  assert.deepEqual(parsed.data.tasks[0].usage, { opus: 3_104_220, "gpt-6.1-sol": 12 });
+
+  const renamed = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...spent, usage: { "gpt-5.6-sol": 100, "gpt-6-sol": 20, "gpt-6.1-sol": 3, "gpt-9-future": 7 } }] }));
+  assert.equal(renamed.ok, true);
+  if (!renamed.ok) return;
+  assert.deepEqual(renamed.data.tasks[0].usage, { "gpt-6.1-sol": 123 }, "a model this build does not know is dropped while the rest load");
+
+  for (const usage of [{ opus: -1 }, { opus: 1.5 }, { opus: "12" }, [12], 12]) {
+    const broken = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...spent, usage }] }));
+    assert.equal(broken.ok, true);
+    if (!broken.ok) return;
+    assert.equal(broken.hiddenTasks, 0, "the thread still loads");
+    assert.equal(broken.data.tasks[0].usage, undefined);
+    assert.deepEqual(broken.data.tasks[0].messages, spent.messages);
+  }
+});
+
 test("v2 tasks written before the engine was recorded load as Claude threads", () => {
   const migrated = migrateV1ToV2(legacyValues());
   assert.equal(migrated.ok, true);

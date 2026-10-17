@@ -9,6 +9,7 @@ import { coordinationDecisions, coordinatorOf, coordinatedThreadIds, coordinated
 import { threadActivityAt, threadCreatedAt, type Thread } from "../domain/thread.js";
 import type { PullRequestAnswer, PullRequestChecks, PullRequestLink, PullRequestRef, PullRequestState } from "../domain/pull-request.js";
 import { wantsAttention } from "../domain/attention.js";
+import type { AgentModel } from "../domain/agent-engine.js";
 
 /**
  * What a send carries for a coordinator: the thread it starts works under it with this brief and
@@ -435,6 +436,58 @@ export type CoordinatorMemoryView = {
   notes: readonly MemoryNote[];
 };
 
+/** What a coordinator and the threads under it have spent, most first, and how much of it was its own. */
+export type CoordinationUsage = {
+  total: number;
+  coordinator: number;
+  byModel: readonly { model: AgentModel; tokens: number }[];
+  /** The threads under it that spent anything; the coordinator's own share is `coordinator`. */
+  byThread: readonly { thread: Thread; computer: PairedComputer | null; tokens: number }[];
+};
+
+/**
+ * What a coordinator and every thread under it spent, resolved ones too, or null before any of them
+ * has spent anything. Threads archived out from under it no longer count.
+ */
+export function coordinationUsage(members: readonly CoordinationMember[], lead: Thread): CoordinationUsage | null {
+  const byModel = new Map<AgentModel, number>();
+  const spent = (thread: Thread) => {
+    let tokens = 0;
+    for (const [model, count] of Object.entries(thread.usage ?? {}) as [AgentModel, number][]) {
+      byModel.set(model, (byModel.get(model) ?? 0) + count);
+      tokens += count;
+    }
+    return tokens;
+  };
+  const coordinator = spent(lead);
+  const byThread = members.flatMap(({ thread, computer }) => {
+    const tokens = spent(thread);
+    return tokens ? [{ thread, computer, tokens }] : [];
+  });
+  const total = byThread.reduce((sum, { tokens }) => sum + tokens, coordinator);
+  if (!total) return null;
+  return { total, coordinator, byModel: mostFirst([...byModel].flatMap(([model, tokens]) => tokens ? [{ model, tokens }] : [])), byThread: mostFirst(byThread) };
+}
+
+function mostFirst<Entry extends { tokens: number }>(entries: Entry[]): Entry[] {
+  return entries.sort((left, right) => right.tokens - left.tokens);
+}
+
+/**
+ * The usage held before while every count, and every thread's name, is the same, so its section draws
+ * nothing anew. The threads it holds may be older objects, which is fine: it reads only their id and title.
+ */
+function sameUsage(before: CoordinationUsage | null | undefined, next: CoordinationUsage | null): CoordinationUsage | null {
+  if (!before || !next) return next;
+  const same = before.total === next.total && before.coordinator === next.coordinator
+    && before.byModel.length === next.byModel.length && before.byModel.every((entry, index) => entry.model === next.byModel[index]!.model && entry.tokens === next.byModel[index]!.tokens)
+    && before.byThread.length === next.byThread.length && before.byThread.every((entry, index) => {
+      const other = next.byThread[index]!;
+      return entry.thread.id === other.thread.id && entry.thread.title === other.thread.title && entry.computer === other.computer && entry.tokens === other.tokens;
+    });
+  return same ? before : next;
+}
+
 /** What the open thread shows: a coordinator its threads, their approvals and open decisions, a thread its coordinator and brief. */
 export type CoordinationView = {
   /** On a coordinator, what its threads run on; null on any other thread. */
@@ -449,13 +502,15 @@ export type CoordinationView = {
   decisions: CoordinationDecisionView[];
   /** Threads it suggested that wait for the user to start or dismiss them. */
   proposals: readonly ProposalView[];
+  /** On a coordinator, what it and its threads have spent; null before anything was counted, and on any other thread. */
+  usage: CoordinationUsage | null;
   lead: Thread | null;
   brief: ThreadBrief | null;
   /** A thread under a coordinator with a decision of its own waiting on the user. */
   asking: boolean;
 };
 
-const NO_COORDINATION: CoordinationView = { threadModel: null, memory: null, members: [], starts: [], approvals: [], decisions: [], proposals: [], lead: null, brief: null, asking: false };
+const NO_COORDINATION: CoordinationView = { threadModel: null, memory: null, members: [], starts: [], approvals: [], decisions: [], proposals: [], usage: null, lead: null, brief: null, asking: false };
 
 const NO_NOTES: readonly MemoryNote[] = [];
 
@@ -499,7 +554,8 @@ export function coordinationView(
   if (!thread) return NO_COORDINATION;
   if (isCoordinator(thread)) {
     const held = new Map(previous?.members.map((view) => [view.thread.id, view]));
-    const members = sameItems(previous?.members, coordinationMembers(state, thread.id).map((member) => memberView(state, member.thread, busy, blocked, held.get(member.thread.id))));
+    const coordinated = coordinationMembers(state, thread.id);
+    const members = sameItems(previous?.members, coordinated.map((member) => memberView(state, member.thread, busy, blocked, held.get(member.thread.id))));
     const starts = sameStarts(previous?.starts, members.flatMap(({ thread: member, startedAt }) => startedAt === null ? [] : [{ id: member.id, at: startedAt }]).sort((left, right) => left.at - right.at));
     const own = approvalOf(thread.id);
     const approvals = [
@@ -512,7 +568,8 @@ export function coordinationView(
     const decisions = coordinationDecisions(threads, thread.id);
     const memory = { purpose: thread.memory?.purpose ?? null, notes: thread.memory?.notes ?? NO_NOTES };
     const proposals = proposalViews(previous?.proposals, thread.proposals ?? [], state.startingProposals);
-    return { ...NO_COORDINATION, threadModel: threadModelOf(thread), memory, members, starts, approvals, decisions, proposals, brief: thread.brief ?? null };
+    const usage = sameUsage(previous?.usage, coordinationUsage(coordinated, thread));
+    return { ...NO_COORDINATION, threadModel: threadModelOf(thread), memory, members, starts, approvals, decisions, proposals, usage, brief: thread.brief ?? null };
   }
   const lead = coordinatorOf(threads, thread) ?? null;
   /** A thread that left its coordinator with a decision still open is where that decision is answered now. */

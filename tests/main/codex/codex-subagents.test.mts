@@ -5,6 +5,7 @@ import { isSubagentEvent } from "../../../src/contracts/ipc.ts";
 import type { ProviderEvent } from "../../../src/main/agent/agent-provider.mts";
 import type { NotificationParams } from "../../../src/main/codex/app-server-client.mts";
 import { CodexSubagents } from "../../../src/main/codex/codex-subagents.mts";
+import { CodexSpend } from "../../../src/main/codex/codex-spend.mts";
 import type { ThreadItem } from "../../../src/main/codex/protocol/v2/ThreadItem.ts";
 import { completeTurn, harness, input, opened, sentBy, tick, turn as runTurn } from "../../support/codex-client.mjs";
 
@@ -139,6 +140,22 @@ test("child-first traffic is buffered, both discovery paths merge, and root self
   const metadata = reports.filter((report): report is Extract<SubagentReport, { type: "subagent.progress" }> => report.type === "subagent.progress" && report.id === "child-a").at(-1);
   assert.equal(metadata?.agentType, "reviewer");
   assert.equal(reports.some((report) => report.id === rootId), false);
+});
+
+test("a child thread's growth is counted, and Codex's own housekeeping is not", () => {
+  const spent: ProviderEvent[] = [];
+  const tracker = new CodexSubagents(() => {}, undefined, undefined, new CodexSpend((event) => spent.push(event)));
+  tracker.setRootThreadId(rootId);
+  tracker.itemStarted(itemStarted(rootId, "root-turn", activity("discover", "child-a", "/root/reviewer")));
+  tracker.tokenUsageUpdated(usage("child-a", "child-turn", 5_000, 300));
+  tracker.tokenUsageUpdated(usage("child-a", "child-turn", 5_450, 450));
+  tracker.tokenUsageUpdated(usage("child-a", "child-turn", 5_450, 450));
+  tracker.threadStarted({
+    thread: { ...spawnedThread("memory-thread", "", "", "", "").thread, source: { subAgent: "memory_consolidation" }, threadSource: "memory_consolidation" },
+  } as NotificationParams<"thread/started">);
+  tracker.tokenUsageUpdated(usage("memory-thread", "memory-turn", 900, 900));
+
+  assert.deepEqual(spent, [{ type: "spend", tokens: 300 }, { type: "spend", tokens: 450 }], "a child first seen holding history counts only its latest response");
 });
 
 test("internal housekeeping threads neither appear nor keep the session busy", () => {

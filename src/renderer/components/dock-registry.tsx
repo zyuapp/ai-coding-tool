@@ -120,6 +120,7 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
             onForget: (noteId) => void workspace.actions.forgetNote(lead.id, noteId),
           }}
           members={workspace.coordination.members}
+          usage={workspace.coordination.usage}
           worktreeGroups={workspace.worktreeGroups}
           folds={workspace.overviewFolds}
           onSetFold={(group, change) => void workspace.actions.setOverviewGroup(lead.id, group, change)}

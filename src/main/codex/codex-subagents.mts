@@ -1,5 +1,6 @@
 import type { SubagentMetadata, SubagentReport } from "../../domain/run.js";
 import type { NotificationParams } from "./app-server-client.mjs";
+import type { CodexSpend } from "./codex-spend.mjs";
 import type { ThreadItem } from "./protocol/v2/ThreadItem.js";
 import type { Thread } from "./protocol/v2/Thread.js";
 
@@ -137,6 +138,8 @@ export class CodexSubagents {
     private readonly report: (event: SubagentReport) => void,
     private readonly onBusyChanged: (busy: boolean) => void = () => {},
     private readonly readMetadata?: (threadId: string) => Promise<Pick<Thread, "id" | "model" | "reasoningEffort">>,
+    /** Where what each child spends is counted. Codex's own housekeeping threads are not the run's work. */
+    private readonly spend?: CodexSpend,
   ) {}
 
   /** Anything closing the app-server process would cut short. */
@@ -279,6 +282,7 @@ export class CodexSubagents {
     return this.withBusy(() => {
       if (!this.shouldSuppress(params.threadId)) return false;
       if (this.ignoredThreads.has(params.threadId)) return true;
+      this.spend?.report(params.threadId, params.tokenUsage);
       const child = this.child(params.threadId);
       const total = params.tokenUsage.total.totalTokens;
       if (Number.isFinite(total) && total >= 0) child.totalTokens = Math.max(child.totalTokens, total);

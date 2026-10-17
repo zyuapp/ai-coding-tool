@@ -8,6 +8,7 @@ import type { ThreadOutcome } from "../domain/thread-run.js";
 import type { Thread } from "../domain/thread.js";
 import { appendMessages, replaceLastMessage, withdrawMessages } from "../domain/conversation-updates.js";
 import { withMemoryUnheard } from "../domain/coordination.js";
+import { defaultModelFor } from "../domain/agent-engine.js";
 
 export type ActiveRun = RunProvenance & {
   taskId: string;
@@ -494,6 +495,13 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
       ...thread,
       contextUsage: { tokens: event.tokens, limit: event.limit, model: event.model },
     }));
+  }
+  if (event.type === "context.spent") {
+    /** Spend is counted beside the conversation, not in it: it moves neither the messages nor when the thread last changed. */
+    return updateThread(withSequence, event.taskId, (thread) => {
+      const model = thread.model ?? defaultModelFor(thread.engine);
+      return { ...thread, usage: { ...thread.usage, [model]: Math.min(Number.MAX_SAFE_INTEGER, (thread.usage?.[model] ?? 0) + event.tokens) } };
+    });
   }
   if (event.type === "context.compaction-status") {
     const activeState = withActiveRun(withSequence, event.taskId, { ...active, sequence: event.sequence, status: event.compacting ? "compacting" : "running" });
