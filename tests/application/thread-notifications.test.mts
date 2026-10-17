@@ -125,6 +125,11 @@ test("a coordinator's reply is announced with what it said", () => {
   const update = replied([createSentMessage({ text: "How are the threads doing?" }), createConversationMessage("assistant", "## Two of three threads are done\n\nFix login opened #212.")]);
   assert.deepEqual(headlines(update.effects), ["Two of three threads are done"], "the first line, without its heading marks");
   assert.deepEqual(titles(update.effects), ["Release"]);
+  const marked = (text: string) => headlines(replied([createConversationMessage("assistant", text)]).effects)[0];
+  assert.equal(marked("**Status:** two of three threads are _done_, see [PR #212](https://example.com/212)"), "Status: two of three threads are done, see PR #212", "read as plain words");
+  assert.equal(marked("> - Fix `parse_args` in my_module"), "Fix parse_args in my_module", "quote, list and code marks go, a word's underscores stay");
+  assert.equal(marked("```ts\nconst ready = true;"), "const ready = true;", "a bare fence says nothing");
+  assert.equal(marked("---\n\n1. Merged the login fix"), "Merged the login fix", "nor does a rule");
 
   const long = "Everything is merged ".repeat(10).trim();
   const [clipped] = headlines(replied([createConversationMessage("assistant", long)]).effects);
