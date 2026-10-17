@@ -263,10 +263,11 @@ class AgentRunHost {
   }
 
   private async resolveStart(command: StartRunCommand) {
-    const [resolution, computerUse] = await Promise.all([
+    const [resolution, computerUse, projectRoot] = await Promise.all([
       this.host.workspaces().resolve(command.workspaceId),
       /** Off in settings never reaches the driver, so no permission is asked for and no host is started. */
       command.computerUseTools === false ? Promise.resolve({ status: "unavailable" as const, message: "Computer use is turned off in Settings." }) : this.host.computerUseForRun(),
+      command.projectWorkspaceId === undefined ? undefined : this.projectRoot(command.projectWorkspaceId),
     ]);
     if (resolution.status !== "available") throw new Error(`Workspace is unavailable (${resolution.reason}).`);
     return {
@@ -274,7 +275,14 @@ class AgentRunHost {
       workspaceRoot: resolution.workspace.root,
       projectless: resolution.workspace.kind === "projectless",
       computerUse,
+      ...(projectRoot && projectRoot !== resolution.workspace.root ? { projectRoot } : {}),
     };
+  }
+
+  /** A project's own checkout, while it is one; a checkout that is gone has nothing left to keep a run out of. */
+  private async projectRoot(workspaceId: string) {
+    const resolution = await this.host.workspaces().resolve(workspaceId).catch(() => undefined);
+    return resolution?.status === "available" && resolution.workspace.kind === "project" ? resolution.workspace.root : undefined;
   }
 
   private postCommand(command: Exclude<RunCommand, StartRunCommand>) {

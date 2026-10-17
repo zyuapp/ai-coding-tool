@@ -82,6 +82,9 @@ function claudeRunSettings(state: WorkspaceState): ClaudeRunSettings | undefined
 export function startRunCommand(state: WorkspaceState, thread: Thread, runId: string, prompt: string, workspaceId: string, policy = thread.executionPolicy): StartRunCommand {
   const claude = claudeRunSettings(state);
   const coordination = coordinationRole(state.threads, thread);
+  /** A member running anywhere but its project's checkout is told that checkout, which stays the user's. */
+  const project = coordination === "member" ? projectFor(state, thread) : undefined;
+  const userCheckout = project?.workspaceId && project.workspaceId !== workspaceId ? { projectWorkspaceId: project.workspaceId } : {};
   return {
     type: "start",
     channel: "main",
@@ -100,6 +103,7 @@ export function startRunCommand(state: WorkspaceState, thread: Thread, runId: st
     ...(thread.continuation ? { continuation: thread.continuation } : {}),
     ...(thread.continuation && thread.inheritedContinuation ? { forkContinuation: true as const } : {}),
     ...(coordination ? { coordinationRole: coordination } : {}),
+    ...userCheckout,
   };
 }
 

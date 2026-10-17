@@ -8,7 +8,7 @@ import type { WorkspaceInput } from "../../src/application/workspace-reducer.ts"
 import { NEXT_STEPS, withMemoryChange, type ThreadBrief } from "../../src/domain/coordination.ts";
 import type { PullRequestAnswer, PullRequestLink } from "../../src/domain/pull-request.ts";
 import { THREAD_STORE_VERSION } from "../../src/domain/thread-storage.ts";
-import { task, workspace, activeRun, effectAt, effectOf, correlatedRunEvent, required } from "./workspace-reducer-fixtures.mts";
+import { task, workspace, activeRun, effectAt, effectOf, correlatedRunEvent, required, madeWorktree, projected, PROJECT } from "./workspace-reducer-fixtures.mts";
 
 const PROJECTLESS = { id: "projectless", kind: "projectless" as const, root: "/tmp" };
 const BRIEF: ThreadBrief = { intent: "fix the flaky login test", doneWhen: "the suite passes 50 runs", delivers: "pull-request" };
@@ -40,6 +40,23 @@ test("a coordinator's new thread works under it, carries the brief, and runs as 
   assert.equal(worker.messages.at(-1)?.text, "Fix it", "the brief rides the prompt, not the message the user reads");
   assert.match(command.prompt, /The user's words: fix the flaky login test/);
   assert.equal(command.coordinationRole, "member");
+});
+
+test("a member in a worktree of its own names its project's checkout to keep out of, and no other run does", () => {
+  const made = madeWorktree();
+  const start = (state: WorkspaceState, send: Extract<WorkspaceInput, { type: "task.send" }>, worktree: boolean) => {
+    const sending = reduce(state, send);
+    const resolution = worktree ? { id: made.workspaceId, kind: "worktree" as const, root: made.root } : { id: PROJECT.workspaceId!, kind: "project" as const, root: PROJECT.root };
+    return effectAt(reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: resolution, ...(worktree ? { worktree: made } : {}) }), "start-run").command;
+  };
+  const state = projected({ threads: [lead("lead", { projectId: PROJECT.id })] });
+  const member = { type: "task.send" as const, text: "Fix it", project: PROJECT.id, coordinatorId: "lead", brief: BRIEF };
+
+  const away = start(state, { ...member, worktree: true }, true);
+  assert.equal(away.coordinationRole, "member");
+  assert.equal(away.projectWorkspaceId, PROJECT.workspaceId);
+  assert.equal(start(state, member, false).projectWorkspaceId, undefined, "a member working in the project's checkout is not kept out of it");
+  assert.equal(start(state, { type: "task.send", text: "Fix it", project: PROJECT.id, worktree: true }, true).projectWorkspaceId, undefined, "a thread of the user's own goes where they say");
 });
 
 test("becoming a coordinator keeps what it ran on for its threads", () => {

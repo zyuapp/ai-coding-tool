@@ -79,6 +79,7 @@ const features: { name: string; on: Settings; told?: RegExp; offered?: string }[
   { name: "coordinator memory", on: { coordinationRole: "coordinator", coordination }, told: /Your memory holds/, offered: "remember" },
   { name: "suggested threads", on: { coordinationRole: "coordinator", coordination }, told: /call propose_threads/, offered: "propose_threads" },
   { name: "a member that cannot reach something", on: { coordinationRole: "member", coordination }, told: /say exactly what's missing and stop\. Don't substitute, mock, or guess\. Say it with report_status as blocked\./ },
+  { name: "a member in a checkout of its own", on: { coordinationRole: "member", coordination, workspaceRoot: "/worktrees/repo-1", projectRoot: "/repo" }, told: /You work in your own checkout, \/worktrees\/repo-1\. The project's main checkout, \/repo, is the user's: never change anything there\./ },
   { name: "browser panel", on: { browser }, told: /browser panel is a real browser/, offered: "browser_open" },
   { name: "terminal panel", on: { terminal }, told: /terminal_list and terminal_read/, offered: "terminal_read" },
   { name: "side chat", on: { channel: "side" }, told: /You are in an AICodingTool side chat/ },
@@ -127,6 +128,15 @@ test("both engines are told the same thing in the same order, short of naming th
   assert.equal(neutral(claude.instructions), neutral(codex.instructions));
 });
 
+test("a coordinator is told to keep its project's folder out of what a worktree thread is sent, and a member in its project's checkout is told of no other", async () => {
+  const lead = await briefs({ coordinationRole: "coordinator", coordination });
+  const member = await briefs({ coordinationRole: "member", coordination });
+  for (const engine of ["claude", "codex"] as const) {
+    assert.match(lead[engine].instructions, /never point it at this project's folder by path in its prompt or doneWhen/);
+    assert.doesNotMatch(member[engine].instructions, /main checkout/);
+  }
+});
+
 test("a side chat, which cannot move its thread, is only told to start a thread in a worktree", async () => {
   const main = await briefs({ threads });
   const side = await briefs({ threads, channel: "side" });
@@ -143,6 +153,7 @@ const briefChanges: [string, Settings][] = [
   ["findings", { automations, findings }],
   ["threads", { threads }],
   ["coordination", { coordinationRole: "member", coordination }],
+  ["the project checkout a member keeps out of", { coordinationRole: "member", coordination, projectRoot: "/repo" }],
   ["browser panel", { browser }],
   ["terminal panel", { terminal }],
   ["computer use", { computerUse: { status: "setup-required" } }],

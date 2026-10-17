@@ -50,7 +50,7 @@ const NEW_THREAD_INPUT = {
   prompt: z.string().describe("The first message of the new thread. It has none of this conversation's context, so say everything it needs."),
   title: z.string().trim().min(1).max(MAX_PROPOSAL_TITLE).optional().describe("A few words naming what the new thread does, shown wherever it is listed. Omit to have it named from its prompt."),
   project: z.string().optional().describe("Which project to start it in: its folder name, its path, or its id. Defaults to this thread's project, or on a paired computer the project there at the same path or with the same folder name."),
-  worktree: z.boolean().optional().describe("Run the new thread in its own new git worktree, detached at whatever the project has checked out, so its edits never touch this thread's checkout."),
+  worktree: z.boolean().optional().describe("Run the new thread in its own new git worktree, detached at whatever the project has checked out, so its edits never touch this thread's checkout. Name files in its prompt relative to the project, never by this checkout's absolute path, which would send it back here."),
   worktreeId: z.string().optional().describe("Start the thread in another worktree that already exists, as list_threads reports it, on the computer it starts on. Omit both worktree fields to share this thread's checkout. Takes precedence over worktree."),
   model: modelField,
   effort: effortField,

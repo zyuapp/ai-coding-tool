@@ -1,8 +1,10 @@
+import { realpathSync } from "node:fs";
 import type { ExecutionPolicy } from "../../domain/run.js";
 import type { CoordinationRole } from "../../domain/coordination.js";
 import type { ApprovalsReviewer } from "./protocol/v2/ApprovalsReviewer.js";
 import type { AskForApproval } from "./protocol/v2/AskForApproval.js";
 import type { SandboxPolicy } from "./protocol/v2/SandboxPolicy.js";
+import { isPathInside } from "../path-policy.mjs";
 
 type CodexSandbox = "read-only" | "workspace-write" | "danger-full-access";
 
@@ -42,8 +44,35 @@ function policyGrants(policy: ExecutionPolicy): CodexPolicy {
   }
 }
 
-export const sandboxPolicies: Record<CodexSandbox, SandboxPolicy> = {
+const sandboxPolicies: Record<CodexSandbox, SandboxPolicy> = {
   "read-only": { type: "readOnly", networkAccess: false },
   "workspace-write": { type: "workspaceWrite", writableRoots: [], networkAccess: false, excludeTmpdirEnvVar: false, excludeSlashTmp: false },
   "danger-full-access": { type: "dangerFullAccess" },
 };
+
+/** The temporary folders workspace-write lets every command write in beside its own checkout, each as written and as it really is. */
+export type TemporaryFolders = { slashTmp: readonly string[]; tmpdir: readonly string[] };
+
+/**
+ * The sandbox a turn runs in. Workspace-write lets a command write in /tmp and $TMPDIR as well as its
+ * own checkout, so a run that must leave `kept` alone gives up whichever of them holds it.
+ */
+export function sandboxPolicy(sandbox: CodexSandbox, kept?: string, temporary: TemporaryFolders = temporaryFolders()): SandboxPolicy {
+  const policy = sandboxPolicies[sandbox];
+  if (policy.type !== "workspaceWrite" || !kept) return policy;
+  const holdsKept = (folders: readonly string[]) => folders.some((folder) => isPathInside(folder, kept));
+  return { ...policy, excludeSlashTmp: holdsKept(temporary.slashTmp), excludeTmpdirEnvVar: holdsKept(temporary.tmpdir) };
+}
+
+/** A checkout's root is kept resolved, and /tmp is /private/tmp on macOS, so each folder is matched both ways. */
+function temporaryFolders(environment: NodeJS.ProcessEnv = process.env): TemporaryFolders {
+  return { slashTmp: bothWays("/tmp"), tmpdir: environment.TMPDIR ? bothWays(environment.TMPDIR) : [] };
+}
+
+function bothWays(folder: string) {
+  try {
+    return [folder, realpathSync(folder)];
+  } catch {
+    return [folder];
+  }
+}

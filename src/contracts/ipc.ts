@@ -93,6 +93,8 @@ export type StartRunCommand = {
   unattended?: true;
   /** Gives the run the tools and instructions for its part beside a coordinator. */
   coordinationRole?: CoordinationRole;
+  /** Set for a member working in a checkout of its own: the project's checkout, which is the user's to change. */
+  projectWorkspaceId?: WorkspaceId;
 };
 
 export type CreateWorktreeRequest = {
@@ -128,6 +130,8 @@ export type InternalStartRunCommand = StartRunCommand & {
   workspaceRoot: string;
   projectless: boolean;
   computerUse: ComputerUseRunConfig;
+  /** Where `projectWorkspaceId` is, while it is there. */
+  projectRoot?: string;
 };
 
 export type CancelRunCommand = {
@@ -672,10 +676,10 @@ function isStartCommand(command: Record<string, unknown>, internal: boolean) {
     && isContinuation(command.continuation) && command.continuation.provider === command.engine
     && (command.forkContinuation === undefined || command.forkContinuation === true);
   const operationOnly = compact || review;
-  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && (operationOnly ? isBlankable(command.prompt, MAX_PROMPT_LENGTH) : isString(command.prompt, MAX_PROMPT_LENGTH)) && isString(command.workspaceId) && isPolicy(command.policy) && isAgentEngine(command.engine) && isAgentModel(command.model) && engineHasModel(command.engine, command.model) && isAgentEffort(command.effort) && engineHasEffort(command.engine, command.effort) && (command.operation === undefined || operationOnly) && (command.claude === undefined || isClaudeRunSettings(command.claude)) && (command.computerUseTools === undefined || command.computerUseTools === false) && (command.browserTools === undefined || command.browserTools === false) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation))) && (command.freshSession === undefined || (command.freshSession === true && command.continuation === undefined && command.forkContinuation === undefined)) && (command.unattended === undefined || command.unattended === true) && (command.coordinationRole === undefined || command.coordinationRole === "coordinator" || command.coordinationRole === "member");
+  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && (operationOnly ? isBlankable(command.prompt, MAX_PROMPT_LENGTH) : isString(command.prompt, MAX_PROMPT_LENGTH)) && isString(command.workspaceId) && isPolicy(command.policy) && isAgentEngine(command.engine) && isAgentModel(command.model) && engineHasModel(command.engine, command.model) && isAgentEffort(command.effort) && engineHasEffort(command.engine, command.effort) && (command.operation === undefined || operationOnly) && (command.claude === undefined || isClaudeRunSettings(command.claude)) && (command.computerUseTools === undefined || command.computerUseTools === false) && (command.browserTools === undefined || command.browserTools === false) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation))) && (command.freshSession === undefined || (command.freshSession === true && command.continuation === undefined && command.forkContinuation === undefined)) && (command.unattended === undefined || command.unattended === true) && (command.coordinationRole === undefined || command.coordinationRole === "coordinator" || command.coordinationRole === "member") && (command.projectWorkspaceId === undefined || (command.coordinationRole === "member" && isString(command.projectWorkspaceId)));
   if (!base || !(command.fastMode === undefined || isAgentEngine(command.engine) && capabilitiesFor(command.engine).fastMode && typeof command.fastMode === "boolean")) return false;
-  if (!internal) return !["workspaceRoot", "projectless", "computerUse", "cwd", "folder", "sessionId", "mode", "requestId"].some((key) => key in command);
-  return isString(command.workspaceRoot, 4_096) && typeof command.projectless === "boolean" && isComputerUseRunConfig(command.computerUse);
+  if (!internal) return !["workspaceRoot", "projectless", "computerUse", "projectRoot", "cwd", "folder", "sessionId", "mode", "requestId"].some((key) => key in command);
+  return isString(command.workspaceRoot, 4_096) && typeof command.projectless === "boolean" && isComputerUseRunConfig(command.computerUse) && (command.projectRoot === undefined || isString(command.projectRoot, 4_096));
 }
 
 export function isAutomationRequest(value: unknown): value is AutomationRequest {

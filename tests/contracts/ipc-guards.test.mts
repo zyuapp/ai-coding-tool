@@ -46,6 +46,17 @@ test("external start commands carry only a workspace ID", () => {
   assert.equal(isRunCommand({ ...command, channel: "side", continuation: { provider: "claude", value: "session" }, forkContinuation: true }), true);
 });
 
+test("only a member names the project checkout it must leave alone, and only by workspace ID", () => {
+  assert.equal(isRunCommand({ ...command, coordinationRole: "member", projectWorkspaceId: "workspace-2" }), true);
+  assert.equal(isRunCommand({ ...command, projectWorkspaceId: "workspace-2" }), false);
+  assert.equal(isRunCommand({ ...command, coordinationRole: "coordinator", projectWorkspaceId: "workspace-2" }), false);
+  assert.equal(isRunCommand({ ...command, coordinationRole: "member", projectWorkspaceId: "" }), false);
+  assert.equal(isRunCommand({ ...command, coordinationRole: "member", projectRoot: "/tmp/project" }), false);
+  const internal = { ...command, coordinationRole: "member", projectWorkspaceId: "workspace-2", workspaceRoot: "/tmp/worktree", projectless: false, computerUse: { status: "setup-required" } };
+  assert.equal(isInternalRunCommand({ ...internal, projectRoot: "/tmp/project" }), true);
+  assert.equal(isInternalRunCommand({ ...internal, projectRoot: "" }), false);
+});
+
 test("a start that asks for a fresh session resumes nothing", () => {
   const continuation = { provider: "claude", value: "session" };
   assert.equal(isRunCommand({ ...command, freshSession: true }), true);

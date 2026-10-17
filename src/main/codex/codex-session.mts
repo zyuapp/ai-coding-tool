@@ -14,7 +14,7 @@ import { SIDE_CHAT_BOUNDARY } from "../agent/side-chat-instructions.mjs";
 import { adoptAppSkills, CodexSkills } from "./codex-skills.mjs";
 import { codexImageOutput, type ImageOutput } from "./codex-images.mjs";
 import { CodexSubagents } from "./codex-subagents.mjs";
-import { codexPolicy, sandboxPolicies } from "./codex-policy.mjs";
+import { codexPolicy, sandboxPolicy } from "./codex-policy.mjs";
 import { CodexSpend } from "./codex-spend.mjs";
 import { readCodexUsageLimit } from "./codex-plan-usage.mjs";
 import { CodexThreadRecord, resumeThread, type ReadOrigin } from "./codex-thread-record.mjs";
@@ -312,7 +312,7 @@ export class CodexSession {
         serviceTier: turn.input.fastMode ? "priority" : "default",
         approvalPolicy: policy.approvalPolicy,
         approvalsReviewer: policy.approvalsReviewer,
-        sandboxPolicy: sandboxPolicies[policy.sandbox],
+        sandboxPolicy: sandboxPolicy(policy.sandbox, turn.input.projectRoot),
       });
     } catch (error) {
       if (this.turn === turn) this.turns.settle({ status: "failed", message: `Codex could not start the turn: ${reasonOf(error)}` });

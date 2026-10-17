@@ -109,6 +109,8 @@ export type ProviderRunInput = {
   title: string;
   prompt: string;
   workspaceRoot: string;
+  /** Set for a member working in a checkout of its own: the project's checkout, which is the user's to change. */
+  projectRoot?: string;
   projectless: boolean;
   computerUse: ComputerUseRunConfig;
   policy: ExecutionPolicy;

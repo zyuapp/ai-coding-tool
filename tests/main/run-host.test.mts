@@ -39,7 +39,9 @@ function harness() {
     workspaces: () => ({
       resolve: (id: string) => Promise.resolve(id === "workspace-1"
         ? { status: "available", workspace: { id, root: "/tmp/project", kind: "project" } }
-        : { status: "unavailable", workspace: { id, root: "/tmp/gone", kind: "project" }, reason: "missing" }),
+        : id === "worktree-1"
+          ? { status: "available", workspace: { id, root: "/worktrees/project-1", kind: "worktree" } }
+          : { status: "unavailable", workspace: { id, root: "/tmp/gone", kind: "project" }, reason: "missing" }),
     }) as unknown as WorkspaceService,
     scheduler: () => ({}) as unknown as AutomationScheduler,
     computerUseForRun: () => Promise.resolve({ status: "unavailable" as const, message: "test" }),
@@ -69,6 +71,23 @@ test("a start reaches the agent process once its workspace resolves, carrying wh
     projectless: false,
     computerUse: { status: "unavailable", message: "test" },
   }]);
+});
+
+test("a member's start carries where its project's checkout is, while that is a project checkout that is there", async () => {
+  const { agents, bridge } = harness();
+  const member = (runId: string, projectWorkspaceId: string) => startCommand(`task-${runId}`, runId, { workspaceId: "worktree-1", coordinationRole: "member", projectWorkspaceId });
+
+  bridge.handleRunCommand(member("kept", "workspace-1"));
+  bridge.handleRunCommand(member("gone", "workspace-gone"));
+  bridge.handleRunCommand(member("worktree", "worktree-1"));
+  await tick();
+
+  const posted = agents.started[0]?.posted as Array<{ runId: string; workspaceRoot: string; projectRoot?: string }>;
+  assert.deepEqual(posted.map(({ runId, workspaceRoot, projectRoot }) => [runId, workspaceRoot, projectRoot]), [
+    ["kept", "/worktrees/project-1", "/tmp/project"],
+    ["gone", "/worktrees/project-1", undefined],
+    ["worktree", "/worktrees/project-1", undefined],
+  ]);
 });
 
 test("a start dropped before it is dispatched never reaches an agent process", async () => {

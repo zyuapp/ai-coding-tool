@@ -148,6 +148,7 @@ export class RunCoordinator {
         title: command.title,
         prompt: command.prompt,
         workspaceRoot: active.workspaceRoot,
+        ...(command.projectRoot ? { projectRoot: command.projectRoot } : {}),
         projectless: active.projectless,
         computerUse: command.computerUse,
         policy: command.policy,

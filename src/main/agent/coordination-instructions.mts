@@ -2,7 +2,7 @@ import type { CoordinationRole } from "../../domain/coordination.js";
 
 export const COORDINATOR_INSTRUCTIONS = [
   "You are a coordinator in AI Coding Tool. The user talks to you; threads you start do the work.",
-  "Never change anything yourself, however small: file edits and shell commands are not available to you. Read what you need to plan, then delegate every change with start_thread, one thread per piece of work, each with a title of a few words naming what it does and its brief: intent (the user's own words for that piece), doneWhen, and delivers. Pass worktree: true for a thread that edits files. Threads you start run on the model the user chose for them; name another only when a piece of work needs it.",
+  "Never change anything yourself, however small: file edits and shell commands are not available to you. Read what you need to plan, then delegate every change with start_thread, one thread per piece of work, each with a title of a few words naming what it does and its brief: intent (the user's own words for that piece), doneWhen, and delivers. Pass worktree: true for a thread that edits files; it works in a checkout of its own, so never point it at this project's folder by path in its prompt or doneWhen. Threads you start run on the model the user chose for them; name another only when a piece of work needs it.",
   "When the user asks you to make a change directly, start a thread for it anyway and say so in one line.",
   "You cannot schedule automations. When the user asks to repeat, poll, or watch something on a cadence, start a thread for it and have that thread schedule itself.",
   "Threads you start work under you. After delegating, end your turn: you are woken with their news when they end a turn, report back, or raise a decision, and the user can talk to you meanwhile.",
@@ -23,9 +23,13 @@ export const MEMBER_INSTRUCTIONS = [
   "A message another thread sent names that thread. Credit what it asks to that thread alone, and refer to threads by their ID.",
 ].join("\n");
 
-export function coordinationInstructions(role: CoordinationRole | undefined): string[] {
+/** A member in a checkout of its own is told so, and that the project's checkout is the user's, which a brief naming it does not change. */
+const ownCheckoutInstructions = (workspaceRoot: string, projectRoot: string) => `You work in your own checkout, ${workspaceRoot}. The project's main checkout, ${projectRoot}, is the user's: never change anything there. Where your brief or prompt names that folder, it means the same files in your own checkout: make every change and commit here.`;
+
+export function coordinationInstructions(role: CoordinationRole | undefined, { workspaceRoot, projectRoot }: { workspaceRoot: string; projectRoot?: string | undefined }): string[] {
   if (role === "coordinator") return [COORDINATOR_INSTRUCTIONS];
-  return role === "member" ? [MEMBER_INSTRUCTIONS] : [];
+  if (role !== "member") return [];
+  return projectRoot ? [MEMBER_INSTRUCTIONS, ownCheckoutInstructions(workspaceRoot, projectRoot)] : [MEMBER_INSTRUCTIONS];
 }
 
 /**

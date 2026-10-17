@@ -7,7 +7,7 @@ import { coordinationInstructions } from "./coordination-instructions.mjs";
 import { runTools, type ServedToolSet, type ToolSources } from "./run-tools.mjs";
 import { SIDE_CHAT_INSTRUCTIONS } from "./side-chat-instructions.mjs";
 
-export type BriefSources = ToolSources & Pick<ProviderRunInput, "workspaceRoot" | "projectless">;
+export type BriefSources = ToolSources & Pick<ProviderRunInput, "workspaceRoot" | "projectRoot" | "projectless">;
 
 /** The few words an engine needs said its own way. */
 export type BriefDialect = {
@@ -48,7 +48,7 @@ export function runBrief(input: BriefSources, dialect: BriefDialect): RunBrief {
     ...(offers(tools, AUTOMATION_SERVER_NAME, "schedule") ? [automationInstructions] : []),
     ...(offers(tools, THREAD_SERVER_NAME) ? [threadInstructions(dialect)] : []),
     ...(offers(tools, THREAD_SERVER_NAME, "start_thread") ? [worktreeInstructions(dialect, offers(tools, THREAD_SERVER_NAME, "move_to_worktree"))] : []),
-    ...coordinationInstructions(input.coordinationRole),
+    ...coordinationInstructions(input.coordinationRole, input),
     ...(offers(tools, BROWSER_SERVER_NAME) ? [browserInstructions] : []),
     ...(offers(tools, TERMINAL_SERVER_NAME) ? [terminalInstructions] : []),
     ...(tools.length ? [workflowInstructions] : []),

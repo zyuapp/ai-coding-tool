@@ -110,6 +110,13 @@ test("a bypass turn disables approvals and the sandbox", async () => {
   codex.provider.closeAll();
 });
 
+test("a member in its own checkout cannot write through /tmp into the project checkout held there", async () => {
+  const codex = harness();
+  const { client } = await turn(codex, { policy: "allow-edits", coordinationRole: "member", workspaceRoot: "/home/me/.aicodingtool/worktrees/repo-1", projectRoot: "/tmp/qa/repo" });
+  assert.deepEqual((client.calls("turn/start")[0] as { sandboxPolicy: unknown }).sandboxPolicy, { type: "workspaceWrite", writableRoots: [], networkAccess: false, excludeTmpdirEnvVar: false, excludeSlashTmp: true });
+  codex.provider.closeAll();
+});
+
 test("Codex sets a native goal and keeps the run through its follow-up turns", async () => {
   const goals: GoalReport[] = [];
   const codex = harness();
