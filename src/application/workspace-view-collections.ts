@@ -1,5 +1,6 @@
 import type { AutomationView } from "../domain/automation.js";
 import type { Thread } from "../domain/thread.js";
+import type { Worktree } from "../domain/worktree.js";
 import { remoteCollections, type PairedComputer } from "./computers.js";
 import type { Project } from "../domain/project.js";
 import { orderProjects } from "./project-order.js";
@@ -15,6 +16,7 @@ import { threadActivity, threadLists } from "./thread-activity.js";
 import { worktreeSettingsPage, worktreeSettingsViews } from "./worktree-settings.js";
 import { computerUsage, sameComputerUsage } from "./plan-limits.js";
 import { computerUpkeep, sameComputerUpkeep } from "./computer-updates.js";
+import { sameFields } from "./view-reuse.js";
 
 /**
  * A selector retains one projection while its immutable input references stay unchanged. A new one
@@ -51,6 +53,16 @@ function sameLinks(before: ComputerLink[], next: ComputerLink[]) {
     const other = next[index]!;
     return link.id === other.id && link.name === other.name && link.host === other.host && link.status === other.status && link.error === other.error;
   });
+}
+
+/** A paired computer sends its whole state again on every change, so its checkouts are compared by what they hold. */
+function sameWorktrees(before: ReadonlyMap<string, Worktree>, next: ReadonlyMap<string, Worktree>) {
+  if (before.size !== next.size) return false;
+  for (const [id, worktree] of next) {
+    const held = before.get(id);
+    if (!held || (held !== worktree && !sameFields(held, worktree))) return false;
+  }
+  return true;
 }
 
 function union(own: Set<string>, others: Set<string>) {
@@ -187,6 +199,16 @@ function createViewCollections() {
     },
   );
 
+  /**
+   * Every computer's checkouts by id, for the rows that name the one a thread works in. Unlike the
+   * groups, it does not move when a thread does, so a row whose thread did not move draws nothing anew.
+   */
+  const worktreesById = selector(
+    (state) => [state.worktrees, remote(state).worktrees],
+    (state) => new Map<string, Worktree>([...state.worktrees, ...remote(state).worktrees].map((worktree) => [worktree.id, worktree])),
+    sameWorktrees,
+  );
+
   const schedules = selector(
     (state) => [state.automations],
     (state) => new Map<string, AutomationView>(state.automations.map((automation) => [automation.taskId, automation])),
@@ -217,6 +239,7 @@ function createViewCollections() {
       managedWorktrees: managed(state),
       worktreeSettings: settings(state),
       worktreeGroups: groups(state),
+      worktreesById: worktreesById(state),
       schedules: schedules(state),
       coordinators: coordinators(state),
       coordination: coordination(state),

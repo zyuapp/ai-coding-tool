@@ -109,6 +109,29 @@ test("new messages, archival, and side chat membership refresh the corresponding
   assert.deepEqual([...side.worktreeThreadIds], []);
 });
 
+test("the checkouts by id hold still while threads move or a paired computer resends the same ones", () => {
+  const own = populated();
+  const remoteState = workspace({
+    threads: [task("remote", { projectId: "remote-project", worktreeId: "remote-wt" })],
+    projects: [{ id: "remote-project", root: "/remote" }],
+    worktrees: [{ id: "remote-wt", projectId: "remote-project", root: "/remote-wt", workspaceId: "remote-workspace", baseCommit: "abc", createdAt: 1, lastUsedAt: 1 }],
+  });
+  const linux: PairedComputer = { id: "linux", name: "linux", host: "linux.tail.ts.net", status: "connected", error: null, pairedAt: 1, state: remoteState };
+  const state: WorkspaceState = { ...own, computers: { ...own.computers, paired: [linux] } };
+  const before = deriveView(state);
+  assert.deepEqual([...before.worktreesById.keys()], ["wt", "remote-wt"]);
+  const withMessage = { ...state.threads[0], messages: [{ id: "new", kind: "assistant" as const, text: "new", at: 100 }] };
+  const moved = deriveView({ ...state, threads: [withMessage, state.threads[1]] });
+  assert.notEqual(moved.worktreeGroups, before.worktreeGroups);
+  assert.equal(moved.worktreesById, before.worktreesById, "a thread that moves leaves the checkouts alone");
+  const resent = { ...linux, state: { ...remoteState, worktrees: remoteState.worktrees.map((worktree) => ({ ...worktree })) } };
+  const again = deriveView({ ...state, computers: { ...state.computers, paired: [resent] } });
+  assert.equal(again.worktreesById, before.worktreesById, "the same checkouts sent again are the same");
+  const renamed = deriveView({ ...state, worktrees: [{ ...state.worktrees[0], name: "dark-mode" }] });
+  assert.notEqual(renamed.worktreesById, before.worktreesById);
+  assert.equal(renamed.worktreesById.get("wt")?.name, "dark-mode");
+});
+
 test("project names, schedules, and worktree settings update independently of thread collections", () => {
   const state = populated();
   const before = deriveView(state);

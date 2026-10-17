@@ -21,7 +21,8 @@ export function heldViews<T extends { id: string }>() {
   };
 }
 
-function sameFields(left: object, right: object): boolean {
+/** Whether two flat records hold the same values under the same keys. */
+export function sameFields(left: object, right: object): boolean {
   const keys = Object.keys(left);
   if (keys.length !== Object.keys(right).length) return false;
   return keys.every((key) => (left as Record<string, unknown>)[key] === (right as Record<string, unknown>)[key]);

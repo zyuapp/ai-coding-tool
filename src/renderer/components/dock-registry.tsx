@@ -120,7 +120,7 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
           }}
           members={workspace.coordination.members}
           usage={workspace.coordination.usage}
-          worktreeGroups={workspace.worktreeGroups}
+          worktrees={workspace.worktreesById}
           folds={workspace.overviewFolds}
           onSetFold={(group, change) => void workspace.actions.setOverviewGroup(lead.id, group, change)}
           stoppable={workspace.stoppableCoordinatorIds.has(lead.id)}

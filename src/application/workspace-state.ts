@@ -816,8 +816,8 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state,
     /** What its last silent tick looked at, which is all a schedule that never speaks has to show. */
     lastChecked: currentThread?.lastChecked ?? null,
     worktreeThreadIds: collections.worktreeThreadIds,
-    /** The checkouts a project has, each with the threads that claim it. */
-    worktreeGroups: collections.worktreeGroups,
+    /** The checkouts a project has, each with the threads that claim it, and each by id for the rows that name one. */
+    worktreeGroups: collections.worktreeGroups, worktreesById: collections.worktreesById,
     managedWorktrees,
     worktreeSettings: collections.worktreeSettings,
     worktreeManagementError: state.worktreeManagementError,

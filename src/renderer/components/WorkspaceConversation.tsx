@@ -29,15 +29,15 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
   const transcriptRef = useRef<HTMLDivElement>(null);
   /** A side chat is a thread too, so the main transcript only claims the bar when it is the one named. */
   const mine = find?.target.kind === "thread" && find.target.taskId === (workspace.currentThread?.id ?? null) ? find : null;
-  const { coordination, worktreeGroups, actions } = workspace;
+  const { coordination, worktreesById, actions } = workspace;
   /** A coordinator follows its threads in its Overview; a thread opened on its own says whom it works under. */
   const bar = !coordination.coordinator && (coordination.lead !== null || coordination.remoteLead !== null || coordination.brief !== null);
   /** Rebuilt only when one of its threads' views moves, which each card holds still against on its own. */
   const threadCards = useMemo((): ThreadCardsView | null => !coordination.coordinator ? null : {
     cards: new Map(coordination.members.map((view) => [view.thread.id, view])),
-    worktrees: new Map(worktreeGroups.map(({ worktree }) => [worktree.id, worktree])),
+    worktrees: worktreesById,
     onSelect: actions.selectThread,
-  }, [coordination.coordinator, coordination.members, worktreeGroups, actions]);
+  }, [coordination.coordinator, coordination.members, worktreesById, actions]);
   return (
     <div className={`work-area ${bar ? (coordination.lead || coordination.remoteLead ? "coordination-bar-on" : "coordination-brief-on") : ""}`}>
       {isCoordinator(workspace.currentThread) && <CoordinatorReads

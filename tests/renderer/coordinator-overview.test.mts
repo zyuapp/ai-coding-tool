@@ -45,7 +45,7 @@ test("a coordinator's Overview groups its threads by what they need, each openin
       ...done,
     ],
     usage: null,
-    worktreeGroups: [{ worktree, threads: [] }],
+    worktrees: new Map([[worktree.id, worktree]]),
     folds,
     onSetFold: (group: string, change: object) => { folded.push([group, change]); },
     onSelect: (id: string) => { opened = id; },
@@ -72,7 +72,7 @@ test("a coordinator's Overview groups its threads by what they need, each openin
   await act(async () => { query<HTMLButtonElement>(busy, 'button[aria-label="Open Dark mode"]').click(); });
   assert.equal(opened, "a");
 
-  await view.render(React.createElement(CoordinatorOverview, { header, memory, members: [], usage: null, worktreeGroups: [], folds: {}, onSetFold() {}, onSelect() {}, stoppable: true }));
+  await view.render(React.createElement(CoordinatorOverview, { header, memory, members: [], usage: null, worktrees: new Map(), folds: {}, onSetFold() {}, onSelect() {}, stoppable: true }));
   assert.match(view.container.textContent, /Threads run onModelOpusEffortHigh/, "a coordinator with no threads yet still says what they will run on");
   assert.match(view.container.textContent, /No threads yet/);
   await view.unmount();
@@ -95,7 +95,7 @@ test("the Overview files threads ready for review and resolved apart, and resolv
       row(member("older", "Older work"), "resolved"),
     ],
     usage: null,
-    worktreeGroups: [],
+    worktrees: new Map(),
     folds,
     onSetFold: (group: string, change: object) => { folded.push([group, change]); },
     onSelect() {},
@@ -136,7 +136,7 @@ test("the Overview says what a coordinator's threads run on, and picks another w
   const overview = (available: boolean) => React.createElement(CommandControlsProvider, { value: { available: (command) => available || command.type !== "coordination.set-thread-model", dispatch() {} } },
     React.createElement(CoordinatorOverview, {
       header: { ...header, threadModel: { model: "gpt-6-luna", effort: "max" }, onSetThreadModel: (model: string, effort?: string) => { picked.push([model, effort]); } },
-      memory, members: [], usage: null, worktreeGroups: [], folds: {}, onSetFold() {}, onSelect() {}, stoppable: true,
+      memory, members: [], usage: null, worktrees: new Map(), folds: {}, onSetFold() {}, onSelect() {}, stoppable: true,
     }));
   const view = await mount(overview(true));
   const head = query(view.container, ".coordination-overview-header");
@@ -245,7 +245,7 @@ test("the Overview's Usage section shows what the coordinator and its threads sp
   assert.equal(mounted.container.querySelectorAll(".coordination-usage-thread").length, 7);
   await mounted.unmount();
 
-  const quiet = await mount(React.createElement(CoordinatorOverview, { header, memory, members: [], usage: null, worktreeGroups: [], folds: {}, onSetFold() {}, onSelect() {}, stoppable: false }));
+  const quiet = await mount(React.createElement(CoordinatorOverview, { header, memory, members: [], usage: null, worktrees: new Map(), folds: {}, onSetFold() {}, onSelect() {}, stoppable: false }));
   assert.equal(quiet.container.querySelector('[aria-label="Usage"]'), null, "nothing counted yet draws no section");
   await quiet.unmount();
 });

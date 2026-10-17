@@ -8,7 +8,6 @@ import type { Thread } from "../../domain/thread";
 import { canResolve, pullRequestLine, type CoordinatedThreadStatus } from "../../application/coordination";
 import { overviewGroups, type CoordinationUsage, type CoordinatedThreadView, type CoordinationView, type CoordinatorMemoryView } from "../../application/coordination-view";
 import type { ThreadHost } from "../../application/computers";
-import type { WorktreeGroup } from "../../application/workspace-state";
 import type { MemberWorktree } from "../../application/member-worktrees";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
 import { CommandButton, CommandGate } from "./CommandControl";
@@ -79,20 +78,19 @@ type RowActions = {
 };
 
 /** A coordinator's purpose, what its threads run on, its threads by what they need from the user, its memory, then what it all spent. */
-export function CoordinatorOverview({ header, memory, members, usage, worktreeGroups, folds, onSetFold, stoppable, onSelect }: RowActions & {
+export function CoordinatorOverview({ header, memory, members, usage, worktrees, folds, onSetFold, stoppable, onSelect }: RowActions & {
   header: OverviewHeaderProps;
   memory: OverviewMemoryProps;
   members: readonly CoordinatedThreadView[];
   /** Null until the coordinator or a thread under it has spent anything. */
   usage: CoordinationUsage | null;
-  worktreeGroups: WorktreeGroup[];
+  /** Held while no checkout changes, so a row whose thread did not move draws nothing anew. */
+  worktrees: ReadonlyMap<string, Worktree>;
   folds: OverviewFolds;
   onSetFold: FoldChange;
   /** Whether Stop all has anything under the coordinator to stop. */
   stoppable: boolean;
 }) {
-  /** Held while nothing they are made from moves, so a row whose thread did not move draws nothing anew. */
-  const worktrees = useMemo(() => new Map(worktreeGroups.map(({ worktree }) => [worktree.id, worktree])), [worktreeGroups]);
   const groups = useMemo(() => overviewGroups(members), [members]);
   return (
     <div className="coordination-overview" aria-label="Threads under this coordinator">
@@ -334,7 +332,7 @@ function ThreadGroup({ group, members, fold, worktrees, action, onSetFold, ...ac
   group: OverviewGroup;
   members: readonly CoordinatedThreadView[];
   fold: OverviewFold;
-  worktrees: Map<string, Worktree>;
+  worktrees: ReadonlyMap<string, Worktree>;
   action?: ReactNode;
   onSetFold: FoldChange;
 }) {
