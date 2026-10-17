@@ -164,6 +164,37 @@ test("a private home with conversation state on another filesystem is never move
   }
 });
 
+test("a home that cannot share sign-ins names the folders actually on different filesystems and is left in place", async () => {
+  const root = await realpath(await mkdtemp(path.join(tmpdir(), "codex-cross-device-names-")));
+  const source = path.join(root, "shared");
+  const privateHome = path.join(root, "app-data", "codex-private");
+  const foreign = path.join(root, "app-data");
+  filesystems.foreign = foreign;
+  try {
+    await mkdir(source); await mkdir(privateHome, { recursive: true });
+    const destination = await preparePrivateCodexHome(privateHome, source);
+    // CODEX_HOME later names a folder on the app data filesystem; the moved home holds the threads.
+    const moved = path.join(foreign, "codex");
+    await mkdir(moved);
+    const error = await preparePrivateCodexHome(privateHome, moved).catch((caught: Error) => caught);
+    assert.equal((error as Error).message, `Codex MCP sign-ins can only be shared when ${destination} is on the same filesystem as ${path.join(moved, ".credentials.json")}.`);
+    assert.equal(await realpath(privateHome), destination);
+
+    // Shared credentials that link to another filesystem cannot be reached from any moved home.
+    const otherHome = path.join(root, "other-private");
+    const credentials = path.join(foreign, "credentials.json");
+    await writeFile(credentials, "{}");
+    await rm(path.join(source, ".credentials.json"));
+    await symlink(credentials, path.join(source, ".credentials.json"));
+    await mkdir(otherHome);
+    await assert.rejects(preparePrivateCodexHome(otherHome, source), (caught: Error) => caught.message.endsWith(`is on the same filesystem as ${credentials}.`));
+    assert(!(await lstat(otherHome)).isSymbolicLink(), "the home is not moved when the move cannot help");
+  } finally {
+    filesystems.foreign = "";
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("file references remain relative to the declaring home and saved hook state follows its source", () => {
   const args = privateHomeConfig({ model_instructions_file: "../instructions.md", agents: { reviewer: { config_file: "custom/reviewer.toml" } }, hooks: { state: {
     "/shared/config.toml:session_start:0:0": { trusted_hash: "sha256:original", enabled: false },

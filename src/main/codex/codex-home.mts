@@ -93,17 +93,19 @@ async function disposable(directory: string, top = true): Promise<boolean> {
 }
 
 /** Hard links cannot cross filesystems, so the private home moves into the shared home's
- * filesystem. The app data path becomes a link to it and keeps naming the same home later. */
-async function relocate(privateHome: string, source: string) {
-  const unrelocatable = new Error(`Codex MCP sign-ins can only be shared when ${privateHome} is on the same filesystem as ${source}.`);
-  if ((await lstat(privateHome)).isSymbolicLink() || !(await disposable(privateHome))) throw unrelocatable;
-  const home = path.join(source, ".aicodingtool", createHash("sha256").update(path.resolve(privateHome)).digest("hex").slice(0, 16));
-  await mkdir(home, { recursive: true, mode: 0o700 });
+ * filesystem. The app data path becomes a link to it and keeps naming the same home later. Thread
+ * history then lives in the shared home, so its folder says what it holds. */
+async function relocate(privateHome: string, home: string, source: string) {
+  const credentials = await realpath(path.join(source, ".credentials.json"));
+  const unrelocatable = (from: string) => new Error(`Codex MCP sign-ins can only be shared when ${from} is on the same filesystem as ${credentials}.`);
+  if ((await lstat(privateHome)).isSymbolicLink() || !(await disposable(privateHome))) throw unrelocatable(home);
+  const destination = path.join(source, "aicodingtool-threads", createHash("sha256").update(path.resolve(privateHome)).digest("hex").slice(0, 16));
+  await mkdir(destination, { recursive: true, mode: 0o700 });
+  // Share before moving: credentials linked from a third filesystem would fail here too.
+  await shareMcpCredentials(source, destination).catch((error: NodeJS.ErrnoException) => { throw error.code === "EXDEV" ? unrelocatable(destination) : error; });
   await rm(privateHome, { recursive: true });
-  await symlink(home, privateHome);
-  const destination = await realpath(privateHome);
-  await shareMcpCredentials(source, destination).catch((error: NodeJS.ErrnoException) => { throw error.code === "EXDEV" ? unrelocatable : error; });
-  return destination;
+  await symlink(destination, privateHome);
+  return realpath(privateHome);
 }
 
 /** Recheck before each launch, including after logout removed a link or a profile was added. */
@@ -125,7 +127,7 @@ async function prepare(privateHome: string, sourceHome: string) {
   if (source === home) throw new Error("Private Codex storage must be separate from the shared Codex home.");
   const destination = await shareMcpCredentials(source, home).then(() => home, (error: NodeJS.ErrnoException) => {
     if (error.code !== "EXDEV") throw error;
-    return relocate(privateHome, source);
+    return relocate(privateHome, home, source);
   });
   const entries = await readdir(source).catch((error: unknown) => {
     if (missing(error)) return [];
