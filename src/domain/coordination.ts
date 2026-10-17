@@ -202,10 +202,11 @@ export function isCoordinator(thread: Thread | undefined): boolean {
 
 /**
  * Whether a coordinator's next run starts a fresh session rather than resuming one whose context has
- * grown past its budget. A native goal lives in its session, so one still running keeps it.
+ * grown past its budget. A native goal, a workflow or background work lives in its session, so a
+ * session still holding any of it is kept until that work ends.
  */
-export function wantsFreshSession(thread: Thread, goalActive: boolean): boolean {
-  return isCoordinator(thread) && thread.continuation !== undefined && (thread.contextUsage?.tokens ?? 0) >= COORDINATOR_CONTEXT_TOKENS && !goalActive;
+export function wantsFreshSession(thread: Thread, sessionHolds: boolean): boolean {
+  return isCoordinator(thread) && thread.continuation !== undefined && (thread.contextUsage?.tokens ?? 0) >= COORDINATOR_CONTEXT_TOKENS && !sessionHolds;
 }
 
 /** What a coordinator's threads run on unless one is started on something else. */

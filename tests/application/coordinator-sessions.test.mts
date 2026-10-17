@@ -152,6 +152,27 @@ test("a coordinator with a native goal running keeps its session", () => {
   assert.equal(ended.command.freshSession, true, "once the goal ends, the next run starts fresh");
 });
 
+test("a coordinator with a workflow or background work running keeps its session", () => {
+  const workflow = (status: "running" | "completed") => ({ id: "wf", name: "audit", description: "Audit the reader", status, phases: [], agents: [], totalTokens: 0, totalToolCalls: 0, startedAt: 1 });
+  const subagent = (status: "working" | "completed") => ({ id: "child", description: "Inspect", status, sessionScoped: true as const, startedAt: 1, activity: [] });
+  const monitor = { id: "watch", kind: "monitor" as const, description: "Watch the build" };
+  const claude = lead("lead", GROWN);
+  const codex = lead("lead", { ...GROWN, engine: "codex", model: "gpt-6.1-sol", continuation: { provider: "codex", value: "codex-thread" } });
+  const cases: Array<[string, WorkspaceState, WorkspaceState]> = [
+    ["a Claude workflow", workspace({ threads: [claude], workflows: { lead: [workflow("running")] } }), workspace({ threads: [claude], workflows: { lead: [workflow("completed")] } })],
+    ["a Claude monitor", workspace({ threads: [claude], backgroundProcesses: { lead: [monitor] } }), workspace({ threads: [claude], backgroundProcesses: { lead: [] } })],
+    ["a Claude subagent", workspace({ threads: [claude], subagents: { lead: [subagent("working")] } }), workspace({ threads: [claude], subagents: { lead: [subagent("completed")] } })],
+    ["a Codex subagent", workspace({ threads: [codex], subagents: { lead: [subagent("working")] } }), workspace({ threads: [codex], subagents: { lead: [subagent("completed")] } })],
+    ["a Codex background terminal", workspace({ threads: [codex], backgroundProcesses: { lead: [{ ...monitor, kind: "shell" as const }] } }), workspace({ threads: [codex], backgroundProcesses: { lead: [] } })],
+  ];
+  for (const [what, holding, done] of cases) {
+    const run = started(holding, { type: "task.send", taskId: "lead", text: "How is it going?" });
+    assert.deepEqual(run.command.continuation, holding.threads[0]!.continuation, `${what} still running keeps the session it runs in`);
+    assert.equal(run.command.freshSession, undefined, what);
+    assert.equal(started(done, { type: "task.send", taskId: "lead", text: "How is it going?" }).command.freshSession, true, `once ${what} ends, the next run starts fresh`);
+  }
+});
+
 test("the seed stays bounded however long the conversation", () => {
   const messages = Array.from({ length: 200 }, (_, index) => createConversationMessage(index % 2 ? "assistant" : "user", `${index} ${"x".repeat(2_000)}`));
   const state = workspace({ threads: [lead("lead", { ...GROWN, messages })] });

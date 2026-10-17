@@ -348,7 +348,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
    * A coordinator whose session has grown past its budget starts a fresh one, seeded from what this
    * app keeps of it. A run picking up after a usage limit carries on in the session it left.
    */
-  const fresh = !pending.warming && wantsFreshSession(located, Boolean(state.goals[located.id]));
+  const fresh = !pending.warming && wantsFreshSession(located, sessionHoldsWork(state, located.id));
   const told = coordinating && located.coordinationNotes ? withoutCoordinationNotes(located, new Set(located.coordinationNotes.map((note) => note.id))) : located;
   const heard = coordinating ? withMemoryHeard(told) : told;
   /** A message is more work for a thread, so one that was resolved is open again. */
@@ -392,6 +392,17 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     [{ type: "start-run", command }, ...titling, ...followUps(reviewing.effects)],
     { ok: true, taskId: thread.id },
   );
+}
+
+/**
+ * Whether a thread's session holds work a fresh one would silently end: a native goal, a workflow,
+ * a background shell or monitor, or a subagent still working.
+ */
+function sessionHoldsWork(state: WorkspaceState, taskId: string): boolean {
+  return Boolean(state.goals[taskId])
+    || (state.workflows[taskId] ?? []).some((workflow) => workflow.status === "running")
+    || (state.backgroundProcesses[taskId]?.length ?? 0) > 0
+    || (state.subagents[taskId] ?? []).some((subagent) => subagent.status === "working");
 }
 
 /** A thread that resumes no session: its next run starts one, and its context meter starts over with it. */
