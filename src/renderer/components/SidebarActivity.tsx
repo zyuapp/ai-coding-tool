@@ -110,10 +110,10 @@ export function SidebarActivity({ activityThreads, sections, blockedThreadIds, o
             <div className="section-heading activity-heading">
               <button className="section-toggle" onClick={() => onSetSectionOpen(key, !sections[key])} aria-expanded={sections[key]}>
                 <span>{label}</span>
+                {/** A folded list still says how much it holds, as part of its heading. */}
+                {!sections[key] && threads.length > 0 && <span className="section-count">{threads.length}</span>}
                 <span className="section-chevron" aria-hidden="true" />
               </button>
-              {/** A folded list still says how much it holds, in the slot its action takes when hovered. */}
-              {!sections[key] && threads.length > 0 && <span className="section-count">{threads.length}</span>}
               {key === "priority" && dottedCount > 0 && (
                 <button className="section-action" onClick={onDismissAll} aria-label="Dismiss all">
                   <CheckCheck size={16} aria-hidden="true" />
