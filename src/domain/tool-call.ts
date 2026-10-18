@@ -47,6 +47,16 @@ const NAMING: Record<AgentEngine, ToolNaming> = {
   },
 };
 
+/**
+ * How a thread on an engine only a newer build on a paired computer knows is read here: no tool is of
+ * a family this build can tell, and a call is named by whichever common argument it carries.
+ */
+const GENERIC_NAMING: ToolNaming = { families: {}, namingKeys: ["command", "file_path", "path", "pattern", "url", "query"] };
+
+function namingOf(engine: AgentEngine): ToolNaming {
+  return Object.hasOwn(NAMING, engine) ? NAMING[engine] : GENERIC_NAMING;
+}
+
 /** Longer than any row can show, and short enough that a heredoc cannot bloat the transcript. */
 const ARGUMENT_LIMIT = 240;
 
@@ -57,8 +67,7 @@ function ownToolFamily(name: string): ToolFamily | undefined {
 }
 
 export function toolFamily(engine: AgentEngine, name: string): ToolFamily {
-  const naming = NAMING[engine];
-  return naming.families[name] ?? ownToolFamily(name) ?? "other";
+  return namingOf(engine).families[name] ?? ownToolFamily(name) ?? "other";
 }
 
 /** Path segments beyond the last two say where a repo lives, not which file the call touched. */
@@ -86,7 +95,7 @@ function namingValue(namingKeys: readonly string[], input: Record<string, unknow
 export function describeToolCall(engine: AgentEngine, name: string, detail?: string): ToolCall {
   const family = toolFamily(engine, name);
   const input = parseInput(detail);
-  const naming = input && namingValue(NAMING[engine].namingKeys, input);
+  const naming = input && namingValue(namingOf(engine).namingKeys, input);
   if (!naming) return { family, argument: "" };
   const isPath = naming.key.endsWith("path") || naming.key === "file_path";
   const argument = oneLine(isPath ? shortPath(naming.value) : naming.value);

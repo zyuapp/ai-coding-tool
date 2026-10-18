@@ -4,7 +4,7 @@ import { useRef, type ReactNode } from "react";
 import type { DockConversationView, FindView, SideChatView } from "../../application/workspace-state";
 import type { ReadingPoint } from "../../contracts/commands";
 import { sentPrompts, type Annotation, type AnnotationAnchor, type AttachedFile, type PastedText } from "../../domain/conversation";
-import { defaultEffortFor, defaultModelFor, type AgentEngine, type AgentModel } from "../../domain/agent-engine";
+import { defaultEffortFor, defaultModelFor, isAgentEngine, unopenableEngine, type AgentEngine, type AgentModel } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import type { ThreadHandleOption } from "../../domain/thread-handles";
 import { ApprovalCard, type ApprovalCardProps } from "./ApprovalCard";
@@ -104,7 +104,8 @@ export function DockConversation({ chat, engineLabel, focusToken = 0, find = nul
         {chat.approval && <ApprovalCard approval={chat.approval} onDecide={onDecide} />}
       </div>
       {error && <p className="side-chat-error" role="alert">{error}</p>}
-      <ConversationComposer
+      {/** A chat on an engine only a newer build on a paired computer knows is read here, and takes no message, as its thread does. */}
+      {!isAgentEngine(chat.thread.engine) ? <footer className={`composer-wrap ${surface}`}><p className="composer-unopenable" role="status">{unopenableEngine(chat.thread.engine)}</p></footer> : <ConversationComposer
         taskId={chat.thread.id}
         focusToken={focusToken}
         prompt={chat.prompt}
@@ -153,7 +154,7 @@ export function DockConversation({ chat, engineLabel, focusToken = 0, find = nul
         onSteerQueued={onSteerQueued}
         onDropQueued={onDropQueued}
         onCancel={onCancel}
-      />
+      />}
       {drop.over && <p className="drop-hint" role="status">Drop to attach</p>}
       {note && <p className="side-chat-note">{note}</p>}
     </aside>

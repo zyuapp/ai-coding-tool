@@ -48,3 +48,9 @@ test("Codex names a call by its item kind, and by the command, path, or query it
   assert.equal(toolFamily("codex", "mcp_tool_call"), "other");
   assert.equal(toolFamily("codex", "browser_click"), "web");
 });
+
+test("an engine only a newer build knows has no families here, and a call reads by its common argument", () => {
+  assert.equal(toolFamily("gemini" as never, "run_shell"), "other");
+  assert.deepEqual(describeToolCall("gemini" as never, "run_shell", JSON.stringify({ command: "ls -la" })), { family: "other", argument: "ls -la" });
+  assert.equal(describeToolCall("gemini" as never, "browser_open", JSON.stringify({ url: "https://example.com" })).family, "web", "our own tools are known whichever engine calls them");
+});

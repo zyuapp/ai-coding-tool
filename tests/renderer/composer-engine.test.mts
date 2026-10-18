@@ -392,3 +392,14 @@ test("what a newer build sent is named as it is, and a thread on an engine only 
   assert.equal(query(view.container, ".composer-unopenable").textContent, "Runs on gemini, which this version can't open. Update to work in it here.");
   await view.unmount();
 });
+
+test("a side chat on an engine only a newer build knows is read, and takes no message, as its thread does", async () => {
+  window.desktop = composerDesktop();
+  const { DockConversation } = await import("../../src/renderer/components/SideChat.tsx");
+  const thread = { id: "chat-1", title: "Side", engine: "gemini", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1 } as unknown as Thread;
+  const chat = { id: "chat-1", title: "Side", thread, prompt: "", annotations: [], pastes: [], images: [], files: [], running: false, compacting: false, retrying: null, status: "idle", streamingTail: null, queuedMessages: [], readingPoint: null };
+  const view = await mount(React.createElement(DockConversation, { chat, engineLabel: "gemini", threads: [], outbox, surface: "side", label: "Side chat" } as never));
+  assert.equal(view.container.querySelector("textarea"), null);
+  assert.equal(query(view.container, ".composer-unopenable").textContent, "Runs on gemini, which this version can't open. Update to work in it here.");
+  await view.unmount();
+});

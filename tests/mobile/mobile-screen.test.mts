@@ -7,7 +7,7 @@ import { createRoot } from "react-dom/client";
 import { MOBILE_PROTOCOL_VERSION, type MobileClientMessage, type MobileView } from "../../src/contracts/mobile.ts";
 import { MOBILE_CREDENTIAL_KEY, MOBILE_FOLDED_KEY } from "../../src/mobile/client/storage.ts";
 import { App } from "../../src/mobile/App.tsx";
-import { groupMark } from "../../src/mobile/format.ts";
+import { groupMark, settingsSummary } from "../../src/mobile/format.ts";
 import { ensureLanguage } from "../../src/renderer/diff/highlight.ts";
 
 const CODE = "K7M2P9QX";
@@ -545,4 +545,9 @@ test("the phone wears the theme the Mac sends and remembers it for the next visi
   assert.deepEqual(JSON.parse(localStorage.getItem("aicodingtool.mobile.theme")!), themed.theme);
   act(() => line.onmessage?.({ data: JSON.stringify({ kind: "patch", sequence: 2, patch: { theme: { dark: "nord", light: "nord-snow", mode: "dark" } } }) }));
   assert.equal(document.documentElement.dataset.theme, "nord");
+});
+
+test("the phone names a mode, model or effort only a newer build knows as it was sent", () => {
+  assert.deepEqual(settingsSummary({ engine: "claude", model: "opus-next" as never, effort: "galaxy" as never, policy: "yolo" as never }), { mode: "yolo", model: "opus-next", effort: "galaxy" });
+  assert.deepEqual(settingsSummary({ engine: "claude", model: "opus", effort: "high", policy: "confirm" }).effort, "High");
 });

@@ -351,6 +351,20 @@ test("a run of tool calls leads with the argument, not the tool name", async () 
   await view.unmount();
 });
 
+test("a thread on an engine only a newer build knows reads its calls by their common arguments", async () => {
+  const messages = transcript(
+    { kind: "user", text: "Look around" },
+    { kind: "tool", text: "run_shell", detail: JSON.stringify({ command: "ls -la" }) },
+    { kind: "tool", text: "open_file", detail: JSON.stringify({ path: "/repo/src/app.ts" }) },
+  );
+  const shown = timelineView(messages, "running");
+  const view = await mount(React.cloneElement(shown, { engine: "gemini", engineLabel: "gemini", currentThread: { ...shown.props.currentThread, engine: "gemini" } } as never));
+  const run = query<HTMLDetailsElement>(view.container, ".work-run");
+  await expand(run);
+  assert.deepEqual([...run.querySelectorAll(".work-row")].map((step) => [step.querySelector(".work-tool")?.textContent, step.querySelector(".work-arg")?.textContent]), [["run_shell", "ls -la"], ["open_file", "…/src/app.ts"]]);
+  await view.unmount();
+});
+
 test("a run of mixed tools names the tool on every call", async () => {
   const messages = transcript(
     { kind: "user", text: "Fix it" },
