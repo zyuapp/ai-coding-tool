@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { isDeepStrictEqual } from "node:util";
 import { afterAll } from "vitest";
 import { JSDOM } from "jsdom";
 import React, { act } from "react";
@@ -54,6 +55,47 @@ Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { configurable: tr
 for (const prototype of [dom.window.HTMLInputElement.prototype, dom.window.HTMLTextAreaElement.prototype]) {
   Object.defineProperty(prototype, "attachEvent", { configurable: true, value: () => {} });
   Object.defineProperty(prototype, "detachEvent", { configurable: true, value: () => {} });
+}
+/**
+ * A failed assertion carries what it compared, and node:assert prints both to show how they differ.
+ * From a node in a mounted tree that print reaches all of jsdom and React, and runs past gigabytes in
+ * seconds, so a comparison that holds a node is made here and fails naming each node in a line.
+ */
+const COMPARISONS = {
+  equal: Object.is,
+  strictEqual: Object.is,
+  notEqual: (actual: unknown, expected: unknown) => !Object.is(actual, expected),
+  notStrictEqual: (actual: unknown, expected: unknown) => !Object.is(actual, expected),
+  deepEqual: isDeepStrictEqual,
+  deepStrictEqual: isDeepStrictEqual,
+  notDeepEqual: (actual: unknown, expected: unknown) => !isDeepStrictEqual(actual, expected),
+  notDeepStrictEqual: (actual: unknown, expected: unknown) => !isDeepStrictEqual(actual, expected),
+} as const;
+function holdsNode(value: unknown, depth = 0): boolean {
+  if (value instanceof dom.window.Node) return true;
+  if (depth > 3 || typeof value !== "object" || value === null) return false;
+  return Object.values(value).some((entry) => holdsNode(entry, depth + 1));
+}
+function nodeLine(node: Node): string {
+  if (!(node instanceof dom.window.Element)) return node.nodeName;
+  const label = node.getAttribute("aria-label");
+  const classes = typeof node.className === "string" && node.className.trim() ? `.${node.className.trim().split(/\s+/).join(".")}` : "";
+  return `<${node.localName}${node.id ? `#${node.id}` : ""}${classes}${label ? ` aria-label="${label}"` : ""}>`;
+}
+function namedNodes(value: unknown, depth = 0): unknown {
+  if (value instanceof dom.window.Node) return nodeLine(value);
+  if (depth > 3 || typeof value !== "object" || value === null) return value;
+  return Array.isArray(value) ? value.map((entry) => namedNodes(entry, depth + 1)) : Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, namedNodes(entry, depth + 1)]));
+}
+for (const [name, holds] of Object.entries(COMPARISONS)) {
+  const compare = assert[name as keyof typeof COMPARISONS] as (actual: unknown, expected: unknown, message?: string | Error) => void;
+  const guarded = (actual: unknown, expected: unknown, message?: string | Error) => {
+    if (!holdsNode(actual) && !holdsNode(expected)) return compare(actual, expected, message);
+    if (holds(actual, expected)) return;
+    if (message instanceof Error) throw message;
+    throw new assert.AssertionError({ actual: namedNodes(actual), expected: namedNodes(expected), operator: name, stackStartFn: guarded, ...(message ? { message } : {}) });
+  };
+  (assert as unknown as Record<string, unknown>)[name] = guarded;
 }
 /**
  * jsdom lays nothing out and hit tests nothing, so a test places the rectangles it cares about and
