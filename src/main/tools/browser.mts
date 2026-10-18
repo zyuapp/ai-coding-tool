@@ -290,6 +290,7 @@ export const BROWSER_TOOLS: readonly ToolDefinition<BrowserBridge>[] = [
   }),
 ];
 
-export function browserTools(bridge: BrowserBridge) {
-  return bindTools(bridge, BROWSER_TOOLS);
+/** `readOnly` keeps only the tools that change nothing the user can see: reading the panel's tabs, never driving them. */
+export function browserTools(bridge: BrowserBridge, { readOnly = false } = {}) {
+  return bindTools(bridge, readOnly ? BROWSER_TOOLS.filter((tool) => tool.readOnly) : BROWSER_TOOLS);
 }

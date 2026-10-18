@@ -89,9 +89,17 @@ function modelNames(info: ModelInfo): string[] {
   return [info.value, info.resolvedModel].filter((name) => name !== undefined).map((name) => name.replace(/\[[^\]]*\]$/, ""));
 }
 
+/**
+ * Whether the run drives the user's own Chrome. A coordinator changes nothing itself, so it never
+ * does, as it never drives the browser panel; Codex reaches no Chrome at all.
+ */
+function drivesChrome(input: ProviderRunInput) {
+  return Boolean(input.claude?.chromeBrowser) && input.coordinationRole !== "coordinator";
+}
+
 /** Everything a session is built with. A run that disagrees with any of it needs a session of its own. */
 function sessionKey(input: ProviderRunInput, brief: RunBrief) {
-  return JSON.stringify([...brief.identity, grantsTool("workspace", input), Boolean(input.claude?.chromeBrowser)]);
+  return JSON.stringify([...brief.identity, grantsTool("workspace", input), drivesChrome(input)]);
 }
 
 export class ClaudeAgentProvider implements AgentProvider {
@@ -149,9 +157,9 @@ export class ClaudeAgentProvider implements AgentProvider {
         model: input.model,
         ...(modelTakesEffort(input.model) ? { effort: claudeEffort(input.effort) } : {}),
         betas: ["context-1m-2025-08-07" as const],
-        ...(input.claude?.chromeBrowser ? { extraArgs: { chrome: null } } : {}),
+        ...(drivesChrome(input) ? { extraArgs: { chrome: null } } : {}),
         ...(Object.keys(mcpServers).length ? { mcpServers } : {}),
-        systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append: [...brief.instructions, ...(input.claude?.chromeBrowser ? [chromeInstructions] : [])].join("\n\n") },
+        systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append: [...brief.instructions, ...(drivesChrome(input) ? [chromeInstructions] : [])].join("\n\n") },
         settingSources: (input.projectless ? ["user"] : ["user", "project", "local"]) as ("user" | "project" | "local")[],
         skills: "all" as const,
         ...appPlugins(),

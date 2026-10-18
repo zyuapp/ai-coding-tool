@@ -29,7 +29,8 @@ export function runTools(input: ToolSources): ServedToolSet[] {
     sets.push({ server: THREAD_SERVER_NAME, tools: threadTools(input.threads, Date.now, input.coordinationRole) });
   }
   if (input.coordination && input.coordinationRole && input.operation?.type !== "review") sets.push({ server: COORDINATION_SERVER_NAME, tools: coordinationTools(input.coordination, input.coordinationRole) });
-  if (input.browser) sets.push({ server: BROWSER_SERVER_NAME, tools: browserTools(input.browser) });
+  /** A coordinator changes nothing itself, so it reads the browser panel but never drives it. */
+  if (input.browser) sets.push({ server: BROWSER_SERVER_NAME, tools: browserTools(input.browser, { readOnly: input.coordinationRole === "coordinator" }) });
   if (input.terminal) sets.push({ server: TERMINAL_SERVER_NAME, tools: terminalTools(input.terminal) });
   return sets.map(({ server, tools }) => ({ server, tools: offeredOn(input.channel, server, tools) }));
 }

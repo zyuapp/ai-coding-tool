@@ -135,6 +135,20 @@ test("both engines are told the same thing in the same order, short of naming th
   assert.equal(neutral(claude.instructions), neutral(codex.instructions));
 });
 
+test("a coordinator on either engine reads the browser panel but is never offered a tool that drives it, nor told to", async () => {
+  const lead = await briefs({ browser, terminal, coordinationRole: "coordinator", coordination });
+  const member = await briefs({ browser, coordinationRole: "member", coordination });
+  const panel = (brief: Brief) => brief.tools.filter((tool) => tool.startsWith("browser_"));
+  for (const engine of ["claude", "codex"] as const) {
+    assert.deepEqual(panel(lead[engine]), ["browser_console", "browser_network", "browser_read", "browser_screenshot", "browser_tabs", "browser_wait"]);
+    assert.ok(lead[engine].tools.includes("terminal_read"), "what the user's terminals printed is reading too");
+    assert.match(lead[engine].instructions, /read the pages they have open there with browser_tabs/);
+    assert.doesNotMatch(lead[engine].instructions, /browser_open/);
+    assert.ok(panel(member[engine]).includes("browser_click"), "a thread under a coordinator does the work, so it drives the panel");
+  }
+  assert.deepEqual(lead.claude.tools, lead.codex.tools);
+});
+
 test("a coordinator is told to keep its project's folder out of what a worktree thread is sent, and a member in its project's checkout is told of no other", async () => {
   const lead = await briefs({ coordinationRole: "coordinator", coordination });
   const member = await briefs({ coordinationRole: "member", coordination });

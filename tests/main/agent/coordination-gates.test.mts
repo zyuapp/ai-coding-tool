@@ -53,6 +53,19 @@ test("a Claude coordinator is offered only the tools it is named, so a tool a ne
   assert.ok(optionsOf(capture).mcpServers?.["aicodingtool-coordination"], "its app tools come as MCP servers, which the list leaves alone");
 });
 
+test("a Claude coordinator never drives the user's Chrome, while a thread under it still can", async () => {
+  const coordination = { report: async () => ({ recorded: true, note: "" }), decide: async () => ({ recorded: true, note: "" }), remember: async () => ({ note: "" }), propose: async () => ({ note: "" }) };
+  const optionsFor = async (coordinationRole: "coordinator" | "member") => {
+    const capture: QueryCapture = {};
+    await new ClaudeAgentProvider(queryFactory([], capture)).execute(input({ coordinationRole, coordination, claude: { chromeBrowser: true } }));
+    return optionsOf(capture);
+  };
+  const lead = await optionsFor("coordinator");
+  assert.equal(lead.extraArgs, undefined);
+  assert.doesNotMatch(systemAppend(lead), /mcp__claude-in-chrome__/);
+  assert.deepEqual((await optionsFor("member")).extraArgs, { chrome: null });
+});
+
 test("a coordinator on Codex runs without Codex's own subagents, as it does on Claude, while its threads keep them", () => {
   const spawnedWith = (coordinationRole?: "coordinator" | "member") => codexConfig({ channel: "main", policy: "confirm", computerUse: { status: "unavailable", message: "off" }, ...(coordinationRole ? { coordinationRole } : {}) }, undefined);
   const disabled = (args: readonly string[]) => args.flatMap((arg, index) => args[index - 1] === "--disable" ? [arg] : []);

@@ -31,6 +31,7 @@ const automationInstructions = `This task can schedule itself. When the user ask
 const threadInstructions = (dialect: BriefDialect) => `Use the AICodingTool thread tools, such as start_thread, list_threads and read_thread, when the user's request requires creating, fetching or acting on another AICodingTool thread. App task IDs identify AICodingTool threads, not ${dialect.nativeWork}. Conversation history and app-supplied thread context are already available evidence; answering from them does not require a tool call.`;
 const worktreeInstructions = (dialect: BriefDialect, moves: boolean) => `When the user asks for work in a worktree, use the AICodingTool worktree tools so the app knows where each thread works. ${moves ? `To do the work in this thread, call move_to_worktree with "new"; this thread moves into a new worktree when this turn ends, so end the turn there and do the work in the next one. Start a thread with start_thread and worktree only when the user wants the work in a separate thread.` : `Start a thread with start_thread and worktree to do it.`} Never make one yourself for that with git worktree${dialect.nativeWorktree ? ` or ${dialect.nativeWorktree}` : ""}.`;
 const browserInstructions = `The AICodingTool browser panel is a real browser sharing one session with the user, so every site they have signed into is signed in for you: use the browser panel tools, such as browser_open, browser_read and browser_screenshot, rather than curl or Bash for anything behind a login, and rather than guessing at a page you can read.`;
+const browserReadingInstructions = `The AICodingTool browser panel is a real browser sharing one session with the user: read the pages they have open there with browser_tabs, browser_read and browser_screenshot rather than guessing at them. Opening, clicking and typing in it are work for a thread.`;
 const terminalInstructions = `Use terminal_list and terminal_read to see what the user's terminals in the AICodingTool terminal panel have printed. Those shells are the user's; run your own commands in your own.`;
 const workflowInstructions = `For ordinary AICodingTool operations, prefer the AICodingTool tools. They are defaults, not restrictions on the user's workflow: follow the user's explicitly requested target and method, and verify the result in the requested target before reporting success.`;
 
@@ -49,7 +50,7 @@ export function runBrief(input: BriefSources, dialect: BriefDialect): RunBrief {
     ...(offers(tools, THREAD_SERVER_NAME) ? [threadInstructions(dialect)] : []),
     ...(offers(tools, THREAD_SERVER_NAME, "start_thread") ? [worktreeInstructions(dialect, offers(tools, THREAD_SERVER_NAME, "move_to_worktree"))] : []),
     ...coordinationInstructions(input.coordinationRole, input),
-    ...(offers(tools, BROWSER_SERVER_NAME) ? [browserInstructions] : []),
+    ...(offers(tools, BROWSER_SERVER_NAME) ? [offers(tools, BROWSER_SERVER_NAME, "browser_open") ? browserInstructions : browserReadingInstructions] : []),
     ...(offers(tools, TERMINAL_SERVER_NAME) ? [terminalInstructions] : []),
     ...(tools.length ? [workflowInstructions] : []),
     ...(input.channel === "side" ? [SIDE_CHAT_INSTRUCTIONS] : []),

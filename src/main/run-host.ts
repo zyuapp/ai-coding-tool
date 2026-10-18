@@ -265,8 +265,13 @@ class AgentRunHost {
   private async resolveStart(command: StartRunCommand) {
     const [resolution, computerUse, projectRoot] = await Promise.all([
       this.host.workspaces().resolve(command.workspaceId),
-      /** Off in settings never reaches the driver, so no permission is asked for and no host is started. */
-      command.computerUseTools === false ? Promise.resolve({ status: "unavailable" as const, message: "Computer use is turned off in Settings." }) : this.host.computerUseForRun(),
+      /**
+       * Off in settings never reaches the driver, so no permission is asked for and no host is started.
+       * Nor does a coordinator's run on either engine: it changes nothing itself, in another app no more than in a file.
+       */
+      command.computerUseTools === false ? Promise.resolve({ status: "unavailable" as const, message: "Computer use is turned off in Settings." })
+        : command.coordinationRole === "coordinator" ? Promise.resolve({ status: "unavailable" as const, message: "A coordinator changes nothing itself." })
+        : this.host.computerUseForRun(),
       command.projectWorkspaceId === undefined ? undefined : this.projectRoot(command.projectWorkspaceId),
     ]);
     if (resolution.status !== "available") throw new Error(`Workspace is unavailable (${resolution.reason}).`);
