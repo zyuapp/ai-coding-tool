@@ -125,12 +125,14 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
     }
 
     case "run.event": {
-      const { event } = input;
+      const { event: reported } = input;
       /** A turn the agent started itself belongs to no run yet, so the thread takes one on for it. */
-      const opening = event.type === "run.started" && event.agentInitiated && !state.activeRuns[event.taskId] && state.threads.some((thread) => thread.id === event.taskId);
-      const opened = opening ? beginRun(state, event.taskId, event.runId, ATTENDED_RUN, undefined, "agent") : state;
-      const active = opened.activeRuns[event.taskId];
-      if (!active || event.runId !== active.runId || event.sequence <= active.sequence) return settled(state);
+      const opening = reported.type === "run.started" && reported.agentInitiated && !state.activeRuns[reported.taskId] && state.threads.some((thread) => thread.id === reported.taskId);
+      const opened = opening ? beginRun(state, reported.taskId, reported.runId, ATTENDED_RUN, undefined, "agent") : state;
+      const active = opened.activeRuns[reported.taskId];
+      if (!active || reported.runId !== active.runId || reported.sequence <= active.sequence) return settled(state);
+      const stopping = beingStopped(opened, active);
+      const event = stopping ? stoppedBeforeLimit(reported) : reported;
       const applied = applyRunEvent(opened, event);
       if (event.type === "assistant.delta") {
         const thread = applied.threads.find((item) => item.id === event.taskId);
@@ -174,8 +176,8 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       if (event.type !== "run.status" || event.status === "running" || event.status === "awaiting-approval") return settled(next, [...environment, ...said]);
       const moved = settleMoveAfterRun(next, event.taskId);
       next = moved.state;
-      /** A run Stop all asked to end, or the agent's own answer to it, stays ended, even when a usage limit got to it first. */
-      if (event.status === "failed" && event.limit && !next.quietStops.includes(event.runId) && !active.answersStop) next = pausedForLimit(next, event.taskId, event.limit, now());
+      /** A run being stopped stays ended, even when a usage limit got to it first. */
+      if (event.status === "failed" && event.limit && !stopping) next = pausedForLimit(next, event.taskId, event.limit, now());
       /** A turn that still ends failed once a session limit has had its say left the thread stuck, so it is open again. */
       if (event.status === "failed") next = updateThread(next, event.taskId, (thread) => thread.runEndedAs === "failed" ? reopenedIfStuck(thread) : thread);
       const drained = drainQueue(noteTurnEnded(next, event.taskId, event.status, active), event.taskId, event.status);
@@ -188,6 +190,23 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       return settled(applyThreadEvent(state, event));
     }
   }
+}
+
+/** Whether a run is on its way to ending as stopped: one Stop all asked to end, or the agent's own answer to it. */
+function beingStopped(state: WorkspaceState, active: ActiveRun): boolean {
+  return state.quietStops.includes(active.runId) || active.answersStop === true;
+}
+
+/**
+ * How a run being stopped ended. One a session limit got to first ends as the stop asked rather than
+ * waiting in line to carry on by itself, as one already waiting when the stop came does, so it is
+ * stopped and quiet with its queue handed back. A weekly limit waits for the user either way, so it
+ * is said as the failure it is.
+ */
+function stoppedBeforeLimit(event: RunEvent): RunEvent {
+  if (event.type !== "run.status" || event.status !== "failed" || event.limit?.window !== "session") return event;
+  const { limit: _waited, message: _said, ...stopped } = event;
+  return { ...stopped, status: "cancelled" };
 }
 
 /**

@@ -263,8 +263,16 @@ test("stopping all cancels every run under a coordinator and never wakes it", ()
   assert.deepEqual(leadEnds.state.quietStops, []);
   slept(leadEnds, "its own run ending");
 
-  const limited = reduce(stopped.state, correlatedRunEvent("one", "run-1", 1, { type: "run.status", status: "failed", limit: SESSION }));
-  assert.equal(limited.state.threads.find((thread) => thread.id === "one")?.limitPause, undefined, "a usage limit reached before the stop landed never puts it back in line");
+  const limited = reduce(stopped.state, correlatedRunEvent("one", "run-1", 1, { type: "run.status", status: "failed", message: "Usage limit reached.", limit: SESSION }));
+  const limitedOne = required(limited.state.threads.find((thread) => thread.id === "one"));
+  assert.equal(limitedOne.limitPause, undefined, "a usage limit reached before the stop landed never puts it back in line");
+  assert.deepEqual([limitedOne.runEndedAs, limitedOne.outcome], ["stopped", "stopped"], "it ends as the stop asked");
+  assert.deepEqual([limited.state.threads[0]!.coordinationNotes?.at(-1)?.text, limited.state.threads[0]!.coordinationNotes?.at(-1)?.quiet], ["\"one\" was stopped.", true]);
+  assert.equal(limited.effects.some((effect) => effect.type === "announce-thread"), false, "nor is it said as a failure on the desktop");
+  assert.equal(limited.state.prompts.one, "Also this", "what was queued goes back to its composer");
+  slept(limited, "a thread it stopped hitting its limit");
+  const weekly = reduce(stopped.state, correlatedRunEvent("one", "run-1", 1, { type: "run.status", status: "failed", limit: { ...SESSION, window: "weekly" } }));
+  assert.equal(weekly.state.threads[0]!.coordinationNotes?.at(-1)?.urgent, true, "a weekly limit waits for the user either way, so it is news");
 
   assert.equal(reduce(state, { type: "coordination.stop-all", taskId: "one" }).effects.length, 0, "only a coordinator stops threads under it");
 });
@@ -323,6 +331,9 @@ test("a turn the agent takes itself after stopping all stopped its workflow ends
   assert.equal(answered.state.threads[0]!.coordinationNotes?.at(-1)?.quiet, true);
   assert.deepEqual(answered.state.quietStops, []);
   slept(answered, "the agent answering the stop");
+  const limitedAnswer = reduce(answering.state, correlatedRunEvent("one", "run-a", 2, { type: "run.status", status: "failed", limit: SESSION }));
+  assert.equal(limitedAnswer.state.threads[1]!.limitPause, undefined, "an answer a session limit cut short stays ended");
+  assert.equal(limitedAnswer.state.threads[0]!.coordinationNotes?.at(-1)?.quiet, true);
 
   const later = reduce(answered.state, correlatedRunEvent("one", "run-b", 1, { type: "run.started", agentInitiated: true }));
   const news = reduce(later.state, correlatedRunEvent("one", "run-b", 2, { type: "run.status", status: "succeeded" }));
