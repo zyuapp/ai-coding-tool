@@ -334,7 +334,6 @@ export function coordinatedThreads(threads: readonly Thread[], leadId: string): 
   return threads.filter((thread) => leadIdOf(thread) === leadId && thread.archivedAt === undefined && thread.role !== "coordinator");
 }
 
-/** Every thread drawn under a coordinator rather than in a list of its own. */
 /** The threads working under each coordinator, in the order they come, which its row speaks for. */
 export function threadsByCoordinator(threads: readonly Thread[]): Map<string, Thread[]> {
   const members = coordinatedThreadIds(threads);
@@ -347,6 +346,7 @@ export function threadsByCoordinator(threads: readonly Thread[]): Map<string, Th
   return byLead;
 }
 
+/** Every thread drawn under a coordinator rather than in a list of its own. */
 export function coordinatedThreadIds(threads: readonly Thread[]): Set<string> {
   const leads = new Set(threads.filter(isCoordinator).map((thread) => thread.id));
   const members = new Set<string>();

@@ -55,10 +55,10 @@ export function sidebarLists(
   const activityProject = preferences.activityProject !== null && ordered.some((project) => project.id === preferences.activityProject) ? preferences.activityProject : null;
   /** The same threads ranked by what wants the user, which is the sidebar's other shape. */
   const ranked = coordinationSections(visibleThreads, busy, blocked, preferences.startingProposals);
-  /** What each row says waits on the user, a coordinator's for its threads as well as itself. */
+  /** What each row says waits on the user: a coordinator's for its threads as well as itself, and a thread drawn under one for itself. */
   const waitingLines = new Map<string, string>();
   for (const thread of visibleThreads) {
-    const line = members.has(thread.id) ? null : waitingLine(waitingOnUser(thread, threadsByCoordinator.get(thread.id) ?? [], preferences.startingProposals));
+    const line = waitingLine(waitingOnUser(thread, members.has(thread.id) ? [] : threadsByCoordinator.get(thread.id) ?? [], preferences.startingProposals));
     if (line) waitingLines.set(thread.id, line);
   }
   const activityThreads = activityProject ? projectActivity(ranked, visibleThreads, activityProject) : ranked;

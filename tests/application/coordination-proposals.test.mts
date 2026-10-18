@@ -204,4 +204,7 @@ test("a coordinator's row says what its Needs-you card holds, a request by the c
   assert.deepEqual(said([request("p2"), request("p3", { id: "lab", name: "Lab" })], [], []), ["2 requests to run threads on other computers are waiting on you", ["lead"]]);
   assert.deepEqual(said([proposal("p1"), request("p2")], ["p1"], []), ["A request to run a thread on Studio is waiting on you", ["lead"]], "one already starting waits on no one");
   assert.deepEqual(said([proposal("p1"), request("p2")], ["p1", "p2"], []), [null, []], "so a coordinator with only those has nothing waiting");
+
+  const state = workspace({ threads: [lead(), task("worker", { parentId: "lead", decisions: [decision] })], startingProposals: [] });
+  assert.equal(sidebarLists(state, [], state.threads, new Set(), new Set()).waitingLines.get("worker"), "A decision is waiting on you", "a thread drawn under its coordinator still says what waits on it");
 });
