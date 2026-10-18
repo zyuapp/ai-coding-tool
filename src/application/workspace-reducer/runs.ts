@@ -6,7 +6,7 @@ import { coordinatedStart, withSuggestionStarted } from "./coordinated-start.js"
 import { readDiffFrom, rereadReviewsOf } from "./diff-reads.js";
 import { handOverDraftDock } from "./dock-tabs.js";
 import { WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
-import { beginRun, clearedDraft, drainQueue, queuedFor, resolveWorkspaceEffect, sideChannelFor, startRunCommand, stoppingProcess, threadBusy, withAttendedRun, withDeliveredMessage, withPending, withQueued, withSideChat, withSteeringFailure, withUnsent, withoutPending } from "./run-queue.js";
+import { beginRun, cancellingRun, clearedDraft, drainQueue, queuedFor, resolveWorkspaceEffect, sideChannelFor, startRunCommand, stoppingProcess, threadBusy, withAttendedRun, withDeliveredMessage, withPending, withQueued, withSideChat, withSteeringFailure, withUnsent, withoutPending } from "./run-queue.js";
 import { followUps, now, settled, targetId, rejected } from "./shared.js";
 import { memberPullRequestRead } from "./pull-requests.js";
 import { withUsedWorktree } from "./worktree-claims.js";
@@ -105,8 +105,7 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
     case "run.cancel": {
       const taskId = targetId(state, input.taskId);
       const active = taskId ? state.activeRuns[taskId] : undefined;
-      if (!active) return settled(state);
-      return settled(state, [{ type: "send-run-command", command: { type: "cancel", taskId: active.taskId, runId: active.runId } }]);
+      return active ? cancellingRun(state, active) : settled(state);
     }
 
     case "run.stop-process":
@@ -192,16 +191,16 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
   }
 }
 
-/** Whether a run is on its way to ending as stopped: one Stop all asked to end, or the agent's own answer to it. */
+/** Whether a run is on its way to ending as stopped: one the user or Stop all asked to end, or the agent's own answer to Stop all. */
 function beingStopped(state: WorkspaceState, active: ActiveRun): boolean {
-  return state.quietStops.includes(active.runId) || active.answersStop === true;
+  return active.cancelling === true || state.quietStops.includes(active.runId) || active.answersStop === true;
 }
 
 /**
  * How a run being stopped ended. One a session limit got to first ends as the stop asked rather than
  * waiting in line to carry on by itself, as one already waiting when the stop came does, so it is
- * stopped and quiet with its queue handed back. A weekly limit waits for the user either way, so it
- * is said as the failure it is.
+ * heard as that stop and its queue is handed back. A weekly limit waits for the user either way, so
+ * it is said as the failure it is.
  */
 function stoppedBeforeLimit(event: RunEvent): RunEvent {
   if (event.type !== "run.status" || event.status !== "failed" || event.limit?.window !== "session") return event;

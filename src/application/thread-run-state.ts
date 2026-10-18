@@ -40,6 +40,8 @@ export type ActiveRun = RunProvenance & {
    * ends quietly however it ends.
    */
   answersStop?: true;
+  /** Set once the user asked this run to stop, so a usage limit that gets to it first cannot outlast the stop. */
+  cancelling?: true;
 };
 
 /**

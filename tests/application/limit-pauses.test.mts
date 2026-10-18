@@ -220,6 +220,22 @@ test("not resuming hands what was written back to the composer", () => {
   assert.equal(thread(lifted, "a").runEndedAt, thread(weeklyPause, "a").runEndedAt);
 });
 
+test("a stop the user made outlasts a session limit that gets to the run first", () => {
+  for (const stop of [{ type: "run.cancel", taskId: "a" }, { type: "task.archive", taskId: "a" }] as const) {
+    const queued = reduce(runningThreads("a"), { type: "task.send", taskId: "a", text: "later", attachments: [] }).state;
+    const stopping = reduce(queued, stop);
+    const ended = limited(stopping.state, "a", session);
+    assert.equal(thread(ended.state, "a").limitPause, undefined, `${stop.type}: it is not put in line`);
+    assert.equal(thread(ended.state, "a").runEndedAs, "stopped", `${stop.type}: it ends as the stop asked`);
+    assert.equal(ended.effects.some((effect) => effect.type === "announce-thread"), false, `${stop.type}: and is no failure on the desktop`);
+    assert.equal(ended.state.prompts.a, "later", `${stop.type}: what was queued goes back to its composer`);
+    assert.equal(resolveAll(reduce(ended.state, { type: "limits.elapsed", at: session.resetsAt })).state.activeRuns.a, undefined, `${stop.type}: nothing resumes it`);
+  }
+  assert.equal(thread(limited(reduce(runningThreads("a"), { type: "run.cancel", taskId: "a" }).state, "a", session).state, "a").outcome, "stopped");
+  const weeklyStop = limited(reduce(runningThreads("a"), { type: "run.cancel", taskId: "a" }).state, "a", weekly);
+  assert.equal(thread(weeklyStop.state, "a").outcome, "failed", "a weekly limit is said as the failure it is");
+});
+
 test("a cut-short workflow is resumed rather than restarted, and goes after the others", () => {
   let state = runningThreads("a", "b");
   state = { ...state, workflows: { a: [{ id: "wf", name: "wf", description: "Dynamic workflow", status: "running", phases: [], agents: [], totalTokens: 0, totalToolCalls: 0, startedAt: 1 }] } };

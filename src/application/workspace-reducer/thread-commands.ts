@@ -5,7 +5,7 @@ import { TAKE_KEYS, disposeDocks, focusDockTab, showDockTab } from "./dock-tabs.
 import { refreshThreadEnvironment } from "./environment.js";
 import { closeSideChats } from "./side-chats.js";
 import { discardedLeads } from "./coordination-remote.js";
-import { fileThread } from "./run-queue.js";
+import { cancellingRun, fileThread } from "./run-queue.js";
 import { followUps, now, rejected, settled, targetId } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import type { AppCommand } from "../../contracts/commands.js";
@@ -120,10 +120,11 @@ function archiveThread(state: WorkspaceState, taskId: string): WorkspaceTransiti
   const parked = closed.size
     ? withDock(archived, taskId, { browserTabs: dock.browserTabs.map((tab) => closed.has(tab.id) && tab.loading ? { ...tab, loading: false } : tab) })
     : archived;
-  return settled(parked, [
+  const stopping = active ? cancellingRun(parked, active) : settled(parked);
+  return settled(stopping.state, [
     ...unpaused.effects,
     ...retireAutomations(state, [taskId]),
-    ...(active ? [{ type: "send-run-command" as const, command: { type: "cancel" as const, taskId: active.taskId, runId: active.runId } }] : []),
+    ...stopping.effects,
     ...fileThread(state, state.threads.find((thread) => thread.id === taskId), true),
     ...[...closed].map((tabId): WorkspaceEffect => ({ type: "browser.close", tabId })),
   ]);

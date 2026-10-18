@@ -6,7 +6,7 @@ import { promptWithAttachments } from "../attachments.js";
 import { annotationsFor, composerDraft, filesFor, imagesFor, pastesFor, withAnnotations, withFiles, withImages, withPastes } from "../composer-drafts.js";
 import { promptWithFiles } from "../files.js";
 import { promptWithPastes } from "../pastes.js";
-import { ATTENDED_RUN, runStatusFor, threadMark, updateThread, withActiveRun, withBackgroundProcesses, withRunStatus, withSubagents, withWorkflows, type RunProvenance, type ThreadMark } from "../thread-run-state.js";
+import { ATTENDED_RUN, runStatusFor, threadMark, updateThread, withActiveRun, withBackgroundProcesses, withRunStatus, withSubagents, withWorkflows, type ActiveRun, type RunProvenance, type ThreadMark } from "../thread-run-state.js";
 import { projectFor, threadWorkspaceId, worktreeFor } from "../thread-location.js";
 import { withPrompt, type DraftBranch, type PendingRun, type QueuedMessage, type SideChat, type WorkspaceState } from "../workspace-state.js";
 import type { ClaudeRunSettings, StartRunCommand } from "../../contracts/ipc.js";
@@ -230,6 +230,15 @@ export function withSteeringFailure(state: WorkspaceState, taskId: string, messa
   return next.sideChats.some((chat) => chat.id === taskId)
     ? withSideChat(next, taskId, (chat) => ({ ...chat, error }))
     : { ...next, actionError: error, actionErrorPage: null };
+}
+
+/**
+ * The user stopping a thread's run. The run remembers it was asked, so however it ends first, it ends
+ * as the stop asked.
+ */
+export function cancellingRun(state: WorkspaceState, active: ActiveRun): WorkspaceTransition {
+  const marked = active.cancelling ? state : withActiveRun(state, active.taskId, { ...active, cancelling: true });
+  return settled(marked, [{ type: "send-run-command", command: { type: "cancel", taskId: active.taskId, runId: active.runId } }]);
 }
 
 /** The kill is the agent process's to make; the row only says a stop is on its way. */
