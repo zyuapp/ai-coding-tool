@@ -216,7 +216,7 @@ function stopAll(state: WorkspaceState, leadId: string): WorkspaceTransition {
   if (!lead || !isCoordinator(lead)) return settled(state);
   const { threads, starts, sessionWork, elsewhere, landing } = coordinatorWork(state, lead);
   const cancelled = threads.flatMap(({ id }) => state.activeRuns[id] ?? []);
-  const remote = remoteStops(elsewhere);
+  const remote = remoteStops(elsewhere, now());
   /** A run that never said it ended leaves its id behind, so only runs still going are kept. */
   const going = new Set(Object.values(state.activeRuns).map((run) => run.runId));
   const quietStops = [...state.quietStops.filter((runId) => going.has(runId)), ...cancelled.map((run) => run.runId)];
@@ -254,7 +254,7 @@ function stopAll(state: WorkspaceState, leadId: string): WorkspaceTransition {
  * with only what its build takes, and the runs and the waits to carry on after a session limit it
  * ends, so their ends are heard quietly here.
  */
-function remoteStops(work: ReturnType<typeof coordinatorWork>["elsewhere"]): { effects: WorkspaceEffect[]; stops: Record<string, RemoteStop> } {
+function remoteStops(work: ReturnType<typeof coordinatorWork>["elsewhere"], at: number): { effects: WorkspaceEffect[]; stops: Record<string, RemoteStop> } {
   const batches = new Map<string, { computer: PairedComputer; inputs: AppCommand[] }>();
   const stops: Record<string, RemoteStop> = {};
   for (const { thread, computer, runId, processIds } of work) {
@@ -269,8 +269,9 @@ function remoteStops(work: ReturnType<typeof coordinatorWork>["elsewhere"]): { e
       batch.inputs.push(lifted);
       if (resumesOnItsOwn(thread.limitPause)) stops[thread.id] ??= { computer: computer.id };
     }
-    /** Only what that computer's build can stop is counted as its work, so each goes. */
+    /** Only what that computer's build can stop is counted as its work, so each goes, and the agent's answer to it there ends quietly, as one here does. */
     batch.inputs.push(...processIds.map((processId): AppCommand => ({ type: "run.stop-process", taskId: thread.id, processId })));
+    if (processIds.length) stops[thread.id] = { ...stops[thread.id] ?? { computer: computer.id }, answer: { at } };
     batches.set(computer.id, batch);
   }
   const effects = [...batches.values()].flatMap(({ computer, inputs }): WorkspaceEffect[] => inputs.length ? [{ type: "computer.forward", id: computer.id, inputs }] : []);

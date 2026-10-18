@@ -288,6 +288,28 @@ test("Stop all stops a remote member's workflows and subagents there, which alon
   assert.equal(deriveView(unreachable).stoppableCoordinatorIds.has("lead"), false, "by a computer whose build cannot stop them");
 });
 
+test("the agent's own answer there to the work Stop all stopped is heard quietly, as one here is, and only that turn", () => {
+  const work: Workflow = { id: "wf", name: "audit", description: "Audit", status: "running", phases: [], agents: [], totalTokens: 0, totalToolCalls: 0, startedAt: 1 };
+  const holder = workspace({ threads: [far()], workflows: { far: [work] } });
+  const stopped = reduce(mirrored(coordinating(workspace()), holder).state, { type: "coordination.stop-all", taskId: "lead" });
+  const stop = required(stopped.state.threads[0]!.remoteStops?.far);
+  assert.deepEqual([stop.computer, stop.runId, stop.answer?.runId, typeof stop.answer?.at], ["studio", undefined, undefined, "number"]);
+  const answering = mirrored(stopped.state, workspace({ threads: [far()], activeRuns: { far: activeRun("far", "run-answer") } })).state;
+  assert.equal(answering.threads[0]!.remoteStops?.far?.answer?.runId, "run-answer", "the first run there is the answer");
+  const answered = mirrored(answering, workspace({ threads: [far({ runEndedAt: 50, outcome: "finished" })] })).state;
+  assert.deepEqual([notesOf(answered).at(-1), answered.threads[0]!.coordinationNotes!.at(-1)!.quiet], ["\"Far work\" ended its turn.", true]);
+  assert.deepEqual(wakesOf(answered), []);
+  assert.equal(answered.threads[0]!.remoteStops, undefined, "the answer spends the stop");
+  const later = mirrored(mirrored(answered, workspace({ threads: [far({ runEndedAt: 50 })], activeRuns: { far: activeRun("far", "run-later") } })).state, workspace({ threads: [far({ runEndedAt: 70, outcome: "finished" })] })).state;
+  assert.equal(later.threads[0]!.coordinationNotes!.at(-1)!.quiet, undefined, "a later turn of its own is news again");
+
+  const restarted = reduce(workspace(), { type: "store.loaded", data: { version: THREAD_STORE_VERSION, tasks: answering.threads, projects: [], worktrees: [], lastFolder: null } }).state;
+  assert.equal(restarted.threads[0]!.remoteStops?.far?.answer?.runId, "run-answer", "kept through a restart here");
+  const late = { ...stopped.state, threads: stopped.state.threads.map((thread) => thread.id === "lead" ? { ...thread, remoteStops: { far: { ...stop, answer: { at: stop.answer!.at - 60 * 60_000 } } } } : thread) };
+  const lateRun = mirrored(late, workspace({ threads: [far()], activeRuns: { far: activeRun("far", "run-late") } })).state;
+  assert.equal(lateRun.threads[0]!.remoteStops, undefined, "a turn long after the stop is not its answer");
+});
+
 test("a relayed notice for a remote member of a local coordinator is dropped", () => {
   const state = coordinating(workspace({ threads: [far(), task("other", { title: "Unrelated" })] }));
   assert.deepEqual(reduce(state, { type: "computer.notice", id: "studio", notice: { taskId: "far", title: "Far work", headline: "The run finished." } }).effects, [], "it is announced here, under its coordinator");

@@ -179,14 +179,14 @@ test("a thread's coordinator on another computer, and how far a coordinator hear
   const remoteLead = { threadId: "lead-there", title: "Lead", computer: "Laptop", away: true as const, backAt: 20 };
   const place = { computer: { id: "studio", name: "Studio" }, project: "app", worktree: true };
   const member = { ...migrated.data.tasks[0], remoteLead };
-  const lead = { ...migrated.data.tasks[0], id: "lead", role: "coordinator" as const, remoteHeard: { far: 40 }, remoteWorking: { far: { computer: "studio", title: "Far work" } }, remoteStops: { far: { computer: "studio", runId: "run-far" }, waiting: { computer: "studio" } }, proposals: [{ id: "p1", title: "GPU", prompt: "Run them", place, from: "task-1", proposedAt: 1, error: "Lost", carried: true as const }] };
+  const lead = { ...migrated.data.tasks[0], id: "lead", role: "coordinator" as const, remoteHeard: { far: 40 }, remoteWorking: { far: { computer: "studio", title: "Far work" } }, remoteStops: { far: { computer: "studio", runId: "run-far" }, waiting: { computer: "studio" }, answering: { computer: "studio", answer: { at: 30, runId: "run-answer" } } }, proposals: [{ id: "p1", title: "GPU", prompt: "Run them", place, from: "task-1", proposedAt: 1, error: "Lost", carried: true as const }] };
   const parsed = parseThreadStore(serializeThreadStore({ ...migrated.data, tasks: [member, lead] }));
   assert.equal(parsed.ok, true);
   if (!parsed.ok) return;
   assert.deepEqual(parsed.data.tasks[0].remoteLead, remoteLead);
   assert.deepEqual(parsed.data.tasks[1].remoteHeard, { far: 40 });
   assert.deepEqual(parsed.data.tasks[1].remoteWorking, { far: { computer: "studio", title: "Far work" } });
-  assert.deepEqual(parsed.data.tasks[1].remoteStops, { far: { computer: "studio", runId: "run-far" }, waiting: { computer: "studio" } });
+  assert.deepEqual(parsed.data.tasks[1].remoteStops, { far: { computer: "studio", runId: "run-far" }, waiting: { computer: "studio" }, answering: { computer: "studio", answer: { at: 30, runId: "run-answer" } } });
   assert.deepEqual(parsed.data.tasks[1].proposals?.[0]?.place, place, "a thread asked for elsewhere waits across a reload, with no brief when a thread under it asked");
   assert.equal(parsed.data.tasks[1].proposals?.[0]?.carried, true, "and still knows it may have started there");
 

@@ -184,7 +184,7 @@ export function beginRun(state: WorkspaceState, taskId: string, runId: string, p
 const STOP_ANSWER_MS = 2 * 60_000;
 
 /** Whether a turn the agent opens now could still be its answer to the stop that hushed its session. */
-export function answersInTime(session: QuietSession, at: number): boolean {
+export function answersInTime(session: Pick<QuietSession, "at">, at: number): boolean {
   return at - session.at <= STOP_ANSWER_MS;
 }
 
