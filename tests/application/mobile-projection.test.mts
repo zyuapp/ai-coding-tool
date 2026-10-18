@@ -410,6 +410,19 @@ test("a coordinator's phone row works while its threads do, says what waits firs
   assert.deepEqual(row([lead(), member({ outcome: "finished" })]).attention, true, "a thread under it with a verdict is dismissed with it");
 });
 
+test("a coordinator's phone row speaks for its threads on paired computers too, as the desktop's does", () => {
+  const approval: ApprovalView = { approvalId: "a1", taskId: "far", runId: "run-far", title: "Run a command", description: "rm", toolName: "Bash", input: { command: "rm" } };
+  const holder = { ...emptyWorkspaceState(), threads: [task("far", { title: "Far work", remoteLead: { threadId: "lead", title: "Lead", computer: "This Mac" } })], activeRuns: { far: activeRun("far", "run-far", "awaiting-approval") }, approvals: { "run-far": approval } };
+  const state = workspace([task("lead", { role: "coordinator", projectId: "project-app" })], {
+    sidebarMode: "activity",
+    computers: { ...emptyWorkspaceState().computers, paired: [{ id: "studio", name: "Studio", host: "studio.ts.net", status: "connected", error: null, pairedAt: 1, state: holder }] },
+  });
+  const desktop = workspaceViewCollections(state).lists.activityThreads.priority.map((thread) => thread.id);
+  const { activity } = projectMobileView(state, NOW);
+  assert.deepEqual(activity.priority.map((entry) => [entry.id, entry.status]), [["lead", "awaiting-approval"]]);
+  assert.deepEqual(activity.priority.map((entry) => entry.id), desktop);
+});
+
 test("the phone wears the desktop's theme family in both faces, and follows the desktop's mode", () => {
   const nord = projectMobileView(workspace([], { theme: "nord-snow", themeMode: "light" }), NOW).theme;
   assert.deepEqual(nord, { dark: "nord", light: "nord-snow", mode: "light" });

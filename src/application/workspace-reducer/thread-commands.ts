@@ -15,7 +15,7 @@ import { shownComputers, type PairedComputer } from "../computers.js";
 import { REMOTE_UNSUPPORTED, supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import { forkedThreads } from "../thread-fork.js";
 import { moveThread as moveThreadInList } from "../thread-order.js";
-import { coordinationMembers, coordinationSections, dismissableRows, dismissedWith, projectActivity } from "../coordination.js";
+import { coordinationMembers, dismissableRows, dismissedWith, ownCoordinationSections, projectActivity } from "../coordination.js";
 import { pruneDeletedThreads } from "../thread-pruning.js";
 import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeById } from "../thread-location.js";
@@ -23,7 +23,7 @@ import { DRAFT_DOCK, dockFor, frontDock, sideChatIds, withDock, type WorkspaceSt
 import { threadActivity, threadLists } from "../thread-activity.js";
 import { dismissed, readAttention, wantsAttention } from "../../domain/attention.js";
 import { clampTitle, type Thread } from "../../domain/thread.js";
-import { asCoordinator, coordinatorOf, effortRoleOf, isCoordinator } from "../../domain/coordination.js";
+import { asCoordinator, coordinatorOf, effortRoleOf } from "../../domain/coordination.js";
 import { isSnoozeHours, withoutSnooze } from "../../domain/thread-snooze.js";
 import { cancelPause } from "../limit-pauses.js";
 import { capabilitiesFor, defaultModelFor, effortForModel, engineHasModel, modelHasEffort } from "../../domain/agent-engine.js";
@@ -58,14 +58,10 @@ function landOnThread(state: WorkspaceState, taskId: string): WorkspaceState {
  * computers too, read as their computer last said, as the sidebar ranks it.
  */
 function priorityThreads(state: WorkspaceState, projectId?: string): Thread[] {
-  const activity = threadActivity(state);
+  const { ranked, blocked } = threadActivity(state);
   const own = threadLists(state).visibleThreads;
-  const elsewhere = own.filter(isCoordinator).flatMap((lead) => coordinationMembers(state, lead.id).flatMap((member) => member.computer ? [{ thread: member.thread, there: threadActivity(member.holder) }] : []));
-  const threads = elsewhere.length ? [...own, ...elsewhere.map(({ thread }) => thread)] : own;
-  const ranked = elsewhere.length ? new Set([...activity.ranked, ...elsewhere.flatMap(({ thread, there }) => there.ranked.has(thread.id) ? [thread.id] : [])]) : activity.ranked;
-  const blocked = elsewhere.length ? new Set([...activity.blocked, ...elsewhere.flatMap(({ thread, there }) => there.blocked.has(thread.id) ? [thread.id] : [])]) : activity.blocked;
-  const sections = coordinationSections(threads, ranked, blocked, state.startingProposals);
-  return projectId ? projectActivity(sections, threads, projectId).priority : sections.priority;
+  const sections = ownCoordinationSections(state, own, ranked, blocked);
+  return projectId ? projectActivity(sections, own, projectId).priority : sections.priority;
 }
 
 /**

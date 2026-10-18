@@ -599,6 +599,18 @@ export function coordinationSections(threads: Thread[], busy: Set<string>, block
 }
 
 /**
+ * A computer's own threads ranked as its sidebar ranks them: each coordinator here stands for its
+ * threads on paired computers too, as each of those computers last said they stand. What Dismiss all
+ * files away and the phone's lists both read this.
+ */
+export function ownCoordinationSections(state: Pick<WorkspaceState, "threads" | "computers" | "startingProposals">, own: Thread[], ranked: Set<string>, blocked: Set<string>): ActivitySections {
+  const elsewhere = own.filter(isCoordinator).flatMap((lead) => coordinationMembers(state, lead.id).flatMap((member) => member.computer ? [{ thread: member.thread, there: threadActivity(member.holder) }] : []));
+  if (!elsewhere.length) return coordinationSections(own, ranked, blocked, state.startingProposals);
+  const where = (held: (there: ReturnType<typeof threadActivity>) => Set<string>, here: Set<string>) => new Set([...here, ...elsewhere.flatMap(({ thread, there }) => held(there).has(thread.id) ? [thread.id] : [])]);
+  return coordinationSections([...own, ...elsewhere.map(({ thread }) => thread)], where((there) => there.ranked, ranked), where((there) => there.blocked, blocked), state.startingProposals);
+}
+
+/**
  * The activity lists narrowed to one project. A coordinator's row stays while any thread under it
  * works there, since its row is where those threads are drawn.
  */

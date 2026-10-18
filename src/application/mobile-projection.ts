@@ -7,8 +7,8 @@ import { DEFAULT_BRANCH_RANGE } from "../domain/diff.js";
 import { themeFor, themeOrDefault } from "../domain/theme.js";
 import { worktreeName } from "../domain/worktree.js";
 import { orderThreads } from "./thread-order.js";
-import { canDismiss, coordinationSections, rowHeadline, waitingLine } from "./coordination.js";
-import { threadsByCoordinator, waitingOnUser } from "../domain/coordination.js";
+import { canDismiss, coordinationMembers, ownCoordinationSections, rowHeadline, waitingLine } from "./coordination.js";
+import { isCoordinator, waitingOnUser } from "../domain/coordination.js";
 import { projectFor, threadWorkspaceId } from "./thread-location.js";
 import { diffFor } from "./workspace-diff.js";
 import { workspaceViewCollections } from "./workspace-view-collections.js";
@@ -62,7 +62,6 @@ export function projectMobileView(state: WorkspaceState, at: number): MobileView
   const projectsById = new Map(state.projects.map((project) => [project.id, project]));
   const entries = new Map<string | null, MobileThreadEntry[]>();
   const entriesById = new Map<string, MobileThreadEntry>();
-  const membersByLead = threadsByCoordinator(workspaceViewCollections(state).visibleThreads);
   for (const summary of summaries) {
     const key = summary.projectId ?? null;
     const thread = threadsById.get(summary.id);
@@ -72,7 +71,7 @@ export function projectMobileView(state: WorkspaceState, at: number): MobileView
      * A coordinator's row speaks for the threads under it, which the phone reaches through it, as the
      * desktop's row does: their approvals, their work going on, and what else waits on the user.
      */
-    const members = membersByLead.get(summary.id) ?? [];
+    const members = thread && isCoordinator(thread) ? coordinationMembers(state, thread.id).map((member) => member.thread) : [];
     const waiting = thread ? waitingLine(waitingOnUser(thread, members, state.startingProposals)) : null;
     const headline = thread ? rowHeadline(thread, waiting) : null;
     const blocked = view.blockedThreadIds.has(summary.id) || members.some((member) => view.blockedThreadIds.has(member.id));
@@ -117,7 +116,7 @@ export function projectMobileView(state: WorkspaceState, at: number): MobileView
 function projectMobileActivity(state: WorkspaceState, view: ReturnType<typeof deriveView>, entriesById: Map<string, MobileThreadEntry>): MobileActivity {
   const { visibleThreads, everyRanked } = workspaceViewCollections(state);
   const listed = visibleThreads.filter((thread) => entriesById.has(thread.id));
-  const sections = coordinationSections(listed, everyRanked, view.blockedThreadIds, state.startingProposals);
+  const sections = ownCoordinationSections(state, listed, everyRanked, view.blockedThreadIds);
   const rows = (threads: Thread[]) => threads.flatMap((thread) => entriesById.get(thread.id) ?? []);
   return { priority: rows(sections.priority), running: rows(sections.running), threads: rows(sections.threads), snoozed: rows(sections.snoozed) };
 }
