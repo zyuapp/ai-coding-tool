@@ -198,6 +198,8 @@ export type ThreadProposal = {
   from?: string;
   proposedAt: number;
   error?: string;
+  /** Allowed and carried to the computer it is for, so it may have started there whatever came back. */
+  carried?: true;
 };
 
 /**
@@ -594,6 +596,13 @@ export function withProposalError(lead: Thread, id: string, error: string | unde
   return { ...lead, proposals: lead.proposals!.map((item) => item === proposal ? marked : item) };
 }
 
+/** A request allowed and carried to the computer it is for, which no later refusal here takes back. */
+export function withProposalCarried(lead: Thread, id: string): Thread {
+  const proposal = lead.proposals?.find((item) => item.id === id);
+  if (!proposal || proposal.carried) return lead;
+  return { ...lead, proposals: lead.proposals!.map((item) => item === proposal ? { ...proposal, carried: true as const } : item) };
+}
+
 /**
  * A coordinator holds only so many notes it has yet to hear. Past that, the thread with the most
  * gives up its oldest, so a thread that floods its coordinator crowds out its own news and never
@@ -720,7 +729,8 @@ export function isThreadProposal(value: unknown): value is ThreadProposal {
     && (value.role === undefined || isThreadRole(value.role))
     && (value.from === undefined || text(value.from, 200))
     && finite(value.proposedAt)
-    && (value.error === undefined || typeof value.error === "string");
+    && (value.error === undefined || typeof value.error === "string")
+    && (value.carried === undefined || value.carried === true);
 }
 
 /** Shape only, as a thread stores the coordinator elsewhere it works under. */

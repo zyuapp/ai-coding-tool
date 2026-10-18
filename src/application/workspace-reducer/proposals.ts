@@ -10,7 +10,7 @@ import { ledStartRefusal, titledFor, type PairedComputer } from "../computers.js
 import type { WorkspaceState } from "../workspace-state.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import type { AppCommand } from "../../contracts/commands.js";
-import { coordinatorOf, isCoordinator, withCoordinationNote, withoutProposals, withProposalError, withProposals, type ThreadProposal } from "../../domain/coordination.js";
+import { coordinatorOf, isCoordinator, withCoordinationNote, withoutProposals, withProposalCarried, withProposalError, withProposals, type ThreadProposal } from "../../domain/coordination.js";
 import type { Thread } from "../../domain/thread.js";
 
 type ProposalInput = Extract<WorkspaceInput, { type: "coordination.proposed" | "proposal.start" | "proposal.dismiss" | "proposal.settled" }>;
@@ -58,8 +58,9 @@ export function reduceProposals(state: WorkspaceState, input: ProposalInput): Wo
     /**
      * What the user turned down is gone, and its coordinator hears so with its next wake. One already
      * starting is past turning down; dismissing them all means the suggestions here, each thread asked
-     * for on another computer being allowed or denied on its own. One elsewhere whose start failed was
-     * allowed, and may have started there with its answer lost, so it is given up on rather than denied.
+     * for on another computer being allowed or denied on its own. One elsewhere that was allowed and
+     * carried there may have started with its answer lost, so it is given up on rather than denied;
+     * one refused here before it ever went is denied, as it never left.
      */
     case "proposal.dismiss": {
       const lead = state.threads.find((item) => item.id === input.taskId);
@@ -67,10 +68,10 @@ export function reduceProposals(state: WorkspaceState, input: ProposalInput): Wo
       const declined = targetedProposals(state, lead, input.proposalId);
       if (!declined.length) return settled(state);
       const titles = declined.map((proposal) => `"${proposal.title}"`);
-      const { place, error } = declined[0]!;
+      const { place, carried } = declined[0]!;
       const denied = place.computer;
-      const text = denied ? error === undefined ? `The user did not allow ${titles[0]} to run on ${denied.name}.`
-        : `The user gave up on starting ${titles[0]} on ${denied.name}. If it started there after all, you will hear from it.`
+      const text = denied ? carried ? `The user gave up on starting ${titles[0]} on ${denied.name}. If it started there after all, you will hear from it.`
+        : `The user did not allow ${titles[0]} to run on ${denied.name}.`
         : titles.length === 1 ? `The user declined the suggested thread ${titles[0]}.` : `The user declined the suggested threads ${titles.slice(0, -1).join(", ")} and ${titles.at(-1)}.`;
       const note = coordinationNote(lead.id, text, now(), { quiet: true });
       return settled(updateThread(state, lead.id, (item) => withCoordinationNote(withoutProposals(item, new Set(declined.map((proposal) => proposal.id))), note)));
@@ -183,7 +184,7 @@ function startElsewhere(state: WorkspaceState, leadId: string, proposalId: strin
   });
   if (!supportsComputerCommand(computer.capabilities, send)) return refused(`Update AI Coding Tool on ${computer.name} to run threads there.`);
   return settled(
-    { ...retried, startingProposals: [...retried.startingProposals, proposalId] },
+    { ...updateThread(retried, leadId, (item) => withProposalCarried(item, proposalId)), startingProposals: [...retried.startingProposals, proposalId] },
     [{ type: "computer.forward", id: computer.id, inputs: [send], proposal: { taskId: leadId, proposalId } }],
   );
 }

@@ -282,6 +282,29 @@ test("dismissing one allowed whose answer was lost gives it up rather than denyi
   assert.equal(note?.quiet, true);
 });
 
+test("dismissing one refused here before it ever went denies it, but not one an earlier allow carried there", async () => {
+  for (const lostFirst of [false, true]) {
+    const { host, linux, line } = pair();
+    lead(host);
+    await answer(host, command({ type: "task.send", text: "Run the GPU tests", brief: BRIEF }, "Linux"));
+    const [waiting] = proposals(host);
+    if (lostFirst) {
+      line.answers = false;
+      await host.execute({ type: "proposal.start", taskId: "caller", proposalId: waiting!.id }).completed;
+    }
+    const sent = linux.inputs.length;
+    host.state().computers.paired[0]!.status = "offline";
+    const refused = await host.execute({ type: "proposal.start", taskId: "caller", proposalId: waiting!.id }).completed;
+    assert.equal(refused.ok, false);
+    assert.equal(linux.inputs.length, sent, "a computer whose line is down is sent nothing");
+    await host.dispatch({ type: "proposal.dismiss", taskId: "caller", proposalId: waiting!.id });
+    const [note] = host.state().threads[0]!.coordinationNotes ?? [];
+    assert.equal(note?.text, lostFirst
+      ? "The user gave up on starting \"Run the GPU tests\" on Linux. If it started there after all, you will hear from it."
+      : "The user did not allow \"Run the GPU tests\" to run on Linux.");
+  }
+});
+
 test("an older computer, or one that advertises no capabilities, cannot take one", async () => {
   for (const capabilities of [COMPUTER_CAPABILITIES.filter((name) => name !== "command:task.send:lead"), undefined]) {
     const { host, linux } = pair({ capabilities });
