@@ -3,7 +3,7 @@ import { drainQueue, queuedFor, resolveWorkspaceEffect, stoppingProcess, threadB
 import { reduceSending } from "./sending.js";
 import { released, remoteNews } from "./coordination-remote.js";
 import { withProposalFailure } from "./proposals.js";
-import { now, rejected, settled } from "./shared.js";
+import { now, rejected, settled, targetId } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { canResolve, checkoutAnswer, coordinatedThreadStatus, coordinationMembers, coordinatorWork, coordinationUpdate, decisionHeadline, decisionNote, memberWorking, nextSteps, reportHeadline, reportNote, turnNote, unheardWork, workingMembers } from "../coordination.js";
 import { activityChanges, threadActivity, threadChanges } from "../thread-activity.js";
@@ -319,11 +319,16 @@ export function reconcileCoordination(previous: WorkspaceState, transition: Work
 }
 
 /**
- * The coordinator the user just stopped, filed away, or whose run could not start, so its news is
- * not pressed on it again at once.
+ * The coordinator the user just stopped, filed away, took the role off, or whose run could not
+ * start, so its news is not pressed on it again at once.
  */
 function stoppedBy(previous: WorkspaceState, input: WorkspaceInput): string | undefined {
   if (input.type === "task.archive" || input.type === "coordination.stop-all") return input.taskId;
+  if (input.type === "task.set-role" && input.role !== "coordinator") {
+    const taskId = targetId(previous, input.taskId);
+    const lead = previous.threads.find((thread) => thread.id === taskId);
+    return lead?.role === "coordinator" ? lead.id : undefined;
+  }
   if (input.type === "run.event" && input.event.type === "run.status" && input.event.status === "cancelled") {
     return previous.activeRuns[input.event.taskId]?.runId === input.event.runId ? input.event.taskId : undefined;
   }
@@ -332,10 +337,13 @@ function stoppedBy(previous: WorkspaceState, input: WorkspaceInput): string | un
   return undefined;
 }
 
-/** Quiets the coordinator's held news, archived or not, so restoring it wakes nothing by itself. */
+/**
+ * Quiets the coordinator's held news, archived or not, and kept by a thread whose role was taken off,
+ * so restoring it or giving the role back wakes nothing by itself.
+ */
 function quieted(state: WorkspaceState, leadId: string): WorkspaceState {
   const lead = state.threads.find((thread) => thread.id === leadId);
-  if (lead?.role !== "coordinator" || !lead.coordinationNotes?.some((note) => !note.quiet)) return state;
+  if (!lead?.coordinationNotes?.some((note) => !note.quiet)) return state;
   return updateThread(state, leadId, (thread) => ({ ...thread, coordinationNotes: thread.coordinationNotes!.map((note) => note.quiet ? note : { ...note, quiet: true as const }) }));
 }
 

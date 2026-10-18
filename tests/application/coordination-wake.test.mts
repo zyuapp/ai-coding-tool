@@ -191,6 +191,19 @@ test("archiving a coordinator stops it, so restoring it wakes nothing until ther
   }
 });
 
+test("taking a coordinator's role off quiets what it held, so giving it back wakes nothing until there is new news", () => {
+  const off = reduce(holding(running), { type: "task.set-role", taskId: "lead", role: null });
+  slept(off, "taking the role off");
+  assert.deepEqual(off.state.threads[0]!.coordinationNotes?.map((note) => note.quiet), [true]);
+  const ended = reduce(off.state, correlatedRunEvent("two", "run-2", 1, { type: "run.status", status: "succeeded" }));
+  const back = reduce(ended.state, { type: "task.set-role", taskId: "lead", role: "coordinator" });
+  slept(back, "giving it back");
+  const again = reduce({ ...back.state, ...running }, correlatedRunEvent("two", "run-2", 1, { type: "run.status", status: "succeeded" }));
+  assert.match(woken(again).text, /"One" ended its turn[\s\S]*"two" ended its turn/, "what it held is heard with its next wake");
+  const reviewer = reduce(holding(running), { type: "task.set-role", taskId: "one", role: "reviewer" });
+  assert.deepEqual(reviewer.state.threads[0]!.coordinationNotes, [NEWS], "a role given one of its threads quiets nothing");
+});
+
 test("stopping all cancels every run under a coordinator and never wakes it", () => {
   const runs = { lead: activeRun("lead", "run-l"), one: activeRun("one", "run-1") };
   const start = { id: "start", runId: "run-new", origin: "composer" as const, text: "Write docs", prompt: "Write docs", attachments: [], coordination: { coordinatorId: "lead" } };
