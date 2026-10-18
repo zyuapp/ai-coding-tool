@@ -359,7 +359,8 @@ export class ClaudeSession {
     if ((message.type === "assistant" || message.type === "stream_event") && message.parent_tool_use_id) return null;
     if (this.turn) return this.turn.stream;
     if (this.agentTurn) return this.agentTurn.stream;
-    if (message.type !== "assistant" && message.type !== "stream_event") return null;
+    /** A session that has ended opens no turn for a message the agent had already sent. */
+    if (this.ended || message.type !== "assistant" && message.type !== "stream_event") return null;
     return this.openAgentTurn()?.stream ?? null;
   }
 

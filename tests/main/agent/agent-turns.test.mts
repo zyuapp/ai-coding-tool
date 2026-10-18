@@ -40,6 +40,20 @@ test("what the agent says between runs opens a turn of its own", async () => {
   provider.closeAll();
 });
 
+test("a session that has ended opens no turn for a message the agent had already sent", async () => {
+  const capture: LiveQueryCapture = { opens: 0, sent: [] };
+  const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
+  let opened = 0;
+  const agentTurn = { emit: () => {}, authorize: async () => "allow", steering: { next: async () => null }, end: () => {} } satisfies AgentTurn;
+
+  await turn(capture, provider.execute(input({ beginAgentTurn: () => { opened += 1; return agentTurn; } })));
+  provider.closeAll();
+  capture.emit!({ type: "assistant", uuid: "u-late", message: { id: "m-late", model: "claude-opus-5", content: [{ type: "text", text: "Late." }], usage: { input_tokens: 5 } } } as unknown as SDKMessage);
+  await tick();
+
+  assert.equal(opened, 0);
+});
+
 test("a tool call from work that outlived its run is asked, not refused", async () => {
   const asked: string[] = [];
   const agentTurn = {
