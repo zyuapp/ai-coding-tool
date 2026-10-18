@@ -149,6 +149,15 @@ test("a coordinator on either engine reads the browser panel but is never offere
   assert.deepEqual(lead.claude.tools, lead.codex.tools);
 });
 
+test("a coordinator on either engine is told how it reads with the tools it really has, and that it changes nothing", async () => {
+  const { claude, codex } = await briefs({ coordinationRole: "coordinator", coordination });
+  for (const brief of [claude, codex]) assert.match(brief.instructions, /Never change anything yourself, however small\./);
+  assert.match(claude.instructions, /Your own tools read and search; none edits files or runs shell commands\./, "Claude's coordinator has no shell");
+  assert.match(codex.instructions, /Your shell is read-only: use it to read and search/, "Codex's coordinator reads through its read-only shell");
+  assert.doesNotMatch(codex.instructions, /shell commands are not available|runs shell commands/, "Codex's coordinator is never told it has no shell");
+  assert.doesNotMatch(claude.instructions, /Your shell/, "Claude's coordinator is never told of a shell it lacks");
+});
+
 test("a coordinator is told to keep its project's folder out of what a worktree thread is sent, and a member in its project's checkout is told of no other", async () => {
   const lead = await briefs({ coordinationRole: "coordinator", coordination });
   const member = await briefs({ coordinationRole: "member", coordination });

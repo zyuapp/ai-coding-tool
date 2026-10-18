@@ -15,6 +15,7 @@ type QueryFactory = typeof query;
 const CLAUDE_DIALECT: BriefDialect = {
   nativeWork: "Claude background tasks, sessions, or agents; native TaskOutput, Agent, and SendMessage cannot access them",
   nativeWorktree: "the Agent tool's worktree isolation",
+  coordinatorReads: "Your own tools read and search; none edits files or runs shell commands.",
 };
 const chromeInstructions = `The user's own Chrome answers the mcp__claude-in-chrome__ tools, and those tools drive the windows and tabs they already have on screen: when they ask for the external browser, for their browser, or for Chrome by name, use them rather than the AICodingTool browser panel or an open command through Bash. Everything else stays in the panel, which reads a page without disturbing what the user is looking at.`;
 

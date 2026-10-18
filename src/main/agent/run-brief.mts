@@ -15,6 +15,8 @@ export type BriefDialect = {
   nativeWork: string;
   /** The engine's own way to make a worktree, which the app would never hear about. */
   nativeWorktree?: string;
+  /** How a coordinator reads on this engine, said so it is told only of tools it really has. */
+  coordinatorReads: string;
 };
 
 /** What every engine tells a run beyond its prompt, the tools it offers, and what a warm session must agree on. */
@@ -49,7 +51,7 @@ export function runBrief(input: BriefSources, dialect: BriefDialect): RunBrief {
     ...(offers(tools, AUTOMATION_SERVER_NAME, "schedule") ? [automationInstructions] : []),
     ...(offers(tools, THREAD_SERVER_NAME) ? [threadInstructions(dialect)] : []),
     ...(offers(tools, THREAD_SERVER_NAME, "start_thread") ? [worktreeInstructions(dialect, offers(tools, THREAD_SERVER_NAME, "move_to_worktree"))] : []),
-    ...coordinationInstructions(input.coordinationRole, input),
+    ...coordinationInstructions(input.coordinationRole, input, dialect.coordinatorReads),
     ...(offers(tools, BROWSER_SERVER_NAME) ? [offers(tools, BROWSER_SERVER_NAME, "browser_open") ? browserInstructions : browserReadingInstructions] : []),
     ...(offers(tools, TERMINAL_SERVER_NAME) ? [terminalInstructions] : []),
     ...(tools.length ? [workflowInstructions] : []),
