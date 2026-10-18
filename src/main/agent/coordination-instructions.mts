@@ -34,7 +34,9 @@ export function coordinationInstructions(role: CoordinationRole | undefined, { w
 }
 
 /**
- * Claude's own tools a coordinator runs without: it changes no files and runs no shell, and it hands
- * work only to threads the user can see, never to subagents inside its own session.
+ * Claude's own tools a coordinator has, and the only ones: it reads, searches and plans, but changes no
+ * files, runs no shell, schedules nothing, and hands work only to threads the user can see, never to
+ * agents inside its own session. Named rather than withheld, so a tool a newer Claude Code adds never
+ * reaches a coordinator unasked. Its app tools are MCP servers, which this list leaves alone.
  */
-export const COORDINATOR_WITHHELD_TOOLS = ["Edit", "MultiEdit", "Write", "NotebookEdit", "Bash", "Task", "Agent"];
+export const COORDINATOR_TOOLS = ["Read", "Grep", "Glob", "LSP", "WebSearch", "WebFetch", "Skill", "ToolSearch", "ListMcpResourcesTool", "ReadMcpResourceTool", "EnterPlanMode", "ExitPlanMode"];

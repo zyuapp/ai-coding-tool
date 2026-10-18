@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { z } from "zod";
-import type { Options } from "@anthropic-ai/claude-agent-sdk";
+import { BUILTIN_TOOL_NAMES, type Options } from "@anthropic-ai/claude-agent-sdk";
 import { ClaudeAgentProvider } from "../../../src/main/agent/claude-agent-provider.mts";
 import { codexConfig } from "../../../src/main/codex/codex-config.mts";
 import { codexPolicy } from "../../../src/main/codex/codex-policy.mts";
@@ -27,13 +27,30 @@ test("a coordinator runs without file edits, shell, or subagents, and with the c
   const member: QueryCapture = {};
   await new ClaudeAgentProvider(queryFactory([], member)).execute(input({ coordinationRole: "member", coordination }));
 
-  assert.deepEqual(optionsOf(coordinator).disallowedTools, ["AskUserQuestion", "EnterWorktree", "ExitWorktree", "Edit", "MultiEdit", "Write", "NotebookEdit", "Bash", "Task", "Agent"]);
-  assert.deepEqual(optionsOf(member).disallowedTools, ["AskUserQuestion", "EnterWorktree", "ExitWorktree"], "a thread under a coordinator does the work, so it keeps every tool");
+  assert.deepEqual(optionsOf(coordinator).tools, ["Read", "Grep", "Glob", "LSP", "WebSearch", "WebFetch", "Skill", "ToolSearch", "ListMcpResourcesTool", "ReadMcpResourceTool", "EnterPlanMode", "ExitPlanMode"]);
+  assert.deepEqual(optionsOf(coordinator).disallowedTools, ["AskUserQuestion", "EnterWorktree", "ExitWorktree"]);
+  assert.equal(optionsOf(member).tools, undefined, "a thread under a coordinator does the work, so it keeps every tool");
+  assert.deepEqual(optionsOf(member).disallowedTools, ["AskUserQuestion", "EnterWorktree", "ExitWorktree"]);
   assert.match(systemAppend(optionsOf(coordinator)), /Never change anything yourself/);
   assert.match(systemAppend(optionsOf(member)), /call report_status as done, blocked, or failed: your closing message is not a report/);
   assert.match(systemAppend(optionsOf(member)), /say exactly what's missing and stop/);
   assert.doesNotMatch(systemAppend(optionsOf(coordinator)), /say exactly what's missing and stop/, "a coordinator delegates, so it is never told to stop at a wall");
   assert.ok(optionsOf(coordinator).mcpServers?.["aicodingtool-coordination"]);
+});
+
+test("a Claude coordinator is offered only the tools it is named, so a tool a newer Claude Code adds never reaches it", async () => {
+  const coordination = { report: async () => ({ recorded: true, note: "" }), decide: async () => ({ recorded: true, note: "" }), remember: async () => ({ note: "" }), propose: async () => ({ note: "" }) };
+  const capture: QueryCapture = {};
+  await new ClaudeAgentProvider(queryFactory([], capture)).execute(input({ coordinationRole: "coordinator", coordination, policy: "bypass" }));
+  const named = optionsOf(capture).tools;
+  assert.ok(Array.isArray(named), "a coordinator's own tools are a list, never Claude Code's whole preset");
+  const builtIn: readonly string[] = BUILTIN_TOOL_NAMES;
+  for (const tool of named) assert.ok(builtIn.includes(tool), `${tool} is one of Claude's own tools, so naming it grants something`);
+  const offered = (tool: string) => named.includes(tool);
+  for (const tool of ["Bash", "PowerShell", "Monitor", "Edit", "Write", "NotebookEdit", "Agent", "Workflow", "SendMessage", "ListAgents", "TaskStop", "CronCreate", "CronDelete", "ScheduleWakeup", "RemoteTrigger", "PushNotification", "Artifact"]) {
+    assert.ok(!offered(tool), `${tool} changes, runs, or schedules something`);
+  }
+  assert.ok(optionsOf(capture).mcpServers?.["aicodingtool-coordination"], "its app tools come as MCP servers, which the list leaves alone");
 });
 
 test("a coordinator on Codex runs without Codex's own subagents, as it does on Claude, while its threads keep them", () => {

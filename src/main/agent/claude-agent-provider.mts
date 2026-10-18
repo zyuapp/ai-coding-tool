@@ -7,7 +7,7 @@ import { claudeMcpServer } from "./claude-mcp-host.mjs";
 import { claudePermissionMode, ClaudeSession } from "./claude-session.mjs";
 import { grantsTool } from "./approval-grant.mjs";
 import { runBrief, type BriefDialect, type RunBrief } from "./run-brief.mjs";
-import { COORDINATOR_WITHHELD_TOOLS } from "./coordination-instructions.mjs";
+import { COORDINATOR_TOOLS } from "./coordination-instructions.mjs";
 import { SessionPool } from "./session-pool.mjs";
 import { APP_PLUGIN_NAME, appPluginRoot, unqualifiedSkillName } from "../app-plugin.mjs";
 
@@ -140,7 +140,8 @@ export class ClaudeAgentProvider implements AgentProvider {
       options: {
         cwd: input.workspaceRoot,
         pathToClaudeCodeExecutable: claudeExecutable(),
-        disallowedTools: [...withheldTools(input.channel), ...(input.coordinationRole === "coordinator" ? COORDINATOR_WITHHELD_TOOLS : [])],
+        ...(input.coordinationRole === "coordinator" ? { tools: COORDINATOR_TOOLS } : {}),
+        disallowedTools: withheldTools(input.channel),
         resume: continuation,
         ...(input.forkContinuation && continuation ? { forkSession: true } : {}),
         permissionMode: claudePermissionMode(input.policy),
