@@ -5,7 +5,7 @@
  * paired computer works under one through its `remoteLead`, which names the coordinator here and is
  * kept, away, while that coordinator is not live, so it is back under it once it is again.
  */
-import { lastRunOutcome, type HeardWork, type Thread } from "./thread.js";
+import { lastRunOutcome, type HeardWork, type RemoteStop, type Thread } from "./thread.js";
 import { isRemoteSender, type RemoteSender } from "./message-origin.js";
 import type { AgentEffort } from "./run.js";
 import { isThreadRole, type ThreadRole } from "./thread-role.js";
@@ -669,6 +669,11 @@ export function isHeldLead(value: unknown): value is HeldLead {
 /** Shape only: each of a coordinator's threads elsewhere, by id, with when its news was last taken. */
 export function isRemoteHeard(value: unknown): value is Record<string, number> {
   return isRecord(value) && Object.values(value).every(finite);
+}
+
+/** Shape only: each of a coordinator's threads elsewhere that Stop all stopped, by id, with the run it asked to end. */
+export function isRemoteStops(value: unknown): value is Record<string, RemoteStop> {
+  return isRecord(value) && Object.values(value).every((stop) => isRecord(stop) && (stop.runId === undefined || typeof stop.runId === "string"));
 }
 
 /** Shape only: each of a coordinator's threads last seen working elsewhere, by id, with the computer holding it and its title. */

@@ -209,12 +209,25 @@ test("a member stopped by Stop all is heard quietly", () => {
   let state = mirrored(coordinating(workspace()), holder).state;
   const stopped = reduce(state, { type: "coordination.stop-all", taskId: "lead" });
   assert.deepEqual(effectOf(stopped, "computer.forward"), { type: "computer.forward", id: "studio", inputs: [{ type: "run.cancel", taskId: "far" }] });
-  assert.deepEqual(stopped.state.quietStops, ["run-far"]);
-  state = mirrored(stopped.state, workspace({ threads: [far({ runEndedAt: 50, outcome: "stopped" })] })).state;
+  assert.deepEqual(stopped.state.threads[0]!.remoteStops, { far: { runId: "run-far" } }, "kept with the coordinator, which outlives a restart");
+  const still = mirrored(stopped.state, holder).state;
+  assert.deepEqual(still.threads[0]!.remoteStops, { far: { runId: "run-far" } }, "while the run it stopped has yet to end");
+  const ended = workspace({ threads: [far({ runEndedAt: 50, outcome: "stopped" })] });
+  state = mirrored(still, ended).state;
   assert.equal(notesOf(state).at(-1), "\"Far work\" was stopped.");
   assert.equal(state.threads[0]!.coordinationNotes!.at(-1)!.quiet, true);
   assert.deepEqual(wakesOf(state), [], "nothing it stopped wakes the coordinator");
-  assert.deepEqual(state.quietStops, []);
+  assert.equal(state.threads[0]!.remoteStops, undefined);
+
+  const restarted = reduce(workspace(), { type: "store.loaded", data: { version: THREAD_STORE_VERSION, tasks: stopped.state.threads, projects: [], worktrees: [], lastFolder: null } }).state;
+  const heard = mirrored(withComputers(restarted, [paired("studio", null, { capabilities: COMPUTER_CAPABILITIES })]), ended).state;
+  assert.equal(notesOf(heard).at(-1), "\"Far work\" was stopped.", "a restart here before the stop is heard keeps it quiet");
+  assert.equal(heard.threads[0]!.coordinationNotes!.at(-1)!.quiet, true);
+  assert.deepEqual(wakesOf(heard), []);
+  assert.equal(heard.threads[0]!.remoteStops, undefined);
+
+  const carriedOn = mirrored(stopped.state, workspace({ threads: [far()], activeRuns: { far: activeRun("far", "run-next") } })).state;
+  assert.equal(carriedOn.threads[0]!.remoteStops, undefined, "a thread there that carried on into a run of its own is no longer the stop's");
 });
 
 test("a member whose wait on a session limit Stop all ended there is heard quietly, unless it carried on first", () => {
@@ -223,16 +236,16 @@ test("a member whose wait on a session limit Stop all ended there is heard quiet
   let state = mirrored(coordinating(paused), paused).state;
   const stopped = reduce(state, { type: "coordination.stop-all", taskId: "lead" });
   assert.deepEqual(effectOf(stopped, "computer.forward").inputs, [{ type: "limit.cancel", taskId: "far" }]);
-  assert.deepEqual(stopped.state.quietPauses, ["far"]);
+  assert.deepEqual(stopped.state.threads[0]!.remoteStops, { far: {} });
   const lifted = reduce(paused, { type: "limit.cancel", taskId: "far" }).state;
   state = mirrored(stopped.state, lifted).state;
   assert.equal(notesOf(state).at(-1), "\"Far work\" was stopped.");
   assert.equal(state.threads[0]!.coordinationNotes!.at(-1)!.quiet, true);
   assert.deepEqual(wakesOf(state), [], "nothing it stopped wakes the coordinator");
-  assert.deepEqual(state.quietPauses, []);
+  assert.equal(state.threads[0]!.remoteStops, undefined);
 
   const resumed = mirrored(stopped.state, workspace({ threads: [far({ runEndedAt: 50 })], activeRuns: { far: activeRun("far", "run-far") } })).state;
-  assert.deepEqual(resumed.quietPauses, [], "a thread that resumed before the stop landed");
+  assert.equal(resumed.threads[0]!.remoteStops, undefined, "a thread that resumed before the stop landed");
   const ended = mirrored(resumed, workspace({ threads: [far({ runEndedAt: 60, outcome: "finished" })] })).state;
   assert.equal(ended.threads[0]!.coordinationNotes!.at(-1)!.quiet, undefined, "is news again once it ends");
 });

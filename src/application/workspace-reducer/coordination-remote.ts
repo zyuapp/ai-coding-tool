@@ -112,7 +112,7 @@ function keptWork(previous: WorkspaceState, news: RemoteNews): RemoteNews {
  * it made, and its turn ending, as a thread here would have been heard. What the user would have been
  * told of a thread here is told of it here, under the coordinator's notices, and what that computer
  * carries of the same is dropped: what its scheduled runs found, and its turns ending and waiting on
- * the user as a thread here is heard, for a run someone started. A run Stop all asked to end is heard
+ * the user as a thread here is heard, for a run someone started. What Stop all stopped is heard
  * quietly.
  */
 function memberNews(state: WorkspaceState, lead: Thread, member: Thread, computer: PairedComputer, holder: WorkspaceState, prior: WorkspaceState | null): { state: WorkspaceState; effects: WorkspaceEffect[] } {
@@ -124,7 +124,7 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
   const notes: CoordinationNote[] = [];
   const effects: WorkspaceEffect[] = [];
   let newest = Math.max(heard ?? threadCreatedAt(member), back ?? 0);
-  let { quietStops, stoppedStarts, quietPauses } = state;
+  let { stoppedStarts } = state;
   const run = holder.activeRuns[member.id];
   const ran = prior?.activeRuns[member.id];
   if (heard === undefined && back === undefined) notes.push(coordinationNote(member.id, `"${member.title}" started on ${computer.name}.`, at, { quiet: true }));
@@ -154,18 +154,17 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
   const lost = ran !== undefined && !ran.quiet && endedAt === undefined;
   /** A thread waiting out a session limit carries on by itself, so its turn has not ended. */
   const ended = (endedAt !== undefined || lost) && !run && !(member.limitPause && resumesOnItsOwn(member.limitPause));
-  /** A wait Stop all ended that the thread carried on from before the stop landed is no longer its to quiet. */
-  if (run && quietPauses.includes(member.id)) quietPauses = quietPauses.filter((threadId) => threadId !== member.id);
+  /**
+   * What Stop all stopped there ends quietly once it is heard to, whenever that is. A thread that
+   * carried on before the stop landed, from its wait or into a run of its own, is no longer the stop's.
+   */
+  const stop = lead.remoteStops?.[member.id];
+  const spent = stop !== undefined && (ended || run !== undefined && run.runId !== stop.runId);
   if (ended) {
     /** So is one a start Stop all caught on its way stopped as it landed. */
     const caught = stoppedStarts.some((start) => start.threadId === member.id);
     if (caught) stoppedStarts = stoppedStarts.filter((start) => start.threadId !== member.id);
-    const stopped = ran !== undefined && quietStops.includes(ran.runId);
-    if (stopped) quietStops = quietStops.filter((runId) => runId !== ran.runId);
-    /** And one whose wait on a usage limit Stop all ended. */
-    const lifted = quietPauses.includes(member.id);
-    if (lifted) quietPauses = quietPauses.filter((threadId) => threadId !== member.id);
-    const quiet = stopped || caught || lifted;
+    const quiet = stop !== undefined || caught;
     const ending = lastRunOutcome(member);
     const status = quiet || ending === "stopped" ? "cancelled" : ending === "failed" ? "failed" : "succeeded";
     notes.push(turnNote(member, status, at, { quiet }));
@@ -187,11 +186,18 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
     const question = run.questions?.[0];
     if (question && !(ran?.runId === run.runId && ran.questions?.length)) effects.push(...announced(state, member, waitingHeadline(question), "waiting"));
   }
-  const stops = quietStops === state.quietStops && stoppedStarts === state.stoppedStarts && quietPauses === state.quietPauses ? state : { ...state, quietStops, stoppedStarts, quietPauses };
-  if (!notes.length && newest === heard) return { state: stops, effects };
+  const stops = stoppedStarts === state.stoppedStarts ? state : { ...state, stoppedStarts };
+  if (!notes.length && newest === heard && !spent) return { state: stops, effects };
   const led = new Set(coordinationMembers(state, lead.id).flatMap(({ thread, computer: there }) => there ? [thread.id] : []));
-  const told = notes.reduce(withCoordinationNote, withRemoteHeard(lead, member.id, newest, led));
+  const told = notes.reduce(withCoordinationNote, withRemoteHeard(spent ? withoutRemoteStop(lead, member.id) : lead, member.id, newest, led));
   return { state: updateThread(stops, lead.id, () => told), effects };
+}
+
+/** A coordinator done with what Stop all stopped of a thread elsewhere. */
+function withoutRemoteStop(lead: Thread, threadId: string): Thread {
+  const { [threadId]: _spent, ...rest } = lead.remoteStops ?? {};
+  const { remoteStops: _held, ...thread } = lead;
+  return Object.keys(rest).length ? { ...thread, remoteStops: rest } : thread;
 }
 
 /**

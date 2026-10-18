@@ -11,6 +11,9 @@ import type { PullRequestLink } from "./pull-request.js";
 /** A thread elsewhere last heard working: the paired computer holding it, and what it was called. */
 export type HeardWork = { computer: string; title: string };
 
+/** What Stop all stopped of a thread elsewhere: the run it asked to end, or none for a wait on a usage limit. */
+export type RemoteStop = { runId?: string };
+
 /** The canonical conversation aggregate. Persisted property names stay unchanged for compatibility. */
 export type Thread = {
   id: string;
@@ -59,6 +62,12 @@ export type Thread = {
    * for their work ending, and the coordinator can still name them.
    */
   remoteWorking?: Record<string, HeardWork>;
+  /**
+   * On a coordinator: each of its threads on a paired computer whose work Stop all stopped there, until
+   * it hears that turn end, which it hears quietly, after a restart here too. A thread that carries on
+   * with a run of its own first is no longer the stop's.
+   */
+  remoteStops?: Record<string, RemoteStop>;
   projectId?: string;
   executionPolicy: ExecutionPolicy;
   engine: AgentEngine;
