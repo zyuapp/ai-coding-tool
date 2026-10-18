@@ -4,7 +4,7 @@ import type { PairedComputer } from "./computers.js";
 import { doingWork, threadActivity, threadStatus, unstoppedSessionWork, type ThreadStatus } from "./thread-activity.js";
 import { activitySections, type ActivitySections } from "./thread-order.js";
 import { threadWorkspaceId } from "./thread-location.js";
-import { awayLeadOf, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, leadIdOf, MAX_SUMMARY, openDecisions, remoteLeadOf, type CoordinationNote, type CoordinationReport, type CoordinatorMemory, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type RemoteLead, type ThreadBrief, type ThreadProposal } from "../domain/coordination.js";
+import { awayLeadOf, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, leadIdOf, MAX_SUMMARY, openDecisions, remoteLeadOf, stuckVerdict, type CoordinationNote, type CoordinationReport, type CoordinatorMemory, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type RemoteLead, type ThreadBrief, type ThreadProposal } from "../domain/coordination.js";
 import { lastRunOutcome, threadActivityAt, type Thread } from "../domain/thread.js";
 import type { PullRequestAnswer, PullRequestChecks, PullRequestLink, PullRequestRef, PullRequestState } from "../domain/pull-request.js";
 import { wantsAttention } from "../domain/attention.js";
@@ -628,7 +628,9 @@ export type CoordinatedThreadStanding = {
  * Where a thread under a coordinator stands, most pressing first: waiting on the user, working,
  * filed away as resolved, stuck, its own pull request needing work, that pull request open for
  * review, then done in some way. Work going or a question waiting outranks resolution, since either
- * needs the user to see it again. Only a pull request with nothing to fix is ready for review.
+ * needs the user to see it again. A thread left stuck once it was resolved is open again, so being
+ * stuck is only outranked by a resolution that filed it away. Only a pull request with nothing to fix
+ * is ready for review.
  */
 export function coordinatedThreadStatus(thread: Thread, busy: ReadonlySet<string>, blocked: ReadonlySet<string>): CoordinatedThreadStanding {
   const question = openDecisions(thread)[0]?.question;
@@ -636,11 +638,11 @@ export function coordinatedThreadStatus(thread: Thread, busy: ReadonlySet<string
   if (question) return { thread, status: "asking", summary: question };
   if (busy.has(thread.id)) return { thread, status: "working", summary: thread.report?.state === "working" ? thread.report.summary : null };
   if (thread.resolvedAt !== undefined) return { thread, status: "resolved", summary: null };
+  const stuck = stuckVerdict(thread);
+  if (stuck) return { thread, status: stuck.state, summary: stuck.summary };
   const report = thread.report && thread.report.state !== "working" ? thread.report : undefined;
-  if (report && report.state !== "done") return { thread, status: report.state, summary: report.summary };
   /** Read by how its turn ended rather than by its verdict, which the user filing it away takes off. */
   const ended = lastRunOutcome(thread);
-  if (!report && ended === "failed") return { thread, status: "failed", summary: null };
   const pullRequest = ownPullRequest(thread);
   if (pullRequest && pullRequestFixes(pullRequest).length) return { thread, status: "needs-work", summary: pullRequestLine(pullRequest) };
   if (pullRequest?.state === "open") return { thread, status: "review", summary: pullRequestLine(pullRequest) };

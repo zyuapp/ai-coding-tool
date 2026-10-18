@@ -5,7 +5,7 @@
  * paired computer works under one through its `remoteLead`, which names the coordinator here and is
  * kept, away, while that coordinator is not live, so it is back under it once it is again.
  */
-import type { HeardWork, Thread } from "./thread.js";
+import { lastRunOutcome, type HeardWork, type Thread } from "./thread.js";
 import { isRemoteSender, type RemoteSender } from "./message-origin.js";
 import type { AgentEffort } from "./run.js";
 import { isThreadRole, type ThreadRole } from "./thread-role.js";
@@ -364,6 +364,29 @@ export function coordinationDecisions(lead: Thread, members: readonly Thread[]):
   return [lead, ...members]
     .flatMap((thread) => openDecisions(thread).map((decision) => ({ thread, decision })))
     .sort((left, right) => left.decision.raisedAt - right.decision.raisedAt);
+}
+
+/** How a thread's latest turn left it stuck and in need of the user. */
+export type StuckVerdict = { state: "blocked" | "failed"; summary: string | null };
+
+/**
+ * Whether a thread's latest turn left it stuck: blocked or failed as it reported, or failed as the
+ * turn ended when it reported nothing about where its work ended up.
+ */
+export function stuckVerdict(thread: Thread): StuckVerdict | null {
+  const report = thread.report?.state === "working" ? undefined : thread.report;
+  if (report) return report.state === "blocked" || report.state === "failed" ? { state: report.state, summary: report.summary } : null;
+  return lastRunOutcome(thread) === "failed" ? { state: "failed", summary: null } : null;
+}
+
+/**
+ * Resolved means nothing is left for the user, so a resolved thread that has just been left stuck,
+ * by its report or by its turn failing, is open again. Whatever opened the turn, it is the user's.
+ */
+export function reopenedIfStuck(thread: Thread): Thread {
+  if (thread.resolvedAt === undefined || !stuckVerdict(thread)) return thread;
+  const { resolvedAt: _reopened, ...open } = thread;
+  return open;
 }
 
 /** A thread's report belongs to the turn that made it, so a turn that starts takes it off. */

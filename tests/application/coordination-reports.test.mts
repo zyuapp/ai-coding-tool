@@ -4,10 +4,10 @@ import { coordinatedThreadStatus, coordinationContext } from "../../src/applicat
 import { coordinationView } from "../../src/application/coordination-view.ts";
 import { threadMark, withdrawRun } from "../../src/application/thread-run-state.ts";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import type { WorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { CoordinationReport, ThreadBrief } from "../../src/domain/coordination.ts";
 import type { Thread } from "../../src/domain/thread.ts";
-import { activeRun, correlatedRunEvent, effectAt, effectOf, run, task, workspace } from "./workspace-reducer-fixtures.mts";
+import { activeRun, correlatedRunEvent, effectAt, effectOf, required, run, task, workspace } from "./workspace-reducer-fixtures.mts";
 
 const PROJECTLESS = { id: "projectless", kind: "projectless" as const, root: "/tmp" };
 const BRIEF: ThreadBrief = { intent: "push the login fix", doneWhen: "it is on main", delivers: "commit" };
@@ -181,4 +181,39 @@ test("a tick that settles unseen puts back the report it superseded, but keeps o
   assert.deepEqual(withdrawRun(member("worker"), 0, before).report, { state: "done", summary: "Shipped", at: 1 });
   assert.deepEqual(withdrawRun(member("worker", { report: { state: "blocked", summary: "No access", at: 2 } }), 0, before).report, { state: "blocked", summary: "No access", at: 2 });
   assert.deepEqual(withdrawRun(member("worker", { report: { state: "working", summary: "Looking", at: 2 } }), 0, before).report, { state: "done", summary: "Shipped", at: 1 }, "a report that it was working ended with the tick");
+});
+
+test("a resolved thread that a later turn leaves blocked or failed is open again, whatever opened the turn", () => {
+  const resolved = reduce(workspace({ threads: [lead(), member("worker", { outcome: "finished" })], currentId: "lead" }), { type: "task.resolve", taskId: "worker" }).state;
+  const standing = (state: WorkspaceState) => {
+    const worker = required(deriveView(state).coordination.members[0]);
+    return { status: worker.status, summary: worker.summary, resolved: state.threads[1]!.resolvedAt !== undefined };
+  };
+  const fired = reduce(resolved, { type: "automation.fired", fire: { automationId: "automation-1", taskId: "worker", runId: "run-tick", prompt: "Poll", runNumber: 2 } });
+  const ticking = reduce(fired.state, { type: "run.resolved", pendingId: effectAt(fired, "resolve-run-workspace").pendingId, workspace: PROJECTLESS }).state;
+
+  const failed = reduce(ticking, correlatedRunEvent("worker", "run-tick", 1, { type: "run.status", status: "failed", message: "boom" })).state;
+  assert.deepEqual(standing(failed), { status: "failed", summary: null, resolved: false }, "a scheduled tick that fails");
+  const blocked = reduce(ticking, { type: "coordination.reported", taskId: "worker", state: "blocked", summary: "Need a token" }).state;
+  const ended = reduce(blocked, correlatedRunEvent("worker", "run-tick", 1, { type: "run.status", status: "succeeded" })).state;
+  assert.deepEqual(standing(ended), { status: "blocked", summary: "Need a token", resolved: false }, "a scheduled tick that reports it is blocked");
+  const quiet = reduce(ticking, correlatedRunEvent("worker", "run-tick", 1, { type: "run.status", status: "succeeded" })).state;
+  assert.equal(standing(quiet).status, "resolved", "a tick that ends well leaves it resolved");
+
+  const opened = reduce(resolved, correlatedRunEvent("worker", "run-agent", 1, { type: "run.started", agentInitiated: true })).state;
+  const reported = reduce(opened, { type: "coordination.reported", taskId: "worker", state: "failed", summary: "The migration is broken" }).state;
+  const settled = reduce(reported, correlatedRunEvent("worker", "run-agent", 2, { type: "run.status", status: "succeeded" })).state;
+  assert.deepEqual(standing(settled), { status: "failed", summary: "The migration is broken", resolved: false }, "a turn the agent opened itself");
+  const crashed = reduce(opened, correlatedRunEvent("worker", "run-agent", 2, { type: "run.status", status: "failed" })).state;
+  assert.equal(standing(crashed).status, "failed");
+  assert.equal(reduce(settled, { type: "task.resolve", taskId: "worker" }).result?.ok, undefined, "and the user can file it away again");
+});
+
+test("a thread the user resolved while it was stuck stays resolved through a turn that ends well", () => {
+  const stuck = member("worker", { outcome: "finished", report: { state: "blocked", summary: "Need a token", at: 1 } });
+  const resolved = reduce(workspace({ threads: [lead(), stuck], currentId: "lead" }), { type: "task.resolve", taskId: "worker" }).state;
+  assert.equal(deriveView(resolved).coordination.members[0]?.status, "resolved");
+  const opened = reduce(resolved, correlatedRunEvent("worker", "run-agent", 1, { type: "run.started", agentInitiated: true })).state;
+  const ended = reduce(opened, correlatedRunEvent("worker", "run-agent", 2, { type: "run.status", status: "succeeded" })).state;
+  assert.equal(deriveView(ended).coordination.members[0]?.status, "resolved", "the report it was filed away with says nothing new");
 });

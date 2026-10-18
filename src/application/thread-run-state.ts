@@ -7,7 +7,7 @@ import { createConversationMessage, createFailureMessage } from "../domain/conve
 import { runOutcome, type ThreadOutcome } from "../domain/thread-run.js";
 import type { Thread } from "../domain/thread.js";
 import { appendMessages, replaceLastMessage, withdrawMessages } from "../domain/conversation-updates.js";
-import { withMemoryUnheard, type CoordinationReport } from "../domain/coordination.js";
+import { reopenedIfStuck, withMemoryUnheard, type CoordinationReport } from "../domain/coordination.js";
 import { defaultModelFor } from "../domain/agent-engine.js";
 
 export type ActiveRun = RunProvenance & {
@@ -384,7 +384,10 @@ function applyRunFinished<T extends RunTransitionState>(state: T, event: Extract
   const { [event.runId]: _expired, ...approvals } = next.approvals;
   next = { ...next, approvals } as T;
   const ended = runOutcome(event.status);
-  next = updateThread(next, event.taskId, (thread) => ({ ...thread, runEndedAt: now(), ...(ended ? { runEndedAs: ended } : {}) }));
+  next = updateThread(next, event.taskId, (thread) => {
+    const settled = { ...thread, runEndedAt: now(), ...(ended ? { runEndedAs: ended } : {}) };
+    return ended === "failed" ? reopenedIfStuck(settled) : settled;
+  });
   const subagents = next.subagents[event.taskId];
   if (subagents?.some((subagent) => subagent.status === "working" && !subagent.sessionScoped)) {
     const status = event.status === "succeeded" ? "completed" : event.status === "failed" ? "failed" : "stopped";

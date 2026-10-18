@@ -15,7 +15,7 @@ import type { PairedComputer } from "../computers.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import type { AppCommand } from "../../contracts/commands.js";
-import { canJoinCoordinator, coordinatorOf, isCoordinator, MAX_ANSWER, nextStepOf, openDecisions, remoteLeadOf, threadModelOf, undelegable, withAnswer, withCoordinationNote, withDecision, withMemoryChange, worksUnderCoordinator, type CoordinationNote, type MemoryChange } from "../../domain/coordination.js";
+import { canJoinCoordinator, coordinatorOf, isCoordinator, MAX_ANSWER, nextStepOf, openDecisions, remoteLeadOf, reopenedIfStuck, threadModelOf, undelegable, withAnswer, withCoordinationNote, withDecision, withMemoryChange, worksUnderCoordinator, type CoordinationNote, type MemoryChange } from "../../domain/coordination.js";
 import { defaultEffortFor, effortForModel, engineForModel, modelDelegable, modelHasEffort, modelTakesEffort } from "../../domain/agent-engine.js";
 import type { Thread } from "../../domain/thread.js";
 import { dismissed } from "../../domain/attention.js";
@@ -163,7 +163,7 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       const lead = coordinatorOf(state.threads, thread);
       if (!thread || !lead && !remoteLeadOf(thread)) return settled(state);
       const at = now();
-      const reported = updateThread(state, thread.id, (item) => ({ ...item, report: { state: input.state, summary: input.summary, at } }));
+      const reported = updateThread(state, thread.id, (item) => reopenedIfStuck({ ...item, report: { state: input.state, summary: input.summary, at } }));
       if (!lead || input.state === "working") return settled(reported);
       const report = { state: input.state, summary: input.summary, at };
       const noted = updateThread(reported, lead.id, (item) => withCoordinationNote(item, reportNote(thread, report, at, state.activeRuns[thread.id]?.runId)));

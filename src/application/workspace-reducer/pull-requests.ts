@@ -9,8 +9,8 @@ import type { WorkspaceState } from "../workspace-state.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import type { AppCommand } from "../../contracts/commands.js";
 import { dismissed } from "../../domain/attention.js";
-import { isCoordinator, worksUnderCoordinator } from "../../domain/coordination.js";
-import { linkMatches, linkOf, NO_PULL_REQUEST, samePullRequest, type PullRequestAnswer, type PullRequestRead } from "../../domain/pull-request.js";
+import { isCoordinator, stuckVerdict, worksUnderCoordinator } from "../../domain/coordination.js";
+import { linkMatches, linkOf, NO_PULL_REQUEST, samePullRequest, type PullRequestAnswer, type PullRequestLink, type PullRequestRead, type PullRequestRef } from "../../domain/pull-request.js";
 import type { Thread } from "../../domain/thread.js";
 
 type PullRequestInput = Extract<WorkspaceInput, { type: "pull-request.read" | "pull-request.read-members" | "pull-request.read-member" | "pull-request.answered" }>;
@@ -146,8 +146,9 @@ function everyMemberCheckout(state: WorkspaceState): Map<string, Thread[]> {
 /**
  * Records a found pull request, and how it stands, on the threads it answers for, so a search can
  * find them by it and a coordinator sees what each still needs. A thread under a coordinator whose
- * own pull request has just merged has nothing left to do, so it resolves; one the user reopened
- * after it merged was told nothing new and stays open.
+ * own pull request has just merged has nothing left to do, so it resolves, unless its turn left it
+ * stuck, which still needs the user. One the user reopened after that pull request merged was told
+ * nothing new and stays open, though a different pull request of its own merging is news.
  */
 function linked(state: WorkspaceState, threadIds: string[] | undefined, answer: PullRequestAnswer): WorkspaceState {
   if (answer.status !== "found" || !threadIds?.length) return state;
@@ -159,11 +160,16 @@ function linked(state: WorkspaceState, threadIds: string[] | undefined, answer: 
     if (!ids.has(thread.id) || linkMatches(thread.pullRequest, pullRequest)) return thread;
     changed = true;
     const recorded: Thread = { ...thread, pullRequest: linkOf(pullRequest) };
-    const merged = thread.pullRequest?.state !== "merged" && ownPullRequest(recorded)?.state === "merged";
-    if (!merged || recorded.resolvedAt !== undefined || recorded.archivedAt !== undefined || !worksUnderCoordinator(state.threads, recorded)) return recorded;
+    const merged = !mergedAlready(thread.pullRequest, pullRequest) && ownPullRequest(recorded)?.state === "merged";
+    if (!merged || recorded.resolvedAt !== undefined || recorded.archivedAt !== undefined || stuckVerdict(recorded) || !worksUnderCoordinator(state.threads, recorded)) return recorded;
     resolving.add(thread.id);
     return { ...recorded, resolvedAt: now() };
   });
   if (!changed) return state;
   return { ...state, threads: resolving.size ? dismissed(threads, resolving) : threads };
+}
+
+/** Whether a thread's link already said the pull request found for it had merged. */
+function mergedAlready(link: PullRequestLink | undefined, pullRequest: PullRequestRef): boolean {
+  return link?.state === "merged" && link.number === pullRequest.number && link.url === pullRequest.url;
 }

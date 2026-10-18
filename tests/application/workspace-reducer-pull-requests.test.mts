@@ -264,6 +264,34 @@ test("a member that merges while it works stays filed away when its turn ends", 
   assert.deepEqual(coordinationSections(ended.threads, new Set(), new Set()).priority.map((item) => item.id), [], "a resolved thread does not hold its coordinator up");
 });
 
+test("a member left stuck is not resolved by its pull request merging", () => {
+  const running = { ...delivering({ pullRequest: { number: 7, url: PULL_REQUEST.url, state: "open", title: "Poll me" } }), activeRuns: { one: activeRun("one", "run-one") } };
+  const merged = memberAnswer(running, MERGED);
+  const blocked = reduce(merged, { type: "coordination.reported", taskId: "one", state: "blocked", summary: "Deploy needs prod creds" }).state;
+  const ended = reduce(blocked, correlatedRunEvent("one", "run-one", 1, { type: "run.status", status: "succeeded" })).state;
+  assert.equal(thread(ended, "one").resolvedAt, undefined, "blocked after its merge, it is open again");
+  assert.deepEqual(pick(deriveView(ended).coordination.members[0]), { status: "blocked", summary: "Deploy needs prod creds" });
+
+  const failed = memberAnswer(delivering({ pullRequest: { number: 7, url: PULL_REQUEST.url, state: "open", title: "Poll me" }, report: { state: "failed", summary: "Post-merge migration failed", at: 5 } }), MERGED);
+  assert.equal(thread(failed, "one").resolvedAt, undefined, "a failure it reported still needs the user");
+  assert.deepEqual(pick(deriveView(failed).coordination.members[0]), { status: "failed", summary: "Post-merge migration failed" });
+  const crashed = memberAnswer(delivering({ pullRequest: { number: 7, url: PULL_REQUEST.url, state: "open", title: "Poll me" }, outcome: "failed", runEndedAs: "failed" }), MERGED);
+  assert.equal(thread(crashed, "one").resolvedAt, undefined, "and so does a turn that failed");
+});
+
+test("a reopened member resolves again when a different pull request of its own merges", () => {
+  const first = memberAnswer(delivering({ pullRequest: { number: 7, url: PULL_REQUEST.url, state: "open", title: "Poll me" } }), MERGED);
+  const reopened = reduce(first, { type: "task.reopen", taskId: "one" }).state;
+  const followUp: PullRequestAnswer = { status: "found", pullRequest: { number: 8, title: "Follow-up", url: "https://github.com/o/r/pull/8", state: "merged" } };
+  const merged = memberAnswer(reopened, followUp);
+  assert.equal(thread(merged, "one").pullRequest?.number, 8);
+  assert.equal(typeof thread(merged, "one").resolvedAt, "number");
+});
+
+function pick(member: { status: string; summary: string | null } | undefined) {
+  return member && { status: member.status, summary: member.summary };
+}
+
 test("an archived member neither counts toward its checkout's read nor resolves", () => {
   const state = delivering({ archivedAt: 1, pullRequest: { number: 7, url: PULL_REQUEST.url, state: "open" } });
   const asked = reduce(state, { type: "pull-request.read-members" });
