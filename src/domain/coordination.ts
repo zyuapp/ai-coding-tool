@@ -655,8 +655,9 @@ export function withoutCoordinationNotes(lead: Thread, heard: ReadonlySet<string
   return thread;
 }
 
-export function deliveryLabel(delivers: Delivery): string {
-  return DELIVERIES.find((delivery) => delivery.id === delivers)!.label;
+/** What a delivery is called, or its own name for one only a newer build on a paired computer knows. */
+export function deliveryLabel(delivers: string): string {
+  return DELIVERIES.find((delivery) => delivery.id === delivers)?.label ?? delivers;
 }
 
 export function isDelivery(value: unknown): value is Delivery {

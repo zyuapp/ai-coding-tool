@@ -373,7 +373,6 @@ function isThreadBase(value: unknown): value is StoredThread {
     (value.titleByUser === undefined || typeof value.titleByUser === "boolean") &&
     (value.role === undefined || isThreadRole(value.role)) &&
     (value.parentId === undefined || nonEmptyString(value.parentId)) &&
-    (value.brief === undefined || isThreadBrief(value.brief)) &&
     (value.decisions === undefined || Array.isArray(value.decisions) && value.decisions.every(isDecision)) &&
     (value.coordinationNotes === undefined || Array.isArray(value.coordinationNotes) && value.coordinationNotes.every(isCoordinationNote)) &&
     (value.projectId === undefined || nonEmptyString(value.projectId)) &&
@@ -524,6 +523,7 @@ function heldWithOrigins(pause: unknown) {
  * rather than costing the thread its conversation.
  */
 const DROPPABLE_FIELDS: Readonly<Record<string, (value: unknown) => boolean>> = {
+  brief: isThreadBrief,
   threadModel: isThreadModelChoice,
   memory: isCoordinatorMemory,
   report: isCoordinationReport,

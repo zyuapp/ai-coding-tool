@@ -160,6 +160,25 @@ test("a thread's report survives a reload, and a blank one an older build saved 
   }
 });
 
+test("a brief this build cannot read, as one a newer build delivers some other way, costs the thread nothing else", () => {
+  const migrated = migrateV1ToV2(legacyValues());
+  assert.equal(migrated.ok, true);
+  if (!migrated.ok) return;
+  const brief = { intent: "port the parser", doneWhen: "tests pass", delivers: "report" as const };
+  const member = { ...migrated.data.tasks[0], parentId: "lead", brief };
+  const parsed = parseThreadStore(serializeThreadStore({ ...migrated.data, tasks: [member] }));
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  assert.deepEqual(parsed.data.tasks[0].brief, brief);
+
+  const loaded = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...member, brief: { ...brief, delivers: "release" } }] }));
+  assert.equal(loaded.ok, true);
+  if (!loaded.ok) return;
+  assert.equal(loaded.hiddenTasks, 0, "the thread still loads");
+  assert.equal(loaded.data.tasks[0].brief, undefined);
+  assert.equal(loaded.data.tasks[0].parentId, "lead");
+});
+
 test("a decision an older build saved with two options sharing a label still loads", () => {
   const migrated = migrateV1ToV2(legacyValues());
   assert.equal(migrated.ok, true);
