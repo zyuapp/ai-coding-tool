@@ -392,6 +392,24 @@ test("a coordinator's phone row speaks for the threads under it, and opening it 
   assert.equal(started.priority.find((entry) => entry.id === "lead")?.headline, "A decision is waiting on you", "a request already starting waits on no one");
 });
 
+test("a coordinator's phone row works while its threads do, says what waits first, and is dismissed only with something to file away", () => {
+  const decision = { id: "d1", question: "Which?", options: [], raisedAt: NOW };
+  const finding = { id: "f1", headline: "Found a bug", at: NOW };
+  const row = (threads: Thread[], overrides: Partial<WorkspaceState> = {}) => {
+    const { activity } = projectMobileView(workspace(threads, overrides), NOW);
+    const entry = [...activity.priority, ...activity.running, ...activity.threads].find((item) => item.id === "lead");
+    return { status: entry?.status, waiting: entry?.waiting ?? false, headline: entry?.headline ?? null, attention: entry?.attention };
+  };
+  const lead = (overrides: Partial<Thread> = {}) => task("lead", { role: "coordinator", projectId: "project-app", ...overrides });
+  const member = (overrides: Partial<Thread> = {}) => task("member", { parentId: "lead", projectId: "project-app", ...overrides });
+  assert.deepEqual(row([lead(), member()], { activeRuns: { member: activeRun("member", "run-1", "running") }, runStatuses: { member: "running" } }),
+    { status: "running", waiting: false, headline: null, attention: false }, "a thread under it at work is its work, as the desktop's spinner says");
+  assert.deepEqual(row([lead({ findings: [finding] }), member({ decisions: [decision] })]),
+    { status: "idle", waiting: true, headline: "A decision is waiting on you", attention: true }, "what waits leads its line, as on the desktop, and the finding is still there to file away");
+  assert.deepEqual(row([lead(), member({ decisions: [decision] })]).attention, false, "what waits on the user is answered, not dismissed");
+  assert.deepEqual(row([lead(), member({ outcome: "finished" })]).attention, true, "a thread under it with a verdict is dismissed with it");
+});
+
 test("the phone wears the desktop's theme family in both faces, and follows the desktop's mode", () => {
   const nord = projectMobileView(workspace([], { theme: "nord-snow", themeMode: "light" }), NOW).theme;
   assert.deepEqual(nord, { dark: "nord", light: "nord-snow", mode: "light" });

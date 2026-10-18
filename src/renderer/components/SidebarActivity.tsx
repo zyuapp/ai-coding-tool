@@ -5,7 +5,9 @@ import { rankedMatches } from "../../domain/match-rank";
 import { projectName, type Project } from "../../domain/project";
 import type { SidebarSection, SidebarSections } from "../../domain/sidebar";
 import type { ThreadHost } from "../../application/computers";
+import { canDismiss } from "../../application/coordination";
 import type { ActivitySections } from "../../application/thread-order";
+import type { Thread } from "../../domain/thread";
 import { useDismissibleLayer } from "../focus";
 import { MenuList, type MenuEntry } from "./PopoverMenu";
 import type { ActivityRowRenderer } from "./SidebarThreadRow";
@@ -88,6 +90,8 @@ export type SidebarActivityProps = {
   activityThreads: ActivitySections;
   sections: SidebarSections;
   blockedThreadIds: Set<string>;
+  /** The threads under each coordinator, which a coordinator's row is dismissed with. */
+  threadsByCoordinator: Map<string, Thread[]>;
   onSetSectionOpen: (section: SidebarSection, open: boolean) => void;
   onDismissAll: () => void;
   renderRow: ActivityRowRenderer;
@@ -95,7 +99,7 @@ export type SidebarActivityProps = {
   projectFilter: ProjectFilterProps;
 };
 
-export function SidebarActivity({ activityThreads, sections, blockedThreadIds, onSetSectionOpen, onDismissAll, renderRow, projectFilter }: SidebarActivityProps) {
+export function SidebarActivity({ activityThreads, sections, blockedThreadIds, threadsByCoordinator, onSetSectionOpen, onDismissAll, renderRow, projectFilter }: SidebarActivityProps) {
   return (
     <>
       {/** One project has nothing to narrow to, unless the lists are narrowed to it already. */}
@@ -123,7 +127,7 @@ export function SidebarActivity({ activityThreads, sections, blockedThreadIds, o
             {sections[key] && threads.length === 0 && key === "priority" && <p className="sidebar-empty">Nothing waiting</p>}
             {/** Only Priority speaks: a spinner appearing in Running is not news anyone needs read out. */}
             {sections[key] && <nav className="task-list" aria-label={label} aria-live={key === "priority" ? "polite" : undefined}>
-              {threads.map((thread) => renderRow(thread, key === "priority" && !blockedThreadIds.has(thread.id) ? "dismiss" : "none", key === "priority"))}
+              {threads.map((thread) => renderRow(thread, key === "priority" && canDismiss(thread, threadsByCoordinator.get(thread.id) ?? [], blockedThreadIds) ? "dismiss" : "none", key === "priority"))}
             </nav>}
           </section>
         );

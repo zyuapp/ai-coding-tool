@@ -261,6 +261,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
           activityThreads={activityThreads}
           sections={sections}
           blockedThreadIds={blockedThreadIds}
+          threadsByCoordinator={sidebarCoordination.threadsByCoordinator}
           onSetSectionOpen={onSetSectionOpen}
           onDismissAll={() => onDismissAll(activityProject)}
           renderRow={activityRow}

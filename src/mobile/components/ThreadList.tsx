@@ -13,7 +13,7 @@ function ThreadRow({ thread, meta, onOpen, onDismiss }: {
   onDismiss?: () => void;
 }) {
   return (
-    <div className="thread-row" data-status={thread.status} data-unread={thread.unread || undefined}>
+    <div className="thread-row" data-status={thread.status} data-unread={thread.unread || undefined} data-waiting={thread.waiting}>
       <button type="button" className="thread-open" onClick={onOpen}>
         <span className="thread-title">{thread.title}</span>
         {thread.headline && <span className="thread-headline">{thread.headline}</span>}
@@ -108,7 +108,7 @@ export const ThreadList = memo(function ThreadList({ mode, groups, activity, now
             thread={thread}
             meta={extra.meta(thread)}
             onOpen={() => onOpen(thread.id, thread.title, extra.project(thread))}
-            {...(extra.dismissable && thread.attention && thread.status !== "awaiting-approval" ? { onDismiss: () => onDismiss(thread.id) } : {})}
+            {...(extra.dismissable && thread.attention ? { onDismiss: () => onDismiss(thread.id) } : {})}
           />
         ))}
         {open && !threads.length && extra.empty && <p className="group-empty">{extra.empty}</p>}

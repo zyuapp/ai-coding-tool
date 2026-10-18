@@ -8,7 +8,7 @@ import { updateThread } from "./thread-run-state.js";
 import { awayLeadOf, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, isWaitingOnUser, leadIdOf, MAX_SUMMARY, openDecisions, remoteLeadOf, stuckVerdict, waitingOnUser, withCoordinationNote, type CoordinationNote, type CoordinationReport, type CoordinatorMemory, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type RemoteLead, type ThreadBrief, type ThreadProposal, type WaitingOnUser } from "../domain/coordination.js";
 import { lastRunOutcome, threadActivityAt, type Thread } from "../domain/thread.js";
 import type { PullRequestAnswer, PullRequestChecks, PullRequestLink, PullRequestRef, PullRequestState } from "../domain/pull-request.js";
-import { wantsAttention } from "../domain/attention.js";
+import { newestUnreadFinding, wantsAttention } from "../domain/attention.js";
 import { originLabel } from "../domain/message-origin.js";
 import { replyLine } from "./reply-line.js";
 import { supportsComputerCommand } from "../contracts/computer-capabilities.js";
@@ -533,6 +533,23 @@ export function waitingLine(waiting: WaitingOnUser): string | null {
   if (!parts.length) return null;
   const said = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0]!;
   return `${said[0]!.toUpperCase()}${said.slice(1)} ${decisions + suggestions + requests.length === 1 ? "is" : "are"} waiting on you`;
+}
+
+/**
+ * A row's second line once nothing under it waits on an approval: what waits on the user, else the
+ * newest thing a run found that they have not seen. The desktop's row and the phone's say the same.
+ */
+export function rowHeadline(thread: Thread, waiting: string | null): string | null {
+  return waiting ?? newestUnreadFinding(thread)?.headline ?? null;
+}
+
+/**
+ * Whether Dismiss on a row files anything away: a verdict or a finding on its thread or, on a
+ * coordinator's, on a thread under it, which it is dismissed with. A thread waiting on an approval has
+ * nothing to dismiss until that is answered, and what waits on the user is answered, never dismissed.
+ */
+export function canDismiss(thread: Thread, members: readonly Thread[], blocked: ReadonlySet<string>): boolean {
+  return !blocked.has(thread.id) && (wantsAttention(thread) || membersWantAttention(members));
 }
 
 /**

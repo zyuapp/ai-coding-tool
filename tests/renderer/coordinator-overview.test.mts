@@ -12,7 +12,7 @@ import { emptyWorkspaceState, deriveView, OVERVIEW_PANEL } from "../../src/appli
 import type { WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { workspaceActions } from "../../src/renderer/task-workspace/workspace-actions.ts";
 
-const { CoordinatorOverview } = await import("../../src/renderer/components/Coordination.tsx");
+const { CoordinationBar, CoordinatorOverview } = await import("../../src/renderer/components/Coordination.tsx");
 const { EVERY_ENGINE_READY } = await import("../../src/renderer/components/ComposerSettings.tsx");
 const { CommandControlsProvider } = await import("../../src/renderer/components/CommandControl.tsx");
 const { buildDock } = await import("../../src/renderer/components/dock-registry.tsx");
@@ -417,6 +417,23 @@ test("the Overview's purpose line and memory rows edit what the coordinator keep
   assert.equal(query(section, 'button[aria-label^="Edit note: "]').textContent, "Propose threads only when asked");
   assert.equal(query(container, 'button[aria-label^="Edit purpose: "]').textContent, "Ship the v3 reader");
   await mounted.unmount();
+});
+
+test("the Overview's badge leaves out a suggestion already starting, as the sidebar does", () => {
+  const brief = { intent: "fix it", doneWhen: "it works", delivers: "commit" as const };
+  const lead: Thread = { ...member("lead", "Plan"), parentId: undefined, role: "coordinator", proposals: [{ id: "p1", title: "Docs", prompt: "Write them", brief, place: { worktree: false }, proposedAt: 1 }] };
+  const view = deriveView({ ...emptyWorkspaceState(), threads: [lead], currentId: lead.id, startingProposals: ["p1"] });
+  const dispatch = async () => {};
+  const workspace = { ...view, threadHandles: [], threadHandlesFor: () => [], commandControls: { available: () => true, dispatch() {} }, dispatch, actions: workspaceActions(dispatch) } as never;
+  const dock = buildDock({ workspace, inspectedSubagent: undefined, workingSubagents: 0, unreviewedFiles: 0, onInspectSubagent() {}, onCloseInspector() {}, onOpenPanel() {}, onAddSideChat() {} });
+  assert.equal(required(dock.panels.find((item) => item.id === OVERVIEW_PANEL)).badge, 0);
+});
+
+test("a thread under a coordinator says what of its own waits on the user in the sidebar's words", async () => {
+  const lead = { ...member("lead", "Plan"), parentId: undefined };
+  const view = await mount(React.createElement(CoordinationBar, { lead, remoteLead: null, brief: null, asking: "2 decisions are waiting on you", onSelect() {} }));
+  assert.equal(query(view.container, ".coordination-bar-asking").textContent, "2 decisions are waiting on you");
+  await view.unmount();
 });
 
 test("the Overview's badge counts the threads that need the user and the threads the coordinator suggested", () => {

@@ -123,6 +123,31 @@ test("a row marks and says what waits on the user, as the lists word it", async 
   await view.unmount();
 });
 
+test("what waits on the user outranks a coordinator's threads at work, and only a row with something to file away offers Dismiss", async () => {
+  const thread = (id: string, overrides: Partial<Thread> = {}): Thread => ({
+    id, title: id, engine: "claude", executionPolicy: "confirm", messages: [],
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, ...overrides,
+  });
+  const said = "A suggested thread is waiting on you";
+  const waits = thread("waits", { role: "coordinator", projectId: "p" });
+  const worker = thread("worker", { parentId: "waits", projectId: "p" });
+  const filed = thread("filed", { role: "coordinator", projectId: "p" });
+  const finished = thread("finished", { parentId: "filed", projectId: "p", outcome: "finished" });
+  const coordination = { threadsByCoordinator: new Map([["waits", [worker]], ["filed", [finished]]]), waitingLines: new Map([["waits", said]]), coordinators: [waits, filed], onSetCoordinator() {}, notifications: true, onSetMuted() {}, stoppable: new Set<string>(), onStopAll() {} };
+  const projects = await mount(renderProjectSidebar({
+    mode: "projects", projects: [{ id: "p", root: "/work/p" }], expandedProjects: new Set(["p"]), orderedThreads: [waits, worker], runningThreadIds: new Set(["worker"]), sidebarCoordination: coordination,
+  }));
+  const row = item([...projects.container.querySelectorAll<HTMLElement>(".project-task-row, .task-row")].find((entry) => entry.textContent?.startsWith("waits")));
+  assert.deepEqual([row.querySelector(".task-attention.approval")?.getAttribute("aria-label") ?? null, row.querySelectorAll(".task-spinner").length], [said, 0], "projects mode has no meta line, so the mark says it");
+  await projects.unmount();
+
+  const activity = await mount(renderProjectSidebar({
+    mode: "activity", activityThreads: { priority: [waits, filed], running: [], threads: [], snoozed: [] }, runningThreadIds: new Set(["worker"]), sidebarCoordination: coordination,
+  }));
+  assert.deepEqual([...activity.container.querySelectorAll('nav[aria-label="Priority"] .row-action')].map((button) => button.getAttribute("aria-label")), ["Dismiss filed"], "what waits on the user is answered, not dismissed");
+  await activity.unmount();
+});
+
 test("only the priority heading offers to dismiss every dot at once", async () => {
   const thread = (id: string, overrides: Partial<Thread> = {}): Thread => ({
     id, title: id, engine: "claude", executionPolicy: "confirm", messages: [],

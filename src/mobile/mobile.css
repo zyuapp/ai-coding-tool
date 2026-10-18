@@ -553,6 +553,16 @@ button {
   background: var(--muted-strong);
 }
 
+/* What waits on the user outranks work going on, as on the desktop: the needs-you dot takes the spinner's place. */
+.thread-row[data-waiting] .thread-mark::before {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border: 0;
+  background: var(--accent);
+  animation: none;
+}
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }

@@ -472,7 +472,7 @@ test("a thread whose coordinator is on another computer runs as a member there a
   const view = coordinationView(raised.state, raised.state.threads[0], new Set(), new Set());
   assert.deepEqual(view.remoteLead, { title: "Lead", computer: "Laptop", threadId: null }, "a coordinator no paired computer here holds cannot be gone to");
   assert.deepEqual(view.decisions, [], "its decision is answered on its coordinator's card");
-  assert.equal(view.asking, true);
+  assert.equal(view.asking, "A decision is waiting on you", "in the words the sidebar uses");
 
   const other = { ...state, threads: [...state.threads, task("other", { title: "Other" })] };
   const signed = reduce(other, { type: "task.send", taskId: "member", text: "Rebase", from: "other" });

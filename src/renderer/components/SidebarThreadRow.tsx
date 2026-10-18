@@ -18,6 +18,7 @@ import { ThreadEngineIcon } from "./ThreadEngineIcon";
 import { ThreadRoleMark } from "./ThreadRoleMark";
 import type { ThreadRole } from "../../domain/thread-role";
 import type { ThreadHost } from "../../application/computers";
+import { rowHeadline } from "../../application/coordination";
 import { HostMark } from "./HostMark";
 
 /** What a row's trailing slot offers, if anything. Only one of them ever shows in a given list. */
@@ -59,8 +60,7 @@ function scheduleLabel(automation: AutomationView) {
 }
 
 /** The dot a row carries. What a run found is named outright: "Finished" says nothing a headline does. */
-function attentionMark(thread: Thread, sideChatWaiting: boolean, waiting: string | null) {
-  if (waiting) return <span key="status" className="task-attention approval" aria-label={waiting} />;
+function attentionMark(thread: Thread, sideChatWaiting: boolean) {
   const finding = newestUnreadFinding(thread);
   if (finding) return <span key="status" className="task-attention" aria-label={finding.headline} />;
   if (hasUnreadAttention(thread)) return <span key="status" className={`task-attention ${thread.outcome!}`} aria-label={OUTCOME_LABELS[thread.outcome!]} />;
@@ -76,10 +76,10 @@ function attentionMark(thread: Thread, sideChatWaiting: boolean, waiting: string
  * row is in Priority. A snoozed row says when it comes back.
  */
 function activityMeta(thread: Thread, host: ThreadHost | undefined, projectLabel: string | undefined, waiting: string | null, memberBlocked: boolean, pauseLabel: string | null) {
-  if (waiting) return waiting;
+  /** An approval a thread under it waits on is said first, as its mark says it. */
   if (memberBlocked) return MEMBER_BLOCKED_LABEL;
-  const finding = newestUnreadFinding(thread);
-  if (finding) return finding.headline;
+  const headline = rowHeadline(thread, waiting);
+  if (headline) return headline;
   if (pauseLabel !== null) return hostMeta(host, pauseLabel);
   if (thread.snoozedUntil !== undefined) return hostMeta(host, ...[projectLabel, snoozeLabel(thread.snoozedUntil)].filter((part): part is string => Boolean(part)));
   return hostMeta(host, ...[projectLabel, formatTime(threadActivityAt(thread))].filter((part): part is string => Boolean(part)));
@@ -248,14 +248,19 @@ function rowMarks(row: RowState): ReactNode[] {
     /** A thread's own mark names its checkout, and threads sharing one share its colour, so a list ranked by attention still groups by eye. */
     row.inWorktree && <FolderSymlink key="worktree" className={`task-worktree${worktree ? ` worktree-mark hue-${worktreeHue(worktree.id)}` : ""}`} size={13} aria-label={`Works in ${worktree ? worktreeName(worktree) : "a worktree"}`} />,
     row.schedule && <AlarmClock key="automation" className="task-automation" size={13} aria-label={scheduleLabel(row.schedule)} />,
-    /** A coordinator's row stands for its threads, so it shows the approval or the work they have going. */
+    /**
+     * A coordinator's row stands for its threads, so it shows the approval or the work they have going.
+     * What waits on the user outranks work going on, as an approval does, since the row is where it is answered.
+     */
     row.blocked || row.memberBlocked
       ? <span key="status" className="task-attention approval" aria-label={row.blocked ? BLOCKED_LABEL : MEMBER_BLOCKED_LABEL} />
+      : row.waiting
+        ? <span key="status" className="task-attention approval" aria-label={row.waiting} />
       : row.pauseLabel !== null
         ? <Hourglass key="status" className="task-paused" size={13} aria-label={row.pauseLabel} />
         : row.running
           ? <ThreadSpinner key="status" />
-          : attentionMark(thread, row.sideChatWaiting, row.waiting),
+          : attentionMark(thread, row.sideChatWaiting),
     <ThreadEngineIcon key="engine" engine={thread.engine} className="task-engine" size={13} />,
   ].filter(Boolean);
 }

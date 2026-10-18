@@ -51,11 +51,13 @@ export type MobileThreadEntry = {
   /** The verdict its last run left, once it has settled. */
   outcome?: ThreadOutcome;
   /**
-   * The row's second line: the newest thing a run found that the user has not seen, else what waits
-   * on the user from it and the threads under it, as the desktop's row says it.
+   * The row's second line, as the desktop's row says it: what waits on the user from it and the
+   * threads under it, else the newest thing a run found that the user has not seen.
    */
   headline?: string;
-  /** Whether the thread, or a thread under it, has anything to file away, which is what holds it in Priority. */
+  /** Set when something besides an approval waits on the user from it or a thread under it, which marks the row as one does. */
+  waiting?: true;
+  /** Whether Dismiss files anything away from the row, by the desktop's own rule. */
   attention: boolean;
 };
 

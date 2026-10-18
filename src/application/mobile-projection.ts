@@ -2,12 +2,12 @@ import { deriveView, type WorkspaceState } from "./workspace-state.js";
 import { labelOf, threadSummaries, threadTranscript } from "./thread-projection.js";
 import { projectName, type Project } from "../domain/project.js";
 import type { Thread } from "../domain/thread.js";
-import { newestUnreadFinding, wantsAttention } from "../domain/attention.js";
+import { newestUnreadFinding } from "../domain/attention.js";
 import { DEFAULT_BRANCH_RANGE } from "../domain/diff.js";
 import { themeFor, themeOrDefault } from "../domain/theme.js";
 import { worktreeName } from "../domain/worktree.js";
 import { orderThreads } from "./thread-order.js";
-import { coordinationSections, membersWantAttention, waitingLine } from "./coordination.js";
+import { canDismiss, coordinationSections, rowHeadline, waitingLine } from "./coordination.js";
 import { threadsByCoordinator, waitingOnUser } from "../domain/coordination.js";
 import { projectFor, threadWorkspaceId } from "./thread-location.js";
 import { diffFor } from "./workspace-diff.js";
@@ -67,22 +67,28 @@ export function projectMobileView(state: WorkspaceState, at: number): MobileView
     const key = summary.projectId ?? null;
     const thread = threadsById.get(summary.id);
     const project = summary.projectId ? projectsById.get(summary.projectId) : undefined;
-    const finding = thread ? newestUnreadFinding(thread)?.headline : undefined;
-    /** A coordinator's row speaks for the threads under it, which the phone reaches through it, as the desktop's row does. */
+    const finding = thread ? newestUnreadFinding(thread) : undefined;
+    /**
+     * A coordinator's row speaks for the threads under it, which the phone reaches through it, as the
+     * desktop's row does: their approvals, their work going on, and what else waits on the user.
+     */
     const members = membersByLead.get(summary.id) ?? [];
-    const headline = finding ?? (thread ? waitingLine(waitingOnUser(thread, members, state.startingProposals)) ?? undefined : undefined);
+    const waiting = thread ? waitingLine(waitingOnUser(thread, members, state.startingProposals)) : null;
+    const headline = thread ? rowHeadline(thread, waiting) : null;
     const blocked = view.blockedThreadIds.has(summary.id) || members.some((member) => view.blockedThreadIds.has(member.id));
+    const running = summary.status === "running" || members.some((member) => view.runningThreadIds.has(member.id));
     const entry: MobileThreadEntry = {
       id: summary.id,
       title: summary.title || "Untitled thread",
       projectId: project?.id ?? null,
       projectName: project ? projectName(project) : null,
-      status: blocked ? "awaiting-approval" : summary.status,
+      status: blocked ? "awaiting-approval" : running ? "running" : summary.status,
       lastActivityAt: summary.lastActivityAt,
       unread: Boolean(thread?.outcomeUnread) || finding !== undefined,
       ...(thread?.outcome ? { outcome: thread.outcome } : {}),
-      ...(headline !== undefined ? { headline } : {}),
-      attention: Boolean(thread && wantsAttention(thread)) || membersWantAttention(members),
+      ...(headline !== null ? { headline } : {}),
+      ...(waiting !== null ? { waiting: true as const } : {}),
+      attention: Boolean(thread && canDismiss(thread, members, view.blockedThreadIds)),
     };
     entries.get(key)?.push(entry) ?? entries.set(key, [entry]);
     entriesById.set(entry.id, entry);

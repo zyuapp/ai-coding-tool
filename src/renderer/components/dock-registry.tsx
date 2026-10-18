@@ -84,8 +84,12 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
   const reviewedEnvironment = reviewed ? reviewed.environment : workspace.environment;
   const reviewedWorkspaceId = reviewed ? reviewed.workspaceId : workspace.workspaceId;
 
-  /** What waits on the user here: the threads that need them, and the threads it suggested for them to start. */
-  const needsYou = overviewGroups(workspace.coordination.members).needs.length + workspace.coordination.proposals.length;
+  /**
+   * What waits on the user here: the threads that need them, and the threads suggested or asked for
+   * elsewhere that wait for them, counted as the sidebar counts them, so one already starting is not.
+   */
+  const waiting = workspace.coordination.waiting;
+  const needsYou = overviewGroups(workspace.coordination.members).needs.length + (waiting ? waiting.suggestions + waiting.requests.length : 0);
   const lead = isCoordinator(workspace.currentThread) ? workspace.currentThread : undefined;
   const { coordination } = workspace;
 

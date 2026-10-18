@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client";
 import { MOBILE_PROTOCOL_VERSION, type MobileClientMessage, type MobileView } from "../../src/contracts/mobile.ts";
 import { MOBILE_CREDENTIAL_KEY, MOBILE_FOLDED_KEY } from "../../src/mobile/client/storage.ts";
 import { App } from "../../src/mobile/App.tsx";
+import { groupMark } from "../../src/mobile/format.ts";
 import { ensureLanguage } from "../../src/renderer/diff/highlight.ts";
 
 const CODE = "K7M2P9QX";
@@ -182,6 +183,18 @@ test("a coordinator open on the phone answers the approval a thread under it wai
   assert.equal(document.querySelector(".approval-from")?.textContent, "Dark mode");
   click(".approval-actions .allow");
   assert.deepEqual(lastCommand(line), { type: "run.decide", taskId: "member", runId: "r2", approvalId: "a2", allow: true }, "the answer goes to the thread that asked");
+});
+
+test("a row something waits on is marked as needing the user, and a folded group says so", () => {
+  const line = openPhone({ paired: true });
+  act(() => line.onopen?.());
+  const waiting = view();
+  waiting.thread = null;
+  waiting.groups = [{ projectId: "p", name: "App", threads: [{ id: "lead", title: "Plan", projectId: "p", projectName: "App", attention: false, status: "running", waiting: true, headline: "A decision is waiting on you", lastActivityAt: Date.now(), unread: false }] }];
+  act(() => line.onmessage?.({ data: JSON.stringify({ kind: "snapshot", sequence: 1, sessionId: "s1", build: BUILD, view: waiting }) }));
+  assert.equal(document.querySelector(".thread-row")?.getAttribute("data-waiting"), "true");
+  assert.match(document.querySelector(".thread-row .thread-headline")?.textContent ?? "", /A decision is waiting on you/);
+  assert.equal(groupMark(waiting.groups[0]!.threads), "needs-you");
 });
 
 test("the phone selects an answer without sending until Send answer is pressed", () => {

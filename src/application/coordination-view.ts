@@ -2,8 +2,8 @@
 import type { WorkspaceState } from "./workspace-state.js";
 import type { ApprovalView } from "./thread-run-state.js";
 import { ledStartRefusal, threadHostOf, type PairedComputer, type ThreadHost } from "./computers.js";
-import { checkoutAnswer, coordinatedThreadStatus, coordinationMembers, GROUP_OF, memberActivity, nextSteps, ownPullRequest, type CoordinatedThreadStanding, type CoordinationMember, type OwnPullRequest } from "./coordination.js";
-import { coordinationDecisions, coordinatorOf, isCoordinator, openDecisions, remoteLeadOf, threadModelOf, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type ThreadBrief, type ThreadModelChoice, type ThreadProposal } from "../domain/coordination.js";
+import { checkoutAnswer, coordinatedThreadStatus, coordinationMembers, GROUP_OF, memberActivity, nextSteps, ownPullRequest, waitingLine, type CoordinatedThreadStanding, type CoordinationMember, type OwnPullRequest } from "./coordination.js";
+import { coordinationDecisions, coordinatorOf, isCoordinator, openDecisions, remoteLeadOf, threadModelOf, waitingOnUser, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type ThreadBrief, type ThreadModelChoice, type ThreadProposal, type WaitingOnUser } from "../domain/coordination.js";
 import { threadCreatedAt, type Thread } from "../domain/thread.js";
 import { currentModel } from "../domain/agent-engine.js";
 import type { Project } from "../domain/project.js";
@@ -132,11 +132,13 @@ type CoordinationParts = {
    */
   remoteLead: { title: string; computer: string; threadId: string | null } | null;
   brief: ThreadBrief | null;
-  /** A thread under a coordinator with a decision of its own waiting on the user. */
-  asking: boolean;
+  /** On a coordinator, what its Needs-you card holds waiting on the user, as its row in the sidebar counts it. */
+  waiting: WaitingOnUser | null;
+  /** On a thread under a coordinator, what of its own waits on the user, in the sidebar's words; null when nothing does. */
+  asking: string | null;
 };
 
-const NO_COORDINATION: CoordinationView = { coordinator: false, threadModel: null, memory: null, members: [], starts: [], approvals: [], decisions: [], proposals: [], usage: null, lead: null, remoteLead: null, brief: null, asking: false };
+const NO_COORDINATION: CoordinationView = { coordinator: false, threadModel: null, memory: null, members: [], starts: [], approvals: [], decisions: [], proposals: [], usage: null, lead: null, remoteLead: null, brief: null, waiting: null, asking: null };
 
 const NO_NOTES: readonly MemoryNote[] = [];
 
@@ -174,7 +176,8 @@ export function coordinationView(
     const memory = { purpose: thread.memory?.purpose ?? null, notes: thread.memory?.notes ?? NO_NOTES };
     const proposals = proposalViews(previous?.proposals, thread.proposals ?? [], state.startingProposals, state.computers.paired);
     const usage = sameUsage(previous?.usage, coordinationUsage(coordinated, thread));
-    return { ...NO_COORDINATION, coordinator: true, threadModel: threadModelOf(thread), memory, members, starts, approvals, decisions, proposals, usage, brief: thread.brief ?? null };
+    const waiting = sameWaiting(previous?.waiting, waitingOnUser(thread, coordinated.map((member) => member.thread), state.startingProposals));
+    return { ...NO_COORDINATION, coordinator: true, threadModel: threadModelOf(thread), memory, members, starts, approvals, decisions, proposals, usage, brief: thread.brief ?? null, waiting };
   }
   const lead = coordinatorOf(threads, thread) ?? null;
   const remote = lead ? undefined : remoteLeadOf(thread);
@@ -182,7 +185,13 @@ export function coordinationView(
   const decisions = lead || remote ? [] : openDecisions(thread).map((decision) => ({ thread, decision }));
   if (!lead && !remote && !thread.brief && !decisions.length) return NO_COORDINATION;
   const remoteLead = remote ? { title: remote.title, computer: remote.computer, threadId: state.computers.paired.some((computer) => computer.state?.threads.some((item) => item.id === remote.threadId)) ? remote.threadId : null } : null;
-  return { ...NO_COORDINATION, lead, remoteLead, decisions, brief: thread.brief ?? null, asking: Boolean((lead || remote) && openDecisions(thread).length) };
+  const asking = lead || remote ? waitingLine(waitingOnUser(thread, [], state.startingProposals)) : null;
+  return { ...NO_COORDINATION, lead, remoteLead, decisions, brief: thread.brief ?? null, asking };
+}
+
+/** The count last made while it has not moved, so the badge reading it draws nothing anew. */
+function sameWaiting(before: WaitingOnUser | null | undefined, next: WaitingOnUser): WaitingOnUser {
+  return before && before.decisions === next.decisions && before.suggestions === next.suggestions && before.requests.join("\n") === next.requests.join("\n") ? before : next;
 }
 
 /** The approval a thread under a coordinator waits on, read on the computer that holds it. */

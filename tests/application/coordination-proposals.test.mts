@@ -229,3 +229,11 @@ test("a coordinator's row says what its Needs-you card holds, a request by the c
   const state = workspace({ threads: [lead(), task("worker", { parentId: "lead", decisions: [decision] })], startingProposals: [] });
   assert.equal(sidebarLists(state, [], state.threads, new Set(), new Set()).waitingLines.get("worker"), "A decision is waiting on you", "a thread drawn under its coordinator still says what waits on it");
 });
+
+test("the coordination view counts what waits on the user as the sidebar does, and a thread under it says its own in the same words", () => {
+  const decision = (id: string) => ({ id, question: `${id}?`, options: [], raisedAt: 1 });
+  const state = workspace({ threads: [lead({ proposals: [proposal("p1"), proposal("p2", { place: { computer: { id: "studio", name: "Studio" }, worktree: false } })] }), task("worker", { parentId: "lead", decisions: [decision("d1"), decision("d2")] })], startingProposals: ["p1"] });
+  const waiting = deriveView({ ...state, currentId: "lead" }).coordination.waiting;
+  assert.deepEqual(waiting, { decisions: 2, suggestions: 0, requests: ["Studio"] }, "one already starting is not counted");
+  assert.equal(deriveView({ ...state, currentId: "worker" }).coordination.asking, "2 decisions are waiting on you");
+});

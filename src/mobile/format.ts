@@ -90,8 +90,8 @@ export function changesLabel(changes: MobileChanges | null): string | null {
 }
 
 /** What a folded group still owes the eye: a thread waiting on the user, else one with news. */
-export function groupMark(threads: Pick<MobileThreadEntry, "status" | "unread">[]): "needs-you" | "unread" | null {
-  if (threads.some((thread) => thread.status === "awaiting-approval")) return "needs-you";
+export function groupMark(threads: Pick<MobileThreadEntry, "status" | "unread" | "waiting">[]): "needs-you" | "unread" | null {
+  if (threads.some((thread) => thread.status === "awaiting-approval" || thread.waiting)) return "needs-you";
   if (threads.some((thread) => thread.unread)) return "unread";
   return null;
 }

@@ -634,7 +634,7 @@ export function CoordinationBar({ lead, remoteLead, brief, asking, onSelect }: P
           {remoteLead && ` on ${remoteLead.computer}`}
         </span>
         {asking && <>
-          <span className="coordination-bar-asking">A decision is waiting on you</span>
+          <span className="coordination-bar-asking">{asking}</span>
           {leadId && <button type="button" className="coordination-bar-answer" onClick={() => onSelect(leadId)}>Answer</button>}
         </>}
       </div>}
