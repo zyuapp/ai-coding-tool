@@ -477,6 +477,13 @@ test("coordination requests and briefs are checked at the boundary, and only the
   }
 });
 
+test("a role command names the thread and what it runs as now", () => {
+  assert.equal(isRunCommand({ type: "role", taskId: "task-1", coordinationRole: "coordinator" }), true);
+  assert.equal(isRunCommand({ type: "role", taskId: "task-1" }), true, "no role at all is a role too");
+  assert.equal(isRunCommand({ type: "role", taskId: "task-1", coordinationRole: "boss" }), false);
+  assert.equal(isRunCommand({ type: "role", taskId: "" }), false);
+});
+
 test("an archive command names the thread, the engine session it mirrors into, and which way it goes", () => {
   const command = { type: "archive", taskId: "task-1", channel: "main", continuation: { provider: "codex", value: "thread-1" }, archived: true };
   assert.equal(isRunCommand(command), true);

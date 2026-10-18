@@ -230,3 +230,13 @@ test("a coordinator compacted by hand on Codex keeps its session, measured at th
   assert.deepEqual(run.command.continuation, codexSession.continuation, "the compacted session is resumed, not replaced");
   assert.equal(run.command.freshSession, undefined);
 });
+
+test("the agent process is told when a thread's role changes, the threads under a coordinator included", () => {
+  const roles = (transition: ReturnType<typeof reduce>) => transition.effects.flatMap((effect) => effect.type === "send-run-command" && effect.command.type === "role" ? [effect.command] : []);
+  const state = workspace({ threads: [task("lead"), task("worker", { parentId: "lead" })] });
+  const made = reduce(state, { type: "task.set-role", taskId: "lead", role: "coordinator" });
+  assert.deepEqual(roles(made), [{ type: "role", taskId: "lead", coordinationRole: "coordinator" }, { type: "role", taskId: "worker", coordinationRole: "member" }]);
+  assert.deepEqual(roles(reduce(made.state, { type: "task.set-role", taskId: "lead", role: "reviewer" })), [{ type: "role", taskId: "lead" }, { type: "role", taskId: "worker" }]);
+  assert.deepEqual(roles(reduce(made.state, { type: "task.rename", taskId: "lead", title: "Renamed" })), [], "nothing that leaves the role alone says anything");
+  assert.deepEqual(roles(reduce(state, { type: "task.set-role", taskId: "worker", role: "reviewer" })), [], "a role that changes no tools says nothing");
+});

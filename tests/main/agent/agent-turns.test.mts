@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { test } from "vitest";
 import { ClaudeAgentProvider } from "../../../src/main/agent/claude-agent-provider.mts";
+import { RunCoordinator } from "../../../src/main/agent/run-coordinator.mts";
+import type { AgentEvent, InternalStartRunCommand } from "../../../src/contracts/ipc.ts";
 import { reduce } from "../../../src/application/workspace-reducer.ts";
 import { emptyWorkspaceState, type WorkspaceState } from "../../../src/application/workspace-state.ts";
 import type { AgentTurn, ProviderEvent, ProviderResult } from "../../../src/main/agent/agent-provider.mts";
@@ -80,4 +82,32 @@ test("a turn the agent starts itself is taken on by the thread, and read there",
   assert.deepEqual(stranger.state, idle, "a thread that is gone takes on nothing");
   const unasked = reduce(idle, { type: "run.event", event: { type: "run.started", taskId: "task-a", runId: "run-agent", sequence: 1 } });
   assert.deepEqual(unasked.state, idle, "a run nobody opened is not taken on by itself");
+});
+
+test("a session built for what the thread was opens no turn of its own once its role changes, and does again once it is back", async () => {
+  const capture: LiveQueryCapture = { opens: 0, sent: [] };
+  const events: AgentEvent[] = [];
+  const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
+  const coordinator = new RunCoordinator(provider, (event) => events.push(event));
+  const start: InternalStartRunCommand = {
+    type: "start", channel: "main", taskId: "task-r", title: "Do the work", runId: "run-r", prompt: "do the work", workspaceId: "workspace-test",
+    workspaceRoot: "/tmp/project", projectless: false, computerUse: { status: "unavailable", message: "test" }, policy: "bypass", engine: "claude", model: "opus", effort: "high",
+  };
+  coordinator.start(start);
+  await tick();
+  capture.emit!({ type: "result", subtype: "success", is_error: false, result: "done" } as SDKMessage);
+  await tick();
+  const opened = () => events.filter((event) => event.type === "run.started" && event.agentInitiated).length;
+  const workflowSays = (id: string) => capture.emit!({ type: "assistant", uuid: id, message: { id, model: "claude-opus-5", content: [{ type: "text", text: "The workflow finished." }], usage: { input_tokens: 5 } } } as unknown as SDKMessage);
+
+  coordinator.setRole("task-r", "coordinator");
+  workflowSays("u-1");
+  await tick();
+  assert.equal(opened(), 0, "a session holding every tool never speaks for a coordinator");
+
+  coordinator.setRole("task-r", undefined);
+  workflowSays("u-2");
+  await tick();
+  assert.equal(opened(), 1);
+  provider.closeAll();
 });

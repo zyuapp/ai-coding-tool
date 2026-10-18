@@ -302,8 +302,8 @@ class AgentRunHost {
         this.send({ type: "engine.settings-reload-status", status: "failed", message: error instanceof Error ? error.message : String(error) });
         return;
       }
-      /** A stop, a label, or an archive belongs to no run, so a failure to send it has no run to report against. */
-      if (command.type === "stop-process" || command.type === "label" || command.type === "archive") return;
+      /** A stop, a label, an archive or a role belongs to no run, so a failure to send it has no run to report against. */
+      if (command.type === "stop-process" || command.type === "label" || command.type === "archive" || command.type === "role") return;
       const state = this.ledger.state(command.taskId, command.runId);
       if (!state || state.terminal) return;
       const sequence = state.lastSequence + 1;
@@ -352,6 +352,11 @@ class AgentRunHost {
       return this.postCommand(payload);
     }
     if (payload.type === "stop-process" || payload.type === "archive") return this.postCommand(payload);
+    /** Only a session the agent process holds can be built for what a thread no longer is. */
+    if (payload.type === "role") {
+      if (this.agent) this.postCommand(payload);
+      return;
+    }
     const pending = this.ledger.pendingStart(payload.taskId, payload.runId);
     if (pending && payload.type === "cancel") {
       this.ledger.takeStart(payload.taskId, payload.runId);

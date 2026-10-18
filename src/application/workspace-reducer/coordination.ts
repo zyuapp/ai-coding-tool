@@ -5,8 +5,8 @@ import { released, remoteNews, withoutLapsedStops } from "./coordination-remote.
 import { withProposalFailure } from "./proposals.js";
 import { now, rejected, settled, targetId } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { canResolve, checkoutAnswer, coordinatedThreadStatus, coordinationMembers, coordinatorWork, coordinationUpdate, decisionHeadline, decisionNote, memberWorking, nextSteps, reportHeadline, reportNote, unheardWork, withNewsQuieted, withTurnHeard, workingMembers } from "../coordination.js";
-import { activityChanges, threadActivity, threadChanges } from "../thread-activity.js";
+import { canResolve, checkoutAnswer, coordinatedThreadStatus, coordinationMembers, coordinationRole, coordinatorWork, coordinationUpdate, decisionHeadline, decisionNote, memberWorking, nextSteps, reportHeadline, reportNote, unheardWork, withNewsQuieted, withTurnHeard, workingMembers } from "../coordination.js";
+import { activityChanges, threadActivity, threadChanges, type ThreadChange } from "../thread-activity.js";
 import { cancelPause, heldByLimit } from "../limit-pauses.js";
 import { announced } from "../notices.js";
 import { updateThread, type ActiveRun } from "../thread-run-state.js";
@@ -331,7 +331,7 @@ export function reconcileCoordination(previous: WorkspaceState, transition: Work
     if (!before || !after || before.parentId !== after.parentId || before.role !== after.role || before.archivedAt !== after.archivedAt || before.coordinationNotes !== after.coordinationNotes) touched.add(id);
   }
   for (const id of remote.leads) touched.add(id);
-  const said = [...remote.effects, ...released(previous, state, threads)];
+  const said = [...remote.effects, ...released(previous, state, threads), ...roleChanges(previous, state, threads)];
   if (!touched.size) return state === transition.state && !said.length ? transition : { ...transition, state, effects: [...transition.effects, ...said] };
   const effects = [...transition.effects, ...said];
   for (const leadId of coordinatorsOf(previous, state, touched)) {
@@ -340,6 +340,26 @@ export function reconcileCoordination(previous: WorkspaceState, transition: Work
     effects.push(...delivered.effects);
   }
   return { ...transition, state, effects };
+}
+
+/**
+ * The agent process is told of each thread whose coordination role an input changed, so a session
+ * built for what the thread was never opens a turn of its own with tools the thread no longer has.
+ * A thread's role is read from it and its coordinator, so the threads under a changed one are read too.
+ */
+function roleChanges(previous: WorkspaceState, next: WorkspaceState, threads: readonly ThreadChange[]): WorkspaceEffect[] {
+  const shaped = new Set(threads.flatMap(({ id, before, after }) => before && after && (before.role !== after.role || before.archivedAt !== after.archivedAt
+    || before.parentId !== after.parentId || before.remoteLead !== after.remoteLead) ? [id] : []));
+  if (!shaped.size) return [];
+  const read = new Set([...shaped, ...next.threads.flatMap((thread) => thread.parentId !== undefined && shaped.has(thread.parentId) ? [thread.id] : [])]);
+  return [...read].flatMap((id): WorkspaceEffect[] => {
+    const before = previous.threads.find((thread) => thread.id === id);
+    const after = next.threads.find((thread) => thread.id === id);
+    if (!before || !after) return [];
+    const role = coordinationRole(next.threads, after);
+    if (coordinationRole(previous.threads, before) === role) return [];
+    return [{ type: "send-run-command", command: { type: "role", taskId: id, ...(role ? { coordinationRole: role } : {}) } }];
+  });
 }
 
 /**

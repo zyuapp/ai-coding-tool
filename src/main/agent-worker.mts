@@ -99,6 +99,7 @@ const runCommands: RunCommandHandlers = {
   "stop-process": (command) => whichever((coordinator) => coordinator.stopProcess(command.taskId, command.processId)),
   label: (command) => whichever((coordinator) => coordinator.labelThread(command.taskId, command.title)),
   archive: (command) => coordinators[command.channel].archiveThread(command.taskId, command.continuation, command.archived),
+  role: (command) => { for (const coordinator of Object.values(coordinators)) coordinator.setRole(command.taskId, command.coordinationRole); },
   approval: (command) => whichever((coordinator) => coordinator.decideApproval(command.taskId, command.runId, command.approvalId, command.allow)),
 };
 

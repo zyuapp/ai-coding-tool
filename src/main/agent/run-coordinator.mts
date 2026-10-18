@@ -6,6 +6,7 @@ import type { Continuation, SubagentReport, ToolIntent } from "../../domain/run.
 import type { AgentProvider, AgentTurn, AutomationBridge, CoordinationBridge, FindingBridge, ProviderEvent, BrowserBridge, TerminalBridge, ThreadBridge, ToolDecision } from "./agent-provider.mjs";
 import { SteerChannel } from "./steer-channel.mjs";
 import type { UsageLimit } from "../../domain/usage-limit.js";
+import type { CoordinationRole } from "../../domain/coordination.js";
 
 type PendingApproval = {
   settled: boolean;
@@ -31,6 +32,8 @@ type ActiveRun = {
   terminal: boolean;
   /** Started by the scheduler with nobody present, until somebody steers into it. */
   unattended: boolean;
+  /** What the thread ran as when its session was given this run, which decides the tools the session holds. */
+  coordinationRole?: CoordinationRole;
   approvals: Map<string, PendingApproval>;
   questions: Map<string, PendingQuestions>;
   /** Newest streamed tail, held back until the throttle window opens. */
@@ -67,6 +70,8 @@ type RunEventPayload = RunEvent extends infer Event
 export class RunCoordinator {
   /** One live run per thread; different threads run concurrently. */
   private readonly runs = new Map<string, ActiveRun>();
+  /** What each thread runs as now, as its last run started or the window last said, null for no role. */
+  private readonly roles = new Map<string, CoordinationRole | null>();
 
   constructor(
     private readonly provider: AgentProvider,
@@ -87,10 +92,12 @@ export class RunCoordinator {
       sequence: 0,
       terminal: false,
       unattended: command.unattended === true,
+      ...(command.coordinationRole ? { coordinationRole: command.coordinationRole } : {}),
       approvals: new Map(),
       questions: new Map(),
     };
     this.runs.set(command.taskId, active);
+    this.roles.set(command.taskId, command.coordinationRole ?? null);
     this.publish(active, { type: "run.started" });
     this.publish(active, { type: "run.status", status: "running" });
     void this.execute(active, command);
@@ -118,6 +125,11 @@ export class RunCoordinator {
    */
   stopProcess(taskId: string, processId: string) {
     return this.provider.stopProcess(taskId, processId);
+  }
+
+  /** The thread runs as something else now, so a session built for what it was opens no turn of its own. */
+  setRole(taskId: string, role: CoordinationRole | undefined) {
+    this.roles.set(taskId, role ?? null);
   }
 
   labelThread(taskId: string, title: string) {
@@ -240,6 +252,8 @@ export class RunCoordinator {
    */
   private beginAgentTurn(seed: ActiveRun): AgentTurn | null {
     if (this.runs.has(seed.taskId)) return null;
+    /** Its session holds the tools of what the thread was, which are not the thread's any more. */
+    if ((this.roles.get(seed.taskId) ?? null) !== (seed.coordinationRole ?? null)) return null;
     const active: ActiveRun = {
       taskId: seed.taskId,
       runId: randomUUID(),
@@ -250,6 +264,7 @@ export class RunCoordinator {
       sequence: 0,
       terminal: false,
       unattended: false,
+      ...(seed.coordinationRole ? { coordinationRole: seed.coordinationRole } : {}),
       approvals: new Map(),
       questions: new Map(),
     };

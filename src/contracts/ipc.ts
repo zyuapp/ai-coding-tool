@@ -180,7 +180,13 @@ export type LabelThreadCommand = { type: "label"; taskId: string; title: string 
  */
 export type ArchiveThreadCommand = { type: "archive"; taskId: string; channel: RunChannel; continuation?: Continuation; archived: boolean };
 
-export type RunCommand = ReloadAgentSettingsCommand | StartRunCommand | CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand | ArchiveThreadCommand;
+/**
+ * What a thread runs as now, said whenever that changes. A session built for what the thread was
+ * holds that role's tools, so it opens no turn of its own; the thread's next run starts one that fits.
+ */
+export type ThreadRoleCommand = { type: "role"; taskId: string; coordinationRole?: CoordinationRole };
+
+export type RunCommand = ReloadAgentSettingsCommand | StartRunCommand | CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand | ArchiveThreadCommand | ThreadRoleCommand;
 
 /** The same commands as the agent process reads them: a start arrives already resolved against its workspace. */
 export type InternalRunCommand = Exclude<RunCommand, StartRunCommand> | InternalStartRunCommand;
@@ -651,6 +657,7 @@ export function isRunCommand(value: unknown): value is RunCommand {
   if (command.type === "stop-process") return isString(command.taskId) && isString(command.processId);
   if (command.type === "label") return isString(command.taskId) && isString(command.title, MAX_TITLE_LENGTH);
   if (command.type === "archive") return isString(command.taskId) && isRunChannel(command.channel) && (command.continuation === undefined || isContinuation(command.continuation)) && typeof command.archived === "boolean";
+  if (command.type === "role") return isString(command.taskId) && (command.coordinationRole === undefined || command.coordinationRole === "coordinator" || command.coordinationRole === "member");
   return false;
 }
 
