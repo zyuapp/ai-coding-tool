@@ -1,5 +1,5 @@
 import type { PairedComputer } from "../application/computers.js";
-import { findThread, resolveScope, threadSummaries, threadSummary, threadTranscript } from "../application/thread-projection.js";
+import { preferLive, resolveScope, threadMatches, threadSummaries, threadSummary, threadTranscript } from "../application/thread-projection.js";
 import type { WorkspaceState } from "../application/workspace-state.js";
 import { isThreadSummary, isThreadTranscript } from "../contracts/thread-results.js";
 import type { ThreadListQuery, ThreadRequest, ThreadSummary, ThreadTranscript } from "../contracts/threads.js";
@@ -7,6 +7,7 @@ import { isComputerQuery, type ComputerThreadQuery } from "../contracts/computer
 import type { ComputerDesktop } from "./runtime-desktop.js";
 import { matchingProjects } from "../domain/project.js";
 import { awayStatus } from "../domain/computers.js";
+import type { Thread } from "../domain/thread.js";
 
 type ReadHost = { state(): WorkspaceState; desktop: Pick<ComputerDesktop, "queryComputerThreads"> };
 
@@ -116,26 +117,38 @@ export async function listAcrossComputers(host: ReadHost, caller: string, query:
   return query.limit === undefined ? combined : combined.slice(0, Math.max(0, query.limit));
 }
 
-/** The same resolution runs before loading history, so a remote read never loads local messages. */
+/** As many of the threads a loose reference matches as a refusal names. */
+const NAMED_CANDIDATES = 5;
+
+/**
+ * The same resolution runs before loading history, so a remote read never loads local messages. A
+ * reference matching more than one thread, here or across computers, is refused rather than guessed.
+ */
 export function resolveThreadRead(state: WorkspaceState, reference: string, selected = "all") {
   const scope = computers(state, selected);
   const sources = [
     ...(scope.local ? [{ state, computer: null }] : []),
     ...scope.paired.flatMap((computer) => computer.state ? [{ state: computer.state, computer }] : []),
   ];
-  const matches = sources.flatMap((source) => {
-    const thread = findThread(source.state, reference);
-    return thread ? [{ ...source, thread }] : [];
-  });
+  const matches = sources.flatMap((source) => threadMatches(source.state, reference).map((thread) => ({ ...source, thread })));
   const exact = matches.filter(({ thread }) => thread.id.toLowerCase() === reference.trim().toLowerCase());
-  const candidates = exact.length ? exact : matches;
-  if (candidates.length > 1) throw new Error(`More than one computer has a thread matching ${reference}: ${candidates.map(({ computer, thread }) => `${thread.id} on ${computer ? `${computer.name} [${computer.id}]` : "this computer"}`).join(", ")}. Use the full thread ID.`);
+  const candidates = preferLive(exact.length ? exact : matches, ({ thread }) => thread);
+  if (candidates.length > 1) throw new Error(ambiguous(reference, candidates));
   const match = candidates[0];
   if (!match) {
     const missing = scope.paired.filter((computer) => !computer.state || computer.status !== "connected");
     throw new Error(`No thread has the ID ${reference}.${missing.length ? ` ${missing.map((computer) => computer.name).join(", ")} ${missing.length === 1 ? "is" : "are"} not connected, so newer threads there may be missing.` : ""}`);
   }
   return match;
+}
+
+function ambiguous(reference: string, candidates: readonly { computer: PairedComputer | null; thread: Thread }[]) {
+  const places = new Set(candidates.map(({ computer }) => computer?.id ?? null));
+  const only = places.size === 1 ? candidates[0]!.computer : undefined;
+  const named = candidates.slice(0, NAMED_CANDIDATES).map(({ computer, thread }) => `${thread.id} "${thread.title}"${places.size > 1 ? ` on ${computer ? `${computer.name} [${computer.id}]` : "this computer"}` : ""}`);
+  const more = candidates.length - named.length;
+  const which = places.size > 1 ? `More than one computer has a thread matching ${reference}` : `More than one thread${only ? ` on ${only.name}` : ""} matches ${reference}`;
+  return `${which}: ${named.join(", ")}${more ? `, and ${more} more` : ""}. Use the full thread ID.`;
 }
 
 /** Resolve across the paired indexes, then ask only the owning computer for the transcript. */

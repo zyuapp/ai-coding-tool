@@ -91,6 +91,19 @@ test("moving another thread by id is immediate, and one that is running refuses 
   assert.equal(refused.ok, false);
 });
 
+test("a title or id prefix two threads here share is refused, naming both, rather than acting on the newer", async () => {
+  const state = fixture();
+  state.threads = [...state.threads, task("other-2", { title: "Invoices", projectId: PROJECT.id, updatedAt: 99 })];
+  const { host } = desktop(state);
+  for (const reference of ["Invoices", "oth"]) {
+    const refused = await answerThreadRequest(host, move({ type: "task.archive", taskId: reference }));
+    assert.equal(refused.ok ? "" : refused.message, `More than one thread matches ${reference}: other "Invoices", other-2 "Invoices". Use the full thread ID.`);
+  }
+  assert.ok(host.state().threads.every((item) => item.archivedAt === undefined), "nothing was archived on a guess");
+  assert.equal((await answer(host, move({ type: "task.archive", taskId: "other" }))).thread?.id, "other", "the full ID names one");
+  assert.equal((await answer(host, move({ type: "task.set-role", taskId: "Invoices", role: "reviewer" }))).thread?.id, "other-2", "an archived thread never stands in a live one's way");
+});
+
 test("a move waiting on the run is checked again when the run ends, and taken back by asking to stay", () => {
   const command = { type: "task.move-worktree", taskId: "caller", destination: toWt2, afterRun: true } as const;
   const end = { type: "run.event", event: { type: "run.status", taskId: "caller", runId: "run-1", sequence: 1, status: "cancelled" } } as const;

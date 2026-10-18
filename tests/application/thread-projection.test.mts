@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { findThread, resolveScope, threadHandleOptions, threadSummaries, threadTranscript, threadWaitResult } from "../../src/application/thread-projection.ts";
+import { findThread, resolveScope, threadMatches, threadHandleOptions, threadSummaries, threadTranscript, threadWaitResult } from "../../src/application/thread-projection.ts";
 import { emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { ThreadFilter } from "../../src/contracts/threads.ts";
 import type { ConversationMessage } from "../../src/domain/conversation.ts";
@@ -280,30 +280,35 @@ test("thread options keep first-match project and busy semantics while sharing t
   assert.equal(options.find((option) => option.id === "resolving")!.running, true);
 });
 
-test("a thread answers to its id, an id prefix, or its title, and the newest wins a tie", () => {
+test("a thread answers to its id, an id prefix, or its title, and to nothing that names two", () => {
   const state = workspace([
     task("t-9f2c00", { title: "Sink the mode choices", runEndedAt: NOW - HOUR }),
     task("t-3a1100", { title: "Sink the mode choices", runEndedAt: NOW }),
+    task("t-3a2200", { title: "Mode picker", runEndedAt: NOW }),
   ]);
 
   assert.equal(findThread(state, "t-9f2c00")?.id, "t-9f2c00");
   assert.equal(findThread(state, "t-9f2c")?.id, "t-9f2c00");
-  assert.equal(findThread(state, "Sink the mode choices")?.id, "t-3a1100");
-  assert.equal(findThread(state, "sink the mode choices")?.id, "t-3a1100");
+  assert.equal(findThread(state, "mode picker")?.id, "t-3a2200");
+  assert.equal(findThread(state, "Sink the mode choices"), null, "two threads share the title, so neither is guessed");
+  assert.equal(findThread(state, "t-3a"), null, "two ids share the prefix");
+  assert.deepEqual(threadMatches(state, "sink the mode choices").map((thread) => thread.id), ["t-9f2c00", "t-3a1100"]);
   assert.equal(findThread(state, "nothing at all"), null);
   assert.equal(findThread(state, "  "), null);
-  assert.equal(threadTranscript(state, "Sink the mode choices")?.thread.id, "t-3a1100");
+  assert.equal(threadTranscript(state, "Sink the mode choices"), null);
 });
 
-test("a title outranks a newer id prefix, and activity ties keep task order", () => {
+test("an id outranks a title and a title an id prefix, and an archived thread never stands in a live one's way", () => {
   const state = workspace([
     task("topic-newest-prefix", { title: "Something else", runEndedAt: NOW + HOUR }),
     task("title-first", { title: "Topic", runEndedAt: NOW }),
-    task("title-second", { title: " topic ", runEndedAt: NOW }),
-    task("prefix-first", { runEndedAt: NOW }),
+    task("title-second", { title: " topic ", runEndedAt: NOW, archivedAt: NOW }),
+    task("prefix-first", { title: "prefix-second", runEndedAt: NOW }),
     task("prefix-second", { runEndedAt: NOW }),
   ]);
 
-  assert.equal(findThread(state, "topic")?.id, "title-first");
-  assert.equal(findThread(state, "prefix-")?.id, "prefix-first");
+  assert.equal(findThread(state, "topic")?.id, "title-first", "a title beats a newer id prefix, and the live thread beats the archived one");
+  assert.equal(findThread(state, "title-second")?.id, "title-second", "an archived thread still answers to its id");
+  assert.equal(findThread(state, "prefix-second")?.id, "prefix-second", "an id beats another thread's title");
+  assert.equal(findThread(state, "prefix-"), null);
 });

@@ -145,23 +145,38 @@ export function threadHandleOptions(state: WorkspaceState, draftKey: string): Th
     }));
 }
 
-/** The thread a reference names: its id, an unambiguous id prefix, or its title. Newest wins. */
-export function findThread(state: WorkspaceState, reference: string): Thread | null {
+/**
+ * The threads a reference could mean: the one whose id it is, else every thread it is the title of,
+ * else every thread whose id it begins. More than one is a reference too loose to act on.
+ */
+export function threadMatches(state: WorkspaceState, reference: string): Thread[] {
   const wanted = reference.trim().toLowerCase();
-  if (!wanted) return null;
-  let title: { thread: Thread; activity: number } | null = null;
-  let prefix: { thread: Thread; activity: number } | null = null;
+  if (!wanted) return [];
+  const titled: Thread[] = [];
+  const prefixed: Thread[] = [];
   for (const thread of state.threads) {
     const id = thread.id.toLowerCase();
-    if (id === wanted) return thread;
-    const titleMatches = thread.title.trim().toLowerCase() === wanted;
-    const prefixMatches = id.startsWith(wanted);
-    if (!titleMatches && !prefixMatches) continue;
-    const activity = threadActivityAt(thread);
-    if (titleMatches && (!title || activity > title.activity)) title = { thread, activity };
-    if (prefixMatches && (!prefix || activity > prefix.activity)) prefix = { thread, activity };
+    if (id === wanted) return [thread];
+    if (thread.title.trim().toLowerCase() === wanted) titled.push(thread);
+    else if (id.startsWith(wanted)) prefixed.push(thread);
   }
-  return title?.thread ?? prefix?.thread ?? null;
+  return titled.length ? titled : prefixed;
+}
+
+/**
+ * Of several matches, the ones still in use: an archived thread is named by its full id, so it never
+ * stands in the way of a live one sharing its title or prefix.
+ */
+export function preferLive<Match>(matches: readonly Match[], thread: (match: Match) => Thread): readonly Match[] {
+  if (matches.length < 2) return matches;
+  const live = matches.filter((match) => thread(match).archivedAt === undefined);
+  return live.length ? live : matches;
+}
+
+/** The thread a reference names: its id, or the one thread it is the title or an id prefix of. */
+export function findThread(state: WorkspaceState, reference: string): Thread | null {
+  const matches = preferLive(threadMatches(state, reference), (thread) => thread);
+  return matches.length === 1 ? matches[0]! : null;
 }
 
 /** Where a message came from, in the words every surface shows. */
