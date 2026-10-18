@@ -158,6 +158,21 @@ test("a thread here never makes one in a worktree on a paired computer a coordin
   assert.deepEqual(older.linux.inputs.map((input) => "sender" in input), [false], "a build that cannot hear who asked is sent the role unsigned");
 });
 
+test("a thread here never takes the role off a coordinator on a paired computer, even one the mirror has yet to show leads", async () => {
+  const lead = (state: WorkspaceState) => ({ ...state, threads: state.threads.map((item) => ({ ...item, role: "coordinator" as const })) });
+  const shown = pair();
+  shown.linux.set(lead(shown.linux.state()));
+  await shown.mirror();
+  assert.equal(await refusal(shown.host, command({ type: "task.set-role", taskId: "remote-id", role: null })), "A coordinator keeps its role until the user changes it from the thread menu.");
+  assert.equal(shown.linux.inputs.length, 0);
+
+  const unseen = pair();
+  unseen.linux.set(lead(unseen.linux.state()));
+  assert.equal(await refusal(unseen.host, command({ type: "task.set-role", taskId: "remote-id", role: "reviewer" })), "A coordinator keeps its role until the user changes it from the thread menu.");
+  assert.deepEqual(unseen.linux.inputs, [{ type: "task.set-role", taskId: "remote-id", role: "reviewer", sender: { threadId: "caller", title: "Planner", computer: "Mac" } }]);
+  assert.equal(unseen.linux.state().threads[0].role, "coordinator", "that computer refuses it too");
+});
+
 test("a thread starts on a paired computer in the project at the same path, inheriting the caller's model", async () => {
   const { host, linux } = pair();
   const { thread } = await answer<ThreadCommandResult>(host, command({ type: "task.send", text: "Run the GPU tests" }, "Linux"));

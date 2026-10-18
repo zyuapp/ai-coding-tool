@@ -234,7 +234,7 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
   }),
   defineTool({
     name: "set_thread_role",
-    description: "Give a thread its part beside the others, or take it off. The role shows on the thread's row and in list_threads. A coordinator changes no files itself and delegates to threads it starts; the other roles change nothing about what the thread may do.",
+    description: "Give a thread its part beside the others, or take it off. The role shows on the thread's row and in list_threads. A coordinator changes no files itself and delegates to threads it starts, and keeps its role until the user changes it; the other roles change nothing about what the thread may do.",
     input: {
       threadId: threadIdField,
       role: z.enum(roleIds as [ThreadRole, ...ThreadRole[]]).nullable().describe("coordinator, implementer, reviewer, or researcher. null takes the role off."),

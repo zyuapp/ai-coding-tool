@@ -176,6 +176,24 @@ test("no thread makes one in a worktree a coordinator, while the user still can"
   assert.equal(isExternalCommand({ type: "task.set-role", taskId: "other", role: "coordinator", sender: { threadId: "lead", title: "Lead", computer: "Linux" } }), false, "no agent names a thread elsewhere as the one that asked");
 });
 
+test("no thread takes a coordinator's role away, its own or its member's asking, while the coordinator still gives its members roles and the user still changes its own", async () => {
+  const state = fixture();
+  state.threads = state.threads.map((item) => item.id === "caller" ? { ...item, role: "coordinator" as const } : { ...item, parentId: "caller" });
+  const { host } = desktop(state);
+  const asked = (taskId: string, threadId: string, role: "reviewer" | null): ThreadRequest => ({ type: "thread.request", requestId: "r1", taskId, op: "command", command: { type: "task.set-role", taskId: threadId, role } });
+  for (const request of [asked("caller", "caller", null), asked("caller", "caller", "reviewer"), asked("other", "caller", null), asked("other", "Planner", "reviewer")]) {
+    const refused = await answerThreadRequest(host, request);
+    assert.equal(refused.ok ? "" : refused.message, "A coordinator keeps its role until the user changes it from the thread menu.");
+  }
+  assert.equal(host.state().threads[0].role, "coordinator");
+  assert.equal((await answer(host, asked("caller", "other", "reviewer"))).thread?.role, "reviewer", "a coordinator still gives its members roles");
+
+  const signed = reduce(state, { type: "task.set-role", taskId: "caller", role: null, sender: { threadId: "lead", title: "Lead", computer: "Linux" } });
+  assert.equal(signed.result?.ok, false, "nor does a thread on another computer");
+  assert.equal(signed.state.threads[0].role, "coordinator");
+  assert.equal(reduce(state, { type: "task.set-role", taskId: "caller", role: null }).state.threads[0].role, undefined, "the thread menu still takes it off");
+});
+
 test("a move a thread asked for before it became a coordinator does not happen when its run ends", () => {
   const waiting = reduce(fixture(), { type: "task.move-worktree", taskId: "caller", destination: { kind: "new" }, afterRun: true }).state;
   const leading = { ...waiting, threads: waiting.threads.map((item) => item.id === "caller" ? { ...item, role: "coordinator" as const } : item) };

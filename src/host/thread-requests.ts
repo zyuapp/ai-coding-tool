@@ -175,6 +175,10 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
     if (named.type === "task.move-worktree" && named.destination.kind !== "local" && isCoordinator(subject)) {
       return failed(WORKSPACE_ERRORS.worktreeCoordinator);
     }
+    /** Nor does any thread take a coordinator's role away, its own or another's, which would hand it back the tools that change things. */
+    if (named.type === "task.set-role" && named.role !== "coordinator" && subject?.role === "coordinator") {
+      return failed(WORKSPACE_ERRORS.coordinatorRole);
+    }
     if (named.type === "task.set-role" && named.role === "coordinator" && subject && (subject.worktreeId !== undefined || !target?.computer && before.creatingWorktrees.includes(subject.id))) {
       return failed(WORKSPACE_ERRORS.worktreeCoordinatorRole);
     }

@@ -7,7 +7,7 @@ import { closeSideChats } from "./side-chats.js";
 import { discardedLeads } from "./coordination-remote.js";
 import { cancellingRun, fileThread } from "./run-queue.js";
 import { followUps, now, rejected, settled, targetId } from "./shared.js";
-import { WORKTREE_COORDINATOR_ROLE_ERROR } from "./errors.js";
+import { COORDINATOR_ROLE_ERROR, WORKTREE_COORDINATOR_ROLE_ERROR } from "./errors.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import type { AppCommand } from "../../contracts/commands.js";
 import { focusComposer } from "../composer-drafts.js";
@@ -245,7 +245,11 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
       const thread = taskId ? state.threads.find((item) => item.id === taskId) : undefined;
       if (!thread) return settled(input.taskId === undefined ? { ...state, draftRole: input.role } : state);
       if ((thread.role ?? null) === input.role) return settled(state);
-      /** A thread on another computer never makes one in a worktree a coordinator, as none here does; the user still can. */
+      /**
+       * A thread on another computer never takes a coordinator's role away, nor makes one in a worktree
+       * a coordinator, as none here does; the user still can.
+       */
+      if (input.sender && thread.role === "coordinator") return rejected(state, COORDINATOR_ROLE_ERROR);
       if (input.sender && input.role === "coordinator" && (thread.worktreeId !== undefined || state.creatingWorktrees.includes(thread.id))) return rejected(state, WORKTREE_COORDINATOR_ROLE_ERROR);
       /**
        * A thread becoming a coordinator starts its threads on what it runs on itself, until the user
