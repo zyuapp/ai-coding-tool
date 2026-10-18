@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MAX_PROMPT_LENGTH, MAX_THREAD_WAIT_MS } from "../../contracts/ipc.js";
+import { MAX_ID_LENGTH, MAX_PROMPT_LENGTH, MAX_SEARCH_TEXT, MAX_THREAD_WAIT_MS } from "../../contracts/ipc.js";
 import type { ThreadSummary, ThreadTranscript } from "../../contracts/threads.js";
 import { AGENT_ENGINES, isAgentEffort, isAgentModel, modelDelegable, modelsFor, type AgentModel } from "../../domain/agent-engine.js";
 import type { AgentEffort } from "../../domain/run.js";
@@ -16,9 +16,13 @@ export type ThreadToolContext = { bridge: ThreadBridge; now: () => number };
 const MINUTE = 60_000;
 const DEFAULT_WAIT_MS = 5 * MINUTE;
 
-const threadIdField = z.string().describe("The thread's known ID, an unambiguous prefix of it, or its exact title, on this computer or a paired one. Use list_threads only if you need to discover the target.");
+/**
+ * Every field is held to the limit the window reads it under, so one it would refuse is refused here,
+ * on its own field, rather than unnamed where the window reads the request.
+ */
+const threadIdField = z.string().min(1).max(MAX_ID_LENGTH).describe("The thread's known ID, an unambiguous prefix of it, or its exact title, on this computer or a paired one. Use list_threads only if you need to discover the target.");
 
-const projectField = z.string().optional().describe(
+const projectField = z.string().min(1).max(MAX_PROPOSAL_PROJECT).optional().describe(
   "\"current\" (the default) for the project this thread belongs to, \"all\" for every project, or a project named by its folder name or its path.",
 );
 
@@ -154,13 +158,13 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
     name: "list_threads",
     description: "List the other AICodingTool threads, newest activity first. Set computer to \"all\" to include paired computers. Use when the user asks what else is going on, points at recent or related work, or describes threads by age rather than by name.",
     input: {
-      computer: z.string().optional().describe('"this" (the default), "all" paired computers and this one, or a paired computer named by its name or ID. With "all" or a paired computer selected, project defaults to "all". Remote rows include their computer and whether it is offline.'),
+      computer: z.string().min(1).max(MAX_PROPOSAL_COMPUTER).optional().describe('"this" (the default), "all" paired computers and this one, or a paired computer named by its name or ID. With "all" or a paired computer selected, project defaults to "all". Remote rows include their computer and whether it is offline.'),
       project: projectField,
       archived: z.boolean().optional().describe("List archived threads instead of active ones."),
-      idleMinutes: z.number().optional().describe("Only threads that have done nothing for at least this many minutes."),
-      search: z.string().optional().describe("Only threads whose title or messages contain this text."),
+      idleMinutes: z.number().nonnegative().optional().describe("Only threads that have done nothing for at least this many minutes."),
+      search: z.string().min(1).max(MAX_SEARCH_TEXT).optional().describe("Only threads whose title or messages contain this text."),
       hasImages: z.boolean().optional().describe("Only threads where a message carries an image."),
-      limit: z.number().optional().describe("How many threads to return. Defaults to 20."),
+      limit: z.number().nonnegative().optional().describe("How many threads to return. Defaults to 20."),
     },
     readOnly: true,
     run: ({ bridge, now }, args) => report(async () => {
@@ -182,8 +186,8 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
     description: "Read another thread's transcript, including threads on paired computers. Use a known ID directly, including one supplied in app context or an aicodingtool://thread/<id> link. The app resolves its computer automatically. Use list_threads first only when the target is unknown.",
     input: {
       threadId: threadIdField,
-      computer: z.string().optional().describe('Optional computer name or ID, or "this" for local threads. Omit to resolve the thread across this computer and paired computers. Use to disambiguate matching threads.'),
-      limit: z.number().optional().describe("How many of the newest messages to read. Defaults to 30."),
+      computer: z.string().min(1).max(MAX_PROPOSAL_COMPUTER).optional().describe('Optional computer name or ID, or "this" for local threads. Omit to resolve the thread across this computer and paired computers. Use to disambiguate matching threads.'),
+      limit: z.number().nonnegative().optional().describe("How many of the newest messages to read. Defaults to 30."),
     },
     readOnly: true,
     run: ({ bridge, now }, args) => report(async () => transcriptText(await bridge.read(args.threadId, args.limit, args.computer), now())),
@@ -219,7 +223,7 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
     input: {
       threadId: threadIdField,
       /** A blank message is refused here rather than answered as sent, since nothing would reach the thread. */
-      text: z.string().trim().min(1).describe("The message to send."),
+      text: z.string().trim().min(1).max(MAX_PROMPT_LENGTH).describe("The message to send."),
     },
     readOnly: false,
     /** A message from another thread is meant for the work in hand, so it joins the run rather than waiting behind it as a run of its own. */
@@ -255,7 +259,7 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
     name: "move_to_worktree",
     description: "Move a thread into a new worktree, one the project already has, or back to the project checkout, as the thread menu's Move to worktree does. This is how a thread works in a worktree: use it whenever the user asks for one, never git worktree, so the app knows where the thread works. File changes already made stay in the old checkout. Moving this thread waits for this turn to end, and its next turn starts in the new checkout. Another thread must not be running.",
     input: {
-      threadId: z.string().optional().describe("The thread to move: its ID, an unambiguous prefix of it, or its exact title. Omit to move this thread."),
+      threadId: z.string().max(MAX_ID_LENGTH).optional().describe("The thread to move: its ID, an unambiguous prefix of it, or its exact title. Omit to move this thread."),
       worktreeId: z.string().nullable().describe('"new" for a new worktree, the ID of one list_threads reports, or null for the project checkout.'),
     },
     readOnly: false,
@@ -272,7 +276,7 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
   defineTool({
     name: "delete_worktree",
     description: "Delete a worktree the app made, by the id list_threads reports. Uncommitted work is committed first so it stays recoverable, then the folder is removed; git-ignored files are lost. Every thread in it moves back to the project checkout. Refused while any of those threads is running. Only delete when the user asked for it, such as cleaning up after coordinated work is done.",
-    input: { worktreeId: z.string().describe("The worktree's ID, as list_threads reports it.") },
+    input: { worktreeId: z.string().min(1).max(MAX_ID_LENGTH).describe("The worktree's ID, as list_threads reports it.") },
     readOnly: false,
     run: ({ bridge }, args) => report(async () => {
       const { notice } = await bridge.command({ type: "worktree.delete", worktreeId: args.worktreeId });

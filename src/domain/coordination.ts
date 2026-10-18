@@ -90,6 +90,8 @@ const MAX_NOTES = 50;
 export const MAX_PURPOSE = 200;
 export const MAX_MEMORY_NOTE = 500;
 export const MAX_MEMORY_NOTES = 30;
+/** The longest id a memory note is named by when a coordinator forgets it. */
+export const MAX_MEMORY_NOTE_ID = 200;
 export const MAX_PROPOSALS = 12;
 export const MAX_PROPOSAL_TITLE = 120;
 export const MAX_PROPOSAL_PROJECT = 4_096;
@@ -635,8 +637,8 @@ export function isMemoryChange(value: unknown): value is MemoryChange {
   switch (value.kind) {
     case "purpose": return value.purpose === null || typeof value.purpose === "string" && value.purpose.length <= MAX_PURPOSE;
     case "remember": return text(value.text, MAX_MEMORY_NOTE);
-    case "edit": return text(value.noteId, 200) && text(value.text, MAX_MEMORY_NOTE);
-    case "forget": return text(value.noteId, 200);
+    case "edit": return text(value.noteId, MAX_MEMORY_NOTE_ID) && text(value.text, MAX_MEMORY_NOTE);
+    case "forget": return text(value.noteId, MAX_MEMORY_NOTE_ID);
     default: return false;
   }
 }

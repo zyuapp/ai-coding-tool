@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_ID_LENGTH, MAX_SEARCH_TEXT } from "../../contracts/ipc.js";
 import type { TerminalReadResult } from "../../contracts/threads.js";
 import { describeTerminal, DEFAULT_TERMINAL_LINES, MAX_TERMINAL_LINES, type TerminalSnapshot } from "../../domain/terminal.js";
 import type { TerminalBridge } from "../agent/agent-provider.mjs";
@@ -6,7 +7,7 @@ import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mj
 
 export const TERMINAL_SERVER_NAME = "aicodingtool-terminal";
 
-const terminalField = z.string().optional().describe("Which terminal to read. Defaults to the one this thread opened, else the one on screen.");
+const terminalField = z.string().max(MAX_ID_LENGTH).optional().describe("Which terminal to read. Defaults to the one this thread opened, else the one on screen.");
 
 function snapshotText(snapshot: TerminalSnapshot) {
   const state = snapshot.status === "running"
@@ -54,8 +55,8 @@ export const TERMINAL_TOOLS: readonly ToolDefinition<TerminalBridge>[] = [
     ].join(" "),
     input: {
       terminalId: terminalField,
-      lines: z.number().optional().describe(`How many of the newest lines to return. Defaults to ${DEFAULT_TERMINAL_LINES}, and never exceeds ${MAX_TERMINAL_LINES}.`),
-      match: z.string().optional().describe("Keep only lines containing this text, case-insensitively."),
+      lines: z.number().nonnegative().optional().describe(`How many of the newest lines to return. Defaults to ${DEFAULT_TERMINAL_LINES}, and never exceeds ${MAX_TERMINAL_LINES}.`),
+      match: z.string().max(MAX_SEARCH_TEXT).optional().describe("Keep only lines containing this text, case-insensitively."),
     },
     readOnly: true,
     run: (bridge, args) => report(async () => readText(await bridge.read({

@@ -59,7 +59,7 @@ export const FINDING_TOOLS: readonly ToolDefinition<FindingBridge>[] = [
     name: "notify",
     description: "Surface this scheduled run to the user, saying what you found. Call it the moment you find something, not at the end: a run that is stopped afterwards keeps what it already raised. Call it once per finding; they accumulate. Nothing later retracts it, and a quiet run that never calls it settles without reaching anyone.",
     input: {
-      headline: z.string().max(MAX_HEADLINE).describe("One line naming what you found. It is what the user reads in the sidebar, so write the finding itself rather than that you looked."),
+      headline: z.string().min(1).max(MAX_HEADLINE).describe("One line naming what you found. It is what the user reads in the sidebar, so write the finding itself rather than that you looked."),
       detail: z.string().max(MAX_DETAIL).optional().describe("The finding in full, in plain text: it lands in the thread under the headline, as written."),
       key: z.string().min(1).max(MAX_FINDING_KEY).optional().describe("What this finding is about, worded the same way on every run, so the same one is not raised twice while the user has yet to read it."),
     },
@@ -76,7 +76,7 @@ export const FINDING_TOOLS: readonly ToolDefinition<FindingBridge>[] = [
   defineTool({
     name: "nothing_to_report",
     description: "Say this run looked and found nothing worth surfacing, which is the only thing that lets a quiet scheduled run settle without disturbing the user. Say nothing at all and the run surfaces as an ordinary one, which is what a run that could not do its job should do.",
-    input: { checked: z.string().max(MAX_HEADLINE).describe("What you actually checked, in a few words. A run that could not check what it came for has something to report, not nothing.") },
+    input: { checked: z.string().min(1).max(MAX_HEADLINE).describe("What you actually checked, in a few words. A run that could not check what it came for has something to report, not nothing.") },
     readOnly: false,
     run: (bridge, args) => report(async () => (await bridge.nothingToReport(args.checked)).note),
   }),

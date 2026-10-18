@@ -548,7 +548,12 @@ export type ThreadEvent = WorkflowEvent | BackgroundEvent | SubagentEvent | Goal
 /** Everything the agent process pushes back, on one channel so a workflow cannot overtake its own run. */
 export type AgentEvent = RunEvent | ThreadEvent | AgentSettingsReloadEvent;
 
-const MAX_ID_LENGTH = 256;
+/** The longest id a request names a thread, a tab, a terminal or a worktree by, which the tools that send one hold their fields to. */
+export const MAX_ID_LENGTH = 256;
+/** The longest address a run may open in the browser panel. */
+export const MAX_URL_LENGTH = 8_192;
+/** The longest text a read looks for: a thread search, a terminal match, or what a browser wait watches for. */
+export const MAX_SEARCH_TEXT = 1_000;
 /** A wait holds a tool call open, so it is bounded rather than left to the caller. */
 export const MAX_THREAD_WAIT_MS = 15 * 60 * 1_000;
 /** A page read waits for the tab to settle, which a slow site must not stretch without limit. */
@@ -729,7 +734,7 @@ export function isBrowserRead(value: unknown): value is BrowserRead {
     const condition = String(read.condition), needsValue = condition !== "network-idle";
     return tabbed
       && ["text", "text-gone", "element", "element-gone", "url", "network-idle"].includes(condition)
-      && (!needsValue && read.value === undefined || needsValue && isString(read.value, 1_000))
+      && (!needsValue && read.value === undefined || needsValue && isString(read.value, MAX_SEARCH_TEXT))
       && isCount(read.timeoutMs) && read.timeoutMs <= MAX_BROWSER_WAIT_MS;
   }
   if (read.op !== "snapshot" && read.op !== "screenshot") return false;
@@ -745,7 +750,7 @@ export function isTerminalRead(value: unknown): value is TerminalRead {
   if (read.op !== "snapshot") return false;
   return (read.terminalId === undefined || isString(read.terminalId))
     && (read.lines === undefined || isCount(read.lines))
-    && (read.match === undefined || isString(read.match, 1_000));
+    && (read.match === undefined || isString(read.match, MAX_SEARCH_TEXT));
 }
 
 /**

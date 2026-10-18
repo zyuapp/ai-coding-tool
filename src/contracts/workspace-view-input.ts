@@ -2,9 +2,9 @@ import type { AppCommand } from "./commands.js";
 import { isTerminalDimension, MAX_TERMINAL_INPUT } from "./terminal.js";
 import { isSnoozeHours } from "../domain/thread-snooze.js";
 import { isThreadRole } from "../domain/thread-role.js";
-import { isNextStep, isOverviewSection, isThreadBrief, MAX_MEMORY_PROMPT, MAX_PROPOSAL_TITLE, type RemoteLead } from "../domain/coordination.js";
+import { isNextStep, isOverviewSection, isThreadBrief, MAX_MEMORY_PROMPT, MAX_PROPOSAL_PROJECT, MAX_PROPOSAL_TITLE, MAX_PROPOSAL_WORKTREE_ID, type RemoteLead } from "../domain/coordination.js";
 import type { WorkspaceEvent } from "../application/workspace-reducer.js";
-import { isBrowserAction, isString, MAX_PROMPT_LENGTH } from "./ipc.js";
+import { isBrowserAction, isString, MAX_PROMPT_LENGTH, MAX_URL_LENGTH } from "./ipc.js";
 import type { ExternalCommand } from "./threads.js";
 import { isAgentEffort, isAgentEngine, isAgentModel } from "../domain/agent-engine.js";
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft } from "../domain/automation.js";
@@ -137,12 +137,15 @@ function namesThread(command: { taskId?: string }): boolean {
   return isString(command.taskId);
 }
 
+/** Where a thread starts is held to what a suggestion's place is, since a thread started from one starts the same way. */
 function agentSend(command: Extract<AppCommand, { type: "task.send" }>): boolean {
-  return agentId(command.taskId) && agentId(command.project)
+  return agentId(command.taskId)
+    /** A project is named by its folder name, its path, or its id. */
+    && (command.project === undefined || isString(command.project, MAX_PROPOSAL_PROJECT))
     /** An agent's send carries only its text, so a blank one would be answered as sent with nothing sent. */
     && isString(command.text, MAX_PROMPT_LENGTH) && command.text.trim().length > 0
     /** An id, never a path: the reducer resolves it against the checkouts the app itself made. */
-    && agentId(command.worktreeId)
+    && (command.worktreeId === undefined || isString(command.worktreeId, MAX_PROPOSAL_WORKTREE_ID))
     && sendStaysInReach(command, "agent");
 }
 
@@ -158,8 +161,6 @@ function deletesWorktreeById(command: Extract<AppCommand, { type: "worktree.dele
 function movesToCheckout(command: Extract<AppCommand, { type: "task.move-worktree" }>): boolean {
   return agentId(command.taskId) && command.afterRun === undefined;
 }
-
-const MAX_URL_LENGTH = 8_192;
 
 /** A run drives the browser as itself, so every browser command names the thread that asked. */
 function drivesBrowser(command: { taskId?: string; tabId?: string; url?: string }): boolean {

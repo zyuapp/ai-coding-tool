@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MAX_BROWSER_WAIT_MS } from "../../contracts/ipc.js";
+import { MAX_BROWSER_WAIT_MS, MAX_ID_LENGTH, MAX_PROMPT_LENGTH, MAX_SEARCH_TEXT, MAX_URL_LENGTH } from "../../contracts/ipc.js";
 import type { BrowserReadResult } from "../../contracts/threads.js";
 import {
   browserSearchUrl,
@@ -18,8 +18,9 @@ export const BROWSER_SERVER_NAME = "aicodingtool-browser";
 const DEFAULT_WAIT_MS = 20_000;
 const DEFAULT_TEXT_LIMIT = 4_000;
 
-const tabField = z.string().optional().describe("Which tab to act in. Defaults to the one the panel is showing.");
-const refField = z.string().describe("The ref of the element, from the latest snapshot of that tab.");
+/** Every field is held to the limit the window reads it under, so one it would refuse is refused here, on its own field. */
+const tabField = z.string().max(MAX_ID_LENGTH).optional().describe("Which tab to act in. Defaults to the one the panel is showing.");
+const refField = z.string().min(1).max(MAX_ID_LENGTH).describe("The ref of the element, from the latest snapshot of that tab.");
 
 function waitMs(seconds: number | undefined) {
   return Math.min(seconds === undefined ? DEFAULT_WAIT_MS : Math.max(0, seconds) * 1_000, MAX_BROWSER_WAIT_MS);
@@ -112,7 +113,7 @@ export const BROWSER_TOOLS: readonly ToolDefinition<BrowserBridge>[] = [
     name: "browser_open",
     description: "Open a page in the AICodingTool browser panel and read it back. The panel shares one browser session with the user, so any site they are signed into is already signed in here, and they watch the same tabs you drive: leave the pages they opened alone. A page the user has never visited is theirs to allow first, so say what you need and wait rather than retrying. To search, use browser_search.",
     input: {
-      url: z.string().describe("The page to open. Include the scheme for anything that is not an ordinary domain."),
+      url: z.string().min(1).max(MAX_URL_LENGTH).describe("The page to open. Include the scheme for anything that is not an ordinary domain."),
       newTab: z.boolean().optional().describe("Open another tab instead of reusing the one on screen."),
       tabId: tabField,
       waitSeconds: z.number().optional().describe("How long to wait for the page to finish loading. Defaults to 20."),
@@ -127,7 +128,7 @@ export const BROWSER_TOOLS: readonly ToolDefinition<BrowserBridge>[] = [
     name: "browser_search",
     description: "Search the web in the AICodingTool browser panel and read the results. Use this rather than opening a search engine yourself: Google sometimes answers the panel with its bot page instead of results.",
     input: {
-      query: z.string().describe("What to search for."),
+      query: z.string().refine((query) => browserSearchUrl(query).length <= MAX_URL_LENGTH, "Too long to search for.").describe("What to search for."),
       newTab: z.boolean().optional().describe("Search in another tab instead of the one on screen."),
       tabId: tabField,
       waitSeconds: z.number().optional().describe("How long to wait for the results to load. Defaults to 20."),
@@ -143,7 +144,7 @@ export const BROWSER_TOOLS: readonly ToolDefinition<BrowserBridge>[] = [
     description: "Read the page a tab is showing: its text, and the elements you can act on. Act on the refs this hands back; they are only valid until the next read of that tab, so read again after anything changes the page.",
     input: {
       tabId: tabField,
-      textLimit: z.number().optional().describe("How many characters of page text to return. Defaults to 4000."),
+      textLimit: z.number().nonnegative().optional().describe("How many characters of page text to return. Defaults to 4000."),
       waitSeconds: z.number().optional().describe("How long to wait for the page to settle first. Defaults to 20."),
     },
     readOnly: true,
@@ -211,7 +212,7 @@ export const BROWSER_TOOLS: readonly ToolDefinition<BrowserBridge>[] = [
     description: "Wait until page text, an element name, or the URL contains a value; until text or an element disappears; or until network activity has stopped for 500ms. Reads the page after a successful wait.",
     input: {
       condition: z.enum(["text", "text-gone", "element", "element-gone", "url", "network-idle"]),
-      value: z.string().optional().describe("Text to find. Omit only for network-idle."),
+      value: z.string().max(MAX_SEARCH_TEXT).optional().describe("Text to find. Omit only for network-idle."),
       tabId: tabField,
       timeoutSeconds: z.number().optional().describe("How long to wait. Defaults to 20."),
     },
@@ -246,7 +247,7 @@ export const BROWSER_TOOLS: readonly ToolDefinition<BrowserBridge>[] = [
     description: "Type into a field in the page, optionally submitting it, then read back what it became.",
     input: {
       ref: refField,
-      text: z.string().describe("What the field should contain. This replaces whatever it holds."),
+      text: z.string().max(MAX_PROMPT_LENGTH).describe("What the field should contain. This replaces whatever it holds."),
       submit: z.boolean().optional().describe("Submit the field's form afterwards, the way pressing Enter would."),
       tabId: tabField,
       waitSeconds: z.number().optional().describe("How long to wait for a page load the submit causes. Defaults to 20."),
@@ -281,7 +282,7 @@ export const BROWSER_TOOLS: readonly ToolDefinition<BrowserBridge>[] = [
   defineTool({
     name: "browser_close_tab",
     description: "Close a tab in the browser panel. Only close tabs you opened; the user's own pages are theirs.",
-    input: { tabId: z.string().describe("The tab to close, as browser_tabs reports it.") },
+    input: { tabId: z.string().min(1).max(MAX_ID_LENGTH).describe("The tab to close, as browser_tabs reports it.") },
     readOnly: false,
     run: (bridge, args) => report(async () => {
       await bridge.command({ type: "browser.close-tab", tabId: args.tabId });

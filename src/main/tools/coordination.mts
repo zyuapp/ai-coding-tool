@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { COORDINATION_STATES, distinctLabels, MAX_DECISION_CONTEXT, MAX_MEMORY_NOTE, MAX_OPTION_DESCRIPTION, MAX_OPTION_LABEL, MAX_OPTIONS, MAX_PROPOSAL_TITLE, MAX_PROPOSALS, MAX_PURPOSE, MAX_QUESTION, MAX_SUMMARY } from "../../domain/coordination.js";
+import { COORDINATION_STATES, distinctLabels, MAX_DECISION_CONTEXT, MAX_MEMORY_NOTE, MAX_MEMORY_NOTE_ID, MAX_OPTION_DESCRIPTION, MAX_OPTION_LABEL, MAX_OPTIONS, MAX_PROPOSAL_TITLE, MAX_PROPOSALS, MAX_PURPOSE, MAX_QUESTION, MAX_SUMMARY } from "../../domain/coordination.js";
 import type { CoordinationRole } from "../../domain/coordination.js";
 import type { CoordinationBridge } from "../agent/agent-provider.mjs";
 import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";
@@ -74,7 +74,7 @@ const FORGET = defineTool({
   name: "forget",
   description: "Drop a note from your memory when the user asks you to forget it or it no longer holds.",
   input: {
-    noteId: z.string().trim().min(1).max(200).describe("The note's ID, such as n3."),
+    noteId: z.string().trim().min(1).max(MAX_MEMORY_NOTE_ID).describe("The note's ID, such as n3."),
   },
   readOnly: false,
   run: (bridge: CoordinationBridge, args) => answered(() => bridge.remember({ kind: "forget", noteId: args.noteId })),

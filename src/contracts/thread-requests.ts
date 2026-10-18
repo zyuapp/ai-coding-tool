@@ -1,20 +1,21 @@
 /** The guards a thread tool request has to pass on its way from the agent process to the window. */
-import { isBlankable, isBrowserRead, isCount, isString, isTerminalRead, MAX_PROMPT_LENGTH, MAX_THREAD_WAIT_MS } from "./ipc.js";
+import { isBlankable, isBrowserRead, isCount, isString, isTerminalRead, MAX_PROMPT_LENGTH, MAX_SEARCH_TEXT, MAX_THREAD_WAIT_MS } from "./ipc.js";
 import { isExternalCommand } from "./workspace-view-input.js";
 import type { FindingReport, ThreadRequest } from "./threads.js";
-import { isCoordinationState, isDecisionRequest, isMemoryChange, isProposalRequest, isReportSummary, MAX_PROPOSALS } from "../domain/coordination.js";
+import { isCoordinationState, isDecisionRequest, isMemoryChange, isProposalRequest, isReportSummary, MAX_PROPOSAL_COMPUTER, MAX_PROPOSAL_PROJECT, MAX_PROPOSALS } from "../domain/coordination.js";
 import { MAX_DETAIL, MAX_FINDING_KEY, MAX_HEADLINE } from "../domain/finding.js";
 
 export function isThreadRequest(value: unknown): value is ThreadRequest {
   if (!value || typeof value !== "object") return false;
   const request = value as Record<string, unknown>;
   if (request.type !== "thread.request" || !isString(request.requestId) || !isString(request.taskId)) return false;
-  if (request.computer !== undefined && !isString(request.computer)) return false;
+  /** The limits are the ones the tools hold their fields to, so an agent is refused on the field it got wrong rather than unnamed here. */
+  if (request.computer !== undefined && !isString(request.computer, MAX_PROPOSAL_COMPUTER)) return false;
   if (request.op === "list") {
-    return (request.project === undefined || isString(request.project, 4_096))
+    return (request.project === undefined || isString(request.project, MAX_PROPOSAL_PROJECT))
       && (request.archived === undefined || typeof request.archived === "boolean")
       && (request.idleForMs === undefined || isCount(request.idleForMs))
-      && (request.search === undefined || isString(request.search, 1_000))
+      && (request.search === undefined || isString(request.search, MAX_SEARCH_TEXT))
       && (request.attachments === undefined || typeof request.attachments === "boolean")
       && (request.limit === undefined || isCount(request.limit));
   }
