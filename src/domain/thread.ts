@@ -79,8 +79,9 @@ export type Thread = {
   remoteStops?: Record<string, RemoteStop>;
   /**
    * On a coordinator: each start of a thread on a paired computer, by the suggestion it is, that Stop
-   * all caught on its way there, after a restart here too. Whenever it lands it is stopped there, and
-   * its turn ending is heard quietly. One that computer refused, or that is no longer under it, is let go.
+   * all caught on its way there, after a restart here too. Whenever it lands it is stopped there, even
+   * once the coordinator is filed away or its role taken off, and its turn ending is heard quietly. One
+   * that computer refused, or that is no longer under it, is let go.
    */
   caughtStarts?: Record<string, CaughtStart>;
   projectId?: string;

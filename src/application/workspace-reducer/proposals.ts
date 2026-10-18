@@ -102,7 +102,7 @@ function proposalSettled(state: WorkspaceState, input: Extract<ProposalInput, { 
 }
 
 /** Whether Stop all caught a coordinator's start elsewhere on its way, and it has yet to be heard landing. */
-function catching(lead: Thread | undefined, proposalId: string): boolean {
+export function catching(lead: Thread | undefined, proposalId: string): boolean {
   const caught = lead?.caughtStarts?.[proposalId];
   return caught !== undefined && caught.threadId === undefined;
 }
@@ -121,7 +121,9 @@ export function proposalLanded(state: WorkspaceState, leadId: string, proposalId
   if (!caught) return settled(started);
   const cancel: AppCommand = { type: "run.cancel", taskId: threadId };
   const effects: WorkspaceEffect[] = computer && supportsComputerCommand(computer.capabilities, cancel) ? [{ type: "computer.forward", id: computer.id, inputs: [cancel] }] : [];
-  return settled(updateThread(started, leadId, (item) => ({ ...item, caughtStarts: { ...item.caughtStarts, [proposalId]: { ...item.caughtStarts![proposalId]!, threadId } } })), effects);
+  /** Its end is news only to a coordinator here to hear it; one away since hears nothing of what its thread did meanwhile. */
+  const landing = (item: Thread): Thread => isCoordinator(item) ? { ...item, caughtStarts: { ...item.caughtStarts, [proposalId]: { ...item.caughtStarts![proposalId]!, threadId } } } : withoutCaughtStart(item, proposalId);
+  return settled(updateThread(started, leadId, landing), effects);
 }
 
 /**

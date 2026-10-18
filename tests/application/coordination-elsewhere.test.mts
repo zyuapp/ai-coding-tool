@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { reduce, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
+import { reduce, type WorkspaceInput, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
 import { deriveView, stateFromData, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import { coordinationContext, coordinationMembers, coordinationRole } from "../../src/application/coordination.ts";
 import { coordinationView } from "../../src/application/coordination-view.ts";
@@ -594,6 +594,31 @@ test("a start allowed on another computer that is still on its way when everythi
   assert.equal(reduce(stopped.state, { type: "computers.changed", name: "This Mac", links: [] }).state.threads[0]!.caughtStarts, undefined, "and one on a computer no longer paired is let go");
   const movedOut = mirrored(landed.state, { ...holder, threads: [far({ remoteLead: undefined })] });
   assert.equal(movedOut.state.threads[0]!.caughtStarts, undefined, "as is one moved out from under it there");
+});
+
+test("a start Stop all caught on its way is stopped as it lands even once its coordinator is filed away or its role is taken off", () => {
+  const brief = { intent: "port the parser", doneWhen: "tests pass", delivers: "report" as const };
+  const proposal = { id: "p1", title: "Far work", prompt: "Port it", brief, place: { computer: { id: "studio", name: "studio" }, project: "far-project", worktree: false }, proposedAt: 1 };
+  const holder = workspace({ projects: [{ id: "far-project", root: "/far" }] });
+  const state = withComputers(workspace({ threads: [lead("lead", { title: "Lead", proposals: [proposal] })] }), [paired("studio", holder, { capabilities: COMPUTER_CAPABILITIES })]);
+  const allowed = reduce(state, { type: "proposal.start", taskId: "lead", proposalId: "p1", place: { project: "far-project", worktree: false } });
+  const stopped = reduce(allowed.state, { type: "coordination.stop-all", taskId: "lead" }).state;
+  const cancels = (transition: WorkspaceTransition) => transition.effects.flatMap((effect) => effect.type === "computer.forward" ? effect.inputs.flatMap((input) => input.type === "run.cancel" ? [input.taskId] : []) : []);
+  const named = { ...FAR, proposalId: "p1" };
+  for (const [how, input] of [["filed away", { type: "task.archive", taskId: "lead" }], ["its role taken off", { type: "task.set-role", taskId: "lead", role: null }]] as const) {
+    const lapsed = reduce(stopped, input).state;
+    assert.deepEqual(required(lapsed.threads.find((thread) => thread.id === "lead")).caughtStarts, { p1: { computer: "studio" } }, `kept once ${how}`);
+    const answered = reduce(lapsed, { type: "proposal.settled", taskId: "lead", proposalId: "p1", threadId: "far" });
+    assert.deepEqual(cancels(answered), ["far"], `stopped as that computer answers once ${how}`);
+    assert.equal(required(answered.state.threads.find((thread) => thread.id === "lead")).caughtStarts, undefined, "its end is no news to a coordinator away");
+    for (const remoteLead of [named, { ...named, away: true as const }]) {
+      const shows = mirrored(lapsed, { ...holder, threads: [far({ remoteLead })], activeRuns: { far: activeRun("far", "run-far") } });
+      assert.deepEqual(cancels(shows), ["far"], `and as it shows up there once ${how}, ${remoteLead.away ? "told it is away" : "not yet told"}`);
+    }
+  }
+  const restored = reduce(reduce(stopped, { type: "task.archive", taskId: "lead" }).state, { type: "task.restore", taskId: "lead" }).state;
+  const back = mirrored(restored, { ...holder, threads: [far({ remoteLead: named })], activeRuns: { far: activeRun("far", "run-far") } });
+  assert.deepEqual(cancels(back), ["far"], "and once it is restored");
 });
 
 test("a start allowed on another computer whose answer is lost settles its card once its thread shows up there", () => {

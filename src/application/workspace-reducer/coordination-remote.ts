@@ -1,5 +1,5 @@
 /** What a coordinator here hears of the threads it started on paired computers, and how they are let go once it is gone. */
-import { proposalLanded } from "./proposals.js";
+import { catching, proposalLanded } from "./proposals.js";
 import { now, settled } from "./shared.js";
 import { answersInTime } from "./run-queue.js";
 import type { WorkspaceEffect, WorkspaceTransition } from "./types.js";
@@ -39,7 +39,8 @@ export function remoteNews(previous: WorkspaceState, next: WorkspaceState): Remo
     if (!holder || prior && was!.status === computer.status && prior.threads === holder.threads && prior.activeRuns === holder.activeRuns) continue;
     const members = remotelyLedThreads(holder.threads);
     const earlier = prior ? remotelyLedThreads(prior.threads) : [];
-    if (!members.length && !earlier.length) continue;
+    const away = leadAwayThreads(holder.threads);
+    if (!members.length && !earlier.length && !away.length) continue;
     const working = lastWorkingIds(holder);
     const workedBefore = prior ? lastWorkingIds(prior) : new Set<string>();
     const kept = new Set(members.map((thread) => thread.id));
@@ -47,7 +48,10 @@ export function remoteNews(previous: WorkspaceState, next: WorkspaceState): Remo
     for (const thread of earlier) if (!kept.has(thread.id) && workedBefore.has(thread.id)) news.leads.add(thread.remoteLead!.threadId);
     for (const member of members) {
       const lead = news.state.threads.find((thread) => thread.id === member.remoteLead!.threadId);
-      if (!lead || !isCoordinator(lead)) continue;
+      if (!lead || !isCoordinator(lead)) {
+        caughtLanding(news, member, computer);
+        continue;
+      }
       if (working.has(member.id) !== workedBefore.has(member.id)) news.leads.add(lead.id);
       const heard = memberNews(news.state, lead, member, computer, holder, prior);
       if (heard.state !== news.state) news.leads.add(lead.id);
@@ -57,6 +61,7 @@ export function remoteNews(previous: WorkspaceState, next: WorkspaceState): Remo
       news.state = landed.state;
       news.effects.push(...heard.effects, ...landed.effects);
     }
+    for (const thread of away) caughtLanding(news, thread, computer);
   }
   /** A computer no longer paired takes its threads' work with it. */
   for (const gone of before.values()) {
@@ -99,13 +104,26 @@ function keptStops(news: RemoteNews): RemoteNews {
   return state === news.state ? news : { ...news, state };
 }
 
-/** A coordinator that is no longer one, filed away or with its role taken off, lets go of what Stop all stopped and caught under it. */
+/**
+ * A coordinator that is no longer one, filed away or with its role taken off, lets go of what Stop all
+ * stopped under it. What it caught on its way is still stopped as it lands, so that is kept.
+ */
 export function withoutLapsedStops(state: WorkspaceState, threads: readonly ThreadChange[]): WorkspaceState {
   let next = state;
   for (const { after } of threads) {
-    if ((after?.remoteStops || after?.caughtStarts) && !isCoordinator(after)) next = updateThread(next, after.id, ({ remoteStops: _stops, caughtStarts: _starts, ...thread }) => thread);
+    if (after?.remoteStops && !isCoordinator(after)) next = updateThread(next, after.id, ({ remoteStops: _stops, ...thread }) => thread);
   }
   return next;
+}
+
+/** A start Stop all caught on its way, showing up under a coordinator that is no longer one, or is away to it, is stopped all the same. */
+function caughtLanding(news: RemoteNews, thread: Thread, computer: PairedComputer) {
+  const { threadId: leadId, proposalId } = thread.remoteLead!;
+  const lead = news.state.threads.find((item) => item.id === leadId);
+  if (!proposalId || !catching(lead, proposalId)) return;
+  const landed = proposalLanded(news.state, leadId, proposalId, thread.id, computer);
+  news.state = landed.state;
+  news.effects.push(...landed.effects);
 }
 
 /**
