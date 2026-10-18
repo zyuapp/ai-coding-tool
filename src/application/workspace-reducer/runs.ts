@@ -174,11 +174,11 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       if (event.type !== "run.status" || event.status === "running" || event.status === "awaiting-approval") return settled(next, [...environment, ...said]);
       const moved = settleMoveAfterRun(next, event.taskId);
       next = moved.state;
-      /** A run Stop all asked to end stays ended, even when a usage limit got to it first. */
-      if (event.status === "failed" && event.limit && !next.quietStops.includes(event.runId)) next = pausedForLimit(next, event.taskId, event.limit, now());
+      /** A run Stop all asked to end, or the agent's own answer to it, stays ended, even when a usage limit got to it first. */
+      if (event.status === "failed" && event.limit && !next.quietStops.includes(event.runId) && !active.answersStop) next = pausedForLimit(next, event.taskId, event.limit, now());
       /** A turn that still ends failed once a session limit has had its say left the thread stuck, so it is open again. */
       if (event.status === "failed") next = updateThread(next, event.taskId, (thread) => thread.runEndedAs === "failed" ? reopenedIfStuck(thread) : thread);
-      const drained = drainQueue(noteTurnEnded(next, event.taskId, event.status, event.runId), event.taskId, event.status);
+      const drained = drainQueue(noteTurnEnded(next, event.taskId, event.status, active), event.taskId, event.status);
       return settled(drained.state, [...environment, ...said, ...moved.effects, ...drained.effects]);
     }
 

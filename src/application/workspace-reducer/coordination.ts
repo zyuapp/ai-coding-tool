@@ -9,17 +9,18 @@ import { canResolve, checkoutAnswer, coordinatedThreadStatus, coordinationMember
 import { activityChanges, threadActivity, threadChanges } from "../thread-activity.js";
 import { cancelPause, heldByLimit } from "../limit-pauses.js";
 import { announced } from "../notices.js";
-import { updateThread } from "../thread-run-state.js";
+import { updateThread, type ActiveRun } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import type { PairedComputer } from "../computers.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import type { AppCommand } from "../../contracts/commands.js";
-import { canJoinCoordinator, coordinatorOf, decisionsFull, isCoordinator, MAX_ANSWER, nextStepOf, openDecisions, remoteLeadOf, reopenedIfStuck, threadModelOf, undelegable, withAnswer, withCoordinationNote, withDecision, withMemoryChange, worksUnderCoordinator, type CoordinationNote, type MemoryChange } from "../../domain/coordination.js";
+import { canJoinCoordinator, coordinatorOf, decisionsFull, endsAsStopped, isCoordinator, MAX_ANSWER, nextStepOf, openDecisions, remoteLeadOf, reopenedIfStuck, threadModelOf, undelegable, withAnswer, withCoordinationNote, withDecision, withMemoryChange, worksUnderCoordinator, type CoordinationNote, type MemoryChange } from "../../domain/coordination.js";
 import { defaultEffortFor, effortForModel, engineForModel, modelDelegable, modelHasEffort, modelTakesEffort } from "../../domain/agent-engine.js";
 import type { RemoteStop, Thread } from "../../domain/thread.js";
 import { dismissed } from "../../domain/attention.js";
 import { resumesOnItsOwn } from "../../domain/usage-limit.js";
+import { runOutcome } from "../../domain/thread-run.js";
 
 type CoordinationInput = Extract<WorkspaceInput, {
   type: "task.set-coordinator" | "task.set-lead-away" | "task.resolve" | "task.reopen" | "decision.answer" | "coordination.set-thread-model" | "coordination.set-muted" | "coordination.stop-all" | "coordination.reported" | "coordination.decision-raised"
@@ -291,10 +292,14 @@ function remembered(state: WorkspaceState, taskId: string, change: MemoryChange,
  * A thread's turn ending is news for its coordinator. A thread waiting out a session limit carries on
  * by itself, so its turn has not ended unless the user keeps it from carrying on.
  */
-export function noteTurnEnded(state: WorkspaceState, taskId: string, status: "succeeded" | "failed" | "cancelled", runId: string): WorkspaceState {
-  /** A run Stop all cancelled is heard, but never wakes its coordinator by itself. */
-  const quiet = state.quietStops.includes(runId);
-  const ended = quiet ? { ...state, quietStops: state.quietStops.filter((id) => id !== runId) } : state;
+export function noteTurnEnded(state: WorkspaceState, taskId: string, status: "succeeded" | "failed" | "cancelled", run: Pick<ActiveRun, "runId" | "answersStop">): WorkspaceState {
+  /**
+   * A run Stop all cancelled is heard, but never wakes its coordinator by itself once it has stopped,
+   * as one on a paired computer is; nor does the turn the agent opened itself to answer the stop.
+   */
+  const stopped = state.quietStops.includes(run.runId);
+  const quiet = run.answersStop === true || stopped && endsAsStopped(runOutcome(status) ?? undefined);
+  const ended = stopped ? { ...state, quietStops: state.quietStops.filter((id) => id !== run.runId) } : state;
   const thread = ended.threads.find((item) => item.id === taskId);
   if (!thread || (thread.limitPause && resumesOnItsOwn(thread.limitPause))) return ended;
   return withTurnHeard(ended, thread, status, now(), { quiet });

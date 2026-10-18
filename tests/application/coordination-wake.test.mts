@@ -263,15 +263,25 @@ test("stopping all cancels every run under a coordinator and never wakes it", ()
   assert.deepEqual(leadEnds.state.quietStops, []);
   slept(leadEnds, "its own run ending");
 
-  const failing = reduce(stopped.state, correlatedRunEvent("one", "run-1", 1, { type: "run.status", status: "failed" }));
-  assert.equal(failing.state.threads[0]!.coordinationNotes?.at(-1)?.urgent, undefined, "a stopped run that fails on its way out is no urgent news");
-  slept(failing, "a thread it stopped failing");
   const limited = reduce(stopped.state, correlatedRunEvent("one", "run-1", 1, { type: "run.status", status: "failed", limit: SESSION }));
   assert.equal(limited.state.threads.find((thread) => thread.id === "one")?.limitPause, undefined, "a usage limit reached before the stop landed never puts it back in line");
-  assert.equal(limited.state.threads[0]!.coordinationNotes?.at(-1)?.quiet, true);
-  slept(limited, "a thread it stopped hitting its limit");
 
   assert.equal(reduce(state, { type: "coordination.stop-all", taskId: "one" }).effects.length, 0, "only a coordinator stops threads under it");
+});
+
+test("a thread's turn that finished or failed before Stop all reached it is news, as one on a paired computer is", () => {
+  const state = workspace({ threads: [lead(), member("one")], activeRuns: { lead: activeRun("lead", "run-l"), one: activeRun("one", "run-1") }, runStatuses: { lead: "running", one: "running" } });
+  const stopped = reduce(state, { type: "coordination.stop-all", taskId: "lead" });
+  const leadEnds = reduce(stopped.state, correlatedRunEvent("lead", "run-l", 1, { type: "run.status", status: "cancelled" }));
+  for (const [how, status, said] of [["failed", "failed", /"one" failed/], ["finished", "succeeded", /"one" ended its turn/]] as const) {
+    const ended = reduce(leadEnds.state, correlatedRunEvent("one", "run-1", 1, { type: "run.status", status }));
+    assert.equal(required(ended.state.threads[0]!.coordinationNotes?.at(-1)).quiet, undefined, how);
+    assert.match(woken(ended, how).text, said);
+    assert.deepEqual(ended.state.quietStops, [], `${how}: the stop is spent`);
+  }
+  const cancelled = reduce(leadEnds.state, correlatedRunEvent("one", "run-1", 1, { type: "run.status", status: "cancelled" }));
+  assert.equal(required(cancelled.state.threads[0]!.coordinationNotes?.at(-1)).quiet, true, "one the stop ended is heard quietly");
+  slept(cancelled);
 });
 
 const workflow = (id: string, overrides: Partial<Workflow> = {}): Workflow => ({ id, name: id, description: "Dynamic workflow", status: "running", phases: [], agents: [], totalTokens: 0, totalToolCalls: 0, startedAt: 1, ...overrides });

@@ -169,11 +169,11 @@ export function beginRun(state: WorkspaceState, taskId: string, runId: string, p
    * The turn the agent opens itself on hearing that what Stop all stopped has stopped ends quietly too;
    * any other run is the thread picked back up, so a later turn of the agent's own is news again.
    */
-  const hushed = state.quietSessions.includes(taskId)
-    ? { quietSessions: state.quietSessions.filter((id) => id !== taskId), ...(pickup === "agent" ? { quietStops: [...state.quietStops, runId] } : {}) }
-    : {};
+  const hushed = state.quietSessions.includes(taskId);
+  const heard = hushed ? { quietSessions: state.quietSessions.filter((id) => id !== taskId) } : {};
+  const answering = hushed && pickup === "agent" ? { answersStop: true as const } : {};
   return withRunStatus(
-    withActiveRun({ ...state, ...hushed, threads, actionError: null, lastRunIds: { ...state.lastRunIds, [taskId]: runId } }, taskId, { taskId, runId, sequence: 0, status: "running", ...provenance, notified: false, acknowledged: false, reportedIssues: [], messagesBefore, before: mark, ...(pickup === "warming" ? { warming: true as const } : {}) }),
+    withActiveRun({ ...state, ...heard, threads, actionError: null, lastRunIds: { ...state.lastRunIds, [taskId]: runId } }, taskId, { taskId, runId, sequence: 0, status: "running", ...provenance, notified: false, acknowledged: false, reportedIssues: [], messagesBefore, before: mark, ...(pickup === "warming" ? { warming: true as const } : {}), ...answering }),
     taskId,
     "running",
   );

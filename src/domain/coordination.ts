@@ -8,6 +8,7 @@
 import { lastRunOutcome, type HeardWork, type RemoteStop, type Thread } from "./thread.js";
 import { isRemoteSender, type RemoteSender } from "./message-origin.js";
 import type { AgentEffort } from "./run.js";
+import type { ThreadOutcome } from "./thread-run.js";
 import { isThreadRole, type ThreadRole } from "./thread-role.js";
 import { defaultEffortFor, defaultModelFor, effortForModel, engineForModel, isAgentEffort, isAgentModel, modelDelegable, modelTakesEffort, type AgentModel } from "./agent-engine.js";
 
@@ -222,6 +223,15 @@ export function isNextStep(value: unknown): value is NextStep {
 
 export function nextStepOf(id: NextStep): (typeof NEXT_STEPS)[number] {
   return NEXT_STEPS.find((step) => step.id === id)!;
+}
+
+/**
+ * Whether a turn Stop all asked to end is heard quietly once it has, on this computer or another:
+ * only one that ended stopped, or without saying how. One that finished or failed on its own, before
+ * a stop that came too late or never came, is still news.
+ */
+export function endsAsStopped(ending: ThreadOutcome | undefined): boolean {
+  return ending !== "failed" && ending !== "finished";
 }
 
 export function isCoordinator(thread: Thread | undefined): boolean {

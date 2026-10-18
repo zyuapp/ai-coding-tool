@@ -12,7 +12,7 @@ import { viewPreferences } from "../view-preferences.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import type { AppCommand } from "../../contracts/commands.js";
-import { isCoordinator, mayLeadElsewhere, openDecisions, withCoordinationNote, withRemoteHeard, type CoordinationNote } from "../../domain/coordination.js";
+import { endsAsStopped, isCoordinator, mayLeadElsewhere, openDecisions, withCoordinationNote, withRemoteHeard, type CoordinationNote } from "../../domain/coordination.js";
 import { lastRunOutcome, threadCreatedAt, type HeardWork, type Thread } from "../../domain/thread.js";
 import { resumesOnItsOwn } from "../../domain/usage-limit.js";
 
@@ -193,8 +193,7 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
     const caught = stoppedStarts.some((start) => start.threadId === member.id);
     if (caught) stoppedStarts = stoppedStarts.filter((start) => start.threadId !== member.id);
     const ending = lastRunOutcome(member);
-    /** A turn that finished or failed on its own, before a stop that came too late or never came, is still news. */
-    const quiet = caught || stop !== undefined && ending !== "failed" && ending !== "finished";
+    const quiet = caught || stop !== undefined && endsAsStopped(ending);
     const status = quiet || ending === "stopped" ? "cancelled" : ending === "failed" ? "failed" : "succeeded";
     notes.push(turnNote(member, status, at, { quiet }));
     /**

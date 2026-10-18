@@ -35,6 +35,11 @@ export type ActiveRun = RunProvenance & {
    * rebuilds the context the wait let expire, and the next thread in line waits for it.
    */
   warming?: true;
+  /**
+   * Set on the turn the agent opens itself on hearing that what Stop all stopped has stopped, which
+   * ends quietly however it ends.
+   */
+  answersStop?: true;
 };
 
 /**
