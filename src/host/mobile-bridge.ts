@@ -8,6 +8,8 @@ import { isWorkspaceViewInput } from "../contracts/workspace-view-input.js";
 import type { RuntimeDesktop } from "./runtime-desktop.js";
 import type { MobileServerState } from "../domain/mobile.js";
 import { threadWorkspaceId } from "../application/thread-location.js";
+import { coordinationMembers } from "../application/coordination.js";
+import { isCoordinator } from "../domain/coordination.js";
 import { errorMessage } from "./errors.js";
 
 /** What a phone is refused with when it sends something outside the surface open to it. */
@@ -45,6 +47,17 @@ async function answerQuery(host: MobileBridgeHost, query: MobileQuery): Promise<
 }
 
 /**
+ * The threads a phone's command may name: those on this computer, and, for answering an approval,
+ * those on a paired computer working under a coordinator here, whose approvals that coordinator's
+ * screen shows. Nothing else of another computer is ever on the phone's.
+ */
+function phoneReaches(state: WorkspaceState, command: AppCommand, taskId: string): boolean {
+  if (state.threads.some((thread) => thread.id === taskId)) return true;
+  return command.type === "run.decide" && state.threads.some((lead) => isCoordinator(lead)
+    && coordinationMembers(state, lead.id).some((member) => member.computer && member.thread.id === taskId));
+}
+
+/**
  * Each phone reads a projection of runtime state and writes through the shared command path.
  * Commands are validated at this boundary before reaching the reducer.
  */
@@ -61,9 +74,7 @@ export async function answerMobileRequest(host: MobileBridgeHost, request: Mobil
     /** What a phone may send, and then every field as the window's own checks read it. */
     if (!isMobileCommand(request.command) || !isWorkspaceViewInput(request.command)) return failed(MOBILE_REFUSED);
     const taskId = "taskId" in request.command ? request.command.taskId : undefined;
-    if (taskId !== undefined && !host.state().threads.some((thread) => thread.id === taskId)) {
-      return failed(`No thread has the ID ${taskId}.`);
-    }
+    if (taskId !== undefined && !phoneReaches(host.state(), request.command, taskId)) return failed(`No thread has the ID ${taskId}.`);
     const execution = host.execute(request.command);
     const accepted = execution.accepted instanceof Promise ? await execution.accepted : execution.accepted;
     if (!accepted.ok) return failed(accepted.message);

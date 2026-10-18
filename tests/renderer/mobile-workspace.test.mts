@@ -8,6 +8,9 @@ import { emptyMobileServerState, type MobileServerState, type MobileSessionView 
 import type { MobileRequest, MobileView } from "../../src/contracts/mobile.ts";
 import type { ConversationMessage } from "../../src/domain/conversation.ts";
 import type { Thread } from "../../src/domain/thread.ts";
+import { COMPUTER_CAPABILITIES } from "../../src/contracts/computer-capabilities.ts";
+import { activeRun, required } from "../application/workspace-reducer-fixtures.mts";
+import { projectMobileView } from "../../src/application/mobile-projection.ts";
 
 const NOW = 1_800_000_000_000;
 
@@ -187,6 +190,32 @@ test("a command the phone is not allowed to send never reaches the reducer", asy
   }
   assert.deepEqual(driver.inputs, []);
   assert.equal(driver.current().currentId, "thread-1");
+});
+
+test("a phone answers the approval of a coordinator's thread on a paired computer, and reaches nothing else there", async () => {
+  const approval = { approvalId: "a1", taskId: "member", runId: "run-1", title: "Run a command", description: "rm", toolName: "Bash", input: { command: "rm" } };
+  const holder = workspace({
+    threads: [task("member", { title: "Dark mode", remoteLead: { threadId: "lead", title: "Lead", computer: "Mac" } }), task("stranger")],
+    activeRuns: { member: activeRun("member", "run-1", { status: "awaiting-approval" }), stranger: activeRun("stranger", "run-2", { status: "awaiting-approval" }) },
+    approvals: { "run-1": approval, "run-2": { ...approval, taskId: "stranger", runId: "run-2", approvalId: "a2" } },
+  });
+  const base = workspace({ threads: [task("lead", { role: "coordinator", title: "Lead" })], currentId: "lead" });
+  const paired = { id: "linux", name: "Linux", host: "linux.ts.net", status: "connected" as const, error: null, pairedAt: 1, capabilities: COMPUTER_CAPABILITIES, state: holder };
+  const driver = host({ ...base, computers: { ...base.computers, name: "Mac", paired: [paired] } });
+  const send = (command: object) => answerMobileRequest(driver.bridge, request({ type: "mobile.request", requestId: "r1", sessionId: "s1", op: "command", command: command as never }));
+
+  const shown = required(projectMobileView(driver.current(), NOW).thread?.approval);
+  const allowed = await send({ type: "run.decide", taskId: shown.taskId, runId: shown.runId, approvalId: shown.approvalId, allow: true });
+  assert.equal(allowed.ok, true, "the approval its coordinator shows is answered from the phone");
+  assert.equal(driver.inputs.length, 1);
+
+  const forged = [
+    { type: "run.decide", taskId: "stranger", runId: "run-2", approvalId: "a2", allow: true },
+    { type: "task.archive", taskId: "member" },
+    { type: "run.cancel", taskId: "member" },
+  ];
+  for (const command of forged) assert.deepEqual(await send(command), { type: "mobile.response", requestId: "r1", ok: false, message: `No thread has the ID ${command.taskId}.` }, JSON.stringify(command));
+  assert.equal(driver.inputs.length, 1);
 });
 
 test("a command the reducer refuses answers with what the window said about it", async () => {
