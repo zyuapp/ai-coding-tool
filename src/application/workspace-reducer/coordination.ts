@@ -344,7 +344,7 @@ export function reconcileCoordination(previous: WorkspaceState, transition: Work
 
 /**
  * The agent process is told of each thread whose coordination role an input changed, so a session
- * built for what the thread was never opens a turn of its own with tools the thread no longer has.
+ * built for what the thread was, holding tools the thread no longer has, is let go.
  * A thread's role is read from it and its coordinator, so the threads under a changed one are read too.
  */
 function roleChanges(previous: WorkspaceState, next: WorkspaceState, threads: readonly ThreadChange[]): WorkspaceEffect[] {

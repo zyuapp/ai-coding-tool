@@ -1,5 +1,6 @@
 import type { AgentEngine } from "../../domain/agent-engine.js";
 import type { Continuation } from "../../domain/run.js";
+import type { CoordinationRole } from "../../domain/coordination.js";
 import type { AgentProvider, ProviderResult, ProviderRunInput } from "./agent-provider.mjs";
 
 export type EngineProvider = AgentProvider & { closeAll(): void };
@@ -22,6 +23,10 @@ export class EngineRouter implements AgentProvider {
 
   archiveThread(taskId: string, continuation: Continuation | undefined, archived: boolean) {
     return Object.values(this.engines).some((engine) => engine.archiveThread(taskId, continuation, archived));
+  }
+
+  retireOutOfRole(taskId: string, role: CoordinationRole | undefined) {
+    for (const engine of Object.values(this.engines)) engine.retireOutOfRole(taskId, role);
   }
 
   closeAll() {

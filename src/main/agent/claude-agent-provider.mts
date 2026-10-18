@@ -1,5 +1,6 @@
 import { query, type CanUseTool, type McpServerConfig, type ModelInfo, type Options, type Query, type SDKUserMessage, type SlashCommand } from "@anthropic-ai/claude-agent-sdk";
 import { claudeEffort, modelTakesEffort, modelsFor, type AgentModel } from "../../domain/agent-engine.js";
+import type { CoordinationRole } from "../../domain/coordination.js";
 import { engineBinaryPath } from "./engine-binary.mjs";
 import { continuationOf, type AgentProvider, type ProviderResult, type ProviderRunInput } from "./agent-provider.mjs";
 import { withheldTools } from "./channel-tools.mjs";
@@ -124,6 +125,10 @@ export class ClaudeAgentProvider implements AgentProvider {
   /** Claude keeps no archive of its own, so filing a thread away stays the app's. */
   archiveThread() {
     return false;
+  }
+
+  retireOutOfRole(taskId: string, role: CoordinationRole | undefined) {
+    void this.pool.retireOutOfRole(taskId, role);
   }
 
   stopProcess(taskId: string, processId: string) {

@@ -171,4 +171,9 @@ export interface AgentProvider {
   labelThread(taskId: string, title: string): boolean;
   /** Files the thread away in the engine's own record of it, or brings it back. Engines that keep none say so. */
   archiveThread(taskId: string, continuation: Continuation | undefined, archived: boolean): boolean;
+  /**
+   * Lets the thread's session go, once its turn has answered, when it was built for a coordination
+   * role the thread no longer has: it holds that role's tools, so it may not act for the thread again.
+   */
+  retireOutOfRole(taskId: string, role: CoordinationRole | undefined): void;
 }

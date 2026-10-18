@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { isAgentSettingsReloadEvent, isAutomationRequest, isBackgroundEvent, isGoalEvent, isRunCommand, isRunEvent, isSubagentEvent, isWorkflowEvent, unreadableRequest, type AgentEvent, type AutomationFire, type AutomationRequest, type AutomationResponse, type BackgroundEvent, type RunCommand, type RunEvent, type StartRunCommand, type SubagentEvent } from "../contracts/ipc.js";
+import { isAgentSettingsReloadEvent, isAutomationRequest, isBackgroundEvent, isGoalEvent, isRunCommand, isRunEvent, isSubagentEvent, isWorkflowEvent, unreadableRequest, type AgentEvent, type AutomationFire, type AutomationRequest, type AutomationResponse, type BackgroundEvent, type RunCommand, type RunEvent, type StartRunCommand, type SubagentEvent, type ThreadRoleCommand } from "../contracts/ipc.js";
 import { isThreadRequest } from "../contracts/thread-requests.js";
 import type { ThreadRequest, ThreadResponse } from "../contracts/threads.js";
 import { REMOTE_THREAD_READ_TIMEOUT_MS } from "../contracts/threads.js";
@@ -79,6 +79,11 @@ class AgentRunHost {
   private readonly automationDispatches = new Map<string, AutomationDispatchState>();
   private readonly threadRequests = new Map<string, ReturnType<typeof setTimeout>>();
   private settingsReloadPending = false;
+  /**
+   * A role a thread took while a start of its own was still being resolved. The session the role is
+   * measured against is the one that start runs on, so it is said once the start has gone ahead.
+   */
+  private readonly heldRoles = new Map<string, ThreadRoleCommand>();
 
   private readonly routes: AgentMessageRoute[] = [
     reads(isAgentSettingsReloadEvent, (event) => {
@@ -235,6 +240,8 @@ class AgentRunHost {
   private disconnect(code: number | null) {
     this.agent = null;
     this.ledger.forgetSessions();
+    /** The sessions went with the process, so no role is left to retire one for. */
+    this.heldRoles.clear();
     if (this.settingsReloadPending) {
       this.settingsReloadPending = false;
       this.send({ type: "engine.settings-reload-status", status: "failed", message: "Agent process exited while reloading settings. Try again." });
@@ -324,7 +331,20 @@ class AgentRunHost {
     } catch (error) {
       this.ledger.takeStart(command.taskId, command.runId);
       this.emitSyntheticTerminal(command, "failed", error instanceof Error ? error.message : String(error));
+    } finally {
+      this.sayRole(command.taskId);
     }
+  }
+
+  /** Says a thread's role once no start of its own is still being resolved. Without an agent process there is no session to retire. */
+  private sayRole(taskId: string, role = this.heldRoles.get(taskId)) {
+    if (!role) return;
+    if (this.ledger.startsFor(taskId)) {
+      this.heldRoles.set(taskId, role);
+      return;
+    }
+    this.heldRoles.delete(taskId);
+    if (this.agent) this.postCommand(role);
   }
 
   handleRunCommand(payload: unknown) {
@@ -352,11 +372,7 @@ class AgentRunHost {
       return this.postCommand(payload);
     }
     if (payload.type === "stop-process" || payload.type === "archive") return this.postCommand(payload);
-    /** Only a session the agent process holds can be built for what a thread no longer is. */
-    if (payload.type === "role") {
-      if (this.agent) this.postCommand(payload);
-      return;
-    }
+    if (payload.type === "role") return this.sayRole(payload.taskId, payload);
     const pending = this.ledger.pendingStart(payload.taskId, payload.runId);
     if (pending && payload.type === "cancel") {
       this.ledger.takeStart(payload.taskId, payload.runId);

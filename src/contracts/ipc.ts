@@ -182,7 +182,7 @@ export type ArchiveThreadCommand = { type: "archive"; taskId: string; channel: R
 
 /**
  * What a thread runs as now, said whenever that changes. A session built for what the thread was
- * holds that role's tools, so it opens no turn of its own; the thread's next run starts one that fits.
+ * holds that role's tools, so it goes, background work and all; the thread's next run starts one that fits.
  */
 export type ThreadRoleCommand = { type: "role"; taskId: string; coordinationRole?: CoordinationRole };
 

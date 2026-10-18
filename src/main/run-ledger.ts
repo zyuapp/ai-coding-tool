@@ -128,6 +128,12 @@ export class RunLedger {
       .map(([, command]) => command);
   }
 
+  /** Whether a start of the thread's is still being resolved. */
+  startsFor(taskId: string) {
+    for (const command of this.starts.values()) if (command.taskId === taskId) return true;
+    return false;
+  }
+
   /** A thread renamed while its start is still being resolved carries the new title into the run. */
   retitleStarts(taskId: string, title: string) {
     for (const command of this.starts.values()) {

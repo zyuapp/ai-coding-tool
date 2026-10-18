@@ -1,4 +1,5 @@
 import { continuationOf, type ProviderResult, type ProviderRunInput } from "./agent-provider.mjs";
+import type { CoordinationRole } from "../../domain/coordination.js";
 
 /** How long a thread's session waits, with nothing left running under it, before giving its process back. */
 const IDLE_SESSION_MS = 15 * 60 * 1_000;
@@ -30,6 +31,8 @@ export type SessionOpener<S extends PooledSession> = {
 
 type Held = {
   session: PooledSession;
+  /** The coordination role of the run the session was opened for, which decides the tools it holds. */
+  role: CoordinationRole | null;
   usedAt: number;
   idle?: ReturnType<typeof setTimeout>;
   reload?: { done: Promise<void>; resolve(): void };
@@ -94,6 +97,15 @@ export class SessionPool {
     return done;
   }
 
+  /**
+   * Retires the thread's session when it was opened for a coordination role other than `role`, so a
+   * session holding tools the thread no longer has never acts for it again, background work and all.
+   */
+  retireOutOfRole(taskId: string, role: CoordinationRole | undefined): Promise<void> {
+    const held = this.sessions.get(taskId);
+    return held && held.role !== (role ?? null) ? this.retire(taskId) : Promise.resolve();
+  }
+
   /** Lets every session go, which is what ends the processes they hold. */
   closeAll() {
     for (const [taskId, held] of [...this.sessions]) this.release(taskId, held);
@@ -132,7 +144,7 @@ export class SessionPool {
         if (settled?.session === session) this.rest(input.taskId, settled);
       },
     });
-    const opened: Held = { session, usedAt: Date.now() };
+    const opened: Held = { session, role: input.coordinationRole ?? null, usedAt: Date.now() };
     this.sessions.set(input.taskId, opened);
     opener.start?.(session);
     return opened;

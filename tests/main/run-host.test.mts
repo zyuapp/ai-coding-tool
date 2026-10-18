@@ -114,6 +114,27 @@ test("a start dropped before it is dispatched never reaches an agent process", a
   assert.deepEqual(agents.started[0]?.posted.map((message) => "runId" in message && message.runId), ["run-new"]);
 });
 
+test("a role reaches the agent process behind a start of the thread's still resolving, and nowhere while no process runs", async () => {
+  const { agents, bridge } = harness();
+  bridge.handleRunCommand({ type: "role", taskId: "task-1", coordinationRole: "coordinator" });
+  assert.equal(agents.started.length, 0, "no process holds a session to retire");
+
+  bridge.handleRunCommand(startCommand("task-1", "run-1"));
+  await tick();
+  const agent = agents.started[0];
+  assert.ok(agent);
+  bridge.handleRunCommand(startCommand("task-1", "run-2"));
+  bridge.handleRunCommand({ type: "role", taskId: "task-1", coordinationRole: "coordinator" });
+  bridge.handleRunCommand({ type: "role", taskId: "task-2" });
+  await tick();
+  assert.deepEqual(agent.posted.map((message) => message.type === "start" ? `start:${message.runId}` : `${message.type}:${"taskId" in message ? message.taskId : ""}`), [
+    "start:run-1",
+    "role:task-2",
+    "start:run-2",
+    "role:task-1",
+  ], "the start the window sent first builds the session the role is measured against");
+});
+
 test("only a run's next word reaches the renderer, and its terminal status is its last", async () => {
   const { agents, bridge, events } = harness();
   bridge.handleRunCommand(startCommand("task-1", "run-1"));

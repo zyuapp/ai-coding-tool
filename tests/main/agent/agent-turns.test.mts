@@ -84,7 +84,7 @@ test("a turn the agent starts itself is taken on by the thread, and read there",
   assert.deepEqual(unasked.state, idle, "a run nobody opened is not taken on by itself");
 });
 
-test("a session built for what the thread was opens no turn of its own once its role changes, and does again once it is back", async () => {
+test("a session built for a role the thread no longer has goes, its work with it, and one for the role it has stays", async () => {
   const capture: LiveQueryCapture = { opens: 0, sent: [] };
   const events: AgentEvent[] = [];
   const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
@@ -95,19 +95,18 @@ test("a session built for what the thread was opens no turn of its own once its 
   };
   coordinator.start(start);
   await tick();
+  capture.emit!({ type: "system", subtype: "task_started", task_id: "wf-1", tool_use_id: "tu-wf", description: "Review the branch", task_type: "local_workflow" } as unknown as SDKMessage);
   capture.emit!({ type: "result", subtype: "success", is_error: false, result: "done" } as SDKMessage);
   await tick();
-  const opened = () => events.filter((event) => event.type === "run.started" && event.agentInitiated).length;
-  const workflowSays = (id: string) => capture.emit!({ type: "assistant", uuid: id, message: { id, model: "claude-opus-5", content: [{ type: "text", text: "The workflow finished." }], usage: { input_tokens: 5 } } } as unknown as SDKMessage);
 
-  coordinator.setRole("task-r", "coordinator");
-  workflowSays("u-1");
+  coordinator.retireOutOfRole("task-r", undefined);
   await tick();
-  assert.equal(opened(), 0, "a session holding every tool never speaks for a coordinator");
+  assert.equal(capture.closed, undefined, "a role that changes no tools keeps the session");
 
-  coordinator.setRole("task-r", undefined);
-  workflowSays("u-2");
+  coordinator.retireOutOfRole("task-r", "coordinator");
   await tick();
-  assert.equal(opened(), 1);
+  assert.equal(capture.closed, true, "the session holding every tool goes before it can act for a coordinator");
+  const stopped = events.flatMap((event) => event.type === "workflow.finished" ? [event.status] : []);
+  assert.deepEqual(stopped, ["stopped"], "the work it held is said to have stopped, so nothing is left spinning");
   provider.closeAll();
 });

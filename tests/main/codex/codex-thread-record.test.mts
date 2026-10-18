@@ -210,3 +210,15 @@ test("a run after archiving a thread Codex had yet to name waits for that filing
   assert.deepEqual(await running, { status: "succeeded" });
   codex.provider.closeAll();
 });
+
+test("a Codex session built for a role the thread no longer has goes, and one for the role it has stays", async () => {
+  const codex = harness();
+  const { client: session } = await turn(codex, { coordinationRole: "member" });
+  codex.provider.retireOutOfRole("task-1", "member");
+  await tick();
+  assert.equal(session.closed, false, "a role that changes no tools keeps the session");
+  codex.provider.retireOutOfRole("task-1", undefined);
+  await tick();
+  assert.equal(session.closed, true);
+  codex.provider.closeAll();
+});

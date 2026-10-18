@@ -1,4 +1,5 @@
 import type { Continuation } from "../../domain/run.js";
+import type { CoordinationRole } from "../../domain/coordination.js";
 import type { AgentProvider, ProviderResult, ProviderRunInput } from "../agent/agent-provider.mjs";
 import { grantsTool } from "../agent/approval-grant.mjs";
 import { SessionPool } from "../agent/session-pool.mjs";
@@ -85,6 +86,10 @@ export class CodexAgentProvider implements AgentProvider {
     if (!(session instanceof CodexSession)) return false;
     session.label(title);
     return true;
+  }
+
+  retireOutOfRole(taskId: string, role: CoordinationRole | undefined) {
+    void this.pool.retireOutOfRole(taskId, role);
   }
 
   /**

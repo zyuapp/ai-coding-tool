@@ -177,3 +177,23 @@ test("retiring a thread lets its session go once the turn has answered, and a ru
   assert.equal(opened[1].live, false, "an idle session goes at once");
   await pool.retire("missing");
 });
+
+test("a session opened for one coordination role is retired once the thread has another, and kept while it has the same", async () => {
+  const pool = new SessionPool();
+  const opened: FakeSession[] = [];
+  const claude = engine("claude", pool, opened);
+  await claude(input({ engine: "claude", taskId: "t", coordinationRole: "member" }));
+  const [session] = opened;
+
+  await pool.retireOutOfRole("t", "member");
+  assert.equal(session.live, true);
+  session.answering = true;
+  const retiring = pool.retireOutOfRole("t", "coordinator");
+  await Promise.resolve();
+  assert.equal(session.live, true, "a turn the window asked for still answers first");
+  session.answering = false;
+  await claude(input({ engine: "claude", taskId: "t", coordinationRole: "coordinator" }));
+  assert.equal(session.live, false);
+  await retiring;
+  await pool.retireOutOfRole("missing", undefined);
+});

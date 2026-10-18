@@ -25,6 +25,9 @@ function engine(name: string, log: string[], holds: string[] = []): EngineProvid
       log.push(`${name}:archive:${taskId}:${archived}:${held}`);
       return held;
     },
+    retireOutOfRole(taskId: string, role: string | undefined) {
+      log.push(`${name}:role:${taskId}:${role ?? "none"}`);
+    },
     closeAll() {
       log.push(`${name}:closeAll`);
     },
@@ -51,4 +54,10 @@ test("a run goes to the engine it names, a stop asks each engine for the thread,
     "claude:closeAll",
     "codex:closeAll",
   ]);
+});
+
+test("a role change asks every engine, since either may hold the thread's session", () => {
+  const log: string[] = [];
+  new EngineRouter({ claude: engine("claude", log), codex: engine("codex", log) }).retireOutOfRole("task-a", "coordinator");
+  assert.deepEqual(log, ["claude:role:task-a:coordinator", "codex:role:task-a:coordinator"]);
 });
