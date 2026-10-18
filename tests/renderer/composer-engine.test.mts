@@ -375,3 +375,20 @@ test("the effort menu offers what the model takes, and is gone for a model that 
   assert.equal(luna.includes("Ultra"), false, "a nondelegating model has no ultra");
   assert.equal(await efforts("claude", "haiku"), null, "Haiku reasons at one depth, so it is drawn without an effort menu");
 });
+
+test("what a newer build sent is named as it is, and a thread on an engine only it knows takes no message here", async () => {
+  window.desktop = composerDesktop();
+  const dispatch = async (_input: WorkspaceInput) => {};
+  const shown = (thread: Partial<Thread>) => {
+    const currentThread = { id: "task-1", title: "Newer", engine: "claude", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, ...thread } as Thread;
+    const view = deriveView({ ...emptyWorkspaceState(), threads: [currentThread], currentId: currentThread.id });
+    return React.createElement(WorkspaceComposer, { workspace: { ...view, dispatch, actions: workspaceActions(dispatch), outbox } as never, actions: [] });
+  };
+  const view = await mount(shown({ model: "opus-next" as AgentModel, executionPolicy: "yolo" as never }));
+  assert.equal(query(view.container, ".composer-settings").textContent?.includes("opus-next"), true, "a model this build does not know is named as sent");
+  assert.equal(query(view.container, ".composer-settings").textContent?.includes("yolo"), true, "and so is a mode");
+  await view.render(shown({ engine: "gemini" as never }));
+  assert.equal(view.container.querySelector("textarea"), null);
+  assert.equal(query(view.container, ".composer-unopenable").textContent, "Runs on gemini, which this version can't open. Update to work in it here.");
+  await view.unmount();
+});

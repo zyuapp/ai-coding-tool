@@ -553,17 +553,19 @@ function droppableFieldsReadable(value: Record<string, unknown>): boolean {
     });
 }
 
-function withoutUnreadableFields(value: unknown) {
+const NOTHING_KEPT: ReadonlySet<string> = new Set();
+
+function withoutUnreadableFields(value: unknown, asSent: ReadonlySet<string> = NOTHING_KEPT) {
   if (!isRecord(value)) return value;
   let task = value;
   for (const [field, readable] of Object.entries(DROPPABLE_FIELDS)) {
-    if (task[field] === undefined || readable(task[field])) continue;
+    if (asSent.has(field) || task[field] === undefined || readable(task[field])) continue;
     const { [field]: _unreadable, ...rest } = task;
     task = rest;
   }
   for (const [field, readable] of Object.entries(DROPPABLE_ITEMS)) {
     const items = task[field];
-    if (items === undefined || Array.isArray(items) && items.every(readable)) continue;
+    if (asSent.has(field) || items === undefined || Array.isArray(items) && items.every(readable)) continue;
     const { [field]: _unreadable, ...rest } = task;
     const kept = Array.isArray(items) ? items.filter(readable) : [];
     task = kept.length ? { ...rest, [field]: kept } : rest;
@@ -572,27 +574,32 @@ function withoutUnreadableFields(value: unknown) {
 }
 
 /**
- * A thread another computer's build sent, as this build can draw it, by the rules storage reads a
- * thread by: a model, effort, role, verdict or mode it does not know is left out, a mode falling back
- * to asking first, and so is any field or list item it cannot read. A thread on an engine this build
- * does not know is not one it can show at all, which is null. The thread itself while it holds
- * nothing unknown.
+ * A thread another computer's build sent, read honestly: what that build knows and this one does not
+ * is kept as it was sent, for the window to show as it is and leave alone, never swapped for a value
+ * of this build's own. A model the catalogue has renamed is read under its new name, as storage reads
+ * it; a field or list item whose shape this build cannot read at all is left out, a suggestion only
+ * for its shape and not for naming a model this build does not know; and a role or verdict this build
+ * has no mark for is left out. The thread itself while it holds nothing to leave out.
  */
-export function readableRemoteThread(thread: Thread): Thread | null {
-  if (!isAgentEngine(thread.engine)) return null;
-  /** A model the catalogue has renamed is read under its new name, as storage reads it. */
-  let read = withoutUnreadableFields(renamedFields(thread)) as Thread;
-  const drop = (field: "model" | "effort" | "role" | "outcome") => {
-    const { [field]: _unknown, ...rest } = read;
-    read = rest as Thread;
+export function readableRemoteThread(thread: Thread): Thread {
+  let read = withoutUnreadableFields(renamedFields(thread), SHOWN_AS_SENT) as Thread;
+  const without = (field: "threadModel" | "proposals" | "role" | "outcome") => {
+    const { [field]: _unreadable, ...kept } = read;
+    read = kept as Thread;
   };
-  if (read.model !== undefined && !(isAgentModel(read.model) && engineHasModel(read.engine, read.model))) drop("model");
-  if (read.effort !== undefined && !(isAgentEffort(read.effort) && engineHasEffort(read.engine, read.effort))) drop("effort");
-  if (read.role !== undefined && !isThreadRole(read.role)) drop("role");
-  if (read.outcome !== undefined && !isThreadOutcome(read.outcome)) drop("outcome");
-  if (!isExecutionPolicy(read.executionPolicy)) read = { ...read, executionPolicy: "confirm" };
+  if (read.threadModel !== undefined && !(isRecord(read.threadModel) && typeof read.threadModel.model === "string")) without("threadModel");
+  if (read.proposals !== undefined) {
+    const shown = Array.isArray(read.proposals) ? read.proposals.filter((proposal) => isRecord(proposal) && isThreadProposal({ ...proposal, model: undefined, effort: undefined })) : [];
+    if (!shown.length) without("proposals");
+    else if (shown.length !== read.proposals.length) read = { ...read, proposals: shown };
+  }
+  if (read.role !== undefined && !isThreadRole(read.role)) without("role");
+  if (read.outcome !== undefined && !isThreadOutcome(read.outcome)) without("outcome");
   return read;
 }
+
+/** What a thread from another build keeps as sent where storage would drop it, for naming a model this build does not know. */
+const SHOWN_AS_SENT: ReadonlySet<string> = new Set(["threadModel", "proposals"]);
 
 /** A conversation loaded separately uses the same migrations and validation as a complete store. */
 export function parseStoredConversationMessages(values: unknown[]): ConversationMessage[] {

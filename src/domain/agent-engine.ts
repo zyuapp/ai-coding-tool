@@ -224,7 +224,7 @@ export function effortLabel(value: string) {
 }
 
 export function engineHasModel(engine: AgentEngine, model: AgentModel) {
-  return ENGINES[engine].models.some((spec) => spec.id === model);
+  return modelsFor(engine).some((spec) => spec.id === model);
 }
 
 /** The engine that owns a model, or none for a model this build does not know, as a newer computer may send. */
@@ -255,7 +255,7 @@ export function claudeEffort(effort: AgentEffort): ClaudeEffort {
 
 /** True for an effort at least one of the engine's models takes; ask `modelHasEffort` about a model. */
 export function engineHasEffort(engine: AgentEngine, effort: AgentEffort) {
-  return ENGINES[engine].models.some((model) => model.efforts.some((spec) => spec.id === effort));
+  return modelsFor(engine).some((model) => model.efforts.some((spec) => spec.id === effort));
 }
 
 export function modelHasEffort(model: AgentModel, effort: AgentEffort, role?: CoordinationRole) {
@@ -272,14 +272,26 @@ export function modelTakesEffort(model: AgentModel) {
  * nearest one below. A model that takes no effort keeps what it was given, since nothing reads it.
  */
 export function effortForModel(model: AgentModel, effort: AgentEffort, role?: CoordinationRole): AgentEffort {
+  /** An effort only a newer build knows is kept as it is, as nothing here can say what it is nearest. */
+  if (!isAgentEffort(effort)) return effort;
   const offered = effortsFor(model, role);
   if (offered.length === 0 || offered.some((spec) => spec.id === effort)) return effort;
   const asked = EFFORT_ORDER.indexOf(effort);
   return (offered.find((spec) => EFFORT_ORDER.indexOf(spec.id) >= asked) ?? offered[offered.length - 1]!).id;
 }
 
+/**
+ * The engine's own record, or none for an engine only a newer build on a paired computer knows. What
+ * is read off it below falls back to what keeps the window drawing, for a thread it shows read-only.
+ */
+function engineSpec(engine: AgentEngine): EngineSpec | undefined {
+  return Object.hasOwn(ENGINES, engine) ? ENGINES[engine] : undefined;
+}
+
+const NO_CAPABILITIES: EngineCapabilities = { fastMode: false, workflows: false, subagents: false, subagentMetadata: false, review: false };
+
 export function modelsFor(engine: AgentEngine): readonly ModelSpec[] {
-  return ENGINES[engine].models;
+  return engineSpec(engine)?.models ?? [];
 }
 
 /**
@@ -292,20 +304,26 @@ export function effortsFor(model: AgentModel, role?: CoordinationRole): readonly
 }
 
 export function defaultModelFor(engine: AgentEngine): AgentModel {
-  return ENGINES[engine].defaultModel;
+  return engineSpec(engine)?.defaultModel ?? DEFAULT_MODEL;
 }
 
 export function defaultEffortFor(engine: AgentEngine): AgentEffort {
-  return ENGINES[engine].defaultEffort;
+  return (engineSpec(engine) ?? ENGINES[DEFAULT_ENGINE]).defaultEffort;
 }
 
+/** An engine only a newer build knows can do nothing here. */
 export function capabilitiesFor(engine: AgentEngine): EngineCapabilities {
-  return ENGINES[engine].capabilities;
+  return engineSpec(engine)?.capabilities ?? NO_CAPABILITIES;
 }
 
-/** What the engine is called wherever the app speaks of the agent running a thread. */
+/** What the engine is called wherever the app speaks of the agent running a thread; one only a newer build knows, by its own id. */
 export function engineLabel(engine: AgentEngine): string {
-  return ENGINES[engine].label;
+  return engineSpec(engine)?.label ?? engine;
+}
+
+/** What stands in for the composer of a thread on an engine only a newer build knows, which this one shows read-only. */
+export function unopenableEngine(engine: string): string {
+  return `Runs on ${engine}, which this version can't open. Update to work in it here.`;
 }
 
 /** A model by the name the composer gives it, or by its id for one this build does not know, such as one a paired computer's newer build ran. */
@@ -325,6 +343,8 @@ export function byModel<T>(build: (model: ModelSpec) => T): Record<AgentModel, T
 
 /** A model the engine does not offer is measured against the engine's default model. */
 export function contextWindowLimit(engine: AgentEngine, model: AgentModel): number {
-  const { models, defaultModel } = ENGINES[engine];
+  const spec = engineSpec(engine);
+  if (!spec) return 0;
+  const { models, defaultModel } = spec;
   return (models.find((spec) => spec.id === model) ?? models.find((spec) => spec.id === defaultModel))?.contextWindow ?? 0;
 }

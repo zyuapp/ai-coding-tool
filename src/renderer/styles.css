@@ -2363,6 +2363,8 @@ pre {
   grid-column: 1;
   grid-row: 3;
 }
+/** Where a thread this build can only read would take a message, one line says why. */
+.composer-unopenable { max-width: 860px; margin: 0 auto; border: 1px solid var(--line); border-radius: 14px; padding: 14px 18px; background: var(--surface); color: var(--muted); font-size: var(--text-control); text-align: center; }
 /** A composer menu stands over the whole workspace, so the footer rises past the topbar while one is open. */
 .composer-wrap:has(.command-menu, .setting-menu[open], .thread-start .picker-popover) { z-index: 41; }
 

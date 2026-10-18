@@ -54,7 +54,7 @@ import { OPEN_SIDEBAR_SECTIONS, type SidebarMode, type SidebarSections } from ".
 import { DEFAULT_THEME, DEFAULT_THEME_MODE, type ThemeMode } from "../domain/theme.js";
 import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, READING_SIZE, TERMINAL_SIZE } from "../domain/typography.js";
 import type { Workflow } from "../domain/workflow.js";
-import { DEFAULT_ENGINE, DEFAULT_MODEL, byEngine, capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel, engineLabel, type AgentEngine, type AgentModel, type EngineCapabilities, type EngineReadiness, type EngineStatus } from "../domain/agent-engine.js";
+import { DEFAULT_ENGINE, DEFAULT_MODEL, byEngine, capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel, engineLabel, isAgentEngine, unopenableEngine, type AgentEngine, type AgentModel, type EngineCapabilities, type EngineReadiness, type EngineStatus } from "../domain/agent-engine.js";
 import { engineReadinessOf } from "./engine-access.js";
 import { DEFAULT_EFFORT, OPEN_SUBAGENT_GROUPS, type AgentEffort, type ExecutionPolicy, type Subagent, type SubagentGroups } from "../domain/run.js";
 import { annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-drafts.js";
@@ -716,6 +716,11 @@ function engineView(state: WorkspaceState, currentThread: Thread | undefined) {
     engineAccess: byEngine((candidate): EngineReadiness => engineReadinessOf(state, candidate)),
     /** What the engine can feed, so a panel it cannot is not offered for this thread. */
     capabilities,
+    /**
+     * Why the thread in front can only be read here: it runs on an engine only a newer build on a
+     * paired computer knows. Null for any thread this build can work in.
+     */
+    unopenable: currentThread && !isAgentEngine(currentThread.engine) ? unopenableEngine(currentThread.engine) : null,
     ...engineFeeds(capabilities, state, currentThread),
   };
 }

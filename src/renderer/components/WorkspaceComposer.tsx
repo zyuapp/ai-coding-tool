@@ -29,6 +29,10 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
     && workspace.waitingOn === null
     ? [{ name: "review", description: "Review changes in the current project.", run: workspace.actions.openReview }]
     : [];
+  /** A thread this build can only read says why where the composer would be, rather than taking a message it cannot send. */
+  if (workspace.unopenable) {
+    return <footer className="composer-wrap main"><p className="composer-unopenable" role="status">{workspace.unopenable}</p></footer>;
+  }
   return (
     <ConversationComposer
       taskId={thread?.id}

@@ -273,10 +273,14 @@ export type ThreadModelChoice = { model: AgentModel; effort?: AgentEffort };
  * effort the model does not take moves to the nearest one it does.
  */
 export function threadModelOf(lead: Thread): ThreadModelChoice {
-  /** A model this build does not know, as a newer computer may send, is passed over like one threads may not run on. */
+  /**
+   * A model only a newer build on a paired computer knows is kept as that build chose it, for the
+   * window to name and leave alone; nothing here can say it may not be delegated.
+   */
   const chosen = lead.threadModel?.model;
-  const own = lead.model && isAgentModel(lead.model) ? lead.model : defaultModelFor(lead.engine);
-  const model = chosen && isAgentModel(chosen) && modelDelegable(chosen) ? chosen : modelDelegable(own) ? own : defaultModelFor(lead.engine);
+  const own = lead.model ?? defaultModelFor(lead.engine);
+  const model = chosen && (!isAgentModel(chosen) || modelDelegable(chosen)) ? chosen : !isAgentModel(own) || modelDelegable(own) ? own : defaultModelFor(lead.engine);
+  if (!isAgentModel(model)) return { model, ...(lead.threadModel?.model === model && lead.threadModel.effort ? { effort: lead.threadModel.effort } : {}) };
   if (!modelTakesEffort(model)) return { model };
   return { model, effort: effortForModel(model, lead.threadModel?.effort ?? lead.effort ?? defaultEffortFor(engineForModel(model))) };
 }

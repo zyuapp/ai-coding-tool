@@ -129,23 +129,18 @@ export function createRemoteWorkspaceReader() {
   });
   const originThreads = (threads: Thread[]) => cachedRead(threads, (list) => mapKept(list, readThread));
 
-  /**
-   * A newer build may send a model, role or engine this one does not know; only what this build can
-   * draw reaches the window, each thread read once, by reference.
-   */
-  const known = new WeakMap<Thread, Thread | null>();
+  /** A newer build may send what this one does not know; each thread is read once, by reference. */
+  const known = new WeakMap<Thread, Thread>();
   const knownThread = (thread: Thread) => {
-    if (!known.has(thread)) known.set(thread, readableRemoteThread(thread));
-    return known.get(thread)!;
+    let read = known.get(thread);
+    if (!read) known.set(thread, read = readableRemoteThread(thread));
+    return read;
   };
   const knownLists = new WeakMap<Thread[], Thread[]>();
   const knownThreads = (threads: Thread[]) => {
-    const cached = knownLists.get(threads);
-    if (cached) return cached;
-    const read = threads.map(knownThread);
-    const result = read.every((thread, index) => thread === threads[index]) ? threads : read.filter((thread): thread is Thread => thread !== null);
-    knownLists.set(threads, result);
-    return result;
+    let read = knownLists.get(threads);
+    if (!read) knownLists.set(threads, read = mapKept(threads, knownThread));
+    return read;
   };
 
   const docks = new WeakMap<object, WorkspaceState["docks"]>();

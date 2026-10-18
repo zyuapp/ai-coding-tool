@@ -3,6 +3,7 @@ import { test } from "vitest";
 import { createRemoteWorkspaceReader } from "../../src/application/remote-workspace.ts";
 import { applyWorkspacePatches } from "../../src/application/workspace-patches.ts";
 import { deriveView, emptyWorkspaceState } from "../../src/application/workspace-state.ts";
+import { reduce } from "../../src/application/workspace-reducer.ts";
 import { task } from "./workspace-reducer-fixtures.mts";
 
 test("older snapshots acquire defaults without changing the replica patches are based on", () => {
@@ -55,18 +56,35 @@ test("older collection records get required-field defaults while identity and un
   assert.throws(() => read({ threads: [{ title: "missing identity" }] }), /identity/);
 });
 
-test("a newer build's model, effort, role or engine this one does not know never reaches the window", () => {
+test("a newer build's model, effort, mode or engine is kept as it was sent, and only marks this build has none for are left out", () => {
   const read = createRemoteWorkspaceReader();
   const known = task("known", { role: "coordinator", model: "opus", effort: "high" });
+  const proposal = (id: string, model?: string) => ({ id, title: `S ${id}`, prompt: "Do it", place: { worktree: false }, proposedAt: 1, ...(model ? { model } : {}) });
   const wire = { ...emptyWorkspaceState(), threads: [
     known,
-    task("newer", { role: "designer", model: "opus-next", effort: "galaxy", outcome: "celebrated", executionPolicy: "yolo", threadModel: { model: "opus-next" } } as never),
+    task("newer", { role: "designer", model: "opus-next", effort: "galaxy", outcome: "celebrated", executionPolicy: "yolo", threadModel: { model: "opus-next" }, proposals: [proposal("p1"), proposal("p2", "opus-next")] } as never),
     task("elsewhere", { engine: "gemini" } as never),
   ] };
   const { threads } = read(wire);
-  assert.deepEqual(threads.map((thread) => thread.id), ["known", "newer"], "a thread on an engine this build does not know is not drawn");
-  assert.equal(threads[0], known, "a thread with nothing unknown is handed on as it came");
+  assert.deepEqual(threads.map((thread) => thread.id), ["known", "newer", "elsewhere"], "a thread on an engine this build does not know is still listed, to be read");
+  assert.equal(threads[0], known, "a thread with nothing to leave out is handed on as it came");
   const newer = threads[1]!;
-  assert.deepEqual([newer.role, newer.model, newer.effort, newer.outcome, newer.threadModel, newer.executionPolicy], [undefined, undefined, undefined, undefined, undefined, "confirm"]);
+  assert.deepEqual([newer.role, newer.outcome], [undefined, undefined], "a role or verdict this build has no mark for is left out");
+  assert.deepEqual([newer.model, newer.effort, newer.executionPolicy, newer.threadModel?.model], ["opus-next", "galaxy", "yolo", "opus-next"], "what it runs on is kept as sent, never swapped for this build's defaults");
+  assert.deepEqual(newer.proposals?.map((item) => item.id), ["p1", "p2"], "a suggestion naming a model this build does not know is still shown");
+  assert.equal(threads[2]!.engine, "gemini");
   assert.equal(read({ ...wire }).threads, threads, "and the list is read once while it does not move");
+});
+
+test("a thread on an engine only a newer build knows is shown read-only, and a send typed for it is refused", () => {
+  const read = createRemoteWorkspaceReader();
+  const remote = read({ ...emptyWorkspaceState(), threads: [task("g1", { title: "Gemini work", engine: "gemini" } as never)], currentId: "g1" });
+  const local = emptyWorkspaceState();
+  const state = { ...local, computers: { ...local.computers, name: "Mac", active: "linux", paired: [{ id: "linux", name: "Linux", host: "linux.ts.net", status: "connected" as const, error: null, pairedAt: 1, state: remote }] } };
+  const view = deriveView(state);
+  assert.equal(view.currentThread?.id, "g1");
+  assert.equal(view.unopenable, "Runs on gemini, which this version can't open. Update to work in it here.");
+  const sent = reduce(reduce(state, { type: "view.set-prompt", prompt: "hello" }).state, { type: "task.send", attachments: [] });
+  assert.equal(sent.effects.some((effect) => effect.type === "computer.forward"), false, "nothing goes to that computer");
+  assert.equal(sent.state.actionError, view.unopenable);
 });

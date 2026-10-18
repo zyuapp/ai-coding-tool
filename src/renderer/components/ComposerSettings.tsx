@@ -107,8 +107,9 @@ function ChoiceMenu<T extends string>({ label, axis, heading, choices, value, on
   value: T;
   onChange: (value: T) => void;
 }) {
-  const selected = choices.find((item) => item.value === value) ?? choices[0];
-  return <SettingMenu label={label} axis={axis} heading={heading} value={selected.label}>
+  /** A value only a newer build on a paired computer knows is named as it is, never as one of these. */
+  const selected = choices.find((item) => item.value === value);
+  return <SettingMenu label={label} axis={axis} heading={heading} value={selected?.label ?? value}>
     {(close) => choices.map((item) => <Option key={item.value} item={item} selected={item.value === value} onSelect={() => { onChange(item.value); close(); }} />)}
   </SettingMenu>;
 }

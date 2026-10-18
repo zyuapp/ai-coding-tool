@@ -20,6 +20,7 @@ import { doingWork, threadActivity, threadLists, type ThreadActivity } from "./t
 import { stoppableCoordinators } from "./coordination.js";
 import type { WorkspaceInput } from "./workspace-reducer.js";
 import { frontDock } from "./workspace-dock.js";
+import { isAgentEngine, unopenableEngine } from "../domain/agent-engine.js";
 
 /** A paired computer as this one holds it: the link, and the last state it published. */
 export type PairedComputer = ComputerLink & { state: WorkspaceState | null };
@@ -169,6 +170,10 @@ function forwardedSend(state: WorkspaceState, computer: PairedComputer, command:
   if (command.type === "task.send" && command.attachments?.length) return { kind: "refuse", message: ATTACHMENTS_ELSEWHERE };
   const remote = computer.state;
   if (!remote) return { kind: "refuse", message: "That computer has not answered yet." };
+  /** A thread on an engine only that computer's newer build knows is shown here read-only, and takes nothing typed here. */
+  const aimed = command.taskId ?? (command.type === "task.send" && command.text !== undefined ? undefined : promptKey(remote));
+  const engine = remote.threads.find((thread) => thread.id === aimed)?.engine;
+  if (engine !== undefined && !isAgentEngine(engine)) return { kind: "refuse", message: unopenableEngine(engine) };
   const { attachments: _attachments, ...rest } = command.type === "task.send" ? titledFor(computer, command) : command;
   if (rest.type === "task.send" && rest.text !== undefined) return forwarded(computer, [rest]);
   /** The thread the send is for: the one named, else the one that computer has open, else its draft. */
