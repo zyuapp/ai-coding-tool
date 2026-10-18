@@ -166,6 +166,11 @@ test("a paired computer that quits mid-run is heard ending that turn, as it rest
 
   const ticking = mirrored(coordinating(workspace()), workspace({ threads: [far()], activeRuns: { far: activeRun("far", "tick", { origin: "automation", quiet: true }) } })).state;
   assert.deepEqual(notesOf(mirrored(ticking, workspace({ threads: [far()] })).state), notesOf(ticking), "a quiet tick that found nothing put its thread back as if it never ran");
+  const idle = mirrored(coordinating(workspace()), workspace({ threads: [far({ runEndedAt: 40, runEndedAs: "finished" })] })).state;
+  const compacting = mirrored(idle, workspace({ threads: [far({ runEndedAt: 40, runEndedAs: "finished" })], activeRuns: { far: activeRun("far", "compact", { operation: "compact" }) } })).state;
+  const compacted = mirrored(compacting, workspace({ threads: [far({ runEndedAt: 40, runEndedAs: "finished", updatedAt: 60 })] })).state;
+  assert.deepEqual(notesOf(compacted), notesOf(compacting), "compacting it is no turn, which puts back how its last turn ended");
+  assert.deepEqual(wakesOf(compacted), wakesOf(compacting));
 });
 
 test("a coordinator with more threads there than it keeps watermarks for hears each of them once", () => {

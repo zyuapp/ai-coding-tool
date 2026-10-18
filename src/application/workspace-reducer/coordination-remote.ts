@@ -149,9 +149,9 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
   /**
    * A run that computer last said was going and that is gone with no word of its end, as one an older
    * build there lost to quitting, ended its turn all the same. Only a quiet scheduled run that found
-   * nothing puts its thread back as if it never ran.
+   * nothing puts its thread back as if it never ran, and compacting is no turn at all.
    */
-  const lost = ran !== undefined && !ran.quiet && endedAt === undefined;
+  const lost = ran !== undefined && !ran.quiet && ran.operation !== "compact" && endedAt === undefined;
   /** A thread waiting out a session limit carries on by itself, so its turn has not ended. */
   const ended = (endedAt !== undefined || lost) && !run && !(member.limitPause && resumesOnItsOwn(member.limitPause));
   /**
