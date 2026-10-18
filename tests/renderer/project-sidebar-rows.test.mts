@@ -116,7 +116,7 @@ test("a row marks and says what waits on the user, as the lists word it", async 
   const view = await mount(renderProjectSidebar({
     mode: "activity",
     activityThreads: { priority: rows.slice(0, 1), running: [], threads: rows.slice(1), snoozed: [] },
-    sidebarCoordination: { threadsByCoordinator: new Map(), waitingLines: new Map([["suggests", said]]), coordinators: rows, onSetCoordinator() {}, notifications: true, onSetMuted() {}, stoppable: new Set<string>(), onStopAll() {} },
+    sidebarCoordination: { threadsByCoordinator: new Map(), waitingLines: new Map([["suggests", said]]), coordinatorsByComputer: new Map([[null, rows]]), onSetCoordinator() {}, notifications: true, onSetMuted() {}, stoppable: new Set<string>(), onStopAll() {} },
   }));
   assert.deepEqual([...view.container.querySelectorAll(".task-attention.approval")].map((mark) => mark.getAttribute("aria-label")), [said]);
   assert.equal(query(view.container, 'nav[aria-label="Priority"] .task-row-text > small').textContent, said, "and says so under its title");
@@ -133,7 +133,7 @@ test("what waits on the user outranks a coordinator's threads at work, and only 
   const worker = thread("worker", { parentId: "waits", projectId: "p" });
   const filed = thread("filed", { role: "coordinator", projectId: "p" });
   const finished = thread("finished", { parentId: "filed", projectId: "p", outcome: "finished" });
-  const coordination = { threadsByCoordinator: new Map([["waits", [worker]], ["filed", [finished]]]), waitingLines: new Map([["waits", said]]), coordinators: [waits, filed], onSetCoordinator() {}, notifications: true, onSetMuted() {}, stoppable: new Set<string>(), onStopAll() {} };
+  const coordination = { threadsByCoordinator: new Map([["waits", [worker]], ["filed", [finished]]]), waitingLines: new Map([["waits", said]]), coordinatorsByComputer: new Map([[null, [waits, filed]]]), onSetCoordinator() {}, notifications: true, onSetMuted() {}, stoppable: new Set<string>(), onStopAll() {} };
   const projects = await mount(renderProjectSidebar({
     mode: "projects", projects: [{ id: "p", root: "/work/p" }], expandedProjects: new Set(["p"]), orderedThreads: [waits, worker], runningThreadIds: new Set(["worker"]), sidebarCoordination: coordination,
   }));

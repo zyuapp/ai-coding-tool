@@ -145,7 +145,8 @@ export type SidebarCoordination = {
    * the decisions its threads put to the user as well as its own, its suggestions and its requests.
    */
   waitingLines: ReadonlyMap<string, string>;
-  coordinators: Thread[];
+  /** The coordinators on each computer, this one's under null, of which only those holding a thread can take it. */
+  coordinatorsByComputer: ReadonlyMap<string | null, readonly Thread[]>;
   onSetCoordinator: (threadId: string, coordinatorId: string | null) => void;
   /** Whether desktop notices are on at all, which a coordinator's mute only narrows. */
   notifications: boolean;
@@ -211,7 +212,7 @@ type RowState = {
   editing: boolean;
   menuAt: { x: number; y: number } | null;
   /** Only a row with its menu open is handed the coordinators, and whether Stop all has work to stop. */
-  coordinators: Thread[];
+  coordinators: readonly Thread[];
   stoppable: boolean;
   notifications: boolean;
   handlers: RowHandlers;
@@ -463,7 +464,7 @@ export function useThreadRows({
       pauseLabel: thread.limitPause ? pauseSummary(thread.limitPause, limitPositions.get(thread.id) ?? null, Date.now()) : null,
       editing: threadNames.editing === thread.id,
       menuAt: menuOpen ? threadMenuPosition : null,
-      coordinators: menuOpen ? coordination.coordinators : NO_THREADS,
+      coordinators: menuOpen ? coordination.coordinatorsByComputer.get(threadHosts.get(thread.id)?.id ?? null) ?? NO_THREADS : NO_THREADS,
       stoppable: menuOpen && coordination.stoppable.has(thread.id),
       notifications: coordination.notifications,
       handlers,

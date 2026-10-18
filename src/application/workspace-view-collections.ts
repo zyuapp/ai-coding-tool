@@ -84,8 +84,18 @@ function createViewCollections() {
   const blocked = selector((state) => [threadActivity(state).blocked], (state) => threadActivity(state).blocked, sameIds);
   const ranked = selector((state) => [threadActivity(state).ranked], (state) => threadActivity(state).ranked, sameIds);
 
-  /** The threads that can take others under them, for the menu that moves a thread under one. */
-  const coordinators = selector((state) => [threadLists(state).listedThreads], (state) => threadLists(state).listedThreads.filter((thread) => isCoordinator(thread)));
+  /**
+   * The threads that can take others under them, for the menu that moves a thread under one, by the
+   * computer that holds them: this one's under null. Only a coordinator on the computer holding a
+   * thread can take it, as only that computer moves it.
+   */
+  const coordinatorsByComputer = selector((state) => [threadLists(state).listedThreads, state.computers.paired], (state) => {
+    const byComputer = new Map<string | null, Thread[]>([[null, threadLists(state).listedThreads.filter((thread) => isCoordinator(thread))]]);
+    for (const computer of state.computers.paired) {
+      if (computer.state) byComputer.set(computer.id, threadLists(computer.state).listedThreads.filter((thread) => isCoordinator(thread)));
+    }
+    return byComputer as ReadonlyMap<string | null, readonly Thread[]>;
+  });
 
   /** The coordinators Stop all has something to stop under, read by every place that offers it. */
   const stoppable = selector((state) => [state.threads, state.computers.paired, state.activeRuns, state.pendingRuns, state.startingProposals, state.workflows, state.subagents], stoppableCoordinators, sameIds);
@@ -241,7 +251,7 @@ function createViewCollections() {
       worktreeGroups: groups(state),
       worktreesById: worktreesById(state),
       schedules: schedules(state),
-      coordinators: coordinators(state),
+      coordinatorsByComputer: coordinatorsByComputer(state),
       coordination: coordination(state),
       memberPullRequests: memberPullRequests(state),
       memberWorktrees: memberWorktrees(state),

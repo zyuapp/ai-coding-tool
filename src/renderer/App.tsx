@@ -21,6 +21,10 @@ import { useFileDrop, useRefusedStrayDrops } from "./file-drop";
 import { attachDroppedFiles, imageSources } from "./dropped-files";
 import { useComposerFocusRecovery, useEscapeLayers, useLatestDispatch, useMessageLinks, useSubagentInspection } from "./app-shell";
 import { PartBoundary } from "./components/PartBoundary";
+import type { Thread } from "../domain/thread";
+
+/** A thread on a computer holding no coordinators can be moved under none. */
+const NO_COORDINATORS: readonly Thread[] = [];
 
 const loadSettings = () => import("./components/WorkspaceSettings");
 const WorkspaceSettings = lazy(() => loadSettings().then((module) => ({ default: module.WorkspaceSettings })));
@@ -182,7 +186,7 @@ export function App() {
             onRenameThread={workspace.actions.renameThread}
             onForkThread={workspace.actions.forkThread}
             onArchiveThread={workspace.actions.archiveThread} onSetThreadRole={workspace.actions.setThreadRole}
-            coordinators={workspace.coordinators} onSetCoordinator={workspace.actions.setCoordinator}
+            coordinators={workspace.coordinatorsByComputer.get(workspace.activeComputer?.id ?? null) ?? NO_COORDINATORS} onSetCoordinator={workspace.actions.setCoordinator}
             notifications={workspace.notifications} onSetMuted={workspace.actions.setMuted}
             stoppable={Boolean(workspace.currentThread && workspace.stoppableCoordinatorIds.has(workspace.currentThread.id))}
             onStopAll={workspace.actions.stopAll}

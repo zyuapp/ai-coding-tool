@@ -64,7 +64,7 @@ test("typing over a paired computer's thread reuses this computer's and that com
   assert.equal(typing.worktreeGroups, before.worktreeGroups);
   assert.equal(typing.runningThreadIds, before.runningThreadIds);
   assert.equal(typing.coordination, before.coordination);
-  assert.equal(typing.coordinators, before.coordinators);
+  assert.equal(typing.coordinatorsByComputer, before.coordinatorsByComputer);
 });
 
 test("leaving a paired computer's thread lets go of its lists", () => {

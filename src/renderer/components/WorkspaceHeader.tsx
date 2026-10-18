@@ -31,7 +31,8 @@ export type WorkspaceHeaderProps = {
   onForkThread: (threadId: string, worktree: boolean) => void;
   onArchiveThread: (threadId: string) => void;
   onSetThreadRole: (threadId: string, role: ThreadRole | null) => void;
-  coordinators: Thread[];
+  /** The coordinators on the computer holding the thread, which are the only ones that can take it. */
+  coordinators: readonly Thread[];
   onSetCoordinator: (threadId: string, coordinatorId: string | null) => void;
   /** Whether desktop notices are on at all, which a coordinator's mute only narrows. */
   notifications: boolean;

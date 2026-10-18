@@ -6,6 +6,7 @@ import { task, workspace } from "../application/workspace-reducer-fixtures.mts";
 import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import { worktreeHue } from "../../src/domain/worktree.ts";
 import { dom, mount, query } from "../support/renderer-dom.mts";
+import type { Thread } from "../../src/domain/thread.ts";
 import { renderProjectSidebar } from "../support/sidebar.mts";
 
 const linux = { id: "linux", name: "linux-box", offline: false };
@@ -364,6 +365,21 @@ test("a row whose computer goes away takes back the menu it had open", async () 
   } finally {
     await view.unmount();
   }
+});
+
+test("a paired computer's thread offers to move under only that computer's coordinators, which alone can take it", async () => {
+  const linux = { id: "linux", name: "linux", offline: false };
+  const there = task("there", { title: "Linux thread" });
+  const coordination = (byComputer: ReadonlyMap<string | null, readonly Thread[]>) => ({ threadsByCoordinator: new Map(), waitingLines: new Map(), coordinatorsByComputer: byComputer, onSetCoordinator() {}, notifications: true, onSetMuted() {}, stoppable: new Set<string>(), onStopAll() {} });
+  const offered = async (byComputer: ReadonlyMap<string | null, readonly Thread[]>) => {
+    const view = await mount(renderProjectSidebar({ mode: "projects", recentThreads: [there], threadHosts: new Map([["there", linux]]), computerLinks: [{ id: "linux", name: "linux", host: "linux.tail.ts.net", status: "connected", error: null, pairedAt: 1 }], openMenu: "task:there", sidebarCoordination: coordination(byComputer) }));
+    const labels = [...dom.window.document.querySelectorAll("[role=menu] button")].map((item) => item.textContent ?? "");
+    await view.unmount();
+    return labels;
+  };
+  const here = task("lead", { role: "coordinator", title: "Lead here" });
+  assert.equal((await offered(new Map([[null, [here]]]))).some((label) => label.startsWith("Move under")), false, "a coordinator here cannot take a thread there");
+  assert.equal((await offered(new Map([[null, [here]], ["linux", [task("linux-lead", { role: "coordinator", title: "Lead there" })]]]))).some((label) => label.startsWith("Move under")), true);
 });
 
 test("an empty device offers adding a project, while an offline device shows its link error and dims the button", async () => {

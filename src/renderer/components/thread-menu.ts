@@ -13,7 +13,8 @@ export function threadMenuEntries(thread: Thread, actions: {
   onSnooze?: (hours: SnoozeHours) => void;
   onUnsnooze?: () => void;
   onSetRole: (role: ThreadRole | null) => void;
-  coordinators: Thread[];
+  /** The coordinators that can take the thread: those on the computer holding it. */
+  coordinators: readonly Thread[];
   onSetCoordinator: (coordinatorId: string | null) => void;
   /** Whether desktop notices are on at all, which a coordinator's mute only narrows. */
   notifications: boolean;
