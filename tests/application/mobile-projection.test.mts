@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { applyMobilePatch, diffMobileView, emptyMobileView, MOBILE_TRANSCRIPT_MESSAGES, projectMobileView } from "../../src/application/mobile-projection.ts";
 import { emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { workspaceViewCollections } from "../../src/application/workspace-view-collections.ts";
 import type { ActiveRun, ApprovalView } from "../../src/application/thread-run-state.ts";
 import type { ConversationMessage } from "../../src/domain/conversation.ts";
 import type { Thread } from "../../src/domain/thread.ts";
@@ -357,6 +358,21 @@ test("the activity list ranks what wants the user, the desktop's way, over the t
   assert.equal(found.unread, true, "an unread finding marks the row as a verdict would");
   assert.equal(activity.priority.find((thread) => thread.id === "asking")!.attention, false, "a blocked thread has nothing to file away yet");
   assert.equal(activity.priority.find((thread) => thread.id === "waiting")!.outcome, "finished");
+});
+
+test("a coordinator stands for its threads in the phone's activity lists, as it does on the desktop", () => {
+  const lead = task("lead", { role: "coordinator", projectId: "project-app" });
+  for (const [what, member] of [
+    ["a thread under it waiting on a decision", task("member", { parentId: "lead", projectId: "project-app", decisions: [{ id: "d1", question: "Which?", options: [], raisedAt: NOW }] })],
+    ["a resolved thread under it that finished", task("member", { parentId: "lead", projectId: "project-app", outcome: "finished", outcomeUnread: true, resolvedAt: NOW })],
+  ] as const) {
+    const state = workspace([lead, member], { sidebarMode: "activity" });
+    const desktop = workspaceViewCollections(state).lists.activityThreads;
+    const { activity } = projectMobileView(state, NOW);
+    for (const list of ["priority", "running", "threads", "snoozed"] as const) {
+      assert.deepEqual(activity[list].map((thread) => thread.id), desktop[list].map((thread) => thread.id), `${what}: ${list}`);
+    }
+  }
 });
 
 test("the phone wears the desktop's theme family in both faces, and follows the desktop's mode", () => {

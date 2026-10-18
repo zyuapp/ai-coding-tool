@@ -6,7 +6,8 @@ import { newestUnreadFinding, wantsAttention } from "../domain/attention.js";
 import { DEFAULT_BRANCH_RANGE } from "../domain/diff.js";
 import { themeFor, themeOrDefault } from "../domain/theme.js";
 import { worktreeName } from "../domain/worktree.js";
-import { activitySections, orderThreads } from "./thread-order.js";
+import { orderThreads } from "./thread-order.js";
+import { coordinationSections } from "./coordination.js";
 import { projectFor, threadWorkspaceId } from "./thread-location.js";
 import { diffFor } from "./workspace-diff.js";
 import { workspaceViewCollections } from "./workspace-view-collections.js";
@@ -97,13 +98,14 @@ export function projectMobileView(state: WorkspaceState, at: number): MobileView
 }
 
 /**
- * The same lists the desktop's activity sidebar draws, over the threads the list carries. A
- * thread past the list's limit is not ranked either: it is too old to be waiting on anyone.
+ * The same lists the desktop's activity sidebar draws, ranked by the same rules, a coordinator
+ * standing for the threads under it, over the threads the list carries. A thread past the list's
+ * limit is not ranked either: it is too old to be waiting on anyone.
  */
 function projectMobileActivity(state: WorkspaceState, view: ReturnType<typeof deriveView>, entriesById: Map<string, MobileThreadEntry>): MobileActivity {
   const { visibleThreads, everyRanked } = workspaceViewCollections(state);
   const listed = visibleThreads.filter((thread) => entriesById.has(thread.id));
-  const sections = activitySections(listed, everyRanked, view.blockedThreadIds);
+  const sections = coordinationSections(listed, everyRanked, view.blockedThreadIds);
   const rows = (threads: Thread[]) => threads.flatMap((thread) => entriesById.get(thread.id) ?? []);
   return { priority: rows(sections.priority), running: rows(sections.running), threads: rows(sections.threads), snoozed: rows(sections.snoozed) };
 }
