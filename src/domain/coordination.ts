@@ -99,6 +99,8 @@ export const MAX_PROPOSAL_PROJECT = 4_096;
 export const MAX_PROPOSAL_COMPUTER = 256;
 /** How many of a coordinator's threads on paired computers it keeps the news it took of, beyond those still working under it. */
 const MAX_REMOTE_HEARD = 100;
+/** How many it keeps at all, so what it cannot yet tell is gone, as on a computer that never answers again, still has an end. */
+const MOST_REMOTE_HEARD = 10 * MAX_REMOTE_HEARD;
 /**
  * The most a coordinator's purpose and notes run to as a new thread reads them, written under today's
  * limits with room to spare, which a thread started on another computer carries.
@@ -575,15 +577,17 @@ export function withProposals(lead: Thread, proposals: readonly ThreadProposal[]
  * A coordinator that has taken a thread on another computer's news up to `at`, on that computer's
  * clock. Past the limit the oldest go first, so a coordinator that lives long never carries every
  * thread it had, but never one of `led`, the threads still working under it: one forgotten would be
- * heard all over again.
+ * heard all over again. Past a much higher one even those go, oldest first.
  */
 export function withRemoteHeard(lead: Thread, threadId: string, at: number, led: ReadonlySet<string>): Thread {
   const held = lead.remoteHeard ?? {};
   if (held[threadId] === at) return lead;
   const entries = Object.entries({ ...held, [threadId]: at });
   if (entries.length <= MAX_REMOTE_HEARD) return { ...lead, remoteHeard: Object.fromEntries(entries) };
-  const gone = entries.filter(([id]) => id !== threadId && !led.has(id)).sort((left, right) => left[1] - right[1]);
-  const dropped = new Set(gone.slice(0, entries.length - MAX_REMOTE_HEARD).map(([id]) => id));
+  const oldest = (kept: (id: string) => boolean) => entries.filter(([id]) => id !== threadId && kept(id)).sort((left, right) => left[1] - right[1]).map(([id]) => id);
+  const dropped = new Set(oldest((id) => !led.has(id)).slice(0, entries.length - MAX_REMOTE_HEARD));
+  const left = entries.length - dropped.size;
+  if (left > MOST_REMOTE_HEARD) for (const id of oldest((id) => !dropped.has(id)).slice(0, left - MOST_REMOTE_HEARD)) dropped.add(id);
   return { ...lead, remoteHeard: Object.fromEntries(entries.filter(([id]) => !dropped.has(id))) };
 }
 

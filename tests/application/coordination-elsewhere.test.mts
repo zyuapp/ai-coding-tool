@@ -189,11 +189,17 @@ test("a coordinator with more threads there than it keeps watermarks for hears e
   const decision = { id: "d1", question: "Which API?", options: [], raisedAt: 4 };
   const remoteHeard = Object.fromEntries([["far", 5], ...Array.from({ length: 99 }, (_, index) => [`gone${index}`, 100 + index])]);
   const restarted = withComputers(workspace({ threads: [lead("lead", { title: "Lead", remoteHeard })] }), [paired("studio", null, { capabilities: COMPUTER_CAPABILITIES }), paired("laptop", null, { capabilities: COMPUTER_CAPABILITIES })]);
-  const first = reduce(restarted, { type: "computer.state", id: "laptop", state: workspace({ threads: [far({ id: "lap", title: "Lap", createdAt: 300 })] }) }).state;
-  assert.equal(first.threads[0]!.remoteHeard?.far, 5, "a computer yet to answer after a restart here may still hold any of them");
+  const first = reduce(restarted, { type: "computer.state", id: "laptop", state: workspace({ threads: [far({ id: "lap", title: "Lap", createdAt: 300 }), task("gone0", { title: "Moved out" })] }) }).state;
+  assert.equal(first.threads[0]!.remoteHeard?.far, 5, "a computer yet to answer after a restart here may still hold any it holds no word of");
+  assert.equal(first.threads[0]!.remoteHeard?.gone0, undefined, "but one a computer that answered holds outside it makes room");
   const answered = mirrored(first, workspace({ threads: [far({ decisions: [decision], updatedAt: 5 })] }));
   assert.deepEqual(notesOf(answered.state).slice(notesOf(first).length), [], "so what it heard of them is not heard again");
   assert.deepEqual(answered.effects.filter((effect) => effect.type === "announce-thread"), []);
+
+  const crowded = Object.fromEntries(Array.from({ length: 1_000 }, (_, index) => [`old${index}`, 100 + index]));
+  const silent = withComputers(workspace({ threads: [lead("lead", { title: "Lead", remoteHeard: crowded })] }), [paired("studio", null, { capabilities: COMPUTER_CAPABILITIES }), paired("laptop", null, { capabilities: COMPUTER_CAPABILITIES })]);
+  const capped = reduce(silent, { type: "computer.state", id: "laptop", state: workspace({ threads: [far({ id: "lap", title: "Lap", createdAt: 5_000 })] }) }).state.threads[0]!.remoteHeard ?? {};
+  assert.deepEqual([Object.keys(capped).length, capped.old0, capped.lap], [1_000, undefined, 5_000], "a computer that never answers again holds back only so many");
 });
 
 test("what a member's scheduled runs find is said here, and a scheduled run that finished is not", () => {

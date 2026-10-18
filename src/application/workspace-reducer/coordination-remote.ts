@@ -245,13 +245,29 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
   if (!notes.length && newest === heard && !spent) return { state, effects };
   /**
    * Never forgotten: a thread still under it there, and, while a paired computer has yet to say what
-   * it holds since this app started, every thread it has heard, any of which may be that computer's.
+   * it holds since this app started, each it has heard that no computer that has answered holds,
+   * which may be that computer's.
    */
-  const unheard = state.computers.paired.some((item) => !item.state);
-  const led = new Set(unheard ? Object.keys(lead.remoteHeard ?? {}) : coordinationMembers(state, lead.id).flatMap(({ thread, computer: there }) => there ? [thread.id] : []));
+  const led = new Set(coordinationMembers(state, lead.id).flatMap(({ thread, computer: there }) => there ? [thread.id] : []));
+  if (state.computers.paired.some((item) => !item.state)) {
+    const held = heldThreadIds(state.computers.paired);
+    for (const threadId of Object.keys(lead.remoteHeard ?? {})) if (!held.has(threadId)) led.add(threadId);
+  }
   const settledLead = landed === undefined ? lead : withoutCaughtStart(lead, landed);
   const told = notes.reduce(withCoordinationNote, withRemoteHeard(spent ? withRemoteStop(settledLead, member.id, kept) : settledLead, member.id, newest, led));
   return { state: updateThread(state, lead.id, () => told), effects };
+}
+
+/** Every thread the paired computers that have answered hold, gathered once per list of them. */
+const heldIds = new WeakMap<readonly PairedComputer[], ReadonlySet<string>>();
+
+function heldThreadIds(paired: readonly PairedComputer[]): ReadonlySet<string> {
+  let held = heldIds.get(paired);
+  if (!held) {
+    held = new Set(paired.flatMap((computer) => computer.state?.threads.map((thread) => thread.id) ?? []));
+    heldIds.set(paired, held);
+  }
+  return held;
 }
 
 /**
