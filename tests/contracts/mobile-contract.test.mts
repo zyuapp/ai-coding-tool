@@ -125,6 +125,7 @@ test("a phone's send carries a message and nothing the window or an agent sets",
 test("a phone's move never waits on a run, which only an agent moving itself does", () => {
   assert.equal(isMobileCommand({ type: "task.move-worktree", taskId: "task-1", destination: { kind: "new" }, afterRun: true }), false);
   assert.equal(isMobileCommand({ type: "task.move-worktree", taskId: "task-1", destination: { kind: "new" }, afterRun: "yes" }), false);
+  assert.equal(isMobileCommand({ type: "task.move-worktree", taskId: "task-1", destination: { kind: "new" }, sender: { threadId: "lead", title: "Lead", computer: "Linux" } }), false);
 });
 
 test("client messages are read defensively, since the phone is the boundary", () => {

@@ -156,10 +156,11 @@ function deletesWorktreeById(command: Extract<AppCommand, { type: "worktree.dele
 
 /**
  * Into a new checkout, one that already exists, or back to the project's own. Without a thread named
- * it is the thread that asked, and only the window says whether a move waits for that thread's run to end.
+ * it is the thread that asked, and only the window says whether a move waits for that thread's run to end
+ * or which thread on another computer asked for it.
  */
 function movesToCheckout(command: Extract<AppCommand, { type: "task.move-worktree" }>): boolean {
-  return agentId(command.taskId) && command.afterRun === undefined && (command.destination.kind !== "worktree" || isString(command.destination.id));
+  return agentId(command.taskId) && command.afterRun === undefined && command.sender === undefined && (command.destination.kind !== "worktree" || isString(command.destination.id));
 }
 
 /** A run drives the browser as itself, so every browser command names the thread that asked. */
@@ -283,7 +284,7 @@ const commands = {
   "task.set-fast-mode": { fields: { taskId: optionalText, fastMode: boolean }, at: "thread" },
   "task.set-effort": { fields: { taskId: optionalText, engine: isAgentEngine, effort: isAgentEffort }, at: "thread" },
   "task.set-worktree": { fields: { taskId: optionalText, worktree: boolean }, at: "thread" },
-  "task.move-worktree": { fields: { taskId: optionalText, destination: isWorktreeDestination, afterRun: optional(literals(true)) }, at: "thread", agent: movesToCheckout },
+  "task.move-worktree": { fields: { taskId: optionalText, destination: isWorktreeDestination, afterRun: optional(literals(true)), sender: optional(remoteSender) }, at: "thread", agent: movesToCheckout },
   "task.set-branch": { fields: { branch: nullableText, create: optionalBoolean }, at: "thread" },
   "task.checkout-branch": { fields: { taskId: optionalText, branch: text, create: optionalBoolean }, at: "thread" },
   "attachments.send": { fields: { taskId: optionalText, steer: optionalBoolean, attachments: array(outgoingAttachment) }, at: "own" },

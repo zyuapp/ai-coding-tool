@@ -146,6 +146,7 @@ test("an agent moves into a new checkout, an existing one or back to the project
   assert.equal(isExternalCommand({ type: "task.move-worktree", taskId: "other", destination: { kind: "local" } }), true);
   assert.equal(isExternalCommand({ type: "task.move-worktree", destination: { kind: "new" } }), true);
   assert.equal(isExternalCommand({ type: "task.move-worktree", destination: toWt2, afterRun: true }), false);
+  assert.equal(isExternalCommand({ type: "task.move-worktree", destination: toWt2, sender: { threadId: "lead", title: "Lead", computer: "Linux" } }), false, "nor names a thread elsewhere as the one that asked");
 });
 
 test("a thread moving itself into a new worktree makes it when its turn ends, and what it queued runs there", async () => {

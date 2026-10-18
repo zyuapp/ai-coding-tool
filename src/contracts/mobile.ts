@@ -379,9 +379,9 @@ function isThreadCommand(command: Record<string, unknown>, named: boolean) {
       return named && isAgentEngine(command.engine) && isAgentEffort(command.effort) && engineHasEffort(command.engine, command.effort);
     case "task.set-worktree":
       return named && typeof command.worktree === "boolean";
-    /** Only an agent moving its own thread waits for its run to end, which the host says, never the caller. */
+    /** Only an agent moving its own thread waits for its run to end, and only the link names a thread elsewhere that asked: the host says each, never the caller. */
     case "task.move-worktree":
-      return named && isDestination(command.destination) && command.afterRun === undefined;
+      return named && isDestination(command.destination) && command.afterRun === undefined && command.sender === undefined;
     case "task.steer-queued":
     case "task.drop-queued":
       return named && isString(command.messageId);

@@ -158,9 +158,10 @@ export type TaskCommand =
   | { type: "task.set-worktree"; taskId?: string; worktree: boolean }
   /**
    * Moves the thread while leaving existing files and checkouts in place. `afterRun` is a thread
-   * moving itself: the run that asked waits to end before the move instead of refusing it.
+   * moving itself: the run that asked waits to end before the move instead of refusing it. `sender`
+   * is a thread on another computer that asked for the move, which only this app's own link says.
    */
-  | { type: "task.move-worktree"; taskId?: string; destination: WorktreeDestination; afterRun?: true }
+  | { type: "task.move-worktree"; taskId?: string; destination: WorktreeDestination; afterRun?: true; sender?: RemoteSender }
   /** The branch a thread starts from. Only a thread that does not exist yet can be told. */
   | { type: "task.set-branch"; branch: string | null; create?: boolean }
   /**

@@ -52,7 +52,7 @@ function moveToNewWorktree(state: WorkspaceState, thread: Thread, projectId: str
   return settled(withCreatingWorktree(state, thread.id), [{ type: "create-worktree", taskId: thread.id, projectRoot: threadWorkspaceRoot(state, thread)!, move: true, name: thread.title, projectId }]);
 }
 
-/** A coordinator does no work itself, so it never moves itself into a worktree; the user can still move it from the thread menu. */
+/** A coordinator does no work itself, so no thread moves it into a worktree; the user can still move it from the thread menu. */
 function movesCoordinatorAway(thread: Thread, destination: WorktreeDestination) {
   return destination.kind !== "local" && isCoordinator(thread);
 }
@@ -71,7 +71,8 @@ export function reduceWorktreeMove(state: WorkspaceState, input: Extract<TaskCom
   if (state.creatingWorktrees.includes(thread.id)) return rejected(state, WORKTREE_CREATING_ERROR);
   if (leavingThreadIds(state).has(thread.id)) return rejected(state, WORKTREE_RELEASING_ERROR);
   const destination = input.destination;
-  if (input.afterRun && movesCoordinatorAway(thread, destination)) return rejected(state, WORKTREE_COORDINATOR_ERROR);
+  /** A thread asked: this one moving itself, or one on another computer that the link names. */
+  if ((input.afterRun || input.sender) && movesCoordinatorAway(thread, destination)) return rejected(state, WORKTREE_COORDINATOR_ERROR);
   const target = destination.kind === "new" ? undefined : arrival(state, thread, project.id, destination);
   if (typeof target === "string") return rejected(state, target);
   /** Asking for where the thread already is takes back a move it was waiting to make. */
