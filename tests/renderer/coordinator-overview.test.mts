@@ -382,6 +382,9 @@ test("the Overview's purpose line and memory rows edit what the coordinator keep
   assert.deepEqual([...section.querySelectorAll(".coordination-note button")].map((button) => button.getAttribute("aria-label")), [
     "Edit note: Propose threads first", "Forget note: Propose threads first", "Edit note: Use Sonnet for docs", "Forget note: Use Sonnet for docs",
   ], "each note's buttons are named by what it says");
+  await mounted.render(overview({ ...lead, memory: { ...item(lead.memory), notes: [{ id: "n9", text: `${"Keep every reply short ".repeat(5)}\nand plain`, at: 1 }] } }));
+  assert.equal(query(section, "button.coordination-note-forget").getAttribute("aria-label"), "Forget note: Keep every reply short Keep every reply short Keep every re…", "a long one only by its first words, which its edit button reads whole");
+  await mounted.render(overview(lead));
   const forget = section.querySelectorAll<HTMLButtonElement>('button[aria-label^="Forget note: "]')[1];
   assert.ok(forget.parentElement?.querySelector('button[aria-label^="Edit note: "]'), "Forget sits beside the note it drops, not inside it");
   await act(async () => { forget.focus(); forget.click(); });

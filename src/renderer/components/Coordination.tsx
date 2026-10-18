@@ -230,6 +230,15 @@ function PurposeLine({ purpose, onSave }: { purpose: string | null; onSave: (pur
   return <InlineEdit value={purpose ?? ""} label="Purpose" placeholder="Add a purpose" className="coordination-purpose" maxLength={MAX_PURPOSE} onSave={(text) => onSave(text || null)} />;
 }
 
+/** How much of a note names the button that forgets it. */
+const NOTE_NAME = 60;
+
+/** A note named in a few words where its whole text would be read twice, as beside the button that edits it. */
+function noteName(text: string): string {
+  const line = text.trim().split("\n", 1)[0]!;
+  return line.length > NOTE_NAME ? `${line.slice(0, NOTE_NAME - 1).trimEnd()}…` : line;
+}
+
 /** The notes the coordinator keeps, each edited in place, with a last row that adds one. */
 function MemorySection({ memory, fold, onSetFold }: { memory: OverviewMemoryProps; fold: OverviewFold; onSetFold: FoldChange }) {
   const open = fold.open ?? true;
@@ -244,7 +253,7 @@ function MemorySection({ memory, fold, onSetFold }: { memory: OverviewMemoryProp
             <CommandButton
               command={{ type: "memory.forget", taskId: memory.taskId, noteId: note.id }}
               className="coordination-note-forget"
-              aria-label={`Forget note: ${note.text}`}
+              aria-label={`Forget note: ${noteName(note.text)}`}
               title="Forget"
             >
               <X size={12} aria-hidden="true" />
