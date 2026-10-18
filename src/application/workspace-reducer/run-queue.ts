@@ -174,8 +174,8 @@ export function beginRun(state: WorkspaceState, taskId: string, runId: string, p
  * thread is restored. Compacting is not a turn, and a quiet scheduled run only speaks through what it
  * finds, so neither is.
  */
-function opened(thread: Thread, provenance: RunProvenance): Thread {
-  return provenance.operation === "compact" || provenance.quiet ? thread : { ...thread, runOpen: true };
+function opened(thread: Thread, provenance: Pick<RunProvenance, "origin" | "quiet" | "operation">): Thread {
+  return provenance.operation === "compact" || provenance.origin === "automation" && provenance.quiet ? thread : { ...thread, runOpen: true };
 }
 
 function pickedUp(thread: Thread, pickup: RunPickup | undefined): Thread {
@@ -192,11 +192,12 @@ function reportStands(thread: Thread, pickup: RunPickup | undefined) {
   return pickup === "warming" || pickup === "agent" && thread.report !== undefined && GROUP_OF[thread.report.state] === "needs";
 }
 
-/** A human who joins a scheduled run owns it from then on: what it finds is an answer to them. */
+/** A human who joins a scheduled run owns it from then on: what it finds is an answer to them, and the app quitting under it cuts their turn off. */
 export function withAttendedRun(state: WorkspaceState, taskId: string): WorkspaceState {
   const active = state.activeRuns[taskId];
   if (!active || active.origin === "composer") return state;
-  return withActiveRun(state, taskId, { ...active, origin: "composer" });
+  const attended = { ...active, origin: "composer" as const };
+  return updateThread(withActiveRun(state, taskId, attended), taskId, (thread) => opened(thread, attended));
 }
 
 /** A steered message joined the run, so it leaves the queue and takes its place in the thread. */

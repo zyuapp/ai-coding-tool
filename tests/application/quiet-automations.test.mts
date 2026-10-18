@@ -93,6 +93,9 @@ test("a quiet tick the app quits under is restored as it was, and a loud one as 
   const loud = fire().state;
   assert.equal(loud.threads[0]!.runOpen, true);
   assert.equal(restored(loud).runEndedAs, "stopped");
+  const joined = reduce(quiet, { type: "task.send", taskId: "task-a", text: "What did you find?", steer: true }).state;
+  assert.equal(joined.activeRuns["task-a"]!.origin, "composer");
+  assert.equal(restored(joined).runEndedAs, "stopped", "one the user joined is their turn, cut off with the app");
 });
 
 test("a scheduled run is the scheduler's, unattended, and never quiet unless the tick says so", () => {
