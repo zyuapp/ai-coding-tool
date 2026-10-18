@@ -280,6 +280,9 @@ export type SessionWork = { taskId: string; processIds: string[] };
 /** A start on a paired computer Stop all caught on its way: once it lands as `threadId` it is stopped there, quietly. */
 export type StoppedStart = { proposalId: string; threadId?: string };
 
+/** A thread whose session work Stop all stopped, and when, so only the agent's answer to that stop ends quietly. */
+export type QuietSession = { taskId: string; at: number };
+
 /** The work Stop all stops under a coordinator, its own included. */
 export type CoordinatorWork = {
   /** The coordinator and each thread under it on this computer. */

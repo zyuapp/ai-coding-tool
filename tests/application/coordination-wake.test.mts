@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import { reduce, type WorkspaceInput, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
 import { deriveView, stateFromData, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { CoordinationNote } from "../../src/domain/coordination.ts";
@@ -324,7 +324,7 @@ test("stopping all stops each workflow and subagent that outlives its thread's r
 test("a turn the agent takes itself after stopping all stopped its workflow ends quietly, and only that one", () => {
   const state = workspace({ threads: [lead(), member("one")], workflows: { one: [workflow("wf")] } });
   const stopped = reduce(state, { type: "coordination.stop-all", taskId: "lead" });
-  assert.deepEqual(stopped.state.quietSessions, ["one"]);
+  assert.deepEqual(stopped.state.quietSessions.map((session) => session.taskId), ["one"]);
   const answering = reduce(stopped.state, correlatedRunEvent("one", "run-a", 1, { type: "run.started", agentInitiated: true }));
   assert.deepEqual(answering.state.quietSessions, [], "only its next turn of its own");
   const answered = reduce(answering.state, correlatedRunEvent("one", "run-a", 2, { type: "run.status", status: "succeeded" }));
@@ -344,6 +344,20 @@ test("a turn the agent takes itself after stopping all stopped its workflow ends
   const sent = reduce(messaged.state, { type: "run.resolved", pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
   assert.deepEqual(sent.state.quietSessions, [], "the user picking the thread back up");
   assert.equal(sent.state.quietStops.includes(required(sent.state.activeRuns.one).runId), false);
+
+  const stoppedAt = Date.now();
+  const clock = vi.spyOn(Date, "now").mockReturnValue(stoppedAt + 60 * 60_000);
+  try {
+    const long = reduce(stopped.state, correlatedRunEvent("one", "run-late", 1, { type: "run.started", agentInitiated: true }));
+    assert.deepEqual(long.state.quietSessions, [], "a stop the agent never answered is let go of");
+    const lateNews = reduce(long.state, correlatedRunEvent("one", "run-late", 2, { type: "run.status", status: "succeeded" }));
+    assert.equal(lateNews.state.threads[0]!.coordinationNotes?.at(-1)?.quiet, undefined, "a turn of its own long after the stop is news");
+    const lateLimit = reduce(long.state, correlatedRunEvent("one", "run-late", 2, { type: "run.status", status: "failed", limit: { ...SESSION, resetsAt: stoppedAt + 3 * 60 * 60_000 } }));
+    assert.ok(lateLimit.state.threads[1]!.limitPause, "and waits out its limit as any turn does");
+    assert.deepEqual(reduce(stopped.state, { type: "coordination.stop-all", taskId: "lead" }).state.quietSessions, [], "a later stop lets go of one that lapsed");
+  } finally {
+    clock.mockRestore();
+  }
 });
 
 test("stopping all drops a coordinator's wake and hands back what its threads were about to send", () => {

@@ -1,5 +1,5 @@
 /** Coordinators and their threads: who works under whom, what they report, and what waits on the user. */
-import { drainQueue, queuedFor, resolveWorkspaceEffect, stoppingProcess, threadBusy, withPending, withUnsent } from "./run-queue.js";
+import { answersInTime, drainQueue, queuedFor, resolveWorkspaceEffect, stoppingProcess, threadBusy, withPending, withUnsent } from "./run-queue.js";
 import { reduceSending } from "./sending.js";
 import { released, remoteNews, withoutLapsedStops } from "./coordination-remote.js";
 import { withProposalFailure } from "./proposals.js";
@@ -229,7 +229,11 @@ function stopAll(state: WorkspaceState, leadId: string): WorkspaceTransition {
   ];
   /** Stopping a workflow or subagent can make the agent take a turn of its own to answer it, which ends quietly too. */
   const hushed = new Set(sessionWork.map((work) => work.taskId));
-  const quietSessions = [...state.quietSessions.filter((id) => !hushed.has(id) && state.threads.some((thread) => thread.id === id)), ...hushed];
+  const at = now();
+  const quietSessions = [
+    ...state.quietSessions.filter((session) => !hushed.has(session.taskId) && answersInTime(session, at) && state.threads.some((thread) => thread.id === session.taskId)),
+    ...[...hushed].map((taskId) => ({ taskId, at })),
+  ];
   let next = settled({ ...stopping, quietStops, stoppedStarts, quietSessions }, [...cancelled.map((run): WorkspaceEffect => ({ type: "send-run-command", command: { type: "cancel", taskId: run.taskId, runId: run.runId } })), ...remote.effects]);
   for (const { taskId, processIds } of sessionWork) {
     for (const processId of processIds) next = followedBy(next, stoppingProcess(next.state, taskId, processId));
