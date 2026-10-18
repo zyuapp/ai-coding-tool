@@ -262,3 +262,22 @@ test("a thread that floods its coordinator crowds out its own notes, never anoth
   assert.match(notes.at(-1)!.text, /Stuck 59/, "the newest of the flood is kept, its oldest given up");
   assert.match(notes.filter((note) => note.threadId === "one")[0].text, /Stuck 11$/);
 });
+
+test("a flooding thread gives up what can wait before its news that cannot", () => {
+  let state = reduce(workspace({ threads: [lead(), member("one")] }), { type: "coordination.reported", taskId: "one", state: "failed", summary: "The build is broken" }).state;
+  for (let index = 0; index < 60; index += 1) {
+    state = reduce(state, { type: "coordination.reported", taskId: "one", state: "done", summary: `Shipped ${index}` }).state;
+  }
+  const notes = required(state.threads[0].coordinationNotes);
+  assert.equal(notes.length, 50);
+  assert.match(notes[0].text, /reported failed: The build is broken/, "the failure outlasts the notes that can wait");
+  assert.match(notes[1].text, /Shipped 11$/);
+
+  let urgent = workspace({ threads: [lead(), member("one")] });
+  for (let index = 0; index < 51; index += 1) {
+    urgent = reduce(urgent, { type: "coordination.reported", taskId: "one", state: "blocked", summary: `Stuck ${index}` }).state;
+  }
+  const kept = required(urgent.threads[0].coordinationNotes);
+  assert.equal(kept.length, 50);
+  assert.match(kept[0].text, /Stuck 1$/, "with nothing that can wait, the oldest news goes");
+});

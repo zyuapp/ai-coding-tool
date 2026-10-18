@@ -559,20 +559,22 @@ export function withProposalError(lead: Thread, id: string, error: string | unde
 /**
  * A coordinator holds only so many notes it has yet to hear. Past that, the thread with the most
  * gives up its oldest, so a thread that floods its coordinator crowds out its own news and never
- * what another thread had to say.
+ * what another thread had to say. Its news that cannot wait goes last, once it has nothing else left.
  */
 export function withCoordinationNote(lead: Thread, note: CoordinationNote): Thread {
   const notes = [...lead.coordinationNotes ?? [], note];
-  while (notes.length > MAX_NOTES) notes.splice(notes.indexOf(oldestOfBusiest(notes)), 1);
+  while (notes.length > MAX_NOTES) notes.splice(notes.indexOf(leastNews(notes)), 1);
   return { ...lead, coordinationNotes: notes };
 }
 
-/** The oldest note of the thread with the most notes, the earliest to have written first among equals. */
-function oldestOfBusiest(notes: readonly CoordinationNote[]): CoordinationNote {
+/** The busiest thread's oldest note that can wait, else its oldest; the earliest to have written first among equals. */
+function leastNews(notes: readonly CoordinationNote[]): CoordinationNote {
   const counts = new Map<string, number>();
   for (const note of notes) counts.set(note.threadId, (counts.get(note.threadId) ?? 0) + 1);
   const most = Math.max(...counts.values());
-  return notes.find((note) => counts.get(note.threadId) === most)!;
+  const busiest = notes.find((note) => counts.get(note.threadId) === most)!.threadId;
+  const own = notes.filter((note) => note.threadId === busiest);
+  return own.find((note) => !note.urgent) ?? own[0]!;
 }
 
 /** Takes off the notes a run heard, leaving any that arrived after it set off. */
