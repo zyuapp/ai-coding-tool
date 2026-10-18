@@ -9,6 +9,7 @@ import type { Thread } from "../domain/thread.js";
 import type { WorktreeDestination } from "../domain/worktree.js";
 import { projectFor, worktreeById, worktreeFor } from "../application/thread-location.js";
 import { isNews, unreadFindings } from "../domain/attention.js";
+import { isOneShotSchedule } from "../domain/automation.js";
 import { scheduledRun } from "../application/run-testimony.js";
 import type { WorkspaceInput } from "../application/workspace-reducer.js";
 import type { WorkspaceExecution } from "../application/workspace-execution.js";
@@ -348,8 +349,16 @@ async function reportNothing(host: ThreadRequestHost, threadId: string, checked:
   if (!active) return { recorded: false, note: UNSCHEDULED };
   await host.dispatch({ type: "automation.nothing-to-report", taskId: threadId, checked });
   if (active.notified) return { recorded: false, note: "This run already raised something new, so it surfaces anyway and what it found stands." };
-  if (!active.quiet) return { recorded: true, note: "Noted. This automation has no quiet sentence, so every run of it surfaces, this one included." };
+  if (!active.quiet) return { recorded: true, note: `Noted. ${whyRunSurfaces(host.state(), threadId)}` };
   return { recorded: true, note: "Noted. This run settles without reaching the user." };
+}
+
+/** Why a scheduled run surfaces however it ends, so the run tells the user that rather than calling itself quiet. */
+function whyRunSurfaces(state: WorkspaceState, threadId: string) {
+  const automation = state.automations.find((item) => item.taskId === threadId);
+  if (automation && isOneShotSchedule(automation.schedule)) return "A one-time run always surfaces, this one included.";
+  if (automation?.surfaceWhen) return "The user started this run by hand, so it surfaces however it ends.";
+  return "This automation has no quiet sentence, so every run of it surfaces, this one included.";
 }
 
 const NO_COORDINATOR = "This thread works under no coordinator, so there is no one to report to and nothing was recorded. Say it in your reply instead.";

@@ -369,16 +369,39 @@ test("what ends a watch survives rewrites, and an empty sentence makes it a rout
 
 test("the button the user pressed is never a quiet tick, and neither is a one-shot", async (t) => {
   const ticks: [string, TickKind][] = [];
-  const scheduler = schedulerFor(t, memoryStore(), async (automation, tick) => { ticks.push([automation.taskId, tick]); return "succeeded"; });
+  const soon = new Date(Date.now() + 1_500).toISOString();
+  /** A one-shot stored before one refused a sentence still must not act on it. */
+  const store = memoryStore([{ id: "once", taskId: "task-2", prompt: "once", schedule: soon, surfaceWhen: "there is an error.", paused: false, createdAt: 1, updatedAt: 1, runCount: 0 }]);
+  const scheduler = schedulerFor(t, store, async (automation, tick) => { ticks.push([automation.taskId, tick]); return "succeeded"; });
+  await scheduler.start();
   await scheduler.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY, surfaceWhen: "there is an error." });
 
   await scheduler.runNow("task-1");
   assert.deepEqual(ticks, [["task-1", { quiet: false, unattended: false }]], "the panel's button is only reachable with the user watching");
 
-  const soon = new Date(Date.now() + 1_500).toISOString();
-  await scheduler.save({ taskId: "task-2", prompt: "once", schedule: soon, surfaceWhen: "there is an error." });
   await until(() => ticks.length === 2, "the one-shot never fired");
   assert.deepEqual(ticks.slice(1), [["task-2", { quiet: false, unattended: true }]], "a one-shot that vanishes when it runs must leave a trace of having run");
+});
+
+test("a one-shot refuses a sentence it would never act on, and lets go of one a recurring schedule left behind", async (t) => {
+  const store = memoryStore();
+  const scheduler = schedulerFor(t, store, async () => "succeeded");
+  const later = new Date(Math.floor((Date.now() + 3_600_000) / 1_000) * 1_000).toISOString();
+
+  await assert.rejects(scheduler.save({ taskId: "task-1", prompt: "once", schedule: later, surfaceWhen: "there is an error." }), /one-time run always surfaces/);
+  assert.equal(store.rows.size, 0, "nothing is saved that would read as quiet and never be");
+
+  await scheduler.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY, surfaceWhen: "there is an error." });
+  const once = await scheduler.update("task-1", { schedule: later });
+  assert.equal(once.surfaceWhen, undefined, "becoming a one-shot takes the quiet off");
+  await assert.rejects(scheduler.update("task-1", { surfaceWhen: "there is an error." }), /one-time run always surfaces/);
+  await assert.rejects(scheduler.save({ taskId: "task-1", prompt: "once", schedule: later, surfaceWhen: "there is an error." }), /one-time run always surfaces/);
+  assert.equal(scheduler.forThread("task-1")!.surfaceWhen, undefined);
+
+  await scheduler.save({ taskId: "task-2", prompt: "poll", schedule: HOURLY, surfaceWhen: "there is an error." });
+  const rewritten = await scheduler.save({ taskId: "task-2", prompt: "once", schedule: later });
+  assert.equal(rewritten.surfaceWhen, undefined, "rewriting a quiet schedule as a one-shot drops the sentence it kept");
+  assert.equal((await scheduler.update("task-2", { surfaceWhen: "" })).surfaceWhen, undefined, "taking off a quiet it has not got is no error");
 });
 
 test("which ticks may settle unseen", () => {

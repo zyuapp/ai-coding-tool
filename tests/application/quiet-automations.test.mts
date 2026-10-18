@@ -539,6 +539,19 @@ test("nothing_to_report says what silence it bought, and buys none on a loud aut
   assert.equal(settleRun(loud.state()).state.threads[0].outcome, "finished");
 });
 
+test("nothing_to_report names why a run with a quiet sentence still surfaces, rather than denying the sentence", async () => {
+  const automation = (schedule: string) => ({ id: "auto-1", taskId: "task-a", prompt: "Poll", schedule, surfaceWhen: "there is an error.", paused: false, createdAt: 1, updatedAt: 1, runCount: 1, nextRunAt: null });
+  const surfacing = (schedule: string) => toolHost({ ...midRun({ quiet: false }), automations: [automation(schedule)] });
+
+  const once = await answer(surfacing("2030-01-01T09:00:00Z"), { op: "nothing-to-report", checked: "the release notes" });
+  assert.match(once.result.note, /one-time run always surfaces/);
+  assert.doesNotMatch(once.result.note, /no quiet sentence/);
+
+  const byHand = await answer(surfacing("0 * * * *"), { op: "nothing-to-report", checked: "the last hour of logs" });
+  assert.match(byHand.result.note, /started this run by hand/);
+  assert.doesNotMatch(byHand.result.note, /no quiet sentence/);
+});
+
 test("both tools teach rather than fail when the turn is nobody's schedule", async () => {
   const host = toolHost(midRun({ origin: "composer" }));
 

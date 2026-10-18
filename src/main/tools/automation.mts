@@ -16,7 +16,7 @@ const policyField = z.enum(["confirm", "plan", "allow-edits", "autonomous", "byp
 );
 
 const surfaceWhenField = z.string().max(MAX_SURFACE_WHEN).optional().describe(
-  "One sentence naming when a tick of this schedule is worth the user's attention, such as \"an error in the logs was caused by the user's own code.\" Setting it makes the schedule quiet: a run that calls nothing_to_report settles without reaching anyone, and only one that calls notify surfaces. Leave it out and the schedule keeps whatever it surfaces for now, which for a new one is every run; pass an empty sentence to take the quiet off.",
+  "One sentence naming when a tick of this schedule is worth the user's attention, such as \"an error in the logs was caused by the user's own code.\" Setting it makes the schedule quiet: a run that calls nothing_to_report settles without reaching anyone, and only one that calls notify surfaces. Leave it out and the schedule keeps whatever it surfaces for now, which for a new one is every run; pass an empty sentence to take the quiet off. A one-time run always surfaces, so it takes none.",
 );
 
 const endsWhenField = z.string().max(MAX_ENDS_WHEN).optional().describe(

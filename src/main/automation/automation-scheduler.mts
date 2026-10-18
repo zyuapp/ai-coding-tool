@@ -46,6 +46,17 @@ function patchedSentence(patched: string | undefined, stored: string | undefined
   return patched === "" ? undefined : patched ?? stored;
 }
 
+/**
+ * The quiet sentence a schedule keeps. A one-time run is never quiet, as it removes itself once it has
+ * run, so a sentence given with one is refused rather than kept unused, and one a recurring schedule
+ * left behind goes with the rewrite.
+ */
+function quietSentence(schedule: string, given: string | undefined, kept: string | undefined) {
+  if (!isOneShotSchedule(schedule)) return kept;
+  if (given) throw new Error("A one-time run always surfaces, so it takes no surfaceWhen. Leave surfaceWhen out, or use a cron schedule for runs that stay quiet.");
+  return undefined;
+}
+
 export class AutomationScheduler {
   private readonly automations = new Map<string, Automation>();
   private readonly crons = new Map<string, Cron>();
@@ -107,7 +118,7 @@ export class AutomationScheduler {
     const existing = this.find(draft.taskId);
     const at = this.now();
     /** Rewriting a schedule leaves its quiet where it was: an empty sentence is how the quiet is taken off. */
-    const surfaceWhen = draft.surfaceWhen ?? existing?.surfaceWhen;
+    const surfaceWhen = quietSentence(draft.schedule, draft.surfaceWhen, draft.surfaceWhen ?? existing?.surfaceWhen);
     const endsWhen = draft.endsWhen ?? existing?.endsWhen;
     const automation: Automation = {
       id: existing?.id ?? randomUUID(),
@@ -146,7 +157,7 @@ export class AutomationScheduler {
     const timezone = patch.timezone ?? existing.timezone;
     if (patch.schedule !== undefined || patch.timezone !== undefined) assertSchedule(schedule, timezone);
     const { surfaceWhen: _spoken, endsWhen: _ending, ...bare } = existing;
-    const surfaceWhen = patchedSentence(patch.surfaceWhen, existing.surfaceWhen);
+    const surfaceWhen = quietSentence(schedule, patch.surfaceWhen, patchedSentence(patch.surfaceWhen, existing.surfaceWhen));
     const endsWhen = patchedSentence(patch.endsWhen, existing.endsWhen);
     const automation: Automation = {
       ...bare,
