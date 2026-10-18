@@ -131,6 +131,51 @@ test("the Overview files threads ready for review and resolved apart, and resolv
   await view.unmount();
 });
 
+test("resolving or reopening from a row, or showing more, keeps the keyboard's place in the Overview", async () => {
+  window.desktop = fakeDesktop();
+  const done = Array.from({ length: 7 }, (_, index) => row(member(`d${index}`, `Done ${index}`), "done"));
+  const ready = row(member("review", "Dark mode"), "review", "#212 · Checks passing");
+  const overview = (members: CoordinatedThreadView[], folds: object = { done: { open: true } }) => React.createElement(CommandControlsProvider, { value: { available: () => true, dispatch() {} } },
+    React.createElement(CoordinatorOverview, { header, memory, members, usage: null, worktrees: new Map(), folds, onSetFold() {}, onSelect() {}, stoppable: true }));
+  const resolved = (view: CoordinatedThreadView) => ({ ...view, status: "resolved" as const });
+  const press = async (selector: string) => {
+    await act(async () => { const button = query<HTMLButtonElement>(view.container, selector); button.focus(); button.click(); });
+  };
+  const focused = () => dom.window.document.activeElement?.getAttribute("aria-label");
+  const view = await mount(overview([ready, ...done]));
+
+  await press('button[aria-label="Resolve Done 1"]');
+  await view.render(overview([ready, done[0]!, resolved(done[1]!), ...done.slice(2)]));
+  assert.equal(focused(), "Open Done 2", "a resolved row hands focus to the row that took its place");
+
+  await press('[aria-label="Done"] .coordination-more');
+  await view.render(overview([ready, done[0]!, resolved(done[1]!), ...done.slice(2)], { done: { open: true, all: true } }));
+  assert.equal(focused(), "Open Done 6", "Show more hands focus to the first row it brought in");
+
+  await press('button[aria-label="Resolve Done 6"]');
+  const rest = [ready, done[0]!, resolved(done[1]!), ...done.slice(2, 6), resolved(done[6]!)];
+  await view.render(overview(rest, { done: { open: true, all: true } }));
+  assert.equal(focused(), "Open Done 5", "the last row resolved hands focus to the one before it");
+
+  await press('button[aria-label="Resolve Dark mode"]');
+  await view.render(overview([resolved(ready), ...rest.slice(1)], { done: { open: true, all: true } }));
+  assert.equal(view.container.querySelector('[aria-label="Ready for review"]'), null);
+  assert.equal(dom.window.document.activeElement, query(view.container, '[aria-label="Resolved"] .coordination-group-head'), "a group left empty hands focus to the group its thread went to");
+
+  const reopened = [ready, ...rest.slice(1)];
+  await view.render(overview([resolved(ready), ...rest.slice(1)], { done: { open: true, all: true }, resolved: { open: true } }));
+  await press('button[aria-label="Reopen Dark mode"]');
+  await view.render(overview(reopened, { done: { open: true, all: true }, resolved: { open: true } }));
+  assert.equal(focused(), "Open Done 1", "so does a reopened one");
+
+  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Open Done 0"]').focus(); });
+  await press('button[aria-label="Resolve Done 2"]');
+  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Open Done 0"]').focus(); });
+  await view.render(overview(reopened.map((entry) => entry.thread.id === "d2" ? resolved(entry) : entry), { done: { open: true, all: true }, resolved: { open: true } }));
+  assert.equal(focused(), "Open Done 0", "focus the user has moved on stays where it went");
+  await view.unmount();
+});
+
 test("an Overview row shows its whole status line on hover, where the row clips it", async () => {
   window.desktop = fakeDesktop();
   const reason = "Missing STRIPE_TEST_KEY needed to run the payment integration tests in CI";
@@ -258,11 +303,13 @@ test("the Overview's Usage section shows what the coordinator and its threads sp
   assert.deepEqual(rows.map((row) => row.textContent), ["Docs764K", "Thread 5600K", "Thread 4500K", "Thread 3400K", "Thread 2300K"], "the five that spent most");
   await act(async () => { rows[0]!.click(); });
   assert.equal(dispatched.at(-1)?.type, "task.select");
-  await act(async () => { query<HTMLButtonElement>(opened, ".coordination-more").click(); });
+  await act(async () => { const more = query<HTMLButtonElement>(opened, ".coordination-more"); more.focus(); more.click(); });
   assert.deepEqual(dispatched.at(-1), { type: "view.set-overview-group", taskId: "lead", group: "usage", all: true });
 
   await mounted.render(shown({ usage: { open: true, all: true } }));
-  assert.equal(mounted.container.querySelectorAll(".coordination-usage-thread").length, 7);
+  const every = mounted.container.querySelectorAll(".coordination-usage-thread");
+  assert.equal(every.length, 7);
+  assert.equal(dom.window.document.activeElement, every[5], "Show more hands focus to the first thread it brought in");
   await mounted.unmount();
 
   const quiet = await mount(React.createElement(CoordinatorOverview, { header, memory, members: [], usage: null, worktrees: new Map(), folds: {}, onSetFold() {}, onSelect() {}, stoppable: false }));

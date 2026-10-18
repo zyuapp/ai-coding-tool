@@ -1,4 +1,4 @@
-import { createContext, memo, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
+import { createContext, memo, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from "react";
 import { LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuChevronDown as ChevronDown, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuRotateCcw as Reopen, LuTrash2 as Trash, LuX as X } from "react-icons/lu";
 import { deliveryLabel, MAX_MEMORY_NOTE, MAX_PURPOSE, nextStepOf, OVERVIEW_GROUPS, type MemoryNote, type OverviewFold, type OverviewFolds, type OverviewGroup, type OverviewSection, type ThreadBrief, type ThreadModelChoice } from "../../domain/coordination";
 import { engineForModel, modelDelegable, modelLabel, type AgentEngine, type AgentModel, type EngineReadiness } from "../../domain/agent-engine";
@@ -92,8 +92,10 @@ export function CoordinatorOverview({ header, memory, members, usage, worktrees,
   stoppable: boolean;
 }) {
   const groups = useMemo(() => overviewGroups(members), [members]);
+  const overview = useRef<HTMLDivElement>(null);
+  const keepPlace = useKeyboardPlace(overview, groups);
   return (
-    <div className="coordination-overview" aria-label="Threads under this coordinator">
+    <div ref={overview} className="coordination-overview" aria-label="Threads under this coordinator" onClickCapture={keepPlace}>
       <CommandGate command={{ type: "memory.set-purpose", taskId: memory.taskId, purpose: memory.purpose }}>
         <PurposeLine purpose={memory.purpose} onSave={memory.onSetPurpose} />
       </CommandGate>
@@ -110,6 +112,54 @@ export function CoordinatorOverview({ header, memory, members, usage, worktrees,
       {usage && <UsageSection usage={usage} fold={folds.usage ?? {}} onSetFold={onSetFold} onSelect={onSelect} />}
     </div>
   );
+}
+
+/** What the user last pressed that takes itself off the page: a row's Resolve or Reopen, or a Show more. */
+type PressedPlace =
+  | { pressed: HTMLElement; kind: "row"; threadId: string; section: string; index: number }
+  | { pressed: HTMLElement; kind: "more"; section: string; index: number };
+
+/** The buttons a section's rows open with, in the order they are drawn. */
+function sectionRows(section: Element | null | undefined): HTMLElement[] {
+  return section ? [...section.querySelectorAll<HTMLElement>(".coordination-row, .coordination-usage-thread")] : [];
+}
+
+/**
+ * Keeps the keyboard's place when what it pressed leaves the page. A resolved or reopened row hands
+ * focus to the row that took its place, else the one before it, else its own row or the head of the
+ * group it went to; a Show more hands it to the first row it brought in. Focus the user has moved on
+ * stays where it went, and nothing happens until the pressed control is gone. It looks after every
+ * redraw, and costs nothing when nothing was pressed.
+ */
+function useKeyboardPlace(overview: RefObject<HTMLDivElement | null>, groups: Record<OverviewGroup, readonly CoordinatedThreadView[]>) {
+  const place = useRef<PressedPlace | null>(null);
+  useLayoutEffect(() => {
+    const last = place.current;
+    const root = overview.current;
+    if (!last || !root || last.pressed.isConnected) return;
+    place.current = null;
+    if (root.ownerDocument.activeElement !== root.ownerDocument.body) return;
+    const section = root.querySelector(`[data-section="${last.section}"]`);
+    const rows = sectionRows(section);
+    if (last.kind === "more") { (rows[last.index] ?? rows.at(-1))?.focus(); return; }
+    const went = OVERVIEW_GROUPS.find((group) => groups[group].some((view) => view.thread.id === last.threadId));
+    const own = root.querySelector<HTMLElement>(`[data-thread-id="${last.threadId}"] .coordination-row`);
+    const head = went ? root.querySelector<HTMLElement>(`[data-section="${went}"] .coordination-group-head`) : null;
+    (rows[last.index] ?? rows[last.index - 1] ?? own ?? head)?.focus();
+  });
+  return (event: MouseEvent<HTMLDivElement>) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const action = target?.closest<HTMLElement>('[data-action="resolve"], [data-action="reopen"]');
+    const more = target?.closest<HTMLElement>(".coordination-more");
+    const section = (action ?? more)?.closest<HTMLElement>("[data-section]");
+    if (!section) return;
+    const rows = sectionRows(section);
+    if (more) { place.current = { pressed: more, kind: "more", section: section.dataset.section!, index: rows.length }; return; }
+    const item = action!.closest<HTMLElement>("[data-thread-id]");
+    const opens = item?.querySelector<HTMLElement>(".coordination-row");
+    if (!item || !opens) return;
+    place.current = { pressed: action!, kind: "row", threadId: item.dataset.threadId!, section: section.dataset.section!, index: rows.indexOf(opens) };
+  };
 }
 
 /**
@@ -265,7 +315,7 @@ function UsageSection({ usage, fold, onSetFold, onSelect }: { usage: Coordinatio
   const shown = fold.all ? byThread : byThread.slice(0, OVERVIEW_LIMIT);
   const own = shareOf(coordinator, total);
   return (
-    <section className="coordination-group coordination-usage" aria-label="Usage">
+    <section className="coordination-group coordination-usage" aria-label="Usage" data-section="usage">
       <FoldHead label="Usage" count={compactTokens(total)} title={`${total.toLocaleString("en-US")} tokens`} open={open} onToggle={() => onSetFold("usage", { open: !open })} />
       {open && <div className="coordination-usage-body">
         <p className="coordination-usage-own">This coordinator <strong>{compactTokens(coordinator)}</strong> · {own > 0 && own < 1 ? "<1" : Math.round(own)}%</p>
@@ -340,7 +390,7 @@ function ThreadGroup({ group, members, fold, worktrees, action, onSetFold, ...ac
   const label = OVERVIEW_LABELS[group];
   const shown = fold.all ? members : members.slice(0, OVERVIEW_LIMIT);
   return (
-    <section className={`coordination-group ${group}`} aria-label={label}>
+    <section className={`coordination-group ${group}`} aria-label={label} data-section={group}>
       <FoldHead label={label} count={members.length} open={open} action={action} onToggle={() => onSetFold(group, { open: !open })} />
       {open && <div className="subagent-list" aria-live="polite">
         {shown.map((view) => <ThreadRow key={view.thread.id} view={view} worktrees={worktrees} {...actions} />)}
@@ -359,7 +409,7 @@ function ThreadGroup({ group, members, fold, worktrees, action, onSetFold, ...ac
 const ThreadRow = memo(function ThreadRow({ view: { thread, status, summary, host, lastHeard }, worktrees, onSelect }: RowActions & { view: CoordinatedThreadView; worktrees: ReadonlyMap<string, Worktree> }) {
   const line = coordinationStatusLine(status, summary, lastHeard);
   return (
-    <div className={`coordination-item ${status}`}>
+    <div className={`coordination-item ${status}`} data-thread-id={thread.id}>
       <button
         type="button"
         className={`coordination-row ${status}`}
