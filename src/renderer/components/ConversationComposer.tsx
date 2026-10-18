@@ -23,6 +23,7 @@ import { ReviewPicker } from "./ReviewPicker";
 import { GoalBar } from "./GoalBar";
 import type { ActiveGoal } from "../../domain/goal";
 import { CommandButton, useCommandControls } from "./CommandControl";
+import { ReturnFocusContext } from "../focus";
 import type { AppCommand } from "../../contracts/commands";
 
 const NOTHING = () => {};
@@ -218,7 +219,7 @@ export function ConversationComposer({
   return (
     <footer className={`composer-wrap ${surface}`}>
       {surface === "main" && goal && <GoalBar goal={goal} onClear={onGoalClear} />}
-      {surface === "main" && decisions}
+      {surface === "main" && <ReturnFocusContext.Provider value={caret.textareaRef}>{decisions}</ReturnFocusContext.Provider>}
       {question && <QuestionPrompt question={question} answer={question.answer ?? ""} disabled={disabled || waiting} onAnswerChange={(text) => onQuestionAnswerChange(question, text)} onSubmit={() => onAnswerQuestion(question)} />}
       <QueuedRow messages={queuedMessages} surface={surface} canSteer={runActive} onEdit={onEditQueued} onSteer={onSteerQueued} onDrop={onDropQueued} />
       {surface === "main" && startOptions}

@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type ReactNode } from "react";
+import { useContext, useId, useRef, useState, type ReactNode } from "react";
 import { LuArrowUp as ArrowUp, LuChevronDown as ChevronDown, LuChevronUp as ChevronUp, LuX as X } from "react-icons/lu";
 import type { ThreadModelChoice } from "../../domain/coordination";
 import { modelLabel } from "../../domain/agent-engine";
@@ -9,7 +9,7 @@ import type { ApprovalView } from "../../application/thread-run-state";
 import { CommandButton } from "./CommandControl";
 import { BriefDetails } from "./Coordination";
 import { HostMark } from "./HostMark";
-import { placeOf, useKeyboardPlace } from "../focus";
+import { placeOf, ReturnFocusContext, useKeyboardPlace } from "../focus";
 import "./coordination.css";
 
 /**
@@ -81,7 +81,7 @@ export function NeedsYouCard({ approvals, decisions, suggestions = null, onDecid
   const [page, setPage] = useState<Page | null>(null);
   const [drafts, setDrafts] = useState<Readonly<Record<string, Draft>>>({});
   const card = useRef<HTMLDivElement>(null);
-  const keepPlace = useKeyboardPlace(card, rememberCardPlace, cardFocus);
+  const keepPlace = useKeyboardPlace(card, rememberCardPlace, cardFocus, useContext(ReturnFocusContext));
   const proposals = suggestions?.proposals ?? [];
   const here = proposals.filter((view) => !view.elsewhere);
   const items: NeedsYouItem[] = [
@@ -138,11 +138,21 @@ export function NeedsYouCard({ approvals, decisions, suggestions = null, onDecid
   }
 }
 
-function NeedsYouHead({ thread, position, onStep, onSelect }: { thread: Thread; position: Pager; onStep: (delta: 1 | -1) => void; onSelect: (threadId: string) => void }) {
+/** Ids under which a page names what it is read by: the thread that asks, and what it asks. */
+function pageIds(id: string) {
+  return { from: `${id}-from`, question: `${id}-question`, context: `${id}-context`, command: `${id}-command` };
+}
+
+/** The ids of what a page is read by once focus lands on it, leaving out what it does not draw. */
+function describedBy(...ids: Array<string | false | null | undefined>): string {
+  return ids.filter(Boolean).join(" ");
+}
+
+function NeedsYouHead({ id, thread, position, onStep, onSelect }: { id: string; thread: Thread; position: Pager; onStep: (delta: 1 | -1) => void; onSelect: (threadId: string) => void }) {
   return (
     <div className="decision-head">
       <strong>Needs you</strong>
-      <button type="button" className="decision-from" onClick={() => onSelect(thread.id)}>{thread.title}</button>
+      <button type="button" id={id} className="decision-from" onClick={() => onSelect(thread.id)}>{thread.title}</button>
       <PagerControls position={position} onStep={onStep} />
     </div>
   );
@@ -233,14 +243,15 @@ function ElsewhereForm({ taskId, request, draft, position, onStep, onDraft }: {
   const { picked, worktree } = draft ?? { picked: null, worktree: proposal.place.worktree === true };
   /** A folder picked while that computer still holds it, else the one the view settles on, which follows its projects as they arrive. */
   const project = picked !== null && projects.some((item) => item.id === picked) ? picked : elsewhere.project ?? "";
+  const ids = pageIds(useId());
   return (
-    <section className="decision-card elsewhere-card" aria-label={`Run on ${computer.name}?`} tabIndex={-1}>
+    <section className="decision-card elsewhere-card" aria-label={`Run on ${computer.name}?`} aria-describedby={ids.question} tabIndex={-1}>
       <div className="decision-head">
         <strong className="elsewhere-heading">Run on <HostMark name={computer.name} offline={computer.offline} reconnecting={computer.reconnecting} />?</strong>
         <PagerControls position={position} onStep={onStep} />
       </div>
       <div className="decision-body">
-        <p className="decision-question">{proposal.title}</p>
+        <p className="decision-question" id={ids.question}>{proposal.title}</p>
         <div className="elsewhere-place">
           {projects.length > 0 && <label className="elsewhere-folder">
             <span>Folder</span>
@@ -285,14 +296,15 @@ function ApprovalForm({ view, position, onStep, onDecide, onSelect }: {
 }) {
   const { thread, approval } = view;
   const command = typeof approval.input.command === "string" ? approval.input.command : null;
+  const ids = pageIds(useId());
   return (
-    <section className="decision-card" aria-label="Approval waiting on you" tabIndex={-1}>
-      <NeedsYouHead thread={thread} position={position} onStep={onStep} onSelect={onSelect} />
+    <section className="decision-card" aria-label="Approval waiting on you" aria-describedby={describedBy(ids.from, ids.question, approval.description && ids.context, command && ids.command)} tabIndex={-1}>
+      <NeedsYouHead id={ids.from} thread={thread} position={position} onStep={onStep} onSelect={onSelect} />
       <div className="decision-body">
-        <p className="decision-question">{approval.title}</p>
-        {approval.description && <p className="decision-context">{approval.description}</p>}
+        <p className="decision-question" id={ids.question}>{approval.title}</p>
+        {approval.description && <p className="decision-context" id={ids.context}>{approval.description}</p>}
         {command
-          ? <pre className="decision-command">{command}</pre>
+          ? <pre className="decision-command" id={ids.command}>{command}</pre>
           : <details className="decision-tool"><summary>{approval.toolName}</summary><pre>{JSON.stringify(approval.input, null, 2)}</pre></details>}
       </div>
       <div className="decision-foot">
@@ -316,19 +328,20 @@ function DecisionForm({ view, draft, position, onStep, onDraft, onAnswer, onSele
   onSelect: (threadId: string) => void;
 }) {
   const id = useId();
+  const ids = pageIds(id);
   const { thread, decision } = view;
   const { choice, own } = draft ?? { choice: decision.options.find((option) => option.recommended)?.label ?? "", own: "" };
   const answer = own.trim() || choice;
   return (
-    <form className="decision-card" aria-label="Decision waiting on you" tabIndex={-1} onSubmit={(event) => {
+    <form className="decision-card" aria-label="Decision waiting on you" aria-describedby={describedBy(ids.from, ids.question, decision.context && ids.context)} tabIndex={-1} onSubmit={(event) => {
       event.preventDefault();
       if (answer) onAnswer(answer);
     }}>
-      <NeedsYouHead thread={thread} position={position} onStep={onStep} onSelect={onSelect} />
+      <NeedsYouHead id={ids.from} thread={thread} position={position} onStep={onStep} onSelect={onSelect} />
       <div className="decision-body">
-        <p className="decision-question" id={id}>{decision.question}</p>
-        {decision.context && <p className="decision-context">{decision.context}</p>}
-        {decision.options.length > 0 && <div className="decision-options" role="radiogroup" aria-labelledby={id}>
+        <p className="decision-question" id={ids.question}>{decision.question}</p>
+        {decision.context && <p className="decision-context" id={ids.context}>{decision.context}</p>}
+        {decision.options.length > 0 && <div className="decision-options" role="radiogroup" aria-labelledby={ids.question}>
           {decision.options.map((option) => (
             <label className="decision-option" key={option.label}>
               <input type="radio" name={id} value={option.label} checked={!own.trim() && choice === option.label} onChange={() => onDraft({ kind: "decision", choice: option.label, own: "" })} />

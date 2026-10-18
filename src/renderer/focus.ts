@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type RefObject } from "react";
+import { createContext, useEffect, useLayoutEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type RefObject } from "react";
 
 type ElementRef = RefObject<HTMLElement | null>;
 
@@ -104,35 +104,77 @@ export function moveListFocus(event: ReactKeyboardEvent<HTMLElement>) {
   buttons[(at + (event.key === "ArrowDown" ? 1 : buttons.length - 1)) % buttons.length].focus();
 }
 
+/** Where focus goes once something drawn above the composer leaves with the keyboard in it: the composer's own field. */
+export const ReturnFocusContext = createContext<ElementRef | null>(null);
+
+type HeldPress<Place> = { pressed: HTMLElement; place: Place; release: () => void };
+
+/** Lets go of the press held, if any, saying whether there was one. */
+function letGo<Place>(last: RefObject<HeldPress<Place> | null>): boolean {
+  const held = last.current;
+  held?.release();
+  last.current = null;
+  return held !== null;
+}
+
 /**
  * Keeps the keyboard's place when a button it pressed takes itself off the page, as an answered page,
  * a resolved row or a dismissed suggestion does. As a button under `root` is pressed, `remember` notes
  * what `settle` needs to find where focus goes once that button is gone; a press it notes nothing for
- * forgets the last. Nothing moves until the pressed button is gone, and focus the user has moved on
- * stays where it went. It looks after every redraw of the component holding it, and costs nothing when
- * nothing was pressed; moving focus sets no state, so a redraw it causes finds nothing left to do.
- * The handler it returns goes on the root's onClickCapture, which a key that presses a button reaches too.
+ * forgets the last. Nothing moves until the pressed button is gone, and a press the user has moved on
+ * from, by focusing or pointing anywhere else, is let go then and moves nothing later. When `root`
+ * itself goes, focus goes to `fallback`. It looks after every redraw of the component holding it, and
+ * costs nothing while nothing is held: only a held press listens to the document. Moving focus sets
+ * no state, so a redraw it causes finds nothing left to do. The handler it returns goes on the root's
+ * onClickCapture, which a key that presses a button reaches too.
  */
 export function useKeyboardPlace<Place>(
   root: RefObject<HTMLElement | null>,
   remember: (pressed: HTMLElement, root: HTMLElement) => Place | null,
   settle: (place: Place, root: HTMLElement) => HTMLElement | null | undefined,
+  fallback: ElementRef | null = null,
 ) {
-  const last = useRef<{ pressed: HTMLElement; place: Place } | null>(null);
+  const last = useRef<HeldPress<Place> | null>(null);
+  const goneTo = useRef(fallback);
+  goneTo.current = fallback;
+  const hold = (next: Omit<HeldPress<Place>, "release"> | null) => {
+    letGo(last);
+    if (!next) return;
+    const { pressed } = next;
+    const doc = pressed.ownerDocument;
+    /**
+     * Focus or a pointer landing anywhere else, or focus leaving the button while it stays on the page,
+     * is the user moving on. Leaving it is read once the redraw that may be taking it away is done.
+     */
+    const movedOn = (event: Event) => {
+      const inside = event.target instanceof Node && pressed.contains(event.target);
+      if (event.type === "focusout" ? !inside : inside) return;
+      queueMicrotask(() => { if (last.current === held && pressed.isConnected) hold(null); });
+    };
+    const events = ["focusin", "focusout", "pointerdown"] as const;
+    events.forEach((type) => doc.addEventListener(type, movedOn, true));
+    const held: HeldPress<Place> = { ...next, release: () => events.forEach((type) => doc.removeEventListener(type, movedOn, true)) };
+    last.current = held;
+  };
   useLayoutEffect(() => {
     const held = last.current;
     if (!held || held.pressed.isConnected) return;
-    last.current = null;
+    hold(null);
     const at = root.current;
-    if (!at) return;
-    const active = at.ownerDocument.activeElement;
-    if (!active || active === at.ownerDocument.body) settle(held.place, at)?.focus();
+    const doc = held.pressed.ownerDocument;
+    const active = doc.activeElement;
+    if (!active || active === doc.body) (at ? settle(held.place, at) : fallback?.current)?.focus();
   });
+  /** A root that goes with a press held hands the keyboard to `fallback` once it is gone. */
+  useEffect(() => () => {
+    if (!letGo(last)) return;
+    restoreFocus(goneTo.current?.current ?? null);
+  }, []);
   return (event: ReactMouseEvent<HTMLElement>) => {
     const at = root.current;
     const pressed = event.target instanceof Element ? event.target.closest<HTMLElement>("button") : null;
     const place = at && pressed && at.contains(pressed) ? remember(pressed, at) : null;
-    last.current = pressed && place !== null ? { pressed, place } : null;
+    hold(pressed && place !== null ? { pressed, place } : null);
   };
 }
 

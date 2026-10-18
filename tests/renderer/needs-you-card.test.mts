@@ -9,9 +9,11 @@ import type { CoordinationApprovalView, CoordinationDecisionView, ProposalView }
 
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
 import { required } from "../application/workspace-reducer-fixtures.mts";
+import { settleFrame } from "../support/settle.mts";
 
 const { NeedsYouCard } = await import("../../src/renderer/components/NeedsYouCard.tsx");
 const { CommandControlsProvider } = await import("../../src/renderer/components/CommandControl.tsx");
+const { ReturnFocusContext } = await import("../../src/renderer/focus.ts");
 
 const member = (id: string, title: string): Thread => ({ id, title, engine: "claude", executionPolicy: "allow-edits", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, parentId: "lead" });
 
@@ -316,5 +318,50 @@ test("a suggestion started or dismissed from the keyboard hands focus to the row
   await press("Start Suggestion b");
   await view.render(card([suggestion("b", true), suggestion("c", true)]));
   assert.equal(focusedName(), "Suggested threads", "with nothing left to press, the page itself keeps it");
+  await view.unmount();
+});
+
+test("a press the user has moved on from moves nothing when its page later changes by itself", async () => {
+  const decision = (id: string): CoordinationDecisionView => ({ thread: member("b", "Settings"), decision: { id, question: `Keep ${id}?`, options: [{ label: "Keep it", recommended: true }], raisedAt: 1 } });
+  const card = (decisions: CoordinationDecisionView[]) => React.createElement(NeedsYouCard, { approvals: [], decisions, onDecide() {}, onAnswer() {}, onSelect() {} });
+  const view = await mount(card([]));
+  for (const [how, moveOn] of [
+    ["leaving the button", (from: HTMLElement) => from.blur()],
+    ["pointing elsewhere", () => dom.window.document.body.dispatchEvent(new dom.window.PointerEvent("pointerdown", { bubbles: true }))],
+  ] as const) {
+    await view.render(card([decision(`${how} 1`), decision(`${how} 2`)]));
+    await act(async () => { const from = query<HTMLButtonElement>(view.container, ".decision-from"); from.focus(); from.click(); moveOn(from); });
+    await view.render(card([decision(`${how} 2`)]));
+    assert.equal(focusedName(), "the page", `after ${how}, a page answered elsewhere leaves focus where the user left it`);
+  }
+  await view.unmount();
+});
+
+test("the page the keyboard is handed is read by who asks and what, and the last one settled hands it to the composer", async () => {
+  const approval = (id: string): CoordinationApprovalView => ({ thread: member(`t-${id}`, `Thread ${id}`), approval: { approvalId: id, taskId: `t-${id}`, runId: `run-${id}`, title: `Run ${id}?`, description: "Lists the folder", toolName: "Bash", input: { command: "ls" } } });
+  const decision: CoordinationDecisionView = { thread: member("b", "Settings"), decision: { id: "d1", question: "Keep the v2 reader?", options: [{ label: "Keep it", recommended: true }], raisedAt: 1 } };
+  const composer = { current: null as HTMLTextAreaElement | null };
+  const shown = (approvals: CoordinationApprovalView[], decisions: CoordinationDecisionView[]) => React.createElement(ReturnFocusContext.Provider, { value: composer },
+    React.createElement("textarea", { ref: composer, "aria-label": "Composer" }),
+    approvals.length || decisions.length ? React.createElement(NeedsYouCard, { approvals, decisions, onDecide() {}, onAnswer() {}, onSelect() {} }) : null);
+  const view = await mount(shown([approval("a1"), approval("a2")], [decision]));
+  const press = async (name: string) => {
+    await act(async () => { const pressed = required([...view.container.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === name)); pressed.focus(); pressed.click(); });
+  };
+  const read = () => (dom.window.document.activeElement?.getAttribute("aria-describedby") ?? "").split(" ").map((id) => dom.window.document.getElementById(id)?.textContent);
+
+  await press("Allow");
+  await view.render(shown([approval("a2")], [decision]));
+  assert.equal(focusedName(), "Approval waiting on you");
+  assert.deepEqual(read(), ["Thread a2", "Run a2?", "Lists the folder", "ls"]);
+  await press("Deny");
+  await view.render(shown([], [decision]));
+  assert.equal(focusedName(), "Decision waiting on you");
+  assert.deepEqual(read(), ["Settings", "Keep the v2 reader?"]);
+
+  await press("Decide");
+  await view.render(shown([], []));
+  await settleFrame();
+  assert.equal(focusedName(), "Composer", "with nothing left, the composer takes the keyboard");
   await view.unmount();
 });
