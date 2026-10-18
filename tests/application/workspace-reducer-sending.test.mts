@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce, shortcutCommands, type WorkspaceInput, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
 import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { COMPUTER_CAPABILITIES } from "../../src/contracts/computer-capabilities.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 import { parseThreadStore, serializeThreadStore } from "../../src/domain/thread-storage.ts";
 import type { AgentModel } from "../../src/domain/agent-engine.ts";
 import { isMobileCommand } from "../../src/contracts/mobile.ts";
@@ -729,4 +731,16 @@ test("a message whose thread is archived while its checkout resolves never start
   assert.ok(resolved.effects.every((effect) => effect.type !== "start-run"));
   assert.deepEqual(resolved.state.activeRuns, {});
   assert.deepEqual(resolved.state.pendingRuns, {});
+});
+
+test("the effort keys step another computer's thread from what it runs on, never this window's draft", () => {
+  const stepped = (thread: Partial<Thread>, action: "effort.increase" | "effort.decrease") => {
+    const remote = workspace({ threads: [task("r1", thread)], currentId: "r1" });
+    const base = workspace({ draftModel: "opus", draftEffort: "high" });
+    const state: WorkspaceState = { ...base, computers: { ...base.computers, name: "Mac", active: "linux", paired: [{ id: "linux", name: "Linux", host: "linux.ts.net", status: "connected", error: null, pairedAt: 1, capabilities: COMPUTER_CAPABILITIES, state: remote }] } };
+    return reduce(state, { type: "view.shortcut", action, surface: "any" } as never).effects.flatMap((effect) => effect.type === "computer.forward" ? effect.inputs : []);
+  };
+  assert.deepEqual(stepped({ model: "opus", effort: "low" }, "effort.increase"), [{ type: "task.set-effort", engine: "claude", effort: "medium" }]);
+  assert.deepEqual(stepped({ model: "opus-next" as never, effort: "high" }, "effort.increase"), [], "a model this build does not know has nothing to step to");
+  assert.deepEqual(stepped({ model: "opus", effort: "galaxy" as never }, "effort.decrease"), [], "nor does an effort it does not know");
 });

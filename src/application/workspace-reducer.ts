@@ -183,12 +183,19 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
     case "composer.focus": return [{ type: "view.focus-composer" }];
     case "effort.increase":
     case "effort.decrease": {
-      const tabbed = keyboardThreadId(state);
-      const thread = state.threads.find((item) => item.id === (tabbed ?? state.currentId));
-      const engine = thread?.engine ?? state.draftEngine;
-      const model = thread ? thread.model ?? defaultModelFor(engine) : state.draftModel;
-      const effort = thread ? thread.effort ?? defaultEffortFor(engine) : state.draftEffort;
-      const role = effortRoleOf(thread, state.draftRole);
+      /**
+       * The thread on screen is stepped from what it runs on, which for another computer's is what
+       * that computer holds, never this window's own draft. A model or effort this build does not
+       * know has nothing to step to.
+       */
+      const shown = selectedComputer(state)?.state;
+      const source = shown ? { ...shown, keyboardTab: state.keyboardTab } : state;
+      const tabbed = keyboardThreadId(source);
+      const thread = source.threads.find((item) => item.id === (tabbed ?? source.currentId));
+      const engine = thread?.engine ?? source.draftEngine;
+      const model = thread ? thread.model ?? defaultModelFor(engine) : source.draftModel;
+      const effort = thread ? thread.effort ?? defaultEffortFor(engine) : source.draftEffort;
+      const role = effortRoleOf(thread, source.draftRole);
       const choices = effortsFor(model, role);
       const index = choices.findIndex((choice) => choice.id === effortForModel(model, effort, role));
       const next = choices[index + (action === "effort.increase" ? -1 : 1)];
