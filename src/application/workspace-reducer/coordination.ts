@@ -217,6 +217,9 @@ function stopAll(state: WorkspaceState, leadId: string): WorkspaceTransition {
   /** A run that never said it ended leaves its id behind, so only runs still going, here or on a paired computer, are kept. */
   const going = new Set([state, ...state.computers.paired.flatMap((computer) => computer.state ?? [])].flatMap((held) => Object.values(held.activeRuns).map((run) => run.runId)));
   const quietStops = [...state.quietStops.filter((runId) => going.has(runId)), ...cancelled.map((run) => run.runId), ...remote.runIds];
+  /** A wait it ended that was never heard to end is kept only while that computer still says the thread waits. */
+  const waiting = new Set(state.computers.paired.flatMap((computer) => computer.state?.threads.flatMap((thread) => thread.limitPause ? [thread.id] : []) ?? []));
+  const quietPauses = [...state.quietPauses.filter((threadId) => waiting.has(threadId) && !remote.pauses.includes(threadId)), ...remote.pauses];
   /** A caught start that never said it landed leaves nothing to stop, so only those still on their way, or landed and yet to be heard, are kept. */
   const stoppedStarts = [
     ...state.stoppedStarts.filter((start) => start.threadId !== undefined || state.startingProposals.includes(start.proposalId)),
@@ -225,7 +228,7 @@ function stopAll(state: WorkspaceState, leadId: string): WorkspaceTransition {
   /** Stopping a workflow or subagent can make the agent take a turn of its own to answer it, which ends quietly too. */
   const hushed = new Set(sessionWork.map((work) => work.taskId));
   const quietSessions = [...state.quietSessions.filter((id) => !hushed.has(id) && state.threads.some((thread) => thread.id === id)), ...hushed];
-  let next = settled({ ...state, quietStops, stoppedStarts, quietSessions }, [...cancelled.map((run): WorkspaceEffect => ({ type: "send-run-command", command: { type: "cancel", taskId: run.taskId, runId: run.runId } })), ...remote.effects]);
+  let next = settled({ ...state, quietStops, stoppedStarts, quietSessions, quietPauses }, [...cancelled.map((run): WorkspaceEffect => ({ type: "send-run-command", command: { type: "cancel", taskId: run.taskId, runId: run.runId } })), ...remote.effects]);
   for (const { taskId, processIds } of sessionWork) {
     for (const processId of processIds) next = followedBy(next, stoppingProcess(next.state, taskId, processId));
   }
@@ -241,11 +244,13 @@ function stopAll(state: WorkspaceState, leadId: string): WorkspaceTransition {
 
 /**
  * What stops the work of a coordinator's threads on paired computers: one batch for each computer,
- * with only what its build takes, and the runs it ends, so their ends are heard quietly here.
+ * with only what its build takes, and the runs and the waits to carry on after a session limit it
+ * ends, so their ends are heard quietly here.
  */
-function remoteStops(work: ReturnType<typeof coordinatorWork>["elsewhere"]): { effects: WorkspaceEffect[]; runIds: string[] } {
+function remoteStops(work: ReturnType<typeof coordinatorWork>["elsewhere"]): { effects: WorkspaceEffect[]; runIds: string[]; pauses: string[] } {
   const batches = new Map<string, { computer: PairedComputer; inputs: AppCommand[] }>();
   const runIds: string[] = [];
+  const pauses: string[] = [];
   for (const { thread, computer, runId, processIds } of work) {
     const batch = batches.get(computer.id) ?? { computer, inputs: [] };
     const cancel: AppCommand = { type: "run.cancel", taskId: thread.id };
@@ -254,13 +259,16 @@ function remoteStops(work: ReturnType<typeof coordinatorWork>["elsewhere"]): { e
       runIds.push(runId);
     }
     const lifted: AppCommand = { type: "limit.cancel", taskId: thread.id };
-    if (thread.limitPause && supportsComputerCommand(computer.capabilities, lifted)) batch.inputs.push(lifted);
+    if (thread.limitPause && supportsComputerCommand(computer.capabilities, lifted)) {
+      batch.inputs.push(lifted);
+      if (resumesOnItsOwn(thread.limitPause)) pauses.push(thread.id);
+    }
     /** Only what that computer's build can stop is counted as its work, so each goes. */
     batch.inputs.push(...processIds.map((processId): AppCommand => ({ type: "run.stop-process", taskId: thread.id, processId })));
     batches.set(computer.id, batch);
   }
   const effects = [...batches.values()].flatMap(({ computer, inputs }): WorkspaceEffect[] => inputs.length ? [{ type: "computer.forward", id: computer.id, inputs }] : []);
-  return { effects, runIds };
+  return { effects, runIds, pauses };
 }
 
 function followedBy(first: WorkspaceTransition, then: WorkspaceTransition): WorkspaceTransition {

@@ -124,7 +124,7 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
   const notes: CoordinationNote[] = [];
   const effects: WorkspaceEffect[] = [];
   let newest = Math.max(heard ?? threadCreatedAt(member), back ?? 0);
-  let { quietStops, stoppedStarts } = state;
+  let { quietStops, stoppedStarts, quietPauses } = state;
   const run = holder.activeRuns[member.id];
   const ran = prior?.activeRuns[member.id];
   if (heard === undefined && back === undefined) notes.push(coordinationNote(member.id, `"${member.title}" started on ${computer.name}.`, at, { quiet: true }));
@@ -147,13 +147,18 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
   }
   /** A thread waiting out a session limit carries on by itself, so its turn has not ended. */
   const ended = member.runEndedAt !== undefined && member.runEndedAt > since && !run && !(member.limitPause && resumesOnItsOwn(member.limitPause));
+  /** A wait Stop all ended that the thread carried on from before the stop landed is no longer its to quiet. */
+  if (run && quietPauses.includes(member.id)) quietPauses = quietPauses.filter((threadId) => threadId !== member.id);
   if (ended) {
     /** So is one a start Stop all caught on its way stopped as it landed. */
     const caught = stoppedStarts.some((start) => start.threadId === member.id);
     if (caught) stoppedStarts = stoppedStarts.filter((start) => start.threadId !== member.id);
     const stopped = ran !== undefined && quietStops.includes(ran.runId);
     if (stopped) quietStops = quietStops.filter((runId) => runId !== ran.runId);
-    const quiet = stopped || caught;
+    /** And one whose wait on a usage limit Stop all ended. */
+    const lifted = quietPauses.includes(member.id);
+    if (lifted) quietPauses = quietPauses.filter((threadId) => threadId !== member.id);
+    const quiet = stopped || caught || lifted;
     const ending = lastRunOutcome(member);
     const status = quiet || ending === "stopped" ? "cancelled" : ending === "failed" ? "failed" : "succeeded";
     notes.push(turnNote(member, status, at, { quiet }));
@@ -174,7 +179,7 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
     const question = run.questions?.[0];
     if (question && !(ran?.runId === run.runId && ran.questions?.length)) effects.push(...announced(state, member, waitingHeadline(question), "waiting"));
   }
-  const stops = quietStops === state.quietStops && stoppedStarts === state.stoppedStarts ? state : { ...state, quietStops, stoppedStarts };
+  const stops = quietStops === state.quietStops && stoppedStarts === state.stoppedStarts && quietPauses === state.quietPauses ? state : { ...state, quietStops, stoppedStarts, quietPauses };
   if (!notes.length && newest === heard) return { state: stops, effects };
   const led = new Set(coordinationMembers(state, lead.id).flatMap(({ thread, computer: there }) => there ? [thread.id] : []));
   const told = notes.reduce(withCoordinationNote, withRemoteHeard(lead, member.id, newest, led));

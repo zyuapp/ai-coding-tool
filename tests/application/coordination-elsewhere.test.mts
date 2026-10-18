@@ -192,6 +192,26 @@ test("a member stopped by Stop all is heard quietly", () => {
   assert.deepEqual(state.quietStops, []);
 });
 
+test("a member whose wait on a session limit Stop all ended there is heard quietly, unless it carried on first", () => {
+  const SESSION = { resetsAt: Date.now() + 3_600_000, window: "session" as const };
+  const paused = workspace({ threads: [far({ runEndedAt: 50, limitPause: { ...SESSION, pausedAt: 50 } })] });
+  let state = mirrored(coordinating(paused), paused).state;
+  const stopped = reduce(state, { type: "coordination.stop-all", taskId: "lead" });
+  assert.deepEqual(effectOf(stopped, "computer.forward").inputs, [{ type: "limit.cancel", taskId: "far" }]);
+  assert.deepEqual(stopped.state.quietPauses, ["far"]);
+  const lifted = reduce(paused, { type: "limit.cancel", taskId: "far" }).state;
+  state = mirrored(stopped.state, lifted).state;
+  assert.equal(notesOf(state).at(-1), "\"Far work\" was stopped.");
+  assert.equal(state.threads[0]!.coordinationNotes!.at(-1)!.quiet, true);
+  assert.deepEqual(wakesOf(state), [], "nothing it stopped wakes the coordinator");
+  assert.deepEqual(state.quietPauses, []);
+
+  const resumed = mirrored(stopped.state, workspace({ threads: [far({ runEndedAt: 50 })], activeRuns: { far: activeRun("far", "run-far") } })).state;
+  assert.deepEqual(resumed.quietPauses, [], "a thread that resumed before the stop landed");
+  const ended = mirrored(resumed, workspace({ threads: [far({ runEndedAt: 60, outcome: "finished" })] })).state;
+  assert.equal(ended.threads[0]!.coordinationNotes!.at(-1)!.quiet, undefined, "is news again once it ends");
+});
+
 test("Stop all stops a remote member's workflows and subagents there, which alone offer it", () => {
   const work: Workflow = { id: "wf", name: "audit", description: "Audit", status: "running", phases: [], agents: [], totalTokens: 0, totalToolCalls: 0, startedAt: 1 };
   const child: Subagent = { id: "child", description: "Inspect", status: "working", sessionScoped: true, startedAt: 1, activity: [] };
