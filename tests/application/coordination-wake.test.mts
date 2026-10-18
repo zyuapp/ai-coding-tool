@@ -168,6 +168,25 @@ test("a report from a thread that leaves its coordinator mid-turn is heard witho
   assert.match(woken(reduce(reported.state, { type: "task.set-coordinator", taskId: "one", coordinatorId: null })).text, /reported done: PR #42/);
 });
 
+test("a member's quiet scheduled check is heard as the user hears it: not at all when it found nothing, as a turn when it never said", () => {
+  const PROJECTLESS = { id: "projectless", kind: "projectless" as const, root: "/tmp" };
+  const tick = (answered: boolean) => {
+    const idle = workspace({ threads: [lead(), member("one", { runEndedAt: 5, runEndedAs: "finished" })] });
+    const fired = reduce(idle, { type: "automation.fired", fire: { automationId: "a1", taskId: "one", runId: "tick", prompt: "Is CI green yet?", runNumber: 2, quiet: true, unattended: true } });
+    const pendingId = required(Object.values(fired.state.pendingRuns).find((pending) => pending.taskId === "one")).id;
+    let state = reduce(fired.state, { type: "run.resolved", pendingId, workspace: PROJECTLESS }).state;
+    if (answered) state = reduce(state, { type: "automation.nothing-to-report", taskId: "one", checked: "CI still running" }).state;
+    return reduce(state, correlatedRunEvent("one", "tick", 1, { type: "run.status", status: "succeeded" }));
+  };
+  const nothing = tick(true);
+  slept(nothing, "a check that found nothing is no news");
+  assert.equal(nothing.state.threads[0]!.coordinationNotes, undefined);
+  const silent = tick(false);
+  assert.equal(required(silent.state.threads.find((thread) => thread.id === "one")).outcomeUnread, true, "one that never answered is marked for the user");
+  assert.deepEqual(silent.state.threads[0]!.coordinationNotes?.map((note) => note.text), ["\"one\" ended its turn."], "so its coordinator hears it ended too");
+  woken(silent);
+});
+
 test("a streamed event leaves coordinators alone", () => {
   const state = holding({ activeRuns: { two: activeRun("two", "run-2"), one: activeRun("one", "run-1") }, runStatuses: { two: "running", one: "running" } });
   const streamed = reduce(state, correlatedRunEvent("two", "run-2", 1, { type: "assistant.delta", messageId: "m", text: "hi" }));

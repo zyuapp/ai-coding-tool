@@ -180,7 +180,9 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       if (limit) next = stopping ? limitReached(next, event.taskId, limit) : pausedForLimit(next, event.taskId, limit, now());
       /** A turn that still ends failed once a session limit has had its say left the thread stuck, so it is open again. */
       if (event.status === "failed") next = updateThread(next, event.taskId, (thread) => thread.runEndedAs === "failed" ? reopenedIfStuck(thread) : thread);
-      const drained = drainQueue(noteTurnEnded(next, event.taskId, event.status, active), event.taskId, event.status);
+      /** A scheduled run that earned its silence put its thread back as if it never ran, so its coordinator hears nothing of it, here as from a paired computer. */
+      const heard = unseen ? next : noteTurnEnded(next, event.taskId, event.status, active);
+      const drained = drainQueue(heard, event.taskId, event.status);
       return settled(drained.state, [...environment, ...said, ...moved.effects, ...drained.effects]);
     }
 
