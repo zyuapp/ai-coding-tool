@@ -151,6 +151,17 @@ test("what waits on the user outranks a coordinator's threads at work, and only 
   await activity.unmount();
 });
 
+test("a row whose role or engine only a newer build knows draws without those marks", async () => {
+  const thread = (id: string, overrides: Partial<Thread> = {}): Thread => ({
+    id, title: id, engine: "claude", executionPolicy: "confirm", messages: [],
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, ...overrides,
+  });
+  const rows = [thread("designer", { role: "designer" as never }), thread("gemini", { engine: "gemini" as never })];
+  const view = await mount(renderProjectSidebar({ mode: "activity", activityThreads: { priority: [], running: [], threads: rows, snoozed: [] } }));
+  assert.deepEqual([...view.container.querySelectorAll('nav[aria-label="Threads"] .task-row-text > span')].map((row) => row.textContent), ["designer", "gemini"]);
+  await view.unmount();
+});
+
 test("only the priority heading offers to dismiss every dot at once", async () => {
   const thread = (id: string, overrides: Partial<Thread> = {}): Thread => ({
     id, title: id, engine: "claude", executionPolicy: "confirm", messages: [],

@@ -2,7 +2,7 @@ import { CommandGate, CommandButton } from "./CommandControl";
 import type { IconType } from "react-icons";
 import { LuSearch as Search, LuStar as Star, LuGrid2X2 as Grid, LuX as X, LuBrain as Brain, LuCheck as Check, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuFlame as Flame, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuNetwork as Network, LuShieldOff as ShieldOff, LuSignal as Signal, LuSignalHigh as SignalHigh, LuSignalLow as SignalLow, LuSignalMedium as SignalMedium, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
 import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { AGENT_ENGINES, capabilitiesFor, byEngine, byModel, effortForModel, effortsFor, engineLabel, engineNotice, modelsFor, type AgentEngine, type AgentModel, type EffortSpec, type EngineNotice, type EngineReadiness } from "../../domain/agent-engine";
+import { AGENT_ENGINES, capabilitiesFor, byEngine, byModel, effortForModel, effortsFor, engineLabel, engineNotice, isAgentModel, modelsFor, type AgentEngine, type AgentModel, type EffortSpec, type EngineNotice, type EngineReadiness } from "../../domain/agent-engine";
 import { POLICIES, type AgentEffort, type ExecutionPolicy } from "../../domain/run";
 import { moveListFocus, useDismissibleLayer } from "../focus";
 import { CopyButton } from "./CopyButton";
@@ -218,15 +218,18 @@ function ModelLibrary({ engine, engineLocked, engineAccess, model, favoriteModel
 
 /** The model chip and the library it opens. `onOpen` asks after the engines, so the library can say which it can pick. */
 export function ModelMenu({ onOpen, ...props }: ModelLibraryProps & { onOpen: () => void }) {
-  const selected = modelsOf[props.engine].find((item) => item.value === props.model) ?? modelsOf[props.engine][0];
-  return <SettingMenu label="Model" axis="Model" heading="Choose a model" value={selected.label} library onOpen={props.engineLocked ? undefined : onOpen}>
+  /** A model this build does not know, as a newer computer may run, is named as it is sent. */
+  const offered = modelsOf[props.engine] ?? [];
+  const selected = offered.find((item) => item.value === props.model) ?? (isAgentModel(props.model) ? offered[0] : undefined);
+  return <SettingMenu label="Model" axis="Model" heading="Choose a model" value={selected?.label ?? props.model} library onOpen={props.engineLocked ? undefined : onOpen}>
     {(close) => <ModelLibrary {...props} close={close} />}
   </SettingMenu>;
 }
 
 /** The effort chip for a model, drawn only for a model that takes an effort. A coordinator's offers only the efforts it takes. */
 export function EffortMenu({ model, effort, coordinating = false, heading, onChange }: { model: AgentModel; effort: AgentEffort; coordinating?: boolean; heading: string; onChange: (effort: AgentEffort) => void }) {
-  const choices = (coordinating ? coordinatorEffortsOf : effortsOf)[model];
+  /** A model this build does not know offers no efforts to pick among. */
+  const choices = (coordinating ? coordinatorEffortsOf : effortsOf)[model] ?? [];
   if (!choices.length) return null;
   return <ChoiceMenu label="Effort" axis="Effort" heading={heading} choices={choices} value={effortForModel(model, effort, coordinating ? "coordinator" : undefined)} onChange={onChange} />;
 }

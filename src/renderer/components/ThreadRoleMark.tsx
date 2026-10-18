@@ -9,12 +9,14 @@ const ROLE_ICONS: Record<ThreadRole, IconType> = {
   researcher: FlaskConical,
 };
 
-export function roleIcon(role: ThreadRole): IconType {
-  return ROLE_ICONS[role];
+/** The icon a role is drawn with, or none for a role this build does not know. */
+export function roleIcon(role: ThreadRole): IconType | undefined {
+  return Object.hasOwn(ROLE_ICONS, role) ? ROLE_ICONS[role] : undefined;
 }
 
-/** The mark a thread with a role carries in its row's rail, in the role's colour. */
+/** The mark a thread with a role carries in its row's rail, in the role's colour. A role this build does not know draws none. */
 export function ThreadRoleMark({ role, size }: { role: ThreadRole; size: number }) {
-  const Icon = ROLE_ICONS[role];
+  const Icon = roleIcon(role);
+  if (!Icon) return null;
   return <Icon className={`task-role role-${role}`} size={size} aria-label={threadRoleLabel(role)} />;
 }

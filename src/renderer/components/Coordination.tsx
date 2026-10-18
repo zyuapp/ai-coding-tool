@@ -1,7 +1,7 @@
 import { createContext, memo, useContext, useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
 import { LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuChevronDown as ChevronDown, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuRotateCcw as Reopen, LuTrash2 as Trash, LuX as X } from "react-icons/lu";
 import { deliveryLabel, MAX_MEMORY_NOTE, MAX_PURPOSE, nextStepOf, OVERVIEW_GROUPS, type MemoryNote, type OverviewFold, type OverviewFolds, type OverviewGroup, type OverviewSection, type ThreadBrief, type ThreadModelChoice } from "../../domain/coordination";
-import { engineForModel, modelDelegable, modelLabel, type AgentEngine, type AgentModel, type EngineReadiness } from "../../domain/agent-engine";
+import { modelDelegable, modelEngine, modelLabel, type AgentEngine, type AgentModel, type EngineReadiness } from "../../domain/agent-engine";
 import type { AgentEffort } from "../../domain/run";
 import { worktreeHue, worktreeName, type Worktree } from "../../domain/worktree";
 import type { PullRequestState } from "../../domain/pull-request";
@@ -354,13 +354,16 @@ function StopAllButton({ taskId, stoppable }: { taskId: string; stoppable: boole
 /** What the coordinator's new threads run on, picked with the composer's own chips. */
 export function OverviewHeader({ taskId, threadModel, engineAccess, favoriteModels, onModelFavorite, onSetThreadModel, onEngineRead, onSignIn, onOpenEngineSettings }: OverviewHeaderProps) {
   const { model, effort } = threadModel;
+  const engine = modelEngine(model);
   return (
     <div className="coordination-overview-header">
       <span className="coordination-overview-label">Threads run on</span>
-      <CommandGate command={{ type: "coordination.set-thread-model", taskId, model, ...(effort ? { effort } : {}) }}>
+      {/** A model this build does not know, as a newer computer may run, is named and left for that computer to change. */}
+      {!engine && <span className="coordination-overview-model">{model}</span>}
+      {engine && <CommandGate command={{ type: "coordination.set-thread-model", taskId, model, ...(effort ? { effort } : {}) }}>
         <div className="coordination-thread-model">
           <ModelMenu
-            engine={engineForModel(model)}
+            engine={engine}
             engineLocked={false}
             engineAccess={engineAccess}
             model={model}
@@ -374,7 +377,7 @@ export function OverviewHeader({ taskId, threadModel, engineAccess, favoriteMode
           />
           {effort && <EffortMenu model={model} effort={effort} heading="How hard should its threads think?" onChange={(next) => onSetThreadModel(model, next)} />}
         </div>
-      </CommandGate>
+      </CommandGate>}
     </div>
   );
 }

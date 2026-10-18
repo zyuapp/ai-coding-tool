@@ -313,6 +313,7 @@ button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
   padding: 0 0 6px 8px;
 }
 .coordination-overview-label { color: var(--quiet-strong); font-size: var(--text-meta); white-space: nowrap; }
+.coordination-overview-model { color: var(--ink-dim); font-size: var(--text-meta); white-space: nowrap; }
 .coordination-thread-model { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .coordination-overview-header .setting-popover { top: calc(100% + 4px); bottom: auto; left: 0; }
 .coordination-overview > .coordination-empty { padding: 6px 8px; }

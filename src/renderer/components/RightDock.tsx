@@ -48,7 +48,7 @@ export function RightDock({ workspace, panels, launchers, open, expanded, sideba
     ...workspace.browserTabs.map((tab) => ({ id: tab.id, title: browserTabTitle(tab), icon: Globe })),
     ...workspace.terminals.map((terminal) => ({ id: terminal.id, title: terminal.title, icon: SquareTerminal })),
     ...workspace.sideChats.map((chat) => ({ id: chat.id, title: chat.title, icon: GitFork, unread: hasUnreadAttention(chat.thread) })),
-    ...workspace.threadTabs.map((tab) => ({ id: tab.id, title: tab.title, icon: tab.thread.role ? roleIcon(tab.thread.role) : engineIcon(tab.thread.engine), unread: hasUnreadAttention(tab.thread) })),
+    ...workspace.threadTabs.map((tab) => ({ id: tab.id, title: tab.title, icon: (tab.thread.role && roleIcon(tab.thread.role)) || engineIcon(tab.thread.engine), unread: hasUnreadAttention(tab.thread) })),
   ];
 
   /** The strip keeps the keyboard when a tab goes, so closing several in a row never needs the mouse. */

@@ -12,6 +12,7 @@ export function isThreadRole(value: unknown): value is ThreadRole {
   return THREAD_ROLES.some((option) => option.role === value);
 }
 
+/** A role's name, or its own id for one this build does not know. */
 export function threadRoleLabel(role: ThreadRole): string {
-  return THREAD_ROLES.find((option) => option.role === role)!.label;
+  return THREAD_ROLES.find((option) => option.role === role)?.label ?? role;
 }

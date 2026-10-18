@@ -571,6 +571,29 @@ function withoutUnreadableFields(value: unknown) {
   return task;
 }
 
+/**
+ * A thread another computer's build sent, as this build can draw it, by the rules storage reads a
+ * thread by: a model, effort, role, verdict or mode it does not know is left out, a mode falling back
+ * to asking first, and so is any field or list item it cannot read. A thread on an engine this build
+ * does not know is not one it can show at all, which is null. The thread itself while it holds
+ * nothing unknown.
+ */
+export function readableRemoteThread(thread: Thread): Thread | null {
+  if (!isAgentEngine(thread.engine)) return null;
+  /** A model the catalogue has renamed is read under its new name, as storage reads it. */
+  let read = withoutUnreadableFields(renamedFields(thread)) as Thread;
+  const drop = (field: "model" | "effort" | "role" | "outcome") => {
+    const { [field]: _unknown, ...rest } = read;
+    read = rest as Thread;
+  };
+  if (read.model !== undefined && !(isAgentModel(read.model) && engineHasModel(read.engine, read.model))) drop("model");
+  if (read.effort !== undefined && !(isAgentEffort(read.effort) && engineHasEffort(read.engine, read.effort))) drop("effort");
+  if (read.role !== undefined && !isThreadRole(read.role)) drop("role");
+  if (read.outcome !== undefined && !isThreadOutcome(read.outcome)) drop("outcome");
+  if (!isExecutionPolicy(read.executionPolicy)) read = { ...read, executionPolicy: "confirm" };
+  return read;
+}
+
 /** A conversation loaded separately uses the same migrations and validation as a complete store. */
 export function parseStoredConversationMessages(values: unknown[]): ConversationMessage[] {
   return values.map((value, index) => {

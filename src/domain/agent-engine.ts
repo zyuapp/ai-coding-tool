@@ -227,9 +227,14 @@ export function engineHasModel(engine: AgentEngine, model: AgentModel) {
   return ENGINES[engine].models.some((spec) => spec.id === model);
 }
 
+/** The engine that owns a model, or none for a model this build does not know, as a newer computer may send. */
+export function modelEngine(model: AgentModel): AgentEngine | undefined {
+  return AGENT_ENGINES.find((candidate) => engineHasModel(candidate, model));
+}
+
 /** The engine that owns a model. Model ids are unique across the app catalogue. */
 export function engineForModel(model: AgentModel): AgentEngine {
-  const engine = AGENT_ENGINES.find((candidate) => engineHasModel(candidate, model));
+  const engine = modelEngine(model);
   if (!engine) throw new Error(`No engine offers the ${model} model.`);
   return engine;
 }

@@ -13,7 +13,7 @@ import type { WorkspaceInput } from "../../src/application/workspace-reducer.ts"
 import { workspaceActions } from "../../src/renderer/task-workspace/workspace-actions.ts";
 
 const { CoordinationBar, CoordinatorOverview } = await import("../../src/renderer/components/Coordination.tsx");
-const { EVERY_ENGINE_READY } = await import("../../src/renderer/components/ComposerSettings.tsx");
+const { EffortMenu, EVERY_ENGINE_READY } = await import("../../src/renderer/components/ComposerSettings.tsx");
 const { CommandControlsProvider } = await import("../../src/renderer/components/CommandControl.tsx");
 const { buildDock } = await import("../../src/renderer/components/dock-registry.tsx");
 
@@ -237,6 +237,21 @@ test("the Overview says what a coordinator's threads run on, and picks another w
 
   await view.render(overview(false));
   assert.equal(view.container.querySelectorAll(".coordination-overview-header .setting-menu").length, 0, "a computer whose build cannot take the choice offers none");
+  await view.unmount();
+});
+
+test("a model, role or engine a newer build sent draws as what it is, never blanking the Overview", async () => {
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(CoordinatorOverview, {
+    header: { ...header, threadModel: { model: "opus-next" as never } },
+    memory, members: [row({ ...member("r1", "Remote one"), engine: "gemini" as never, role: "designer" as never }, "working")],
+    usage: null, worktrees: new Map(), folds: {}, onSetFold() {}, onSelect() {}, stoppable: true,
+  }));
+  assert.equal(query(view.container, ".coordination-overview-header").textContent, "Threads run onopus-next", "named as sent, with nothing to pick it from");
+  assert.match(query(view.container, 'button[aria-label="Open Remote one"]').textContent, /Remote one/);
+  const settings = await mount(React.createElement(EffortMenu, { model: "opus-next" as never, effort: "high", heading: "Effort", onChange() {} }));
+  assert.equal(settings.container.innerHTML, "", "a model this build does not know offers no efforts");
+  await settings.unmount();
   await view.unmount();
 });
 

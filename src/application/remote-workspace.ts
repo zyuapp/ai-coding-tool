@@ -6,6 +6,7 @@ import type { Thread } from "../domain/thread.js";
 import type { Project } from "../domain/project.js";
 import type { ConversationMessage } from "../domain/conversation.js";
 import { withLegacyOrigin } from "../domain/message-origin.js";
+import { readableRemoteThread } from "../domain/thread-storage.js";
 
 const REQUIRED_TEXT = Symbol("required text");
 type RecordDefaults<T> = { [K in keyof T as {} extends Pick<T, K> ? never : K]: T[K] | typeof REQUIRED_TEXT };
@@ -128,6 +129,25 @@ export function createRemoteWorkspaceReader() {
   });
   const originThreads = (threads: Thread[]) => cachedRead(threads, (list) => mapKept(list, readThread));
 
+  /**
+   * A newer build may send a model, role or engine this one does not know; only what this build can
+   * draw reaches the window, each thread read once, by reference.
+   */
+  const known = new WeakMap<Thread, Thread | null>();
+  const knownThread = (thread: Thread) => {
+    if (!known.has(thread)) known.set(thread, readableRemoteThread(thread));
+    return known.get(thread)!;
+  };
+  const knownLists = new WeakMap<Thread[], Thread[]>();
+  const knownThreads = (threads: Thread[]) => {
+    const cached = knownLists.get(threads);
+    if (cached) return cached;
+    const read = threads.map(knownThread);
+    const result = read.every((thread, index) => thread === threads[index]) ? threads : read.filter((thread): thread is Thread => thread !== null);
+    knownLists.set(threads, result);
+    return result;
+  };
+
   const docks = new WeakMap<object, WorkspaceState["docks"]>();
   const views = new WeakMap<object, WorkspaceState>();
   return (wire: unknown): WorkspaceState => {
@@ -146,7 +166,7 @@ export function createRemoteWorkspaceReader() {
       }
       docks.set(state.docks, nextDocks);
     }
-    const threads = originThreads(items(state.threads, THREAD_DEFAULTS));
+    const threads = knownThreads(originThreads(items(state.threads, THREAD_DEFAULTS)));
     const projects = items(state.projects, PROJECT_DEFAULTS);
     const sideChats = items(state.sideChats, SIDE_CHAT_DEFAULTS);
     const result = nextDocks === state.docks && threads === state.threads && projects === state.projects && sideChats === state.sideChats

@@ -54,3 +54,19 @@ test("older collection records get required-field defaults while identity and un
   assert.equal(Object.hasOwn(old, "executionPolicy"), false);
   assert.throws(() => read({ threads: [{ title: "missing identity" }] }), /identity/);
 });
+
+test("a newer build's model, effort, role or engine this one does not know never reaches the window", () => {
+  const read = createRemoteWorkspaceReader();
+  const known = task("known", { role: "coordinator", model: "opus", effort: "high" });
+  const wire = { ...emptyWorkspaceState(), threads: [
+    known,
+    task("newer", { role: "designer", model: "opus-next", effort: "galaxy", outcome: "celebrated", executionPolicy: "yolo", threadModel: { model: "opus-next" } } as never),
+    task("elsewhere", { engine: "gemini" } as never),
+  ] };
+  const { threads } = read(wire);
+  assert.deepEqual(threads.map((thread) => thread.id), ["known", "newer"], "a thread on an engine this build does not know is not drawn");
+  assert.equal(threads[0], known, "a thread with nothing unknown is handed on as it came");
+  const newer = threads[1]!;
+  assert.deepEqual([newer.role, newer.model, newer.effort, newer.outcome, newer.threadModel, newer.executionPolicy], [undefined, undefined, undefined, undefined, undefined, "confirm"]);
+  assert.equal(read({ ...wire }).threads, threads, "and the list is read once while it does not move");
+});
