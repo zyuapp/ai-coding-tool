@@ -185,6 +185,15 @@ test("a coordinator with more threads there than it keeps watermarks for hears e
   const left = mirrored(state, workspace({ threads: [...many.slice(1), far({ id: "new", title: "New", createdAt: 5_000 })] })).state;
   assert.equal(left.threads[0]!.remoteHeard?.m0, undefined, "one no longer there is what makes room");
   assert.equal(left.threads[0]!.remoteHeard?.new, 5_000);
+
+  const decision = { id: "d1", question: "Which API?", options: [], raisedAt: 4 };
+  const remoteHeard = Object.fromEntries([["far", 5], ...Array.from({ length: 99 }, (_, index) => [`gone${index}`, 100 + index])]);
+  const restarted = withComputers(workspace({ threads: [lead("lead", { title: "Lead", remoteHeard })] }), [paired("studio", null, { capabilities: COMPUTER_CAPABILITIES }), paired("laptop", null, { capabilities: COMPUTER_CAPABILITIES })]);
+  const first = reduce(restarted, { type: "computer.state", id: "laptop", state: workspace({ threads: [far({ id: "lap", title: "Lap", createdAt: 300 })] }) }).state;
+  assert.equal(first.threads[0]!.remoteHeard?.far, 5, "a computer yet to answer after a restart here may still hold any of them");
+  const answered = mirrored(first, workspace({ threads: [far({ decisions: [decision], updatedAt: 5 })] }));
+  assert.deepEqual(notesOf(answered.state).slice(notesOf(first).length), [], "so what it heard of them is not heard again");
+  assert.deepEqual(answered.effects.filter((effect) => effect.type === "announce-thread"), []);
 });
 
 test("what a member's scheduled runs find is said here, and a scheduled run that finished is not", () => {

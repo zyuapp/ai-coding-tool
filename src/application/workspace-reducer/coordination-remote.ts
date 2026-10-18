@@ -222,7 +222,12 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
   }
   const stops = stoppedStarts === state.stoppedStarts ? state : { ...state, stoppedStarts };
   if (!notes.length && newest === heard && !spent) return { state: stops, effects };
-  const led = new Set(coordinationMembers(state, lead.id).flatMap(({ thread, computer: there }) => there ? [thread.id] : []));
+  /**
+   * Never forgotten: a thread still under it there, and, while a paired computer has yet to say what
+   * it holds since this app started, every thread it has heard, any of which may be that computer's.
+   */
+  const unheard = state.computers.paired.some((item) => !item.state);
+  const led = new Set(unheard ? Object.keys(lead.remoteHeard ?? {}) : coordinationMembers(state, lead.id).flatMap(({ thread, computer: there }) => there ? [thread.id] : []));
   const told = notes.reduce(withCoordinationNote, withRemoteHeard(spent ? withRemoteStop(lead, member.id, kept) : lead, member.id, newest, led));
   return { state: updateThread(stops, lead.id, () => told), effects };
 }
