@@ -171,7 +171,7 @@ test("a Codex member in a checkout of its own is told its commits run outside it
   const own = await briefs({ coordinationRole: "member", coordination, workspaceRoot: "/worktrees/repo-1", projectRoot: "/repo" });
   const shared = await briefs({ coordinationRole: "member", coordination });
   const lead = await briefs({ coordinationRole: "coordinator", coordination });
-  const outside = /a git command that writes it, such as git add or git commit, must run outside the sandbox: ask to run it that way, and report blocked only if that is refused\./;
+  const outside = /If your sandbox keeps a git command such as git add or git commit from writing the git data .*, ask to run it outside the sandbox, and report blocked only if that is refused\./;
   assert.match(own.codex.instructions, outside);
   assert.doesNotMatch(own.claude.instructions, outside);
   for (const brief of [shared.codex, lead.codex]) assert.doesNotMatch(brief.instructions, outside, "only a member working apart from the project's checkout is told");

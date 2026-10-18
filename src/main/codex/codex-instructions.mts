@@ -9,7 +9,7 @@ const CODEX_DIALECT: BriefDialect = {
    * of writable folders could open that much without letting a command plant what git runs outside
    * the sandbox. So a commit asks to run outside it, which the user or the reviewer decides.
    */
-  ownCheckoutCommits: "Your sandbox cannot write the git data your checkout keeps in the main checkout's .git folder, so a git command that writes it, such as git add or git commit, must run outside the sandbox: ask to run it that way, and report blocked only if that is refused. That is your checkout's own history, not the user's files.",
+  ownCheckoutCommits: "If your sandbox keeps a git command such as git add or git commit from writing the git data your checkout keeps in the main checkout's .git folder, ask to run it outside the sandbox, and report blocked only if that is refused. That is your checkout's own history, not the user's files.",
 };
 
 /** What a Codex thread is told beyond its prompt, and the app tools it is served. */
