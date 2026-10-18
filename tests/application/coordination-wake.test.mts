@@ -178,6 +178,21 @@ test("notes waiting when the app closed wake their coordinator once the store is
   assert.equal(required(woken(loaded)).taskId, "lead");
 });
 
+test("a thread whose run the app quit under is restored as stopped, which its coordinator hears without waking", () => {
+  const started = reduce(workspace({ threads: [lead(), member("one", { decisions: [{ id: "d1", question: "Which API?", options: [], raisedAt: 30 }] })] }), correlatedRunEvent("one", "run-1", 1, { type: "run.started", agentInitiated: true }));
+  const one = (state: WorkspaceState) => required(state.threads.find((thread) => thread.id === "one"));
+  assert.equal(one(started.state).runOpen, true, "a run is open on its thread while it goes");
+  assert.equal(one(reduce(started.state, correlatedRunEvent("one", "run-1", 2, { type: "run.status", status: "succeeded" })).state).runOpen, undefined, "and closed once it ends");
+
+  const restored = reduce(workspace(), { type: "store.loaded", data: { version: THREAD_STORE_VERSION, tasks: started.state.threads, projects: [], worktrees: [], lastFolder: null } });
+  assert.equal(one(restored.state).runOpen, undefined);
+  assert.equal(one(restored.state).runEndedAs, "stopped");
+  assert.equal(one(restored.state).runEndedAt, 31, "a moment after the last thing it did");
+  const note = required(restored.state.threads.find((thread) => thread.id === "lead")?.coordinationNotes?.at(-1));
+  assert.deepEqual([note.text, note.quiet], ["\"one\" was stopped.", true]);
+  slept(restored, "quitting stopped it, as the user stopping it would");
+});
+
 test("archiving a coordinator stops it, so restoring it wakes nothing until there is new news", () => {
   const leadRun = { activeRuns: { lead: activeRun("lead", "run-l") }, runStatuses: { lead: "running" as const } };
   const runningLead = reduce(holding(leadRun), { type: "task.archive", taskId: "lead" });

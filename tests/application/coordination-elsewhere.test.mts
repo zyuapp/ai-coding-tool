@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
-import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView, stateFromData, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import { coordinationContext, coordinationMembers, coordinationRole } from "../../src/application/coordination.ts";
 import { coordinationView } from "../../src/application/coordination-view.ts";
 import { sidebarLists } from "../../src/application/sidebar-lists.ts";
@@ -141,6 +141,31 @@ test("a computer that has yet to answer after a restart here holds the news its 
   assert.equal(unpaired.state.threads[0]!.remoteWorking, undefined);
   const gone = mirrored(reduce(away, studioLine("connected")).state, workspace());
   assert.equal(wakesOf(gone.state).length, 1, "nor does one whose thread is no longer there");
+});
+
+test("a paired computer that quits mid-run is heard ending that turn, as it restores the turn stopped or, from an older build, as the run goes without a word", () => {
+  const announcedOf = (effects: ReturnType<typeof reduce>["effects"]) => effects.flatMap((effect) => effect.type === "announce-thread" ? [effect.notice.headline] : []);
+  const report = { state: "done" as const, summary: "Tests pass", at: 30 };
+  const running = mirrored(coordinating(workspace()), workspace({ threads: [far({ report, runOpen: true })], activeRuns: { far: activeRun("far", "run-far") } })).state;
+  assert.equal(running.threads[0]!.remoteHeard?.far, 30);
+  const quit = reduce(running, studioLine("offline")).state;
+  const back = reduce(quit, studioLine("connected")).state;
+
+  const restored = stateFromData({ version: THREAD_STORE_VERSION, tasks: [far({ report, runOpen: true })], projects: [], worktrees: [], lastFolder: null });
+  const heard = mirrored(back, restored);
+  assert.deepEqual(notesOf(heard.state).slice(-1), ["\"Far work\" was stopped."], "its restore ends the turn after anything already heard of it");
+  assert.equal(wakesOf(heard.state).length, 1, "and wakes the coordinator, which nothing stopped");
+  assert.equal(heard.state.threads[0]!.remoteWorking, undefined);
+  assert.deepEqual(notesOf(mirrored(heard.state, { ...restored, threads: [...restored.threads] }).state), notesOf(heard.state), "heard once");
+
+  const lost = mirrored(back, workspace({ threads: [far({ report })] }));
+  assert.deepEqual(notesOf(lost.state).slice(-1), ["\"Far work\" ended its turn."]);
+  assert.equal(wakesOf(lost.state).length, 1);
+  assert.deepEqual(announcedOf(lost.effects), [], "a run lost without a word has no finish to tell");
+  assert.deepEqual(notesOf(mirrored(lost.state, workspace({ threads: [far({ report, updatedAt: 99 })] })).state), notesOf(lost.state), "heard once");
+
+  const ticking = mirrored(coordinating(workspace()), workspace({ threads: [far()], activeRuns: { far: activeRun("far", "tick", { origin: "automation", quiet: true }) } })).state;
+  assert.deepEqual(notesOf(mirrored(ticking, workspace({ threads: [far()] })).state), notesOf(ticking), "a quiet tick that found nothing put its thread back as if it never ran");
 });
 
 test("a coordinator with more threads there than it keeps watermarks for hears each of them once", () => {

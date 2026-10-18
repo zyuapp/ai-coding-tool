@@ -145,8 +145,15 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
     effects.push(...announced(state, member, finding.headline, "finding"));
     newest = Math.max(newest, finding.at);
   }
+  const endedAt = member.runEndedAt !== undefined && member.runEndedAt > since ? member.runEndedAt : undefined;
+  /**
+   * A run that computer last said was going and that is gone with no word of its end, as one an older
+   * build there lost to quitting, ended its turn all the same. Only a quiet scheduled run that found
+   * nothing puts its thread back as if it never ran.
+   */
+  const lost = ran !== undefined && !ran.quiet && endedAt === undefined;
   /** A thread waiting out a session limit carries on by itself, so its turn has not ended. */
-  const ended = member.runEndedAt !== undefined && member.runEndedAt > since && !run && !(member.limitPause && resumesOnItsOwn(member.limitPause));
+  const ended = (endedAt !== undefined || lost) && !run && !(member.limitPause && resumesOnItsOwn(member.limitPause));
   /** A wait Stop all ended that the thread carried on from before the stop landed is no longer its to quiet. */
   if (run && quietPauses.includes(member.id)) quietPauses = quietPauses.filter((threadId) => threadId !== member.id);
   if (ended) {
@@ -165,12 +172,13 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
     /**
      * Said as a run here would say it: a failure in the words that computer left on the thread, and a
      * finish only for a run someone started, so one this computer never saw go speaks only if it failed.
+     * One lost without a word has no finish to tell.
      */
-    const surfacing = status === "failed" ? "failed" : status === "succeeded" && ran && ran.origin !== "automation" ? "attended" : null;
+    const surfacing = status === "failed" ? "failed" : status === "succeeded" && ran && ran.origin !== "automation" && !lost ? "attended" : null;
     const failure = member.messages.at(-1);
     const headline = settledHeadline(surfacing, failure?.kind === "system" && failure.tone === "error" ? failure.text : undefined);
     if (headline) effects.push(...announced(state, member, headline, surfacing === "failed" ? "failed" : "finished"));
-    newest = Math.max(newest, member.runEndedAt!);
+    newest = Math.max(newest, endedAt ?? newest);
   }
   /** Waiting on the user is said as it starts, as it is of a thread here. */
   if (run?.origin === "composer" && computer.status === "connected") {

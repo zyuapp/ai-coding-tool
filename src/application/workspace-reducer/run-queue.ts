@@ -152,7 +152,7 @@ type RunPickup = "warming" | "agent";
  */
 export function beginRun(state: WorkspaceState, taskId: string, runId: string, provenance: RunProvenance = ATTENDED_RUN, before?: ThreadMark, pickup?: RunPickup): WorkspaceState {
   /** A run that starts is the thread picked back up, whatever its place in line. */
-  const threads = withoutOutcome(state.threads, new Set([taskId])).map((thread) => thread.id === taskId ? pickedUp(thread, pickup) : thread);
+  const threads = withoutOutcome(state.threads, new Set([taskId])).map((thread) => thread.id === taskId ? opened(pickedUp(thread, pickup), provenance) : thread);
   const messagesBefore = threads.find((thread) => thread.id === taskId)?.messages.length ?? 0;
   const mark = before ?? threadMark(state.threads.find((thread) => thread.id === taskId));
   /**
@@ -167,6 +167,11 @@ export function beginRun(state: WorkspaceState, taskId: string, runId: string, p
     taskId,
     "running",
   );
+}
+
+/** A run is open on its thread until it ends, so one the app quits under is known as cut off when the thread is restored. Compacting is not a turn. */
+function opened(thread: Thread, provenance: RunProvenance): Thread {
+  return provenance.operation === "compact" ? thread : { ...thread, runOpen: true };
 }
 
 function pickedUp(thread: Thread, pickup: RunPickup | undefined): Thread {

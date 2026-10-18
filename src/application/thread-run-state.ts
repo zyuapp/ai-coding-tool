@@ -377,10 +377,10 @@ function applyWorkflowEvent<T extends RunTransitionState>(state: T, event: Workf
   }));
 }
 
-/** A thread's turn ending, however it ends: it reads as stopped or idle, and keeps how and when it ended. */
+/** A thread's turn ending, however it ends: it reads as stopped or idle, its run is closed, and it keeps how and when it ended. */
 export function withTurnEnded<T extends RunTransitionState>(state: T, taskId: string, status: Extract<RunEvent, { type: "run.status" }>["status"]): T {
   const ended = runOutcome(status);
-  return updateThread(withRunStatus(state, taskId, status === "cancelled" ? "stopped" : "idle"), taskId, (thread) => ({ ...thread, runEndedAt: now(), ...(ended ? { runEndedAs: ended } : {}) }));
+  return updateThread(withRunStatus(state, taskId, status === "cancelled" ? "stopped" : "idle"), taskId, ({ runOpen: _closed, ...thread }) => ({ ...thread, runEndedAt: now(), ...(ended ? { runEndedAs: ended } : {}) }));
 }
 
 /** A run reaching its end: the run record goes, and what it left behind is settled on its thread. */

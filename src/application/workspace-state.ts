@@ -6,6 +6,7 @@ import { threadActivity, threadLists, waitingOn, type ThreadWait } from "./threa
 import { backfillProjectSortIndex } from "./project-order.js";
 import { sidebarLists } from "./sidebar-lists.js";
 import type { CoordinationSend, StoppedStart } from "./coordination.js";
+import { restoredThreads, withCutOffTurnsHeard } from "./thread-restore.js";
 import { coordinatorOf, type OverviewFolds } from "../domain/coordination.js";
 import { backfillSortIndex } from "./thread-order.js";
 import type { ChangedFilesResult, DesktopShortcutRefusal, InstalledApp } from "../contracts/ipc.js";
@@ -539,27 +540,16 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
   };
 }
 
-/** No session outlives the app, so a subagent stored mid-work stopped with it. */
-function restoredSubagent(subagent: Subagent): Subagent {
-  if (subagent.status !== "working") return subagent;
-  const { stopping: _stopping, ...stopped } = subagent;
-  return { ...stopped, status: "stopped" };
-}
-
 export function stateFromData(data: ThreadStoreData, storageError: string | null = null): WorkspaceState {
   const projects = data.lastFolder && !data.projects.some((project) => project.root === data.lastFolder)
     ? [...data.projects, { id: legacyProjectId(data.lastFolder), root: data.lastFolder }]
     : data.projects;
-  const stored = retainedThreads(data.tasks, Date.now());
-  const subagents: Record<string, Subagent[]> = {};
-  const threads = stored.map(({ subagents: delegated, ...thread }) => {
-    if (delegated?.length) subagents[thread.id] = delegated.map(restoredSubagent);
-    return thread;
-  });
+  const at = Date.now();
+  const { threads, subagents, cutOff } = restoredThreads(retainedThreads(data.tasks, at));
   /** A thread under a coordinator is shown in the coordinator's dock, so the app never opens on one. */
   const firstThread = threads.find((thread) => !coordinatorOf(threads, thread));
   const firstProject = firstThread?.projectId ?? (firstThread ? null : projects.find((project) => project.root === data.lastFolder)?.id ?? null);
-  return {
+  const restored: WorkspaceState = {
     ...emptyWorkspaceState(storageError),
     threads: backfillSortIndex(threads),
     subagents,
@@ -578,6 +568,7 @@ export function stateFromData(data: ThreadStoreData, storageError: string | null
     draftFastMode: firstThread?.fastMode ?? false,
     expandedProjects: new Set(firstProject ? [firstProject] : []),
   };
+  return withCutOffTurnsHeard(restored, cutOff, at);
 }
 
 /**

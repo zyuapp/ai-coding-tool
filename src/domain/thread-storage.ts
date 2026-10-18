@@ -530,6 +530,7 @@ const DROPPABLE_FIELDS: Readonly<Record<string, (value: unknown) => boolean>> = 
   resolvedAt: finiteNumber,
   pullRequest: isPullRequestLink,
   muted: (value) => value === true,
+  runOpen: (value) => value === true,
   usage: isThreadUsage,
   remoteLead: isHeldLead,
   remoteHeard: isRemoteHeard,

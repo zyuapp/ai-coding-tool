@@ -110,6 +110,11 @@ export type Thread = {
    */
   runEndedAs?: ThreadOutcome;
   /**
+   * Set while a run is going on this thread. No run outlives the app, so a thread saved with it was
+   * cut off when the app quit, and is restored as having been stopped there.
+   */
+  runOpen?: true;
+  /**
    * The checkout this thread's runs happen in, named by id because other threads may work in the
    * same one. Absent while the thread runs in the project itself.
    */
