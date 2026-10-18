@@ -134,7 +134,7 @@ function projectMobileDraft(state: WorkspaceState, view: ReturnType<typeof deriv
   return {
     projectId: project?.id ?? null,
     projectName: project ? projectName(project) : null,
-    settings: { engine: view.engine, model: view.model, effort: view.effort, fastMode: view.fastMode, policy: view.policy },
+    settings: { engine: view.engine, model: view.model, effort: view.effort, fastMode: view.fastMode, policy: view.policy, ...(view.coordinating ? { coordinating: true as const } : {}) },
     worktree: view.draftWorktree,
     worktreeName: view.draftWorktreeName,
     worktrees: project ? worktreeChoices(state, project, view.draftWorktreeId ?? undefined) : [],
@@ -201,7 +201,7 @@ function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deri
       }
       : null,
     queued: view.queuedMessages.map((message) => ({ id: message.id, text: message.text, ...labelOf(message), ...(message.steering ? { steering: true } : {}) })),
-    settings: { engine: view.engine, model: view.model, effort: view.effort, fastMode: view.fastMode, policy: view.policy },
+    settings: { engine: view.engine, model: view.model, effort: view.effort, fastMode: view.fastMode, policy: view.policy, ...(view.coordinating ? { coordinating: true as const } : {}) },
     location,
     worktrees: project ? worktreeChoices(state, project, thread.worktreeId) : [],
     canMove: Boolean(project?.workspaceId) && location.kind !== "creating" && location.kind !== "releasing" && !view.runningThreadIds.has(thread.id),

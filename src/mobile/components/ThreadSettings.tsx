@@ -2,7 +2,7 @@ import { LuCheck as Check, LuZap as Zap } from "react-icons/lu";
 import { Fragment } from "react";
 import type { MobileThreadSettings } from "../../contracts/mobile";
 import { Sheet } from "./Sheet";
-import { AGENT_ENGINES, capabilitiesFor, byEngine, byModel, effortForModel, engineLabel, modelsFor, type AgentEngine, type AgentModel } from "../../domain/agent-engine";
+import { AGENT_ENGINES, capabilitiesFor, byEngine, byModel, effortForModel, effortsFor, engineLabel, modelsFor, type AgentEngine, type AgentModel, type EffortSpec } from "../../domain/agent-engine";
 import { POLICIES, POLICY_CHOICES, type AgentEffort, type ExecutionPolicy } from "../../domain/run";
 
 type Choice<T extends string> = { value: T; label: string; description?: string };
@@ -10,7 +10,9 @@ type Choice<T extends string> = { value: T; label: string; description?: string 
 const MODES: Choice<ExecutionPolicy>[] = POLICY_CHOICES.map((policy) => ({ value: policy, ...POLICIES[policy] }));
 
 const modelsOf = byEngine((engine): Choice<AgentModel>[] => modelsFor(engine).map((spec) => ({ value: spec.id, label: spec.label, description: spec.description })));
-const effortsOf = byModel((model): Choice<AgentEffort>[] => model.efforts.map((spec) => ({ value: spec.id, ...spec })));
+const effortChoices = (efforts: readonly EffortSpec[]): Choice<AgentEffort>[] => efforts.map((spec) => ({ value: spec.id, ...spec }));
+const effortsOf = byModel((model) => effortChoices(model.efforts));
+const coordinatorEffortsOf = byModel((model) => effortChoices(effortsFor(model.id, "coordinator")));
 
 /** One model list headed by engine, so choosing a model is how an engine is chosen. */
 const modelGroups = AGENT_ENGINES.map((engine) => ({ engine, label: engineLabel(engine), choices: modelsOf[engine] }));
@@ -61,11 +63,12 @@ export function ThreadSettings({ settings, locked, onClose, onPolicy, onModel, o
   onFastMode: (fastMode: boolean) => void;
   onEffort: (engine: AgentEngine, effort: AgentEffort) => void;
 }) {
+  const efforts = (settings.coordinating ? coordinatorEffortsOf : effortsOf)[settings.model];
   return (
     <Sheet title="Settings" label="Thread settings" onClose={onClose}>
       <Group heading="Mode" choices={MODES} value={settings.policy} onChange={onPolicy} />
       <ModelGroup engine={settings.engine} model={settings.model} locked={locked} onModel={onModel} />
-      {effortsOf[settings.model].length > 0 && <Group heading="Effort" choices={effortsOf[settings.model]} value={effortForModel(settings.model, settings.effort)} onChange={(effort) => onEffort(settings.engine, effort)} />}
+      {efforts.length > 0 && <Group heading="Effort" choices={efforts} value={effortForModel(settings.model, settings.effort, settings.coordinating ? "coordinator" : undefined)} onChange={(effort) => onEffort(settings.engine, effort)} />}
       {capabilitiesFor(settings.engine).fastMode && <button type="button" className="sheet-option fast-mode-switch" role="switch" aria-label="Fast mode" aria-checked={settings.fastMode ?? false} onClick={() => onFastMode(!settings.fastMode)}>
         <Zap size={20} aria-hidden="true" />
         <span><strong>Fast mode</strong><small>Faster responses · uses more of your plan</small></span>

@@ -98,7 +98,7 @@ export function startRunCommand(state: WorkspaceState, thread: Thread, runId: st
     policy,
     engine: thread.engine,
     model: thread.model ?? defaultModelFor(thread.engine),
-    effort: effortForModel(thread.model ?? defaultModelFor(thread.engine), thread.effort ?? defaultEffortFor(thread.engine)),
+    effort: effortForModel(thread.model ?? defaultModelFor(thread.engine), thread.effort ?? defaultEffortFor(thread.engine), coordination),
     ...(capabilitiesFor(thread.engine).fastMode ? { fastMode: thread.fastMode ?? false } : {}),
     ...(claude ? { claude } : {}),
     ...(state.computerUse ? {} : { computerUseTools: false as const }), ...(state.browserTools ? {} : { browserTools: false as const }),

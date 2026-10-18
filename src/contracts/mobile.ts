@@ -124,6 +124,8 @@ export type MobileThreadSettings = {
   /** Absent when connected to an older desktop. */
   fastMode?: boolean;
   policy: ExecutionPolicy;
+  /** A coordinator, whose effort menu offers no effort that hands work to the engine's agents. */
+  coordinating?: true;
 };
 
 export type MobileThreadView = {

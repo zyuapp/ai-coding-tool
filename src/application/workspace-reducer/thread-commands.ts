@@ -22,7 +22,7 @@ import { DRAFT_DOCK, dockFor, frontDock, sideChatIds, withDock, type WorkspaceSt
 import { threadActivity, threadLists } from "../thread-activity.js";
 import { dismissableThreads, dismissed, readAttention } from "../../domain/attention.js";
 import { clampTitle, type Thread } from "../../domain/thread.js";
-import { asCoordinator, coordinatorOf, withCoordinated } from "../../domain/coordination.js";
+import { asCoordinator, coordinatorOf, effortRoleOf, withCoordinated } from "../../domain/coordination.js";
 import { isSnoozeHours, withoutSnooze } from "../../domain/thread-snooze.js";
 import { cancelPause } from "../limit-pauses.js";
 import { capabilitiesFor, defaultModelFor, effortForModel, engineHasModel, modelHasEffort } from "../../domain/agent-engine.js";
@@ -287,7 +287,7 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
       const engine = state.threads.find((thread) => thread.id === taskId)?.engine;
       if (!engineHasModel(input.engine, input.model) || engine && !engineHasModel(engine, input.model)) return settled(state);
       /** A draft keeps its effort where the new model takes it, and drops to the nearest one below where it does not. */
-      const draftEffort = effortForModel(input.model, state.draftEffort);
+      const draftEffort = effortForModel(input.model, state.draftEffort, effortRoleOf(undefined, state.draftRole));
       const drafted = input.taskId === undefined ? { ...state, draftEngine: input.engine, draftModel: input.model, draftEffort } : state;
       return settled(taskId ? updateThread(drafted, taskId, (thread) => ({ ...thread, model: input.model, updatedAt: now() })) : drafted);
     }
@@ -303,11 +303,12 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
     case "task.set-effort": {
       const taskId = targetId(state, input.taskId);
       const thread = state.threads.find((item) => item.id === taskId);
-      /** Effort belongs to the model, so only one the target model takes can be set on it. */
-      if (thread && !modelHasEffort(thread.model ?? defaultModelFor(thread.engine), input.effort)) return settled(state);
-      if (!thread && !modelHasEffort(state.draftModel, input.effort)) return settled(state);
+      /** Effort belongs to the model, and to the part the thread plays, so only one the target takes can be set on it. */
+      if (thread && !modelHasEffort(thread.model ?? defaultModelFor(thread.engine), input.effort, effortRoleOf(thread, null))) return settled(state);
+      const draftTakes = modelHasEffort(state.draftModel, input.effort, effortRoleOf(undefined, state.draftRole));
+      if (!thread && !draftTakes) return settled(state);
       /** The draft keeps its own model, so it takes the effort only where that model offers it. */
-      const drafted = input.taskId === undefined && modelHasEffort(state.draftModel, input.effort) ? { ...state, draftEffort: input.effort } : state;
+      const drafted = input.taskId === undefined && draftTakes ? { ...state, draftEffort: input.effort } : state;
       return settled(taskId ? updateThread(drafted, taskId, (thread) => ({ ...thread, effort: input.effort, updatedAt: now() })) : drafted);
     }
   }

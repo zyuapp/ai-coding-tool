@@ -165,6 +165,11 @@ test("the open thread carries its transcript, approval, queue, draft and setting
   assert.deepEqual(thread.settings, { fastMode: false, engine: "claude", model: "sonnet", effort: "high", policy: "allow-edits" });
 });
 
+test("a coordinator's settings say so, so the phone offers it only the efforts a coordinator takes", () => {
+  const state = workspace([task("lead", { role: "coordinator", engine: "codex", model: "gpt-6.1-sol", effort: "ultra" })], { currentId: "lead" });
+  assert.deepEqual(projectMobileView(state, NOW).thread?.settings, { fastMode: false, engine: "codex", model: "gpt-6.1-sol", effort: "max", policy: "confirm", coordinating: true });
+});
+
 test("a Mac with no thread open describes the one it is about to start", () => {
   const state = workspace([task("in-app", { projectId: "project-app" })], {
     draftProjectId: "project-app",

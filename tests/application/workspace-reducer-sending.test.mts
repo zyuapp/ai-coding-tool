@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { reduce, type WorkspaceInput, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
+import { reduce, shortcutCommands, type WorkspaceInput, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
 import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import { parseThreadStore, serializeThreadStore } from "../../src/domain/thread-storage.ts";
 import type { AgentModel } from "../../src/domain/agent-engine.ts";
@@ -445,6 +445,28 @@ test("an effort the engine does not offer changes neither the thread nor the dra
   const raised = reduce(codexThread, { type: "task.set-effort", engine: "codex", effort: "ultra" }).state;
   assert.equal(raised.threads[0].effort, "ultra");
   assert.equal(raised.draftEffort, codexThread.draftEffort, "the Claude draft keeps its own effort");
+});
+
+test("a coordinator hands work only to threads, so on any engine it takes no effort that splits work across the engine's own agents", () => {
+  const lead = workspace({ threads: [task("lead", { role: "coordinator", engine: "codex", model: "gpt-6.1-sol", effort: "high" })], currentId: "lead" });
+  assert.equal(reduce(lead, { type: "task.set-effort", engine: "codex", effort: "ultra" }).state.threads[0].effort, "high");
+  assert.equal(reduce(lead, { type: "task.set-effort", engine: "codex", effort: "max" }).state.threads[0].effort, "max");
+  assert.deepEqual(shortcutCommands({ ...lead, threads: [{ ...lead.threads[0]!, effort: "max" }] }, "effort.increase", "any"), [], "the keys stop at the deepest effort it takes");
+
+  const draft = workspace({ draftEngine: "codex", draftModel: "gpt-6.1-sol", draftEffort: "high", draftRole: "coordinator" });
+  assert.equal(reduce(draft, { type: "task.set-effort", engine: "codex", effort: "ultra" }).state.draftEffort, "high", "a draft that will coordinate takes none either");
+
+  /** One made a coordinator while at Ultra shows and runs at the deepest effort a coordinator takes. */
+  const promoted = workspace({ threads: [task("lead", { role: "coordinator", engine: "codex", model: "gpt-6.1-sol", effort: "ultra" })], currentId: "lead" });
+  assert.equal(deriveView(promoted).effort, "max");
+  assert.equal(deriveView(promoted).coordinating, true);
+  const woken = run(promoted, [{ type: "view.set-prompt", prompt: "Plan the release" }]);
+  const sending = reduce(woken, { type: "task.send", attachments: [] });
+  const started = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+  assert.equal(effectAt(started, "start-run").command.effort, "max");
+
+  const member = workspace({ threads: [task("lead", { role: "coordinator" }), task("member", { parentId: "lead", engine: "codex", model: "gpt-6.1-sol", effort: "high" })], currentId: "member" });
+  assert.equal(reduce(member, { type: "task.set-effort", engine: "codex", effort: "ultra" }).state.threads[1].effort, "ultra", "a thread under a coordinator does the work, so it may split it");
 });
 
 test("a command that names its task acts on that one, whichever task the user is looking at", () => {

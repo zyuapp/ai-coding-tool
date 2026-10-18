@@ -42,9 +42,11 @@ export function newThreadSend(state: WorkspaceState, caller: Thread, command: Ne
   const inherited = lead ? threadModelOf(lead) : { model: caller.model ?? defaultModelFor(caller.engine), effort: caller.effort };
   const model = command.model ?? inherited.model;
   if ((lead || remote) && !modelDelegable(model)) return { error: undelegable(model) };
-  if (command.effort && !modelHasEffort(model, command.effort)) return { error: `The ${model} model does not support ${command.effort} effort.` };
+  /** A thread started as a coordinator takes only the efforts a coordinator does. */
+  const role = command.role === "coordinator" ? "coordinator" : undefined;
+  if (command.effort && !modelHasEffort(model, command.effort, role)) return { error: `The ${model} model does not support ${command.effort} effort${role ? " for a coordinator" : ""}.` };
   /** An inherited effort the new model does not take drops to the nearest one it does. */
-  const effort = command.effort ?? effortForModel(model, inherited.effort ?? defaultEffortFor(engineForModel(model)));
+  const effort = command.effort ?? effortForModel(model, inherited.effort ?? defaultEffortFor(engineForModel(model)), role);
   /** A brief is what a coordinator hands the threads it starts, so one any other thread passes is dropped. */
   const { effort: _asked, brief, ...rest } = command;
   const briefed = lead === caller && brief ? { brief } : {};

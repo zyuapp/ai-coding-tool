@@ -1,3 +1,4 @@
+import type { CoordinationRole } from "./coordination.js";
 import type { AgentEffort } from "./run.js";
 
 /** The backends that can run a task. Each offers its own models, efforts, and context windows. */
@@ -10,7 +11,7 @@ export const DEFAULT_ENGINE: AgentEngine = "claude";
  * description, so only an effort that does something else says anything.
  */
 const EFFORTS = {
-  ultra: { label: "Ultra", description: "Splits the work across agents" },
+  ultra: { label: "Ultra", description: "Splits the work across agents", delegates: true },
   max: { label: "Max" },
   xhigh: { label: "Extra high" },
   high: { label: "High" },
@@ -67,7 +68,8 @@ export function currentModel(value: unknown): unknown {
  */
 export type ModelSpec = { id: AgentModel; label: string; description: string; contextWindow: number; efforts: readonly EffortSpec[]; manualCompaction?: boolean; delegable?: false };
 
-export type EffortSpec = { id: AgentEffort; label: string; description?: string };
+/** `delegates` is an effort that hands work to the engine's own agents, which a coordinator never takes. */
+export type EffortSpec = { id: AgentEffort; label: string; description?: string; delegates?: true };
 
 /** The panels and controls an engine can feed; one that cannot is not drawn for its threads. */
 export type EngineCapabilities = {
@@ -200,6 +202,8 @@ export function engineNeedsAttention(status: EngineStatus | null): boolean {
 
 const MODEL_SPECS = new Map<string, ModelSpec>(AGENT_ENGINES.flatMap((engine) => ENGINES[engine].models.map((model) => [model.id, model] as const)));
 const EFFORT_IDS = new Set<string>(EFFORT_ORDER);
+const MODEL_EFFORTS = new Map<string, readonly EffortSpec[]>([...MODEL_SPECS].map(([id, spec]) => [id, spec.efforts]));
+const COORDINATOR_EFFORTS = new Map<string, readonly EffortSpec[]>([...MODEL_SPECS].map(([id, spec]) => [id, spec.efforts.filter((effort) => !effort.delegates)]));
 
 export function isAgentEngine(value: unknown): value is AgentEngine {
   return typeof value === "string" && Object.hasOwn(ENGINES, value);
@@ -249,8 +253,8 @@ export function engineHasEffort(engine: AgentEngine, effort: AgentEffort) {
   return ENGINES[engine].models.some((model) => model.efforts.some((spec) => spec.id === effort));
 }
 
-export function modelHasEffort(model: AgentModel, effort: AgentEffort) {
-  return effortsFor(model).some((spec) => spec.id === effort);
+export function modelHasEffort(model: AgentModel, effort: AgentEffort, role?: CoordinationRole) {
+  return effortsFor(model, role).some((spec) => spec.id === effort);
 }
 
 /** False for a model that reasons at one depth, whose threads are run and drawn without an effort. */
@@ -262,8 +266,8 @@ export function modelTakesEffort(model: AgentModel) {
  * The effort a run on this model actually gets: the one asked for where the model takes it, else the
  * nearest one below. A model that takes no effort keeps what it was given, since nothing reads it.
  */
-export function effortForModel(model: AgentModel, effort: AgentEffort): AgentEffort {
-  const offered = effortsFor(model);
+export function effortForModel(model: AgentModel, effort: AgentEffort, role?: CoordinationRole): AgentEffort {
+  const offered = effortsFor(model, role);
   if (offered.length === 0 || offered.some((spec) => spec.id === effort)) return effort;
   const asked = EFFORT_ORDER.indexOf(effort);
   return (offered.find((spec) => EFFORT_ORDER.indexOf(spec.id) >= asked) ?? offered[offered.length - 1]!).id;
@@ -273,9 +277,13 @@ export function modelsFor(engine: AgentEngine): readonly ModelSpec[] {
   return ENGINES[engine].models;
 }
 
-/** The efforts this model takes, deepest first. Empty for a model that takes none. */
-export function effortsFor(model: AgentModel): readonly EffortSpec[] {
-  return MODEL_SPECS.get(model)?.efforts ?? [];
+/**
+ * The efforts this model takes, deepest first. Empty for a model that takes none. A coordinator hands
+ * work only to threads the user can see, never to the engine's own agents, so it takes none of the
+ * efforts that would, whichever engine it runs on.
+ */
+export function effortsFor(model: AgentModel, role?: CoordinationRole): readonly EffortSpec[] {
+  return (role === "coordinator" ? COORDINATOR_EFFORTS : MODEL_EFFORTS).get(model) ?? [];
 }
 
 export function defaultModelFor(engine: AgentEngine): AgentModel {

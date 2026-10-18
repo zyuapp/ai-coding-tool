@@ -46,6 +46,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       engineAccess={workspace.engineAccess}
       model={workspace.model}
       effort={workspace.effort}
+      coordinating={workspace.coordinating}
       fastMode={workspace.fastMode}
       onFastModeChange={workspace.actions.setFastMode}
       contextUsage={workspace.currentThread?.contextUsage}

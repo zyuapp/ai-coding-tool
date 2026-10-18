@@ -7,7 +7,7 @@ import { backfillProjectSortIndex } from "./project-order.js";
 import { sidebarLists } from "./sidebar-lists.js";
 import type { CoordinationSend, StoppedStart } from "./coordination.js";
 import { restoredThreads, withCutOffTurnsEnded } from "./thread-restore.js";
-import { coordinatorOf, type OverviewFolds } from "../domain/coordination.js";
+import { coordinatorOf, effortRoleOf, type OverviewFolds } from "../domain/coordination.js";
 import { backfillSortIndex } from "./thread-order.js";
 import type { ChangedFilesResult, DesktopShortcutRefusal, InstalledApp } from "../contracts/ipc.js";
 import type { PullRequestRead } from "../domain/pull-request.js";
@@ -54,7 +54,7 @@ import { OPEN_SIDEBAR_SECTIONS, type SidebarMode, type SidebarSections } from ".
 import { DEFAULT_THEME, DEFAULT_THEME_MODE, type ThemeMode } from "../domain/theme.js";
 import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, READING_SIZE, TERMINAL_SIZE } from "../domain/typography.js";
 import type { Workflow } from "../domain/workflow.js";
-import { DEFAULT_ENGINE, DEFAULT_MODEL, byEngine, capabilitiesFor, defaultEffortFor, defaultModelFor, engineLabel, type AgentEngine, type AgentModel, type EngineCapabilities, type EngineReadiness, type EngineStatus } from "../domain/agent-engine.js";
+import { DEFAULT_ENGINE, DEFAULT_MODEL, byEngine, capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel, engineLabel, type AgentEngine, type AgentModel, type EngineCapabilities, type EngineReadiness, type EngineStatus } from "../domain/agent-engine.js";
 import { engineReadinessOf } from "./engine-access.js";
 import { DEFAULT_EFFORT, OPEN_SUBAGENT_GROUPS, type AgentEffort, type ExecutionPolicy, type Subagent, type SubagentGroups } from "../domain/run.js";
 import { annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-drafts.js";
@@ -718,6 +718,14 @@ function engineView(state: WorkspaceState, currentThread: Thread | undefined) {
   };
 }
 
+/** The model in front and the effort a run on it gets, which for a coordinator is never one that hands work to the engine's agents. */
+function modelView(state: WorkspaceState, currentThread: Thread | undefined) {
+  const model = currentThread ? currentThread.model ?? defaultModelFor(currentThread.engine) : state.draftModel;
+  const role = effortRoleOf(currentThread, state.draftRole);
+  const effort = currentThread ? currentThread.effort ?? defaultEffortFor(currentThread.engine) : state.draftEffort;
+  return { model, coordinating: role === "coordinator", effort: effortForModel(model, effort, role) };
+}
+
 /**
  * The threads ⌘1 through ⌘9 reach, read straight from state so each keystroke follows the current
  * visible order.
@@ -775,8 +783,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state,
     /** What that folder is called: the name the user gave the project, else the folder's own. */
     folderLabel: currentProject ? projectName(currentProject) : "",
     policy: currentThread?.executionPolicy ?? state.draftPolicy,
-    model: currentThread ? currentThread.model ?? defaultModelFor(currentThread.engine) : state.draftModel,
-    effort: currentThread ? currentThread.effort ?? defaultEffortFor(currentThread.engine) : state.draftEffort,
+    ...modelView(state, currentThread),
     fastMode: capabilitiesFor(currentThread?.engine ?? state.draftEngine).fastMode && (currentThread ? currentThread.fastMode ?? false : state.draftFastMode),
     prompt: state.prompts[promptKey(state)] ?? "",
     annotations: annotationsFor(state, promptKey(state)),

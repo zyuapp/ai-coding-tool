@@ -2,7 +2,7 @@ import { CommandGate, CommandButton } from "./CommandControl";
 import type { IconType } from "react-icons";
 import { LuSearch as Search, LuStar as Star, LuGrid2X2 as Grid, LuX as X, LuBrain as Brain, LuCheck as Check, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuFlame as Flame, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuNetwork as Network, LuShieldOff as ShieldOff, LuSignal as Signal, LuSignalHigh as SignalHigh, LuSignalLow as SignalLow, LuSignalMedium as SignalMedium, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
 import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { AGENT_ENGINES, capabilitiesFor, byEngine, byModel, effortForModel, engineLabel, engineNotice, modelsFor, type AgentEngine, type AgentModel, type EngineNotice, type EngineReadiness } from "../../domain/agent-engine";
+import { AGENT_ENGINES, capabilitiesFor, byEngine, byModel, effortForModel, effortsFor, engineLabel, engineNotice, modelsFor, type AgentEngine, type AgentModel, type EffortSpec, type EngineNotice, type EngineReadiness } from "../../domain/agent-engine";
 import { POLICIES, type AgentEffort, type ExecutionPolicy } from "../../domain/run";
 import { moveListFocus, useDismissibleLayer } from "../focus";
 import { CopyButton } from "./CopyButton";
@@ -29,7 +29,9 @@ const effortIcons: Record<AgentEffort, IconType> = {
 };
 
 const modelsOf = byEngine((engine): Choice<AgentModel>[] => modelsFor(engine).map((spec) => ({ value: spec.id, label: spec.label, description: spec.description, icon: modelIcons[spec.id] })));
-const effortsOf = byModel((model): Choice<AgentEffort>[] => model.efforts.map((spec) => ({ value: spec.id, ...spec, icon: effortIcons[spec.id] })));
+const effortChoices = (efforts: readonly EffortSpec[]): Choice<AgentEffort>[] => efforts.map((spec) => ({ value: spec.id, ...spec, icon: effortIcons[spec.id] }));
+const effortsOf = byModel((model) => effortChoices(model.efforts));
+const coordinatorEffortsOf = byModel((model) => effortChoices(effortsFor(model.id, "coordinator")));
 
 /** Provider filters and search share the same catalog. */
 const modelGroups = AGENT_ENGINES.map((engine) => ({ engine, label: engineLabel(engine), choices: modelsOf[engine] }));
@@ -222,13 +224,14 @@ export function ModelMenu({ onOpen, ...props }: ModelLibraryProps & { onOpen: ()
   </SettingMenu>;
 }
 
-/** The effort chip for a model, drawn only for a model that takes an effort. */
-export function EffortMenu({ model, effort, heading, onChange }: { model: AgentModel; effort: AgentEffort; heading: string; onChange: (effort: AgentEffort) => void }) {
-  if (!effortsOf[model].length) return null;
-  return <ChoiceMenu label="Effort" axis="Effort" heading={heading} choices={effortsOf[model]} value={effortForModel(model, effort)} onChange={onChange} />;
+/** The effort chip for a model, drawn only for a model that takes an effort. A coordinator's offers only the efforts it takes. */
+export function EffortMenu({ model, effort, coordinating = false, heading, onChange }: { model: AgentModel; effort: AgentEffort; coordinating?: boolean; heading: string; onChange: (effort: AgentEffort) => void }) {
+  const choices = (coordinating ? coordinatorEffortsOf : effortsOf)[model];
+  if (!choices.length) return null;
+  return <ChoiceMenu label="Effort" axis="Effort" heading={heading} choices={choices} value={effortForModel(model, effort, coordinating ? "coordinator" : undefined)} onChange={onChange} />;
 }
 
-export function ComposerSettings({ taskId, mode, engine, engineLabel, engineLocked, engineAccess, model, effort, fastMode, onFastModeChange, onModeChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onEngineRead, onSignIn, onOpenEngineSettings }: {
+export function ComposerSettings({ taskId, mode, engine, engineLabel, engineLocked, engineAccess, model, effort, coordinating = false, fastMode, onFastModeChange, onModeChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onEngineRead, onSignIn, onOpenEngineSettings }: {
   taskId?: string;
   mode: ExecutionPolicy;
   engine: AgentEngine;
@@ -238,6 +241,7 @@ export function ComposerSettings({ taskId, mode, engine, engineLabel, engineLock
   engineAccess: Record<AgentEngine, EngineReadiness>;
   model: AgentModel;
   effort: AgentEffort;
+  coordinating?: boolean;
   fastMode: boolean;
   onFastModeChange: (fastMode: boolean) => void;
   onModeChange: (mode: ExecutionPolicy) => void;
@@ -255,7 +259,7 @@ export function ComposerSettings({ taskId, mode, engine, engineLabel, engineLock
     <div className="composer-settings">
       <CommandGate command={{ type: "task.set-policy", taskId, policy: mode }}><ChoiceMenu label="Permission mode" axis="Mode" heading={`How should ${engineLabel} actions be approved?`} choices={modes} value={mode} onChange={onModeChange} /></CommandGate>
       <CommandGate command={{ type: "task.set-model", taskId, engine, model }}><ModelMenu engine={engine} engineLocked={engineLocked} engineAccess={engineAccess} model={model} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onChange={onModelChange} onOpen={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} /></CommandGate>
-      <CommandGate command={{ type: "task.set-effort", taskId, engine, effort }}><EffortMenu model={model} effort={effort} heading={`How hard should ${engineLabel} think?`} onChange={(choice) => onEffortChange(engine, choice)} /></CommandGate>
+      <CommandGate command={{ type: "task.set-effort", taskId, engine, effort }}><EffortMenu model={model} effort={effort} coordinating={coordinating} heading={`How hard should ${engineLabel} think?`} onChange={(choice) => onEffortChange(engine, choice)} /></CommandGate>
       {capabilitiesFor(engine).fastMode && <CommandButton command={{ type: "task.set-fast-mode", taskId, fastMode: !fastMode }} type="button" className="fast-mode-toggle" aria-label="Fast mode" aria-pressed={fastMode} title={`Fast mode ${fastMode ? "on" : "off"} · faster responses use more of your plan`} onClick={() => onFastModeChange(!fastMode)}><Zap size={16} aria-hidden="true" /></CommandButton>}
     </div>
   );

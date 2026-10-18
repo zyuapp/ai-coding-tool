@@ -71,6 +71,8 @@ export type ConversationComposerProps = {
   engineAccess?: Record<AgentEngine, EngineReadiness>;
   model: AgentModel;
   effort: AgentEffort;
+  /** Set for a coordinator, whose effort menu offers no effort that hands work to the engine's agents. */
+  coordinating?: boolean;
   fastMode: boolean;
   onFastModeChange: (fastMode: boolean) => void;
   contextUsage?: ContextUsage;
@@ -147,6 +149,7 @@ export function ConversationComposer({
   engineAccess = EVERY_ENGINE_READY,
   model,
   effort,
+  coordinating = false,
   fastMode,
   onFastModeChange,
   contextUsage,
@@ -256,7 +259,7 @@ export function ConversationComposer({
           rows={2}
         />
         <div className="composer-bar">
-          <ComposerSettings taskId={taskId} mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} fastMode={fastMode} onFastModeChange={onFastModeChange} onModeChange={onModeChange} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
+          <ComposerSettings taskId={taskId} mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} coordinating={coordinating} fastMode={fastMode} onFastModeChange={onFastModeChange} onModeChange={onModeChange} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
           <div className="composer-actions">
             {contextUsage && <ContextUsageMeter usage={contextUsage} />}
             <CommandButton command={runActive ? { type: "run.cancel", taskId } : sendCommand}

@@ -223,6 +223,11 @@ export function isCoordinator(thread: Thread | undefined): boolean {
   return thread?.role === "coordinator" && thread.archivedAt === undefined;
 }
 
+/** Whose efforts a thread's own effort menu offers, or the draft's while there is no thread: a coordinator's, for one or a draft that will be one. */
+export function effortRoleOf(thread: Thread | undefined, draftRole: ThreadRole | null): CoordinationRole | undefined {
+  return (thread ? isCoordinator(thread) : draftRole === "coordinator") ? "coordinator" : undefined;
+}
+
 /**
  * Whether threads on paired computers may still work under this one: it is a coordinator, archived
  * or not, or it has heard from a thread there, since taking its role off keeps those away under it

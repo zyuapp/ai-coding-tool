@@ -301,7 +301,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   const entering = Boolean(arriving) && existing?.worktreeEnteredAt === undefined;
   const engine = pending.model ? engineForModel(pending.model) : state.draftEngine;
   const model = pending.model ?? state.draftModel;
-  const effort = effortForModel(model, pending.effort ?? (engineHasEffort(engine, state.draftEffort) ? state.draftEffort : defaultEffortFor(engine)));
+  const effort = effortForModel(model, pending.effort ?? (engineHasEffort(engine, state.draftEffort) ? state.draftEffort : defaultEffortFor(engine)), pending.role === "coordinator" ? "coordinator" : undefined);
   const thread: Thread = existing ?? {
     id: crypto.randomUUID(),
     title: pending.title ? clampTitle(pending.title) : threadTitleFor(pending.text || pasteTitle(pending.pastes ?? []) || fileTitle(pending.files ?? []), pending.attachments.map((path) => ({ path, labels: [] }))),

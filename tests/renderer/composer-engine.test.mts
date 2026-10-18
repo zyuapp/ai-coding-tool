@@ -348,13 +348,13 @@ test("another coordinator's Needs-you card opens on its first page", async () =>
 
 test("the effort menu offers what the model takes, and is gone for a model that takes none", async () => {
   window.desktop = composerDesktop();
-  const composer = (engine: "claude" | "codex", model: AgentModel) => React.createElement(ConversationComposer, {
-    prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm", engine, engineLabel: "Claude", model, effort: "high",
+  const composer = (engine: "claude" | "codex", model: AgentModel, coordinating: boolean) => React.createElement(ConversationComposer, {
+    prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm", engine, engineLabel: "Claude", model, effort: "high", coordinating,
     runActive: false, queuedMessages: [],
     onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {},
   });
-  const efforts = async (engine: "claude" | "codex", model: AgentModel) => {
-    const view = await mount(composer(engine, model));
+  const efforts = async (engine: "claude" | "codex", model: AgentModel, coordinating = false) => {
+    const view = await mount(composer(engine, model, coordinating));
     await act(async () => {});
     const menus = [...view.container.querySelectorAll<HTMLElement>(".setting-menu")];
     const labels = menus.map((menu) => query(menu, "summary").getAttribute("aria-label"));
@@ -367,6 +367,7 @@ test("the effort menu offers what the model takes, and is gone for a model that 
   };
 
   assert.equal((await efforts("codex", "gpt-6-astra"))?.[0], "Ultra");
+  assert.equal((await efforts("codex", "gpt-6-astra", true))?.[0], "Max", "a coordinator hands work only to threads, so it has no ultra");
   const luna = await efforts("codex", "gpt-6-luna");
   assert.ok(luna && luna.length > 1);
   assert.equal(luna[0], "Max");
