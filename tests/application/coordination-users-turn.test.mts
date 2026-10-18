@@ -170,3 +170,13 @@ test("a paired computer's member ends a turn of the user's own quietly, as one h
   assert.equal(lastNote(sent).quiet, undefined, "a turn someone else started there, or one from a build that cannot tell, is news");
   assert.equal(wakesOf(sent).length, 1);
 });
+
+test("a thread steering a message into the user's own turn makes that turn no longer theirs alone", () => {
+  const { state, runId } = started(idle(), usersMessage);
+  assert.equal(state.activeRuns.one?.usersOwn, true);
+  const steered = reduce(state, { type: "task.send", taskId: "one", text: "And the docs", from: "one", steer: true }).state;
+  const queued = required(steered.queuedMessages.one?.[0]);
+  assert.equal(queued.usersOwn, undefined, "a thread's message to itself is never the user's");
+  const joined = reduce(steered, correlatedRunEvent("one", runId, 1, { type: "queued.delivered", messageId: queued.id })).state;
+  assert.equal(joined.activeRuns.one?.usersOwn, undefined, "so the turn it joined wakes the coordinator when it ends");
+});

@@ -229,7 +229,8 @@ export function withDeliveredMessage(state: WorkspaceState, taskId: string, mess
   const delivered = queued.find((message) => message.id === messageId);
   if (!delivered) return state;
   const active = state.activeRuns[taskId];
-  const joined = active?.usersOwn && !isUsersOwn(delivered) ? withActiveRun(state, taskId, withoutUsersOwn(active)) : state;
+  /** Only a message marked the user's own as it was sent keeps their turn theirs: a thread's steer into itself carries no origin, and is not. */
+  const joined = active?.usersOwn && !delivered.usersOwn ? withActiveRun(state, taskId, withoutUsersOwn(active)) : state;
   return updateThread(withAttendedRun(withQueued(joined, taskId, queued.filter((message) => message.id !== messageId)), taskId), taskId, (thread) => ({
     ...thread,
     messages: [...thread.messages, createSentMessage(delivered)],
