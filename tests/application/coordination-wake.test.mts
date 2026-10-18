@@ -496,8 +496,10 @@ test("news after a stop-all wakes the coordinator as usual, carrying what it mis
   const running = reduce(messaged.state, { type: "run.resolved", pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
   slept(running, "the user talking to a thread is not news yet");
   const runId = required(running.state.activeRuns.one).runId;
-  const wake = woken(reduce(running.state, correlatedRunEvent("one", runId, 1, { type: "run.status", status: "succeeded" })));
-  assert.match(wake.text, /"one" was stopped[\s\S]*"two" was stopped[\s\S]*"one" ended its turn/);
+  /** The user watched their own turn end, so only its failing is news. */
+  slept(reduce(running.state, correlatedRunEvent("one", runId, 1, { type: "run.status", status: "succeeded" })), "the end of the user's own turn waits for the next wake");
+  const wake = woken(reduce(running.state, correlatedRunEvent("one", runId, 1, { type: "run.status", status: "failed" })));
+  assert.match(wake.text, /"one" was stopped[\s\S]*"two" was stopped[\s\S]*"one" failed/);
 });
 
 test("a suggestion that was starting when everything stopped can be started again", () => {

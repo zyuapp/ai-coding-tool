@@ -220,16 +220,25 @@ export function withAttendedRun(state: WorkspaceState, taskId: string): Workspac
   return updateThread(withActiveRun(state, taskId, attended), taskId, (thread) => opened(thread, attended));
 }
 
-/** A steered message joined the run, so it leaves the queue and takes its place in the thread. */
+/**
+ * A steered message joined the run, so it leaves the queue and takes its place in the thread. One
+ * that is not the user's own makes a turn they started no longer only theirs.
+ */
 export function withDeliveredMessage(state: WorkspaceState, taskId: string, messageId: string): WorkspaceState {
   const queued = queuedFor(state, taskId);
   const delivered = queued.find((message) => message.id === messageId);
   if (!delivered) return state;
-  return updateThread(withAttendedRun(withQueued(state, taskId, queued.filter((message) => message.id !== messageId)), taskId), taskId, (thread) => ({
+  const active = state.activeRuns[taskId];
+  const joined = active?.usersOwn && !isUsersOwn(delivered) ? withActiveRun(state, taskId, withoutUsersOwn(active)) : state;
+  return updateThread(withAttendedRun(withQueued(joined, taskId, queued.filter((message) => message.id !== messageId)), taskId), taskId, (thread) => ({
     ...thread,
     messages: [...thread.messages, createSentMessage(delivered)],
     updatedAt: now(),
   }));
+}
+
+function withoutUsersOwn({ usersOwn: _joined, ...run }: ActiveRun): ActiveRun {
+  return run;
 }
 
 /** A rejected steer stays queued, with its controls restored and the error on its own surface. */
@@ -346,6 +355,7 @@ export function drainQueue(state: WorkspaceState, taskId: string, status: RunSta
     ...(next.pastes ? { pastes: next.pastes } : {}),
     ...(next.files ? { files: next.files } : {}),
     ...(next.origin ? { messageOrigin: next.origin } : {}),
+    ...(next.answers ? { answers: next.answers } : {}),
     queuedIds: [next.id],
     ...(warming ? { warming: true as const } : {}),
   };
