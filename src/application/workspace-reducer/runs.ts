@@ -311,6 +311,7 @@ function startReview(state: WorkspaceState, pending: PendingRun, workspace: Work
 function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord, worktree?: CreatedWorktree): WorkspaceTransition {
   const existing = pending.taskId ? state.threads.find((item) => item.id === pending.taskId) : undefined;
   if (pending.taskId && !existing) return rejected(state, "This thread was removed before its message could be sent.");
+  if (existing?.archivedAt !== undefined) return rejected(withUnsent(state, pending), "This thread was archived before its message could be sent. Restore it from Archived threads in Settings to send it again.");
   if (pending.taskId && state.activeRuns[pending.taskId]) return rejected(withUnsent(state, pending), "This thread started another run before its message could be sent. Send the message again.");
   /** A checkout made on the way here has no record yet; it belongs to the project the run resolved in. */
   const created = worktree && pending.projectId ? { ...worktree, projectId: pending.projectId } : undefined;

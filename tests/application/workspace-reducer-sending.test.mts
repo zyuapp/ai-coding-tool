@@ -666,3 +666,33 @@ test("a draft made a coordinator starts as one, and the next draft starts withou
   assert.equal(external.state.pendingRuns[effectAt(external, "resolve-run-workspace").pendingId].role, undefined, "a send that is not the composer's own leaves the draft's role alone");
   assert.equal(reduce(drafted, { type: "task.new" }).state.draftRole, null, "a new draft starts without a role");
 });
+
+test("an archived thread is sent nothing, by the user, the phone or another thread, until it is restored", () => {
+  const archived = workspace({ threads: [task("gone", { archivedAt: 5 })], activeRuns: {} });
+  for (const steer of [undefined, true]) {
+    const sent = reduce(archived, { type: "task.send", taskId: "gone", text: "Pick this up again", ...(steer ? { steer } : {}) });
+    assert.equal(sent.result?.ok, false);
+    assert.equal(sent.result?.ok === false && sent.result.message, "This thread is archived. Restore it from Archived threads in Settings to send it a message.");
+    assert.deepEqual(sent.effects, []);
+    assert.deepEqual(sent.state.pendingRuns, {});
+    assert.deepEqual(sent.state.queuedMessages, {});
+    assert.equal(sent.state.threads[0].messages.length, 0);
+  }
+  const cancelling = reduce({ ...archived, activeRuns: { gone: activeRun("gone", "run-1") } }, { type: "task.send", taskId: "gone", text: "Pick this up again" });
+  assert.equal(cancelling.result?.ok, false, "nor is anything queued behind the run archiving it cancels");
+  assert.deepEqual(cancelling.state.queuedMessages, {});
+
+  const restored = reduce(archived, { type: "task.restore", taskId: "gone" }).state;
+  assert.equal(effectAt(reduce(restored, { type: "task.send", taskId: "gone", text: "Pick this up again" }), "resolve-run-workspace").picker, false);
+});
+
+test("a message whose thread is archived while its checkout resolves never starts a run", () => {
+  const sending = reduce(workspace({ threads: [task("t1")] }), { type: "task.send", taskId: "t1", text: "Run the tests" });
+  const pendingId = effectAt(sending, "resolve-run-workspace").pendingId;
+  const archived = reduce(sending.state, { type: "task.archive", taskId: "t1" }).state;
+  const resolved = reduce(archived, { type: "run.resolved", pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+  assert.equal(resolved.result?.ok, false);
+  assert.ok(resolved.effects.every((effect) => effect.type !== "start-run"));
+  assert.deepEqual(resolved.state.activeRuns, {});
+  assert.deepEqual(resolved.state.pendingRuns, {});
+});
