@@ -108,9 +108,13 @@ export function withoutLapsedStops(state: WorkspaceState, threads: readonly Thre
   return next;
 }
 
-/** The start Stop all caught on its way to `computer` that landed there as this thread, by its suggestion. */
-function caughtStartOf(lead: Thread, threadId: string, computer: string): string | undefined {
-  return Object.entries(lead.caughtStarts ?? {}).find(([, start]) => start.threadId === threadId && start.computer === computer)?.[0];
+/**
+ * The start Stop all caught on its way to `computer` that this thread is, by its suggestion: one heard
+ * landing as it, or one not yet heard landing that it names, as a thread first seen there does.
+ */
+function caughtStartOf(lead: Thread, member: Thread, computer: string): string | undefined {
+  const proposalId = member.remoteLead?.proposalId;
+  return Object.entries(lead.caughtStarts ?? {}).find(([id, start]) => start.computer === computer && (start.threadId === undefined ? id === proposalId : start.threadId === member.id))?.[0];
 }
 
 /**
@@ -211,13 +215,13 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
   const answered = ended && stop?.answer?.runId !== undefined;
   const kept = stop && keptStop(stop, run, ended, answered, at);
   const spent = kept !== stop;
-  /** The start Stop all caught on its way that this thread is, heard ending, which settles it. */
-  const landed = ended ? caughtStartOf(lead, member.id, computer.id) : undefined;
+  /** The start Stop all caught on its way that this thread is, heard ending, which settles it, even when its end is the first heard of it. */
+  const landed = ended ? caughtStartOf(lead, member, computer.id) : undefined;
   if (ended) {
-    /** So is one a start Stop all caught on its way stopped as it landed. */
+    /** So is one a start Stop all caught on its way stopped as it landed, unless it finished or failed before that. */
     const caught = landed !== undefined;
     const ending = lastRunOutcome(member);
-    const quiet = caught || answered || stop !== undefined && endsAsStopped(ending);
+    const quiet = answered || (caught || stop !== undefined) && endsAsStopped(ending);
     const status = quiet && !answered || ending === "stopped" ? "cancelled" : ending === "failed" ? "failed" : "succeeded";
     notes.push(turnNote(member, status, at, { quiet }));
     /**

@@ -572,6 +572,17 @@ test("a start allowed on another computer that is still on its way when everythi
   const quietly = mirrored(shows.state, { ...holder, threads: [far({ runEndedAt: 50, outcome: "stopped" })] });
   assert.deepEqual(wakesOf(quietly.state), [], "and heard quietly");
 
+  const named = far({ remoteLead: { ...FAR, proposalId: "p1" } });
+  const seenEnded = mirrored(lost.state, { ...holder, threads: [{ ...named, runEndedAt: 50, runEndedAs: "stopped" }] });
+  assert.deepEqual([notesOf(seenEnded.state).at(-1), seenEnded.state.threads[0]!.coordinationNotes!.at(-1)!.quiet, wakesOf(seenEnded.state).length], ["\"Far work\" was stopped.", true, 0], "one first seen already ended is heard quietly");
+  assert.equal(seenEnded.state.threads[0]!.caughtStarts, undefined, "which settles it");
+  const later = mirrored(mirrored(seenEnded.state, { ...holder, threads: [named], activeRuns: { far: activeRun("far", "later") } }).state, { ...holder, threads: [{ ...named, runEndedAt: 90, runEndedAs: "finished" }] });
+  assert.deepEqual([notesOf(later.state).at(-1), later.state.threads[0]!.coordinationNotes!.at(-1)!.quiet], ["\"Far work\" ended its turn.", undefined], "so a later turn of its own is news");
+
+  const finished = mirrored(landed.state, { ...holder, threads: [far({ runEndedAt: 50, runEndedAs: "finished" })] });
+  assert.deepEqual([notesOf(finished.state).at(-1), finished.state.threads[0]!.coordinationNotes!.at(-1)!.quiet, wakesOf(finished.state).length], ["\"Far work\" ended its turn.", undefined, 1], "one that finished before the stop reached it is news");
+  assert.equal(finished.state.threads[0]!.caughtStarts, undefined);
+
   const again = reduce(lost.state, { type: "proposal.start", taskId: "lead", proposalId: "p1", place: { project: "far-project", worktree: false } });
   assert.equal(again.state.threads[0]!.caughtStarts, undefined, "allowed again, it is the user's to start");
   assert.equal(reduce(stopped.state, { type: "computers.changed", name: "This Mac", links: [] }).state.threads[0]!.caughtStarts, undefined, "and one on a computer no longer paired is let go");
