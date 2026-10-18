@@ -166,10 +166,17 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
       ? { ...command, taskId: caller.id, afterRun: true as const }
       : undefined;
     const named = ownMove ?? (target ? { ...command, taskId: target.thread.id } as typeof command : command);
-    /** A coordinator does no work itself, so no thread moves one into a worktree, here or on a paired computer; the user still can, from its menu. */
-    const moving = target?.computer ? target.thread : before.threads.find((thread) => thread.id === named.taskId);
-    if (named.type === "task.move-worktree" && named.destination.kind !== "local" && isCoordinator(moving)) {
+    /**
+     * A coordinator does no work itself, so no thread puts one in a worktree, here or on a paired
+     * computer: none moves a coordinator into one, nor makes a thread there a coordinator. The user
+     * still can, from the thread's menu.
+     */
+    const subject = target?.computer ? target.thread : before.threads.find((thread) => thread.id === named.taskId);
+    if (named.type === "task.move-worktree" && named.destination.kind !== "local" && isCoordinator(subject)) {
       return failed(WORKSPACE_ERRORS.worktreeCoordinator);
+    }
+    if (named.type === "task.set-role" && named.role === "coordinator" && subject && (subject.worktreeId !== undefined || !target?.computer && before.creatingWorktrees.includes(subject.id))) {
+      return failed(WORKSPACE_ERRORS.worktreeCoordinatorRole);
     }
     /** A new thread starts by the rules every start shares; a command for an existing thread goes where that thread is. */
     const start = named.type === "task.send" && named.taskId === undefined && caller

@@ -137,6 +137,14 @@ test("a thread here moves one on a paired computer signed as itself, and never m
   assert.deepEqual(older.linux.inputs.map((input) => "sender" in input), [false], "a build that cannot hear who asked is sent the move unsigned");
 });
 
+test("a thread here never makes one in a worktree on a paired computer a coordinator", async () => {
+  const { host, linux, mirror } = pair();
+  linux.set({ ...linux.state(), threads: linux.state().threads.map((item) => ({ ...item, worktreeId: "wt-there" })) });
+  await mirror();
+  assert.match(await refusal(host, command({ type: "task.set-role", taskId: "remote-id", role: "coordinator" })), /^A coordinator stays in its project's checkout/);
+  assert.equal(linux.inputs.length, 0);
+});
+
 test("a thread starts on a paired computer in the project at the same path, inheriting the caller's model", async () => {
   const { host, linux } = pair();
   const { thread } = await answer<ThreadCommandResult>(host, command({ type: "task.send", text: "Run the GPU tests" }, "Linux"));

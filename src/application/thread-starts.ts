@@ -26,6 +26,9 @@ export type NewThreadStart =
 /** A thread under a coordinator on another computer cannot ask that coordinator's user to allow a start, so it starts threads only here. */
 export const REMOTE_LED_HERE = "This thread works under a coordinator on another computer, so the threads it starts run on this computer.";
 
+/** A coordinator does no work itself, so a thread starts one only in its project's checkout. */
+export const COORDINATOR_WORKTREE_START = "A coordinator stays in its project's checkout, since it changes nothing itself. Start it without worktree or worktreeId; the threads it starts take worktree: true.";
+
 export const BRIEF_REQUIRED = "A coordinator hands every thread it starts a brief: pass intent (the user's own words), doneWhen, and delivers.";
 
 /**
@@ -44,6 +47,7 @@ export function newThreadSend(state: WorkspaceState, caller: Thread, command: Ne
   if ((lead || remote) && !modelDelegable(model)) return { error: undelegable(model) };
   /** A thread started as a coordinator takes only the efforts a coordinator does. */
   const role = command.role === "coordinator" ? "coordinator" : undefined;
+  if (role && (command.worktree || command.worktreeId !== undefined)) return { error: COORDINATOR_WORKTREE_START };
   if (command.effort && !modelHasEffort(model, command.effort, role)) return { error: `The ${model} model does not support ${command.effort} effort${role ? " for a coordinator" : ""}.` };
   /** An inherited effort the new model does not take drops to the nearest one it does. */
   const effort = command.effort ?? effortForModel(model, inherited.effort ?? defaultEffortFor(engineForModel(model)), role);
@@ -63,9 +67,9 @@ export function newThreadSend(state: WorkspaceState, caller: Thread, command: Ne
   if (elsewhere && remote) return { error: REMOTE_LED_HERE };
   if (elsewhere) return { elsewhere, command: chosen, ...(lead ? { lead } : {}) };
 
-  /** With no place named it starts where the caller lives: its project, and its worktree when it has one. */
+  /** With no place named it starts where the caller lives: its project, and its worktree when it has one, unless it is a coordinator. */
   const project = chosen.project === undefined && caller.projectId ? { project: caller.projectId } : {};
-  const worktree = chosen.worktree === undefined && chosen.worktreeId === undefined && caller.worktreeId ? { worktreeId: caller.worktreeId } : {};
+  const worktree = !role && chosen.worktree === undefined && chosen.worktreeId === undefined && caller.worktreeId ? { worktreeId: caller.worktreeId } : {};
   /** It works under the lead, and its first message names the thread that sent it. The suggestion the caller was is the caller's alone. */
   const under = lead ? { coordinatorId: lead.id } : remote ? { lead: { threadId: remote.threadId, title: remote.title, computer: remote.computer } } : {};
   return { command: { ...chosen, ...project, ...worktree, ...under, from: caller.id } };

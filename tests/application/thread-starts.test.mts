@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { BRIEF_REQUIRED, newThreadSend, proposalSend, REMOTE_LED_HERE, threadProposal, type NewThreadSend, type NewThreadStart } from "../../src/application/thread-starts.ts";
+import { BRIEF_REQUIRED, COORDINATOR_WORKTREE_START, newThreadSend, proposalSend, REMOTE_LED_HERE, threadProposal, type NewThreadSend, type NewThreadStart } from "../../src/application/thread-starts.ts";
 import { WORKTREE_ELSEWHERE_ERROR, WORKTREE_MISSING_ERROR } from "../../src/application/workspace-reducer/errors.ts";
 import type { PairedComputer } from "../../src/application/computers.ts";
 import type { WorkspaceState } from "../../src/application/workspace-state.ts";
@@ -169,4 +169,16 @@ test("a thread started as a coordinator takes only the efforts a coordinator doe
   assert.equal(refused(newThreadSend(state, solo, send({ role: "coordinator", model: "gpt-6.1-sol", effort: "ultra" }))), "The gpt-6.1-sol model does not support ultra effort for a coordinator.");
   assert.equal(started(newThreadSend(state, { ...solo, model: "gpt-6.1-sol", engine: "codex", effort: "ultra" }, send({ role: "coordinator" }))).effort, "max", "an inherited Ultra drops to the deepest effort a coordinator takes");
   assert.equal(started(newThreadSend(state, solo, send({ model: "gpt-6.1-sol", effort: "ultra" }))).effort, "ultra");
+});
+
+test("a thread started as a coordinator starts in its project's checkout: it is refused a worktree, and never takes the caller's", () => {
+  const state = coordinated();
+  const solo = thread(state, "solo");
+  assert.equal(refused(newThreadSend(state, solo, send({ role: "coordinator", worktree: true }))), COORDINATOR_WORKTREE_START);
+  assert.equal(refused(newThreadSend(state, solo, send({ role: "coordinator", worktreeId: "wt-solo" }))), COORDINATOR_WORKTREE_START);
+  const lead = started(newThreadSend(state, solo, send({ role: "coordinator" })));
+  assert.equal(lead.project, PROJECT.id);
+  assert.equal(lead.worktreeId, undefined, "it starts beside the caller's checkout, not in it");
+  assert.equal(started(newThreadSend(state, solo, send({ role: "reviewer" }))).worktreeId, "wt-solo", "any other thread still starts where the caller lives");
+  assert.deepEqual(threadProposal(state, thread(state, "lead"), { prompt: "Lead the release", role: "coordinator", worktree: true, brief: BRIEF }, 1), { error: COORDINATOR_WORKTREE_START }, "nor is one suggested in a worktree");
 });

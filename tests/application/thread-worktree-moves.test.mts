@@ -132,6 +132,16 @@ test("a coordinator never moves itself into a worktree, nor is moved into one by
   assert.deepEqual(byUser.effects.filter((effect) => effect.type === "create-worktree").map((effect) => effect.taskId), ["other"], "the thread menu still moves a coordinator");
 });
 
+test("no thread makes one in a worktree a coordinator, while the user still can", async () => {
+  const { host } = desktop(fixture());
+  const refused = await answerThreadRequest(host, move({ type: "task.set-role", taskId: "caller", role: "coordinator" }));
+  assert.match(refused.ok ? "" : refused.message, /^A coordinator stays in its project's checkout, .* Start a coordinator with start_thread and role "coordinator" instead\./);
+  assert.equal(host.state().threads[0].role, undefined);
+  assert.equal((await answer(host, move({ type: "task.set-role", taskId: "caller", role: "reviewer" }))).thread?.role, "reviewer", "any other role is still given");
+  assert.equal((await answer(host, move({ type: "task.set-role", taskId: "other", role: "coordinator" }))).thread?.role, "coordinator", "a thread in the project's checkout still becomes one");
+  assert.equal(reduce(fixture(), { type: "task.set-role", taskId: "caller", role: "coordinator" }).state.threads[0].role, "coordinator", "the thread menu still makes one");
+});
+
 test("a move a thread asked for before it became a coordinator does not happen when its run ends", () => {
   const waiting = reduce(fixture(), { type: "task.move-worktree", taskId: "caller", destination: { kind: "new" }, afterRun: true }).state;
   const leading = { ...waiting, threads: waiting.threads.map((item) => item.id === "caller" ? { ...item, role: "coordinator" as const } : item) };
