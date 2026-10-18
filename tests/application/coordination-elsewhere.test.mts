@@ -294,7 +294,7 @@ test("the agent's own answer there to the work Stop all stopped is heard quietly
   const stopped = reduce(mirrored(coordinating(workspace()), holder).state, { type: "coordination.stop-all", taskId: "lead" });
   const stop = required(stopped.state.threads[0]!.remoteStops?.far);
   assert.deepEqual([stop.computer, stop.runId, stop.answer?.runId, typeof stop.answer?.at], ["studio", undefined, undefined, "number"]);
-  const answering = mirrored(stopped.state, workspace({ threads: [far()], activeRuns: { far: activeRun("far", "run-answer") } })).state;
+  const answering = mirrored(stopped.state, workspace({ threads: [far()], activeRuns: { far: activeRun("far", "run-answer", { agentInitiated: true }) } })).state;
   assert.equal(answering.threads[0]!.remoteStops?.far?.answer?.runId, "run-answer", "the first run there is the answer");
   const answered = mirrored(answering, workspace({ threads: [far({ runEndedAt: 50, outcome: "finished" })] })).state;
   assert.deepEqual([notesOf(answered).at(-1), answered.threads[0]!.coordinationNotes!.at(-1)!.quiet], ["\"Far work\" ended its turn.", true]);
@@ -308,6 +308,15 @@ test("the agent's own answer there to the work Stop all stopped is heard quietly
   const late = { ...stopped.state, threads: stopped.state.threads.map((thread) => thread.id === "lead" ? { ...thread, remoteStops: { far: { ...stop, answer: { at: stop.answer!.at - 60 * 60_000 } } } } : thread) };
   const lateRun = mirrored(late, workspace({ threads: [far()], activeRuns: { far: activeRun("far", "run-late") } })).state;
   assert.equal(lateRun.threads[0]!.remoteStops, undefined, "a turn long after the stop is not its answer");
+
+  const said = { id: "m1", kind: "user" as const, text: "Rerun the audit", at: 60, origin: { kind: "thread" as const, threadId: "lead", title: "Lead", computer: "This Mac" } };
+  const delegated = mirrored(stopped.state, workspace({ threads: [far({ messages: [said] })], activeRuns: { far: activeRun("far", "run-delegated") } })).state;
+  assert.equal(delegated.threads[0]!.remoteStops, undefined, "a run someone sent it soon after is the thread carrying on");
+  const delegatedEnds = mirrored(delegated, workspace({ threads: [far({ messages: [said], runEndedAt: 90, outcome: "finished" })] })).state;
+  assert.equal(delegatedEnds.threads[0]!.coordinationNotes!.at(-1)!.quiet, undefined, "so its end is news");
+  assert.equal(wakesOf(delegatedEnds).length, 1);
+  const unseen = mirrored(stopped.state, workspace({ threads: [far({ runEndedAt: 50, outcome: "finished" })] })).state;
+  assert.deepEqual([unseen.threads[0]!.coordinationNotes!.at(-1)!.quiet, unseen.threads[0]!.remoteStops], [undefined, undefined], "a turn never seen to start is news, and spends the stop");
 });
 
 test("a relayed notice for a remote member of a local coordinator is dropped", () => {

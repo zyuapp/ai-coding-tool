@@ -173,8 +173,9 @@ export function beginRun(state: WorkspaceState, taskId: string, runId: string, p
   const hushed = state.quietSessions.find((session) => session.taskId === taskId);
   const heard = hushed ? { quietSessions: state.quietSessions.filter((session) => session !== hushed) } : {};
   const answering = hushed && pickup === "agent" && answersInTime(hushed, now()) ? { answersStop: true as const } : {};
+  const own = pickup === "agent" ? { agentInitiated: true as const } : {};
   return withRunStatus(
-    withActiveRun({ ...state, ...heard, threads, actionError: null, lastRunIds: { ...state.lastRunIds, [taskId]: runId } }, taskId, { taskId, runId, sequence: 0, status: "running", ...provenance, notified: false, acknowledged: false, reportedIssues: [], messagesBefore, before: mark, ...(pickup === "warming" ? { warming: true as const } : {}), ...answering }),
+    withActiveRun({ ...state, ...heard, threads, actionError: null, lastRunIds: { ...state.lastRunIds, [taskId]: runId } }, taskId, { taskId, runId, sequence: 0, status: "running", ...provenance, notified: false, acknowledged: false, reportedIssues: [], messagesBefore, before: mark, ...(pickup === "warming" ? { warming: true as const } : {}), ...own, ...answering }),
     taskId,
     "running",
   );

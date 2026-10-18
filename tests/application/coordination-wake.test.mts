@@ -327,6 +327,7 @@ test("a turn the agent takes itself after stopping all stopped its workflow ends
   assert.deepEqual(stopped.state.quietSessions.map((session) => session.taskId), ["one"]);
   const answering = reduce(stopped.state, correlatedRunEvent("one", "run-a", 1, { type: "run.started", agentInitiated: true }));
   assert.deepEqual(answering.state.quietSessions, [], "only its next turn of its own");
+  assert.equal(answering.state.activeRuns.one?.agentInitiated, true, "a paired computer's coordinator can tell it is the agent's own");
   const answered = reduce(answering.state, correlatedRunEvent("one", "run-a", 2, { type: "run.status", status: "succeeded" }));
   assert.equal(answered.state.threads[0]!.coordinationNotes?.at(-1)?.quiet, true);
   assert.deepEqual(answered.state.quietStops, []);
@@ -344,6 +345,7 @@ test("a turn the agent takes itself after stopping all stopped its workflow ends
   const sent = reduce(messaged.state, { type: "run.resolved", pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
   assert.deepEqual(sent.state.quietSessions, [], "the user picking the thread back up");
   assert.equal(sent.state.quietStops.includes(required(sent.state.activeRuns.one).runId), false);
+  assert.equal(sent.state.activeRuns.one?.agentInitiated, undefined);
 
   const stoppedAt = Date.now();
   const clock = vi.spyOn(Date, "now").mockReturnValue(stoppedAt + 60 * 60_000);

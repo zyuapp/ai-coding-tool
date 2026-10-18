@@ -189,7 +189,7 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
    * from its wait or into a run of its own, is no longer the stop's.
    */
   const stop = lead.remoteStops?.[member.id];
-  const answered = ended && stop?.answer !== undefined && (stop.answer.runId !== undefined || stop.runId === undefined && answersInTime(stop.answer, at));
+  const answered = ended && stop?.answer?.runId !== undefined;
   const kept = stop && keptStop(stop, run, ended, answered, at);
   const spent = kept !== stop;
   if (ended) {
@@ -227,17 +227,19 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
 
 /**
  * What is left of what Stop all stopped of a thread elsewhere, as that thread stands now. The first
- * run to open there after it stopped the thread's session work, soon enough, is the agent's answer
- * to it; a turn that ends is the stop's last unless that answer is still to come.
+ * turn the agent opens there itself after the stop stopped the thread's session work, soon enough,
+ * is its answer to it; any other run, as one someone sent it or one a build too old to say whose it
+ * is, is the thread carrying on. Once the run the stop cancelled has ended, its answer may still
+ * come; any other turn seen to end, or never seen at all, spends the stop.
  */
 function keptStop(stop: RemoteStop, run: ActiveRun | undefined, ended: boolean, answered: boolean, at: number): RemoteStop | undefined {
   const { answer } = stop;
   if (run) {
     if (run.runId === stop.runId || run.runId === answer?.runId) return stop;
-    return answer && answer.runId === undefined && answersInTime(answer, at) ? { computer: stop.computer, answer: { ...answer, runId: run.runId } } : undefined;
+    return answer && answer.runId === undefined && run.agentInitiated && answersInTime(answer, at) ? { computer: stop.computer, answer: { ...answer, runId: run.runId } } : undefined;
   }
   if (!ended) return stop;
-  return answer && !answered && answer.runId === undefined ? { computer: stop.computer, answer } : undefined;
+  return answer && !answered && answer.runId === undefined && stop.runId !== undefined ? { computer: stop.computer, answer } : undefined;
 }
 
 /** A coordinator with what Stop all stopped of a thread elsewhere moved on, or done with. */
