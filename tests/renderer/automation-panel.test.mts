@@ -66,6 +66,27 @@ test("the automation panel edits the schedule and prompt in one save", async () 
   await view.unmount();
 });
 
+test("the automation panel offers no quiet sentence for a one-time run, and leaves one out of the save", async () => {
+  const patches: AutomationPatch[] = [];
+  const view = await mount(React.createElement(AutomationPanel, {
+    automation: automationView({ surfaceWhen: "the PR is approved." }), engineLabel: "Claude", lastFoundAt: null, lastChecked: null, onUpdate: (patch) => { patches.push(patch); }, onDelete() {}, onRunNow() {},
+  }));
+  const surfaceField = 'input[aria-label="What a run of this automation surfaces for"]';
+  assert.equal(view.container.querySelector(surfaceField) !== null, true, "a recurring schedule says what it surfaces for");
+
+  const schedule = query<HTMLInputElement>(view.container, 'input[aria-label="Automation schedule"]');
+  const setInput = item(Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")).set;
+  const once = "2030-01-01T09:00:00Z";
+  await act(async () => {
+    item(setInput).call(schedule, once);
+    schedule.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: once }));
+  });
+  assert.equal(view.container.querySelector(surfaceField) === null, true, "a one-time run always surfaces, so the field goes");
+  await act(async () => { query<HTMLButtonElement>(view.container, ".automation-actions button").click(); });
+  assert.deepEqual(patches, [{ schedule: once, prompt: "Check whether the PR is approved" }]);
+  await view.unmount();
+});
+
 test("the automation panel pauses, reruns, and removes without editing", async () => {
   const patches: AutomationPatch[] = [];
   let deleted = 0;

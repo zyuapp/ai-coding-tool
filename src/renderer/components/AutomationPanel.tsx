@@ -1,7 +1,7 @@
 import { CommandButton } from "./CommandControl";
 import { useEffect, useState } from "react";
 import { LuAlarmClock as AlarmClock, LuPause as Pause, LuPlay as Play, LuRotateCw as RotateCw, LuTrash2 as Trash2 } from "react-icons/lu";
-import type { AutomationPatch, AutomationView } from "../../domain/automation";
+import { isOneShotSchedule, type AutomationPatch, type AutomationView } from "../../domain/automation";
 
 export type AutomationPanelProps = {
   automation: AutomationView | null;
@@ -94,7 +94,9 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
     );
   }
 
-  const surfaceChanged = surfaceWhen !== (automation.surfaceWhen ?? "");
+  /** A one-time run always surfaces, so it has no quiet sentence to say or keep. */
+  const oneShot = isOneShotSchedule(schedule);
+  const surfaceChanged = !oneShot && surfaceWhen !== (automation.surfaceWhen ?? "");
   const endChanged = endsWhen !== (automation.endsWhen ?? "");
   const dirty = schedule !== automation.schedule || prompt !== automation.prompt || surfaceChanged || endChanged;
   const patch = { schedule, prompt, ...(surfaceChanged ? { surfaceWhen } : {}), ...(endChanged ? { endsWhen } : {}) };
@@ -127,15 +129,17 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
           />
         </label>
 
-        <label className="automation-field">
-          <span>Surfaces when</span>
-          <input
-            value={surfaceWhen}
-            aria-label="What a run of this automation surfaces for"
-            placeholder="Every run surfaces. Say what is worth surfacing and the rest stay quiet."
-            onInput={(event) => setSurfaceWhen(event.currentTarget.value)}
-          />
-        </label>
+        {oneShot ? null : (
+          <label className="automation-field">
+            <span>Surfaces when</span>
+            <input
+              value={surfaceWhen}
+              aria-label="What a run of this automation surfaces for"
+              placeholder="Every run surfaces. Say what is worth surfacing and the rest stay quiet."
+              onInput={(event) => setSurfaceWhen(event.currentTarget.value)}
+            />
+          </label>
+        )}
 
         <label className="automation-field">
           <span>Ends when</span>

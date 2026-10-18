@@ -349,12 +349,12 @@ async function reportNothing(host: ThreadRequestHost, threadId: string, checked:
   if (!active) return { recorded: false, note: UNSCHEDULED };
   await host.dispatch({ type: "automation.nothing-to-report", taskId: threadId, checked });
   if (active.notified) return { recorded: false, note: "This run already raised something new, so it surfaces anyway and what it found stands." };
-  if (!active.quiet) return { recorded: true, note: `Noted. ${whyRunSurfaces(host.state(), threadId)}` };
+  if (!active.quiet) return { recorded: true, note: `Noted. ${loudRunNote(host.state(), threadId)}` };
   return { recorded: true, note: "Noted. This run settles without reaching the user." };
 }
 
 /** Why a scheduled run surfaces however it ends, so the run tells the user that rather than calling itself quiet. */
-function whyRunSurfaces(state: WorkspaceState, threadId: string) {
+function loudRunNote(state: WorkspaceState, threadId: string) {
   const automation = state.automations.find((item) => item.taskId === threadId);
   if (automation && isOneShotSchedule(automation.schedule)) return "A one-time run always surfaces, this one included.";
   if (automation?.surfaceWhen) return "The user started this run by hand, so it surfaces however it ends.";
