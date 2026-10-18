@@ -6,7 +6,7 @@ import { projectName } from "../../domain/project";
 import type { Thread } from "../../domain/thread";
 import type { CoordinationApprovalView, CoordinationDecisionView, ElsewhereView, ProposalView } from "../../application/coordination-view";
 import type { ApprovalView } from "../../application/thread-run-state";
-import { CommandButton, useCommandControls } from "./CommandControl";
+import { CommandButton } from "./CommandControl";
 import { BriefDetails } from "./Coordination";
 import { HostMark } from "./HostMark";
 import { placeOf, ReturnFocusContext, useKeyboardPlace } from "../focus";
@@ -172,14 +172,12 @@ function PagerControls({ position, onStep }: { position: Pager; onStep: (delta: 
 /** The threads a coordinator suggested, each started or dismissed on its own row, or all at once. */
 function SuggestionsForm({ suggestions, position, onStep }: { suggestions: SuggestionsProps; position: Pager; onStep: (delta: 1 | -1) => void }) {
   const { taskId, threadModel, proposals } = suggestions;
-  const controls = useCommandControls();
   /**
-   * Start all and Dismiss all name each suggestion on screen, so the computer holding them never
+   * Start all and Dismiss all name the suggestions on screen, so the computer holding them never
    * starts or turns down one this window could not show.
    */
   const shown = proposals.flatMap(({ proposal, starting }) => starting ? [] : [proposal.id]);
   const waiting = shown.length > 0;
-  const each = (type: "proposal.start" | "proposal.dismiss") => () => { for (const proposalId of shown) controls.dispatch({ type, taskId, proposalId }); };
   return (
     <section className="decision-card" aria-label="Suggested threads" tabIndex={-1}>
       <div className="decision-head">
@@ -192,8 +190,8 @@ function SuggestionsForm({ suggestions, position, onStep }: { suggestions: Sugge
       <div className="decision-foot">
         {position && <button type="button" className="secondary" data-action="later" onClick={() => onStep(1)}>Later</button>}
         <span className="decision-foot-gap" />
-        <CommandButton type="button" className="secondary" command={{ type: "proposal.dismiss", taskId, proposalId: shown[0] ?? "" }} disabled={!waiting} onClick={each("proposal.dismiss")}>Dismiss all</CommandButton>
-        <CommandButton type="button" command={{ type: "proposal.start", taskId, proposalId: shown[0] ?? "" }} disabled={!waiting} onClick={each("proposal.start")}>Start all</CommandButton>
+        <CommandButton type="button" className="secondary" command={{ type: "proposal.dismiss", taskId, proposalIds: shown }} disabled={!waiting}>Dismiss all</CommandButton>
+        <CommandButton type="button" command={{ type: "proposal.start", taskId, proposalIds: shown }} disabled={!waiting}>Start all</CommandButton>
       </div>
     </section>
   );

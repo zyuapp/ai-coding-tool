@@ -171,11 +171,9 @@ test("the Needs-you card's Suggested threads page starts and dismisses each sugg
   assert.deepEqual(dispatched, [
     { type: "proposal.start", taskId: "lead", proposalId: "p1" },
     { type: "proposal.dismiss", taskId: "lead", proposalId: "p2" },
-    { type: "proposal.start", taskId: "lead", proposalId: "p1" },
-    { type: "proposal.start", taskId: "lead", proposalId: "p2" },
-    { type: "proposal.dismiss", taskId: "lead", proposalId: "p1" },
-    { type: "proposal.dismiss", taskId: "lead", proposalId: "p2" },
-  ], "Start all and Dismiss all name each suggestion on screen, never one starting, so the computer holding them acts on no other");
+    { type: "proposal.start", taskId: "lead", proposalIds: ["p1", "p2"] },
+    { type: "proposal.dismiss", taskId: "lead", proposalIds: ["p1", "p2"] },
+  ], "Start all and Dismiss all name the suggestions on screen, never one starting, so the computer holding them acts on no other");
 
   await view.render(card([{ proposal: bench, starting: true }]));
   assert.equal(button("Start all").disabled, true, "nothing is left to start while every suggestion is starting");

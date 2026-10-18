@@ -44,7 +44,7 @@ export function reduceProposals(state: WorkspaceState, input: ProposalInput): Wo
     case "proposal.start": {
       const lead = state.threads.find((item) => item.id === input.taskId);
       if (!lead || !isCoordinator(lead)) return settled(state);
-      const waiting = targetedProposals(state, lead, input.proposalId);
+      const waiting = targetedProposals(state, lead, input);
       /** Start all is every start in turn; a refusal among them is the one said back. */
       let transition = settled(state);
       for (const proposal of waiting) {
@@ -65,7 +65,7 @@ export function reduceProposals(state: WorkspaceState, input: ProposalInput): Wo
     case "proposal.dismiss": {
       const lead = state.threads.find((item) => item.id === input.taskId);
       if (!lead || !isCoordinator(lead)) return settled(state);
-      const declined = targetedProposals(state, lead, input.proposalId);
+      const declined = targetedProposals(state, lead, input);
       if (!declined.length) return settled(state);
       const titles = declined.map((proposal) => `"${proposal.title}"`);
       const { place, carried } = declined[0]!;
@@ -220,11 +220,12 @@ export function withoutStarting(state: WorkspaceState, proposalId: string): Work
 }
 
 /**
- * The suggestions a start or a dismissal is for: the one named, or every one here when none is, as
- * each thread asked for on another computer is allowed or denied on its own. One already starting is
- * past either.
+ * The suggestions a start or a dismissal is for: the one named, else those of `proposalIds` here, as
+ * Start all and Dismiss all name the ones on screen, else every one here, as each thread asked for on
+ * another computer is allowed or denied on its own. One already starting is past either.
  */
-function targetedProposals(state: WorkspaceState, lead: Thread, proposalId: string | undefined): ThreadProposal[] {
-  return (lead.proposals ?? []).filter((proposal) => (proposalId === undefined ? !proposal.place.computer : proposal.id === proposalId) && !state.startingProposals.includes(proposal.id));
+function targetedProposals(state: WorkspaceState, lead: Thread, { proposalId, proposalIds }: { proposalId?: string; proposalIds?: string[] }): ThreadProposal[] {
+  const named = proposalIds && new Set(proposalIds);
+  return (lead.proposals ?? []).filter((proposal) => (proposalId !== undefined ? proposal.id === proposalId : !proposal.place.computer && (!named || named.has(proposal.id))) && !state.startingProposals.includes(proposal.id));
 }
 

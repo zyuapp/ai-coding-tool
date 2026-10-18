@@ -201,6 +201,17 @@ function forwardedSend(state: WorkspaceState, computer: PairedComputer, command:
 
 type Route<C extends AppCommand> = (state: WorkspaceState, input: C, active: PairedComputer | null) => InputRoute;
 
+/**
+ * A command as the computer holding its thread can take it: a list of suggestions to start or turn
+ * down goes to a build that takes them only one at a time as one command each, which is what Start
+ * all and Dismiss all sent before they named the list.
+ */
+function asHolderTakes(holder: PairedComputer, input: AppCommand): WorkspaceInput[] {
+  if ((input.type !== "proposal.start" && input.type !== "proposal.dismiss") || !input.proposalIds || supportsComputerCommand(holder.capabilities, input)) return [input];
+  const { proposalIds, ...one } = input;
+  return proposalIds.map((proposalId) => ({ ...one, proposalId }));
+}
+
 /** The computer holding the thread a command names, else the one showing the thread on screen. */
 function threadHolder(state: WorkspaceState, input: AppCommand, active: PairedComputer | null): PairedComputer | null {
   const taskId = "taskId" in input ? input.taskId : undefined;
@@ -286,7 +297,7 @@ export function queueHolder(state: WorkspaceState, taskId: string | undefined): 
 
 const PLACED: { [At in Exclude<CommandPlacement, "own">]: Route<PlacedCommand<At>> } = {
   local: () => LOCAL,
-  thread: (state, input, active) => toward(threadHolder(state, input, active), (holder) => forwarded(holder, [input])),
+  thread: (state, input, active) => toward(threadHolder(state, input, active), (holder) => forwarded(holder, asHolderTakes(holder, input))),
   panel: (state, input, active) => toward(threadHolder(state, input, active), () => ({ kind: "refuse", message: PANEL_ELSEWHERE })),
   project: (state, input) => toward(computerOfProject(state, input.projectId), (holder) => forwarded(holder, [input])),
   /** A delayed resize or keystroke follows its shell, even after another thread is selected. */

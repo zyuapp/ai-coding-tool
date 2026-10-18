@@ -125,13 +125,17 @@ export type TaskCommand =
   /** Tells a thread under a coordinator, in the user's own words, to take a next step its card offers. */
   | { type: "coordination.next-step"; taskId: string; step: NextStep }
   /**
-   * Starts a thread a coordinator suggested, as it would have started it, or with no `proposalId` every
-   * one it suggested here. One asked for on a paired computer starts there in the `place` the user
-   * picked: a project there, and whether it gets a worktree of its own.
+   * Starts a thread a coordinator suggested, as it would have started it, or those of `proposalIds`
+   * suggested here, which is what Start all names, or with neither every one it suggested here. One
+   * asked for on a paired computer starts there in the `place` the user picked: a project there, and
+   * whether it gets a worktree of its own.
    */
-  | { type: "proposal.start"; taskId: string; proposalId?: string; place?: { project: string; worktree: boolean } }
-  /** Turns a suggested thread down, or with no `proposalId` every one suggested here. The coordinator hears so without being woken. */
-  | { type: "proposal.dismiss"; taskId: string; proposalId?: string }
+  | { type: "proposal.start"; taskId: string; proposalId?: string; proposalIds?: string[]; place?: { project: string; worktree: boolean } }
+  /**
+   * Turns a suggested thread down, or those of `proposalIds` suggested here, or with neither every one
+   * suggested here. The coordinator hears so once, without being woken.
+   */
+  | { type: "proposal.dismiss"; taskId: string; proposalId?: string; proposalIds?: string[] }
   /** Takes the dot off a thread, which is the only thing that does. Opening the thread only dims it. */
   | { type: "task.dismiss"; taskId: string }
   | { type: "task.snooze"; taskId: string; hours: SnoozeHours }

@@ -3,6 +3,8 @@ import { test } from "vitest";
 import { reduce, type WorkspaceEffect, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
 import { canDismiss, coordinationContext } from "../../src/application/coordination.ts";
 import { sidebarLists } from "../../src/application/sidebar-lists.ts";
+import { isWorkspaceViewInput } from "../../src/contracts/workspace-view-input.ts";
+import { COMPUTER_CAPABILITIES } from "../../src/contracts/computer-capabilities.ts";
 import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import { coordinatedThreads, type ThreadBrief, type ThreadProposal } from "../../src/domain/coordination.ts";
 import { activeRun, correlatedRunEvent, effectAt, PROJECT, required, task, workspace } from "./workspace-reducer-fixtures.mts";
@@ -265,4 +267,29 @@ test("a thread under a coordinator waiting on an approval is neither a reason to
     const outcome = (id: string) => required(after.threads.find((thread) => thread.id === id)).outcome ?? null;
     assert.deepEqual([outcome("finished"), outcome("asked")], [null, "failed"], `${input.type} keeps the verdict of the thread still asking`);
   }
+});
+
+test("Start all and Dismiss all act on just the suggestions they name, with one note for those turned down", () => {
+  const state = workspace({ threads: [lead({ proposals: [proposal("p1"), proposal("p2"), proposal("p3")] })], currentId: "lead" });
+  const dismissed = reduce(state, { type: "proposal.dismiss", taskId: "lead", proposalIds: ["p1", "p2"] }).state;
+  assert.deepEqual(coordinator(dismissed).proposals?.map((item) => item.id), ["p3"], "one it did not name stays");
+  assert.deepEqual((coordinator(dismissed).coordinationNotes ?? []).map((note) => note.text), ["The user declined the suggested threads \"Suggestion p1\" and \"Suggestion p2\"."]);
+  const started = reduce(state, { type: "proposal.start", taskId: "lead", proposalIds: ["p2"] });
+  assert.equal(resolving(started).length, 1, "only the one named starts");
+  assert.ok(!isWorkspaceViewInput({ type: "proposal.start", taskId: "lead", proposalIds: [] }), "an empty list names nothing, and is refused");
+  assert.ok(!isWorkspaceViewInput({ type: "proposal.dismiss", taskId: "lead", proposalIds: Array.from({ length: 13 }, (_, index) => `p${index}`) }), "as is one longer than may wait");
+});
+
+test("a list of suggestions goes to a paired computer as one command, or as one each to a build that takes them only singly", () => {
+  const holder = workspace({ threads: [lead({ proposals: [proposal("p1"), proposal("p2")] })] });
+  const asked = (capabilities: readonly string[]) => {
+    const local = workspace();
+    const state = { ...local, computers: { ...local.computers, name: "This Mac", paired: [{ id: "studio", name: "studio", host: "studio.ts.net", status: "connected" as const, error: null, pairedAt: 1, capabilities, state: holder }] } };
+    return reduce(state, { type: "proposal.dismiss", taskId: "lead", proposalIds: ["p1", "p2"] }).effects.flatMap((effect) => effect.type === "computer.forward" ? effect.inputs : []);
+  };
+  assert.deepEqual(asked(COMPUTER_CAPABILITIES), [{ type: "proposal.dismiss", taskId: "lead", proposalIds: ["p1", "p2"] }]);
+  assert.deepEqual(asked(COMPUTER_CAPABILITIES.filter((name) => name !== "command:proposal.dismiss:proposalIds")), [
+    { type: "proposal.dismiss", taskId: "lead", proposalId: "p1" },
+    { type: "proposal.dismiss", taskId: "lead", proposalId: "p2" },
+  ]);
 });

@@ -2,7 +2,7 @@ import type { AppCommand } from "./commands.js";
 import { isTerminalDimension, MAX_TERMINAL_INPUT } from "./terminal.js";
 import { isSnoozeHours } from "../domain/thread-snooze.js";
 import { isThreadRole } from "../domain/thread-role.js";
-import { isNextStep, isOverviewSection, isThreadBrief, MAX_MEMORY_PROMPT, MAX_PROPOSAL_PROJECT, MAX_PROPOSAL_TITLE, type RemoteLead } from "../domain/coordination.js";
+import { isNextStep, isOverviewSection, isThreadBrief, MAX_MEMORY_PROMPT, MAX_PROPOSAL_PROJECT, MAX_PROPOSAL_TITLE, MAX_PROPOSALS, type RemoteLead } from "../domain/coordination.js";
 import type { WorkspaceEvent } from "../application/workspace-reducer.js";
 import { isBrowserAction, isString, MAX_PROMPT_LENGTH, MAX_URL_LENGTH } from "./ipc.js";
 import type { ExternalCommand } from "./threads.js";
@@ -86,6 +86,8 @@ const memoryText: Validator<string> = (value): value is string => typeof value =
 /** The name a thread starts with holds words, and runs no longer than a suggestion's, which becomes one. */
 const startTitle: Validator<string> = (value): value is string => typeof value === "string" && value.trim().length > 0 && value.length <= MAX_PROPOSAL_TITLE;
 const proposalPlace = object<{ project: string; worktree: boolean }>({ project: text, worktree: boolean });
+/** The suggestions Start all or Dismiss all names, each as a single one is named, and never more than wait at once. */
+const proposalIds: Validator<string[]> = (value): value is string[] => array(text)(value) && value.length > 0 && value.length <= MAX_PROPOSALS;
 const attachedFileDraft = object<AttachedFileDraft>({ path: text, name: text, folder: optional(literals(true)) });
 const attachedFile = object<AttachedFile>({ id: text, path: text, name: text, folder: optional(literals(true)) });
 const imageAnnotation = object<ImageAnnotation>({ kind: literals("box", "arrow"), x: number, y: number, width: number, height: number, text });
@@ -275,8 +277,8 @@ const commands = {
   "memory.edit": { fields: { taskId: text, noteId: text, text }, at: "thread" },
   "memory.forget": { fields: { taskId: text, noteId: text }, at: "thread" },
   "coordination.next-step": { fields: { taskId: text, step: isNextStep }, at: "thread" },
-  "proposal.start": { fields: { taskId: text, proposalId: optionalText, place: optional(proposalPlace) }, at: "thread" },
-  "proposal.dismiss": { fields: { taskId: text, proposalId: optionalText }, at: "thread" },
+  "proposal.start": { fields: { taskId: text, proposalId: optionalText, proposalIds: optional(proposalIds), place: optional(proposalPlace) }, at: "thread" },
+  "proposal.dismiss": { fields: { taskId: text, proposalId: optionalText, proposalIds: optional(proposalIds) }, at: "thread" },
   "task.dismiss": { fields: { taskId: text }, at: "thread" },
   "task.snooze": { fields: { taskId: text, hours: isSnoozeHours }, at: "thread" },
   "task.unsnooze": { fields: { taskId: text }, at: "thread" },
