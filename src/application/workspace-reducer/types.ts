@@ -59,8 +59,8 @@ export type WorkspaceEvent =
   | { type: "title.suggested"; taskId: string; title: string }
   /** A thread under a coordinator saying where its work stands. */
   | { type: "coordination.reported"; taskId: string; state: CoordinationState; summary: string }
-  /** A thread putting a choice to the user that only they can make. */
-  | { type: "coordination.decision-raised"; taskId: string; request: DecisionRequest }
+  /** A thread putting a choice to the user that only they can make. `decisionId` names it, so whoever raised it can find it after. */
+  | { type: "coordination.decision-raised"; taskId: string; request: DecisionRequest; decisionId?: string }
   /** A coordinator changing its own memory, which its session then knows without reading it again. */
   | { type: "coordination.remembered"; taskId: string; change: MemoryChange }
   /** A coordinator suggesting threads for the user to start, each already checked as a start of it would be. */

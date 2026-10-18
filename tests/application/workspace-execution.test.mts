@@ -263,6 +263,23 @@ test("a thread with as many decisions waiting as it may is told to wait for thei
   assert.equal(host.state().threads[0].coordinationNotes, undefined);
 });
 
+test("two decisions that both find room before the window takes them are answered as the window decided them", async () => {
+  const waiting = Array.from({ length: MAX_OPEN_DECISIONS - 1 }, (_, index) => ({ id: `d${index}`, question: `Q${index}?`, options: [], raisedAt: index }));
+  const base = driver(workspace({ threads: [task("lead", { role: "coordinator" }), task("worker", { parentId: "lead", decisions: waiting })] }));
+  let open!: () => void;
+  const loaded = new Promise<void>((resolve) => { open = resolve; });
+  /** Both requests are read while the window is still busy, as they are behind a history load. */
+  const host: ThreadRequestHost = { ...base, dispatch: async (input) => { await loaded; await base.dispatch(input); } };
+  const ask = (requestId: string) => answerThreadRequest(host, { type: "thread.request", requestId, taskId: "worker", op: "decision", request: { question: `${requestId}?`, options: [] } });
+  const first = ask("r1");
+  const second = ask("r2");
+  open();
+  const results = (await Promise.all([first, second])).map((answer) => answer.ok ? answer.result as { recorded: boolean; note: string } : undefined);
+  assert.deepEqual(results.map((result) => result?.recorded), [true, false]);
+  assert.match(results[1]?.note ?? "", /decisions waiting on the user, so this one was not raised/);
+  assert.equal(base.state().threads[1].decisions?.length, MAX_OPEN_DECISIONS);
+});
+
 test("a thread deletes a worktree by id, filing away the threads in it, and never one still running", async () => {
   const worktree = heldWorktree();
   const deletions: string[] = [];

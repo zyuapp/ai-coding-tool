@@ -340,17 +340,25 @@ async function reportToCoordinator(host: ThreadRequestHost, threadId: string, st
   return { recorded: true, note: "Reported. Your coordinator hears it when this turn ends." };
 }
 
+const OUTSIDE_COORDINATION = "Only a coordinator and the threads working under it can raise decisions, so nothing was recorded. Ask the user in your reply instead.";
+const DECISIONS_FULL = `This thread already has ${MAX_OPEN_DECISIONS} decisions waiting on the user, so this one was not raised. Wait for their answers, or ask in your reply instead.`;
+
 /** Puts a choice to the user. Only a coordinator and the threads under it have somewhere to show one. */
 async function raiseDecision(host: ThreadRequestHost, threadId: string, request: DecisionRequest): Promise<FindingResult> {
   const threads = host.state().threads;
   const thread = threads.find((item) => item.id === threadId);
-  if (!isCoordinator(thread) && !worksUnderCoordinator(threads, thread)) {
-    return { recorded: false, note: "Only a coordinator and the threads working under it can raise decisions, so nothing was recorded. Ask the user in your reply instead." };
+  if (!thread || !isCoordinator(thread) && !worksUnderCoordinator(threads, thread)) return { recorded: false, note: OUTSIDE_COORDINATION };
+  if (decisionsFull(thread)) return { recorded: false, note: DECISIONS_FULL };
+  const decisionId = crypto.randomUUID();
+  await host.dispatch({ type: "coordination.decision-raised", taskId: threadId, request, decisionId });
+  /**
+   * Read back after the fact: a request waiting behind another can find the thread full, or out of
+   * coordination, by the time the window takes it, and the window then raises nothing.
+   */
+  const after = host.state().threads.find((item) => item.id === threadId);
+  if (!after?.decisions?.some((decision) => decision.id === decisionId)) {
+    return { recorded: false, note: after && decisionsFull(after) ? DECISIONS_FULL : OUTSIDE_COORDINATION };
   }
-  if (thread && decisionsFull(thread)) {
-    return { recorded: false, note: `This thread already has ${MAX_OPEN_DECISIONS} decisions waiting on the user, so this one was not raised. Wait for their answers, or ask in your reply instead.` };
-  }
-  await host.dispatch({ type: "coordination.decision-raised", taskId: threadId, request });
   return { recorded: true, note: "Raised. The user sees it now, and their answer arrives in this thread as a message. If you cannot go on without it, end your turn." };
 }
 

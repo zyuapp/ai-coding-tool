@@ -185,7 +185,7 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       if (!thread || !lead && !remoteLeadOf(thread) || decisionsFull(thread)) return settled(state);
       const at = now();
       const decision = {
-        id: crypto.randomUUID(),
+        id: input.decisionId ?? crypto.randomUUID(),
         question: input.request.question,
         ...(input.request.context ? { context: input.request.context } : {}),
         options: input.request.options,
