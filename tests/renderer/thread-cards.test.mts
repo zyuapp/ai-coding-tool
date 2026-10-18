@@ -75,6 +75,19 @@ test("a card shows how its thread stands, opens it, and offers what to do next b
   await view.unmount();
 });
 
+test("a card asks for a review only while its pull request can still change", async () => {
+  window.desktop = fakeDesktop();
+  const settled = (state: "merged" | "closed"): CoordinatedThreadView => ({ ...failing, status: "resolved", summary: null, pullRequest: { ...PULL_REQUEST, state }, steps: [] });
+  const card = (shown: CoordinatedThreadView) => React.createElement(ThreadCardsContext.Provider, { value: { cards: new Map([[shown.thread.id, shown]]), worktrees: new Map(), onSelect: () => {} } }, React.createElement(ThreadCards, { threadIds: ["fix"] }));
+  const view = await mount(card(settled("merged")));
+  assert.equal(query<HTMLAnchorElement>(view.container, "a.coordination-card-step").textContent, "View PR", "a merged pull request is only there to read");
+  await view.render(card(settled("closed")));
+  assert.equal(query<HTMLAnchorElement>(view.container, "a.coordination-card-step").textContent, "View PR");
+  await view.render(card({ ...failing, pullRequest: { ...PULL_REQUEST, state: "draft" } }));
+  assert.equal(query<HTMLAnchorElement>(view.container, "a.coordination-card-step").textContent, "Review PR", "a draft can still change");
+  await view.unmount();
+});
+
 test("a thread working as a computer out of reach last said says so, and moves no more", async () => {
   window.desktop = fakeDesktop();
   const away = { ...working, host: { id: "studio", name: "studio", offline: true }, lastHeard: true };

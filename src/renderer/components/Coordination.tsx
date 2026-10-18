@@ -4,6 +4,7 @@ import { deliveryLabel, MAX_MEMORY_NOTE, MAX_PURPOSE, nextStepOf, OVERVIEW_GROUP
 import { engineForModel, modelDelegable, modelLabel, type AgentEngine, type AgentModel, type EngineReadiness } from "../../domain/agent-engine";
 import type { AgentEffort } from "../../domain/run";
 import { worktreeHue, worktreeName, type Worktree } from "../../domain/worktree";
+import type { PullRequestState } from "../../domain/pull-request";
 import type { Thread } from "../../domain/thread";
 import { canResolve, pullRequestLine, type CoordinatedThreadStatus } from "../../application/coordination";
 import { overviewGroups, type CoordinationUsage, type CoordinatedThreadView, type CoordinationView, type CoordinatorMemoryView } from "../../application/coordination-view";
@@ -481,6 +482,9 @@ export function ThreadCards({ threadIds }: { threadIds: readonly string[] }) {
   );
 }
 
+/** A pull request that can still change is one to review; a merged or closed one is only there to read. */
+const MOVING_PULL_REQUESTS: ReadonlySet<PullRequestState> = new Set(["open", "draft"]);
+
 /**
  * One thread as it stands, in the marks and colours of its Overview row. The card opens the thread,
  * and its next steps sit beside that, never inside it.
@@ -525,7 +529,7 @@ const ThreadCard = memo(function ThreadCard({ view, worktree, onSelect }: {
               title={`#${pullRequest.number} ${pullRequest.title}`}
               openInApp={links.openUrlInApp && (() => links.openUrlInApp!(pullRequest.url))}
             >
-              Review PR
+              {MOVING_PULL_REQUESTS.has(pullRequest.state) ? "Review PR" : "View PR"}
               <ArrowUpRight size={12} aria-hidden="true" />
             </WebLink>
           )}
