@@ -277,7 +277,7 @@ function remembered(state: WorkspaceState, taskId: string, change: MemoryChange,
 
 /**
  * A thread's turn ending is news for its coordinator. A thread waiting out a session limit carries on
- * by itself, so its turn has not ended.
+ * by itself, so its turn has not ended unless the user keeps it from carrying on.
  */
 export function noteTurnEnded(state: WorkspaceState, taskId: string, status: "succeeded" | "failed" | "cancelled", runId: string): WorkspaceState {
   /** A run Stop all cancelled is heard, but never wakes its coordinator by itself. */

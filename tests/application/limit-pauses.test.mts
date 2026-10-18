@@ -201,6 +201,8 @@ test("not resuming hands what was written back to the composer", () => {
   assert.equal(thread(cancelled.state, "a").limitPause, undefined);
   assert.equal(cancelled.state.queuedMessages.a, undefined);
   assert.equal(cancelled.state.prompts.a, "later");
+  assert.equal(thread(cancelled.state, "a").outcome, "stopped", "its turn ends here, as a stopped run's does");
+  assert.equal(thread(cancelled.state, "a").runEndedAs, "stopped");
   assert.equal(effectOf(cancelled, "schedule-limit-reset").at, null);
   assert.equal(reduce(cancelled.state, { type: "limits.elapsed", at: session.resetsAt }).state.activeRuns.a, undefined);
   const held = reduce(limited(runningThreads("a"), "a", session).state, { type: "task.send", taskId: "a", text: "held", attachments: [] }).state;
@@ -209,6 +211,13 @@ test("not resuming hands what was written back to the composer", () => {
   assert.equal(archived.state.queuedMessages.a, undefined);
   assert.equal(archived.state.prompts.a, "held");
   assert.equal(isWorking(archived.state, "a"), false);
+  assert.equal(thread(archived.state, "a").runEndedAs, "stopped");
+  assert.equal(thread(archived.state, "a").outcome, undefined, "a thread filed away is left no verdict");
+
+  const weeklyPause = limited(runningThreads("a"), "a", weekly).state;
+  const lifted = reduce(weeklyPause, input).state;
+  assert.equal(thread(lifted, "a").runEndedAs, "failed", "a weekly limit already ended the turn");
+  assert.equal(thread(lifted, "a").runEndedAt, thread(weeklyPause, "a").runEndedAt);
 });
 
 test("a cut-short workflow is resumed rather than restarted, and goes after the others", () => {

@@ -46,8 +46,29 @@ const running = { activeRuns: { two: activeRun("two", "run-2") }, runStatuses: {
 test("held news reaches the coordinator when its last working thread's usage-limit pause is cancelled", () => {
   const state = workspace({ threads: [lead({ coordinationNotes: [NEWS] }), member("one"), member("two", { limitPause: { ...SESSION, pausedAt: 1 } })] });
   const cancelled = reduce(state, { type: "limit.cancel", taskId: "two" });
-  assert.match(woken(cancelled).text, /"One" ended its turn/);
-  assert.deepEqual(cancelled.state.threads[0]!.coordinationNotes, [NEWS], "notes stay until the run starts");
+  assert.match(woken(cancelled).text, /"One" ended its turn[\s\S]*"two" was stopped/);
+  assert.deepEqual(cancelled.state.threads[0]!.coordinationNotes?.[0], NEWS, "notes stay until the run starts");
+});
+
+test("a thread kept from carrying on after a session limit is heard as stopped, as a run the user stops is", () => {
+  const said = { id: "m", kind: "assistant" as const, text: "Halfway through the migration", at: 1 };
+  const state = workspace({ threads: [lead(), member("one", { messages: [said] })], activeRuns: { one: activeRun("one", "run-1") }, runStatuses: { one: "running" } });
+  const heard = (transition: WorkspaceTransition) => transition.state.threads[0]!.coordinationNotes?.map(({ text, urgent, quiet }) => ({ text, urgent, quiet }));
+  const stopped = reduce(state, correlatedRunEvent("one", "run-1", 1, { type: "run.status", status: "cancelled" }));
+  const limited = reduce(state, correlatedRunEvent("one", "run-1", 1, { type: "run.status", status: "failed", limit: SESSION }));
+  assert.equal(heard(limited), undefined, "a thread waiting out a session limit has not ended its turn");
+  const cancelled = reduce(limited.state, { type: "limit.cancel", taskId: "one" });
+  assert.deepEqual(heard(cancelled), heard(stopped));
+  assert.match(woken(cancelled).text, /"one" was stopped\. It last said: Halfway through the migration/);
+  for (const ended of [stopped, cancelled]) {
+    const thread = required(ended.state.threads.find((item) => item.id === "one"));
+    assert.deepEqual([thread.outcome, thread.runEndedAs, ended.state.runStatuses.one], ["stopped", "stopped", "stopped"], "it reads as cut off, not as done");
+  }
+
+  const all = reduce(limited.state, { type: "coordination.stop-all", taskId: "lead" });
+  assert.match(required(all.state.threads[0]!.coordinationNotes?.at(-1)).text, /"one" was stopped/);
+  assert.equal(all.state.threads[0]!.coordinationNotes?.at(-1)?.quiet, true, "Stop all is heard quietly");
+  slept(all);
 });
 
 test("a coordinator wakes once its last working thread stops, however it stops", () => {

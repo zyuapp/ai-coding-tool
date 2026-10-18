@@ -106,13 +106,13 @@ function dismissPriority(state: WorkspaceState, localOnly = false, projectId?: s
  */
 function archiveThread(state: WorkspaceState, taskId: string): WorkspaceTransition {
   const active = state.activeRuns[taskId];
-  /** Filing a thread away ends its work, including a wait to resume after its usage limit. */
-  const unpaused = cancelPause(state, taskId);
-  const archived = {
-    ...unpaused.state,
-    threads: unpaused.state.threads.map((thread) => thread.id === taskId ? { ...thread, archivedAt: now() } : thread),
+  /** Filing a thread away ends its work, including a wait to resume after its usage limit, which ends as filed away. */
+  const unpaused = cancelPause({
+    ...state,
+    threads: state.threads.map((thread) => thread.id === taskId ? { ...thread, archivedAt: now() } : thread),
     currentId: state.currentId === taskId ? null : state.currentId,
-  };
+  }, taskId);
+  const archived = unpaused.state;
   const dock = dockFor(state, taskId);
   const shown = frontDock(archived).owner === taskId ? dock.tab : null;
   const browsing = state.sideChats.some((chat) => chat.sourceThreadId === taskId && state.activeRuns[chat.id]);
