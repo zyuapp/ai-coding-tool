@@ -20,6 +20,7 @@ import { useTaskWorkspace } from "./task-workspace/useTaskWorkspace";
 import { useFileDrop, useRefusedStrayDrops } from "./file-drop";
 import { attachDroppedFiles, imageSources } from "./dropped-files";
 import { useComposerFocusRecovery, useEscapeLayers, useLatestDispatch, useMessageLinks, useSubagentInspection } from "./app-shell";
+import { PartBoundary } from "./components/PartBoundary";
 
 const loadSettings = () => import("./components/WorkspaceSettings");
 const WorkspaceSettings = lazy(() => loadSettings().then((module) => ({ default: module.WorkspaceSettings })));
@@ -154,7 +155,9 @@ export function App() {
     {workspace.viewingImage && <AttachmentViewer key={workspace.viewingImage} source={workspace.viewingImage} onClose={() => void workspace.dispatch({ type: "image.close" })} onDownload={() => void workspace.dispatch({ type: "image.download" })} />}
     <DiagramViewerHost>
     <main className="app-shell">
-      <Sidebar workspace={workspace} open={sidebarOpen} settingsVisible={settingsVisible} onOpenSettings={openSettings} />
+      <PartBoundary name="sidebar" className={`sidebar ${sidebarOpen ? "compact-open" : "hidden"}`}>
+        <Sidebar workspace={workspace} open={sidebarOpen} settingsVisible={settingsVisible} onOpenSettings={openSettings} />
+      </PartBoundary>
       {sidebarOpen && <button className="sidebar-backdrop" aria-label="Close sidebar" onClick={() => void workspace.actions.setSidebarOpen(false)} />}
 
       <section
@@ -162,43 +165,47 @@ export function App() {
         inert={settingsVisible}
         {...workspaceDrop.props}
       >
-        <WorkspaceHeader
-          currentThread={workspace.currentThread}
-          folder={workspace.folder}
-          folderLabel={workspace.folderLabel}
-          host={workspace.activeComputer && { name: workspace.activeComputer.name, offline: workspace.activeComputer.status !== "connected", reconnecting: workspace.activeComputer.status === "connecting" }}
-          sidebarOpen={sidebarOpen}
-          sessionPanelOpen={sessionPanelVisible}
-          rightDockOpen={rightDockOpen}
-          workingSubagents={workingSubagents}
-          openMenu={workspace.openMenu}
-          canOpenFolder={Boolean(workspace.folder) && workspace.location?.kind !== "creating"}
-          onSetOpenMenu={workspace.actions.setOpenMenu} apps={workspace.installedApps} onListApps={() => void workspace.actions.listApps()}
-          onOpenInApp={(appId) => void workspace.actions.openFolderInApp(appId)}
-          onRenameThread={workspace.actions.renameThread}
-          onForkThread={workspace.actions.forkThread}
-          onArchiveThread={workspace.actions.archiveThread} onSetThreadRole={workspace.actions.setThreadRole}
-          coordinators={workspace.coordinators} onSetCoordinator={workspace.actions.setCoordinator}
-          notifications={workspace.notifications} onSetMuted={workspace.actions.setMuted}
-          stoppable={Boolean(workspace.currentThread && workspace.stoppableCoordinatorIds.has(workspace.currentThread.id))}
-          onStopAll={workspace.actions.stopAll}
-          onToggleSidebar={() => void workspace.actions.setSidebarOpen(!sidebarOpen)}
-          onToggleSessionPanel={() => {
-            void workspace.actions.setDockOpen(false);
-            void workspace.actions.setSessionPanelOpen(!sessionPanelVisible);
-          }}
-          onToggleRightDock={() => {
-            if (!rightDockOpen) inspector.clear();
-            void workspace.actions.setDockOpen(!rightDockOpen);
-          }}
-        />
+        <PartBoundary name="header" className="topbar">
+          <WorkspaceHeader
+            currentThread={workspace.currentThread}
+            folder={workspace.folder}
+            folderLabel={workspace.folderLabel}
+            host={workspace.activeComputer && { name: workspace.activeComputer.name, offline: workspace.activeComputer.status !== "connected", reconnecting: workspace.activeComputer.status === "connecting" }}
+            sidebarOpen={sidebarOpen}
+            sessionPanelOpen={sessionPanelVisible}
+            rightDockOpen={rightDockOpen}
+            workingSubagents={workingSubagents}
+            openMenu={workspace.openMenu}
+            canOpenFolder={Boolean(workspace.folder) && workspace.location?.kind !== "creating"}
+            onSetOpenMenu={workspace.actions.setOpenMenu} apps={workspace.installedApps} onListApps={() => void workspace.actions.listApps()}
+            onOpenInApp={(appId) => void workspace.actions.openFolderInApp(appId)}
+            onRenameThread={workspace.actions.renameThread}
+            onForkThread={workspace.actions.forkThread}
+            onArchiveThread={workspace.actions.archiveThread} onSetThreadRole={workspace.actions.setThreadRole}
+            coordinators={workspace.coordinators} onSetCoordinator={workspace.actions.setCoordinator}
+            notifications={workspace.notifications} onSetMuted={workspace.actions.setMuted}
+            stoppable={Boolean(workspace.currentThread && workspace.stoppableCoordinatorIds.has(workspace.currentThread.id))}
+            onStopAll={workspace.actions.stopAll}
+            onToggleSidebar={() => void workspace.actions.setSidebarOpen(!sidebarOpen)}
+            onToggleSessionPanel={() => {
+              void workspace.actions.setDockOpen(false);
+              void workspace.actions.setSessionPanelOpen(!sessionPanelVisible);
+            }}
+            onToggleRightDock={() => {
+              if (!rightDockOpen) inspector.clear();
+              void workspace.actions.setDockOpen(!rightDockOpen);
+            }}
+          />
+        </PartBoundary>
         {/** Every banner takes a row of its own, so none is drawn over another. */}
         <div className="workspace-banners">
           <ActionErrorBanner workspace={workspace} />
           {!workspace.storageError && <HiddenThreadsNotice workspace={workspace} />}
         </div>
 
-        <WorkspaceConversation workspace={workspace} find={find} findBar={findBar} onAnnotateSide={annotateToSideChat} />
+        <PartBoundary name="conversation" className="work-area">
+          <WorkspaceConversation workspace={workspace} find={find} findBar={findBar} onAnnotateSide={annotateToSideChat} />
+        </PartBoundary>
 
         {sessionPanelVisible && (
           <WorkspaceSession
@@ -221,7 +228,9 @@ export function App() {
           findBar={findBar}
         />
 
-        <WorkspaceComposer workspace={workspace} actions={composerActions} />
+        <PartBoundary name="composer" className="composer-wrap main">
+          <WorkspaceComposer workspace={workspace} actions={composerActions} />
+        </PartBoundary>
         {workspaceDrop.over && <p className="drop-hint" role="status">Drop to attach</p>}
       </section>
       <WorkspaceDialogs workspace={workspace} />

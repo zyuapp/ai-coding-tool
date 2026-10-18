@@ -875,6 +875,30 @@ button, select { color: inherit; }
 @keyframes sidebar-update-in { from { opacity: 0; transform: scale(0.92); } }
 @media (prefers-reduced-motion: reduce) { .sidebar-update { animation: none; } .sidebar-update-ring-fill { transition: none; } }
 
+/** A part of the window that failed to draw holds its place with a quiet line and a way to try again. */
+.part-fallback {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  min-height: 0;
+  padding: 24px 16px;
+  color: var(--muted);
+  font-size: var(--text-meta);
+  text-align: center;
+}
+.part-fallback p { margin: 0; }
+.part-fallback button {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 5px 12px;
+  background: var(--control-soft);
+  color: var(--ink-soft);
+  font: inherit;
+  cursor: pointer;
+}
+.part-fallback button:hover { background: var(--surface-hover); }
+
 .workspace {
   position: relative;
   min-width: 0;

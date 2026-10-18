@@ -10,6 +10,7 @@ import { useDismissibleLayer } from "../focus";
 import { browserTabTitle } from "../../domain/browser";
 import { hasUnreadAttention } from "../../domain/attention";
 import type { FindView } from "../../application/workspace-state";
+import { PartBoundary } from "./PartBoundary";
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;
 
@@ -97,18 +98,20 @@ export function RightDock({ workspace, panels, launchers, open, expanded, sideba
         addMenuTrigger={addMenuTrigger}
         onCloseTab={onCloseTab}
       />
-      <DockContent
-        workspace={workspace}
-        panels={panels}
-        launchers={launchers}
-        activeTab={activeTab}
-        find={find}
-        findBar={findBar}
-        dockOpen={open}
-        settingsVisible={settingsVisible}
-        focusTokenFor={focusTokenFor}
-        onCloseTab={onCloseTab}
-      />
+      <PartBoundary name="right panel" className="right-dock-content">
+        <DockContent
+          workspace={workspace}
+          panels={panels}
+          launchers={launchers}
+          activeTab={activeTab}
+          find={find}
+          findBar={findBar}
+          dockOpen={open}
+          settingsVisible={settingsVisible}
+          focusTokenFor={focusTokenFor}
+          onCloseTab={onCloseTab}
+        />
+      </PartBoundary>
     </aside>
   );
 }
