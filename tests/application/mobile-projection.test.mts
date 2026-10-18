@@ -375,6 +375,23 @@ test("a coordinator stands for its threads in the phone's activity lists, as it 
   }
 });
 
+test("a coordinator's phone row speaks for the threads under it, and opening it answers their approvals", () => {
+  const approval: ApprovalView = { approvalId: "a1", taskId: "member", runId: "run-1", title: "Run a command", description: "rm", toolName: "Bash", input: { command: "rm" } };
+  const decision = { id: "d1", question: "Which?", options: [], raisedAt: NOW };
+  const state = workspace([
+    task("lead", { role: "coordinator", projectId: "project-app", proposals: [{ id: "p1", title: "GPU tests", prompt: "Run them", place: { computer: { id: "studio", name: "Studio" }, worktree: false }, proposedAt: NOW }] }),
+    task("member", { parentId: "lead", projectId: "project-app", title: "Dark mode", decisions: [decision] }),
+  ], { activeRuns: { member: activeRun("member", "run-1", "awaiting-approval") }, runStatuses: { member: "running" }, approvals: { "run-1": approval } });
+  const { activity } = projectMobileView(state, NOW);
+  const lead = activity.priority.find((entry) => entry.id === "lead");
+  assert.deepEqual([lead?.status, lead?.headline], ["awaiting-approval", "A decision and a request to run a thread on Studio are waiting on you"], "it waits on the user as its threads do, and says what for");
+  assert.equal([...activity.priority, ...activity.running, ...activity.threads].some((entry) => entry.id === "member"), false, "the thread under it is reached through it, as on the desktop");
+  const opened = projectMobileView({ ...state, currentId: "lead" }, NOW).thread;
+  assert.deepEqual(opened?.approval && [opened.approval.taskId, opened.approval.from, opened.approval.approvalId], ["member", "Dark mode", "a1"], "and opening it answers that thread's approval");
+  const started = projectMobileView({ ...state, startingProposals: ["p1"], activeRuns: {}, runStatuses: {}, approvals: {} }, NOW).activity;
+  assert.equal(started.priority.find((entry) => entry.id === "lead")?.headline, "A decision is waiting on you", "a request already starting waits on no one");
+});
+
 test("the phone wears the desktop's theme family in both faces, and follows the desktop's mode", () => {
   const nord = projectMobileView(workspace([], { theme: "nord-snow", themeMode: "light" }), NOW).theme;
   assert.deepEqual(nord, { dark: "nord", light: "nord-snow", mode: "light" });

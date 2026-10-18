@@ -7,7 +7,8 @@ import { DEFAULT_BRANCH_RANGE } from "../domain/diff.js";
 import { themeFor, themeOrDefault } from "../domain/theme.js";
 import { worktreeName } from "../domain/worktree.js";
 import { orderThreads } from "./thread-order.js";
-import { coordinationSections } from "./coordination.js";
+import { coordinationSections, membersWantAttention, waitingLine } from "./coordination.js";
+import { threadsByCoordinator, waitingOnUser } from "../domain/coordination.js";
 import { projectFor, threadWorkspaceId } from "./thread-location.js";
 import { diffFor } from "./workspace-diff.js";
 import { workspaceViewCollections } from "./workspace-view-collections.js";
@@ -61,22 +62,27 @@ export function projectMobileView(state: WorkspaceState, at: number): MobileView
   const projectsById = new Map(state.projects.map((project) => [project.id, project]));
   const entries = new Map<string | null, MobileThreadEntry[]>();
   const entriesById = new Map<string, MobileThreadEntry>();
+  const membersByLead = threadsByCoordinator(workspaceViewCollections(state).visibleThreads);
   for (const summary of summaries) {
     const key = summary.projectId ?? null;
     const thread = threadsById.get(summary.id);
     const project = summary.projectId ? projectsById.get(summary.projectId) : undefined;
-    const headline = thread ? newestUnreadFinding(thread)?.headline : undefined;
+    const finding = thread ? newestUnreadFinding(thread)?.headline : undefined;
+    /** A coordinator's row speaks for the threads under it, which the phone reaches through it, as the desktop's row does. */
+    const members = membersByLead.get(summary.id) ?? [];
+    const headline = finding ?? (thread ? waitingLine(waitingOnUser(thread, members, state.startingProposals)) ?? undefined : undefined);
+    const blocked = view.blockedThreadIds.has(summary.id) || members.some((member) => view.blockedThreadIds.has(member.id));
     const entry: MobileThreadEntry = {
       id: summary.id,
       title: summary.title || "Untitled thread",
       projectId: project?.id ?? null,
       projectName: project ? projectName(project) : null,
-      status: view.blockedThreadIds.has(summary.id) ? "awaiting-approval" : summary.status,
+      status: blocked ? "awaiting-approval" : summary.status,
       lastActivityAt: summary.lastActivityAt,
-      unread: Boolean(thread?.outcomeUnread) || headline !== undefined,
+      unread: Boolean(thread?.outcomeUnread) || finding !== undefined,
       ...(thread?.outcome ? { outcome: thread.outcome } : {}),
       ...(headline !== undefined ? { headline } : {}),
-      attention: Boolean(thread && wantsAttention(thread)),
+      attention: Boolean(thread && wantsAttention(thread)) || membersWantAttention(members),
     };
     entries.get(key)?.push(entry) ?? entries.set(key, [entry]);
     entriesById.set(entry.id, entry);
@@ -105,7 +111,7 @@ export function projectMobileView(state: WorkspaceState, at: number): MobileView
 function projectMobileActivity(state: WorkspaceState, view: ReturnType<typeof deriveView>, entriesById: Map<string, MobileThreadEntry>): MobileActivity {
   const { visibleThreads, everyRanked } = workspaceViewCollections(state);
   const listed = visibleThreads.filter((thread) => entriesById.has(thread.id));
-  const sections = coordinationSections(listed, everyRanked, view.blockedThreadIds);
+  const sections = coordinationSections(listed, everyRanked, view.blockedThreadIds, state.startingProposals);
   const rows = (threads: Thread[]) => threads.flatMap((thread) => entriesById.get(thread.id) ?? []);
   return { priority: rows(sections.priority), running: rows(sections.running), threads: rows(sections.threads), snoozed: rows(sections.snoozed) };
 }
@@ -176,7 +182,9 @@ function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deri
   if (!thread) return null;
   const transcript = threadTranscript(state, thread.id, MOBILE_TRANSCRIPT_MESSAGES);
   if (!transcript) return null;
-  const approval = view.approval;
+  /** A coordinator answers for the threads under it, as its Needs-you card does, its own first. */
+  const member = view.approval ? undefined : view.coordination.approvals[0];
+  const approval = view.approval ?? member?.approval;
   const project = projectFor(state, thread);
   const diff = diffFor(state, thread.id);
   const location = locationOf(view);
@@ -194,6 +202,8 @@ function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deri
     question: view.question ?? null,
     approval: approval
       ? {
+        taskId: approval.taskId,
+        ...(member && member.thread.id !== thread.id ? { from: member.thread.title || "Untitled thread" } : {}),
         approvalId: approval.approvalId,
         runId: approval.runId,
         title: approval.title,

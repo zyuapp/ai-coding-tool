@@ -66,7 +66,7 @@ function view(): MobileView {
       omitted: 3,
       streamingTail: null,
       status: "awaiting-approval",
-      approval: { approvalId: "a1", runId: "r1", title: "Run a command", description: "rm -rf build", toolName: "Bash", detail: "{}" },
+      approval: { taskId: "t1", approvalId: "a1", runId: "r1", title: "Run a command", description: "rm -rf build", toolName: "Bash", detail: "{}" },
       queued: [{ id: "q1", text: "then deploy" }],
       settings: { engine: "claude", model: "opus", effort: "high", policy: "confirm" },
       location: { kind: "local" },
@@ -170,6 +170,18 @@ test("the phone page pairs from the address, opens a thread, and answers an appr
   assert.equal(document.querySelector(".sheet-locked")?.textContent, "Start a new thread to use Codex");
   click(".sheet-option");
   assert.deepEqual(lastCommand(line), { type: "task.set-policy", taskId: "t1", policy: "autonomous" });
+});
+
+test("a coordinator open on the phone answers the approval a thread under it waits on, naming that thread", () => {
+  const line = openPhone({ paired: true });
+  act(() => line.onopen?.());
+  const coordinating = view();
+  coordinating.thread = { ...coordinating.thread!, status: "idle", approval: { taskId: "member", from: "Dark mode", approvalId: "a2", runId: "r2", title: "Run a command", description: "yarn test", toolName: "Bash", detail: "{}" } };
+  act(() => line.onmessage?.({ data: JSON.stringify({ kind: "snapshot", sequence: 1, sessionId: "s1", build: BUILD, view: coordinating }) }));
+  click(".thread-row .thread-open");
+  assert.equal(document.querySelector(".approval-from")?.textContent, "Dark mode");
+  click(".approval-actions .allow");
+  assert.deepEqual(lastCommand(line), { type: "run.decide", taskId: "member", runId: "r2", approvalId: "a2", allow: true }, "the answer goes to the thread that asked");
 });
 
 test("the phone selects an answer without sending until Send answer is pressed", () => {

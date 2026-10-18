@@ -43,15 +43,19 @@ export type MobileThreadEntry = {
   /** Which folder the thread is in, and what it is called, for a list that is not grouped by folder. Null in no project. */
   projectId: string | null;
   projectName: string | null;
+  /** A coordinator's speaks for the threads under it too, which are reached through it: one waiting on an approval is its own. */
   status: MobileRunStatus;
   lastActivityAt: number;
   /** Whether the thread still carries the dot. */
   unread: boolean;
   /** The verdict its last run left, once it has settled. */
   outcome?: ThreadOutcome;
-  /** The newest thing a run found that the user has not seen, which is the row's second line. */
+  /**
+   * The row's second line: the newest thing a run found that the user has not seen, else what waits
+   * on the user from it and the threads under it, as the desktop's row says it.
+   */
   headline?: string;
-  /** Whether the thread has anything to file away, which is what holds it in Priority. */
+  /** Whether the thread, or a thread under it, has anything to file away, which is what holds it in Priority. */
   attention: boolean;
 };
 
@@ -77,8 +81,15 @@ export type MobileMessage = {
   at: number;
 };
 
-/** The question a run is stopped on, with enough of its input to answer it. */
+/**
+ * The question a run is stopped on, with enough of its input to answer it. A coordinator's view
+ * carries one a thread under it is stopped on when it has none of its own, as its Needs-you card
+ * does, naming that thread in `from`.
+ */
 export type MobileApproval = {
+  /** The thread whose run is stopped, which the answer goes to. */
+  taskId: string;
+  from?: string;
   approvalId: string;
   runId: string;
   title: string;

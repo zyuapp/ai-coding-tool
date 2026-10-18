@@ -245,7 +245,7 @@ function ThreadBody({ thread, connection, waiting, returned, send, sheet, onShee
         onSteerQueued={(messageId) => send({ type: "task.steer-queued", taskId: thread.id, messageId })}
         onDropQueued={(messageId) => send({ type: "task.drop-queued", taskId: thread.id, messageId })}
       />
-      {thread.approval && <ApprovalSheet approval={thread.approval} onDecide={(approval, allow) => send({ type: "run.decide", taskId: thread.id, runId: approval.runId, approvalId: approval.approvalId, allow })} />}
+      {thread.approval && <ApprovalSheet approval={thread.approval} onDecide={(approval, allow) => send({ type: "run.decide", taskId: approval.taskId, runId: approval.runId, approvalId: approval.approvalId, allow })} />}
       <Composer
         running={running}
         waiting={waiting}

@@ -3,7 +3,8 @@ import { useState } from "react";
 import type { MobileApproval } from "../../contracts/mobile";
 
 /**
- * The one thing a phone is most often picked up for. Both answers are full-width and thumb-high,
+ * The one thing a phone is most often picked up for. One a thread under the open coordinator asks
+ * names that thread above it. Both answers are full-width and thumb-high,
  * and neither sits where the other was a moment ago, so an approval cannot be given by reflex.
  * One tap decides: the card dims and both buttons are disabled until the Mac takes the card away,
  * so a second tap cannot answer twice while the first is still on its way.
@@ -20,6 +21,7 @@ export function ApprovalSheet({ approval, onDecide }: { approval: MobileApproval
       <header>
         <span className="approval-glyph" aria-hidden="true"><ShieldAlert size={16} strokeWidth={1.9} /></span>
         <div>
+          {approval.from && <small className="approval-from">{approval.from}</small>}
           <strong>{approval.title}</strong>
           <p>{approval.description}</p>
         </div>
