@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce, type WorkspaceInput, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
-import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView, stateFromData, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { CoordinationNote } from "../../src/domain/coordination.ts";
 import type { Subagent } from "../../src/domain/run.ts";
 import type { Thread } from "../../src/domain/thread.ts";
@@ -188,9 +188,20 @@ test("a thread whose run the app quit under is restored as stopped, which its co
   assert.equal(one(restored.state).runOpen, undefined);
   assert.equal(one(restored.state).runEndedAs, "stopped");
   assert.equal(one(restored.state).runEndedAt, 31, "a moment after the last thing it did");
+  assert.deepEqual([one(restored.state).outcome, one(restored.state).outcomeUnread], ["stopped", true], "with the verdict a run the user stopped leaves");
+  assert.deepEqual(restored.effects.filter((effect) => effect.type === "announce-thread"), [], "and nothing said on the desktop");
   const note = required(restored.state.threads.find((thread) => thread.id === "lead")?.coordinationNotes?.at(-1));
   assert.deepEqual([note.text, note.quiet], ["\"one\" was stopped.", true]);
   slept(restored, "quitting stopped it, as the user stopping it would");
+});
+
+test("a thread on screen when the app quit under its run is restored stopped, with nothing unread", () => {
+  const stored = [task("solo", { runOpen: true, updatedAt: 5 })];
+  const restored = stateFromData({ version: THREAD_STORE_VERSION, tasks: stored, projects: [], worktrees: [], lastFolder: null });
+  assert.equal(restored.currentId, "solo");
+  assert.deepEqual([restored.threads[0]!.outcome, restored.threads[0]!.outcomeUnread], ["stopped", undefined]);
+  const filed = stateFromData({ version: THREAD_STORE_VERSION, tasks: [task("solo", { runOpen: true, archivedAt: Date.now() })], projects: [], worktrees: [], lastFolder: null });
+  assert.equal(filed.threads[0]!.outcome, undefined, "one filed away is past ranking");
 });
 
 test("archiving a coordinator stops it, so restoring it wakes nothing until there is new news", () => {

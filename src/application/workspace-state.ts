@@ -6,7 +6,7 @@ import { threadActivity, threadLists, waitingOn, type ThreadWait } from "./threa
 import { backfillProjectSortIndex } from "./project-order.js";
 import { sidebarLists } from "./sidebar-lists.js";
 import type { CoordinationSend, StoppedStart } from "./coordination.js";
-import { restoredThreads, withCutOffTurnsHeard } from "./thread-restore.js";
+import { restoredThreads, withCutOffTurnsEnded } from "./thread-restore.js";
 import { coordinatorOf, type OverviewFolds } from "../domain/coordination.js";
 import { backfillSortIndex } from "./thread-order.js";
 import type { ChangedFilesResult, DesktopShortcutRefusal, InstalledApp } from "../contracts/ipc.js";
@@ -567,7 +567,7 @@ export function stateFromData(data: ThreadStoreData, storageError: string | null
     draftFastMode: firstThread?.fastMode ?? false,
     expandedProjects: new Set(firstProject ? [firstProject] : []),
   };
-  return withCutOffTurnsHeard(restored, cutOff, at);
+  return withCutOffTurnsEnded(restored, cutOff, at);
 }
 
 /**
