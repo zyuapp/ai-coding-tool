@@ -1,6 +1,6 @@
 import { LuCornerDownRight as CornerDownRight, LuPencil as Pencil, LuX as X } from "react-icons/lu";
 import type { QueuedMessage } from "../../application/workspace-state";
-import { messageLabel } from "../../domain/message-origin";
+import { isUsersOwn, messageLabel } from "../../domain/message-origin";
 import { AnnotationRow } from "./AnnotationRow";
 import type { ComposerSurface } from "./ConversationComposer";
 
@@ -33,7 +33,7 @@ export function QueuedRow({ messages, surface, canSteer, onEdit, onSteer, onDrop
           </div>
           {message.steering ? <span className="queued-state">Steering…</span> : (
             <span className="queued-actions">
-              {!messageLabel(message) && (
+              {isUsersOwn(message) && (
                 <button type="button" className="queued-edit" aria-label="Edit queued message" title="Edit" onClick={() => onEdit(message.id)}>
                   <Pencil size={13} />
                 </button>

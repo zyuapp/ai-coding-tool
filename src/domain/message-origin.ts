@@ -58,6 +58,14 @@ export function messageLabel(message: { origin?: MessageOrigin; detail?: string 
   return (message.origin && originLabel(message.origin)) ?? message.detail;
 }
 
+/**
+ * Whether a queued message is the user's own words, theirs to edit or have back: not another
+ * thread's, nor any other sender's, nor the answer to a decision, which belongs to the decision.
+ */
+export function isUsersOwn(message: { origin?: MessageOrigin; detail?: string; answers?: string }): boolean {
+  return !message.origin && !message.detail && message.answers === undefined;
+}
+
 /** Where a message an older build labelled came from, read from the label it wrote. */
 export function legacyOrigin(detail: string): MessageOrigin {
   if (detail === COORDINATION) return { kind: "coordination" };

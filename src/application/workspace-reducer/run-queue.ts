@@ -17,6 +17,7 @@ import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel } fr
 import type { RunStatus } from "../../domain/run.js";
 import { createSentMessage, type Annotation, type AttachedFile, type PastedText, type RunAttachment } from "../../domain/conversation.js";
 import type { Project } from "../../domain/project.js";
+import { isUsersOwn } from "../../domain/message-origin.js";
 import { lastRunOutcome, type Thread } from "../../domain/thread.js";
 import { withoutLimitPause } from "../../domain/usage-limit.js";
 import type { Worktree } from "../../domain/worktree.js";
@@ -254,11 +255,6 @@ export function handedBack(state: WorkspaceState, taskId: string, messages: Queu
   return images.length ? composerDraft(handed, { type: "image.recall", taskId, paths: [...images, ...imagesFor(state, taskId).map((image) => image.path)] }, taskId) : settled(handed);
 }
 
-/** Only what the user wrote in the composer is theirs to have back: not another thread's message, nor a decision's answer. */
-function usersOwn(message: QueuedMessage) {
-  return !message.origin && !message.detail && message.answers === undefined;
-}
-
 /**
  * Queued messages that will never reach the thread. A decision one answers is open again, to be
  * answered anew, and a coordinator here that sent one hears it was not delivered. The caller has
@@ -285,8 +281,8 @@ export function drainQueue(state: WorkspaceState, taskId: string, status: RunSta
   const queued = queuedFor(state, taskId);
   if (!queued.length) return settled(state);
   if (status === "cancelled") {
-    const own = queued.filter(usersOwn);
-    const left = withUndelivered(withQueued(state, taskId, []), taskId, queued.filter((message) => !usersOwn(message)));
+    const own = queued.filter(isUsersOwn);
+    const left = withUndelivered(withQueued(state, taskId, []), taskId, queued.filter((message) => !isUsersOwn(message)));
     return own.length ? handedBack(left, taskId, own) : settled(left);
   }
   const thread = state.threads.find((item) => item.id === taskId);

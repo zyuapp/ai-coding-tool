@@ -16,7 +16,7 @@ import { withoutSnooze } from "../../domain/thread-snooze.js";
 import { updateThread } from "../thread-run-state.js";
 import { coordinationSendOf, senderPrompt, type CoordinationSend } from "../coordination.js";
 import type { RemoteLead } from "../../domain/coordination.js";
-import { originFields, type MessageOrigin } from "../../domain/message-origin.js";
+import { isUsersOwn, originFields, type MessageOrigin } from "../../domain/message-origin.js";
 import { heldByLimit, nudged } from "../limit-pauses.js";
 
 type SendInput = Extract<WorkspaceInput, {
@@ -180,7 +180,7 @@ export function reduceSending(state: WorkspaceState, input: SendInput, coordinat
       const taskId = remote ? remote.taskId : targetId(state, input.taskId);
       const queued = !taskId ? [] : remote ? (remote.computer.state ? queuedFor(remote.computer.state, taskId) : []) : queuedFor(state, taskId);
       const message = queued.find((item) => item.id === input.messageId);
-      if (!taskId || !message || message.steering || message.origin || message.detail) return settled(state);
+      if (!taskId || !message || message.steering || !isUsersOwn(message)) return settled(state);
       const left = remote ? state : withQueued(state, taskId, queued.filter((item) => item.id !== message.id));
       const handed = handedBack(left, taskId, [message]);
       const holder = tabHolderOf(handed.state, taskId);

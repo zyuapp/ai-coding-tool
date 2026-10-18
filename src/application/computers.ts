@@ -9,6 +9,7 @@ import type { AppCommand } from "../contracts/commands.js";
 import { commandLeaves, commandPlacement, isAppCommandType, type CommandPlacement, type PlacedCommand } from "../contracts/workspace-view-input.js";
 import type { Annotation, PastedText } from "../domain/conversation.js";
 import { offlineMessage, type ComputerFilter, type ComputerLink, type ComputerPairing, type DiscoveredComputer } from "../domain/computers.js";
+import { isUsersOwn } from "../domain/message-origin.js";
 import { findProject, folderName, matchingProjects, projectName, type Project } from "../domain/project.js";
 import type { Thread } from "../domain/thread.js";
 import type { Worktree } from "../domain/worktree.js";
@@ -138,6 +139,7 @@ export function leavesComputer(state: WorkspaceState, input: WorkspaceInput): bo
 export const PANEL_ELSEWHERE = "The browser panel opens only for threads on this computer.";
 export const ATTACHMENTS_ELSEWHERE = "Files and folders attached by local path cannot be sent to another computer.";
 export const QUEUED_ATTACHMENTS_ELSEWHERE = "A message with images or files cannot be edited from another computer.";
+export const QUEUED_NOT_YOURS = "Only a message you wrote can be edited.";
 export const FILES_ELSEWHERE = "That folder is on another computer, so it cannot be opened here.";
 
 function forwarded(computer: PairedComputer, inputs: WorkspaceInput[], options: { select?: true; also?: true; draft?: SentDraft } = {}): InputRoute {
@@ -299,7 +301,8 @@ const OWN: { [Type in Exclude<PlacedCommand<"own">["type"], "project.add">]: Rou
   "task.edit-queued": (state, input, active) => toward(threadHolder(state, input, active), (holder) => {
     const taskId = input.taskId ?? holder.state?.currentId;
     const message = taskId ? holder.state?.queuedMessages[taskId]?.find((item) => item.id === input.messageId) : undefined;
-    if (!taskId || !message) return { kind: "refuse", message: "That message has already been sent." };
+    if (!taskId || !message || message.steering) return { kind: "refuse", message: "That message has already been sent." };
+    if (!isUsersOwn(message)) return { kind: "refuse", message: QUEUED_NOT_YOURS };
     /** Its images and files are paths on that computer, which a composer here cannot hold. */
     if (message.attachments.length || message.files?.length) return { kind: "refuse", message: QUEUED_ATTACHMENTS_ELSEWHERE };
     return forwarded(holder, [{ type: "task.drop-queued", taskId, messageId: input.messageId }], { also: true });

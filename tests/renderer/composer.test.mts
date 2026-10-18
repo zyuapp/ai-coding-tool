@@ -496,3 +496,13 @@ test("the send button holds while the checkout a send needs is still being made"
   assert.deepEqual(sent, ["sent"], "the button works again once the checkout has landed");
   await view.unmount();
 });
+
+test("only the user's own queued words offer to be edited", async () => {
+  const own = { id: "own", text: "Also fix the tests", prompt: "Also fix the tests", attachments: [] };
+  const answer = { id: "answer", text: "The user decided \"Which DB?\": SQLite", prompt: "The user decided \"Which DB?\": SQLite", attachments: [], answers: "d1" };
+  const sent = { id: "sent", text: "Rebase first", prompt: "Rebase first", attachments: [], origin: { kind: "thread" as const, threadId: "lead", title: "Lead" }, detail: "From Lead · lead" };
+  const view = await mount(renderConversationComposer({ runActive: true, queuedMessages: [own, answer, sent] }));
+  const editable = [...view.container.querySelectorAll(".queued-message")].map((row) => Boolean(row.querySelector(".queued-edit")));
+  assert.deepEqual(editable, [true, false, false], "a decision's answer and another thread's message are not the user's to edit");
+  await view.unmount();
+});

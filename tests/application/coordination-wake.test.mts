@@ -348,6 +348,9 @@ test("an answer queued into a run that stops before reading it opens its decisio
   const held = reduce(paused, { type: "decision.answer", taskId: "one", decisionId: "d1", answer: "SQLite" });
   const heldAnswer = required(held.state.queuedMessages.one?.[0]);
   assert.equal(required(held.state.threads[1]!.limitPause?.held?.[0]).answers, "d1", "a held answer remembers its decision through a restart");
+  const edited = reduce({ ...held.state, currentId: "one" }, { type: "task.edit-queued", taskId: "one", messageId: heldAnswer.id });
+  assert.equal(edited.state.prompts.one, undefined, "an answer is the decision's, not the user's words to edit");
+  assert.deepEqual(edited.state.queuedMessages.one, [heldAnswer]);
   const dropped = reduce(held.state, { type: "task.drop-queued", taskId: "one", messageId: heldAnswer.id });
   assert.equal(deriveView(dropped.state).coordination.decisions.length, 1, "taking the answer off opens the decision again");
 });

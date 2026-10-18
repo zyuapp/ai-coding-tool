@@ -6,7 +6,7 @@ import { computerEffects } from "../../src/host/computer-effects.ts";
 import type { EffectHost } from "../../src/host/effect-host.ts";
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { ATTACHMENTS_ELSEWHERE, FILES_ELSEWHERE, PANEL_ELSEWHERE, QUEUED_ATTACHMENTS_ELSEWHERE, routeInput, remoteUnreadCount, computerCommandAvailable, createComputerCapabilitySnapshot, type PairedComputer } from "../../src/application/computers.ts";
+import { ATTACHMENTS_ELSEWHERE, FILES_ELSEWHERE, PANEL_ELSEWHERE, QUEUED_ATTACHMENTS_ELSEWHERE, QUEUED_NOT_YOURS, routeInput, remoteUnreadCount, computerCommandAvailable, createComputerCapabilitySnapshot, type PairedComputer } from "../../src/application/computers.ts";
 import { reduce, type WorkspaceEffect, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { ComputerLink } from "../../src/domain/computers.ts";
@@ -722,4 +722,12 @@ test("editing a paired computer's queued message drops it there and drafts it he
 
   const imaged = withComputers(workspace(), [paired("linux", { ...remote, queuedMessages: { "remote-thread": [{ ...message, attachments: ["/linux/shot.png"] }] } })], { active: "linux" });
   assert.equal(reduce(imaged, { type: "task.edit-queued", messageId: "queued" }).state.actionError, QUEUED_ATTACHMENTS_ELSEWHERE);
+
+  for (const [what, theirs] of [["a decision's answer", { answers: "d1" }], ["another thread's message", { origin: { kind: "thread" as const, threadId: "lead", title: "Lead" }, detail: "From Lead · lead" }]] as const) {
+    const held = withComputers(workspace(), [paired("linux", { ...remote, queuedMessages: { "remote-thread": [{ ...message, ...theirs }] } })], { active: "linux" });
+    const refused = reduce(held, { type: "task.edit-queued", messageId: "queued" });
+    assert.equal(refused.state.actionError, QUEUED_NOT_YOURS, what);
+    assert.equal(refused.effects.some((effect) => effect.type === "computer.forward"), false, `${what} stays queued there`);
+    assert.equal(refused.state.prompts["remote-thread"], undefined, `${what} is not drafted here`);
+  }
 });
