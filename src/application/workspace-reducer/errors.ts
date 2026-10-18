@@ -13,7 +13,7 @@ export const TERMINAL_FOLDER_ERROR = "Open a project folder before starting a te
 export const WORKTREE_RUNNING_ERROR = "Stop this thread's run before changing where it works.";
 export const WORKTREE_CREATING_ERROR = "This thread's worktree is still being created.";
 export const WORKTREE_RELEASING_ERROR = "This thread's worktree is still being removed.";
-export const ARCHIVED_SEND_ERROR = "This thread is archived. Restore it from Archived threads in Settings to send it a message.";
+export const ARCHIVED_SEND_ERROR = "This thread is archived, so only the user can pick it back up, by writing to it or restoring it from Archived threads in Settings.";
 export const WORKTREE_COORDINATOR_ERROR = "A coordinator stays in its project's checkout, since it changes nothing itself. Start a thread with start_thread and worktree: true to do the work in a worktree.";
 const WORKTREE_COORDINATOR_ROLE_ERROR = "A coordinator stays in its project's checkout, since it changes nothing itself, and this thread works in a worktree. Start a coordinator with start_thread and role \"coordinator\" instead.";
 

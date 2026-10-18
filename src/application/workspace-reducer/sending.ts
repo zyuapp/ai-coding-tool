@@ -1,6 +1,6 @@
 /** A send: the prompt the composer hands over, and the queue behind a run already going. */
 import { ARCHIVED_SEND_ERROR, CHECKOUT_RUNNING_ERROR, MISSING_PROJECT_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
-import { clearedDraft, forkableContinuation, handedBack, queuedFor, resolveWorkspaceEffect, runsInWorkspace, sentPrompt, sideChatPrompt, withAttendedRun, withPending, withQueued, withUndelivered } from "./run-queue.js";
+import { clearedDraft, fileThread, forkableContinuation, handedBack, queuedFor, resolveWorkspaceEffect, runsInWorkspace, sentPrompt, sideChatPrompt, withAttendedRun, withPending, withQueued, withUndelivered } from "./run-queue.js";
 import { settled, targetId, rejected } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { annotationsFor, filesFor, focusComposer, focusedTab, pastesFor } from "../composer-drafts.js";
@@ -65,8 +65,16 @@ export function reduceSending(state: WorkspaceState, input: SendInput, coordinat
       if (input.taskId !== undefined && state.sideChats.some((chat) => chat.id === input.taskId) && !forkableContinuation(state, input.taskId)) return settled(state);
       /** Only the composer's own send falls back to the current thread; a send with its own text starts a thread. */
       const thread = state.threads.find((item) => item.id === (input.taskId ?? (draftKey === undefined ? null : state.currentId)));
-      /** An archived thread's work has ended, so nothing it is sent runs until the user restores it. */
-      if (thread?.archivedAt !== undefined) return rejected(state, ARCHIVED_SEND_ERROR);
+      /**
+       * An archived thread's work has ended, so another thread's message to it is refused, here or
+       * from a paired computer. The user writing to one, wherever it is still on screen, brings it
+       * back as restoring it would, then sends.
+       */
+      if (thread?.archivedAt !== undefined) {
+        if (input.from !== undefined || input.sender !== undefined) return rejected(state, ARCHIVED_SEND_ERROR);
+        const restored = reduceSending(updateThread(state, thread.id, ({ archivedAt: _restored, ...item }) => item), input, coordination, answers);
+        return { ...restored, effects: [...fileThread(state, thread, false), ...restored.effects] };
+      }
       /** A thread halfway into a checkout of its own has nowhere settled to run, so the send waits for the user. */
       if (thread && state.creatingWorktrees.includes(thread.id)) return rejected(state, WORKTREE_CREATING_ERROR);
       /** A checkout on its way out is the same: the folder a run would start in is about to go. */

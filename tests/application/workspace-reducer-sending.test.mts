@@ -4,7 +4,8 @@ import { reduce, shortcutCommands, type WorkspaceInput, type WorkspaceTransition
 import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import { parseThreadStore, serializeThreadStore } from "../../src/domain/thread-storage.ts";
 import type { AgentModel } from "../../src/domain/agent-engine.ts";
-import { task, workspace, activeRun, effectAt, required, run, running, queueMessage } from "./workspace-reducer-fixtures.mts";
+import { isMobileCommand } from "../../src/contracts/mobile.ts";
+import { task, workspace, activeRun, effectAt, heldWorktree, inside, projected, PROJECT, required, run, running, queueMessage } from "./workspace-reducer-fixtures.mts";
 
 test("a composer send waits for its workspace, then starts the run and clears the draft", () => {
   const drafted = run(workspace(), [{ type: "view.set-prompt", prompt: "Inspect the app" }]);
@@ -667,23 +668,46 @@ test("a draft made a coordinator starts as one, and the next draft starts withou
   assert.equal(reduce(drafted, { type: "task.new" }).state.draftRole, null, "a new draft starts without a role");
 });
 
-test("an archived thread is sent nothing, by the user, the phone or another thread, until it is restored", () => {
-  const archived = workspace({ threads: [task("gone", { archivedAt: 5 })], activeRuns: {} });
-  for (const steer of [undefined, true]) {
-    const sent = reduce(archived, { type: "task.send", taskId: "gone", text: "Pick this up again", ...(steer ? { steer } : {}) });
-    assert.equal(sent.result?.ok, false);
-    assert.equal(sent.result?.ok === false && sent.result.message, "This thread is archived. Restore it from Archived threads in Settings to send it a message.");
-    assert.deepEqual(sent.effects, []);
-    assert.deepEqual(sent.state.pendingRuns, {});
-    assert.deepEqual(sent.state.queuedMessages, {});
-    assert.equal(sent.state.threads[0].messages.length, 0);
+test("another thread's message to an archived thread is refused, here or from a paired computer", () => {
+  const archived = workspace({ threads: [task("gone", { archivedAt: 5 }), task("caller")], activeRuns: {} });
+  const fromThreads = [{ from: "caller" }, { sender: { threadId: "elsewhere", title: "Lead", computer: "Linux" } }];
+  for (const signed of fromThreads) {
+    for (const steer of [undefined, true]) {
+      const sent = reduce(archived, { type: "task.send", taskId: "gone", text: "Pick this up again", ...signed, ...(steer ? { steer } : {}) });
+      assert.equal(sent.result?.ok === false && sent.result.message, "This thread is archived, so only the user can pick it back up, by writing to it or restoring it from Archived threads in Settings.");
+      assert.deepEqual(sent.effects, []);
+      assert.deepEqual(sent.state.pendingRuns, {});
+      assert.equal(sent.state.threads[0].archivedAt, 5);
+    }
   }
-  const cancelling = reduce({ ...archived, activeRuns: { gone: activeRun("gone", "run-1") } }, { type: "task.send", taskId: "gone", text: "Pick this up again" });
+  const cancelling = reduce({ ...archived, activeRuns: { gone: activeRun("gone", "run-1") } }, { type: "task.send", taskId: "gone", text: "Pick this up again", from: "caller" });
   assert.equal(cancelling.result?.ok, false, "nor is anything queued behind the run archiving it cancels");
   assert.deepEqual(cancelling.state.queuedMessages, {});
+});
 
-  const restored = reduce(archived, { type: "task.restore", taskId: "gone" }).state;
-  assert.equal(effectAt(reduce(restored, { type: "task.send", taskId: "gone", text: "Pick this up again" }), "resolve-run-workspace").picker, false);
+/** Whether a send brought the archived thread back, as restoring it does, and asked for a checkout to run in. */
+function restoredAndSent(sent: WorkspaceTransition, taskId: string) {
+  assert.equal(required(sent.state.threads.find((item) => item.id === taskId)).archivedAt, undefined, "the thread is back");
+  assert.deepEqual(sent.effects.filter((effect) => effect.type === "send-run-command").map((effect) => effect.type === "send-run-command" && effect.command), [
+    { type: "archive", taskId, channel: "main", continuation: { provider: "claude", value: "session" }, archived: false },
+  ], "its session is taken back out of the archive, as restoring does");
+  assert.ok(sent.effects.some((effect) => effect.type === "resolve-run-workspace"), "and the message goes on to run");
+}
+
+test("the user writing to an archived thread still on screen brings it back and sends, from a worktree's list, a coordinator's tab, or the phone", () => {
+  const continuation = { provider: "claude", value: "session" } as const;
+  const listed = reduce(projected({ ...inside(heldWorktree(), [task("gone", { projectId: PROJECT.id, archivedAt: 5, continuation })]), activeRuns: {} }), { type: "worktree.open-thread", taskId: "gone" }).state;
+  assert.equal(listed.currentId, "gone");
+  restoredAndSent(reduce(reduce(listed, { type: "view.set-prompt", prompt: "Carry on" }).state, { type: "task.send", attachments: [] }), "gone");
+
+  const led = workspace({ threads: [task("lead", { role: "coordinator" }), task("worker", { parentId: "lead", continuation })], activeRuns: {} });
+  const tabbed = reduce(reduce(led, { type: "task.select", taskId: "worker" }).state, { type: "task.archive", taskId: "worker" }).state;
+  assert.equal(required(tabbed.threads.find((item) => item.id === "worker")).archivedAt !== undefined, true);
+  restoredAndSent(reduce(reduce(tabbed, { type: "view.set-prompt", taskId: "worker", prompt: "Keep going" }).state, { type: "task.send", taskId: "worker", attachments: [] }), "worker");
+
+  const phone = { type: "task.send", taskId: "gone", text: "Carry on" } as const;
+  assert.equal(isMobileCommand(phone), true);
+  restoredAndSent(reduce(workspace({ threads: [task("gone", { archivedAt: 5, continuation })], activeRuns: {} }), phone), "gone");
 });
 
 test("a message whose thread is archived while its checkout resolves never starts a run", () => {

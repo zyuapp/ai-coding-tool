@@ -104,6 +104,16 @@ test("a title or id prefix two threads here share is refused, naming both, rathe
   assert.equal((await answer(host, move({ type: "task.set-role", taskId: "Invoices", role: "reviewer" }))).thread?.id, "other-2", "an archived thread never stands in a live one's way");
 });
 
+test("a thread's message to an archived thread is refused, and leaves it archived", async () => {
+  const state = fixture();
+  state.threads = state.threads.map((item) => item.id === "other" ? { ...item, archivedAt: 5 } : item);
+  const { host, started } = desktop(state);
+  const refused = await answerThreadRequest(host, move({ type: "task.send", taskId: "other", text: "Pick this up again" }));
+  assert.match(refused.ok ? "" : refused.message, /^This thread is archived, so only the user can pick it back up/);
+  assert.equal(host.state().threads.find((item) => item.id === "other")?.archivedAt, 5);
+  assert.deepEqual(started, []);
+});
+
 test("a move waiting on the run is checked again when the run ends, and taken back by asking to stay", () => {
   const command = { type: "task.move-worktree", taskId: "caller", destination: toWt2, afterRun: true } as const;
   const end = { type: "run.event", event: { type: "run.status", taskId: "caller", runId: "run-1", sequence: 1, status: "cancelled" } } as const;
