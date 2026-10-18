@@ -543,7 +543,7 @@ const ThreadCard = memo(function ThreadCard({ view, worktree, onSelect }: {
       {(steps.length > 0 || pullRequest) && (
         <div className="coordination-card-steps">
           {steps.map((step) => (
-            <CommandButton key={step} type="button" className="coordination-card-step" aria-label={`${nextStepOf(step).label} for ${thread.title}`} command={{ type: "coordination.next-step", taskId: thread.id, step }}>
+            <CommandButton key={step} type="button" className="coordination-card-step" aria-label={nextStepOf(step).name(thread.title)} command={{ type: "coordination.next-step", taskId: thread.id, step }}>
               {nextStepOf(step).label}
             </CommandButton>
           ))}

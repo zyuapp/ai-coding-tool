@@ -108,6 +108,16 @@ test("a thread working as a computer out of reach last said says so, and moves n
   await view.unmount();
 });
 
+test("each next step is read in words that fit it, naming the thread it is for", async () => {
+  window.desktop = fakeDesktop();
+  const every: CoordinatedThreadView = { ...failing, pullRequest: null, steps: ["resolve-conflicts", "fix-ci", "address-comments", "merge", "create-pull-request"] };
+  const view = await mount(React.createElement(ThreadCardsContext.Provider, { value: { cards: new Map([["fix", every]]), worktrees: new Map(), onSelect() {} } }, React.createElement(ThreadCards, { threadIds: ["fix"] })));
+  assert.deepEqual([...view.container.querySelectorAll("button.coordination-card-step")].map((button) => button.getAttribute("aria-label")), [
+    "Resolve conflicts in Fix login's pull request", "Fix CI for Fix login", "Address comments on Fix login's pull request", "Merge Fix login's pull request", "Create a pull request for Fix login",
+  ]);
+  await view.unmount();
+});
+
 test("cards outside a coordinator's own transcript draw nothing", async () => {
   const view = await mount(React.createElement(ThreadCards, { threadIds: ["fix"] }));
   assert.equal(view.container.innerHTML, "");

@@ -15,15 +15,15 @@ import { shownComputers } from "../computers.js";
 import { REMOTE_UNSUPPORTED, supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import { forkedThreads } from "../thread-fork.js";
 import { moveThread as moveThreadInList } from "../thread-order.js";
-import { coordinationSections, projectActivity } from "../coordination.js";
+import { coordinationSections, dismissableRows, projectActivity } from "../coordination.js";
 import { pruneDeletedThreads } from "../thread-pruning.js";
 import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeById } from "../thread-location.js";
 import { DRAFT_DOCK, dockFor, frontDock, sideChatIds, withDock, type WorkspaceState } from "../workspace-state.js";
 import { threadActivity, threadLists } from "../thread-activity.js";
-import { dismissableThreads, dismissed, readAttention } from "../../domain/attention.js";
+import { dismissed, readAttention } from "../../domain/attention.js";
 import { clampTitle, type Thread } from "../../domain/thread.js";
-import { asCoordinator, coordinatorOf, effortRoleOf, withCoordinated } from "../../domain/coordination.js";
+import { asCoordinator, coordinatorOf, effortRoleOf, threadsByCoordinator, withCoordinated } from "../../domain/coordination.js";
 import { isSnoozeHours, withoutSnooze } from "../../domain/thread-snooze.js";
 import { cancelPause } from "../limit-pauses.js";
 import { capabilitiesFor, defaultModelFor, effortForModel, engineHasModel, modelHasEffort } from "../../domain/agent-engine.js";
@@ -63,6 +63,12 @@ function priorityThreads(state: WorkspaceState, projectId?: string): Thread[] {
   return projectId ? projectActivity(sections, threads, projectId).priority : sections.priority;
 }
 
+/** The rows of Priority Dismiss all files away, by the rule each row's own Dismiss follows. */
+function dismissablePriority(state: WorkspaceState, projectId?: string): Thread[] {
+  const { blocked } = threadActivity(state);
+  return dismissableRows(priorityThreads(state, projectId), threadsByCoordinator(threadLists(state).visibleThreads), blocked);
+}
+
 /** The row Priority moves on to once this one leaves it: the one below, or the one above when it was last. */
 function priorityNeighbour(state: WorkspaceState, taskId: string): string | undefined {
   /** Only a project of this computer's narrows its rows; a filter the sidebar ignores is ignored here too. */
@@ -80,13 +86,13 @@ function priorityNeighbour(state: WorkspaceState, taskId: string): string | unde
 function dismissPriority(state: WorkspaceState, localOnly = false, projectId?: string): WorkspaceTransition {
   const own = localOnly || state.computers.filter === "all" || state.computers.filter === "this";
   /** A coordinator in Priority is there for its threads too, so filing it away files them with it. */
-  const dotted = withCoordinated(state.threads, new Set(own ? priorityThreads(state, projectId).map((thread) => thread.id) : []));
+  const dotted = withCoordinated(state.threads, new Set(own ? dismissablePriority(state, projectId).map((thread) => thread.id) : []));
   const next = dotted.size ? { ...state, threads: dismissed(state.threads, dotted) } : state;
   if (localOnly) return settled(next);
   const effects: WorkspaceEffect[] = [];
   const errors: string[] = [];
   for (const computer of shownComputers(state.computers)) {
-    if (computer.status !== "connected" || !computer.state || !dismissableThreads(priorityThreads(computer.state, projectId)).length) continue;
+    if (computer.status !== "connected" || !computer.state || !dismissablePriority(computer.state, projectId).length) continue;
     const scoped: AppCommand = { type: "task.dismiss-all", localOnly: true, ...(projectId ? { projectId } : {}) };
     /** Older hosts already dismiss only their own threads and do not know the scope field, but nothing narrower holds without the project. */
     const command: AppCommand = projectId || supportsComputerCommand(computer.capabilities, scoped) ? scoped : { type: "task.dismiss-all" };

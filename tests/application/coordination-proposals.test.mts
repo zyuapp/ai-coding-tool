@@ -237,3 +237,19 @@ test("the coordination view counts what waits on the user as the sidebar does, a
   assert.deepEqual(waiting, { decisions: 2, suggestions: 0, requests: ["Studio"] }, "one already starting is not counted");
   assert.equal(deriveView({ ...state, currentId: "worker" }).coordination.asking, "2 decisions are waiting on you");
 });
+
+test("Dismiss all files away what each row's own Dismiss would, a coordinator's threads with it, and leaves what waits on the user", () => {
+  const state = workspace({
+    sidebarMode: "activity",
+    threads: [
+      lead({ proposals: [proposal("p1")] }),
+      task("finished", { parentId: "lead", outcome: "finished" }),
+      task("asked", { outcome: "failed" }),
+    ],
+    activeRuns: { asked: activeRun("asked", "run-asked", { status: "awaiting-approval" }) },
+  });
+  const after = reduce(state, { type: "task.dismiss-all" }).state;
+  const outcome = (id: string) => required(after.threads.find((thread) => thread.id === id)).outcome ?? null;
+  assert.deepEqual([outcome("finished"), outcome("asked")], [null, "failed"], "a thread waiting on an approval keeps what it carries until that is answered");
+  assert.equal(coordinator(after).proposals?.length, 1, "a suggestion is answered, never dismissed");
+});

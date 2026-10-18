@@ -207,14 +207,15 @@ export type ThreadProposal = {
 
 /**
  * What the user can tell a thread under a coordinator to do next about its pull request, most
- * pressing first, each said to the thread in the user's own words.
+ * pressing first, each said to the thread in the user's own words. `name` is what a button for it
+ * is read as beside other threads' buttons, naming the thread it is for.
  */
 export const NEXT_STEPS = [
-  { id: "resolve-conflicts", label: "Resolve conflicts", text: "The pull request has merge conflicts with its base branch. Resolve them and push." },
-  { id: "fix-ci", label: "Fix CI", text: "The pull request's checks are failing. Find out why, fix them, and push." },
-  { id: "address-comments", label: "Address comments", text: "The pull request has review comments asking for changes. Address each one, push, and reply on the pull request." },
-  { id: "merge", label: "Merge it", text: "Merge the pull request." },
-  { id: "create-pull-request", label: "Create PR", text: "Open a pull request for this work." },
+  { id: "resolve-conflicts", label: "Resolve conflicts", name: (title: string) => `Resolve conflicts in ${title}'s pull request`, text: "The pull request has merge conflicts with its base branch. Resolve them and push." },
+  { id: "fix-ci", label: "Fix CI", name: (title: string) => `Fix CI for ${title}`, text: "The pull request's checks are failing. Find out why, fix them, and push." },
+  { id: "address-comments", label: "Address comments", name: (title: string) => `Address comments on ${title}'s pull request`, text: "The pull request has review comments asking for changes. Address each one, push, and reply on the pull request." },
+  { id: "merge", label: "Merge it", name: (title: string) => `Merge ${title}'s pull request`, text: "Merge the pull request." },
+  { id: "create-pull-request", label: "Create PR", name: (title: string) => `Create a pull request for ${title}`, text: "Open a pull request for this work." },
 ] as const;
 
 export type NextStep = (typeof NEXT_STEPS)[number]["id"];

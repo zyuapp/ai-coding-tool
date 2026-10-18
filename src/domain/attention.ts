@@ -151,8 +151,3 @@ export function withClosedIssues(thread: Thread, reportedIssues: string[]): Thre
   }
   return { ...thread, handledIssues: still };
 }
-
-/** Which threads a "dismiss everything" reaches: the ones carrying anything to file away. */
-export function dismissableThreads(threads: Thread[]): Thread[] {
-  return threads.filter(wantsAttention);
-}

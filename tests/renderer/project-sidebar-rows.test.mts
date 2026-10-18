@@ -145,6 +145,9 @@ test("what waits on the user outranks a coordinator's threads at work, and only 
     mode: "activity", activityThreads: { priority: [waits, filed], running: [], threads: [], snoozed: [] }, runningThreadIds: new Set(["worker"]), sidebarCoordination: coordination,
   }));
   assert.deepEqual([...activity.container.querySelectorAll('nav[aria-label="Priority"] .row-action')].map((button) => button.getAttribute("aria-label")), ["Dismiss filed"], "what waits on the user is answered, not dismissed");
+  assert.ok(activity.container.querySelector('[aria-label="Dismiss all"]'), "Dismiss all counts a coordinator held by a thread under it, which it files away");
+  await activity.render(renderProjectSidebar({ mode: "activity", activityThreads: { priority: [waits], running: [], threads: [], snoozed: [] }, sidebarCoordination: coordination }));
+  assert.equal(activity.container.querySelector('[aria-label="Dismiss all"]'), null, "and offers nothing when there is nothing to file away");
   await activity.unmount();
 });
 

@@ -1,11 +1,10 @@
 import { useRef, useState } from "react";
 import { LuCheckCheck as CheckCheck, LuChevronDown as ChevronDown, LuFolder as Folder } from "react-icons/lu";
-import { dismissableThreads } from "../../domain/attention";
 import { rankedMatches } from "../../domain/match-rank";
 import { projectName, type Project } from "../../domain/project";
 import type { SidebarSection, SidebarSections } from "../../domain/sidebar";
 import type { ThreadHost } from "../../application/computers";
-import { canDismiss } from "../../application/coordination";
+import { canDismiss, dismissableRows } from "../../application/coordination";
 import type { ActivitySections } from "../../application/thread-order";
 import type { Thread } from "../../domain/thread";
 import { useDismissibleLayer } from "../focus";
@@ -108,7 +107,7 @@ export function SidebarActivity({ activityThreads, sections, blockedThreadIds, t
         const threads = activityThreads[key];
         /** Snoozed only shows while something is in it, so a user who never snoozes never meets it. */
         if (key === "snoozed" && threads.length === 0) return null;
-        const dottedCount = key === "priority" ? dismissableThreads(threads).length : 0;
+        const dottedCount = key === "priority" ? dismissableRows(threads, threadsByCoordinator, blockedThreadIds).length : 0;
         return (
           <section className="activity-group" key={key}>
             <div className="section-heading activity-heading">

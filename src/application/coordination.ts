@@ -552,6 +552,11 @@ export function canDismiss(thread: Thread, members: readonly Thread[], blocked: 
   return !blocked.has(thread.id) && (wantsAttention(thread) || membersWantAttention(members));
 }
 
+/** The rows of a list Dismiss would file anything away from, which are what Dismiss all files away. */
+export function dismissableRows(rows: readonly Thread[], threadsByCoordinator: ReadonlyMap<string, readonly Thread[]>, blocked: ReadonlySet<string>): Thread[] {
+  return rows.filter((row) => canDismiss(row, threadsByCoordinator.get(row.id) ?? [], blocked));
+}
+
 /**
  * The activity lists with each coordinator standing for its threads: they are drawn under it rather
  * than in a list of their own, and it ranks by whichever of them wants the user most. A suggestion
