@@ -2,13 +2,14 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import React, { act } from "react";
 import { outbox } from "../support/composer-outbox.mts";
-import { deriveView, emptyWorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import type { DesktopAPI } from "../../src/contracts/ipc.ts";
 import type { AgentModel } from "../../src/domain/agent-engine.ts";
 import type { Thread } from "../../src/domain/thread.ts";
 import { workspaceActions } from "../../src/renderer/task-workspace/workspace-actions.ts";
 import { engineDesktopStub, mobileDesktopStub } from "../support/mobile-desktop.mts";
+import { activeRun } from "../application/workspace-reducer-fixtures.mts";
 
 import { item, mount, query } from "../support/renderer-dom.mts";
 
@@ -398,8 +399,29 @@ test("a side chat on an engine only a newer build knows is read, and takes no me
   const { DockConversation } = await import("../../src/renderer/components/SideChat.tsx");
   const thread = { id: "chat-1", title: "Side", engine: "gemini", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1 } as unknown as Thread;
   const chat = { id: "chat-1", title: "Side", thread, prompt: "", annotations: [], pastes: [], images: [], files: [], running: false, compacting: false, retrying: null, status: "idle", streamingTail: null, queuedMessages: [], readingPoint: null };
-  const view = await mount(React.createElement(DockConversation, { chat, engineLabel: "gemini", threads: [], outbox, surface: "side", label: "Side chat" } as never));
+  const side = (running: boolean) => React.createElement(DockConversation, { chat: { ...chat, running }, engineLabel: "gemini", threads: [], outbox: outbox(), surface: "side", label: "Side chat", onCancel() {} } as never);
+  const view = await mount(side(false));
   assert.equal(view.container.querySelector("textarea"), null);
   assert.equal(query(view.container, ".composer-unopenable").textContent, "Runs on gemini, which this version can't open. Update to work in it here.");
+  await view.render(side(true));
+  assert.ok(query(view.container, ".composer.unopenable .send-button.running"), "a run going there can still be stopped");
+  await view.unmount();
+});
+
+test("a thread this build can only read still offers what its computer can take: what waits on the user, and Stop", async () => {
+  window.desktop = composerDesktop();
+  const dispatch = async (_input: WorkspaceInput) => {};
+  const proposals = [{ id: "p1", title: "Docs", prompt: "Write them", place: { worktree: false }, proposedAt: 1 }];
+  const shown = (overrides: Partial<WorkspaceState> = {}) => {
+    const lead = { id: "lead", title: "Plan", engine: "gemini", role: "coordinator", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, proposals } as unknown as Thread;
+    const view = deriveView({ ...emptyWorkspaceState(), threads: [lead], currentId: lead.id, ...overrides });
+    return React.createElement(WorkspaceComposer, { workspace: { ...view, dispatch, actions: workspaceActions(dispatch), outbox } as never, actions: [] });
+  };
+  const view = await mount(shown());
+  assert.equal(view.container.querySelector("textarea"), null, "nothing can be typed for it");
+  assert.equal([...view.container.querySelectorAll("button")].some((button) => button.textContent === "Start all"), true, "its suggestions still wait on the user");
+  assert.equal(view.container.querySelector('button[aria-label="Stop"]'), null);
+  await view.render(shown({ activeRuns: { lead: activeRun("lead", "run-1") }, runStatuses: { lead: "running" } }));
+  assert.ok(query(view.container, ".composer.unopenable .send-button.running"), "a run going there can still be stopped");
   await view.unmount();
 });

@@ -104,9 +104,10 @@ export function DockConversation({ chat, engineLabel, focusToken = 0, find = nul
         {chat.approval && <ApprovalCard approval={chat.approval} onDecide={onDecide} />}
       </div>
       {error && <p className="side-chat-error" role="alert">{error}</p>}
-      {/** A chat on an engine only a newer build on a paired computer knows is read here, and takes no message, as its thread does. */}
-      {!isAgentEngine(chat.thread.engine) ? <footer className={`composer-wrap ${surface}`}><p className="composer-unopenable" role="status">{unopenableEngine(chat.thread.engine)}</p></footer> : <ConversationComposer
+      <ConversationComposer
         taskId={chat.thread.id}
+        /** A chat on an engine only a newer build on a paired computer knows takes no typed message, as its thread does. */
+        unopenable={isAgentEngine(chat.thread.engine) ? null : unopenableEngine(chat.thread.engine)}
         focusToken={focusToken}
         prompt={chat.prompt}
         folder={folder}
@@ -154,7 +155,7 @@ export function DockConversation({ chat, engineLabel, focusToken = 0, find = nul
         onSteerQueued={onSteerQueued}
         onDropQueued={onDropQueued}
         onCancel={onCancel}
-      />}
+      />
       {drop.over && <p className="drop-hint" role="status">Drop to attach</p>}
       {note && <p className="side-chat-note">{note}</p>}
     </aside>

@@ -84,6 +84,12 @@ export type ConversationComposerProps = {
   goal?: ActiveGoal | null;
   /** The decisions waiting on the user, drawn above the composer of the coordinator they reach. */
   decisions?: ReactNode;
+  /**
+   * Why a message cannot be typed here: the thread runs on an engine only a newer build on a paired
+   * computer knows. It stands where the text and its settings would be; everything the holder can
+   * still take, from what waits on the user to stopping a run, stays.
+   */
+  unopenable?: string | null;
   /** How a thread that does not exist yet starts, drawn under the composer it is sent from. */
   startOptions?: ReactNode;
   queuedMessages: QueuedMessage[];
@@ -195,6 +201,7 @@ export function ConversationComposer({
   onCancel,
   onGoalClear = NOTHING,
   decisions,
+  unopenable = null,
   startOptions,
 }: ConversationComposerProps) {
   const caret = useComposerCaret(focusToken);
@@ -223,7 +230,12 @@ export function ConversationComposer({
       {question && <QuestionPrompt question={question} answer={question.answer ?? ""} disabled={disabled || waiting} onAnswerChange={(text) => onQuestionAnswerChange(question, text)} onSubmit={() => onAnswerQuestion(question)} />}
       <QueuedRow messages={queuedMessages} surface={surface} canSteer={runActive} onEdit={onEditQueued} onSteer={onSteerQueued} onDrop={onDropQueued} />
       {surface === "main" && startOptions}
-      <div className="composer">
+      {unopenable ? <div className="composer unopenable">
+        <p className="composer-unopenable" role="status">{unopenable}</p>
+        {runActive && <CommandButton command={{ type: "run.cancel", taskId }} className="send-button running" onClick={onCancel} aria-label={sendLabel(surface, true)}>
+          <span className="stop-glyph" />
+        </CommandButton>}
+      </div> : <div className="composer">
         {reviewPicker && (
           <ReviewPicker
             picker={reviewPicker}
@@ -273,7 +285,7 @@ export function ConversationComposer({
             </CommandButton>
           </div>
         </div>
-      </div>
+      </div>}
       <AttachmentAnnotator attachments={attachments} />
     </footer>
   );

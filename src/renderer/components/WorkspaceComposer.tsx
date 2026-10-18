@@ -29,10 +29,6 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
     && workspace.waitingOn === null
     ? [{ name: "review", description: "Review changes in the current project.", run: workspace.actions.openReview }]
     : [];
-  /** A thread this build can only read says why where the composer would be, rather than taking a message it cannot send. */
-  if (workspace.unopenable) {
-    return <footer className="composer-wrap main"><p className="composer-unopenable" role="status">{workspace.unopenable}</p></footer>;
-  }
   return (
     <ConversationComposer
       taskId={thread?.id}
@@ -59,6 +55,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       onQuestionAnswerChange={(question, text) => { if (thread) void workspace.dispatch({ type: "question.set-answer", taskId: thread.id, runId: question.runId, requestId: question.requestId, questionId: question.questionId, text }); }}
       onAnswerQuestion={(question) => { if (thread) void workspace.dispatch({ type: "question.answer", taskId: thread.id, runId: question.runId, requestId: question.requestId, questionId: question.questionId }); }}
       goal={workspace.goal}
+      unopenable={workspace.unopenable}
       decisions={(coordination.approvals.length > 0 || coordination.decisions.length > 0 || coordination.proposals.length > 0) && <NeedsYouCard
         key={thread?.id}
         approvals={coordination.approvals}
