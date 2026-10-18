@@ -510,6 +510,7 @@ const ThreadCard = memo(function ThreadCard({ view, worktree, onSelect }: {
   /** A thread whose pull request needs work or a review is summed up by it, which the card shows on its own. */
   const line = coordinationStatusLine(status, pullRequest && (status === "needs-work" || status === "review") ? null : summary, lastHeard);
   const Icon = pullRequest ? PULL_REQUEST_ICONS[pullRequest.state] : null;
+  const pullRequestText = pullRequest ? pullRequestLine(pullRequest) : null;
   /** The card is read by its status line and, when it has one, its pull request's. */
   const lineId = useId();
   const pullRequestId = `${lineId}-pull-request`;
@@ -523,9 +524,9 @@ const ThreadCard = memo(function ThreadCard({ view, worktree, onSelect }: {
         </span>
         <small id={lineId} className={status === "working" && !lastHeard ? "text-sweep" : undefined} title={line}>{line}</small>
         {pullRequest && Icon && (
-          <span id={pullRequestId} className="coordination-card-pull-request" data-state={pullRequest.state}>
+          <span id={pullRequestId} className="coordination-card-pull-request" data-state={pullRequest.state} title={pullRequestText ?? undefined}>
             <Icon size={11} aria-hidden="true" />
-            {pullRequestLine(pullRequest)}
+            <span>{pullRequestText}</span>
           </span>
         )}
       </button>

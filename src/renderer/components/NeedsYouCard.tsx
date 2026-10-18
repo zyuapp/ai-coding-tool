@@ -190,7 +190,7 @@ function SuggestionRow({ taskId, threadModel, view }: { taskId: string; threadMo
   return (
     <li className={`suggestion-row${starting ? " starting" : ""}`}>
       <span className="suggestion-text">
-        <strong>{proposal.title}</strong>
+        <strong title={proposal.title}>{proposal.title}</strong>
         <small title={proposal.brief?.intent ?? proposal.prompt}>{proposal.brief?.intent ?? proposal.prompt}</small>
         {proposal.error && !starting && <small className="suggestion-error" role="alert">{proposal.error}</small>}
       </span>

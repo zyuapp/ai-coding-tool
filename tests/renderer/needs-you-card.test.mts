@@ -155,6 +155,7 @@ test("the Needs-you card's Suggested threads page starts and dismisses each sugg
   const rows = [...page.querySelectorAll<HTMLElement>(".suggestion-row")];
   assert.equal(rows.length, 3);
   assert.match(rows[0]!.textContent, /Fix loginfix the flaky login testLunaWorktree/, "a model other than the threads' own and a worktree of its own are marked");
+  assert.deepEqual([...query(rows[0]!, ".suggestion-text").children].map((line) => line.getAttribute("title")), ["Fix login", "fix the flaky login test"], "a title and intent the row clips are said whole on hover");
   assert.doesNotMatch(rows[1]!.textContent, /Opus|Worktree/, "the threads' own model and the shared checkout say nothing");
   assert.match(query(rows[1]!, ".suggestion-error").textContent, /No project matches "docs"/);
   assert.ok(query(rows[2]!, '[aria-label="Starting Bench"]'), "a starting row spins");

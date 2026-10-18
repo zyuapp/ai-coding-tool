@@ -260,6 +260,8 @@ button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
   font-size: var(--text-meta);
   white-space: nowrap;
 }
+/** A long line ends in an ellipsis inside the chip, which says it whole on hover. */
+.coordination-card-pull-request > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .coordination-card-pull-request > svg { flex: none; color: var(--muted); }
 .coordination-card-pull-request[data-state="open"] > svg { color: var(--success); }
 .coordination-card-pull-request[data-state="merged"] > svg { color: var(--pr-merged); }

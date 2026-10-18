@@ -51,6 +51,8 @@ test("a card shows how its thread stands, opens it, and offers what to do next b
   assert.match(query(fix, ".coordination-card-open > small").textContent, /^Needs work$/, "a pull request with something to fix is not ready for review");
   assert.doesNotMatch(query(fix, ".coordination-card-open > small").textContent, /#212/, "the pull request is said once, by its chip");
   assert.equal(query(fix, ".coordination-card-pull-request").textContent, "#212 · Checks failing");
+  assert.equal(query(fix, ".coordination-card-pull-request").title, "#212 · Checks failing", "a line the chip clips is said whole on hover");
+  assert.equal(query(fix, ".coordination-card-pull-request > span").textContent, "#212 · Checks failing", "in a box of its own, which the chip's ellipsis clips");
   assert.ok(query(fix, '[aria-label="Works in fix-login"]'), "a thread in a worktree carries its mark");
   assert.equal(query(dark, ".coordination-card-open > small").textContent, "Working · Tokens pass");
   assert.equal(query(dark, ".coordination-card-open > small").className, "text-sweep", "a working thread's status moves");
