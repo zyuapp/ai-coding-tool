@@ -671,9 +671,9 @@ export function isRemoteHeard(value: unknown): value is Record<string, number> {
   return isRecord(value) && Object.values(value).every(finite);
 }
 
-/** Shape only: each of a coordinator's threads elsewhere that Stop all stopped, by id, with the run it asked to end. */
+/** Shape only: each of a coordinator's threads elsewhere that Stop all stopped, by id, with the computer holding it and the run it asked to end. */
 export function isRemoteStops(value: unknown): value is Record<string, RemoteStop> {
-  return isRecord(value) && Object.values(value).every((stop) => isRecord(stop) && (stop.runId === undefined || typeof stop.runId === "string"));
+  return isRecord(value) && Object.values(value).every((stop) => isRecord(stop) && typeof stop.computer === "string" && (stop.runId === undefined || typeof stop.runId === "string"));
 }
 
 /** Shape only: each of a coordinator's threads last seen working elsewhere, by id, with the computer holding it and its title. */

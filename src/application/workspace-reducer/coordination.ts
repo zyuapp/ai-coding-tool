@@ -1,7 +1,7 @@
 /** Coordinators and their threads: who works under whom, what they report, and what waits on the user. */
 import { drainQueue, queuedFor, resolveWorkspaceEffect, stoppingProcess, threadBusy, withPending, withoutPending } from "./run-queue.js";
 import { reduceSending } from "./sending.js";
-import { released, remoteNews } from "./coordination-remote.js";
+import { released, remoteNews, withoutLapsedStops } from "./coordination-remote.js";
 import { withProposalFailure } from "./proposals.js";
 import { now, rejected, settled, targetId } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
@@ -217,10 +217,8 @@ function stopAll(state: WorkspaceState, leadId: string): WorkspaceTransition {
   /** A run that never said it ended leaves its id behind, so only runs still going are kept. */
   const going = new Set(Object.values(state.activeRuns).map((run) => run.runId));
   const quietStops = [...state.quietStops.filter((runId) => going.has(runId)), ...cancelled.map((run) => run.runId)];
-  /** What it stops on paired computers the coordinator keeps, so it is heard quietly after a restart here too; a stop kept for a thread no longer under it goes. */
-  const there = new Set(coordinationMembers(state, lead.id).flatMap(({ thread, computer }) => computer ? [thread.id] : []));
-  const remoteStopped = { ...Object.fromEntries(Object.entries(lead.remoteStops ?? {}).filter(([threadId]) => there.has(threadId))), ...remote.stops };
-  const stopping = lead.remoteStops || Object.keys(remoteStopped).length ? updateThread(state, lead.id, ({ remoteStops: _kept, ...item }) => Object.keys(remoteStopped).length ? { ...item, remoteStops: remoteStopped } : item) : state;
+  /** What it stops on paired computers the coordinator keeps, so it is heard quietly after a restart here too. */
+  const stopping = Object.keys(remote.stops).length ? updateThread(state, lead.id, (item) => ({ ...item, remoteStops: { ...item.remoteStops, ...remote.stops } })) : state;
   /** A caught start that never said it landed leaves nothing to stop, so only those still on their way, or landed and yet to be heard, are kept. */
   const stoppedStarts = [
     ...state.stoppedStarts.filter((start) => start.threadId !== undefined || state.startingProposals.includes(start.proposalId)),
@@ -256,12 +254,12 @@ function remoteStops(work: ReturnType<typeof coordinatorWork>["elsewhere"]): { e
     const cancel: AppCommand = { type: "run.cancel", taskId: thread.id };
     if (runId && supportsComputerCommand(computer.capabilities, cancel)) {
       batch.inputs.push(cancel);
-      stops[thread.id] = { runId };
+      stops[thread.id] = { computer: computer.id, runId };
     }
     const lifted: AppCommand = { type: "limit.cancel", taskId: thread.id };
     if (thread.limitPause && supportsComputerCommand(computer.capabilities, lifted)) {
       batch.inputs.push(lifted);
-      if (resumesOnItsOwn(thread.limitPause)) stops[thread.id] ??= {};
+      if (resumesOnItsOwn(thread.limitPause)) stops[thread.id] ??= { computer: computer.id };
     }
     /** Only what that computer's build can stop is counted as its work, so each goes. */
     batch.inputs.push(...processIds.map((processId): AppCommand => ({ type: "run.stop-process", taskId: thread.id, processId })));
@@ -310,8 +308,8 @@ export function reconcileCoordination(previous: WorkspaceState, transition: Work
   const quiet = stopped ? quieted(transition.state, stopped) : transition.state;
   /** What paired computers say of the threads coordinators here started there is news like any thread's. */
   const remote = remoteNews(previous, quiet);
-  let state = remote.state;
-  const threads = threadChanges(previous.threads, state.threads);
+  const threads = threadChanges(previous.threads, remote.state.threads);
+  let state = withoutLapsedStops(remote.state, threads);
   const touched = activityChanges(previous, state, threads);
   for (const { id, before, after } of threads) {
     if (!before || !after || before.parentId !== after.parentId || before.role !== after.role || before.archivedAt !== after.archivedAt || before.coordinationNotes !== after.coordinationNotes) touched.add(id);

@@ -63,7 +63,35 @@ export function remoteNews(previous: WorkspaceState, next: WorkspaceState): Remo
     const working = lastWorkingIds(gone.state);
     for (const thread of remotelyLedThreads(gone.state.threads)) if (working.has(thread.id)) news.leads.add(thread.remoteLead!.threadId);
   }
-  return keptWork(previous, news);
+  return keptStops(keptWork(previous, news));
+}
+
+/**
+ * What Stop all stopped on paired computers is kept only for a thread that computer still holds under
+ * the coordinator, as far as it has said since this app started: one moved out or filed away there,
+ * or on a computer no longer paired, is let go, so a stop that never got there cannot quiet a later turn.
+ */
+function keptStops(news: RemoteNews): RemoteNews {
+  let state = news.state;
+  for (const lead of news.state.threads) {
+    const stops = lead.remoteStops;
+    if (!stops) continue;
+    const kept = Object.entries(stops).filter(([threadId, stop]) => {
+      const holder = news.state.computers.paired.find((computer) => computer.id === stop.computer);
+      return holder && (!holder.state || remotelyLedThreads(holder.state.threads).some((thread) => thread.id === threadId && thread.remoteLead!.threadId === lead.id));
+    });
+    if (kept.length < Object.keys(stops).length) state = updateThread(state, lead.id, ({ remoteStops: _lapsed, ...thread }) => kept.length ? { ...thread, remoteStops: Object.fromEntries(kept) } : thread);
+  }
+  return state === news.state ? news : { ...news, state };
+}
+
+/** A coordinator that is no longer one, filed away or with its role taken off, lets go of what Stop all stopped under it. */
+export function withoutLapsedStops(state: WorkspaceState, threads: readonly ThreadChange[]): WorkspaceState {
+  let next = state;
+  for (const { after } of threads) {
+    if (after?.remoteStops && !isCoordinator(after)) next = updateThread(next, after.id, ({ remoteStops: _lapsed, ...thread }) => thread);
+  }
+  return next;
 }
 
 /**
@@ -164,8 +192,9 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
     /** So is one a start Stop all caught on its way stopped as it landed. */
     const caught = stoppedStarts.some((start) => start.threadId === member.id);
     if (caught) stoppedStarts = stoppedStarts.filter((start) => start.threadId !== member.id);
-    const quiet = stop !== undefined || caught;
     const ending = lastRunOutcome(member);
+    /** A turn that finished or failed on its own, before a stop that came too late or never came, is still news. */
+    const quiet = caught || stop !== undefined && ending !== "failed" && ending !== "finished";
     const status = quiet || ending === "stopped" ? "cancelled" : ending === "failed" ? "failed" : "succeeded";
     notes.push(turnNote(member, status, at, { quiet }));
     /**

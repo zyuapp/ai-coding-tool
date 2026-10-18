@@ -179,17 +179,17 @@ test("a thread's coordinator on another computer, and how far a coordinator hear
   const remoteLead = { threadId: "lead-there", title: "Lead", computer: "Laptop", away: true as const, backAt: 20 };
   const place = { computer: { id: "studio", name: "Studio" }, project: "app", worktree: true };
   const member = { ...migrated.data.tasks[0], remoteLead };
-  const lead = { ...migrated.data.tasks[0], id: "lead", role: "coordinator" as const, remoteHeard: { far: 40 }, remoteWorking: { far: { computer: "studio", title: "Far work" } }, remoteStops: { far: { runId: "run-far" }, waiting: {} }, proposals: [{ id: "p1", title: "GPU", prompt: "Run them", place, from: "task-1", proposedAt: 1 }] };
+  const lead = { ...migrated.data.tasks[0], id: "lead", role: "coordinator" as const, remoteHeard: { far: 40 }, remoteWorking: { far: { computer: "studio", title: "Far work" } }, remoteStops: { far: { computer: "studio", runId: "run-far" }, waiting: { computer: "studio" } }, proposals: [{ id: "p1", title: "GPU", prompt: "Run them", place, from: "task-1", proposedAt: 1 }] };
   const parsed = parseThreadStore(serializeThreadStore({ ...migrated.data, tasks: [member, lead] }));
   assert.equal(parsed.ok, true);
   if (!parsed.ok) return;
   assert.deepEqual(parsed.data.tasks[0].remoteLead, remoteLead);
   assert.deepEqual(parsed.data.tasks[1].remoteHeard, { far: 40 });
   assert.deepEqual(parsed.data.tasks[1].remoteWorking, { far: { computer: "studio", title: "Far work" } });
-  assert.deepEqual(parsed.data.tasks[1].remoteStops, { far: { runId: "run-far" }, waiting: {} });
+  assert.deepEqual(parsed.data.tasks[1].remoteStops, { far: { computer: "studio", runId: "run-far" }, waiting: { computer: "studio" } });
   assert.deepEqual(parsed.data.tasks[1].proposals?.[0]?.place, place, "a thread asked for elsewhere waits across a reload, with no brief when a thread under it asked");
 
-  const broken = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...member, remoteLead: { ...remoteLead, away: "yes" } }, { ...lead, remoteHeard: { far: "late" }, remoteWorking: { far: { computer: 7, title: "Far work" } }, remoteStops: { far: { runId: 7 } } }] }));
+  const broken = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...member, remoteLead: { ...remoteLead, away: "yes" } }, { ...lead, remoteHeard: { far: "late" }, remoteWorking: { far: { computer: 7, title: "Far work" } }, remoteStops: { far: { computer: "studio", runId: 7 } } }] }));
   assert.equal(broken.ok, true);
   if (!broken.ok) return;
   assert.equal(broken.hiddenTasks, 0, "both threads still load");
