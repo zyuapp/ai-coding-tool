@@ -5,7 +5,7 @@ import { released, remoteNews } from "./coordination-remote.js";
 import { withProposalFailure } from "./proposals.js";
 import { now, rejected, settled, targetId } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { canResolve, checkoutAnswer, coordinatedThreadStatus, coordinationMembers, coordinatorWork, coordinationUpdate, decisionHeadline, decisionNote, memberWorking, nextSteps, reportHeadline, reportNote, turnNote, unheardWork, workingMembers } from "../coordination.js";
+import { canResolve, checkoutAnswer, coordinatedThreadStatus, coordinationMembers, coordinatorWork, coordinationUpdate, decisionHeadline, decisionNote, memberWorking, nextSteps, reportHeadline, reportNote, unheardWork, withTurnHeard, workingMembers } from "../coordination.js";
 import { activityChanges, threadActivity, threadChanges } from "../thread-activity.js";
 import { cancelPause, heldByLimit } from "../limit-pauses.js";
 import { announced } from "../notices.js";
@@ -93,7 +93,7 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
        * A decision only closes once its answer is on its way, so one that could not be sent can be
        * answered again. One queued behind a run says what it answers, so it opens again if it never goes.
        */
-      const sent = reduceSending(state, { type: "task.send", taskId: thread.id, text: `The user decided "${decision.question}": ${answer}`, steer: true }, { answers: decision.id });
+      const sent = reduceSending(state, { type: "task.send", taskId: thread.id, text: `The user decided "${decision.question}": ${answer}`, steer: true }, {}, decision.id);
       return sent.result?.ok === false ? sent : { ...sent, state: answered(sent.state) };
     }
 
@@ -295,9 +295,8 @@ export function noteTurnEnded(state: WorkspaceState, taskId: string, status: "su
   const quiet = state.quietStops.includes(runId);
   const ended = quiet ? { ...state, quietStops: state.quietStops.filter((id) => id !== runId) } : state;
   const thread = ended.threads.find((item) => item.id === taskId);
-  const lead = coordinatorOf(ended.threads, thread);
-  if (!thread || !lead || (thread.limitPause && resumesOnItsOwn(thread.limitPause))) return ended;
-  return updateThread(ended, lead.id, (item) => withCoordinationNote(item, turnNote(thread, status, now(), { quiet })));
+  if (!thread || (thread.limitPause && resumesOnItsOwn(thread.limitPause))) return ended;
+  return withTurnHeard(ended, thread, status, now(), { quiet });
 }
 
 /**

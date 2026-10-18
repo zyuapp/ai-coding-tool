@@ -377,14 +377,18 @@ function applyWorkflowEvent<T extends RunTransitionState>(state: T, event: Workf
   }));
 }
 
+/** A thread's turn ending, however it ends: it reads as stopped or idle, and keeps how and when it ended. */
+export function withTurnEnded<T extends RunTransitionState>(state: T, taskId: string, status: Extract<RunEvent, { type: "run.status" }>["status"]): T {
+  const ended = runOutcome(status);
+  return updateThread(withRunStatus(state, taskId, status === "cancelled" ? "stopped" : "idle"), taskId, (thread) => ({ ...thread, runEndedAt: now(), ...(ended ? { runEndedAs: ended } : {}) }));
+}
+
 /** A run reaching its end: the run record goes, and what it left behind is settled on its thread. */
 function applyRunFinished<T extends RunTransitionState>(state: T, event: Extract<RunEvent, { type: "run.status" }>): T {
   /** What the run left running is the session's, which outlives it, so only the session can end it. */
-  let next = withRunStatus(withActiveRun(withStreamingTail(state, event.taskId, null), event.taskId, null), event.taskId, event.status === "cancelled" ? "stopped" : "idle");
+  let next = withTurnEnded(withActiveRun(withStreamingTail(state, event.taskId, null), event.taskId, null), event.taskId, event.status);
   const { [event.runId]: _expired, ...approvals } = next.approvals;
   next = { ...next, approvals } as T;
-  const ended = runOutcome(event.status);
-  next = updateThread(next, event.taskId, (thread) => ({ ...thread, runEndedAt: now(), ...(ended ? { runEndedAs: ended } : {}) }));
   const subagents = next.subagents[event.taskId];
   if (subagents?.some((subagent) => subagent.status === "working" && !subagent.sessionScoped)) {
     const status = event.status === "succeeded" ? "completed" : event.status === "failed" ? "failed" : "stopped";

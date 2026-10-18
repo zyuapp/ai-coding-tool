@@ -6,7 +6,7 @@ import { hasUnreadAttention } from "../domain/attention.js";
 import type { Thread } from "../domain/thread.js";
 import { dockFor, tabHolderOf, type DockState } from "./workspace-dock.js";
 
-type ScreenState = Pick<DockState, "currentId" | "sideChats" | "docks"> & { computers?: { active: string | null } };
+export type ScreenState = Pick<DockState, "currentId" | "sideChats" | "docks"> & { computers?: { active: string | null } };
 
 /**
  * Whether the user is looking at a thread. A side chat, or a thread under a coordinator, is on screen

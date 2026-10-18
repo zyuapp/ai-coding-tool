@@ -6,7 +6,18 @@ import type { RunEvent } from "../contracts/ipc.js";
 import type { FindingReport } from "../contracts/threads.js";
 import { isNews, withClosedIssues, withFinding } from "../domain/attention.js";
 import { runOutcome, type ThreadOutcome } from "../domain/thread-run.js";
+import { threadOnScreen, type ScreenState } from "./thread-attention.js";
 import { updateThread, withdrawRun, type ActiveRun, type RunTransitionState } from "./thread-run-state.js";
+
+/**
+ * The verdict a settled turn leaves its thread, which is what ranks it. Only a thread the user was
+ * not already looking at is marked unread by it; the one on screen they cannot have missed. A thread
+ * already filed away is past ranking, so it is left none.
+ */
+export function withVerdict<T extends RunTransitionState & ScreenState>(state: T, taskId: string, outcome: ThreadOutcome): T {
+  const unread = threadOnScreen(state, taskId) ? {} : { outcomeUnread: true as const };
+  return updateThread(state, taskId, (thread) => thread.archivedAt !== undefined ? thread : { ...thread, outcome, ...unread });
+}
 
 /** Every run that ends leaves a verdict, including the one the user stopped: it still waits on them. */
 export function outcomeFor(event: RunEvent): ThreadOutcome | null {

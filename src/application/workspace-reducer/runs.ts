@@ -16,10 +16,9 @@ import { threadTitleFor } from "../attachments.js";
 import { fileTitle } from "../files.js";
 import { announced, postedHeadline, waitingHeadline, type NoticeReason } from "../notices.js";
 import { pasteTitle } from "../pastes.js";
-import { outcomeFor, settledHeadline, whyRunSurfaces, withSettledTick, type RunSurfacing } from "../run-testimony.js";
+import { outcomeFor, settledHeadline, whyRunSurfaces, withSettledTick, withVerdict, type RunSurfacing } from "../run-testimony.js";
 import { nextSortIndex } from "../thread-order.js";
 import { answerPartId, applyRunEvent, applyThreadEvent, ATTENDED_RUN, threadMark, updateThread, type ActiveRun, type ThreadMark } from "../thread-run-state.js";
-import { threadOnScreen } from "../thread-attention.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, threadWorkspaceRoot, worktreeById, worktreeFor } from "../thread-location.js";
 import { DRAFT_DOCK, type PendingRun, type WorkspaceState } from "../workspace-state.js";
 import type { CreatedWorktree, RunEvent } from "../../contracts/ipc.js";
@@ -152,19 +151,8 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       /** Read before the run is applied: a terminal status takes the run, and its provenance, away. */
       const surfacing = whyRunSurfaces(active, event);
       const unseen = surfacing === null;
-      /**
-       * Every settled run leaves its verdict, which is what ranks the thread. Only a thread the
-       * user was not already looking at is marked unread by it; the one on screen they cannot have missed.
-       * A tick that looked and found nothing leaves neither, and leaves the thread where it was.
-       * A thread already filed away is past ranking, so a run ending under it leaves no verdict.
-       */
-      let next = outcome && !unseen
-        ? updateThread(applied, event.taskId, (thread) => thread.archivedAt !== undefined ? thread : ({
-            ...thread,
-            outcome,
-            ...(threadOnScreen(state, event.taskId) ? {} : { outcomeUnread: true as const }),
-          }))
-        : applied;
+      /** Every settled run leaves its verdict; a tick that looked and found nothing leaves none, and leaves the thread where it was. */
+      let next = outcome && !unseen ? withVerdict(applied, event.taskId, outcome) : applied;
       if (outcome) next = withSettledTick(next, event.taskId, active, surfacing);
       if (event.type === "computer-use.setup-required") next = { ...next, computerUseSetup: true };
       const noticed = next.threads.find((thread) => thread.id === event.taskId);

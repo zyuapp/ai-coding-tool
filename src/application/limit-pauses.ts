@@ -2,13 +2,12 @@
 import { drainQueue, queuedFor, resolveWorkspaceEffect, withQueued } from "./workspace-reducer/run-queue.js";
 import { now, settled } from "./workspace-reducer/shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
-import { turnNote } from "./coordination.js";
-import { threadOnScreen } from "./thread-attention.js";
-import { updateThread, withRunStatus } from "./thread-run-state.js";
+import { withTurnHeard } from "./coordination.js";
+import { withVerdict } from "./run-testimony.js";
+import { updateThread, withTurnEnded } from "./thread-run-state.js";
 import { leavingThreadIds, projectFor, worktreeFor } from "./thread-location.js";
 import type { PendingRun, QueuedMessage, WorkspaceState } from "./workspace-state.js";
 import type { AgentEngine } from "../domain/agent-engine.js";
-import { coordinatorOf, withCoordinationNote } from "../domain/coordination.js";
 import type { Thread } from "../domain/thread.js";
 import { limitLines, resumePrompt, resumesOnItsOwn, withEngineLimit, withoutLimitPause, type HeldMessage, type LimitPause, type UsageLimit } from "../domain/usage-limit.js";
 
@@ -90,17 +89,8 @@ export function cancelPause(state: WorkspaceState, taskId: string): WorkspaceTra
  * is past ranking, so it is left no verdict.
  */
 function stoppedInLine(state: WorkspaceState, taskId: string): WorkspaceState {
-  const at = now();
-  const verdict = { outcome: "stopped" as const, ...(threadOnScreen(state, taskId) ? {} : { outcomeUnread: true as const }) };
-  const stopped = withRunStatus(updateThread(state, taskId, (thread) => ({
-    ...thread,
-    runEndedAt: at,
-    runEndedAs: "stopped",
-    ...(thread.archivedAt === undefined ? verdict : {}),
-  })), taskId, "stopped");
-  const thread = stopped.threads.find((item) => item.id === taskId)!;
-  const lead = coordinatorOf(stopped.threads, thread);
-  return lead ? updateThread(stopped, lead.id, (item) => withCoordinationNote(item, turnNote(thread, "cancelled", at))) : stopped;
+  const stopped = withVerdict(withTurnEnded(state, taskId, "cancelled"), taskId, "stopped");
+  return withTurnHeard(stopped, stopped.threads.find((thread) => thread.id === taskId)!, "cancelled", now());
 }
 
 /** An engine's line moves one thread at a time: the next waits until the one before has answered once. */

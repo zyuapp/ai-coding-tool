@@ -24,10 +24,11 @@ type SendInput = Extract<WorkspaceInput, {
 }>;
 
 /**
- * `coordination` is what the reducer itself adds to a send, never a field of the command: which
- * suggestion a thread it starts is, when the user started one, and which decision it answers.
+ * `coordination` and `answers` are what the reducer itself adds to a send, never fields of the
+ * command: which suggestion a thread it starts is, when the user started one, and which decision
+ * the send answers.
  */
-export function reduceSending(state: WorkspaceState, input: SendInput, coordination: Pick<CoordinationSend, "proposalId"> & { answers?: string } = {}): WorkspaceTransition {
+export function reduceSending(state: WorkspaceState, input: SendInput, coordination: Pick<CoordinationSend, "proposalId"> = {}, answers?: string): WorkspaceTransition {
   switch (input.type) {
     case "question.set-answer":
     case "question.answer": {
@@ -90,7 +91,7 @@ export function reduceSending(state: WorkspaceState, input: SendInput, coordinat
           text,
           prompt: signed,
           ...originFields(sentBy),
-          ...(coordination.answers ? { answers: coordination.answers } : {}),
+          ...(answers ? { answers } : {}),
           attachments: attachments.map((attachment) => attachment.path),
           ...(annotations.length ? { annotations } : {}),
           ...(pastes.length ? { pastes } : {}),

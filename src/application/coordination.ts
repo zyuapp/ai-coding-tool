@@ -4,7 +4,8 @@ import type { PairedComputer } from "./computers.js";
 import { doingWork, threadActivity, threadStatus, unstoppedSessionWork, type ThreadStatus } from "./thread-activity.js";
 import { activitySections, type ActivitySections } from "./thread-order.js";
 import { threadWorkspaceId } from "./thread-location.js";
-import { awayLeadOf, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, leadIdOf, MAX_SUMMARY, openDecisions, remoteLeadOf, stuckVerdict, type CoordinationNote, type CoordinationReport, type CoordinatorMemory, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type RemoteLead, type ThreadBrief, type ThreadProposal } from "../domain/coordination.js";
+import { updateThread } from "./thread-run-state.js";
+import { awayLeadOf, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, leadIdOf, MAX_SUMMARY, openDecisions, remoteLeadOf, stuckVerdict, withCoordinationNote, type CoordinationNote, type CoordinationReport, type CoordinatorMemory, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type RemoteLead, type ThreadBrief, type ThreadProposal } from "../domain/coordination.js";
 import { lastRunOutcome, threadActivityAt, type Thread } from "../domain/thread.js";
 import type { PullRequestAnswer, PullRequestChecks, PullRequestLink, PullRequestRef, PullRequestState } from "../domain/pull-request.js";
 import { wantsAttention } from "../domain/attention.js";
@@ -119,6 +120,12 @@ export function turnNote(thread: Thread, status: "succeeded" | "failed" | "cance
   const ended = status === "succeeded" ? "ended its turn" : status === "failed" ? "failed" : "was stopped";
   const reply = lastReply(thread);
   return coordinationNote(thread.id, `"${thread.title}" ${ended}.${reply ? ` It last said: ${excerpt(reply)}` : ""}`, at, { urgent: status === "failed" && !quiet, quiet });
+}
+
+/** Its coordinator here hearing that a thread's turn ended. */
+export function withTurnHeard(state: WorkspaceState, thread: Thread, status: "succeeded" | "failed" | "cancelled", at: number, options: { quiet?: boolean } = {}): WorkspaceState {
+  const lead = coordinatorOf(state.threads, thread);
+  return lead ? updateThread(state, lead.id, (item) => withCoordinationNote(item, turnNote(thread, status, at, options))) : state;
 }
 
 /**
