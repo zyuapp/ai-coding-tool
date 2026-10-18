@@ -114,6 +114,16 @@ test("a thread's message to an archived thread is refused, and leaves it archive
   assert.deepEqual(started, []);
 });
 
+test("a thread's message to itself after it was archived is refused too, so only the user brings it back", async () => {
+  const state = fixture();
+  state.threads = state.threads.map((item) => item.id === "caller" ? { ...item, archivedAt: 5 } : item);
+  const { host, started } = desktop(state);
+  const refused = await answerThreadRequest(host, move({ type: "task.send", taskId: "caller", text: "Carry on" }));
+  assert.match(refused.ok ? "" : refused.message, /^This thread is archived, so only the user can pick it back up/);
+  assert.equal(host.state().threads.find((item) => item.id === "caller")?.archivedAt, 5);
+  assert.deepEqual(started, []);
+});
+
 test("a move waiting on the run is checked again when the run ends, and taken back by asking to stay", () => {
   const command = { type: "task.move-worktree", taskId: "caller", destination: toWt2, afterRun: true } as const;
   const end = { type: "run.event", event: { type: "run.status", taskId: "caller", runId: "run-1", sequence: 1, status: "cancelled" } } as const;

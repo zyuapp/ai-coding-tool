@@ -188,8 +188,8 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
       return ok(await commandElsewhere(host, start.elsewhere, start.command, caller));
     }
     if (target?.computer) return ok(await commandElsewhere(host, target.computer, named, caller));
-    /** A message one thread sends another names the thread it came from. */
-    const signed = start ? start.command : named.type === "task.send" && caller && named.taskId !== caller.id ? { ...named, from: caller.id } : named;
+    /** A message a thread sends names the thread it came from, even one to itself, so it is never taken for the user's. */
+    const signed = start ? start.command : named.type === "task.send" && caller ? { ...named, from: caller.id } : named;
     const result = await host.execute(signed).completed;
     if (!result.ok) return failed(result.message);
     const after = host.state();
