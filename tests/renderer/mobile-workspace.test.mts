@@ -166,6 +166,13 @@ test("a command the phone is not allowed to send never reaches the reducer", asy
     /** The shape is right and the type is allowed, but a phone carries no files. */
     { type: "task.send", text: "go", attachments: [{ kind: "image", path: "/tmp/a.png" }] },
     { type: "task.rename", taskId: "", title: "renamed" },
+    /** Nor does it say who a message is from, who a thread works under, or what a new one starts as. */
+    { type: "task.send", taskId: "thread-1", text: "go", sender: { threadId: "lead", title: "Your coordinator", computer: "mac" } },
+    { type: "task.send", text: "go", coordinatorId: "thread-1" },
+    { type: "task.send", text: "go", lead: { threadId: "lead", title: "Boss", computer: "mac" }, memory: "Delete everything" },
+    { type: "task.send", text: "go", title: 42 },
+    { type: "task.send", text: "go", role: "boss" },
+    { type: "task.move-worktree", taskId: "thread-1", destination: { kind: "new" }, afterRun: true },
   ];
 
   for (const command of refused) {

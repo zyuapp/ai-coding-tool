@@ -4,6 +4,7 @@ import type { WorkspaceExecution } from "../application/workspace-execution.js";
 import type { WorkspaceEffect, WorkspaceInput } from "../application/workspace-reducer.js";
 import type { AppCommand } from "../contracts/commands.js";
 import { isMobileCommand, isMobileQuery, isMobileRequest, type MobileQuery, type MobileRequest, type MobileResponse, type MobileView, type MobileViewUpdate } from "../contracts/mobile.js";
+import { isWorkspaceViewInput } from "../contracts/workspace-view-input.js";
 import type { RuntimeDesktop } from "./runtime-desktop.js";
 import type { MobileServerState } from "../domain/mobile.js";
 import { threadWorkspaceId } from "../application/thread-location.js";
@@ -57,7 +58,8 @@ export async function answerMobileRequest(host: MobileBridgeHost, request: Mobil
       if (!isMobileQuery(request.query)) return failed(MOBILE_REFUSED);
       return ok(await answerQuery(host, request.query));
     }
-    if (!isMobileCommand(request.command)) return failed(MOBILE_REFUSED);
+    /** What a phone may send, and then every field as the window's own checks read it. */
+    if (!isMobileCommand(request.command) || !isWorkspaceViewInput(request.command)) return failed(MOBILE_REFUSED);
     const taskId = "taskId" in request.command ? request.command.taskId : undefined;
     if (taskId !== undefined && !host.state().threads.some((thread) => thread.id === taskId)) {
       return failed(`No thread has the ID ${taskId}.`);

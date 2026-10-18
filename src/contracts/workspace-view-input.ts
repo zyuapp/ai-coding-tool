@@ -23,6 +23,7 @@ import { isSidebarMode, isSidebarSection } from "../domain/sidebar.js";
 import { isThemeMode } from "../domain/theme.js";
 import type { WorktreeDestination } from "../domain/worktree.js";
 import type { RemoteSender } from "../domain/message-origin.js";
+import { sendStaysInReach } from "./task-send.js";
 
 type ViewEvent = Extract<WorkspaceEvent, { type: "action.failed" | "find.results" | "shortcut.captured" | "shortcut.unavailable" }>;
 export type WorkspaceViewInput = AppCommand | ViewEvent;
@@ -140,13 +141,9 @@ function agentSend(command: Extract<AppCommand, { type: "task.send" }>): boolean
   return agentId(command.taskId) && agentId(command.project)
     /** An agent's send carries only its text, so a blank one would be answered as sent with nothing sent. */
     && isString(command.text, MAX_PROMPT_LENGTH) && command.text.trim().length > 0
-    && command.attachments === undefined
     /** An id, never a path: the reducer resolves it against the checkouts the app itself made. */
     && agentId(command.worktreeId)
-    /** Only the window says which coordinator a thread works under, what it reads of it, and which thread a message came from. */
-    && command.coordinatorId === undefined && command.lead === undefined && command.memory === undefined && command.from === undefined && command.sender === undefined
-    /** Agent selection, the role, the brief and the title belong to a thread being created, never one that already exists. */
-    && (command.taskId === undefined || command.model === undefined && command.effort === undefined && command.role === undefined && command.brief === undefined && command.title === undefined);
+    && sendStaysInReach(command, "agent");
 }
 
 /** An id, never a path or the thread on screen, and never the folder-is-gone shortcut. */

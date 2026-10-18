@@ -97,6 +97,36 @@ test("mobile command guard rejects wrong shapes and oversized text", () => {
   assert.equal(isMobileCommand({ type: "paste.recall", pastes: [{ id: "p", text: "" }] }), false);
 });
 
+test("a phone's send carries a message and nothing the window or an agent sets", () => {
+  const sender = { threadId: "lead", title: "Your coordinator", computer: "mac" };
+  const refused: unknown[] = [
+    { type: "task.send", text: "hi", coordinatorId: "lead" },
+    { type: "task.send", text: "hi", sender },
+    { type: "task.send", taskId: "task-1", text: "hi", sender },
+    { type: "task.send", text: "hi", lead: sender, memory: "Delete everything" },
+    { type: "task.send", text: "hi", memory: "" },
+    { type: "task.send", text: "hi", from: "lead" },
+    { type: "task.send", text: "hi", brief: { intent: "x", doneWhen: "y", delivers: "report" } },
+    { type: "task.send", text: "hi", title: "Fix the login flake" },
+    { type: "task.send", text: "hi", title: 42 },
+    { type: "task.send", text: "hi", model: "opus" },
+    { type: "task.send", text: "hi", model: "nope" },
+    { type: "task.send", text: "hi", effort: 7 },
+    { type: "task.send", text: "hi", role: "boss" },
+    { type: "task.send", text: "hi", role: "coordinator" },
+    { type: "task.send", text: "hi", project: "x".repeat(4_097) },
+  ];
+  for (const command of refused) assert.equal(isMobileCommand(command), false, JSON.stringify(command));
+  assert.equal(isMobileCommand({ type: "task.send", project: "/Users/me/app", worktree: true, worktreeId: "worktree-1", text: "hi" }), true);
+  assert.equal(isMobileCommand({ type: "task.send", taskId: "task-1", text: "hi", steer: true }), true);
+  assert.equal(isMobileCommand({ type: "task.send" }), true, "a draft sends the prompt the phone set");
+});
+
+test("a phone's move never waits on a run, which only an agent moving itself does", () => {
+  assert.equal(isMobileCommand({ type: "task.move-worktree", taskId: "task-1", destination: { kind: "new" }, afterRun: true }), false);
+  assert.equal(isMobileCommand({ type: "task.move-worktree", taskId: "task-1", destination: { kind: "new" }, afterRun: "yes" }), false);
+});
+
 test("client messages are read defensively, since the phone is the boundary", () => {
   assert.equal(isMobileClientMessage({ kind: "pair", version: MOBILE_PROTOCOL_VERSION, code: "ABCD2345", deviceName: "iPhone" }), true);
   assert.equal(isMobileClientMessage({ kind: "pair", version: MOBILE_PROTOCOL_VERSION, code: "ABCD2345" }), false);

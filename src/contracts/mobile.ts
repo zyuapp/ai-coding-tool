@@ -9,6 +9,7 @@ import type { ThemeMode } from "../domain/theme.js";
 import type { ThreadOutcome } from "../domain/thread-run.js";
 import type { WorktreeDestination } from "../domain/worktree.js";
 import type { TaskMessageKind } from "./threads.js";
+import { sendStaysInReach } from "./task-send.js";
 
 /**
  * The commands a paired phone may dispatch. The phone is the user on a small screen, not an agent,
@@ -330,16 +331,18 @@ function isQuestionCommand(command: Record<string, unknown>) {
 
 function isThreadCommand(command: Record<string, unknown>, named: boolean) {
   switch (command.type) {
-    /** A phone never carries files, so a send that names attachments is not one a phone made. */
+    /**
+     * A phone sends a message and nothing else: never files, never the shape of a thread being started,
+     * which the draft's settings set, and never who the message is from or who the thread works under.
+     */
     case "task.send":
       return named
-        && (command.project === undefined || isString(command.project, 4_096))
+        && (command.project === undefined || isString(command.project, MAX_PATH_LENGTH))
         && (command.text === undefined || isString(command.text, MAX_PROMPT_LENGTH))
-        && command.attachments === undefined
         && (command.steer === undefined || typeof command.steer === "boolean")
         && (command.worktree === undefined || typeof command.worktree === "boolean")
         && (command.worktreeId === undefined || isString(command.worktreeId))
-        && command.from === undefined;
+        && sendStaysInReach(command, "phone");
     case "task.new":
       return (command.projectId === undefined || isString(command.projectId))
         && (command.worktreeId === undefined || isString(command.worktreeId));
@@ -365,8 +368,9 @@ function isThreadCommand(command: Record<string, unknown>, named: boolean) {
       return named && isAgentEngine(command.engine) && isAgentEffort(command.effort) && engineHasEffort(command.engine, command.effort);
     case "task.set-worktree":
       return named && typeof command.worktree === "boolean";
+    /** Only an agent moving its own thread waits for its run to end, which the host says, never the caller. */
     case "task.move-worktree":
-      return named && isDestination(command.destination);
+      return named && isDestination(command.destination) && command.afterRun === undefined;
     case "task.steer-queued":
     case "task.drop-queued":
       return named && isString(command.messageId);
