@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { test } from "vitest";
 import { JSDOM } from "jsdom";
 import React, { act } from "react";
@@ -195,6 +196,37 @@ test("a row something waits on is marked as needing the user, and a folded group
   assert.equal(document.querySelector(".thread-row")?.getAttribute("data-waiting"), "true");
   assert.match(document.querySelector(".thread-row .thread-headline")?.textContent ?? "", /A decision is waiting on you/);
   assert.equal(groupMark(waiting.groups[0]!.threads), "needs-you");
+
+  const filed = view();
+  filed.thread = null;
+  filed.activity = { priority: [{ ...waiting.groups[0]!.threads[0]!, status: "idle", attention: true }], running: [], threads: [], snoozed: [] };
+  act(() => line.onmessage?.({ data: JSON.stringify({ kind: "snapshot", sequence: 2, sessionId: "s1", build: BUILD, view: filed }) }));
+  click('.segmented button[aria-checked="false"]');
+  const row = document.querySelector(".thread-row");
+  assert.deepEqual([row?.querySelector(".thread-mark") !== null, row?.querySelector(".thread-dismiss") !== null], [true, true], "a row that needs the user keeps its mark beside Dismiss");
+});
+
+/**
+ * jsdom draws no pseudo-elements, so the cascade is read off the stylesheet: of the rules that pick a
+ * row's mark, the needs-you one for something waiting must be at least as specific as any other and
+ * come after them, or a news dot or a spinner hides it.
+ */
+test("the needs-you mark of something waiting outranks every other mark a row can draw", async () => {
+  const css = await readFile(new URL("../../src/mobile/mobile.css", import.meta.url), "utf8");
+  const specificity = (selector: string) => {
+    const attributes = selector.match(/\[[^\]]*\]/g)?.length ?? 0;
+    const classes = selector.replace(/\[[^\]]*\]/g, "").match(/\.[\w-]+|:(?!:)[\w-]+/g)?.length ?? 0;
+    return attributes + classes;
+  };
+  const marks = [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{([^}]*)\}/g)]
+    .flatMap(([, selectors, body], order) => body!.includes("background") || body!.includes("animation") ? selectors!.split(",").map((selector) => ({ selector: selector.trim(), order })) : [])
+    .filter(({ selector }) => selector.startsWith(".thread-row") && selector.endsWith(".thread-mark::before"));
+  const waiting = marks.filter(({ selector }) => selector.includes("[data-waiting]"));
+  assert.equal(waiting.length, 1);
+  const [rule] = waiting;
+  for (const other of marks.filter((item) => item !== rule)) {
+    assert.ok(specificity(rule!.selector) > specificity(other.selector) || (specificity(rule!.selector) === specificity(other.selector) && rule!.order > other.order), `${rule!.selector} loses to ${other.selector}`);
+  }
 });
 
 test("the phone selects an answer without sending until Send answer is pressed", () => {

@@ -5,7 +5,7 @@ import { doingWork, threadActivity, threadStatus, unstoppedSessionWork, type Thr
 import { activitySections, type ActivitySections } from "./thread-order.js";
 import { threadWorkspaceId } from "./thread-location.js";
 import { updateThread } from "./thread-run-state.js";
-import { awayLeadOf, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, isWaitingOnUser, leadIdOf, MAX_SUMMARY, openDecisions, remoteLeadOf, stuckVerdict, waitingOnUser, withCoordinationNote, type CoordinationNote, type CoordinationReport, type CoordinatorMemory, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type RemoteLead, type ThreadBrief, type ThreadProposal, type WaitingOnUser } from "../domain/coordination.js";
+import { awayLeadOf, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, isWaitingOnUser, leadIdOf, MAX_SUMMARY, openDecisions, remoteLeadOf, stuckVerdict, waitingOnUser, withCoordinated, withCoordinationNote, type CoordinationNote, type CoordinationReport, type CoordinatorMemory, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type RemoteLead, type ThreadBrief, type ThreadProposal, type WaitingOnUser } from "../domain/coordination.js";
 import { lastRunOutcome, threadActivityAt, type Thread } from "../domain/thread.js";
 import type { PullRequestAnswer, PullRequestChecks, PullRequestLink, PullRequestRef, PullRequestState } from "../domain/pull-request.js";
 import { newestUnreadFinding, wantsAttention } from "../domain/attention.js";
@@ -545,11 +545,17 @@ export function rowHeadline(thread: Thread, waiting: string | null): string | nu
 
 /**
  * Whether Dismiss on a row files anything away: a verdict or a finding on its thread or, on a
- * coordinator's, on a thread under it, which it is dismissed with. A thread waiting on an approval has
- * nothing to dismiss until that is answered, and what waits on the user is answered, never dismissed.
+ * coordinator's, on a thread under it, which it is dismissed with. A thread waiting on an approval,
+ * the row's own or one under it, has nothing to dismiss until that is answered, and what waits on the
+ * user is answered, never dismissed.
  */
 export function canDismiss(thread: Thread, members: readonly Thread[], blocked: ReadonlySet<string>): boolean {
-  return !blocked.has(thread.id) && (wantsAttention(thread) || membersWantAttention(members));
+  return !blocked.has(thread.id) && (wantsAttention(thread) || membersWantAttention(members.filter((member) => !blocked.has(member.id))));
+}
+
+/** What a Dismiss of the rows `ids` files away, by the rule `canDismiss` reads: those rows and a coordinator's threads with it, none waiting on an approval. */
+export function dismissedWith(threads: readonly Thread[], ids: ReadonlySet<string>, blocked: ReadonlySet<string>): Set<string> {
+  return new Set([...withCoordinated(threads, new Set(ids))].filter((id) => !blocked.has(id)));
 }
 
 /** The rows of a list Dismiss would file anything away from, which are what Dismiss all files away. */

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce, type WorkspaceEffect, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
-import { coordinationContext } from "../../src/application/coordination.ts";
+import { canDismiss, coordinationContext } from "../../src/application/coordination.ts";
 import { sidebarLists } from "../../src/application/sidebar-lists.ts";
 import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import { coordinatedThreads, type ThreadBrief, type ThreadProposal } from "../../src/domain/coordination.ts";
@@ -252,4 +252,17 @@ test("Dismiss all files away what each row's own Dismiss would, a coordinator's 
   const outcome = (id: string) => required(after.threads.find((thread) => thread.id === id)).outcome ?? null;
   assert.deepEqual([outcome("finished"), outcome("asked")], [null, "failed"], "a thread waiting on an approval keeps what it carries until that is answered");
   assert.equal(coordinator(after).proposals?.length, 1, "a suggestion is answered, never dismissed");
+});
+
+test("a thread under a coordinator waiting on an approval is neither a reason to dismiss it nor filed away with it", () => {
+  const blockedMember = { activeRuns: { asked: activeRun("asked", "run-asked", { status: "awaiting-approval" }) } };
+  const only = workspace({ sidebarMode: "activity", threads: [lead(), task("asked", { parentId: "lead", outcome: "failed" })], ...blockedMember });
+  const lists = sidebarLists(only, [], only.threads, new Set(), new Set(["asked"]));
+  assert.equal(canDismiss(coordinator(only), lists.threadsByCoordinator.get("lead") ?? [], new Set(["asked"])), false);
+  const both = workspace({ sidebarMode: "activity", threads: [lead(), task("asked", { parentId: "lead", outcome: "failed" }), task("finished", { parentId: "lead", outcome: "finished" })], ...blockedMember });
+  for (const input of [{ type: "task.dismiss" as const, taskId: "lead" }, { type: "task.dismiss-all" as const }]) {
+    const after = reduce(both, input).state;
+    const outcome = (id: string) => required(after.threads.find((thread) => thread.id === id)).outcome ?? null;
+    assert.deepEqual([outcome("finished"), outcome("asked")], [null, "failed"], `${input.type} keeps the verdict of the thread still asking`);
+  }
 });

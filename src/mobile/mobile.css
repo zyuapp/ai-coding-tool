@@ -509,6 +509,11 @@ button {
   color: var(--accent);
 }
 
+/* A row that needs the user and has something to file away keeps its mark beside Dismiss. */
+.thread-row:has(> .thread-mark + .thread-dismiss) {
+  grid-template-columns: minmax(0, 1fr) 22px 44px;
+}
+
 /* One mark per row: a spinner while it works, a dot when it needs the user or has news, else nothing. */
 .thread-mark {
   display: grid;
@@ -553,8 +558,11 @@ button {
   background: var(--muted-strong);
 }
 
-/* What waits on the user outranks work going on, as on the desktop: the needs-you dot takes the spinner's place. */
-.thread-row[data-waiting] .thread-mark::before {
+/*
+ * What waits on the user outranks work going on and news, as on the desktop: the needs-you dot takes
+ * the spinner's or the news dot's place. It is as specific as the rules it overrides, and comes after them.
+ */
+.thread-row[data-waiting][data-status] .thread-mark::before {
   display: block;
   width: 8px;
   height: 8px;

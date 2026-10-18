@@ -20,9 +20,9 @@ function ThreadRow({ thread, meta, onOpen, onDismiss }: {
         <span className="thread-meta">{meta}</span>
         {thread.unread && <span className="sr-only">Unread</span>}
       </button>
-      {onDismiss
-        ? <button type="button" className="thread-dismiss" aria-label={`Dismiss ${thread.title}`} onClick={onDismiss}><Check size={16} strokeWidth={2.2} /></button>
-        : <span className="thread-mark" aria-hidden="true" />}
+      {/** A row that needs the user keeps saying so beside Dismiss, which takes the mark's place otherwise. */}
+      {(!onDismiss || thread.status === "awaiting-approval" || thread.waiting) && <span className="thread-mark" aria-hidden="true" />}
+      {onDismiss && <button type="button" className="thread-dismiss" aria-label={`Dismiss ${thread.title}`} onClick={onDismiss}><Check size={16} strokeWidth={2.2} /></button>}
     </div>
   );
 }
