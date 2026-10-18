@@ -15,7 +15,8 @@ import { shownComputers, type PairedComputer } from "../computers.js";
 import { REMOTE_UNSUPPORTED, supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import { forkedThreads } from "../thread-fork.js";
 import { moveThread as moveThreadInList } from "../thread-order.js";
-import { coordinationMembers, dismissableRows, dismissedWith, ownCoordinationSections, projectActivity } from "../coordination.js";
+import { coordinationMembers, dismissableRows, dismissedWith, membersOn, ownCoordinationSections, projectActivity } from "../coordination.js";
+import { offlineMessage } from "../../domain/computers.js";
 import { pruneDeletedThreads } from "../thread-pruning.js";
 import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeById } from "../thread-location.js";
@@ -59,9 +60,8 @@ function landOnThread(state: WorkspaceState, taskId: string): WorkspaceState {
  */
 function priorityThreads(state: WorkspaceState, projectId?: string): Thread[] {
   const { ranked, blocked } = threadActivity(state);
-  const own = threadLists(state).visibleThreads;
-  const sections = ownCoordinationSections(state, own, ranked, blocked);
-  return projectId ? projectActivity(sections, own, projectId).priority : sections.priority;
+  const { sections, threads } = ownCoordinationSections(state, threadLists(state).visibleThreads, ranked, blocked, shownComputers(state.computers));
+  return projectId ? projectActivity(sections, threads, projectId).priority : sections.priority;
 }
 
 /**
@@ -71,31 +71,36 @@ function priorityThreads(state: WorkspaceState, projectId?: string): Thread[] {
 function dismissablePriority(state: WorkspaceState, projectId?: string): Thread[] {
   const { blocked } = threadActivity(state);
   const rows = priorityThreads(state, projectId);
-  const members = new Map(rows.map((row) => [row.id, coordinationMembers(state, row.id).filter((member) => !member.computer || !threadActivity(member.holder).blocked.has(member.thread.id)).map((member) => member.thread)]));
+  const shown = shownComputers(state.computers);
+  const members = new Map(rows.map((row) => [row.id, [
+    ...coordinationMembers(state, row.id).flatMap((member) => member.computer ? [] : [member.thread]),
+    ...membersOn(state, row.id, shown).flatMap(({ thread, there }) => there.blocked.has(thread.id) ? [] : [thread]),
+  ]]));
   return dismissableRows(rows, members, blocked);
 }
 
 /**
- * A coordinator here filed away with threads under it on paired computers asks each of those
- * computers to file away its own, which only it can, by the rule the row's own Dismiss reads: none
- * waiting on an approval, and only those with something to file away. A computer whose build cannot
- * take it says so.
+ * A coordinator here filed away with threads under it on the paired computers the sidebar shows asks
+ * each of those computers to file away its own, which only it can, by the rule the row's own Dismiss
+ * reads: none waiting on an approval, and only those with something to file away. A computer that is
+ * out of reach, or whose build cannot take it, says so.
  */
 function dismissElsewhere(state: WorkspaceState, rows: ReadonlySet<string>): { effects: WorkspaceEffect[]; errors: string[] } {
   const inputs = new Map<string, { computer: PairedComputer; inputs: AppCommand[] }>();
+  const shown = shownComputers(state.computers);
   for (const row of rows) {
-    for (const member of coordinationMembers(state, row)) {
-      if (!member.computer || !wantsAttention(member.thread) || threadActivity(member.holder).blocked.has(member.thread.id)) continue;
-      const held = inputs.get(member.computer.id) ?? { computer: member.computer, inputs: [] };
-      held.inputs.push({ type: "task.dismiss", taskId: member.thread.id });
-      inputs.set(member.computer.id, held);
+    for (const { thread, computer, there } of membersOn(state, row, shown)) {
+      if (!wantsAttention(thread) || there.blocked.has(thread.id)) continue;
+      const held = inputs.get(computer.id) ?? { computer, inputs: [] };
+      held.inputs.push({ type: "task.dismiss", taskId: thread.id });
+      inputs.set(computer.id, held);
     }
   }
   const effects: WorkspaceEffect[] = [];
   const errors: string[] = [];
   for (const { computer, inputs: commands } of inputs.values()) {
-    if (computer.status !== "connected") continue;
-    if (!commands.every((command) => supportsComputerCommand(computer.capabilities, command))) errors.push(`${computer.name}: ${REMOTE_UNSUPPORTED}`);
+    if (computer.status !== "connected") errors.push(offlineMessage(computer));
+    else if (!commands.every((command) => supportsComputerCommand(computer.capabilities, command))) errors.push(`${computer.name}: ${REMOTE_UNSUPPORTED}`);
     else effects.push({ type: "computer.forward", id: computer.id, inputs: commands });
   }
   return { effects, errors };

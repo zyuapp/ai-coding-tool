@@ -421,6 +421,8 @@ test("a coordinator's phone row speaks for its threads on paired computers too, 
   const { activity } = projectMobileView(state, NOW);
   assert.deepEqual(activity.priority.map((entry) => [entry.id, entry.status]), [["lead", "awaiting-approval"]]);
   assert.deepEqual(activity.priority.map((entry) => entry.id), desktop);
+  const filtered = projectMobileView({ ...state, computers: { ...state.computers, filter: "this" } }, NOW).activity;
+  assert.deepEqual(filtered.priority.map((entry) => [entry.id, entry.status]), [["lead", "awaiting-approval"]], "whichever computers the desktop's sidebar shows");
 });
 
 test("the phone wears the desktop's theme family in both faces, and follows the desktop's mode", () => {

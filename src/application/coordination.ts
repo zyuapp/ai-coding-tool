@@ -598,16 +598,24 @@ export function coordinationSections(threads: Thread[], busy: Set<string>, block
   };
 }
 
+/** The threads under a coordinator here that the given paired computers hold, each with how that computer last said it stands. */
+export function membersOn(state: Pick<WorkspaceState, "threads" | "computers">, leadId: string, computers: readonly PairedComputer[]): Array<{ thread: Thread; computer: PairedComputer; there: ReturnType<typeof threadActivity> }> {
+  const on = new Set(computers.map((computer) => computer.id));
+  return coordinationMembers(state, leadId).flatMap((member) => member.computer && on.has(member.computer.id) ? [{ thread: member.thread, computer: member.computer, there: threadActivity(member.holder) }] : []);
+}
+
 /**
  * A computer's own threads ranked as its sidebar ranks them: each coordinator here stands for its
- * threads on paired computers too, as each of those computers last said they stand. What Dismiss all
- * files away and the phone's lists both read this.
+ * threads on the paired `computers` too, as each of those computers last said they stand. What
+ * Dismiss all files away reads it over the computers the sidebar shows, and the phone over every one.
+ * The threads it ranked come with it, for narrowing them to one project.
  */
-export function ownCoordinationSections(state: Pick<WorkspaceState, "threads" | "computers" | "startingProposals">, own: Thread[], ranked: Set<string>, blocked: Set<string>): ActivitySections {
-  const elsewhere = own.filter(isCoordinator).flatMap((lead) => coordinationMembers(state, lead.id).flatMap((member) => member.computer ? [{ thread: member.thread, there: threadActivity(member.holder) }] : []));
-  if (!elsewhere.length) return coordinationSections(own, ranked, blocked, state.startingProposals);
+export function ownCoordinationSections(state: Pick<WorkspaceState, "threads" | "computers" | "startingProposals">, own: Thread[], ranked: Set<string>, blocked: Set<string>, computers: readonly PairedComputer[]): { sections: ActivitySections; threads: Thread[] } {
+  const elsewhere = own.filter(isCoordinator).flatMap((lead) => membersOn(state, lead.id, computers));
+  if (!elsewhere.length) return { sections: coordinationSections(own, ranked, blocked, state.startingProposals), threads: own };
   const where = (held: (there: ReturnType<typeof threadActivity>) => Set<string>, here: Set<string>) => new Set([...here, ...elsewhere.flatMap(({ thread, there }) => held(there).has(thread.id) ? [thread.id] : [])]);
-  return coordinationSections([...own, ...elsewhere.map(({ thread }) => thread)], where((there) => there.ranked, ranked), where((there) => there.blocked, blocked), state.startingProposals);
+  const threads = [...own, ...elsewhere.map(({ thread }) => thread)];
+  return { sections: coordinationSections(threads, where((there) => there.ranked, ranked), where((there) => there.blocked, blocked), state.startingProposals), threads };
 }
 
 /**

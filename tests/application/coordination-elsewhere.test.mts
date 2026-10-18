@@ -713,3 +713,14 @@ test("dismissing a coordinator here files away what its threads on a paired comp
   const older = { ...state, computers: { ...state.computers, paired: state.computers.paired.map((computer) => ({ ...computer, capabilities: [] })) } };
   assert.match(reduce(older, { type: "task.dismiss", taskId: "lead" }).state.actionError ?? "", /^studio: /, "a computer whose build cannot take it says so");
 });
+
+test("dismissing a coordinator reaches only the computers the sidebar shows, follows a thread there into its project, and says when one is out of reach", () => {
+  const holder = workspace({ projects: [{ id: "p", root: "/studio/p" }], threads: [far({ projectId: "p", outcome: "finished", outcomeUnread: true })] });
+  const base = { ...coordinating(holder), sidebarMode: "activity" as const };
+  const dismissing = (state: WorkspaceState, input: WorkspaceInput) => reduce(state, input).effects.flatMap((effect) => effect.type === "computer.forward" ? effect.inputs.filter((item) => item.type === "task.dismiss") : []);
+  const filtered = { ...base, computers: { ...base.computers, filter: "this" } };
+  assert.deepEqual(dismissing(filtered, { type: "task.dismiss-all" }), [], "with only this computer shown, nothing there is filed away");
+  assert.deepEqual(dismissing(base, { type: "task.dismiss-all", projectId: "p" }), [{ type: "task.dismiss", taskId: "far" }], "a coordinator whose thread there works in the project is in that project's Priority");
+  const offline = { ...base, computers: { ...base.computers, paired: base.computers.paired.map((computer) => ({ ...computer, status: "offline" as const })) } };
+  assert.equal(reduce(offline, { type: "task.dismiss", taskId: "lead" }).state.actionError, "studio is offline.");
+});
