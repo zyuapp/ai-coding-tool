@@ -8,7 +8,7 @@ import React, { act } from "react";
 import { whyTickCannotRun } from "../../src/application/findings.ts";
 import { whyRunSurfaces } from "../../src/application/run-testimony.ts";
 import { reduce, type WorkspaceEffect, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
-import { type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { stateFromData, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import { activitySections } from "../../src/application/thread-order.ts";
 import { automationRunPrompt, type ActiveRun } from "../../src/application/thread-run-state.ts";
 import type { AutomationFire, RunEvent } from "../../src/contracts/ipc.ts";
@@ -16,6 +16,7 @@ import type { FindingReport, FindingResult, ThreadRequest } from "../../src/cont
 import { isNews, issueState } from "../../src/domain/attention.ts";
 import { automationAfterRun, type AutomationPatch, type AutomationView } from "../../src/domain/automation.ts";
 import type { AutomationFinding } from "../../src/domain/finding.ts";
+import { THREAD_STORE_VERSION } from "../../src/domain/thread-storage.ts";
 import { threadActivityAt, type Thread } from "../../src/domain/thread.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
 import type { AutomationPanelProps } from "../../src/renderer/components/AutomationPanel.tsx";
@@ -83,6 +84,16 @@ function fire(overrides: Partial<AutomationFire> = {}) {
   const pending = reduce(workspace({ threads: [task("task-a")] }), { type: "automation.fired", fire: tick });
   return reduce(pending.state, { type: "run.resolved", pendingId: effectAt(pending.effects, 0, "resolve-run-workspace").pendingId, workspace: PROJECTLESS });
 }
+
+test("a quiet tick the app quits under is restored as it was, and a loud one as stopped", () => {
+  const restored = (state: WorkspaceState) => stateFromData({ version: THREAD_STORE_VERSION, tasks: state.threads, projects: [], worktrees: [], lastFolder: null }).threads[0]!;
+  const quiet = fire({ quiet: true }).state;
+  assert.equal(quiet.threads[0]!.runOpen, undefined, "a quiet tick speaks only through what it finds");
+  assert.deepEqual([restored(quiet).runEndedAs, threadActivityAt(restored(quiet))], [undefined, threadActivityAt(quiet.threads[0]!)], "so being cut off says nothing and moves nothing");
+  const loud = fire().state;
+  assert.equal(loud.threads[0]!.runOpen, true);
+  assert.equal(restored(loud).runEndedAs, "stopped");
+});
 
 test("a scheduled run is the scheduler's, unattended, and never quiet unless the tick says so", () => {
   const started = fire();

@@ -169,9 +169,13 @@ export function beginRun(state: WorkspaceState, taskId: string, runId: string, p
   );
 }
 
-/** A run is open on its thread until it ends, so one the app quits under is known as cut off when the thread is restored. Compacting is not a turn. */
+/**
+ * A run is open on its thread until it ends, so one the app quits under is known as cut off when the
+ * thread is restored. Compacting is not a turn, and a quiet scheduled run only speaks through what it
+ * finds, so neither is.
+ */
 function opened(thread: Thread, provenance: RunProvenance): Thread {
-  return provenance.operation === "compact" ? thread : { ...thread, runOpen: true };
+  return provenance.operation === "compact" || provenance.quiet ? thread : { ...thread, runOpen: true };
 }
 
 function pickedUp(thread: Thread, pickup: RunPickup | undefined): Thread {
