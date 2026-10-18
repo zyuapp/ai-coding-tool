@@ -217,3 +217,21 @@ test("a thread the user resolved while it was stuck stays resolved through a tur
   const ended = reduce(opened, correlatedRunEvent("worker", "run-agent", 2, { type: "run.status", status: "succeeded" })).state;
   assert.equal(deriveView(ended).coordination.members[0]?.status, "resolved", "the report it was filed away with says nothing new");
 });
+
+test("a resolved thread stays resolved through a session limit and a compaction that fails", () => {
+  const resolved = reduce(workspace({ threads: [lead(), member("worker", { outcome: "finished", ...codexSession })], currentId: "lead" }), { type: "task.resolve", taskId: "worker" }).state;
+  const status = (state: WorkspaceState) => deriveView(state).coordination.members[0]?.status;
+  const opened = reduce(resolved, correlatedRunEvent("worker", "run-agent", 1, { type: "run.started", agentInitiated: true })).state;
+  const session = { resetsAt: Date.now() + 3_600_000, window: "session" as const };
+  const limited = reduce(opened, correlatedRunEvent("worker", "run-agent", 2, { type: "run.status", status: "failed", limit: session })).state;
+  assert.equal(typeof limited.threads[1]!.resolvedAt, "number", "a limit that lifts on its own is not news");
+  const resuming = reduce(limited, { type: "limit.resume", taskId: "worker" });
+  const resumed = reduce(resuming.state, { type: "run.resolved", pendingId: effectOf(resuming, "resolve-run-workspace").pendingId, workspace: PROJECTLESS });
+  const ended = reduce(resumed.state, correlatedRunEvent("worker", effectAt(resumed, "start-run").command.runId, 1, { type: "run.status", status: "succeeded" })).state;
+  assert.equal(status(ended), "resolved", "nor is the turn it cut short ending well");
+
+  const compacting = reduce(resolved, { type: "run.compact", taskId: "worker" });
+  const compacted = reduce(compacting.state, { type: "run.resolved", pendingId: effectOf(compacting, "resolve-run-workspace").pendingId, workspace: PROJECTLESS });
+  const failed = reduce(compacted.state, correlatedRunEvent("worker", effectAt(compacted, "start-run").command.runId, 1, { type: "run.status", status: "failed" })).state;
+  assert.equal(status(failed), "resolved", "compacting is not a turn");
+});

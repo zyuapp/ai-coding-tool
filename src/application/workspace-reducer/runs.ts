@@ -28,7 +28,7 @@ import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
 import { createConversationMessage, createSentMessage } from "../../domain/conversation.js";
 import { appendMessages } from "../../domain/conversation-updates.js";
 import { pausedForLimit } from "../limit-pauses.js";
-import { isCoordinator, worksUnderCoordinator } from "../../domain/coordination.js";
+import { isCoordinator, reopenedIfStuck, worksUnderCoordinator } from "../../domain/coordination.js";
 import { clampTitle, type Thread } from "../../domain/thread.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
 
@@ -188,6 +188,8 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       next = moved.state;
       /** A run Stop all asked to end stays ended, even when a usage limit got to it first. */
       if (event.status === "failed" && event.limit && !next.quietStops.includes(event.runId)) next = pausedForLimit(next, event.taskId, event.limit, now());
+      /** A turn that still ends failed once a session limit has had its say left the thread stuck, so it is open again. */
+      if (event.status === "failed") next = updateThread(next, event.taskId, (thread) => thread.runEndedAs === "failed" ? reopenedIfStuck(thread) : thread);
       const drained = drainQueue(noteTurnEnded(next, event.taskId, event.status, event.runId), event.taskId, event.status);
       return settled(drained.state, [...environment, ...said, ...moved.effects, ...drained.effects]);
     }
