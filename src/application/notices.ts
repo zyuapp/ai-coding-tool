@@ -51,11 +51,21 @@ function noticeTitle(state: NoticeState, thread: Thread): string {
 }
 
 /**
+ * Whether a thread works under a coordinator on another computer. That computer hears all it has to
+ * say, and says it there under that coordinator's mute, so this one would only say it twice.
+ */
+function heardElsewhere(state: NoticeState, thread: Thread): boolean {
+  const remote = remoteLeadOf(thread);
+  return remote !== undefined && !state.threads.some((item) => item.id === remote.threadId);
+}
+
+/**
  * Whether the user wants to hear this. A muted coordinator keeps back everything from itself and its
  * threads. A turn its thread finished speaks through the coordinator's reply, so only a turn the
  * user's own words started is theirs to hear about.
  */
 function wanted(state: NoticeState, thread: Thread, reason: NoticeReason): boolean {
+  if (heardElsewhere(state, thread)) return false;
   const lead = leadOf(state, ownerOf(state, thread));
   if (lead?.muted) return false;
   if (reason !== "finished" || !worksUnderCoordinator(state.threads, thread)) return true;

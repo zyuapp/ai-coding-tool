@@ -188,6 +188,20 @@ test("a muted coordinator announces nothing from itself or its threads, and is s
   assert.deepEqual(titles(fire(alone, { type: "run.status", status: "succeeded" }).effects), ["Fix login"], "a thread moved out of a muted coordinator is heard again");
 });
 
+test("a thread under a coordinator on another computer leaves every notice to that computer, until that coordinator is away", () => {
+  const lead = { threadId: "lead-there", title: "Release", computer: "Laptop" };
+  const there = workspace({ threads: [task("task-a", { title: "Fix login", remoteLead: lead, messages: [createSentMessage({ text: "Why is it red?" })] })] });
+  assert.deepEqual(headlines(fire(there, { type: "run.status", status: "succeeded" }).effects), [], "its coordinator's computer hears it, and says it under that coordinator's mute");
+  assert.deepEqual(headlines(fire(there, { type: "run.status", status: "failed", message: "The tool crashed" }).effects), []);
+  assert.deepEqual(headlines(fire(there, APPROVAL).effects), []);
+  const finding = workspace({ threads: there.threads }, { origin: "automation", quiet: true });
+  assert.deepEqual(headlines(reduce(finding, { type: "automation.notify", taskId: "task-a", headline: "Disk almost full" }).effects), []);
+
+  const away = { ...there, threads: [{ ...there.threads[0]!, remoteLead: { ...lead, away: true as const } }] };
+  assert.deepEqual(headlines(fire(away, { type: "run.status", status: "failed", message: "The tool crashed" }).effects), ["The tool crashed"], "one standing on its own is heard here");
+  assert.deepEqual(titles(fire(away, APPROVAL).effects), ["Fix login"]);
+});
+
 test("turning notifications off still wins over a coordinator and its threads", () => {
   const silent = coordinated({ messages: [createConversationMessage("assistant", "All done")] }, {}, { notifications: false });
   assert.deepEqual(headlines(fire(silent, { type: "run.status", status: "succeeded" }, "lead").effects), []);
