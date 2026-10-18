@@ -12,6 +12,8 @@ const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
 type FakeAgent = {
   posted: AgentMessage[];
   killed: boolean;
+  /** Set to make every post throw, as a port that has gone away does. */
+  unreachable?: boolean;
   /** What the worker says back, and how it dies. */
   say: (message: unknown) => void;
   exit: (code: number | null) => void;
@@ -23,7 +25,13 @@ function agentProcesses() {
   const start: StartAgentProcess = (listener) => {
     const agent: FakeAgent = { posted: [], killed: false, say: (message) => listener.message(message), exit: (code) => listener.exit(code) };
     started.push(agent);
-    return { post: (message) => agent.posted.push(message), kill: () => { agent.killed = true; } };
+    return {
+      post: (message) => {
+        if (agent.unreachable) throw new Error("Agent process is unavailable.");
+        agent.posted.push(message);
+      },
+      kill: () => { agent.killed = true; },
+    };
   };
   return { started, start };
 }
@@ -147,6 +155,21 @@ test("an agent process exit fails its live runs and takes their work off the pan
   assert.equal(events().flatMap((event) => event.type === "run.status" && "message" in event ? [event.message] : []).at(-1), "Agent process exited with code 9.");
   assert.deepEqual(events().flatMap((event) => event.type === "background.changed" ? [event.processes.length] : []), [1, 0]);
   assert.deepEqual(events().flatMap((event) => event.type === "subagent.finished" ? [event.id] : []), ["child-live"], "only the child whose turn was live is settled by the crash");
+});
+
+test("a stop that cannot reach the agent process leaves the run stopped, and anything else fails it", async () => {
+  const { agents, bridge, events, statuses } = harness();
+  for (const runId of ["run-1", "run-2"]) {
+    bridge.handleRunCommand(startCommand(`task-${runId}`, runId));
+    await tick();
+    agents.started[0]!.say({ type: "run.started", taskId: `task-${runId}`, runId, sequence: 1 });
+  }
+  agents.started[0]!.unreachable = true;
+  bridge.handleRunCommand({ type: "cancel", taskId: "task-run-1", runId: "run-1" });
+  bridge.handleRunCommand({ type: "steer", taskId: "task-run-2", runId: "run-2", messageId: "m1", prompt: "also" });
+  assert.deepEqual(statuses("run-1"), ["cancelled"]);
+  assert.deepEqual(statuses("run-2"), ["failed"]);
+  assert.equal(events().flatMap((event) => event.type === "run.status" && "message" in event ? [event.message] : []).at(-1), "Agent process is unavailable.");
 });
 
 test("a scheduled tick waits for the run the renderer started, and skips one it never acknowledges", async () => {

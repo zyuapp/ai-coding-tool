@@ -305,10 +305,12 @@ class AgentRunHost {
       /** A stop, a label, or an archive belongs to no run, so a failure to send it has no run to report against. */
       if (command.type === "stop-process" || command.type === "label" || command.type === "archive") return;
       const state = this.ledger.state(command.taskId, command.runId);
+      if (!state || state.terminal) return;
+      const sequence = state.lastSequence + 1;
+      /** A stop that cannot reach the agent process still leaves the run stopped, as the user asked. */
+      if (command.type === "cancel") return this.publishRun({ type: "run.status", taskId: command.taskId, runId: command.runId, sequence, status: "cancelled" });
       const message = error instanceof Error ? error.message : String(error);
-      if (state && !state.terminal) {
-        this.publishRun({ type: "run.status", taskId: command.taskId, runId: command.runId, sequence: state.lastSequence + 1, status: "failed", message });
-      }
+      this.publishRun({ type: "run.status", taskId: command.taskId, runId: command.runId, sequence, status: "failed", message });
     }
   }
 
