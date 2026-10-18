@@ -224,6 +224,17 @@ test("a member's turn ending is said as a run here would say it, and one never s
   assert.deepEqual(announcedOf(unseenFailure.effects), ["The run failed."]);
 });
 
+test("a member's watch that ends there is heard finished here", () => {
+  const watch = { id: "a1", taskId: "far", prompt: "Babysit the PR", schedule: "*/5 * * * *", paused: false, createdAt: 1, updatedAt: 1, runCount: 3, nextRunAt: null, endsWhen: "the PR is approved." };
+  const watching = workspace({ threads: [far({ runEndedAt: 20, runEndedAs: "finished" })], automations: [watch] });
+  const caughtUp = mirrored(coordinating(workspace()), watching).state;
+  const state = { ...caughtUp, pendingRuns: {}, threads: caughtUp.threads.map((thread) => ({ ...thread, coordinationNotes: [] })) };
+  const done = reduce(watching, { type: "automations.changed", automations: [] }).state;
+  const heard = mirrored(state, done).state;
+  assert.deepEqual(notesOf(heard), ["\"Far work\" ended its turn."]);
+  assert.equal(wakesOf(heard).length, 1);
+});
+
 test("a member stopped by Stop all is heard quietly", () => {
   const holder = workspace({ threads: [far()], activeRuns: { far: activeRun("far", "run-far") } });
   let state = mirrored(coordinating(workspace()), holder).state;

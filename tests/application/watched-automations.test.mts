@@ -80,6 +80,18 @@ test("a watch ended by a tick that settles quietly still lands its thread in Pri
   assert.deepEqual(sections(settled).priority, ["task-a"]);
 });
 
+test("a watch under a coordinator that ends is heard finished, here and by a coordinator on another computer", () => {
+  const tick = activeRun("task-a", "run-1", { origin: "automation", quiet: true, acknowledged: true });
+  const watched = workspace({ threads: [task("lead", { role: "coordinator", title: "Lead" }), task("task-a", { title: "Babysit", parentId: "lead", runEndedAt: 5 })], automations: [automationView({ endsWhen: "the PR is approved." })], activeRuns: { "task-a": tick } });
+  const ended = reduce(watched, { type: "automations.changed", automations: [] }).state;
+  const settled = reduce(ended, correlatedRunEvent("task-a", "run-1", 1, { type: "run.status", status: "succeeded" })).state;
+  const [lead, member] = [settled.threads[0]!, settled.threads[1]!];
+  assert.deepEqual([member.outcome, member.outcomeUnread], ["finished", true], "the user sees it finished");
+  assert.deepEqual(lead.coordinationNotes?.map((note) => [note.text, note.quiet]), [["\"Babysit\" finished watching.", undefined]], "so does its coordinator, after a tick that found nothing");
+  assert.equal(Object.values(settled.pendingRuns).filter((pending) => pending.taskId === "lead").length, 1);
+  assert.ok(member.runEndedAt! > 5, "and its work ended then, which a coordinator elsewhere reads");
+});
+
 test("only a live watch leaving announces anything", () => {
   for (const before of [automationView(), automationView({ endsWhen: "the PR is approved.", paused: true })]) {
     const state = reduce(workspace({ threads: [task("task-a")], automations: [before] }), { type: "automations.changed", automations: [] }).state;

@@ -1,12 +1,15 @@
 /** Scheduled ticks: what a thread arms, and what a tick makes of the run it starts. */
 import { resolveWorkspaceEffect, withPending } from "./run-queue.js";
-import { settled, targetId } from "./shared.js";
+import { now, settled, targetId } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
+import { coordinationNote } from "../coordination.js";
 import { declinedTick, raisedFinding, whyTickCannotRun } from "../findings.js";
 import { withNothingToReport } from "../run-testimony.js";
 import { threadOnScreen } from "../thread-attention.js";
 import { isWatching, type AutomationView } from "../../domain/automation.js";
-import { automationRunPrompt } from "../thread-run-state.js";
+import { coordinatorOf, withCoordinationNote } from "../../domain/coordination.js";
+import type { Thread } from "../../domain/thread.js";
+import { automationRunPrompt, updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
 
@@ -75,23 +78,31 @@ export function reduceAutomations(state: WorkspaceState, input: AutomationInput)
 
 /**
  * A watch that is gone has finished, so its thread leaves Running for Priority the way a settled run
- * does, and its work reads as finished however an earlier tick ended. A tick still going when it
+ * does, and its work reads as finished however an earlier tick ended, then. A tick still going when it
  * ended replaces this verdict with its own as it settles, and one that settles quietly returns the
- * thread to this verdict.
+ * thread to this verdict. Its coordinator hears it finished as the user sees it, here or, by the
+ * moment its work ended, on the computer it works under.
  */
 function withEndedWatches(state: WorkspaceState, before: readonly AutomationView[]): WorkspaceState {
   const kept = new Set(state.automations.map((automation) => automation.taskId));
   const ended = new Set(before.filter((automation) => isWatching(automation) && !kept.has(automation.taskId)).map((automation) => automation.taskId));
   if (!ended.size) return state;
+  const at = now();
   const activeRuns = { ...state.activeRuns };
+  const finished: Thread[] = [];
   const threads = state.threads.map((thread) => {
     if (!ended.has(thread.id) || thread.archivedAt !== undefined) return thread;
-    const verdict = { outcome: "finished" as const, runEndedAs: "finished" as const, ...(threadOnScreen(state, thread.id) ? {} : { outcomeUnread: true as const }) };
+    const verdict = { outcome: "finished" as const, runEndedAs: "finished" as const, runEndedAt: at, ...(threadOnScreen(state, thread.id) ? {} : { outcomeUnread: true as const }) };
     const run = activeRuns[thread.id];
     if (run) activeRuns[thread.id] = { ...run, before: { ...run.before, ...verdict } };
+    finished.push(thread);
     return { ...thread, ...verdict };
   });
-  return { ...state, threads, activeRuns };
+  const watched = { ...state, threads, activeRuns };
+  return finished.reduce((next, thread) => {
+    const lead = coordinatorOf(next.threads, thread);
+    return lead ? updateThread(next, lead.id, (item) => withCoordinationNote(item, coordinationNote(thread.id, `"${thread.title}" finished watching.`, at))) : next;
+  }, watched);
 }
 
 /** An archived thread is unreachable, so its automation would tick forever with nowhere to run. */
