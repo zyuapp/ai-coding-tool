@@ -5,7 +5,7 @@ import { briefPrompt, coordinationNote, coordinatorPrompt } from "../coordinatio
 import { sessionHoldsWork } from "../thread-activity.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
 import { createConversationMessage, type ConversationMessage } from "../../domain/conversation.js";
-import { asCoordinator, canJoinCoordinator, isCoordinator, wantsFreshSession, withCoordinationNote, withMemoryHeard, withoutCoordinationNotes, withoutProposals } from "../../domain/coordination.js";
+import { asCoordinator, isCoordinator, wantsFreshSession, withCoordinationNote, withMemoryHeard, withoutCoordinationNotes, withoutProposals } from "../../domain/coordination.js";
 import type { Thread } from "../../domain/thread.js";
 
 /** A thread as its run starts under a coordinator, what it is told first, and what the run is sent. */
@@ -14,17 +14,19 @@ export type CoordinatedStart = { thread: Thread; notice: ConversationMessage[]; 
 /**
  * A thread `located` in the checkout its run starts in, as coordination leaves it. A new thread a
  * coordinator starts works under it from its first run, and so does one a coordinator on another
- * computer starts here; a new coordinator's threads run on what it runs on itself until the user
- * picks otherwise. A coordinator's run hears everything its threads said since the last one and reads
- * its memory whenever its session has yet to, and one whose session has grown past its budget starts
- * a fresh one, seeded from what this app keeps of it; a run picking up after a usage limit carries on
- * in the session it left. A message is more work for a thread, so one that was resolved is open again.
+ * computer starts here. One whose coordinator was archived or lost its role on the way still names
+ * it, as the threads already under it do, so it is back under it with them. A new coordinator's
+ * threads run on what it runs on itself until the user picks otherwise. A coordinator's run hears
+ * everything its threads said since the last one and reads its memory whenever its session has yet
+ * to, and one whose session has grown past its budget starts a fresh one, seeded from what this app
+ * keeps of it; a run picking up after a usage limit carries on in the session it left. A message is
+ * more work for a thread, so one that was resolved is open again.
  */
 export function coordinatedStart(state: WorkspaceState, pending: PendingRun, located: Thread, existing: Thread | undefined): CoordinatedStart {
-  const lead = existing ? undefined : state.threads.find((item) => item.id === pending.coordination?.coordinatorId);
+  const lead = existing || pending.role === "coordinator" ? undefined : state.threads.find((item) => item.id === pending.coordination?.coordinatorId);
   const remoteLead = existing || pending.role === "coordinator" ? undefined : pending.coordination?.lead;
   const opened = !existing && pending.role === "coordinator" ? asCoordinator(located) : located;
-  const joined = lead && canJoinCoordinator(opened, lead) ? { ...opened, parentId: lead.id } : remoteLead ? { ...opened, remoteLead } : opened;
+  const joined = lead ? { ...opened, parentId: lead.id } : remoteLead ? { ...opened, remoteLead } : opened;
   const coordinating = isCoordinator(joined);
   const fresh = !pending.warming && wantsFreshSession(joined, sessionHoldsWork(state, joined.id));
   const told = coordinating && joined.coordinationNotes ? withoutCoordinationNotes(joined, new Set(joined.coordinationNotes.map((note) => note.id))) : joined;

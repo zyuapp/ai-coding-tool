@@ -4,7 +4,7 @@ import { reduce, type WorkspaceEffect, type WorkspaceTransition } from "../../sr
 import { coordinationContext } from "../../src/application/coordination.ts";
 import { sidebarLists } from "../../src/application/sidebar-lists.ts";
 import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
-import type { ThreadBrief, ThreadProposal } from "../../src/domain/coordination.ts";
+import { coordinatedThreads, type ThreadBrief, type ThreadProposal } from "../../src/domain/coordination.ts";
 import { activeRun, correlatedRunEvent, effectAt, PROJECT, required, task, workspace } from "./workspace-reducer-fixtures.mts";
 
 const PROJECTLESS = { id: "projectless", kind: "projectless" as const, root: "/tmp" };
@@ -157,6 +157,27 @@ test("at most twelve suggestions wait at once, the ones already waiting first", 
   const filled = reduce(state, { type: "coordination.proposed", taskId: "lead", proposals: [...twelve, proposal("p12")] }).state;
   assert.deepEqual(coordinator(filled).proposals?.map((item) => item.id), twelve.map((item) => item.id));
   assert.equal(reduce(filled, { type: "coordination.proposed", taskId: "lead", proposals: [proposal("late")] }).state, filled, "a full list takes no more");
+});
+
+test("a thread started as its coordinator is archived or loses its role is back under it with the others once it returns", () => {
+  const away = { archive: { type: "task.archive", taskId: "lead" }, role: { type: "task.set-role", taskId: "lead", role: null } } as const;
+  const back = { archive: { type: "task.restore", taskId: "lead" }, role: { type: "task.set-role", taskId: "lead", role: "coordinator" } } as const;
+  const state = workspace({ threads: [lead({ proposals: [proposal("p1")] }), task("old", { parentId: "lead" })], currentId: "lead" });
+  const starts = {
+    delegated: reduce(state, { type: "task.send", text: "Fix it", coordinatorId: "lead", brief: BRIEF, from: "lead" }),
+    suggested: reduce(state, { type: "proposal.start", taskId: "lead", proposalId: "p1" }),
+  };
+  for (const how of ["archive", "role"] as const) {
+    for (const [which, sending] of Object.entries(starts)) {
+      const gone = reduce(sending.state, away[how]);
+      const started = reduce(gone.state, { type: "run.resolved", pendingId: required(resolving(sending)[0]).pendingId, workspace: PROJECTLESS });
+      const fresh = required(started.state.threads.find((thread) => thread.id !== "lead" && thread.id !== "old"));
+      assert.equal(fresh.parentId, "lead", `${how}, ${which}: it names its coordinator, as the threads already under it do`);
+      assert.equal(effectAt(started, "start-run").command.coordinationRole, undefined, `${how}, ${which}: it runs on its own while its coordinator is away`);
+      const returned = reduce(started.state, back[how]).state;
+      assert.deepEqual(coordinatedThreads(returned.threads, "lead").map((thread) => thread.id).sort(), [fresh.id, "old"].sort(), `${how}, ${which}`);
+    }
+  }
 });
 
 test("only a coordinator keeps suggestions, and none is ever left starting after a restart", () => {
