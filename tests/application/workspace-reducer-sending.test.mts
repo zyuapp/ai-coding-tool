@@ -184,6 +184,16 @@ test("stopping a run hands the queue back to the composer instead of speaking fo
   assert.ok(cancelled.state.threads[0].runEndedAt, "the work the stop cut short knows when it ended");
 });
 
+test("a run that finishes after its thread was archived hands the queue back rather than sending it", () => {
+  const archived = reduce(queueMessage(running(), "Then update the docs"), { type: "task.archive", taskId: "task-a" }).state;
+  const finished = reduce(archived, { type: "run.event", event: { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 2, status: "succeeded" } });
+  assert.ok(finished.effects.every((effect) => effect.type !== "resolve-run-workspace"), "nothing runs on a thread the user archived");
+  assert.deepEqual(finished.state.queuedMessages, {});
+  assert.deepEqual(finished.state.pendingRuns, {});
+  assert.equal(finished.state.prompts["task-a"], "Then update the docs", "what the user wrote waits in the thread's composer");
+  assert.equal(finished.state.actionError, null);
+});
+
 test("dropping a queued message removes only that one", () => {
   const queued = queueMessage(queueMessage(running(), "First"), "Second");
   const [first] = queued.queuedMessages["task-a"];

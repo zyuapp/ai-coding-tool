@@ -313,18 +313,19 @@ export function withUndelivered(state: WorkspaceState, taskId: string, messages:
 
 /**
  * A finished run hands its queue on one message at a time, so each queued message gets its own run
- * and the ones behind it wait for that run to finish. A run the user stopped hands what they wrote
- * back to the composer instead of speaking for them, and nothing else queued is delivered.
+ * and the ones behind it wait for that run to finish. A run the user stopped, or whose thread they
+ * archived, hands what they wrote back to the composer instead of speaking for them, and nothing
+ * else queued is delivered.
  */
 export function drainQueue(state: WorkspaceState, taskId: string, status: RunStatus, warming = false): WorkspaceTransition {
   const queued = queuedFor(state, taskId);
   if (!queued.length) return settled(state);
-  if (status === "cancelled") {
+  const thread = state.threads.find((item) => item.id === taskId);
+  if (status === "cancelled" || thread?.archivedAt !== undefined) {
     const own = queued.filter(isUsersOwn);
     const left = withUndelivered(withQueued(state, taskId, []), taskId, queued.filter((message) => !isUsersOwn(message)));
     return own.length ? handedBack(left, taskId, own) : settled(left);
   }
-  const thread = state.threads.find((item) => item.id === taskId);
   if (!thread) return settled(withQueued(state, taskId, []));
   /** A thread waiting out its usage limit keeps its queue until the limit lifts. */
   if (thread.limitPause) return settled(state);
