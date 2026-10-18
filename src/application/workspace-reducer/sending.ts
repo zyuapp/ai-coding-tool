@@ -24,11 +24,17 @@ type SendInput = Extract<WorkspaceInput, {
 }>;
 
 /**
- * `coordination` and `answers` are what the reducer itself adds to a send, never fields of the
- * command: which suggestion a thread it starts is, when the user started one, and which decision
- * the send answers.
+ * What the reducer itself says of a send, never fields of the command: which decision it answers, and
+ * whether it is a next step pressed on a coordinator's card, whose outcome that coordinator is waiting on.
  */
-export function reduceSending(state: WorkspaceState, input: SendInput, coordination: Pick<CoordinationSend, "proposalId"> = {}, answers?: string): WorkspaceTransition {
+export type SendSaid = { answers?: string; step?: true };
+
+/**
+ * `coordination` and `said` are what the reducer itself adds to a send: which suggestion a thread it
+ * starts is, when the user started one, and what else it says of the message.
+ */
+export function reduceSending(state: WorkspaceState, input: SendInput, coordination: Pick<CoordinationSend, "proposalId"> = {}, said: SendSaid = {}): WorkspaceTransition {
+  const { answers } = said;
   switch (input.type) {
     case "question.set-answer":
     case "question.answer": {
@@ -72,7 +78,7 @@ export function reduceSending(state: WorkspaceState, input: SendInput, coordinat
        */
       if (thread?.archivedAt !== undefined) {
         if (input.from !== undefined || input.sender !== undefined) return rejected(state, ARCHIVED_SEND_ERROR);
-        const restored = reduceSending(updateThread(state, thread.id, ({ archivedAt: _restored, ...item }) => item), input, coordination, answers);
+        const restored = reduceSending(updateThread(state, thread.id, ({ archivedAt: _restored, ...item }) => item), input, coordination, said);
         return { ...restored, effects: [...fileThread(state, thread, false), ...restored.effects] };
       }
       /** A thread halfway into a checkout of its own has nowhere settled to run, so the send waits for the user. */
@@ -93,6 +99,11 @@ export function reduceSending(state: WorkspaceState, input: SendInput, coordinat
       const prompt = sentPrompt(text, pastes, annotations, attachments, files);
       const sentBy: MessageOrigin | undefined = sender ? { kind: "thread", threadId: sender.id, title: sender.title, ...(sender.computer ? { computer: sender.computer } : {}) } : undefined;
       const signed = sender ? `${senderPrompt(state.threads, sender, thread)}\n\n${prompt}` : prompt;
+      /**
+       * What the user wrote to a thread that is already there, which they are watching: never what any
+       * thread sent, itself included, a decision's answer, or a step its coordinator offered.
+       */
+      const usersOwn = thread !== undefined && input.from === undefined && input.sender === undefined && answers === undefined && !said.step ? { usersOwn: true as const } : {};
       /** A thread waiting out its usage limit holds the message for when it lifts, and goes first then. */
       const held = Boolean(thread && !state.activeRuns[thread.id] && heldByLimit(state, thread.id, Date.now()));
       if (thread && (state.activeRuns[thread.id] || held)) {
@@ -102,6 +113,7 @@ export function reduceSending(state: WorkspaceState, input: SendInput, coordinat
           prompt: signed,
           ...originFields(sentBy),
           ...(answers ? { answers } : {}),
+          ...usersOwn,
           attachments: attachments.map((attachment) => attachment.path),
           ...(annotations.length ? { annotations } : {}),
           ...(pastes.length ? { pastes } : {}),
@@ -138,6 +150,7 @@ export function reduceSending(state: WorkspaceState, input: SendInput, coordinat
         prompt: signed,
         ...(sentBy ? { messageOrigin: sentBy } : {}),
         ...(answers ? { answers } : {}),
+        ...usersOwn,
         attachments: attachments.map((attachment) => attachment.path),
         ...(annotations.length ? { annotations } : {}),
         ...(pastes.length ? { pastes } : {}),

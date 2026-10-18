@@ -17,7 +17,7 @@ import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel } fr
 import type { RunStatus } from "../../domain/run.js";
 import { createSentMessage, type Annotation, type AttachedFile, type PastedText, type RunAttachment } from "../../domain/conversation.js";
 import type { Project } from "../../domain/project.js";
-import { isUsersOwn } from "../../domain/message-origin.js";
+import { isUsersOwn, legacyOrigin } from "../../domain/message-origin.js";
 import { lastRunOutcome, type Thread } from "../../domain/thread.js";
 import { withoutLimitPause } from "../../domain/usage-limit.js";
 import type { Worktree } from "../../domain/worktree.js";
@@ -341,6 +341,8 @@ export function drainQueue(state: WorkspaceState, taskId: string, status: RunSta
   /** A thread moving into a checkout still being made keeps its queue until it lands there. */
   if (state.creatingWorktrees.includes(taskId)) return settled(state);
   const [next] = queued;
+  /** A message from a build that kept only a label says where it came from by that label. */
+  const origin = next.origin ?? (next.detail ? legacyOrigin(next.detail) : undefined);
   const project = projectFor(state, thread);
   const pending: PendingRun = {
     id: crypto.randomUUID(),
@@ -354,8 +356,9 @@ export function drainQueue(state: WorkspaceState, taskId: string, status: RunSta
     ...(next.annotations ? { annotations: next.annotations } : {}),
     ...(next.pastes ? { pastes: next.pastes } : {}),
     ...(next.files ? { files: next.files } : {}),
-    ...(next.origin ? { messageOrigin: next.origin } : {}),
+    ...(origin ? { messageOrigin: origin } : {}),
     ...(next.answers ? { answers: next.answers } : {}),
+    ...(next.usersOwn ? { usersOwn: true as const } : {}),
     queuedIds: [next.id],
     ...(warming ? { warming: true as const } : {}),
   };

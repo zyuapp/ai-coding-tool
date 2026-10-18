@@ -119,8 +119,11 @@ test("a message held for a paused thread survives a restart and is what it resum
   const loaded = reduce(workspace({ projects: [PROJECT], threads: [] }), { type: "store.loaded", data: parsed.data }).state;
   assert.equal(loaded.queuedMessages.a?.[0]?.text, "also fix the tests");
 
+  assert.equal(loaded.queuedMessages.a?.[0]?.usersOwn, true, "it is still the user's own");
+
   const woke = resolveAll(reduce(loaded, { type: "limits.elapsed", at: session.resetsAt }));
   assert.equal(effectOf(woke, "start-run").command.prompt, "also fix the tests");
+  assert.equal(woke.state.activeRuns.a?.usersOwn, true, "so the turn it starts is theirs");
   assert.equal(thread(woke.state, "a").limitPause, undefined);
   assert.deepEqual(woke.state.queuedMessages.a ?? [], []);
 });

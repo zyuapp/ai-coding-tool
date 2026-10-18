@@ -94,7 +94,7 @@ export type DesktopShortcutUnavailable = Extract<DesktopShortcutRefusal, { reaso
  * A run the user or the scheduler asked for that is still resolving its workspace. It lives in state
  * rather than in a closure so the reducer can re-check the thread when resolution lands.
  */
-export type PendingRun = {
+export type PendingRun = Pick<HeldMessage, "usersOwn"> & {
   id: string;
   runId: string;
   origin: "composer" | "automation";

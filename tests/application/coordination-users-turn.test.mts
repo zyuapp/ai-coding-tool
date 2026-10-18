@@ -115,6 +115,32 @@ test("a queued answer to a decision is still the decision's when it starts its r
   assert.equal(resolved.activeRuns.one?.usersOwn, undefined);
 });
 
+test("a next step pressed on the coordinator's card is the coordinator's news when its turn ends", () => {
+  const pullRequest = { number: 212, url: "https://github.com/o/r/pull/212", title: "Fix it", state: "open" as const, checks: "failing" as const };
+  const failing = member("one", { brief: { intent: "fix the login test", doneWhen: "the suite passes", delivers: "pull-request" }, pullRequest });
+  const turn = started(workspace({ threads: [lead(), failing], currentId: "lead" }), { type: "coordination.next-step", taskId: "one", step: "fix-ci" });
+  assert.equal(turn.state.activeRuns.one?.usersOwn, undefined, "the coordinator offered the step");
+  assert.equal(wakesOf(ended(turn.state, turn.runId).state).length, 1, "so it is woken to hear how it went");
+});
+
+test("a thread's message to itself, and one from a build that kept only a label, are never taken for the user's", () => {
+  const own = started(idle(), { type: "task.send", taskId: "one", text: "Carry on with the migration", from: "one" });
+  assert.equal(own.state.activeRuns.one?.usersOwn, undefined, "a thread writing to itself is not the user");
+  assert.equal(wakesOf(ended(own.state, own.runId).state).length, 1);
+
+  const labelled = { id: "q1", text: "Also bump the version", prompt: "Also bump the version", attachments: [], detail: "From Lead" };
+  const busy = workspace({ threads: [lead(), member("one")], activeRuns: { one: activeRun("one", "run-1") }, runStatuses: { one: "running" }, queuedMessages: { one: [labelled] } });
+  const drained = reduce(busy, correlatedRunEvent("one", "run-1", 1, { type: "run.status", status: "succeeded" }));
+  const pending = required(Object.values(drained.state.pendingRuns).find((item) => item.taskId === "one"));
+  assert.deepEqual(pending.messageOrigin, { kind: "thread", title: "Lead" }, "the label still says who sent it");
+  const resolved = reduce(drained.state, { type: "run.resolved", pendingId: pending.id, workspace: PROJECTLESS }).state;
+  assert.equal(resolved.activeRuns.one?.usersOwn, undefined);
+  assert.equal(required(resolved.threads.find((thread) => thread.id === "one")?.messages.at(-1)).origin?.kind, "thread");
+
+  const typed = reduce(busy, { type: "task.send", taskId: "one", text: "And the changelog" }).state;
+  assert.equal(typed.queuedMessages.one?.at(-1)?.usersOwn, true, "what the user queues stays theirs when it goes");
+});
+
 /** A coordinator here and "far", a thread it started on the paired computer "studio". */
 const FAR = { threadId: "lead", title: "Lead", computer: "This Mac" };
 const far = (overrides: Partial<Thread> = {}) => task("far", { title: "Far work", remoteLead: FAR, createdAt: 10, ...overrides });

@@ -26,6 +26,8 @@ export type HeldMessage = {
   detail?: string;
   /** The decision this message is the user's answer to, which is open again if the answer never goes. */
   answers?: string;
+  /** The user's own words, which nobody else sent, so the turn the message starts is theirs. Absent on a message from before it was said. */
+  usersOwn?: true;
 };
 
 /** A thread waiting out its account's usage limit. Persisted, so a restart keeps its place in line. */

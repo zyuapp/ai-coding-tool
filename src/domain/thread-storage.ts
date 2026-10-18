@@ -670,7 +670,8 @@ function isHeldMessage(value: unknown): boolean {
     (value.files === undefined || (Array.isArray(value.files) && value.files.every(isAttachedFile))) &&
     (value.origin === undefined || isMessageOrigin(value.origin)) &&
     (value.detail === undefined || typeof value.detail === "string") &&
-    (value.answers === undefined || nonEmptyString(value.answers));
+    (value.answers === undefined || nonEmptyString(value.answers)) &&
+    (value.usersOwn === undefined || value.usersOwn === true);
 }
 
 function isMessageOrigin(value: unknown): value is MessageOrigin {

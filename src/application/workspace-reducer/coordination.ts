@@ -95,13 +95,14 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
        * answered again. The message says what it answers, queued behind a run or starting one, so
        * the decision opens again if it never goes.
        */
-      const sent = reduceSending(state, { type: "task.send", taskId: thread.id, text: `The user decided "${decision.question}": ${answer}`, steer: true }, {}, decision.id);
+      const sent = reduceSending(state, { type: "task.send", taskId: thread.id, text: `The user decided "${decision.question}": ${answer}`, steer: true }, {}, { answers: decision.id });
       return sent.result?.ok === false ? sent : { ...sent, state: answered(sent.state) };
     }
 
     /**
-     * A next step is the user's own word to the thread, sent as any message of theirs is. One the
-     * thread's card no longer offers, as once it has started working, is refused and nothing is sent.
+     * A next step is the user's own word to the thread, sent as any message of theirs is, but one its
+     * coordinator offered, so the turn it starts is news for that coordinator. One the thread's card no
+     * longer offers, as once it has started working, is refused and nothing is sent.
      */
     case "coordination.next-step": {
       const thread = state.threads.find((item) => item.id === input.taskId);
@@ -115,7 +116,7 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       const { working, blocked } = threadActivity(state);
       const { status } = coordinatedThreadStatus(thread, working, blocked);
       if (!nextSteps(thread, status, checkoutAnswer(state, thread)).includes(input.step)) return rejected(state, STEP_GONE);
-      return reduceSending(state, { type: "task.send", taskId: thread.id, text: nextStepOf(input.step).text });
+      return reduceSending(state, { type: "task.send", taskId: thread.id, text: nextStepOf(input.step).text }, {}, { step: true });
     }
 
     case "coordination.set-thread-model": {

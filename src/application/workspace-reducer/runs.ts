@@ -360,7 +360,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   /** Only the composer's own send spent the draft's placement; a thread started any other way leaves it alone. */
   const spent = focusing ? { draftBranch: null, draftWorktree: false, draftWorktreeId: null, draftRole: null } : {};
   const owning = withUsedWorktree(focusing ? handOverDraftDock(state, thread.id) : state, created, arriving?.id);
-  const started = beginRun({ ...owning, threads, startingProposals, ...spent, ...(focusing ? { currentId: thread.id } : {}) }, thread.id, pending.runId, usersOwnSend(pending) ? { ...ATTENDED_RUN, usersOwn: true } : ATTENDED_RUN, undefined, pending.warming ? "warming" : undefined);
+  const started = beginRun({ ...owning, threads, startingProposals, ...spent, ...(focusing ? { currentId: thread.id } : {}) }, thread.id, pending.runId, pending.usersOwn ? { ...ATTENDED_RUN, usersOwn: true } : ATTENDED_RUN, undefined, pending.warming ? "warming" : undefined);
   const drained = pending.queuedIds
     ? withQueued(started, thread.id, queuedFor(started, thread.id).filter((message) => !pending.queuedIds!.includes(message.id)))
     : started;
@@ -383,11 +383,6 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     [{ type: "start-run", command }, ...titling, ...followUps(reviewing.effects)],
     { ok: true, taskId: thread.id },
   );
-}
-
-/** What the user wrote to a thread that is already there: nothing another thread sent, no decision's answer, and nothing that starts a thread for a coordinator. */
-function usersOwnSend(pending: PendingRun) {
-  return pending.messageOrigin === undefined && pending.answers === undefined && pending.coordination === undefined && pending.taskId !== undefined;
 }
 
 /** A thread picked back up after its usage limit lifted: nobody wrote to it, so it is told to carry on. */
