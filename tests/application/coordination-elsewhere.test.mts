@@ -616,6 +616,12 @@ test("a start Stop all caught on its way is stopped as it lands even once its co
       assert.deepEqual(cancels(shows), ["far"], `and as it shows up there once ${how}, ${away ? "told it is away" : "not yet told"}`);
     }
   }
+  for (const [how, coordinator] of [["here", stopped], ["filed away", reduce(stopped, { type: "task.archive", taskId: "lead" }).state]] as const) {
+    const lost = reduce(coordinator, { type: "proposal.settled", taskId: "lead", proposalId: "p1", message: "That computer cannot be reached right now." }).state;
+    const late = mirrored(lost, { ...holder, threads: [far({ remoteLead: named, runEndedAt: 50, runEndedAs: "finished" })], activeRuns: { far: activeRun("far", "users-own-run") } });
+    assert.deepEqual(cancels(late), [], `one first seen past a turn of its own runs someone's run since, which is left alone (${how})`);
+    assert.equal(required(late.state.threads.find((thread) => thread.id === "lead")).caughtStarts, undefined, "and it is past stopping");
+  }
   const restored = reduce(reduce(stopped, { type: "task.archive", taskId: "lead" }).state, { type: "task.restore", taskId: "lead" }).state;
   const back = mirrored(restored, { ...holder, threads: [far({ remoteLead: named })], activeRuns: { far: activeRun("far", "run-far") } });
   assert.deepEqual(cancels(back), ["far"], "and once it is restored");

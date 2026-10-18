@@ -57,7 +57,7 @@ export function remoteNews(previous: WorkspaceState, next: WorkspaceState): Remo
       if (heard.state !== news.state) news.leads.add(lead.id);
       /** A thread the user allowed there settles its card as it shows up, even when that computer's answer was lost. */
       const proposalId = member.remoteLead!.proposalId;
-      const landed = proposalId ? proposalLanded(heard.state, lead.id, proposalId, member.id, computer) : settled(heard.state);
+      const landed = proposalId ? proposalLanded(heard.state, lead.id, proposalId, member, computer) : settled(heard.state);
       news.state = landed.state;
       news.effects.push(...heard.effects, ...landed.effects);
     }
@@ -121,7 +121,7 @@ function caughtLanding(news: RemoteNews, thread: Thread, computer: PairedCompute
   const { threadId: leadId, proposalId } = thread.remoteLead!;
   const lead = news.state.threads.find((item) => item.id === leadId);
   if (!proposalId || !catching(lead, proposalId)) return;
-  const landed = proposalLanded(news.state, leadId, proposalId, thread.id, computer);
+  const landed = proposalLanded(news.state, leadId, proposalId, thread, computer);
   news.state = landed.state;
   news.effects.push(...landed.effects);
 }

@@ -94,7 +94,7 @@ function proposalSettled(state: WorkspaceState, input: Extract<ProposalInput, { 
   if (input.threadId !== undefined) {
     const proposal = lead?.proposals?.find((item) => item.id === input.proposalId);
     const place = proposal?.place.computer?.id ?? lead?.caughtStarts?.[input.proposalId]?.computer;
-    return proposalLanded(state, input.taskId, input.proposalId, input.threadId, state.computers.paired.find((item) => item.id === place));
+    return proposalLanded(state, input.taskId, input.proposalId, { id: input.threadId }, state.computers.paired.find((item) => item.id === place));
   }
   if (!lead || !catching(lead, input.proposalId)) return settled(withProposalFailure(state, input.taskId, input.proposalId, input.message ?? "The thread did not start."));
   const refused = input.refused ? updateThread(state, lead.id, (item) => withoutCaughtStart(item, input.proposalId)) : state;
@@ -108,17 +108,21 @@ export function catching(lead: Thread | undefined, proposalId: string): boolean 
 }
 
 /**
- * A thread a coordinator here allowed on `computer` having landed there as `threadId`, as that
- * computer answered or as the thread itself shows up there, whichever is first heard: its card is
- * gone, and a start Stop all caught on its way is stopped as it lands. Hearing it again changes nothing.
+ * A thread a coordinator here allowed on `computer` having landed there, as that computer answered
+ * or as the thread itself shows up there, whichever is first heard: its card is gone, and a start
+ * Stop all caught on its way is stopped as it lands. Its run is the thread's first, so one first
+ * seen past a turn of its own is past stopping: a run going there now is someone's since, and is
+ * left alone. Hearing it again changes nothing.
  */
-export function proposalLanded(state: WorkspaceState, leadId: string, proposalId: string, threadId: string, computer: PairedComputer | undefined): WorkspaceTransition {
+export function proposalLanded(state: WorkspaceState, leadId: string, proposalId: string, landed: Pick<Thread, "id" | "runEndedAt">, computer: PairedComputer | undefined): WorkspaceTransition {
+  const threadId = landed.id;
   const lead = state.threads.find((item) => item.id === leadId);
   const carded = lead?.proposals?.some((item) => item.id === proposalId) === true;
   const caught = catching(lead, proposalId);
   if (!carded && !caught && !state.startingProposals.includes(proposalId)) return settled(state);
   const started = withoutStarting(carded ? updateThread(state, leadId, (item) => withoutProposals(item, new Set([proposalId]))) : state, proposalId);
   if (!caught) return settled(started);
+  if (landed.runEndedAt !== undefined) return settled(updateThread(started, leadId, (item) => withoutCaughtStart(item, proposalId)));
   const cancel: AppCommand = { type: "run.cancel", taskId: threadId };
   const effects: WorkspaceEffect[] = computer && supportsComputerCommand(computer.capabilities, cancel) ? [{ type: "computer.forward", id: computer.id, inputs: [cancel] }] : [];
   /** Its end is news only to a coordinator here to hear it; one away since hears nothing of what its thread did meanwhile. */
