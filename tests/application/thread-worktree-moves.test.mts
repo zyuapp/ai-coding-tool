@@ -109,6 +109,38 @@ test("a move waiting on the run is checked again when the run ends, and taken ba
   assert.ok(unasked.state.actionError, "without afterRun a running thread still refuses");
 });
 
+test("a coordinator never moves itself into a worktree, nor is moved into one by another thread, but can go back to the project, and the user still moves it", async () => {
+  const leading = fixture();
+  leading.threads = leading.threads.map((item) => ({ ...item, role: "coordinator" as const }));
+  const { host } = desktop(leading);
+  for (const destination of [{ kind: "new" } as const, toWt2]) {
+    const refused = await answerThreadRequest(host, move({ type: "task.move-worktree", destination }));
+    assert.equal(refused.ok, false);
+    assert.match(refused.ok ? "" : refused.message, /^A coordinator stays in its project's checkout, .* Start a thread with start_thread and worktree: true/);
+    const other = await answerThreadRequest(host, move({ type: "task.move-worktree", taskId: "Invoices", destination }));
+    assert.equal(other.ok, false, "another thread's move of a coordinator is refused too");
+  }
+  assert.deepEqual(host.state().movesAfterRun, {});
+  assert.deepEqual(host.state().creatingWorktrees, []);
+  assert.equal((await answer(host, move({ type: "task.move-worktree", destination: { kind: "local" } }))).thread?.worktreeId, "wt1");
+  assert.deepEqual(host.state().movesAfterRun, { caller: { kind: "local" } }, "back to the project waits for the turn to end");
+
+  const asked = reduce(leading, { type: "task.move-worktree", taskId: "caller", destination: toWt2, afterRun: true });
+  assert.equal(asked.result?.ok, false, "the reducer refuses a coordinator moving itself whoever forwards it");
+  assert.deepEqual(asked.state.movesAfterRun, {});
+  const byUser = reduce(leading, { type: "task.move-worktree", taskId: "other", destination: { kind: "new" } });
+  assert.deepEqual(byUser.effects.filter((effect) => effect.type === "create-worktree").map((effect) => effect.taskId), ["other"], "the thread menu still moves a coordinator");
+});
+
+test("a move a thread asked for before it became a coordinator does not happen when its run ends", () => {
+  const waiting = reduce(fixture(), { type: "task.move-worktree", taskId: "caller", destination: { kind: "new" }, afterRun: true }).state;
+  const leading = { ...waiting, threads: waiting.threads.map((item) => item.id === "caller" ? { ...item, role: "coordinator" as const } : item) };
+  const ended = reduce(leading, { type: "run.event", event: { type: "run.status", taskId: "caller", runId: "run-1", sequence: 1, status: "succeeded" } });
+  assert.ok(ended.effects.every((effect) => effect.type !== "create-worktree"));
+  assert.equal(ended.state.threads[0].worktreeId, "wt1");
+  assert.match(ended.state.threads[0].messages.at(-1)?.text ?? "", /^Did not move\. A coordinator stays in its project's checkout/);
+});
+
 test("an agent moves into a new checkout, an existing one or back to the project, never past the run", () => {
   assert.equal(isExternalCommand({ type: "task.move-worktree", destination: toWt2 }), true);
   assert.equal(isExternalCommand({ type: "task.move-worktree", taskId: "other", destination: { kind: "local" } }), true);

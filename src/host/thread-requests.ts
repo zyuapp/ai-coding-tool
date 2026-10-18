@@ -1,4 +1,4 @@
-import { browserPermissions } from "../application/workspace-reducer.js";
+import { browserPermissions, WORKSPACE_ERRORS } from "../application/workspace-reducer.js";
 import { browserTarget, dockFor, dockOwner, terminalTarget, type WorkspaceState } from "../application/workspace-state.js";
 import { threadSummary, threadWaitResult } from "../application/thread-projection.js";
 import { isWorking } from "../application/thread-activity.js";
@@ -166,6 +166,10 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
       ? { ...command, taskId: caller.id, afterRun: true as const }
       : undefined;
     const named = ownMove ?? (target ? { ...command, taskId: target.thread.id } as typeof command : command);
+    /** A coordinator does no work itself, so no thread moves one into a worktree; the user still can, from its menu. */
+    if (named.type === "task.move-worktree" && named.destination.kind !== "local" && !target?.computer && isCoordinator(before.threads.find((thread) => thread.id === named.taskId))) {
+      return failed(WORKSPACE_ERRORS.worktreeCoordinator);
+    }
     /** A new thread starts by the rules every start shares; a command for an existing thread goes where that thread is. */
     const start = named.type === "task.send" && named.taskId === undefined && caller
       ? newThreadSend(before, caller, named, request.computer === undefined ? undefined : namedComputer(before, request.computer))

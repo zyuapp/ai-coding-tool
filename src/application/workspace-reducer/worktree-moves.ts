@@ -1,5 +1,6 @@
 import type { TaskCommand } from "../../contracts/commands.js";
 import { createConversationMessage, createFailureMessage } from "../../domain/conversation.js";
+import { isCoordinator } from "../../domain/coordination.js";
 import type { Thread } from "../../domain/thread.js";
 import { worktreeName, type Worktree, type WorktreeDestination } from "../../domain/worktree.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, threadWorkspaceRoot, worktreeById } from "../thread-location.js";
@@ -7,7 +8,7 @@ import { updateThread } from "../thread-run-state.js";
 import { isWorking } from "../thread-activity.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import { rereadDiff } from "./diff-reads.js";
-import { WORKTREE_CREATING_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_PROJECT_ERROR, WORKTREE_RELEASING_ERROR, WORKTREE_RUNNING_ERROR } from "./errors.js";
+import { WORKTREE_COORDINATOR_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_PROJECT_ERROR, WORKTREE_RELEASING_ERROR, WORKTREE_RUNNING_ERROR } from "./errors.js";
 import { now, settled, targetId, rejected } from "./shared.js";
 import { withCreatingWorktree } from "./worktree-claims.js";
 import type { WorkspaceTransition } from "./types.js";
@@ -51,6 +52,11 @@ function moveToNewWorktree(state: WorkspaceState, thread: Thread, projectId: str
   return settled(withCreatingWorktree(state, thread.id), [{ type: "create-worktree", taskId: thread.id, projectRoot: threadWorkspaceRoot(state, thread)!, move: true, name: thread.title, projectId }]);
 }
 
+/** A coordinator does no work itself, so it never moves itself into a worktree; the user can still move it from the thread menu. */
+function movesCoordinatorAway(thread: Thread, destination: WorktreeDestination) {
+  return destination.kind !== "local" && isCoordinator(thread);
+}
+
 function withoutMoveAfterRun(state: WorkspaceState, taskId: string): WorkspaceState {
   if (!state.movesAfterRun[taskId]) return state;
   const { [taskId]: _settled, ...movesAfterRun } = state.movesAfterRun;
@@ -65,6 +71,7 @@ export function reduceWorktreeMove(state: WorkspaceState, input: Extract<TaskCom
   if (state.creatingWorktrees.includes(thread.id)) return rejected(state, WORKTREE_CREATING_ERROR);
   if (leavingThreadIds(state).has(thread.id)) return rejected(state, WORKTREE_RELEASING_ERROR);
   const destination = input.destination;
+  if (input.afterRun && movesCoordinatorAway(thread, destination)) return rejected(state, WORKTREE_COORDINATOR_ERROR);
   const target = destination.kind === "new" ? undefined : arrival(state, thread, project.id, destination);
   if (typeof target === "string") return rejected(state, target);
   /** Asking for where the thread already is takes back a move it was waiting to make. */
@@ -91,6 +98,7 @@ export function settleMoveAfterRun(state: WorkspaceState, taskId: string): Works
   const project = projectFor(rest, thread);
   if (!thread || thread.archivedAt !== undefined) return settled(rest);
   const target = !project?.workspaceId ? WORKTREE_PROJECT_ERROR
+    : movesCoordinatorAway(thread, destination) ? WORKTREE_COORDINATOR_ERROR
     : leavingThreadIds(rest).has(taskId) ? WORKTREE_RELEASING_ERROR
     : destination.kind === "new" ? undefined
     : arrival(rest, thread, project.id, destination);

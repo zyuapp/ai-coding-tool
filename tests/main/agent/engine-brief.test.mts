@@ -177,6 +177,18 @@ test("a side chat, which cannot move its thread, is only told to start a thread 
   }
 });
 
+test("a coordinator on either engine, which does no work itself, is never offered a move into a worktree nor told to make one, only to start a thread in one", async () => {
+  const { claude, codex } = await briefs({ threads, coordinationRole: "coordinator", coordination });
+  for (const brief of [claude, codex]) {
+    assert.ok(!brief.tools.includes("move_to_worktree"));
+    assert.ok(brief.tools.includes("delete_worktree"), "it can still clear away a worktree once the user asks");
+    assert.doesNotMatch(brief.instructions, /move_to_worktree/);
+    assert.match(brief.instructions, /Start a thread with start_thread and worktree to do it\./);
+    assert.match(brief.instructions, /Never merge, discard work, or do anything destructive or irreversible without the user's explicit word/);
+  }
+  assert.deepEqual(claude.tools, codex.tools);
+});
+
 /** Settings that change what a run is told or offered, each of which a warm session cannot take on. */
 const briefChanges: [string, Settings][] = [
   ["automations", { automations }],

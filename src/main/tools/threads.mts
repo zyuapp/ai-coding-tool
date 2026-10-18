@@ -295,9 +295,12 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
   }),
 ];
 
-/** A coordinator is woken with its threads' news, so it never holds its turn open waiting on one. */
+/**
+ * A coordinator is woken with its threads' news, so it never holds its turn open waiting on one, and
+ * it does no work itself, so it never moves into a worktree: work there is a thread started in one.
+ */
 const COORDINATOR_THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = THREAD_TOOLS
-  .filter((tool) => tool.name !== "wait_for_thread")
+  .filter((tool) => tool.name !== "wait_for_thread" && tool.name !== "move_to_worktree")
   .map((tool) => tool.name === "start_thread" ? { ...tool, input: COORDINATOR_START_INPUT } : tool);
 
 /** A thread one working under a coordinator starts works under that coordinator too. */

@@ -13,6 +13,7 @@ export const TERMINAL_FOLDER_ERROR = "Open a project folder before starting a te
 export const WORKTREE_RUNNING_ERROR = "Stop this thread's run before changing where it works.";
 export const WORKTREE_CREATING_ERROR = "This thread's worktree is still being created.";
 export const WORKTREE_RELEASING_ERROR = "This thread's worktree is still being removed.";
+export const WORKTREE_COORDINATOR_ERROR = "A coordinator stays in its project's checkout, since it changes nothing itself. Start a thread with start_thread and worktree: true to do the work in a worktree.";
 
 export const CHECKOUT_RUNNING_ERROR = "Stop the threads running in this project before starting one on another branch.";
 export const SWITCH_RUNNING_ERROR = "Stop the threads running in this checkout before switching it to another branch.";
@@ -35,6 +36,7 @@ export const WORKSPACE_ERRORS = {
   worktreeRunning: WORKTREE_RUNNING_ERROR,
   worktreeCreating: WORKTREE_CREATING_ERROR,
   worktreeReleasing: WORKTREE_RELEASING_ERROR,
+  worktreeCoordinator: WORKTREE_COORDINATOR_ERROR,
   checkoutRunning: CHECKOUT_RUNNING_ERROR,
   switchRunning: SWITCH_RUNNING_ERROR,
   switchProject: SWITCH_PROJECT_ERROR,
