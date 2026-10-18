@@ -234,6 +234,15 @@ test("a stop the user made outlasts a session limit that gets to the run first",
   assert.equal(thread(limited(reduce(runningThreads("a"), { type: "run.cancel", taskId: "a" }).state, "a", session).state, "a").outcome, "stopped");
   const weeklyStop = limited(reduce(runningThreads("a"), { type: "run.cancel", taskId: "a" }).state, "a", weekly);
   assert.equal(thread(weeklyStop.state, "a").outcome, "failed", "a weekly limit is said as the failure it is");
+
+  /** The limit is the account's, so a stopped run reaching one still holds every thread of its engine that waits. */
+  const waiting = limited(runningThreads("a", "b"), "b", session).state;
+  for (const limit of [session, weekly]) {
+    const later = { ...limit, resetsAt: limit.resetsAt + HOUR };
+    const stopped = limited(reduce(waiting, { type: "run.cancel", taskId: "a" }).state, "a", later).state;
+    assert.equal(thread(stopped, "a").limitPause, undefined, `${limit.window}: the stopped thread does not wait`);
+    assert.deepEqual([thread(stopped, "b").limitPause?.resetsAt, thread(stopped, "b").limitPause?.window], [later.resetsAt, limit.window], `${limit.window}: the one already waiting waits for it`);
+  }
 });
 
 test("a cut-short workflow is resumed rather than restarted, and goes after the others", () => {

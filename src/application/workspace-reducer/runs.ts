@@ -26,7 +26,7 @@ import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel, eng
 import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
 import { createConversationMessage, createSentMessage } from "../../domain/conversation.js";
 import { appendMessages } from "../../domain/conversation-updates.js";
-import { pausedForLimit } from "../limit-pauses.js";
+import { limitReached, pausedForLimit } from "../limit-pauses.js";
 import { isCoordinator, reopenedIfStuck, worksUnderCoordinator } from "../../domain/coordination.js";
 import { clampTitle, type Thread } from "../../domain/thread.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
@@ -175,8 +175,9 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       if (event.type !== "run.status" || event.status === "running" || event.status === "awaiting-approval") return settled(next, [...environment, ...said]);
       const moved = settleMoveAfterRun(next, event.taskId);
       next = moved.state;
-      /** A run being stopped stays ended, even when a usage limit got to it first. */
-      if (event.status === "failed" && event.limit && !stopping) next = pausedForLimit(next, event.taskId, event.limit, now());
+      /** A run being stopped stays ended, even when a usage limit got to it first, which still holds its engine's waiting threads. */
+      const limit = reported.type === "run.status" && reported.status === "failed" ? reported.limit : undefined;
+      if (limit) next = stopping ? limitReached(next, event.taskId, limit) : pausedForLimit(next, event.taskId, limit, now());
       /** A turn that still ends failed once a session limit has had its say left the thread stuck, so it is open again. */
       if (event.status === "failed") next = updateThread(next, event.taskId, (thread) => thread.runEndedAs === "failed" ? reopenedIfStuck(thread) : thread);
       const drained = drainQueue(noteTurnEnded(next, event.taskId, event.status, active), event.taskId, event.status);

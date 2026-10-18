@@ -20,12 +20,21 @@ export function pausedForLimit(state: WorkspaceState, taskId: string, limit: Usa
   if (!thread) return state;
   const workflow = (state.workflows[taskId] ?? []).some((item) => item.status === "stopped");
   const pause: LimitPause = { ...limit, pausedAt: at, ...(workflow ? { workflow: true as const } : {}) };
-  const threads = withEngineLimit(state.threads, thread.engine, limit);
-  return updateThread({ ...state, threads }, taskId, (item) => {
+  return updateThread(limitReached(state, taskId, limit), taskId, (item) => {
     if (pause.window === "weekly") return { ...item, limitPause: pause };
     const { outcome: _expected, outcomeUnread: _unread, runEndedAs: _carriedOn, ...rest } = item;
     return { ...rest, limitPause: pause };
   });
+}
+
+/**
+ * A limit one thread's run reached, which is its account's, so every thread of its engine already
+ * waiting waits for it too, whether or not that thread itself waits in line.
+ */
+export function limitReached(state: WorkspaceState, taskId: string, limit: UsageLimit): WorkspaceState {
+  const thread = state.threads.find((item) => item.id === taskId);
+  const threads = thread ? withEngineLimit(state.threads, thread.engine, limit) : state.threads;
+  return threads === state.threads ? state : { ...state, threads };
 }
 
 /**
