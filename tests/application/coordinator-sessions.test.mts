@@ -209,3 +209,24 @@ test("the seed stays bounded however long the conversation", () => {
   assert.match(unread, /^This coordinator continues in a fresh session/);
   assert.doesNotMatch(unread, /The last messages/, "a conversation not loaded yet is left to read_thread");
 });
+
+test("a coordinator compacted by hand on Codex keeps its session, measured at the size Codex recounts for the compacted context", () => {
+  const codexSession = { continuation: { provider: "codex", value: "thread-1" }, continuationStatus: "available" as const, contextUsage: { tokens: 125_000, limit: 258_400, model: "gpt-6.1-sol" } };
+  const state = workspace({ threads: [lead("lead", { engine: "codex", model: "gpt-6.1-sol", ...codexSession })], currentId: "lead" });
+  const compacting = reduce(state, { type: "run.compact" });
+  const resolved = reduce(compacting.state, { type: "run.resolved", pendingId: effectAt(compacting, "resolve-run-workspace").pendingId, workspace: PROJECTLESS });
+  const command = effectAt(resolved, "start-run").command;
+  let compacted = resolved.state;
+  for (const [sequence, event] of [
+    { type: "context.compaction-status", compacting: true },
+    { type: "context.usage", tokens: 13_779, limit: 258_400, model: "gpt-6.1-sol" },
+    { type: "context.compacted", trigger: "manual", preTokens: 125_000 },
+    { type: "context.compaction-status", compacting: false },
+    { type: "run.status", status: "succeeded" },
+  ].entries()) compacted = reduce(compacted, correlatedRunEvent("lead", command.runId, sequence + 1, event as never)).state;
+
+  assert.equal(compacted.threads[0]?.contextUsage?.tokens, 13_779);
+  const run = started(compacted, { type: "task.send", taskId: "lead", text: "What next?" });
+  assert.deepEqual(run.command.continuation, codexSession.continuation, "the compacted session is resumed, not replaced");
+  assert.equal(run.command.freshSession, undefined);
+});

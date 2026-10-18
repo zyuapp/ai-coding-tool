@@ -355,13 +355,14 @@ test("items the agent starts become tool intents under the names the thread file
   codex.provider.closeAll();
 });
 
+const breakdown = (totalTokens: number) => ({ totalTokens, inputTokens: totalTokens - 200, cachedInputTokens: 11_008, cacheWriteInputTokens: 0, outputTokens: 200, reasoningOutputTokens: 69 });
+
 test.each([
   { model: "gpt-5.6-terra", effort: "high", limit: 258_400 },
   { model: "gpt-6-astra", effort: "ultra", limit: 872_000 },
 ] as const)("$model sends its effort and reports context usage through compaction", async ({ model, effort, limit }) => {
   const emitted: ProviderEvent[] = [];
   const codex = harness();
-  const breakdown = (totalTokens: number) => ({ totalTokens, inputTokens: totalTokens - 200, cachedInputTokens: 11_008, cacheWriteInputTokens: 0, outputTokens: 200, reasoningOutputTokens: 69 });
   const { client } = await turn(codex, { model, effort, emit: (event) => emitted.push(event) }, (client) => {
     for (const modelContextWindow of [null, limit]) {
       client.notify("thread/tokenUsage/updated", { ...at, tokenUsage: { total: breakdown(31_379), last: breakdown(15_707), modelContextWindow } });
@@ -399,11 +400,14 @@ test("manual compaction uses Sol's thread operation and the same visible progres
   assert.deepEqual(client.calls("thread/compact/start"), [{ threadId }]);
   assert.equal(client.calls("turn/start").length, 0, "compaction is not an empty model turn");
   client.notify("item/started", started({ type: "contextCompaction", id: "compact-1" }));
+  /** Codex recounts the replaced history before completing the item, which is the only post-compaction size it sends; the meter reads it, as Claude's reads its post_tokens. */
+  client.notify("thread/tokenUsage/updated", { ...at, tokenUsage: { total: breakdown(900_000), last: breakdown(13_779), modelContextWindow: 258_400 } });
   client.notify("item/completed", completed({ type: "contextCompaction", id: "compact-1" }));
 
   assert.deepEqual(await running, { status: "succeeded" });
-  assert.deepEqual(emitted.filter((event) => event.type !== "continuation"), [
+  assert.deepEqual(emitted.filter((event) => event.type !== "continuation" && event.type !== "spend"), [
     { type: "compaction-status", compacting: true },
+    { type: "usage", tokens: 13_779, limit: 258_400, model: input().model },
     { type: "compaction", trigger: "manual", preTokens: 125_000 },
     { type: "compaction-status", compacting: false },
   ]);
