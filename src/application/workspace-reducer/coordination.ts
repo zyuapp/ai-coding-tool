@@ -1,5 +1,5 @@
 /** Coordinators and their threads: who works under whom, what they report, and what waits on the user. */
-import { drainQueue, queuedFor, resolveWorkspaceEffect, stoppingProcess, threadBusy, withPending, withoutPending } from "./run-queue.js";
+import { drainQueue, queuedFor, resolveWorkspaceEffect, stoppingProcess, threadBusy, withPending, withUnsent } from "./run-queue.js";
 import { reduceSending } from "./sending.js";
 import { released, remoteNews, withoutLapsedStops } from "./coordination-remote.js";
 import { withProposalFailure } from "./proposals.js";
@@ -91,7 +91,8 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       if (thread.archivedAt !== undefined) return settled(answered(state));
       /**
        * A decision only closes once its answer is on its way, so one that could not be sent can be
-       * answered again. One queued behind a run says what it answers, so it opens again if it never goes.
+       * answered again. The message says what it answers, queued behind a run or starting one, so
+       * the decision opens again if it never goes.
        */
       const sent = reduceSending(state, { type: "task.send", taskId: thread.id, text: `The user decided "${decision.question}": ${answer}`, steer: true }, {}, decision.id);
       return sent.result?.ok === false ? sent : { ...sent, state: answered(sent.state) };
@@ -233,8 +234,9 @@ function stopAll(state: WorkspaceState, leadId: string): WorkspaceTransition {
     for (const processId of processIds) next = followedBy(next, stoppingProcess(next.state, taskId, processId));
   }
   for (const { id } of threads) next = followedBy(next, cancelPause(next.state, id));
-  for (const { id, taskId, coordination } of starts) {
-    const without = withoutPending(next.state, id);
+  for (const start of starts) {
+    const { taskId, coordination } = start;
+    const without = withUnsent(next.state, start);
     next = { ...next, state: coordination?.proposalId ? withProposalFailure(without, lead.id, coordination.proposalId, undefined) : without };
     /** What the user queued behind it goes back to its composer, as any stop hands it back. */
     if (taskId && !next.state.activeRuns[taskId]) next = followedBy(next, drainQueue(next.state, taskId, "cancelled"));

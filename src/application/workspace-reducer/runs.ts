@@ -6,7 +6,7 @@ import { coordinatedStart, withSuggestionStarted } from "./coordinated-start.js"
 import { readDiffFrom, rereadReviewsOf } from "./diff-reads.js";
 import { handOverDraftDock } from "./dock-tabs.js";
 import { WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
-import { beginRun, clearedDraft, drainQueue, queuedFor, resolveWorkspaceEffect, sideChannelFor, startRunCommand, stoppingProcess, threadBusy, withAttendedRun, withDeliveredMessage, withPending, withQueued, withSideChat, withSteeringFailure, withoutPending } from "./run-queue.js";
+import { beginRun, clearedDraft, drainQueue, queuedFor, resolveWorkspaceEffect, sideChannelFor, startRunCommand, stoppingProcess, threadBusy, withAttendedRun, withDeliveredMessage, withPending, withQueued, withSideChat, withSteeringFailure, withUnsent, withoutPending } from "./run-queue.js";
 import { followUps, now, settled, targetId, rejected } from "./shared.js";
 import { memberPullRequestRead } from "./pull-requests.js";
 import { withUsedWorktree } from "./worktree-claims.js";
@@ -66,7 +66,7 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
     case "run.unresolved": {
       const pending = state.pendingRuns[input.pendingId];
       if (!pending) return settled(state);
-      const next = withoutPending(state, input.pendingId);
+      const next = withUnsent(state, pending);
       if (pending.origin === "automation") return settled(next, ack(pending, false));
       /** A suggestion that could not start says so on its row, ready to start again. */
       const proposalId = pending.coordination?.proposalId;
@@ -292,7 +292,7 @@ function startReview(state: WorkspaceState, pending: PendingRun, workspace: Work
 function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord, worktree?: CreatedWorktree): WorkspaceTransition {
   const existing = pending.taskId ? state.threads.find((item) => item.id === pending.taskId) : undefined;
   if (pending.taskId && !existing) return rejected(state, "This thread was removed before its message could be sent.");
-  if (pending.taskId && state.activeRuns[pending.taskId]) return rejected(state, "This thread started another run before its message could be sent. Send the message again.");
+  if (pending.taskId && state.activeRuns[pending.taskId]) return rejected(withUnsent(state, pending), "This thread started another run before its message could be sent. Send the message again.");
   /** A checkout made on the way here has no record yet; it belongs to the project the run resolved in. */
   const created = worktree && pending.projectId ? { ...worktree, projectId: pending.projectId } : undefined;
   /** A thread that does not exist yet claims whichever checkout the send named, if it named one. */

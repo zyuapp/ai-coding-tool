@@ -127,6 +127,7 @@ export function reduceSending(state: WorkspaceState, input: SendInput, coordinat
         text,
         prompt: signed,
         ...(sentBy ? { messageOrigin: sentBy } : {}),
+        ...(answers ? { answers } : {}),
         attachments: attachments.map((attachment) => attachment.path),
         ...(annotations.length ? { annotations } : {}),
         ...(pastes.length ? { pastes } : {}),

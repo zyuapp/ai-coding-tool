@@ -7,8 +7,9 @@ import type { Subagent } from "../../src/domain/run.ts";
 import type { Thread } from "../../src/domain/thread.ts";
 import { THREAD_STORE_VERSION } from "../../src/domain/thread-storage.ts";
 import type { Workflow } from "../../src/domain/workflow.ts";
-import { task, workspace, activeRun, correlatedRunEvent, required } from "./workspace-reducer-fixtures.mts";
+import { task, workspace, activeRun, correlatedRunEvent, effectAt, required } from "./workspace-reducer-fixtures.mts";
 
+const PROJECTLESS = { id: "projectless", kind: "projectless" as const, root: "/tmp" };
 const SESSION = { resetsAt: Date.now() + 3_600_000, window: "session" as const };
 const NEWS: CoordinationNote = { id: "n1", threadId: "one", text: "\"One\" ended its turn.", at: 1 };
 const URGENT: CoordinationNote = { ...NEWS, id: "n2", text: "\"One\" failed.", urgent: true };
@@ -379,6 +380,23 @@ test("an answer queued into a run that stops before reading it opens its decisio
   assert.deepEqual(edited.state.queuedMessages.one, [heldAnswer]);
   const dropped = reduce(held.state, { type: "task.drop-queued", taskId: "one", messageId: heldAnswer.id });
   assert.equal(deriveView(dropped.state).coordination.decisions.length, 1, "taking the answer off opens the decision again");
+});
+
+test("an answer whose run never starts opens its decision again", () => {
+  const decision = { id: "d1", question: "Ship?", options: [], raisedAt: 1 };
+  const state = workspace({ currentId: "lead", threads: [lead(), member("one", { decisions: [decision] })] });
+  const answered = reduce(state, { type: "decision.answer", taskId: "one", decisionId: "d1", answer: "Yes" });
+  assert.equal(deriveView(answered.state).coordination.decisions.length, 0, "an answer on its way closes the decision");
+  const pendingId = effectAt(answered, "resolve-run-workspace").pendingId;
+
+  const unresolved = reduce(answered.state, { type: "run.unresolved", pendingId, message: "Reopen the project" });
+  assert.equal(deriveView(unresolved.state).coordination.decisions.length, 1, "a checkout that never resolved sent nothing");
+
+  const own = reduce(answered.state, correlatedRunEvent("one", "run-agent", 1, { type: "run.started", agentInitiated: true }));
+  const overtaken = reduce(own.state, { type: "run.resolved", pendingId, workspace: PROJECTLESS });
+  assert.equal(overtaken.result?.ok, false);
+  assert.equal(deriveView(overtaken.state).coordination.decisions.length, 1, "a turn the agent opened first left the answer unsent");
+  assert.equal(overtaken.state.threads[1]!.messages.length, 0);
 });
 
 test("a message another thread queued for a run that stops is not handed to the user, and its coordinator hears it never arrived", () => {

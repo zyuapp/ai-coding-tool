@@ -31,6 +31,16 @@ export function withoutPending(state: WorkspaceState, pendingId: string): Worksp
   return { ...state, pendingRuns };
 }
 
+/**
+ * A run dropped before its message reached the thread. A decision that message answers is open
+ * again, to be answered anew, as one a queued message answers is when it never goes.
+ */
+export function withUnsent(state: WorkspaceState, pending: PendingRun): WorkspaceState {
+  const without = withoutPending(state, pending.id);
+  const { answers, taskId } = pending;
+  return answers === undefined || taskId === undefined ? without : updateThread(without, taskId, (thread) => withoutAnswer(thread, answers));
+}
+
 export function queuedFor(state: WorkspaceState, taskId: string): QueuedMessage[] {
   return state.queuedMessages[taskId] ?? [];
 }

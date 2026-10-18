@@ -121,6 +121,8 @@ export type PendingRun = {
   files?: AttachedFile[];
   /** Who the message the run starts with comes from, when not the user. */
   messageOrigin?: MessageOrigin;
+  /** The decision the message answers, so it opens again if the run never starts. */
+  answers?: string;
   policy?: ExecutionPolicy;
   automationId?: string;
   /** Automation only: this tick may settle without surfacing if it earns the silence. */
