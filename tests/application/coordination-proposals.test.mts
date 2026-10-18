@@ -174,3 +174,18 @@ test("only a coordinator keeps suggestions, and none is ever left starting after
   assert.deepEqual(deriveView(restarted).coordination.proposals.map(({ starting: going }) => going), [false], "so a restart finds it ready to start again");
   assert.equal(reduce(starting, { type: "proposal.dismiss", taskId: "lead" }).state, starting, "one already starting is past turning down");
 });
+
+test("a thread under a coordinator asking to run one on another computer is put to the user at once", () => {
+  const studio = { id: "studio", name: "Studio" };
+  const asked = proposal("p1", { title: "GPU tests", place: { computer: studio, project: "app", worktree: false }, from: "worker" });
+  const state = workspace({ threads: [lead({ title: "Plan" }), task("worker", { parentId: "lead" })], notifications: true });
+  const announcedOf = (transition: WorkspaceTransition) => transition.effects.flatMap((effect) => effect.type === "announce-thread" ? [[effect.notice.taskId, effect.notice.title, effect.notice.headline]] : []);
+  const filed = reduce(state, { type: "coordination.proposed", taskId: "lead", proposals: [asked] });
+  assert.deepEqual(announcedOf(filed), [["lead", "Plan", "Needs you: Run \"GPU tests\" on Studio?"]], "on the coordinator, whose card holds it, as a decision of its threads is");
+  assert.deepEqual(announcedOf(reduce(filed.state, { type: "coordination.proposed", taskId: "lead", proposals: [proposal("p2")] })), [], "one already waiting is not said again");
+
+  const own = reduce(state, { type: "coordination.proposed", taskId: "lead", proposals: [proposal("p1", { place: { computer: studio, project: "app", worktree: false } }), proposal("p2")] });
+  assert.deepEqual(announcedOf(own), [], "what the coordinator asks for itself, its reply says");
+  const muted = workspace({ ...state, threads: [lead({ muted: true }), task("worker", { parentId: "lead" })] });
+  assert.deepEqual(announcedOf(reduce(muted, { type: "coordination.proposed", taskId: "lead", proposals: [asked] })), [], "a muted coordinator keeps it back");
+});

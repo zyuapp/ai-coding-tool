@@ -3,6 +3,7 @@ import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
 import { LuPlus as Plus } from "react-icons/lu";
 import type { Project, ThreadDropTarget } from "../../domain/project";
 import { hasUnreadAttention } from "../../domain/attention";
+import { isWaitingOnUser } from "../../domain/coordination";
 import type { Thread } from "../../domain/thread";
 import type { SidebarMode, SidebarSection, SidebarSections } from "../../domain/sidebar";
 import type { ActivitySections } from "../../application/thread-order";
@@ -13,7 +14,7 @@ import { SidebarHeader, SidebarResizer } from "./SidebarChrome";
 import type { ThreadHost } from "../../application/computers";
 import { offlineMessage, type ComputerFilter, type ComputerLink } from "../../domain/computers";
 import { PROJECT_DRAG, RECENTS_DROPPABLE, SidebarProjects, useShownThreads } from "./SidebarProjects";
-import { decisionCount, useThreadRows, type SidebarCoordination } from "./SidebarThreadRow";
+import { useThreadRows, type SidebarCoordination } from "./SidebarThreadRow";
 import type { SnoozeHours } from "../../domain/thread-snooze";
 import type { ThreadRole } from "../../domain/thread-role";
 import type { AppUpdate } from "../../domain/app-update";
@@ -99,7 +100,7 @@ export type ProjectSidebarProps = {
 function railSlotsFor(threads: Thread[], marks: Pick<ProjectSidebarProps, "blockedThreadIds" | "runningThreadIds" | "sideChatAttention" | "worktreeThreadIds" | "schedules">, threadsByCoordinator: Map<string, Thread[]>) {
   return threads.reduce((widest, thread) => {
     const members = threadsByCoordinator.get(thread.id) ?? [];
-    const coordinationStatus = decisionCount(thread, threadsByCoordinator) > 0 || members.some((member) => marks.blockedThreadIds.has(member.id) || marks.runningThreadIds.has(member.id));
+    const coordinationStatus = isWaitingOnUser(thread, members) || members.some((member) => marks.blockedThreadIds.has(member.id) || marks.runningThreadIds.has(member.id));
     const status = marks.blockedThreadIds.has(thread.id) || marks.runningThreadIds.has(thread.id) || Boolean(thread.limitPause) || hasUnreadAttention(thread) || marks.sideChatAttention.has(thread.id) || coordinationStatus;
     return Math.max(widest, 1 + Number(Boolean(thread.role)) + Number(marks.worktreeThreadIds.has(thread.id)) + Number(marks.schedules.has(thread.id)) + Number(status));
   }, 1);

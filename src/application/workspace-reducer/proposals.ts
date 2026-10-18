@@ -2,7 +2,8 @@
 import { reduceSending } from "./sending.js";
 import { now, settled } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { coordinationNote, memoryPrompt } from "../coordination.js";
+import { coordinationNote, memoryPrompt, requestHeadline } from "../coordination.js";
+import { announced } from "../notices.js";
 import { updateThread } from "../thread-run-state.js";
 import { newThreadSend, proposalSend } from "../thread-starts.js";
 import { ledStartRefusal, titledFor, type PairedComputer } from "../computers.js";
@@ -18,12 +19,21 @@ const ASKER_GONE = "The thread that asked for this no longer works under this co
 
 export function reduceProposals(state: WorkspaceState, input: ProposalInput): WorkspaceTransition {
   switch (input.type) {
-    /** Suggestions wait for the user, as many as there is room for. Nothing starts until the user starts it. */
+    /**
+     * Suggestions wait for the user, as many as there is room for. Nothing starts until the user starts
+     * it. A thread under the coordinator asking to start one on another computer is put to the user at
+     * once, as its decisions are, since no reply of the coordinator's says so; what the coordinator
+     * asks for itself, its reply says.
+     */
     case "coordination.proposed": {
       const lead = state.threads.find((item) => item.id === input.taskId);
       if (!lead || !isCoordinator(lead)) return settled(state);
       const proposed = withProposals(lead, input.proposals);
-      return proposed === lead ? settled(state) : settled(updateThread(state, lead.id, () => proposed));
+      if (proposed === lead) return settled(state);
+      const filed = updateThread(state, lead.id, () => proposed);
+      const held = new Set(lead.proposals?.map((proposal) => proposal.id));
+      const asked = proposed.proposals!.filter((proposal) => !held.has(proposal.id) && proposal.from !== undefined);
+      return settled(filed, asked.flatMap((proposal) => proposal.place.computer ? announced(filed, lead, requestHeadline(proposal, proposal.place.computer), "request") : []));
     }
 
     /**

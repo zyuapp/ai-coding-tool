@@ -245,6 +245,13 @@ test("a coordinator stands for its threads in the activity lists", () => {
 
   const orphan = coordinationSections([task("lead"), busy], new Set(["busy"]), new Set());
   assert.deepEqual(orphan.running.map((thread) => thread.id), ["busy"], "a thread whose coordinator stepped down stands on its own");
+
+  const place = { computer: { id: "studio", name: "Studio" }, worktree: false };
+  for (const [what, proposal] of [["a suggested thread", { id: "p1", title: "Docs", prompt: "Write them", place: { worktree: false }, proposedAt: 1 }], ["a thread asked for on another computer", { id: "p2", title: "GPU tests", prompt: "Run them", place, from: "busy", proposedAt: 2 }]] as const) {
+    for (const threads of [[lead("lead", { proposals: [proposal] }), busy], [lead("lead", { proposals: [proposal] })]]) {
+      assert.deepEqual(coordinationSections(threads, new Set(["busy"]), new Set()).priority.map((thread) => thread.id), ["lead"], `${what} waits on the user as a decision does, with or without a thread under it`);
+    }
+  }
 });
 
 test("a thread under a coordinator opens as a tab in the coordinator's dock rather than as a thread of its own", () => {

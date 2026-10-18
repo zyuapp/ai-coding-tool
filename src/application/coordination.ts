@@ -5,7 +5,7 @@ import { doingWork, threadActivity, threadStatus, unstoppedSessionWork, type Thr
 import { activitySections, type ActivitySections } from "./thread-order.js";
 import { threadWorkspaceId } from "./thread-location.js";
 import { updateThread } from "./thread-run-state.js";
-import { awayLeadOf, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, leadIdOf, MAX_SUMMARY, openDecisions, remoteLeadOf, stuckVerdict, withCoordinationNote, type CoordinationNote, type CoordinationReport, type CoordinatorMemory, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type RemoteLead, type ThreadBrief, type ThreadProposal } from "../domain/coordination.js";
+import { awayLeadOf, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, isWaitingOnUser, leadIdOf, MAX_SUMMARY, openDecisions, remoteLeadOf, stuckVerdict, withCoordinationNote, type CoordinationNote, type CoordinationReport, type CoordinatorMemory, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type RemoteLead, type ThreadBrief, type ThreadProposal } from "../domain/coordination.js";
 import { lastRunOutcome, threadActivityAt, type Thread } from "../domain/thread.js";
 import type { PullRequestAnswer, PullRequestChecks, PullRequestLink, PullRequestRef, PullRequestState } from "../domain/pull-request.js";
 import { wantsAttention } from "../domain/attention.js";
@@ -162,6 +162,11 @@ export function reportHeadline(report: CoordinationReport): string {
 /** What a decision put to the user says on the desktop. */
 export function decisionHeadline(decision: Decision): string {
   return `Needs you: ${decision.question}`;
+}
+
+/** What a thread asking to start one on another computer says on the desktop, which is the card's own question. */
+export function requestHeadline(proposal: Pick<ThreadProposal, "title">, computer: { name: string }): string {
+  return `Needs you: Run "${proposal.title}" on ${computer.name}?`;
 }
 
 /**
@@ -498,19 +503,20 @@ export function coordinationUpdate(notes: CoordinationNote[], stillWorking: numb
  */
 export function coordinationSections(threads: Thread[], busy: Set<string>, blocked: Set<string>): ActivitySections {
   const members = coordinatedThreadIds(threads);
-  if (!members.size && !threads.some((thread) => thread.decisions?.length)) return activitySections(threads, busy, blocked);
+  if (!members.size && !threads.some((thread) => thread.decisions?.length || thread.proposals?.length)) return activitySections(threads, busy, blocked);
   const leads = threads.filter((thread) => isCoordinator(thread));
   const ranked = new Set(busy);
   const asking = new Set(blocked);
   const attention = new Set<string>();
   for (const lead of leads) {
-    const coordination = [lead, ...coordinatedThreads(threads, lead.id)];
-    if (coordination.some((thread) => blocked.has(thread.id) || openDecisions(thread).length)) asking.add(lead.id);
+    const led = coordinatedThreads(threads, lead.id);
+    const coordination = [lead, ...led];
+    if (coordination.some((thread) => blocked.has(thread.id)) || isWaitingOnUser(lead, led)) asking.add(lead.id);
     if (coordination.some((thread) => busy.has(thread.id))) ranked.add(lead.id);
     /** A resolved thread is filed away, so whatever a later run left on it is no reason to lead. */
     if (coordination.some((thread) => thread !== lead && thread.resolvedAt === undefined && wantsAttention(thread))) attention.add(lead.id);
   }
-  for (const thread of threads) if (!members.has(thread.id) && thread.role !== "coordinator" && openDecisions(thread).length) asking.add(thread.id);
+  for (const thread of threads) if (!members.has(thread.id) && thread.role !== "coordinator" && isWaitingOnUser(thread, [])) asking.add(thread.id);
   const listed = threads.filter((thread) => !members.has(thread.id));
   const sections = activitySections(listed, ranked, asking);
   if (!attention.size) return sections;

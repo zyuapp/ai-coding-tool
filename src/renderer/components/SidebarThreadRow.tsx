@@ -17,7 +17,7 @@ import { RenameInput, useRenaming } from "./SidebarRename";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
 import { ThreadRoleMark } from "./ThreadRoleMark";
 import type { ThreadRole } from "../../domain/thread-role";
-import { openDecisions } from "../../domain/coordination";
+import { waitingOnUser } from "../../domain/coordination";
 import type { ThreadHost } from "../../application/computers";
 import { HostMark } from "./HostMark";
 
@@ -60,8 +60,8 @@ function scheduleLabel(automation: AutomationView) {
 }
 
 /** The dot a row carries. What a run found is named outright: "Finished" says nothing a headline does. */
-function attentionMark(thread: Thread, sideChatWaiting: boolean, decisions: number) {
-  if (decisions) return <span key="status" className="task-attention approval" aria-label={decisionLabel(decisions)} />;
+function attentionMark(thread: Thread, sideChatWaiting: boolean, waiting: string | null) {
+  if (waiting) return <span key="status" className="task-attention approval" aria-label={waiting} />;
   const finding = newestUnreadFinding(thread);
   if (finding) return <span key="status" className="task-attention" aria-label={finding.headline} />;
   if (hasUnreadAttention(thread)) return <span key="status" className={`task-attention ${thread.outcome!}`} aria-label={OUTCOME_LABELS[thread.outcome!]} />;
@@ -70,8 +70,8 @@ function attentionMark(thread: Thread, sideChatWaiting: boolean, decisions: numb
   return false;
 }
 
-function decisionLabel(count: number) {
-  return count === 1 ? "A decision is waiting on you" : `${count} decisions are waiting on you`;
+function counted(count: number, one: string, many: string) {
+  return count === 1 ? one : count ? `${count} ${many}` : null;
 }
 
 /**
@@ -79,8 +79,8 @@ function decisionLabel(count: number) {
  * it last moved. A row carrying something a run found says that instead — the headline is why the
  * row is in Priority. A snoozed row says when it comes back.
  */
-function activityMeta(thread: Thread, host: ThreadHost | undefined, projectLabel: string | undefined, decisions: number, memberBlocked: boolean, pauseLabel: string | null) {
-  if (decisions) return decisionLabel(decisions);
+function activityMeta(thread: Thread, host: ThreadHost | undefined, projectLabel: string | undefined, waiting: string | null, memberBlocked: boolean, pauseLabel: string | null) {
+  if (waiting) return waiting;
   if (memberBlocked) return MEMBER_BLOCKED_LABEL;
   const finding = newestUnreadFinding(thread);
   if (finding) return finding.headline;
@@ -154,9 +154,17 @@ export type SidebarCoordination = {
   onStopAll: (threadId: string) => void;
 };
 
-/** A coordinator's row speaks for the decisions its threads are waiting on as well as its own. */
-export function decisionCount(thread: Thread, threadsByCoordinator: Map<string, Thread[]>) {
-  return [thread, ...threadsByCoordinator.get(thread.id) ?? []].reduce((count, item) => count + openDecisions(item).length, 0);
+/**
+ * What a row says waits on the user, or null when nothing does. A coordinator's row speaks for
+ * everything its Needs-you card holds: the decisions its threads put to the user as well as its own,
+ * and the threads it suggested or was asked to run on another computer.
+ */
+export function waitingLabel(thread: Thread, threadsByCoordinator: Map<string, Thread[]>): string | null {
+  const { decisions, suggestions } = waitingOnUser(thread, threadsByCoordinator.get(thread.id) ?? []);
+  const parts = [counted(decisions, "a decision", "decisions"), counted(suggestions, "a suggested thread", "suggested threads")].filter((part) => part !== null);
+  if (!parts.length) return null;
+  const said = parts.join(" and ");
+  return `${said[0]!.toUpperCase()}${said.slice(1)} ${decisions + suggestions === 1 ? "is" : "are"} waiting on you`;
 }
 
 /**
@@ -204,7 +212,8 @@ type RowState = {
   blocked: boolean;
   memberBlocked: boolean;
   sideChatWaiting: boolean;
-  decisions: number;
+  /** What waits on the user from the thread and those under it, or null when nothing does. */
+  waiting: string | null;
   inWorktree: boolean;
   worktree: Worktree | undefined;
   schedule: AutomationView | undefined;
@@ -258,7 +267,7 @@ function rowMarks(row: RowState): ReactNode[] {
         ? <Hourglass key="status" className="task-paused" size={13} aria-label={row.pauseLabel} />
         : row.running
           ? <ThreadSpinner key="status" />
-          : attentionMark(thread, row.sideChatWaiting, row.decisions),
+          : attentionMark(thread, row.sideChatWaiting, row.waiting),
     <ThreadEngineIcon key="engine" engine={thread.engine} className="task-engine" size={13} />,
   ].filter(Boolean);
 }
@@ -370,7 +379,7 @@ const ActivityRow = memo(function ActivityRow({ projectLabel, action, priority, 
       {rowBody(row, `task-row ${row.active ? "active" : ""}`, (
         <span className="task-row-text">
           <span>{thread.title}</span>
-          <small>{activityMeta(thread, row.host, projectLabel, row.decisions, row.memberBlocked, row.pauseLabel)}</small>
+          <small>{activityMeta(thread, row.host, projectLabel, row.waiting, row.memberBlocked, row.pauseLabel)}</small>
         </span>
       ), action, priority)}
     </div>
@@ -453,7 +462,7 @@ export function useThreadRows({
       blocked: blockedThreadIds.has(thread.id),
       memberBlocked: members.some((member) => blockedThreadIds.has(member.id)),
       sideChatWaiting: sideChatAttention.has(thread.id),
-      decisions: decisionCount(thread, coordination.threadsByCoordinator),
+      waiting: waitingLabel(thread, coordination.threadsByCoordinator),
       inWorktree: worktreeThreadIds.has(thread.id),
       worktree: checkouts.get(thread.id),
       schedule: schedules.get(thread.id),

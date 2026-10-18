@@ -14,9 +14,10 @@ type NoticeState = Pick<WorkspaceState, "notifications" | "threads" | "sideChats
 
 /**
  * Why a thread wants the user: its turn finished or failed, it waits on an approval or a question,
- * it put a decision to them, it reported itself blocked, or a scheduled run found something.
+ * it put a decision to them, it asks them to let a thread start on another computer, it reported
+ * itself blocked, or a scheduled run found something.
  */
-export type NoticeReason = "finished" | "failed" | "waiting" | "decision" | "blocked" | "finding";
+export type NoticeReason = "finished" | "failed" | "waiting" | "decision" | "request" | "blocked" | "finding";
 
 /** The longest line a coordinator's reply puts on the desktop. */
 const POSTED = 120;

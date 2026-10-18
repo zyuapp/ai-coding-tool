@@ -371,6 +371,28 @@ export function decisionsFull(thread: Thread): boolean {
   return openDecisions(thread).length >= MAX_OPEN_DECISIONS;
 }
 
+/** What a thread's Needs-you card holds waiting on the user, apart from the approvals its runs wait on. */
+export type WaitingOnUser = { decisions: number; suggestions: number };
+
+/**
+ * What waits on the user from a thread and the threads under it, as its Needs-you card holds it: the
+ * decisions they put to the user, and the threads it suggested, those asked for on another computer
+ * among them. Its row's mark, its place in the activity lists and the phone's all read this one count.
+ * Approvals wait on a run, and are counted where runs are.
+ */
+export function waitingOnUser(thread: Thread, members: readonly Thread[]): WaitingOnUser {
+  return {
+    decisions: [thread, ...members].reduce((count, item) => count + openDecisions(item).length, 0),
+    suggestions: thread.proposals?.length ?? 0,
+  };
+}
+
+/** Whether anything waits on the user from a thread and the threads under it. */
+export function isWaitingOnUser(thread: Thread, members: readonly Thread[]): boolean {
+  const { decisions, suggestions } = waitingOnUser(thread, members);
+  return decisions + suggestions > 0;
+}
+
 /** Every decision waiting on the user from a coordinator and the threads under it, wherever each is held, oldest first. */
 export function coordinationDecisions(lead: Thread, members: readonly Thread[]): Array<{ thread: Thread; decision: Decision }> {
   if (!isCoordinator(lead)) return [];

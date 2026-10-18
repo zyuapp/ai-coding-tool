@@ -106,6 +106,34 @@ test("activity mode ranks threads into priority, running, and the rest, and only
   await view.unmount();
 });
 
+test("a coordinator's row marks everything its Needs-you card holds, suggestions as well as decisions", async () => {
+  const thread = (id: string, overrides: Partial<Thread> = {}): Thread => ({
+    id, title: id, engine: "claude", executionPolicy: "confirm", messages: [],
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, ...overrides,
+  });
+  const suggestion = { id: "p1", title: "Docs", prompt: "Write them", place: { worktree: false }, proposedAt: 1 };
+  const request = { id: "p2", title: "GPU tests", prompt: "Run them", place: { computer: { id: "studio", name: "Studio" }, worktree: false }, from: "asking", proposedAt: 2 };
+  const asking = thread("asking", { parentId: "suggests", decisions: [{ id: "d1", question: "Which?", options: [], raisedAt: 1 }] });
+  const rows = [
+    thread("suggests", { role: "coordinator", proposals: [suggestion, request] }),
+    thread("allows", { role: "coordinator", proposals: [request] }),
+    thread("quiet", { role: "coordinator" }),
+  ];
+  const view = await mount(renderProjectSidebar({
+    mode: "activity",
+    activityThreads: { priority: rows.slice(0, 2), running: [], threads: rows.slice(2), snoozed: [] },
+    sidebarCoordination: { threadsByCoordinator: new Map([["suggests", [asking]]]), coordinators: rows, onSetCoordinator() {}, notifications: true, onSetMuted() {}, stoppable: new Set<string>(), onStopAll() {} },
+  }));
+  const marks = [...view.container.querySelectorAll(".task-attention.approval")].map((mark) => mark.getAttribute("aria-label"));
+  assert.deepEqual(marks, ["A decision and 2 suggested threads are waiting on you", "A suggested thread is waiting on you"]);
+  assert.deepEqual(
+    [...view.container.querySelectorAll('nav[aria-label="Priority"] .task-row-text > small')].map((line) => line.textContent),
+    ["A decision and 2 suggested threads are waiting on you", "A suggested thread is waiting on you"],
+    "and says so under its title",
+  );
+  await view.unmount();
+});
+
 test("only the priority heading offers to dismiss every dot at once", async () => {
   const thread = (id: string, overrides: Partial<Thread> = {}): Thread => ({
     id, title: id, engine: "claude", executionPolicy: "confirm", messages: [],
