@@ -95,7 +95,6 @@ export const MAX_MEMORY_NOTE_ID = 200;
 export const MAX_PROPOSALS = 12;
 export const MAX_PROPOSAL_TITLE = 120;
 export const MAX_PROPOSAL_PROJECT = 4_096;
-export const MAX_PROPOSAL_WORKTREE_ID = 200;
 export const MAX_PROPOSAL_COMPUTER = 256;
 /** How many of a coordinator's threads on paired computers it keeps the news it took of, beyond those still working under it. */
 const MAX_REMOTE_HEARD = 100;
@@ -647,13 +646,16 @@ function optionalText(value: unknown, max: number): boolean {
   return value === undefined || text(value, max);
 }
 
-/** A suggestion as it arrives from a run, held to the limits a new one is written under. */
+/**
+ * A suggestion as it arrives from a run, held to the limits a new one is written under. Its prompt and
+ * worktree id are held where the request is read, to the limits every request's are.
+ */
 export function isProposalRequest(value: unknown): value is ProposalRequest {
   return isRecord(value) && text(value.title, MAX_PROPOSAL_TITLE) && typeof value.prompt === "string" && value.prompt.trim().length > 0
     && (value.brief === undefined || isThreadBrief(value.brief))
     && optionalText(value.project, MAX_PROPOSAL_PROJECT)
     && (value.worktree === undefined || typeof value.worktree === "boolean")
-    && optionalText(value.worktreeId, MAX_PROPOSAL_WORKTREE_ID)
+    && (value.worktreeId === undefined || typeof value.worktreeId === "string" && value.worktreeId.trim().length > 0)
     && (value.model === undefined || isAgentModel(value.model))
     && (value.effort === undefined || isAgentEffort(value.effort))
     && (value.role === undefined || isThreadRole(value.role))

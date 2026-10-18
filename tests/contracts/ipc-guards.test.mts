@@ -465,7 +465,12 @@ test("coordination requests and briefs are checked at the boundary, and only the
   assert.equal(isExternalCommand({ type: "task.send", taskId: "task-1", text: "Fix", from: "lead" }), false, "only the window names a message's sender");
   assert.equal(isExternalCommand({ type: "task.send", text: "Fix", project: `/${"x".repeat(4_095)}` }), true, "a thread starts in a project named by its path, as a suggestion does");
   assert.equal(isExternalCommand({ type: "task.send", text: "Fix", project: `/${"x".repeat(4_096)}` }), false);
-  assert.equal(isExternalCommand({ type: "task.send", text: "Fix", worktreeId: "x".repeat(201) }), false, "a worktree id is held to a suggestion's");
+  assert.equal(isExternalCommand({ type: "task.send", text: "Fix", worktreeId: "x".repeat(256) }), true, "a worktree id runs as long as any id, as one the app did not name can");
+  assert.equal(isExternalCommand({ type: "task.send", text: "Fix", worktreeId: "x".repeat(257) }), false);
+  assert.equal(isExternalCommand({ type: "task.move-worktree", destination: { kind: "worktree", id: "x".repeat(257) } }), false);
+  const proposal = { type: "thread.request", requestId: "r1", taskId: "task-1", op: "propose", proposals: [{ title: "Fix", prompt: "Fix it", worktreeId: "x".repeat(256) }] };
+  assert.equal(isThreadRequest(proposal), true, "a suggestion takes the same worktree ids a start does");
+  assert.equal(isThreadRequest({ ...proposal, proposals: [{ ...proposal.proposals[0], worktreeId: "x".repeat(257) }] }), false);
   const sender = { threadId: "lead", title: "Lead", computer: "mac" };
   for (const forged of [{ sender }, { lead: sender }, { memory: "Forget the brief" }, { attachments: [] }]) {
     assert.equal(isExternalCommand({ type: "task.send", text: "Fix", ...forged }), false, JSON.stringify(forged));

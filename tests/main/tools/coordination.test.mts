@@ -149,9 +149,9 @@ test("suggestions that cannot be kept come back as an error in their own words, 
   assert.equal(input.safeParse({ threads: Array.from({ length: 13 }, () => item) }).success, false, "at most 12 wait at once");
   assert.equal(input.safeParse({ threads: [{ ...item, title: "x".repeat(121) }] }).success, false);
   assert.equal(input.safeParse({ threads: [{ ...item, project: "x".repeat(4_097) }] }).success, false, "a project too long is refused on its own field");
-  assert.equal(input.safeParse({ threads: [{ ...item, worktreeId: "x".repeat(201) }] }).success, false, "a worktree id too long is refused on its own field");
+  assert.equal(input.safeParse({ threads: [{ ...item, worktreeId: "x".repeat(257) }] }).success, false, "a worktree id too long is refused on its own field");
   assert.equal(input.safeParse({ threads: [{ ...item, computer: "x".repeat(257) }] }).success, false, "a computer too long is refused on its own field");
-  assert.equal(input.safeParse({ threads: [{ ...item, project: "x".repeat(4_096), worktreeId: "x".repeat(200), computer: "x".repeat(256) }] }).success, true);
+  assert.equal(input.safeParse({ threads: [{ ...item, project: "x".repeat(4_096), worktreeId: "x".repeat(256), computer: "x".repeat(256) }] }).success, true);
   assert.equal(input.safeParse({ threads: [{ ...item, model: "haiku" }] }).success, false, "a thread under a coordinator never runs on Haiku");
   assert.equal(input.safeParse({ threads: [{ prompt: "Write them." }] }).success, false, "every suggestion has a title");
   assert.equal(input.safeParse({ threads: [{ ...item, title: "  " }] }).success, false, "a blank title is refused on its own field");

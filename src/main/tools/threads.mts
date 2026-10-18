@@ -4,7 +4,7 @@ import type { ThreadSummary, ThreadTranscript } from "../../contracts/threads.js
 import { AGENT_ENGINES, isAgentEffort, isAgentModel, modelDelegable, modelsFor, type AgentModel } from "../../domain/agent-engine.js";
 import type { AgentEffort } from "../../domain/run.js";
 import { THREAD_ROLES, type ThreadRole } from "../../domain/thread-role.js";
-import { DELIVERIES, MAX_BRIEF_FIELD, MAX_PROPOSAL_COMPUTER, MAX_PROPOSAL_PROJECT, MAX_PROPOSAL_TITLE, MAX_PROPOSAL_WORKTREE_ID, type CoordinationRole, type Delivery } from "../../domain/coordination.js";
+import { DELIVERIES, MAX_BRIEF_FIELD, MAX_PROPOSAL_COMPUTER, MAX_PROPOSAL_PROJECT, MAX_PROPOSAL_TITLE, type CoordinationRole, type Delivery } from "../../domain/coordination.js";
 import type { ThreadBridge } from "../agent/agent-provider.mjs";
 import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";
 
@@ -61,7 +61,7 @@ const NEW_THREAD_INPUT = {
   title: z.string().trim().min(1).max(MAX_PROPOSAL_TITLE).optional().describe("A few words naming what the new thread does, shown wherever it is listed. Omit to have it named from its prompt."),
   project: z.string().trim().max(MAX_PROPOSAL_PROJECT).optional().describe("Which project to start it in: its folder name, its path, or its id. Defaults to this thread's project, or on a paired computer the project there at the same path or with the same folder name."),
   worktree: z.boolean().optional().describe("Run the new thread in its own new git worktree, detached at whatever the project has checked out, so its edits never touch this thread's checkout. Name files in its prompt relative to the project, never by this checkout's absolute path, which would send it back here."),
-  worktreeId: z.string().trim().max(MAX_PROPOSAL_WORKTREE_ID).optional().describe("Start the thread in another worktree that already exists, as list_threads reports it, on the computer it starts on. Omit both worktree fields to share this thread's checkout. Takes precedence over worktree."),
+  worktreeId: z.string().trim().max(MAX_ID_LENGTH).optional().describe("Start the thread in another worktree that already exists, as list_threads reports it, on the computer it starts on. Omit both worktree fields to share this thread's checkout. Takes precedence over worktree."),
   model: modelField,
   effort: effortField,
   role: roleField,
@@ -260,7 +260,7 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
     description: "Move a thread into a new worktree, one the project already has, or back to the project checkout, as the thread menu's Move to worktree does. This is how a thread works in a worktree: use it whenever the user asks for one, never git worktree, so the app knows where the thread works. File changes already made stay in the old checkout. Moving this thread waits for this turn to end, and its next turn starts in the new checkout. Another thread must not be running.",
     input: {
       threadId: z.string().max(MAX_ID_LENGTH).optional().describe("The thread to move: its ID, an unambiguous prefix of it, or its exact title. Omit to move this thread."),
-      worktreeId: z.string().nullable().describe('"new" for a new worktree, the ID of one list_threads reports, or null for the project checkout.'),
+      worktreeId: z.string().max(MAX_ID_LENGTH).nullable().describe('"new" for a new worktree, the ID of one list_threads reports, or null for the project checkout.'),
     },
     readOnly: false,
     run: ({ bridge, now }, args) => report(async () => {

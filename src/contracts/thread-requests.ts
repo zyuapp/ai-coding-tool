@@ -31,7 +31,8 @@ export function isThreadRequest(value: unknown): value is ThreadRequest {
   if (request.op === "memory") return isMemoryChange(request.change) && request.change.kind !== "edit";
   if (request.op === "propose") {
     return Array.isArray(request.proposals) && request.proposals.length > 0 && request.proposals.length <= MAX_PROPOSALS
-      && request.proposals.every((proposal) => isProposalRequest(proposal) && isString(proposal.prompt, MAX_PROMPT_LENGTH));
+      && request.proposals.every((proposal) => isProposalRequest(proposal) && isString(proposal.prompt, MAX_PROMPT_LENGTH)
+        && (proposal.worktreeId === undefined || isString(proposal.worktreeId)));
   }
   return false;
 }
