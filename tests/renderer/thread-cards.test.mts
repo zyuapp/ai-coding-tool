@@ -74,7 +74,7 @@ test("a card shows how its thread stands, opens it, and offers what to do next b
 
   const review = query<HTMLAnchorElement>(fix, "a.coordination-card-step");
   assert.equal(review.textContent, "Review PR");
-  assert.equal(review.getAttribute("aria-label"), "Review Fix login's pull request");
+  assert.equal(review.getAttribute("aria-label"), "Review PR for Fix login", "its name starts with what it shows, as voice control says it");
   assert.equal(review.href, PULL_REQUEST.url);
   assert.equal(review.closest(".coordination-card-open"), null);
 
@@ -108,13 +108,15 @@ test("a thread working as a computer out of reach last said says so, and moves n
   await view.unmount();
 });
 
-test("each next step is read in words that fit it, naming the thread it is for", async () => {
+test("each next step is read by what it shows, then the thread it is for", async () => {
   window.desktop = fakeDesktop();
   const every: CoordinatedThreadView = { ...failing, pullRequest: null, steps: ["resolve-conflicts", "fix-ci", "address-comments", "merge", "create-pull-request"] };
   const view = await mount(React.createElement(ThreadCardsContext.Provider, { value: { cards: new Map([["fix", every]]), worktrees: new Map(), onSelect() {} } }, React.createElement(ThreadCards, { threadIds: ["fix"] })));
   assert.deepEqual([...view.container.querySelectorAll("button.coordination-card-step")].map((button) => button.getAttribute("aria-label")), [
-    "Resolve conflicts in Fix login's pull request", "Fix CI for Fix login", "Address comments on Fix login's pull request", "Merge Fix login's pull request", "Create a pull request for Fix login",
+    "Resolve conflicts in Fix login's pull request", "Fix CI for Fix login", "Address comments on Fix login's pull request", "Merge it: Fix login's pull request", "Create PR for Fix login",
   ]);
+  const shown = [...view.container.querySelectorAll("button.coordination-card-step")].map((button) => [button.textContent ?? "", button.getAttribute("aria-label") ?? ""]);
+  assert.ok(shown.every(([label, name]) => name.startsWith(label)), "every name starts with its visible label");
   await view.unmount();
 });
 

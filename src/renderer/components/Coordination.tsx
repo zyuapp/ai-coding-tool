@@ -521,6 +521,7 @@ const ThreadCard = memo(function ThreadCard({ view, worktree, onSelect }: {
   const line = coordinationStatusLine(status, pullRequest && (status === "needs-work" || status === "review") ? null : summary, lastHeard);
   const Icon = pullRequest ? PULL_REQUEST_ICONS[pullRequest.state] : null;
   const pullRequestText = pullRequest ? pullRequestLine(pullRequest) : null;
+  const pullRequestAction = pullRequest && MOVING_PULL_REQUESTS.has(pullRequest.state) ? "Review PR" : "View PR";
   /** The card is read by its status line and, when it has one, its pull request's. */
   const lineId = useId();
   const pullRequestId = `${lineId}-pull-request`;
@@ -552,10 +553,10 @@ const ThreadCard = memo(function ThreadCard({ view, worktree, onSelect }: {
               className="coordination-card-step"
               href={pullRequest.url}
               title={`#${pullRequest.number} ${pullRequest.title}`}
-              aria-label={`${MOVING_PULL_REQUESTS.has(pullRequest.state) ? "Review" : "View"} ${thread.title}'s pull request`}
+              aria-label={`${pullRequestAction} for ${thread.title}`}
               openInApp={links.openUrlInApp && (() => links.openUrlInApp!(pullRequest.url))}
             >
-              {MOVING_PULL_REQUESTS.has(pullRequest.state) ? "Review PR" : "View PR"}
+              {pullRequestAction}
               <ArrowUpRight size={12} aria-hidden="true" />
             </WebLink>
           )}
