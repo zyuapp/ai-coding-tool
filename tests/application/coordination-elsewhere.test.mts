@@ -611,9 +611,9 @@ test("a start Stop all caught on its way is stopped as it lands even once its co
     const answered = reduce(lapsed, { type: "proposal.settled", taskId: "lead", proposalId: "p1", threadId: "far" });
     assert.deepEqual(cancels(answered), ["far"], `stopped as that computer answers once ${how}`);
     assert.equal(required(answered.state.threads.find((thread) => thread.id === "lead")).caughtStarts, undefined, "its end is no news to a coordinator away");
-    for (const remoteLead of [named, { ...named, away: true as const }]) {
-      const shows = mirrored(lapsed, { ...holder, threads: [far({ remoteLead })], activeRuns: { far: activeRun("far", "run-far") } });
-      assert.deepEqual(cancels(shows), ["far"], `and as it shows up there once ${how}, ${remoteLead.away ? "told it is away" : "not yet told"}`);
+    for (const away of [false, true]) {
+      const shows = mirrored(lapsed, { ...holder, threads: [far({ remoteLead: away ? { ...named, away } : named })], activeRuns: { far: activeRun("far", "run-far") } });
+      assert.deepEqual(cancels(shows), ["far"], `and as it shows up there once ${how}, ${away ? "told it is away" : "not yet told"}`);
     }
   }
   const restored = reduce(reduce(stopped, { type: "task.archive", taskId: "lead" }).state, { type: "task.restore", taskId: "lead" }).state;
