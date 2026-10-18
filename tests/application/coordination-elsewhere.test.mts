@@ -702,3 +702,14 @@ test("a start allowed on another computer keeps its card's name there, and a bui
   const older = forwardedSend(COMPUTER_CAPABILITIES.filter((name) => name !== "command:task.send:title"));
   assert.equal("title" in older, false, "the start still goes, named there from its prompt");
 });
+
+test("dismissing a coordinator here files away what its threads on a paired computer carry there, by the same rule", () => {
+  const holder = workspace({ threads: [far({ outcome: "finished", outcomeUnread: true }), task("asking", { remoteLead: FAR, outcome: "failed" })], activeRuns: { asking: activeRun("asking", "run-asking", { status: "awaiting-approval" }) } });
+  const state = { ...coordinating(holder), sidebarMode: "activity" as const };
+  assert.deepEqual(deriveView(state).activityThreads.priority.map((thread) => thread.id), ["lead"], "the finished thread there holds its coordinator in Priority");
+  const forwarded = (transition: WorkspaceTransition) => transition.effects.flatMap((effect) => effect.type === "computer.forward" ? [[effect.id, effect.inputs]] : []);
+  assert.deepEqual(forwarded(reduce(state, { type: "task.dismiss", taskId: "lead" })), [["studio", [{ type: "task.dismiss", taskId: "far" }]]], "only the one with something to file away, never one still asking");
+  assert.deepEqual(forwarded(reduce(state, { type: "task.dismiss-all" })).filter(([, inputs]) => (inputs as WorkspaceInput[]).some((input) => input.type === "task.dismiss")), [["studio", [{ type: "task.dismiss", taskId: "far" }]]], "Dismiss all asks the same");
+  const older = { ...state, computers: { ...state.computers, paired: state.computers.paired.map((computer) => ({ ...computer, capabilities: [] })) } };
+  assert.match(reduce(older, { type: "task.dismiss", taskId: "lead" }).state.actionError ?? "", /^studio: /, "a computer whose build cannot take it says so");
+});
