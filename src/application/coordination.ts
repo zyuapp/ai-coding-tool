@@ -122,6 +122,16 @@ export function turnNote(thread: Thread, status: "succeeded" | "failed" | "cance
   return coordinationNote(thread.id, `"${thread.title}" ${ended}.${reply ? ` It last said: ${excerpt(reply)}` : ""}`, at, { urgent: status === "failed" && !quiet, quiet });
 }
 
+/**
+ * A coordinator's held news quieted, archived or not, and kept by a thread whose role was taken off,
+ * so a coordinator the user stopped, restoring it or giving the role back wakes nothing by itself.
+ */
+export function withNewsQuieted(state: WorkspaceState, leadId: string): WorkspaceState {
+  const lead = state.threads.find((thread) => thread.id === leadId);
+  if (!lead?.coordinationNotes?.some((note) => !note.quiet)) return state;
+  return updateThread(state, leadId, (thread) => ({ ...thread, coordinationNotes: thread.coordinationNotes!.map((note) => note.quiet ? note : { ...note, quiet: true as const }) }));
+}
+
 /** Its coordinator here hearing that a thread's turn ended. */
 export function withTurnHeard(state: WorkspaceState, thread: Thread, status: "succeeded" | "failed" | "cancelled", at: number, options: { quiet?: boolean } = {}): WorkspaceState {
   const lead = coordinatorOf(state.threads, thread);

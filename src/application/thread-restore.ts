@@ -1,5 +1,6 @@
 /** Threads as the app finds them on launch. None of their work outlived the app, so what was going stopped with it. */
-import { withTurnHeard } from "./coordination.js";
+import { withNewsQuieted, withTurnHeard } from "./coordination.js";
+import { isCoordinator } from "../domain/coordination.js";
 import { withVerdict } from "./run-testimony.js";
 import type { WorkspaceState } from "./workspace-state.js";
 import type { Subagent } from "../domain/run.js";
@@ -22,10 +23,12 @@ export function restoredThreads(stored: readonly StoredThread[]): { threads: Thr
 /**
  * A turn cut off with the app reads as one the user stopped: it leaves the same verdict, unread unless
  * the thread is on screen, and its coordinator here hears it as stopped, so nothing it hears wakes it
- * by itself. Nothing is put on the desktop for it.
+ * by itself. A coordinator cut off keeps what news it held quiet, as one the user stopped does.
+ * Nothing is put on the desktop for it.
  */
 export function withCutOffTurnsEnded(state: WorkspaceState, cutOff: readonly Thread[], at: number): WorkspaceState {
-  return cutOff.reduce((next, thread) => withTurnHeard(withVerdict(next, thread.id, "stopped"), thread, "cancelled", at, { quiet: true }), state);
+  const ended = cutOff.reduce((next, thread) => withTurnHeard(withVerdict(next, thread.id, "stopped"), thread, "cancelled", at, { quiet: true }), state);
+  return cutOff.reduce((next, thread) => isCoordinator(thread) ? withNewsQuieted(next, thread.id) : next, ended);
 }
 
 /** A subagent stored mid-work stopped with the app. */

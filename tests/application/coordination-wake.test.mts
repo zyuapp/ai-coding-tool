@@ -196,6 +196,15 @@ test("a thread whose run the app quit under is restored as stopped, which its co
   slept(restored, "quitting stopped it, as the user stopping it would");
 });
 
+test("a coordinator the app quit under keeps the news its turn held quiet, as one the user stopped does", () => {
+  const holding = workspace({ threads: [lead({ runOpen: true, coordinationNotes: [NEWS] }), member("one")] });
+  const restored = reduce(workspace(), { type: "store.loaded", data: { version: THREAD_STORE_VERSION, tasks: holding.threads, projects: [], worktrees: [], lastFolder: null } });
+  slept(restored, "quitting stopped it");
+  assert.equal(required(restored.state.threads.find((thread) => thread.id === "lead")?.coordinationNotes?.[0]).quiet, true);
+  const news = reduce(restored.state, correlatedRunEvent("one", "run-1", 1, { type: "run.started", agentInitiated: true }));
+  woken(reduce(news.state, correlatedRunEvent("one", "run-1", 2, { type: "run.status", status: "succeeded" })), "news after it wakes it as usual, carrying what it held");
+});
+
 test("a thread on screen when the app quit under its run is restored stopped, with nothing unread", () => {
   const stored = [task("solo", { runOpen: true, updatedAt: 5 })];
   const restored = stateFromData({ version: THREAD_STORE_VERSION, tasks: stored, projects: [], worktrees: [], lastFolder: null });

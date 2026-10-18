@@ -5,7 +5,7 @@ import { released, remoteNews, withoutLapsedStops } from "./coordination-remote.
 import { withProposalFailure } from "./proposals.js";
 import { now, rejected, settled, targetId } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { canResolve, checkoutAnswer, coordinatedThreadStatus, coordinationMembers, coordinatorWork, coordinationUpdate, decisionHeadline, decisionNote, memberWorking, nextSteps, reportHeadline, reportNote, unheardWork, withTurnHeard, workingMembers } from "../coordination.js";
+import { canResolve, checkoutAnswer, coordinatedThreadStatus, coordinationMembers, coordinatorWork, coordinationUpdate, decisionHeadline, decisionNote, memberWorking, nextSteps, reportHeadline, reportNote, unheardWork, withNewsQuieted, withTurnHeard, workingMembers } from "../coordination.js";
 import { activityChanges, threadActivity, threadChanges } from "../thread-activity.js";
 import { cancelPause, heldByLimit } from "../limit-pauses.js";
 import { announced } from "../notices.js";
@@ -318,7 +318,7 @@ export function noteTurnEnded(state: WorkspaceState, taskId: string, status: "su
 export function reconcileCoordination(previous: WorkspaceState, transition: WorkspaceTransition, input: WorkspaceInput): WorkspaceTransition {
   /** Quieted first, since a stop may only have asked for runs to end and changed nothing else yet. */
   const stopped = stoppedBy(previous, input);
-  const quiet = stopped ? quieted(transition.state, stopped) : transition.state;
+  const quiet = stopped ? withNewsQuieted(transition.state, stopped) : transition.state;
   /** What paired computers say of the threads coordinators here started there is news like any thread's. */
   const remote = remoteNews(previous, quiet);
   const threads = threadChanges(previous.threads, remote.state.threads);
@@ -356,16 +356,6 @@ function stoppedBy(previous: WorkspaceState, input: WorkspaceInput): string | un
   if (input.type === "run.unresolved") return previous.pendingRuns[input.pendingId]?.taskId;
   if (input.type === "limit.cancel") return previous.threads.find((thread) => thread.id === input.taskId)?.limitPause ? input.taskId : undefined;
   return undefined;
-}
-
-/**
- * Quiets the coordinator's held news, archived or not, and kept by a thread whose role was taken off,
- * so restoring it or giving the role back wakes nothing by itself.
- */
-function quieted(state: WorkspaceState, leadId: string): WorkspaceState {
-  const lead = state.threads.find((thread) => thread.id === leadId);
-  if (!lead?.coordinationNotes?.some((note) => !note.quiet)) return state;
-  return updateThread(state, leadId, (thread) => ({ ...thread, coordinationNotes: thread.coordinationNotes!.map((note) => note.quiet ? note : { ...note, quiet: true as const }) }));
 }
 
 /** Each touched thread that is a coordinator, and the coordinator each one worked under before or after. */
