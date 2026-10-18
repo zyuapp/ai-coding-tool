@@ -248,3 +248,72 @@ test("a thread asked for on another computer starts in the folder on screen once
   assert.deepEqual(dispatched, [{ type: "proposal.start", taskId: "lead", proposalId: "p1", place: { project: "app", worktree: false } }]);
   await view.unmount();
 });
+
+/** What holds focus, by the name it is read by, so a wrong place reads as one rather than as a whole document. */
+function focusedName(): string | null {
+  const active = dom.window.document.activeElement;
+  return active === dom.window.document.body ? "the page" : active?.getAttribute("aria-label") ?? active?.textContent ?? null;
+}
+
+test("the Needs-you card keeps the keyboard's place as its pages turn and are answered", async () => {
+  const approval: CoordinationApprovalView = { thread: member("a", "Login flake"), approval: { approvalId: "a1", taskId: "a", runId: "run-a", title: "Run a command?", description: "", toolName: "Bash", input: { command: "ls" } } };
+  const decision = (id: string): CoordinationDecisionView => ({ thread: member(`t-${id}`, `Thread ${id}`), decision: { id, question: `Keep ${id}?`, options: [{ label: "Yes", recommended: true }], raisedAt: 1 } });
+  const card = (approvals: CoordinationApprovalView[], decisions: CoordinationDecisionView[]) => React.createElement(NeedsYouCard, { approvals, decisions, onDecide() {}, onAnswer() {}, onSelect() {} });
+  const view = await mount(card([approval], [decision("d1"), decision("d2")]));
+  const press = async (name: string) => {
+    await act(async () => {
+      const pressed = required([...view.container.querySelectorAll<HTMLButtonElement>("button")].find((item) => (item.getAttribute("aria-label") ?? item.textContent) === name));
+      pressed.focus();
+      pressed.click();
+    });
+  };
+
+  await press("Next");
+  assert.match(view.container.textContent, /2 of 3/);
+  assert.equal(focusedName(), "Next", "Next hands focus to Next on the page it turned to");
+  await press("Previous");
+  assert.equal(focusedName(), "Previous", "so does Previous");
+  await press("Later");
+  assert.equal(focusedName(), "Later", "and Later");
+
+  await press("Previous");
+  await press("Allow");
+  await view.render(card([], [decision("d1"), decision("d2")]));
+  assert.equal(focusedName(), "Decision waiting on you", "an answered page hands focus to the page that took its place");
+
+  await press("Decide");
+  await view.render(card([], [decision("d2")]));
+  assert.equal(focusedName(), "Decision waiting on you", "so does a decided one");
+  assert.match(view.container.textContent, /Keep d2\?/);
+
+  const composer = dom.window.document.body.appendChild(dom.window.document.createElement("textarea"));
+  composer.setAttribute("aria-label", "Composer");
+  await press("Decide");
+  await act(async () => { composer.focus(); });
+  await view.render(card([], [decision("d3"), decision("d4")]));
+  assert.equal(focusedName(), "Composer", "focus the user has moved on stays where it went");
+  composer.remove();
+  await view.unmount();
+});
+
+test("a suggestion started or dismissed from the keyboard hands focus to the row that took its place", async () => {
+  const suggestion = (id: string, starting = false): ProposalView => ({ proposal: { id, title: `Suggestion ${id}`, prompt: "Do it", place: { worktree: false }, proposedAt: 1 }, starting, elsewhere: null });
+  const card = (proposals: ProposalView[]) => React.createElement(CommandControlsProvider, { value: { available: () => true, dispatch() {} } },
+    React.createElement(NeedsYouCard, { approvals: [], decisions: [], suggestions: { taskId: "lead", threadModel: null, proposals }, onDecide() {}, onAnswer() {}, onSelect() {} }));
+  const [a, b, c] = [suggestion("a"), suggestion("b"), suggestion("c")];
+  const view = await mount(card([a, b, c]));
+  const press = async (name: string) => {
+    await act(async () => { const pressed = query<HTMLButtonElement>(view.container, `button[aria-label="${name}"]`); pressed.focus(); pressed.click(); });
+  };
+
+  await press("Dismiss Suggestion a");
+  await view.render(card([b, c]));
+  assert.equal(focusedName(), "Dismiss Suggestion b", "a dismissed row hands focus to the same button on the row that took its place");
+  await press("Start Suggestion c");
+  await view.render(card([b, suggestion("c", true)]));
+  assert.equal(focusedName(), "Start Suggestion b", "the last row starting hands it to the row before it");
+  await press("Start Suggestion b");
+  await view.render(card([suggestion("b", true), suggestion("c", true)]));
+  assert.equal(focusedName(), "Suggested threads", "with nothing left to press, the page itself keeps it");
+  await view.unmount();
+});

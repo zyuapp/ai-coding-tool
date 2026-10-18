@@ -78,6 +78,8 @@
   max-height: min(46vh, 400px);
   overflow-wrap: anywhere;
 }
+/** A page the keyboard is handed once the one before it is settled shows it holds focus, as a control does. */
+.decision-card:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
 .decision-head { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 14px 6px; font-size: var(--text-meta); }
 .decision-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .decision-head strong { color: var(--accent); }

@@ -160,7 +160,7 @@ test("resolving or reopening from a row, or showing more, keeps the keyboard's p
   await press('button[aria-label="Resolve Dark mode"]');
   await view.render(overview([resolved(ready), ...rest.slice(1)], { done: { open: true, all: true } }));
   assert.equal(view.container.querySelector('[aria-label="Ready for review"]'), null);
-  assert.equal(dom.window.document.activeElement, query(view.container, '[aria-label="Resolved"] .coordination-group-head'), "a group left empty hands focus to the group its thread went to");
+  assert.ok(dom.window.document.activeElement === query(view.container, '[aria-label="Resolved"] .coordination-group-head'), "a group left empty hands focus to the group its thread went to");
 
   const reopened = [ready, ...rest.slice(1)];
   await view.render(overview([resolved(ready), ...rest.slice(1)], { done: { open: true, all: true }, resolved: { open: true } }));
@@ -173,6 +173,21 @@ test("resolving or reopening from a row, or showing more, keeps the keyboard's p
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Open Done 0"]').focus(); });
   await view.render(overview(reopened.map((entry) => entry.thread.id === "d2" ? resolved(entry) : entry), { done: { open: true, all: true }, resolved: { open: true } }));
   assert.equal(focused(), "Open Done 0", "focus the user has moved on stays where it went");
+  await view.unmount();
+});
+
+test("Stop all keeps the keyboard's place once the group it heads is gone", async () => {
+  window.desktop = fakeDesktop();
+  const overview = (members: CoordinatedThreadView[]) => React.createElement(CommandControlsProvider, { value: { available: () => true, dispatch() {} } },
+    React.createElement(CoordinatorOverview, { header, memory, members, usage: null, worktrees: new Map(), folds: {}, onSetFold() {}, onSelect() {}, stoppable: true }));
+  const working = row(member("w", "Dark mode"), "working");
+  const done = row(member("d", "Login flake"), "done");
+  const view = await mount(overview([working, done]));
+  await act(async () => { const stop = query<HTMLButtonElement>(view.container, ".coordination-stop-all"); stop.focus(); stop.click(); });
+  await view.render(overview([{ ...working, status: "idle" }, done]));
+  assert.ok(!view.container.querySelector('[aria-label="Working"]'), "nothing under the coordinator works any more");
+  const head = query(view.container, '[aria-label="Done"] .coordination-group-head');
+  assert.ok(dom.window.document.activeElement === head, "focus goes to the head of the group that took its place");
   await view.unmount();
 });
 
@@ -309,7 +324,7 @@ test("the Overview's Usage section shows what the coordinator and its threads sp
   await mounted.render(shown({ usage: { open: true, all: true } }));
   const every = mounted.container.querySelectorAll(".coordination-usage-thread");
   assert.equal(every.length, 7);
-  assert.equal(dom.window.document.activeElement, every[5], "Show more hands focus to the first thread it brought in");
+  assert.ok(dom.window.document.activeElement === every[5], "Show more hands focus to the first thread it brought in");
   await mounted.unmount();
 
   const quiet = await mount(React.createElement(CoordinatorOverview, { header, memory, members: [], usage: null, worktrees: new Map(), folds: {}, onSetFold() {}, onSelect() {}, stoppable: false }));
@@ -350,10 +365,10 @@ test("the Overview's purpose line and memory rows edit what the coordinator keep
   await act(async () => { purpose.click(); });
   await type(query<HTMLInputElement>(container, 'input[aria-label="Purpose"]'), "Never mind", "Escape");
   assert.equal(dispatched.length, 0, "Esc leaves the purpose as it was");
-  assert.equal(dom.window.document.activeElement, query(container, 'button[aria-label="Edit Purpose"]'), "and hands focus back to it");
+  assert.ok(dom.window.document.activeElement === query(container, 'button[aria-label="Edit Purpose"]'), "and hands focus back to it");
   await act(async () => { query<HTMLButtonElement>(container, 'button[aria-label="Edit Purpose"]').click(); });
   await type(query<HTMLInputElement>(container, 'input[aria-label="Purpose"]'), "  ", "Enter");
-  assert.equal(dom.window.document.activeElement, query(container, 'button[aria-label="Edit Purpose"]'), "so does saving it with Enter");
+  assert.ok(dom.window.document.activeElement === query(container, 'button[aria-label="Edit Purpose"]'), "so does saving it with Enter");
 
   const section = query(container, '[aria-label="Memory"]');
   assert.match(query(section, ".coordination-group-head").textContent, /Memory2/);
@@ -363,11 +378,11 @@ test("the Overview's purpose line and memory rows edit what the coordinator keep
   await type(query<HTMLTextAreaElement>(section, 'textarea[aria-label="Note"]'), "Propose threads before starting any", "Enter");
   const forget = section.querySelectorAll<HTMLButtonElement>('button[aria-label="Forget"]')[1];
   assert.ok(forget.parentElement?.querySelector('button[aria-label="Edit Note"]'), "Forget sits beside the note it drops, not inside it");
-  await act(async () => { forget.click(); });
+  await act(async () => { forget.focus(); forget.click(); });
   const kept = { ...item(lead.memory), notes: [item(lead.memory).notes[0]!], revision: 3 };
   await mounted.render(overview({ ...lead, memory: kept }));
   const add = query<HTMLTextAreaElement>(section, 'textarea[aria-label="Add a note"]');
-  assert.equal(dom.window.document.activeElement, add, "forgetting the last note hands focus to the row that adds one");
+  assert.ok(dom.window.document.activeElement === add, "forgetting the last note hands focus to the row that adds one");
   assert.equal(add.maxLength, 500, "a note longer than memory keeps cannot be typed");
   await type(add, "Keep updates short", "Enter");
 

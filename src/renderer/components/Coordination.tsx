@@ -1,4 +1,4 @@
-import { createContext, memo, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from "react";
+import { createContext, memo, useContext, useEffect, useMemo, useRef, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
 import { LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuChevronDown as ChevronDown, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuRotateCcw as Reopen, LuTrash2 as Trash, LuX as X } from "react-icons/lu";
 import { deliveryLabel, MAX_MEMORY_NOTE, MAX_PURPOSE, nextStepOf, OVERVIEW_GROUPS, type MemoryNote, type OverviewFold, type OverviewFolds, type OverviewGroup, type OverviewSection, type ThreadBrief, type ThreadModelChoice } from "../../domain/coordination";
 import { engineForModel, modelDelegable, modelLabel, type AgentEngine, type AgentModel, type EngineReadiness } from "../../domain/agent-engine";
@@ -18,6 +18,7 @@ import { HostMark } from "./HostMark";
 import { useMessageLinks, WebLink } from "./MarkdownMessage";
 import { PULL_REQUEST_ICONS } from "./SessionPanel";
 import { MAC } from "../platform";
+import { placeOf, useKeyboardPlace } from "../focus";
 import "./coordination.css";
 
 const STATUS_LABELS: Record<CoordinatedThreadStatus, string> = {
@@ -94,7 +95,7 @@ export function CoordinatorOverview({ header, memory, members, usage, worktrees,
 }) {
   const groups = useMemo(() => overviewGroups(members), [members]);
   const overview = useRef<HTMLDivElement>(null);
-  const keepPlace = useKeyboardPlace(overview, groups);
+  const keepPlace = useKeyboardPlace(overview, rememberOverviewPlace, (place, root) => overviewFocus(place, root, groups));
   return (
     <div ref={overview} className="coordination-overview" aria-label="Threads under this coordinator" onClickCapture={keepPlace}>
       <CommandGate command={{ type: "memory.set-purpose", taskId: memory.taskId, purpose: memory.purpose }}>
@@ -115,52 +116,55 @@ export function CoordinatorOverview({ header, memory, members, usage, worktrees,
   );
 }
 
-/** What the user last pressed that takes itself off the page: a row's Resolve or Reopen, or a Show more. */
-type PressedPlace =
-  | { pressed: HTMLElement; kind: "row"; threadId: string; section: string; index: number }
-  | { pressed: HTMLElement; kind: "more"; section: string; index: number };
+/**
+ * What the user last pressed in the Overview that takes itself off the page: a row's Resolve or
+ * Reopen, a Show more, Stop all once nothing under it works, or a note's Forget.
+ */
+type OverviewPlace =
+  | { kind: "row"; threadId: string; section: string; index: number }
+  | { kind: "more"; section: string; index: number }
+  | { kind: "stop"; index: number }
+  | { kind: "note"; index: number };
 
 /** The buttons a section's rows open with, in the order they are drawn. */
 function sectionRows(section: Element | null | undefined): HTMLElement[] {
   return section ? [...section.querySelectorAll<HTMLElement>(".coordination-row, .coordination-usage-thread")] : [];
 }
 
+/** The fold buttons that head the Overview's groups of threads, in the order they are drawn. */
+function groupHeads(root: HTMLElement): HTMLElement[] {
+  return OVERVIEW_GROUPS.flatMap((group) => root.querySelector<HTMLElement>(`[data-section="${group}"] .coordination-group-head`) ?? []);
+}
+
+function rememberOverviewPlace(pressed: HTMLElement, root: HTMLElement): OverviewPlace | null {
+  if (pressed.matches(".coordination-note-forget")) return { kind: "note", index: [...root.querySelectorAll(".coordination-note-forget")].indexOf(pressed) };
+  const section = pressed.closest<HTMLElement>("[data-section]");
+  if (!section) return null;
+  if (pressed.matches(".coordination-stop-all")) return { kind: "stop", index: groupHeads(root).indexOf(section.querySelector<HTMLElement>(".coordination-group-head")!) };
+  const rows = sectionRows(section);
+  if (pressed.matches(".coordination-more")) return { kind: "more", section: section.dataset.section!, index: rows.length };
+  if (!pressed.matches('[data-action="resolve"], [data-action="reopen"]')) return null;
+  const item = pressed.closest<HTMLElement>("[data-thread-id]");
+  const opens = item?.querySelector<HTMLElement>(".coordination-row");
+  return item && opens ? { kind: "row", threadId: item.dataset.threadId!, section: section.dataset.section!, index: rows.indexOf(opens) } : null;
+}
+
 /**
- * Keeps the keyboard's place when what it pressed leaves the page. A resolved or reopened row hands
- * focus to the row that took its place, else the one before it, else its own row or the head of the
- * group it went to; a Show more hands it to the first row it brought in. Focus the user has moved on
- * stays where it went, and nothing happens until the pressed control is gone. It looks after every
- * redraw, and costs nothing when nothing was pressed.
+ * Where the keyboard goes in the Overview once what it pressed is gone. A resolved or reopened row
+ * hands focus to the row that took its place, else the one before it, else its own row or the head of
+ * the group it went to; a Show more to the first row it brought in; Stop all, once the Working group
+ * is gone, to the head of the group that took its place; a forgotten note to the one that took its
+ * place, or to the row that adds one.
  */
-function useKeyboardPlace(overview: RefObject<HTMLDivElement | null>, groups: Record<OverviewGroup, readonly CoordinatedThreadView[]>) {
-  const place = useRef<PressedPlace | null>(null);
-  useLayoutEffect(() => {
-    const last = place.current;
-    const root = overview.current;
-    if (!last || !root || last.pressed.isConnected) return;
-    place.current = null;
-    if (root.ownerDocument.activeElement !== root.ownerDocument.body) return;
-    const section = root.querySelector(`[data-section="${last.section}"]`);
-    const rows = sectionRows(section);
-    if (last.kind === "more") { (rows[last.index] ?? rows.at(-1))?.focus(); return; }
-    const went = OVERVIEW_GROUPS.find((group) => groups[group].some((view) => view.thread.id === last.threadId));
-    const own = root.querySelector<HTMLElement>(`[data-thread-id="${last.threadId}"] .coordination-row`);
-    const head = went ? root.querySelector<HTMLElement>(`[data-section="${went}"] .coordination-group-head`) : null;
-    (rows[last.index] ?? rows[last.index - 1] ?? own ?? head)?.focus();
-  });
-  return (event: MouseEvent<HTMLDivElement>) => {
-    const target = event.target instanceof Element ? event.target : null;
-    const action = target?.closest<HTMLElement>('[data-action="resolve"], [data-action="reopen"]');
-    const more = target?.closest<HTMLElement>(".coordination-more");
-    const section = (action ?? more)?.closest<HTMLElement>("[data-section]");
-    if (!section) return;
-    const rows = sectionRows(section);
-    if (more) { place.current = { pressed: more, kind: "more", section: section.dataset.section!, index: rows.length }; return; }
-    const item = action!.closest<HTMLElement>("[data-thread-id]");
-    const opens = item?.querySelector<HTMLElement>(".coordination-row");
-    if (!item || !opens) return;
-    place.current = { pressed: action!, kind: "row", threadId: item.dataset.threadId!, section: section.dataset.section!, index: rows.indexOf(opens) };
-  };
+function overviewFocus(place: OverviewPlace, root: HTMLElement, groups: Record<OverviewGroup, readonly CoordinatedThreadView[]>): HTMLElement | null | undefined {
+  if (place.kind === "note") return root.querySelectorAll<HTMLElement>(".coordination-note-text")[place.index] ?? root.querySelector<HTMLElement>(".coordination-note-add");
+  if (place.kind === "stop") return placeOf(groupHeads(root), place.index) ?? root.querySelector<HTMLElement>(".coordination-group-head");
+  const rows = sectionRows(root.querySelector(`[data-section="${place.section}"]`));
+  if (place.kind === "more") return rows[place.index] ?? rows.at(-1);
+  const went = OVERVIEW_GROUPS.find((group) => groups[group].some((view) => view.thread.id === place.threadId));
+  const own = root.querySelector<HTMLElement>(`[data-thread-id="${place.threadId}"] .coordination-row`);
+  const head = went ? root.querySelector<HTMLElement>(`[data-section="${went}"] .coordination-group-head`) : null;
+  return placeOf(rows, place.index) ?? own ?? head;
 }
 
 /**
@@ -226,25 +230,14 @@ function PurposeLine({ purpose, onSave }: { purpose: string | null; onSave: (pur
   return <InlineEdit value={purpose ?? ""} label="Purpose" placeholder="Add a purpose" className="coordination-purpose" maxLength={MAX_PURPOSE} onSave={(text) => onSave(text || null)} />;
 }
 
-/**
- * The notes the coordinator keeps, each edited in place, with a last row that adds one. A note the
- * user forgets hands focus to the one that took its place, or to the row that adds one.
- */
+/** The notes the coordinator keeps, each edited in place, with a last row that adds one. */
 function MemorySection({ memory, fold, onSetFold }: { memory: OverviewMemoryProps; fold: OverviewFold; onSetFold: FoldChange }) {
   const open = fold.open ?? true;
-  const list = useRef<HTMLDivElement>(null);
-  const forgotten = useRef<number | null>(null);
-  useLayoutEffect(() => {
-    const index = forgotten.current;
-    if (index === null || !list.current) return;
-    forgotten.current = null;
-    (list.current.querySelectorAll<HTMLElement>(".coordination-note-text")[index] ?? list.current.querySelector<HTMLElement>(".coordination-note-add"))?.focus();
-  }, [memory.notes]);
   return (
     <section className="coordination-group coordination-memory" aria-label="Memory">
       <FoldHead label="Memory" count={memory.notes.length} open={open} onToggle={() => onSetFold("memory", { open: !open })} />
-      {open && <div className="subagent-list" ref={list}>
-        {memory.notes.map((note, index) => (
+      {open && <div className="subagent-list">
+        {memory.notes.map((note) => (
           <div key={note.id} className="coordination-note">
             {/** A note emptied while editing is left as it was; Forget is how one goes. */}
             <InlineEdit value={note.text} label="Note" className="coordination-note-text" maxLength={MAX_MEMORY_NOTE} multiline onSave={(text) => { if (text) memory.onEdit(note.id, text); }} />
@@ -253,7 +246,6 @@ function MemorySection({ memory, fold, onSetFold }: { memory: OverviewMemoryProp
               className="coordination-note-forget"
               aria-label="Forget"
               title="Forget"
-              onClickCapture={() => { forgotten.current = index; }}
             >
               <X size={12} aria-hidden="true" />
             </CommandButton>
@@ -463,13 +455,30 @@ export type ThreadCardsView = {
 /** Held by the coordinator's own transcript, so only its rows of cards redraw when one of its threads moves. */
 export const ThreadCardsContext = createContext<ThreadCardsView | null>(null);
 
+/** A card whose next step the user pressed, which goes once its thread takes the step up. */
+type CardPlace = { threadId: string; index: number };
+
+function rememberCardPlace(pressed: HTMLElement, root: HTMLElement): CardPlace | null {
+  const card = pressed.matches(".coordination-card-step") ? pressed.closest<HTMLElement>(".coordination-card") : null;
+  return card ? { threadId: card.dataset.threadId!, index: [...root.children].indexOf(card) } : null;
+}
+
+/** A next step taken hands focus to its own card, or, once that card is gone, to the card that took its place. */
+function cardFocus(place: CardPlace, root: HTMLElement): HTMLElement | null | undefined {
+  const cards = [...root.children] as HTMLElement[];
+  const card = cards.find((item) => item.dataset.threadId === place.threadId) ?? placeOf(cards, place.index);
+  return card?.querySelector<HTMLElement>(".coordination-card-open");
+}
+
 /** The threads a coordinator started together, side by side where they began in its conversation. */
 export function ThreadCards({ threadIds }: { threadIds: readonly string[] }) {
   const shown = useContext(ThreadCardsContext);
+  const list = useRef<HTMLDivElement>(null);
+  const keepPlace = useKeyboardPlace(list, rememberCardPlace, cardFocus);
   const views = shown ? threadIds.flatMap((id) => shown.cards.get(id) ?? []) : [];
   if (!shown || !views.length) return null;
   return (
-    <div className="coordination-cards" role="list" aria-label={views.length === 1 ? "Thread started here" : "Threads started here"}>
+    <div ref={list} className="coordination-cards" role="list" aria-label={views.length === 1 ? "Thread started here" : "Threads started here"} onClickCapture={keepPlace}>
       {views.map((view) => (
         <ThreadCard
           key={view.thread.id}
@@ -500,7 +509,7 @@ const ThreadCard = memo(function ThreadCard({ view, worktree, onSelect }: {
   const line = coordinationStatusLine(status, pullRequest && (status === "needs-work" || status === "review") ? null : summary, lastHeard);
   const Icon = pullRequest ? PULL_REQUEST_ICONS[pullRequest.state] : null;
   return (
-    <div className={`coordination-card ${status}`} role="listitem">
+    <div className={`coordination-card ${status}`} role="listitem" data-thread-id={thread.id}>
       <button type="button" className="coordination-card-open" aria-label={`Open ${thread.title}`} title={thread.title} onClick={() => onSelect(thread.id)}>
         <span className="coordination-card-head">
           <span className="coordination-row-mark"><CoordinationStatusMark status={status} lastHeard={lastHeard} /></span>

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type RefObject } from "react";
 
 type ElementRef = RefObject<HTMLElement | null>;
 
@@ -102,4 +102,41 @@ export function moveListFocus(event: ReactKeyboardEvent<HTMLElement>) {
     return;
   }
   buttons[(at + (event.key === "ArrowDown" ? 1 : buttons.length - 1)) % buttons.length].focus();
+}
+
+/**
+ * Keeps the keyboard's place when a button it pressed takes itself off the page, as an answered page,
+ * a resolved row or a dismissed suggestion does. As a button under `root` is pressed, `remember` notes
+ * what `settle` needs to find where focus goes once that button is gone; a press it notes nothing for
+ * forgets the last. Nothing moves until the pressed button is gone, and focus the user has moved on
+ * stays where it went. It looks after every redraw of the component holding it, and costs nothing when
+ * nothing was pressed; moving focus sets no state, so a redraw it causes finds nothing left to do.
+ * The handler it returns goes on the root's onClickCapture, which a key that presses a button reaches too.
+ */
+export function useKeyboardPlace<Place>(
+  root: RefObject<HTMLElement | null>,
+  remember: (pressed: HTMLElement, root: HTMLElement) => Place | null,
+  settle: (place: Place, root: HTMLElement) => HTMLElement | null | undefined,
+) {
+  const last = useRef<{ pressed: HTMLElement; place: Place } | null>(null);
+  useLayoutEffect(() => {
+    const held = last.current;
+    if (!held || held.pressed.isConnected) return;
+    last.current = null;
+    const at = root.current;
+    if (!at) return;
+    const active = at.ownerDocument.activeElement;
+    if (!active || active === at.ownerDocument.body) settle(held.place, at)?.focus();
+  });
+  return (event: ReactMouseEvent<HTMLElement>) => {
+    const at = root.current;
+    const pressed = event.target instanceof Element ? event.target.closest<HTMLElement>("button") : null;
+    const place = at && pressed && at.contains(pressed) ? remember(pressed, at) : null;
+    last.current = pressed && place !== null ? { pressed, place } : null;
+  };
+}
+
+/** What stands where the `index`th of a list stood once it is gone: the one there now, else the one before it. */
+export function placeOf<Item>(items: readonly Item[], index: number): Item | undefined {
+  return index < 0 ? undefined : items[index] ?? items[index - 1];
 }

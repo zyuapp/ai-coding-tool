@@ -6,7 +6,7 @@ import React, { act } from "react";
 import type { Thread } from "../../src/domain/thread.ts";
 import type { AppCommand } from "../../src/contracts/commands.ts";
 import type { CoordinatedThreadView } from "../../src/application/coordination-view.ts";
-import { mount, query } from "../support/renderer-dom.mts";
+import { dom, mount, query } from "../support/renderer-dom.mts";
 
 const { ThreadCards, ThreadCardsContext } = await import("../../src/renderer/components/Coordination.tsx");
 const { CommandControlsProvider } = await import("../../src/renderer/components/CommandControl.tsx");
@@ -103,5 +103,23 @@ test("a thread working as a computer out of reach last said says so, and moves n
 test("cards outside a coordinator's own transcript draw nothing", async () => {
   const view = await mount(React.createElement(ThreadCards, { threadIds: ["fix"] }));
   assert.equal(view.container.innerHTML, "");
+  await view.unmount();
+});
+
+test("a next step taken from the keyboard hands focus to its card once the step is gone", async () => {
+  window.desktop = fakeDesktop();
+  const cards = (views: CoordinatedThreadView[]) => React.createElement(CommandControlsProvider, { value: { available: () => true, dispatch() {} } },
+    React.createElement(ThreadCardsContext.Provider, { value: { cards: new Map(views.map((view) => [view.thread.id, view])), worktrees: new Map(), onSelect() {} } },
+      React.createElement(ThreadCards, { threadIds: ["fix", "dark"] })));
+  const focused = () => dom.window.document.activeElement?.getAttribute("aria-label") ?? "the page";
+  const view = await mount(cards([failing, working]));
+  await act(async () => { const step = query<HTMLButtonElement>(view.container, ".coordination-card-step"); step.focus(); step.click(); });
+  await view.render(cards([{ ...failing, status: "working", steps: [] }, working]));
+  assert.equal(focused(), "Open Fix login", "a step taken up hands focus to its own card");
+
+  await view.render(cards([failing, working]));
+  await act(async () => { const step = query<HTMLButtonElement>(view.container, ".coordination-card-step"); step.focus(); step.click(); });
+  await view.render(cards([working]));
+  assert.equal(focused(), "Open Dark mode", "a card gone with it hands focus to the card that took its place");
   await view.unmount();
 });

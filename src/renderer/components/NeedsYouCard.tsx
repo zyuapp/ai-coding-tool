@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import { LuArrowUp as ArrowUp, LuChevronDown as ChevronDown, LuChevronUp as ChevronUp, LuX as X } from "react-icons/lu";
 import type { ThreadModelChoice } from "../../domain/coordination";
 import { modelLabel } from "../../domain/agent-engine";
@@ -9,6 +9,7 @@ import type { ApprovalView } from "../../application/thread-run-state";
 import { CommandButton } from "./CommandControl";
 import { BriefDetails } from "./Coordination";
 import { HostMark } from "./HostMark";
+import { placeOf, useKeyboardPlace } from "../focus";
 import "./coordination.css";
 
 /**
@@ -43,6 +44,29 @@ type DecisionDraft = { kind: "decision"; choice: string; own: string };
 type ElsewhereDraft = { kind: "elsewhere"; picked: string | null; worktree: boolean };
 
 /**
+ * What the user pressed on the card: a control the page after it draws again, such as the pager or a
+ * suggestion's Start, by which of those it was, or one that settles the page it is on.
+ */
+type CardPlace = { action: string | null; index: number };
+
+function actionsOf(root: HTMLElement, action: string): HTMLElement[] {
+  return [...root.querySelectorAll<HTMLElement>("[data-action]")].filter((button) => button.dataset.action === action);
+}
+
+function rememberCardPlace(pressed: HTMLElement, root: HTMLElement): CardPlace {
+  const action = pressed.dataset.action ?? null;
+  return { action, index: action ? actionsOf(root, action).indexOf(pressed) : -1 };
+}
+
+/**
+ * Where the keyboard goes once what it pressed is gone: to the same control on the page or row that
+ * took its place, else to that page itself, so what comes next is read before anything on it is pressed.
+ */
+function cardFocus({ action, index }: CardPlace, root: HTMLElement): HTMLElement | null | undefined {
+  return (action ? placeOf(actionsOf(root, action), index) : undefined) ?? root.querySelector<HTMLElement>(".decision-card");
+}
+
+/**
  * Everything waiting on the user from a coordinator and its threads, one page at a time: approvals,
  * each thread asked for on another computer, decisions, then the threads it suggested here.
  */
@@ -56,6 +80,8 @@ export function NeedsYouCard({ approvals, decisions, suggestions = null, onDecid
 }) {
   const [page, setPage] = useState<Page | null>(null);
   const [drafts, setDrafts] = useState<Readonly<Record<string, Draft>>>({});
+  const card = useRef<HTMLDivElement>(null);
+  const keepPlace = useKeyboardPlace(card, rememberCardPlace, cardFocus);
   const proposals = suggestions?.proposals ?? [];
   const here = proposals.filter((view) => !view.elsewhere);
   const items: NeedsYouItem[] = [
@@ -81,11 +107,13 @@ export function NeedsYouCard({ approvals, decisions, suggestions = null, onDecid
     [current.key]: draft,
   }));
   const draft = drafts[current.key];
+  /** Every page is drawn in the same root, which outlives them, so the keyboard's place is found in it. */
+  const held = (form: ReactNode) => <div ref={card} onClickCapture={keepPlace}>{form}</div>;
   switch (current.kind) {
     case "approval":
-      return <ApprovalForm key={current.key} view={current.view} position={position} onStep={onStep} onDecide={onDecide} onSelect={onSelect} />;
+      return held(<ApprovalForm key={current.key} view={current.view} position={position} onStep={onStep} onDecide={onDecide} onSelect={onSelect} />);
     case "elsewhere":
-      return <ElsewhereForm
+      return held(<ElsewhereForm
         key={current.key}
         taskId={current.taskId}
         request={current.request}
@@ -93,9 +121,9 @@ export function NeedsYouCard({ approvals, decisions, suggestions = null, onDecid
         position={position}
         onStep={onStep}
         onDraft={onDraft}
-      />;
+      />);
     case "decision":
-      return <DecisionForm
+      return held(<DecisionForm
         key={current.key}
         view={current.view}
         draft={draft?.kind === "decision" ? draft : null}
@@ -104,9 +132,9 @@ export function NeedsYouCard({ approvals, decisions, suggestions = null, onDecid
         onDraft={onDraft}
         onAnswer={(answer) => onAnswer(current.view.thread.id, current.view.decision.id, answer)}
         onSelect={onSelect}
-      />;
+      />);
     case "suggestions":
-      return <SuggestionsForm key={current.key} suggestions={current.suggestions} position={position} onStep={onStep} />;
+      return held(<SuggestionsForm key={current.key} suggestions={current.suggestions} position={position} onStep={onStep} />);
   }
 }
 
@@ -125,8 +153,8 @@ function PagerControls({ position, onStep }: { position: Pager; onStep: (delta: 
   return (
     <span className="decision-pager">
       <span>{position.index + 1} of {position.count}</span>
-      <button type="button" aria-label="Previous" onClick={() => onStep(-1)}><ChevronUp size={14} aria-hidden="true" /></button>
-      <button type="button" aria-label="Next" onClick={() => onStep(1)}><ChevronDown size={14} aria-hidden="true" /></button>
+      <button type="button" aria-label="Previous" data-action="previous" onClick={() => onStep(-1)}><ChevronUp size={14} aria-hidden="true" /></button>
+      <button type="button" aria-label="Next" data-action="next" onClick={() => onStep(1)}><ChevronDown size={14} aria-hidden="true" /></button>
     </span>
   );
 }
@@ -136,7 +164,7 @@ function SuggestionsForm({ suggestions, position, onStep }: { suggestions: Sugge
   const { taskId, threadModel, proposals } = suggestions;
   const waiting = proposals.some(({ starting }) => !starting);
   return (
-    <section className="decision-card" aria-label="Suggested threads">
+    <section className="decision-card" aria-label="Suggested threads" tabIndex={-1}>
       <div className="decision-head">
         <strong>Suggested threads</strong>
         <PagerControls position={position} onStep={onStep} />
@@ -145,7 +173,7 @@ function SuggestionsForm({ suggestions, position, onStep }: { suggestions: Sugge
         {proposals.map((view) => <SuggestionRow key={view.proposal.id} taskId={taskId} threadModel={threadModel} view={view} />)}
       </ul>
       <div className="decision-foot">
-        {position && <button type="button" className="secondary" onClick={() => onStep(1)}>Later</button>}
+        {position && <button type="button" className="secondary" data-action="later" onClick={() => onStep(1)}>Later</button>}
         <span className="decision-foot-gap" />
         <CommandButton type="button" className="secondary" command={{ type: "proposal.dismiss", taskId }} disabled={!waiting}>Dismiss all</CommandButton>
         <CommandButton type="button" command={{ type: "proposal.start", taskId }} disabled={!waiting}>Start all</CommandButton>
@@ -171,6 +199,7 @@ function SuggestionRow({ taskId, threadModel, view }: { taskId: string; threadMo
       {!starting && <CommandButton
         type="button"
         className="suggestion-dismiss"
+        data-action="dismiss"
         aria-label={`Dismiss ${proposal.title}`}
         title="Dismiss"
         command={{ type: "proposal.dismiss", taskId, proposalId: proposal.id }}
@@ -179,7 +208,7 @@ function SuggestionRow({ taskId, threadModel, view }: { taskId: string; threadMo
       </CommandButton>}
       {starting
         ? <span className="suggestion-start task-spinner" role="status" aria-label={`Starting ${proposal.title}`} />
-        : <CommandButton type="button" className="suggestion-start" aria-label={`Start ${proposal.title}`} title="Start" command={{ type: "proposal.start", taskId, proposalId: proposal.id }}>
+        : <CommandButton type="button" className="suggestion-start" data-action="start" aria-label={`Start ${proposal.title}`} title="Start" command={{ type: "proposal.start", taskId, proposalId: proposal.id }}>
             <ArrowUp size={14} aria-hidden="true" />
           </CommandButton>}
     </li>
@@ -205,7 +234,7 @@ function ElsewhereForm({ taskId, request, draft, position, onStep, onDraft }: {
   /** A folder picked while that computer still holds it, else the one the view settles on, which follows its projects as they arrive. */
   const project = picked !== null && projects.some((item) => item.id === picked) ? picked : elsewhere.project ?? "";
   return (
-    <section className="decision-card elsewhere-card" aria-label={`Run on ${computer.name}?`}>
+    <section className="decision-card elsewhere-card" aria-label={`Run on ${computer.name}?`} tabIndex={-1}>
       <div className="decision-head">
         <strong className="elsewhere-heading">Run on <HostMark name={computer.name} offline={computer.offline} reconnecting={computer.reconnecting} />?</strong>
         <PagerControls position={position} onStep={onStep} />
@@ -230,7 +259,7 @@ function ElsewhereForm({ taskId, request, draft, position, onStep, onDraft }: {
           : proposal.error && !starting && <p className="suggestion-error" role="alert">{proposal.error}</p>}
       </div>
       <div className="decision-foot">
-        {position && <button type="button" className="secondary" onClick={() => onStep(1)}>Later</button>}
+        {position && <button type="button" className="secondary" data-action="later" onClick={() => onStep(1)}>Later</button>}
         <span className="decision-foot-gap" />
         <CommandButton type="button" className="secondary" command={{ type: "proposal.dismiss", taskId, proposalId: proposal.id }} disabled={starting}>Deny</CommandButton>
         <CommandButton
@@ -257,7 +286,7 @@ function ApprovalForm({ view, position, onStep, onDecide, onSelect }: {
   const { thread, approval } = view;
   const command = typeof approval.input.command === "string" ? approval.input.command : null;
   return (
-    <section className="decision-card" aria-label="Approval waiting on you">
+    <section className="decision-card" aria-label="Approval waiting on you" tabIndex={-1}>
       <NeedsYouHead thread={thread} position={position} onStep={onStep} onSelect={onSelect} />
       <div className="decision-body">
         <p className="decision-question">{approval.title}</p>
@@ -267,7 +296,7 @@ function ApprovalForm({ view, position, onStep, onDecide, onSelect }: {
           : <details className="decision-tool"><summary>{approval.toolName}</summary><pre>{JSON.stringify(approval.input, null, 2)}</pre></details>}
       </div>
       <div className="decision-foot">
-        {position && <button type="button" className="secondary" onClick={() => onStep(1)}>Later</button>}
+        {position && <button type="button" className="secondary" data-action="later" onClick={() => onStep(1)}>Later</button>}
         <span className="decision-foot-gap" />
         <button type="button" className="secondary" onClick={() => onDecide(approval, false)}>Deny</button>
         <button type="button" onClick={() => onDecide(approval, true)}>Allow</button>
@@ -291,7 +320,7 @@ function DecisionForm({ view, draft, position, onStep, onDraft, onAnswer, onSele
   const { choice, own } = draft ?? { choice: decision.options.find((option) => option.recommended)?.label ?? "", own: "" };
   const answer = own.trim() || choice;
   return (
-    <form className="decision-card" aria-label="Decision waiting on you" onSubmit={(event) => {
+    <form className="decision-card" aria-label="Decision waiting on you" tabIndex={-1} onSubmit={(event) => {
       event.preventDefault();
       if (answer) onAnswer(answer);
     }}>
@@ -318,7 +347,7 @@ function DecisionForm({ view, draft, position, onStep, onDraft, onAnswer, onSele
           aria-label="Your own answer"
           onChange={(event) => onDraft({ kind: "decision", choice, own: event.currentTarget.value })}
         />
-        {position && <button type="button" className="secondary" onClick={() => onStep(1)}>Later</button>}
+        {position && <button type="button" className="secondary" data-action="later" onClick={() => onStep(1)}>Later</button>}
         <button type="submit" disabled={!answer}>Decide</button>
       </div>
     </form>
