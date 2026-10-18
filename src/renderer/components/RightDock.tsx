@@ -98,7 +98,7 @@ export function RightDock({ workspace, panels, launchers, open, expanded, sideba
         addMenuTrigger={addMenuTrigger}
         onCloseTab={onCloseTab}
       />
-      <PartBoundary name="right panel" className="right-dock-content">
+      <PartBoundary name="right panel" className="right-dock-content" resetKey={activeTab}>
         <DockContent
           workspace={workspace}
           panels={panels}

@@ -153,6 +153,8 @@ export function App() {
 
   /** The window opens before the store has loaded, and an empty workspace would read as no threads. */
   if (!workspace.restored) return <main className="app-shell" />;
+  /** What the workspace shows, so a part that failed on one thread draws again for the next. */
+  const shownKey = workspace.currentThread?.id ?? `draft:${workspace.currentProject?.id ?? ""}`;
 
   return (
     <CommandControlsProvider value={workspace.commandControls}><MessageLinkProvider actions={messageLinks}>
@@ -169,7 +171,7 @@ export function App() {
         inert={settingsVisible}
         {...workspaceDrop.props}
       >
-        <PartBoundary name="header" className="topbar">
+        <PartBoundary name="header" className={`topbar ${sidebarOpen ? "" : "traffic-inset"}`.trimEnd()} resetKey={shownKey}>
           <WorkspaceHeader
             currentThread={workspace.currentThread}
             folder={workspace.folder}
@@ -207,7 +209,7 @@ export function App() {
           {!workspace.storageError && <HiddenThreadsNotice workspace={workspace} />}
         </div>
 
-        <PartBoundary name="conversation" className="work-area">
+        <PartBoundary name="conversation" className="work-area" resetKey={shownKey}>
           <WorkspaceConversation workspace={workspace} find={find} findBar={findBar} onAnnotateSide={annotateToSideChat} />
         </PartBoundary>
 
@@ -232,7 +234,7 @@ export function App() {
           findBar={findBar}
         />
 
-        <PartBoundary name="composer" className="composer-wrap main">
+        <PartBoundary name="composer" className="composer-wrap main" resetKey={shownKey}>
           <WorkspaceComposer workspace={workspace} actions={composerActions} />
         </PartBoundary>
         {workspaceDrop.over && <p className="drop-hint" role="status">Drop to attach</p>}

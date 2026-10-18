@@ -182,3 +182,8 @@ export function useKeyboardPlace<Place>(
 export function placeOf<Item>(items: readonly Item[], index: number): Item | undefined {
   return index < 0 ? undefined : items[index] ?? items[index - 1];
 }
+
+/** The first control under `root` the keyboard can reach, `root` itself when it is one. */
+export function firstFocusable(root: HTMLElement): HTMLElement | null {
+  return root.matches(FOCUSABLE) ? root : root.querySelector<HTMLElement>(FOCUSABLE);
+}
