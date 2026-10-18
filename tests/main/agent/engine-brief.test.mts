@@ -167,6 +167,17 @@ test("a coordinator is told to keep its project's folder out of what a worktree 
   }
 });
 
+test("a Codex member in a checkout of its own is told its commits run outside its sandbox, and a Claude one, which has none, is not", async () => {
+  const own = await briefs({ coordinationRole: "member", coordination, workspaceRoot: "/worktrees/repo-1", projectRoot: "/repo" });
+  const shared = await briefs({ coordinationRole: "member", coordination });
+  const lead = await briefs({ coordinationRole: "coordinator", coordination });
+  const outside = /a git command that writes it, such as git add or git commit, must run outside the sandbox: ask to run it that way, and report blocked only if that is refused\./;
+  assert.match(own.codex.instructions, outside);
+  assert.doesNotMatch(own.claude.instructions, outside);
+  for (const brief of [shared.codex, lead.codex]) assert.doesNotMatch(brief.instructions, outside, "only a member working apart from the project's checkout is told");
+  assert.match(lead.codex.instructions, /never ask to run a command outside its sandbox/);
+});
+
 test("a side chat, which cannot move its thread, is only told to start a thread in a worktree", async () => {
   const main = await briefs({ threads });
   const side = await briefs({ threads, channel: "side" });

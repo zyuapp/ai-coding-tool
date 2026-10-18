@@ -89,15 +89,6 @@ export async function repositoryRoot(root: string) {
   return (await git(root, ["rev-parse", "--show-toplevel"])).trim();
 }
 
-/**
- * The folders a checkout's commits write to: its own git folder and, for a worktree, the repository's
- * shared one, which both sit outside a worktree's files. None outside a repository.
- */
-export async function gitFolders(root: string) {
-  const output = await tryGit(root, ["rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir"]);
-  return [...new Set((output ?? "").split("\n").map((line) => line.trim()).filter(Boolean))];
-}
-
 export async function addWorktree(repositoryPath: string, worktreePath: string, commit: string) {
   await git(repositoryPath, ["worktree", "add", "--detach", worktreePath, commit], undefined, LONG_TIMEOUT_MS);
 }

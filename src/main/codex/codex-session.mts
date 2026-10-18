@@ -14,8 +14,7 @@ import { SIDE_CHAT_BOUNDARY } from "../agent/side-chat-instructions.mjs";
 import { adoptAppSkills, CodexSkills } from "./codex-skills.mjs";
 import { codexImageOutput, type ImageOutput } from "./codex-images.mjs";
 import { CodexSubagents } from "./codex-subagents.mjs";
-import { codexPolicy, sandboxPolicy, type OwnCheckout } from "./codex-policy.mjs";
-import { gitFolders } from "../workspace/git.mjs";
+import { codexPolicy, sandboxPolicy } from "./codex-policy.mjs";
 import { CodexSpend } from "./codex-spend.mjs";
 import { readCodexUsageLimit } from "./codex-plan-usage.mjs";
 import { CodexThreadRecord, resumeThread, type ReadOrigin } from "./codex-thread-record.mjs";
@@ -172,8 +171,6 @@ export class CodexSession {
   /** A newer read supersedes an older one that is still paging through the server. */
   private backgroundRead = 0;
   private skills: CodexSkills | null = null;
-  /** Where this session's checkout keeps its git data, read once: a checkout never moves under its session. */
-  private gitFolders: Promise<string[]> | null = null;
   /** What Codex calls this thread. A later run resumes it by this id. */
   threadId?: string;
   /** What this app leaves in Codex's own record of the thread. */
@@ -273,7 +270,6 @@ export class CodexSession {
   }
 
   private async begin(turn: Turn) {
-    const own = this.ownCheckout(turn.input);
     try {
       await (this.opening ??= this.open(turn.input));
     } catch (error) {
@@ -316,7 +312,7 @@ export class CodexSession {
         serviceTier: turn.input.fastMode ? "priority" : "default",
         approvalPolicy: policy.approvalPolicy,
         approvalsReviewer: policy.approvalsReviewer,
-        sandboxPolicy: sandboxPolicy(policy.sandbox, await own),
+        sandboxPolicy: sandboxPolicy(policy.sandbox, turn.input.projectRoot),
       });
     } catch (error) {
       if (this.turn === turn) this.turns.settle({ status: "failed", message: `Codex could not start the turn: ${reasonOf(error)}` });
@@ -369,12 +365,6 @@ export class CodexSession {
   }
 
   /** Manual compaction is a thread operation, not an empty model turn. */
-  /** A member in a checkout of its own, read alongside the opening so its turn starts no later. */
-  private async ownCheckout(input: ProviderRunInput): Promise<OwnCheckout | undefined> {
-    if (!input.projectRoot) return undefined;
-    return { projectRoot: input.projectRoot, gitFolders: await (this.gitFolders ??= gitFolders(input.workspaceRoot)) };
-  }
-
   private async beginCompaction(turn: Turn, client: CodexClient, threadId: string) {
     this.setCompacting(turn, true);
     try {

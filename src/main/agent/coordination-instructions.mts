@@ -1,4 +1,5 @@
 import type { CoordinationRole } from "../../domain/coordination.js";
+import type { BriefDialect } from "./run-brief.mjs";
 
 /** What a coordinator is told, around how its own engine lets it read, the one thing engines differ on. */
 const coordinatorInstructions = (reads: string) => [
@@ -28,11 +29,15 @@ export const MEMBER_INSTRUCTIONS = [
 /** A member in a checkout of its own is told so, and that the project's checkout is the user's, which a brief naming it does not change. */
 const ownCheckoutInstructions = (workspaceRoot: string, projectRoot: string) => `You work in your own checkout, ${workspaceRoot}. The project's main checkout, ${projectRoot}, is the user's: never change anything there. Where your brief or prompt names that folder, it means the same files in your own checkout: make every change and commit here.`;
 
-/** `coordinatorReads` says how a coordinator reads on its engine, which never lets it change anything. */
-export function coordinationInstructions(role: CoordinationRole | undefined, { workspaceRoot, projectRoot }: { workspaceRoot: string; projectRoot?: string | undefined }, coordinatorReads: string): string[] {
-  if (role === "coordinator") return [coordinatorInstructions(coordinatorReads)];
+/**
+ * The dialect says how a coordinator reads on its engine, which never lets it change anything, and
+ * how a member in a checkout of its own commits there, where its engine needs that said.
+ */
+export function coordinationInstructions(role: CoordinationRole | undefined, { workspaceRoot, projectRoot }: { workspaceRoot: string; projectRoot?: string | undefined }, dialect: Pick<BriefDialect, "coordinatorReads" | "ownCheckoutCommits">): string[] {
+  if (role === "coordinator") return [coordinatorInstructions(dialect.coordinatorReads)];
   if (role !== "member") return [];
-  return projectRoot ? [MEMBER_INSTRUCTIONS, ownCheckoutInstructions(workspaceRoot, projectRoot)] : [MEMBER_INSTRUCTIONS];
+  if (!projectRoot) return [MEMBER_INSTRUCTIONS];
+  return [MEMBER_INSTRUCTIONS, ownCheckoutInstructions(workspaceRoot, projectRoot), ...(dialect.ownCheckoutCommits ? [dialect.ownCheckoutCommits] : [])];
 }
 
 /**

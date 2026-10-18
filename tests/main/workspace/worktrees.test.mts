@@ -6,7 +6,7 @@ import path from "node:path";
 import { test, afterAll, describe } from "vitest";
 import { promisify } from "node:util";
 import { WorktreeService } from "../../../src/main/workspace/worktrees.mts";
-import { checkoutBranch, createBranch, gitFolders, isDetached, listBranches } from "../../../src/main/workspace/git.mts";
+import { checkoutBranch, createBranch, isDetached, listBranches } from "../../../src/main/workspace/git.mts";
 import type { WorkspaceRecord } from "../../../src/domain/workspace.ts";
 
 const execFileAsync = promisify(execFile);
@@ -411,17 +411,6 @@ test("branches report the current branch and a detached checkout", async () => {
   const detached = await listBranches(root);
   assert.equal(detached.current, null);
   assert.ok(detached.branches.includes("main"));
-});
-
-test("a worktree's git data is its repository's, while a plain checkout keeps its own", async () => {
-  const root = await repository();
-  const worktrees = await service();
-  const worktree = await worktrees.create({ projectRoot: root, carryChanges: false });
-
-  assert.deepEqual(await gitFolders(root), [path.join(root, ".git")]);
-  assert.deepEqual(await gitFolders(worktree.root), [path.join(root, ".git", "worktrees", path.basename(worktree.root)), path.join(root, ".git")]);
-  assert.deepEqual(await gitFolders(await temporaryDirectory("plain")), [], "a folder outside any repository has none");
-  assert.deepEqual(await gitFolders(path.join(root, "missing")), [], "nor does a checkout that is gone");
 });
 
 test("listing counts renames and untracked files, and compares detached commits without changing Git", async () => {
