@@ -5,7 +5,7 @@ import { coordinationView } from "../../src/application/coordination-view.ts";
 import { threadMark, withdrawRun } from "../../src/application/thread-run-state.ts";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
-import type { CoordinationReport, ThreadBrief } from "../../src/domain/coordination.ts";
+import { MAX_OPEN_DECISIONS, type CoordinationReport, type ThreadBrief } from "../../src/domain/coordination.ts";
 import type { Thread } from "../../src/domain/thread.ts";
 import { activeRun, correlatedRunEvent, effectAt, effectOf, required, run, task, workspace } from "./workspace-reducer-fixtures.mts";
 
@@ -234,4 +234,31 @@ test("a resolved thread stays resolved through a session limit and a compaction 
   const compacted = reduce(compacting.state, { type: "run.resolved", pendingId: effectOf(compacting, "resolve-run-workspace").pendingId, workspace: PROJECTLESS });
   const failed = reduce(compacted.state, correlatedRunEvent("worker", effectAt(compacted, "start-run").command.runId, 1, { type: "run.status", status: "failed" })).state;
   assert.equal(status(failed), "resolved", "compacting is not a turn");
+});
+
+test("a thread raises only so many decisions at once, and one past them neither waits nor is announced", () => {
+  let state = workspace({ threads: [lead(), member("worker")], notifications: true });
+  for (let index = 0; index < MAX_OPEN_DECISIONS; index += 1) {
+    state = reduce(state, { type: "coordination.decision-raised", taskId: "worker", request: { question: `Q${index}?`, options: [] } }).state;
+  }
+  const past = reduce(state, { type: "coordination.decision-raised", taskId: "worker", request: { question: "One more?", options: [] } });
+  assert.equal(past.state, state);
+  assert.deepEqual(past.effects, []);
+  const first = required(state.threads[1].decisions?.[0]);
+  const answered = reduce(state, { type: "decision.answer", taskId: "worker", decisionId: first.id, answer: "Yes" }).state;
+  const again = reduce(answered, { type: "coordination.decision-raised", taskId: "worker", request: { question: "One more?", options: [] } });
+  assert.equal(required(again.state.threads[1].decisions).filter((decision) => decision.answer === undefined).length, MAX_OPEN_DECISIONS, "an answer makes room for the next");
+});
+
+test("a thread that floods its coordinator crowds out its own notes, never another thread's news", () => {
+  const state = workspace({ threads: [lead(), member("one"), member("two")] });
+  let flooded = reduce(state, { type: "coordination.reported", taskId: "two", state: "done", summary: "Shipped PR #9" }).state;
+  for (let index = 0; index < 60; index += 1) {
+    flooded = reduce(flooded, { type: "coordination.reported", taskId: "one", state: "blocked", summary: `Stuck ${index}` }).state;
+  }
+  const notes = required(flooded.threads[0].coordinationNotes);
+  assert.equal(notes.length, 50);
+  assert.match(required(notes.find((note) => note.threadId === "two")).text, /Shipped PR #9/);
+  assert.match(notes.at(-1)!.text, /Stuck 59/, "the newest of the flood is kept, its oldest given up");
+  assert.match(notes.filter((note) => note.threadId === "one")[0].text, /Stuck 11$/);
 });

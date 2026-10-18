@@ -84,6 +84,8 @@ export const MAX_OPTIONS = 5;
 export const MAX_ANSWER = 4_000;
 /** Answered decisions are history; only the newest are kept. */
 const MAX_DECISIONS = 20;
+/** How many decisions one thread may have waiting on the user at once, so a thread raising them in a loop stops at a few. */
+export const MAX_OPEN_DECISIONS = 10;
 const MAX_NOTES = 50;
 export const MAX_PURPOSE = 200;
 export const MAX_MEMORY_NOTE = 500;
@@ -363,6 +365,11 @@ export function openDecisions(thread: Thread): Decision[] {
   return (thread.decisions ?? []).filter((decision) => decision.answer === undefined);
 }
 
+/** Whether a thread already has as many decisions waiting on the user as it may, so another one is refused. */
+export function decisionsFull(thread: Thread): boolean {
+  return openDecisions(thread).length >= MAX_OPEN_DECISIONS;
+}
+
 /** Every decision waiting on the user from a coordinator and the threads under it, wherever each is held, oldest first. */
 export function coordinationDecisions(lead: Thread, members: readonly Thread[]): Array<{ thread: Thread; decision: Decision }> {
   if (!isCoordinator(lead)) return [];
@@ -548,8 +555,23 @@ export function withProposalError(lead: Thread, id: string, error: string | unde
   return { ...lead, proposals: lead.proposals!.map((item) => item === proposal ? marked : item) };
 }
 
+/**
+ * A coordinator holds only so many notes it has yet to hear. Past that, the thread with the most
+ * gives up its oldest, so a thread that floods its coordinator crowds out its own news and never
+ * what another thread had to say.
+ */
 export function withCoordinationNote(lead: Thread, note: CoordinationNote): Thread {
-  return { ...lead, coordinationNotes: [...lead.coordinationNotes ?? [], note].slice(-MAX_NOTES) };
+  const notes = [...lead.coordinationNotes ?? [], note];
+  while (notes.length > MAX_NOTES) notes.splice(notes.indexOf(oldestOfBusiest(notes)), 1);
+  return { ...lead, coordinationNotes: notes };
+}
+
+/** The oldest note of the thread with the most notes, the earliest to have written first among equals. */
+function oldestOfBusiest(notes: readonly CoordinationNote[]): CoordinationNote {
+  const counts = new Map<string, number>();
+  for (const note of notes) counts.set(note.threadId, (counts.get(note.threadId) ?? 0) + 1);
+  const most = Math.max(...counts.values());
+  return notes.find((note) => counts.get(note.threadId) === most)!;
 }
 
 /** Takes off the notes a run heard, leaving any that arrived after it set off. */

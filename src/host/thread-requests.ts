@@ -16,7 +16,7 @@ import type { AppCommand } from "../contracts/commands.js";
 import type { ExternalCommand, FindingReport, FindingResult, ThreadCommandResult, ThreadRequest, ThreadResponse, ThreadTranscript } from "../contracts/threads.js";
 import { REMOTE_UNSUPPORTED } from "../contracts/computer-capabilities.js";
 import { terminalLineLimit } from "../domain/terminal.js";
-import { coordinatorOf, isCoordinator, MAX_PROPOSALS, withMemoryChange, worksUnderCoordinator, type CoordinationState, type DecisionRequest, type MemoryChange, type ProposalRequest, type ThreadProposal } from "../domain/coordination.js";
+import { coordinatorOf, decisionsFull, isCoordinator, MAX_OPEN_DECISIONS, MAX_PROPOSALS, withMemoryChange, worksUnderCoordinator, type CoordinationState, type DecisionRequest, type MemoryChange, type ProposalRequest, type ThreadProposal } from "../domain/coordination.js";
 import { errorMessage } from "./errors.js";
 import type { RuntimeDesktop } from "./runtime-desktop.js";
 
@@ -346,6 +346,9 @@ async function raiseDecision(host: ThreadRequestHost, threadId: string, request:
   const thread = threads.find((item) => item.id === threadId);
   if (!isCoordinator(thread) && !worksUnderCoordinator(threads, thread)) {
     return { recorded: false, note: "Only a coordinator and the threads working under it can raise decisions, so nothing was recorded. Ask the user in your reply instead." };
+  }
+  if (thread && decisionsFull(thread)) {
+    return { recorded: false, note: `This thread already has ${MAX_OPEN_DECISIONS} decisions waiting on the user, so this one was not raised. Wait for their answers, or ask in your reply instead.` };
   }
   await host.dispatch({ type: "coordination.decision-raised", taskId: threadId, request });
   return { recorded: true, note: "Raised. The user sees it now, and their answer arrives in this thread as a message. If you cannot go on without it, end your turn." };

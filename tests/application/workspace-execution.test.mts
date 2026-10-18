@@ -7,6 +7,7 @@ import { EMPTY_DIFF } from "../../src/application/workspace-diff.ts";
 import { answerThreadRequest, type ThreadRequestHost } from "../../src/host/thread-requests.ts";
 import { threadTranscript } from "../../src/application/thread-projection.ts";
 import { MAX_ATTACHED_FILES, MAX_ATTACHMENTS } from "../../src/domain/conversation.ts";
+import { MAX_OPEN_DECISIONS } from "../../src/domain/coordination.ts";
 import type { RuntimeDesktop } from "../../src/host/runtime-desktop.ts";
 import { runWorkspaceEffect } from "../../src/host/workspace-effects.ts";
 import { PROJECT, activeRun, heldWorktree, inside, projected, task, workspace } from "./workspace-reducer-fixtures.mts";
@@ -248,6 +249,18 @@ test("only a coordinator and its threads report or raise decisions", async () =>
   const decided = await answerThreadRequest(host, { type: "thread.request", requestId: "r3", taskId: "lead", op: "decision", request: { question: "Ship it?", options: [] } });
   assert.deepEqual(decided.ok && (decided.result as { recorded: boolean }).recorded, true, "a coordinator can put a choice to the user too");
   assert.equal(host.state().threads[0].decisions?.length, 1);
+});
+
+test("a thread with as many decisions waiting as it may is told to wait for their answers", async () => {
+  const waiting = Array.from({ length: MAX_OPEN_DECISIONS }, (_, index) => ({ id: `d${index}`, question: `Q${index}?`, options: [], raisedAt: index }));
+  const host = driver(workspace({ threads: [task("lead", { role: "coordinator" }), task("worker", { parentId: "lead", decisions: waiting })] }));
+  const refused = await answerThreadRequest(host, { type: "thread.request", requestId: "r1", taskId: "worker", op: "decision", request: { question: "One more?", options: [] } });
+  assert.equal(refused.ok, true);
+  const result = refused.ok ? refused.result as { recorded: boolean; note: string } : undefined;
+  assert.equal(result?.recorded, false);
+  assert.match(result?.note ?? "", new RegExp(`already has ${MAX_OPEN_DECISIONS} decisions waiting on the user`));
+  assert.equal(host.state().threads[1].decisions?.length, MAX_OPEN_DECISIONS);
+  assert.equal(host.state().threads[0].coordinationNotes, undefined);
 });
 
 test("a thread deletes a worktree by id, filing away the threads in it, and never one still running", async () => {
