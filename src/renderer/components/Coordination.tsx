@@ -97,7 +97,7 @@ export function CoordinatorOverview({ header, memory, members, usage, worktrees,
   const overview = useRef<HTMLDivElement>(null);
   const keepPlace = useKeyboardPlace(overview, rememberOverviewPlace, (place, root) => overviewFocus(place, root, groups));
   return (
-    <div ref={overview} className="coordination-overview" aria-label="Threads under this coordinator" onClickCapture={keepPlace}>
+    <div ref={overview} className="coordination-overview" role="region" aria-label="Threads under this coordinator" onClickCapture={keepPlace}>
       <CommandGate command={{ type: "memory.set-purpose", taskId: memory.taskId, purpose: memory.purpose }}>
         <PurposeLine purpose={memory.purpose} onSave={memory.onSetPurpose} />
       </CommandGate>
@@ -394,7 +394,8 @@ function ThreadGroup({ group, members, fold, worktrees, action, onSetFold, ...ac
   return (
     <section className={`coordination-group ${group}`} aria-label={label} data-section={group}>
       <FoldHead label={label} count={members.length} open={open} action={action} onToggle={() => onSetFold(group, { open: !open })} />
-      {open && <div className="subagent-list" aria-live="polite">
+      {/** Only Needs you speaks, as only Priority does in the sidebar: a working thread's progress is not news to read out. */}
+      {open && <div className="subagent-list" aria-live={group === "needs" ? "polite" : undefined}>
         {shown.map((view) => <ThreadRow key={view.thread.id} view={view} worktrees={worktrees} {...actions} />)}
         {members.length > shown.length && (
           <button type="button" className="coordination-more" onClick={() => onSetFold(group, { all: true })}>Show {members.length - shown.length} more</button>
@@ -542,7 +543,7 @@ const ThreadCard = memo(function ThreadCard({ view, worktree, onSelect }: {
       {(steps.length > 0 || pullRequest) && (
         <div className="coordination-card-steps">
           {steps.map((step) => (
-            <CommandButton key={step} type="button" className="coordination-card-step" command={{ type: "coordination.next-step", taskId: thread.id, step }}>
+            <CommandButton key={step} type="button" className="coordination-card-step" aria-label={`${nextStepOf(step).label} for ${thread.title}`} command={{ type: "coordination.next-step", taskId: thread.id, step }}>
               {nextStepOf(step).label}
             </CommandButton>
           ))}
@@ -551,6 +552,7 @@ const ThreadCard = memo(function ThreadCard({ view, worktree, onSelect }: {
               className="coordination-card-step"
               href={pullRequest.url}
               title={`#${pullRequest.number} ${pullRequest.title}`}
+              aria-label={`${MOVING_PULL_REQUESTS.has(pullRequest.state) ? "Review" : "View"} ${thread.title}'s pull request`}
               openInApp={links.openUrlInApp && (() => links.openUrlInApp!(pullRequest.url))}
             >
               {MOVING_PULL_REQUESTS.has(pullRequest.state) ? "Review PR" : "View PR"}

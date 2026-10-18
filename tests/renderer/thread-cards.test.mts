@@ -67,12 +67,14 @@ test("a card shows how its thread stands, opens it, and offers what to do next b
 
   const step = [...fix.querySelectorAll<HTMLButtonElement>("button.coordination-card-step")];
   assert.deepEqual(step.map((button) => button.textContent), ["Fix CI"]);
+  assert.deepEqual(step.map((button) => button.getAttribute("aria-label")), ["Fix CI for Fix login"], "a step names the thread it is for, as Resolve does");
   assert.equal(step[0]!.closest(".coordination-card-open"), null, "a step sits beside the open button, never inside it");
   await act(async () => { step[0]!.click(); });
   assert.deepEqual(dispatched, [{ type: "coordination.next-step", taskId: "fix", step: "fix-ci" }]);
 
   const review = query<HTMLAnchorElement>(fix, "a.coordination-card-step");
   assert.equal(review.textContent, "Review PR");
+  assert.equal(review.getAttribute("aria-label"), "Review Fix login's pull request");
   assert.equal(review.href, PULL_REQUEST.url);
   assert.equal(review.closest(".coordination-card-open"), null);
 
