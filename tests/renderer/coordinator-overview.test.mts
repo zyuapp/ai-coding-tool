@@ -208,6 +208,8 @@ test("an Overview row shows its whole status line on hover, where the row clips 
   const line = query(view.container, 'button[aria-label="Open Payments"] small');
   assert.equal(line.title, `Blocked · ${reason}`);
   assert.equal(line.textContent, line.title);
+  const described = query(view.container, 'button[aria-label="Open Payments"]').getAttribute("aria-describedby");
+  assert.equal(described && dom.window.document.getElementById(described)?.textContent, `Blocked · ${reason}`, "the row is read with how its thread stands, not just its name");
   await view.unmount();
 });
 
@@ -360,24 +362,28 @@ test("the Overview's purpose line and memory rows edit what the coordinator keep
     await act(async () => { input.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key, bubbles: true })); });
   };
 
-  const purpose = query<HTMLButtonElement>(container, 'button[aria-label="Edit Purpose"]');
+  const purpose = query<HTMLButtonElement>(container, 'button[aria-label^="Edit purpose: "]');
   assert.equal(purpose.textContent, "Ship the v2 reader");
+  assert.equal(purpose.getAttribute("aria-label"), "Edit purpose: Ship the v2 reader", "it is named by what it says");
   await act(async () => { purpose.click(); });
   await type(query<HTMLInputElement>(container, 'input[aria-label="Purpose"]'), "Never mind", "Escape");
   assert.equal(dispatched.length, 0, "Esc leaves the purpose as it was");
-  assert.ok(dom.window.document.activeElement === query(container, 'button[aria-label="Edit Purpose"]'), "and hands focus back to it");
-  await act(async () => { query<HTMLButtonElement>(container, 'button[aria-label="Edit Purpose"]').click(); });
+  assert.ok(dom.window.document.activeElement === query(container, 'button[aria-label^="Edit purpose: "]'), "and hands focus back to it");
+  await act(async () => { query<HTMLButtonElement>(container, 'button[aria-label^="Edit purpose: "]').click(); });
   await type(query<HTMLInputElement>(container, 'input[aria-label="Purpose"]'), "  ", "Enter");
-  assert.ok(dom.window.document.activeElement === query(container, 'button[aria-label="Edit Purpose"]'), "so does saving it with Enter");
+  assert.ok(dom.window.document.activeElement === query(container, 'button[aria-label^="Edit purpose: "]'), "so does saving it with Enter");
 
   const section = query(container, '[aria-label="Memory"]');
   assert.match(query(section, ".coordination-group-head").textContent, /Memory2/);
-  const [first] = section.querySelectorAll<HTMLButtonElement>('button[aria-label="Edit Note"]');
+  const [first] = section.querySelectorAll<HTMLButtonElement>('button[aria-label^="Edit note: "]');
   assert.equal(first.textContent, "Propose threads first");
   await act(async () => { first.click(); });
   await type(query<HTMLTextAreaElement>(section, 'textarea[aria-label="Note"]'), "Propose threads before starting any", "Enter");
-  const forget = section.querySelectorAll<HTMLButtonElement>('button[aria-label="Forget"]')[1];
-  assert.ok(forget.parentElement?.querySelector('button[aria-label="Edit Note"]'), "Forget sits beside the note it drops, not inside it");
+  assert.deepEqual([...section.querySelectorAll(".coordination-note button")].map((button) => button.getAttribute("aria-label")), [
+    "Edit note: Propose threads first", "Forget note: Propose threads first", "Edit note: Use Sonnet for docs", "Forget note: Use Sonnet for docs",
+  ], "each note's buttons are named by what it says");
+  const forget = section.querySelectorAll<HTMLButtonElement>('button[aria-label^="Forget note: "]')[1];
+  assert.ok(forget.parentElement?.querySelector('button[aria-label^="Edit note: "]'), "Forget sits beside the note it drops, not inside it");
   await act(async () => { forget.focus(); forget.click(); });
   const kept = { ...item(lead.memory), notes: [item(lead.memory).notes[0]!], revision: 3 };
   await mounted.render(overview({ ...lead, memory: kept }));
@@ -397,16 +403,16 @@ test("the Overview's purpose line and memory rows edit what the coordinator keep
   assert.equal(add.value, "", "once saved, the row is empty for the next");
 
   const before = dispatched.length;
-  await act(async () => { query<HTMLButtonElement>(container, 'button[aria-label="Edit Purpose"]').click(); });
+  await act(async () => { query<HTMLButtonElement>(container, 'button[aria-label^="Edit purpose: "]').click(); });
   await mounted.render(overview({ ...lead, memory: { ...kept, purpose: "Ship the v3 reader", revision: 5 } }));
   await act(async () => { query<HTMLInputElement>(container, 'input[aria-label="Purpose"]').blur(); });
   assert.equal(dispatched.length, before, "leaving the purpose untouched keeps what the coordinator wrote while it was open");
-  await act(async () => { query<HTMLButtonElement>(section, 'button[aria-label="Edit Note"]').click(); });
+  await act(async () => { query<HTMLButtonElement>(section, 'button[aria-label^="Edit note: "]').click(); });
   await mounted.render(overview({ ...lead, memory: { purpose: "Ship the v3 reader", notes: [{ id: "n1", text: "Propose threads only when asked", at: 3 }], revision: 6 } }));
   await act(async () => { query<HTMLTextAreaElement>(section, 'textarea[aria-label="Note"]').blur(); });
   assert.equal(dispatched.length, before, "and so does leaving a note untouched");
-  assert.equal(query(section, 'button[aria-label="Edit Note"]').textContent, "Propose threads only when asked");
-  assert.equal(query(container, 'button[aria-label="Edit Purpose"]').textContent, "Ship the v3 reader");
+  assert.equal(query(section, 'button[aria-label^="Edit note: "]').textContent, "Propose threads only when asked");
+  assert.equal(query(container, 'button[aria-label^="Edit purpose: "]').textContent, "Ship the v3 reader");
   await mounted.unmount();
 });
 

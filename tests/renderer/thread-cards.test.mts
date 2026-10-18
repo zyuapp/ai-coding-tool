@@ -56,6 +56,9 @@ test("a card shows how its thread stands, opens it, and offers what to do next b
   assert.equal(query(dark, ".coordination-card-open > small").className, "text-sweep", "a working thread's status moves");
   assert.equal(dark.querySelector(".coordination-card-steps"), null, "a working thread is offered nothing");
 
+  const description = (card: HTMLElement) => (query(card, ".coordination-card-open").getAttribute("aria-describedby") ?? "").split(" ").map((id) => dom.window.document.getElementById(id)?.textContent);
+  assert.deepEqual(description(fix), ["Needs work", "#212 · Checks failing"], "a card is read with how its thread stands and its pull request's, not just its name");
+  assert.deepEqual(description(dark), ["Working · Tokens pass"]);
   await act(async () => { query<HTMLButtonElement>(fix, 'button[aria-label="Open Fix login"]').click(); });
   assert.deepEqual(selected, ["fix"]);
 

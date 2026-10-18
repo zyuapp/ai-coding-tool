@@ -1,4 +1,4 @@
-import { createContext, memo, useContext, useEffect, useMemo, useRef, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
+import { createContext, memo, useContext, useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
 import { LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuChevronDown as ChevronDown, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuRotateCcw as Reopen, LuTrash2 as Trash, LuX as X } from "react-icons/lu";
 import { deliveryLabel, MAX_MEMORY_NOTE, MAX_PURPOSE, nextStepOf, OVERVIEW_GROUPS, type MemoryNote, type OverviewFold, type OverviewFolds, type OverviewGroup, type OverviewSection, type ThreadBrief, type ThreadModelChoice } from "../../domain/coordination";
 import { engineForModel, modelDelegable, modelLabel, type AgentEngine, type AgentModel, type EngineReadiness } from "../../domain/agent-engine";
@@ -196,7 +196,7 @@ function InlineEdit({ value, label, placeholder, className, maxLength, multiline
   }, [draft]);
   if (draft === null) {
     return (
-      <button ref={reading} type="button" className={className} aria-label={`Edit ${label}`} title={value || undefined} onClick={() => { settled.current = false; opened.current = value; setDraft(value); }}>
+      <button ref={reading} type="button" className={className} aria-label={value ? `Edit ${label.toLowerCase()}: ${value}` : placeholder ?? `Edit ${label.toLowerCase()}`} title={value || undefined} onClick={() => { settled.current = false; opened.current = value; setDraft(value); }}>
         {value || <span className="coordination-placeholder">{placeholder}</span>}
       </button>
     );
@@ -244,7 +244,7 @@ function MemorySection({ memory, fold, onSetFold }: { memory: OverviewMemoryProp
             <CommandButton
               command={{ type: "memory.forget", taskId: memory.taskId, noteId: note.id }}
               className="coordination-note-forget"
-              aria-label="Forget"
+              aria-label={`Forget note: ${note.text}`}
               title="Forget"
             >
               <X size={12} aria-hidden="true" />
@@ -401,17 +401,19 @@ function ThreadGroup({ group, members, fold, worktrees, action, onSetFold, ...ac
  */
 const ThreadRow = memo(function ThreadRow({ view: { thread, status, summary, host, lastHeard }, worktrees, onSelect }: RowActions & { view: CoordinatedThreadView; worktrees: ReadonlyMap<string, Worktree> }) {
   const line = coordinationStatusLine(status, summary, lastHeard);
+  const lineId = useId();
   return (
     <div className={`coordination-item ${status}`} data-thread-id={thread.id}>
       <button
         type="button"
         className={`coordination-row ${status}`}
         aria-label={`Open ${thread.title}`}
+        aria-describedby={lineId}
         title={thread.title}
         onClick={() => onSelect(thread.id)}
       >
         <span className="coordination-row-mark"><CoordinationStatusMark status={status} lastHeard={lastHeard} /></span>
-        <span><strong>{thread.title}</strong><small title={line}>{line}</small></span>
+        <span><strong>{thread.title}</strong><small id={lineId} title={line}>{line}</small></span>
         <ThreadMarks thread={thread} host={host} worktree={thread.worktreeId ? worktrees.get(thread.worktreeId) : undefined} />
       </button>
       <ResolutionButton taskId={thread.id} title={thread.title} status={status} className="coordination-row-action" />
@@ -508,17 +510,20 @@ const ThreadCard = memo(function ThreadCard({ view, worktree, onSelect }: {
   /** A thread whose pull request needs work or a review is summed up by it, which the card shows on its own. */
   const line = coordinationStatusLine(status, pullRequest && (status === "needs-work" || status === "review") ? null : summary, lastHeard);
   const Icon = pullRequest ? PULL_REQUEST_ICONS[pullRequest.state] : null;
+  /** The card is read by its status line and, when it has one, its pull request's. */
+  const lineId = useId();
+  const pullRequestId = `${lineId}-pull-request`;
   return (
     <div className={`coordination-card ${status}`} role="listitem" data-thread-id={thread.id}>
-      <button type="button" className="coordination-card-open" aria-label={`Open ${thread.title}`} title={thread.title} onClick={() => onSelect(thread.id)}>
+      <button type="button" className="coordination-card-open" aria-label={`Open ${thread.title}`} aria-describedby={pullRequest ? `${lineId} ${pullRequestId}` : lineId} title={thread.title} onClick={() => onSelect(thread.id)}>
         <span className="coordination-card-head">
           <span className="coordination-row-mark"><CoordinationStatusMark status={status} lastHeard={lastHeard} /></span>
           <strong>{thread.title}</strong>
           <ThreadMarks thread={thread} host={host} worktree={worktree} />
         </span>
-        <small className={status === "working" && !lastHeard ? "text-sweep" : undefined} title={line}>{line}</small>
+        <small id={lineId} className={status === "working" && !lastHeard ? "text-sweep" : undefined} title={line}>{line}</small>
         {pullRequest && Icon && (
-          <span className="coordination-card-pull-request" data-state={pullRequest.state}>
+          <span id={pullRequestId} className="coordination-card-pull-request" data-state={pullRequest.state}>
             <Icon size={11} aria-hidden="true" />
             {pullRequestLine(pullRequest)}
           </span>
