@@ -400,12 +400,16 @@ test("manual compaction uses Sol's thread operation and the same visible progres
   assert.deepEqual(client.calls("thread/compact/start"), [{ threadId }]);
   assert.equal(client.calls("turn/start").length, 0, "compaction is not an empty model turn");
   client.notify("item/started", started({ type: "contextCompaction", id: "compact-1" }));
-  /** Codex recounts the replaced history before completing the item, which is the only post-compaction size it sends; the meter reads it, as Claude's reads its post_tokens. */
-  client.notify("thread/tokenUsage/updated", { ...at, tokenUsage: { total: breakdown(900_000), last: breakdown(13_779), modelContextWindow: 258_400 } });
+  /**
+   * Codex recounts the replaced history before completing the item, which is the only post-compaction
+   * size it sends: an estimate with no input or output, its running total unchanged. The meter reads
+   * it, as Claude's reads its post_tokens, and it spends nothing.
+   */
+  client.notify("thread/tokenUsage/updated", { ...at, tokenUsage: { total: breakdown(900_000), last: { ...breakdown(13_779), inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningOutputTokens: 0 }, modelContextWindow: 258_400 } });
   client.notify("item/completed", completed({ type: "contextCompaction", id: "compact-1" }));
 
   assert.deepEqual(await running, { status: "succeeded" });
-  assert.deepEqual(emitted.filter((event) => event.type !== "continuation" && event.type !== "spend"), [
+  assert.deepEqual(emitted.filter((event) => event.type !== "continuation"), [
     { type: "compaction-status", compacting: true },
     { type: "usage", tokens: 13_779, limit: 258_400, model: input().model },
     { type: "compaction", trigger: "manual", preTokens: 125_000 },
