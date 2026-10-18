@@ -134,7 +134,7 @@ test("a run the runtime starts reaches one agent process, and what the process r
   await runtimeRequest(main.trusted, { type: "engine.reload-settings" });
   await waitFor(async () => (await state()).agentSettingsReload === "failed", "a send failure releasing the pending UI");
   await runtimeRequest(main.trusted, { type: "run.cancel", taskId: next.taskId });
-  await waitFor(async () => (await state()).threads.find((thread) => thread.id === next.taskId)?.outcome === "failed", "a cancel the process could not take failing the run");
+  await waitFor(async () => (await state()).threads.find((thread) => thread.id === next.taskId)?.outcome === "stopped", "a cancel the process could not take still stopping the run");
   next.agent.throwOnPost = false;
 });
 
