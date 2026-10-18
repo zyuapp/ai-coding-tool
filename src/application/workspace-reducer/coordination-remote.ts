@@ -186,9 +186,11 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
   /**
    * What Stop all stopped there ends quietly once it is heard to, whenever that is, and so does the
    * agent's answer to the session work it stopped. A thread that carried on before the stop landed,
-   * from its wait or into a run of its own, is no longer the stop's.
+   * from its wait or into a run of its own, is no longer the stop's. A stop is only heard of from the
+   * computer it was sent to.
    */
-  const stop = lead.remoteStops?.[member.id];
+  const sent = lead.remoteStops?.[member.id];
+  const stop = sent?.computer === computer.id ? sent : undefined;
   const answered = ended && stop?.answer?.runId !== undefined;
   const kept = stop && keptStop(stop, run, ended, answered, at);
   const spent = kept !== stop;

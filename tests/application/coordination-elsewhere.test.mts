@@ -243,6 +243,11 @@ test("a member stopped by Stop all is heard quietly", () => {
   assert.equal(carriedOn.threads[0]!.remoteStops, undefined, "a thread there that carried on into a run of its own is no longer the stop's");
   const movedOut = mirrored(stopped.state, workspace({ threads: [far({ remoteLead: undefined })], activeRuns: holder.activeRuns })).state;
   assert.equal(movedOut.threads[0]!.remoteStops, undefined, "nor is one moved out from under it there");
+
+  const elsewhere = withComputers(stopped.state, [...stopped.state.computers.paired, paired("lab", null, { capabilities: COMPUTER_CAPABILITIES })]);
+  const posing = reduce(elsewhere, { type: "computer.state", id: "lab", state: ended }).state;
+  assert.equal(posing.threads[0]!.coordinationNotes!.at(-1)!.quiet, undefined, "a stop sent to one computer is not heard of from another");
+  assert.deepEqual(posing.threads[0]!.remoteStops, { far: { computer: "studio", runId: "run-far" } }, "and stays for the computer it was sent to");
   const filed = mirrored(stopped.state, workspace({ threads: [far({ archivedAt: 60 })], activeRuns: holder.activeRuns })).state;
   assert.equal(filed.threads[0]!.remoteStops, undefined, "or filed away there");
   assert.equal(reduce(stopped.state, { type: "computers.changed", name: "This Mac", links: [] }).state.threads[0]!.remoteStops, undefined, "or on a computer no longer paired");
