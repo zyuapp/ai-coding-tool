@@ -88,7 +88,7 @@ function createViewCollections() {
   const coordinators = selector((state) => [threadLists(state).listedThreads], (state) => threadLists(state).listedThreads.filter((thread) => isCoordinator(thread)));
 
   /** The coordinators Stop all has something to stop under, read by every place that offers it. */
-  const stoppable = selector((state) => [state.threads, state.computers.paired, state.activeRuns, state.pendingRuns, state.startingProposals, state.stoppedStarts, state.workflows, state.subagents], stoppableCoordinators, sameIds);
+  const stoppable = selector((state) => [state.threads, state.computers.paired, state.activeRuns, state.pendingRuns, state.startingProposals, state.workflows, state.subagents], stoppableCoordinators, sameIds);
 
   /**
    * What the open thread shows: a coordinator's threads, open decisions and suggestions, or a thread's

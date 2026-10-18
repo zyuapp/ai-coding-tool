@@ -287,9 +287,6 @@ export type RemoteWork = { thread: Thread; computer: PairedComputer; runId?: str
 /** A thread's workflows and subagents that keep working once its run is stopped, so are stopped one by one. */
 export type SessionWork = { taskId: string; processIds: string[] };
 
-/** A start on a paired computer Stop all caught on its way: once it lands as `threadId` it is stopped there, quietly. */
-export type StoppedStart = { proposalId: string; threadId?: string };
-
 /** A thread whose session work Stop all stopped, and when, so only the agent's answer to that stop ends quietly. */
 export type QuietSession = { taskId: string; at: number };
 
@@ -315,7 +312,7 @@ export type CoordinatorWork = {
  * A message on its way to a thread that exists already, as the user's or a decision's answer, is left
  * to arrive: only a run that has started is stopped.
  */
-export function coordinatorWork(state: Pick<WorkspaceState, "threads" | "computers" | "pendingRuns" | "startingProposals" | "stoppedStarts" | "workflows" | "subagents">, lead: Thread): CoordinatorWork {
+export function coordinatorWork(state: Pick<WorkspaceState, "threads" | "computers" | "pendingRuns" | "startingProposals" | "workflows" | "subagents">, lead: Thread): CoordinatorWork {
   const coordinated = coordinationMembers(state, lead.id);
   const threads = [lead, ...coordinated.flatMap((member) => member.computer ? [] : [member.thread])];
   const ids = new Set(threads.map((thread) => thread.id));
@@ -335,8 +332,7 @@ export function coordinatorWork(state: Pick<WorkspaceState, "threads" | "compute
       .filter((processId) => supportsComputerCommand(computer.capabilities, { type: "run.stop-process", taskId: thread.id, processId }));
     return run || thread.limitPause || processIds.length ? [{ thread, computer, ...(run ? { runId: run.runId } : {}), processIds }] : [];
   });
-  const caught = new Set(state.stoppedStarts.map((start) => start.proposalId));
-  const landing = (lead.proposals ?? []).filter((proposal) => proposal.place.computer && state.startingProposals.includes(proposal.id) && !caught.has(proposal.id));
+  const landing = (lead.proposals ?? []).filter((proposal) => proposal.place.computer && state.startingProposals.includes(proposal.id) && !lead.caughtStarts?.[proposal.id]);
   return { threads, starts, sessionWork, elsewhere, landing };
 }
 
@@ -344,7 +340,7 @@ export function coordinatorWork(state: Pick<WorkspaceState, "threads" | "compute
  * Each live coordinator with a run going, a wait on a usage limit, a workflow or subagent working, or
  * a run or a start on its way under it.
  */
-export function stoppableCoordinators(state: Pick<WorkspaceState, "threads" | "computers" | "pendingRuns" | "activeRuns" | "startingProposals" | "stoppedStarts" | "workflows" | "subagents">): Set<string> {
+export function stoppableCoordinators(state: Pick<WorkspaceState, "threads" | "computers" | "pendingRuns" | "activeRuns" | "startingProposals" | "workflows" | "subagents">): Set<string> {
   const stoppable = new Set<string>();
   for (const lead of state.threads) {
     if (!isCoordinator(lead)) continue;

@@ -5,7 +5,7 @@ import { runStatusFor, type ApprovalView, type RunTransitionState } from "./thre
 import { threadActivity, threadLists, waitingOn, type ThreadWait } from "./thread-activity.js";
 import { backfillProjectSortIndex } from "./project-order.js";
 import { sidebarLists } from "./sidebar-lists.js";
-import type { CoordinationSend, QuietSession, StoppedStart } from "./coordination.js";
+import type { CoordinationSend, QuietSession } from "./coordination.js";
 import { restoredThreads, withCutOffTurnsEnded } from "./thread-restore.js";
 import { coordinatorOf, effortRoleOf, type OverviewFolds } from "../domain/coordination.js";
 import { backfillSortIndex } from "./thread-order.js";
@@ -375,11 +375,11 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   computerUseSetup: boolean;
   automations: AutomationView[];
   /**
-   * Runs resolving their checkout, the coordinators' suggestions they start, and the runs, paired
-   * computers' starts and threads' session work a Stop all caught, whose ending their coordinator
-   * hears without being woken. Session-only, so a restart leaves none starting.
+   * Runs resolving their checkout, the coordinators' suggestions they start, and the runs and threads'
+   * session work a Stop all caught, whose ending their coordinator hears without being woken.
+   * Session-only, so a restart leaves none starting.
    */
-  pendingRuns: Record<string, PendingRun>; startingProposals: string[]; quietStops: string[]; stoppedStarts: StoppedStart[]; quietSessions: QuietSession[];
+  pendingRuns: Record<string, PendingRun>; startingProposals: string[]; quietStops: string[]; quietSessions: QuietSession[];
   queuedMessages: Record<string, QueuedMessage[]>;
   sideChats: SideChat[];
   sideChatSequence: number;
@@ -510,7 +510,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     installedApps: null, cli: NO_CLI, planUsage: NO_PLAN_USAGE, computerUsePermissions: NO_COMPUTER_USE_ACCESS,
     computerUseSetup: false,
     automations: [],
-    pendingRuns: {}, startingProposals: [], quietStops: [], stoppedStarts: [], quietSessions: [],
+    pendingRuns: {}, startingProposals: [], quietStops: [], quietSessions: [],
     queuedMessages: {},
     sideChats: [],
     sideChatSequence: 0,

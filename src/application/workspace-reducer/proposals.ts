@@ -10,7 +10,7 @@ import { ledStartRefusal, titledFor, type PairedComputer } from "../computers.js
 import type { WorkspaceState } from "../workspace-state.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import type { AppCommand } from "../../contracts/commands.js";
-import { coordinatorOf, isCoordinator, withCoordinationNote, withoutProposals, withProposalCarried, withProposalError, withProposals, type ThreadProposal } from "../../domain/coordination.js";
+import { coordinatorOf, isCoordinator, withCoordinationNote, withoutCaughtStart, withoutProposals, withProposalCarried, withProposalError, withProposals, type ThreadProposal } from "../../domain/coordination.js";
 import type { Thread } from "../../domain/thread.js";
 
 type ProposalInput = Extract<WorkspaceInput, { type: "coordination.proposed" | "proposal.start" | "proposal.dismiss" | "proposal.settled" }>;
@@ -85,17 +85,26 @@ export function reduceProposals(state: WorkspaceState, input: ProposalInput): Wo
 /**
  * A thread a coordinator here allowed on another computer starting there, or failing to, which is a
  * thread on that computer now that tells the coordinator so itself once it shows up there. A start
- * whose answer was lost settles all the same once its thread shows up there; one that never landed
- * has nothing left to say if Stop all caught it on its way, and waits to be allowed again otherwise.
+ * whose answer was lost settles all the same once its thread shows up there; one Stop all caught on
+ * its way has nothing left to say, and is let go only once that computer said it started nothing,
+ * since one whose answer was lost may still land, and is stopped then. Any other waits to be allowed again.
  */
 function proposalSettled(state: WorkspaceState, input: Extract<ProposalInput, { type: "proposal.settled" }>): WorkspaceTransition {
+  const lead = state.threads.find((item) => item.id === input.taskId);
   if (input.threadId !== undefined) {
-    const proposal = state.threads.find((item) => item.id === input.taskId)?.proposals?.find((item) => item.id === input.proposalId);
-    return proposalLanded(state, input.taskId, input.proposalId, input.threadId, state.computers.paired.find((item) => item.id === proposal?.place.computer?.id));
+    const proposal = lead?.proposals?.find((item) => item.id === input.proposalId);
+    const place = proposal?.place.computer?.id ?? lead?.caughtStarts?.[input.proposalId]?.computer;
+    return proposalLanded(state, input.taskId, input.proposalId, input.threadId, state.computers.paired.find((item) => item.id === place));
   }
-  const caught = state.stoppedStarts.some((start) => start.proposalId === input.proposalId && start.threadId === undefined);
-  const stoppedStarts = state.stoppedStarts.filter((start) => start.proposalId !== input.proposalId);
-  return settled(caught ? withoutStarting({ ...state, stoppedStarts }, input.proposalId) : withProposalFailure(state, input.taskId, input.proposalId, input.message ?? "The thread did not start."));
+  if (!lead || !catching(lead, input.proposalId)) return settled(withProposalFailure(state, input.taskId, input.proposalId, input.message ?? "The thread did not start."));
+  const refused = input.refused ? updateThread(state, lead.id, (item) => withoutCaughtStart(item, input.proposalId)) : state;
+  return settled(withoutStarting(refused, input.proposalId));
+}
+
+/** Whether Stop all caught a coordinator's start elsewhere on its way, and it has yet to be heard landing. */
+function catching(lead: Thread | undefined, proposalId: string): boolean {
+  const caught = lead?.caughtStarts?.[proposalId];
+  return caught !== undefined && caught.threadId === undefined;
 }
 
 /**
@@ -106,14 +115,13 @@ function proposalSettled(state: WorkspaceState, input: Extract<ProposalInput, { 
 export function proposalLanded(state: WorkspaceState, leadId: string, proposalId: string, threadId: string, computer: PairedComputer | undefined): WorkspaceTransition {
   const lead = state.threads.find((item) => item.id === leadId);
   const carded = lead?.proposals?.some((item) => item.id === proposalId) === true;
-  const caught = state.stoppedStarts.some((start) => start.proposalId === proposalId && start.threadId === undefined);
+  const caught = catching(lead, proposalId);
   if (!carded && !caught && !state.startingProposals.includes(proposalId)) return settled(state);
   const started = withoutStarting(carded ? updateThread(state, leadId, (item) => withoutProposals(item, new Set([proposalId]))) : state, proposalId);
   if (!caught) return settled(started);
-  const stoppedStarts = state.stoppedStarts.filter((start) => start.proposalId !== proposalId);
   const cancel: AppCommand = { type: "run.cancel", taskId: threadId };
   const effects: WorkspaceEffect[] = computer && supportsComputerCommand(computer.capabilities, cancel) ? [{ type: "computer.forward", id: computer.id, inputs: [cancel] }] : [];
-  return settled({ ...started, stoppedStarts: [...stoppedStarts, { proposalId, threadId }] }, effects);
+  return settled(updateThread(started, leadId, (item) => ({ ...item, caughtStarts: { ...item.caughtStarts, [proposalId]: { ...item.caughtStarts![proposalId]!, threadId } } })), effects);
 }
 
 /**
@@ -184,7 +192,8 @@ function startElsewhere(state: WorkspaceState, leadId: string, proposalId: strin
   });
   if (!supportsComputerCommand(computer.capabilities, send)) return refused(`Update AI Coding Tool on ${computer.name} to run threads there.`);
   return settled(
-    { ...updateThread(retried, leadId, (item) => withProposalCarried(item, proposalId)), startingProposals: [...retried.startingProposals, proposalId] },
+    /** Allowed again, it is the user's to start, whatever an earlier Stop all caught of it. */
+    { ...updateThread(retried, leadId, (item) => withProposalCarried(withoutCaughtStart(item, proposalId), proposalId)), startingProposals: [...retried.startingProposals, proposalId] },
     [{ type: "computer.forward", id: computer.id, inputs: [send], proposal: { taskId: leadId, proposalId } }],
   );
 }

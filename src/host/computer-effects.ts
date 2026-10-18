@@ -58,6 +58,11 @@ export const computerEffects = {
   "computer.forward": async (effect, { dispatch, desktop }) => {
     try {
       const result = await desktop.sendToComputer(effect.id, effect.inputs);
+      /** That computer refusing a start says it started nothing, which an answer lost on the way cannot. */
+      if (!result.ok && effect.proposal) {
+        await dispatch({ type: "proposal.settled", ...effect.proposal, message: result.message, refused: true });
+        return;
+      }
       if (!result.ok) throw new Error(result.message);
       if (effect.proposal) {
         const { taskId, proposalId } = effect.proposal;

@@ -7,7 +7,7 @@ import type { Continuation, ExecutionPolicy, Subagent } from "./run.js";
 import { isThreadUsage, type ContextUsage, type ContinuationStatus, type ThreadOutcome } from "./thread-run.js";
 import type { Thread } from "./thread.js";
 import { isThreadRole } from "./thread-role.js";
-import { isCoordinationNote, isCoordinationReport, isCoordinatorMemory, isDecision, isHeldLead, isRemoteHeard, isRemoteStops, isRemoteWorking, isThreadBrief, isThreadModelChoice, isThreadProposal } from "./coordination.js";
+import { isCaughtStarts, isCoordinationNote, isCoordinationReport, isCoordinatorMemory, isDecision, isHeldLead, isRemoteHeard, isRemoteStops, isRemoteWorking, isThreadBrief, isThreadModelChoice, isThreadProposal } from "./coordination.js";
 import { isWorktree, type Worktree } from "./worktree.js";
 import { isLimitPause } from "./usage-limit.js";
 import { isPullRequestLink } from "./pull-request.js";
@@ -536,6 +536,7 @@ const DROPPABLE_FIELDS: Readonly<Record<string, (value: unknown) => boolean>> = 
   remoteHeard: isRemoteHeard,
   remoteWorking: isRemoteWorking,
   remoteStops: isRemoteStops,
+  caughtStarts: isCaughtStarts,
 };
 
 /** Lists a thread can do without, each item checked on its own: one this build cannot read is dropped and the rest kept. */

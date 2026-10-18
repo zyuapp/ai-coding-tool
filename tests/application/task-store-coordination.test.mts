@@ -172,14 +172,14 @@ test("a decision an older build saved with two options sharing a label still loa
   assert.deepEqual(parsed.data.tasks[0].decisions, [decision]);
 });
 
-test("a thread's coordinator on another computer, and how far a coordinator heard its threads there, which were working and which Stop all stopped, survive a reload, and what cannot be read is dropped", () => {
+test("a thread's coordinator on another computer, and how far a coordinator heard its threads there, which were working and which Stop all stopped or caught on their way, survive a reload, and what cannot be read is dropped", () => {
   const migrated = migrateV1ToV2(legacyValues());
   assert.equal(migrated.ok, true);
   if (!migrated.ok) return;
   const remoteLead = { threadId: "lead-there", title: "Lead", computer: "Laptop", away: true as const, backAt: 20 };
   const place = { computer: { id: "studio", name: "Studio" }, project: "app", worktree: true };
   const member = { ...migrated.data.tasks[0], remoteLead };
-  const lead = { ...migrated.data.tasks[0], id: "lead", role: "coordinator" as const, remoteHeard: { far: 40 }, remoteWorking: { far: { computer: "studio", title: "Far work" } }, remoteStops: { far: { computer: "studio", runId: "run-far" }, waiting: { computer: "studio" }, answering: { computer: "studio", answer: { at: 30, runId: "run-answer" } } }, proposals: [{ id: "p1", title: "GPU", prompt: "Run them", place, from: "task-1", proposedAt: 1, error: "Lost", carried: true as const }] };
+  const lead = { ...migrated.data.tasks[0], id: "lead", role: "coordinator" as const, remoteHeard: { far: 40 }, remoteWorking: { far: { computer: "studio", title: "Far work" } }, remoteStops: { far: { computer: "studio", runId: "run-far" }, waiting: { computer: "studio" }, answering: { computer: "studio", answer: { at: 30, runId: "run-answer" } } }, caughtStarts: { p0: { computer: "studio" }, p2: { computer: "studio", threadId: "landed" } }, proposals: [{ id: "p1", title: "GPU", prompt: "Run them", place, from: "task-1", proposedAt: 1, error: "Lost", carried: true as const }] };
   const parsed = parseThreadStore(serializeThreadStore({ ...migrated.data, tasks: [member, lead] }));
   assert.equal(parsed.ok, true);
   if (!parsed.ok) return;
@@ -187,10 +187,11 @@ test("a thread's coordinator on another computer, and how far a coordinator hear
   assert.deepEqual(parsed.data.tasks[1].remoteHeard, { far: 40 });
   assert.deepEqual(parsed.data.tasks[1].remoteWorking, { far: { computer: "studio", title: "Far work" } });
   assert.deepEqual(parsed.data.tasks[1].remoteStops, { far: { computer: "studio", runId: "run-far" }, waiting: { computer: "studio" }, answering: { computer: "studio", answer: { at: 30, runId: "run-answer" } } });
+  assert.deepEqual(parsed.data.tasks[1].caughtStarts, { p0: { computer: "studio" }, p2: { computer: "studio", threadId: "landed" } });
   assert.deepEqual(parsed.data.tasks[1].proposals?.[0]?.place, place, "a thread asked for elsewhere waits across a reload, with no brief when a thread under it asked");
   assert.equal(parsed.data.tasks[1].proposals?.[0]?.carried, true, "and still knows it may have started there");
 
-  const broken = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...member, remoteLead: { ...remoteLead, away: "yes" } }, { ...lead, remoteHeard: { far: "late" }, remoteWorking: { far: { computer: 7, title: "Far work" } }, remoteStops: { far: { computer: "studio", runId: 7 } } }] }));
+  const broken = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...member, remoteLead: { ...remoteLead, away: "yes" } }, { ...lead, remoteHeard: { far: "late" }, remoteWorking: { far: { computer: 7, title: "Far work" } }, remoteStops: { far: { computer: "studio", runId: 7 } }, caughtStarts: { p0: { threadId: "landed" } } }] }));
   assert.equal(broken.ok, true);
   if (!broken.ok) return;
   assert.equal(broken.hiddenTasks, 0, "both threads still load");
@@ -198,5 +199,6 @@ test("a thread's coordinator on another computer, and how far a coordinator hear
   assert.equal(broken.data.tasks[1].remoteHeard, undefined);
   assert.equal(broken.data.tasks[1].remoteWorking, undefined);
   assert.equal(broken.data.tasks[1].remoteStops, undefined);
+  assert.equal(broken.data.tasks[1].caughtStarts, undefined);
   assert.deepEqual(broken.data.tasks[0].messages, member.messages);
 });

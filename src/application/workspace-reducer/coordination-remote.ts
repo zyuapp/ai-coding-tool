@@ -13,7 +13,7 @@ import { viewPreferences } from "../view-preferences.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import type { AppCommand } from "../../contracts/commands.js";
-import { endsAsStopped, isCoordinator, mayLeadElsewhere, openDecisions, withCoordinationNote, withRemoteHeard, type CoordinationNote } from "../../domain/coordination.js";
+import { endsAsStopped, isCoordinator, mayLeadElsewhere, openDecisions, withCoordinationNote, withoutCaughtStart, withRemoteHeard, type CoordinationNote } from "../../domain/coordination.js";
 import { lastRunOutcome, threadCreatedAt, type HeardWork, type RemoteStop, type Thread } from "../../domain/thread.js";
 import { resumesOnItsOwn } from "../../domain/usage-limit.js";
 
@@ -70,29 +70,47 @@ export function remoteNews(previous: WorkspaceState, next: WorkspaceState): Remo
 /**
  * What Stop all stopped on paired computers is kept only for a thread that computer still holds under
  * the coordinator, as far as it has said since this app started: one moved out or filed away there,
- * or on a computer no longer paired, is let go, so a stop that never got there cannot quiet a later turn.
+ * or on a computer no longer paired, is let go, so a stop that never got there cannot quiet a later
+ * turn. A start it caught on its way is kept until that computer shows the thread it became somewhere
+ * other than under the coordinator, since it may land, or show up, after its answer.
  */
 function keptStops(news: RemoteNews): RemoteNews {
   let state = news.state;
+  const holderOf = (id: string) => news.state.computers.paired.find((computer) => computer.id === id);
   for (const lead of news.state.threads) {
-    const stops = lead.remoteStops;
-    if (!stops) continue;
-    const kept = Object.entries(stops).filter(([threadId, stop]) => {
-      const holder = news.state.computers.paired.find((computer) => computer.id === stop.computer);
-      return holder && (!holder.state || remotelyLedThreads(holder.state.threads).some((thread) => thread.id === threadId && thread.remoteLead!.threadId === lead.id));
+    const { remoteStops: stops, caughtStarts: starts } = lead;
+    if (!stops && !starts) continue;
+    const under = (holder: WorkspaceState, threadId: string) => remotelyLedThreads(holder.threads).some((thread) => thread.id === threadId && thread.remoteLead!.threadId === lead.id);
+    const stopsKept = Object.entries(stops ?? {}).filter(([threadId, stop]) => {
+      const holder = holderOf(stop.computer);
+      return holder && (!holder.state || under(holder.state, threadId));
     });
-    if (kept.length < Object.keys(stops).length) state = updateThread(state, lead.id, ({ remoteStops: _lapsed, ...thread }) => kept.length ? { ...thread, remoteStops: Object.fromEntries(kept) } : thread);
+    const startsKept = Object.entries(starts ?? {}).filter(([, start]) => {
+      const holder = holderOf(start.computer);
+      return holder && (!holder.state || start.threadId === undefined || !holder.state.threads.some((thread) => thread.id === start.threadId) || under(holder.state, start.threadId));
+    });
+    if (stopsKept.length === Object.keys(stops ?? {}).length && startsKept.length === Object.keys(starts ?? {}).length) continue;
+    state = updateThread(state, lead.id, ({ remoteStops: _stops, caughtStarts: _starts, ...thread }) => ({
+      ...thread,
+      ...stopsKept.length ? { remoteStops: Object.fromEntries(stopsKept) } : {},
+      ...startsKept.length ? { caughtStarts: Object.fromEntries(startsKept) } : {},
+    }));
   }
   return state === news.state ? news : { ...news, state };
 }
 
-/** A coordinator that is no longer one, filed away or with its role taken off, lets go of what Stop all stopped under it. */
+/** A coordinator that is no longer one, filed away or with its role taken off, lets go of what Stop all stopped and caught under it. */
 export function withoutLapsedStops(state: WorkspaceState, threads: readonly ThreadChange[]): WorkspaceState {
   let next = state;
   for (const { after } of threads) {
-    if (after?.remoteStops && !isCoordinator(after)) next = updateThread(next, after.id, ({ remoteStops: _lapsed, ...thread }) => thread);
+    if ((after?.remoteStops || after?.caughtStarts) && !isCoordinator(after)) next = updateThread(next, after.id, ({ remoteStops: _stops, caughtStarts: _starts, ...thread }) => thread);
   }
   return next;
+}
+
+/** The start Stop all caught on its way to `computer` that landed there as this thread, by its suggestion. */
+function caughtStartOf(lead: Thread, threadId: string, computer: string): string | undefined {
+  return Object.entries(lead.caughtStarts ?? {}).find(([, start]) => start.threadId === threadId && start.computer === computer)?.[0];
 }
 
 /**
@@ -153,7 +171,6 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
   const notes: CoordinationNote[] = [];
   const effects: WorkspaceEffect[] = [];
   let newest = Math.max(heard ?? threadCreatedAt(member), back ?? 0);
-  let { stoppedStarts } = state;
   const run = holder.activeRuns[member.id];
   const ran = prior?.activeRuns[member.id];
   if (heard === undefined && back === undefined) notes.push(coordinationNote(member.id, `"${member.title}" started on ${computer.name}.`, at, { quiet: true }));
@@ -194,10 +211,11 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
   const answered = ended && stop?.answer?.runId !== undefined;
   const kept = stop && keptStop(stop, run, ended, answered, at);
   const spent = kept !== stop;
+  /** The start Stop all caught on its way that this thread is, heard ending, which settles it. */
+  const landed = ended ? caughtStartOf(lead, member.id, computer.id) : undefined;
   if (ended) {
     /** So is one a start Stop all caught on its way stopped as it landed. */
-    const caught = stoppedStarts.some((start) => start.threadId === member.id);
-    if (caught) stoppedStarts = stoppedStarts.filter((start) => start.threadId !== member.id);
+    const caught = landed !== undefined;
     const ending = lastRunOutcome(member);
     const quiet = caught || answered || stop !== undefined && endsAsStopped(ending);
     const status = quiet && !answered || ending === "stopped" ? "cancelled" : ending === "failed" ? "failed" : "succeeded";
@@ -220,16 +238,16 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
     const question = run.questions?.[0];
     if (question && !(ran?.runId === run.runId && ran.questions?.length)) effects.push(...announced(state, member, waitingHeadline(question), "waiting"));
   }
-  const stops = stoppedStarts === state.stoppedStarts ? state : { ...state, stoppedStarts };
-  if (!notes.length && newest === heard && !spent) return { state: stops, effects };
+  if (!notes.length && newest === heard && !spent) return { state, effects };
   /**
    * Never forgotten: a thread still under it there, and, while a paired computer has yet to say what
    * it holds since this app started, every thread it has heard, any of which may be that computer's.
    */
   const unheard = state.computers.paired.some((item) => !item.state);
   const led = new Set(unheard ? Object.keys(lead.remoteHeard ?? {}) : coordinationMembers(state, lead.id).flatMap(({ thread, computer: there }) => there ? [thread.id] : []));
-  const told = notes.reduce(withCoordinationNote, withRemoteHeard(spent ? withRemoteStop(lead, member.id, kept) : lead, member.id, newest, led));
-  return { state: updateThread(stops, lead.id, () => told), effects };
+  const settledLead = landed === undefined ? lead : withoutCaughtStart(lead, landed);
+  const told = notes.reduce(withCoordinationNote, withRemoteHeard(spent ? withRemoteStop(settledLead, member.id, kept) : settledLead, member.id, newest, led));
+  return { state: updateThread(state, lead.id, () => told), effects };
 }
 
 /**

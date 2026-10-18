@@ -5,7 +5,7 @@
  * paired computer works under one through its `remoteLead`, which names the coordinator here and is
  * kept, away, while that coordinator is not live, so it is back under it once it is again.
  */
-import { lastRunOutcome, type HeardWork, type RemoteStop, type Thread } from "./thread.js";
+import { lastRunOutcome, type CaughtStart, type HeardWork, type RemoteStop, type Thread } from "./thread.js";
 import { isRemoteSender, type RemoteSender } from "./message-origin.js";
 import type { AgentEffort } from "./run.js";
 import type { ThreadOutcome } from "./thread-run.js";
@@ -606,6 +606,14 @@ export function withProposalError(lead: Thread, id: string, error: string | unde
   return { ...lead, proposals: lead.proposals!.map((item) => item === proposal ? marked : item) };
 }
 
+/** A coordinator done with a start elsewhere Stop all caught on its way. */
+export function withoutCaughtStart(lead: Thread, proposalId: string): Thread {
+  if (!lead.caughtStarts?.[proposalId]) return lead;
+  const { [proposalId]: _settled, ...rest } = lead.caughtStarts;
+  const { caughtStarts: _held, ...thread } = lead;
+  return Object.keys(rest).length ? { ...thread, caughtStarts: rest } : thread;
+}
+
 /** A request allowed and carried to the computer it is for, which no later refusal here takes back. */
 export function withProposalCarried(lead: Thread, id: string): Thread {
   const proposal = lead.proposals?.find((item) => item.id === id);
@@ -766,6 +774,11 @@ export function isRemoteHeard(value: unknown): value is Record<string, number> {
 export function isRemoteStops(value: unknown): value is Record<string, RemoteStop> {
   return isRecord(value) && Object.values(value).every((stop) => isRecord(stop) && typeof stop.computer === "string" && (stop.runId === undefined || typeof stop.runId === "string")
     && (stop.answer === undefined || isRecord(stop.answer) && finite(stop.answer.at) && (stop.answer.runId === undefined || typeof stop.answer.runId === "string")));
+}
+
+/** Shape only: each start elsewhere Stop all caught on its way, by suggestion, with the computer it went to and the thread it became. */
+export function isCaughtStarts(value: unknown): value is Record<string, CaughtStart> {
+  return isRecord(value) && Object.values(value).every((start) => isRecord(start) && typeof start.computer === "string" && (start.threadId === undefined || typeof start.threadId === "string"));
 }
 
 /** Shape only: each of a coordinator's threads last seen working elsewhere, by id, with the computer holding it and its title. */

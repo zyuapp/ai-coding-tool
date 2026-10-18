@@ -604,6 +604,17 @@ test("a forward the line refused is the window's error once, and housekeeping th
   assert.deepEqual(raised, [{ type: "action.failed", message: "That computer cannot be reached right now." }]);
 });
 
+test("a start that computer refused says it started nothing, which one whose answer was lost cannot", async () => {
+  const raised: WorkspaceInput[] = [];
+  const answering = (send: () => Promise<unknown>) => ({ dispatch: async (input: WorkspaceInput) => { raised.push(input); }, desktop: { sendToComputer: send } }) as unknown as EffectHost;
+  const effect = { type: "computer.forward" as const, id: "linux", inputs: [{ type: "task.send" as const, text: "Port it" }], proposal: { taskId: "lead", proposalId: "p1" } };
+  await computerEffects["computer.forward"](effect, answering(async () => ({ ok: false, message: "No such folder." })));
+  await computerEffects["computer.forward"](effect, answering(async () => { throw new Error("That computer cannot be reached right now."); }));
+  assert.deepEqual(raised, [
+    { type: "proposal.settled", taskId: "lead", proposalId: "p1", message: "No such folder.", refused: true },
+    { type: "proposal.settled", taskId: "lead", proposalId: "p1", message: "That computer cannot be reached right now." },
+  ]);
+});
 
 test("remote terminals stay with their host across selection changes and reconnects", () => {
   const opened = reduce(remoteState, { type: "terminal.open" }).state;

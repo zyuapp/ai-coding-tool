@@ -18,6 +18,9 @@ export type HeardWork = { computer: string; title: string };
  */
 export type RemoteStop = { computer: string; runId?: string; answer?: { at: number; runId?: string } };
 
+/** A start on a paired computer Stop all caught on its way: the computer it went to, and once it landed, the thread it became there. */
+export type CaughtStart = { computer: string; threadId?: string };
+
 /** The canonical conversation aggregate. Persisted property names stay unchanged for compatibility. */
 export type Thread = {
   id: string;
@@ -74,6 +77,12 @@ export type Thread = {
    * the stop's.
    */
   remoteStops?: Record<string, RemoteStop>;
+  /**
+   * On a coordinator: each start of a thread on a paired computer, by the suggestion it is, that Stop
+   * all caught on its way there, after a restart here too. Whenever it lands it is stopped there, and
+   * its turn ending is heard quietly. One that computer refused, or that is no longer under it, is let go.
+   */
+  caughtStarts?: Record<string, CaughtStart>;
   projectId?: string;
   executionPolicy: ExecutionPolicy;
   engine: AgentEngine;

@@ -536,7 +536,7 @@ test("a start allowed on another computer that is still on its way when everythi
   assert.equal(deriveView(allowed.state).stoppableCoordinatorIds.has("lead"), true, "a start on its way is something to stop");
 
   const stopped = reduce(allowed.state, { type: "coordination.stop-all", taskId: "lead" });
-  assert.deepEqual(stopped.state.stoppedStarts, [{ proposalId: "p1" }]);
+  assert.deepEqual(stopped.state.threads[0]!.caughtStarts, { p1: { computer: "studio" } }, "kept with the coordinator, which outlives a restart");
   assert.deepEqual(stopped.state.startingProposals, ["p1"], "it cannot be called back, so it is not offered again until it lands");
   assert.equal(deriveView(stopped.state).stoppableCoordinatorIds.has("lead"), false, "once caught, nothing is left to stop");
 
@@ -549,12 +549,34 @@ test("a start allowed on another computer that is still on its way when everythi
   assert.deepEqual(notesOf(ended.state), ["\"Far work\" started on studio.", "\"Far work\" was stopped."]);
   assert.equal(ended.state.threads[0]!.coordinationNotes?.every((note) => note.quiet), true);
   assert.deepEqual(wakesOf(ended.state), [], "its stop never wakes the coordinator");
-  assert.deepEqual(ended.state.stoppedStarts, []);
+  assert.equal(ended.state.threads[0]!.caughtStarts, undefined);
 
-  const failed = reduce(stopped.state, { type: "proposal.settled", taskId: "lead", proposalId: "p1", message: "No such folder." });
-  assert.deepEqual(failed.state.startingProposals, []);
-  assert.deepEqual(failed.state.threads[0]!.proposals?.map((item) => [item.id, item.error]), [["p1", undefined]], "one that never landed waits to be allowed again, with nothing to say");
-  assert.deepEqual(failed.state.stoppedStarts, []);
+  const restart = (state: WorkspaceState) => withComputers(reduce(workspace(), { type: "store.loaded", data: { version: THREAD_STORE_VERSION, tasks: state.threads, projects: [], worktrees: [], lastFolder: null } }).state, [paired("studio", null, { capabilities: COMPUTER_CAPABILITIES })]);
+  const endedAfterRestart = mirrored(restart(landed.state), { ...holder, threads: [far({ runEndedAt: 50, outcome: "stopped" })] });
+  assert.equal(endedAfterRestart.state.threads[0]!.coordinationNotes?.every((note) => note.quiet), true, "a restart here before its end is heard keeps that quiet");
+  assert.deepEqual(wakesOf(endedAfterRestart.state), []);
+  const running = { ...holder, threads: [far({ remoteLead: { ...FAR, proposalId: "p1" } })], activeRuns: { far: activeRun("far", "run-far") } };
+  const landsAfterRestart = mirrored(restart(stopped.state), running);
+  assert.deepEqual(landsAfterRestart.effects.flatMap((effect) => effect.type === "computer.forward" ? [[effect.id, effect.inputs]] : []), [["studio", [{ type: "run.cancel", taskId: "far" }]]], "and one landing after a restart here is stopped as it shows up");
+
+  const refused = reduce(stopped.state, { type: "proposal.settled", taskId: "lead", proposalId: "p1", message: "No such folder.", refused: true });
+  assert.deepEqual(refused.state.startingProposals, []);
+  assert.deepEqual(refused.state.threads[0]!.proposals?.map((item) => [item.id, item.error]), [["p1", undefined]], "one that computer refused waits to be allowed again, with nothing to say");
+  assert.equal(refused.state.threads[0]!.caughtStarts, undefined);
+
+  const lost = reduce(stopped.state, { type: "proposal.settled", taskId: "lead", proposalId: "p1", message: "That computer cannot be reached right now." });
+  assert.deepEqual([lost.state.startingProposals, lost.state.threads[0]!.proposals?.map((item) => item.error)], [[], [undefined]]);
+  assert.deepEqual(lost.state.threads[0]!.caughtStarts, { p1: { computer: "studio" } }, "one whose answer was lost may still have started");
+  const shows = mirrored(lost.state, running);
+  assert.deepEqual(shows.effects.flatMap((effect) => effect.type === "computer.forward" ? [[effect.id, effect.inputs]] : []), [["studio", [{ type: "run.cancel", taskId: "far" }]]], "so it is stopped once it shows up");
+  const quietly = mirrored(shows.state, { ...holder, threads: [far({ runEndedAt: 50, outcome: "stopped" })] });
+  assert.deepEqual(wakesOf(quietly.state), [], "and heard quietly");
+
+  const again = reduce(lost.state, { type: "proposal.start", taskId: "lead", proposalId: "p1", place: { project: "far-project", worktree: false } });
+  assert.equal(again.state.threads[0]!.caughtStarts, undefined, "allowed again, it is the user's to start");
+  assert.equal(reduce(stopped.state, { type: "computers.changed", name: "This Mac", links: [] }).state.threads[0]!.caughtStarts, undefined, "and one on a computer no longer paired is let go");
+  const movedOut = mirrored(landed.state, { ...holder, threads: [far({ remoteLead: undefined })] });
+  assert.equal(movedOut.state.threads[0]!.caughtStarts, undefined, "as is one moved out from under it there");
 });
 
 test("a start allowed on another computer whose answer is lost settles its card once its thread shows up there", () => {
@@ -584,7 +606,7 @@ test("a start allowed on another computer whose answer is lost settles its card 
   const stopped = reduce(allowed.state, { type: "coordination.stop-all", taskId: "lead" });
   const caught = mirrored(stopped.state, { ...there, activeRuns: { far: activeRun("far", "run-far") } });
   assert.deepEqual(caught.effects.flatMap((effect) => effect.type === "computer.forward" ? [[effect.id, effect.inputs]] : []), [["studio", [{ type: "run.cancel", taskId: "far" }]]], "a start Stop all caught is stopped as it shows up");
-  assert.deepEqual(caught.state.stoppedStarts, [{ proposalId: "p1", threadId: "far" }]);
+  assert.deepEqual(caught.state.threads[0]!.caughtStarts, { p1: { computer: "studio", threadId: "far" } });
   assert.deepEqual(reduce(caught.state, { type: "proposal.settled", taskId: "lead", proposalId: "p1", threadId: "far" }).effects, [], "and only once");
 });
 
