@@ -323,6 +323,55 @@ test("a decision the user answered just before stopping all still reaches the th
   assert.deepEqual(Object.values(stopped.state.pendingRuns).map((pending) => [pending.taskId, pending.text]), [["one", "The user decided \"Keep the old API?\": A"]], "the answer is on its way, not dropped");
 });
 
+test("an answer queued into a run that stops before reading it opens its decision again", () => {
+  const decision = { id: "d1", question: "Which DB?", options: [{ label: "Postgres" }, { label: "SQLite" }], raisedAt: 1 };
+  const state = workspace({ currentId: "lead", threads: [lead(), member("one", { decisions: [decision] })], activeRuns: { one: activeRun("one", "run-1") }, runStatuses: { one: "running" } });
+  const answered = reduce(state, { type: "decision.answer", taskId: "one", decisionId: "d1", answer: "Postgres" });
+  assert.equal(deriveView(answered.state).coordination.decisions.length, 0, "an answer on its way closes the decision");
+  const message = required(answered.state.queuedMessages.one?.[0]);
+  const stops: Array<[string, WorkspaceState]> = [
+    ["stopping all", reduce(answered.state, { type: "coordination.stop-all", taskId: "lead" }).state],
+    ["stopping the thread", answered.state],
+  ];
+  for (const [how, stopping] of stops) {
+    const ended = reduce(stopping, correlatedRunEvent("one", "run-1", 1, { type: "run.status", status: "cancelled" }));
+    assert.equal(ended.state.prompts.one, undefined, `${how}: the answer is not handed to the composer as the user's words`);
+    assert.equal(deriveView(ended.state).coordination.decisions.length, 1, `${how}: the decision is open to answer again`);
+    assert.equal(required(ended.state.threads[1]!.decisions?.[0]).answer, undefined);
+  }
+
+  const delivered = reduce(answered.state, correlatedRunEvent("one", "run-1", 1, { type: "queued.delivered", messageId: message.id }));
+  const after = reduce(delivered.state, correlatedRunEvent("one", "run-1", 2, { type: "run.status", status: "cancelled" }));
+  assert.equal(required(after.state.threads[1]!.decisions?.[0]).answer, "Postgres", "an answer the thread read stays its answer");
+
+  const paused = workspace({ currentId: "lead", threads: [lead(), member("one", { decisions: [decision], limitPause: { ...SESSION, pausedAt: 1 } })] });
+  const held = reduce(paused, { type: "decision.answer", taskId: "one", decisionId: "d1", answer: "SQLite" });
+  const heldAnswer = required(held.state.queuedMessages.one?.[0]);
+  assert.equal(required(held.state.threads[1]!.limitPause?.held?.[0]).answers, "d1", "a held answer remembers its decision through a restart");
+  const dropped = reduce(held.state, { type: "task.drop-queued", taskId: "one", messageId: heldAnswer.id });
+  assert.equal(deriveView(dropped.state).coordination.decisions.length, 1, "taking the answer off opens the decision again");
+});
+
+test("a message another thread queued for a run that stops is not handed to the user, and its coordinator hears it never arrived", () => {
+  const state = workspace({ threads: [lead(), member("one"), task("other", { title: "Other" })], activeRuns: { one: activeRun("one", "run-1") }, runStatuses: { one: "running" } });
+  let queued = reduce(state, { type: "task.send", taskId: "one", text: "Also bump the version to 2.0", from: "lead" }).state;
+  queued = reduce(queued, { type: "task.send", taskId: "one", text: "Mine", attachments: [] }).state;
+  queued = reduce(queued, { type: "task.send", taskId: "one", text: "From the side", from: "other" }).state;
+  const notes = (next: WorkspaceState) => next.threads[0]!.coordinationNotes?.map(({ text, quiet }) => ({ text, quiet }));
+  const stopped = reduce(reduce(queued, { type: "coordination.stop-all", taskId: "lead" }).state, correlatedRunEvent("one", "run-1", 1, { type: "run.status", status: "cancelled" }));
+  assert.equal(stopped.state.prompts.one, "Mine", "only the user's own words go back to the composer");
+  assert.deepEqual(stopped.state.queuedMessages.one, undefined);
+  assert.deepEqual(notes(stopped.state), [
+    { text: "\"one\" was stopped.", quiet: true },
+    { text: "Your message to \"one\" was not delivered: Also bump the version to 2.0", quiet: true },
+  ], "a sender that is no coordinator has nowhere to hear it");
+  slept(stopped);
+
+  const message = required(queued.queuedMessages.one?.[0]);
+  const dropped = reduce(queued, { type: "task.drop-queued", taskId: "one", messageId: message.id });
+  assert.deepEqual(notes(dropped.state), [{ text: "Your message to \"one\" was not delivered: Also bump the version to 2.0", quiet: true }], "so does taking it off the queue");
+});
+
 test("news after a stop-all wakes the coordinator as usual, carrying what it missed", () => {
   const state = workspace({ threads: [lead(), member("one"), member("two")], activeRuns: { one: activeRun("one", "run-1"), two: activeRun("two", "run-2") }, runStatuses: { one: "running", two: "running" } });
   const stopped = reduce(state, { type: "coordination.stop-all", taskId: "lead" });

@@ -411,6 +411,19 @@ export function withAnswer(thread: Thread, decisionId: string, answer: string, a
   };
 }
 
+/** A decision whose answer never reached the thread is open again, to be answered anew. */
+export function withoutAnswer(thread: Thread, decisionId: string): Thread {
+  if (!thread.decisions?.some((decision) => decision.id === decisionId && decision.answer !== undefined)) return thread;
+  return {
+    ...thread,
+    decisions: thread.decisions.map((decision) => {
+      if (decision.id !== decisionId) return decision;
+      const { answer: _unsent, answeredAt: _answered, ...open } = decision;
+      return open;
+    }),
+  };
+}
+
 /**
  * A coordinator's memory with one change made, or why it cannot be. A change that alters nothing
  * hands the thread back as it was. `heard` says the coordinator made the change itself, so its

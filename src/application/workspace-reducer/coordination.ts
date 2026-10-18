@@ -89,8 +89,11 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       if (answer.length > MAX_ANSWER) return rejected(state, `An answer can be at most ${MAX_ANSWER.toLocaleString()} characters.`);
       const answered = (next: WorkspaceState) => updateThread(next, thread.id, (item) => withAnswer(item, decision.id, answer, now()));
       if (thread.archivedAt !== undefined) return settled(answered(state));
-      /** A decision only closes once its answer is on its way, so one that could not be sent can be answered again. */
-      const sent = reduceSending(state, { type: "task.send", taskId: thread.id, text: `The user decided "${decision.question}": ${answer}`, steer: true });
+      /**
+       * A decision only closes once its answer is on its way, so one that could not be sent can be
+       * answered again. One queued behind a run says what it answers, so it opens again if it never goes.
+       */
+      const sent = reduceSending(state, { type: "task.send", taskId: thread.id, text: `The user decided "${decision.question}": ${answer}`, steer: true }, { answers: decision.id });
       return sent.result?.ok === false ? sent : { ...sent, state: answered(sent.state) };
     }
 
@@ -199,7 +202,7 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
 /**
  * Stops a coordinator and every thread under it: each run is cancelled, each workflow and subagent
  * that would outlive it is stopped, each wait on a usage limit ends, and the coordinator's wake and
- * each start of a new thread under it are dropped, handing back what was queued. A start already
+ * each start of a new thread under it are dropped, handing back what the user queued. A start already
  * carried to a paired computer cannot be called back, so it is stopped there as it lands. The runs it
  * cancels end quietly, so nothing it stopped wakes the coordinator to carry on; scheduled ticks are
  * the user's to stop one by one. A thread under it on another computer is stopped there, by a
@@ -230,7 +233,7 @@ function stopAll(state: WorkspaceState, leadId: string): WorkspaceTransition {
   for (const { id, taskId, coordination } of starts) {
     const without = withoutPending(next.state, id);
     next = { ...next, state: coordination?.proposalId ? withProposalFailure(without, lead.id, coordination.proposalId, undefined) : without };
-    /** What was queued behind it goes back to its composer, as any stop hands it back. */
+    /** What the user queued behind it goes back to its composer, as any stop hands it back. */
     if (taskId && !next.state.activeRuns[taskId]) next = followedBy(next, drainQueue(next.state, taskId, "cancelled"));
   }
   return next;

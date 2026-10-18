@@ -24,6 +24,8 @@ export type HeldMessage = {
   origin?: MessageOrigin;
   /** The origin's label, for builds that read only this. */
   detail?: string;
+  /** The decision this message is the user's answer to, which is open again if the answer never goes. */
+  answers?: string;
 };
 
 /** A thread waiting out its account's usage limit. Persisted, so a restart keeps its place in line. */

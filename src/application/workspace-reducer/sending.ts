@@ -1,6 +1,6 @@
 /** A send: the prompt the composer hands over, and the queue behind a run already going. */
 import { CHECKOUT_RUNNING_ERROR, MISSING_PROJECT_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
-import { clearedDraft, forkableContinuation, handedBack, queuedFor, resolveWorkspaceEffect, runsInWorkspace, sentPrompt, sideChatPrompt, withAttendedRun, withPending, withQueued } from "./run-queue.js";
+import { clearedDraft, forkableContinuation, handedBack, queuedFor, resolveWorkspaceEffect, runsInWorkspace, sentPrompt, sideChatPrompt, withAttendedRun, withPending, withQueued, withUndelivered } from "./run-queue.js";
 import { settled, targetId, rejected } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { annotationsFor, filesFor, focusComposer, focusedTab, pastesFor } from "../composer-drafts.js";
@@ -24,10 +24,10 @@ type SendInput = Extract<WorkspaceInput, {
 }>;
 
 /**
- * `coordination` is what the reducer itself adds to a send that starts a thread, never a field of the
- * command: which suggestion the thread is, when the user started one.
+ * `coordination` is what the reducer itself adds to a send, never a field of the command: which
+ * suggestion a thread it starts is, when the user started one, and which decision it answers.
  */
-export function reduceSending(state: WorkspaceState, input: SendInput, coordination: Pick<CoordinationSend, "proposalId"> = {}): WorkspaceTransition {
+export function reduceSending(state: WorkspaceState, input: SendInput, coordination: Pick<CoordinationSend, "proposalId"> & { answers?: string } = {}): WorkspaceTransition {
   switch (input.type) {
     case "question.set-answer":
     case "question.answer": {
@@ -90,6 +90,7 @@ export function reduceSending(state: WorkspaceState, input: SendInput, coordinat
           text,
           prompt: signed,
           ...originFields(sentBy),
+          ...(coordination.answers ? { answers: coordination.answers } : {}),
           attachments: attachments.map((attachment) => attachment.path),
           ...(annotations.length ? { annotations } : {}),
           ...(pastes.length ? { pastes } : {}),
@@ -166,7 +167,7 @@ export function reduceSending(state: WorkspaceState, input: SendInput, coordinat
       const queued = taskId ? queuedFor(state, taskId) : [];
       const message = queued.find((item) => item.id === input.messageId);
       if (!taskId || !message || message.steering) return settled(state);
-      return settled(withQueued(state, taskId, queued.filter((item) => item.id !== message.id)));
+      return settled(withUndelivered(withQueued(state, taskId, queued.filter((item) => item.id !== message.id)), taskId, [message]));
     }
 
     /**

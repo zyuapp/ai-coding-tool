@@ -121,6 +121,14 @@ export function turnNote(thread: Thread, status: "succeeded" | "failed" | "cance
   return coordinationNote(thread.id, `"${thread.title}" ${ended}.${reply ? ` It last said: ${excerpt(reply)}` : ""}`, at, { urgent: status === "failed" && !quiet, quiet });
 }
 
+/**
+ * What a coordinator hears when a message it sent a thread was still waiting there when the user
+ * stopped that thread or took the message off, so it never arrived. Heard quietly, as what the user did.
+ */
+export function undeliveredNote(recipient: Thread, text: string, at: number): CoordinationNote {
+  return coordinationNote(recipient.id, `Your message to "${recipient.title}" was not delivered: ${excerpt(text)}`, at, { quiet: true });
+}
+
 /** A note for a coordinator about one thread. A quiet one is what the user did, heard with the next wake but never one by itself. */
 export function coordinationNote(threadId: string, text: string, at: number, { urgent = false, runId, quiet = false }: { urgent?: boolean; runId?: string | undefined; quiet?: boolean } = {}): CoordinationNote {
   return { id: crypto.randomUUID(), threadId, text, at, ...(urgent ? { urgent: true as const } : {}), ...(runId ? { runId } : {}), ...(quiet ? { quiet: true as const } : {}) };

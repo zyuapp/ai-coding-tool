@@ -11,8 +11,8 @@ import { projectFor, threadWorkspaceId, worktreeFor } from "../thread-location.j
 import { withPrompt, type DraftBranch, type PendingRun, type QueuedMessage, type SideChat, type WorkspaceState } from "../workspace-state.js";
 import type { ClaudeRunSettings, StartRunCommand } from "../../contracts/ipc.js";
 import { withoutOutcome } from "../../domain/attention.js";
-import { coordinationRole, GROUP_OF } from "../coordination.js";
-import { withoutReport } from "../../domain/coordination.js";
+import { coordinationRole, GROUP_OF, undeliveredNote } from "../coordination.js";
+import { isCoordinator, withCoordinationNote, withoutAnswer, withoutReport } from "../../domain/coordination.js";
 import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel } from "../../domain/agent-engine.js";
 import type { RunStatus } from "../../domain/run.js";
 import { createSentMessage, type Annotation, type AttachedFile, type PastedText, type RunAttachment } from "../../domain/conversation.js";
@@ -254,15 +254,41 @@ export function handedBack(state: WorkspaceState, taskId: string, messages: Queu
   return images.length ? composerDraft(handed, { type: "image.recall", taskId, paths: [...images, ...imagesFor(state, taskId).map((image) => image.path)] }, taskId) : settled(handed);
 }
 
+/** Only what the user wrote in the composer is theirs to have back: not another thread's message, nor a decision's answer. */
+function usersOwn(message: QueuedMessage) {
+  return !message.origin && !message.detail && message.answers === undefined;
+}
+
+/**
+ * Queued messages that will never reach the thread. A decision one answers is open again, to be
+ * answered anew, and a coordinator here that sent one hears it was not delivered. The caller has
+ * already taken them out of the queue.
+ */
+export function withUndelivered(state: WorkspaceState, taskId: string, messages: readonly QueuedMessage[]): WorkspaceState {
+  const recipient = state.threads.find((thread) => thread.id === taskId);
+  if (!recipient) return state;
+  let next = state;
+  for (const { answers, origin, text } of messages) {
+    if (answers !== undefined) next = updateThread(next, taskId, (thread) => withoutAnswer(thread, answers));
+    const sender = origin?.kind === "thread" && origin.computer === undefined ? next.threads.find((thread) => thread.id === origin.threadId) : undefined;
+    if (sender && isCoordinator(sender)) next = updateThread(next, sender.id, (lead) => withCoordinationNote(lead, undeliveredNote(recipient, text, now())));
+  }
+  return next;
+}
+
 /**
  * A finished run hands its queue on one message at a time, so each queued message gets its own run
- * and the ones behind it wait for that run to finish. A run the user stopped hands the whole queue
- * back to the composer instead of speaking for them.
+ * and the ones behind it wait for that run to finish. A run the user stopped hands what they wrote
+ * back to the composer instead of speaking for them, and nothing else queued is delivered.
  */
 export function drainQueue(state: WorkspaceState, taskId: string, status: RunStatus, warming = false): WorkspaceTransition {
   const queued = queuedFor(state, taskId);
   if (!queued.length) return settled(state);
-  if (status === "cancelled") return handedBack(withQueued(state, taskId, []), taskId, queued);
+  if (status === "cancelled") {
+    const own = queued.filter(usersOwn);
+    const left = withUndelivered(withQueued(state, taskId, []), taskId, queued.filter((message) => !usersOwn(message)));
+    return own.length ? handedBack(left, taskId, own) : settled(left);
+  }
   const thread = state.threads.find((item) => item.id === taskId);
   if (!thread) return settled(withQueued(state, taskId, []));
   /** A thread waiting out its usage limit keeps its queue until the limit lifts. */
