@@ -239,6 +239,7 @@ function lastReply(transcript: ThreadTranscript): string | null {
 
 const SIGNED_SEND = "command:task.send:sender";
 const SIGNED_MOVE = "command:task.move-worktree:sender";
+const SIGNED_ROLE = "command:task.set-role:sender";
 
 /** How long a thread just started on a paired computer is given to show up in the state that computer publishes. */
 const ARRIVAL_MS = 5_000;
@@ -269,9 +270,10 @@ async function commandElsewhere(host: ThreadRequestHost, computer: PairedCompute
     const thread = remoteSummary(arrived.state, computer.id, taskId);
     return thread ? { thread } : { thread: null, notice: `Started thread ${taskId} on ${computer.name}.` };
   }
-  /** A move says which thread asked where that computer can hear it, so it holds the move to the rules a thread's move keeps there too. */
+  /** A move or a role says which thread asked where that computer can hear it, so it holds them to the rules a thread keeps there too. */
   const signed = command.type === "task.send" && sender ? { ...command, sender }
     : command.type === "task.move-worktree" && sender && computer.capabilities?.includes(SIGNED_MOVE) ? { ...command, sender }
+    : command.type === "task.set-role" && sender && computer.capabilities?.includes(SIGNED_ROLE) ? { ...command, sender }
     : command;
   const result = await host.execute(signed).completed;
   if (!result.ok) throw new Error(result.message);

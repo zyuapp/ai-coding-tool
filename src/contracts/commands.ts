@@ -97,7 +97,8 @@ export type TaskCommand =
   | { type: "task.clear-archive" }
   | { type: "task.rename"; taskId: string; title: string }
   /** `null` takes the role off. With no thread yet, the role waits for the first message. */
-  | { type: "task.set-role"; taskId?: string; role: ThreadRole | null }
+  /** `sender` is a thread on another computer that asked, which only this app's own link says. */
+  | { type: "task.set-role"; taskId?: string; role: ThreadRole | null; sender?: RemoteSender }
   /** Moves a thread under a coordinator, or out from under one with `null`. */
   | { type: "task.set-coordinator"; taskId: string; coordinatorId: string | null }
   /**

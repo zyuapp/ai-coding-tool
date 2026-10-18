@@ -137,6 +137,11 @@ function namesThread(command: { taskId?: string }): boolean {
   return isString(command.taskId);
 }
 
+/** Only the window says which thread on another computer asked. */
+function givesRole(command: Extract<AppCommand, { type: "task.set-role" }>): boolean {
+  return namesThread(command) && command.sender === undefined;
+}
+
 /** Where a thread starts is held to what a suggestion's place is, since a thread started from one starts the same way. */
 function agentSend(command: Extract<AppCommand, { type: "task.send" }>): boolean {
   return agentId(command.taskId)
@@ -256,7 +261,7 @@ const commands = {
   "task.restore": { fields: { taskId: text }, at: "thread" },
   "task.clear-archive": { fields: {}, at: "thread" },
   "task.rename": { fields: { taskId: text, title: text }, at: "thread" },
-  "task.set-role": { fields: { taskId: optionalText, role: nullable(isThreadRole) }, at: "thread", agent: namesThread },
+  "task.set-role": { fields: { taskId: optionalText, role: nullable(isThreadRole), sender: optional(remoteSender) }, at: "thread", agent: givesRole },
   "task.set-coordinator": { fields: { taskId: text, coordinatorId: nullableText }, at: "thread" },
   "task.set-lead-away": { fields: { taskId: text, away: boolean }, at: "thread" },
   "task.resolve": { fields: { taskId: text }, at: "thread" },

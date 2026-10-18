@@ -15,7 +15,7 @@ export const WORKTREE_CREATING_ERROR = "This thread's worktree is still being cr
 export const WORKTREE_RELEASING_ERROR = "This thread's worktree is still being removed.";
 export const ARCHIVED_SEND_ERROR = "This thread is archived, so only the user can pick it back up, by writing to it or restoring it from Archived threads in Settings.";
 export const WORKTREE_COORDINATOR_ERROR = "A coordinator stays in its project's checkout, since it changes nothing itself. Start a thread with start_thread and worktree: true to do the work in a worktree.";
-const WORKTREE_COORDINATOR_ROLE_ERROR = "A coordinator stays in its project's checkout, since it changes nothing itself, and this thread works in a worktree. Start a coordinator with start_thread and role \"coordinator\" instead.";
+export const WORKTREE_COORDINATOR_ROLE_ERROR = "A coordinator stays in its project's checkout, since it changes nothing itself, and this thread works in a worktree. Start a coordinator with start_thread and role \"coordinator\" instead.";
 
 export const CHECKOUT_RUNNING_ERROR = "Stop the threads running in this project before starting one on another branch.";
 export const SWITCH_RUNNING_ERROR = "Stop the threads running in this checkout before switching it to another branch.";

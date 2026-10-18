@@ -137,12 +137,25 @@ test("a thread here moves one on a paired computer signed as itself, and never m
   assert.deepEqual(older.linux.inputs.map((input) => "sender" in input), [false], "a build that cannot hear who asked is sent the move unsigned");
 });
 
-test("a thread here never makes one in a worktree on a paired computer a coordinator", async () => {
-  const { host, linux, mirror } = pair();
-  linux.set({ ...linux.state(), threads: linux.state().threads.map((item) => ({ ...item, worktreeId: "wt-there" })) });
-  await mirror();
-  assert.match(await refusal(host, command({ type: "task.set-role", taskId: "remote-id", role: "coordinator" })), /^A coordinator stays in its project's checkout/);
-  assert.equal(linux.inputs.length, 0);
+test("a thread here never makes one in a worktree on a paired computer a coordinator, even one the mirror has yet to show there", async () => {
+  const inWorktree = (state: WorkspaceState) => ({ ...state, threads: state.threads.map((item) => ({ ...item, worktreeId: "wt-there" })) });
+  const shown = pair();
+  shown.linux.set(inWorktree(shown.linux.state()));
+  await shown.mirror();
+  assert.match(await refusal(shown.host, command({ type: "task.set-role", taskId: "remote-id", role: "coordinator" })), /^A coordinator stays in its project's checkout/);
+  assert.equal(shown.linux.inputs.length, 0);
+
+  const unseen = pair();
+  unseen.linux.set(inWorktree(unseen.linux.state()));
+  assert.match(await refusal(unseen.host, command({ type: "task.set-role", taskId: "remote-id", role: "coordinator" })), /^A coordinator stays in its project's checkout/);
+  assert.deepEqual(unseen.linux.inputs, [{ type: "task.set-role", taskId: "remote-id", role: "coordinator", sender: { threadId: "caller", title: "Planner", computer: "Mac" } }]);
+  assert.equal(unseen.linux.state().threads[0].role, undefined, "that computer refuses a role a thread asked for");
+  await answer(unseen.host, command({ type: "task.set-role", taskId: "remote-id", role: "reviewer" }));
+  assert.equal(unseen.linux.state().threads[0].role, "reviewer", "any other role still goes");
+
+  const older = pair({ capabilities: COMPUTER_CAPABILITIES.filter((name) => name !== "command:task.set-role:sender") });
+  await answer(older.host, command({ type: "task.set-role", taskId: "remote-id", role: "reviewer" }));
+  assert.deepEqual(older.linux.inputs.map((input) => "sender" in input), [false], "a build that cannot hear who asked is sent the role unsigned");
 });
 
 test("a thread starts on a paired computer in the project at the same path, inheriting the caller's model", async () => {

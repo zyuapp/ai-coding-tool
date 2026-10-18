@@ -163,6 +163,7 @@ test("no thread makes one in a worktree a coordinator, while the user still can"
   assert.equal((await answer(host, move({ type: "task.set-role", taskId: "caller", role: "reviewer" }))).thread?.role, "reviewer", "any other role is still given");
   assert.equal((await answer(host, move({ type: "task.set-role", taskId: "other", role: "coordinator" }))).thread?.role, "coordinator", "a thread in the project's checkout still becomes one");
   assert.equal(reduce(fixture(), { type: "task.set-role", taskId: "caller", role: "coordinator" }).state.threads[0].role, "coordinator", "the thread menu still makes one");
+  assert.equal(isExternalCommand({ type: "task.set-role", taskId: "other", role: "coordinator", sender: { threadId: "lead", title: "Lead", computer: "Linux" } }), false, "no agent names a thread elsewhere as the one that asked");
 });
 
 test("a move a thread asked for before it became a coordinator does not happen when its run ends", () => {
