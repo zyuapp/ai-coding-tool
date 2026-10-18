@@ -248,6 +248,8 @@ button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
 .coordination-card-open > small { min-width: 0; padding-left: 30px; overflow: hidden; font-size: var(--text-meta); text-overflow: ellipsis; white-space: nowrap; }
 .coordination-card-pull-request {
   justify-self: start;
+  /** Held to the card's width, so its own column cannot grow to the whole line and the ellipsis can clip it. */
+  min-width: 0;
   max-width: calc(100% - 30px);
   display: inline-flex;
   align-items: center;
