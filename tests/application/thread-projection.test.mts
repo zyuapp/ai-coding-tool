@@ -292,7 +292,7 @@ test("a thread answers to its id, an id prefix, or its title, and to nothing tha
   assert.equal(findThread(state, "mode picker")?.id, "t-3a2200");
   assert.equal(findThread(state, "Sink the mode choices"), null, "two threads share the title, so neither is guessed");
   assert.equal(findThread(state, "t-3a"), null, "two ids share the prefix");
-  assert.deepEqual(threadMatches(state, "sink the mode choices").map((thread) => thread.id), ["t-9f2c00", "t-3a1100"]);
+  assert.deepEqual(threadMatches(state, "sink the mode choices").threads.map((thread) => thread.id), ["t-9f2c00", "t-3a1100"]);
   assert.equal(findThread(state, "nothing at all"), null);
   assert.equal(findThread(state, "  "), null);
   assert.equal(threadTranscript(state, "Sink the mode choices"), null);
@@ -311,4 +311,10 @@ test("an id outranks a title and a title an id prefix, and an archived thread ne
   assert.equal(findThread(state, "title-second")?.id, "title-second", "an archived thread still answers to its id");
   assert.equal(findThread(state, "prefix-second")?.id, "prefix-second", "an id beats another thread's title");
   assert.equal(findThread(state, "prefix-"), null);
+});
+
+test("a live thread's id prefix outranks an archived thread's title", () => {
+  const state = workspace([task("old", { title: "abc", archivedAt: NOW }), task("abc123", { title: "Live" })]);
+  assert.equal(findThread(state, "abc")?.id, "abc123");
+  assert.equal(findThread(workspace([task("old", { title: "abc", archivedAt: NOW }), task("abd", { title: "Other", archivedAt: NOW })]), "abc")?.id, "old", "among archived threads a title still outranks an id prefix");
 });

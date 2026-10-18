@@ -1,5 +1,5 @@
 import type { PairedComputer } from "../application/computers.js";
-import { preferLive, resolveScope, threadMatches, threadSummaries, threadSummary, threadTranscript } from "../application/thread-projection.js";
+import { resolveScope, threadMatches, threadSummaries, threadSummary, threadTranscript } from "../application/thread-projection.js";
 import type { WorkspaceState } from "../application/workspace-state.js";
 import { isThreadSummary, isThreadTranscript } from "../contracts/thread-results.js";
 import type { ThreadListQuery, ThreadRequest, ThreadSummary, ThreadTranscript } from "../contracts/threads.js";
@@ -130,9 +130,10 @@ export function resolveThreadRead(state: WorkspaceState, reference: string, sele
     ...(scope.local ? [{ state, computer: null }] : []),
     ...scope.paired.flatMap((computer) => computer.state ? [{ state: computer.state, computer }] : []),
   ];
-  const matches = sources.flatMap((source) => threadMatches(source.state, reference).map((thread) => ({ ...source, thread })));
-  const exact = matches.filter(({ thread }) => thread.id.toLowerCase() === reference.trim().toLowerCase());
-  const candidates = preferLive(exact.length ? exact : matches, ({ thread }) => thread);
+  /** Each computer's closest matches, kept only where none is closer on another computer. */
+  const ranked = sources.map((source) => ({ source, ...threadMatches(source.state, reference) }));
+  const closest = Math.min(...ranked.map(({ rank }) => rank));
+  const candidates = ranked.filter(({ rank }) => rank === closest).flatMap(({ source, threads }) => threads.map((thread) => ({ ...source, thread })));
   if (candidates.length > 1) throw new Error(ambiguous(reference, candidates));
   const match = candidates[0];
   if (!match) {

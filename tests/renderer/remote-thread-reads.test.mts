@@ -80,6 +80,13 @@ test("matching references require a computer, and an exact remote ID wins over a
   await assert.rejects(readAcrossComputers(host, "remote-id", 1, "unknown"), /No paired computer/);
 });
 
+test("a live thread's id prefix on another computer outranks an archived thread's title here", async () => {
+  const { state, host } = fixture();
+  state.threads[0] = { ...state.threads[0], title: "remote", archivedAt: 1 };
+  assert.equal((await readAcrossComputers(host, "remote")).thread.id, "remote-id");
+  assert.equal((await readAcrossComputers(host, "remote", 1, "this")).thread.id, "caller", "the archived thread still answers where it is the only match");
+});
+
 test("reads diagnose missing snapshots and reject ambiguous computer labels", async () => {
   const { state, host, computer } = fixture();
   state.computers.paired.push({ ...computer, id: "another-linux" });
