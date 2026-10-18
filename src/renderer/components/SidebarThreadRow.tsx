@@ -17,7 +17,6 @@ import { RenameInput, useRenaming } from "./SidebarRename";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
 import { ThreadRoleMark } from "./ThreadRoleMark";
 import type { ThreadRole } from "../../domain/thread-role";
-import { waitingOnUser } from "../../domain/coordination";
 import type { ThreadHost } from "../../application/computers";
 import { HostMark } from "./HostMark";
 
@@ -70,9 +69,6 @@ function attentionMark(thread: Thread, sideChatWaiting: boolean, waiting: string
   return false;
 }
 
-function counted(count: number, one: string, many: string) {
-  return count === 1 ? one : count ? `${count} ${many}` : null;
-}
 
 /**
  * What a row says under its title in activity mode: which computer and folder it lives in, and when
@@ -144,6 +140,11 @@ export type ThreadRowsOptions = {
 /** The threads working under each coordinator, which its row speaks for, and what moves a thread between them. */
 export type SidebarCoordination = {
   threadsByCoordinator: Map<string, Thread[]>;
+  /**
+   * What each row says waits on the user, a coordinator's for everything its Needs-you card holds:
+   * the decisions its threads put to the user as well as its own, its suggestions and its requests.
+   */
+  waitingLines: ReadonlyMap<string, string>;
   coordinators: Thread[];
   onSetCoordinator: (threadId: string, coordinatorId: string | null) => void;
   /** Whether desktop notices are on at all, which a coordinator's mute only narrows. */
@@ -153,19 +154,6 @@ export type SidebarCoordination = {
   stoppable: Set<string>;
   onStopAll: (threadId: string) => void;
 };
-
-/**
- * What a row says waits on the user, or null when nothing does. A coordinator's row speaks for
- * everything its Needs-you card holds: the decisions its threads put to the user as well as its own,
- * and the threads it suggested or was asked to run on another computer.
- */
-export function waitingLabel(thread: Thread, threadsByCoordinator: Map<string, Thread[]>): string | null {
-  const { decisions, suggestions } = waitingOnUser(thread, threadsByCoordinator.get(thread.id) ?? []);
-  const parts = [counted(decisions, "a decision", "decisions"), counted(suggestions, "a suggested thread", "suggested threads")].filter((part) => part !== null);
-  if (!parts.length) return null;
-  const said = parts.join(" and ");
-  return `${said[0]!.toUpperCase()}${said.slice(1)} ${decisions + suggestions === 1 ? "is" : "are"} waiting on you`;
-}
 
 /**
  * What can be done to a thread from its row. Activity mode offers dismissing on a priority row
@@ -462,7 +450,7 @@ export function useThreadRows({
       blocked: blockedThreadIds.has(thread.id),
       memberBlocked: members.some((member) => blockedThreadIds.has(member.id)),
       sideChatWaiting: sideChatAttention.has(thread.id),
-      waiting: waitingLabel(thread, coordination.threadsByCoordinator),
+      waiting: coordination.waitingLines.get(thread.id) ?? null,
       inWorktree: worktreeThreadIds.has(thread.id),
       worktree: checkouts.get(thread.id),
       schedule: schedules.get(thread.id),

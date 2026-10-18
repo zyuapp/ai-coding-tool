@@ -335,6 +335,18 @@ export function coordinatedThreads(threads: readonly Thread[], leadId: string): 
 }
 
 /** Every thread drawn under a coordinator rather than in a list of its own. */
+/** The threads working under each coordinator, in the order they come, which its row speaks for. */
+export function threadsByCoordinator(threads: readonly Thread[]): Map<string, Thread[]> {
+  const members = coordinatedThreadIds(threads);
+  const byLead = new Map<string, Thread[]>();
+  for (const thread of threads) {
+    if (!members.has(thread.id)) continue;
+    const leadId = leadIdOf(thread)!;
+    byLead.get(leadId)?.push(thread) ?? byLead.set(leadId, [thread]);
+  }
+  return byLead;
+}
+
 export function coordinatedThreadIds(threads: readonly Thread[]): Set<string> {
   const leads = new Set(threads.filter(isCoordinator).map((thread) => thread.id));
   const members = new Set<string>();
@@ -371,26 +383,30 @@ export function decisionsFull(thread: Thread): boolean {
   return openDecisions(thread).length >= MAX_OPEN_DECISIONS;
 }
 
-/** What a thread's Needs-you card holds waiting on the user, apart from the approvals its runs wait on. */
-export type WaitingOnUser = { decisions: number; suggestions: number };
+/**
+ * What a thread's Needs-you card holds waiting on the user, apart from the approvals its runs wait
+ * on: decisions, suggested threads, and requests to run one on another computer, by its name.
+ */
+export type WaitingOnUser = { decisions: number; suggestions: number; requests: readonly string[] };
 
 /**
  * What waits on the user from a thread and the threads under it, as its Needs-you card holds it: the
- * decisions they put to the user, and the threads it suggested, those asked for on another computer
- * among them. Its row's mark, its place in the activity lists and the phone's all read this one count.
- * Approvals wait on a run, and are counted where runs are.
+ * decisions they put to the user, the threads it suggested, and those asked for on another computer.
+ * One already starting waits on no one. Its row's mark, its place in the activity lists and the
+ * phone's all read this one count. Approvals wait on a run, and are counted where runs are.
  */
-export function waitingOnUser(thread: Thread, members: readonly Thread[]): WaitingOnUser {
+export function waitingOnUser(thread: Thread, members: readonly Thread[], starting: readonly string[]): WaitingOnUser {
+  const proposals = (thread.proposals ?? []).filter((proposal) => !starting.includes(proposal.id));
   return {
     decisions: [thread, ...members].reduce((count, item) => count + openDecisions(item).length, 0),
-    suggestions: thread.proposals?.length ?? 0,
+    suggestions: proposals.filter((proposal) => !proposal.place.computer).length,
+    requests: proposals.flatMap((proposal) => proposal.place.computer ? [proposal.place.computer.name] : []),
   };
 }
 
 /** Whether anything waits on the user from a thread and the threads under it. */
-export function isWaitingOnUser(thread: Thread, members: readonly Thread[]): boolean {
-  const { decisions, suggestions } = waitingOnUser(thread, members);
-  return decisions + suggestions > 0;
+export function isWaitingOnUser(waiting: WaitingOnUser): boolean {
+  return waiting.decisions + waiting.suggestions + waiting.requests.length > 0;
 }
 
 /** Every decision waiting on the user from a coordinator and the threads under it, wherever each is held, oldest first. */

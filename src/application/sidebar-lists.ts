@@ -1,7 +1,7 @@
 import { orderProjects } from "./project-order.js";
 import { orderThreads, slotThreadIds } from "./thread-order.js";
-import { coordinationSections, projectActivity } from "./coordination.js";
-import { coordinatedThreadIds, leadIdOf } from "../domain/coordination.js";
+import { coordinationSections, projectActivity, waitingLine } from "./coordination.js";
+import { coordinatedThreadIds, threadsByCoordinator as threadsOfCoordinators, waitingOnUser } from "../domain/coordination.js";
 import { SLOT_COUNT } from "../domain/shortcuts.js";
 import type { Project } from "../domain/project.js";
 import type { SidebarMode, SidebarSections } from "../domain/sidebar.js";
@@ -26,6 +26,8 @@ export type SidebarPreferences = {
   expandedProjects: Set<string>;
   /** The one project the activity lists are narrowed to, or null for every project. */
   activityProject: string | null;
+  /** The suggestions already starting, which wait on no one. */
+  startingProposals: readonly string[];
 };
 
 /** Every list the sidebar draws, in the order it draws them. */
@@ -43,20 +45,22 @@ export function sidebarLists(
    * as is a paired computer's thread a coordinator here started.
    */
   const members = coordinatedThreadIds(visibleThreads);
-  const threadsByCoordinator = new Map<string, Thread[]>();
+  const threadsByCoordinator = threadsOfCoordinators(orderedThreads);
   const threadsByProject = new Map<string, Thread[]>();
   for (const thread of orderedThreads) {
-    if (members.has(thread.id)) {
-      const leadId = leadIdOf(thread)!;
-      threadsByCoordinator.get(leadId)?.push(thread) ?? threadsByCoordinator.set(leadId, [thread]);
-    }
-    else if (thread.projectId) threadsByProject.get(thread.projectId)?.push(thread) ?? threadsByProject.set(thread.projectId, [thread]);
+    if (!members.has(thread.id) && thread.projectId) threadsByProject.get(thread.projectId)?.push(thread) ?? threadsByProject.set(thread.projectId, [thread]);
   }
   const ordered = orderSidebarProjects(projects.filter((project) => !project.unlisted), projectHosts);
   /** A project no longer listed narrows nothing, so a removed or unreachable one never empties the lists. */
   const activityProject = preferences.activityProject !== null && ordered.some((project) => project.id === preferences.activityProject) ? preferences.activityProject : null;
   /** The same threads ranked by what wants the user, which is the sidebar's other shape. */
-  const ranked = coordinationSections(visibleThreads, busy, blocked);
+  const ranked = coordinationSections(visibleThreads, busy, blocked, preferences.startingProposals);
+  /** What each row says waits on the user, a coordinator's for its threads as well as itself. */
+  const waitingLines = new Map<string, string>();
+  for (const thread of visibleThreads) {
+    const line = members.has(thread.id) ? null : waitingLine(waitingOnUser(thread, threadsByCoordinator.get(thread.id) ?? [], preferences.startingProposals));
+    if (line) waitingLines.set(thread.id, line);
+  }
   const activityThreads = activityProject ? projectActivity(ranked, visibleThreads, activityProject) : ranked;
   /** Ranked and stamped by when each chat last did something, so a tick that surfaced nothing moves none of them. */
   const recentThreads = visibleThreads.filter((thread) => !thread.projectId && !members.has(thread.id)).sort((a, b) => threadActivityAt(b) - threadActivityAt(a));
@@ -65,6 +69,7 @@ export function sidebarLists(
     orderedThreads,
     threadsByProject,
     threadsByCoordinator,
+    waitingLines,
     activityThreads,
     activityProject,
     recentThreads,

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce, type WorkspaceEffect, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
 import { coordinationContext } from "../../src/application/coordination.ts";
+import { sidebarLists } from "../../src/application/sidebar-lists.ts";
 import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { ThreadBrief, ThreadProposal } from "../../src/domain/coordination.ts";
 import { activeRun, correlatedRunEvent, effectAt, PROJECT, required, task, workspace } from "./workspace-reducer-fixtures.mts";
@@ -188,4 +189,19 @@ test("a thread under a coordinator asking to run one on another computer is put 
   assert.deepEqual(announcedOf(own), [], "what the coordinator asks for itself, its reply says");
   const muted = workspace({ ...state, threads: [lead({ muted: true }), task("worker", { parentId: "lead" })] });
   assert.deepEqual(announcedOf(reduce(muted, { type: "coordination.proposed", taskId: "lead", proposals: [asked] })), [], "a muted coordinator keeps it back");
+});
+
+test("a coordinator's row says what its Needs-you card holds, a request by the computer it names, and nothing already starting", () => {
+  const studio = { id: "studio", name: "Studio" };
+  const request = (id: string, computer = studio) => proposal(id, { place: { computer, project: "app", worktree: false } });
+  const decision = { id: "d1", question: "Which?", options: [], raisedAt: 1 };
+  const said = (proposals: ThreadProposal[], starting: string[] = [], decisions = [decision]) => {
+    const state = workspace({ threads: [lead({ proposals }), task("worker", { parentId: "lead", decisions })], startingProposals: starting });
+    const lists = sidebarLists(state, [], state.threads, new Set(), new Set());
+    return [lists.waitingLines.get("lead") ?? null, lists.activityThreads.priority.map((thread) => thread.id)];
+  };
+  assert.deepEqual(said([proposal("p1"), request("p2"), request("p3")]), ["A decision, 2 requests to run threads on Studio and a suggested thread are waiting on you", ["lead"]]);
+  assert.deepEqual(said([request("p2"), request("p3", { id: "lab", name: "Lab" })], [], []), ["2 requests to run threads on other computers are waiting on you", ["lead"]]);
+  assert.deepEqual(said([proposal("p1"), request("p2")], ["p1"], []), ["A request to run a thread on Studio is waiting on you", ["lead"]], "one already starting waits on no one");
+  assert.deepEqual(said([proposal("p1"), request("p2")], ["p1", "p2"], []), [null, []], "so a coordinator with only those has nothing waiting");
 });

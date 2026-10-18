@@ -3,7 +3,6 @@ import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
 import { LuPlus as Plus } from "react-icons/lu";
 import type { Project, ThreadDropTarget } from "../../domain/project";
 import { hasUnreadAttention } from "../../domain/attention";
-import { isWaitingOnUser } from "../../domain/coordination";
 import type { Thread } from "../../domain/thread";
 import type { SidebarMode, SidebarSection, SidebarSections } from "../../domain/sidebar";
 import type { ActivitySections } from "../../application/thread-order";
@@ -97,10 +96,10 @@ export type ProjectSidebarProps = {
  * only pushes the marks away from the titles. Every thread carries its engine mark, which also
  * covers the one slot an action needs.
  */
-function railSlotsFor(threads: Thread[], marks: Pick<ProjectSidebarProps, "blockedThreadIds" | "runningThreadIds" | "sideChatAttention" | "worktreeThreadIds" | "schedules">, threadsByCoordinator: Map<string, Thread[]>) {
+function railSlotsFor(threads: Thread[], marks: Pick<ProjectSidebarProps, "blockedThreadIds" | "runningThreadIds" | "sideChatAttention" | "worktreeThreadIds" | "schedules">, { threadsByCoordinator, waitingLines }: SidebarCoordination) {
   return threads.reduce((widest, thread) => {
     const members = threadsByCoordinator.get(thread.id) ?? [];
-    const coordinationStatus = isWaitingOnUser(thread, members) || members.some((member) => marks.blockedThreadIds.has(member.id) || marks.runningThreadIds.has(member.id));
+    const coordinationStatus = waitingLines.has(thread.id) || members.some((member) => marks.blockedThreadIds.has(member.id) || marks.runningThreadIds.has(member.id));
     const status = marks.blockedThreadIds.has(thread.id) || marks.runningThreadIds.has(thread.id) || Boolean(thread.limitPause) || hasUnreadAttention(thread) || marks.sideChatAttention.has(thread.id) || coordinationStatus;
     return Math.max(widest, 1 + Number(Boolean(thread.role)) + Number(marks.worktreeThreadIds.has(thread.id)) + Number(marks.schedules.has(thread.id)) + Number(status));
   }, 1);
@@ -224,10 +223,9 @@ export const ProjectSidebar = memo(function ProjectSidebar({
     sidebarCoordination,
   });
 
-  const { threadsByCoordinator } = sidebarCoordination;
   const railSlots = useMemo(
-    () => railSlotsFor([...orderedThreads, ...recentThreads], { blockedThreadIds, runningThreadIds, sideChatAttention, worktreeThreadIds, schedules }, threadsByCoordinator),
-    [orderedThreads, recentThreads, blockedThreadIds, runningThreadIds, sideChatAttention, worktreeThreadIds, schedules, threadsByCoordinator],
+    () => railSlotsFor([...orderedThreads, ...recentThreads], { blockedThreadIds, runningThreadIds, sideChatAttention, worktreeThreadIds, schedules }, sidebarCoordination),
+    [orderedThreads, recentThreads, blockedThreadIds, runningThreadIds, sideChatAttention, worktreeThreadIds, schedules, sidebarCoordination],
   );
 
   /** Stepping through threads from the keyboard is blind unless the list follows the one now open. */

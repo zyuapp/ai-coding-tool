@@ -22,7 +22,7 @@ export function renderProjectSidebar(overrides: Partial<ProjectSidebarProps>) {
     schedules: new Map<string, AutomationView>(),
     limitPositions: new Map<string, number>(),
     worktreeGroups: [],
-    sidebarCoordination: { threadsByCoordinator: new Map(), coordinators: [], onSetCoordinator() {}, notifications: true, onSetMuted() {}, stoppable: new Set<string>(), onStopAll() {} },
+    sidebarCoordination: { threadsByCoordinator: new Map(), waitingLines: new Map(), coordinators: [], onSetCoordinator() {}, notifications: true, onSetMuted() {}, stoppable: new Set<string>(), onStopAll() {} },
     worktreeThreadIds: new Set<string>(),
     activityThreads: { priority: [], running: [], threads: [], snoozed: [] },
     threadHosts: new Map(),

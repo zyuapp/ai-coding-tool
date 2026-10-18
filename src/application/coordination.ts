@@ -5,7 +5,7 @@ import { doingWork, threadActivity, threadStatus, unstoppedSessionWork, type Thr
 import { activitySections, type ActivitySections } from "./thread-order.js";
 import { threadWorkspaceId } from "./thread-location.js";
 import { updateThread } from "./thread-run-state.js";
-import { awayLeadOf, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, isWaitingOnUser, leadIdOf, MAX_SUMMARY, openDecisions, remoteLeadOf, stuckVerdict, withCoordinationNote, type CoordinationNote, type CoordinationReport, type CoordinatorMemory, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type RemoteLead, type ThreadBrief, type ThreadProposal } from "../domain/coordination.js";
+import { awayLeadOf, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, isWaitingOnUser, leadIdOf, MAX_SUMMARY, openDecisions, remoteLeadOf, stuckVerdict, waitingOnUser, withCoordinationNote, type CoordinationNote, type CoordinationReport, type CoordinatorMemory, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type RemoteLead, type ThreadBrief, type ThreadProposal, type WaitingOnUser } from "../domain/coordination.js";
 import { lastRunOutcome, threadActivityAt, type Thread } from "../domain/thread.js";
 import type { PullRequestAnswer, PullRequestChecks, PullRequestLink, PullRequestRef, PullRequestState } from "../domain/pull-request.js";
 import { wantsAttention } from "../domain/attention.js";
@@ -497,11 +497,41 @@ export function coordinationUpdate(notes: CoordinationNote[], stillWorking: numb
   };
 }
 
+const NO_STARTS: readonly string[] = [];
+
+/** Whether a finished thread under a coordinator is waiting behind it. A resolved thread is filed away, so whatever a later run left on it is no reason to lead. */
+export function membersWantAttention(members: readonly Thread[]): boolean {
+  return members.some((thread) => thread.resolvedAt === undefined && wantsAttention(thread));
+}
+
+function counted(count: number, one: string, many: string): string | null {
+  return count === 1 ? one : count ? `${count} ${many}` : null;
+}
+
+/**
+ * What a row says waits on the user, or null when nothing does, worded as its Needs-you card asks:
+ * a request names the computer it would run on, as the card's "Run on Studio?" does.
+ */
+export function waitingLine(waiting: WaitingOnUser): string | null {
+  const { decisions, suggestions, requests } = waiting;
+  const computers = new Set(requests);
+  const where = computers.size === 1 ? `on ${requests[0]}` : "on other computers";
+  const parts = [
+    counted(decisions, "a decision", "decisions"),
+    counted(requests.length, `a request to run a thread ${where}`, `requests to run threads ${where}`),
+    counted(suggestions, "a suggested thread", "suggested threads"),
+  ].filter((part) => part !== null);
+  if (!parts.length) return null;
+  const said = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0]!;
+  return `${said[0]!.toUpperCase()}${said.slice(1)} ${decisions + suggestions + requests.length === 1 ? "is" : "are"} waiting on you`;
+}
+
 /**
  * The activity lists with each coordinator standing for its threads: they are drawn under it rather
- * than in a list of their own, and it ranks by whichever of them wants the user most.
+ * than in a list of their own, and it ranks by whichever of them wants the user most. A suggestion
+ * already `starting` waits on no one.
  */
-export function coordinationSections(threads: Thread[], busy: Set<string>, blocked: Set<string>): ActivitySections {
+export function coordinationSections(threads: Thread[], busy: Set<string>, blocked: Set<string>, starting = NO_STARTS): ActivitySections {
   const members = coordinatedThreadIds(threads);
   if (!members.size && !threads.some((thread) => thread.decisions?.length || thread.proposals?.length)) return activitySections(threads, busy, blocked);
   const leads = threads.filter((thread) => isCoordinator(thread));
@@ -511,12 +541,11 @@ export function coordinationSections(threads: Thread[], busy: Set<string>, block
   for (const lead of leads) {
     const led = coordinatedThreads(threads, lead.id);
     const coordination = [lead, ...led];
-    if (coordination.some((thread) => blocked.has(thread.id)) || isWaitingOnUser(lead, led)) asking.add(lead.id);
+    if (coordination.some((thread) => blocked.has(thread.id)) || isWaitingOnUser(waitingOnUser(lead, led, starting))) asking.add(lead.id);
     if (coordination.some((thread) => busy.has(thread.id))) ranked.add(lead.id);
-    /** A resolved thread is filed away, so whatever a later run left on it is no reason to lead. */
-    if (coordination.some((thread) => thread !== lead && thread.resolvedAt === undefined && wantsAttention(thread))) attention.add(lead.id);
+    if (membersWantAttention(led)) attention.add(lead.id);
   }
-  for (const thread of threads) if (!members.has(thread.id) && thread.role !== "coordinator" && isWaitingOnUser(thread, [])) asking.add(thread.id);
+  for (const thread of threads) if (!members.has(thread.id) && thread.role !== "coordinator" && isWaitingOnUser(waitingOnUser(thread, [], starting))) asking.add(thread.id);
   const listed = threads.filter((thread) => !members.has(thread.id));
   const sections = activitySections(listed, ranked, asking);
   if (!attention.size) return sections;

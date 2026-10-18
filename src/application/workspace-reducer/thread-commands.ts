@@ -58,7 +58,7 @@ function landOnThread(state: WorkspaceState, taskId: string): WorkspaceState {
 function priorityThreads(state: WorkspaceState, projectId?: string): Thread[] {
   const { ranked, blocked } = threadActivity(state);
   const threads = threadLists(state).visibleThreads;
-  const sections = coordinationSections(threads, ranked, blocked);
+  const sections = coordinationSections(threads, ranked, blocked, state.startingProposals);
   return projectId ? projectActivity(sections, threads, projectId).priority : sections.priority;
 }
 
