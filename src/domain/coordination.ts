@@ -407,24 +407,31 @@ export function decisionsFull(thread: Thread): boolean {
  * What a thread's Needs-you card holds waiting on the user, apart from the approvals its runs wait
  * on: decisions, suggested threads, and requests to run one on another computer, by its name.
  */
-export type WaitingOnUser = { decisions: number; suggestions: number; requests: readonly string[] };
+export type WaitingOnUser = { decisions: number; suggestions: number; requests: readonly string[]; blocked: number; failed: number };
 
 /**
  * What waits on the user from a thread and the threads under it, as its Needs-you card holds it: the
  * decisions they put to the user, the threads it suggested, and those asked for on another computer.
  * One already starting waits on no one. Its row's mark, its place in the activity lists and the
  * phone's all read this one count. Approvals wait on a run, and are counted where runs are.
+ *
+ * The threads under it left blocked or failed are counted apart, as the Overview files them under
+ * Needs you, unless a decision already stands for them. Like a thread of its own, they lead by being
+ * unread, not by asking.
  */
 export function waitingOnUser(thread: Thread, members: readonly Thread[], starting: readonly string[]): WaitingOnUser {
   const proposals = (thread.proposals ?? []).filter((proposal) => !starting.includes(proposal.id));
+  const stuck = members.flatMap((member) => member.resolvedAt === undefined && !member.runOpen && !openDecisions(member).length ? [stuckVerdict(member)?.state] : []);
   return {
     decisions: [thread, ...members].reduce((count, item) => count + openDecisions(item).length, 0),
     suggestions: proposals.filter((proposal) => !proposal.place.computer).length,
     requests: proposals.flatMap((proposal) => proposal.place.computer ? [proposal.place.computer.name] : []),
+    blocked: stuck.filter((state) => state === "blocked").length,
+    failed: stuck.filter((state) => state === "failed").length,
   };
 }
 
-/** Whether anything waits on the user from a thread and the threads under it. */
+/** Whether anything the Needs-you card holds waits on the user from a thread and the threads under it. */
 export function isWaitingOnUser(waiting: WaitingOnUser): boolean {
   return waiting.decisions + waiting.suggestions + waiting.requests.length > 0;
 }

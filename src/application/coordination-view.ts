@@ -191,7 +191,7 @@ export function coordinationView(
 
 /** The count last made while it has not moved, so the badge reading it draws nothing anew. */
 function sameWaiting(before: WaitingOnUser | null | undefined, next: WaitingOnUser): WaitingOnUser {
-  return before && before.decisions === next.decisions && before.suggestions === next.suggestions && before.requests.join("\n") === next.requests.join("\n") ? before : next;
+  return before && before.decisions === next.decisions && before.suggestions === next.suggestions && before.blocked === next.blocked && before.failed === next.failed && before.requests.join("\n") === next.requests.join("\n") ? before : next;
 }
 
 /** The approval a thread under a coordinator waits on, read on the computer that holds it. */

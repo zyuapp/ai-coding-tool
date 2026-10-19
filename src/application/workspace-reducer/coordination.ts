@@ -5,7 +5,7 @@ import { released, remoteNews, withoutLapsedStops } from "./coordination-remote.
 import { withProposalFailure } from "./proposals.js";
 import { now, rejected, settled, targetId } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { canResolve, checkoutAnswer, coordinatedThreadStatus, coordinationMembers, coordinationRole, coordinatorWork, coordinationUpdate, decisionHeadline, endsUsersTurn, decisionNote, memberWorking, nextSteps, reportHeadline, reportNote, unheardWork, withNewsQuieted, withTurnHeard, workingMembers } from "../coordination.js";
+import { canResolve, checkoutAnswer, coordinatedThreadStatus, coordinationMembers, coordinationRole, coordinatorWork, coordinationUpdate, decisionHeadline, endsUsersTurn, decisionNote, memberWorking, nextSteps, reportHeadline, reportNote, unheardWork, waitingLine, withNewsQuieted, withTurnHeard, workingMembers } from "../coordination.js";
 import { activityChanges, threadActivity, threadChanges, type ThreadChange } from "../thread-activity.js";
 import { cancelPause, heldByLimit } from "../limit-pauses.js";
 import { announced } from "../notices.js";
@@ -15,7 +15,7 @@ import type { PairedComputer } from "../computers.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import type { AppCommand } from "../../contracts/commands.js";
-import { canJoinCoordinator, coordinatorOf, decisionsFull, endsAsStopped, isCoordinator, MAX_ANSWER, nextStepOf, openDecisions, remoteLeadOf, reopenedIfStuck, threadModelOf, undelegable, withAnswer, withCoordinationNote, withDecision, withMemoryChange, worksUnderCoordinator, type CoordinationNote, type MemoryChange } from "../../domain/coordination.js";
+import { canJoinCoordinator, coordinatorOf, decisionsFull, waitingOnUser, endsAsStopped, isCoordinator, MAX_ANSWER, nextStepOf, openDecisions, remoteLeadOf, reopenedIfStuck, threadModelOf, undelegable, withAnswer, withCoordinationNote, withDecision, withMemoryChange, worksUnderCoordinator, type CoordinationNote, type MemoryChange } from "../../domain/coordination.js";
 import { defaultEffortFor, effortForModel, engineForModel, modelDelegable, modelHasEffort, modelTakesEffort } from "../../domain/agent-engine.js";
 import type { CaughtStart, RemoteStop, Thread } from "../../domain/thread.js";
 import { dismissed } from "../../domain/attention.js";
@@ -430,7 +430,8 @@ function deliverCoordinationNotes(state: WorkspaceState, leadId: string): Worksp
   const working = workingMembers(state, lead);
   if (working && !news.some((note) => note.urgent)) return settled(state);
   const project = projectFor(state, lead);
-  const update = coordinationUpdate(notes, working);
+  const waiting = waitingLine(waitingOnUser(lead, coordinationMembers(state, lead.id).map((member) => member.thread), state.startingProposals), "the user");
+  const update = coordinationUpdate(notes, working, waiting);
   const pending: PendingRun = {
     id: crypto.randomUUID(),
     runId: crypto.randomUUID(),

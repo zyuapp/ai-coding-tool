@@ -545,3 +545,13 @@ test("a working thread on a paired computer holds non-urgent news, and its turn 
   const woke = woken(reduce(state, { type: "computer.state", id: "studio", state: ended }));
   assert.match(woke.text, /"One" ended its turn\.\n"Far" ended its turn\./);
 });
+
+test("a coordinator woken by a blocked thread is told it waits on the user, and one woken by finished work that nothing does", () => {
+  const prompt = (state: "blocked" | "done") => {
+    const start = workspace({ threads: [lead(), member("worker")], activeRuns: { worker: activeRun("worker", "run-w") }, runStatuses: { worker: "running" } });
+    const reported = reduce(start, { type: "coordination.reported", taskId: "worker", state, summary: "Stuck on keys" });
+    return woken(reduce(reported.state, correlatedRunEvent("worker", "run-w", 1, { type: "run.status", status: "succeeded" }))).prompt;
+  };
+  assert.match(prompt("blocked"), / A blocked thread is waiting on the user\. /);
+  assert.match(prompt("done"), / Nothing is waiting on the user\. /);
+});

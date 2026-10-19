@@ -7,6 +7,7 @@ import { isWorkspaceViewInput } from "../../src/contracts/workspace-view-input.t
 import { COMPUTER_CAPABILITIES } from "../../src/contracts/computer-capabilities.ts";
 import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import { coordinatedThreads, type ThreadBrief, type ThreadProposal } from "../../src/domain/coordination.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 import { activeRun, correlatedRunEvent, effectAt, PROJECT, required, task, workspace } from "./workspace-reducer-fixtures.mts";
 
 const PROJECTLESS = { id: "projectless", kind: "projectless" as const, root: "/tmp" };
@@ -232,11 +233,24 @@ test("a coordinator's row says what its Needs-you card holds, a request by the c
   assert.equal(sidebarLists(state, [], state.threads, new Set(), new Set()).waitingLines.get("worker"), "A decision is waiting on you", "a thread drawn under its coordinator still says what waits on it");
 });
 
+test("a coordinator's row names the threads under it left blocked or failed, as its Overview files them under Needs you", () => {
+  const stuck = (state: "blocked" | "failed") => ({ report: { state, summary: "Stuck", at: 1 } });
+  const line = (...members: Thread[]) => {
+    const state = workspace({ threads: [lead(), ...members] });
+    return sidebarLists(state, [], state.threads, new Set(), new Set()).waitingLines.get("lead") ?? null;
+  };
+  assert.equal(line(task("a", { parentId: "lead", ...stuck("blocked") })), "A blocked thread is waiting on you");
+  assert.equal(line(task("a", { parentId: "lead", ...stuck("blocked") }), task("b", { parentId: "lead", ...stuck("blocked") }), task("c", { parentId: "lead", outcome: "failed" })), "2 blocked threads and a failed thread are waiting on you");
+  assert.equal(line(task("a", { parentId: "lead", ...stuck("blocked"), resolvedAt: 2 })), null, "a resolved thread waits on no one");
+  assert.equal(line(task("a", { parentId: "lead", ...stuck("failed"), runOpen: true })), null, "nor does one working again");
+  assert.equal(line(task("a", { parentId: "lead", ...stuck("blocked"), decisions: [{ id: "d1", question: "Which?", options: [], raisedAt: 1 }] })), "A decision is waiting on you", "a decision stands for the thread that raised it");
+});
+
 test("the coordination view counts what waits on the user as the sidebar does, and a thread under it says its own in the same words", () => {
   const decision = (id: string) => ({ id, question: `${id}?`, options: [], raisedAt: 1 });
   const state = workspace({ threads: [lead({ proposals: [proposal("p1"), proposal("p2", { place: { computer: { id: "studio", name: "Studio" }, worktree: false } })] }), task("worker", { parentId: "lead", decisions: [decision("d1"), decision("d2")] })], startingProposals: ["p1"] });
   const waiting = deriveView({ ...state, currentId: "lead" }).coordination.waiting;
-  assert.deepEqual(waiting, { decisions: 2, suggestions: 0, requests: ["Studio"] }, "one already starting is not counted");
+  assert.deepEqual(waiting, { decisions: 2, suggestions: 0, requests: ["Studio"], blocked: 0, failed: 0 }, "one already starting is not counted");
   assert.equal(deriveView({ ...state, currentId: "worker" }).coordination.asking, "2 decisions are waiting on you");
 });
 

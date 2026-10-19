@@ -504,14 +504,16 @@ function clipped(text: string, max: number) {
  * The message that wakes a coordinator with its threads' news, as the user sees it and as the agent
  * reads it. Once none of its threads is working, its reply is the answer the user reads.
  */
-export function coordinationUpdate(notes: CoordinationNote[], stillWorking: number): { text: string; prompt: string } {
+export function coordinationUpdate(notes: CoordinationNote[], stillWorking: number, waiting: string | null): { text: string; prompt: string } {
   const text = notes.map((note) => note.text).join("\n");
   const reply = stillWorking
     ? `${stillWorking === 1 ? "One other thread is" : `${stillWorking} other threads are`} still working, so tell the user only what cannot wait for ${stillWorking === 1 ? "it" : "them"}, in a line or two.`
-    : "None of your threads is working now, so give the user one answer that brings together everything they delivered, what is left, and any decision waiting on them.";
+    : "None of your threads is working now, so give the user one answer that brings together everything they delivered, what is left, and anything waiting on them.";
+  /** What waits on the user, as their Needs you holds it. */
+  const owed = ` ${waiting ?? "Nothing is waiting on the user"}.`;
   return {
     text,
-    prompt: `${text}\n\nThese are updates from threads working under you, not a message from the user. ${reply} Say nothing about progress. Start a thread for any follow-up work.`,
+    prompt: `${text}\n\nThese are updates from threads working under you, not a message from the user. ${reply}${owed} Say nothing about progress. Start a thread for any follow-up work.`,
   };
 }
 
@@ -530,18 +532,20 @@ function counted(count: number, one: string, many: string): string | null {
  * What a row says waits on the user, or null when nothing does, worded as its Needs-you card asks:
  * a request names the computer it would run on, as the card's "Run on Studio?" does.
  */
-export function waitingLine(waiting: WaitingOnUser): string | null {
-  const { decisions, suggestions, requests } = waiting;
+export function waitingLine(waiting: WaitingOnUser, owedBy = "you"): string | null {
+  const { decisions, suggestions, requests, blocked, failed } = waiting;
   const computers = new Set(requests);
   const where = computers.size === 1 ? `on ${requests[0]}` : "on other computers";
   const parts = [
     counted(decisions, "a decision", "decisions"),
     counted(requests.length, `a request to run a thread ${where}`, `requests to run threads ${where}`),
     counted(suggestions, "a suggested thread", "suggested threads"),
+    counted(blocked, "a blocked thread", "blocked threads"),
+    counted(failed, "a failed thread", "failed threads"),
   ].filter((part) => part !== null);
   if (!parts.length) return null;
   const said = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0]!;
-  return `${said[0]!.toUpperCase()}${said.slice(1)} ${decisions + suggestions + requests.length === 1 ? "is" : "are"} waiting on you`;
+  return `${said[0]!.toUpperCase()}${said.slice(1)} ${decisions + suggestions + requests.length + blocked + failed === 1 ? "is" : "are"} waiting on ${owedBy}`;
 }
 
 /**
