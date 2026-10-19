@@ -71,20 +71,23 @@ export function reduceSending(state: WorkspaceState, input: SendInput, coordinat
       if (input.taskId !== undefined && state.sideChats.some((chat) => chat.id === input.taskId) && !forkableContinuation(state, input.taskId)) return settled(state);
       /** Only the composer's own send falls back to the current thread; a send with its own text starts a thread. */
       const thread = state.threads.find((item) => item.id === (input.taskId ?? (draftKey === undefined ? null : state.currentId)));
+      /** A thread's message refused is answered to that thread alone; the user did nothing to be told of. */
+      const fromThread = input.from !== undefined || input.sender !== undefined;
+      const refuse = (message: string) => fromThread ? settled(state, [], { ok: false, message }) : rejected(state, message);
       /**
        * An archived thread's work has ended, so another thread's message to it is refused, here or
        * from a paired computer. The user writing to one, wherever it is still on screen, brings it
        * back as restoring it would, then sends.
        */
       if (thread?.archivedAt !== undefined) {
-        if (input.from !== undefined || input.sender !== undefined) return rejected(state, ARCHIVED_SEND_ERROR);
+        if (fromThread) return refuse(ARCHIVED_SEND_ERROR);
         const restored = reduceSending(updateThread(state, thread.id, ({ archivedAt: _restored, ...item }) => item), input, coordination, said);
         return { ...restored, effects: [...fileThread(state, thread, false), ...restored.effects] };
       }
       /** A thread halfway into a checkout of its own has nowhere settled to run, so the send waits for the user. */
-      if (thread && state.creatingWorktrees.includes(thread.id)) return rejected(state, WORKTREE_CREATING_ERROR);
+      if (thread && state.creatingWorktrees.includes(thread.id)) return refuse(WORKTREE_CREATING_ERROR);
       /** A checkout on its way out is the same: the folder a run would start in is about to go. */
-      if (thread && leavingThreadIds(state).has(thread.id)) return rejected(state, WORKTREE_RELEASING_ERROR);
+      if (thread && leavingThreadIds(state).has(thread.id)) return refuse(WORKTREE_RELEASING_ERROR);
       /** The engine is a command on this machine, so a missing or too old one is said before a run starts. */
       const engine = thread?.engine ?? state.draftEngine;
       const blocked = engineBlocker(engine, engineReadinessOf(state, engine));

@@ -690,6 +690,7 @@ test("another thread's message to an archived thread is refused, here or from a 
       assert.deepEqual(sent.effects, []);
       assert.deepEqual(sent.state.pendingRuns, {});
       assert.equal(sent.state.threads[0].archivedAt, 5);
+      assert.equal(sent.state.actionError, archived.actionError, "only the sender hears the refusal");
     }
   }
   const cancelling = reduce({ ...archived, activeRuns: { gone: activeRun("gone", "run-1") } }, { type: "task.send", taskId: "gone", text: "Pick this up again", from: "caller" });
