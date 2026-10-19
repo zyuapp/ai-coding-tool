@@ -244,6 +244,9 @@ test("a coordinator's row names the threads under it left blocked or failed, as 
   assert.equal(line(task("a", { parentId: "lead", ...stuck("blocked"), resolvedAt: 2 })), null, "a resolved thread waits on no one");
   assert.equal(line(task("a", { parentId: "lead", ...stuck("failed"), runOpen: true })), null, "nor does one working again");
   assert.equal(line(task("a", { parentId: "lead", ...stuck("blocked"), decisions: [{ id: "d1", question: "Which?", options: [], raisedAt: 1 }] })), "A decision is waiting on you", "a decision stands for the thread that raised it");
+
+  const read = workspace({ threads: [lead(), task("a", { parentId: "lead", ...stuck("blocked") })] });
+  assert.deepEqual(sidebarLists(read, [], read.threads, new Set(), new Set()).activityThreads.priority.map((thread) => thread.id), ["lead"], "and it leads while one waits, read or not");
 });
 
 test("the coordination view counts what waits on the user as the sidebar does, and a thread under it says its own in the same words", () => {

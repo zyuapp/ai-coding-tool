@@ -415,9 +415,8 @@ export type WaitingOnUser = { decisions: number; suggestions: number; requests: 
  * One already starting waits on no one. Its row's mark, its place in the activity lists and the
  * phone's all read this one count. Approvals wait on a run, and are counted where runs are.
  *
- * The threads under it left blocked or failed are counted apart, as the Overview files them under
- * Needs you, unless a decision already stands for them. Like a thread of its own, they lead by being
- * unread, not by asking.
+ * The threads under it left blocked or failed count too, as the Overview files them under Needs you,
+ * unless a decision already stands for them.
  */
 export function waitingOnUser(thread: Thread, members: readonly Thread[], starting: readonly string[]): WaitingOnUser {
   const proposals = (thread.proposals ?? []).filter((proposal) => !starting.includes(proposal.id));
@@ -431,9 +430,9 @@ export function waitingOnUser(thread: Thread, members: readonly Thread[], starti
   };
 }
 
-/** Whether anything the Needs-you card holds waits on the user from a thread and the threads under it. */
+/** Whether anything waits on the user from a thread and the threads under it. */
 export function isWaitingOnUser(waiting: WaitingOnUser): boolean {
-  return waiting.decisions + waiting.suggestions + waiting.requests.length > 0;
+  return waiting.decisions + waiting.suggestions + waiting.requests.length + waiting.blocked + waiting.failed > 0;
 }
 
 /** Every decision waiting on the user from a coordinator and the threads under it, wherever each is held, oldest first. */
