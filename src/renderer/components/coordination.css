@@ -183,7 +183,7 @@ button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
 :is(.coordination-row, .coordination-card):is(.blocked, .failed, .needs-work) small { color: var(--danger-soft); }
 .coordination-row-marks { display: flex; align-items: center; gap: 6px; transition: opacity 0.15s ease; }
 .coordination-row-engine { color: var(--quiet); }
-.coordination-row-host { flex: none; max-width: 96px; }
+.coordination-row-marks > .coordination-row-host { flex: none; max-width: 96px; }
 :is(.coordination-row, .coordination-card).review .coordination-row-mark { background: var(--success-surface); }
 /** A row's own action sits beside its open button, over the marks it takes the place of while pointed at. */
 .coordination-item { position: relative; min-width: 0; }
