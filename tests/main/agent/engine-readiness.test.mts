@@ -59,7 +59,7 @@ test("an engine that is nowhere on the path is absent, and the app can say how t
 });
 
 test("the upgrade command follows the launcher to the real file, so a cask upgrades through Homebrew", async () => {
-  const root = await temporaryDirectory(path.join(os.tmpdir(), "engine-brew-"));
+  const root = await realpath(await temporaryDirectory(path.join(os.tmpdir(), "engine-brew-")));
   const cask = path.join(root, "Caskroom", "codex", "0.150.1");
   await mkdir(cask, { recursive: true });
   const real = path.join(cask, "codex");
