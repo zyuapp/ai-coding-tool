@@ -99,7 +99,7 @@ export type ProjectSidebarProps = {
 function railSlotsFor(threads: Thread[], marks: Pick<ProjectSidebarProps, "blockedThreadIds" | "runningThreadIds" | "sideChatAttention" | "worktreeThreadIds" | "schedules">, { threadsByCoordinator, waitingLines }: SidebarCoordination) {
   return threads.reduce((widest, thread) => {
     const members = threadsByCoordinator.get(thread.id) ?? [];
-    const coordinationStatus = waitingLines.has(thread.id) || members.some((member) => marks.blockedThreadIds.has(member.id) || marks.runningThreadIds.has(member.id));
+    const coordinationStatus = waitingLines.has(thread.id) || members.some((member) => marks.blockedThreadIds.has(member.id) || marks.runningThreadIds.has(member.id) || hasUnreadAttention(member));
     const status = marks.blockedThreadIds.has(thread.id) || marks.runningThreadIds.has(thread.id) || Boolean(thread.limitPause) || hasUnreadAttention(thread) || marks.sideChatAttention.has(thread.id) || coordinationStatus;
     return Math.max(widest, 1 + Number(Boolean(thread.role)) + Number(marks.worktreeThreadIds.has(thread.id)) + Number(marks.schedules.has(thread.id)) + Number(status));
   }, 1);

@@ -2,7 +2,7 @@ import { deriveView, type WorkspaceState } from "./workspace-state.js";
 import { labelOf, threadSummaries, threadTranscript } from "./thread-projection.js";
 import { projectName, type Project } from "../domain/project.js";
 import type { Thread } from "../domain/thread.js";
-import { newestUnreadFinding } from "../domain/attention.js";
+import { hasUnreadAttention, newestUnreadFinding } from "../domain/attention.js";
 import { DEFAULT_BRANCH_RANGE } from "../domain/diff.js";
 import { themeFor, themeOrDefault } from "../domain/theme.js";
 import { worktreeName } from "../domain/worktree.js";
@@ -88,7 +88,7 @@ export function projectMobileView(state: WorkspaceState, at: number): MobileView
       projectName: project ? projectName(project) : null,
       status: blocked ? "awaiting-approval" : running ? "running" : summary.status,
       lastActivityAt: summary.lastActivityAt,
-      unread: Boolean(thread?.outcomeUnread) || finding !== undefined,
+      unread: Boolean(thread?.outcomeUnread) || finding !== undefined || members.some(hasUnreadAttention),
       ...(thread?.outcome ? { outcome: thread.outcome } : {}),
       ...(headline !== null ? { headline } : {}),
       ...(waiting !== null ? { waiting: true as const } : {}),

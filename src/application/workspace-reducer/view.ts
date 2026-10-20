@@ -12,7 +12,7 @@ import { dockHoldsTab, findTargetFor, reachableVisit, type FindState, type Works
 import { jumpView } from "../workspace-jump.js";
 import { threadActivity } from "../thread-activity.js";
 import { refreshEngines } from "../engine-access.js";
-import { readAttention } from "../../domain/attention.js";
+import { readRow } from "../thread-attention.js";
 import { memoizedFindHits, sameFindTarget, searchesItself, stepMatch, type FindResults } from "../../domain/find.js";
 
 /** Whether a report says anything new, so a second pass folding in a patch that changes nothing is free. */
@@ -39,7 +39,7 @@ export function reduceView(state: WorkspaceState, input: ViewInput): WorkspaceTr
       if (index === null) return settled(state);
       const taskId = state.history[index];
       const thread = state.threads.find((item) => item.id === taskId);
-      return settled(readAttention({
+      return settled(readRow({
         ...state,
         historyIndex: index,
         currentId: taskId,
@@ -57,7 +57,7 @@ export function reduceView(state: WorkspaceState, input: ViewInput): WorkspaceTr
       if (!input.focused) return settled({ ...state, focused: false, capturingShortcut: null }, stopCapture(state));
       const asked = refreshEngines({ ...state, focused: true });
       /** With a paired computer's thread on screen, none of this computer's own has been looked at. */
-      return settled(readAttention(asked.state, selectedComputer(state) ? null : state.currentId), [...followUps(refreshEnvironment(state)), ...asked.effects]);
+      return settled(readRow(asked.state, selectedComputer(state) ? null : state.currentId), [...followUps(refreshEnvironment(state)), ...asked.effects]);
     }
 
     /** A tab the dock in front is not holding is nobody holding the keyboard, which the picker reports too. */

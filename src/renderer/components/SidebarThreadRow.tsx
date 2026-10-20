@@ -36,6 +36,8 @@ const MEMBER_BLOCKED_LABEL = "A thread needs your approval";
 
 const SIDE_CHAT_LABEL = "A side chat is waiting";
 
+const MEMBER_UNREAD_LABEL = "A thread has something new";
+
 const TIME_FORMAT = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
 
 const DAY_FORMAT = new Intl.DateTimeFormat(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" });
@@ -60,12 +62,14 @@ function scheduleLabel(automation: AutomationView) {
 }
 
 /** The dot a row carries. What a run found is named outright: "Finished" says nothing a headline does. */
-function attentionMark(thread: Thread, sideChatWaiting: boolean) {
+function attentionMark(thread: Thread, sideChatWaiting: boolean, memberUnread: boolean) {
   const finding = newestUnreadFinding(thread);
   if (finding) return <span key="status" className="task-attention" aria-label={finding.headline} />;
   if (hasUnreadAttention(thread)) return <span key="status" className={`task-attention ${thread.outcome!}`} aria-label={OUTCOME_LABELS[thread.outcome!]} />;
   /** A side chat has no row, so the thread holding it says one of its chats is waiting. */
   if (sideChatWaiting) return <span key="status" className="task-attention" aria-label={SIDE_CHAT_LABEL} />;
+  /** Nor does a thread under a coordinator, so the coordinator's row says one of them has news. */
+  if (memberUnread) return <span key="status" className="task-attention" aria-label={MEMBER_UNREAD_LABEL} />;
   return false;
 }
 
@@ -201,6 +205,7 @@ type RowState = {
   blocked: boolean;
   memberBlocked: boolean;
   sideChatWaiting: boolean;
+  memberUnread: boolean;
   /** What waits on the user from the thread and those under it, or null when nothing does. */
   waiting: string | null;
   inWorktree: boolean;
@@ -261,7 +266,7 @@ function rowMarks(row: RowState): ReactNode[] {
         ? <Hourglass key="status" className="task-paused" size={13} aria-label={row.pauseLabel} />
         : row.running
           ? <ThreadSpinner key="status" />
-          : attentionMark(thread, row.sideChatWaiting),
+          : attentionMark(thread, row.sideChatWaiting, row.memberUnread),
     <ThreadEngineIcon key="engine" engine={thread.engine} className="task-engine" size={13} />,
   ].filter(Boolean);
 }
@@ -456,6 +461,7 @@ export function useThreadRows({
       blocked: blockedThreadIds.has(thread.id),
       memberBlocked: members.some((member) => blockedThreadIds.has(member.id)),
       sideChatWaiting: sideChatAttention.has(thread.id),
+      memberUnread: members.some(hasUnreadAttention),
       waiting: coordination.waitingLines.get(thread.id) ?? null,
       inWorktree: worktreeThreadIds.has(thread.id),
       worktree: checkouts.get(thread.id),

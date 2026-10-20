@@ -5,6 +5,8 @@ import type { WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { Subagent } from "../../src/domain/run.ts";
 import type { Workflow } from "../../src/domain/workflow.ts";
 import type { UsageLimit } from "../../src/domain/usage-limit.ts";
+import { reduce } from "../../src/application/workspace-reducer.ts";
+import { withVerdict } from "../../src/application/run-testimony.ts";
 import { activeRun, automation, task, workspace } from "./workspace-reducer-fixtures.mts";
 
 const session: UsageLimit = { resetsAt: 10, window: "session" };
@@ -74,6 +76,36 @@ test("lists leave out side chats and filed threads, and count a side chat's mark
   assert.deepEqual([...lists.worktreeThreadIds], ["filed"]);
   assert.deepEqual([...lists.sideChatAttention], ["main"]);
   assert.equal(lists.unreadCount, 1);
+});
+
+test("the icon counts a coordinator and the threads under it as its one row", () => {
+  const state = workspace({
+    threads: [
+      task("lead", { role: "coordinator", outcome: "finished", outcomeUnread: true }),
+      task("a", { parentId: "lead", outcome: "finished", outcomeUnread: true }),
+      task("b", { parentId: "lead", outcome: "failed", outcomeUnread: true }),
+      task("quiet", { role: "coordinator" }),
+      task("c", { parentId: "quiet", outcome: "finished", outcomeUnread: true }),
+      task("own", { outcome: "finished", outcomeUnread: true }),
+    ],
+  });
+  assert.equal(threadLists(state).unreadCount, 3);
+});
+
+test("landing on a coordinator reads the threads under it, and they end turns unseen by no one while it is open", () => {
+  const state = workspace({
+    threads: [
+      task("lead", { role: "coordinator" }),
+      task("a", { parentId: "lead", outcome: "finished", outcomeUnread: true }),
+      task("other", { outcome: "finished", outcomeUnread: true }),
+    ],
+  });
+  const landed = reduce(state, { type: "task.select", taskId: "lead" }).state;
+  assert.equal(landed.threads.find((thread) => thread.id === "a")!.outcomeUnread, undefined);
+  assert.equal(landed.threads.find((thread) => thread.id === "other")!.outcomeUnread, true);
+  assert.equal(threadLists(landed).unreadCount, 1);
+  const ended = withVerdict(landed, "a", "failed").threads.find((thread) => thread.id === "a")!;
+  assert.deepEqual([ended.outcome, ended.outcomeUnread], ["failed", undefined]);
 });
 
 test("a thread waits on its checkout before it waits on its run", () => {

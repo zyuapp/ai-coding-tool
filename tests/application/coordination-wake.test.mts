@@ -204,7 +204,8 @@ test("a thread whose run the app quit under is restored as stopped, which its co
   assert.equal(one(started.state).runOpen, true, "a run is open on its thread while it goes");
   assert.equal(one(reduce(started.state, correlatedRunEvent("one", "run-1", 2, { type: "run.status", status: "succeeded" })).state).runOpen, undefined, "and closed once it ends");
 
-  const restored = reduce(workspace(), { type: "store.loaded", data: { version: THREAD_STORE_VERSION, tasks: started.state.threads, projects: [], worktrees: [], lastFolder: null } });
+  /** Opened on a thread of its own, so the coordinator showing where its threads stand is not on screen. */
+  const restored = reduce(workspace(), { type: "store.loaded", data: { version: THREAD_STORE_VERSION, tasks: [task("elsewhere"), ...started.state.threads], projects: [], worktrees: [], lastFolder: null } });
   assert.equal(one(restored.state).runOpen, undefined);
   assert.equal(one(restored.state).runEndedAs, "stopped");
   assert.equal(one(restored.state).runEndedAt, 31, "a moment after the last thing it did");

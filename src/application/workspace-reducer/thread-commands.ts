@@ -23,6 +23,7 @@ import { projectFor, worktreeById } from "../thread-location.js";
 import { DRAFT_DOCK, dockFor, frontDock, sideChatIds, withDock, type WorkspaceState } from "../workspace-state.js";
 import { threadActivity, threadLists } from "../thread-activity.js";
 import { dismissed, readAttention, wantsAttention } from "../../domain/attention.js";
+import { readRow } from "../thread-attention.js";
 import { clampTitle, type Thread } from "../../domain/thread.js";
 import { asCoordinator, coordinatorOf, effortRoleOf } from "../../domain/coordination.js";
 import { isSnoozeHours, withoutSnooze } from "../../domain/thread-snooze.js";
@@ -44,7 +45,7 @@ function labelThread(taskId: string, title: string): WorkspaceEffect {
 function landOnThread(state: WorkspaceState, taskId: string): WorkspaceState {
   const thread = state.threads.find((item) => item.id === taskId);
   const project = projectFor(state, thread);
-  return readAttention({
+  return readRow({
     ...state,
     currentId: taskId,
     draftProjectId: thread?.projectId ?? null,
