@@ -185,14 +185,17 @@ button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
 .coordination-row-engine { color: var(--quiet); }
 .coordination-row-marks > .coordination-row-host { flex: none; max-width: 96px; }
 :is(.coordination-row, .coordination-card).review .coordination-row-mark { background: var(--success-surface); }
-/** A row's own action sits beside its open button, over the marks it takes the place of while pointed at. */
+/**
+ * A row's own action sits beside its open button, over the marks it takes the place of while pointed at,
+ * centred on the engine mark: the row's 8px padding and half that 12px mark, less half its own 24px.
+ */
 .coordination-item { position: relative; min-width: 0; }
 .coordination-item.resolved > .coordination-row { opacity: 0.62; }
 .coordination-item.resolved:is(:hover, :focus-within) > .coordination-row { opacity: 1; }
 .coordination-row-action {
   position: absolute;
   top: 50%;
-  right: 6px;
+  right: 2px;
   width: 24px;
   height: 24px;
   display: grid;
