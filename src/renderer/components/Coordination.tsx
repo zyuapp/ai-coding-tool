@@ -437,9 +437,10 @@ const ThreadRow = memo(function ThreadRow({ view: { thread, status, summary, hos
 /**
  * Resolves a thread with nothing left waiting on it, or reopens a resolved one; nothing for a thread
  * that is working or waiting on the user. A resolved thread's button reads as a ticked check, which
- * turns into an undo once pointed at, so reopening never looks like running it again.
+ * turns into an undo once pointed at, so reopening never looks like running it again. Its icon is
+ * even-sized, as its buttons are, so it sits centred on whole pixels rather than a half one.
  */
-export function ResolutionButton({ taskId, title, status, className, size = 13 }: {
+export function ResolutionButton({ taskId, title, status, className, size = 14 }: {
   taskId: string;
   title: string;
   status: CoordinatedThreadStatus;
