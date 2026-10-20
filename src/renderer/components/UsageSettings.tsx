@@ -44,7 +44,7 @@ export function UsageSettings({ usage, name = "", computers = [], onRefresh, tim
         </div>
         <div className="settings-group-action">
           <button type="button" disabled={reading} onClick={onRefresh}>
-            <SpinningIcon icon={RefreshCw} spinning={reading} size={13} aria-hidden="true" />
+            <SpinningIcon icon={RefreshCw} spinning={reading} size={14} aria-hidden="true" />
             <span>{reading ? "Reading…" : "Refresh"}</span>
           </button>
         </div>

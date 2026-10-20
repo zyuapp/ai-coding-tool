@@ -177,7 +177,7 @@ function rowActionButtons(thread: Thread, action: RowAction, scheduled: boolean,
         onDismiss(thread.id);
       }}
     >
-      <Check size={13} aria-hidden="true" />
+      <Check size={14} aria-hidden="true" />
     </CommandButton>,
     action === "archive" && <CommandButton command={{ type: "task.archive", taskId: thread.id }}
       key="archive"
@@ -189,7 +189,7 @@ function rowActionButtons(thread: Thread, action: RowAction, scheduled: boolean,
         onArchive(thread.id);
       }}
     >
-      <Archive size={13} aria-hidden="true" />
+      <Archive size={14} aria-hidden="true" />
     </CommandButton>,
   ].filter(Boolean);
 }
@@ -250,10 +250,10 @@ const NO_THREADS: Thread[] = [];
 function rowMarks(row: RowState): ReactNode[] {
   const { thread, worktree } = row;
   return [
-    thread.role && <ThreadRoleMark key="role" role={thread.role} size={13} />,
+    thread.role && <ThreadRoleMark key="role" role={thread.role} size={14} />,
     /** A thread's own mark names its checkout, and threads sharing one share its colour, so a list ranked by attention still groups by eye. */
-    row.inWorktree && <FolderSymlink key="worktree" className={`task-worktree${worktree ? ` worktree-mark hue-${worktreeHue(worktree.id)}` : ""}`} size={13} aria-label={`Works in ${worktree ? worktreeName(worktree) : "a worktree"}`} />,
-    row.schedule && <AlarmClock key="automation" className="task-automation" size={13} aria-label={scheduleLabel(row.schedule)} />,
+    row.inWorktree && <FolderSymlink key="worktree" className={`task-worktree${worktree ? ` worktree-mark hue-${worktreeHue(worktree.id)}` : ""}`} size={14} aria-label={`Works in ${worktree ? worktreeName(worktree) : "a worktree"}`} />,
+    row.schedule && <AlarmClock key="automation" className="task-automation" size={14} aria-label={scheduleLabel(row.schedule)} />,
     /**
      * A coordinator's row stands for its threads, so it shows the approval or the work they have going.
      * What waits on the user outranks work going on, as an approval does, since the row is where it is answered.
@@ -263,11 +263,11 @@ function rowMarks(row: RowState): ReactNode[] {
       : row.waiting
         ? <span key="status" className="task-attention approval" aria-label={row.waiting} />
       : row.pauseLabel !== null
-        ? <Hourglass key="status" className="task-paused" size={13} aria-label={row.pauseLabel} />
+        ? <Hourglass key="status" className="task-paused" size={14} aria-label={row.pauseLabel} />
         : row.running
           ? <ThreadSpinner key="status" />
           : attentionMark(thread, row.sideChatWaiting, row.memberUnread),
-    <ThreadEngineIcon key="engine" engine={thread.engine} className="task-engine" size={13} />,
+    <ThreadEngineIcon key="engine" engine={thread.engine} className="task-engine" size={14} />,
   ].filter(Boolean);
 }
 

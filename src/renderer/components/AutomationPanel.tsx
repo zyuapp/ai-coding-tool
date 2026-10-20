@@ -86,7 +86,7 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
           <div><h2>Automation</h2><p>Repeat this task on a schedule</p></div>
         </header>
         <div className="agents-panel-empty">
-          <span className="agent-orb"><AlarmClock size={17} /></span>
+          <span className="agent-orb"><AlarmClock size={18} /></span>
           <h2>No automation yet</h2>
           <p>Ask {engineLabel} to repeat this task, like “run this every morning at 8”. It appears here.</p>
         </div>
@@ -152,7 +152,7 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
         </label>
 
         <p className="automation-meta">
-          <AlarmClock size={13} aria-hidden="true" />
+          <AlarmClock size={14} aria-hidden="true" />
           <span>{automationMeta(automation, lastFoundAt, lastChecked, now)}</span>
         </p>
 

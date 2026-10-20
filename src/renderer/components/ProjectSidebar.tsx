@@ -248,7 +248,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
           <rect className="new-task-edge-rest" pathLength={100} />
           <rect className="new-task-edge-draw" pathLength={100} />
         </svg>
-        <Plus className="new-task-icon" size={17} />
+        <Plus className="new-task-icon" size={18} />
       </button>
 
       <div className="sidebar-scroll">

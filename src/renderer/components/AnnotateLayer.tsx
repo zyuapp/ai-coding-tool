@@ -88,7 +88,7 @@ export function NoteEditor({ noting, editorRef, onChange, onCommit, onClose, onR
           aria-label="Remove annotation"
           onClick={() => onRemove(noting.annotationId!)}
         >
-          <X size={13} />
+          <X size={14} />
         </button>
       )}
     </div>,

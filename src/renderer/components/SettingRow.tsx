@@ -46,7 +46,7 @@ export function SettingRow({ id, status, description, className, children }: Set
     <div ref={ref} className={`setting-row${found ? " found" : ""}${className ? ` ${className}` : ""}`} data-setting={id}>
       {status === undefined
         ? <span className="setting-status blank" aria-hidden="true" />
-        : <span className={`setting-status ${status ? "granted" : ""}`}>{status && <Check size={13} />}</span>}
+        : <span className={`setting-status ${status ? "granted" : ""}`}>{status && <Check size={14} />}</span>}
       <div>
         <strong>{settingControl(id).label}</strong>
         {typeof description === "string" ? <p>{description}</p> : description}

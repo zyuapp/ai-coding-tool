@@ -44,8 +44,8 @@ export function BrowserPanel({ tab, approval, focusToken = 0, find, onOpen, onGo
   return (
     <section className="browser-panel" aria-label="Browser">
       <div className="browser-bar">
-        <button type="button" aria-label="Back" disabled={!tab.canGoBack} onClick={() => onGo(-1)}><ArrowLeft size={15} /></button>
-        <button type="button" aria-label="Forward" disabled={!tab.canGoForward} onClick={() => onGo(1)}><ArrowRight size={15} /></button>
+        <button type="button" aria-label="Back" disabled={!tab.canGoBack} onClick={() => onGo(-1)}><ArrowLeft size={16} /></button>
+        <button type="button" aria-label="Forward" disabled={!tab.canGoForward} onClick={() => onGo(1)}><ArrowRight size={16} /></button>
         <button type="button" aria-label="Reload" disabled={!tab.url} onClick={onReload}><RotateCw size={14} /></button>
         <input
           ref={addressInput}
@@ -86,7 +86,7 @@ export function BrowserPanel({ tab, approval, focusToken = 0, find, onOpen, onGo
       <NativeSurface className="browser-viewport" report={(box) => void window.desktop.setBrowserBounds(box)}>
         {!tab.url && (
           <div className="browser-empty">
-            <span className="agent-orb"><Globe size={17} /></span>
+            <span className="agent-orb"><Globe size={18} /></span>
             <h2>No page open</h2>
             <p>Open a page here and every thread can read it, signed in as you, in one session for the whole app.</p>
           </div>

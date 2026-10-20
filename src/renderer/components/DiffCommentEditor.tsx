@@ -31,9 +31,9 @@ export function DiffCommentEditor({ quote, note, editing, noteRef, onNote, onSub
       }}
     >
       <header>
-        <MessageSquarePlus size={13} aria-hidden="true" />
+        <MessageSquarePlus size={14} aria-hidden="true" />
         <span className="diff-comment-range">{quote?.split("\n")[0]}</span>
-        {editing && <button type="button" aria-label="Remove comment" onClick={onRemove}><Trash2 size={13} /></button>}
+        {editing && <button type="button" aria-label="Remove comment" onClick={onRemove}><Trash2 size={14} /></button>}
         <button type="button" aria-label="Clear the selection" onClick={onClear}><X size={14} /></button>
       </header>
       <textarea
@@ -47,7 +47,7 @@ export function DiffCommentEditor({ quote, note, editing, noteRef, onNote, onSub
       <footer>
         <span className="diff-comment-hint">Enter to {editing ? "save" : "add"}, Shift + Enter for a new line</span>
         <button className="send-button" type="submit" aria-label={editing ? "Save comment" : "Comment on the selected lines"} disabled={!note.trim()}>
-          {editing ? <Check size={16} /> : <ArrowUp size={17} />}
+          {editing ? <Check size={16} /> : <ArrowUp size={18} />}
         </button>
       </footer>
     </form>

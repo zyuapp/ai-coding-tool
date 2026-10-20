@@ -73,7 +73,7 @@ export function SubagentInspector({ subagent, finding = false, onClose, onStop }
       <div className="inspector-scroll" ref={scrollRef}>
         <div ref={introductionRef}>
           <div className="agent-detail-heading">
-            <span className={`agent-orb ${subagent.status}`}><Bot size={17} /></span>
+            <span className={`agent-orb ${subagent.status}`}><Bot size={18} /></span>
             <div>
               <h2>{subagent.description}</h2>
               <span className={`agent-status ${subagent.status}`}><StatusIcon status={subagent.status} />{statusLabel(subagent.status)}</span>

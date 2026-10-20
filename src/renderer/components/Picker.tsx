@@ -9,7 +9,7 @@ export function PickerPopover({ className, ...props }: ComponentProps<"div">) {
 
 export function PickerSearch({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return <label className="picker-search-field">
-    <Search size={13} aria-hidden="true" />
+    <Search size={14} aria-hidden="true" />
     <input className="picker-search" aria-label={label} placeholder={label} autoFocus value={value} onInput={(event) => onChange(event.currentTarget.value)} />
   </label>;
 }

@@ -24,10 +24,10 @@ function summaryNote(summary: Summary): string | null {
 }
 
 function StatusIcon({ status }: { status: DiffFileSummary["status"] }) {
-  if (status === "added" || status === "untracked") return <FilePlus2 size={15} />;
-  if (status === "deleted") return <FileMinus2 size={15} />;
-  if (status === "renamed") return <FileSymlink size={15} />;
-  return <FilePen size={15} />;
+  if (status === "added" || status === "untracked") return <FilePlus2 size={16} />;
+  if (status === "deleted") return <FileMinus2 size={16} />;
+  if (status === "renamed") return <FileSymlink size={16} />;
+  return <FilePen size={16} />;
 }
 
 function splitPath(path: string) {
@@ -174,7 +174,7 @@ export function Changes({ thread, live, query }: {
           <button type="button" role="radio" aria-checked={mode === "branch"} onClick={() => setMode("branch")}>Against {base}</button>
         </div>
         <button type="button" className="ghost icon changes-refresh" aria-label="Read the comparison again" onClick={() => { asked.current.clear(); setPatches(new Map()); setReads((count) => count + 1); }}>
-          <SpinningIcon icon={RefreshCw} spinning={summary.status === "reading"} size={17} />
+          <SpinningIcon icon={RefreshCw} spinning={summary.status === "reading"} size={18} />
         </button>
       </div>
       {summary.status === "available" && summary.files.length > 0 && (

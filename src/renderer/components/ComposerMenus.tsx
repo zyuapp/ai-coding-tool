@@ -199,7 +199,7 @@ export function CommandMenu({ menus }: { menus: ComposerMenus }) {
             onMouseEnter={() => menus.setSelectedCommand(index)}
             onClick={() => menus.chooseCommand(command)}
           >
-            <span className={`command-mark ${command.kind}`} aria-hidden="true">{command.kind === "app" ? <Command size={16} /> : <Sparkles size={15} />}</span>
+            <span className={`command-mark ${command.kind}`} aria-hidden="true">{command.kind === "app" ? <Command size={16} /> : <Sparkles size={16} />}</span>
             <span className="command-copy"><strong>/{command.name}{command.argumentHint && <em> {command.argumentHint}</em>}</strong><small>{shortDescription(command.description)}</small></span>
             <span className="command-source">{command.kind === "app" ? "AI Coding Tool" : "Skill"}</span>
           </button>
@@ -231,7 +231,7 @@ export function ThreadMenu({ menus }: { menus: ComposerMenus }) {
             onMouseEnter={() => menus.setSelectedThread(index)}
             onClick={() => menus.chooseThread(option)}
           >
-            <span className={`command-mark thread ${option.running ? "running" : ""}`} aria-hidden="true"><MessagesSquare size={15} /></span>
+            <span className={`command-mark thread ${option.running ? "running" : ""}`} aria-hidden="true"><MessagesSquare size={16} /></span>
             <span className="command-copy"><strong>{option.title}</strong><small>@{option.handle}</small></span>
             <span className="command-source">{option.inScope ? (option.running ? "Running" : "") : option.project ?? "No project"}</span>
           </button>

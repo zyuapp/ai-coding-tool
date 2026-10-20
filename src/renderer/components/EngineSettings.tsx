@@ -55,7 +55,7 @@ export function EngineSettings({ engineAccess, checking, updating, onRefresh, on
           </div>
           <div className="settings-group-action">
             <button type="button" disabled={checking} onClick={onRefresh}>
-              <SpinningIcon icon={RefreshCw} spinning={checking} size={13} aria-hidden="true" />{checking ? "Checking…" : "Check again"}
+              <SpinningIcon icon={RefreshCw} spinning={checking} size={14} aria-hidden="true" />{checking ? "Checking…" : "Check again"}
             </button>
           </div>
         </div>
@@ -67,7 +67,7 @@ export function EngineSettings({ engineAccess, checking, updating, onRefresh, on
           const ready = !notice && readiness.access === "ready";
           return (
             <div className="setting-row engine-setting-row" key={engine}>
-              <span className={`setting-status ${ready ? "granted" : ""}`}><ThreadEngineIcon engine={engine} size={13} /></span>
+              <span className={`setting-status ${ready ? "granted" : ""}`}><ThreadEngineIcon engine={engine} size={14} /></span>
               <div>
                 <strong>{engineLabel(engine)}</strong>
                 <p>{statusLine(engine, readiness)}</p>
@@ -83,7 +83,7 @@ export function EngineSettings({ engineAccess, checking, updating, onRefresh, on
                   ? <button type="button" onClick={() => onSignIn(engine)}>Sign in</button>
                   : update?.command
                     ? <button type="button" disabled={updating !== null || checking} onClick={() => onUpdate(engine)}>
-                      {updating === engine && <RefreshCw size={13} aria-hidden="true" className="spinning" />}{updating === engine ? "Updating…" : "Update"}
+                      {updating === engine && <RefreshCw size={14} aria-hidden="true" className="spinning" />}{updating === engine ? "Updating…" : "Update"}
                     </button>
                     : <em className={ready ? "granted" : ""}>{statusWord(readiness)}</em>}
               </div>
@@ -100,7 +100,7 @@ export function EngineSettings({ engineAccess, checking, updating, onRefresh, on
           </div>
           <div className="settings-group-action">
             <button type="button" onClick={onReload} disabled={reloadStatus === "reloading" || reloadStatus === "pending"}>
-              <SpinningIcon icon={RefreshCw} spinning={reloadStatus === "reloading"} size={13} aria-hidden="true" />Reload agent settings
+              <SpinningIcon icon={RefreshCw} spinning={reloadStatus === "reloading"} size={14} aria-hidden="true" />Reload agent settings
             </button>
           </div>
         </div>

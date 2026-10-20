@@ -138,7 +138,7 @@ function ThemeSelect({ current, onChoose }: { current: Theme; onChoose: (family:
                   <ThemePreview />
                   <span className="theme-choice-name">
                     {family}
-                    {picked && <Check size={13} aria-hidden="true" />}
+                    {picked && <Check size={14} aria-hidden="true" />}
                   </span>
                 </button>
               );
@@ -152,9 +152,9 @@ function ThemeSelect({ current, onChoose }: { current: Theme; onChoose: (family:
 }
 
 const MODES: { id: ThemeMode; label: string; icon: ReactNode }[] = [
-  { id: "light", label: "Light", icon: <Sun size={15} aria-hidden="true" /> },
-  { id: "dark", label: "Dark", icon: <Moon size={15} aria-hidden="true" /> },
-  { id: "auto", label: "Auto", icon: <SunMoon size={15} aria-hidden="true" /> },
+  { id: "light", label: "Light", icon: <Sun size={16} aria-hidden="true" /> },
+  { id: "dark", label: "Dark", icon: <Moon size={16} aria-hidden="true" /> },
+  { id: "auto", label: "Auto", icon: <SunMoon size={16} aria-hidden="true" /> },
 ];
 
 type Axis = "uiFont" | "monoFont";
@@ -230,7 +230,7 @@ function FontSelect({ axis, label, chosen, onChoose }: {
         {...faceProps(axis, id)}
       >
         <span>{name}</span>
-        {id === current.id && <Check size={13} aria-hidden="true" />}
+        {id === current.id && <Check size={14} aria-hidden="true" />}
       </button>
     </li>
   );

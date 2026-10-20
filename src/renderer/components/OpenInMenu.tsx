@@ -60,7 +60,7 @@ export function OpenInMenu({ openMenu, onSetOpenMenu, enabled, apps, onListApps,
         disabled={!enabled}
         onClick={() => onSetOpenMenu(open ? null : OPEN_IN_MENU)}
       >
-        <ExternalLink size={19} aria-hidden="true" />
+        <ExternalLink size={18} aria-hidden="true" />
       </button>
       {open && (
         <div ref={list} className="menu-popover open-in-popover" data-popover-menu role="menu" tabIndex={-1} onKeyDown={moveListFocus}>

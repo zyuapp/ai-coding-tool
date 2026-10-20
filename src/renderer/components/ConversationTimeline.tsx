@@ -224,7 +224,7 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
           aria-label="Scroll to the latest message"
           onClick={scrollToFoot}
         >
-          <ChevronDown size={17} aria-hidden="true" />
+          <ChevronDown size={18} aria-hidden="true" />
         </button>
         </div>
       )}

@@ -147,9 +147,9 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
           *  has neither. */}
         {!project ? null : startsInWorktree ? (
           <div className="thread-start-worktree">
-            <FolderSymlink size={15} />
+            <FolderSymlink size={16} />
             <span>{startsInWorktree}</span>
-            <button type="button" aria-label={`Leave ${startsInWorktree}`} onClick={() => onSetWorktree(false)}><X size={13} /></button>
+            <button type="button" aria-label={`Leave ${startsInWorktree}`} onClick={() => onSetWorktree(false)}><X size={14} /></button>
           </div>
         ) : (<>
         <div className={`thread-start-field ${branchesOpen ? "open" : ""}`} ref={branchRef}>

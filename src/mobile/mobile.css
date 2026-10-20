@@ -493,6 +493,7 @@ button {
 .thread-dismiss {
   display: grid;
   place-items: center;
+  padding: 0;
   width: 44px;
   height: 44px;
   justify-self: end;
@@ -1154,6 +1155,7 @@ button {
   position: relative;
   display: grid;
   place-items: center;
+  padding: 0;
   flex: none;
   width: 36px;
   height: 36px;
@@ -1547,6 +1549,7 @@ button {
 .thread-start-worktree button {
   display: grid;
   place-items: center;
+  padding: 0;
   width: 26px;
   height: 26px;
   border-radius: 50%;

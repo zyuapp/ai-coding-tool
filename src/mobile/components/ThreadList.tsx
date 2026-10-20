@@ -129,7 +129,7 @@ export const ThreadList = memo(function ThreadList({ mode, groups, activity, now
       })}
       {mode === "activity" && projects.length > 0 && (
         <button type="button" className="list-filter" data-narrowed={narrowed ? true : undefined} aria-haspopup="dialog" onClick={() => setPicking(true)}>
-          <Folder size={15} strokeWidth={1.8} aria-hidden="true" />
+          <Folder size={16} strokeWidth={1.8} aria-hidden="true" />
           <span>{narrowed?.name ?? "All projects"}</span>
           <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
         </button>

@@ -72,12 +72,12 @@ export function SettingsSidebar({ section, backRef, onClose, onLand, onRefreshEn
     <aside className="settings-sidebar">
       <div className="settings-traffic-space" aria-hidden="true" />
       <button ref={backRef} className="settings-back" type="button" onClick={onClose}>
-        <ArrowLeft size={17} aria-hidden="true" />
+        <ArrowLeft size={18} aria-hidden="true" />
         <span>Back to AI Coding Tool</span>
       </button>
       <h1>Settings</h1>
       <label className="settings-search">
-        <Search size={15} aria-hidden="true" />
+        <Search size={16} aria-hidden="true" />
         <input
           value={query}
           role="combobox"
@@ -109,7 +109,7 @@ export function SettingsSidebar({ section, backRef, onClose, onLand, onRefreshEn
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => choose(option)}
                 >
-                  <Icon size={17} aria-hidden="true" />
+                  <Icon size={18} aria-hidden="true" />
                   <span>{option.title}</span>
                   {option.page && <small>{option.page}</small>}
                 </button>
@@ -123,7 +123,7 @@ export function SettingsSidebar({ section, backRef, onClose, onLand, onRefreshEn
             const Icon = PAGE_ICONS[page];
             return (
               <button key={page} className={section === page ? "active" : ""} type="button" aria-current={section === page ? "page" : undefined} onClick={() => land(page, null)}>
-                <Icon size={17} aria-hidden="true" />
+                <Icon size={18} aria-hidden="true" />
                 <span>{SETTINGS_PAGE_LABELS[page]}</span>
               </button>
             );

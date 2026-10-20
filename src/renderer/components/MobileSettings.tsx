@@ -111,12 +111,12 @@ function TailscaleSection({ remote, checking, onRefresh }: { remote: MobileServe
           <p>The phone reaches this computer over your tailnet, so both need Tailscale signed into the same account.</p>
         </div>
         <div className="settings-group-action">
-          <button type="button" disabled={checking} onClick={onRefresh}><SpinningIcon icon={RefreshCw} spinning={checking} size={13} aria-hidden="true" />{checking ? "Checking…" : "Check again"}</button>
+          <button type="button" disabled={checking} onClick={onRefresh}><SpinningIcon icon={RefreshCw} spinning={checking} size={14} aria-hidden="true" />{checking ? "Checking…" : "Check again"}</button>
         </div>
       </div>
       {steps.map((step) => (
         <div className={`phone-check${step.done ? "" : " waiting"}${step.id === needed ? " needed" : ""}`} key={step.id} data-step={step.id}>
-          <span className={`setting-status ${step.done ? "granted" : ""}`}>{step.done && <Check size={13} />}</span>
+          <span className={`setting-status ${step.done ? "granted" : ""}`}>{step.done && <Check size={14} />}</span>
           <div>
             <strong>{step.name}</strong>
             {step.done && step.id === "serving" && address && <p><code>{addressOrigin(address)}</code></p>}
@@ -218,7 +218,7 @@ function DeviceSection({ devices: paired, sessions, onRevokeDevice }: { devices:
           const connection = deviceConnection(device, sessions);
           return (
             <div className="setting-row" key={device.id} data-device={device.id}>
-              <span className={`setting-status ${connection === "live" ? "granted" : "blank"}`}>{connection === "live" ? <Check size={13} /> : <Smartphone size={13} />}</span>
+              <span className={`setting-status ${connection === "live" ? "granted" : "blank"}`}>{connection === "live" ? <Check size={14} /> : <Smartphone size={14} />}</span>
               <div>
                 <strong>{device.name}</strong>
                 <p className={`phone-device-state${connection === "live" ? " live" : ""}`}>{deviceLabel(device, connection)}</p>

@@ -62,7 +62,7 @@ function ComputerSwitch({ links, name, filter, onSetFilter, openMenu, onSetOpenM
           onSetOpenMenu(COMPUTER_MENU);
         }}
       >
-        <Screen size={15} aria-hidden="true" />
+        <Screen size={16} aria-hidden="true" />
       </button>
       {open && <MenuList entries={entries} onClose={() => onSetOpenMenu(null)} className="computer-switch-menu" />}
     </div>
@@ -97,7 +97,7 @@ export function SidebarHeader({ mode, canGoBack, canGoForward, computerLinks, co
           aria-pressed={mode === "activity"}
           onClick={() => onSetMode(mode === "activity" ? "projects" : "activity")}
         >
-          <Inbox size={15} aria-hidden="true" />
+          <Inbox size={16} aria-hidden="true" />
         </button>
         {computerLinks.length > 0 && <ComputerSwitch links={computerLinks} name={computerName} filter={computerFilter} onSetFilter={onSetComputerFilter} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />}
       </div>

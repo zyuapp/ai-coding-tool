@@ -30,7 +30,7 @@ function WorktreeStatus({ worktree }: { worktree: WorktreeSettingsView }) {
   return <>
     {!worktree.branch && <span>Detached</span>}
     <span className={changedFiles === 0 ? "worktree-status-clean" : "worktree-status-warning"}>
-      {changedFiles === 0 ? <Check size={13} aria-hidden="true" /> : <CirclePlus size={13} aria-hidden="true" />}{changes}
+      {changedFiles === 0 ? <Check size={14} aria-hidden="true" /> : <CirclePlus size={14} aria-hidden="true" />}{changes}
     </span>
     <span title="Compared with local Git refs. Refresh after fetching to update the comparison.">{commits}</span>
   </>;
@@ -42,11 +42,11 @@ function WorktreeThreads({ worktree, expanded, dispatch }: { worktree: WorktreeS
   const single = worktree.threads.length === 1;
   return <div className="worktree-threads">
     {!single && <button className="worktree-thread-link" type="button" aria-expanded={expanded} aria-controls={id} onClick={() => dispatch({ type: "worktree.set-threads-open", root: worktree.root, open: !expanded })}>
-      <ChevronRight size={13} className={expanded ? "expanded" : ""} aria-hidden="true" />{worktree.threads.length} linked threads
+      <ChevronRight size={14} className={expanded ? "expanded" : ""} aria-hidden="true" />{worktree.threads.length} linked threads
     </button>}
     <div id={id} className={single ? "worktree-thread-list single" : "worktree-thread-list"} hidden={!single && !expanded}>
       {worktree.threads.map((thread) => <button className="worktree-thread-link" type="button" key={thread.id} onClick={() => dispatch({ type: "worktree.open-thread", taskId: thread.id })}>
-        <MessageSquare size={13} aria-hidden="true" />
+        <MessageSquare size={14} aria-hidden="true" />
         <span>{!worktree.available && single ? "Open thread" : thread.title}</span>
         {thread.archived && <small>Archived</small>}
       </button>)}
@@ -90,7 +90,7 @@ export function WorktreeSettings({ page, error, notice, dispatch }: WorktreeSett
                 <option value="">All projects{!page.loading && ` · ${page.total}`}</option>
                 {page.projects.map((project) => <option value={project.key} key={project.key}>{project.name}{!page.loading && ` · ${project.count}`}</option>)}
               </select>
-              <ChevronDown size={13} aria-hidden="true" />
+              <ChevronDown size={14} aria-hidden="true" />
             </div>}
             <button type="button" className="worktree-refresh" disabled={page.loading} onClick={() => dispatch({ type: "worktree.refresh" })}>
               <SpinningIcon icon={RefreshCw} spinning={page.loading} size={14} aria-hidden="true" />{page.loading ? "Reading…" : "Refresh"}
@@ -105,7 +105,7 @@ export function WorktreeSettings({ page, error, notice, dispatch }: WorktreeSett
       </section>
       {page.missing.length > 0 && <section className="worktree-missing">
         <button type="button" className="worktree-missing-toggle" aria-expanded={page.missingOpen} aria-controls={missingId} onClick={() => dispatch({ type: "worktree.set-missing-open", open: !page.missingOpen })}>
-          <ChevronRight size={13} className={page.missingOpen ? "expanded" : ""} aria-hidden="true" />Missing folders <span className="worktree-count">{page.missing.length}</span>
+          <ChevronRight size={14} className={page.missingOpen ? "expanded" : ""} aria-hidden="true" />Missing folders <span className="worktree-count">{page.missing.length}</span>
         </button>
         <div id={missingId} hidden={!page.missingOpen}>
           <p className="worktree-missing-description">These folders are already gone. Forgetting them keeps your thread history.</p>

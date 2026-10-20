@@ -21,7 +21,7 @@ export function StartOptions({ draft, onSetWorktree, onStartIn }: {
         <span className="thread-start-worktree">
           <FolderSymlink size={14} aria-hidden="true" />
           <span>{draft.worktreeName}</span>
-          <button type="button" aria-label={`Leave ${draft.worktreeName}`} onClick={() => onSetWorktree(false)}><X size={13} /></button>
+          <button type="button" aria-label={`Leave ${draft.worktreeName}`} onClick={() => onSetWorktree(false)}><X size={14} /></button>
         </span>
       ) : (<>
         <button type="button" className="thread-start-toggle" aria-pressed={draft.worktree} disabled={!draft.canWorktree} onClick={() => onSetWorktree(!draft.worktree)}>
@@ -40,7 +40,7 @@ export function StartOptions({ draft, onSetWorktree, onStartIn }: {
           <section className="sheet-group" role="radiogroup" aria-label="Worktrees">
             {draft.worktrees.map((choice) => (
               <button key={choice.id} type="button" role="radio" aria-checked={false} className="sheet-option location-option" onClick={() => { setPicking(false); onStartIn(choice.id); }}>
-                <span className="menu-glyph" aria-hidden="true"><FolderSymlink size={17} strokeWidth={1.8} /></span>
+                <span className="menu-glyph" aria-hidden="true"><FolderSymlink size={18} strokeWidth={1.8} /></span>
                 <span className="menu-copy"><strong>{choice.name}</strong><small>{choice.branch ?? "Detached"}</small></span>
                 <span className="sheet-check" aria-hidden="true"><Check size={16} style={{ visibility: "hidden" }} /></span>
               </button>

@@ -120,7 +120,7 @@ export function AgentsPanel({ subagents, groups, finding = false, onSelect, onSe
           <div><h2>Subagents</h2><p>Work delegated from this task</p></div>
         </header>
         <div className="agents-panel-empty">
-          <span className="agent-orb"><Bot size={17} /></span>
+          <span className="agent-orb"><Bot size={18} /></span>
           <h2>No subagents yet</h2>
           <p>Subagents created by the main task will appear here.</p>
         </div>

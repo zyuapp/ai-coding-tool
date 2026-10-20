@@ -185,12 +185,12 @@ export function ComputerSettings({ found, searching, searchError, name, links, p
           <p>Another computer running AI Coding Tool, or <code>aic serve</code>, shows its threads here beside your own.</p>
         </div>
         <div className="settings-group-action">
-          <button type="button" disabled={searching} onClick={onDiscover}><SpinningIcon icon={RefreshCw} spinning={searching} size={13} aria-hidden="true" />{searching ? "Looking…" : "Look again"}</button>
+          <button type="button" disabled={searching} onClick={onDiscover}><SpinningIcon icon={RefreshCw} spinning={searching} size={14} aria-hidden="true" />{searching ? "Looking…" : "Look again"}</button>
         </div>
       </div>
 
       <div className="setting-row" data-this-computer>
-        <span className="setting-status granted"><Check size={13} /></span>
+        <span className="setting-status granted"><Check size={14} /></span>
         <div>
           <NameEntry name={name} onRename={onRename} />
         </div>
@@ -198,7 +198,7 @@ export function ComputerSettings({ found, searching, searchError, name, links, p
 
       {links.map((link) => (
         <div className="setting-row" key={link.id} data-computer={link.id}>
-          <span className={`setting-status ${link.status === "connected" ? "granted" : "blank"}`}>{link.status === "connected" ? <Check size={13} /> : <Monitor size={13} />}</span>
+          <span className={`setting-status ${link.status === "connected" ? "granted" : "blank"}`}>{link.status === "connected" ? <Check size={14} /> : <Monitor size={14} />}</span>
           <div>
             {labels.editing === link.id
               ? <RenameInput
@@ -224,7 +224,7 @@ export function ComputerSettings({ found, searching, searchError, name, links, p
 
       {offered.map((computer) => (
         <div className="setting-row" key={computer.host} data-found={computer.host}>
-          <span className="setting-status blank"><Monitor size={13} /></span>
+          <span className="setting-status blank"><Monitor size={14} /></span>
           <div>
             <strong>{computer.name}</strong>
             <p>{computer.host}{computer.os ? ` · ${computer.os}` : ""}</p>
@@ -237,7 +237,7 @@ export function ComputerSettings({ found, searching, searchError, name, links, p
       ))}
 
       <div className="setting-row" data-address>
-        <span className="setting-status blank"><Monitor size={13} /></span>
+        <span className="setting-status blank"><Monitor size={14} /></span>
         <div>
           <AddressEntry pairing={pairing} onPair={(host) => onPair(host, host, "")} />
           {pairing && !offered.some((computer) => computer.host === pairing.host) && <CodeEntry pairing={pairing} onPair={(code) => onPair(pairing.host, pairing.name, code)} onCancel={onCancelPairing} />}

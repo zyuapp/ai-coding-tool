@@ -32,11 +32,11 @@ function useClock(live: boolean) {
 }
 
 function AgentIcon({ state }: { state: WorkflowAgentState }) {
-  if (state === "done") return <CheckCircle2 size={15} />;
-  if (state === "error") return <XCircle size={15} />;
-  if (state === "queued") return <Clock size={15} />;
-  if (state === "stopped") return <Square size={15} />;
-  return <CircleDot className="agent-working-icon" size={15} />;
+  if (state === "done") return <CheckCircle2 size={16} />;
+  if (state === "error") return <XCircle size={16} />;
+  if (state === "queued") return <Clock size={16} />;
+  if (state === "stopped") return <Square size={16} />;
+  return <CircleDot className="agent-working-icon" size={16} />;
 }
 
 function tokens(value: number) {
@@ -112,7 +112,7 @@ function AgentInspector({ workflow, agent, now, onBack }: { workflow: Workflow; 
 
   return (
     <div className="workflow-inspect">
-      <button className="session-back" type="button" onClick={onBack}><ArrowLeft size={15} />{workflow.name}</button>
+      <button className="session-back" type="button" onClick={onBack}><ArrowLeft size={16} />{workflow.name}</button>
       <div className="workflow-inspect-body">
         <div className="workflow-inspect-heading">
           <span className={`agent-orb ${state}`}><AgentIcon state={state} /></span>
@@ -164,7 +164,7 @@ export function WorkflowPanel({ workflow, onStop }: { workflow: Workflow; onStop
     <section className="workflow-panel" aria-label={`Workflow ${workflow.name}`}>
       <header className="workflow-head">
         <div className="workflow-head-top">
-          <span className={`agent-orb ${live ? "" : workflow.status === "completed" ? "done" : "error"}`}><Boxes size={15} /></span>
+          <span className={`agent-orb ${live ? "" : workflow.status === "completed" ? "done" : "error"}`}><Boxes size={16} /></span>
           <h2>{workflow.name}</h2>
           {live && (
             <button className="workflow-stop" type="button" disabled={workflow.stopping} onClick={() => onStop(workflow.id)}>

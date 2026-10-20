@@ -362,6 +362,7 @@ button, select { color: inherit; }
   position: relative;
   display: grid;
   place-items: center;
+  padding: 0;
   width: calc(100% - 6px);
   /** The window strip above plus this button come to --chrome-head, so its lower edge meets the top bar's line. */
   height: calc(var(--chrome-head) - var(--window-strip));
@@ -567,16 +568,16 @@ button, select { color: inherit; }
   min-width: 0;
   height: 32px;
   display: grid;
-  grid-template-columns: 19px minmax(0, 1fr);
+  grid-template-columns: 18px minmax(0, 1fr);
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   padding: 0 0 0 10px;
   text-align: left;
   font-size: var(--text-control);
   letter-spacing: -0.012em;
 }
 .project-main > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.project-main .folder-icon svg { width: 19px; height: 19px; }
+.project-main .folder-icon svg { width: 18px; height: 18px; }
 .project-new,
 .project-menu { opacity: 0; }
 .project-row:hover .project-new,
@@ -648,7 +649,7 @@ button, select { color: inherit; }
 .menu-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /** The tick column only exists in a list that has something to tick, so every other list stays tight. */
 .menu-tick { display: none; }
-.menu-checkable .menu-tick { display: grid; place-items: center; width: 13px; }
+.menu-checkable .menu-tick { display: grid; place-items: center; width: 14px; }
 .menu-shortcut,
 .menu-chevron { color: var(--muted); }
 .menu-popover button:hover .menu-shortcut, .menu-popover button:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) .menu-shortcut,
@@ -724,6 +725,7 @@ button, select { color: inherit; }
   display: grid;
   place-items: center;
   border: 0;
+  padding: 0;
   border-radius: 6px;
   background: transparent;
   color: var(--muted-strong);
@@ -962,6 +964,7 @@ button, select { color: inherit; }
   flex: 0 0 auto;
   display: grid;
   place-items: center;
+  padding: 0;
   border: 1px solid transparent;
   border-radius: 11px;
   background: transparent;
@@ -1029,8 +1032,8 @@ button, select { color: inherit; }
 /* Match the heading's visual weight and compensate for the font's lower optical center. */
 .task-heading h1 > .heading-host > svg,
 .thread-heading-menu > .menu-trigger > svg {
-  width: 19px;
-  height: 19px;
+  width: 18px;
+  height: 18px;
   transform: translateY(1px);
 }
 .heading-separator { flex: none; color: var(--quiet-soft); font-weight: 400; }
@@ -1140,7 +1143,7 @@ button, select { color: inherit; }
 .right-dock-tab > button:not([role="tab"]) { width: 24px; height: 24px; flex: 0 0 auto; display: grid; place-items: center; border: 0; border-radius: 6px; padding: 0; background: transparent; color: var(--quiet); cursor: pointer; }
 .right-dock-tab > button:not([role="tab"]):hover { background: var(--surface-active); color: var(--ink-soft); }
 .right-dock-add { position: relative; flex: 0 0 auto; }
-.right-dock-add > button, .right-dock-hide { width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 9px; background: transparent; color: var(--quiet-strong); cursor: pointer; }
+.right-dock-add > button, .right-dock-hide { width: 34px; height: 34px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 9px; background: transparent; color: var(--quiet-strong); cursor: pointer; }
 .right-dock-add > button:hover, .right-dock-add.open > button, .right-dock-hide:hover { background: var(--surface-hover); color: var(--ink-dim); }
 .right-dock-add > div { position: absolute; z-index: 20; top: 40px; right: 0; width: 174px; display: grid; gap: 3px; border: 1px solid var(--line); border-radius: 11px; padding: 6px; background: var(--surface-menu); box-shadow: var(--shadow-popover); }
 .right-dock-add > div button { display: flex; align-items: center; gap: 9px; width: 100%; height: auto; border: 0; border-radius: 7px; padding: 9px 10px; background: transparent; color: var(--ink-dim); text-align: left; cursor: pointer; }
@@ -1177,7 +1180,7 @@ button, select { color: inherit; }
  * top of that rectangle: the chrome is above it, and its own children only show while it is empty.
  */
 .browser-bar { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--line-soft); padding: 8px 10px; }
-.browser-bar > button { width: 28px; height: 28px; flex: 0 0 auto; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--quiet-strong); cursor: pointer; }
+.browser-bar > button { width: 28px; height: 28px; flex: 0 0 auto; display: grid; place-items: center; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--quiet-strong); cursor: pointer; }
 .browser-bar > button:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-dim); }
 .browser-bar > button:disabled { color: var(--quiet-soft); cursor: default; }
 .browser-bar input { min-width: 0; flex: 1; margin-left: 4px; border: 1px solid var(--line); border-radius: 9px; padding: 7px 11px; background: var(--surface-input); color: var(--ink-soft); font-size: var(--text-control); }
@@ -1215,7 +1218,7 @@ button, select { color: inherit; }
 .find-bar { display: flex; align-items: center; gap: 6px; border-bottom: 1px solid var(--line-soft); padding: 7px 10px; background: var(--surface); }
 .find-bar > svg { flex: 0 0 auto; color: var(--quiet); }
 .find-bar input { min-width: 0; flex: 1; border: 1px solid var(--line); border-radius: 9px; padding: 6px 10px; background: var(--surface-input); color: var(--ink-soft); font-size: var(--text-control); }
-.find-bar > button { width: 26px; height: 26px; flex: 0 0 auto; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--quiet-strong); cursor: pointer; }
+.find-bar > button { width: 26px; height: 26px; flex: 0 0 auto; display: grid; place-items: center; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--quiet-strong); cursor: pointer; }
 .find-bar > button:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-dim); }
 .find-bar > button:disabled { color: var(--quiet-soft); cursor: default; }
 .find-count { flex: 0 0 auto; color: var(--quiet); font-size: var(--text-meta); font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -1332,7 +1335,7 @@ button, select { color: inherit; }
   background: var(--surface);
   color: var(--muted-soft);
 }
-.conversation > .empty-state .empty-glyph svg { width: 21px; height: 21px; }
+.conversation > .empty-state .empty-glyph svg { width: 22px; height: 22px; }
 .conversation > .empty-state h2 { margin: 20px 0 7px; color: var(--ink); font-size: var(--text-hero); letter-spacing: -0.03em; }
 .conversation > .empty-state p { max-width: 372px; color: var(--muted-soft); font-size: var(--text-control); line-height: 1.6; }
 /** A new thread names only where it works, and quietly: the composer under it asks the rest. */
@@ -1802,6 +1805,7 @@ pre {
   bottom: 10px;
   display: grid;
   place-items: center;
+  padding: 0;
   width: 34px;
   height: 34px;
   border: 1px solid var(--line-glass);
@@ -2644,6 +2648,7 @@ pre {
   flex: 0 0 auto;
   display: grid;
   place-items: center;
+  padding: 0;
   border: 0;
   border-radius: 9px;
   background: transparent;
@@ -2692,6 +2697,7 @@ pre {
   height: 34px;
   display: grid;
   place-items: center;
+  padding: 0;
   border: 0;
   border-radius: 9px;
   background: transparent;
@@ -2937,7 +2943,7 @@ pre {
 }
 .process-stop:hover:not(:disabled) { background: var(--danger-chip); border-color: transparent; color: var(--danger); }
 .process-stop:disabled { opacity: 0.45; cursor: default; }
-.agent-orb { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 50%; background: var(--info-surface); color: var(--info); }
+.agent-orb { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: var(--info-surface); color: var(--info); }
 .agent-orb.idle { background: var(--control); color: var(--quiet-strong); }
 .agent-orb.completed { background: var(--success-surface); color: var(--success); }
 .agent-orb.failed, .agent-orb.stopped { background: var(--danger-chip); color: var(--danger); }
@@ -3220,6 +3226,7 @@ pre {
   height: 24px;
   display: grid;
   place-items: center;
+  padding: 0;
   margin: -5px -2px -5px -6px;
   border: 0;
   border-radius: 7px;
@@ -3312,8 +3319,8 @@ pre {
 .annotation-pill-quote { color: var(--quiet); }
 .annotation-pill button {
   display: grid;
-  width: 17px;
-  height: 17px;
+  width: 18px;
+  height: 18px;
   flex: none;
   padding: 0;
   border: none;
@@ -3408,7 +3415,7 @@ pre {
 .paste-open small { color: var(--quiet); font-family: var(--mono); }
 .paste-remove {
   display: grid;
-  width: 21px;
+  width: 22px;
   align-self: stretch;
   padding: 0;
   border: none;
@@ -3447,7 +3454,7 @@ button.file-name { cursor: pointer; }
 .file-name small { color: var(--quiet); }
 .file-remove {
   display: grid;
-  width: 21px;
+  width: 22px;
   align-self: stretch;
   padding: 0;
   border: none;
@@ -3594,8 +3601,8 @@ button.file-name { cursor: pointer; }
   position: absolute;
   top: -6px;
   right: -6px;
-  width: 19px;
-  height: 19px;
+  width: 20px;
+  height: 20px;
   display: grid;
   place-items: center;
   border: 1px solid var(--line-strong);
@@ -3653,6 +3660,7 @@ button.file-name { cursor: pointer; }
   display: grid;
   place-items: center;
   border: 0;
+  padding: 0;
   border-radius: 8px;
   background: var(--control);
   color: var(--quiet);
@@ -3681,7 +3689,7 @@ button.file-name { cursor: pointer; }
   font-variant-numeric: tabular-nums;
   cursor: default;
 }
-.viewer-zoom button { width: 26px; height: 26px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: inherit; cursor: pointer; }
+.viewer-zoom button { width: 26px; height: 26px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 6px; background: transparent; color: inherit; cursor: pointer; }
 .viewer-zoom button:hover:not(:disabled) { background: var(--control-hover); color: var(--ink); }
 .viewer-zoom button:disabled { opacity: 0.45; cursor: default; }
 .viewer-zoom span { min-width: 40px; text-align: center; }
@@ -3735,6 +3743,7 @@ button.file-name { cursor: pointer; }
   height: 28px;
   display: grid;
   place-items: center;
+  padding: 0;
   border: 0;
   border-radius: 8px;
   background: transparent;
@@ -3765,8 +3774,8 @@ button.file-name { cursor: pointer; }
   transform: translate(-50%, -50%);
 }
 .annotator-marktool {
-  width: 19px;
-  height: 19px;
+  width: 20px;
+  height: 20px;
   display: grid;
   place-items: center;
   border: 1px solid var(--line-bright);
@@ -4093,7 +4102,7 @@ button.setting-hint:hover { color: var(--ink); }
 .diff-range-arrow { flex: none; color: var(--quiet); }
 
 .diff-toolbar-actions { display: flex; gap: 2px; }
-.diff-toolbar-actions button { display: grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 7px; background: none; color: var(--quiet-strong); cursor: pointer; }
+.diff-toolbar-actions button { display: grid; place-items: center; padding: 0; width: 26px; height: 26px; border: 0; border-radius: 7px; background: none; color: var(--quiet-strong); cursor: pointer; }
 .diff-toolbar-actions button:hover { background: var(--surface-hover); color: var(--ink-dim); }
 .diff-toolbar-actions button.on { background: var(--surface-active); color: var(--accent); }
 .diff-toolbar-actions button:disabled { opacity: 0.35; cursor: default; }
@@ -4122,7 +4131,7 @@ button.setting-hint:hover { color: var(--ink); }
 .diff-file-name em { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-style: normal; color: inherit; opacity: 0.65; }
 .diff-file-name span { flex: 0 0 auto; overflow: hidden; text-overflow: ellipsis; }
 .diff-file-renamed { flex: none; padding: 1px 6px; border-radius: 999px; background: var(--chip); color: var(--muted); font-size: var(--text-badge); letter-spacing: 0.02em; }
-.diff-file-editor { display: grid; place-items: center; width: 22px; height: 22px; border: 0; border-radius: 6px; background: none; color: var(--quiet-soft); opacity: 0; cursor: pointer; }
+.diff-file-editor { display: grid; place-items: center; padding: 0; width: 22px; height: 22px; border: 0; border-radius: 6px; background: none; color: var(--quiet-soft); opacity: 0; cursor: pointer; }
 .diff-file-row:hover .diff-file-editor, .diff-file-editor:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) { opacity: 1; }
 .diff-file-editor:hover { background: var(--surface-menu-hover); color: var(--ink-dim); }
 .diff-file-viewed { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; cursor: pointer; }
@@ -4184,9 +4193,9 @@ button.setting-hint:hover { color: var(--ink); }
 .diff-comment textarea::placeholder { color: var(--quiet-soft); }
 .diff-comment footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px 8px 12px; }
 .diff-comment-hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--quiet-soft); font-size: var(--text-meta); }
-.diff-comment header button { display: grid; place-items: center; flex: none; width: 24px; height: 24px; border: 0; border-radius: 7px; background: none; color: var(--quiet-soft); cursor: pointer; }
+.diff-comment header button { display: grid; place-items: center; padding: 0; flex: none; width: 24px; height: 24px; border: 0; border-radius: 7px; background: none; color: var(--quiet-soft); cursor: pointer; }
 .diff-comment header button:hover { background: var(--surface-hover); color: var(--ink-dim); }
-.diff-comment .send-button { display: grid; place-items: center; flex: none; width: 28px; height: 28px; }
+.diff-comment .send-button { display: grid; place-items: center; padding: 0; flex: none; width: 28px; height: 28px; }
 
 /* One modal over everything, the way the annotator sits over the composer. Every dialog the app
    raises is this scrim and this panel, so they arrive the same way wherever they are asked for. */
@@ -4428,7 +4437,7 @@ button.setting-hint:hover { color: var(--ink); }
 .model-row.selected { border-color: var(--line-mid); background: var(--surface-active); }
 .model-choice { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; padding: 10px 8px; border: 0; border-radius: 8px; background: transparent; color: var(--ink-dim); text-align: left; cursor: pointer; }
 .model-choice:disabled { opacity: .45; cursor: default; }
-.model-row-icon { display: grid; place-items: center; width: 29px; height: 29px; flex-shrink: 0; border-radius: 8px; background: var(--wash); color: var(--muted-strong); }
+.model-row-icon { display: grid; place-items: center; width: 30px; height: 30px; flex-shrink: 0; border-radius: 8px; background: var(--wash); color: var(--muted-strong); }
 .model-row-label { display: grid; gap: 4px; min-width: 0; }
 .model-row-label strong { font-size: var(--text-control); font-weight: 540; }
 .model-row-label small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--quiet); font-size: var(--text-meta); }

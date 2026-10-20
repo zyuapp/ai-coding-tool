@@ -27,7 +27,7 @@ function Heading({ step, onBack }: { step: ReviewPickerState["step"]; onBack: ()
     <div className="command-menu-heading review-heading">
       {step === "targets"
         ? <ListChecks size={14} aria-hidden="true" />
-        : <button type="button" className="review-back" aria-label="Back to review options" onClick={onBack}><ChevronLeft size={15} /></button>}
+        : <button type="button" className="review-back" aria-label="Back to review options" onClick={onBack}><ChevronLeft size={16} /></button>}
       <span>{title}</span>
       {(step === "targets" || step === "base") && <kbd>↑↓</kbd>}
     </div>
@@ -49,7 +49,7 @@ function TargetOptions({ onStep, onReview }: Pick<ReviewPickerProps, "onStep" | 
             key={option.label}
             onClick={() => option.target ? onReview(option.target) : onStep(option.step)}
           >
-            <span className="command-mark app" aria-hidden="true"><Icon size={15} /></span>
+            <span className="command-mark app" aria-hidden="true"><Icon size={16} /></span>
             <span className="command-copy"><strong>{option.label}</strong><small>{option.description}</small></span>
             <span className="command-source">Codex</span>
           </button>
@@ -71,7 +71,7 @@ function BaseBranchPicker({ workspaceId, onReview }: Pick<ReviewPickerProps, "wo
   return (
     <div className="review-branch-stage" onKeyDown={moveListFocus}>
       <label className="review-search">
-        <Search size={13} aria-hidden="true" />
+        <Search size={14} aria-hidden="true" />
         <input autoFocus aria-label="Search base branches" placeholder="Search branches" value={query} onChange={(event) => setQuery(event.target.value)} />
       </label>
       <div className="review-branch-list" role="listbox" aria-label="Base branches">

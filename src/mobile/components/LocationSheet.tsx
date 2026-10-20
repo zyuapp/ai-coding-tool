@@ -37,12 +37,12 @@ export function LocationSheet({ thread, onClose, onMove }: {
   return (
     <Sheet title="Location" onClose={onClose}>
       <section className="sheet-group" role="radiogroup" aria-label="Where this thread works">
-        <Choice icon={<FolderGit2 size={17} strokeWidth={1.8} />} label={thread.projectName ?? "Project"} detail="The project's own checkout" current={location.kind === "local"} disabled={locked} onSelect={move({ kind: "local" })} />
-        {inWorktree && <Choice icon={<FolderSymlink size={17} strokeWidth={1.8} />} label={location.name} detail={location.threads === 1 ? "Only this thread works here" : `${location.threads} threads work here`} current />}
+        <Choice icon={<FolderGit2 size={18} strokeWidth={1.8} />} label={thread.projectName ?? "Project"} detail="The project's own checkout" current={location.kind === "local"} disabled={locked} onSelect={move({ kind: "local" })} />
+        {inWorktree && <Choice icon={<FolderSymlink size={18} strokeWidth={1.8} />} label={location.name} detail={location.threads === 1 ? "Only this thread works here" : `${location.threads} threads work here`} current />}
         {thread.worktrees.map((choice) => (
-          <Choice key={choice.id} icon={<FolderSymlink size={17} strokeWidth={1.8} />} label={choice.name} detail={branchOf(choice)} disabled={locked} onSelect={move({ kind: "worktree", id: choice.id })} />
+          <Choice key={choice.id} icon={<FolderSymlink size={18} strokeWidth={1.8} />} label={choice.name} detail={branchOf(choice)} disabled={locked} onSelect={move({ kind: "worktree", id: choice.id })} />
         ))}
-        <Choice icon={<Plus size={17} strokeWidth={1.8} />} label="New worktree" detail="A checkout of its own, cut from the project" disabled={locked} onSelect={move({ kind: "new" })} />
+        <Choice icon={<Plus size={18} strokeWidth={1.8} />} label="New worktree" detail="A checkout of its own, cut from the project" disabled={locked} onSelect={move({ kind: "new" })} />
       </section>
       <p className="sheet-note">{locked ? "Wait for the run to finish before moving the thread." : "Existing file changes stay in the old checkout."}</p>
     </Sheet>

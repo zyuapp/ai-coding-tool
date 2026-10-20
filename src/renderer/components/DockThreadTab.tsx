@@ -40,7 +40,7 @@ function ThreadTabHeader({ tab, leadTitle, dispatch, branchMenuOpen, onClose }: 
       <header className="side-chat-header thread-tab-header">
         <div className="side-chat-title">
           <span className={`thread-tab-mark ${standing}`}>
-            <ThreadEngineIcon engine={thread.engine} size={15} />
+            <ThreadEngineIcon engine={thread.engine} size={16} />
             <CoordinationStatusMark status={standing} />
           </span>
           <div>

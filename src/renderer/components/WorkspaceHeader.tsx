@@ -104,7 +104,7 @@ export function WorkspaceHeader({ currentThread, folder, folderLabel, host, side
           aria-pressed={sidebarOpen}
           onClick={onToggleSidebar}
         >
-          <PanelLeft size={19} aria-hidden="true" />
+          <PanelLeft size={18} aria-hidden="true" />
         </button>
         <div>
           <ThreadHeading
@@ -138,7 +138,7 @@ export function WorkspaceHeader({ currentThread, folder, folderLabel, host, side
           aria-pressed={sessionPanelOpen}
           onClick={onToggleSessionPanel}
         >
-          <SlidersHorizontal size={19} aria-hidden="true" />
+          <SlidersHorizontal size={18} aria-hidden="true" />
           {workingSubagents > 0 && <span>{workingSubagents}</span>}
         </button>
         <button
@@ -148,7 +148,7 @@ export function WorkspaceHeader({ currentThread, folder, folderLabel, host, side
           aria-pressed={rightDockOpen}
           onClick={onToggleRightDock}
         >
-          <PanelRight size={19} aria-hidden="true" />
+          <PanelRight size={18} aria-hidden="true" />
         </button>
       </div>
     </header>

@@ -56,7 +56,7 @@ export function ThreadJump({ jump, actions }: ThreadJumpProps) {
     >
       <div className="thread-jump-panel" onKeyDown={keyDown}>
         <div className="thread-jump-search">
-          <Search size={15} aria-hidden="true" />
+          <Search size={16} aria-hidden="true" />
           <input
             ref={input}
             value={jump.query}
@@ -80,8 +80,8 @@ export function ThreadJump({ jump, actions }: ThreadJumpProps) {
                   onClick={() => choose(option)}
                 >
                   {option.kind === "thread"
-                    ? <ThreadEngineIcon engine={option.engine} className="thread-jump-engine" size={13} />
-                    : <Settings className="thread-jump-engine" size={13} aria-label="Setting" />}
+                    ? <ThreadEngineIcon engine={option.engine} className="thread-jump-engine" size={14} />
+                    : <Settings className="thread-jump-engine" size={14} aria-label="Setting" />}
                   <span className="thread-jump-title">{option.title}</span>
                   {option.kind === "thread" && option.running && <span className="task-spinner" aria-label="Working" />}
                   {option.kind === "thread" && option.namedPullRequest !== null && <span className="thread-jump-pull-request">#{option.namedPullRequest}</span>}

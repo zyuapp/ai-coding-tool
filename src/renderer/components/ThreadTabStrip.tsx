@@ -50,7 +50,7 @@ function BranchChip({ branch, workspaceId, open, onSetOpen, onPick }: {
         title={branch}
         onClick={() => onSetOpen(!open)}
       >
-        <GitBranch size={13} aria-hidden="true" />
+        <GitBranch size={14} aria-hidden="true" />
         <code>{branch}</code>
         <ChevronDown size={12} aria-hidden="true" />
       </button>
@@ -80,7 +80,7 @@ function PullRequestChip({ pullRequest }: { pullRequest: PullRequestAnswer }) {
         title="Pull requests are read with the GitHub CLI, which is not installed"
         openInApp={links.openUrlInApp && (() => links.openUrlInApp!(GITHUB_CLI_URL))}
       >
-        <GitPullRequest size={13} aria-hidden="true" />
+        <GitPullRequest size={14} aria-hidden="true" />
         <span>Install gh</span>
       </WebLink>
     );
@@ -96,7 +96,7 @@ function PullRequestChip({ pullRequest }: { pullRequest: PullRequestAnswer }) {
       title={`#${number} ${title}`}
       openInApp={links.openUrlInApp && (() => links.openUrlInApp!(url))}
     >
-      <Icon size={13} aria-hidden="true" />
+      <Icon size={14} aria-hidden="true" />
       <span>#{number}</span>
     </WebLink>
   );
@@ -145,7 +145,7 @@ export function ThreadTabStrip({ tab, branchMenuOpen, actions }: { tab: ThreadTa
             title={available.baseline ? `Changes since ${available.baseline}` : "Uncommitted changes"}
             onClick={actions.onToggleChanges}
           >
-            <FileDiff size={13} aria-hidden="true" />
+            <FileDiff size={14} aria-hidden="true" />
             {clean
               ? <span>No changes</span>
               : <span className="change-counts"><strong>+{available.additions}</strong><em>−{available.deletions}</em></span>}
@@ -160,7 +160,7 @@ export function ThreadTabStrip({ tab, branchMenuOpen, actions }: { tab: ThreadTa
           title={tab.automation ? "Scheduled" : "Automations"}
           onClick={actions.onOpenAutomations}
         >
-          <AlarmClock size={13} aria-hidden="true" />
+          <AlarmClock size={14} aria-hidden="true" />
           {tab.automation && <span>Scheduled</span>}
         </button>
         {brief && (
@@ -170,7 +170,7 @@ export function ThreadTabStrip({ tab, branchMenuOpen, actions }: { tab: ThreadTa
             aria-expanded={briefOpen}
             onClick={() => setBriefOpen(!briefOpen)}
           >
-            <ScrollText size={13} aria-hidden="true" />
+            <ScrollText size={14} aria-hidden="true" />
             <span>Brief</span>
             <ChevronDown size={12} aria-hidden="true" />
           </button>

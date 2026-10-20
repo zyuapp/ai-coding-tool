@@ -33,7 +33,7 @@ function SidebarUpdate({ update, onDownload, onInstall }: {
       const label = `Download version ${update.version}`;
       return (
         <button className="sidebar-update" type="button" aria-label={label} data-tip={label} onClick={onDownload}>
-          <ArrowDown size={15} aria-hidden="true" />
+          <ArrowDown size={16} aria-hidden="true" />
         </button>
       );
     }
@@ -74,7 +74,7 @@ export function SidebarFooter({ settingsOpen, onOpenSettings, update, onDownload
   return (
     <div className="sidebar-footer">
       <button className={`sidebar-settings ${settingsOpen ? "active" : ""}`} type="button" aria-pressed={settingsOpen} onClick={onOpenSettings}>
-        <Settings size={17} aria-hidden="true" />
+        <Settings size={18} aria-hidden="true" />
         <span>Settings</span>
       </button>
       <SidebarUpdate update={update} onDownload={onDownloadUpdate} onInstall={onInstallUpdate} />

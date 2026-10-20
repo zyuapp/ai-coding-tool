@@ -19,7 +19,7 @@ function MenuRow({ entry }: { entry: Entry }) {
   const Icon = entry.icon;
   return (
     <button type="button" className="menu-row" disabled={entry.disabled} data-danger={entry.danger || undefined} onClick={entry.onSelect}>
-      <span className="menu-glyph" aria-hidden="true"><Icon size={17} strokeWidth={1.8} /></span>
+      <span className="menu-glyph" aria-hidden="true"><Icon size={18} strokeWidth={1.8} /></span>
       <span className="menu-copy"><strong>{entry.label}</strong>{entry.detail && <small>{entry.detail}</small>}</span>
       {entry.opens && <ChevronRight className="menu-chevron" size={16} aria-hidden="true" />}
     </button>

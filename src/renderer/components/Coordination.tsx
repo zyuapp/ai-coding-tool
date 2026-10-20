@@ -298,7 +298,7 @@ function NoteInput({ notes, onAdd }: { notes: readonly MemoryNote[]; onAdd: (tex
 function FoldHead({ label, count, title, open, action, onToggle }: { label: string; count: number | string; title?: string; open: boolean; action?: ReactNode; onToggle: () => void }) {
   const head = (
     <button type="button" className="coordination-group-head" aria-expanded={open} title={title} onClick={onToggle}>
-      <ChevronDown size={13} aria-hidden="true" />
+      <ChevronDown size={14} aria-hidden="true" />
       <span>{label}</span>
       <span className="coordination-group-count">{count}</span>
     </button>
@@ -542,7 +542,7 @@ const ThreadCard = memo(function ThreadCard({ view, worktree, onSelect }: {
         <small id={lineId} className={status === "working" && !lastHeard ? "text-sweep" : undefined} title={line}>{line}</small>
         {pullRequest && Icon && (
           <span id={pullRequestId} className="coordination-card-pull-request" data-state={pullRequest.state} title={pullRequestText ?? undefined}>
-            <Icon size={11} aria-hidden="true" />
+            <Icon size={12} aria-hidden="true" />
             <span>{pullRequestText}</span>
           </span>
         )}

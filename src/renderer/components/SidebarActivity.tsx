@@ -69,7 +69,7 @@ function ProjectFilter({ projects, projectHosts, project, onSetProject, openMenu
         <Folder size={14} aria-hidden="true" />
         <span>{selected ? projectName(selected) : "All projects"}</span>
         {selected && projectHosts.get(selected.id) && <span className="activity-filter-host">{projectHosts.get(selected.id)!.name}</span>}
-        <ChevronDown size={13} aria-hidden="true" />
+        <ChevronDown size={14} aria-hidden="true" />
       </button>
       {open && <ProjectMenu projects={projects} projectHosts={projectHosts} selected={selected} onSetProject={onSetProject} onClose={() => onSetOpenMenu(null)} />}
     </div>

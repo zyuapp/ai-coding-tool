@@ -2,10 +2,10 @@ import { LuCheck as Check, LuChevronDown as ChevronDown, LuChevronRight as Chevr
 import type { DiffFileSummary } from "../../domain/diff";
 
 function StatusIcon({ status }: { status: DiffFileSummary["status"] }) {
-  if (status === "added" || status === "untracked") return <FilePlus2 size={15} />;
-  if (status === "deleted") return <FileMinus2 size={15} />;
-  if (status === "renamed") return <FileSymlink size={15} />;
-  return <FilePen size={15} />;
+  if (status === "added" || status === "untracked") return <FilePlus2 size={16} />;
+  if (status === "deleted") return <FileMinus2 size={16} />;
+  if (status === "renamed") return <FileSymlink size={16} />;
+  return <FilePen size={16} />;
 }
 
 /** What the icon beside a name is saying, for a reader who has not learnt the four of them yet. */

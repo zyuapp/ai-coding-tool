@@ -172,14 +172,14 @@ function ModelLibrary({ engine, engineLocked, engineAccess, model, favoriteModel
 
   return <>
     <div className="model-search" onKeyDown={navigate}>
-      <Search size={17} aria-hidden="true" />
+      <Search size={18} aria-hidden="true" />
       <input autoFocus aria-label="Find a model or provider" placeholder="Find a model or provider…" value={query} onInput={(event) => setQuery(event.currentTarget.value)} />
-      <button type="button" aria-label="Close model picker" onClick={close}><X size={15} /></button>
+      <button type="button" aria-label="Close model picker" onClick={close}><X size={16} /></button>
     </div>
     <div className="model-library-body">
       <nav className="model-provider-rail" aria-label="Filter models">
-        <button type="button" aria-pressed={!search && filter === "favorites"} onClick={() => { setFilter("favorites"); setQuery(""); }}><Star size={15} />Favorites<span>{available.reduce((total, group) => total + group.choices.filter((item) => favorites.has(item.value)).length, 0)}</span></button>
-        <button type="button" aria-pressed={!search && filter === "all"} onClick={() => { setFilter("all"); setQuery(""); }}><Grid size={15} />All models<span>{available.reduce((total, group) => total + group.choices.length, 0)}</span></button>
+        <button type="button" aria-pressed={!search && filter === "favorites"} onClick={() => { setFilter("favorites"); setQuery(""); }}><Star size={16} />Favorites<span>{available.reduce((total, group) => total + group.choices.filter((item) => favorites.has(item.value)).length, 0)}</span></button>
+        <button type="button" aria-pressed={!search && filter === "all"} onClick={() => { setFilter("all"); setQuery(""); }}><Grid size={16} />All models<span>{available.reduce((total, group) => total + group.choices.length, 0)}</span></button>
         <hr />
         {available.map((group) => <button key={group.engine} type="button" aria-pressed={!search && filter === group.engine} onClick={() => { setFilter(group.engine); setQuery(""); }}><span className="model-provider-initial" aria-hidden="true">{group.label[0]}</span>{group.label}<span>{group.choices.length}</span></button>)}
       </nav>
@@ -202,7 +202,7 @@ function ModelLibrary({ engine, engineLocked, engineAccess, model, favoriteModel
                   <span className="model-row-label"><strong>{item.label}</strong><small>{group.label} · {item.description}</small></span>
                   {selected && <Check size={16} className="model-selected-check" aria-hidden="true" />}
                 </button>
-                {onModelFavorite && <button type="button" className="model-favorite" aria-label={`${favorite ? "Unpin" : "Pin"} ${item.label}`} aria-pressed={favorite} onClick={() => onModelFavorite(item.value, !favorite)}><Star size={15} fill={favorite ? "currentColor" : "none"} /></button>}
+                {onModelFavorite && <button type="button" className="model-favorite" aria-label={`${favorite ? "Unpin" : "Pin"} ${item.label}`} aria-pressed={favorite} onClick={() => onModelFavorite(item.value, !favorite)}><Star size={16} fill={favorite ? "currentColor" : "none"} /></button>}
               </div>;
             })}
             {locked && <p className="setting-hint">Start a new thread to use {group.label}</p>}

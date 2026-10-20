@@ -208,7 +208,7 @@ export function AttachmentStrip({ attachments }: { attachments: ComposerAttachme
             aria-label={`Remove image ${index + 1}`}
             onClick={() => attachments.remove(attachment)}
           >
-            <X size={11} />
+            <X size={12} />
           </button>
         </div>
       ))}

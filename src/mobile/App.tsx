@@ -169,7 +169,7 @@ export function App() {
           ? <button type="button" className="ghost icon" onClick={back} aria-label={screen === "changes" ? "Back to thread" : "Back to threads"}><ChevronLeft size={22} /></button>
           : <span className="bar-spacer" />}
         {notice
-          ? <button type="button" className="banner" role="status" onClick={dismissNotice}><span>{notice}</span><X size={15} aria-hidden="true" /></button>
+          ? <button type="button" className="banner" role="status" onClick={dismissNotice}><span>{notice}</span><X size={16} aria-hidden="true" /></button>
           : !reading
             ? <div className="bar-title bar-switch">
               <h1 className="sr-only">{title}</h1>

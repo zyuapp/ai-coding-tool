@@ -51,9 +51,9 @@ export function FindBar({ find, label, onQuery, onStep, onClose }: FindBarProps)
         <span className={`find-count ${searching && !find.matches && !find.counting ? "empty" : ""}`.trimEnd()} aria-live="polite">
           {searching && !find.matches ? (find.counting ? "Counting…" : "No matches") : count}
         </span>
-        <button type="button" aria-label="Previous match" disabled={!find.matches} onClick={() => onStep(-1)}><ChevronUp size={15} /></button>
-        <button type="button" aria-label="Next match" disabled={!find.matches} onClick={() => onStep(1)}><ChevronDown size={15} /></button>
-        <button type="button" aria-label="Close find" onClick={onClose}><X size={15} /></button>
+        <button type="button" aria-label="Previous match" disabled={!find.matches} onClick={() => onStep(-1)}><ChevronUp size={16} /></button>
+        <button type="button" aria-label="Next match" disabled={!find.matches} onClick={() => onStep(1)}><ChevronDown size={16} /></button>
+        <button type="button" aria-label="Close find" onClick={onClose}><X size={16} /></button>
       </div>
     </div>
   );

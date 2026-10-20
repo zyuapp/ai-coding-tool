@@ -43,7 +43,7 @@ function HiddenThreadsNotice({ workspace }: { workspace: ReturnType<typeof useTa
       <span>{hidden} {hidden === 1 ? "thread needs" : "threads need"} a newer version</span>
       <button className="storage-notice-link" type="button" onClick={() => void workspace.actions.checkForUpdates()}>Update</button>
       <button type="button" aria-label="Dismiss" onClick={() => void workspace.actions.dismissHiddenThreads()}>
-        <X size={15} aria-hidden="true" />
+        <X size={16} aria-hidden="true" />
       </button>
     </div>
   );
@@ -63,7 +63,7 @@ function ActionErrorBanner({ workspace }: { workspace: ReturnType<typeof useTask
       )}
       {!workspace.storageError && (
         <button type="button" aria-label="Dismiss error" onClick={() => void workspace.dispatch({ type: "view.dismiss-action-error" })}>
-          <X size={15} aria-hidden="true" />
+          <X size={16} aria-hidden="true" />
         </button>
       )}
     </div>

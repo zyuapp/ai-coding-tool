@@ -184,7 +184,7 @@ export function SideChat({ chat, sourceTitle, sourceContinued, onClose, ...props
       header={
         <header className="side-chat-header">
           <div className="side-chat-title">
-            <span className="side-chat-fork"><GitFork size={17} /></span>
+            <span className="side-chat-fork"><GitFork size={18} /></span>
             <div><h2>{chat.title}</h2><p>Temporary · forked from {sourceTitle}</p></div>
           </div>
           <button type="button" aria-label="Close side chat" onClick={onClose}><X size={18} /></button>

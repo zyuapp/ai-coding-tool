@@ -109,11 +109,11 @@ export function ZoomControls({ zoom }: { zoom: Zoom }) {
   return (
     <div className="viewer-zoom" onClick={(event) => event.stopPropagation()}>
       <button type="button" aria-label="Zoom out" disabled={zoom.scale <= zoom.fit} onClick={zoom.zoomOut}>
-        <Minus size={15} aria-hidden="true" />
+        <Minus size={16} aria-hidden="true" />
       </button>
       <span>{Math.round(zoom.scale * 100)}%</span>
       <button type="button" aria-label="Zoom in" disabled={zoom.scale >= MAX_SCALE} onClick={zoom.zoomIn}>
-        <Plus size={15} aria-hidden="true" />
+        <Plus size={16} aria-hidden="true" />
       </button>
     </div>
   );

@@ -51,7 +51,7 @@ export function WorktreeMenuChoices({ view, list, dispatch }: { view: WorktreeMe
     });
   }}>
     {searchable && <div className="worktree-menu-search"><input ref={search} type="search" value={view.search[list]} placeholder={list === "threads" ? "Search threads…" : "Search worktrees…"} aria-label={list === "threads" ? "Search shared threads" : "Search worktrees or branches"} onInput={(event) => dispatch({ type: "worktree.menu-search", list, query: event.currentTarget.value })} /></div>}
-    {list === "destinations" && <><button ref={creating} type="button" role="menuitem" className="worktree-menu-new" disabled={!view.canMove} onClick={() => select({ type: "task.move-worktree", taskId: view.threadId, destination: { kind: "new" } })}><Plus size={13} />New worktree</button><div className="menu-separator" role="separator" /></>}
+    {list === "destinations" && <><button ref={creating} type="button" role="menuitem" className="worktree-menu-new" disabled={!view.canMove} onClick={() => select({ type: "task.move-worktree", taskId: view.threadId, destination: { kind: "new" } })}><Plus size={14} />New worktree</button><div className="menu-separator" role="separator" /></>}
     <div ref={scroll} className="worktree-menu-list" role="menu" aria-label={list === "threads" ? "Threads here" : "Move destinations"} style={{ height: Math.min(rows.length, 5) * 44 }}>
       {virtual ? <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>{virtualizer.getVirtualItems().map((item) => <div key={item.key} style={{ position: "absolute", top: item.start, height: item.size, width: "100%" }}>{choice(rows[item.index], item.index)}</div>)}</div> : rows.map((row, index) => <div key={row.id}>{choice(row, index)}</div>)}
     </div>

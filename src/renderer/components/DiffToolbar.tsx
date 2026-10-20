@@ -94,9 +94,9 @@ export function DiffToolbar({ diff, split, roomForTwo, currentBranch, workspaceI
       <div className="diff-toolbar-main">
         <ModePicker mode={diff.mode} disabled={!workspaceId} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} onSetMode={onSetMode} />
         <div className="diff-toolbar-actions">
-          <button type="button" aria-label={split ? "Show one column" : "Show two columns"} aria-pressed={split} className={split ? "on" : ""} disabled={!roomForTwo} data-tip={roomForTwo ? (split ? "One column" : "Two columns") : "Too narrow"} onClick={onToggleSplit}>{split ? <Rows3 size={15} /> : <Columns2 size={15} />}</button>
-          <button type="button" aria-label={diff.ignoreWhitespace ? "Show whitespace changes" : "Hide whitespace changes"} aria-pressed={diff.ignoreWhitespace} className={diff.ignoreWhitespace ? "on" : ""} data-tip={diff.ignoreWhitespace ? "Show spacing" : "Hide spacing"} onClick={onToggleWhitespace}><Pilcrow size={15} /></button>
-          <button type="button" aria-label="Read the comparison again" data-tip="Read again" onClick={onRefresh}><SpinningIcon icon={RefreshCw} spinning={diff.loading} size={15} /></button>
+          <button type="button" aria-label={split ? "Show one column" : "Show two columns"} aria-pressed={split} className={split ? "on" : ""} disabled={!roomForTwo} data-tip={roomForTwo ? (split ? "One column" : "Two columns") : "Too narrow"} onClick={onToggleSplit}>{split ? <Rows3 size={16} /> : <Columns2 size={16} />}</button>
+          <button type="button" aria-label={diff.ignoreWhitespace ? "Show whitespace changes" : "Hide whitespace changes"} aria-pressed={diff.ignoreWhitespace} className={diff.ignoreWhitespace ? "on" : ""} data-tip={diff.ignoreWhitespace ? "Show spacing" : "Hide spacing"} onClick={onToggleWhitespace}><Pilcrow size={16} /></button>
+          <button type="button" aria-label="Read the comparison again" data-tip="Read again" onClick={onRefresh}><SpinningIcon icon={RefreshCw} spinning={diff.loading} size={16} /></button>
         </div>
       </div>
       {diff.range.kind === "commit" && <code className="diff-linked-commit" title={diff.range.commit}>{diff.range.commit.slice(0, 7)}</code>}

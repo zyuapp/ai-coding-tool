@@ -35,7 +35,7 @@ function ToolPicker({ tool, onPick }: { tool: AnnotationKind; onPick: (tool: Ann
             aria-pressed={entry.value === tool}
             onClick={() => onPick(entry.value)}
           >
-            <Icon size={15} aria-hidden="true" /> {entry.label}
+            <Icon size={16} aria-hidden="true" /> {entry.label}
           </button>
         );
       })}
@@ -63,7 +63,7 @@ function MarkTools({ shape, frame, mark, onKeep, onEdit, onRemove }: {
     >
       {shape.kind === "box" && (
         <button type="button" className="annotator-marktool" aria-label={`Edit note on mark ${mark}`} onClick={onEdit}>
-          <Pencil size={11} />
+          <Pencil size={12} />
         </button>
       )}
       <button
@@ -72,7 +72,7 @@ function MarkTools({ shape, frame, mark, onKeep, onEdit, onRemove }: {
         aria-label={shape.kind === "arrow" ? "Delete arrow" : `Delete mark ${mark}`}
         onClick={onRemove}
       >
-        <X size={11} />
+        <X size={12} />
       </button>
     </div>
   );
@@ -256,7 +256,7 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
           <span className="annotator-count">{shapes.length === 0 ? activeTool.hint : `${shapes.length} mark${shapes.length === 1 ? "" : "s"}. Point at one to edit or remove it.`}</span>
           <button type="button" className="annotator-action" onClick={onCancel}>Cancel</button>
           <button type="button" className="annotator-action primary" disabled={!image} onClick={apply}>
-            <Check size={15} /> Done
+            <Check size={16} /> Done
           </button>
         </footer>
       </div>
