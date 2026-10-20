@@ -234,7 +234,7 @@ test("a coordinator's row says what its Needs-you card holds, a request by the c
 });
 
 test("a coordinator's row names the threads under it left blocked or failed, as its Overview files them under Needs you", () => {
-  const stuck = (state: "blocked" | "failed") => ({ report: { state, summary: "Stuck", at: 1 } });
+  const stuck = (state: "blocked" | "failed") => ({ report: { state, summary: "Stuck", at: 1 }, outcome: "finished" as const });
   const line = (...members: Thread[]) => {
     const state = workspace({ threads: [lead(), ...members] });
     return sidebarLists(state, [], state.threads, new Set(), new Set()).waitingLines.get("lead") ?? null;
@@ -247,6 +247,12 @@ test("a coordinator's row names the threads under it left blocked or failed, as 
 
   const read = workspace({ threads: [lead(), task("a", { parentId: "lead", ...stuck("blocked") })] });
   assert.deepEqual(sidebarLists(read, [], read.threads, new Set(), new Set()).activityThreads.priority.map((thread) => thread.id), ["lead"], "and it leads while one waits, read or not");
+  assert.ok(canDismiss(coordinator(read), coordinatedThreads(read.threads, "lead"), new Set()), "until the user dismisses it");
+  for (const command of [{ type: "task.dismiss", taskId: "lead" }, { type: "task.dismiss-all" }] as const) {
+    const filed = reduce(read, command).state;
+    const lists = sidebarLists(filed, [], filed.threads, new Set(), new Set());
+    assert.deepEqual([lists.waitingLines.get("lead") ?? null, lists.activityThreads.priority.map((thread) => thread.id)], [null, []], `${command.type} files it away, so its row says nothing waits and it leaves Priority`);
+  }
 });
 
 test("the coordination view counts what waits on the user as the sidebar does, and a thread under it says its own in the same words", () => {

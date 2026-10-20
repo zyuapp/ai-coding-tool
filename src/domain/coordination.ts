@@ -7,6 +7,7 @@
  */
 import { lastRunOutcome, type CaughtStart, type HeardWork, type RemoteStop, type Thread } from "./thread.js";
 import { isRemoteSender, type RemoteSender } from "./message-origin.js";
+import { wantsAttention } from "./attention.js";
 import type { AgentEffort } from "./run.js";
 import type { ThreadOutcome } from "./thread-run.js";
 import { isThreadRole, type ThreadRole } from "./thread-role.js";
@@ -416,11 +417,11 @@ export type WaitingOnUser = { decisions: number; suggestions: number; requests: 
  * phone's all read this one count. Approvals wait on a run, and are counted where runs are.
  *
  * The threads under it left blocked or failed count too, as the Overview files them under Needs you,
- * unless a decision already stands for them.
+ * unless a decision already stands for them, until the user dismisses how they ended, read or not.
  */
 export function waitingOnUser(thread: Thread, members: readonly Thread[], starting: readonly string[]): WaitingOnUser {
   const proposals = (thread.proposals ?? []).filter((proposal) => !starting.includes(proposal.id));
-  const stuck = members.flatMap((member) => member.resolvedAt === undefined && !member.runOpen && !openDecisions(member).length ? [stuckVerdict(member)?.state] : []);
+  const stuck = members.flatMap((member) => member.resolvedAt === undefined && !member.runOpen && wantsAttention(member) && !openDecisions(member).length ? [stuckVerdict(member)?.state] : []);
   return {
     decisions: [thread, ...members].reduce((count, item) => count + openDecisions(item).length, 0),
     suggestions: proposals.filter((proposal) => !proposal.place.computer).length,
