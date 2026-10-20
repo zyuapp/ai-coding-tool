@@ -211,6 +211,11 @@ button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
 .coordination-item:has(> .coordination-row-action):is(:hover, :focus-within) .coordination-row-marks { opacity: 0; }
 .coordination-row-action:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-soft); }
 .coordination-row-action[data-action="resolve"]:hover:not(:disabled), .thread-tab-resolution[data-action="resolve"]:hover:not(:disabled) { background: var(--success-surface); color: var(--success); }
+/** A resolved thread's check is ticked, and turns into an undo while pointed at. */
+:is(.coordination-row-action, .thread-tab-resolution)[data-action="reopen"] { color: var(--success); }
+:is(.coordination-row-action, .thread-tab-resolution)[data-action="reopen"] > .resolution-undo { display: none; }
+:is(.coordination-row-action, .thread-tab-resolution)[data-action="reopen"]:is(:hover, :focus-visible) > .resolution-ticked { display: none; }
+:is(.coordination-row-action, .thread-tab-resolution)[data-action="reopen"]:is(:hover, :focus-visible) > .resolution-undo { display: block; }
 /* The threads a coordinator started, as cards in its conversation where each began, wrapping across the column. */
 .coordination-cards { display: flex; flex-wrap: wrap; gap: 8px; }
 .coordination-card {
