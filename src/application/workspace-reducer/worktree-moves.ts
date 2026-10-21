@@ -1,13 +1,16 @@
 import type { TaskCommand } from "../../contracts/commands.js";
 import { createConversationMessage, createFailureMessage } from "../../domain/conversation.js";
 import { isCoordinator } from "../../domain/coordination.js";
+import { originFields } from "../../domain/message-origin.js";
+import type { RunStatus } from "../../domain/run.js";
 import type { Thread } from "../../domain/thread.js";
 import { worktreeName, type Worktree, type WorktreeDestination } from "../../domain/worktree.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, threadWorkspaceRoot, worktreeById } from "../thread-location.js";
 import { updateThread } from "../thread-run-state.js";
 import { isWorking } from "../thread-activity.js";
-import type { WorkspaceState } from "../workspace-state.js";
+import type { QueuedMessage, WorkspaceState } from "../workspace-state.js";
 import { rereadDiff } from "./diff-reads.js";
+import { drainQueue, queuedFor, withQueued } from "./run-queue.js";
 import { WORKTREE_COORDINATOR_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_PROJECT_ERROR, WORKTREE_RELEASING_ERROR, WORKTREE_RUNNING_ERROR } from "./errors.js";
 import { now, settled, targetId, rejected } from "./shared.js";
 import { withCreatingWorktree } from "./worktree-claims.js";
@@ -48,8 +51,22 @@ function arrival(state: WorkspaceState, thread: Thread, projectId: string, desti
 }
 
 /** A checkout made from where the thread stands; the thread moves in once it lands, as `worktree.created` says. */
-function moveToNewWorktree(state: WorkspaceState, thread: Thread, projectId: string): WorkspaceTransition {
-  return settled(withCreatingWorktree(state, thread.id), [{ type: "create-worktree", taskId: thread.id, projectRoot: threadWorkspaceRoot(state, thread)!, move: true, name: thread.title, projectId }]);
+function moveToNewWorktree(state: WorkspaceState, thread: Thread, projectId: string, then?: string): WorkspaceTransition {
+  return settled(withCreatingWorktree(state, thread.id), [{ type: "create-worktree", taskId: thread.id, projectRoot: threadWorkspaceRoot(state, thread)!, move: true, name: thread.title, projectId, ...(then ? { then } : {}) }]);
+}
+
+/** What a thread that moved itself said it goes on with, first in line in the checkout it moved to. */
+export function withFollowUp(state: WorkspaceState, taskId: string, then: string | undefined): WorkspaceState {
+  const thread = state.threads.find((item) => item.id === taskId);
+  if (!then || !thread) return state;
+  const followUp: QueuedMessage = {
+    id: crypto.randomUUID(),
+    text: then,
+    prompt: `You moved to this checkout, as you asked. Go on with what you said you would do next:\n\n${then}`,
+    attachments: [],
+    ...originFields({ kind: "thread", threadId: thread.id, title: thread.title }),
+  };
+  return withQueued(state, taskId, [followUp, ...queuedFor(state, taskId)]);
 }
 
 /** A coordinator does no work itself, so no thread moves it into a worktree; the user can still move it from the thread menu. */
@@ -80,20 +97,27 @@ export function reduceWorktreeMove(state: WorkspaceState, input: Extract<TaskCom
   if (isWorking(state, thread.id)) {
     /** Only the run that asked can end before the move; anything else keeping the thread busy refuses it. */
     if (!input.afterRun || !state.activeRuns[thread.id]) return rejected(state, WORKTREE_RUNNING_ERROR);
-    return settled({ ...state, actionError: null, movesAfterRun: { ...state.movesAfterRun, [thread.id]: destination } });
+    return settled({ ...state, actionError: null, movesAfterRun: { ...state.movesAfterRun, [thread.id]: { destination, ...(input.then ? { then: input.then } : {}) } } });
   }
   const staying = withoutMoveAfterRun(state, thread.id);
-  if (destination.kind === "new") return moveToNewWorktree(staying, thread, project.id);
-  return relocateThread({ ...staying, actionError: null }, thread, target);
+  if (destination.kind === "new") return moveToNewWorktree(staying, thread, project.id, input.then);
+  const moved = relocateThread({ ...staying, actionError: null }, thread, target);
+  if (!input.then) return moved;
+  const drained = drainQueue(withFollowUp(moved.state, thread.id, input.then), thread.id, "succeeded");
+  return { state: drained.state, effects: [...moved.effects, ...drained.effects] };
 }
 
 /**
  * A thread that moved itself goes once the run that asked has ended, ahead of anything queued behind
- * that run. Whatever changed meanwhile is checked again, and a move that can no longer happen says so.
+ * that run. Whatever changed meanwhile is checked again, and a move that can no longer happen says so,
+ * dropping what the thread said it would go on with there. A run the user stopped still moves, and
+ * goes no further.
  */
-export function settleMoveAfterRun(state: WorkspaceState, taskId: string): WorkspaceTransition {
-  const destination = state.movesAfterRun[taskId];
-  if (!destination) return settled(state);
+export function settleMoveAfterRun(state: WorkspaceState, taskId: string, status: RunStatus): WorkspaceTransition {
+  const move = state.movesAfterRun[taskId];
+  if (!move) return settled(state);
+  const { destination } = move;
+  const then = status === "cancelled" ? undefined : move.then;
   const rest = withoutMoveAfterRun(state, taskId);
   const thread = rest.threads.find((item) => item.id === taskId);
   const project = projectFor(rest, thread);
@@ -103,13 +127,13 @@ export function settleMoveAfterRun(state: WorkspaceState, taskId: string): Works
     : leavingThreadIds(rest).has(taskId) ? WORKTREE_RELEASING_ERROR
     : destination.kind === "new" ? undefined
     : arrival(rest, thread, project.id, destination);
-  if (target === null) return settled(rest);
+  if (target === null) return settled(withFollowUp(rest, taskId, then));
   if (typeof target === "string") {
     const note = createFailureMessage(`Did not move. ${target}`);
     return settled(updateThread(rest, taskId, (item) => ({ ...item, messages: [...item.messages, note], updatedAt: now() })));
   }
-  if (destination.kind === "new") return moveToNewWorktree(rest, thread, project!.id);
+  if (destination.kind === "new") return moveToNewWorktree(rest, thread, project!.id, then);
   const moved = relocateThread(rest, thread, target);
   /** Nothing on screen asked for this move, so whatever the user has open stays open. */
-  return { ...moved, state: { ...moved.state, openMenu: rest.openMenu } };
+  return { ...moved, state: { ...withFollowUp(moved.state, taskId, then), openMenu: rest.openMenu } };
 }

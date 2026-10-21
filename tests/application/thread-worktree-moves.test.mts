@@ -128,7 +128,7 @@ test("a move waiting on the run is checked again when the run ends, and taken ba
   const command = { type: "task.move-worktree", taskId: "caller", destination: toWt2, afterRun: true } as const;
   const end = { type: "run.event", event: { type: "run.status", taskId: "caller", runId: "run-1", sequence: 1, status: "cancelled" } } as const;
   const waiting = reduce(fixture(), command).state;
-  assert.deepEqual(waiting.movesAfterRun, { caller: toWt2 });
+  assert.deepEqual(waiting.movesAfterRun, { caller: { destination: toWt2 } });
 
   const gone = reduce({ ...waiting, deletingWorktrees: [heldWorktree("wt2").root] }, end).state;
   assert.equal(gone.threads[0].worktreeId, "wt1");
@@ -156,7 +156,7 @@ test("a coordinator never moves itself into a worktree, nor is moved into one by
   assert.deepEqual(host.state().movesAfterRun, {});
   assert.deepEqual(host.state().creatingWorktrees, []);
   assert.equal((await answer(host, move({ type: "task.move-worktree", destination: { kind: "local" } }))).thread?.worktreeId, "wt1");
-  assert.deepEqual(host.state().movesAfterRun, { caller: { kind: "local" } }, "back to the project waits for the turn to end");
+  assert.deepEqual(host.state().movesAfterRun, { caller: { destination: { kind: "local" } } }, "back to the project waits for the turn to end");
 
   const asked = reduce(leading, { type: "task.move-worktree", taskId: "caller", destination: toWt2, afterRun: true });
   assert.equal(asked.result?.ok, false, "the reducer refuses a coordinator moving itself whoever forwards it");
@@ -215,7 +215,7 @@ test("a thread moving itself into a new worktree makes it when its turn ends, an
   const { host, started, dispatch } = desktop(fixture());
   const result = await answer(host, move({ type: "task.move-worktree", destination: { kind: "new" } }));
   assert.match(result.notice ?? "", /^This thread moves to a new worktree when this turn ends, .* stays in \/worktrees\/repo-wt1/);
-  assert.deepEqual(host.state().movesAfterRun, { caller: { kind: "new" } });
+  assert.deepEqual(host.state().movesAfterRun, { caller: { destination: { kind: "new" } } });
 
   await dispatch({ type: "task.send", taskId: "caller", text: "Then run the tests", attachments: [] });
   const ended = reduce(host.state(), { type: "run.event", event: { type: "run.status", taskId: "caller", runId: "run-1", sequence: 1, status: "succeeded" } });
@@ -245,6 +245,76 @@ test("a thread whose new worktree could not be made runs what it queued where it
   assert.equal(failed.state.threads[0].worktreeId, "wt1");
   const resolving = failed.effects.find((effect) => effect.type === "resolve-run-workspace");
   assert.equal(resolving?.type === "resolve-run-workspace" && resolving.workspace?.root, heldWorktree("wt1").root);
+});
+
+const succeeded = { type: "run.event", event: { type: "run.status", taskId: "caller", runId: "run-1", sequence: 1, status: "succeeded" } } as const;
+
+test("a thread moving itself with then starts its next turn in the new checkout on its own, ahead of what the user queued", async () => {
+  const { host, started, dispatch } = desktop(fixture());
+  const result = await answer(host, move({ type: "task.move-worktree", destination: toWt2, then: "Fix the login bug" }));
+  assert.match(result.notice ?? "", /its next turn starts there on its own with what you passed as then\. End this turn now/);
+  assert.deepEqual(host.state().movesAfterRun, { caller: { destination: toWt2, then: "Fix the login bug" } });
+
+  await dispatch({ type: "task.send", taskId: "caller", text: "Then run the tests", attachments: [] });
+  await dispatch(succeeded);
+  const moved = required(host.state().threads.find((item) => item.id === "caller"));
+  assert.equal(moved.worktreeId, "wt2");
+  const next = required(started.at(-1)).command;
+  assert.equal(next.workspaceId, heldWorktree("wt2").workspaceId);
+  assert.match(next.prompt, /^You moved to this checkout, as you asked\. .*\n\nFix the login bug$/s);
+  assert.equal(next.forkContinuation, true);
+  const sent = required(moved.messages.at(-1));
+  assert.equal(sent.text, "Fix the login bug");
+  assert.deepEqual(sent.origin, { kind: "thread", threadId: "caller", title: "Planner" }, "the transcript says the thread wrote it, not the user");
+  assert.deepEqual(host.state().queuedMessages.caller?.map((message) => message.text), ["Then run the tests"]);
+});
+
+test("a thread moving itself without then waits for the user in the new checkout", async () => {
+  const { host, started, dispatch } = desktop(fixture());
+  await answer(host, move({ type: "task.move-worktree", destination: toWt2 }));
+  await dispatch(succeeded);
+  assert.equal(host.state().threads[0].worktreeId, "wt2");
+  assert.deepEqual(started, []);
+  assert.equal(host.state().queuedMessages.caller, undefined);
+});
+
+test("a thread moving itself into a new worktree with then goes on there once it is made, and not where it was if it never is", async () => {
+  const { host, started, dispatch } = desktop(fixture());
+  await answer(host, move({ type: "task.move-worktree", destination: { kind: "new" }, then: "Fix the login bug" }));
+  const ended = reduce(host.state(), succeeded);
+  assert.deepEqual(ended.effects.filter((effect) => effect.type === "create-worktree").map((effect) => effect.type === "create-worktree" && effect.then), ["Fix the login bug"]);
+  assert.ok(ended.effects.every((effect) => effect.type !== "resolve-run-workspace"));
+
+  const failed = reduce(ended.state, { type: "worktree.failed", taskId: "caller", message: "Could not create the worktree: disk full" });
+  assert.ok(failed.effects.every((effect) => effect.type !== "resolve-run-workspace"), "the follow-up never runs in the old checkout");
+
+  await dispatch(succeeded);
+  await dispatch({ type: "worktree.created", taskId: "caller", worktree: madeWorktree("wt3"), move: true, projectId: PROJECT.id, then: "Fix the login bug" });
+  assert.equal(host.state().threads[0].worktreeId, "wt3");
+  const next = required(started.at(-1)).command;
+  assert.equal(next.workspaceId, heldWorktree("wt3").workspaceId);
+  assert.match(next.prompt, /Fix the login bug$/);
+});
+
+test("a stopped run still moves but goes no further, and a move that cannot happen drops what came after it", () => {
+  const waiting = reduce(fixture(), { type: "task.move-worktree", taskId: "caller", destination: toWt2, afterRun: true, then: "Fix the login bug" }).state;
+  const stopped = reduce(waiting, { ...succeeded, event: { ...succeeded.event, status: "cancelled" } });
+  assert.equal(stopped.state.threads[0].worktreeId, "wt2");
+  assert.ok(stopped.effects.every((effect) => effect.type !== "resolve-run-workspace"));
+  assert.equal(stopped.state.queuedMessages.caller, undefined);
+
+  const gone = reduce({ ...waiting, deletingWorktrees: [heldWorktree("wt2").root] }, succeeded);
+  assert.equal(gone.state.threads[0].worktreeId, "wt1");
+  assert.ok(gone.effects.every((effect) => effect.type !== "resolve-run-workspace"));
+  assert.equal(gone.state.queuedMessages.caller, undefined);
+});
+
+test("only a thread moving itself passes then", async () => {
+  assert.equal(isExternalCommand({ type: "task.move-worktree", destination: toWt2, then: "Fix the login bug" }), true);
+  const { host } = desktop(fixture());
+  const refused = await answerThreadRequest(host, move({ type: "task.move-worktree", taskId: "other", destination: toWt2, then: "Fix the login bug" }));
+  assert.match(refused.ok ? "" : refused.message, /^Only a thread moving itself passes then\./);
+  assert.equal(host.state().threads.find((item) => item.id === "other")?.worktreeId, undefined);
 });
 
 test("the move menu finds a checkout by the id or folder the thread tools report", () => {

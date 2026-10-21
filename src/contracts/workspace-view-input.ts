@@ -84,6 +84,7 @@ const remoteSender = object<RemoteSender>({ threadId: deviceId, title: text, com
 const remoteLead = object<RemoteLead>({ threadId: deviceId, title: text, computer: deviceId, proposalId: optional(deviceId) });
 const memoryText: Validator<string> = (value): value is string => typeof value === "string" && value.length <= MAX_MEMORY_PROMPT;
 /** The name a thread starts with holds words, and runs no longer than a suggestion's, which becomes one. */
+const promptText: Validator<string> = (value): value is string => isString(value, MAX_PROMPT_LENGTH) && value.trim().length > 0;
 const startTitle: Validator<string> = (value): value is string => typeof value === "string" && value.trim().length > 0 && value.length <= MAX_PROPOSAL_TITLE;
 const proposalPlace = object<{ project: string; worktree: boolean }>({ project: text, worktree: boolean });
 /** The suggestions Start all or Dismiss all names, each as a single one is named, and never more than wait at once. */
@@ -291,7 +292,7 @@ const commands = {
   "task.set-fast-mode": { fields: { taskId: optionalText, fastMode: boolean }, at: "thread" },
   "task.set-effort": { fields: { taskId: optionalText, engine: isAgentEngine, effort: isAgentEffort }, at: "thread" },
   "task.set-worktree": { fields: { taskId: optionalText, worktree: boolean }, at: "thread" },
-  "task.move-worktree": { fields: { taskId: optionalText, destination: isWorktreeDestination, afterRun: optional(literals(true)), sender: optional(remoteSender) }, at: "thread", agent: movesToCheckout },
+  "task.move-worktree": { fields: { taskId: optionalText, destination: isWorktreeDestination, afterRun: optional(literals(true)), sender: optional(remoteSender), then: optional(promptText) }, at: "thread", agent: movesToCheckout },
   "task.set-branch": { fields: { branch: nullableText, create: optionalBoolean }, at: "thread" },
   "task.checkout-branch": { fields: { taskId: optionalText, branch: text, create: optionalBoolean }, at: "thread" },
   "attachments.send": { fields: { taskId: optionalText, steer: optionalBoolean, attachments: array(outgoingAttachment) }, at: "own" },

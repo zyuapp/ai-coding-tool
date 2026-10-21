@@ -1,4 +1,5 @@
 import { browserPermissions, WORKSPACE_ERRORS } from "../application/workspace-reducer.js";
+import type { MoveAfterRun } from "../domain/worktree.js";
 import { browserTarget, dockFor, dockOwner, terminalTarget, type WorkspaceState } from "../application/workspace-state.js";
 import { threadSummary, threadWaitResult } from "../application/thread-projection.js";
 import { isWorking } from "../application/thread-activity.js";
@@ -6,7 +7,6 @@ import { listAcrossComputers, namedComputer, online, readAcrossComputers, remote
 import { projectOnComputer, type PairedComputer } from "../application/computers.js";
 import { newThreadSend, threadProposal, type NewThreadSend } from "../application/thread-starts.js";
 import type { Thread } from "../domain/thread.js";
-import type { WorktreeDestination } from "../domain/worktree.js";
 import { projectFor, worktreeById, worktreeFor } from "../application/thread-location.js";
 import { isNews, unreadFindings } from "../domain/attention.js";
 import { isOneShotSchedule } from "../domain/automation.js";
@@ -166,6 +166,7 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
     const ownMove = command.type === "task.move-worktree" && caller && (command.taskId === undefined || target?.thread.id === caller.id && !target.computer)
       ? { ...command, taskId: caller.id, afterRun: true as const }
       : undefined;
+    if (command.type === "task.move-worktree" && command.then !== undefined && !ownMove) return failed(MOVE_FOLLOW_UP_ERROR);
     const named = ownMove ?? (target ? { ...command, taskId: target.thread.id } as typeof command : command);
     /**
      * A coordinator does no work itself, so no thread puts one in a worktree, here or on a paired
@@ -208,12 +209,15 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
   }
 }
 
-/** What a thread moving itself is told: where it is until this turn ends, and where its next turn starts. */
-function movesAfterTurn(state: WorkspaceState, thread: Thread, destination: WorktreeDestination) {
+const MOVE_FOLLOW_UP_ERROR = "Only a thread moving itself passes then. To have another thread go on after its move, message it with message_thread.";
+
+/** What a thread moving itself is told: where it is until this turn ends, and where and how its next turn starts. */
+function movesAfterTurn(state: WorkspaceState, thread: Thread, { destination, then }: MoveAfterRun) {
   const project = projectFor(state, thread)?.root;
   const there = destination.kind === "worktree" ? worktreeById(state, destination.id)?.root : destination.kind === "new" ? "a new worktree" : project;
   const here = worktreeFor(state, thread)?.root ?? project;
-  return `This thread moves to ${there} when this turn ends, and its next turn starts there. Until then it stays in ${here}, and file changes already made there stay behind.`;
+  const next = then ? "its next turn starts there on its own with what you passed as then. End this turn now, and do that work there" : "its next turn starts there";
+  return `This thread moves to ${there} when this turn ends, and ${next}. Until then it stays in ${here}, and file changes already made there stay behind.`;
 }
 
 /** Holds the call until `pending` stops holding, or until the time runs out. */

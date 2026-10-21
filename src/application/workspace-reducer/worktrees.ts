@@ -1,5 +1,5 @@
 /** Where a thread works: the branch it starts from, and the checkouts the app keeps. */
-import { reduceWorktreeMove, relocateThread } from "./worktree-moves.js";
+import { reduceWorktreeMove, relocateThread, withFollowUp } from "./worktree-moves.js";
 import { reduceWorktreeSettings } from "./worktree-settings.js";
 import { reduceDiffs } from "./diffs.js";
 import { rereadDiff } from "./diff-reads.js";
@@ -138,8 +138,8 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
         const next = { ...settling, worktrees: [...settling.worktrees, worktree], managedWorktrees: null, worktreeManagementLoading: true };
         if (thread.projectId !== worktree.projectId) return settled(next, [{ type: "list-worktrees" }]);
         const moved = relocateThread(next, thread, worktree);
-        /** What was queued behind a run that asked to move starts here, in the new checkout. */
-        const drained = drainQueue(moved.state, thread.id, "succeeded");
+        /** What the thread said it goes on with, then what was queued behind the run that asked to move, starts here. */
+        const drained = drainQueue(withFollowUp(moved.state, thread.id, input.then), thread.id, "succeeded");
         return { state: drained.state, effects: [...moved.effects, { type: "list-worktrees" }, ...drained.effects] };
       }
       const note = createConversationMessage("system", `Moved into a worktree at ${worktree.root}`, `Detached at ${worktree.baseCommit.slice(0, 7)}`);

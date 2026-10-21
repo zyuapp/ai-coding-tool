@@ -173,7 +173,7 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
         ? [{ type: "refresh-environment", workspaceId, taskId: event.taskId, runId: event.runId, followUp: true }, ...settledDiff.effects, ...reread ? [{ ...reread.effect, followUp: true as const }] : []]
         : [];
       if (event.type !== "run.status" || event.status === "running" || event.status === "awaiting-approval") return settled(next, [...environment, ...said]);
-      const moved = settleMoveAfterRun(next, event.taskId);
+      const moved = settleMoveAfterRun(next, event.taskId, event.status);
       next = moved.state;
       /** A run being stopped stays ended, even when a usage limit got to it first, which still holds its engine's waiting threads. */
       const limit = reported.type === "run.status" && reported.status === "failed" ? reported.limit : undefined;

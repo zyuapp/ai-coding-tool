@@ -44,6 +44,9 @@ export type WorktreeDestination =
   | { kind: "new" }
   | { kind: "worktree"; id: string };
 
+/** Where a thread that moved itself goes once its run ends, and what its next turn there starts with. */
+export type MoveAfterRun = { destination: WorktreeDestination; then?: string };
+
 export const SNAPSHOT_REF_NAMESPACE = "refs/aicodingtool";
 
 export function worktreeRef(worktreeId: string) {

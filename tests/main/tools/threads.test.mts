@@ -192,6 +192,11 @@ test("moving names the thread and the checkout, and passes on a move that waits 
   const waiting = await toolNamed(own, "move_to_worktree").handler({ worktreeId: "wt1" }, {});
   assert.deepEqual(own.calls.at(-1), ["command", { type: "task.move-worktree", destination: { kind: "worktree", id: "wt1" } }]);
   assert.equal(textOf(waiting), "This thread moves to /worktrees/app-wt1 when this turn ends.");
+
+  await toolNamed(own, "move_to_worktree").handler({ threadId: null, worktreeId: "new", then: "Fix the login bug" }, {});
+  assert.deepEqual(own.calls.at(-1), ["command", { type: "task.move-worktree", destination: { kind: "new" }, then: "Fix the login bug" }]);
+  await toolNamed(own, "move_to_worktree").handler({ worktreeId: "new", then: null }, {});
+  assert.deepEqual(own.calls.at(-1), ["command", { type: "task.move-worktree", destination: { kind: "new" } }]);
 });
 
 test("a thread's role is set when it starts, changed later, or taken off", async () => {

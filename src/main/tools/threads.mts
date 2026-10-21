@@ -257,10 +257,11 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
   }),
   defineTool({
     name: "move_to_worktree",
-    description: "Move a thread into a new worktree, one the project already has, or back to the project checkout, as the thread menu's Move to worktree does. This is how a thread works in a worktree: use it whenever the user asks for one, never git worktree, so the app knows where the thread works. File changes already made stay in the old checkout. Moving this thread waits for this turn to end, and its next turn starts in the new checkout. Another thread must not be running.",
+    description: "Move a thread into a new worktree, one the project already has, or back to the project checkout, as the thread menu's Move to worktree does. This is how a thread works in a worktree: use it whenever the user asks for one, never git worktree, so the app knows where the thread works. File changes already made stay in the old checkout. Moving this thread waits for this turn to end, and its next turn starts in the new checkout, on its own when you pass then. Another thread must not be running.",
     input: {
-      threadId: z.string().max(MAX_ID_LENGTH).optional().describe("The thread to move: its ID, an unambiguous prefix of it, or its exact title. Omit to move this thread."),
+      threadId: z.string().max(MAX_ID_LENGTH).nullable().optional().describe("The thread to move: its ID, an unambiguous prefix of it, or its exact title. Omit or null to move this thread."),
       worktreeId: z.string().max(MAX_ID_LENGTH).nullable().describe('"new" for a new worktree, the ID of one list_threads reports, or null for the project checkout.'),
+      then: z.string().trim().max(MAX_PROMPT_LENGTH).nullable().describe("When moving this thread, whatever else the user asked for along with the move, written as instructions to yourself. This thread's next turn starts in the new checkout on its own with it. null when the move is all the user asked for, or when moving another thread."),
     },
     readOnly: false,
     run: ({ bridge, now }, args) => report(async () => {
@@ -268,6 +269,7 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
         type: "task.move-worktree",
         ...(args.threadId ? { taskId: args.threadId } : {}),
         destination: args.worktreeId === "new" ? { kind: "new" } : args.worktreeId ? { kind: "worktree", id: args.worktreeId } : { kind: "local" },
+        ...(args.then ? { then: args.then } : {}),
       });
       if (notice) return notice;
       return thread ? `Moved ${describe(thread, now())}` : "The thread was not moved.";

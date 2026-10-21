@@ -165,8 +165,9 @@ export type TaskCommand =
    * Moves the thread while leaving existing files and checkouts in place. `afterRun` is a thread
    * moving itself: the run that asked waits to end before the move instead of refusing it. `sender`
    * is a thread on another computer that asked for the move, which only this app's own link says.
+   * `then` is what a thread moving itself goes on with, as its next turn in the new checkout.
    */
-  | { type: "task.move-worktree"; taskId?: string; destination: WorktreeDestination; afterRun?: true; sender?: RemoteSender }
+  | { type: "task.move-worktree"; taskId?: string; destination: WorktreeDestination; afterRun?: true; sender?: RemoteSender; then?: string }
   /** The branch a thread starts from. Only a thread that does not exist yet can be told. */
   | { type: "task.set-branch"; branch: string | null; create?: boolean }
   /**
