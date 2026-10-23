@@ -4469,7 +4469,8 @@ button.setting-hint:hover { color: var(--ink); }
 .computer-switch { position: relative; }
 .computer-switch-trigger[aria-expanded="true"] { background: var(--wash); color: var(--muted-strong); }
 .computer-switch-trigger.offline, .computer-switch-trigger.offline:hover { color: var(--quiet-soft); }
-.computer-switch-menu { top: calc(100% + 4px); right: 0; max-width: min(320px, calc(100vw - 28px)); }
+/** Opened rightward, as the button sits near the window's left edge and a long computer name would push a right-anchored menu off it. */
+.computer-switch-menu { top: calc(100% + 4px); left: 0; right: auto; max-width: min(320px, calc(100vw - 28px)); -webkit-app-region: no-drag; }
 .computer-switch-menu button.offline { color: var(--quiet); }
 .computer-switch-menu .offline .menu-label::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: currentColor; vertical-align: middle; }
 .task-row.offline, .project-task-row.offline { opacity: 0.45; cursor: default; }
