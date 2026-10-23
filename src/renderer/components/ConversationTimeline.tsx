@@ -91,6 +91,15 @@ function retryLabel(retry: RetryNotice) {
   return `${retry.message} Retrying${count}…`;
 }
 
+/** The newest message the user sent themselves, rather than one another thread or a schedule sent for them. */
+function newestPrompt(messages: Thread["messages"]) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]!;
+    if (message.kind === "user" && !message.origin) return message.id;
+  }
+  return undefined;
+}
+
 export function ConversationTimeline({ currentThread, engine, engineLabel, folder, workspaceId, status, compacting, retrying = null, limitPause = null, waitingOn = null, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, restored = true, place, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide, threadCards = null, starts = NO_STARTS }: ConversationTimelineProps) {
   const messages = currentThread?.messages ?? [];
   const artifactScope = useMemo(() => ({ root: folder, taskId: currentThread?.id, workspaceId }), [folder, currentThread?.id, workspaceId]);
@@ -102,6 +111,7 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
   /** The answer being read out, whether it is still streaming or has already finished. */
   const answerId = streamingTail?.messageId ?? (lastMessage?.kind === "assistant" ? lastMessage.id : undefined);
   const toolId = lastMessage?.kind === "tool" ? lastMessage.id : undefined;
+  const promptId = useMemo(() => newestPrompt(messages), [messages]);
   /** The gap above the timeline, which puts the virtualizer's offsets in the scroller's own terms. */
   const [scrollMargin, setScrollMargin] = useState(0);
   const coordinator = isCoordinator(currentThread);
@@ -151,7 +161,7 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
   const drawn = !currentThread?.historySummary && (messages.length > 0 || !!streamingTail);
   const { atBottom, scrollToFoot } = useReadingView({
     scrollContainerRef, timelineRef, drawn, virtualizer, virtualizerScrolledAt, threadId: currentThread?.id, rowOfMessage,
-    hit, answerId, toolId, readingPoint, onReadingPointMove, setScrollMargin,
+    hit, answerId, toolId, promptId, readingPoint, onReadingPointMove, setScrollMargin,
   });
   useSelectionCapture({ timelineRef, scrollContainerRef, threadId: currentThread?.id, onAnnotateAdd, setSelection: annotate.setSelection, dismissNote: annotate.dismissNote });
   const markers = useAnnotationMarkers({ timelineRef, annotations, rendered, messageCount: messages.length });
