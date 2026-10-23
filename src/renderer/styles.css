@@ -940,6 +940,8 @@ button, select { color: inherit; }
   grid-column: 1;
   grid-row: 1;
 }
+/** Zen mode keeps the topbar's row empty, so the window still drags by its top edge. */
+.zen-titlebar { grid-column: 1; grid-row: 1; -webkit-app-region: drag; }
 /** Without the sidebar the topbar owns the window edge, so it starts clear of the traffic lights. */
 .topbar.traffic-inset { padding-left: max(22px, var(--window-controls-inset)); }
 .workspace-controls { display: flex; align-items: center; gap: 4px; }

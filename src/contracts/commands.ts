@@ -503,6 +503,8 @@ export type ViewCommand =
   | { type: "view.set-activity-project"; projectId: string | null }
   | { type: "view.set-sidebar-open"; open: boolean }
   | { type: "view.set-session-panel-open"; open: boolean }
+  /** Zen mode: the thread on screen and its composer, with the rest of the window hidden. Only a thread with messages can enter it. */
+  | { type: "view.set-zen"; zen: boolean }
   | { type: "view.set-capture-options"; options: CaptureOptions }
   | { type: "view.set-chrome-browser"; enabled: boolean }
   | { type: "view.set-computer-use"; enabled: boolean }

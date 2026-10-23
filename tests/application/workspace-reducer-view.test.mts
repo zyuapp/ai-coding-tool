@@ -300,3 +300,51 @@ test("the jump keystroke is one the user can rebind", () => {
   assert.equal(setting.binding, "Mod+P");
   assert.ok(setting.changed);
 });
+
+const zenKey = { type: "view.shortcut", action: "zen.toggle", surface: "any" } as const;
+const talked = (id: string) => task(id, { messages: [{ id: `${id}-m1`, kind: "user", text: "Have a look", at: 5 }] });
+
+test("the zen keystroke enters zen mode on a thread with messages and the same keystroke leaves it", () => {
+  const state = workspace({ threads: [talked("task-a")], currentId: "task-a", keyboardTab: "terminal-1" });
+  const entered = reduce(state, zenKey).state;
+  assert.equal(deriveView(entered).zen, true);
+  assert.equal(entered.keyboardTab, null);
+  assert.equal(entered.composerFocus, state.composerFocus + 1);
+  assert.equal(entered.sidebarOpen, state.sidebarOpen, "the sidebar keeps its choice for when zen ends");
+
+  assert.equal(reduce(entered, zenKey).state.zen, false);
+});
+
+test("the zen keystroke does nothing on a draft or a thread without messages", () => {
+  assert.equal(reduce(workspace({ threads: [talked("task-a")], currentId: null }), zenKey).state.zen, false);
+  assert.equal(reduce(workspace({ threads: [task("task-a")], currentId: "task-a" }), zenKey).state.zen, false);
+  assert.equal(reduce(workspace({ threads: [task("task-a")], currentId: "task-a" }), { type: "view.set-zen", zen: true }).state.zen, false);
+});
+
+test("zen mode ends on another thread and stays ended on coming back", () => {
+  const entered = reduce(workspace({ threads: [talked("task-a"), talked("task-b")], currentId: "task-a" }), zenKey).state;
+  const moved = reduce(entered, { type: "task.select", taskId: "task-b" }).state;
+  assert.equal(moved.zen, false);
+  assert.equal(reduce(moved, { type: "task.select", taskId: "task-a" }).state.zen, false);
+  assert.equal(reduce(entered, { type: "view.shortcut", action: "thread.new", surface: "any" }).state.zen, false);
+});
+
+test("asking for the sidebar or the dock in zen mode brings the window back with it", () => {
+  const entered = reduce(workspace({ threads: [talked("task-a")], currentId: "task-a", sidebarOpen: true }), zenKey).state;
+  const sidebar = reduce(entered, { type: "view.shortcut", action: "sidebar.toggle", surface: "any" }).state;
+  assert.equal(sidebar.zen, false);
+  assert.equal(sidebar.sidebarOpen, true);
+
+  const dock = reduce(entered, { type: "view.shortcut", action: "dock.toggle", surface: "any" }).state;
+  assert.equal(dock.zen, false);
+  assert.equal(dockOwner(dock), "task-a");
+  assert.equal(deriveView(dock).dockOpen, true);
+
+  assert.equal(reduce(entered, { type: "view.set-dock-open", open: true }).state.zen, false);
+  assert.equal(reduce(entered, { type: "view.set-prompt", prompt: "Keep going" }).state.zen, true, "typing stays in zen mode");
+});
+
+test("escape in zen mode still stops the run and leaves zen mode on", () => {
+  const entered = reduce(workspace({ threads: [talked("task-a")], currentId: "task-a" }), zenKey).state;
+  assert.equal(reduce(entered, { type: "view.escape" }).state.zen, true);
+});

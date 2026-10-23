@@ -7,6 +7,7 @@ import { reconcileCoordination } from "./workspace-reducer/coordination.js";
 import { shownPageEffects } from "./workspace-reducer/browser-tabs.js";
 import { prunedWorkflowPanels, TAKE_KEYS, withOverviewPanels } from "./workspace-reducer/dock-tabs.js";
 import { prunedFind } from "./workspace-reducer/find.js";
+import { settledZen, zenAllowed } from "./workspace-zen.js";
 import { settledUnlisted } from "./project-commands.js";
 import { rejected, settled } from "./workspace-reducer/shared.js";
 import { activeComputer, selectedComputer, leavesComputer, routeInput, type InputRoute } from "./computers.js";
@@ -27,6 +28,12 @@ export { AUTOMATION_PANEL, DIFF_PANEL, OVERVIEW_PANEL, WORKFLOW_PANEL } from "./
  * driving the app); events report what the outside world did back. Nothing here touches Electron.
  */
 export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransition {
+  const transition = reduceInput(state, input);
+  const zen = settledZen(state, transition.state);
+  return zen === transition.state ? transition : { ...transition, state: zen };
+}
+
+function reduceInput(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransition {
   /** A keystroke is whatever the user could have clicked, so it re-enters here as those commands. */
   if (input.type === "view.shortcut") return runCommands(state, shortcutCommands(state, input.action, input.surface));
   if (input.type === "view.escape") return runCommands(state, escapeCommands(state));
@@ -156,6 +163,8 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
   const newThread: AppCommand = { type: "task.new", ...(projectId ? { projectId } : {}) };
   /** Settings are drawn over the whole window, so a keystroke that moves the user somewhere leaves them. */
   const leaving: AppCommand[] = state.settingsOpen || state.computerUseSetup ? [{ type: "view.set-settings-open", open: false }] : [];
+  /** Zen mode hides the sidebar and the dock, so a keystroke asking for either brings the window back first. */
+  const leavingZen: AppCommand[] = state.zen ? [{ type: "view.set-zen", zen: false }] : [];
   /**
    * A digit means the nth of whatever the keyboard is in. A panel view holding it counts that panel's
    * tabs, the last of them on ⌘9 the way a browser does; anywhere else counts the sidebar's threads.
@@ -217,7 +226,7 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
     case "nav.back": return surface === "browser" ? [{ type: "browser.go", delta: -1 }] : [...leaving, { type: "view.go-back" }];
     case "nav.forward": return surface === "browser" ? [{ type: "browser.go", delta: 1 }] : [...leaving, { type: "view.go-forward" }];
     case "page.reload": return [{ type: "browser.reload" }];
-    case "tab.new": return [{ type: "view.new-tab" }];
+    case "tab.new": return [...leavingZen, { type: "view.new-tab" }];
     /**
      * A shell is asked for, not a second one: the dock's newest answers before a new one is spun up.
      * The shell that already has the keyboard is one the user is done with, so it goes away instead.
@@ -226,12 +235,13 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
       const shown = selectedComputer(state)?.state ?? state;
       if (keyboardTerminalId(shown)) return [{ type: "view.set-dock-open", open: false }, { type: "view.focus-composer" }];
       const latest = dockFor(shown, dockOwner(shown)).terminals.at(-1);
-      return [...leaving, latest ? { type: "terminal.select", terminalId: latest.id } : { type: "terminal.open" }];
+      return [...leaving, ...leavingZen, latest ? { type: "terminal.select", terminalId: latest.id } : { type: "terminal.open" }];
     }
     case "tab.close": return [{ type: "view.close-tab" }];
-    case "dock.toggle": return [{ type: "view.set-dock-open", open: !dockFor(state, dockOwner(state)).open }];
-    case "dock.expand": return [{ type: "view.set-dock-expanded", expanded: !dockFor(state, dockOwner(state)).expanded }];
-    case "sidebar.toggle": return [{ type: "view.set-sidebar-open", open: !state.sidebarOpen }];
+    case "dock.toggle": return [...leavingZen, { type: "view.set-dock-open", open: state.zen || !dockFor(state, dockOwner(state)).open }];
+    case "dock.expand": return [...leavingZen, { type: "view.set-dock-expanded", expanded: !dockFor(state, dockOwner(state)).expanded }];
+    case "sidebar.toggle": return state.zen ? [...leavingZen, { type: "view.set-sidebar-open", open: true }] : [{ type: "view.set-sidebar-open", open: !state.sidebarOpen }];
+    case "zen.toggle": return state.zen ? leavingZen : zenAllowed(state) ? [...leaving, ...(state.jump ? [{ type: "view.jump-close" } as AppCommand] : []), { type: "view.set-zen", zen: true }] : [];
     case "settings.toggle": return [{ type: "view.set-settings-open", open: !state.settingsOpen }];
     default: return [];
   }

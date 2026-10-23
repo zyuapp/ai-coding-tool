@@ -75,16 +75,16 @@ export function App() {
   const dispatchRef = useLatestDispatch(workspace.dispatch);
   useEscapeLayers(dispatchRef);
   const inspector = useSubagentInspection(workspace);
-  const sidebarOpen = workspace.sidebarOpen;
+  const sidebarOpen = workspace.sidebarOpen && !workspace.zen;
   const settingsVisible = workspace.settingsOpen;
   const workingSubagents = workspace.subagents.filter((subagent) => subagent.status === "working").length;
   /** The tab counts what is still to read, so ticking files off empties it the way working down a list should. */
   const unreviewedFiles = unreviewedFileCount(workspace.diff);
-  const rightDockOpen = workspace.dockOpen;
+  const rightDockOpen = workspace.dockOpen && !workspace.zen;
   const rightDockExpanded = rightDockOpen && workspace.dockExpanded;
   const activeRightTab = workspace.dockTab;
   /** The right dock takes the same space, so it hides the panel without discarding the choice. */
-  const sessionPanelVisible = workspace.sessionPanelOpen && !rightDockOpen;
+  const sessionPanelVisible = workspace.sessionPanelOpen && !rightDockOpen && !workspace.zen;
   const find = workspace.find;
 
   function addSideChat() {
@@ -160,7 +160,7 @@ export function App() {
     <CommandControlsProvider value={workspace.commandControls}><MessageLinkProvider actions={messageLinks}>
     {workspace.viewingImage && <AttachmentViewer key={workspace.viewingImage} source={workspace.viewingImage} onClose={() => void workspace.dispatch({ type: "image.close" })} onDownload={() => void workspace.dispatch({ type: "image.download" })} />}
     <DiagramViewerHost>
-    <main className="app-shell">
+    <main className={`app-shell ${workspace.zen ? "zen" : ""}`.trimEnd()}>
       <PartBoundary name="sidebar" className={`sidebar ${sidebarOpen ? "compact-open" : "hidden"}`}>
         <Sidebar workspace={workspace} open={sidebarOpen} settingsVisible={settingsVisible} onOpenSettings={openSettings} />
       </PartBoundary>
@@ -171,7 +171,7 @@ export function App() {
         inert={settingsVisible}
         {...workspaceDrop.props}
       >
-        <PartBoundary name="header" className={`topbar ${sidebarOpen ? "" : "traffic-inset"}`.trimEnd()} resetKey={shownKey}>
+        {workspace.zen ? <div className="zen-titlebar" aria-hidden="true" /> : <PartBoundary name="header" className={`topbar ${sidebarOpen ? "" : "traffic-inset"}`.trimEnd()} resetKey={shownKey}>
           <WorkspaceHeader
             currentThread={workspace.currentThread}
             folder={workspace.folder}
@@ -202,11 +202,11 @@ export function App() {
               void workspace.actions.setDockOpen(!rightDockOpen);
             }}
           />
-        </PartBoundary>
+        </PartBoundary>}
         {/** Every banner takes a row of its own, so none is drawn over another. */}
         <div className="workspace-banners">
           <ActionErrorBanner workspace={workspace} />
-          {!workspace.storageError && <HiddenThreadsNotice workspace={workspace} />}
+          {!workspace.storageError && !workspace.zen && <HiddenThreadsNotice workspace={workspace} />}
         </div>
 
         <PartBoundary name="conversation" className="work-area" resetKey={shownKey}>
@@ -242,7 +242,7 @@ export function App() {
       <WorkspaceDialogs workspace={workspace} />
       {settingsVisible && <Suspense fallback={null}><WorkspaceSettings workspace={workspace} onClose={closeSettings} /></Suspense>}
       {workspace.jump && <ThreadJump jump={workspace.jump} actions={workspace.actions} />}
-      <Toasts toasts={workspace.toasts} onDismiss={(id) => void workspace.actions.dismissToast(id)} onAction={(command) => void workspace.dispatch(command)} />
+      {!workspace.zen && <Toasts toasts={workspace.toasts} onDismiss={(id) => void workspace.actions.dismissToast(id)} onAction={(command) => void workspace.dispatch(command)} />}
       <TooltipLayer />
     </main>
     </DiagramViewerHost>

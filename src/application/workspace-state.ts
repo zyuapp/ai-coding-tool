@@ -342,8 +342,8 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   /** The find bar, and what a page or a shell reported after searching itself. */
   find: FindState | null;
   findResults: FindResults | null;
-  /** The jump panel, open on the name the user is searching for. */
-  jump: JumpState | null;
+  /** The jump panel, open on the name the user is searching for, and whether zen mode leaves only the thread on screen. */
+  jump: JumpState | null; zen: boolean;
   /** Which dock tab the keyboard is in, so ⌘F knows whether it means that view or the thread. */
   keyboardTab: string | null;
   /** The origins a run may reach without asking. Visiting a site adds it. */
@@ -498,7 +498,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     readingPoints: {},
     find: null,
     findResults: null,
-    jump: null,
+    jump: null, zen: false,
     keyboardTab: null,
     browserOrigins: [],
     browserImport: NO_BROWSER_IMPORT,
@@ -898,7 +898,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state,
     openMenu: state.openMenu,
     reviewPicker: currentThread && state.reviewPicker?.taskId === currentThread.id && !busy.has(currentThread.id) ? state.reviewPicker : null,
     find: findView(state, currentThread),
-    jump: jumpView(state, busy),
+    jump: jumpView(state, busy), zen: state.zen,
     remote: state.remote,
     remoteChecking: state.remoteChecking,
     appUpdate: state.appUpdate,

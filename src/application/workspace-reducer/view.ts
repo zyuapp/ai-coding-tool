@@ -10,6 +10,8 @@ import { projectFor } from "../thread-location.js";
 import { selectedComputer } from "../computers.js";
 import { dockHoldsTab, findTargetFor, reachableVisit, type FindState, type WorkspaceState } from "../workspace-state.js";
 import { jumpView } from "../workspace-jump.js";
+import { zenAllowed } from "../workspace-zen.js";
+import { focusComposer } from "../composer-drafts.js";
 import { threadActivity } from "../thread-activity.js";
 import { refreshEngines } from "../engine-access.js";
 import { readRow } from "../thread-attention.js";
@@ -24,7 +26,7 @@ type ViewInput = Extract<WorkspaceInput, {
   type: "view.set-menu" | "view.go-back" | "view.go-forward" | "view.set-focused" | "view.dock-keys"
     | "view.find-open" | "view.find-query" | "view.find-step" | "view.find-close" | "find.results"
     | "view.jump-open" | "view.jump-query" | "view.jump-step" | "view.jump-choose"
-    | "view.jump-choose-setting" | "view.jump-close"
+    | "view.jump-choose-setting" | "view.jump-close" | "view.set-zen"
     | "view.dismiss-computer-use-setup";
 }>;
 
@@ -148,6 +150,13 @@ export function reduceView(state: WorkspaceState, input: ViewInput): WorkspaceTr
 
     case "view.jump-close":
       return settled({ ...state, jump: null });
+
+    /** The caret comes along, since the composer is all zen mode leaves to type in. */
+    case "view.set-zen": {
+      if (input.zen && !zenAllowed(state)) return settled(state);
+      if (state.zen === input.zen) return settled(state);
+      return settled(focusComposer({ ...state, zen: input.zen, keyboardTab: null }), TAKE_KEYS);
+    }
 
     case "view.dismiss-computer-use-setup":
       return settled({ ...state, computerUseSetup: false });

@@ -428,6 +428,7 @@ const commands = {
   "view.set-activity-project": { fields: { projectId: nullableText }, at: "local" },
   "view.set-sidebar-open": { fields: { open: boolean }, at: "local" },
   "view.set-session-panel-open": { fields: { open: boolean }, at: "local" },
+  "view.set-zen": { fields: { zen: boolean }, at: "local" },
   "view.set-capture-options": { fields: { options: isCaptureOptions }, at: "local" },
   "view.set-chrome-browser": { fields: { enabled: boolean }, at: "local" },
   "view.set-computer-use": { fields: { enabled: boolean }, at: "local" },
