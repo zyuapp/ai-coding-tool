@@ -1,7 +1,7 @@
 /** Who works under a coordinator and where each stands, what they are told, and how the sidebar groups them. */
 import type { PendingRun, WorkspaceState } from "./workspace-state.js";
 import type { PairedComputer } from "./computers.js";
-import { doingWork, threadActivity, threadStatus, unstoppedSessionWork, type ThreadStatus } from "./thread-activity.js";
+import { doingWork, threadActivity, threadStatus, unstoppedSessionWork, type ThreadActivity, type ThreadStatus } from "./thread-activity.js";
 import { activitySections, type ActivitySections } from "./thread-order.js";
 import { threadWorkspaceId } from "./thread-location.js";
 import { updateThread } from "./thread-run-state.js";
@@ -254,9 +254,53 @@ export function memberActivity(member: CoordinationMember, working: ReadonlySet<
   return member.computer ? threadActivity(member.holder) : { working, blocked };
 }
 
-/** Whether a thread under a coordinator is still doing work, wherever it is, as last said. One waiting on the user's approval is not. */
-export function memberWorking(state: WorkspaceState, member: CoordinationMember): boolean {
-  return doingWork(threadActivity(lastWord(state, member)), member.thread.id);
+/** Which of this computer's threads have work going, wait on an approval, and rank as running. */
+export type RosterActivity = { working: ReadonlySet<string>; blocked: ReadonlySet<string>; ranked: ReadonlySet<string> };
+
+/**
+ * A thread under a coordinator as the computer holding it last said it stands: doing work, which one
+ * waiting on the user's approval is not, waiting on an approval, and ranked as running.
+ */
+export type RosterMember = CoordinationMember & { working: boolean; blocked: boolean; ranked: boolean };
+
+/** Where a coordinator's threads stand, which its row, its wake, and what Dismiss files away read. */
+export type CoordinatorRoster = {
+  members: readonly RosterMember[];
+  threads: readonly Thread[];
+  /** What waits on the user from the coordinator and its threads. */
+  waiting: WaitingOnUser;
+  /** Whether a thread under it waits on an approval. */
+  blocked: boolean;
+  /** Whether a thread under it is doing work. */
+  running: boolean;
+  /** The threads under it that Dismiss on its row files away with it: none waiting on an approval. */
+  filed: readonly RosterMember[];
+  /** Whether Dismiss on its row files anything away. */
+  dismissable: boolean;
+};
+
+/**
+ * Where the threads under a coordinator stand: this computer's as `here` says, each paired computer's
+ * as that computer last said. Only the paired computers `on` count, every one when it is left out.
+ */
+export function coordinatorRoster(state: Pick<WorkspaceState, "threads" | "computers" | "startingProposals">, lead: Thread, here: RosterActivity, on?: readonly PairedComputer[]): CoordinatorRoster {
+  const members = (isCoordinator(lead) ? coordinationMembers(state, lead.id) : NO_MEMBERS).flatMap((member): RosterMember[] => {
+    if (member.computer && on && !on.some((computer) => computer.id === member.computer!.id)) return [];
+    const there = member.computer ? threadActivity(member.holder) : here;
+    const id = member.thread.id;
+    return [{ ...member, working: doingWork(there, id), blocked: there.blocked.has(id), ranked: there.ranked.has(id) }];
+  });
+  const threads = members.map((member) => member.thread);
+  const filed = members.filter((member) => !member.blocked);
+  return {
+    members,
+    threads,
+    waiting: waitingOnUser(lead, threads, state.startingProposals),
+    blocked: members.some((member) => member.blocked),
+    running: members.some((member) => member.working),
+    filed,
+    dismissable: canDismiss(lead, filed.map((member) => member.thread), here.blocked),
+  };
 }
 
 /**
@@ -340,11 +384,6 @@ export function stoppableCoordinators(state: Pick<WorkspaceState, "threads" | "c
     if (starts.length || sessionWork.length || elsewhere.length || landing.length || threads.some((thread) => state.activeRuns[thread.id] || thread.limitPause)) stoppable.add(lead.id);
   }
   return stoppable;
-}
-
-/** How many threads under a coordinator are still doing work, wherever each is, as last said. One waiting on the user's approval is not. */
-export function workingMembers(state: WorkspaceState, lead: Thread): number {
-  return coordinationMembers(state, lead.id).filter((member) => memberWorking(state, member)).length + unheardWork(state, lead).length;
 }
 
 const ROSTER_STATUS: Record<ThreadStatus, string> = {
@@ -594,24 +633,18 @@ export function coordinationSections(threads: Thread[], busy: Set<string>, block
   };
 }
 
-/** The threads under a coordinator here that the given paired computers hold, each with how that computer last said it stands. */
-export function membersOn(state: Pick<WorkspaceState, "threads" | "computers">, leadId: string, computers: readonly PairedComputer[]): Array<{ thread: Thread; computer: PairedComputer; there: ReturnType<typeof threadActivity> }> {
-  const on = new Set(computers.map((computer) => computer.id));
-  return coordinationMembers(state, leadId).flatMap((member) => member.computer && on.has(member.computer.id) ? [{ thread: member.thread, computer: member.computer, there: threadActivity(member.holder) }] : []);
-}
-
 /**
  * A computer's own threads ranked as its sidebar ranks them: each coordinator here stands for its
  * threads on the paired `computers` too, as each of those computers last said they stand. What
  * Dismiss all files away reads it over the computers the sidebar shows, and the phone over every one.
  * The threads it ranked come with it, for narrowing them to one project.
  */
-export function ownCoordinationSections(state: Pick<WorkspaceState, "threads" | "computers" | "startingProposals">, own: Thread[], ranked: Set<string>, blocked: Set<string>, computers: readonly PairedComputer[]): { sections: ActivitySections; threads: Thread[] } {
-  const elsewhere = own.filter(isCoordinator).flatMap((lead) => membersOn(state, lead.id, computers));
-  if (!elsewhere.length) return { sections: coordinationSections(own, ranked, blocked, state.startingProposals), threads: own };
-  const where = (held: (there: ReturnType<typeof threadActivity>) => Set<string>, here: Set<string>) => new Set([...here, ...elsewhere.flatMap(({ thread, there }) => held(there).has(thread.id) ? [thread.id] : [])]);
+export function ownCoordinationSections(state: Pick<WorkspaceState, "threads" | "computers" | "startingProposals">, own: Thread[], here: Pick<ThreadActivity, "working" | "blocked" | "ranked">, computers: readonly PairedComputer[]): { sections: ActivitySections; threads: Thread[] } {
+  const elsewhere = own.filter(isCoordinator).flatMap((lead) => coordinatorRoster(state, lead, here, computers).members.filter((member) => member.computer));
+  if (!elsewhere.length) return { sections: coordinationSections(own, here.ranked, here.blocked, state.startingProposals), threads: own };
+  const where = (held: (member: RosterMember) => boolean, ids: Set<string>) => new Set([...ids, ...elsewhere.flatMap((member) => held(member) ? [member.thread.id] : [])]);
   const threads = [...own, ...elsewhere.map(({ thread }) => thread)];
-  return { sections: coordinationSections(threads, where((there) => there.ranked, ranked), where((there) => there.blocked, blocked), state.startingProposals), threads };
+  return { sections: coordinationSections(threads, where((member) => member.ranked, here.ranked), where((member) => member.blocked, here.blocked), state.startingProposals), threads };
 }
 
 /**

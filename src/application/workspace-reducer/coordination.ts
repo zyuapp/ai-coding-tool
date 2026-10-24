@@ -5,7 +5,7 @@ import { released, remoteNews } from "./coordination-remote.js";
 import { withProposalFailure } from "./proposals.js";
 import { now, rejected, settled, targetId } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { canResolve, checkoutAnswer, coordinatedThreadStatus, coordinationMembers, coordinationRole, coordinatorWork, coordinationUpdate, decisionHeadline, memberWorking, nextSteps, unheardWork, waitingLine, withNewsQuieted, workingMembers } from "../coordination.js";
+import { canResolve, checkoutAnswer, coordinatedThreadStatus, coordinationMembers, coordinationRole, coordinatorRoster, coordinatorWork, coordinationUpdate, decisionHeadline, nextSteps, unheardWork, waitingLine, withNewsQuieted, type CoordinatorRoster } from "../coordination.js";
 import { activityChanges, threadActivity, threadChanges, type ThreadChange } from "../thread-activity.js";
 import { cancelPause, heldByLimit } from "../limit-pauses.js";
 import { withFactsHeard } from "../member-facts.js";
@@ -14,7 +14,7 @@ import { withoutLapsedStops, withStopAll } from "../outstanding-stops.js";
 import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
-import { canJoinCoordinator, coordinatorOf, decisionsFull, waitingOnUser, isCoordinator, MAX_ANSWER, nextStepOf, openDecisions, remoteLeadOf, reopenedIfStuck, threadModelOf, undelegable, withAnswer, withDecision, withMemoryChange, worksUnderCoordinator, type CoordinationNote, type MemoryChange } from "../../domain/coordination.js";
+import { canJoinCoordinator, coordinatorOf, decisionsFull, isCoordinator, MAX_ANSWER, nextStepOf, openDecisions, remoteLeadOf, reopenedIfStuck, threadModelOf, undelegable, withAnswer, withDecision, withMemoryChange, worksUnderCoordinator, type CoordinationNote, type MemoryChange } from "../../domain/coordination.js";
 import { defaultEffortFor, effortForModel, engineForModel, modelDelegable, modelHasEffort, modelTakesEffort } from "../../domain/agent-engine.js";
 import type { Thread } from "../../domain/thread.js";
 import { dismissed } from "../../domain/attention.js";
@@ -338,17 +338,16 @@ function coordinatorsOf(previous: WorkspaceState, next: WorkspaceState, touched:
  * threads that is still working, here or on the computer that holds it, as that computer last said.
  * A run waiting for the user's approval no longer counts as working.
  */
-function wakingNews(state: WorkspaceState, lead: Thread): CoordinationNote[] {
+function wakingNews(state: WorkspaceState, lead: Thread, roster: CoordinatorRoster, unheard: ReadonlySet<string>): CoordinationNote[] {
   const notes = (lead.coordinationNotes ?? []).filter((note) => !note.quiet);
   if (!notes.some((note) => note.runId)) return notes;
-  const members = new Map(coordinationMembers(state, lead.id).map((member) => [member.thread.id, member]));
-  const unheard = new Set(unheardWork(state, lead).map(({ threadId }) => threadId));
+  const members = new Map(roster.members.map((member) => [member.thread.id, member]));
   const going = (id: string, runId: string) => {
     if (unheard.has(id)) return true;
     const member = members.get(id);
     if (!member) return false;
     const runs = member.computer ? member.holder.activeRuns : state.activeRuns;
-    return runs[id]?.runId === runId && memberWorking(state, member);
+    return runs[id]?.runId === runId && member.working;
   };
   return notes.filter((note) => !note.runId || !going(note.threadId, note.runId));
 }
@@ -362,12 +361,14 @@ function deliverCoordinationNotes(state: WorkspaceState, leadId: string): Worksp
   const lead = state.threads.find((item) => item.id === leadId);
   const notes = lead?.coordinationNotes ?? [];
   if (!lead || !isCoordinator(lead) || !notes.length || threadBusy(state, leadId) || queuedFor(state, leadId).length || heldByLimit(state, leadId, now())) return settled(state);
-  const news = wakingNews(state, lead);
+  const roster = coordinatorRoster(state, lead, threadActivity(state));
+  const unheard = unheardWork(state, lead);
+  const news = wakingNews(state, lead, roster, new Set(unheard.map(({ threadId }) => threadId)));
   if (!news.length) return settled(state);
-  const working = workingMembers(state, lead);
+  const working = roster.members.filter((member) => member.working).length + unheard.length;
   if (working && !news.some((note) => note.urgent)) return settled(state);
   const project = projectFor(state, lead);
-  const waiting = waitingLine(waitingOnUser(lead, coordinationMembers(state, lead.id).map((member) => member.thread), state.startingProposals), "the user");
+  const waiting = waitingLine(roster.waiting, "the user");
   const update = coordinationUpdate(notes, working, waiting);
   const pending: PendingRun = {
     id: crypto.randomUUID(),

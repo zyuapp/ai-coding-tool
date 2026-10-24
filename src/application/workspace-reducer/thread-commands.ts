@@ -15,7 +15,7 @@ import { shownComputers, type PairedComputer } from "../computers.js";
 import { REMOTE_UNSUPPORTED, supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import { forkedThreads } from "../thread-fork.js";
 import { moveThread as moveThreadInList } from "../thread-order.js";
-import { coordinationMembers, dismissableRows, dismissedWith, membersOn, ownCoordinationSections, projectActivity } from "../coordination.js";
+import { coordinatorRoster, dismissedWith, ownCoordinationSections, projectActivity } from "../coordination.js";
 import { offlineMessage } from "../../domain/computers.js";
 import { pruneDeletedThreads } from "../thread-pruning.js";
 import { updateThread } from "../thread-run-state.js";
@@ -60,8 +60,7 @@ function landOnThread(state: WorkspaceState, taskId: string): WorkspaceState {
  * computers too, read as their computer last said, as the sidebar ranks it.
  */
 function priorityThreads(state: WorkspaceState, projectId?: string): Thread[] {
-  const { ranked, blocked } = threadActivity(state);
-  const { sections, threads } = ownCoordinationSections(state, threadLists(state).visibleThreads, ranked, blocked, shownComputers(state.computers));
+  const { sections, threads } = ownCoordinationSections(state, threadLists(state).visibleThreads, threadActivity(state), shownComputers(state.computers));
   return projectId ? projectActivity(sections, threads, projectId).priority : sections.priority;
 }
 
@@ -70,14 +69,9 @@ function priorityThreads(state: WorkspaceState, projectId?: string): Thread[] {
  * coordinator's read with every thread under it, here or on a paired computer.
  */
 function dismissablePriority(state: WorkspaceState, projectId?: string): Thread[] {
-  const { blocked } = threadActivity(state);
-  const rows = priorityThreads(state, projectId);
+  const here = threadActivity(state);
   const shown = shownComputers(state.computers);
-  const members = new Map(rows.map((row) => [row.id, [
-    ...coordinationMembers(state, row.id).flatMap((member) => member.computer ? [] : [member.thread]),
-    ...membersOn(state, row.id, shown).flatMap(({ thread, there }) => there.blocked.has(thread.id) ? [] : [thread]),
-  ]]));
-  return dismissableRows(rows, members, blocked);
+  return priorityThreads(state, projectId).filter((row) => coordinatorRoster(state, row, here, shown).dismissable);
 }
 
 /**
@@ -88,10 +82,13 @@ function dismissablePriority(state: WorkspaceState, projectId?: string): Thread[
  */
 function dismissElsewhere(state: WorkspaceState, rows: ReadonlySet<string>): { effects: WorkspaceEffect[]; errors: string[] } {
   const inputs = new Map<string, { computer: PairedComputer; inputs: AppCommand[] }>();
+  const here = threadActivity(state);
   const shown = shownComputers(state.computers);
   for (const row of rows) {
-    for (const { thread, computer, there } of membersOn(state, row, shown)) {
-      if (!wantsAttention(thread) || there.blocked.has(thread.id)) continue;
+    const lead = state.threads.find((thread) => thread.id === row);
+    if (!lead) continue;
+    for (const { thread, computer } of coordinatorRoster(state, lead, here, shown).filed) {
+      if (!computer || !wantsAttention(thread)) continue;
       const held = inputs.get(computer.id) ?? { computer, inputs: [] };
       held.inputs.push({ type: "task.dismiss", taskId: thread.id });
       inputs.set(computer.id, held);
