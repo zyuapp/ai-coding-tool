@@ -4,8 +4,8 @@ import type { PairedComputer } from "./computers.js";
 import { doingWork, threadActivity, threadStatus, unstoppedSessionWork, type ThreadStatus } from "./thread-activity.js";
 import { activitySections, type ActivitySections } from "./thread-order.js";
 import { threadWorkspaceId } from "./thread-location.js";
-import { updateThread, type ActiveRun } from "./thread-run-state.js";
-import { awayLeadOf, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, isWaitingOnUser, leadIdOf, MAX_SUMMARY, openDecisions, remoteLeadOf, stuckVerdict, waitingOnUser, withCoordinated, withCoordinationNote, type CoordinationNote, type CoordinationReport, type CoordinatorMemory, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type RemoteLead, type ThreadBrief, type ThreadProposal, type WaitingOnUser } from "../domain/coordination.js";
+import { updateThread } from "./thread-run-state.js";
+import { awayLeadOf, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, isWaitingOnUser, leadIdOf, MAX_SUMMARY, openDecisions, remoteLeadOf, stuckVerdict, waitingOnUser, withCoordinated, type CoordinationNote, type CoordinationReport, type CoordinatorMemory, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type RemoteLead, type ThreadBrief, type ThreadProposal, type WaitingOnUser } from "../domain/coordination.js";
 import { lastRunOutcome, threadActivityAt, type Thread } from "../domain/thread.js";
 import type { PullRequestAnswer, PullRequestChecks, PullRequestLink, PullRequestRef, PullRequestState } from "../domain/pull-request.js";
 import { newestUnreadFinding, wantsAttention } from "../domain/attention.js";
@@ -130,21 +130,6 @@ export function withNewsQuieted(state: WorkspaceState, leadId: string): Workspac
   const lead = state.threads.find((thread) => thread.id === leadId);
   if (!lead?.coordinationNotes?.some((note) => !note.quiet)) return state;
   return updateThread(state, leadId, (thread) => ({ ...thread, coordinationNotes: thread.coordinationNotes!.map((note) => note.quiet ? note : { ...note, quiet: true as const }) }));
-}
-
-/**
- * Whether a thread's turn ending is heard only with its coordinator's next wake. A turn the user's own
- * message started is theirs, and they are there to see it end, unless it failed. What it reported or
- * put to the user is news of its own, heard as ever.
- */
-export function endsUsersTurn(run: Pick<ActiveRun, "usersOwn"> | undefined, status: "succeeded" | "failed" | "cancelled"): boolean {
-  return run?.usersOwn === true && status !== "failed";
-}
-
-/** Its coordinator here hearing that a thread's turn ended. */
-export function withTurnHeard(state: WorkspaceState, thread: Thread, status: "succeeded" | "failed" | "cancelled", at: number, options: { quiet?: boolean } = {}): WorkspaceState {
-  const lead = coordinatorOf(state.threads, thread);
-  return lead ? updateThread(state, lead.id, (item) => withCoordinationNote(item, turnNote(thread, status, at, options))) : state;
 }
 
 /**

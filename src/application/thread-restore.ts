@@ -1,7 +1,5 @@
 /** Threads as the app finds them on launch. None of their work outlived the app, so what was going stopped with it. */
-import { withNewsQuieted, withTurnHeard } from "./coordination.js";
-import { isCoordinator } from "../domain/coordination.js";
-import { withVerdict } from "./run-testimony.js";
+import { settleTurn, withSettledTurn } from "./run-settlement.js";
 import type { WorkspaceState } from "./workspace-state.js";
 import type { Subagent } from "../domain/run.js";
 import { threadActivityAt, type Thread } from "../domain/thread.js";
@@ -27,8 +25,8 @@ export function restoredThreads(stored: readonly StoredThread[]): { threads: Thr
  * Nothing is put on the desktop for it.
  */
 export function withCutOffTurnsEnded(state: WorkspaceState, cutOff: readonly Thread[], at: number): WorkspaceState {
-  const ended = cutOff.reduce((next, thread) => withTurnHeard(withVerdict(next, thread.id, "stopped"), thread, "cancelled", at, { quiet: true }), state);
-  return cutOff.reduce((next, thread) => isCoordinator(thread) ? withNewsQuieted(next, thread.id) : next, ended);
+  const settlement = settleTurn({ status: "cancelled", stop: "quit" });
+  return cutOff.reduce((next, thread) => withSettledTurn(next, thread.id, settlement, undefined, at), state);
 }
 
 /** A subagent stored mid-work stopped with the app. */

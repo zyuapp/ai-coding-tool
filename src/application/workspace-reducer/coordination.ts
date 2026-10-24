@@ -5,22 +5,21 @@ import { released, remoteNews, withoutLapsedStops } from "./coordination-remote.
 import { withProposalFailure } from "./proposals.js";
 import { now, rejected, settled, targetId } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { canResolve, checkoutAnswer, coordinatedThreadStatus, coordinationMembers, coordinationRole, coordinatorWork, coordinationUpdate, decisionHeadline, endsUsersTurn, decisionNote, memberWorking, nextSteps, reportHeadline, reportNote, unheardWork, waitingLine, withNewsQuieted, withTurnHeard, workingMembers } from "../coordination.js";
+import { canResolve, checkoutAnswer, coordinatedThreadStatus, coordinationMembers, coordinationRole, coordinatorWork, coordinationUpdate, decisionHeadline, decisionNote, memberWorking, nextSteps, reportHeadline, reportNote, unheardWork, waitingLine, withNewsQuieted, workingMembers } from "../coordination.js";
 import { activityChanges, threadActivity, threadChanges, type ThreadChange } from "../thread-activity.js";
 import { cancelPause, heldByLimit } from "../limit-pauses.js";
 import { announced } from "../notices.js";
-import { updateThread, type ActiveRun } from "../thread-run-state.js";
+import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import type { PairedComputer } from "../computers.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import type { AppCommand } from "../../contracts/commands.js";
-import { canJoinCoordinator, coordinatorOf, decisionsFull, waitingOnUser, endsAsStopped, isCoordinator, MAX_ANSWER, nextStepOf, openDecisions, remoteLeadOf, reopenedIfStuck, threadModelOf, undelegable, withAnswer, withCoordinationNote, withDecision, withMemoryChange, worksUnderCoordinator, type CoordinationNote, type MemoryChange } from "../../domain/coordination.js";
+import { canJoinCoordinator, coordinatorOf, decisionsFull, waitingOnUser, isCoordinator, MAX_ANSWER, nextStepOf, openDecisions, remoteLeadOf, reopenedIfStuck, threadModelOf, undelegable, withAnswer, withCoordinationNote, withDecision, withMemoryChange, worksUnderCoordinator, type CoordinationNote, type MemoryChange } from "../../domain/coordination.js";
 import { defaultEffortFor, effortForModel, engineForModel, modelDelegable, modelHasEffort, modelTakesEffort } from "../../domain/agent-engine.js";
 import type { CaughtStart, RemoteStop, Thread } from "../../domain/thread.js";
 import { dismissed } from "../../domain/attention.js";
 import { resumesOnItsOwn } from "../../domain/usage-limit.js";
-import { runOutcome } from "../../domain/thread-run.js";
 
 type CoordinationInput = Extract<WorkspaceInput, {
   type: "task.set-coordinator" | "task.set-lead-away" | "task.resolve" | "task.reopen" | "decision.answer" | "coordination.set-thread-model" | "coordination.set-muted" | "coordination.stop-all" | "coordination.reported" | "coordination.decision-raised"
@@ -295,24 +294,6 @@ function remembered(state: WorkspaceState, taskId: string, change: MemoryChange,
   if ("error" in changed) return rejected(state, changed.error);
   if (changed.thread === lead) return settled(state);
   return settled(updateThread(state, lead.id, () => ({ ...changed.thread, updatedAt: at })));
-}
-
-/**
- * A thread's turn ending is news for its coordinator. A thread waiting out a session limit carries on
- * by itself, so its turn has not ended unless the user keeps it from carrying on.
- */
-export function noteTurnEnded(state: WorkspaceState, taskId: string, status: "succeeded" | "failed" | "cancelled", run: Pick<ActiveRun, "runId" | "answersStop" | "usersOwn">): WorkspaceState {
-  /**
-   * A run Stop all cancelled is heard, but never wakes its coordinator by itself once it has stopped,
-   * as one on a paired computer is; nor does the turn the agent opened itself to answer the stop,
-   * nor a turn of the user's own.
-   */
-  const stopped = state.quietStops.includes(run.runId);
-  const quiet = run.answersStop === true || stopped && endsAsStopped(runOutcome(status) ?? undefined) || endsUsersTurn(run, status);
-  const ended = stopped ? { ...state, quietStops: state.quietStops.filter((id) => id !== run.runId) } : state;
-  const thread = ended.threads.find((item) => item.id === taskId);
-  if (!thread || (thread.limitPause && resumesOnItsOwn(thread.limitPause))) return ended;
-  return withTurnHeard(ended, thread, status, now(), { quiet });
 }
 
 /**

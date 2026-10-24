@@ -1,12 +1,11 @@
 /** A run's life: the checkout it resolves to, what it reports, and how it ends. */
 import { ack } from "./automations.js";
-import { noteTurnEnded } from "./coordination.js";
 import { withProposalFailure } from "./proposals.js";
 import { coordinatedStart, withSuggestionStarted } from "./coordinated-start.js";
 import { readDiffFrom, rereadReviewsOf } from "./diff-reads.js";
 import { handOverDraftDock } from "./dock-tabs.js";
 import { WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
-import { beginRun, cancellingRun, clearedDraft, drainQueue, queuedFor, resolveWorkspaceEffect, sideChannelFor, startRunCommand, stoppingProcess, threadBusy, withAttendedRun, withDeliveredMessage, withPending, withQueued, withSideChat, withSteeringFailure, withUnsent, withoutPending } from "./run-queue.js";
+import { beginRun, cancellingRun, clearedDraft, queuedFor, resolveWorkspaceEffect, sideChannelFor, startRunCommand, stoppingProcess, threadBusy, withAttendedRun, withDeliveredMessage, withPending, withQueued, withSideChat, withSteeringFailure, withUnsent, withoutPending } from "./run-queue.js";
 import { followUps, now, settled, targetId, rejected } from "./shared.js";
 import { memberPullRequestRead } from "./pull-requests.js";
 import { withUsedWorktree } from "./worktree-claims.js";
@@ -16,9 +15,10 @@ import { threadTitleFor } from "../attachments.js";
 import { fileTitle } from "../files.js";
 import { announced, postedHeadline, waitingHeadline, type NoticeReason } from "../notices.js";
 import { pasteTitle } from "../pastes.js";
-import { outcomeFor, settledHeadline, whyRunSurfaces, withSettledTick, withVerdict, type RunSurfacing } from "../run-testimony.js";
+import { settledHeadline, type RunSurfacing } from "../run-testimony.js";
+import { settledEvent, settledTurn, settleTurn, type Settlement } from "../run-settlement.js";
 import { nextSortIndex } from "../thread-order.js";
-import { answerPartId, applyRunEvent, applyThreadEvent, ATTENDED_RUN, threadMark, updateThread, type ActiveRun, type ThreadMark } from "../thread-run-state.js";
+import { answerPartId, applyRunEvent, applyThreadEvent, ATTENDED_RUN, threadMark, updateThread, type ActiveRun } from "../thread-run-state.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, threadWorkspaceRoot, worktreeById, worktreeFor } from "../thread-location.js";
 import { DRAFT_DOCK, type PendingRun, type WorkspaceState } from "../workspace-state.js";
 import type { CreatedWorktree, RunEvent } from "../../contracts/ipc.js";
@@ -26,8 +26,7 @@ import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel, eng
 import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
 import { createConversationMessage, createSentMessage } from "../../domain/conversation.js";
 import { appendMessages } from "../../domain/conversation-updates.js";
-import { limitReached, pausedForLimit } from "../limit-pauses.js";
-import { isCoordinator, reopenedIfStuck, worksUnderCoordinator } from "../../domain/coordination.js";
+import { isCoordinator, worksUnderCoordinator } from "../../domain/coordination.js";
 import { clampTitle, type Thread } from "../../domain/thread.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
 
@@ -130,8 +129,9 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       const opened = opening ? beginRun(state, reported.taskId, reported.runId, ATTENDED_RUN, undefined, "agent") : state;
       const active = opened.activeRuns[reported.taskId];
       if (!active || reported.runId !== active.runId || reported.sequence <= active.sequence) return settled(state);
-      const stopping = beingStopped(opened, active);
-      const event = stopping ? stoppedBeforeLimit(reported) : reported;
+      /** Settled before the run is applied: a terminal status takes the run, and its provenance, away. */
+      const ending = turnEnding(opened, active, reported);
+      const event = ending && reported.type === "run.status" ? settledEvent(reported, ending) : reported;
       const applied = applyRunEvent(opened, event);
       if (event.type === "assistant.delta") {
         const thread = applied.threads.find((item) => item.id === event.taskId);
@@ -142,26 +142,15 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
           root: threadWorkspaceRoot(applied, thread) ?? "", messageId,
         }] : []);
       }
-      const terminal = event.type === "run.status" && (event.status === "succeeded" || event.status === "failed" || event.status === "cancelled");
-      if (active.operation === "compact" && terminal) {
-        const restored = restoreCompactionTestimony(applied, event.taskId, active.before);
-        /** Compacting is not a turn, so it is no news for a coordinator. */
-        return drainQueue(restored, event.taskId, event.status);
-      }
-      const outcome = outcomeFor(event);
-      /** Read before the run is applied: a terminal status takes the run, and its provenance, away. */
-      const surfacing = whyRunSurfaces(active, event);
-      const unseen = surfacing === null;
-      /** Every settled run leaves its verdict; a tick that looked and found nothing leaves none, and leaves the thread where it was. */
-      let next = outcome && !unseen ? withVerdict(applied, event.taskId, outcome) : applied;
-      if (outcome) next = withSettledTick(next, event.taskId, active, surfacing);
-      if (event.type === "computer-use.setup-required") next = { ...next, computerUseSetup: true };
+      /** Compacting is not a turn, so it is no news for a coordinator. */
+      if (ending?.restoresTestimony) return settledTurn(applied, event.taskId, ending, active, now());
+      let next = event.type === "computer-use.setup-required" ? { ...applied, computerUseSetup: true } : applied;
       const noticed = next.threads.find((thread) => thread.id === event.taskId);
-      const notice = noticed ? runNotice(noticed, active, event, surfacing) : null;
+      const notice = noticed ? runNotice(noticed, active, event, ending?.surfacing ?? null) : null;
       const said = noticed && notice ? announced(next, noticed, notice.headline, notice.reason) : [];
       if (event.type === "queued.delivered") next = withDeliveredMessage(next, event.taskId, event.messageId);
       if (event.type === "queued.steer-failed") next = withSteeringFailure(next, event.taskId, event.messageId, event.message);
-      const finished = event.type === "run.status" && (event.status === "succeeded" || event.status === "failed");
+      const finished = ending?.status === "succeeded" || ending?.status === "failed";
       const workspaceId = threadWorkspaceId(state, state.threads.find((thread) => thread.id === event.taskId));
       /** A review the thread has open is only as current as the run that was writing under it. */
       const settledDiff = finished && workspaceId ? rereadReviewsOf(next, event.taskId, workspaceId) : settled(next);
@@ -172,17 +161,9 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       const environment: WorkspaceEffect[] = finished && workspaceId
         ? [{ type: "refresh-environment", workspaceId, taskId: event.taskId, runId: event.runId, followUp: true }, ...settledDiff.effects, ...reread ? [{ ...reread.effect, followUp: true as const }] : []]
         : [];
-      if (event.type !== "run.status" || event.status === "running" || event.status === "awaiting-approval") return settled(next, [...environment, ...said]);
-      const moved = settleMoveAfterRun(next, event.taskId, event.status);
-      next = moved.state;
-      /** A run being stopped stays ended, even when a usage limit got to it first, which still holds its engine's waiting threads. */
-      const limit = reported.type === "run.status" && reported.status === "failed" ? reported.limit : undefined;
-      if (limit) next = stopping ? limitReached(next, event.taskId, limit) : pausedForLimit(next, event.taskId, limit, now());
-      /** A turn that still ends failed once a session limit has had its say left the thread stuck, so it is open again. */
-      if (event.status === "failed") next = updateThread(next, event.taskId, (thread) => thread.runEndedAs === "failed" ? reopenedIfStuck(thread) : thread);
-      /** A scheduled run that earned its silence put its thread back as if it never ran, so its coordinator hears nothing of it, here as from a paired computer. */
-      const heard = unseen ? next : noteTurnEnded(next, event.taskId, event.status, active);
-      const drained = drainQueue(heard, event.taskId, event.status);
+      if (!ending) return settled(next, [...environment, ...said]);
+      const moved = settleMoveAfterRun(next, event.taskId, ending.status);
+      const drained = settledTurn(moved.state, event.taskId, ending, active, now());
       return settled(drained.state, [...environment, ...said, ...moved.effects, ...drained.effects]);
     }
 
@@ -194,21 +175,20 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
   }
 }
 
-/** Whether a run is on its way to ending as stopped: one the user or Stop all asked to end, or the agent's own answer to Stop all. */
-function beingStopped(state: WorkspaceState, active: ActiveRun): boolean {
-  return active.cancelling === true || state.quietStops.includes(active.runId) || active.answersStop === true;
-}
-
 /**
- * How a run being stopped ended. One a session limit got to first ends as the stop asked rather than
- * waiting in line to carry on by itself, as one already waiting when the stop came does, so it is
- * heard as that stop and its queue is handed back. A weekly limit waits for the user either way, so
- * it is said as the failure it is.
+ * How a run's turn ends, if this event ends it. A run the user or Stop all asked to end is being
+ * stopped, however it ends first; Stop all's stop is the one it is heard as.
  */
-function stoppedBeforeLimit(event: RunEvent): RunEvent {
-  if (event.type !== "run.status" || event.status !== "failed" || event.limit?.window !== "session") return event;
-  const { limit: _waited, message: _said, ...stopped } = event;
-  return { ...stopped, status: "cancelled" };
+function turnEnding(state: WorkspaceState, active: ActiveRun, event: RunEvent): Settlement | null {
+  if (event.type !== "run.status" || event.status === "running" || event.status === "awaiting-approval") return null;
+  const stop = state.quietStops.includes(active.runId) ? "stop-all" as const : active.cancelling ? "user" as const : undefined;
+  return settleTurn({
+    status: event.status,
+    ...(event.message === undefined ? {} : { message: event.message }),
+    ...(event.limit ? { limit: event.limit } : {}),
+    run: active,
+    ...(stop ? { stop } : {}),
+  });
 }
 
 /**
@@ -263,18 +243,6 @@ function turnPullRequestRead(state: WorkspaceState, taskId: string) {
   const thread = state.threads.find((item) => item.id === taskId);
   if (!thread || !worksUnderCoordinator(state.threads, thread)) return null;
   return thread.brief?.delivers === "pull-request" || thread.pullRequest ? memberPullRequestRead(state, thread) : null;
-}
-
-/** Compaction updates the transcript, but it does not replace how the last thread run ended, its verdict, nor its report. */
-function restoreCompactionTestimony(state: WorkspaceState, taskId: string, before: ThreadMark) {
-  return updateThread(state, taskId, ({ outcome: _outcome, outcomeUnread: _unread, runEndedAt: _ended, runEndedAs: _endedAs, ...thread }) => ({
-    ...thread,
-    ...(before.runEndedAs === undefined ? {} : { runEndedAs: before.runEndedAs }),
-    ...(before.outcome === undefined ? {} : { outcome: before.outcome }),
-    ...(before.outcomeUnread ? { outcomeUnread: true as const } : {}),
-    ...(before.runEndedAt === undefined ? {} : { runEndedAt: before.runEndedAt }),
-    ...(before.report ? { report: before.report } : {}),
-  }));
 }
 
 function startCompaction(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord): WorkspaceTransition {

@@ -4,10 +4,11 @@
  */
 import type { RunEvent } from "../contracts/ipc.js";
 import type { FindingReport } from "../contracts/threads.js";
-import { isNews, withClosedIssues, withFinding } from "../domain/attention.js";
-import { runOutcome, type ThreadOutcome } from "../domain/thread-run.js";
+import { isNews, withFinding } from "../domain/attention.js";
+import type { RunStatus } from "../domain/run.js";
+import type { ThreadOutcome } from "../domain/thread-run.js";
 import { threadOnScreen, type ScreenState } from "./thread-attention.js";
-import { updateThread, withdrawRun, type ActiveRun, type RunTransitionState } from "./thread-run-state.js";
+import { updateThread, type ActiveRun, type RunTransitionState } from "./thread-run-state.js";
 
 /**
  * The verdict a settled turn leaves its thread, which is what ranks it. Only a thread the user was
@@ -17,11 +18,6 @@ import { updateThread, withdrawRun, type ActiveRun, type RunTransitionState } fr
 export function withVerdict<T extends RunTransitionState & ScreenState>(state: T, taskId: string, outcome: ThreadOutcome): T {
   const unread = threadOnScreen(state, taskId) ? {} : { outcomeUnread: true as const };
   return updateThread(state, taskId, (thread) => thread.archivedAt !== undefined ? thread : { ...thread, outcome, ...unread });
-}
-
-/** Every run that ends leaves a verdict, including the one the user stopped: it still waits on them. */
-export function outcomeFor(event: RunEvent): ThreadOutcome | null {
-  return event.type === "run.status" ? runOutcome(event.status) : null;
 }
 
 /** The run a scheduled tick is executing, and nothing else. Silence is only ever a schedule's to earn. */
@@ -63,13 +59,12 @@ export function withNothingToReport<T extends RunTransitionState>(state: T, task
 export type RunSurfacing = "failed" | "cancelled" | "attended" | "loud" | "reported" | "no-answer";
 
 /** How the run left off. Only a run that reached an end of its own finished or failed. */
-function howRunEnded(event: RunEvent): "finished" | "failed" | "cancelled" {
-  if (event.type !== "run.status") return "cancelled";
-  return event.status === "succeeded" ? "finished" : event.status === "failed" ? "failed" : "cancelled";
+function howRunEnded(status: RunStatus | undefined): "finished" | "failed" | "cancelled" {
+  return status === "succeeded" ? "finished" : status === "failed" ? "failed" : "cancelled";
 }
 
 /** What the run said for itself. Only a quiet scheduled run that answered and raised nothing is silent. */
-function whatRunSaid(active: ActiveRun): "attended" | "loud" | "reported" | "no-answer" | null {
+function whatRunSaid(active: Pick<ActiveRun, "origin" | "quiet" | "acknowledged" | "notified">): "attended" | "loud" | "reported" | "no-answer" | null {
   if (active.origin !== "automation") return "attended";
   if (!active.quiet) return "loud";
   if (!active.acknowledged) return "no-answer";
@@ -81,8 +76,14 @@ function whatRunSaid(active: ActiveRun): "attended" | "loud" | "reported" | "no-
  * a scheduled quiet run that succeeded and answered for itself without raising anything new.
  */
 export function whyRunSurfaces(active: ActiveRun, event: RunEvent): RunSurfacing | null {
-  const ending = howRunEnded(event);
-  return ending === "finished" ? whatRunSaid(active) : ending;
+  return whyTurnSurfaces(active, event.type === "run.status" ? event.status : undefined);
+}
+
+/** Why a turn ending with this status reaches the user. One that ends with no run behind it was the user's own. */
+export function whyTurnSurfaces(run: Pick<ActiveRun, "origin" | "quiet" | "acknowledged" | "notified"> | undefined, status: RunStatus | undefined): RunSurfacing | null {
+  const ending = howRunEnded(status);
+  if (ending !== "finished") return ending;
+  return run ? whatRunSaid(run) : "attended";
 }
 
 /**
@@ -92,20 +93,4 @@ export function whyRunSurfaces(active: ActiveRun, event: RunEvent): RunSurfacing
 export function settledHeadline(surfacing: RunSurfacing | null, message?: string): string | null {
   if (surfacing === "failed") return message?.trim() || "The run failed.";
   return surfacing === "attended" ? "The run finished." : null;
-}
-
-/**
- * What a settling run leaves on its thread besides a verdict: a run that surfaced nothing puts the
- * thread back where it found it, and a scheduled run that finished looking closes the filed-away
- * issues it no longer reports.
- */
-export function withSettledTick<T extends RunTransitionState>(state: T, taskId: string, active: ActiveRun, surfacing: RunSurfacing | null): T {
-  const unseen = surfacing === null;
-  const finished = surfacing !== "failed" && surfacing !== "cancelled";
-  const closing = finished && active.origin === "automation" && active.acknowledged;
-  if (!unseen && !closing) return state;
-  return updateThread(state, taskId, (thread) => {
-    const settled = unseen ? withdrawRun(thread, active.messagesBefore, active.before) : thread;
-    return closing ? withClosedIssues(settled, active.reportedIssues) : settled;
-  });
 }

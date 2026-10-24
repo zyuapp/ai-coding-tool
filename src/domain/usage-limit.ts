@@ -67,7 +67,7 @@ export function withoutLimitPause(thread: Thread): Thread {
 }
 
 /** Whether the thread resumes on its own once its limit lifts. A weekly limit waits for the user. */
-export function resumesOnItsOwn(pause: LimitPause) {
+export function resumesOnItsOwn(pause: Pick<UsageLimit, "window">) {
   return pause.window === "session";
 }
 

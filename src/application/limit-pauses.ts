@@ -2,40 +2,13 @@
 import { drainQueue, queuedFor, resolveWorkspaceEffect, withQueued } from "./workspace-reducer/run-queue.js";
 import { now, settled } from "./workspace-reducer/shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
-import { withTurnHeard } from "./coordination.js";
-import { withVerdict } from "./run-testimony.js";
+import { settledTurn, settleTurn } from "./run-settlement.js";
 import { updateThread, withTurnEnded } from "./thread-run-state.js";
 import { leavingThreadIds, projectFor, worktreeFor } from "./thread-location.js";
 import type { PendingRun, QueuedMessage, WorkspaceState } from "./workspace-state.js";
 import type { AgentEngine } from "../domain/agent-engine.js";
 import type { Thread } from "../domain/thread.js";
-import { limitLines, resumePrompt, resumesOnItsOwn, withEngineLimit, withoutLimitPause, type HeldMessage, type LimitPause, type UsageLimit } from "../domain/usage-limit.js";
-
-/**
- * Puts a thread whose run hit the limit in line. A session limit lifts on its own, so the failure is
- * not news, nor the end of its turn; a weekly one waits for the user and keeps its verdict to say so.
- */
-export function pausedForLimit(state: WorkspaceState, taskId: string, limit: UsageLimit, at: number): WorkspaceState {
-  const thread = state.threads.find((item) => item.id === taskId);
-  if (!thread) return state;
-  const workflow = (state.workflows[taskId] ?? []).some((item) => item.status === "stopped");
-  const pause: LimitPause = { ...limit, pausedAt: at, ...(workflow ? { workflow: true as const } : {}) };
-  return updateThread(limitReached(state, taskId, limit), taskId, (item) => {
-    if (pause.window === "weekly") return { ...item, limitPause: pause };
-    const { outcome: _expected, outcomeUnread: _unread, runEndedAs: _carriedOn, ...rest } = item;
-    return { ...rest, limitPause: pause };
-  });
-}
-
-/**
- * A limit one thread's run reached, which is its account's, so every thread of its engine already
- * waiting waits for it too, whether or not that thread itself waits in line.
- */
-export function limitReached(state: WorkspaceState, taskId: string, limit: UsageLimit): WorkspaceState {
-  const thread = state.threads.find((item) => item.id === taskId);
-  const threads = thread ? withEngineLimit(state.threads, thread.engine, limit) : state.threads;
-  return threads === state.threads ? state : { ...state, threads };
-}
+import { limitLines, resumePrompt, resumesOnItsOwn, withoutLimitPause, type HeldMessage } from "../domain/usage-limit.js";
 
 /**
  * Whether a message to this thread waits with it. One that resumes on its own waits for its turn in
@@ -83,23 +56,15 @@ export function resumeThread(state: WorkspaceState, taskId: string): WorkspaceTr
 
 /**
  * Takes a thread out of line, handing anything written to it while it waited back to the composer.
- * One that would have carried on by itself has its turn end here instead.
+ * One that would have carried on by itself has its turn end here instead, as a run the user stops
+ * does: it reads as stopped, and its coordinator hears so in the same words.
  */
 export function cancelPause(state: WorkspaceState, taskId: string): WorkspaceTransition {
   const thread = state.threads.find((item) => item.id === taskId);
   if (!thread?.limitPause) return settled(state);
   const lifted = updateThread(state, taskId, withoutLimitPause);
-  return drainQueue(resumesOnItsOwn(thread.limitPause) ? stoppedInLine(lifted, taskId) : lifted, taskId, "cancelled");
-}
-
-/**
- * A thread kept from carrying on after a session limit ends its turn as a run the user stops does:
- * it reads as stopped, and its coordinator hears so in the same words. A thread already filed away
- * is past ranking, so it is left no verdict.
- */
-function stoppedInLine(state: WorkspaceState, taskId: string): WorkspaceState {
-  const stopped = withVerdict(withTurnEnded(state, taskId, "cancelled"), taskId, "stopped");
-  return withTurnHeard(stopped, stopped.threads.find((thread) => thread.id === taskId)!, "cancelled", now());
+  if (!resumesOnItsOwn(thread.limitPause)) return drainQueue(lifted, taskId, "cancelled");
+  return settledTurn(withTurnEnded(lifted, taskId, "cancelled"), taskId, settleTurn({ status: "cancelled", stop: "user" }), undefined, now());
 }
 
 /** An engine's line moves one thread at a time: the next waits until the one before has answered once. */

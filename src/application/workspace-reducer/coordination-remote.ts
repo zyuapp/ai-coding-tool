@@ -3,10 +3,11 @@ import { catching, proposalLanded } from "./proposals.js";
 import { now, settled } from "./shared.js";
 import { answersInTime } from "./run-queue.js";
 import type { WorkspaceEffect, WorkspaceTransition } from "./types.js";
-import { coordinationMembers, coordinationNote, decisionHeadline, decisionNote, endsUsersTurn, leadAwayThreads, remotelyLedThreads, reportHeadline, reportNote, turnNote } from "../coordination.js";
+import { coordinationMembers, coordinationNote, decisionHeadline, decisionNote, leadAwayThreads, remotelyLedThreads, reportHeadline, reportNote, turnNote } from "../coordination.js";
 import type { ThreadChange } from "../thread-activity.js";
 import { announced, waitingHeadline } from "../notices.js";
 import { settledHeadline } from "../run-testimony.js";
+import { endsQuietly } from "../run-settlement.js";
 import { updateThread, type ActiveRun } from "../thread-run-state.js";
 import { lastWorkingIds, MAX_DISCARDED_LEADS, type PairedComputer } from "../computers.js";
 import { viewPreferences } from "../view-preferences.js";
@@ -239,10 +240,11 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
     /** So is one a start Stop all caught on its way stopped as it landed, unless it finished or failed before that. */
     const caught = landed !== undefined;
     const ending = lastRunOutcome(member);
-    const quiet = answered || (caught || stop !== undefined) && endsAsStopped(ending);
-    const status = quiet && !answered || ending === "stopped" ? "cancelled" : ending === "failed" ? "failed" : "succeeded";
+    const stopAll = caught || stop !== undefined;
+    const stopped = !answered && stopAll && endsAsStopped(ending);
+    const status = stopped || ending === "stopped" ? "cancelled" : ending === "failed" ? "failed" : "succeeded";
     /** A turn of the user's own there is heard with the next wake, as one here is. */
-    notes.push(turnNote(member, status, at, { quiet: quiet || endsUsersTurn(ran, status) }));
+    notes.push(turnNote(member, status, at, { quiet: endsQuietly({ status, stop: stopAll ? "stop-all" : undefined, answersStop: answered, usersOwn: ran?.usersOwn }) }));
     /**
      * Said as a run here would say it: a failure in the words that computer left on the thread, and a
      * finish only for a run someone started, so one this computer never saw go speaks only if it failed.
