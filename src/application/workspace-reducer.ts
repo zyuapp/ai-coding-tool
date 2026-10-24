@@ -19,8 +19,8 @@ import { slotShortcutIndex, type ShortcutSurface } from "../domain/shortcuts.js"
 import { defaultEffortFor, defaultModelFor, effortForModel, effortsFor } from "../domain/agent-engine.js";
 import { effortRoleOf } from "../domain/coordination.js";
 
-export type { WorkspaceCommandResult, WorkspaceEffect, WorkspaceEvent, WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
-export { WORKSPACE_ERRORS } from "./workspace-reducer/errors.js";
+export type { CoordinationAnswer, WorkspaceCommandResult, WorkspaceEffect, WorkspaceEvent, WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
+export { coordinatorAskRefusal, WORKSPACE_ERRORS } from "./workspace-reducer/errors.js";
 export { AUTOMATION_PANEL, DIFF_PANEL, OVERVIEW_PANEL, WORKFLOW_PANEL } from "./workspace-state.js";
 
 /**

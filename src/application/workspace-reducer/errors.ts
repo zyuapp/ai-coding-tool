@@ -1,4 +1,8 @@
 /** The refusals the workspace reports, and the names the renderer knows them by. */
+import { isCoordinator, MAX_OPEN_DECISIONS } from "../../domain/coordination.js";
+import type { Thread } from "../../domain/thread.js";
+import type { ThreadRole } from "../../domain/thread-role.js";
+import type { WorktreeDestination } from "../../domain/worktree.js";
 
 const REOPEN_PROJECT_ERROR = "Reopen this project folder before running a task.";
 const SAME_PROJECT_ERROR = "Choose the same project folder to continue this task.";
@@ -17,6 +21,27 @@ export const ARCHIVED_SEND_ERROR = "This thread is archived, so only the user ca
 export const WORKTREE_COORDINATOR_ERROR = "A coordinator stays in its project's checkout, since it changes nothing itself. Start a thread with start_thread and worktree: true to do the work in a worktree.";
 export const COORDINATOR_ROLE_ERROR = "A coordinator keeps its role until the user changes it from the thread menu.";
 export const WORKTREE_COORDINATOR_ROLE_ERROR = "A coordinator stays in its project's checkout, since it changes nothing itself, and this thread works in a worktree. Start a coordinator with start_thread and role \"coordinator\" instead.";
+
+/**
+ * What no thread asks of a coordinator, here or on a paired computer: a coordinator does no work itself,
+ * so none moves one into a worktree, takes its role away, or makes one in a worktree, or getting one,
+ * a coordinator. The user still can, from the thread's menu.
+ */
+export function coordinatorAskRefusal(
+  subject: Thread,
+  ask: { type: "task.move-worktree"; destination: WorktreeDestination } | { type: "task.set-role"; role: ThreadRole | null },
+  creatingWorktree: boolean,
+): string | undefined {
+  if (ask.type === "task.move-worktree") return ask.destination.kind !== "local" && isCoordinator(subject) ? WORKTREE_COORDINATOR_ERROR : undefined;
+  if (ask.role !== "coordinator") return subject.role === "coordinator" ? COORDINATOR_ROLE_ERROR : undefined;
+  return subject.worktreeId !== undefined || creatingWorktree ? WORKTREE_COORDINATOR_ROLE_ERROR : undefined;
+}
+
+/** What a thread's own report, decision or memory change is told when nothing was recorded. */
+export const NO_COORDINATOR = "This thread works under no coordinator, so there is no one to report to and nothing was recorded. Say it in your reply instead.";
+export const OUTSIDE_COORDINATION = "Only a coordinator and the threads working under it can raise decisions, so nothing was recorded. Ask the user in your reply instead.";
+export const DECISIONS_FULL = `This thread already has ${MAX_OPEN_DECISIONS} decisions waiting on the user, so this one was not raised. Wait for their answers, or ask in your reply instead.`;
+export const NO_MEMORY = "Only a coordinator keeps a memory.";
 
 export const CHECKOUT_RUNNING_ERROR = "Stop the threads running in this project before starting one on another branch.";
 export const SWITCH_RUNNING_ERROR = "Stop the threads running in this checkout before switching it to another branch.";

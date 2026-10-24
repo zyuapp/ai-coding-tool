@@ -1,6 +1,5 @@
 import type { TaskCommand } from "../../contracts/commands.js";
 import { createConversationMessage, createFailureMessage } from "../../domain/conversation.js";
-import { isCoordinator } from "../../domain/coordination.js";
 import { originFields } from "../../domain/message-origin.js";
 import type { RunStatus } from "../../domain/run.js";
 import type { Thread } from "../../domain/thread.js";
@@ -11,7 +10,7 @@ import { isWorking } from "../thread-activity.js";
 import type { QueuedMessage, WorkspaceState } from "../workspace-state.js";
 import { rereadDiff } from "./diff-reads.js";
 import { drainQueue, queuedFor, withQueued } from "./run-queue.js";
-import { WORKTREE_COORDINATOR_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_PROJECT_ERROR, WORKTREE_RELEASING_ERROR, WORKTREE_RUNNING_ERROR } from "./errors.js";
+import { coordinatorAskRefusal, WORKTREE_CREATING_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_PROJECT_ERROR, WORKTREE_RELEASING_ERROR, WORKTREE_RUNNING_ERROR } from "./errors.js";
 import { now, settled, targetId, rejected } from "./shared.js";
 import { withCreatingWorktree } from "./worktree-claims.js";
 import type { WorkspaceTransition } from "./types.js";
@@ -69,11 +68,6 @@ export function withFollowUp(state: WorkspaceState, taskId: string, then: string
   return withQueued(state, taskId, [followUp, ...queuedFor(state, taskId)]);
 }
 
-/** A coordinator does no work itself, so no thread moves it into a worktree; the user can still move it from the thread menu. */
-function movesCoordinatorAway(thread: Thread, destination: WorktreeDestination) {
-  return destination.kind !== "local" && isCoordinator(thread);
-}
-
 function withoutMoveAfterRun(state: WorkspaceState, taskId: string): WorkspaceState {
   if (!state.movesAfterRun[taskId]) return state;
   const { [taskId]: _settled, ...movesAfterRun } = state.movesAfterRun;
@@ -89,7 +83,8 @@ export function reduceWorktreeMove(state: WorkspaceState, input: Extract<TaskCom
   if (leavingThreadIds(state).has(thread.id)) return rejected(state, WORKTREE_RELEASING_ERROR);
   const destination = input.destination;
   /** A thread asked: this one moving itself, or one on another computer that the link names. */
-  if ((input.afterRun || input.sender) && movesCoordinatorAway(thread, destination)) return rejected(state, WORKTREE_COORDINATOR_ERROR);
+  const refusal = (input.afterRun || input.sender) && coordinatorAskRefusal(thread, input, false);
+  if (refusal) return rejected(state, refusal);
   const target = destination.kind === "new" ? undefined : arrival(state, thread, project.id, destination);
   if (typeof target === "string") return rejected(state, target);
   /** Asking for where the thread already is takes back a move it was waiting to make. */
@@ -122,8 +117,9 @@ export function settleMoveAfterRun(state: WorkspaceState, taskId: string, status
   const thread = rest.threads.find((item) => item.id === taskId);
   const project = projectFor(rest, thread);
   if (!thread || thread.archivedAt !== undefined) return settled(rest);
+  const refusal = coordinatorAskRefusal(thread, { type: "task.move-worktree", destination }, false);
   const target = !project?.workspaceId ? WORKTREE_PROJECT_ERROR
-    : movesCoordinatorAway(thread, destination) ? WORKTREE_COORDINATOR_ERROR
+    : refusal ? refusal
     : leavingThreadIds(rest).has(taskId) ? WORKTREE_RELEASING_ERROR
     : destination.kind === "new" ? undefined
     : arrival(rest, thread, project.id, destination);

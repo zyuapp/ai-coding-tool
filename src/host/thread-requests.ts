@@ -1,4 +1,4 @@
-import { browserPermissions, WORKSPACE_ERRORS } from "../application/workspace-reducer.js";
+import { browserPermissions, coordinatorAskRefusal, type CoordinationAnswer } from "../application/workspace-reducer.js";
 import type { MoveAfterRun } from "../domain/worktree.js";
 import { browserTarget, dockFor, dockOwner, terminalTarget, type WorkspaceState } from "../application/workspace-state.js";
 import { threadSummary, threadWaitResult } from "../application/thread-projection.js";
@@ -13,11 +13,10 @@ import { isOneShotSchedule } from "../domain/automation.js";
 import { scheduledRun } from "../application/run-testimony.js";
 import type { WorkspaceInput } from "../application/workspace-reducer.js";
 import type { WorkspaceExecution } from "../application/workspace-execution.js";
-import type { AppCommand } from "../contracts/commands.js";
 import type { ExternalCommand, FindingReport, FindingResult, ThreadCommandResult, ThreadRequest, ThreadResponse, ThreadTranscript } from "../contracts/threads.js";
 import { REMOTE_UNSUPPORTED } from "../contracts/computer-capabilities.js";
 import { terminalLineLimit } from "../domain/terminal.js";
-import { coordinatorOf, decisionsFull, isCoordinator, MAX_OPEN_DECISIONS, MAX_PROPOSALS, withMemoryChange, worksUnderCoordinator, type CoordinationState, type DecisionRequest, type MemoryChange, type ProposalRequest, type ThreadProposal } from "../domain/coordination.js";
+import { coordinatorOf, isCoordinator, MAX_PROPOSALS, type CoordinationState, type DecisionRequest, type MemoryChange, type ProposalRequest, type ThreadProposal } from "../domain/coordination.js";
 import { errorMessage } from "./errors.js";
 import type { RuntimeDesktop } from "./runtime-desktop.js";
 
@@ -38,7 +37,7 @@ export type ThreadRequestHost = {
   state: () => WorkspaceState;
   desktop: Pick<RuntimeDesktop, "configureBrowserPermissions" | "captureBrowserPage" | "inspectBrowserPage" | "readBrowserPage" | "readTerminal" | "queryComputerThreads">;
   dispatch: (input: WorkspaceInput) => Promise<void> | void;
-  execute: (command: AppCommand) => WorkspaceExecution;
+  execute: (input: WorkspaceInput) => WorkspaceExecution;
   waiters: ThreadWaiterList;
 };
 
@@ -168,22 +167,11 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
       : undefined;
     if (command.type === "task.move-worktree" && command.then !== undefined && !ownMove) return failed(MOVE_FOLLOW_UP_ERROR);
     const named = ownMove ?? (target ? { ...command, taskId: target.thread.id } as typeof command : command);
-    /**
-     * A coordinator does no work itself, so no thread puts one in a worktree, here or on a paired
-     * computer: none moves a coordinator into one, nor makes a thread there a coordinator. The user
-     * still can, from the thread's menu.
-     */
+    /** What no thread asks of a coordinator is refused before it goes anywhere, here or on a paired computer. */
     const subject = target?.computer ? target.thread : before.threads.find((thread) => thread.id === named.taskId);
-    if (named.type === "task.move-worktree" && named.destination.kind !== "local" && isCoordinator(subject)) {
-      return failed(WORKSPACE_ERRORS.worktreeCoordinator);
-    }
-    /** Nor does any thread take a coordinator's role away, its own or another's, which would hand it back the tools that change things. */
-    if (named.type === "task.set-role" && named.role !== "coordinator" && subject?.role === "coordinator") {
-      return failed(WORKSPACE_ERRORS.coordinatorRole);
-    }
-    if (named.type === "task.set-role" && named.role === "coordinator" && subject && (subject.worktreeId !== undefined || !target?.computer && before.creatingWorktrees.includes(subject.id))) {
-      return failed(WORKSPACE_ERRORS.worktreeCoordinatorRole);
-    }
+    const refusal = subject && (named.type === "task.move-worktree" || named.type === "task.set-role")
+      && coordinatorAskRefusal(subject, named, !target?.computer && before.creatingWorktrees.includes(subject.id));
+    if (refusal) return failed(refusal);
     /** A new thread starts by the rules every start shares; a command for an existing thread goes where that thread is. */
     const start = named.type === "task.send" && named.taskId === undefined && caller
       ? newThreadSend(before, caller, named, request.computer === undefined ? undefined : namedComputer(before, request.computer))
@@ -365,57 +353,45 @@ function loudRunNote(state: WorkspaceState, threadId: string) {
   return "This automation has no quiet sentence, so every run of it surfaces, this one included.";
 }
 
-const NO_COORDINATOR = "This thread works under no coordinator, so there is no one to report to and nothing was recorded. Say it in your reply instead.";
+/**
+ * A thread's own report, decision or memory change, handed to the window, which answers with what it
+ * recorded or why it recorded nothing as of when it takes the request, whatever waited ahead of it.
+ */
+async function answered(host: ThreadRequestHost, input: Extract<WorkspaceInput, { type: "coordination.reported" | "coordination.decision-raised" | "coordination.remembered" }>): Promise<CoordinationAnswer> {
+  const execution = host.execute(input);
+  const accepted = await execution.accepted;
+  await execution.completed;
+  if (!accepted.ok) throw new Error(accepted.message);
+  return accepted.answer ?? { recorded: true };
+}
 
 /** A thread under a coordinator saying where its work stands. Its coordinator hears it when this turn ends. */
 async function reportToCoordinator(host: ThreadRequestHost, threadId: string, state: CoordinationState, summary: string): Promise<FindingResult> {
-  const thread = host.state().threads.find((item) => item.id === threadId);
-  if (!worksUnderCoordinator(host.state().threads, thread)) return { recorded: false, note: NO_COORDINATOR };
-  await host.dispatch({ type: "coordination.reported", taskId: threadId, state, summary });
+  const answer = await answered(host, { type: "coordination.reported", taskId: threadId, state, summary });
+  if (!answer.recorded) return { recorded: false, note: answer.reason };
   if (state === "working") return { recorded: true, note: "Noted. Progress is not passed on; report again when you are blocked, done, or failed." };
   return { recorded: true, note: "Reported. Your coordinator hears it when this turn ends." };
 }
 
-const OUTSIDE_COORDINATION = "Only a coordinator and the threads working under it can raise decisions, so nothing was recorded. Ask the user in your reply instead.";
-const DECISIONS_FULL = `This thread already has ${MAX_OPEN_DECISIONS} decisions waiting on the user, so this one was not raised. Wait for their answers, or ask in your reply instead.`;
-
 /** Puts a choice to the user. Only a coordinator and the threads under it have somewhere to show one. */
 async function raiseDecision(host: ThreadRequestHost, threadId: string, request: DecisionRequest): Promise<FindingResult> {
-  const threads = host.state().threads;
-  const thread = threads.find((item) => item.id === threadId);
-  if (!thread || !isCoordinator(thread) && !worksUnderCoordinator(threads, thread)) return { recorded: false, note: OUTSIDE_COORDINATION };
-  if (decisionsFull(thread)) return { recorded: false, note: DECISIONS_FULL };
-  const decisionId = crypto.randomUUID();
-  await host.dispatch({ type: "coordination.decision-raised", taskId: threadId, request, decisionId });
-  /**
-   * Read back after the fact: a request waiting behind another can find the thread full, or out of
-   * coordination, by the time the window takes it, and the window then raises nothing.
-   */
-  const after = host.state().threads.find((item) => item.id === threadId);
-  if (!after?.decisions?.some((decision) => decision.id === decisionId)) {
-    return { recorded: false, note: after && decisionsFull(after) ? DECISIONS_FULL : OUTSIDE_COORDINATION };
-  }
+  const answer = await answered(host, { type: "coordination.decision-raised", taskId: threadId, request });
+  if (!answer.recorded) return { recorded: false, note: answer.reason };
   return { recorded: true, note: "Raised. The user sees it now, and their answer arrives in this thread as a message. If you cannot go on without it, end your turn." };
 }
 
 /** What a coordinator and every thread it starts from now on read, said back as the coordinator's tools answer. */
 const READ_FROM_NOW = "You and every thread you start from now on read it.";
 
-/**
- * A coordinator changing its own memory. The change is tried against the memory as it stands, so a
- * refusal answers the tool rather than reaching the user; once made, the saved note is read back.
- */
+/** A coordinator changing its own memory. A refusal answers the tool rather than reaching the user; once made, the saved note is read back. */
 async function rememberFor(host: ThreadRequestHost, threadId: string, change: MemoryChange): Promise<{ note: string }> {
-  const thread = host.state().threads.find((item) => item.id === threadId);
-  if (!thread || !isCoordinator(thread)) throw new Error("Only a coordinator keeps a memory.");
-  const tried = withMemoryChange(thread, change, Date.now(), { heard: true });
-  if ("error" in tried) throw new Error(tried.error);
-  await host.dispatch({ type: "coordination.remembered", taskId: threadId, change });
+  const answer = await answered(host, { type: "coordination.remembered", taskId: threadId, change });
+  if (!answer.recorded) throw new Error(answer.reason);
   const memory = host.state().threads.find((item) => item.id === threadId)?.memory;
   if (change.kind === "purpose") return { note: memory?.purpose ? `Purpose set. ${READ_FROM_NOW}` : "Purpose cleared." };
   if (change.kind === "forget") return { note: `Forgot [${change.noteId}].` };
-  /** The trial named the note the change adds, so a note that matches it only in text is never taken for it. */
-  const saved = memory?.notes.find((note) => note.id === tried.noteId);
+  /** The window named the note the change saved, so a note that matches it only in text is never taken for it. */
+  const saved = answer.noteId === undefined ? undefined : memory?.notes.find((note) => note.id === answer.noteId);
   if (!saved || saved.text !== change.text.trim()) throw new Error("The note could not be saved. Try again.");
   return { note: `Saved as [${saved.id}]. ${READ_FROM_NOW}` };
 }

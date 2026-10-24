@@ -2,7 +2,6 @@ import type { WorkspaceState } from "../application/workspace-state.js";
 import type { WorkspaceInput } from "../application/workspace-reducer.js";
 import type { WorkspaceExecution } from "../application/workspace-execution.js";
 import type { AgentEvent } from "../contracts/ipc.js";
-import type { AppCommand } from "../contracts/commands.js";
 import type { ThreadRequest } from "../contracts/threads.js";
 import type { PreparedThreadRequest } from "./thread-reads.js";
 import { errorMessage } from "./errors.js";
@@ -21,7 +20,7 @@ function shortly(flush: () => void) {
 export type RuntimeSubscriptionHost = {
   state: () => WorkspaceState;
   dispatch: (input: WorkspaceInput) => Promise<void>;
-  execute: (command: AppCommand) => WorkspaceExecution;
+  execute: (input: WorkspaceInput) => WorkspaceExecution;
   waiters: ThreadWaiterList;
   prepareThreadRequest: (request: ThreadRequest) => Promise<PreparedThreadRequest | void>;
   desktop: RuntimeDesktop;

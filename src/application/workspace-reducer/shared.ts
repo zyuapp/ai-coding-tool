@@ -26,6 +26,16 @@ export function rejected(state: WorkspaceState, message: string, effects: Worksp
   return { state: { ...state, actionError: message }, effects, result: { ok: false, message } };
 }
 
+/** A thread's own request turned down: nothing changes, the user is shown nothing, and the reason answers the thread. */
+export function declined(state: WorkspaceState, reason: string): WorkspaceTransition {
+  return settled(state, [], { ok: true, answer: { recorded: false, reason } });
+}
+
+/** A thread's own request carried out, answered with what was recorded. */
+export function recorded(transition: WorkspaceTransition, noteId?: string): WorkspaceTransition {
+  return { ...transition, result: { ok: true, answer: { recorded: true, ...(noteId ? { noteId } : {}) } } };
+}
+
 /** A named thread has to exist; an unnamed command falls back to the one the user is looking at. */
 export function targetId(state: WorkspaceState, taskId: string | undefined): string | null {
   if (taskId === undefined) return state.currentId;
