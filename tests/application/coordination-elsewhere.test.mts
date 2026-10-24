@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce, type WorkspaceInput, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
-import { deriveView, stateFromData, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { stateFromData } from "../../src/application/workspace-load.ts";
 import { coordinationContext, coordinationMembers, coordinationRole } from "../../src/application/coordination.ts";
 import { coordinationView } from "../../src/application/coordination-view.ts";
 import { sidebarLists } from "../../src/application/sidebar-lists.ts";

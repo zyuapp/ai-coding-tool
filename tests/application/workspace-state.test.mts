@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import { deriveView, emptyWorkspaceState, withStoreData, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { withStoreData } from "../../src/application/workspace-load.ts";
 import type { ConversationMessage } from "../../src/domain/conversation.ts";
 import type { Thread } from "../../src/domain/thread.ts";
 import type { Worktree } from "../../src/domain/worktree.ts";

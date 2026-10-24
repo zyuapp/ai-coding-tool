@@ -1,4 +1,5 @@
-import { emptyWorkspaceState, shownThreadTab, stateFromData, type WorkspaceState } from "../application/workspace-state.js";
+import { emptyWorkspaceState, shownThreadTab, type WorkspaceState } from "../application/workspace-state.js";
+import { stateFromData } from "../application/workspace-load.js";
 import { threadLists } from "../application/thread-activity.js";
 import { remoteUnreadCount } from "../application/computers.js";
 import { reduce, type WorkspaceInput } from "../application/workspace-reducer.js";

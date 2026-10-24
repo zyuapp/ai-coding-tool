@@ -3,7 +3,8 @@ import { discardedLeads } from "./coordination-remote.js";
 import { settled, rejected } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { viewPreferenceState } from "../view-preferences.js";
-import { dockFor, withStoreData, type WorkspaceState } from "../workspace-state.js";
+import { dockFor, type WorkspaceState } from "../workspace-state.js";
+import { withStoreData } from "../workspace-load.js";
 import { browserUrl, type BrowserTab } from "../../domain/browser.js";
 
 export const STORE_INPUTS = [

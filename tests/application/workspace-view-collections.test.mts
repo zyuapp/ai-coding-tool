@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { deriveView, stateFromData, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { stateFromData } from "../../src/application/workspace-load.ts";
 import { applyRunEvent } from "../../src/application/thread-run-state.ts";
 import type { Subagent } from "../../src/domain/run.ts";
 import { activeRun, automation, task, workspace } from "./workspace-reducer-fixtures.mts";
