@@ -130,6 +130,16 @@ export function settledEvent(event: Extract<RunEvent, { type: "run.status" }>, s
  */
 export function withSettledTurn(state: WorkspaceState, taskId: string, settlement: Settlement, run: ActiveRun | undefined, at: number): WorkspaceState {
   if (settlement.restoresTestimony) return run ? withRestoredTestimony(state, taskId, run.before) : state;
+  return withTurnAftermath(withTurnTestimony(state, taskId, settlement, run), taskId, settlement, run, at);
+}
+
+/**
+ * What the turn leaves on its own thread: its verdict, and for a tick, the run withdrawn or its
+ * filed-away issues closed. Anything the thread takes on after this, such as the move it asked to
+ * make, stays.
+ */
+export function withTurnTestimony(state: WorkspaceState, taskId: string, settlement: Settlement, run: ActiveRun | undefined): WorkspaceState {
+  if (settlement.restoresTestimony) return state;
   let next = settlement.verdict ? withVerdict(state, taskId, settlement.verdict) : state;
   if (run && (settlement.withdraws || settlement.closesIssues)) {
     next = updateThread(next, taskId, (thread) => {
@@ -137,6 +147,17 @@ export function withSettledTurn(state: WorkspaceState, taskId: string, settlemen
       return settlement.closesIssues ? withClosedIssues(withdrawn, run.reportedIssues) : withdrawn;
     });
   }
+  return next;
+}
+
+/** Takes up the thread's queue once its testimony is already left, as the turn's end says. */
+export function settledAfterTestimony(state: WorkspaceState, taskId: string, settlement: Settlement, run: ActiveRun | undefined, at: number): WorkspaceTransition {
+  return drainQueue(withTurnAftermath(state, taskId, settlement, run, at), taskId, settlement.queue);
+}
+
+/** What follows from the turn's end beyond its testimony: its usage limit, a reopening, Stop all's answer, and its coordinator. */
+function withTurnAftermath(state: WorkspaceState, taskId: string, settlement: Settlement, run: ActiveRun | undefined, at: number): WorkspaceState {
+  let next = state;
   if (settlement.limit) next = settlement.limit.waits ? pausedForLimit(next, taskId, settlement.limit.reached, settlement.runEndedAs === null, at) : limitReached(next, taskId, settlement.limit.reached);
   if (settlement.reopens) next = updateThread(next, taskId, reopenedIfStuck);
   if (settlement.answersStopAll && run) next = withRunAnswered(next, run.runId);

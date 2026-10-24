@@ -17,7 +17,7 @@ import { announced, postedHeadline, waitingHeadline, type NoticeReason } from ".
 import { pasteTitle } from "../pastes.js";
 import { settledHeadline, type RunSurfacing } from "../run-testimony.js";
 import { stopIntentOf } from "../outstanding-stops.js";
-import { settledEvent, settledTurn, settleTurn, type Settlement } from "../run-settlement.js";
+import { settledAfterTestimony, settledEvent, settledTurn, settleTurn, withTurnTestimony, type Settlement } from "../run-settlement.js";
 import { nextSortIndex } from "../thread-order.js";
 import { answerPartId, applyRunEvent, applyThreadEvent, ATTENDED_RUN, threadMark, updateThread, type ActiveRun } from "../thread-run-state.js";
 import { threadBusy, threadToBegin } from "../run-record.js";
@@ -147,7 +147,8 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       }
       /** Compacting is not a turn, so it is no news for a coordinator. */
       if (ending?.restoresTestimony) return settledTurn(applied, event.taskId, ending, active, now());
-      let next = event.type === "computer-use.setup-required" ? { ...applied, computerUseSetup: true } : applied;
+      const testified = ending ? withTurnTestimony(applied, event.taskId, ending, active) : applied;
+      let next = event.type === "computer-use.setup-required" ? { ...testified, computerUseSetup: true } : testified;
       const noticed = next.threads.find((thread) => thread.id === event.taskId);
       const notice = noticed ? runNotice(noticed, active, event, ending?.surfacing ?? null) : null;
       const said = noticed && notice ? announced(next, noticed, notice.headline, notice.reason) : [];
@@ -166,7 +167,7 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
         : [];
       if (!ending) return settled(next, [...environment, ...said]);
       const moved = settleMoveAfterRun(next, event.taskId, ending.status);
-      const drained = settledTurn(moved.state, event.taskId, ending, active, now());
+      const drained = settledAfterTestimony(moved.state, event.taskId, ending, active, now());
       return settled(drained.state, [...environment, ...said, ...moved.effects, ...drained.effects]);
     }
 

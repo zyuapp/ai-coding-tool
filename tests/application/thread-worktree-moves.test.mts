@@ -324,3 +324,23 @@ test("the move menu finds a checkout by the id or folder the thread tools report
     assert.deepEqual(required(deriveView(searched).worktreeMenu).destinations.map((item) => item.id), ["wt2"], query);
   }
 });
+
+test("a quiet tick that earned its silence still shows the move it made, or why it did not move", () => {
+  const ticking = fixture();
+  ticking.activeRuns.caller = activeRun("caller", "run-1", { origin: "automation", quiet: true, acknowledged: true });
+  const waiting = reduce(ticking, { type: "task.move-worktree", taskId: "caller", destination: toWt2, afterRun: true }).state;
+
+  const moved = required(reduce(waiting, succeeded).state.threads.find((item) => item.id === "caller"));
+  assert.equal(moved.worktreeId, "wt2");
+  const note = required(moved.messages.at(-1));
+  assert.equal(note.text, "Moved to Payment fix. Existing file changes stay in the previous checkout.");
+  assert.equal(note.withdrawn, undefined);
+  assert.notEqual(moved.updatedAt, 1, "the move is the thread's latest activity");
+
+  const refused = required(reduce({ ...waiting, deletingWorktrees: [heldWorktree("wt2").root] }, succeeded).state.threads.find((item) => item.id === "caller"));
+  assert.equal(refused.worktreeId, "wt1");
+  const failure = required(refused.messages.at(-1));
+  assert.match(failure.text, /^Did not move\./);
+  assert.equal(failure.withdrawn, undefined);
+  assert.notEqual(refused.updatedAt, 1);
+});
