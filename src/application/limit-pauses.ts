@@ -35,7 +35,7 @@ export function resumeThread(state: WorkspaceState, taskId: string): WorkspaceTr
   if (!thread || !pause || threadBusy(state, taskId)) return settled(state);
   const lifted = updateThread(state, taskId, withoutLimitPause);
   const [written, ...rest] = queuedFor(lifted, taskId);
-  if (written) return drainQueue(withQueued(lifted, taskId, [{ ...written, prompt: resumePrompt(pause, written.prompt) }, ...rest]), taskId, "succeeded", true);
+  if (written) return drainQueue(withQueued(lifted, taskId, [{ ...written, prompt: resumePrompt(pause, written.prompt) }, ...rest]), taskId, "resume");
   const project = projectFor(lifted, thread);
   const pending: PendingRun = {
     id: crypto.randomUUID(),
@@ -64,7 +64,7 @@ export function cancelPause(state: WorkspaceState, taskId: string): WorkspaceTra
   const thread = state.threads.find((item) => item.id === taskId);
   if (!thread?.limitPause) return settled(state);
   const lifted = updateThread(state, taskId, withoutLimitPause);
-  if (!resumesOnItsOwn(thread.limitPause)) return drainQueue(lifted, taskId, "cancelled");
+  if (!resumesOnItsOwn(thread.limitPause)) return drainQueue(lifted, taskId, "hand-back");
   return settledTurn(withTurnEnded(lifted, taskId, "cancelled"), taskId, settleTurn({ status: "cancelled", stop: "user" }), undefined, now());
 }
 

@@ -98,7 +98,7 @@ export function reduceWorktreeMove(state: WorkspaceState, input: Extract<TaskCom
   if (destination.kind === "new") return moveToNewWorktree(staying, thread, project.id, input.then);
   const moved = relocateThread({ ...staying, actionError: null }, thread, target);
   if (!input.then) return moved;
-  const drained = drainQueue(withFollowUp(moved.state, thread.id, input.then), thread.id, "succeeded");
+  const drained = drainQueue(withFollowUp(moved.state, thread.id, input.then), thread.id, "deliver");
   return { state: drained.state, effects: [...moved.effects, ...drained.effects] };
 }
 

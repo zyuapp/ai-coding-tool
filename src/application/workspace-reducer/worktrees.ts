@@ -140,7 +140,7 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
         if (thread.projectId !== worktree.projectId) return settled(next, [{ type: "list-worktrees" }]);
         const moved = relocateThread(next, thread, worktree);
         /** What the thread said it goes on with, then what was queued behind the run that asked to move, starts here. */
-        const drained = drainQueue(withFollowUp(moved.state, thread.id, input.then), thread.id, "succeeded");
+        const drained = drainQueue(withFollowUp(moved.state, thread.id, input.then), thread.id, "deliver");
         return { state: drained.state, effects: [...moved.effects, { type: "list-worktrees" }, ...drained.effects] };
       }
       const note = createConversationMessage("system", `Moved into a worktree at ${worktree.root}`, `Detached at ${worktree.baseCommit.slice(0, 7)}`);
@@ -154,7 +154,7 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
 
     case "worktree.failed": {
       /** A thread that never moved runs what it had queued where it already is. */
-      const drained = drainQueue(withoutCreatingWorktree(state, input.taskId), input.taskId, "succeeded");
+      const drained = drainQueue(withoutCreatingWorktree(state, input.taskId), input.taskId, "deliver");
       return rejected(drained.state, input.message, drained.effects);
     }
 

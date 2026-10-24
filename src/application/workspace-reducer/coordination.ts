@@ -233,7 +233,7 @@ function stopAll(state: WorkspaceState, leadId: string): WorkspaceTransition {
     const without = withUnsent(next.state, start);
     next = { ...next, state: coordination?.proposalId ? withProposalFailure(without, lead.id, coordination.proposalId, undefined) : without };
     /** What the user queued behind it goes back to its composer, as any stop hands it back. */
-    if (taskId && !next.state.activeRuns[taskId]) next = followedBy(next, drainQueue(next.state, taskId, "cancelled"));
+    if (taskId && !next.state.activeRuns[taskId]) next = followedBy(next, drainQueue(next.state, taskId, "hand-back"));
   }
   return next;
 }

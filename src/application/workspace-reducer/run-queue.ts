@@ -14,9 +14,9 @@ import type { ClaudeRunSettings, StartRunCommand } from "../../contracts/ipc.js"
 import { withoutOutcome } from "../../domain/attention.js";
 import { coordinationRole, GROUP_OF, undeliveredNote } from "../coordination.js";
 import { withTurnBegun } from "../outstanding-stops.js";
+import { QUEUED_NOT_YOURS, QUEUED_SENT } from "../computers.js";
 import { isCoordinator, withCoordinationNote, withoutAnswer, withoutReport } from "../../domain/coordination.js";
 import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel } from "../../domain/agent-engine.js";
-import type { RunStatus } from "../../domain/run.js";
 import { createSentMessage, type Annotation, type AttachedFile, type PastedText, type RunAttachment } from "../../domain/conversation.js";
 import type { Project } from "../../domain/project.js";
 import { isUsersOwn, legacyOrigin } from "../../domain/message-origin.js";
@@ -280,6 +280,16 @@ export function stoppingProcess(state: WorkspaceState, taskId: string, processId
 }
 
 /**
+ * The queued message the user may take back into the composer to rewrite, or why not: a steered one
+ * is already on its way to the agent, and only the user's own messages are theirs to rewrite.
+ */
+export function editableQueued(queued: readonly QueuedMessage[], messageId: string): { message: QueuedMessage } | { refusal: string } {
+  const message = queued.find((item) => item.id === messageId);
+  if (!message || message.steering) return { refusal: QUEUED_SENT };
+  return isUsersOwn(message) ? { message } : { refusal: QUEUED_NOT_YOURS };
+}
+
+/**
  * Queued messages put back in the thread's composer, ahead of whatever is drafted there, with
  * everything they carry. The caller has already taken them out of the queue.
  */
@@ -311,16 +321,23 @@ export function withUndelivered(state: WorkspaceState, taskId: string, messages:
 }
 
 /**
+ * What becomes of a thread's queue: its next message goes, goes as the run that takes the thread
+ * out of its usage limit's line and warms up before the next thread in line goes, or what the user
+ * wrote is handed back to the composer.
+ */
+export type QueueIntent = "deliver" | "resume" | "hand-back";
+
+/**
  * A finished run hands its queue on one message at a time, so each queued message gets its own run
  * and the ones behind it wait for that run to finish. A run the user stopped, or whose thread they
  * archived, hands what they wrote back to the composer instead of speaking for them, and nothing
  * else queued is delivered.
  */
-export function drainQueue(state: WorkspaceState, taskId: string, status: RunStatus, warming = false): WorkspaceTransition {
+export function drainQueue(state: WorkspaceState, taskId: string, intent: QueueIntent): WorkspaceTransition {
   const queued = queuedFor(state, taskId);
   if (!queued.length) return settled(state);
   const thread = state.threads.find((item) => item.id === taskId);
-  if (status === "cancelled" || thread?.archivedAt !== undefined) {
+  if (intent === "hand-back" || thread?.archivedAt !== undefined) {
     const own = queued.filter(isUsersOwn);
     const left = withUndelivered(withQueued(state, taskId, []), taskId, queued.filter((message) => !isUsersOwn(message)));
     return own.length ? handedBack(left, taskId, own) : settled(left);
@@ -350,7 +367,7 @@ export function drainQueue(state: WorkspaceState, taskId: string, status: RunSta
     ...(next.answers ? { answers: next.answers } : {}),
     ...(next.usersOwn ? { usersOwn: true as const } : {}),
     queuedIds: [next.id],
-    ...(warming ? { warming: true as const } : {}),
+    ...(intent === "resume" ? { warming: true as const } : {}),
   };
   return settled(withPending(state, pending), [resolveWorkspaceEffect(pending.id, thread, project, worktreeFor(state, thread), false)]);
 }

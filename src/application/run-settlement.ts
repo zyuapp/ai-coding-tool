@@ -4,7 +4,7 @@
  * coordinator hears. Every way a turn ends, a run settling, a wait the user cancels, the app quitting
  * under it, or compacting, is settled here.
  */
-import { drainQueue } from "./workspace-reducer/run-queue.js";
+import { drainQueue, type QueueIntent } from "./workspace-reducer/run-queue.js";
 import type { WorkspaceTransition } from "./workspace-reducer/types.js";
 import { withNewsQuieted } from "./coordination.js";
 import { withFactsHeard } from "./member-facts.js";
@@ -34,8 +34,10 @@ export type TurnEnd = {
 };
 
 export type Settlement = {
-  /** How the turn is taken to have ended, which its queue and its moves go by: a cancelled one hands its queue back. */
+  /** How the turn is taken to have ended, which its moves go by. */
   status: TurnStatus;
+  /** What becomes of its queue: the next message goes, or a cancelled turn hands it back. */
+  queue: Extract<QueueIntent, "deliver" | "hand-back">;
   /** The failure the turn ends with, in the engine's words. */
   message?: string;
   /** Why the turn reaches the user, or null when it earned its silence. */
@@ -88,8 +90,9 @@ export function settleTurn(end: TurnEnd): Settlement {
   const status: TurnStatus = stoppedFirst ? "cancelled" : end.status;
   const message = stoppedFirst ? undefined : end.message;
   const ended = runOutcome(status);
+  const queue = status === "cancelled" ? "hand-back" : "deliver";
   if (end.run?.operation === "compact") {
-    return { status, ...(message === undefined ? {} : { message }), surfacing: null, verdict: null, runEndedAs: ended, restoresTestimony: true, withdraws: false, closesIssues: false, limit: null, reopens: false, heard: null, answersStopAll: false, hushesNews: false };
+    return { status, queue, ...(message === undefined ? {} : { message }), surfacing: null, verdict: null, runEndedAs: ended, restoresTestimony: true, withdraws: false, closesIssues: false, limit: null, reopens: false, heard: null, answersStopAll: false, hushesNews: false };
   }
   const surfacing = whyTurnSurfaces(end.run, status);
   const unseen = surfacing === null;
@@ -98,6 +101,7 @@ export function settleTurn(end: TurnEnd): Settlement {
   const finished = surfacing !== "failed" && surfacing !== "cancelled";
   return {
     status,
+    queue,
     ...(message === undefined ? {} : { message }),
     surfacing,
     verdict: unseen || carriesOn ? null : ended,
@@ -142,9 +146,9 @@ export function withSettledTurn(state: WorkspaceState, taskId: string, settlemen
   return next;
 }
 
-/** Applies a settlement and takes up the thread's queue as the turn's end says: the next message goes, or a stopped turn hands it back. */
+/** Applies a settlement and takes up the thread's queue as the turn's end says. */
 export function settledTurn(state: WorkspaceState, taskId: string, settlement: Settlement, run: ActiveRun | undefined, at: number): WorkspaceTransition {
-  return drainQueue(withSettledTurn(state, taskId, settlement, run, at), taskId, settlement.status);
+  return drainQueue(withSettledTurn(state, taskId, settlement, run, at), taskId, settlement.queue);
 }
 
 /**

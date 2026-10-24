@@ -1,6 +1,6 @@
 /** A send: the prompt the composer hands over, and the queue behind a run already going. */
 import { ARCHIVED_SEND_ERROR, CHECKOUT_RUNNING_ERROR, MISSING_PROJECT_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
-import { clearedDraft, fileThread, forkableContinuation, handedBack, queuedFor, resolveWorkspaceEffect, sentPrompt, sideChatPrompt, withAttendedRun, withPending, withQueued, withUndelivered } from "./run-queue.js";
+import { clearedDraft, editableQueued, fileThread, forkableContinuation, handedBack, queuedFor, resolveWorkspaceEffect, sentPrompt, sideChatPrompt, withAttendedRun, withPending, withQueued, withUndelivered } from "./run-queue.js";
 import { settled, targetId, rejected } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { annotationsFor, filesFor, focusComposer, focusedTab, pastesFor } from "../composer-drafts.js";
@@ -17,7 +17,7 @@ import { updateThread } from "../thread-run-state.js";
 import { runsInWorkspace } from "../run-record.js";
 import { coordinationSendOf, senderPrompt, type CoordinationSend } from "../coordination.js";
 import type { RemoteLead } from "../../domain/coordination.js";
-import { isUsersOwn, originFields, type MessageOrigin } from "../../domain/message-origin.js";
+import { originFields, type MessageOrigin } from "../../domain/message-origin.js";
 import { heldByLimit, nudged } from "../limit-pauses.js";
 
 type SendInput = Extract<WorkspaceInput, {
@@ -208,10 +208,10 @@ export function reduceSending(state: WorkspaceState, input: SendInput, coordinat
       const remote = state.computers.paired.length ? queueHolder(state, input.taskId) : null;
       const taskId = remote ? remote.taskId : targetId(state, input.taskId);
       const queued = !taskId ? [] : remote ? (remote.computer.state ? queuedFor(remote.computer.state, taskId) : []) : queuedFor(state, taskId);
-      const message = queued.find((item) => item.id === input.messageId);
-      if (!taskId || !message || message.steering || !isUsersOwn(message)) return settled(state);
-      const left = remote ? state : withQueued(state, taskId, queued.filter((item) => item.id !== message.id));
-      const handed = handedBack(left, taskId, [message]);
+      const edit = editableQueued(queued, input.messageId);
+      if (!taskId || "refusal" in edit) return settled(state);
+      const left = remote ? state : withQueued(state, taskId, queued.filter((item) => item.id !== edit.message.id));
+      const handed = handedBack(left, taskId, [edit.message]);
       const holder = tabHolderOf(handed.state, taskId);
       return { ...handed, state: holder ? focusedTab(handed.state, holder, taskId) : focusComposer(handed.state) };
     }
