@@ -6,14 +6,15 @@
  */
 import { drainQueue } from "./workspace-reducer/run-queue.js";
 import type { WorkspaceTransition } from "./workspace-reducer/types.js";
-import { turnNote, withNewsQuieted } from "./coordination.js";
+import { withNewsQuieted } from "./coordination.js";
+import { withFactsHeard } from "./member-facts.js";
 import { withRunAnswered } from "./outstanding-stops.js";
 import { whyTurnSurfaces, withVerdict, type RunSurfacing } from "./run-testimony.js";
 import { updateThread, withdrawRun, type ActiveRun, type ThreadMark } from "./thread-run-state.js";
 import type { WorkspaceState } from "./workspace-state.js";
 import type { RunEvent } from "../contracts/ipc.js";
 import { withClosedIssues } from "../domain/attention.js";
-import { coordinatorOf, endsAsStopped, isCoordinator, reopenedIfStuck, withCoordinationNote } from "../domain/coordination.js";
+import { coordinatorOf, endsAsStopped, isCoordinator, reopenedIfStuck } from "../domain/coordination.js";
 import { runOutcome, type ThreadOutcome } from "../domain/thread-run.js";
 import type { Thread } from "../domain/thread.js";
 import { resumesOnItsOwn, withEngineLimit, type LimitPause, type UsageLimit } from "../domain/usage-limit.js";
@@ -171,7 +172,7 @@ function pausedForLimit(state: WorkspaceState, taskId: string, limit: UsageLimit
 /** Its coordinator here hearing that a thread's turn ended. */
 function withTurnHeard(state: WorkspaceState, thread: Thread, status: TurnStatus, at: number, quiet: boolean): WorkspaceState {
   const lead = coordinatorOf(state.threads, thread);
-  return lead ? updateThread(state, lead.id, (item) => withCoordinationNote(item, turnNote(thread, status, at, { quiet }))) : state;
+  return lead ? withFactsHeard(state, lead, thread, [{ kind: "ended", status, quiet }], at).state : state;
 }
 
 /** Compaction updates the transcript, but it does not replace how the last thread run ended, its verdict, nor its report. */

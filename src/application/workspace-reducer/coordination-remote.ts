@@ -2,10 +2,9 @@
 import { proposalLanded } from "./proposals.js";
 import { now, settled } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceTransition } from "./types.js";
-import { coordinationMembers, coordinationNote, decisionHeadline, decisionNote, leadAwayThreads, remotelyLedThreads, reportHeadline, reportNote, turnNote } from "../coordination.js";
+import { coordinationMembers, leadAwayThreads, remotelyLedThreads } from "../coordination.js";
 import type { ThreadChange } from "../thread-activity.js";
-import { announced, waitingHeadline } from "../notices.js";
-import { settledHeadline } from "../run-testimony.js";
+import { heardFacts, type MemberFact } from "../member-facts.js";
 import { endsQuietly } from "../run-settlement.js";
 import { catchesStart, remoteTurnStop, withStopsKept } from "../outstanding-stops.js";
 import { updateThread } from "../thread-run-state.js";
@@ -14,7 +13,7 @@ import { viewPreferences } from "../view-preferences.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import type { AppCommand } from "../../contracts/commands.js";
-import { endsAsStopped, isCoordinator, mayLeadElsewhere, openDecisions, withCoordinationNote, withRemoteHeard, type CoordinationNote } from "../../domain/coordination.js";
+import { endsAsStopped, isCoordinator, mayLeadElsewhere, openDecisions, withCoordinationNote, withRemoteHeard } from "../../domain/coordination.js";
 import { lastRunOutcome, threadCreatedAt, type HeardWork, type Thread } from "../../domain/thread.js";
 import { resumesOnItsOwn } from "../../domain/usage-limit.js";
 
@@ -140,27 +139,24 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
   const back = member.remoteLead!.backAt;
   const since = Math.max(heard ?? 0, back ?? 0);
   const at = now();
-  const notes: CoordinationNote[] = [];
-  const effects: WorkspaceEffect[] = [];
+  const facts: MemberFact[] = [];
   let newest = Math.max(heard ?? threadCreatedAt(member), back ?? 0);
   const run = holder.activeRuns[member.id];
   const ran = prior?.activeRuns[member.id];
-  if (heard === undefined && back === undefined) notes.push(coordinationNote(member.id, `"${member.title}" started on ${computer.name}.`, at, { quiet: true }));
+  if (heard === undefined && back === undefined) facts.push({ kind: "arrived", computer: computer.name });
   for (const decision of openDecisions(member)) {
     if (decision.raisedAt <= since) continue;
-    notes.push(decisionNote(member, decision, at, run?.runId));
-    effects.push(...announced(state, lead, decisionHeadline(decision), "decision"));
+    facts.push({ kind: "raised", decision, runId: run?.runId });
     newest = Math.max(newest, decision.raisedAt);
   }
   const report = member.report;
   if (report && report.at > since && report.state !== "working") {
-    notes.push(reportNote(member, report, at, run?.runId));
-    if (report.state !== "done") effects.push(...announced(state, member, reportHeadline(report), "blocked"));
+    facts.push({ kind: "reported", report, runId: run?.runId });
     newest = Math.max(newest, report.at);
   }
   for (const finding of member.findings ?? []) {
     if (finding.at <= since) continue;
-    effects.push(...announced(state, member, finding.headline, "finding"));
+    facts.push({ kind: "found", headline: finding.headline });
     newest = Math.max(newest, finding.at);
   }
   const endedAt = member.runEndedAt !== undefined && member.runEndedAt > since ? member.runEndedAt : undefined;
@@ -178,26 +174,30 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
     const ending = lastRunOutcome(member);
     const stopped = !answered && stopAll && endsAsStopped(ending);
     const status = stopped || ending === "stopped" ? "cancelled" : ending === "failed" ? "failed" : "succeeded";
-    /** A turn of the user's own there is heard with the next wake, as one here is. */
-    notes.push(turnNote(member, status, at, { quiet: endsQuietly({ status, stop: stopAll ? "stop-all" : undefined, answersStop: answered, usersOwn: ran?.usersOwn }) }));
     /**
      * Said as a run here would say it: a failure in the words that computer left on the thread, and a
      * finish only for a run someone started, so one this computer never saw go speaks only if it failed.
-     * One lost without a word has no finish to tell.
+     * One lost without a word has no finish to tell. A turn of the user's own there is heard with the
+     * next wake, as one here is.
      */
     const surfacing = status === "failed" ? "failed" : status === "succeeded" && ran && ran.origin !== "automation" && !lost ? "attended" : null;
     const failure = member.messages.at(-1);
-    const headline = settledHeadline(surfacing, failure?.kind === "system" && failure.tone === "error" ? failure.text : undefined);
-    if (headline) effects.push(...announced(state, member, headline, surfacing === "failed" ? "failed" : "finished"));
+    facts.push({
+      kind: "ended",
+      status,
+      quiet: endsQuietly({ status, stop: stopAll ? "stop-all" : undefined, answersStop: answered, usersOwn: ran?.usersOwn }),
+      tell: { surfacing, failure: failure?.kind === "system" && failure.tone === "error" ? failure.text : undefined },
+    });
     newest = Math.max(newest, endedAt ?? newest);
   }
   /** Waiting on the user is said as it starts, as it is of a thread here. */
   if (run?.origin === "composer" && computer.status === "connected") {
     const approval = run.status === "awaiting-approval" ? holder.approvals[run.runId] : undefined;
-    if (approval && (ran?.runId !== run.runId || ran.status !== "awaiting-approval")) effects.push(...announced(state, member, waitingHeadline(approval), "waiting"));
+    if (approval && (ran?.runId !== run.runId || ran.status !== "awaiting-approval")) facts.push({ kind: "waiting", on: approval });
     const question = run.questions?.[0];
-    if (question && !(ran?.runId === run.runId && ran.questions?.length)) effects.push(...announced(state, member, waitingHeadline(question), "waiting"));
+    if (question && !(ran?.runId === run.runId && ran.questions?.length)) facts.push({ kind: "waiting", on: question });
   }
+  const { notes, effects } = heardFacts(state, lead, member, facts, at);
   if (!notes.length && newest === heard && !spent) return { state, effects };
   /**
    * Never forgotten: a thread still under it there, and, while a paired computer has yet to say what

@@ -5,15 +5,16 @@ import { released, remoteNews } from "./coordination-remote.js";
 import { withProposalFailure } from "./proposals.js";
 import { now, rejected, settled, targetId } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { canResolve, checkoutAnswer, coordinatedThreadStatus, coordinationMembers, coordinationRole, coordinatorWork, coordinationUpdate, decisionHeadline, decisionNote, memberWorking, nextSteps, reportHeadline, reportNote, unheardWork, waitingLine, withNewsQuieted, workingMembers } from "../coordination.js";
+import { canResolve, checkoutAnswer, coordinatedThreadStatus, coordinationMembers, coordinationRole, coordinatorWork, coordinationUpdate, decisionHeadline, memberWorking, nextSteps, unheardWork, waitingLine, withNewsQuieted, workingMembers } from "../coordination.js";
 import { activityChanges, threadActivity, threadChanges, type ThreadChange } from "../thread-activity.js";
 import { cancelPause, heldByLimit } from "../limit-pauses.js";
+import { withFactsHeard } from "../member-facts.js";
 import { announced } from "../notices.js";
 import { withoutLapsedStops, withStopAll } from "../outstanding-stops.js";
 import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
-import { canJoinCoordinator, coordinatorOf, decisionsFull, waitingOnUser, isCoordinator, MAX_ANSWER, nextStepOf, openDecisions, remoteLeadOf, reopenedIfStuck, threadModelOf, undelegable, withAnswer, withCoordinationNote, withDecision, withMemoryChange, worksUnderCoordinator, type CoordinationNote, type MemoryChange } from "../../domain/coordination.js";
+import { canJoinCoordinator, coordinatorOf, decisionsFull, waitingOnUser, isCoordinator, MAX_ANSWER, nextStepOf, openDecisions, remoteLeadOf, reopenedIfStuck, threadModelOf, undelegable, withAnswer, withDecision, withMemoryChange, worksUnderCoordinator, type CoordinationNote, type MemoryChange } from "../../domain/coordination.js";
 import { defaultEffortFor, effortForModel, engineForModel, modelDelegable, modelHasEffort, modelTakesEffort } from "../../domain/agent-engine.js";
 import type { Thread } from "../../domain/thread.js";
 import { dismissed } from "../../domain/attention.js";
@@ -166,11 +167,9 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       if (!thread || !lead && !remoteLeadOf(thread)) return settled(state);
       const at = now();
       const reported = updateThread(state, thread.id, (item) => reopenedIfStuck({ ...item, report: { state: input.state, summary: input.summary, at } }));
-      if (!lead || input.state === "working") return settled(reported);
+      if (!lead) return settled(reported);
       const report = { state: input.state, summary: input.summary, at };
-      const noted = updateThread(reported, lead.id, (item) => withCoordinationNote(item, reportNote(thread, report, at, state.activeRuns[thread.id]?.runId)));
-      if (input.state === "done") return settled(noted);
-      return settled(noted, announced(noted, thread, reportHeadline(report), "blocked"));
+      return withFactsHeard(reported, lead, thread, [{ kind: "reported", report, runId: state.activeRuns[thread.id]?.runId }], at);
     }
 
     /**
@@ -193,8 +192,7 @@ export function reduceCoordination(state: WorkspaceState, input: CoordinationInp
       const raised = updateThread(state, thread.id, (item) => withDecision(item, decision));
       if (!lead) return settled(raised);
       if (lead === thread) return settled(raised, announced(raised, lead, decisionHeadline(decision), "decision"));
-      const noted = updateThread(raised, lead.id, (item) => withCoordinationNote(item, decisionNote(thread, decision, at, state.activeRuns[thread.id]?.runId)));
-      return settled(noted, announced(noted, lead, decisionHeadline(decision), "decision"));
+      return withFactsHeard(raised, lead, thread, [{ kind: "raised", decision, runId: state.activeRuns[thread.id]?.runId }], at);
     }
   }
 }
