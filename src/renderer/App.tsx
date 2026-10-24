@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback } from "react";
 import { CommandControlsProvider } from "./components/CommandControl";
-import { LuX as X } from "react-icons/lu";
+import { LuFocus as Focus, LuX as X } from "react-icons/lu";
 import { MessageLinkProvider } from "./components/MarkdownMessage";
 import { AttachmentViewer } from "./components/AttachmentViewer";
 import { DiagramViewerHost } from "./components/MermaidBlock";
@@ -22,6 +22,8 @@ import { attachDroppedFiles, imageSources } from "./dropped-files";
 import { useComposerFocusRecovery, useEscapeLayers, useLatestDispatch, useMessageLinks, useSubagentInspection } from "./app-shell";
 import { PartBoundary } from "./components/PartBoundary";
 import type { Thread } from "../domain/thread";
+import { displayShortcut } from "../domain/shortcuts";
+import { MAC } from "./platform";
 
 /** A thread on a computer holding no coordinators can be moved under none. */
 const NO_COORDINATORS: readonly Thread[] = [];
@@ -47,6 +49,23 @@ function HiddenThreadsNotice({ workspace }: { workspace: ReturnType<typeof useTa
       </button>
     </div>
   );
+}
+
+/** What zen mode leaves of the topbar: a strip to drag the window by, and the way back out. */
+function ZenTitlebar({ tip, onLeave }: { tip: string; onLeave: () => void }) {
+  return (
+    <div className="zen-titlebar">
+      <button className="session-toggle active" type="button" aria-label="Leave zen mode" data-tip={tip} onClick={onLeave}>
+        <Focus size={18} aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
+/** The keystroke zen mode is bound to, for the tooltips that offer it. */
+function zenTip(workspace: ReturnType<typeof useTaskWorkspace>, label: string) {
+  const binding = workspace.shortcuts.find((row) => row.id === "zen.toggle")?.binding;
+  return binding ? `${label} (${displayShortcut(binding, MAC)})` : label;
 }
 
 /** The error the last action ran into, with the settings page that clears it when there is one. */
@@ -171,7 +190,7 @@ export function App() {
         inert={settingsVisible}
         {...workspaceDrop.props}
       >
-        {workspace.zen ? <div className="zen-titlebar" aria-hidden="true" /> : <PartBoundary name="header" className={`topbar ${sidebarOpen ? "" : "traffic-inset"}`.trimEnd()} resetKey={shownKey}>
+        {workspace.zen ? <ZenTitlebar tip={zenTip(workspace, "Leave zen mode")} onLeave={() => void workspace.dispatch({ type: "view.set-zen", zen: false })} /> : <PartBoundary name="header" className={`topbar ${sidebarOpen ? "" : "traffic-inset"}`.trimEnd()} resetKey={shownKey}>
           <WorkspaceHeader
             currentThread={workspace.currentThread}
             folder={workspace.folder}
@@ -180,7 +199,7 @@ export function App() {
             sidebarOpen={sidebarOpen}
             sessionPanelOpen={sessionPanelVisible}
             rightDockOpen={rightDockOpen}
-            workingSubagents={workingSubagents}
+            workingSubagents={workingSubagents} zen={{ available: workspace.zenAvailable, tip: zenTip(workspace, "Zen mode"), onEnter: () => void workspace.dispatch({ type: "view.set-zen", zen: true }) }}
             openMenu={workspace.openMenu}
             canOpenFolder={Boolean(workspace.folder) && workspace.location?.kind !== "creating"}
             onSetOpenMenu={workspace.actions.setOpenMenu} apps={workspace.installedApps} onListApps={() => void workspace.actions.listApps()}

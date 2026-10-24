@@ -348,3 +348,9 @@ test("escape in zen mode still stops the run and leaves zen mode on", () => {
   const entered = reduce(workspace({ threads: [talked("task-a")], currentId: "task-a" }), zenKey).state;
   assert.equal(reduce(entered, { type: "view.escape" }).state.zen, true);
 });
+
+test("the header offers zen mode only on a thread with messages", () => {
+  assert.equal(deriveView(workspace({ threads: [talked("task-a")], currentId: "task-a" })).zenAvailable, true);
+  assert.equal(deriveView(workspace({ threads: [task("task-a")], currentId: "task-a" })).zenAvailable, false);
+  assert.equal(deriveView(workspace({ threads: [talked("task-a")], currentId: null })).zenAvailable, false);
+});

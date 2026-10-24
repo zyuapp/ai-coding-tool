@@ -376,6 +376,7 @@ test("workspace header keeps session summary and right panel controls separate",
   let sidebarToggles = 0;
   let summaryToggles = 0;
   let rightPanelToggles = 0;
+  let zenEntries = 0;
   const view = await mount(React.createElement(WorkspaceHeader, {
     currentThread: {
       id: "codex-thread", title: "Codex thread", engine: "codex", executionPolicy: "confirm", messages: [],
@@ -386,6 +387,7 @@ test("workspace header keeps session summary and right panel controls separate",
     sidebarOpen: false,
     sessionPanelOpen: true,
     rightDockOpen: true,
+    zen: { available: true, tip: "Zen mode (⌘⇧F)", onEnter: () => { zenEntries += 1; } },
     workingSubagents: 2,
     openMenu: null,
     canOpenFolder: true,
@@ -415,7 +417,10 @@ test("workspace header keeps session summary and right panel controls separate",
     query<HTMLButtonElement>(view.container, 'button[aria-label="Show sidebar"]').click();
     query<HTMLButtonElement>(view.container, 'button[aria-label="Hide session summary"]').click();
     query<HTMLButtonElement>(view.container, 'button[aria-label="Hide right panel"]').click();
+    query<HTMLButtonElement>(view.container, 'button[aria-label="Enter zen mode"]').click();
   });
+  assert.equal(query(view.container, 'button[aria-label="Enter zen mode"]').dataset.tip, "Zen mode (⌘⇧F)");
+  assert.equal(zenEntries, 1);
   assert.equal(sidebarToggles, 1);
   assert.equal(summaryToggles, 1);
   assert.equal(rightPanelToggles, 1);
@@ -563,13 +568,14 @@ test("the heading names the paired computer a thread lives on, ahead of its fold
     } satisfies Thread,
     folder: "/home/me/just-speak-linux",
     folderLabel: "just-speak-linux",
-    sidebarOpen: false, sessionPanelOpen: false, rightDockOpen: false, workingSubagents: 0, openMenu: null, canOpenFolder: true, apps: null,
+    sidebarOpen: false, sessionPanelOpen: false, rightDockOpen: false, zen: { available: false, tip: "Zen mode", onEnter: () => {} }, workingSubagents: 0, openMenu: null, canOpenFolder: true, apps: null,
     onListApps: () => {}, onSetOpenMenu: () => {}, onOpenInApp: () => {}, onRenameThread: () => {}, onForkThread: () => {}, onSetThreadRole: () => {}, onArchiveThread: () => {},
     coordinators: [], onSetCoordinator: () => {}, notifications: true, onSetMuted: () => {}, stoppable: false, onStopAll: () => {},
     onToggleSidebar: () => {}, onToggleSessionPanel: () => {}, onToggleRightDock: () => {},
   };
   const local = await mount(React.createElement(WorkspaceHeader, props));
   assert.equal(local.container.querySelector(".heading-host"), null, "a thread here carries no computer");
+  assert.equal(local.container.querySelector('button[aria-label="Enter zen mode"]'), null, "a thread without messages offers no zen mode");
   await local.unmount();
 
   const remote = await mount(React.createElement(WorkspaceHeader, { ...props, host: { name: "zyuapp", offline: false } }));

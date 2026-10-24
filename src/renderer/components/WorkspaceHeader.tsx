@@ -1,4 +1,4 @@
-import { LuPanelLeft as PanelLeft, LuPanelRight as PanelRight, LuSlidersHorizontal as SlidersHorizontal } from "react-icons/lu";
+import { LuFocus as Focus, LuPanelLeft as PanelLeft, LuPanelRight as PanelRight, LuSlidersHorizontal as SlidersHorizontal } from "react-icons/lu";
 import type { InstalledApp } from "../../contracts/ipc";
 import type { Thread } from "../../domain/thread";
 import { HostMark } from "./HostMark";
@@ -18,6 +18,8 @@ export type WorkspaceHeaderProps = {
   sidebarOpen: boolean;
   sessionPanelOpen: boolean;
   rightDockOpen: boolean;
+  /** Zen mode, offered only on a thread with messages; `tip` names its keystroke. */
+  zen: { available: boolean; tip: string; onEnter: () => void };
   workingSubagents: number;
   openMenu: string | null;
   /** False while the thread has no checkout to hand over, such as a worktree still being made. */
@@ -93,7 +95,7 @@ function ThreadHeading({ currentThread, folder, folderLabel, host, openMenu, onS
   );
 }
 
-export function WorkspaceHeader({ currentThread, folder, folderLabel, host, sidebarOpen, sessionPanelOpen, rightDockOpen, workingSubagents, openMenu, canOpenFolder, apps, onListApps, onSetOpenMenu, onOpenInApp, onRenameThread, onForkThread, onArchiveThread, onSetThreadRole, coordinators, onSetCoordinator, notifications, onSetMuted, stoppable, onStopAll, onToggleSidebar, onToggleSessionPanel, onToggleRightDock }: WorkspaceHeaderProps) {
+export function WorkspaceHeader({ currentThread, folder, folderLabel, host, sidebarOpen, sessionPanelOpen, rightDockOpen, zen, workingSubagents, openMenu, canOpenFolder, apps, onListApps, onSetOpenMenu, onOpenInApp, onRenameThread, onForkThread, onArchiveThread, onSetThreadRole, coordinators, onSetCoordinator, notifications, onSetMuted, stoppable, onStopAll, onToggleSidebar, onToggleSessionPanel, onToggleRightDock }: WorkspaceHeaderProps) {
   return (
     <header className={`topbar ${sidebarOpen ? "" : "traffic-inset"}`.trimEnd()}>
       <div className="task-heading">
@@ -131,6 +133,11 @@ export function WorkspaceHeader({ currentThread, folder, folderLabel, host, side
       </div>
       <div className="workspace-controls">
         <OpenInMenu openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} enabled={canOpenFolder} apps={apps} onListApps={onListApps} onOpenInApp={onOpenInApp} />
+        {zen.available && (
+          <button className="session-toggle" type="button" aria-label="Enter zen mode" data-tip={zen.tip} onClick={zen.onEnter}>
+            <Focus size={18} aria-hidden="true" />
+          </button>
+        )}
         <button
           className={`session-toggle ${sessionPanelOpen ? "active" : ""}`}
           type="button"

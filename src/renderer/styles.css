@@ -941,7 +941,9 @@ button, select { color: inherit; }
   grid-row: 1;
 }
 /** Zen mode keeps the topbar's row empty, so the window still drags by its top edge. */
-.zen-titlebar { grid-column: 1; grid-row: 1; -webkit-app-region: drag; }
+.zen-titlebar { display: flex; align-items: center; justify-content: flex-end; padding: 0 22px; grid-column: 1; grid-row: 1; -webkit-app-region: drag; }
+.zen-titlebar .session-toggle { opacity: 0.5; transition: opacity 160ms ease; }
+.zen-titlebar:hover .session-toggle, .zen-titlebar .session-toggle:focus-visible { opacity: 1; }
 /** Without the sidebar the topbar owns the window edge, so it starts clear of the traffic lights. */
 .topbar.traffic-inset { padding-left: max(22px, var(--window-controls-inset)); }
 .workspace-controls { display: flex; align-items: center; gap: 4px; }
