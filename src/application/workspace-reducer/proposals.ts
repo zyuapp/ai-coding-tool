@@ -14,7 +14,8 @@ import type { AppCommand } from "../../contracts/commands.js";
 import { coordinatorOf, isCoordinator, withCoordinationNote, withoutProposals, withProposalCarried, withProposalError, withProposals, type ThreadProposal } from "../../domain/coordination.js";
 import type { Thread } from "../../domain/thread.js";
 
-type ProposalInput = Extract<WorkspaceInput, { type: "coordination.proposed" | "proposal.start" | "proposal.dismiss" | "proposal.settled" }>;
+export const PROPOSAL_INPUTS = ["coordination.proposed", "proposal.start", "proposal.dismiss", "proposal.settled"] as const;
+type ProposalInput = Extract<WorkspaceInput, { type: (typeof PROPOSAL_INPUTS)[number] }>;
 
 const ASKER_GONE = "The thread that asked for this no longer works under this coordinator.";
 

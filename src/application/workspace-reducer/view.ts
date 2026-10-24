@@ -22,13 +22,12 @@ function sameFindResults(held: FindResults | null, reported: FindResults): boole
   return held !== null && held.matches === reported.matches && held.index === reported.index && held.counting === reported.counting;
 }
 
-type ViewInput = Extract<WorkspaceInput, {
-  type: "view.set-menu" | "view.go-back" | "view.go-forward" | "view.set-focused" | "view.dock-keys"
-    | "view.find-open" | "view.find-query" | "view.find-step" | "view.find-close" | "find.results"
-    | "view.jump-open" | "view.jump-query" | "view.jump-step" | "view.jump-choose"
-    | "view.jump-choose-setting" | "view.jump-close" | "view.set-zen"
-    | "view.dismiss-computer-use-setup";
-}>;
+export const VIEW_INPUTS = [
+  "view.set-menu", "view.go-back", "view.go-forward", "view.set-focused", "view.dock-keys", "view.find-open", "view.find-query", "view.find-step",
+  "view.find-close", "find.results", "view.jump-open", "view.jump-query", "view.jump-step", "view.jump-choose", "view.jump-choose-setting",
+  "view.jump-close", "view.set-zen", "view.dismiss-computer-use-setup"
+] as const;
+type ViewInput = Extract<WorkspaceInput, { type: (typeof VIEW_INPUTS)[number] }>;
 
 export function reduceView(state: WorkspaceState, input: ViewInput): WorkspaceTransition {
   switch (input.type) {

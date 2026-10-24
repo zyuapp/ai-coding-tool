@@ -32,7 +32,12 @@ export type ProjectAddEffect =
   | { type: "add-project"; root: string; request?: number; start?: true }
   | { type: "project-add.directories"; prefix: string; computerId: string; request: number }
   | { type: "project-add.pick"; request: number };
-type Input = Extract<AppCommand, { type: "project.open" | "project.add" | `view.add-project-${string}` }> | ProjectAddEvent;
+export const PROJECT_ADD_INPUTS = [
+  "project.open", "project.add", "project.added", "project.add-finished", "project.directories", "project.path-picked",
+  "view.add-project-close", "view.add-project-device", "view.add-project-path", "view.add-project-pick", "view.add-project-submit",
+  "view.add-project-key", "view.add-project-accept"
+] as const;
+type Input = Extract<AppCommand, { type: (typeof PROJECT_ADD_INPUTS)[number] }> | ProjectAddEvent;
 
 function changed(state: WorkspaceState, add: ProjectAddState, query = true): WorkspaceTransition {
   const request = state.projectAddSequence + 1;

@@ -13,10 +13,11 @@ import { automationRunPrompt, updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
 
-type AutomationInput = Extract<WorkspaceInput, {
-  type: "automation.fired" | "automation.notify" | "automation.nothing-to-report" | "automation.save" | "automation.update"
-    | "automation.delete" | "automation.run-now" | "automations.changed";
-}>;
+export const AUTOMATION_INPUTS = [
+  "automation.fired", "automation.notify", "automation.nothing-to-report", "automation.save", "automation.update", "automation.delete",
+  "automation.run-now", "automations.changed"
+] as const;
+type AutomationInput = Extract<WorkspaceInput, { type: (typeof AUTOMATION_INPUTS)[number] }>;
 
 export function reduceAutomations(state: WorkspaceState, input: AutomationInput): WorkspaceTransition {
   switch (input.type) {

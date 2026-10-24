@@ -18,11 +18,13 @@ import { createConversationMessage } from "../../domain/conversation.js";
 import { dismissed } from "../../domain/attention.js";
 import type { Worktree } from "../../domain/worktree.js";
 
-type WorktreeInput = Extract<WorkspaceInput, {
-  type: "worktree.filter-project" | "worktree.confirm-delete" | "worktree.set-missing-open" | "worktree.set-threads-open" | "worktree.open-thread" | "view.move-worktree" | "task.set-worktree" | "task.move-worktree" | "task.set-branch" | "task.checkout-branch" | "worktree.refresh" | "worktree.reveal"
-    | "worktree.delete" | "worktree.created" | "worktree.failed" | "worktrees.loaded" | "worktrees.failed"
-    | "worktree.released" | "worktree.release-failed" | "worktree.deleted" | "checkout.finished";
-}>;
+export const WORKTREE_INPUTS = [
+  "worktree.filter-project", "worktree.confirm-delete", "worktree.set-missing-open", "worktree.set-threads-open", "worktree.open-thread",
+  "view.move-worktree", "task.set-worktree", "task.move-worktree", "task.set-branch", "task.checkout-branch", "worktree.refresh", "worktree.reveal",
+  "worktree.delete", "worktree.created", "worktree.failed", "worktrees.loaded", "worktrees.failed", "worktree.released", "worktree.release-failed",
+  "worktree.deleted", "checkout.finished"
+] as const;
+type WorktreeInput = Extract<WorkspaceInput, { type: (typeof WORKTREE_INPUTS)[number] }>;
 
 export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): WorkspaceTransition {
   /** A move that goes ahead answers the confirmation, so the question never outlives its answer. */

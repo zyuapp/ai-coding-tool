@@ -13,7 +13,8 @@ import { isCoordinator, stuckVerdict, worksUnderCoordinator } from "../../domain
 import { linkMatches, linkOf, NO_PULL_REQUEST, samePullRequest, type PullRequestAnswer, type PullRequestLink, type PullRequestRead, type PullRequestRef } from "../../domain/pull-request.js";
 import type { Thread } from "../../domain/thread.js";
 
-type PullRequestInput = Extract<WorkspaceInput, { type: "pull-request.read" | "pull-request.read-members" | "pull-request.read-member" | "pull-request.answered" }>;
+export const PULL_REQUEST_INPUTS = ["pull-request.read", "pull-request.read-members", "pull-request.read-member", "pull-request.answered"] as const;
+type PullRequestInput = Extract<WorkspaceInput, { type: (typeof PULL_REQUEST_INPUTS)[number] }>;
 
 export function reducePullRequests(state: WorkspaceState, input: PullRequestInput): WorkspaceTransition {
   switch (input.type) {

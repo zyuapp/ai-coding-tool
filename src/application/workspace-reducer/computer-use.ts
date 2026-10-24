@@ -4,9 +4,10 @@ import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { sameComputerUsePermissions } from "../../domain/computer-use.js";
 import type { WorkspaceState } from "../workspace-state.js";
 
-type ComputerUseInput = Extract<WorkspaceInput, {
-  type: "computer-use.read" | "computer-use.enable" | "computer-use.restart" | "computer-use.permissions" | "computer-use.failed";
-}>;
+export const COMPUTER_USE_INPUTS = [
+  "computer-use.read", "computer-use.enable", "computer-use.restart", "computer-use.permissions", "computer-use.failed"
+] as const;
+type ComputerUseInput = Extract<WorkspaceInput, { type: (typeof COMPUTER_USE_INPUTS)[number] }>;
 
 export function reduceComputerUse(state: WorkspaceState, input: ComputerUseInput): WorkspaceTransition {
   const access = state.computerUsePermissions;

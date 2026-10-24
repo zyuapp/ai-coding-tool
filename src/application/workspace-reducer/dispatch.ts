@@ -1,185 +1,95 @@
-import { reduceThreadCommands } from "./thread-commands.js";
-import { reduceWorktrees } from "./worktrees.js";
-import { reduceCoordination } from "./coordination.js";
-import { reduceProposals } from "./proposals.js";
-import { reduceWorktreeMenu } from "./worktree-menu.js";
-import { reduceSending } from "./sending.js";
-import { reduceComposerAttachments } from "./composer-attachments.js";
-import { reduceProjectAdd } from "../project-add.js";
-import { reduceProjectCommands } from "./projects.js";
-import { reduceCli } from "./cli.js";
-import { reduceComputerUse } from "./computer-use.js";
-import { reducePlanUsage } from "./plan-usage.js";
-import { reducePullRequests } from "./pull-requests.js";
-import { reduceRuns } from "./runs.js";
-import { reduceAutomations } from "./automations.js";
-import { reduceSideChats } from "./side-chats.js";
-import { reduceDiffs } from "./diffs.js";
-import { reduceStore } from "./store.js";
-import { reduceComposer } from "./composer.js";
-import { reduceSettings, reduceModelFavorite } from "./settings.js";
-import { reduceDock } from "./dock.js";
-import { reduceBrowser } from "./browser.js";
-import { reduceBrowserImport } from "./browser-import.js";
-import { reduceDesktop } from "./desktop.js";
-import { reduceView } from "./view.js";
+import { reduceThreadCommands, THREAD_COMMAND_INPUTS } from "./thread-commands.js";
+import { reduceWorktrees, WORKTREE_INPUTS } from "./worktrees.js";
+import { COORDINATION_INPUTS, reduceCoordination } from "./coordination.js";
+import { PROPOSAL_INPUTS, reduceProposals } from "./proposals.js";
+import { reduceWorktreeMenu, WORKTREE_MENU_INPUTS } from "./worktree-menu.js";
+import { reduceSending, SEND_INPUTS } from "./sending.js";
+import { ATTACHMENT_INPUTS, reduceComposerAttachments } from "./composer-attachments.js";
+import { PROJECT_ADD_INPUTS, reduceProjectAdd } from "../project-add.js";
+import { PROJECT_INPUTS, reduceProjectCommands } from "./projects.js";
+import { CLI_INPUTS, reduceCli } from "./cli.js";
+import { COMPUTER_USE_INPUTS, reduceComputerUse } from "./computer-use.js";
+import { PLAN_USAGE_INPUTS, reducePlanUsage } from "./plan-usage.js";
+import { PULL_REQUEST_INPUTS, reducePullRequests } from "./pull-requests.js";
+import { reduceRuns, RUN_INPUTS } from "./runs.js";
+import { AUTOMATION_INPUTS, reduceAutomations } from "./automations.js";
+import { reduceSideChats, SIDE_CHAT_INPUTS } from "./side-chats.js";
+import { DIFF_INPUTS, reduceDiffs } from "./diffs.js";
+import { reduceStore, STORE_INPUTS } from "./store.js";
+import { COMPOSER_INPUTS, reduceComposer } from "./composer.js";
+import { reduceSettings, reduceModelFavorite, SETTINGS_INPUTS } from "./settings.js";
+import { DOCK_INPUTS, reduceDock } from "./dock.js";
+import { BROWSER_INPUTS, reduceBrowser } from "./browser.js";
+import { BROWSER_IMPORT_INPUTS, reduceBrowserImport } from "./browser-import.js";
+import { DESKTOP_INPUTS, reduceDesktop } from "./desktop.js";
+import { reduceView, VIEW_INPUTS } from "./view.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { isRemoteInput, reduceRemote } from "../remote-commands.js";
-import { isComputerInput, reduceComputers } from "../computer-commands.js";
-import { isEngineInput, reduceEngine } from "../engine-access.js";
+import { isRemoteInput, reduceRemote, type RemoteInput } from "../remote-commands.js";
+import { isComputerInput, reduceComputers, type ComputerInput } from "../computer-commands.js";
+import { isEngineInput, reduceEngine, type EngineInput } from "../engine-access.js";
 import { reduceToasts } from "../toasts.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import { cancelPause, resumeThread } from "../limit-pauses.js";
 import { settled } from "./shared.js";
-import { reduceAppUpdate } from "../app-updates.js";
+import { APP_UPDATE_INPUTS, reduceAppUpdate } from "../app-updates.js";
 
-/** Every input {@link reduce} has not already unpacked into the several inputs it stands for. */
-export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "view.shortcut" | "view.escape" | "agent.events" }>): WorkspaceTransition {
+type Reducer<Type extends WorkspaceInput["type"]> = (state: WorkspaceState, input: Extract<WorkspaceInput, { type: Type }>) => WorkspaceTransition;
+
+/** The input types one reducer answers, as that reducer lists them. */
+type Claim<Type extends WorkspaceInput["type"]> = { types: readonly Type[]; reducer: Reducer<Type> };
+
+function claim<Type extends WorkspaceInput["type"]>(types: readonly Type[], reducer: Reducer<NoInfer<Type>>): Claim<Type> {
+  return { types, reducer };
+}
+
+/** Each input type is claimed by exactly one reducer. */
+export const CLAIMS = [
+  claim(WORKTREE_MENU_INPUTS, reduceWorktreeMenu),
+  claim(THREAD_COMMAND_INPUTS, reduceThreadCommands),
+  claim(COORDINATION_INPUTS, reduceCoordination),
+  claim(PROPOSAL_INPUTS, reduceProposals),
+  claim(WORKTREE_INPUTS, reduceWorktrees),
+  claim(ATTACHMENT_INPUTS, reduceComposerAttachments),
+  claim(SEND_INPUTS, reduceSending),
+  claim(PROJECT_ADD_INPUTS, reduceProjectAdd),
+  claim(PROJECT_INPUTS, reduceProjectCommands),
+  /** The line itself moves in {@link reconcileLimitPauses}, which every input passes through. */
+  claim(["limits.elapsed"], (state) => settled(state)),
+  claim(["limit.resume"], (state, input) => resumeThread(state, input.taskId)),
+  claim(["limit.cancel"], (state, input) => cancelPause(state, input.taskId)),
+  claim(RUN_INPUTS, reduceRuns),
+  claim(AUTOMATION_INPUTS, reduceAutomations),
+  claim(SIDE_CHAT_INPUTS, reduceSideChats),
+  claim(PULL_REQUEST_INPUTS, reducePullRequests),
+  claim(COMPUTER_USE_INPUTS, reduceComputerUse),
+  claim(PLAN_USAGE_INPUTS, reducePlanUsage),
+  claim(CLI_INPUTS, reduceCli),
+  claim(DIFF_INPUTS, reduceDiffs),
+  claim(STORE_INPUTS, reduceStore),
+  claim(COMPOSER_INPUTS, reduceComposer),
+  claim(["view.set-model-favorite"], reduceModelFavorite),
+  claim(["view.dismiss-toast"], reduceToasts),
+  claim(APP_UPDATE_INPUTS, reduceAppUpdate),
+  claim(SETTINGS_INPUTS, reduceSettings),
+  claim(DOCK_INPUTS, reduceDock),
+  claim(BROWSER_INPUTS, reduceBrowser),
+  claim(BROWSER_IMPORT_INPUTS, reduceBrowserImport),
+  claim(DESKTOP_INPUTS, reduceDesktop),
+  claim(VIEW_INPUTS, reduceView),
+];
+
+type ClaimedInput = Extract<WorkspaceInput, { type: (typeof CLAIMS)[number]["types"][number] }>;
+type ClaimedReducer = (state: WorkspaceState, input: ClaimedInput) => WorkspaceTransition;
+
+const REDUCERS = new Map<string, ClaimedReducer>(CLAIMS.flatMap(({ types, reducer }) => types.map((type) => [type, reducer as ClaimedReducer] as const)));
+
+/**
+ * Every input {@link reduce} has not already unpacked into the several inputs it stands for. An input
+ * no reducer claims is not a type this accepts, so the compiler names it where {@link reduce} calls here.
+ */
+export function apply(state: WorkspaceState, input: RemoteInput | ComputerInput | EngineInput | ClaimedInput): WorkspaceTransition {
   if (isRemoteInput(input)) return reduceRemote(state, input);
   if (isComputerInput(input)) return reduceComputers(state, input);
   if (isEngineInput(input)) return reduceEngine(state, input);
-  switch (input.type) {
-    case "worktree.menu-open": case "worktree.menu-search":
-      return reduceWorktreeMenu(state, input);
-    case "task.new": case "task.select": case "task.dismiss": case "task.snooze": case "task.unsnooze": case "snoozes.elapsed":
-    case "task.dismiss-all": case "task.archive": case "task.restore":
-    case "task.clear-archive": case "task.rename": case "task.set-role": case "title.suggested":
-    case "task.fork": case "task.move": case "task.set-policy":
-    case "task.set-model": case "task.set-effort": case "task.set-fast-mode":
-      return reduceThreadCommands(state, input);
-
-    case "task.set-coordinator": case "task.set-lead-away": case "task.resolve": case "task.reopen": case "decision.answer": case "coordination.set-thread-model": case "coordination.set-muted": case "coordination.stop-all": case "coordination.reported": case "coordination.decision-raised":
-    case "memory.set-purpose": case "memory.add": case "memory.edit": case "memory.forget": case "coordination.remembered": case "coordination.next-step":
-      return reduceCoordination(state, input);
-    case "coordination.proposed": case "proposal.start": case "proposal.dismiss": case "proposal.settled":
-      return reduceProposals(state, input);
-
-    case "view.move-worktree": case "task.set-worktree": case "task.move-worktree": case "task.set-branch": case "task.checkout-branch":
-    case "worktree.refresh": case "worktree.reveal": case "worktree.delete":
-    case "worktree.filter-project": case "worktree.confirm-delete": case "worktree.set-missing-open":
-    case "worktree.set-threads-open": case "worktree.open-thread":
-    case "worktree.created": case "worktree.failed": case "worktrees.loaded":
-    case "worktrees.failed": case "worktree.released": case "worktree.release-failed": case "worktree.deleted": case "checkout.finished":
-      return reduceWorktrees(state, input);
-
-    case "attachments.send": case "attachments.saved": case "attachments.failed": case "attachments.notice":
-      return reduceComposerAttachments(state, input);
-
-    case "task.send": case "question.answer": case "question.set-answer": case "task.steer-queued": case "task.drop-queued": case "task.edit-queued":
-      return reduceSending(state, input);
-
-    case "project.open": case "project.add": case "project.added": case "project.add-finished":
-    case "project.directories": case "project.path-picked":
-    case "view.add-project-close": case "view.add-project-device": case "view.add-project-path":
-    case "view.add-project-pick": case "view.add-project-submit": case "view.add-project-key": case "view.add-project-accept":
-      return reduceProjectAdd(state, input);
-
-    case "project.opened": case "project.edit":
-    case "project.registered": case "project.register-failed": case "project.move":
-    case "view.edit-project": case "view.toggle-project": case "project.remove":
-      return reduceProjectCommands(state, input);
-
-    /** The line itself moves in {@link reconcileLimitPauses}, which every input passes through. */
-    case "limits.elapsed":
-      return settled(state);
-    case "limit.resume":
-      return resumeThread(state, input.taskId);
-    case "limit.cancel":
-      return cancelPause(state, input.taskId);
-
-    case "run.resolved": case "run.unresolved": case "run.cancel": case "run.compact":
-    case "run.stop-process": case "run.decide": case "run.event":
-    case "thread.event": case "review.open": case "review.close":
-    case "review.set-step": case "review.start":
-      return reduceRuns(state, input);
-
-    case "automation.fired": case "automation.notify": case "automation.nothing-to-report":
-    case "automation.save": case "automation.update": case "automation.delete":
-    case "automation.run-now": case "automations.changed":
-      return reduceAutomations(state, input);
-
-    case "side-chat.open": case "side-chat.close":
-      return reduceSideChats(state, input);
-
-    case "pull-request.read": case "pull-request.read-members": case "pull-request.read-member": case "pull-request.answered":
-      return reducePullRequests(state, input);
-
-    case "computer-use.read": case "computer-use.enable": case "computer-use.restart":
-    case "computer-use.permissions": case "computer-use.failed":
-      return reduceComputerUse(state, input);
-
-    case "usage.read": case "usage.reported":
-      return reducePlanUsage(state, input);
-
-    case "cli.read": case "cli.install": case "cli.uninstall": case "cli.read-status": case "cli.failed":
-      return reduceCli(state, input);
-
-    case "view.refresh-environment": case "diff.toggle": case "diff.refresh": case "diff.open-commit":
-    case "diff.set-mode": case "diff.set-range": case "diff.set-collapsed": case "diff.set-viewed":
-    case "diff.set-split": case "diff.set-ignore-whitespace": case "diff.loaded": case "environment.updated":
-      return reduceDiffs(state, input);
-
-    case "store.loaded": case "store.thread-loaded": case "store.absent": case "store.persisted": case "preferences.loaded":
-    case "store.failed": case "action.failed":
-      return reduceStore(state, input);
-
-    case "annotation.add": case "annotation.note": case "annotation.remove":
-    case "annotation.recall": case "paste.add": case "paste.remove":
-    case "paste.recall": case "image.add": case "image.remove":
-    case "image.recall": case "file.attach": case "file.detach":
-    case "file.recall": case "view.set-prompt": case "view.reading-point":
-    case "view.dismiss-action-error": case "view.dismiss-hidden-tasks":
-      return reduceComposer(state, input);
-
-    case "view.set-model-favorite": return reduceModelFavorite(state, input);
-
-    case "view.dismiss-toast":
-      return reduceToasts(state, input);
-
-    case "app.update": case "app.cancel-update": case "app.build": case "app.launched":
-      return reduceAppUpdate(state, input);
-
-    case "view.set-theme": case "view.set-theme-family": case "view.set-theme-mode":
-    case "view.system-scheme": case "view.set-ui-font": case "view.set-mono-font":
-    case "view.set-reading-size": case "view.set-terminal-size": case "view.set-sidebar-mode": case "view.set-activity-project":
-    case "view.set-sidebar-open": case "view.focus-composer": case "view.set-shortcut":
-    case "view.reset-shortcuts": case "view.capture-shortcut": case "shortcut.captured": case "shortcut.unavailable":
-    case "view.inspect-subagent": case "subagent.activity.loaded": case "view.set-capture-options":
-    case "view.set-chrome-browser": case "view.set-computer-use":
-    case "view.set-browser-tools": case "view.set-notifications": case "view.set-session-panel-open":
-    case "view.set-settings-open": case "view.set-subagent-group":
-    case "view.set-section-open":
-      return reduceSettings(state, input);
-
-    case "view.close-tab": case "view.new-tab": case "view.select-dock-index":
-    case "view.set-dock-open": case "view.set-dock-expanded": case "view.open-dock-panel":
-    case "view.open-workflow": case "view.close-dock-panel": case "view.select-dock-tab":
-    case "view.close-thread-tab": case "view.set-overview-group":
-      return reduceDock(state, input);
-
-    case "browser.open": case "browser.new-tab": case "browser.decide":
-    case "browser.select-tab": case "browser.close-tab": case "browser.go":
-    case "browser.reload": case "browser.act": case "browser.clear-data":
-    case "browser.updated":
-      return reduceBrowser(state, input);
-
-    case "browser-import.read": case "browser-import.sources": case "browser-import.choose": case "browser-import.sites":
-    case "browser-import.toggle": case "browser-import.filter": case "browser-import.run": case "browser-import.again":
-    case "browser-import.done": case "browser-import.failed":
-      return reduceBrowserImport(state, input);
-
-    case "image.open": case "image.close": case "image.download": case "file.open": case "app.list": case "apps.listed": case "app.open-folder": case "app.check-for-updates": case "app.download-update": case "app.install-update": case "app.update-changed": case "app.open-source-licenses": case "terminal.open":
-    case "terminal.select": case "terminal.close": case "terminal.input":
-    case "terminal.resize": case "terminal.updated": case "view.closed": case "view.mounted":
-      return reduceDesktop(state, input);
-
-    case "view.set-menu": case "view.go-back": case "view.go-forward":
-    case "view.set-focused": case "view.find-open": case "view.find-query":
-    case "view.find-step": case "view.find-close": case "find.results":
-    case "view.dock-keys": case "view.jump-open": case "view.jump-query":
-    case "view.jump-step": case "view.jump-choose": case "view.jump-choose-setting":
-    case "view.jump-close": case "view.set-zen":
-    case "view.dismiss-computer-use-setup":
-      return reduceView(state, input);
-  }
+  return REDUCERS.get(input.type)!(state, input);
 }

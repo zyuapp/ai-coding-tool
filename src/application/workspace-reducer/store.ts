@@ -6,9 +6,10 @@ import { viewPreferenceState } from "../view-preferences.js";
 import { dockFor, withStoreData, type WorkspaceState } from "../workspace-state.js";
 import { browserUrl, type BrowserTab } from "../../domain/browser.js";
 
-type StoreInput = Extract<WorkspaceInput, {
-  type: "store.loaded" | "store.thread-loaded" | "store.absent" | "store.persisted" | "preferences.loaded" | "store.failed" | "action.failed";
-}>;
+export const STORE_INPUTS = [
+  "store.loaded", "store.thread-loaded", "store.absent", "store.persisted", "preferences.loaded", "store.failed", "action.failed"
+] as const;
+type StoreInput = Extract<WorkspaceInput, { type: (typeof STORE_INPUTS)[number] }>;
 
 export function reduceStore(state: WorkspaceState, input: StoreInput): WorkspaceTransition {
   switch (input.type) {

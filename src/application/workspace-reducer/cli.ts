@@ -3,7 +3,8 @@ import { settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import type { WorkspaceState } from "../workspace-state.js";
 
-type CliInput = Extract<WorkspaceInput, { type: "cli.read" | "cli.install" | "cli.uninstall" | "cli.read-status" | "cli.failed" }>;
+export const CLI_INPUTS = ["cli.read", "cli.install", "cli.uninstall", "cli.read-status", "cli.failed"] as const;
+type CliInput = Extract<WorkspaceInput, { type: (typeof CLI_INPUTS)[number] }>;
 
 export function reduceCli(state: WorkspaceState, input: CliInput): WorkspaceTransition {
   switch (input.type) {

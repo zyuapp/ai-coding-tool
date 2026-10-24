@@ -11,7 +11,8 @@ import type { WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/ty
 import type { WorkspaceState } from "./workspace-state.js";
 import { AGENT_ENGINES, engineUpdate } from "../domain/agent-engine.js";
 
-type AppUpdateInput = Extract<WorkspaceInput, { type: "app.update" | "app.cancel-update" | "app.build" | "app.launched" }>;
+export const APP_UPDATE_INPUTS = ["app.update", "app.cancel-update", "app.build", "app.launched"] as const;
+type AppUpdateInput = Extract<WorkspaceInput, { type: (typeof APP_UPDATE_INPUTS)[number] }>;
 
 export const NO_UPDATE_TO_INSTALL = "There is no newer version to install.";
 

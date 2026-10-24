@@ -9,9 +9,8 @@ import { pruneDeletedThreads } from "../thread-pruning.js";
 import { withActiveRun, withBackgroundProcesses, withRunStatus } from "../thread-run-state.js";
 import { dockTabAfterClosing, type SideChat, type ThreadDock, type WorkspaceState } from "../workspace-state.js";
 
-type SideChatInput = Extract<WorkspaceInput, {
-  type: "side-chat.open" | "side-chat.close";
-}>;
+export const SIDE_CHAT_INPUTS = ["side-chat.open", "side-chat.close"] as const;
+type SideChatInput = Extract<WorkspaceInput, { type: (typeof SIDE_CHAT_INPUTS)[number] }>;
 
 export function reduceSideChats(state: WorkspaceState, input: SideChatInput): WorkspaceTransition {
   switch (input.type) {

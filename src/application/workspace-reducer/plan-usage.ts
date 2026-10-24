@@ -5,7 +5,8 @@ import type { WorkspaceState } from "../workspace-state.js";
 import { AGENT_ENGINES } from "../../domain/agent-engine.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 
-type PlanUsageInput = Extract<WorkspaceInput, { type: "usage.read" | "usage.reported" }>;
+export const PLAN_USAGE_INPUTS = ["usage.read", "usage.reported"] as const;
+type PlanUsageInput = Extract<WorkspaceInput, { type: (typeof PLAN_USAGE_INPUTS)[number] }>;
 
 /**
  * Each connected computer is asked for its own limits, which arrive with its state. The ask goes

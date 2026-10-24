@@ -6,10 +6,11 @@ import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { reduceProjects } from "../project-commands.js";
 import type { WorkspaceState } from "../workspace-state.js";
 
-type ProjectInput = Extract<WorkspaceInput, {
-  type: "project.opened" | "project.edit" | "project.registered" | "project.register-failed"
-    | "project.move" | "view.edit-project" | "view.toggle-project" | "project.remove";
-}>;
+export const PROJECT_INPUTS = [
+  "project.opened", "project.edit", "project.registered", "project.register-failed", "project.move", "view.edit-project", "view.toggle-project",
+  "project.remove"
+] as const;
+type ProjectInput = Extract<WorkspaceInput, { type: (typeof PROJECT_INPUTS)[number] }>;
 
 export function reduceProjectCommands(state: WorkspaceState, input: ProjectInput): WorkspaceTransition {
   switch (input.type) {

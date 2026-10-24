@@ -12,11 +12,11 @@ import { readAttention } from "../../domain/attention.js";
 import { isOverviewSection } from "../../domain/coordination.js";
 import { DIFF_PANEL, DOCK_PICKER, OVERVIEW_PANEL, WORKFLOW_PANEL, diffFor, dockOwner, dockTabAfterClosing, dockTabIds, dockTabKind, frontDock, withDock, type WorkspaceState } from "../workspace-state.js";
 
-type DockInput = Extract<WorkspaceInput, {
-  type: "view.close-tab" | "view.new-tab" | "view.select-dock-index" | "view.set-dock-open" | "view.set-dock-expanded"
-    | "view.open-dock-panel" | "view.open-workflow" | "view.close-dock-panel" | "view.select-dock-tab" | "view.close-thread-tab"
-    | "view.set-overview-group";
-}>;
+export const DOCK_INPUTS = [
+  "view.close-tab", "view.new-tab", "view.select-dock-index", "view.set-dock-open", "view.set-dock-expanded", "view.open-dock-panel",
+  "view.open-workflow", "view.close-dock-panel", "view.select-dock-tab", "view.close-thread-tab", "view.set-overview-group"
+] as const;
+type DockInput = Extract<WorkspaceInput, { type: (typeof DOCK_INPUTS)[number] }>;
 
 /** Reads the review for the checkout it is about now, starting over when that is another checkout. */
 function reviewSubject(state: WorkspaceState, owner: string): WorkspaceTransition {

@@ -6,9 +6,8 @@ import { attachmentSendFor, MAIN_COMPOSER, type AttachmentSendState } from "../c
 import type { WorkspaceState } from "../workspace-state.js";
 import { MAX_ATTACHMENTS, type RunAttachment } from "../../domain/conversation.js";
 
-type AttachmentInput = Extract<WorkspaceInput, {
-  type: "attachments.send" | "attachments.saved" | "attachments.failed" | "attachments.notice";
-}>;
+export const ATTACHMENT_INPUTS = ["attachments.send", "attachments.saved", "attachments.failed", "attachments.notice"] as const;
+type AttachmentInput = Extract<WorkspaceInput, { type: (typeof ATTACHMENT_INPUTS)[number] }>;
 
 function withSend(state: WorkspaceState, taskId: string | undefined, send: AttachmentSendState): WorkspaceState {
   return { ...state, attachmentSends: { ...state.attachmentSends, [taskId ?? MAIN_COMPOSER]: send } };

@@ -4,7 +4,9 @@ import type { WorkspaceState } from "../workspace-state.js";
 import { settled } from "./shared.js";
 import type { WorkspaceTransition } from "./types.js";
 
-export function reduceWorktreeMenu(state: WorkspaceState, input: Extract<WorktreeCommand, { type: "worktree.menu-open" | "worktree.menu-search" }>): WorkspaceTransition {
+export const WORKTREE_MENU_INPUTS = ["worktree.menu-open", "worktree.menu-search"] as const;
+
+export function reduceWorktreeMenu(state: WorkspaceState, input: Extract<WorktreeCommand, { type: (typeof WORKTREE_MENU_INPUTS)[number] }>): WorkspaceTransition {
   const query = input.type === "worktree.menu-search" ? input.query : "";
   const next = { ...state, worktreeMenuSearch: { ...state.worktreeMenuSearch, [input.list]: query } };
   if (input.type === "worktree.menu-search" || input.list === "threads" || state.worktreeManagementLoading) return settled(next);

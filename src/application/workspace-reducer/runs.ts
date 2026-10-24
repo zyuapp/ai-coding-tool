@@ -32,10 +32,11 @@ import { isCoordinator, worksUnderCoordinator } from "../../domain/coordination.
 import { clampTitle, type Thread } from "../../domain/thread.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
 
-type RunInput = Extract<WorkspaceInput, {
-  type: "run.resolved" | "run.unresolved" | "run.cancel" | "run.compact" | "run.stop-process" | "run.decide"
-    | "run.event" | "thread.event" | "review.open" | "review.close" | "review.set-step" | "review.start";
-}>;
+export const RUN_INPUTS = [
+  "run.resolved", "run.unresolved", "run.cancel", "run.compact", "run.stop-process", "run.decide", "run.event", "thread.event", "review.open",
+  "review.close", "review.set-step", "review.start"
+] as const;
+type RunInput = Extract<WorkspaceInput, { type: (typeof RUN_INPUTS)[number] }>;
 type ReviewInput = Extract<RunInput, { type: "review.open" | "review.close" | "review.set-step" | "review.start" }>;
 
 export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTransition {

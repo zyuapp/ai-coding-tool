@@ -21,10 +21,12 @@ import { defaultEffortFor, effortForModel, engineForModel, modelDelegable, model
 import type { Thread } from "../../domain/thread.js";
 import { dismissed } from "../../domain/attention.js";
 
-type CoordinationInput = Extract<WorkspaceInput, {
-  type: "task.set-coordinator" | "task.set-lead-away" | "task.resolve" | "task.reopen" | "decision.answer" | "coordination.set-thread-model" | "coordination.set-muted" | "coordination.stop-all" | "coordination.reported" | "coordination.decision-raised"
-    | "memory.set-purpose" | "memory.add" | "memory.edit" | "memory.forget" | "coordination.remembered" | "coordination.next-step";
-}>;
+export const COORDINATION_INPUTS = [
+  "task.set-coordinator", "task.set-lead-away", "task.resolve", "task.reopen", "decision.answer", "coordination.set-thread-model",
+  "coordination.set-muted", "coordination.stop-all", "coordination.reported", "coordination.decision-raised", "memory.set-purpose", "memory.add",
+  "memory.edit", "memory.forget", "coordination.remembered", "coordination.next-step"
+] as const;
+type CoordinationInput = Extract<WorkspaceInput, { type: (typeof COORDINATION_INPUTS)[number] }>;
 
 const STEP_GONE = "That step is no longer offered.";
 

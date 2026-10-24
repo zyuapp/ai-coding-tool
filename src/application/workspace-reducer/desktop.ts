@@ -11,10 +11,12 @@ import { terminalTitle, type TerminalSession } from "../../domain/terminal.js";
 import { DOCK_PICKER } from "../workspace-dock.js";
 import { rescheduledToasts } from "../toasts.js";
 
-type DesktopInput = Extract<WorkspaceInput, {
-  type: "image.open" | "image.close" | "image.download" | "file.open" | "app.list" | "apps.listed" | "app.open-folder" | "app.check-for-updates" | "app.download-update" | "app.install-update" | "app.update-changed" | "app.open-source-licenses" | "terminal.open" | "terminal.select" | "terminal.close"
-    | "terminal.input" | "terminal.resize" | "terminal.updated" | "view.closed" | "view.mounted";
-}>;
+export const DESKTOP_INPUTS = [
+  "image.open", "image.close", "image.download", "file.open", "app.list", "apps.listed", "app.open-folder", "app.check-for-updates",
+  "app.download-update", "app.install-update", "app.update-changed", "app.open-source-licenses", "terminal.open", "terminal.select", "terminal.close",
+  "terminal.input", "terminal.resize", "terminal.updated", "view.closed", "view.mounted"
+] as const;
+type DesktopInput = Extract<WorkspaceInput, { type: (typeof DESKTOP_INPUTS)[number] }>;
 
 export function reduceDesktop(state: WorkspaceState, input: DesktopInput): WorkspaceTransition {
   switch (input.type) {

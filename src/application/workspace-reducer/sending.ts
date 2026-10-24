@@ -20,9 +20,8 @@ import type { RemoteLead } from "../../domain/coordination.js";
 import { originFields, type MessageOrigin } from "../../domain/message-origin.js";
 import { heldByLimit, nudged } from "../limit-pauses.js";
 
-type SendInput = Extract<WorkspaceInput, {
-  type: "task.send" | "question.answer" | "question.set-answer" | "task.steer-queued" | "task.drop-queued" | "task.edit-queued";
-}>;
+export const SEND_INPUTS = ["task.send", "question.answer", "question.set-answer", "task.steer-queued", "task.drop-queued", "task.edit-queued"] as const;
+type SendInput = Extract<WorkspaceInput, { type: (typeof SEND_INPUTS)[number] }>;
 
 /**
  * What the reducer itself says of a send, never fields of the command: which decision it answers, and

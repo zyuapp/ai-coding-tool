@@ -30,11 +30,12 @@ import { isSnoozeHours, withoutSnooze } from "../../domain/thread-snooze.js";
 import { cancelPause } from "../limit-pauses.js";
 import { capabilitiesFor, defaultModelFor, effortForModel, engineHasModel, modelHasEffort } from "../../domain/agent-engine.js";
 
-type ThreadCommandInput = Extract<WorkspaceInput, {
-  type: "task.new" | "task.select" | "task.dismiss" | "task.dismiss-all" | "task.archive" | "task.snooze" | "task.unsnooze" | "snoozes.elapsed"
-    | "task.restore" | "task.clear-archive" | "task.rename" | "task.set-role" | "title.suggested" | "task.fork"
-    | "task.move" | "task.set-policy" | "task.set-model" | "task.set-effort" | "task.set-fast-mode";
-}>;
+export const THREAD_COMMAND_INPUTS = [
+  "task.new", "task.select", "task.dismiss", "task.dismiss-all", "task.archive", "task.snooze", "task.unsnooze", "snoozes.elapsed", "task.restore",
+  "task.clear-archive", "task.rename", "task.set-role", "title.suggested", "task.fork", "task.move", "task.set-policy", "task.set-model",
+  "task.set-effort", "task.set-fast-mode"
+] as const;
+type ThreadCommandInput = Extract<WorkspaceInput, { type: (typeof THREAD_COMMAND_INPUTS)[number] }>;
 
 /** Offers the title to the engine's own record of the thread; an engine that keeps none ignores it. */
 function labelThread(taskId: string, title: string): WorkspaceEffect {

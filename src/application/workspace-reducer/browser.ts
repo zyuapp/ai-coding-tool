@@ -7,10 +7,11 @@ import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./typ
 import { browserTarget, dockFor, dockOwner, ownerOfBrowserTab, withDock, type WorkspaceState } from "../workspace-state.js";
 import { browserOrigin, browserUrl } from "../../domain/browser.js";
 
-type BrowserInput = Extract<WorkspaceInput, {
-  type: "browser.open" | "browser.new-tab" | "browser.decide" | "browser.select-tab" | "browser.close-tab"
-    | "browser.go" | "browser.reload" | "browser.act" | "browser.clear-data" | "browser.updated";
-}>;
+export const BROWSER_INPUTS = [
+  "browser.open", "browser.new-tab", "browser.decide", "browser.select-tab", "browser.close-tab", "browser.go", "browser.reload", "browser.act",
+  "browser.clear-data", "browser.updated"
+] as const;
+type BrowserInput = Extract<WorkspaceInput, { type: (typeof BROWSER_INPUTS)[number] }>;
 
 export function reduceBrowser(state: WorkspaceState, input: BrowserInput): WorkspaceTransition {
   switch (input.type) {

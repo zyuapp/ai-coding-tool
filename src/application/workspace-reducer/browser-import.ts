@@ -6,7 +6,11 @@ import type { WorkspaceState } from "../workspace-state.js";
 import { importNotice, sourceName, type BrowserImportState } from "../browser-import.js";
 import { MAX_IMPORT_SITES } from "../../domain/browser-import.js";
 
-type BrowserImportInput = Extract<WorkspaceInput, { type: `browser-import.${string}` }>;
+export const BROWSER_IMPORT_INPUTS = [
+  "browser-import.read", "browser-import.sources", "browser-import.choose", "browser-import.sites", "browser-import.toggle",
+  "browser-import.filter", "browser-import.run", "browser-import.again", "browser-import.done", "browser-import.failed"
+] as const;
+type BrowserImportInput = Extract<WorkspaceInput, { type: (typeof BROWSER_IMPORT_INPUTS)[number] }>;
 
 function patch(state: WorkspaceState, change: Partial<BrowserImportState>): WorkspaceState {
   return { ...state, browserImport: { ...state.browserImport, ...change } };

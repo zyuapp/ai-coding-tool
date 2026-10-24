@@ -14,14 +14,15 @@ import { isSidebarSection } from "../../domain/sidebar.js";
 import { isThemeMode, themeById, themeFor, themeOrDefault, variantFor } from "../../domain/theme.js";
 import { READING_SIZE, TERMINAL_SIZE, monoFontById, sizeById, uiFontById } from "../../domain/typography.js";
 
-type SettingsInput = Extract<WorkspaceInput, {
-  type: "view.set-theme" | "view.set-theme-family" | "view.set-theme-mode" | "view.system-scheme" | "view.set-ui-font"
-    | "view.set-mono-font" | "view.set-reading-size" | "view.set-terminal-size" | "view.set-sidebar-mode" | "view.set-activity-project" | "view.set-sidebar-open"
-    | "view.focus-composer" | "view.set-shortcut" | "view.reset-shortcuts" | "view.capture-shortcut" | "shortcut.captured" | "shortcut.unavailable"
-    | "view.inspect-subagent" | "subagent.activity.loaded" | "view.set-capture-options" | "view.set-chrome-browser"
-    | "view.set-computer-use" | "view.set-browser-tools" | "view.set-notifications" | "view.set-session-panel-open" | "view.set-settings-open"
-    | "view.set-subagent-group" | "view.set-section-open";
-}>;
+export const SETTINGS_INPUTS = [
+  "view.set-theme", "view.set-theme-family", "view.set-theme-mode", "view.system-scheme", "view.set-ui-font", "view.set-mono-font",
+  "view.set-reading-size", "view.set-terminal-size", "view.set-sidebar-mode", "view.set-activity-project", "view.set-sidebar-open",
+  "view.focus-composer", "view.set-shortcut", "view.reset-shortcuts", "view.capture-shortcut", "shortcut.captured", "shortcut.unavailable",
+  "view.inspect-subagent", "subagent.activity.loaded", "view.set-capture-options", "view.set-chrome-browser", "view.set-computer-use",
+  "view.set-browser-tools", "view.set-notifications", "view.set-session-panel-open", "view.set-settings-open", "view.set-subagent-group",
+  "view.set-section-open"
+] as const;
+type SettingsInput = Extract<WorkspaceInput, { type: (typeof SETTINGS_INPUTS)[number] }>;
 
 export function reduceModelFavorite(state: WorkspaceState, input: Extract<WorkspaceInput, { type: "view.set-model-favorite" }>): WorkspaceTransition {
   if (!isAgentModel(input.model) || typeof input.favorite !== "boolean" || state.favoriteModels.includes(input.model) === input.favorite) return settled(state);

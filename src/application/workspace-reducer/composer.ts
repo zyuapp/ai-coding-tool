@@ -4,12 +4,12 @@ import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { composerDraft } from "../composer-drafts.js";
 import { promptKey, sameReadingPoint, withPrompt, type WorkspaceState } from "../workspace-state.js";
 
-type ComposerInput = Extract<WorkspaceInput, {
-  type: "annotation.add" | "annotation.note" | "annotation.remove" | "annotation.recall" | "paste.add"
-    | "paste.remove" | "paste.recall" | "image.add" | "image.remove" | "image.recall"
-    | "file.attach" | "file.detach" | "file.recall" | "view.set-prompt" | "view.reading-point"
-    | "view.dismiss-action-error" | "view.dismiss-hidden-tasks";
-}>;
+export const COMPOSER_INPUTS = [
+  "annotation.add", "annotation.note", "annotation.remove", "annotation.recall", "paste.add", "paste.remove", "paste.recall", "image.add",
+  "image.remove", "image.recall", "file.attach", "file.detach", "file.recall", "view.set-prompt", "view.reading-point", "view.dismiss-action-error",
+  "view.dismiss-hidden-tasks"
+] as const;
+type ComposerInput = Extract<WorkspaceInput, { type: (typeof COMPOSER_INPUTS)[number] }>;
 
 export function reduceComposer(state: WorkspaceState, input: ComposerInput): WorkspaceTransition {
   switch (input.type) {
