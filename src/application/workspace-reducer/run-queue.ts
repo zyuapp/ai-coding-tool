@@ -11,7 +11,8 @@ import { projectFor, threadWorkspaceId, worktreeFor } from "../thread-location.j
 import { withPrompt, type DraftBranch, type PendingRun, type QueuedMessage, type SideChat, type WorkspaceState } from "../workspace-state.js";
 import type { ClaudeRunSettings, StartRunCommand } from "../../contracts/ipc.js";
 import { withoutOutcome } from "../../domain/attention.js";
-import { coordinationRole, GROUP_OF, undeliveredNote, type QuietSession } from "../coordination.js";
+import { coordinationRole, GROUP_OF, undeliveredNote } from "../coordination.js";
+import { withTurnBegun } from "../outstanding-stops.js";
 import { isCoordinator, withCoordinationNote, withoutAnswer, withoutReport } from "../../domain/coordination.js";
 import { capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel } from "../../domain/agent-engine.js";
 import type { RunStatus } from "../../domain/run.js";
@@ -165,28 +166,15 @@ export function beginRun(state: WorkspaceState, taskId: string, runId: string, p
   const threads = withoutOutcome(state.threads, new Set([taskId])).map((thread) => thread.id === taskId ? opened(pickedUp(thread, pickup), provenance) : thread);
   const messagesBefore = threads.find((thread) => thread.id === taskId)?.messages.length ?? 0;
   const mark = before ?? threadMark(state.threads.find((thread) => thread.id === taskId));
-  /**
-   * The turn the agent opens itself on hearing that what Stop all stopped has stopped ends quietly too;
-   * any other run is the thread picked back up, and so is a turn of its own long after the stop, so
-   * a later turn of the agent's own is news again.
-   */
-  const hushed = state.quietSessions.find((session) => session.taskId === taskId);
-  const heard = hushed ? { quietSessions: state.quietSessions.filter((session) => session !== hushed) } : {};
-  const answering = hushed && pickup === "agent" && answersInTime(hushed, now()) ? { answersStop: true as const } : {};
+  /** The turn the agent opens itself to answer what Stop all stopped ends quietly too. */
+  const begun = withTurnBegun(state, taskId, pickup === "agent", now());
+  const answering = begun.answersStop ? { answersStop: true as const } : {};
   const own = pickup === "agent" ? { agentInitiated: true as const } : {};
   return withRunStatus(
-    withActiveRun({ ...state, ...heard, threads, actionError: null, lastRunIds: { ...state.lastRunIds, [taskId]: runId } }, taskId, { taskId, runId, sequence: 0, status: "running", ...provenance, notified: false, acknowledged: false, reportedIssues: [], messagesBefore, before: mark, ...(pickup === "warming" ? { warming: true as const } : {}), ...own, ...answering }),
+    withActiveRun({ ...begun.state, threads, actionError: null, lastRunIds: { ...state.lastRunIds, [taskId]: runId } }, taskId, { taskId, runId, sequence: 0, status: "running", ...provenance, notified: false, acknowledged: false, reportedIssues: [], messagesBefore, before: mark, ...(pickup === "warming" ? { warming: true as const } : {}), ...own, ...answering }),
     taskId,
     "running",
   );
-}
-
-/** How long after Stop all stopped a thread's session work the agent's own turn is still its answer to that stop. */
-const STOP_ANSWER_MS = 2 * 60_000;
-
-/** Whether a turn the agent opens now could still be its answer to the stop that hushed its session. */
-export function answersInTime(session: Pick<QuietSession, "at">, at: number): boolean {
-  return at - session.at <= STOP_ANSWER_MS;
 }
 
 /**

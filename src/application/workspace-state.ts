@@ -5,7 +5,7 @@ import { runStatusFor, type ApprovalView, type RunTransitionState } from "./thre
 import { threadActivity, threadLists, waitingOn, type ThreadWait } from "./thread-activity.js";
 import { backfillProjectSortIndex } from "./project-order.js";
 import { sidebarLists } from "./sidebar-lists.js";
-import type { CoordinationSend, QuietSession } from "./coordination.js";
+import type { CoordinationSend } from "./coordination.js";
 import { restoredThreads, withCutOffTurnsEnded } from "./thread-restore.js";
 import { coordinatorOf, effortRoleOf, type OverviewFolds } from "../domain/coordination.js";
 import { backfillSortIndex } from "./thread-order.js";
@@ -379,7 +379,7 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
    * session work a Stop all caught, whose ending their coordinator hears without being woken.
    * Session-only, so a restart leaves none starting.
    */
-  pendingRuns: Record<string, PendingRun>; startingProposals: string[]; quietStops: string[]; quietSessions: QuietSession[];
+  pendingRuns: Record<string, PendingRun>; startingProposals: string[]; quietStops: string[]; quietSessions: import("./outstanding-stops.js").QuietSession[];
   queuedMessages: Record<string, QueuedMessage[]>;
   sideChats: SideChat[];
   sideChatSequence: number;

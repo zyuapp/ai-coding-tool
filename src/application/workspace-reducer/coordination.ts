@@ -1,7 +1,7 @@
 /** Coordinators and their threads: who works under whom, what they report, and what waits on the user. */
-import { answersInTime, drainQueue, queuedFor, resolveWorkspaceEffect, stoppingProcess, threadBusy, withPending, withUnsent } from "./run-queue.js";
+import { drainQueue, queuedFor, resolveWorkspaceEffect, stoppingProcess, threadBusy, withPending, withUnsent } from "./run-queue.js";
 import { reduceSending } from "./sending.js";
-import { released, remoteNews, withoutLapsedStops } from "./coordination-remote.js";
+import { released, remoteNews } from "./coordination-remote.js";
 import { withProposalFailure } from "./proposals.js";
 import { now, rejected, settled, targetId } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
@@ -9,17 +9,14 @@ import { canResolve, checkoutAnswer, coordinatedThreadStatus, coordinationMember
 import { activityChanges, threadActivity, threadChanges, type ThreadChange } from "../thread-activity.js";
 import { cancelPause, heldByLimit } from "../limit-pauses.js";
 import { announced } from "../notices.js";
+import { withoutLapsedStops, withStopAll } from "../outstanding-stops.js";
 import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
-import type { PairedComputer } from "../computers.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
-import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
-import type { AppCommand } from "../../contracts/commands.js";
 import { canJoinCoordinator, coordinatorOf, decisionsFull, waitingOnUser, isCoordinator, MAX_ANSWER, nextStepOf, openDecisions, remoteLeadOf, reopenedIfStuck, threadModelOf, undelegable, withAnswer, withCoordinationNote, withDecision, withMemoryChange, worksUnderCoordinator, type CoordinationNote, type MemoryChange } from "../../domain/coordination.js";
 import { defaultEffortFor, effortForModel, engineForModel, modelDelegable, modelHasEffort, modelTakesEffort } from "../../domain/agent-engine.js";
-import type { CaughtStart, RemoteStop, Thread } from "../../domain/thread.js";
+import type { Thread } from "../../domain/thread.js";
 import { dismissed } from "../../domain/attention.js";
-import { resumesOnItsOwn } from "../../domain/usage-limit.js";
 
 type CoordinationInput = Extract<WorkspaceInput, {
   type: "task.set-coordinator" | "task.set-lead-away" | "task.resolve" | "task.reopen" | "decision.answer" | "coordination.set-thread-model" | "coordination.set-muted" | "coordination.stop-all" | "coordination.reported" | "coordination.decision-raised"
@@ -216,28 +213,18 @@ function stopAll(state: WorkspaceState, leadId: string): WorkspaceTransition {
   if (!lead || !isCoordinator(lead)) return settled(state);
   const { threads, starts, sessionWork, elsewhere, landing } = coordinatorWork(state, lead);
   const cancelled = threads.flatMap(({ id }) => state.activeRuns[id] ?? []);
-  const remote = remoteStops(elsewhere, now());
-  /** A run that never said it ended leaves its id behind, so only runs still going are kept. */
-  const going = new Set(Object.values(state.activeRuns).map((run) => run.runId));
-  const quietStops = [...state.quietStops.filter((runId) => going.has(runId)), ...cancelled.map((run) => run.runId)];
   /**
    * What it stops on paired computers, and each start it catches on its way to one, the coordinator
    * keeps, so a start is stopped whenever it lands and both are heard quietly, after a restart here too.
+   * Stopping a workflow or subagent can make the agent take a turn of its own to answer it, which ends quietly too.
    */
-  const caught = Object.fromEntries(landing.map((proposal): [string, CaughtStart] => [proposal.id, { computer: proposal.place.computer!.id }]));
-  const stopping = Object.keys(remote.stops).length || landing.length ? updateThread(state, lead.id, (item) => ({
-    ...item,
-    ...Object.keys(remote.stops).length ? { remoteStops: { ...item.remoteStops, ...remote.stops } } : {},
-    ...landing.length ? { caughtStarts: { ...item.caughtStarts, ...caught } } : {},
-  })) : state;
-  /** Stopping a workflow or subagent can make the agent take a turn of its own to answer it, which ends quietly too. */
-  const hushed = new Set(sessionWork.map((work) => work.taskId));
-  const at = now();
-  const quietSessions = [
-    ...state.quietSessions.filter((session) => !hushed.has(session.taskId) && answersInTime(session, at) && state.threads.some((thread) => thread.id === session.taskId)),
-    ...[...hushed].map((taskId) => ({ taskId, at })),
-  ];
-  let next = settled({ ...stopping, quietStops, quietSessions }, [...cancelled.map((run): WorkspaceEffect => ({ type: "send-run-command", command: { type: "cancel", taskId: run.taskId, runId: run.runId } })), ...remote.effects]);
+  const outstanding = withStopAll(state, lead.id, {
+    cancelled,
+    hushed: sessionWork.map((work) => work.taskId),
+    elsewhere,
+    landing: landing.map((proposal) => ({ id: proposal.id, computer: proposal.place.computer!.id })),
+  }, now());
+  let next = settled(outstanding.state, [...cancelled.map((run): WorkspaceEffect => ({ type: "send-run-command", command: { type: "cancel", taskId: run.taskId, runId: run.runId } })), ...outstanding.effects]);
   for (const { taskId, processIds } of sessionWork) {
     for (const processId of processIds) next = followedBy(next, stoppingProcess(next.state, taskId, processId));
   }
@@ -250,35 +237,6 @@ function stopAll(state: WorkspaceState, leadId: string): WorkspaceTransition {
     if (taskId && !next.state.activeRuns[taskId]) next = followedBy(next, drainQueue(next.state, taskId, "cancelled"));
   }
   return next;
-}
-
-/**
- * What stops the work of a coordinator's threads on paired computers: one batch for each computer,
- * with only what its build takes, and the runs and the waits to carry on after a session limit it
- * ends, so their ends are heard quietly here.
- */
-function remoteStops(work: ReturnType<typeof coordinatorWork>["elsewhere"], at: number): { effects: WorkspaceEffect[]; stops: Record<string, RemoteStop> } {
-  const batches = new Map<string, { computer: PairedComputer; inputs: AppCommand[] }>();
-  const stops: Record<string, RemoteStop> = {};
-  for (const { thread, computer, runId, processIds } of work) {
-    const batch = batches.get(computer.id) ?? { computer, inputs: [] };
-    const cancel: AppCommand = { type: "run.cancel", taskId: thread.id };
-    if (runId && supportsComputerCommand(computer.capabilities, cancel)) {
-      batch.inputs.push(cancel);
-      stops[thread.id] = { computer: computer.id, runId };
-    }
-    const lifted: AppCommand = { type: "limit.cancel", taskId: thread.id };
-    if (thread.limitPause && supportsComputerCommand(computer.capabilities, lifted)) {
-      batch.inputs.push(lifted);
-      if (resumesOnItsOwn(thread.limitPause)) stops[thread.id] ??= { computer: computer.id };
-    }
-    /** Only what that computer's build can stop is counted as its work, so each goes, and the agent's answer to it there ends quietly, as one here does. */
-    batch.inputs.push(...processIds.map((processId): AppCommand => ({ type: "run.stop-process", taskId: thread.id, processId })));
-    if (processIds.length) stops[thread.id] = { ...stops[thread.id] ?? { computer: computer.id }, answer: { at } };
-    batches.set(computer.id, batch);
-  }
-  const effects = [...batches.values()].flatMap(({ computer, inputs }): WorkspaceEffect[] => inputs.length ? [{ type: "computer.forward", id: computer.id, inputs }] : []);
-  return { effects, stops };
 }
 
 function followedBy(first: WorkspaceTransition, then: WorkspaceTransition): WorkspaceTransition {

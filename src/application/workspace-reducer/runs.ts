@@ -16,6 +16,7 @@ import { fileTitle } from "../files.js";
 import { announced, postedHeadline, waitingHeadline, type NoticeReason } from "../notices.js";
 import { pasteTitle } from "../pastes.js";
 import { settledHeadline, type RunSurfacing } from "../run-testimony.js";
+import { stopIntentOf } from "../outstanding-stops.js";
 import { settledEvent, settledTurn, settleTurn, type Settlement } from "../run-settlement.js";
 import { nextSortIndex } from "../thread-order.js";
 import { answerPartId, applyRunEvent, applyThreadEvent, ATTENDED_RUN, threadMark, updateThread, type ActiveRun } from "../thread-run-state.js";
@@ -181,7 +182,7 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
  */
 function turnEnding(state: WorkspaceState, active: ActiveRun, event: RunEvent): Settlement | null {
   if (event.type !== "run.status" || event.status === "running" || event.status === "awaiting-approval") return null;
-  const stop = state.quietStops.includes(active.runId) ? "stop-all" as const : active.cancelling ? "user" as const : undefined;
+  const stop = stopIntentOf(state, active);
   return settleTurn({
     status: event.status,
     ...(event.message === undefined ? {} : { message: event.message }),

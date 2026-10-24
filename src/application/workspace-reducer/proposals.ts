@@ -4,13 +4,14 @@ import { now, settled } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { coordinationNote, memoryPrompt, requestHeadline } from "../coordination.js";
 import { announced } from "../notices.js";
+import { caughtStartComputer, catchesStart, withoutCaughtStart, withStartLanded } from "../outstanding-stops.js";
 import { updateThread } from "../thread-run-state.js";
 import { newThreadSend, proposalSend } from "../thread-starts.js";
 import { ledStartRefusal, titledFor, type PairedComputer } from "../computers.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import type { AppCommand } from "../../contracts/commands.js";
-import { coordinatorOf, isCoordinator, withCoordinationNote, withoutCaughtStart, withoutProposals, withProposalCarried, withProposalError, withProposals, type ThreadProposal } from "../../domain/coordination.js";
+import { coordinatorOf, isCoordinator, withCoordinationNote, withoutProposals, withProposalCarried, withProposalError, withProposals, type ThreadProposal } from "../../domain/coordination.js";
 import type { Thread } from "../../domain/thread.js";
 
 type ProposalInput = Extract<WorkspaceInput, { type: "coordination.proposed" | "proposal.start" | "proposal.dismiss" | "proposal.settled" }>;
@@ -93,18 +94,12 @@ function proposalSettled(state: WorkspaceState, input: Extract<ProposalInput, { 
   const lead = state.threads.find((item) => item.id === input.taskId);
   if (input.threadId !== undefined) {
     const proposal = lead?.proposals?.find((item) => item.id === input.proposalId);
-    const place = proposal?.place.computer?.id ?? lead?.caughtStarts?.[input.proposalId]?.computer;
+    const place = proposal?.place.computer?.id ?? caughtStartComputer(lead, input.proposalId);
     return proposalLanded(state, input.taskId, input.proposalId, { id: input.threadId }, state.computers.paired.find((item) => item.id === place));
   }
-  if (!lead || !catching(lead, input.proposalId)) return settled(withProposalFailure(state, input.taskId, input.proposalId, input.message ?? "The thread did not start."));
+  if (!lead || !catchesStart(lead, input.proposalId)) return settled(withProposalFailure(state, input.taskId, input.proposalId, input.message ?? "The thread did not start."));
   const refused = input.refused ? updateThread(state, lead.id, (item) => withoutCaughtStart(item, input.proposalId)) : state;
   return settled(withoutStarting(refused, input.proposalId));
-}
-
-/** Whether Stop all caught a coordinator's start elsewhere on its way, and it has yet to be heard landing. */
-export function catching(lead: Thread | undefined, proposalId: string): boolean {
-  const caught = lead?.caughtStarts?.[proposalId];
-  return caught !== undefined && caught.threadId === undefined;
 }
 
 /**
@@ -118,16 +113,14 @@ export function proposalLanded(state: WorkspaceState, leadId: string, proposalId
   const threadId = landed.id;
   const lead = state.threads.find((item) => item.id === leadId);
   const carded = lead?.proposals?.some((item) => item.id === proposalId) === true;
-  const caught = catching(lead, proposalId);
+  const caught = catchesStart(lead, proposalId);
   if (!carded && !caught && !state.startingProposals.includes(proposalId)) return settled(state);
   const started = withoutStarting(carded ? updateThread(state, leadId, (item) => withoutProposals(item, new Set([proposalId]))) : state, proposalId);
   if (!caught) return settled(started);
   if (landed.runEndedAt !== undefined) return settled(updateThread(started, leadId, (item) => withoutCaughtStart(item, proposalId)));
   const cancel: AppCommand = { type: "run.cancel", taskId: threadId };
   const effects: WorkspaceEffect[] = computer && supportsComputerCommand(computer.capabilities, cancel) ? [{ type: "computer.forward", id: computer.id, inputs: [cancel] }] : [];
-  /** Its end is news only to a coordinator here to hear it; one away since hears nothing of what its thread did meanwhile. */
-  const landing = (item: Thread): Thread => isCoordinator(item) ? { ...item, caughtStarts: { ...item.caughtStarts, [proposalId]: { ...item.caughtStarts![proposalId]!, threadId } } } : withoutCaughtStart(item, proposalId);
-  return settled(updateThread(started, leadId, landing), effects);
+  return settled(updateThread(started, leadId, (item) => withStartLanded(item, proposalId, threadId)), effects);
 }
 
 /**

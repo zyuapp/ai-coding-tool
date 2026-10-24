@@ -7,6 +7,7 @@
 import { drainQueue } from "./workspace-reducer/run-queue.js";
 import type { WorkspaceTransition } from "./workspace-reducer/types.js";
 import { turnNote, withNewsQuieted } from "./coordination.js";
+import { withRunAnswered } from "./outstanding-stops.js";
 import { whyTurnSurfaces, withVerdict, type RunSurfacing } from "./run-testimony.js";
 import { updateThread, withdrawRun, type ActiveRun, type ThreadMark } from "./thread-run-state.js";
 import type { WorkspaceState } from "./workspace-state.js";
@@ -133,7 +134,7 @@ export function withSettledTurn(state: WorkspaceState, taskId: string, settlemen
   }
   if (settlement.limit) next = settlement.limit.waits ? pausedForLimit(next, taskId, settlement.limit.reached, settlement.runEndedAs === null, at) : limitReached(next, taskId, settlement.limit.reached);
   if (settlement.reopens) next = updateThread(next, taskId, reopenedIfStuck);
-  if (settlement.answersStopAll && run) next = { ...next, quietStops: next.quietStops.filter((id) => id !== run.runId) };
+  if (settlement.answersStopAll && run) next = withRunAnswered(next, run.runId);
   const thread = next.threads.find((item) => item.id === taskId);
   if (settlement.heard && thread) next = withTurnHeard(next, thread, settlement.status, at, settlement.heard.quiet);
   if (settlement.hushesNews && isCoordinator(thread)) next = withNewsQuieted(next, taskId);

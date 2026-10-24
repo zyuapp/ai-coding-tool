@@ -1,21 +1,21 @@
 /** What a coordinator here hears of the threads it started on paired computers, and how they are let go once it is gone. */
-import { catching, proposalLanded } from "./proposals.js";
+import { proposalLanded } from "./proposals.js";
 import { now, settled } from "./shared.js";
-import { answersInTime } from "./run-queue.js";
 import type { WorkspaceEffect, WorkspaceTransition } from "./types.js";
 import { coordinationMembers, coordinationNote, decisionHeadline, decisionNote, leadAwayThreads, remotelyLedThreads, reportHeadline, reportNote, turnNote } from "../coordination.js";
 import type { ThreadChange } from "../thread-activity.js";
 import { announced, waitingHeadline } from "../notices.js";
 import { settledHeadline } from "../run-testimony.js";
 import { endsQuietly } from "../run-settlement.js";
-import { updateThread, type ActiveRun } from "../thread-run-state.js";
+import { catchesStart, remoteTurnStop, withStopsKept } from "../outstanding-stops.js";
+import { updateThread } from "../thread-run-state.js";
 import { lastWorkingIds, MAX_DISCARDED_LEADS, type PairedComputer } from "../computers.js";
 import { viewPreferences } from "../view-preferences.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import type { AppCommand } from "../../contracts/commands.js";
-import { endsAsStopped, isCoordinator, mayLeadElsewhere, openDecisions, withCoordinationNote, withoutCaughtStart, withRemoteHeard, type CoordinationNote } from "../../domain/coordination.js";
-import { lastRunOutcome, threadCreatedAt, type HeardWork, type RemoteStop, type Thread } from "../../domain/thread.js";
+import { endsAsStopped, isCoordinator, mayLeadElsewhere, openDecisions, withCoordinationNote, withRemoteHeard, type CoordinationNote } from "../../domain/coordination.js";
+import { lastRunOutcome, threadCreatedAt, type HeardWork, type Thread } from "../../domain/thread.js";
 import { resumesOnItsOwn } from "../../domain/usage-limit.js";
 
 /** What a coordinator here hears of its threads on paired computers, and the coordinators that may now be due a wake. */
@@ -70,70 +70,19 @@ export function remoteNews(previous: WorkspaceState, next: WorkspaceState): Remo
     const working = lastWorkingIds(gone.state);
     for (const thread of remotelyLedThreads(gone.state.threads)) if (working.has(thread.id)) news.leads.add(thread.remoteLead!.threadId);
   }
-  return keptStops(keptWork(previous, news));
-}
-
-/**
- * What Stop all stopped on paired computers is kept only for a thread that computer still holds under
- * the coordinator, as far as it has said since this app started: one moved out or filed away there,
- * or on a computer no longer paired, is let go, so a stop that never got there cannot quiet a later
- * turn. A start it caught on its way is kept until that computer shows the thread it became somewhere
- * other than under the coordinator, since it may land, or show up, after its answer.
- */
-function keptStops(news: RemoteNews): RemoteNews {
-  let state = news.state;
-  const holderOf = (id: string) => news.state.computers.paired.find((computer) => computer.id === id);
-  for (const lead of news.state.threads) {
-    const { remoteStops: stops, caughtStarts: starts } = lead;
-    if (!stops && !starts) continue;
-    const under = (holder: WorkspaceState, threadId: string) => remotelyLedThreads(holder.threads).some((thread) => thread.id === threadId && thread.remoteLead!.threadId === lead.id);
-    const stopsKept = Object.entries(stops ?? {}).filter(([threadId, stop]) => {
-      const holder = holderOf(stop.computer);
-      return holder && (!holder.state || under(holder.state, threadId));
-    });
-    const startsKept = Object.entries(starts ?? {}).filter(([, start]) => {
-      const holder = holderOf(start.computer);
-      return holder && (!holder.state || start.threadId === undefined || !holder.state.threads.some((thread) => thread.id === start.threadId) || under(holder.state, start.threadId));
-    });
-    if (stopsKept.length === Object.keys(stops ?? {}).length && startsKept.length === Object.keys(starts ?? {}).length) continue;
-    state = updateThread(state, lead.id, ({ remoteStops: _stops, caughtStarts: _starts, ...thread }) => ({
-      ...thread,
-      ...stopsKept.length ? { remoteStops: Object.fromEntries(stopsKept) } : {},
-      ...startsKept.length ? { caughtStarts: Object.fromEntries(startsKept) } : {},
-    }));
-  }
-  return state === news.state ? news : { ...news, state };
-}
-
-/**
- * A coordinator that is no longer one, filed away or with its role taken off, lets go of what Stop all
- * stopped under it. What it caught on its way is still stopped as it lands, so that is kept.
- */
-export function withoutLapsedStops(state: WorkspaceState, threads: readonly ThreadChange[]): WorkspaceState {
-  let next = state;
-  for (const { after } of threads) {
-    if (after?.remoteStops && !isCoordinator(after)) next = updateThread(next, after.id, ({ remoteStops: _stops, ...thread }) => thread);
-  }
-  return next;
+  const kept = keptWork(previous, news);
+  const state = withStopsKept(kept.state);
+  return state === kept.state ? kept : { ...kept, state };
 }
 
 /** A start Stop all caught on its way, showing up under a coordinator that is no longer one, or is away to it, is stopped all the same. */
 function caughtLanding(news: RemoteNews, thread: Thread, computer: PairedComputer) {
   const { threadId: leadId, proposalId } = thread.remoteLead!;
   const lead = news.state.threads.find((item) => item.id === leadId);
-  if (!proposalId || !catching(lead, proposalId)) return;
+  if (!proposalId || !catchesStart(lead, proposalId)) return;
   const landed = proposalLanded(news.state, leadId, proposalId, thread, computer);
   news.state = landed.state;
   news.effects.push(...landed.effects);
-}
-
-/**
- * The start Stop all caught on its way to `computer` that this thread is, by its suggestion: one heard
- * landing as it, or one not yet heard landing that it names, as a thread first seen there does.
- */
-function caughtStartOf(lead: Thread, member: Thread, computer: string): string | undefined {
-  const proposalId = member.remoteLead?.proposalId;
-  return Object.entries(lead.caughtStarts ?? {}).find(([id, start]) => start.computer === computer && (start.threadId === undefined ? id === proposalId : start.threadId === member.id))?.[0];
 }
 
 /**
@@ -223,24 +172,10 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
   const lost = ran !== undefined && !ran.quiet && ran.operation !== "compact" && endedAt === undefined;
   /** A thread waiting out a session limit carries on by itself, so its turn has not ended. */
   const ended = (endedAt !== undefined || lost) && !run && !(member.limitPause && resumesOnItsOwn(member.limitPause));
-  /**
-   * What Stop all stopped there ends quietly once it is heard to, whenever that is, and so does the
-   * agent's answer to the session work it stopped. A thread that carried on before the stop landed,
-   * from its wait or into a run of its own, is no longer the stop's. A stop is only heard of from the
-   * computer it was sent to.
-   */
-  const sent = lead.remoteStops?.[member.id];
-  const stop = sent?.computer === computer.id ? sent : undefined;
-  const answered = ended && stop?.answer?.runId !== undefined;
-  const kept = stop && keptStop(stop, run, ended, answered, at);
-  const spent = kept !== stop;
-  /** The start Stop all caught on its way that this thread is, heard ending, which settles it, even when its end is the first heard of it. */
-  const landed = ended ? caughtStartOf(lead, member, computer.id) : undefined;
+  const { stopAll, answered, spent, held } = remoteTurnStop(lead, member, computer.id, run, ended, at);
   if (ended) {
     /** So is one a start Stop all caught on its way stopped as it landed, unless it finished or failed before that. */
-    const caught = landed !== undefined;
     const ending = lastRunOutcome(member);
-    const stopAll = caught || stop !== undefined;
     const stopped = !answered && stopAll && endsAsStopped(ending);
     const status = stopped || ending === "stopped" ? "cancelled" : ending === "failed" ? "failed" : "succeeded";
     /** A turn of the user's own there is heard with the next wake, as one here is. */
@@ -274,8 +209,7 @@ function memberNews(state: WorkspaceState, lead: Thread, member: Thread, compute
     const held = heldThreadIds(state.computers.paired);
     for (const threadId of Object.keys(lead.remoteHeard ?? {})) if (!held.has(threadId)) led.add(threadId);
   }
-  const settledLead = landed === undefined ? lead : withoutCaughtStart(lead, landed);
-  const told = notes.reduce(withCoordinationNote, withRemoteHeard(spent ? withRemoteStop(settledLead, member.id, kept) : settledLead, member.id, newest, led));
+  const told = notes.reduce(withCoordinationNote, withRemoteHeard(held(lead), member.id, newest, led));
   return { state: updateThread(state, lead.id, () => told), effects };
 }
 
@@ -289,31 +223,6 @@ function heldThreadIds(paired: readonly PairedComputer[]): ReadonlySet<string> {
     heldIds.set(paired, held);
   }
   return held;
-}
-
-/**
- * What is left of what Stop all stopped of a thread elsewhere, as that thread stands now. The first
- * turn the agent opens there itself after the stop stopped the thread's session work, soon enough,
- * is its answer to it; any other run, as one someone sent it or one a build too old to say whose it
- * is, is the thread carrying on. Once the run the stop cancelled has ended, its answer may still
- * come; any other turn seen to end, or never seen at all, spends the stop.
- */
-function keptStop(stop: RemoteStop, run: ActiveRun | undefined, ended: boolean, answered: boolean, at: number): RemoteStop | undefined {
-  const { answer } = stop;
-  if (run) {
-    if (run.runId === stop.runId || run.runId === answer?.runId) return stop;
-    return answer && answer.runId === undefined && run.agentInitiated && answersInTime(answer, at) ? { computer: stop.computer, answer: { ...answer, runId: run.runId } } : undefined;
-  }
-  if (!ended) return stop;
-  return answer && !answered && answer.runId === undefined && stop.runId !== undefined ? { computer: stop.computer, answer } : undefined;
-}
-
-/** A coordinator with what Stop all stopped of a thread elsewhere moved on, or done with. */
-function withRemoteStop(lead: Thread, threadId: string, stop: RemoteStop | undefined): Thread {
-  const { [threadId]: _spent, ...rest } = lead.remoteStops ?? {};
-  const kept = stop ? { ...rest, [threadId]: stop } : rest;
-  const { remoteStops: _held, ...thread } = lead;
-  return Object.keys(kept).length ? { ...thread, remoteStops: kept } : thread;
 }
 
 /**

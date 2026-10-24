@@ -623,14 +623,6 @@ export function withProposalError(lead: Thread, id: string, error: string | unde
   return { ...lead, proposals: lead.proposals!.map((item) => item === proposal ? marked : item) };
 }
 
-/** A coordinator done with a start elsewhere Stop all caught on its way. */
-export function withoutCaughtStart(lead: Thread, proposalId: string): Thread {
-  if (!lead.caughtStarts?.[proposalId]) return lead;
-  const { [proposalId]: _settled, ...rest } = lead.caughtStarts;
-  const { caughtStarts: _held, ...thread } = lead;
-  return Object.keys(rest).length ? { ...thread, caughtStarts: rest } : thread;
-}
-
 /** A request allowed and carried to the computer it is for, which no later refusal here takes back. */
 export function withProposalCarried(lead: Thread, id: string): Thread {
   const proposal = lead.proposals?.find((item) => item.id === id);

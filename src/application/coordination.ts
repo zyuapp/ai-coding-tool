@@ -5,6 +5,7 @@ import { doingWork, threadActivity, threadStatus, unstoppedSessionWork, type Thr
 import { activitySections, type ActivitySections } from "./thread-order.js";
 import { threadWorkspaceId } from "./thread-location.js";
 import { updateThread } from "./thread-run-state.js";
+import { caughtStartComputer } from "./outstanding-stops.js";
 import { awayLeadOf, coordinatorOf, coordinatedThreadIds, coordinatedThreads, deliveryLabel, isCoordinator, isWaitingOnUser, leadIdOf, MAX_SUMMARY, openDecisions, remoteLeadOf, stuckVerdict, waitingOnUser, withCoordinated, type CoordinationNote, type CoordinationReport, type CoordinatorMemory, type Decision, type MemoryNote, type NextStep, type OverviewGroup, type RemoteLead, type ThreadBrief, type ThreadProposal, type WaitingOnUser } from "../domain/coordination.js";
 import { lastRunOutcome, threadActivityAt, type Thread } from "../domain/thread.js";
 import type { PullRequestAnswer, PullRequestChecks, PullRequestLink, PullRequestRef, PullRequestState } from "../domain/pull-request.js";
@@ -281,9 +282,6 @@ export type RemoteWork = { thread: Thread; computer: PairedComputer; runId?: str
 /** A thread's workflows and subagents that keep working once its run is stopped, so are stopped one by one. */
 export type SessionWork = { taskId: string; processIds: string[] };
 
-/** A thread whose session work Stop all stopped, and when, so only the agent's answer to that stop ends quietly. */
-export type QuietSession = { taskId: string; at: number };
-
 /** The work Stop all stops under a coordinator, its own included. */
 export type CoordinatorWork = {
   /** The coordinator and each thread under it on this computer. */
@@ -326,7 +324,7 @@ export function coordinatorWork(state: Pick<WorkspaceState, "threads" | "compute
       .filter((processId) => supportsComputerCommand(computer.capabilities, { type: "run.stop-process", taskId: thread.id, processId }));
     return run || thread.limitPause || processIds.length ? [{ thread, computer, ...(run ? { runId: run.runId } : {}), processIds }] : [];
   });
-  const landing = (lead.proposals ?? []).filter((proposal) => proposal.place.computer && state.startingProposals.includes(proposal.id) && !lead.caughtStarts?.[proposal.id]);
+  const landing = (lead.proposals ?? []).filter((proposal) => proposal.place.computer && state.startingProposals.includes(proposal.id) && caughtStartComputer(lead, proposal.id) === undefined);
   return { threads, starts, sessionWork, elsewhere, landing };
 }
 
