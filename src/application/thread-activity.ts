@@ -8,6 +8,7 @@ import type { Subagent } from "../domain/run.js";
 import type { Thread } from "../domain/thread.js";
 import { resumesOnItsOwn } from "../domain/usage-limit.js";
 import type { Workflow } from "../domain/workflow.js";
+import { startingThreads } from "./run-record.js";
 import { unreadView } from "./thread-attention.js";
 import { leavingThreadIds } from "./thread-location.js";
 import { sideChatIds, type WorkspaceState } from "./workspace-state.js";
@@ -66,7 +67,7 @@ function deriveActivity(state: WorkspaceState): ThreadActivity {
   const working = new Set(Object.keys(state.activeRuns));
   const blocked = new Set<string>();
   for (const run of Object.values(state.activeRuns)) if (run.status === "awaiting-approval") blocked.add(run.taskId);
-  for (const pending of Object.values(state.pendingRuns)) if (pending.taskId) working.add(pending.taskId);
+  for (const taskId of startingThreads(state).keys()) working.add(taskId);
   for (const taskId of state.creatingWorktrees) working.add(taskId);
   /** A checkout on its way out is ground about to move, so every thread standing on it waits. */
   for (const taskId of leavingThreadIds(state)) working.add(taskId);

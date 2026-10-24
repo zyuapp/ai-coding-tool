@@ -6,8 +6,9 @@ import { promptWithAttachments } from "../attachments.js";
 import { annotationsFor, composerDraft, filesFor, imagesFor, pastesFor, withAnnotations, withFiles, withImages, withPastes } from "../composer-drafts.js";
 import { promptWithFiles } from "../files.js";
 import { promptWithPastes } from "../pastes.js";
-import { ATTENDED_RUN, runStatusFor, threadMark, updateThread, withActiveRun, withBackgroundProcesses, withRunStatus, withSubagents, withWorkflows, type ActiveRun, type RunProvenance, type ThreadMark } from "../thread-run-state.js";
-import { projectFor, threadWorkspaceId, worktreeFor } from "../thread-location.js";
+import { ATTENDED_RUN, threadMark, updateThread, withActiveRun, withBackgroundProcesses, withRunStatus, withSubagents, withWorkflows, type ActiveRun, type RunProvenance, type ThreadMark } from "../thread-run-state.js";
+import { projectFor, worktreeFor } from "../thread-location.js";
+import { runOf, runStatus, threadBusy } from "../run-record.js";
 import { withPrompt, type DraftBranch, type PendingRun, type QueuedMessage, type SideChat, type WorkspaceState } from "../workspace-state.js";
 import type { ClaudeRunSettings, StartRunCommand } from "../../contracts/ipc.js";
 import { withoutOutcome } from "../../domain/attention.js";
@@ -70,7 +71,7 @@ export function sideChatPrompt(state: WorkspaceState, taskId: string, prompt: st
     capturedAt: now(),
     ...(parent ? {
       title: parent.title,
-      status: state.activeRuns[parent.id]?.status ?? (threadBusy(state, parent.id) ? "running" : runStatusFor(state, parent.id)),
+      status: runOf(state, parent.id)?.status ?? (threadBusy(state, parent.id) ? "running" : runStatus(state, parent.id)),
       lastRunOutcome: lastRunOutcome(parent) ?? null,
       workingAgents: workingAgents.length,
       // Identify the same helpers mentioned in inherited notices without copying their activity logs.
@@ -388,23 +389,6 @@ export function resolveWorkspaceEffect(pendingId: string, thread: Thread | undef
     /** Without a checkout of its own, starting from a branch means moving the project onto it. */
     ...(branch && project?.workspaceId ? { checkout: { workspaceId: project.workspaceId, branch: branch.name } } : {}),
   };
-}
-
-/**
- * Whether a thread is working, counting the moment between a send and the checkout it resolves to.
- * A run that has not started yet still has an answer on its way about where it will happen.
- */
-export function threadBusy(state: WorkspaceState, taskId: string) {
-  return Boolean(state.activeRuns[taskId]) || Object.values(state.pendingRuns).some((pending) => pending.taskId === taskId);
-}
-
-/** Whether a run is going in a checkout, so nothing moves the ground under it. */
-export function runsInWorkspace(state: WorkspaceState, workspaceId: string | undefined) {
-  if (!workspaceId) return false;
-  return Object.keys(state.activeRuns).some((taskId) => {
-    const thread = state.threads.find((item) => item.id === taskId);
-    return thread ? threadWorkspaceId(state, thread) === workspaceId : false;
-  });
 }
 
 export function withSideChat(state: WorkspaceState, chatId: string, update: (chat: SideChat) => SideChat): WorkspaceState {

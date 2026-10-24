@@ -1,5 +1,5 @@
 /** Coordinators and their threads: who works under whom, what they report, and what waits on the user. */
-import { drainQueue, queuedFor, resolveWorkspaceEffect, stoppingProcess, threadBusy, withPending, withUnsent } from "./run-queue.js";
+import { drainQueue, queuedFor, resolveWorkspaceEffect, stoppingProcess, withPending, withUnsent } from "./run-queue.js";
 import { reduceSending } from "./sending.js";
 import { released, remoteNews } from "./coordination-remote.js";
 import { withProposalFailure } from "./proposals.js";
@@ -13,6 +13,7 @@ import { withFactsHeard } from "../member-facts.js";
 import { announced } from "../notices.js";
 import { withoutLapsedStops, withStopAll } from "../outstanding-stops.js";
 import { updateThread } from "../thread-run-state.js";
+import { threadBusy } from "../run-record.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
 import { canJoinCoordinator, coordinatorOf, decisionsFull, isCoordinator, MAX_ANSWER, nextStepOf, openDecisions, remoteLeadOf, reopenedIfStuck, threadModelOf, undelegable, withAnswer, withDecision, withMemoryChange, worksUnderCoordinator, type CoordinationNote, type MemoryChange } from "../../domain/coordination.js";

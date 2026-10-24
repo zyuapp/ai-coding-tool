@@ -1,6 +1,6 @@
 /** A send: the prompt the composer hands over, and the queue behind a run already going. */
 import { ARCHIVED_SEND_ERROR, CHECKOUT_RUNNING_ERROR, MISSING_PROJECT_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
-import { clearedDraft, fileThread, forkableContinuation, handedBack, queuedFor, resolveWorkspaceEffect, runsInWorkspace, sentPrompt, sideChatPrompt, withAttendedRun, withPending, withQueued, withUndelivered } from "./run-queue.js";
+import { clearedDraft, fileThread, forkableContinuation, handedBack, queuedFor, resolveWorkspaceEffect, sentPrompt, sideChatPrompt, withAttendedRun, withPending, withQueued, withUndelivered } from "./run-queue.js";
 import { settled, targetId, rejected } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { annotationsFor, filesFor, focusComposer, focusedTab, pastesFor } from "../composer-drafts.js";
@@ -14,6 +14,7 @@ import { engineReadinessOf, refreshEngines } from "../engine-access.js";
 import { expandThreadHandles } from "../../domain/thread-handles.js";
 import { withoutSnooze } from "../../domain/thread-snooze.js";
 import { updateThread } from "../thread-run-state.js";
+import { runsInWorkspace } from "../run-record.js";
 import { coordinationSendOf, senderPrompt, type CoordinationSend } from "../coordination.js";
 import type { RemoteLead } from "../../domain/coordination.js";
 import { isUsersOwn, originFields, type MessageOrigin } from "../../domain/message-origin.js";

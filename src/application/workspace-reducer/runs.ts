@@ -5,7 +5,7 @@ import { coordinatedStart, withSuggestionStarted } from "./coordinated-start.js"
 import { readDiffFrom, rereadReviewsOf } from "./diff-reads.js";
 import { handOverDraftDock } from "./dock-tabs.js";
 import { WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
-import { beginRun, cancellingRun, clearedDraft, queuedFor, resolveWorkspaceEffect, sideChannelFor, startRunCommand, stoppingProcess, threadBusy, withAttendedRun, withDeliveredMessage, withPending, withQueued, withSideChat, withSteeringFailure, withUnsent, withoutPending } from "./run-queue.js";
+import { beginRun, cancellingRun, clearedDraft, queuedFor, resolveWorkspaceEffect, sideChannelFor, startRunCommand, stoppingProcess, withAttendedRun, withDeliveredMessage, withPending, withQueued, withSideChat, withSteeringFailure, withUnsent, withoutPending } from "./run-queue.js";
 import { followUps, now, settled, targetId, rejected } from "./shared.js";
 import { memberPullRequestRead } from "./pull-requests.js";
 import { withUsedWorktree } from "./worktree-claims.js";
@@ -20,6 +20,7 @@ import { stopIntentOf } from "../outstanding-stops.js";
 import { settledEvent, settledTurn, settleTurn, type Settlement } from "../run-settlement.js";
 import { nextSortIndex } from "../thread-order.js";
 import { answerPartId, applyRunEvent, applyThreadEvent, ATTENDED_RUN, threadMark, updateThread, type ActiveRun } from "../thread-run-state.js";
+import { threadBusy, threadToBegin } from "../run-record.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, threadWorkspaceRoot, worktreeById, worktreeFor } from "../thread-location.js";
 import { DRAFT_DOCK, type PendingRun, type WorkspaceState } from "../workspace-state.js";
 import type { CreatedWorktree, RunEvent } from "../../contracts/ipc.js";
@@ -356,8 +357,8 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
 
 /** A thread picked back up after its usage limit lifted: nobody wrote to it, so it is told to carry on. */
 function startResume(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord): WorkspaceTransition {
-  const thread = pending.taskId ? state.threads.find((item) => item.id === pending.taskId) : undefined;
-  if (!thread || thread.archivedAt !== undefined || state.activeRuns[thread.id]) return settled(state);
+  const thread = threadToBegin(state, pending.taskId);
+  if (!thread) return settled(state);
   const resumed = updateThread(state, thread.id, (item) => ({
     ...item,
     messages: appendMessages(item.messages, [createConversationMessage("system", "Usage limit reset. Resuming.")]),
@@ -378,8 +379,8 @@ function stopProcess(state: WorkspaceState, input: Extract<RunInput, { type: "ru
 
 function startAutomationRun(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord, worktree?: CreatedWorktree): WorkspaceTransition {
   const taskId = pending.taskId!;
-  const thread = state.threads.find((item) => item.id === taskId);
-  if (!thread || thread.archivedAt !== undefined || state.activeRuns[taskId]) return settled(state, ack(pending, false));
+  const thread = threadToBegin(state, taskId);
+  if (!thread) return settled(state, ack(pending, false));
   /** A quiet tick's own label counts for nothing in the thread's activity, like the rest of its run. */
   const message = { ...createSentMessage({ text: pending.text, origin: pending.messageOrigin }), ...(pending.quiet ? { withdrawn: true as const } : {}) };
   const created = worktree && thread.projectId ? { ...worktree, name: worktree.name ?? thread.title, projectId: thread.projectId } : undefined;

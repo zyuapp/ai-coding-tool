@@ -1,4 +1,4 @@
-import { runStatusFor } from "./thread-run-state.js";
+import { runStatus } from "./run-record.js";
 import { threadActivity } from "./thread-activity.js";
 import { projectFor, worktreeFor } from "./thread-location.js";
 import { sideChatIds, type WorkspaceState } from "./workspace-state.js";
@@ -60,7 +60,7 @@ function projectThreadSummary(state: WorkspaceState, thread: Thread, activity: n
     ...(thread.projectId ? { projectId: thread.projectId } : {}),
     ...(project ? { projectRoot: project.root } : {}),
     ...(worktree ? { worktreeId: worktree.id, worktreeRoot: worktree.root } : {}),
-    status: threadActivity(state).working.has(thread.id) ? "running" : runStatusFor(state, thread.id),
+    status: threadActivity(state).working.has(thread.id) ? "running" : runStatus(state, thread.id),
     ...(thread.limitPause ? { pausedUntil: thread.limitPause.resetsAt } : {}),
     archived: thread.archivedAt !== undefined,
     createdAt: threadCreatedAt(thread),

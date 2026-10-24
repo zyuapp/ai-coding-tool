@@ -213,10 +213,6 @@ function updateWorkflow<T extends RunTransitionState>(state: T, threadId: string
     : [...workflows, update(undefined)]);
 }
 
-export function runStatusFor(state: RunTransitionState, threadId: string | null): ThreadRunStatus {
-  return threadId ? state.runStatuses[threadId] ?? "idle" : "idle";
-}
-
 export function updateThread<T extends RunTransitionState>(state: T, threadId: string, update: (thread: Thread) => Thread): T {
   return { ...state, threads: state.threads.map((thread) => thread.id === threadId ? update(thread) : thread) } as T;
 }

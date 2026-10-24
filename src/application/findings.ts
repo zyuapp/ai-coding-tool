@@ -11,6 +11,7 @@ import { declineCount, DECLINES_BEFORE_SURFACING } from "../domain/automation.js
 import type { Project } from "../domain/project.js";
 import type { Thread } from "../domain/thread.js";
 import { announced } from "./notices.js";
+import { usersTurn } from "./run-record.js";
 import { scheduledRun, withNotifiedRun } from "./run-testimony.js";
 import { threadStatus } from "./thread-activity.js";
 import { updateThread } from "./thread-run-state.js";
@@ -20,19 +21,13 @@ import type { WorkspaceState } from "./workspace-state.js";
 /** Why a tick has nowhere to run. */
 export type TickRefusal = "no-thread" | "archived" | "busy-user" | "busy-agent" | "no-workspace";
 
-/** Whether the user has a turn of their own going, which is what a tick waits behind. */
-function userIsHere(state: WorkspaceState, taskId: string): boolean {
-  return state.activeRuns[taskId]?.origin === "composer"
-    || Object.values(state.pendingRuns).some((pending) => pending.taskId === taskId && pending.origin === "composer");
-}
-
 /**
  * Who the thread is working for, if anyone. Any status but idle counts, so a send still resolving, a
  * message still queued, and a usage-limit pause all hold a tick back: a run would clear the pause.
  */
 function whoIsBusy(state: WorkspaceState, taskId: string): "busy-user" | "busy-agent" | null {
   if (threadStatus(state, taskId) === "idle") return null;
-  return userIsHere(state, taskId) ? "busy-user" : "busy-agent";
+  return usersTurn(state, taskId) ? "busy-user" : "busy-agent";
 }
 
 /**

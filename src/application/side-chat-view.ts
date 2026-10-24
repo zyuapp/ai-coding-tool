@@ -3,8 +3,9 @@ import type { ReadingPoint } from "../contracts/commands.js";
 import type { Annotation, AttachedFile, PastedText, StagedImage } from "../domain/conversation.js";
 import type { RetryNotice } from "../domain/run.js";
 import type { PendingQuestion } from "../domain/agent-question.js";
-import { runStatusFor, type ApprovalView, type StreamingTail, type ThreadRunStatus } from "./thread-run-state.js";
+import { type ApprovalView, type StreamingTail, type ThreadRunStatus } from "./thread-run-state.js";
 import { annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-drafts.js";
+import { runStatus } from "./run-record.js";
 import { coordinatedThreadStatus, type CoordinatedThreadStatus } from "./coordination.js";
 import { projectFor, threadWorkspaceId } from "./thread-location.js";
 import { pullRequestFor } from "./pull-request-view.js";
@@ -67,7 +68,7 @@ function dockConversationView(state: WorkspaceState, thread: Thread): DockConver
     question: active?.questions?.[0],
     compacting: active?.status === "compacting",
     retrying: active?.retry ?? null,
-    status: active ? "running" : runStatusFor(state, thread.id),
+    status: runStatus(state, thread.id),
     streamingTail: state.streamingTails[thread.id] ?? null,
     queuedMessages: state.queuedMessages[thread.id] ?? NO_QUEUED,
     readingPoint: state.readingPoints[thread.id] ?? null,

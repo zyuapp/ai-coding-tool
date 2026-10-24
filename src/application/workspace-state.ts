@@ -1,7 +1,8 @@
 import { sideChatView, threadTabView, type SideChatView, type ThreadTabView } from "./side-chat-view.js";
 import { worktreeMenuView, type WorktreeMenuSearch, type WorktreeMenuState } from "./worktree-menu.js";
 import type { ThreadRole } from "../domain/thread-role.js";
-import { runStatusFor, type ApprovalView, type RunTransitionState } from "./thread-run-state.js";
+import type { ApprovalView, RunTransitionState } from "./thread-run-state.js";
+import { runStatus } from "./run-record.js";
 import { threadActivity, threadLists, waitingOn, type ThreadWait } from "./thread-activity.js";
 import { backfillProjectSortIndex } from "./project-order.js";
 import { sidebarLists } from "./sidebar-lists.js";
@@ -34,8 +35,7 @@ import { shownViewCollections, workspaceViewCollections } from "./workspace-view
 import { findView } from "./workspace-find.js";
 export { findTargetFor } from "./workspace-find.js";
 export type { FindView } from "./workspace-find.js";
-export { EMPTY_DIFF, diffFor, diffMatches, foldedOnLoad, retainedViews, withDiff } from "./workspace-diff.js";
-export type { DiffState } from "./workspace-diff.js";
+export { EMPTY_DIFF, diffFor, diffMatches, foldedOnLoad, retainedViews, withDiff, type DiffState } from "./workspace-diff.js";
 import type { AutomationView } from "../domain/automation.js";
 import { NO_APP_UPDATE, type AppBuild, type AppUpdate, type AppUpdateRequest } from "../domain/app-update.js";
 import type { Toast } from "../domain/toast.js";
@@ -797,7 +797,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state,
     pastes: pastesFor(state, promptKey(state)),
     images: imagesFor(state, promptKey(state)),
     files: filesFor(state, promptKey(state)),
-    status: currentRun ? "running" as const : runStatusFor(state, state.currentId),
+    status: runStatus(state, state.currentId),
     compacting: currentRun?.status === "compacting",
     retrying: currentRun?.retry ?? null,
     /** The usage limit the thread is waiting out, and its place in line. */

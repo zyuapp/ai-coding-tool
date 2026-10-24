@@ -4,6 +4,7 @@ import { now, settled } from "./workspace-reducer/shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
 import { settledTurn, settleTurn } from "./run-settlement.js";
 import { updateThread, withTurnEnded } from "./thread-run-state.js";
+import { threadBusy } from "./run-record.js";
 import { leavingThreadIds, projectFor, worktreeFor } from "./thread-location.js";
 import type { PendingRun, QueuedMessage, WorkspaceState } from "./workspace-state.js";
 import type { AgentEngine } from "../domain/agent-engine.js";
@@ -31,7 +32,7 @@ export function nudged(state: WorkspaceState, taskId: string, at: number): Works
 export function resumeThread(state: WorkspaceState, taskId: string): WorkspaceTransition {
   const thread = state.threads.find((item) => item.id === taskId);
   const pause = thread?.limitPause;
-  if (!thread || !pause || state.activeRuns[taskId] || Object.values(state.pendingRuns).some((pending) => pending.taskId === taskId)) return settled(state);
+  if (!thread || !pause || threadBusy(state, taskId)) return settled(state);
   const lifted = updateThread(state, taskId, withoutLimitPause);
   const [written, ...rest] = queuedFor(lifted, taskId);
   if (written) return drainQueue(withQueued(lifted, taskId, [{ ...written, prompt: resumePrompt(pause, written.prompt) }, ...rest]), taskId, "succeeded", true);
