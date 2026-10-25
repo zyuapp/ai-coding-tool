@@ -36,6 +36,15 @@ test("image data supplies a saved preview when Codex omits its path or the file 
   }
 });
 
+test("an uploaded image previews from its saved file and reports no image without one", async () => {
+  const file = path.join(host.root, "cat.png");
+  await writeFile(file, png);
+  const uploaded = (savedPath?: string): ImageGenerationItem => ({ id: "image-1", status: "completed", revisedPrompt: null, failure: null, fileId: "file-1", ...(savedPath ? { savedPath } : {}) });
+  assert.deepEqual(await readFile(messageImages(await codexImageOutput(uploaded(file), host.root, host.root))[0]!.path), png);
+  assert.match(await codexImageOutput(uploaded(), host.root, host.root), /without returning an image/);
+  await assert.rejects(codexImageOutput(uploaded(path.join(host.root, "missing.png")), host.root, host.root));
+});
+
 test("failed, cancelled and empty generations report what happened, and malformed image data is rejected", async () => {
   assert.match(await codexImageOutput(item({ failure: { type: "usageLimitExceeded", limitId: "imagegen", resetsAt: null } }), host.root, host.root), /usage limit/);
   assert.match(await codexImageOutput(item({ status: "failed" }), host.root, host.root), /generation failed/);

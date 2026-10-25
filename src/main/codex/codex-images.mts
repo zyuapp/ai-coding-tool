@@ -14,7 +14,8 @@ export async function codexImageOutput(item: ImageGenerationItem, root: string, 
   if (item.status === "failed") return "Image generation failed. Codex did not return an image.";
   if (item.status === "cancelled" || item.status === "interrupted") return "Image generation was cancelled.";
 
-  if (!item.savedPath && !item.result) return "Image generation finished without returning an image.";
+  const result = "result" in item ? item.result : "";
+  if (!item.savedPath && !result) return "Image generation finished without returning an image.";
   if (!directory || !path.isAbsolute(directory)) throw new Error("Generated image storage is unavailable.");
   let bytes: Buffer | undefined;
   let extension = ".png";
@@ -24,13 +25,13 @@ export async function codexImageOutput(item: ImageGenerationItem, root: string, 
       bytes = await readImageFile(await openableFile(root ? [root] : [], item.savedPath));
       extension = path.extname(item.savedPath).toLowerCase();
     } catch (error) {
-      if (!item.result) throw error;
+      if (!result) throw error;
     }
   }
   if (!bytes) {
-    if (item.result.length > Math.ceil(MAX_IMAGE_BYTES / 3) * 4) throw new Error("Image is too large.");
-    if (!/^[A-Za-z0-9+/]+={0,2}$/.test(item.result)) throw new Error("Image payload is not base64.");
-    bytes = Buffer.from(item.result, "base64");
+    if (result.length > Math.ceil(MAX_IMAGE_BYTES / 3) * 4) throw new Error("Image is too large.");
+    if (!/^[A-Za-z0-9+/]+={0,2}$/.test(result)) throw new Error("Image payload is not base64.");
+    bytes = Buffer.from(result, "base64");
     if (!bytes.length || bytes.length > MAX_IMAGE_BYTES) throw new Error("Image is empty or too large.");
   }
   await mkdir(directory, { recursive: true });
