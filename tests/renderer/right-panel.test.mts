@@ -145,7 +145,8 @@ test("a side chat composes with everything the main composer has", async () => {
   assert.match(usage.textContent, /120K \/ 200K tokens used/);
 
   const settings = view.container.querySelectorAll<HTMLDetailsElement>(".composer-settings .setting-menu");
-  assert.equal(settings.length, 3, "permission mode, model, and effort");
+  assert.equal(settings.length, 2, "permission mode, and model with its effort");
+  assert.equal(query(item(settings[1]), "summary").getAttribute("aria-label"), "Model and effort");
   assert.equal(query(item(settings[0]), ".setting-value").textContent, "Edits", "the chat's own policy is selected, not the first one on offer");
   await act(async () => { query<HTMLElement>(item(settings[0]), "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   assert.deepEqual(

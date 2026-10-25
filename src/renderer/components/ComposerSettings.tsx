@@ -1,8 +1,8 @@
-import { CommandGate, CommandButton } from "./CommandControl";
+import { CommandGate, CommandButton, useCommandControls } from "./CommandControl";
 import type { IconType } from "react-icons";
-import { LuSearch as Search, LuStar as Star, LuGrid2X2 as Grid, LuX as X, LuBrain as Brain, LuCheck as Check, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuFlame as Flame, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuNetwork as Network, LuShieldOff as ShieldOff, LuSignal as Signal, LuSignalHigh as SignalHigh, LuSignalLow as SignalLow, LuSignalMedium as SignalMedium, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
-import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { AGENT_ENGINES, capabilitiesFor, byEngine, byModel, effortForModel, effortsFor, engineLabel, engineNotice, isAgentModel, modelsFor, type AgentEngine, type AgentModel, type EffortSpec, type EngineNotice, type EngineReadiness } from "../../domain/agent-engine";
+import { LuSearch as Search, LuStar as Star, LuGrid2X2 as Grid, LuX as X, LuBrain as Brain, LuCheck as Check, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuShieldOff as ShieldOff, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
+import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { AGENT_ENGINES, capabilitiesFor, byEngine, effortForModel, effortsFor, engineLabel, engineNotice, isAgentModel, modelsFor, type AgentEngine, type AgentModel, type EffortSpec, type EngineNotice, type EngineReadiness } from "../../domain/agent-engine";
 import { POLICIES, type AgentEffort, type ExecutionPolicy } from "../../domain/run";
 import { moveListFocus, useDismissibleLayer } from "../focus";
 import { CopyButton } from "./CopyButton";
@@ -18,20 +18,10 @@ const modes: Choice<ExecutionPolicy>[] = [
 
 const modelIcons: Record<AgentModel, IconType> = { fable: Sparkles, opus: Brain, sonnet: Gauge, haiku: Feather, "gpt-6-astra": Brain, "gpt-6.1-sol": Sparkles, "gpt-5.6-terra": Gauge, "gpt-6-luna": Moon };
 
-/** Bars for the depth ladder, and a mark of its own for the tier that works differently. */
-const effortIcons: Record<AgentEffort, IconType> = {
-  ultra: Network,
-  max: Flame,
-  xhigh: Signal,
-  high: SignalHigh,
-  medium: SignalMedium,
-  low: SignalLow,
-};
+/** Tick labels the slider has room for; the strip names the effort in full beside it. */
+const shortEffortLabels: Partial<Record<AgentEffort, string>> = { medium: "Med", xhigh: "X-High" };
 
 const modelsOf = byEngine((engine): Choice<AgentModel>[] => modelsFor(engine).map((spec) => ({ value: spec.id, label: spec.label, description: spec.description, icon: modelIcons[spec.id] })));
-const effortChoices = (efforts: readonly EffortSpec[]): Choice<AgentEffort>[] => efforts.map((spec) => ({ value: spec.id, ...spec, icon: effortIcons[spec.id] }));
-const effortsOf = byModel((model) => effortChoices(model.efforts));
-const coordinatorEffortsOf = byModel((model) => effortChoices(effortsFor(model.id, "coordinator")));
 
 /** Provider filters and search share the same catalog. */
 const modelGroups = AGENT_ENGINES.map((engine) => ({ engine, label: engineLabel(engine), choices: modelsOf[engine] }));
@@ -49,12 +39,15 @@ function ReadinessHint({ notice, onOpenSettings }: { notice: EngineNotice; onOpe
   </div>;
 }
 
-function SettingMenu({ label, axis, heading, value, onOpen, library = false, children }: {
+function SettingMenu({ label, axis, heading, value, detail, onOpen, onKeyDown, library = false, children }: {
   label: string;
   axis: string;
   heading: string;
   value: ReactNode;
+  /** A second value read after the first, such as the effort beside its model. */
+  detail?: ReactNode;
   onOpen?: () => void;
+  onKeyDown?: (event: KeyboardEvent<HTMLElement>) => void;
   library?: boolean;
   /** The options, handed the menu's own close so a pick can shut it. */
   children: (close: () => void) => ReactNode;
@@ -69,8 +62,9 @@ function SettingMenu({ label, axis, heading, value, onOpen, library = false, chi
     <summary ref={summary} aria-label={label}>
       <span className="setting-axis">{axis}</span>
       <span className="setting-value">{value}</span>
+      {detail !== undefined && <span className="setting-detail"><span aria-hidden="true">·</span>{detail}</span>}
     </summary>
-    {open && <div className={`setting-popover${library ? " model-library" : ""}`} role={library ? "dialog" : "listbox"} aria-label={heading} onKeyDown={library ? undefined : moveListFocus}>
+    {open && <div className={`setting-popover${library ? " model-library" : ""}`} role={library ? "dialog" : "listbox"} aria-label={heading} onKeyDown={onKeyDown ?? (library ? undefined : moveListFocus)}>
       {!library && <div className="setting-heading">{heading}</div>}
       {children(close)}
     </div>}
@@ -114,6 +108,83 @@ function ChoiceMenu<T extends string>({ label, axis, heading, choices, value, on
   </SettingMenu>;
 }
 
+/** The effort a model menu sets alongside its model. A coordinator's offers only the efforts it takes. */
+export type EffortControl = { value: AgentEffort; coordinating?: boolean; onChange: (effort: AgentEffort) => void };
+
+/** The efforts a model offers, shallowest first, and the one a run on it gets. */
+function effortSteps(model: AgentModel, effort: EffortControl) {
+  const role = effort.coordinating ? "coordinator" : undefined;
+  return { steps: [...effortsFor(model, role)].reverse(), value: effortForModel(model, effort.value, role) };
+}
+
+function EffortSlider({ steps, value, onChange }: { steps: readonly EffortSpec[]; value: AgentEffort; onChange: (effort: AgentEffort) => void }) {
+  const rail = useRef<HTMLDivElement>(null);
+  const [dragging, setDragging] = useState(false);
+  const last = steps.length - 1;
+  const index = Math.max(0, steps.findIndex((spec) => spec.id === value));
+  const at = (step: number) => (last ? step / last : 0);
+  const pick = (step: number) => {
+    const spec = steps[Math.min(last, Math.max(0, step))];
+    if (spec && spec.id !== value) onChange(spec.id);
+  };
+  const fromPointer = (event: PointerEvent<HTMLElement>) => {
+    const box = rail.current?.getBoundingClientRect();
+    return box?.width ? Math.round(((event.clientX - box.left) / box.width) * last) : index;
+  };
+  const keyDown = (event: KeyboardEvent<HTMLElement>) => {
+    const step = ({ ArrowLeft: index - 1, ArrowDown: index - 1, ArrowRight: index + 1, ArrowUp: index + 1, Home: 0, End: last } as Record<string, number>)[event.key];
+    if (step === undefined) return;
+    event.preventDefault();
+    event.stopPropagation();
+    pick(step);
+  };
+  return <div
+    className={`effort-slider${dragging ? " dragging" : ""}${steps[index]?.delegates ? " delegates" : ""}`}
+    role="slider"
+    tabIndex={0}
+    aria-label="Effort"
+    aria-valuemin={0}
+    aria-valuemax={last}
+    aria-valuenow={index}
+    aria-valuetext={steps[index]?.label}
+    style={{ "--effort-at": at(index) } as CSSProperties}
+    onKeyDown={keyDown}
+    onPointerDown={(event) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      event.currentTarget.focus();
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      setDragging(true);
+      pick(fromPointer(event));
+    }}
+    onPointerMove={(event) => { if (dragging) pick(fromPointer(event)); }}
+    onPointerUp={() => setDragging(false)}
+    onPointerCancel={() => setDragging(false)}
+  >
+    <div className="effort-rail" ref={rail}>
+      <div className="effort-fill" />
+      {steps.map((spec, step) => <span key={spec.id} className={`effort-tick${step < index ? " passed" : ""}`} style={{ left: `${at(step) * 100}%` }} />)}
+      <div className="effort-thumb" />
+    </div>
+    <div className="effort-labels" aria-hidden="true">
+      {steps.map((spec, step) => <span key={spec.id} className={`${step === index ? "selected" : ""}${spec.delegates ? " delegates" : ""}`} style={{ left: `${at(step) * 100}%` }}>{shortEffortLabels[spec.id] ?? spec.label}</span>)}
+    </div>
+  </div>;
+}
+
+/** The effort for the model in the library, pinned under the list so it stays in reach however long the list grows. */
+function EffortStrip({ model, modelLabel, effort }: { model: AgentModel; modelLabel: string; effort: EffortControl }) {
+  const { steps, value } = effortSteps(model, effort);
+  const selected = steps.find((spec) => spec.id === value);
+  return <div className="effort-strip">
+    <span className="effort-strip-axis">Effort<small>{modelLabel}</small></span>
+    {steps.length ? <>
+      <EffortSlider steps={steps} value={value} onChange={effort.onChange} />
+      <span className={`effort-strip-value${selected?.delegates ? " delegates" : ""}`} title={selected?.description}>{selected?.label ?? value}</span>
+    </> : <span className="effort-strip-none">{modelLabel} has no effort setting</span>}
+  </div>;
+}
+
 type ModelLibraryProps = {
   engine: AgentEngine;
   engineLocked: boolean;
@@ -126,9 +197,11 @@ type ModelLibraryProps = {
   onOpenEngineSettings?: () => void;
   /** Narrows the library to the models this choice may take. */
   models?: (model: AgentModel) => boolean;
+  /** Set where the menu picks the effort too. Picking a model then leaves the library open to fit the effort. */
+  effort?: EffortControl;
 };
 
-function ModelLibrary({ engine, engineLocked, engineAccess, model, favoriteModels = [], onModelFavorite, onChange, onSignIn, onOpenEngineSettings, models, close }: ModelLibraryProps & { close: () => void }) {
+function ModelLibrary({ engine, engineLocked, engineAccess, model, modelLabel, favoriteModels = [], onModelFavorite, onChange, onSignIn, onOpenEngineSettings, models, effort, close }: ModelLibraryProps & { modelLabel: string; close: () => void }) {
   const [filter, setFilter] = useState<AgentEngine | "favorites" | "all">(() => {
     if (engineLocked) return engine;
     return favoriteModels.length ? "favorites" : "all";
@@ -160,6 +233,7 @@ function ModelLibrary({ engine, engineLocked, engineAccess, model, favoriteModel
     if (event.key === "Enter" && event.target instanceof HTMLElement && event.target.tagName === "INPUT") {
       event.preventDefault();
       buttons[0].click();
+      close();
       return;
     }
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
@@ -197,7 +271,7 @@ function ModelLibrary({ engine, engineLocked, engineAccess, model, favoriteModel
               const favorite = favorites.has(item.value);
               const Icon = item.icon;
               return <div key={item.value} className={`model-row${selected ? " selected" : ""}`}>
-                <button type="button" className="model-choice" aria-pressed={selected} disabled={!ready} onClick={() => { onChange(group.engine, item.value); close(); }} title={item.description}>
+                <button type="button" className="model-choice" aria-pressed={selected} disabled={!ready} onClick={() => { onChange(group.engine, item.value); if (!effort) close(); }} title={item.description}>
                   <span className="model-row-icon" aria-hidden="true"><Icon size={18} /></span>
                   <span className="model-row-label"><strong>{item.label}</strong><small>{group.label} · {item.description}</small></span>
                   {selected && <Check size={16} className="model-selected-check" aria-hidden="true" />}
@@ -213,26 +287,41 @@ function ModelLibrary({ engine, engineLocked, engineAccess, model, favoriteModel
         {count === 0 && <p className="model-empty">{search ? "No models found. Try another name or provider." : filter === "favorites" ? "Pin models from All models to keep them here." : "No models available."}</p>}
       </div>
     </div>
-    <div className="model-library-footer">{engineLocked ? `This thread uses ${engineLabel(engine)}.` : "↑ ↓ navigate · Enter select"}<span><Star size={12} /> Pin your go-to models</span></div>
+    {effort
+      ? <EffortStrip model={model} modelLabel={modelLabel} effort={effort} />
+      : <div className="model-library-footer">{engineLocked ? `This thread uses ${engineLabel(engine)}.` : "↑ ↓ navigate · Enter select"}<span><Star size={12} /> Pin your go-to models</span></div>}
   </>;
 }
 
-/** The model chip and the library it opens. `onOpen` asks after the engines, so the library can say which it can pick. */
+/** The model chip and the library it opens, with the effort beside the model where `effort` is set. `onOpen` asks after the engines, so the library can say which it can pick. */
 export function ModelMenu({ onOpen, ...props }: ModelLibraryProps & { onOpen: () => void }) {
   /** A model this build does not know, as a newer computer may run, is named as it is sent. */
   const offered = modelsOf[props.engine] ?? [];
   const selected = offered.find((item) => item.value === props.model) ?? (isAgentModel(props.model) ? offered[0] : undefined);
-  return <SettingMenu label="Model" axis="Model" heading="Choose a model" value={selected?.label ?? props.model} library onOpen={props.engineLocked ? undefined : onOpen}>
-    {(close) => <ModelLibrary {...props} close={close} />}
+  const modelLabel = selected?.label ?? props.model;
+  const { effort } = props;
+  const { steps, value } = effort ? effortSteps(props.model, effort) : { steps: [], value: undefined };
+  const shown = steps.find((spec) => spec.id === value);
+  /** Left and right step the effort from anywhere in the library but a search being typed. */
+  const stepEffort = (event: KeyboardEvent<HTMLElement>) => {
+    if (!effort || !steps.length || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
+    if (event.target instanceof HTMLInputElement && event.target.value) return;
+    event.preventDefault();
+    const next = steps[steps.findIndex((spec) => spec.id === value) + (event.key === "ArrowRight" ? 1 : -1)];
+    if (next) effort.onChange(next.id);
+  };
+  return <SettingMenu
+    label={steps.length ? "Model and effort" : "Model"}
+    axis="Model"
+    heading={steps.length ? "Choose a model and effort" : "Choose a model"}
+    value={modelLabel}
+    detail={steps.length ? <span className={shown?.delegates ? "delegates" : undefined}>{shown?.label ?? value}</span> : undefined}
+    library
+    onOpen={props.engineLocked ? undefined : onOpen}
+    onKeyDown={stepEffort}
+  >
+    {(close) => <ModelLibrary {...props} modelLabel={modelLabel} close={close} />}
   </SettingMenu>;
-}
-
-/** The effort chip for a model, drawn only for a model that takes an effort. A coordinator's offers only the efforts it takes. */
-export function EffortMenu({ model, effort, coordinating = false, heading, onChange }: { model: AgentModel; effort: AgentEffort; coordinating?: boolean; heading: string; onChange: (effort: AgentEffort) => void }) {
-  /** A model this build does not know offers no efforts to pick among. */
-  const choices = (coordinating ? coordinatorEffortsOf : effortsOf)[model] ?? [];
-  if (!choices.length) return null;
-  return <ChoiceMenu label="Effort" axis="Effort" heading={heading} choices={choices} value={effortForModel(model, effort, coordinating ? "coordinator" : undefined)} onChange={onChange} />;
 }
 
 export function ComposerSettings({ taskId, mode, engine, engineLabel, engineLocked, engineAccess, model, effort, coordinating = false, fastMode, onFastModeChange, onModeChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onEngineRead, onSignIn, onOpenEngineSettings }: {
@@ -259,11 +348,14 @@ export function ComposerSettings({ taskId, mode, engine, engineLabel, engineLock
   /** Opens the Engines page, where the same trouble is shown with a button that checks again. */
   onOpenEngineSettings?: () => void;
 }) {
+  const controls = useCommandControls();
+  const effortControl: EffortControl | undefined = controls.available({ type: "task.set-effort", taskId, engine, effort })
+    ? { value: effort, coordinating, onChange: (choice) => onEffortChange(engine, choice) }
+    : undefined;
   return (
     <div className="composer-settings">
       <CommandGate command={{ type: "task.set-policy", taskId, policy: mode }}><ChoiceMenu label="Permission mode" axis="Mode" heading={`How should ${engineLabel} actions be approved?`} choices={modes} value={mode} onChange={onModeChange} /></CommandGate>
-      <CommandGate command={{ type: "task.set-model", taskId, engine, model }}><ModelMenu engine={engine} engineLocked={engineLocked} engineAccess={engineAccess} model={model} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onChange={onModelChange} onOpen={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} /></CommandGate>
-      <CommandGate command={{ type: "task.set-effort", taskId, engine, effort }}><EffortMenu model={model} effort={effort} coordinating={coordinating} heading={`How hard should ${engineLabel} think?`} onChange={(choice) => onEffortChange(engine, choice)} /></CommandGate>
+      <CommandGate command={{ type: "task.set-model", taskId, engine, model }}><ModelMenu engine={engine} engineLocked={engineLocked} engineAccess={engineAccess} model={model} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onChange={onModelChange} onOpen={onEngineRead} onSignIn={onSignIn} {...(effortControl ? { effort: effortControl } : {})} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} /></CommandGate>
       {capabilitiesFor(engine).fastMode && <CommandButton command={{ type: "task.set-fast-mode", taskId, fastMode: !fastMode }} type="button" className="fast-mode-toggle" aria-label="Fast mode" aria-pressed={fastMode} title={`Fast mode ${fastMode ? "on" : "off"} · faster responses use more of your plan`} onClick={() => onFastModeChange(!fastMode)}><Zap size={16} aria-hidden="true" /></CommandButton>}
     </div>
   );

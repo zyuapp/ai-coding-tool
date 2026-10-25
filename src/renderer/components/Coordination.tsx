@@ -13,7 +13,7 @@ import type { MemberWorktree } from "../../application/member-worktrees";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
 import { CommandButton, CommandGate } from "./CommandControl";
 import { compactTokens } from "./ContextUsageMeter";
-import { EffortMenu, ModelMenu } from "./ComposerSettings";
+import { ModelMenu } from "./ComposerSettings";
 import { HostMark } from "./HostMark";
 import { useMessageLinks, WebLink } from "./MarkdownMessage";
 import { PULL_REQUEST_ICONS } from "./SessionPanel";
@@ -373,9 +373,9 @@ export function OverviewHeader({ taskId, threadModel, engineAccess, favoriteMode
             onChange={(_engine, next) => onSetThreadModel(next)}
             onOpen={onEngineRead}
             onSignIn={onSignIn}
+            {...(effort ? { effort: { value: effort, onChange: (next: AgentEffort) => onSetThreadModel(model, next) } } : {})}
             {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})}
           />
-          {effort && <EffortMenu model={model} effort={effort} heading="How hard should its threads think?" onChange={(next) => onSetThreadModel(model, next)} />}
         </div>
       </CommandGate>}
     </div>

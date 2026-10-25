@@ -3882,6 +3882,10 @@ button.file-name { cursor: pointer; }
 .setting-axis { color: var(--quiet-soft); font-size: var(--text-meta); white-space: nowrap; }
 .setting-value { color: var(--ink-faint); white-space: nowrap; }
 .setting-menu[open] .setting-value, .setting-menu > summary:hover .setting-value { color: var(--ink); }
+.setting-detail { display: flex; gap: 6px; color: var(--quiet); white-space: nowrap; }
+.setting-detail > span:first-child { color: var(--quiet-soft); }
+.setting-menu[open] .setting-detail, .setting-menu > summary:hover .setting-detail { color: var(--muted); }
+.setting-detail .delegates { color: var(--accent-soft); }
 .setting-popover {
   position: absolute;
   z-index: 20;
@@ -4451,11 +4455,40 @@ button.setting-hint:hover { color: var(--ink); }
 .model-empty { margin: 18px 8px; color: var(--quiet); font-size: var(--text-meta); line-height: 1.6; }
 .model-library-footer { display: flex; justify-content: space-between; gap: 12px; padding: 10px 16px; border-top: 1px solid var(--line-soft); color: var(--quiet); font-size: 10px; flex-shrink: 0; }
 .model-library-footer span { display: flex; align-items: center; gap: 6px; }
+.effort-strip { display: grid; grid-template-columns: 72px minmax(0, 1fr) 72px; align-items: center; gap: 8px; padding: 8px 16px 10px; border-top: 1px solid var(--line-soft); flex-shrink: 0; }
+.effort-strip-axis { display: grid; gap: 2px; color: var(--quiet-strong); font-size: var(--text-meta); }
+.effort-strip-axis small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--quiet); font-size: 11px; }
+.effort-strip-value { color: var(--ink); font-size: var(--text-meta); font-weight: 540; text-align: right; white-space: nowrap; }
+.effort-strip-value.delegates { color: var(--accent-bright); }
+.effort-strip-none { grid-column: 2 / -1; padding: 12px 8px; color: var(--quiet); font-size: var(--text-meta); }
+.effort-slider { --effort-at: 0; position: relative; padding: 10px 8px 2px; border-radius: 8px; outline: none; cursor: pointer; touch-action: none; user-select: none; }
+.effort-slider:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) { box-shadow: 0 0 0 2px var(--focus-ring); }
+.effort-rail { position: relative; height: 4px; border-radius: 2px; background: var(--meter-track); }
+.effort-fill { position: absolute; inset: 0 auto 0 0; width: calc(var(--effort-at) * 100%); border-radius: inherit; background: var(--ink-faint); transition: width 160ms cubic-bezier(0.22, 1, 0.36, 1), background 160ms; }
+.effort-tick { position: absolute; top: 50%; width: 4px; height: 4px; border-radius: 50%; background: var(--line-strong); transform: translate(-50%, -50%); }
+.effort-tick.passed { background: var(--surface-menu); opacity: .7; }
+.effort-thumb { position: absolute; top: 50%; left: calc(var(--effort-at) * 100%); width: 16px; height: 16px; border-radius: 50%; background: var(--surface-inverse); box-shadow: 0 1px 4px rgb(0 0 0 / .4); transform: translate(-50%, -50%); transition: left 160ms cubic-bezier(0.22, 1, 0.36, 1), transform 120ms, background 160ms, box-shadow 160ms; }
+.effort-slider:hover .effort-thumb { transform: translate(-50%, -50%) scale(1.08); }
+.effort-slider.dragging .effort-thumb { transform: translate(-50%, -50%) scale(1.18); transition: left 60ms linear, transform 120ms; }
+.effort-slider.dragging .effort-fill { transition: width 60ms linear; }
+.effort-slider.delegates .effort-fill { background: linear-gradient(90deg, var(--ink-faint), var(--accent)); }
+.effort-slider.delegates .effort-thumb { background: var(--accent-bright); box-shadow: 0 0 0 5px rgb(from var(--accent) r g b / .2), 0 1px 4px rgb(0 0 0 / .4); }
+.effort-labels { position: relative; height: 15px; margin-top: 8px; }
+.effort-labels span { position: absolute; color: var(--quiet); font-size: 11px; line-height: 15px; white-space: nowrap; transform: translateX(-50%); }
+.effort-labels span:first-child { transform: none; }
+.effort-labels span:last-child { transform: translateX(-100%); }
+.effort-labels span.selected { color: var(--ink); font-weight: 540; }
+.effort-labels span.delegates { color: color-mix(in srgb, var(--accent) 70%, var(--quiet)); }
+.effort-labels span.selected.delegates { color: var(--accent-bright); }
+@media (prefers-reduced-motion: reduce) { .effort-fill, .effort-thumb { transition: none; } }
 @container (max-width: 540px) {
   .model-library-body { grid-template-columns: 116px minmax(0, 1fr); }
   .model-provider-rail button { gap: 6px; padding-inline: 5px; }
   .model-row-icon { display: none; }
   .model-library-footer span { display: none; }
+  .effort-strip { grid-template-columns: minmax(0, 1fr) 64px; }
+  .effort-strip-axis { display: none; }
+  .effort-strip-none { grid-column: 1 / -1; }
 }
 /** At composer widths that wrap controls, give the models the full menu width. */
 @container (max-width: 300px) {

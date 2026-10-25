@@ -347,34 +347,38 @@ test("another coordinator's Needs-you card opens on its first page", async () =>
   await view.unmount();
 });
 
-test("the effort menu offers what the model takes, and is gone for a model that takes none", async () => {
+test("the model menu's effort strip offers what the model takes, and says so for a model that takes none", async () => {
   window.desktop = composerDesktop();
+  const changes: string[] = [];
   const composer = (engine: "claude" | "codex", model: AgentModel, coordinating: boolean) => React.createElement(ConversationComposer, {
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm", engine, engineLabel: "Claude", model, effort: "high", coordinating,
     runActive: false, queuedMessages: [],
-    onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {},
+    onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange: (_engine, effort) => changes.push(effort), fastMode: false, onFastModeChange() {}, onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {},
   });
   const efforts = async (engine: "claude" | "codex", model: AgentModel, coordinating = false) => {
     const view = await mount(composer(engine, model, coordinating));
     await act(async () => {});
-    const menus = [...view.container.querySelectorAll<HTMLElement>(".setting-menu")];
-    const labels = menus.map((menu) => query(menu, "summary").getAttribute("aria-label"));
-    if (!labels.includes("Effort")) { await view.unmount(); return null; }
-    const menu = item(menus.at(-1));
+    const menu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[1]);
+    const chip = query(menu, "summary").textContent;
     await act(async () => { query<HTMLElement>(menu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
-    const options = [...menu.querySelectorAll(".setting-option strong")].map((option) => option.textContent);
+    const strip = query(menu, ".effort-strip");
+    const labels = [...strip.querySelectorAll(".effort-labels span")].map((label) => label.textContent);
+    const slider = strip.querySelector<HTMLElement>("[role=slider]");
+    if (slider) await act(async () => { slider.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })); });
+    const none = strip.querySelector(".effort-strip-none")?.textContent;
     await view.unmount();
-    return options;
+    return { chip, labels, none };
   };
 
-  assert.equal((await efforts("codex", "gpt-6-astra"))?.[0], "Ultra");
-  assert.equal((await efforts("codex", "gpt-6-astra", true))?.[0], "Max", "a coordinator hands work only to threads, so it has no ultra");
-  const luna = await efforts("codex", "gpt-6-luna");
-  assert.ok(luna && luna.length > 1);
-  assert.equal(luna[0], "Max");
-  assert.equal(luna.at(-1), "Low");
-  assert.equal(luna.includes("Ultra"), false, "a nondelegating model has no ultra");
-  assert.equal(await efforts("claude", "haiku"), null, "Haiku reasons at one depth, so it is drawn without an effort menu");
+  const astra = await efforts("codex", "gpt-6-astra");
+  assert.equal(astra.chip, "ModelAstra·High");
+  assert.deepEqual(astra.labels, ["Low", "Med", "High", "X-High", "Max", "Ultra"]);
+  assert.deepEqual(changes, ["xhigh"], "the slider steps to the next effort up");
+  assert.equal((await efforts("codex", "gpt-6-astra", true)).labels.at(-1), "Max", "a coordinator hands work only to threads, so it has no ultra");
+  assert.equal((await efforts("codex", "gpt-6-luna")).labels.includes("Ultra"), false, "a nondelegating model has no ultra");
+  const haiku = await efforts("claude", "haiku");
+  assert.equal(haiku.chip, "ModelHaiku", "Haiku reasons at one depth, so its chip names no effort");
+  assert.equal(haiku.none, "Haiku has no effort setting");
 });
 
 test("what a newer build sent is named as it is, and a thread on an engine only it knows takes no message here", async () => {

@@ -65,7 +65,7 @@ test("the Codex speed toggle follows effort and dispatches both speed changes", 
   const view = await mount(React.createElement(ComposerSettings, props));
   const toggle = query<HTMLButtonElement>(view.container, 'button[aria-label="Fast mode"]');
   assert.equal(toggle.parentElement?.lastElementChild, toggle);
-  assert.ok(toggle.previousElementSibling?.querySelector('summary[aria-label="Effort"]'));
+  assert.ok(toggle.previousElementSibling?.querySelector('summary[aria-label="Model and effort"]'));
   assert.equal(toggle.getAttribute("aria-pressed"), "false");
   assert.match(toggle.title, /use more of your plan/);
   await act(async () => { toggle.click(); });

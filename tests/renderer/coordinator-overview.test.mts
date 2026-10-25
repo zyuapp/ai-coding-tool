@@ -13,7 +13,7 @@ import type { WorkspaceInput } from "../../src/application/workspace-reducer.ts"
 import { workspaceActions } from "../../src/renderer/task-workspace/workspace-actions.ts";
 
 const { CoordinationBar, CoordinatorOverview } = await import("../../src/renderer/components/Coordination.tsx");
-const { EffortMenu, EVERY_ENGINE_READY } = await import("../../src/renderer/components/ComposerSettings.tsx");
+const { ModelMenu, EVERY_ENGINE_READY } = await import("../../src/renderer/components/ComposerSettings.tsx");
 const { CommandControlsProvider } = await import("../../src/renderer/components/CommandControl.tsx");
 const { buildDock } = await import("../../src/renderer/components/dock-registry.tsx");
 
@@ -73,7 +73,7 @@ test("a coordinator's Overview groups its threads by what they need, each openin
   assert.equal(opened, "a");
 
   await view.render(React.createElement(CoordinatorOverview, { header, memory, members: [], usage: null, worktrees: new Map(), folds: {}, onSetFold() {}, onSelect() {}, stoppable: true }));
-  assert.match(view.container.textContent, /Threads run onModelOpusEffortHigh/, "a coordinator with no threads yet still says what they will run on");
+  assert.match(view.container.textContent, /Threads run onModelOpus·High/, "a coordinator with no threads yet still says what they will run on");
   assert.match(view.container.textContent, /No threads yet/);
   await view.unmount();
 });
@@ -222,8 +222,8 @@ test("the Overview says what a coordinator's threads run on, and picks another w
     }));
   const view = await mount(overview(true));
   const head = query(view.container, ".coordination-overview-header");
-  assert.match(head.textContent, /Threads run onModelLunaEffortMax/);
-  const [model, effort] = head.querySelectorAll<HTMLDetailsElement>(".setting-menu");
+  assert.match(head.textContent, /Threads run onModelLuna·Max/);
+  const [model] = head.querySelectorAll<HTMLDetailsElement>(".setting-menu");
   await act(async () => { query<HTMLElement>(item(model), "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   await act(async () => {
     [...item(model).querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((button) => button.textContent?.includes("All models"))!.click();
@@ -231,8 +231,10 @@ test("the Overview says what a coordinator's threads run on, and picks another w
   const offered = [...item(model).querySelectorAll(".model-choice strong")].map((node) => node.textContent);
   assert.ok(offered.includes("Opus") && !offered.includes("Haiku"), "a coordinator's threads are never offered Haiku");
   await act(async () => { [...item(model).querySelectorAll<HTMLButtonElement>(".model-choice")].find((button) => button.textContent?.includes("Opus"))!.click(); });
-  await act(async () => { query<HTMLElement>(item(effort), "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
-  await act(async () => { [...item(effort).querySelectorAll<HTMLButtonElement>(".setting-option")].find((button) => button.textContent?.includes("Low"))!.click(); });
+  assert.ok(item(model).open, "picking a model leaves the library open to fit the effort");
+  const slider = query<HTMLElement>(item(model), ".effort-strip [role=slider]");
+  assert.deepEqual([...item(model).querySelectorAll(".effort-labels span")].map((label) => label.textContent), ["Low", "Med", "High", "X-High", "Max"]);
+  await act(async () => { slider.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Home", bubbles: true })); });
   assert.deepEqual(picked, [["opus", undefined], ["gpt-6-luna", "low"]], "a new model keeps the effort for the reducer to fit, and a new effort keeps the model");
 
   await view.render(overview(false));
@@ -249,8 +251,8 @@ test("a model, role or engine a newer build sent draws as what it is, never blan
   }));
   assert.equal(query(view.container, ".coordination-overview-header").textContent, "Threads run onopus-next", "named as sent, with nothing to pick it from");
   assert.match(query(view.container, 'button[aria-label="Open Remote one"]').textContent, /Remote one/);
-  const settings = await mount(React.createElement(EffortMenu, { model: "opus-next" as never, effort: "high", heading: "Effort", onChange() {} }));
-  assert.equal(settings.container.innerHTML, "", "a model this build does not know offers no efforts");
+  const settings = await mount(React.createElement(ModelMenu, { engine: "claude", engineLocked: false, engineAccess: EVERY_ENGINE_READY, model: "opus-next" as never, effort: { value: "high", onChange() {} }, onChange() {}, onOpen() {}, onSignIn() {} }));
+  assert.equal(settings.container.querySelector(".setting-detail"), null, "a model this build does not know offers no efforts");
   await settings.unmount();
   await view.unmount();
 });
