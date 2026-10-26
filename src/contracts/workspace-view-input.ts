@@ -463,6 +463,7 @@ const commands = {
   "pull-request.read-member": { fields: { taskId: text }, at: "thread" },
   "app.list": { fields: {}, at: "local" },
   "usage.read": { fields: { everywhere: optionalBoolean }, at: "local" },
+  "usage.dismiss-warning": { fields: { warning: text }, at: "local" },
   "computer-use.read": { fields: {}, at: "local" },
   "computer-use.enable": { fields: { permission: literals("accessibility", "screenRecording") }, at: "local" },
   "computer-use.restart": { fields: {}, at: "local" },

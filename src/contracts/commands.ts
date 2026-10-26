@@ -65,7 +65,10 @@ export type ComputerUseAccessCommand =
  * The plan limits every provider reports, read again whenever the Usage page asks for them.
  * `everywhere` asks every connected paired computer for its own as well.
  */
-export type PlanUsageCommand = { type: "usage.read"; everywhere?: boolean };
+export type PlanUsageCommand =
+  | { type: "usage.read"; everywhere?: boolean }
+  /** Puts away the composer's warning that a window is running low, until it reaches its limit or resets. */
+  | { type: "usage.dismiss-warning"; warning: string };
 
 export type CliCommand =
   | { type: "cli.read" }

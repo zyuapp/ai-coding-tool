@@ -5,7 +5,7 @@ import type { WorkspaceState } from "../workspace-state.js";
 import { AGENT_ENGINES } from "../../domain/agent-engine.js";
 import { supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 
-export const PLAN_USAGE_INPUTS = ["usage.read", "usage.reported"] as const;
+export const PLAN_USAGE_INPUTS = ["usage.read", "usage.reported", "usage.dismiss-warning"] as const;
 type PlanUsageInput = Extract<WorkspaceInput, { type: (typeof PLAN_USAGE_INPUTS)[number] }>;
 
 /**
@@ -26,6 +26,10 @@ export function reducePlanUsage(state: WorkspaceState, input: PlanUsageInput): W
       { ...state, planUsage: { ...state.planUsage, read, reading: [...AGENT_ENGINES] } },
       [...AGENT_ENGINES.map((engine) => ({ type: "read-plan-usage" as const, engine, read })), ...(input.everywhere ? askedElsewhere(state) : [])],
     );
+  }
+  if (input.type === "usage.dismiss-warning") {
+    if (state.planUsage.dismissed.includes(input.warning)) return settled(state);
+    return settled({ ...state, planUsage: { ...state.planUsage, dismissed: [...state.planUsage.dismissed, input.warning] } });
   }
   /** Answers to a read the refresh button has already replaced are dropped wherever they arrive. */
   if (input.read !== state.planUsage.read) return settled(state);

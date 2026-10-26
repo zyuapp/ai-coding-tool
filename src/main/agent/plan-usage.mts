@@ -31,10 +31,10 @@ function readText(value: unknown) {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
-function windowFrom(id: string, label: string, raw: unknown): UsageWindow | null {
+function windowFrom(id: string, label: string, raw: unknown, model?: string): UsageWindow | null {
   if (!raw || typeof raw !== "object") return null;
   const record = raw as Record<string, unknown>;
-  return { id, label, utilization: readNumber(record.utilization), resetsAt: readText(record.resets_at) };
+  return { id, label, utilization: readNumber(record.utilization), resetsAt: readText(record.resets_at), ...(model ? { model } : {}) };
 }
 
 /** Null when the answer is not a usage report at all, so the caller can try the next method. */
@@ -55,10 +55,10 @@ export function toPlanUsage(raw: unknown): PlanUsage | null {
   add(windowFrom("seven_day", "Current week (all models)", buckets.seven_day));
   for (const entry of Array.isArray(buckets.model_scoped) ? buckets.model_scoped : []) {
     const name = entry && typeof entry === "object" ? readText((entry as Record<string, unknown>).display_name) : null;
-    if (name) add(windowFrom(`model:${name}`, `Current week (${name})`, entry));
+    if (name) add(windowFrom(`model:${name}`, `Current week (${name})`, entry, name));
   }
-  add(windowFrom("seven_day_opus", "Current week (Opus)", buckets.seven_day_opus));
-  add(windowFrom("seven_day_sonnet", "Current week (Sonnet)", buckets.seven_day_sonnet));
+  add(windowFrom("seven_day_opus", "Current week (Opus)", buckets.seven_day_opus, "Opus"));
+  add(windowFrom("seven_day_sonnet", "Current week (Sonnet)", buckets.seven_day_sonnet, "Sonnet"));
   add(windowFrom("seven_day_oauth_apps", "Current week (apps)", buckets.seven_day_oauth_apps));
 
   if (windows.length === 0) return { status: "unavailable", message: "The plan reported no usage windows." };

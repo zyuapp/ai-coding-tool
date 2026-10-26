@@ -1,5 +1,6 @@
 import { useId, type CSSProperties } from "react";
 import type { ContextUsage } from "../../domain/thread-run";
+import { UsageCard, UsageCardRow } from "./UsageCard";
 
 /** A count of tokens in a few characters: 3.1M, 240K. */
 export function compactTokens(tokens: number): string {
@@ -13,11 +14,9 @@ export function ContextUsageMeter({ usage }: { usage: ContextUsage }) {
   return (
     <span className="context-usage" tabIndex={0} aria-label={`${percent}% of context window used`} aria-describedby={tooltipId}>
       <span className="context-usage-ring" aria-hidden="true" style={{ "--context-progress": `${percent}%` } as CSSProperties} />
-      <span className="context-usage-tooltip" id={tooltipId} role="tooltip">
-        <span>Context window:</span>
-        <strong>{percent}% used ({100 - percent}% left)</strong>
-        <span className="context-usage-tokens">{compactTokens(usage.tokens)} / {compactTokens(usage.limit)} tokens used</span>
-      </span>
+      <UsageCard id={tooltipId} title="Context window">
+        <UsageCardRow label={`${percent}% used`} value={`${100 - percent}% left`} share={percent} detail={`${compactTokens(usage.tokens)} / ${compactTokens(usage.limit)} tokens used`} />
+      </UsageCard>
     </span>
   );
 }

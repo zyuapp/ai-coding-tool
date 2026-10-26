@@ -174,6 +174,14 @@ test("plan limits keep what each provider said while the next read runs, and dro
   assert.deepEqual(late.state.planUsage.reports.claude, claude, "the answer to the read the refresh replaced says nothing");
 });
 
+test("a usage warning put away stays away, once", () => {
+  const dismissed = reduce(workspace(), { type: "usage.dismiss-warning", warning: "claude:five_hour:2026-08-18T08:19:00Z:near" });
+  assert.deepEqual(dismissed.state.planUsage.dismissed, ["claude:five_hour:2026-08-18T08:19:00Z:near"]);
+  assert.deepEqual(dismissed.effects, []);
+  const again = reduce(dismissed.state, { type: "usage.dismiss-warning", warning: "claude:five_hour:2026-08-18T08:19:00Z:near" });
+  assert.equal(again.state, dismissed.state);
+});
+
 test("asking the platform for a permission holds the row until its own dialog answers", () => {
   const granted: ComputerUsePermissions = { accessibility: true, screenRecording: true };
 

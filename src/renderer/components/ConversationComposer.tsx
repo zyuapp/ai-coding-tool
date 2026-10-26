@@ -14,6 +14,7 @@ import { AttachmentAnnotator, AttachmentStrip, useComposerAttachments, type Comp
 import { ComposerSettings, EVERY_ENGINE_READY } from "./ComposerSettings";
 import { CommandMenu, ThreadMenu, menuActiveDescendant, menuControls, useComposerMenus, type ComposerAction } from "./ComposerMenus";
 import { ContextUsageMeter } from "./ContextUsageMeter";
+import { PlanUsageMeter, PlanUsageWarning, type ComposerPlanUsage } from "./PlanUsageMeter";
 import { QueuedRow } from "./QueuedRow";
 import { useComposerCaret } from "./composer-caret";
 import { composerBlur, composerInput, composerKeyDown, composerPaste } from "./composer-input";
@@ -40,6 +41,28 @@ function sendLabel(surface: ComposerSurface, runActive: boolean) {
   if (surface === "side") return runActive ? "Stop side chat" : "Send side chat message";
   if (surface === "tab") return runActive ? "Stop thread" : "Send message";
   return runActive ? "Stop task" : "Send task";
+}
+
+/** Sends what is written, or stops the run while one is going. */
+function SendButton({ taskId, surface, runActive, command, disabled, onSend, onCancel }: {
+  taskId: string | undefined;
+  surface: ComposerSurface;
+  runActive: boolean;
+  command: AppCommand;
+  disabled: boolean;
+  onSend: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <CommandButton command={runActive ? { type: "run.cancel", taskId } : command}
+      className={`send-button ${runActive ? "running" : ""}`}
+      disabled={!runActive && disabled}
+      onClick={runActive ? onCancel : onSend}
+      aria-label={sendLabel(surface, runActive)}
+    >
+      {runActive ? <span className="stop-glyph" /> : "↑"}
+    </CommandButton>
+  );
 }
 
 /** Where a composer is drawn: under the thread on screen, in a side chat, or in a thread's dock tab. */
@@ -77,6 +100,8 @@ export type ConversationComposerProps = {
   fastMode: boolean;
   onFastModeChange: (fastMode: boolean) => void;
   contextUsage?: ContextUsage;
+  /** The plan limits of the engine this composer sends to. A surface that shows none passes none. */
+  planUsage?: ComposerPlanUsage;
   runActive: boolean;
   question?: PendingQuestion;
   onQuestionAnswerChange?: (question: QuestionAddress, text: string) => void;
@@ -160,6 +185,7 @@ export function ConversationComposer({
   fastMode,
   onFastModeChange,
   contextUsage,
+  planUsage,
   runActive,
   question,
   onQuestionAnswerChange = NOTHING,
@@ -229,6 +255,7 @@ export function ConversationComposer({
       {surface === "main" && <ReturnFocusContext.Provider value={caret.textareaRef}>{decisions}</ReturnFocusContext.Provider>}
       {question && <QuestionPrompt question={question} answer={question.answer ?? ""} disabled={disabled || waiting} onAnswerChange={(text) => onQuestionAnswerChange(question, text)} onSubmit={() => onAnswerQuestion(question)} />}
       <QueuedRow messages={queuedMessages} surface={surface} canSteer={runActive} onEdit={onEditQueued} onSteer={onSteerQueued} onDrop={onDropQueued} />
+      {planUsage && <PlanUsageWarning engine={engine} engineLabel={engineLabel} model={model} {...planUsage} />}
       {surface === "main" && startOptions}
       {unopenable ? <div className="composer unopenable">
         <p className="composer-unopenable" role="status">{unopenable}</p>
@@ -274,15 +301,9 @@ export function ConversationComposer({
         <div className="composer-bar">
           <ComposerSettings taskId={taskId} mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} coordinating={coordinating} fastMode={fastMode} onFastModeChange={onFastModeChange} onModeChange={onModeChange} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
           <div className="composer-actions">
+            {planUsage && <PlanUsageMeter engineLabel={engineLabel} model={model} usage={planUsage.usage} />}
             {contextUsage && <ContextUsageMeter usage={contextUsage} />}
-            <CommandButton command={runActive ? { type: "run.cancel", taskId } : sendCommand}
-              className={`send-button ${runActive ? "running" : ""}`}
-              disabled={!runActive && (disabled || attachments.sending || waiting || nothingToSend)}
-              onClick={runActive ? onCancel : () => void submit()}
-              aria-label={sendLabel(surface, runActive)}
-            >
-              {runActive ? <span className="stop-glyph" /> : "↑"}
-            </CommandButton>
+            <SendButton taskId={taskId} surface={surface} runActive={runActive} command={sendCommand} disabled={disabled || attachments.sending || waiting || nothingToSend} onSend={() => void submit()} onCancel={onCancel} />
           </div>
         </div>
       </div>}

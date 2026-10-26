@@ -7,6 +7,7 @@ import { capabilitiesFor, modelSupportsManualCompaction } from "../../domain/age
 import { sentPrompts } from "../../domain/conversation";
 import { attachmentSendFor } from "../../application/composer-attachments";
 import { useCommandControls } from "./CommandControl";
+import { usePlanUsageReads } from "../task-workspace/plan-usage-reads";
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;
 
@@ -15,6 +16,8 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
   const thread = workspace.currentThread;
   const { coordination } = workspace;
   const controls = useCommandControls();
+  /** A thread on a paired computer spends that computer's plan, which only it can read. */
+  usePlanUsageReads(workspace.runActive, () => void workspace.dispatch({ type: "usage.read", ...(workspace.activeComputer ? { everywhere: true } : {}) }));
   const compact = controls.available({ type: "run.compact" }) && thread && modelSupportsManualCompaction(thread.engine, workspace.model)
     && thread.continuation?.provider === thread.engine
     && thread.contextUsage !== undefined
@@ -50,6 +53,12 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       fastMode={workspace.fastMode}
       onFastModeChange={workspace.actions.setFastMode}
       contextUsage={workspace.currentThread?.contextUsage}
+      planUsage={{
+        usage: workspace.threadPlanUsage.reports[workspace.engine],
+        dismissed: workspace.planUsage.dismissed,
+        limitPaused: Boolean(workspace.limitPause),
+        onDismiss: (warning) => void workspace.dispatch({ type: "usage.dismiss-warning", warning }),
+      }}
       runActive={workspace.runActive}
       question={workspace.question}
       onQuestionAnswerChange={(question, text) => { if (thread) void workspace.dispatch({ type: "question.set-answer", taskId: thread.id, runId: question.runId, requestId: question.requestId, questionId: question.questionId, text }); }}

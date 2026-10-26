@@ -5,14 +5,14 @@ import { UsageSettings } from "../../src/renderer/components/UsageSettings.tsx";
 import type { ComputerUsage, PlanUsageState } from "../../src/application/plan-limits.ts";
 import { mount } from "../support/renderer-dom.mts";
 
-const own: PlanUsageState = { read: 1, reading: [], reports: { claude: { status: "available", subscription: "max", windows: [{ id: "five_hour", label: "Current session", utilization: 58, resetsAt: null }] }, codex: { status: "not-applicable" } } };
+const own: PlanUsageState = { read: 1, reading: [], dismissed: [], reports: { claude: { status: "available", subscription: "max", windows: [{ id: "five_hour", label: "Current session", utilization: 58, resetsAt: null }] }, codex: { status: "not-applicable" } } };
 
 test("with paired computers the page lists each computer's own limits under its name", async () => {
   const computers: ComputerUsage[] = [
-    { id: "mac", name: "MacBook", status: "connected", supported: true, usage: { read: 2, reading: ["codex"], reports: { claude: { status: "available", subscription: "pro", windows: [{ id: "five_hour", label: "Current session", utilization: 92, resetsAt: null }] } } } },
+    { id: "mac", name: "MacBook", status: "connected", supported: true, usage: { read: 2, reading: ["codex"], dismissed: [], reports: { claude: { status: "available", subscription: "pro", windows: [{ id: "five_hour", label: "Current session", utilization: 92, resetsAt: null }] } } } },
     { id: "away", name: "Studio", status: "offline", supported: true, usage: null },
     { id: "old", name: "Old box", status: "connected", supported: false, usage: null },
-    { id: "fresh", name: "Fresh", status: "connected", supported: true, usage: { read: 0, reading: [], reports: {} } },
+    { id: "fresh", name: "Fresh", status: "connected", supported: true, usage: { read: 0, reading: [], dismissed: [], reports: {} } },
   ];
   let refreshed = 0;
   const view = await mount(React.createElement(UsageSettings, { usage: own, name: "omarchy", computers, onRefresh: () => { refreshed += 1; }, timeZone: "UTC" }));

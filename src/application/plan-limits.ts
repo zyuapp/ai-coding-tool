@@ -12,9 +12,11 @@ export type PlanUsageState = {
   read: number;
   reports: Partial<Record<AgentEngine, PlanUsage>>;
   reading: AgentEngine[];
+  /** Warnings about a window running low the user has put away, by `usageWarningKey`. */
+  dismissed: string[];
 };
 
-export const NO_PLAN_USAGE: PlanUsageState = { read: 0, reports: {}, reading: [] };
+export const NO_PLAN_USAGE: PlanUsageState = { read: 0, reports: {}, reading: [], dismissed: [] };
 
 /**
  * A paired computer's limits as the Usage page draws them: its own accounts, read there. `usage` is

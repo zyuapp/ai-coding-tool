@@ -319,6 +319,8 @@ test("clearing a goal targets its existing thread", async () => {
     actions: [],
   }));
 
+  assert.deepEqual(commands, [{ type: "usage.read" }], "the composer reads the plan's limits as it appears");
+  commands.length = 0;
   await act(async () => { query<HTMLButtonElement>(view.container, ".goal-clear").click(); });
 
   assert.deepEqual(commands, [{ type: "task.send", taskId: "task-goal", text: "/goal clear", steer: true }]);

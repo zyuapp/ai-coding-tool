@@ -36,7 +36,7 @@ test("each paired computer's limits are drawn from the state it publishes", () =
   const remote = workspace();
   const reported = {
     ...remote,
-    planUsage: { read: 3, reading: [], reports: { claude: { status: "available" as const, subscription: "max", windows: [] } } },
+    planUsage: { read: 3, reading: [], dismissed: [], reports: { claude: { status: "available" as const, subscription: "max", windows: [] } } },
   };
   let state = withComputers([paired("mac", {}, remote), paired("old", { capabilities: [] })]);
   const before = deriveView(state).computerUsage;

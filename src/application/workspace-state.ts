@@ -742,7 +742,10 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state,
     /** The pull request that checkout's work belongs to, drawn only while the answer is still its own. */
     pullRequest: pullRequestFor(state.pullRequest, workspaceId, environment),
     attachmentSends: state.attachmentSends,
-    installedApps: state.installedApps, cli: state.cli, planUsage: state.planUsage, computerUsePermissions: state.computerUsePermissions,
+    installedApps: state.installedApps, cli: state.cli, planUsage: state.planUsage,
+    /** The limits of the account the thread on screen runs on, which is the paired computer's own for a thread there. */
+    threadPlanUsage: state.planUsage,
+    computerUsePermissions: state.computerUsePermissions,
     storageError: state.storageError, hiddenThreads: state.hiddenThreads,
     actionError: state.actionError,
     viewingImage: state.viewingImage,

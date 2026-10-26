@@ -74,7 +74,7 @@ test("context usage stays within 100% when the window shrinks below the used tok
 
   const usage = query(view.container, ".context-usage");
   assert.equal(usage.getAttribute("aria-label"), "100% of context window used");
-  assert.match(usage.textContent, /100% used \(0% left\)/);
+  assert.match(usage.textContent, /100% used0% left/);
   assert.match(usage.textContent, /620K \/ 200K tokens used/);
   await view.unmount();
 });

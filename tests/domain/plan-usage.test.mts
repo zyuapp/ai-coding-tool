@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { formatReset, formatShare, planLabel, type PlanUsage } from "../../src/domain/plan-usage.ts";
+import { formatReset, formatShare, planLabel, tightestWindow, usageWarningKey, windowsFor, type PlanUsage } from "../../src/domain/plan-usage.ts";
 import { readPlanUsage, toPlanUsage } from "../../src/main/agent/plan-usage.mts";
 
 type QueryFactory = typeof import("@anthropic-ai/claude-agent-sdk").query;
@@ -49,6 +49,35 @@ test("a usage report becomes the windows the panel draws, newest window first", 
   ]);
   assert.deepEqual(usage.windows[0], { id: "five_hour", label: "Current session", utilization: 17, resetsAt: "2026-08-18T08:19:00Z" });
   assert.equal(usage.windows[2].id, "model:Fable");
+  assert.equal(usage.windows[2].model, "Fable");
+  assert.equal(usage.windows[1].model, undefined, "a window every model shares names none");
+});
+
+test("a run spends the shared windows and its own model's, and the fullest one leads", () => {
+  const usage = available({
+    rate_limits_available: true,
+    rate_limits: {
+      five_hour: { utilization: 40, resets_at: null },
+      seven_day: { utilization: 20, resets_at: null },
+      model_scoped: [{ display_name: "Fable", utilization: 71, resets_at: null }],
+      seven_day_sonnet: { utilization: 90, resets_at: null },
+    },
+  });
+
+  assert.deepEqual(windowsFor(usage, "Fable").map((window) => window.id), ["five_hour", "seven_day", "model:Fable"]);
+  assert.deepEqual(windowsFor(usage, "Haiku").map((window) => window.id), ["five_hour", "seven_day"]);
+  assert.equal(tightestWindow(windowsFor(usage, "Fable"))?.id, "model:Fable");
+  assert.equal(tightestWindow(windowsFor(usage, "Sonnet"))?.id, "seven_day_sonnet");
+  assert.deepEqual(windowsFor({ status: "not-applicable" }, "Fable"), []);
+  assert.equal(tightestWindow([{ id: "five_hour", label: "Current session", utilization: null, resetsAt: null }]), null);
+});
+
+test("a dismissed warning comes back once its window reaches the limit or resets", () => {
+  const window = { id: "five_hour", label: "Current session", utilization: 85, resetsAt: "2026-08-18T08:19:00Z" };
+  const near = usageWarningKey("claude", window);
+  assert.equal(usageWarningKey("claude", { ...window, utilization: 95 }), near);
+  assert.notEqual(usageWarningKey("claude", { ...window, utilization: 100 }), near);
+  assert.notEqual(usageWarningKey("claude", { ...window, resetsAt: "2026-08-18T13:19:00Z" }), near);
 });
 
 test("a window the provider names without numbers still draws, and a model listed twice draws once", () => {
@@ -154,6 +183,7 @@ test("a window resetting today reads as a time, and a later one carries its day"
 
   assert.equal(formatReset("2026-08-18T08:19:00Z", now, zone), "Resets 1:19am (America/Los_Angeles)");
   assert.equal(formatReset("2026-08-22T10:59:00Z", now, zone), "Resets Aug 22 at 3:59am (America/Los_Angeles)");
+  assert.equal(formatReset("2026-08-18T08:19:00Z", now, zone, { zone: false }), "Resets 1:19am");
   assert.equal(formatReset(null, now, zone), null);
   assert.equal(formatReset("not a time", now, zone), null);
 });
