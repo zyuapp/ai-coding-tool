@@ -4012,7 +4012,7 @@ button.setting-hint:hover { color: var(--ink); }
 .plan-usage-span { margin-right: 5px; color: var(--muted); }
 .plan-usage-share { color: var(--ink-soft); font-weight: 600; }
 .plan-usage:hover .plan-usage-share { color: var(--ink); }
-.plan-usage-part.near .plan-usage-span, .plan-usage-part.near .plan-usage-share { color: var(--accent); }
+.plan-usage-part.near .plan-usage-share { color: var(--accent); }
 .plan-usage-track { flex: none; height: 5px; overflow: hidden; border-radius: 3px; background: var(--meter-track); }
 .plan-usage-track span { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
 .plan-usage-warning .plan-usage-track { width: 56px; }
