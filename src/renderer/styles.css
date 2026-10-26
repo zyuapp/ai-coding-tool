@@ -3998,21 +3998,21 @@ button.setting-hint:hover { color: var(--ink); }
   position: relative;
   display: flex;
   align-items: center;
-  gap: 7px;
   height: 28px;
   margin-right: -4px;
   padding: 0 8px;
   border-radius: 8px;
   color: var(--muted);
-  font-size: var(--text-meta);
-  font-variant-numeric: tabular-nums;
   cursor: default;
 }
 .plan-usage:hover { background: var(--wash); color: var(--ink-dim); }
-.plan-usage-track { flex: none; width: 32px; height: 5px; overflow: hidden; border-radius: 3px; background: var(--meter-track); }
-.plan-usage-track span { display: block; height: 100%; border-radius: 3px; background: var(--meter-fill); }
-.plan-usage.near, .plan-usage.near:hover { color: var(--accent); }
-.plan-usage.near .plan-usage-track span, .plan-usage-warning .plan-usage-track span { background: var(--accent); }
+.plan-usage-rows { display: grid; gap: 3px; }
+.plan-usage-row { display: flex; align-items: center; gap: 6px; font-size: var(--text-badge); font-variant-numeric: tabular-nums; line-height: 11px; }
+.plan-usage-row .plan-usage-share { min-width: 24px; text-align: right; }
+.plan-usage-track { flex: none; width: 32px; height: 4px; overflow: hidden; border-radius: 2px; background: var(--meter-track); }
+.plan-usage-track span { display: block; height: 100%; border-radius: 2px; background: var(--meter-fill); }
+.plan-usage-row.near { color: var(--accent); }
+.plan-usage-row.near .plan-usage-track span, .plan-usage-warning .plan-usage-track span { background: var(--accent); }
 
 .plan-usage-warning {
   display: flex;
@@ -4028,7 +4028,7 @@ button.setting-hint:hover { color: var(--ink); }
   box-shadow: var(--shadow-float);
   font-size: var(--text-control);
 }
-.plan-usage-warning .plan-usage-track { width: 56px; }
+.plan-usage-warning .plan-usage-track { width: 56px; height: 5px; }
 .plan-usage-warning strong { flex: none; font-weight: 560; }
 .plan-usage-warning-window { overflow: hidden; color: var(--ink-dim); text-overflow: ellipsis; white-space: nowrap; }
 .plan-usage-warning-reset { flex: 1; color: var(--quiet-strong); font-size: var(--text-meta); white-space: nowrap; }

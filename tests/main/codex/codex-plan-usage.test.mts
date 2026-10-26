@@ -39,8 +39,8 @@ test("Codex rate limits become the same session and week windows as Claude usage
   if (usage.status !== "available") return;
   assert.equal(usage.subscription, "pro");
   assert.deepEqual(usage.windows, [
-    { id: "codex:primary", label: "Current session", utilization: 17.4, resetsAt: "2026-08-28T01:30:00.000Z" },
-    { id: "codex:secondary", label: "Current week", utilization: 42, resetsAt: "2026-09-03T01:30:00.000Z" },
+    { id: "codex:primary", label: "Current session", utilization: 17.4, resetsAt: "2026-08-28T01:30:00.000Z", period: "session" },
+    { id: "codex:secondary", label: "Current week", utilization: 42, resetsAt: "2026-09-03T01:30:00.000Z", period: "week" },
   ]);
 });
 

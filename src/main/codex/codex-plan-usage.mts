@@ -40,13 +40,23 @@ function windowName(kind: "primary" | "secondary", minutes: number | null) {
   return `Current ${minutes}-minute window`;
 }
 
-function usageWindow(id: string, label: string, kind: "primary" | "secondary", value: RateLimitWindow | null): UsageWindow | null {
+/** Only the ordinary limit's windows hold a turn, so only they are a period of the plan. */
+function windowPeriod(ordinary: boolean, minutes: number | null): UsageWindow["period"] {
+  if (!ordinary) return undefined;
+  if (minutes === 300) return "session";
+  if (minutes === 10_080) return "week";
+  return undefined;
+}
+
+function usageWindow(id: string, label: string, kind: "primary" | "secondary", value: RateLimitWindow | null, ordinary: boolean): UsageWindow | null {
   if (!value || !Number.isFinite(value.usedPercent)) return null;
+  const period = windowPeriod(ordinary, value.windowDurationMins);
   return {
     id: `${id}:${kind}`,
     label: `${label}${windowName(kind, value.windowDurationMins)}`,
     utilization: value.usedPercent,
     resetsAt: resetInstant(value.resetsAt),
+    ...(period ? { period } : {}),
   };
 }
 
@@ -98,9 +108,10 @@ export function toCodexPlanUsage(response: GetAccountRateLimitsResponse, account
   const limits = snapshots(response).sort(compareLimits);
   const windows: UsageWindow[] = [];
   for (const [id, snapshot] of limits) {
+    const ordinary = limitName(id, snapshot) === "Codex";
     const name = limits.length > 1 ? `${limitName(id, snapshot)} · ` : "";
-    const primary = usageWindow(id, name, "primary", snapshot.primary);
-    const secondary = usageWindow(id, name, "secondary", snapshot.secondary);
+    const primary = usageWindow(id, name, "primary", snapshot.primary, ordinary);
+    const secondary = usageWindow(id, name, "secondary", snapshot.secondary, ordinary);
     if (primary) windows.push(primary);
     if (secondary) windows.push(secondary);
   }

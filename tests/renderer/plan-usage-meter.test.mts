@@ -9,18 +9,20 @@ const usage = (session: number, fable = 30): PlanUsage => ({
   status: "available",
   subscription: "max",
   windows: [
-    { id: "five_hour", label: "Current session", utilization: session, resetsAt: null },
-    { id: "seven_day", label: "Current week (all models)", utilization: 20, resetsAt: null },
-    { id: "model:Fable", label: "Current week (Fable)", utilization: fable, resetsAt: null, model: "Fable" },
+    { id: "five_hour", label: "Current session", utilization: session, resetsAt: null, period: "session" },
+    { id: "seven_day", label: "Current week (all models)", utilization: 20, resetsAt: null, period: "week" },
+    { id: "model:Fable", label: "Current week (Fable)", utilization: fable, resetsAt: null, model: "Fable", period: "week" },
   ],
 });
 
-test("the meter shows the fullest window the model spends, and lists them all on hover", async () => {
+const shares = (container: HTMLElement) => [...container.querySelectorAll(".plan-usage-share")].map((share) => share.textContent);
+
+test("the meter shows the session over the week, and lists every window the model spends on hover", async () => {
   const view = await mount(React.createElement(PlanUsageMeter, { engineLabel: "Claude", model: "opus", usage: usage(64) }));
   try {
     const meter = view.container.querySelector(".plan-usage")!;
-    assert.equal(meter.querySelector(".plan-usage-share")!.textContent, "64%");
-    assert.equal(meter.classList.contains("near"), false);
+    assert.deepEqual(shares(view.container), ["64%", "20%"]);
+    assert.equal(meter.querySelector(".near"), null);
     const rows = [...meter.querySelectorAll(".usage-card-label span:first-child")].map((row) => row.textContent);
     assert.deepEqual(rows, ["Current session", "Current week (all models)"], "another model's window stays out");
     assert.match(meter.querySelector(".usage-card-heading")!.textContent!, /Max plan/);
@@ -29,11 +31,24 @@ test("the meter shows the fullest window the model spends, and lists them all on
   }
 });
 
-test("a model's own window counts toward its meter", async () => {
+test("a model's own week counts when it is the fuller one, and only its row warns", async () => {
   const view = await mount(React.createElement(PlanUsageMeter, { engineLabel: "Claude", model: "fable", usage: usage(40, 86) }));
   try {
-    assert.equal(view.container.querySelector(".plan-usage-share")!.textContent, "86%");
-    assert.ok(view.container.querySelector(".plan-usage.near"));
+    assert.deepEqual(shares(view.container), ["40%", "86%"]);
+    assert.deepEqual([...view.container.querySelectorAll(".plan-usage-row")].map((row) => row.classList.contains("near")), [false, true]);
+  } finally {
+    await view.unmount();
+  }
+});
+
+test("a plan that names no session or week shows its fullest window alone", async () => {
+  const unnamed: PlanUsage = { status: "available", subscription: null, windows: [
+    { id: "a", label: "Current 1-hour window", utilization: 10, resetsAt: null },
+    { id: "b", label: "Current 1-day window", utilization: 30, resetsAt: null },
+  ] };
+  const view = await mount(React.createElement(PlanUsageMeter, { engineLabel: "Codex", model: "gpt-6.1-sol", usage: unnamed }));
+  try {
+    assert.deepEqual(shares(view.container), ["30%"]);
   } finally {
     await view.unmount();
   }

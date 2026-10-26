@@ -8,6 +8,8 @@ export type UsageWindow = {
   resetsAt: string | null;
   /** The model a window counts on its own, by the name the provider gives it. Absent for one every model shares. */
   model?: string;
+  /** Which recurring period of the plan a window covers, for the session and week the composer draws apart. */
+  period?: "session" | "week";
 };
 
 /**
@@ -82,6 +84,14 @@ export function tightestWindow(windows: readonly UsageWindow[]): (UsageWindow & 
     if (window.utilization !== null && (!tightest || window.utilization > tightest.utilization)) tightest = { ...window, utilization: window.utilization };
   }
   return tightest;
+}
+
+/** The session window and the fullest weekly one, each null when the plan does not report it. */
+export function sessionAndWeek(windows: readonly UsageWindow[]) {
+  return {
+    session: tightestWindow(windows.filter((window) => window.period === "session")),
+    week: tightestWindow(windows.filter((window) => window.period === "week")),
+  };
 }
 
 /**

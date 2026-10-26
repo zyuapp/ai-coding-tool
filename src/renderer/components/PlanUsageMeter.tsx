@@ -1,6 +1,6 @@
 import { useId } from "react";
 import { LuX as X } from "react-icons/lu";
-import { barShare, formatReset, NEAR_LIMIT_SHARE, planLabel, tightestWindow, usageWarningKey, windowsFor, type PlanUsage } from "../../domain/plan-usage";
+import { barShare, formatReset, NEAR_LIMIT_SHARE, planLabel, sessionAndWeek, tightestWindow, usageWarningKey, windowsFor, type PlanUsage, type UsageWindow } from "../../domain/plan-usage";
 import { modelLabel, type AgentModel } from "../../domain/agent-engine";
 import { UsageCard, UsageCardRow } from "./UsageCard";
 
@@ -19,19 +19,32 @@ export type ComposerPlanUsage = {
 /** `model` is the one the composer sends to, which picks out the windows only it spends. */
 type PlanUsageProps = { engineLabel: string; model: AgentModel; usage: PlanUsage | undefined };
 
-/** The window of the composer's plan closest to running out, with every window it spends on hover. */
+function MeterRow({ window }: { window: UsageWindow & { utilization: number } }) {
+  const share = Math.round(barShare(window.utilization));
+  return (
+    <span className={`plan-usage-row${share >= NEAR_LIMIT_SHARE ? " near" : ""}`}>
+      <span className="plan-usage-track"><span style={{ width: `${share}%` }} /></span>
+      <span className="plan-usage-share">{share}%</span>
+    </span>
+  );
+}
+
+/**
+ * The composer's plan at a glance: the session over the fullest week the model spends, or the
+ * fullest window alone for a plan that names neither. Hover lists every window it spends.
+ */
 export function PlanUsageMeter({ engineLabel, model, usage }: PlanUsageProps) {
   const cardId = useId();
   const windows = windowsFor(usage, modelLabel(model));
+  const { session, week } = sessionAndWeek(windows);
   const tightest = tightestWindow(windows);
-  if (usage?.status !== "available" || !tightest) return null;
-  const share = Math.round(barShare(tightest.utilization));
-  const near = share >= NEAR_LIMIT_SHARE;
+  const rows = session || week ? [session, week].filter((row) => row !== null) : tightest ? [tightest] : [];
+  if (usage?.status !== "available" || !rows.length) return null;
+  const label = rows.map((row) => `${row.label} ${Math.round(barShare(row.utilization))}% used`).join(", ");
 
   return (
-    <span className={`plan-usage${near ? " near" : ""}`} tabIndex={0} aria-label={`${share}% of ${engineLabel} plan used`} aria-describedby={cardId}>
-      <span className="plan-usage-track" aria-hidden="true"><span style={{ width: `${share}%` }} /></span>
-      <span className="plan-usage-share" aria-hidden="true">{share}%</span>
+    <span className="plan-usage" tabIndex={0} aria-label={`${engineLabel} plan: ${label}`} aria-describedby={cardId}>
+      <span className="plan-usage-rows" aria-hidden="true">{rows.map((row) => <MeterRow key={row.id} window={row} />)}</span>
       <UsageCard id={cardId} title={engineLabel} aside={planLabel(usage.subscription)}>
         {windows.map((window) => {
           const windowShare = Math.round(barShare(window.utilization));
