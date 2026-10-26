@@ -5,7 +5,7 @@ import { coordinatedStart, withSuggestionStarted } from "./coordinated-start.js"
 import { readDiffFrom, rereadReviewsOf } from "./diff-reads.js";
 import { handOverDraftDock } from "./dock-tabs.js";
 import { WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
-import { beginRun, cancellingRun, clearedDraft, queuedFor, resolveWorkspaceEffect, sideChannelFor, startRunCommand, stoppingProcess, withAttendedRun, withDeliveredMessage, withPending, withQueued, withSideChat, withSteeringFailure, withUnsent, withoutPending } from "./run-queue.js";
+import { beginRun, cancellingRun, queuedFor, resolveWorkspaceEffect, sideChannelFor, startRunCommand, stoppingProcess, withAttendedRun, withDeliveredMessage, withPending, withQueued, withSideChat, withSteeringFailure, withUnsent, withoutPending, withoutStartedDraft } from "./run-queue.js";
 import { followUps, now, settled, targetId, rejected } from "./shared.js";
 import { memberPullRequestRead } from "./pull-requests.js";
 import { withUsedWorktree } from "./worktree-claims.js";
@@ -351,7 +351,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   const handed = focusing && state.diffs[DRAFT_DOCK];
   const reviewing = handed ? readDiffFrom(drained, thread.id, workspace.id, handed.range) : settled(drained);
   return settled(
-    pending.draftKey ? clearedDraft(reviewing.state, pending.draftKey) : reviewing.state,
+    pending.draftKey ? withoutStartedDraft(reviewing.state, pending.draftKey, pending) : reviewing.state,
     [{ type: "start-run", command }, ...titling, ...followUps(reviewing.effects)],
     { ok: true, taskId: thread.id },
   );

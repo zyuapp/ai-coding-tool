@@ -745,3 +745,18 @@ test("the effort keys step another computer's thread from what it runs on, never
   assert.deepEqual(stepped({ model: "opus-next" as never, effort: "high" }, "effort.increase"), [], "a model this build does not know has nothing to step to");
   assert.deepEqual(stepped({ model: "opus", effort: "galaxy" as never }, "effort.decrease"), [], "nor does an effort it does not know");
 });
+
+test("a new thread takes only what was sent from the composer, and what was typed while it started stays", () => {
+  const sending = run(workspace(), [{ type: "view.set-prompt", prompt: "First thought" }, { type: "task.send", attachments: [] }]);
+  const pendingId = Object.keys(sending.pendingRuns)[0];
+  const resolved = { type: "run.resolved", pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } } as const;
+
+  const sent = reduce(sending, resolved).state;
+  assert.equal(sent.prompts["draft:"], undefined, "the sent text leaves the composer");
+
+  const extended = reduce(reduce(sending, { type: "view.set-prompt", prompt: "First thought\n\nSecond thought" }).state, resolved).state;
+  assert.equal(extended.prompts["draft:"], "Second thought");
+
+  const rewritten = reduce(reduce(sending, { type: "view.set-prompt", prompt: "Something else" }).state, resolved).state;
+  assert.equal(rewritten.prompts["draft:"], "Something else");
+});

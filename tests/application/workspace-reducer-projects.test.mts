@@ -177,7 +177,7 @@ test("a thread starting on another branch waits for the runs in that checkout to
     threads: [task("task-a", { projectId: PROJECT.id })],
     activeRuns: { "task-a": activeRun("task-a", "run-a", { sequence: 1 }) },
     draftBranch: { name: "feature-x", create: false },
-    prompts: { "draft:project-a": "Start here" },
+    prompts: { "draft:": "Start here" },
   });
 
   const refused = reduce(state, { type: "task.send", attachments: [] });
@@ -193,7 +193,7 @@ test("a thread starting on another branch in a worktree ignores the runs in the 
     activeRuns: { "task-a": activeRun("task-a", "run-a", { sequence: 1 }) },
     draftBranch: { name: "feature-x", create: false },
     draftWorktree: true,
-    prompts: { "draft:project-a": "Start here" },
+    prompts: { "draft:": "Start here" },
   });
 
   const sending = reduce(state, { type: "task.send", attachments: [] });

@@ -3,7 +3,7 @@ import { now, settled } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceTransition } from "./types.js";
 import { promptWithAnnotations } from "../annotations.js";
 import { promptWithAttachments } from "../attachments.js";
-import { annotationsFor, composerDraft, filesFor, imagesFor, pastesFor, withAnnotations, withFiles, withImages, withPastes } from "../composer-drafts.js";
+import { annotationsFor, composerDraft, filesFor, imagesFor, pastesFor, textAfterSend, withAnnotations, withFiles, withImages, withPastes } from "../composer-drafts.js";
 import { promptWithFiles } from "../files.js";
 import { promptWithPastes } from "../pastes.js";
 import { ATTENDED_RUN, threadMark, updateThread, withActiveRun, withBackgroundProcesses, withRunStatus, withSubagents, withWorkflows, type ActiveRun, type RunProvenance, type ThreadMark } from "../thread-run-state.js";
@@ -84,6 +84,16 @@ export function sideChatPrompt(state: WorkspaceState, taskId: string, prompt: st
 /** A composer that has just sent: text, annotations, pastes, images, and attached files all go. */
 export function clearedDraft(state: WorkspaceState, draftKey: string): WorkspaceState {
   return withFiles(withImages(withPastes(withAnnotations(withPrompt(state, draftKey, ""), draftKey, []), draftKey, []), draftKey, []), draftKey, []);
+}
+
+/** A composer whose send has started: what it carried goes, and whatever was typed or added since stays. */
+export function withoutStartedDraft(state: WorkspaceState, draftKey: string, pending: PendingRun): WorkspaceState {
+  const typed = state.prompts[draftKey] ?? "";
+  const prompted = withPrompt(state, draftKey, textAfterSend(typed, pending.draftText ?? typed));
+  const annotated = withAnnotations(prompted, draftKey, annotationsFor(state, draftKey).filter((annotation) => !pending.annotations?.some((sent) => sent.id === annotation.id && sent.note === annotation.note)));
+  const pasted = withPastes(annotated, draftKey, pastesFor(state, draftKey).filter((paste) => !pending.pastes?.some((sent) => sent.id === paste.id)));
+  const imaged = withImages(pasted, draftKey, imagesFor(state, draftKey).filter((image) => !pending.attachments.includes(image.path)));
+  return withFiles(imaged, draftKey, filesFor(state, draftKey).filter((file) => !pending.files?.some((sent) => sent.path === file.path)));
 }
 
 function claudeRunSettings(state: WorkspaceState): ClaudeRunSettings | undefined {

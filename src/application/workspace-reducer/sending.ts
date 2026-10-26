@@ -148,7 +148,7 @@ export function reduceSending(state: WorkspaceState, input: SendInput, coordinat
         ...(role ? { role } : {}),
         ...(thread || input.title === undefined ? {} : { title: input.title }),
         ...(thread ? {} : coordinationSendOf(state, { ...input, ...coordination })),
-        ...(draftKey === undefined ? {} : { draftKey }),
+        ...(draftKey === undefined ? {} : { draftKey, draftText: state.prompts[draftKey] ?? "" }),
         text,
         prompt: signed,
         ...(sentBy ? { messageOrigin: sentBy } : {}),

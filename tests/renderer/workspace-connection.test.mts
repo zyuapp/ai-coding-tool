@@ -213,7 +213,7 @@ test("prompt and annotation edits keep the composer they were typed in across se
   const initial = {
     ...emptyWorkspaceState(), currentId: null, draftProjectId: "project",
     projects: [{ id: "project", root: "/project" }], threads: [task("other")],
-    annotations: { "draft:project": [{ id: "annotation", quote: "selected text", note: "" }] },
+    annotations: { "draft:": [{ id: "annotation", quote: "selected text", note: "" }] },
   };
   bridge.request.mockImplementationOnce(async () => { bridge.emit({ revision: 0, state: initial }); return { ok: true, revision: 0 }; });
   try {
@@ -223,19 +223,19 @@ test("prompt and annotation edits keep the composer they were typed in across se
     bridge.request.mockReturnValueOnce(prompted.promise).mockReturnValueOnce(annotated.promise);
     const prompt = connection.dispatch({ type: "view.set-prompt", prompt: "Draft text" });
     const note = connection.dispatch({ type: "annotation.note", annotationId: "annotation", note: "Draft note" });
-    assert.equal(connection.getState().prompts["draft:project"], "Draft text");
-    assert.equal(connection.getState().annotations["draft:project"][0].note, "Draft note");
+    assert.equal(connection.getState().prompts["draft:"], "Draft text");
+    assert.equal(connection.getState().annotations["draft:"][0].note, "Draft note");
     bridge.emit({ revision: 1, patches: [{ path: ["currentId"], value: "other" }] });
-    assert.equal(connection.getState().prompts["draft:project"], "Draft text");
+    assert.equal(connection.getState().prompts["draft:"], "Draft text");
     assert.equal(connection.getState().prompts.other, undefined);
-    assert.deepEqual(bridge.request.mock.calls[2][0], { type: "annotation.note", taskId: "draft:project", annotationId: "annotation", note: "Draft note" });
+    assert.deepEqual(bridge.request.mock.calls[2][0], { type: "annotation.note", taskId: "draft:", annotationId: "annotation", note: "Draft note" });
     prompted.resolve({ ok: false, revision: 0, message: "Rejected" });
     await prompt;
-    assert.equal(connection.getState().prompts["draft:project"], undefined);
-    assert.equal(connection.getState().annotations["draft:project"][0].note, "Draft note", "settling one text field leaves the other pending edit visible");
+    assert.equal(connection.getState().prompts["draft:"], undefined);
+    assert.equal(connection.getState().annotations["draft:"][0].note, "Draft note", "settling one text field leaves the other pending edit visible");
     annotated.resolve({ ok: false, revision: 0, message: "Rejected" });
     await note;
-    assert.equal(connection.getState().annotations["draft:project"][0].note, "");
+    assert.equal(connection.getState().annotations["draft:"][0].note, "");
     assert.equal(connection.getState().actionError, null);
   } finally {
     connection.dispose();

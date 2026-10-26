@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { ATTACHMENTS_ELSEWHERE, FILES_ELSEWHERE, PANEL_ELSEWHERE, QUEUED_ATTACHMENTS_ELSEWHERE, QUEUED_NOT_YOURS, routeInput, remoteUnreadCount, computerCommandAvailable, createComputerCapabilitySnapshot, type PairedComputer } from "../../src/application/computers.ts";
 import { reduce, type WorkspaceEffect, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
-import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView, promptKey, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { ComputerLink } from "../../src/domain/computers.ts";
 import { activeRun, automation, effectOf, task, workspace } from "./workspace-reducer-fixtures.mts";
 
@@ -223,18 +223,30 @@ test("a send with text of its own goes as it is, and a refused send leaves the d
   assert.equal(reduce(state, { type: "action.failed", message: "Refused there" }).state.prompts["remote-thread"], "kept");
 });
 
-test("a send starting a thread in a folder elsewhere names the folder and carries the draft under that folder's key", () => {
+test("a send starting a thread in a folder elsewhere names the folder and hands the draft to that computer's own composer", () => {
   const drafting = { ...remoteState, currentId: null, draftProjectId: "remote-project" };
   let state = withComputers(workspace(), [paired("linux", drafting)], { active: "linux" });
   state = reduce(state, { type: "view.set-prompt", prompt: "Start here" }).state;
-  assert.equal(state.prompts["draft:remote-project"], "Start here");
+  assert.equal(state.prompts["draft:"], "Start here");
   const forward = effectOf(reduce(state, { type: "task.send", attachments: [], project: "remote-project", model: "opus" }), "computer.forward");
   assert.deepEqual(forward.inputs, [
-    { type: "view.set-prompt", taskId: "draft:remote-project", prompt: "Start here" },
-    { type: "annotation.recall", taskId: "draft:remote-project", annotations: [] },
-    { type: "paste.recall", taskId: "draft:remote-project", pastes: [] },
+    { type: "view.set-prompt", prompt: "Start here" },
+    { type: "annotation.recall", annotations: [] },
+    { type: "paste.recall", pastes: [] },
     { type: "task.send", project: "remote-project", model: "opus" },
   ]);
+});
+
+test("the new-thread draft stays put across a change of project or computer", () => {
+  const projects = [{ id: "a", root: "/a", workspaceId: "ws-a" }, { id: "b", root: "/b", workspaceId: "ws-b" }];
+  let state = withComputers(workspace({ projects, currentId: null, draftProjectId: "a" }), [paired("linux", { ...remoteState, currentId: null })]);
+  state = reduce(state, { type: "view.set-prompt", prompt: "Half a thought" }).state;
+  state = reduce(state, { type: "task.new", projectId: "b" }).state;
+  assert.equal(state.draftProjectId, "b");
+  assert.equal(deriveView(state).prompt, "Half a thought");
+  state = withComputers(state, [paired("linux", { ...remoteState, currentId: null })], { active: "linux" });
+  assert.equal(promptKey(state), "draft:");
+  assert.equal(state.prompts[promptKey(state)], "Half a thought");
 });
 
 test("moving to a thread here takes the paired computer off screen and tells it nobody is looking, leaving its own composer alone", () => {

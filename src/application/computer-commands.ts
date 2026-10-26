@@ -3,7 +3,7 @@ import type { ThreadNotice } from "../contracts/ipc.js";
 import { MAX_COMPUTER_NAME, type ComputerLink, type DiscoveredComputer } from "../domain/computers.js";
 import { isCoordinator, remoteLeadOf } from "../domain/coordination.js";
 import type { PairedComputer, SentDraft } from "./computers.js";
-import { annotationsFor, imagesFor, pastesFor, withAnnotations, withImages, withPastes } from "./composer-drafts.js";
+import { annotationsFor, imagesFor, pastesFor, textAfterSend, withAnnotations, withImages, withPastes } from "./composer-drafts.js";
 import { announcedNotice } from "./notices.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./workspace-reducer.js";
 import type { WorkspaceState } from "./workspace-state.js";
@@ -51,7 +51,7 @@ export function isComputerInput(input: { type: string }): input is ComputerInput
 function withoutSent(state: WorkspaceState, draft: SentDraft): WorkspaceState {
   const { key } = draft;
   const typed = state.prompts[key] ?? "";
-  const kept = typed === draft.prompt ? "" : typed.startsWith(draft.prompt) ? typed.slice(draft.prompt.length).trimStart() : typed;
+  const kept = textAfterSend(typed, draft.prompt);
   const { [key]: _sent, ...rest } = state.prompts;
   const prompts = kept ? { ...rest, [key]: kept } : rest;
   const annotations = annotationsFor(state, key).filter((annotation) => !draft.annotations.some((sent) => sent.id === annotation.id && sent.note === annotation.note));

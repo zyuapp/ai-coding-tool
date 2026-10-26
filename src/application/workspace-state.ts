@@ -104,8 +104,9 @@ export type PendingRun = Pick<HeldMessage, "usersOwn"> & {
   effort?: AgentEffort;
   role?: ThreadRole;
   coordination?: CoordinationSend;
-  /** Composer only: which draft to clear once the run starts. */
+  /** Composer only: which draft to clear once the run starts, and its text as sent. */
   draftKey?: string;
+  draftText?: string;
   /** What the user typed, before attachments are appended. Titles a brand new thread that `title` does not name. */
   text: string;
   title?: string;
@@ -557,10 +558,12 @@ export function currentFolder(state: WorkspaceState): string | null {
  * Which composer the window is typing into. While a paired computer's thread is on screen it is that
  * thread's, so the draft typed for it stays keyed to it here and never travels as keystrokes.
  */
-export function promptKey(state: Pick<WorkspaceState, "currentId" | "draftProjectId"> & { computers?: WorkspaceState["computers"] }): string {
+/** The new-thread composer's one draft, kept whichever project or computer it is pointed at. */
+export const NEW_THREAD_DRAFT = "draft:";
+
+export function promptKey(state: Pick<WorkspaceState, "currentId"> & { computers?: WorkspaceState["computers"] }): string {
   const remote = state.computers ? selectedComputer({ computers: state.computers })?.state : undefined;
-  if (remote) return promptKey({ currentId: remote.currentId, draftProjectId: remote.draftProjectId });
-  return state.currentId ?? `draft:${state.draftProjectId ?? ""}`;
+  return (remote ?? state).currentId ?? NEW_THREAD_DRAFT;
 }
 
 export function withPrompt(state: WorkspaceState, key: string, prompt: string): WorkspaceState {

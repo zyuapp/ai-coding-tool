@@ -14,7 +14,7 @@ import type { Thread } from "../domain/thread.js";
 import type { Worktree } from "../domain/worktree.js";
 import { MAIN_COMPOSER } from "./composer-attachments.js";
 import { annotationsFor, filesFor, pastesFor } from "./composer-drafts.js";
-import { promptKey, type WorkspaceState } from "./workspace-state.js";
+import { NEW_THREAD_DRAFT, promptKey, type WorkspaceState } from "./workspace-state.js";
 import { doingWork, threadActivity, threadLists, type ThreadActivity } from "./thread-activity.js";
 import { stoppableCoordinators } from "./coordination.js";
 import type { WorkspaceInput } from "./workspace-reducer.js";
@@ -187,11 +187,13 @@ function forwardedSend(state: WorkspaceState, computer: PairedComputer, command:
   const outgoing = command.type === "attachments.send"
     ? { ...send, type: "attachments.send" as const, attachments: command.attachments.map(({ path: _local, ...attachment }) => attachment) }
     : { ...send, type: "task.send" as const };
+  /** A new thread's draft goes to whichever draft that computer's own composer reads. */
+  const target = key === NEW_THREAD_DRAFT ? {} : { taskId: key };
   const inputs: WorkspaceInput[] = [
-    { type: "view.set-prompt", taskId: key, prompt },
-    { type: "annotation.recall", taskId: key, annotations },
-    { type: "paste.recall", taskId: key, pastes },
-    { ...outgoing, ...(key.startsWith("draft:") ? {} : { taskId: key }) },
+    { type: "view.set-prompt", ...target, prompt },
+    { type: "annotation.recall", ...target, annotations },
+    { type: "paste.recall", ...target, pastes },
+    { ...outgoing, ...target },
   ];
   const draft: SentDraft = {
     key, prompt, pastes, annotations,

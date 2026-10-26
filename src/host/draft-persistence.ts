@@ -1,5 +1,5 @@
 import { TaskStore, type KeyValueStorage } from "../application/task-store.js";
-import { sideChatIds, type WorkspaceState } from "../application/workspace-state.js";
+import { NEW_THREAD_DRAFT, sideChatIds, type WorkspaceState } from "../application/workspace-state.js";
 import type { WorkspaceInput } from "../application/workspace-reducer.js";
 import { errorMessage } from "./errors.js";
 
@@ -12,21 +12,30 @@ function loadDraftPrompts(storage: KeyValueStorage): Record<string, string> {
   if (!prompts || typeof prompts !== "object" || Array.isArray(prompts) || Object.values(prompts).some((text) => typeof text !== "string")) {
     throw new Error("Saved draft text could not be read.");
   }
-  return prompts as Record<string, string>;
+  return withOneNewThreadDraft(prompts as Record<string, string>);
 }
 
-type DraftState = Pick<WorkspaceState, "prompts" | "sideChats" | "projects" | "threads" | "computers">;
+/** Builds that kept a new-thread draft per project saved several; the composer now has one, so the first kept wins. */
+function withOneNewThreadDraft(prompts: Record<string, string>): Record<string, string> {
+  const kept: Record<string, string> = {};
+  for (const [owner, text] of Object.entries(prompts)) {
+    const key = owner.startsWith(NEW_THREAD_DRAFT) ? NEW_THREAD_DRAFT : owner;
+    if (!kept[key]) kept[key] = text;
+  }
+  return kept;
+}
+
+type DraftState = Pick<WorkspaceState, "prompts" | "sideChats" | "threads" | "computers">;
 
 /**
- * Whose drafts are known: this computer's folders and threads, and every paired computer's once
+ * Whose drafts are known: the new thread's, and this computer's threads and every paired computer's once
  * each has answered. Until then a draft may belong to a computer yet to answer, so none is nobody's.
  */
 function draftOwners(state: DraftState): Set<string> | null {
   const remotes = state.computers.paired.map((computer) => computer.state);
   if (remotes.some((remote) => !remote)) return null;
-  const owners = new Set(["draft:"]);
+  const owners = new Set([NEW_THREAD_DRAFT]);
   for (const held of [state, ...remotes as WorkspaceState[]]) {
-    for (const project of held.projects) owners.add(`draft:${project.id}`);
     for (const thread of held.threads) owners.add(thread.id);
   }
   return owners;

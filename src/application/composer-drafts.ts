@@ -59,6 +59,11 @@ export function withFiles(state: WorkspaceState, key: string, files: AttachedFil
   return { ...state, files: withDrafts(state.files, key, files) };
 }
 
+/** What a composer keeps once `sent` has gone: whatever was typed after it, or all of it if it was rewritten meanwhile. */
+export function textAfterSend(typed: string, sent: string): string {
+  return typed === sent ? "" : typed.startsWith(sent) ? typed.slice(sent.length).trimStart() : typed;
+}
+
 /** The caret goes back to the composer, which is where anything arriving in a draft is spoken about. */
 export function focusComposer(state: WorkspaceState): WorkspaceState {
   return { ...state, composerFocus: state.composerFocus + 1 };
