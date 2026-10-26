@@ -15,13 +15,13 @@ const usage = (session: number, fable = 30): PlanUsage => ({
   ],
 });
 
-const shares = (container: HTMLElement) => [...container.querySelectorAll(".plan-usage-share")].map((share) => share.textContent);
+const shares = (container: HTMLElement) => [...container.querySelectorAll(".plan-usage-part")].map((part) => part.textContent);
 
-test("the meter shows the session over the week, and lists every window the model spends on hover", async () => {
+test("the meter shows the session and the week, and lists every window the model spends on hover", async () => {
   const view = await mount(React.createElement(PlanUsageMeter, { engineLabel: "Claude", model: "opus", usage: usage(64) }));
   try {
     const meter = view.container.querySelector(".plan-usage")!;
-    assert.deepEqual(shares(view.container), ["64%", "20%"]);
+    assert.deepEqual(shares(view.container), ["5h64%", "Weekly20%"]);
     assert.equal(meter.querySelector(".near"), null);
     const rows = [...meter.querySelectorAll(".usage-card-label span:first-child")].map((row) => row.textContent);
     assert.deepEqual(rows, ["Current session", "Current week (all models)"], "another model's window stays out");
@@ -34,8 +34,8 @@ test("the meter shows the session over the week, and lists every window the mode
 test("a model's own week counts when it is the fuller one, and only its row warns", async () => {
   const view = await mount(React.createElement(PlanUsageMeter, { engineLabel: "Claude", model: "fable", usage: usage(40, 86) }));
   try {
-    assert.deepEqual(shares(view.container), ["40%", "86%"]);
-    assert.deepEqual([...view.container.querySelectorAll(".plan-usage-row")].map((row) => row.classList.contains("near")), [false, true]);
+    assert.deepEqual(shares(view.container), ["5h40%", "Weekly86%"]);
+    assert.deepEqual([...view.container.querySelectorAll(".plan-usage-part")].map((row) => row.classList.contains("near")), [false, true]);
   } finally {
     await view.unmount();
   }

@@ -19,18 +19,20 @@ export type ComposerPlanUsage = {
 /** `model` is the one the composer sends to, which picks out the windows only it spends. */
 type PlanUsageProps = { engineLabel: string; model: AgentModel; usage: PlanUsage | undefined };
 
-function MeterRow({ window }: { window: UsageWindow & { utilization: number } }) {
+const PERIOD_LABELS = { session: "5h", week: "Weekly" } as const;
+
+function MeterPart({ window }: { window: UsageWindow & { utilization: number } }) {
   const share = Math.round(barShare(window.utilization));
   return (
-    <span className={`plan-usage-row${share >= NEAR_LIMIT_SHARE ? " near" : ""}`}>
-      <span className="plan-usage-track"><span style={{ width: `${share}%` }} /></span>
-      <span className="plan-usage-share">{share}%</span>
+    <span className={`plan-usage-part${share >= NEAR_LIMIT_SHARE ? " near" : ""}`}>
+      {window.period && <span className="plan-usage-period">{PERIOD_LABELS[window.period]}</span>}
+      {share}%
     </span>
   );
 }
 
 /**
- * The composer's plan at a glance: the session over the fullest week the model spends, or the
+ * The composer's plan at a glance: the session and the fullest week the model spends, or the
  * fullest window alone for a plan that names neither. Hover lists every window it spends.
  */
 export function PlanUsageMeter({ engineLabel, model, usage }: PlanUsageProps) {
@@ -44,7 +46,7 @@ export function PlanUsageMeter({ engineLabel, model, usage }: PlanUsageProps) {
 
   return (
     <span className="plan-usage" tabIndex={0} aria-label={`${engineLabel} plan: ${label}`} aria-describedby={cardId}>
-      <span className="plan-usage-rows" aria-hidden="true">{rows.map((row) => <MeterRow key={row.id} window={row} />)}</span>
+      <span className="plan-usage-parts" aria-hidden="true">{rows.map((row) => <MeterPart key={row.id} window={row} />)}</span>
       <UsageCard id={cardId} title={engineLabel} aside={planLabel(usage.subscription)}>
         {windows.map((window) => {
           const windowShare = Math.round(barShare(window.utilization));
