@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { formatReset, formatShare, planLabel, sessionAndWeek, tightestWindow, usageWarningKey, windowsFor, type PlanUsage } from "../../src/domain/plan-usage.ts";
+import { formatReset, formatShare, planLabel, sessionAndWeek, tightestWindow, usageWarningKey, windowsFor, windowSpan, type PlanUsage } from "../../src/domain/plan-usage.ts";
 import { readPlanUsage, toPlanUsage } from "../../src/main/agent/plan-usage.mts";
 
 type QueryFactory = typeof import("@anthropic-ai/claude-agent-sdk").query;
@@ -47,7 +47,7 @@ test("a usage report becomes the windows the panel draws, newest window first", 
     "Current week (all models)",
     "Current week (Fable)",
   ]);
-  assert.deepEqual(usage.windows[0], { id: "five_hour", label: "Current session", utilization: 17, resetsAt: "2026-08-18T08:19:00Z", period: "session" });
+  assert.deepEqual(usage.windows[0], { id: "five_hour", label: "Current session", utilization: 17, resetsAt: "2026-08-18T08:19:00Z", period: "session", minutes: 300 });
   assert.equal(usage.windows[2].id, "model:Fable");
   assert.equal(usage.windows[2].model, "Fable");
   assert.equal(usage.windows[1].model, undefined, "a window every model shares names none");
@@ -76,6 +76,12 @@ test("a run spends the shared windows and its own model's, and the fullest one l
   assert.equal(sessionAndWeek(windowsFor(usage, "Haiku")).week?.id, "seven_day");
 });
 
+test("a window's length reads in a few characters", () => {
+  const window = (minutes?: number) => ({ id: "w", label: "w", utilization: 1, resetsAt: null, ...(minutes === undefined ? {} : { minutes }) });
+  assert.deepEqual([300, 10_080, 1_440, 60, 90].map((minutes) => windowSpan(window(minutes))), ["5h", "Weekly", "1d", "1h", "90m"]);
+  assert.equal(windowSpan(window()), null);
+});
+
 test("a dismissed warning comes back once its window reaches the limit or resets", () => {
   const window = { id: "five_hour", label: "Current session", utilization: 85, resetsAt: "2026-08-18T08:19:00Z" };
   const near = usageWarningKey("claude", window);
@@ -96,7 +102,7 @@ test("a window the provider names without numbers still draws, and a model liste
   });
 
   assert.deepEqual(usage.windows.map((window) => window.label), ["Current session", "Current week (Opus)"]);
-  assert.deepEqual(usage.windows[0], { id: "five_hour", label: "Current session", utilization: null, resetsAt: null, period: "session" });
+  assert.deepEqual(usage.windows[0], { id: "five_hour", label: "Current session", utilization: null, resetsAt: null, period: "session", minutes: 300 });
   assert.equal(usage.windows[1].utilization, 4);
   assert.equal(usage.subscription, null);
 });

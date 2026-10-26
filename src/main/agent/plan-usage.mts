@@ -34,8 +34,12 @@ function readText(value: unknown) {
 function windowFrom(id: string, label: string, raw: unknown, model?: string): UsageWindow | null {
   if (!raw || typeof raw !== "object") return null;
   const record = raw as Record<string, unknown>;
-  const period = id === "five_hour" ? "session" : "week";
-  return { id, label, utilization: readNumber(record.utilization), resetsAt: readText(record.resets_at), period, ...(model ? { model } : {}) };
+  const session = id === "five_hour";
+  return {
+    id, label, utilization: readNumber(record.utilization), resetsAt: readText(record.resets_at),
+    period: session ? "session" : "week", minutes: session ? 300 : 10_080,
+    ...(model ? { model } : {}),
+  };
 }
 
 /** Null when the answer is not a usage report at all, so the caller can try the next method. */

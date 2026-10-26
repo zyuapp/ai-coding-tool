@@ -1,6 +1,6 @@
 import { useId } from "react";
 import { LuX as X } from "react-icons/lu";
-import { barShare, formatReset, NEAR_LIMIT_SHARE, planLabel, sessionAndWeek, tightestWindow, usageWarningKey, windowsFor, type PlanUsage, type UsageWindow } from "../../domain/plan-usage";
+import { barShare, formatReset, NEAR_LIMIT_SHARE, planLabel, sessionAndWeek, tightestWindow, usageWarningKey, windowsFor, windowSpan, type PlanUsage, type UsageWindow } from "../../domain/plan-usage";
 import { modelLabel, type AgentModel } from "../../domain/agent-engine";
 import { UsageCard, UsageCardRow } from "./UsageCard";
 
@@ -19,14 +19,13 @@ export type ComposerPlanUsage = {
 /** `model` is the one the composer sends to, which picks out the windows only it spends. */
 type PlanUsageProps = { engineLabel: string; model: AgentModel; usage: PlanUsage | undefined };
 
-const PERIOD_LABELS = { session: "5h", week: "Weekly" } as const;
-
 function MeterPart({ window }: { window: UsageWindow & { utilization: number } }) {
   const share = Math.round(barShare(window.utilization));
+  const span = windowSpan(window);
   return (
     <span className={`plan-usage-part${share >= NEAR_LIMIT_SHARE ? " near" : ""}`}>
-      {window.period && <span className="plan-usage-period">{PERIOD_LABELS[window.period]}</span>}
-      {share}%
+      {span && <span className="plan-usage-span">{span}</span>}
+      <span className="plan-usage-share">{share}%</span>
     </span>
   );
 }

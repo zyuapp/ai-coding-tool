@@ -9,9 +9,9 @@ const usage = (session: number, fable = 30): PlanUsage => ({
   status: "available",
   subscription: "max",
   windows: [
-    { id: "five_hour", label: "Current session", utilization: session, resetsAt: null, period: "session" },
-    { id: "seven_day", label: "Current week (all models)", utilization: 20, resetsAt: null, period: "week" },
-    { id: "model:Fable", label: "Current week (Fable)", utilization: fable, resetsAt: null, model: "Fable", period: "week" },
+    { id: "five_hour", label: "Current session", utilization: session, resetsAt: null, period: "session", minutes: 300 },
+    { id: "seven_day", label: "Current week (all models)", utilization: 20, resetsAt: null, period: "week", minutes: 10_080 },
+    { id: "model:Fable", label: "Current week (Fable)", utilization: fable, resetsAt: null, model: "Fable", period: "week", minutes: 10_080 },
   ],
 });
 
@@ -36,6 +36,18 @@ test("a model's own week counts when it is the fuller one, and only its row warn
   try {
     assert.deepEqual(shares(view.container), ["5h40%", "Weekly86%"]);
     assert.deepEqual([...view.container.querySelectorAll(".plan-usage-part")].map((row) => row.classList.contains("near")), [false, true]);
+  } finally {
+    await view.unmount();
+  }
+});
+
+test("a plan with no session window shows its week alone", async () => {
+  const weekly: PlanUsage = { status: "available", subscription: "plus", windows: [
+    { id: "codex:primary", label: "Current week", utilization: 30, resetsAt: null, period: "week", minutes: 10_080 },
+  ] };
+  const view = await mount(React.createElement(PlanUsageMeter, { engineLabel: "Codex", model: "gpt-6.1-sol", usage: weekly }));
+  try {
+    assert.deepEqual(shares(view.container), ["Weekly30%"]);
   } finally {
     await view.unmount();
   }

@@ -10,6 +10,8 @@ export type UsageWindow = {
   model?: string;
   /** Which recurring period of the plan a window covers, for the session and week the composer draws apart. */
   period?: "session" | "week";
+  /** How long the window runs before it resets. */
+  minutes?: number;
 };
 
 /**
@@ -84,6 +86,16 @@ export function tightestWindow(windows: readonly UsageWindow[]): (UsageWindow & 
     if (window.utilization !== null && (!tightest || window.utilization > tightest.utilization)) tightest = { ...window, utilization: window.utilization };
   }
   return tightest;
+}
+
+/** A window's length in a few characters: 5h, 1d, Weekly. Null when the provider did not say. */
+export function windowSpan(window: UsageWindow) {
+  const { minutes } = window;
+  if (!minutes || !Number.isFinite(minutes) || minutes <= 0) return null;
+  if (minutes === 10_080) return "Weekly";
+  if (minutes % 1_440 === 0) return `${minutes / 1_440}d`;
+  if (minutes % 60 === 0) return `${minutes / 60}h`;
+  return `${minutes}m`;
 }
 
 /** The session window and the fullest weekly one, each null when the plan does not report it. */

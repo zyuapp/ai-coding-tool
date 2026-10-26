@@ -39,9 +39,16 @@ test("Codex rate limits become the same session and week windows as Claude usage
   if (usage.status !== "available") return;
   assert.equal(usage.subscription, "pro");
   assert.deepEqual(usage.windows, [
-    { id: "codex:primary", label: "Current session", utilization: 17.4, resetsAt: "2026-08-28T01:30:00.000Z", period: "session" },
-    { id: "codex:secondary", label: "Current week", utilization: 42, resetsAt: "2026-09-03T01:30:00.000Z", period: "week" },
+    { id: "codex:primary", label: "Current session", utilization: 17.4, resetsAt: "2026-08-28T01:30:00.000Z", period: "session", minutes: 300 },
+    { id: "codex:secondary", label: "Current week", utilization: 42, resetsAt: "2026-09-03T01:30:00.000Z", period: "week", minutes: 10_080 },
   ]);
+});
+
+test("a plan with only a weekly limit has a week and no session", () => {
+  const usage = toCodexPlanUsage({ ...response, rateLimits: snapshot({ primary: { usedPercent: 30, windowDurationMins: 10_080, resetsAt: null } }) });
+  assert.equal(usage.status, "available");
+  if (usage.status !== "available") return;
+  assert.deepEqual(usage.windows.map((window) => [window.period, window.minutes]), [["week", 10_080]]);
 });
 
 test("multiple Codex limit buckets keep their names and stable order, and an empty answer has no plan limits", () => {
@@ -55,6 +62,7 @@ test("multiple Codex limit buckets keep their names and stable order, and an emp
   assert.equal(usage.status, "available");
   if (usage.status !== "available") return;
   assert.deepEqual(usage.windows.map((window) => window.label), ["Codex · Current 1-hour window", "Code review · Current 1-day window"]);
+  assert.deepEqual(usage.windows.map((window) => window.period), ["session", undefined], "only the ordinary limit is a period of the plan");
 
   assert.deepEqual(toCodexPlanUsage({ ...response, rateLimits: snapshot({ planType: null }) }, "plus"), { status: "not-applicable" });
 });

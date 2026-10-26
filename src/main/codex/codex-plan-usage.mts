@@ -40,23 +40,30 @@ function windowName(kind: "primary" | "secondary", minutes: number | null) {
   return `Current ${minutes}-minute window`;
 }
 
-/** Only the ordinary limit's windows hold a turn, so only they are a period of the plan. */
+function windowMinutes(minutes: number | null) {
+  return minutes !== null && Number.isFinite(minutes) && minutes > 0 ? minutes : null;
+}
+
+/**
+ * Only the ordinary limit's windows hold a turn, so only they are a period of the plan: a week or
+ * longer is the week, anything shorter the session. Some plans have no session window at all.
+ */
 function windowPeriod(ordinary: boolean, minutes: number | null): UsageWindow["period"] {
-  if (!ordinary) return undefined;
-  if (minutes === 300) return "session";
-  if (minutes === 10_080) return "week";
-  return undefined;
+  if (!ordinary || minutes === null) return undefined;
+  return minutes >= 10_080 ? "week" : "session";
 }
 
 function usageWindow(id: string, label: string, kind: "primary" | "secondary", value: RateLimitWindow | null, ordinary: boolean): UsageWindow | null {
   if (!value || !Number.isFinite(value.usedPercent)) return null;
-  const period = windowPeriod(ordinary, value.windowDurationMins);
+  const minutes = windowMinutes(value.windowDurationMins);
+  const period = windowPeriod(ordinary, minutes);
   return {
     id: `${id}:${kind}`,
     label: `${label}${windowName(kind, value.windowDurationMins)}`,
     utilization: value.usedPercent,
     resetsAt: resetInstant(value.resetsAt),
     ...(period ? { period } : {}),
+    ...(minutes ? { minutes } : {}),
   };
 }
 
