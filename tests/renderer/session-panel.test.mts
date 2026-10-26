@@ -145,7 +145,10 @@ test("session panel renders Git and subagent states and selects an agent", async
   await view.render(renderSessionPanel({ environment: null, hasProject: true, subagents: [], backgroundProcesses: [], workflows: [], automationCount: 0, onSelect() {}, onOpenAutomations() {} }));
   assert.match(view.container.textContent, /Reopen the project to inspect Git/, "a project that is no longer open has no checkout to read");
   await view.render(renderSessionPanel({ environment: null, hasProject: false, subagents: [], backgroundProcesses: [], workflows: [], automationCount: 0, onSelect() {}, onOpenAutomations() {} }));
-  assert.match(view.container.textContent, /Open a project to inspect Git/);
+  assert.equal(view.container.querySelector('button[aria-label="Review changes"]'), null, "a thread with no folder has no changes to review");
+  assert.equal(view.container.querySelector('button[aria-label="Branch"]'), null, "nor a branch");
+  assert.doesNotMatch(view.container.textContent, /Git/);
+  assert.ok(query(view.container, 'button[aria-label="Open Automation panel"]'), "automations need no folder");
   await view.unmount();
 });
 
@@ -524,7 +527,7 @@ test("the session panel's branch row moves the checkout onto the branch it is gi
   await act(async () => { creating.click(); });
   assert.deepEqual(calls.checkout.at(-1), { branch: "loader-fix", create: true });
 
-  await view.render(renderSessionPanel({ ...panel(null).props, workspaceId: undefined, hasProject: false, environment: null }));
+  await view.render(renderSessionPanel({ ...panel(null).props, workspaceId: undefined, environment: null }));
   assert.equal(query<HTMLButtonElement>(view.container, 'button[aria-label="Branch"]').disabled, true, "with no checkout there is no branch to change");
   await view.unmount();
 });

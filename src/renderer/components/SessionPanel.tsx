@@ -47,8 +47,7 @@ export const BRANCH_MENU = "session:branch";
 /** The sidebar carries the few that want reading; the whole roster lives in the Subagents panel. */
 const SIDEBAR_LIMIT = 6;
 
-function environmentMessage(environment: ChangedFilesResult | null, hasProject: boolean, workspaceId: string | undefined) {
-  if (!hasProject) return "Open a project to inspect Git";
+function environmentMessage(environment: ChangedFilesResult | null, workspaceId: string | undefined) {
   if (!workspaceId) return "Reopen the project to inspect Git";
   /** A checkout with no answer yet is one still being read; the rows fill in when it answers. */
   if (!environment) return "Reading Git…";
@@ -157,18 +156,18 @@ type SessionEnvironmentProps = Pick<SessionPanelProps,
   | "onOpenAutomations" | "onToggleChanges" | "onSetOpenMenu" | "onCheckoutBranch"
 >;
 
-/** A thread's checkout, the branch and pull request it is on, and the schedule that repeats it. */
-function SessionEnvironment({ environment, hasProject, workspaceId, pullRequest, locationRow, openMenu, automationCount, onOpenAutomations, onToggleChanges, onSetOpenMenu, onCheckoutBranch }: SessionEnvironmentProps) {
+type CheckoutRowsProps = Omit<SessionEnvironmentProps, "hasProject" | "locationRow" | "automationCount" | "onOpenAutomations">;
+
+/** The checkout's changes, branch and pull request, which a thread with no folder has none of. */
+function CheckoutRows({ environment, workspaceId, pullRequest, openMenu, onToggleChanges, onSetOpenMenu, onCheckoutBranch }: CheckoutRowsProps) {
   const available = environment?.status === "available" ? environment : null;
-  const message = environmentMessage(environment, hasProject, workspaceId);
+  const message = environmentMessage(environment, workspaceId);
   return (
-    <div className="session-environment">
-      {locationRow}
+    <>
       <button
         className="session-row session-row-action"
         type="button"
         aria-label="Review changes"
-        disabled={!hasProject}
         onClick={onToggleChanges}
       >
         <span className="session-row-icon"><FileDiff size={18} /></span>
@@ -189,6 +188,16 @@ function SessionEnvironment({ environment, hasProject, workspaceId, pullRequest,
       {pullRequest.status === "found" && <PullRequestRow pullRequest={pullRequest.pullRequest} />}
       {pullRequest.status === "gh-missing" && <InstallGitHubCliRow />}
       {message && <p className="session-note">{message}</p>}
+    </>
+  );
+}
+
+/** A thread's checkout, the branch and pull request it is on, and the schedule that repeats it. */
+function SessionEnvironment({ hasProject, locationRow, automationCount, onOpenAutomations, ...checkout }: SessionEnvironmentProps) {
+  return (
+    <div className="session-environment">
+      {locationRow}
+      {hasProject && <CheckoutRows {...checkout} />}
       <button className="session-row session-row-action" type="button" onClick={onOpenAutomations} aria-label="Open Automation panel">
         <span className="session-row-icon"><AlarmClock size={18} /></span>
         <span>Automations</span>
