@@ -151,8 +151,9 @@ export type TaskCommand =
   /**
    * Copies a thread into a new one beside it, carrying its conversation and its session. The copy
    * runs nothing of its own until the user sends something; `worktree` gives it a checkout of its own.
+   * Without a `title` the copy is named after the thread it came from.
    */
-  | { type: "task.fork"; taskId?: string; worktree?: boolean }
+  | { type: "task.fork"; taskId?: string; worktree?: boolean; title?: string }
   /** Without a `taskId` the setting also becomes the draft the next new task starts from. */
   | { type: "task.set-policy"; taskId?: string; policy: ExecutionPolicy }
   /** A thread keeps its engine; the pair only moves the draft, and a model or effort the engine lacks changes nothing. */
@@ -480,6 +481,10 @@ export type ViewCommand =
    * happens when `task.set-worktree` follows, which the confirmation sends.
    */
   | { type: "view.move-worktree"; worktree: boolean | null }
+  /** Opens the naming dialog for a fork of a thread, or closes it with a null. */
+  | { type: "view.fork-name"; sourceId: string | null; worktree?: boolean }
+  /** Forks the thread the naming dialog is open on, under the name typed there. */
+  | { type: "view.fork-confirm"; title: string }
   /** Folds one of the sidebar's lists, whichever mode draws it. */
   | { type: "view.set-section-open"; section: SidebarSection; open: boolean }
   /** Folds the sidebar's subagent list, or one status heading in the Subagents panel. */

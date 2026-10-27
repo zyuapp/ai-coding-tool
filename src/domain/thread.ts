@@ -163,7 +163,7 @@ export type Thread = {
   archivedAt?: number;
 };
 
-const TITLE_LIMIT = 52;
+export const TITLE_LIMIT = 52;
 
 /** One length for every thread title, whoever wrote it: the user, the first message, or the model. */
 export function clampTitle(text: string) {

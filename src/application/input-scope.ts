@@ -82,6 +82,9 @@ function collect(state: WorkspaceState, input: WorkspaceInput, keys: Set<string>
     case "side-chat.open": case "view.move-worktree":
       if (state.currentId) keys.add(state.currentId);
       return true;
+    case "view.fork-confirm":
+      if (state.forkName) keys.add(state.forkName.taskId);
+      return false;
     /** The reducer reads a keystroke against the state it runs in, so it may only run on the screen it was pressed on. */
     case "view.shortcut": case "view.escape": {
       const commands = input.type === "view.shortcut" ? shortcutCommands(state, input.action, input.surface) : escapeCommands(state);

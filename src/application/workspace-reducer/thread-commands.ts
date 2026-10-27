@@ -11,9 +11,10 @@ import { coordinatorAskRefusal } from "./errors.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import type { AppCommand } from "../../contracts/commands.js";
 import { focusComposer } from "../composer-drafts.js";
-import { shownComputers, type PairedComputer } from "../computers.js";
+import { computerOfThread, shownComputers, type PairedComputer } from "../computers.js";
 import { REMOTE_UNSUPPORTED, supportsComputerCommand } from "../../contracts/computer-capabilities.js";
 import { forkedThreads } from "../thread-fork.js";
+import { forkTitle } from "../../domain/thread.js";
 import { moveThread as moveThreadInList } from "../thread-order.js";
 import { coordinatorRoster, dismissedWith, ownCoordinationSections, projectActivity } from "../coordination.js";
 import { offlineMessage } from "../../domain/computers.js";
@@ -32,10 +33,20 @@ import { capabilitiesFor, defaultModelFor, effortForModel, engineHasModel, model
 
 export const THREAD_COMMAND_INPUTS = [
   "task.new", "task.select", "task.dismiss", "task.dismiss-all", "task.archive", "task.snooze", "task.unsnooze", "snoozes.elapsed", "task.restore",
-  "task.clear-archive", "task.rename", "task.set-role", "title.suggested", "task.fork", "task.move", "task.set-policy", "task.set-model",
+  "task.clear-archive", "task.rename", "task.set-role", "title.suggested", "task.fork", "view.fork-name", "task.move", "task.set-policy", "task.set-model",
   "task.set-effort", "task.set-fast-mode"
 ] as const;
 type ThreadCommandInput = Extract<WorkspaceInput, { type: (typeof THREAD_COMMAND_INPUTS)[number] }>;
+
+/** The name it suggests is the one a fork gets without asking, numbered among the threads on the computer holding it. */
+function askForkName(state: WorkspaceState, input: Extract<ThreadCommandInput, { type: "view.fork-name" }>): WorkspaceState {
+  if (input.sourceId === null) return { ...state, forkName: null };
+  const holder = computerOfThread(state, input.sourceId)?.state ?? state;
+  const source = holder.threads.find((item) => item.id === input.sourceId);
+  if (!source || sideChatIds(holder).has(source.id)) return state;
+  const title = forkTitle(source.title, holder.threads.map((thread) => thread.title));
+  return { ...state, openMenu: null, forkName: { taskId: source.id, worktree: input.worktree === true, title } };
+}
 
 /** Offers the title to the engine's own record of the thread; an engine that keeps none ignores it. */
 function labelThread(taskId: string, title: string): WorkspaceEffect {
@@ -313,12 +324,14 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
       const taskId = targetId(state, input.taskId);
       const source = taskId ? state.threads.find((item) => item.id === taskId) : undefined;
       if (!source || sideChatIds(state).has(source.id)) return settled(state);
-      const { threads, fork } = forkedThreads(state.threads, source, crypto.randomUUID(), now());
-      const opened = reduceThreadCommands({ ...state, threads, openMenu: null }, { type: "task.select", taskId: fork.id });
+      const { threads, fork } = forkedThreads(state.threads, source, crypto.randomUUID(), now(), input.title);
+      const opened = reduceThreadCommands({ ...state, threads, openMenu: null, forkName: null }, { type: "task.select", taskId: fork.id });
       if (!input.worktree) return opened;
       const located = reduceWorktrees(opened.state, { type: "task.set-worktree", taskId: fork.id, worktree: true });
       return { state: located.state, effects: [...opened.effects, ...located.effects] };
     }
+
+    case "view.fork-name": return settled(askForkName(state, input));
 
     /** A drag reveals every folder so it can be dropped into, so the drop leaves the folding alone. */
     case "task.move": {

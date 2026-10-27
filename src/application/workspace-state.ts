@@ -206,6 +206,9 @@ export type ProjectEdit = {
   error: string | null;
 };
 
+/** A fork waiting on its name: the thread to copy, whether the copy gets a worktree, and the name it starts with. */
+export type ForkName = { taskId: string; worktree: boolean; title: string };
+
 /** The native review picker follows the thread it was opened from and never persists. */
 export type ReviewPicker = {
   taskId: string;
@@ -282,6 +285,8 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   projectEdit: ProjectEdit | null;
   /** The move the confirmation is open on: the thread asked to move, and where it would go. */
   worktreeMove: { taskId: string; worktree: boolean } | null;
+  /** The fork the naming dialog is open on: the thread to copy, where the copy goes, and the name it suggests. */
+  forkName: ForkName | null;
   /** Which of the sidebar's lists are unfolded, across both of its modes. */
   sections: SidebarSections;
   /** Which subagent groups are unfolded: the sidebar's list, and each status heading in the panel. */
@@ -462,6 +467,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     ...NO_PROJECT_ADD,
     projectEdit: null,
     worktreeMove: null,
+    forkName: null,
     sections: OPEN_SIDEBAR_SECTIONS,
     theme: DEFAULT_THEME,
     themeMode: DEFAULT_THEME_MODE,

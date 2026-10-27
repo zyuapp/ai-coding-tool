@@ -10,7 +10,9 @@ import { prunedFind } from "./workspace-reducer/find.js";
 import { settledZen, zenAllowed } from "./workspace-zen.js";
 import { settledUnlisted } from "./project-commands.js";
 import { rejected, settled } from "./workspace-reducer/shared.js";
-import { activeComputer, selectedComputer, leavesComputer, routeInput, type InputRoute } from "./computers.js";
+import { activeComputer, computerOfThread, selectedComputer, leavesComputer, routeInput, type InputRoute } from "./computers.js";
+import { supportsComputerCommand } from "../contracts/computer-capabilities.js";
+import { clampTitle } from "../domain/thread.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
 import { dockFor, dockOwner, findTargetFor, keyboardTerminalId, keyboardThreadId, recordVisit, threadSlots, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
@@ -37,6 +39,7 @@ function reduceInput(state: WorkspaceState, input: WorkspaceInput): WorkspaceTra
   /** A keystroke is whatever the user could have clicked, so it re-enters here as those commands. */
   if (input.type === "view.shortcut") return runCommands(state, shortcutCommands(state, input.action, input.surface));
   if (input.type === "view.escape") return runCommands(state, escapeCommands(state));
+  if (input.type === "view.fork-confirm") return confirmFork(state, input.title);
   /** A frame's reports, folded in arrival order so no report overtakes the one before it. */
   if (input.type === "agent.events") {
     return input.events.reduce<WorkspaceTransition>((transition, event) => {
@@ -67,6 +70,20 @@ function reduceInput(state: WorkspaceState, input: WorkspaceInput): WorkspaceTra
    * keys come back to the window too, since the page they were on belongs to the thread just left.
    */
   return { ...transition, state: landed, effects: [...transition.effects, ...shownPageEffects(landed), ...(landed.focused ? TAKE_KEYS : [])] };
+}
+
+/**
+ * Forks under the typed name, wherever the thread is held. A paired computer whose build cannot take
+ * a name names the copy itself rather than refusing the fork over it.
+ */
+function confirmFork(state: WorkspaceState, typed: string): WorkspaceTransition {
+  const ask = state.forkName;
+  const title = clampTitle(typed);
+  if (!ask || !title) return settled(state);
+  const fork: AppCommand = { type: "task.fork", taskId: ask.taskId, ...(ask.worktree ? { worktree: true } : {}), title };
+  const holder = computerOfThread(state, ask.taskId);
+  const named = holder && !supportsComputerCommand(holder.capabilities, fork) ? { type: "task.fork" as const, taskId: ask.taskId, ...(ask.worktree ? { worktree: true } : {}) } : fork;
+  return reduce({ ...state, forkName: null }, named);
 }
 
 function forwardEffect(route: Extract<InputRoute, { kind: "computer" }>): WorkspaceEffect {

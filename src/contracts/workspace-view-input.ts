@@ -286,7 +286,7 @@ const commands = {
   /** The reducer itself carries this to the computers shown in the sidebar. */
   "task.dismiss-all": { fields: { localOnly: optionalBoolean, projectId: optionalText }, at: "local" },
   "task.move": { fields: { taskId: text, target: dropTarget }, at: "thread" },
-  "task.fork": { fields: { taskId: optionalText, worktree: optionalBoolean }, at: "thread" },
+  "task.fork": { fields: { taskId: optionalText, worktree: optionalBoolean, title: optional(startTitle) }, at: "thread" },
   "task.set-policy": { fields: { taskId: optionalText, policy: policy }, at: "thread" },
   "task.set-model": { fields: { taskId: optionalText, engine: isAgentEngine, model: isAgentModel }, at: "thread" },
   "task.set-fast-mode": { fields: { taskId: optionalText, fastMode: boolean }, at: "thread" },
@@ -412,6 +412,8 @@ const commands = {
   "view.toggle-project": { fields: { projectId: text }, at: "local" },
   "view.edit-project": { fields: { projectId: nullableText }, at: "local" },
   "view.move-worktree": { fields: { worktree: nullable(boolean) }, at: "local" },
+  "view.fork-name": { fields: { sourceId: nullableText, worktree: optionalBoolean }, at: "local" },
+  "view.fork-confirm": { fields: { title: startTitle }, at: "local" },
   "view.set-section-open": { fields: { section: isSidebarSection, open: boolean }, at: "local" },
   "view.set-subagent-group": { fields: { group: isSubagentGroup, open: boolean }, at: "local" },
   "view.set-overview-group": { fields: { taskId: text, group: isOverviewSection, open: optionalBoolean, all: optionalBoolean }, at: "local" },

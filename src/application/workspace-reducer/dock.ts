@@ -31,6 +31,7 @@ export function reduceDock(state: WorkspaceState, input: DockInput): WorkspaceTr
     case "view.close-tab": {
       const { owner, dock } = frontDock(state);
       if (state.worktreeMove) return settled({ ...state, worktreeMove: null });
+      if (state.forkName) return settled({ ...state, forkName: null });
       if (state.projectEdit) return settled({ ...state, projectEdit: null });
       if (state.settingsOpen || state.computerUseSetup) return settled({ ...state, settingsOpen: false, computerUseSetup: false });
       if (!dock.open) return settled(state, [{ type: "close-window" }]);

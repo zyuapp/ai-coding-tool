@@ -1,5 +1,5 @@
 import { capabilitiesFor } from "../domain/agent-engine.js";
-import { forkTitle, type Thread } from "../domain/thread.js";
+import { clampTitle, forkTitle, type Thread } from "../domain/thread.js";
 import { moveThread, nextSortIndex, orderThreads } from "./thread-order.js";
 
 /** What a new thread takes from the thread it was made from: where it runs, and how it runs. */
@@ -33,10 +33,10 @@ export function sideChatThread(source: Thread, id: string, title: string, at: nu
  * conversation, the session it was left in, and how the thread was set to run. What the thread has
  * been through stays its own: no verdict, no findings, no schedule, and no checkout crosses over.
  */
-export function forkedThreads(threads: Thread[], source: Thread, id: string, at: number): { threads: Thread[]; fork: Thread } {
+export function forkedThreads(threads: Thread[], source: Thread, id: string, at: number, title?: string): { threads: Thread[]; fork: Thread } {
   const fork: Thread = {
     id,
-    title: forkTitle(source.title, threads.map((thread) => thread.title)),
+    title: (title && clampTitle(title)) || forkTitle(source.title, threads.map((thread) => thread.title)),
     titleByUser: true,
     ...inherited(source),
     messages: [...source.messages],

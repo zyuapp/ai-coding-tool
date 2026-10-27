@@ -72,6 +72,9 @@ export function createRuntimeHistory(host: HistoryHost) {
       case "view.move-worktree":
         if (input.worktree !== null) add(state.currentId);
         break;
+      case "view.fork-confirm":
+        add(state.forkName?.taskId);
+        break;
       case "side-chat.open":
         add(state.currentId);
         break;

@@ -164,3 +164,43 @@ test("forking into a worktree asks for a checkout of the copy's own", () => {
 
   assert.deepEqual(effectOf(transition, "create-worktree"), { type: "create-worktree", taskId: fork.id, projectRoot: "/work/api" });
 });
+
+test("the fork dialog suggests the default name, and confirming forks under the typed one", () => {
+  const before = workspace({ threads: [task("first", { title: "Fix the login" })], currentId: "first" });
+  const asked = reduce(before, { type: "view.fork-name", sourceId: "first" }).state;
+  assert.deepEqual(asked.forkName, { taskId: "first", worktree: false, title: "Fix the login (fork)" });
+  assert.equal(asked.threads.length, 1, "nothing is forked until the name is confirmed");
+
+  const state = reduce(asked, { type: "view.fork-confirm", title: "  Try OAuth  " }).state;
+  const { fork } = forked(before, state, "first");
+  assert.equal(fork.title, "Try OAuth");
+  assert.equal(state.forkName, null);
+  assert.equal(state.currentId, fork.id);
+});
+
+test("a blank fork name forks nothing, and closing the dialog forks nothing", () => {
+  const before = workspace({ threads: [task("first", { title: "Fix the login" })], currentId: "first" });
+  const asked = reduce(before, { type: "view.fork-name", sourceId: "first", worktree: true }).state;
+
+  const blank = reduce(asked, { type: "view.fork-confirm", title: "   " }).state;
+  assert.equal(blank.threads.length, 1);
+  assert.deepEqual(blank.forkName, asked.forkName, "the dialog stays open");
+
+  const closed = reduce(asked, { type: "view.fork-name", sourceId: null }).state;
+  assert.equal(closed.forkName, null);
+  assert.equal(closed.threads.length, 1);
+});
+
+test("confirming a worktree fork names the copy and asks for its checkout", () => {
+  const before = workspace({
+    threads: [task("first", { projectId: "project-1", title: "Fix the login" })],
+    projects: [{ id: "project-1", root: "/work/api", workspaceId: "workspace-1" }],
+    currentId: "first",
+  });
+  const asked = reduce(before, { type: "view.fork-name", sourceId: "first", worktree: true }).state;
+  const transition = reduce(asked, { type: "view.fork-confirm", title: "Fix the login (fork)" });
+  const { fork } = forked(before, transition.state, "first");
+
+  assert.equal(fork.title, "Fix the login (fork)");
+  assert.deepEqual(effectOf(transition, "create-worktree"), { type: "create-worktree", taskId: fork.id, projectRoot: "/work/api" });
+});
