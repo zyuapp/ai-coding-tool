@@ -364,9 +364,9 @@ test("the model menu's effort strip offers what the model takes, and says so for
     const chip = query(menu, "summary").textContent;
     await act(async () => { query<HTMLElement>(menu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
     const strip = query(menu, ".effort-strip");
-    const labels = [...strip.querySelectorAll(".effort-labels span")].map((label) => label.textContent);
-    const slider = strip.querySelector<HTMLElement>("[role=slider]");
-    if (slider) await act(async () => { slider.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })); });
+    const labels = [...strip.querySelectorAll(".effort-segments [role=radio]")].map((label) => label.textContent);
+    const chosen = strip.querySelector<HTMLElement>("[role=radio][aria-checked=true]");
+    if (chosen) await act(async () => { chosen.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })); });
     const none = strip.querySelector(".effort-strip-none")?.textContent;
     await view.unmount();
     return { chip, labels, none };
@@ -375,7 +375,7 @@ test("the model menu's effort strip offers what the model takes, and says so for
   const astra = await efforts("codex", "gpt-6-astra");
   assert.equal(astra.chip, "ModelAstra·High");
   assert.deepEqual(astra.labels, ["Low", "Med", "High", "X-High", "Max", "Ultra"]);
-  assert.deepEqual(changes, ["xhigh"], "the slider steps to the next effort up");
+  assert.deepEqual(changes, ["xhigh"], "the arrow key steps to the next effort up");
   assert.equal((await efforts("codex", "gpt-6-astra", true)).labels.at(-1), "Max", "a coordinator hands work only to threads, so it has no ultra");
   assert.equal((await efforts("codex", "gpt-6-luna")).labels.includes("Ultra"), false, "a nondelegating model has no ultra");
   const haiku = await efforts("claude", "haiku");

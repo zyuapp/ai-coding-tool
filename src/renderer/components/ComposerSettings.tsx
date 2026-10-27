@@ -1,7 +1,7 @@
 import { CommandGate, CommandButton, useCommandControls } from "./CommandControl";
 import type { IconType } from "react-icons";
 import { LuSearch as Search, LuStar as Star, LuGrid2X2 as Grid, LuX as X, LuBrain as Brain, LuCheck as Check, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuShieldOff as ShieldOff, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
-import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { AGENT_ENGINES, capabilitiesFor, byEngine, effortForModel, effortsFor, engineLabel, engineNotice, isAgentModel, modelsFor, type AgentEngine, type AgentModel, type EffortSpec, type EngineNotice, type EngineReadiness } from "../../domain/agent-engine";
 import { POLICIES, type AgentEffort, type ExecutionPolicy } from "../../domain/run";
 import { moveListFocus, useDismissibleLayer } from "../focus";
@@ -18,7 +18,7 @@ const modes: Choice<ExecutionPolicy>[] = [
 
 const modelIcons: Record<AgentModel, IconType> = { fable: Sparkles, opus: Brain, sonnet: Gauge, haiku: Feather, "gpt-6-astra": Brain, "gpt-6.1-sol": Sparkles, "gpt-5.6-terra": Gauge, "gpt-6-luna": Moon };
 
-/** Tick labels the slider has room for; the strip names the effort in full beside it. */
+/** Segment labels short enough to fit; each segment names the effort in full to assistive tech. */
 const shortEffortLabels: Partial<Record<AgentEffort, string>> = { medium: "Med", xhigh: "X-High" };
 
 const modelsOf = byEngine((engine): Choice<AgentModel>[] => modelsFor(engine).map((spec) => ({ value: spec.id, label: spec.label, description: spec.description, icon: modelIcons[spec.id] })));
@@ -117,19 +117,16 @@ function effortSteps(model: AgentModel, effort: EffortControl) {
   return { steps: [...effortsFor(model, role)].reverse(), value: effortForModel(model, effort.value, role) };
 }
 
-function EffortSlider({ steps, value, onChange }: { steps: readonly EffortSpec[]; value: AgentEffort; onChange: (effort: AgentEffort) => void }) {
-  const rail = useRef<HTMLDivElement>(null);
-  const [dragging, setDragging] = useState(false);
+/** The efforts as one row of segments, the chosen one raised on a pill that slides between them. */
+function EffortSegments({ steps, value, onChange }: { steps: readonly EffortSpec[]; value: AgentEffort; onChange: (effort: AgentEffort) => void }) {
+  const segments = useRef<HTMLDivElement>(null);
   const last = steps.length - 1;
   const index = Math.max(0, steps.findIndex((spec) => spec.id === value));
-  const at = (step: number) => (last ? step / last : 0);
   const pick = (step: number) => {
     const spec = steps[Math.min(last, Math.max(0, step))];
-    if (spec && spec.id !== value) onChange(spec.id);
-  };
-  const fromPointer = (event: PointerEvent<HTMLElement>) => {
-    const box = rail.current?.getBoundingClientRect();
-    return box?.width ? Math.round(((event.clientX - box.left) / box.width) * last) : index;
+    if (!spec) return;
+    if (spec.id !== value) onChange(spec.id);
+    segments.current?.querySelectorAll<HTMLElement>("[role=radio]")[steps.indexOf(spec)]?.focus();
   };
   const keyDown = (event: KeyboardEvent<HTMLElement>) => {
     const step = ({ ArrowLeft: index - 1, ArrowDown: index - 1, ArrowRight: index + 1, ArrowUp: index + 1, Home: 0, End: last } as Record<string, number>)[event.key];
@@ -139,49 +136,36 @@ function EffortSlider({ steps, value, onChange }: { steps: readonly EffortSpec[]
     pick(step);
   };
   return <div
-    className={`effort-slider${dragging ? " dragging" : ""}${steps[index]?.delegates ? " delegates" : ""}`}
-    role="slider"
-    tabIndex={0}
+    ref={segments}
+    className={`effort-segments${steps[index]?.delegates ? " delegates" : ""}`}
+    role="radiogroup"
     aria-label="Effort"
-    aria-valuemin={0}
-    aria-valuemax={last}
-    aria-valuenow={index}
-    aria-valuetext={steps[index]?.label}
-    style={{ "--effort-at": at(index) } as CSSProperties}
+    style={{ "--effort-count": steps.length, "--effort-index": index } as CSSProperties}
     onKeyDown={keyDown}
-    onPointerDown={(event) => {
-      if (event.button !== 0) return;
-      event.preventDefault();
-      event.currentTarget.focus();
-      event.currentTarget.setPointerCapture?.(event.pointerId);
-      setDragging(true);
-      pick(fromPointer(event));
-    }}
-    onPointerMove={(event) => { if (dragging) pick(fromPointer(event)); }}
-    onPointerUp={() => setDragging(false)}
-    onPointerCancel={() => setDragging(false)}
   >
-    <div className="effort-rail" ref={rail}>
-      <div className="effort-fill" />
-      {steps.map((spec, step) => <span key={spec.id} className={`effort-tick${step < index ? " passed" : ""}`} style={{ left: `${at(step) * 100}%` }} />)}
-      <div className="effort-thumb" />
-    </div>
-    <div className="effort-labels" aria-hidden="true">
-      {steps.map((spec, step) => <span key={spec.id} className={`${step === index ? "selected" : ""}${spec.delegates ? " delegates" : ""}`} style={{ left: `${at(step) * 100}%` }}>{shortEffortLabels[spec.id] ?? spec.label}</span>)}
-    </div>
+    <span className="effort-pill" aria-hidden="true" />
+    {steps.map((spec, step) => <button
+      key={spec.id}
+      type="button"
+      role="radio"
+      aria-checked={step === index}
+      aria-label={spec.label}
+      tabIndex={step === index ? 0 : -1}
+      className={spec.delegates ? "delegates" : undefined}
+      title={spec.description}
+      onClick={() => pick(step)}
+    >{shortEffortLabels[spec.id] ?? spec.label}</button>)}
   </div>;
 }
 
 /** The effort for the model in the library, pinned under the list so it stays in reach however long the list grows. */
 function EffortStrip({ model, modelLabel, effort }: { model: AgentModel; modelLabel: string; effort: EffortControl }) {
   const { steps, value } = effortSteps(model, effort);
-  const selected = steps.find((spec) => spec.id === value);
   return <div className="effort-strip">
     <span className="effort-strip-axis">Effort<small>{modelLabel}</small></span>
-    {steps.length ? <>
-      <EffortSlider steps={steps} value={value} onChange={effort.onChange} />
-      <span className={`effort-strip-value${selected?.delegates ? " delegates" : ""}`} title={selected?.description}>{selected?.label ?? value}</span>
-    </> : <span className="effort-strip-none">{modelLabel} has no effort setting</span>}
+    {steps.length
+      ? <EffortSegments steps={steps} value={value} onChange={effort.onChange} />
+      : <span className="effort-strip-none">{modelLabel} has no effort setting</span>}
   </div>;
 }
 
