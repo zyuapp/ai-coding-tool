@@ -539,3 +539,32 @@ test("a run settling on the thread on screen ranks it without marking it, even b
   assert.equal(item(workspace.get().currentThread).outcomeUnread, undefined, "and coming back finds nothing marked");
   await workspace.view.unmount();
 });
+
+test("a row's rail reserves slots only for the marks of threads the sidebar draws", async () => {
+  const thread = (id: string, overrides: Partial<Thread> = {}): Thread => ({
+    id, title: id, engine: "claude", executionPolicy: "confirm", messages: [],
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, ...overrides,
+  });
+  const marked = thread("marked", { role: "reviewer", worktreeId: "wt-1", projectId: "project-1" });
+  const plain = thread("plain", { projectId: "project-1" });
+  const props = {
+    projects: [{ id: "project-1", root: "/work/project" }],
+    orderedThreads: [plain, marked],
+    worktreeThreadIds: new Set(["marked"]),
+    activityThreads: { priority: [plain], running: [], threads: [marked], snoozed: [] },
+  };
+  const slots = (view: { container: HTMLElement }) => query<HTMLElement>(view.container, ".sidebar").style.getPropertyValue("--row-slots");
+  const sections = { projects: true, recents: true, priority: true, running: true, threads: true, snoozed: true };
+
+  const activity = await mount(renderProjectSidebar({ ...props, mode: "activity", sections }));
+  assert.equal(slots(activity), "3", "the role, the checkout, and the engine");
+  await activity.render(renderProjectSidebar({ ...props, mode: "activity", sections: { ...sections, threads: false } }));
+  assert.equal(slots(activity), "1", "a folded list's threads draw no row to make room for");
+  await activity.unmount();
+
+  const folders = await mount(renderProjectSidebar({ ...props, mode: "projects", sections, expandedProjects: new Set(["project-1"]) }));
+  assert.equal(slots(folders), "3");
+  await folders.render(renderProjectSidebar({ ...props, mode: "projects", sections, expandedProjects: new Set() }));
+  assert.equal(slots(folders), "1", "a folded folder's threads draw no row to make room for");
+  await folders.unmount();
+});

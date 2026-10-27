@@ -92,9 +92,9 @@ export type ProjectSidebarProps = {
 };
 
 /**
- * How wide every rail is: the most marks any one thread carries. Reserving a slot no thread fills
- * only pushes the marks away from the titles. Every thread carries its engine mark, which also
- * covers the one slot an action needs.
+ * How wide every rail is: the most marks any one drawn thread carries. Reserving a slot no row on
+ * screen fills, for a thread in a folded list, only pushes the marks away from the titles. Every
+ * thread carries its engine mark, which also covers the one slot an action needs.
  */
 function railSlotsFor(threads: Thread[], marks: Pick<ProjectSidebarProps, "blockedThreadIds" | "runningThreadIds" | "sideChatAttention" | "worktreeThreadIds" | "schedules">, { threadsByCoordinator, waitingLines }: SidebarCoordination) {
   return threads.reduce((widest, thread) => {
@@ -103,6 +103,15 @@ function railSlotsFor(threads: Thread[], marks: Pick<ProjectSidebarProps, "block
     const status = marks.blockedThreadIds.has(thread.id) || marks.runningThreadIds.has(thread.id) || Boolean(thread.limitPause) || hasUnreadAttention(thread) || marks.sideChatAttention.has(thread.id) || coordinationStatus;
     return Math.max(widest, 1 + Number(Boolean(thread.role)) + Number(marks.worktreeThreadIds.has(thread.id)) + Number(marks.schedules.has(thread.id)) + Number(status));
   }, 1);
+}
+
+/** The threads the sidebar draws a row for in its mode: those in the lists and folders left open. */
+function drawnThreads(mode: SidebarMode, sections: SidebarSections, activityThreads: ActivitySections, threadsByProject: Map<string, Thread[]>, expandedProjects: Set<string>, recentThreads: Thread[]): Thread[] {
+  if (mode === "activity") return (["priority", "running", "threads", "snoozed"] as const).flatMap((key) => sections[key] ? activityThreads[key] : []);
+  return [
+    ...(sections.projects ? [...expandedProjects].flatMap((projectId) => threadsByProject.get(projectId) ?? []) : []),
+    ...(sections.recents ? recentThreads : []),
+  ];
 }
 
 /** One context carries both drags; `type` says which list the drop belongs to. */
@@ -224,8 +233,8 @@ export const ProjectSidebar = memo(function ProjectSidebar({
   });
 
   const railSlots = useMemo(
-    () => railSlotsFor([...orderedThreads, ...recentThreads], { blockedThreadIds, runningThreadIds, sideChatAttention, worktreeThreadIds, schedules }, sidebarCoordination),
-    [orderedThreads, recentThreads, blockedThreadIds, runningThreadIds, sideChatAttention, worktreeThreadIds, schedules, sidebarCoordination],
+    () => railSlotsFor(drawnThreads(mode, sections, activityThreads, threadsByProject, expandedProjects, recentThreads), { blockedThreadIds, runningThreadIds, sideChatAttention, worktreeThreadIds, schedules }, sidebarCoordination),
+    [mode, sections, activityThreads, threadsByProject, expandedProjects, recentThreads, blockedThreadIds, runningThreadIds, sideChatAttention, worktreeThreadIds, schedules, sidebarCoordination],
   );
 
   /** Stepping through threads from the keyboard is blind unless the list follows the one now open. */
