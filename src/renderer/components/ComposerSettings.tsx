@@ -1,7 +1,7 @@
 import { CommandGate, CommandButton, useCommandControls } from "./CommandControl";
 import type { IconType } from "react-icons";
 import { LuSearch as Search, LuStar as Star, LuGrid2X2 as Grid, LuX as X, LuBrain as Brain, LuCheck as Check, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuShieldOff as ShieldOff, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
-import { useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { AGENT_ENGINES, capabilitiesFor, byEngine, effortForModel, effortsFor, engineLabel, engineNotice, isAgentModel, modelsFor, type AgentEngine, type AgentModel, type EffortSpec, type EngineNotice, type EngineReadiness } from "../../domain/agent-engine";
 import { POLICIES, type AgentEffort, type ExecutionPolicy } from "../../domain/run";
 import { moveListFocus, useDismissibleLayer } from "../focus";
@@ -17,9 +17,6 @@ const modes: Choice<ExecutionPolicy>[] = [
 ];
 
 const modelIcons: Record<AgentModel, IconType> = { fable: Sparkles, opus: Brain, sonnet: Gauge, haiku: Feather, "gpt-6-astra": Brain, "gpt-6.1-sol": Sparkles, "gpt-5.6-terra": Gauge, "gpt-6-luna": Moon };
-
-/** Segment labels short enough to fit; each segment names the effort in full to assistive tech. */
-const shortEffortLabels: Partial<Record<AgentEffort, string>> = { medium: "Med", xhigh: "X-High" };
 
 const modelsOf = byEngine((engine): Choice<AgentModel>[] => modelsFor(engine).map((spec) => ({ value: spec.id, label: spec.label, description: spec.description, icon: modelIcons[spec.id] })));
 
@@ -117,16 +114,26 @@ function effortSteps(model: AgentModel, effort: EffortControl) {
   return { steps: [...effortsFor(model, role)].reverse(), value: effortForModel(model, effort.value, role) };
 }
 
-/** The efforts as one row of segments, the chosen one raised on a pill that slides between them. */
-function EffortSegments({ steps, value, onChange }: { steps: readonly EffortSpec[]; value: AgentEffort; onChange: (effort: AgentEffort) => void }) {
-  const segments = useRef<HTMLDivElement>(null);
+/** The efforts on a track the knob slides along freely while dragged, settling on the nearest effort when let go. */
+function EffortSlider({ steps, value, onChange }: { steps: readonly EffortSpec[]; value: AgentEffort; onChange: (effort: AgentEffort) => void }) {
+  const rail = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<number | null>(null);
+  const [hovered, setHovered] = useState(-1);
   const last = steps.length - 1;
   const index = Math.max(0, steps.findIndex((spec) => spec.id === value));
+  const at = (step: number) => (last ? step / last : 0);
+  const nearest = (fraction: number) => Math.round(fraction * last);
+  const shown = drag === null ? index : nearest(drag);
   const pick = (step: number) => {
     const spec = steps[Math.min(last, Math.max(0, step))];
-    if (!spec) return;
-    if (spec.id !== value) onChange(spec.id);
-    segments.current?.querySelectorAll<HTMLElement>("[role=radio]")[steps.indexOf(spec)]?.focus();
+    if (spec && spec.id !== value) onChange(spec.id);
+  };
+  /** Where the pointer sits along the knob's travel, from 0 to 1. */
+  const fraction = (event: PointerEvent<HTMLElement>) => {
+    const box = rail.current?.getBoundingClientRect();
+    if (!box?.width) return at(index);
+    const knob = box.height + 4;
+    return Math.min(1, Math.max(0, (event.clientX - box.left - knob / 2) / Math.max(1, box.width - knob)));
   };
   const keyDown = (event: KeyboardEvent<HTMLElement>) => {
     const step = ({ ArrowLeft: index - 1, ArrowDown: index - 1, ArrowRight: index + 1, ArrowUp: index + 1, Home: 0, End: last } as Record<string, number>)[event.key];
@@ -135,27 +142,53 @@ function EffortSegments({ steps, value, onChange }: { steps: readonly EffortSpec
     event.stopPropagation();
     pick(step);
   };
-  return <div
-    ref={segments}
-    className={`effort-segments${steps[index]?.delegates ? " delegates" : ""}`}
-    role="radiogroup"
-    aria-label="Effort"
-    style={{ "--effort-count": steps.length, "--effort-index": index } as CSSProperties}
-    onKeyDown={keyDown}
-  >
-    <span className="effort-pill" aria-hidden="true" />
-    {steps.map((spec, step) => <button
-      key={spec.id}
-      type="button"
-      role="radio"
-      aria-checked={step === index}
-      aria-label={spec.label}
-      tabIndex={step === index ? 0 : -1}
-      className={spec.delegates ? "delegates" : undefined}
-      title={spec.description}
-      onClick={() => pick(step)}
-    >{shortEffortLabels[spec.id] ?? spec.label}</button>)}
-  </div>;
+  const release = () => {
+    if (drag !== null) pick(nearest(drag));
+    setDrag(null);
+  };
+  return <>
+    <div
+      className={`effort-slider${drag === null ? "" : " dragging"}${steps[shown]?.delegates ? " delegates" : ""}`}
+      role="slider"
+      tabIndex={0}
+      aria-label="Effort"
+      aria-valuemin={0}
+      aria-valuemax={last}
+      aria-valuenow={index}
+      aria-valuetext={steps[index]?.label}
+      style={{ "--effort-at": drag ?? at(index) } as CSSProperties}
+      onKeyDown={keyDown}
+      onPointerDown={(event) => {
+        if (event.button !== 0 || !last) return;
+        event.preventDefault();
+        event.currentTarget.focus();
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        setHovered(-1);
+        setDrag(fraction(event));
+      }}
+      onPointerMove={(event) => {
+        const where = fraction(event);
+        if (drag !== null) return setDrag(where);
+        const step = nearest(where);
+        setHovered(Math.abs(where - at(step)) * (rail.current?.clientWidth ?? 0) < 12 && step !== index ? step : -1);
+      }}
+      onPointerUp={release}
+      onPointerCancel={() => setDrag(null)}
+      onPointerLeave={() => setHovered(-1)}
+    >
+      <div className="effort-rail" ref={rail}>
+        <div className="effort-fill" />
+        {steps.map((spec, step) => <span
+          key={spec.id}
+          className={`effort-tick${at(step) < (drag ?? at(index)) ? " passed" : ""}${step === hovered ? " hovered" : ""}`}
+          data-label={spec.label}
+          style={{ "--effort-tick": at(step) } as CSSProperties}
+        />)}
+        <div className="effort-knob" />
+      </div>
+    </div>
+    <span className={`effort-strip-value${steps[shown]?.delegates ? " delegates" : ""}`} title={steps[shown]?.description}>{steps[shown]?.label ?? value}</span>
+  </>;
 }
 
 /** The effort for the model in the library, pinned under the list so it stays in reach however long the list grows. */
@@ -164,7 +197,7 @@ function EffortStrip({ model, modelLabel, effort }: { model: AgentModel; modelLa
   return <div className="effort-strip">
     <span className="effort-strip-axis">Effort<small>{modelLabel}</small></span>
     {steps.length
-      ? <EffortSegments steps={steps} value={value} onChange={effort.onChange} />
+      ? <EffortSlider steps={steps} value={value} onChange={effort.onChange} />
       : <span className="effort-strip-none">{modelLabel} has no effort setting</span>}
   </div>;
 }

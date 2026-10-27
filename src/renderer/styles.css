@@ -4509,28 +4509,35 @@ button.setting-hint:hover { color: var(--ink); }
 .model-empty { margin: 18px 8px; color: var(--quiet); font-size: var(--text-meta); line-height: 1.6; }
 .model-library-footer { display: flex; justify-content: space-between; gap: 12px; padding: 10px 16px; border-top: 1px solid var(--line-soft); color: var(--quiet); font-size: 10px; flex-shrink: 0; }
 .model-library-footer span { display: flex; align-items: center; gap: 6px; }
-.effort-strip { display: grid; grid-template-columns: 72px minmax(0, 1fr); align-items: center; gap: 8px; padding: 8px 16px 10px; border-top: 1px solid var(--line-soft); flex-shrink: 0; }
+.effort-strip { display: grid; grid-template-columns: 72px minmax(0, 1fr) 72px; align-items: center; gap: 8px; padding: 8px 16px 10px; border-top: 1px solid var(--line-soft); flex-shrink: 0; }
 .effort-strip-axis { display: grid; gap: 2px; color: var(--quiet-strong); font-size: var(--text-meta); }
 .effort-strip-axis small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--quiet); font-size: 11px; }
-.effort-strip-none { padding: 8px; color: var(--quiet); font-size: var(--text-meta); }
-/** A recessed track of equal segments; the pill under the chosen one slides as the effort moves. */
-.effort-segments { --effort-count: 1; --effort-index: 0; position: relative; display: grid; grid-auto-columns: minmax(0, 1fr); grid-auto-flow: column; padding: 3px; border-radius: 10px; background: var(--control-soft); box-shadow: inset 0 0 0 1px var(--line-mid); }
-.effort-pill { position: absolute; top: 3px; bottom: 3px; left: calc(3px + var(--effort-index) * (100% - 6px) / var(--effort-count)); width: calc((100% - 6px) / var(--effort-count)); border-radius: 7px; background: var(--control); box-shadow: var(--shadow-thumb); transition: left 180ms cubic-bezier(0.22, 1, 0.36, 1), background 160ms, box-shadow 160ms; }
-.effort-segments button { position: relative; min-width: 0; padding: 6px 4px; border: 0; border-radius: 7px; background: transparent; color: var(--quiet-strong); font-size: var(--text-meta); font-weight: 540; white-space: nowrap; cursor: pointer; outline: none; transition: color 120ms ease; }
-.effort-segments button:hover { color: var(--ink-dim); }
-.effort-segments button[aria-checked="true"] { color: var(--ink); }
-.effort-segments button:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) { box-shadow: 0 0 0 2px var(--focus-ring); }
-.effort-segments button.delegates { color: color-mix(in srgb, var(--accent) 70%, var(--quiet)); }
-.effort-segments button.delegates[aria-checked="true"] { color: var(--accent-bright); }
-.effort-segments.delegates .effort-pill { background: rgb(from var(--accent) r g b / .16); box-shadow: inset 0 0 0 1px rgb(from var(--accent) r g b / .4); }
-@media (prefers-reduced-motion: reduce) { .effort-pill { transition: none; } }
+.effort-strip-none { grid-column: 2 / -1; padding: 12px 8px; color: var(--quiet); font-size: var(--text-meta); }
+.effort-strip-value { color: var(--ink); font-size: var(--text-meta); font-weight: 540; text-align: right; white-space: nowrap; }
+.effort-strip-value.delegates { color: var(--accent-bright); }
+/** A thick track whose fill runs to the knob's middle; the knob tracks the pointer while dragged and glides to an effort otherwise. */
+.effort-slider { --effort-at: 0; --effort-knob: 28px; --effort-travel: calc(100% - var(--effort-knob)); padding: 4px 0; border-radius: 14px; outline: none; cursor: grab; touch-action: none; user-select: none; }
+.effort-slider.dragging { cursor: grabbing; }
+.effort-slider:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) .effort-knob { box-shadow: 0 0 0 2px var(--focus-ring), var(--shadow-thumb); }
+.effort-rail { position: relative; height: 24px; border-radius: 12px; background: var(--meter-track); }
+.effort-fill { position: absolute; inset: 0 auto 0 0; width: calc(var(--effort-travel) * var(--effort-at) + var(--effort-knob) / 2); border-radius: 12px 0 0 12px; background: var(--info); transition: width 180ms cubic-bezier(0.2, 0.8, 0.2, 1), background 200ms; }
+.effort-tick { position: absolute; top: 50%; left: calc(var(--effort-travel) * var(--effort-tick) + var(--effort-knob) / 2); width: 4px; height: 4px; border-radius: 50%; background: var(--quiet); transform: translate(-50%, -50%); transition: width 140ms ease, height 140ms ease, background 140ms; pointer-events: none; }
+.effort-tick.passed { background: rgb(255 255 255 / .55); }
+.effort-tick.hovered { width: 7px; height: 7px; }
+.effort-tick.hovered::after { content: attr(data-label); position: absolute; bottom: 18px; left: 50%; padding: 4px 8px; border: 1px solid var(--line-mid); border-radius: 7px; background: var(--surface-raised); box-shadow: var(--shadow-tooltip); color: var(--ink-soft); font-size: 11px; line-height: 15px; white-space: nowrap; transform: translateX(-50%); }
+.effort-knob { position: absolute; top: -2px; left: calc(var(--effort-travel) * var(--effort-at)); width: var(--effort-knob); height: var(--effort-knob); border-radius: 50%; background: var(--surface-inverse); box-shadow: var(--shadow-thumb), 0 1px 4px rgb(0 0 0 / .35); transition: left 180ms cubic-bezier(0.2, 0.8, 0.2, 1), transform 140ms ease; }
+.effort-slider:hover .effort-knob, .effort-slider.dragging .effort-knob { transform: scale(1.08); }
+.effort-slider.dragging .effort-fill, .effort-slider.dragging .effort-knob { transition: transform 140ms ease, background 200ms; }
+.effort-slider.delegates .effort-fill { background: linear-gradient(90deg, var(--info), var(--accent)); }
+@media (prefers-reduced-motion: reduce) { .effort-fill, .effort-knob, .effort-tick { transition: none; } }
 @container (max-width: 540px) {
   .model-library-body { grid-template-columns: 116px minmax(0, 1fr); }
   .model-provider-rail button { gap: 6px; padding-inline: 5px; }
   .model-row-icon { display: none; }
   .model-library-footer span { display: none; }
-  .effort-strip { grid-template-columns: minmax(0, 1fr); }
+  .effort-strip { grid-template-columns: minmax(0, 1fr) 64px; }
   .effort-strip-axis { display: none; }
+  .effort-strip-none { grid-column: 1 / -1; }
 }
 /** At composer widths that wrap controls, give the models the full menu width. */
 @container (max-width: 300px) {

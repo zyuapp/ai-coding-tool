@@ -232,9 +232,9 @@ test("the Overview says what a coordinator's threads run on, and picks another w
   assert.ok(offered.includes("Opus") && !offered.includes("Haiku"), "a coordinator's threads are never offered Haiku");
   await act(async () => { [...item(model).querySelectorAll<HTMLButtonElement>(".model-choice")].find((button) => button.textContent?.includes("Opus"))!.click(); });
   assert.ok(item(model).open, "picking a model leaves the library open to fit the effort");
-  const segments = query<HTMLElement>(item(model), ".effort-strip [role=radiogroup]");
-  assert.deepEqual([...item(model).querySelectorAll(".effort-segments [role=radio]")].map((label) => label.textContent), ["Low", "Med", "High", "X-High", "Max"]);
-  await act(async () => { segments.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Home", bubbles: true })); });
+  const slider = query<HTMLElement>(item(model), ".effort-strip [role=slider]");
+  assert.deepEqual([...item(model).querySelectorAll<HTMLElement>(".effort-tick")].map((tick) => tick.dataset.label), ["Low", "Medium", "High", "Extra high", "Max"]);
+  await act(async () => { slider.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Home", bubbles: true })); });
   assert.deepEqual(picked, [["opus", undefined], ["gpt-6-luna", "low"]], "a new model keeps the effort for the reducer to fit, and a new effort keeps the model");
 
   await view.render(overview(false));
