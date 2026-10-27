@@ -163,8 +163,8 @@ function PagerControls({ position, onStep }: { position: Pager; onStep: (delta: 
   return (
     <span className="decision-pager">
       <span>{position.index + 1} of {position.count}</span>
-      <button type="button" aria-label="Previous" data-action="previous" onClick={() => onStep(-1)}><ChevronUp size={14} aria-hidden="true" /></button>
-      <button type="button" aria-label="Next" data-action="next" onClick={() => onStep(1)}><ChevronDown size={14} aria-hidden="true" /></button>
+      <button type="button" aria-label="Previous" data-tip="Previous" data-action="previous" onClick={() => onStep(-1)}><ChevronUp size={14} aria-hidden="true" /></button>
+      <button type="button" aria-label="Next" data-tip="Next" data-action="next" onClick={() => onStep(1)}><ChevronDown size={14} aria-hidden="true" /></button>
     </span>
   );
 }

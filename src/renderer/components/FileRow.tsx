@@ -27,7 +27,7 @@ export function FileRow({ files, onRemove }: {
             </button>
           )}
           {onRemove && (
-            <button type="button" className="file-remove" aria-label={`Remove ${file.name}`} onClick={() => onRemove(file.id)}>
+            <button type="button" className="file-remove" aria-label={`Remove ${file.name}`} data-tip="Remove" onClick={() => onRemove(file.id)}>
               <X size={12} />
             </button>
           )}

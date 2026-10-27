@@ -271,7 +271,7 @@ export function SessionPanel({ environment, hasProject, workspaceId, pullRequest
               <div className="subagent-list" aria-live="polite">
                 {shown.map((subagent) => <SubagentRow key={subagent.id} subagent={subagent} onSelect={onSelect} />)}
                 {subagents.length > shown.length && (
-                  <button className="subagent-view-all" type="button" onClick={onOpenAgents}>View All</button>
+                  <button className="subagent-view-all" type="button" onClick={onOpenAgents}>View all {subagents.length}</button>
                 )}
               </div>
             )}

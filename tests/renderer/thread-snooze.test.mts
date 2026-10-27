@@ -77,7 +77,7 @@ test("snooze is offered on approval rows and gated by the actual section, includ
     await open('nav[aria-label="Running"] .task-row');
     assert.equal(menuItem("Snooze"), undefined);
     await view.render(React.createElement(Harness, { projects: true }));
-    await open('.task-row[title="asked"]');
+    await open('.task-row[title^="asked"]');
     assert.ok(menuItem("Archive"));
     assert.equal(menuItem("Snooze"), undefined);
   } finally { await view.unmount(); }

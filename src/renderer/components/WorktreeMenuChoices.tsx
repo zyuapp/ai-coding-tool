@@ -28,6 +28,14 @@ export function WorktreeMenuChoices({ view, list, dispatch }: { view: WorktreeMe
   }
 
   return <div className="worktree-menu-panel" onKeyDown={(event) => {
+    if (event.key === "Enter" && event.target === search.current) {
+      const first = rows.find((row) => !row.disabled);
+      if (!first) return;
+      event.preventDefault();
+      event.stopPropagation();
+      select(first.command);
+      return;
+    }
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
     event.stopPropagation();
     const target = event.target as HTMLElement;

@@ -14,12 +14,31 @@ import { PartBoundary } from "./PartBoundary";
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;
 
+const MIN_DOCK_WIDTH = 320;
+
+/** Tells the separator the width it now holds and the range it can move through. */
+function reportDockWidth(target: HTMLElement) {
+  const panel = target.parentElement;
+  const parent = panel?.parentElement;
+  if (!panel || !parent) return;
+  target.setAttribute("aria-valuemin", String(MIN_DOCK_WIDTH));
+  target.setAttribute("aria-valuemax", String(Math.round(parent.getBoundingClientRect().width - MIN_DOCK_WIDTH)));
+  target.setAttribute("aria-valuenow", String(Math.round(panel.getBoundingClientRect().width)));
+}
+
 function resizeRightDock(target: HTMLElement, clientX: number) {
   const panel = target.parentElement;
   const parent = panel?.parentElement;
   if (!panel || !parent) return;
   const bounds = parent.getBoundingClientRect();
-  parent.style.setProperty("--right-dock-width", `${Math.min(bounds.width - 320, Math.max(320, bounds.right - clientX))}px`);
+  parent.style.setProperty("--right-dock-width", `${Math.min(bounds.width - MIN_DOCK_WIDTH, Math.max(MIN_DOCK_WIDTH, bounds.right - clientX))}px`);
+  reportDockWidth(target);
+}
+
+/** Back to the width the layout gives the dock on its own. */
+function resetRightDock(target: HTMLElement) {
+  target.parentElement?.parentElement?.style.removeProperty("--right-dock-width");
+  reportDockWidth(target);
 }
 
 /** The right dock: its tab strip, the view the selected tab draws, and the edge that resizes it. */
@@ -45,7 +64,7 @@ export function RightDock({ workspace, panels, launchers, open, expanded, sideba
   const focusTokenFor = useCallback((tab: string) => dockFocus?.tab === tab ? dockFocus.count : 0, [dockFocus]);
 
   const tabs: DockTab[] = [
-    ...panels.filter((panel) => workspace.dockPanels.includes(panel.id)).map(({ id, title, icon, badge, attention, pinned }) => ({ id, title, icon, badge, attention, pinned })),
+    ...panels.filter((panel) => workspace.dockPanels.includes(panel.id)).map(({ id, title, icon, badge, badgeLabel, attention, pinned }) => ({ id, title, icon, badge, badgeLabel, attention, pinned })),
     ...workspace.browserTabs.map((tab) => ({ id: tab.id, title: browserTabTitle(tab), icon: Globe })),
     ...workspace.terminals.map((terminal) => ({ id: terminal.id, title: terminal.title, icon: SquareTerminal })),
     ...workspace.sideChats.map((chat) => ({ id: chat.id, title: chat.title, icon: GitFork, unread: hasUnreadAttention(chat.thread) })),
@@ -76,11 +95,19 @@ export function RightDock({ workspace, panels, launchers, open, expanded, sideba
         aria-label="Resize right panel"
         aria-orientation="vertical"
         tabIndex={0}
+        data-tip="Drag to resize · Double-click to reset"
+        onFocus={(event) => reportDockWidth(event.currentTarget)}
+        onDoubleClick={(event) => resetRightDock(event.currentTarget)}
         onPointerDown={(event) => event.currentTarget.setPointerCapture(event.pointerId)}
         onPointerMove={(event) => {
           if (event.currentTarget.hasPointerCapture(event.pointerId)) resizeRightDock(event.currentTarget, event.clientX);
         }}
         onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            resetRightDock(event.currentTarget);
+            return;
+          }
           if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
           const panel = event.currentTarget.parentElement;
           if (panel) resizeRightDock(event.currentTarget, panel.getBoundingClientRect().left + (event.key === "ArrowLeft" ? -10 : 10));

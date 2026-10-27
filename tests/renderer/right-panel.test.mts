@@ -323,3 +323,55 @@ test("right panel resizes with the keyboard", async () => {
   assert.equal(workspace.style.getPropertyValue("--right-dock-width"), "410px");
   await view.unmount();
 });
+
+test("right panel reports its width and returns to the layout's width on double-click or Enter", async () => {
+  seedTaskWithSubagent();
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(App));
+
+  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Show right panel"]').click(); });
+  const workspace = query<HTMLElement>(view.container, ".workspace");
+  const panel = query<HTMLElement>(view.container, ".right-dock");
+  const edge = query<HTMLElement>(panel, '[aria-label="Resize right panel"]');
+  workspace.getBoundingClientRect = () => dom.window.DOMRect.fromRect({ width: 1000 });
+  panel.getBoundingClientRect = () => dom.window.DOMRect.fromRect({ x: 600, width: 400 });
+  await act(async () => { edge.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })); });
+  assert.equal(workspace.style.getPropertyValue("--right-dock-width"), "410px");
+  assert.equal(edge.getAttribute("aria-valuemin"), "320");
+  assert.equal(edge.getAttribute("aria-valuemax"), "680");
+  assert.equal(edge.getAttribute("aria-valuenow"), "400");
+
+  await act(async () => { edge.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })); });
+  assert.equal(workspace.style.getPropertyValue("--right-dock-width"), "");
+
+  await act(async () => { edge.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })); });
+  await act(async () => { edge.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
+  assert.equal(workspace.style.getPropertyValue("--right-dock-width"), "");
+  await view.unmount();
+});
+
+test("the right panel's tabs are one stop for Tab, walked with the arrow keys, and close on a middle click", async () => {
+  seedTaskWithSubagent();
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(App));
+
+  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Show right panel"]').click(); });
+  for (let opened = 0; opened < 3; opened += 1) {
+    await act(async () => { query<HTMLButtonElement>(view.container, '.right-dock-picker button[aria-label="Open Browser panel"]').click(); });
+  }
+  const tabs = () => [...view.container.querySelectorAll<HTMLButtonElement>('.right-dock [role="tab"]')];
+  assert.equal(tabs().length, 3);
+  assert.equal(tabs().filter((tab) => tab.tabIndex === 0).length, 1, "only the selected tab is in the Tab order");
+
+  const active = tabs().findIndex((tab) => tab.getAttribute("aria-selected") === "true");
+  tabs()[active].focus();
+  await act(async () => { tabs()[active].dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })); });
+  assert.equal(dom.window.document.activeElement, tabs()[(active + 1) % tabs().length]);
+  await act(async () => { item(dom.window.document.activeElement).dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true })); });
+  assert.equal(dom.window.document.activeElement, tabs()[0]);
+
+  const count = tabs().length;
+  await act(async () => { item(tabs()[0].closest(".right-dock-tab")).dispatchEvent(new MouseEvent("auxclick", { button: 1, bubbles: true })); });
+  assert.equal(tabs().length, count - 1, "a middle click closes the tab under it");
+  await view.unmount();
+});

@@ -102,11 +102,17 @@ test("the automation panel pauses, reruns, and removes without editing", async (
   }));
 
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Pause automation"]').click(); });
-  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Run automation now"]').click(); });
+  const button = (label: string) => [...view.container.querySelectorAll<HTMLButtonElement>(".automation-actions button")].find((each) => each.textContent === label);
+  await act(async () => { button("Run now")!.click(); });
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Remove automation"]').click(); });
 
   assert.deepEqual([...patches], [{ paused: true }]);
   assert.equal(ranNow, 1);
+  assert.equal(deleted, 0, "the first press only asks");
+  await act(async () => { button("Cancel")!.click(); });
+  assert.equal(deleted, 0);
+  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Remove automation"]').click(); });
+  await act(async () => { button("Remove")!.click(); });
   assert.equal(deleted, 1);
 
   await view.render(React.createElement(AutomationPanel, {

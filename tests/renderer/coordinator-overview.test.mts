@@ -298,7 +298,14 @@ test("the Overview's Working group stops the coordinator and every thread under 
   assert.ok(stop.parentElement?.querySelector(".coordination-group-head"));
   assert.equal(query(mounted.container, '[aria-label="Done"]').querySelector(".coordination-stop-all"), null, "only the Working group stops anything");
   await act(async () => { stop.click(); });
+  assert.deepEqual(dispatched.filter((input) => input.type === "coordination.stop-all"), [], "the first press asks, naming how many it stops");
+  assert.equal(stop.textContent, "Stop 1 thread");
+  await act(async () => { stop.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+  assert.equal(stop.textContent, "Stop all", "Esc takes the question back");
+  await act(async () => { stop.click(); });
+  await act(async () => { stop.click(); });
   assert.deepEqual(dispatched.filter((input) => input.type === "coordination.stop-all"), [{ type: "coordination.stop-all", taskId: "lead" }]);
+  assert.equal(stop.textContent, "Stop all");
 
   await mounted.render(shown(false));
   assert.equal(query<HTMLButtonElement>(mounted.container, ".coordination-stop-all").disabled, true, "a computer whose build cannot stop them all says so");

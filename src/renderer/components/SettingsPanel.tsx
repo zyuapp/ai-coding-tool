@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import type { ShortcutSetting } from "../../domain/shortcuts";
 import type { Thread } from "../../domain/thread";
 import type { ThemeMode } from "../../domain/theme";
@@ -28,24 +28,6 @@ import type { ComputerUsePermission } from "../../contracts/ipc";
 import type { WorktreeSettingsPage } from "../../application/worktree-settings";
 import type { WorktreeCommand } from "../../contracts/commands";
 import { WorktreeSettings } from "./WorktreeSettings";
-
-/** The two destructive asks the sheet confirms, each taking the focus and handing it back to the button that asked. */
-function useConfirmations() {
-  const [confirmingClear, setConfirmingClear] = useState(false);
-  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
-  const clearArchive = useRef<HTMLButtonElement>(null);
-  const clearBrowser = useRef<HTMLButtonElement>(null);
-  const confirmation = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    if (confirmingClear || confirmingSignOut) confirmation.current?.focus();
-  }, [confirmingClear, confirmingSignOut]);
-  function cancelConfirmation(browser: boolean) {
-    if (browser) setConfirmingSignOut(false);
-    else setConfirmingClear(false);
-    requestAnimationFrame(() => (browser ? clearBrowser : clearArchive).current?.focus());
-  }
-  return { confirmingClear, setConfirmingClear, confirmingSignOut, setConfirmingSignOut, clearArchive, clearBrowser, confirmation, cancelConfirmation };
-}
 
 export type SettingsPanelProps = {
   onClose: () => void;
@@ -197,23 +179,13 @@ export function SettingsPanel({
   onRefreshRemote,
   computers = NO_COMPUTER_SETTINGS,
 }: SettingsPanelProps) {
-  const { confirmingClear, setConfirmingClear, confirmingSignOut, setConfirmingSignOut, clearArchive, clearBrowser, confirmation, cancelConfirmation } = useConfirmations();
-  const back = useRef<HTMLButtonElement>(null);
-  useFocusReturn(back);
+  const search = useRef<HTMLInputElement>(null);
+  useFocusReturn(search);
 
   return (
     <SettingFocus value={settingMark}>
-    <section
-      className="settings-view"
-      aria-label="Settings"
-      onKeyDown={(event) => {
-        if (event.key !== "Escape" || (!confirmingClear && !confirmingSignOut)) return;
-        event.preventDefault();
-        event.stopPropagation();
-        cancelConfirmation(confirmingSignOut);
-      }}
-    >
-      <SettingsSidebar section={section} backRef={back} onClose={onClose} onLand={onLand} onRefreshEngines={onRefreshEngines} onRefreshWorktrees={onRefreshWorktrees} onRefreshRemote={onRefreshRemote} />
+    <section className="settings-view" aria-label="Settings">
+      <SettingsSidebar section={section} searchRef={search} onClose={onClose} onLand={onLand} onRefreshEngines={onRefreshEngines} onRefreshWorktrees={onRefreshWorktrees} onRefreshRemote={onRefreshRemote} />
 
       {section === "appearance" && (
       <main className="settings-main">
@@ -269,9 +241,8 @@ export function SettingsPanel({
 
       {section === "shortcuts" && <ShortcutSettings shortcuts={shortcuts} capturingShortcut={capturingShortcut} desktopShortcutUnavailable={desktopShortcutUnavailable} onCaptureShortcut={onCaptureShortcut} onSetShortcut={onSetShortcut} onResetShortcuts={onResetShortcuts} />}
 
-      {section === "browser" && <BrowserSettings browserTools={browserTools} allowedOrigins={allowedOrigins} confirming={confirmingSignOut} confirmationRef={confirmation} clearRef={clearBrowser}
-        onSetBrowserTools={onSetBrowserTools} onClearBrowserData={onClearBrowserData} onStartConfirm={() => setConfirmingSignOut(true)} onCancelConfirm={() => cancelConfirmation(true)}
-        browserImport={browserImport} />}
+      {section === "browser" && <BrowserSettings browserTools={browserTools} allowedOrigins={allowedOrigins}
+        onSetBrowserTools={onSetBrowserTools} onClearBrowserData={onClearBrowserData} browserImport={browserImport} />}
 
       {section === "phone" && (
         <MobileSettings
@@ -285,8 +256,7 @@ export function SettingsPanel({
         />
       )}
 
-      {section === "archive" && <ArchiveSettings archivedThreads={archivedThreads} confirming={confirmingClear} confirmationRef={confirmation} clearRef={clearArchive}
-        onRestoreThread={onRestoreThread} onClearArchive={onClearArchive} onStartConfirm={() => setConfirmingClear(true)} onCancelConfirm={() => cancelConfirmation(false)} />}
+      {section === "archive" && <ArchiveSettings archivedThreads={archivedThreads} onRestoreThread={onRestoreThread} onClearArchive={onClearArchive} />}
 
       {section === "computer-use" && <ComputerUseSettings computerUse={computerUse} onSetComputerUse={onSetComputerUse} access={computerUseAccess} onEnable={onEnableComputerUse} onRestart={onRestartForComputerUse} />}
     </section>

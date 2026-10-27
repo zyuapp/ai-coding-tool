@@ -118,7 +118,7 @@ export function SidebarActivity({ activityThreads, sections, blockedThreadIds, t
                 <span className="section-chevron" aria-hidden="true" />
               </button>
               {key === "priority" && dottedCount > 0 && (
-                <button className="section-action" onClick={onDismissAll} aria-label="Dismiss all">
+                <button className="section-action" type="button" onClick={onDismissAll} aria-label="Dismiss all" data-tip={dottedCount === 1 ? "Dismiss 1" : `Dismiss all ${dottedCount}`}>
                   <CheckCheck size={16} aria-hidden="true" />
                 </button>
               )}

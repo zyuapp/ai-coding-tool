@@ -4,6 +4,11 @@ import { awayStatus, type ComputerFilter, type ComputerLink } from "../../domain
 import type { SidebarMode } from "../../domain/sidebar";
 import { useDismissibleLayer } from "../focus";
 import { MenuList, type MenuItem } from "./PopoverMenu";
+import { displayShortcut } from "../../domain/shortcuts";
+import { MAC } from "../platform";
+
+const BACK_TIP = `Back (${displayShortcut("Mod+[", MAC)})`;
+const FORWARD_TIP = `Forward (${displayShortcut("Mod+]", MAC)})`;
 
 type ComputerSwitchProps = {
   links: ComputerLink[];
@@ -95,6 +100,7 @@ export function SidebarHeader({ mode, canGoBack, canGoForward, computerLinks, co
           type="button"
           aria-label="Rank threads by activity"
           aria-pressed={mode === "activity"}
+          data-tip={mode === "activity" ? "Group by project" : "Rank by activity"}
           onClick={() => onSetMode(mode === "activity" ? "projects" : "activity")}
         >
           <Inbox size={16} aria-hidden="true" />
@@ -102,10 +108,10 @@ export function SidebarHeader({ mode, canGoBack, canGoForward, computerLinks, co
         {computerLinks.length > 0 && <ComputerSwitch links={computerLinks} name={computerName} filter={computerFilter} onSetFilter={onSetComputerFilter} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />}
       </div>
       <div className="thread-nav">
-        <button className="thread-nav-button" type="button" aria-label="Go back" disabled={!canGoBack} onClick={onGoBack}>
+        <button className="thread-nav-button" type="button" aria-label="Go back" data-tip={BACK_TIP} disabled={!canGoBack} onClick={onGoBack}>
           <ChevronLeft size={16} aria-hidden="true" />
         </button>
-        <button className="thread-nav-button" type="button" aria-label="Go forward" disabled={!canGoForward} onClick={onGoForward}>
+        <button className="thread-nav-button" type="button" aria-label="Go forward" data-tip={FORWARD_TIP} disabled={!canGoForward} onClick={onGoForward}>
           <ChevronRight size={16} aria-hidden="true" />
         </button>
       </div>
@@ -119,7 +125,7 @@ function resizeSidebar(target: HTMLElement, clientX: number) {
   if (sidebar) sidebar.style.setProperty("--sidebar-width", `${Math.min(innerWidth / 2, Math.max(220, clientX - sidebar.getBoundingClientRect().left))}px`);
 }
 
-/** The edge the sidebar is dragged wider by, which the arrow keys nudge ten pixels at a time. */
+/** The edge the sidebar is dragged wider by, which the arrow keys nudge ten pixels at a time and a double-click puts back. */
 export function SidebarResizer() {
   return (
     <div
@@ -129,6 +135,7 @@ export function SidebarResizer() {
       aria-orientation="vertical"
       tabIndex={0}
       onPointerDown={(event) => event.currentTarget.setPointerCapture(event.pointerId)}
+      onDoubleClick={(event) => event.currentTarget.parentElement?.style.removeProperty("--sidebar-width")}
       onPointerMove={(event) => {
         if (event.currentTarget.hasPointerCapture(event.pointerId)) resizeSidebar(event.currentTarget, event.clientX);
       }}

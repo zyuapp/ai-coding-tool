@@ -96,7 +96,7 @@ export function EngineSettings({ engineAccess, checking, updating, onRefresh, on
           <div>
             <h3 id="agent-settings-heading">{settingControl("engines.agent-settings").label}</h3>
             <p>Apply changes to Claude Code and Codex settings. Busy agents reload when their work finishes.</p>
-            <p role="status">{reloadStatus === "idle" ? "" : reloadStatus === "reloading" ? "Reloading…" : reloadStatus === "pending" ? "Reload pending" : reloadStatus === "reloaded" ? "Settings reloaded" : "Could not reload settings. Try again."}</p>
+            <p role="status" className={`reload-status ${reloadStatus}`}>{reloadStatus === "idle" ? "" : reloadStatus === "reloading" ? "Reloading…" : reloadStatus === "pending" ? "Reload pending" : reloadStatus === "reloaded" ? "Settings reloaded" : "Could not reload settings. Try again."}</p>
           </div>
           <div className="settings-group-action">
             <button type="button" onClick={onReload} disabled={reloadStatus === "reloading" || reloadStatus === "pending"}>

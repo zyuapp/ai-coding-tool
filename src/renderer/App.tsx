@@ -210,7 +210,7 @@ export function App() {
             coordinators={workspace.coordinatorsByComputer.get(workspace.activeComputer?.id ?? null) ?? NO_COORDINATORS} onSetCoordinator={workspace.actions.setCoordinator}
             notifications={workspace.notifications} onSetMuted={workspace.actions.setMuted}
             stoppable={Boolean(workspace.currentThread && workspace.stoppableCoordinatorIds.has(workspace.currentThread.id))}
-            onStopAll={workspace.actions.stopAll}
+            onStopAll={workspace.actions.stopAll} onChooseFolder={() => void workspace.actions.openFolder()}
             onToggleSidebar={() => void workspace.actions.setSidebarOpen(!sidebarOpen)}
             onToggleSessionPanel={() => {
               void workspace.actions.setDockOpen(false);
@@ -261,7 +261,7 @@ export function App() {
       <WorkspaceDialogs workspace={workspace} />
       {settingsVisible && <Suspense fallback={null}><WorkspaceSettings workspace={workspace} onClose={closeSettings} /></Suspense>}
       {workspace.jump && <ThreadJump jump={workspace.jump} actions={workspace.actions} />}
-      {!workspace.zen && <Toasts toasts={workspace.toasts} onDismiss={(id) => void workspace.actions.dismissToast(id)} onAction={(command) => void workspace.dispatch(command)} />}
+      <Toasts toasts={workspace.zen ? workspace.toasts.filter((toast) => toast.tone === "error") : workspace.toasts} onDismiss={(id) => void workspace.actions.dismissToast(id)} onAction={(command) => void workspace.dispatch(command)} />
       <TooltipLayer />
     </main>
     </DiagramViewerHost>

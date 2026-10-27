@@ -1,5 +1,5 @@
-import { settingControl, type SettingId } from "../../domain/settings-catalog";
-import { SettingRow } from "./SettingRow";
+import type { SettingId } from "../../domain/settings-catalog";
+import { SettingRow, SettingSwitch } from "./SettingRow";
 
 export type AvailabilitySectionProps = {
   /** The switch the section draws, which names both the heading and the row. */
@@ -19,8 +19,8 @@ export function AvailabilitySection({ id, description, enabled, onChange }: Avai
         <div><h3 id={heading}>Availability</h3></div>
       </div>
 
-      <SettingRow id={id} status={enabled} description={description}>
-        <button type="button" role="switch" aria-checked={enabled} aria-label={settingControl(id).label} onClick={() => onChange(!enabled)}>{enabled ? "Turn off" : "Turn on"}</button>
+      <SettingRow id={id} description={description}>
+        <SettingSwitch id={id} on={enabled} onChange={onChange} />
       </SettingRow>
     </section>
   );

@@ -1,6 +1,6 @@
 import type { IconType } from "react-icons";
-import { LuBot as Bot, LuCornerDownRight as CornerDownRight, LuFileText as FileText, LuGlobe as Globe, LuPenLine as PenLine, LuSearch as Search, LuTerminal as Terminal, LuWrench as Wrench, LuX as X } from "react-icons/lu";
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { LuBot as Bot, LuChevronDown as ChevronDown, LuCornerDownRight as CornerDownRight, LuFileText as FileText, LuGlobe as Globe, LuPenLine as PenLine, LuSearch as Search, LuTerminal as Terminal, LuWrench as Wrench, LuX as X } from "react-icons/lu";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { MobileMessage, MobileThreadView } from "../../contracts/mobile";
 import type { AgentEngine } from "../../domain/agent-engine";
 import type { ToolFamily } from "../../domain/tool-call";
@@ -17,13 +17,25 @@ const FAMILY_ICONS: Record<ToolFamily, IconType> = {
   other: Wrench,
 };
 
+/** A run of more than one call opens to every call in the order it was made. */
 function ToolRun({ engine, calls }: { engine: AgentEngine; calls: MobileMessage[] }) {
+  const [open, setOpen] = useState(false);
   const Icon = FAMILY_ICONS[runFamily(engine, calls)];
-  return (
-    <div className="work">
+  const row = (
+    <>
       <span className="work-glyph" aria-hidden="true"><Icon size={14} strokeWidth={1.75} /></span>
       <span className="work-summary">{summariseTools(calls)}</span>
       <span className="work-count">{calls.length}</span>
+    </>
+  );
+  if (calls.length < 2) return <div className="work"><div className="work-row">{row}</div></div>;
+  return (
+    <div className="work" data-open={open || undefined}>
+      <button type="button" className="work-row" aria-expanded={open} onClick={() => setOpen(!open)}>
+        {row}
+        <ChevronDown className="work-chevron" size={14} strokeWidth={2} aria-hidden="true" />
+      </button>
+      {open && <ol className="work-calls">{calls.map((call, index) => <li key={index}>{call.text}</li>)}</ol>}
     </div>
   );
 }
@@ -103,7 +115,7 @@ export function Conversation({ thread, onSteerQueued, onDropQueued }: {
         </div>
       )}
       {thread.status === "running" && thread.streamingTail === null && (
-        <div className="thinking-row" aria-hidden="true"><span /><span /><span /></div>
+        <div className="thinking-row" role="status"><span aria-hidden="true" /><span aria-hidden="true" /><span aria-hidden="true" /><span className="sr-only">Working</span></div>
       )}
       {thread.queued.length > 0 && (
         <div className="queued-list" role="list" aria-label="Queued messages">

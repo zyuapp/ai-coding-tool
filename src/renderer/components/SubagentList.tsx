@@ -1,6 +1,6 @@
 import { memo, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { LuBot as Bot, LuCircleCheckBig as CheckCircle2, LuCircleDot as CircleDot, LuCircleX as XCircle, LuSearch as Search } from "react-icons/lu";
+import { LuBot as Bot, LuCircleCheckBig as CheckCircle2, LuCircleDot as CircleDot, LuCircleX as XCircle, LuSearch as Search, LuX as X } from "react-icons/lu";
 import { OPEN_SUBAGENT_GROUPS, type Subagent, type SubagentGroup, type SubagentGroups, type SubagentStatus } from "../../domain/run";
 
 /** Failures first, then the work still going: a session with a thousand subagents is read from the top. */
@@ -96,6 +96,7 @@ export function AgentsPanel({ subagents, groups, finding = false, onSelect, onSe
   const [status, setStatus] = useState<SubagentStatus | null>(null);
   const [query, setQuery] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const counts = useMemo(() => countByStatus(subagents), [subagents]);
   /** A search reads what the panel drew, so while one is open every group unfolds. */
   const shown = finding ? OPEN_SUBAGENT_GROUPS : groups;
@@ -145,7 +146,20 @@ export function AgentsPanel({ subagents, groups, finding = false, onSelect, onSe
         </div>
         <label className="agent-search">
           <Search size={14} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search subagents" aria-label="Search subagents" />
+          <input
+            ref={searchRef}
+            value={query}
+            onInput={(event) => setQuery(event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Escape" || !query) return;
+              event.preventDefault();
+              event.stopPropagation();
+              setQuery("");
+            }}
+            placeholder="Search subagents"
+            aria-label="Search subagents"
+          />
+          {query && <button type="button" className="agent-search-clear" aria-label="Clear the search" data-tip="Clear · Esc" onClick={() => { setQuery(""); searchRef.current?.focus(); }}><X size={12} aria-hidden="true" /></button>}
         </label>
       </div>
       {rows.length === 0 ? (

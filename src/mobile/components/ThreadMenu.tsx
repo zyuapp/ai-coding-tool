@@ -43,12 +43,12 @@ export function ThreadMenu({ thread, onClose, onChanges, onLocation, onNewHere, 
   const groups: Entry[][] = [
     [
       { icon: GitCompareArrows, label: "Changes", detail: thread.reviewable ? changesLabel(thread.changes) ?? "Review this thread's edits" : "No checkout to review", disabled: !thread.reviewable, opens: true, onSelect: pick(onChanges) },
-      { icon: thread.location.kind === "worktree" ? FolderSymlink : FolderGit2, label: "Location", detail: locationLabel(thread.location), disabled: !inProject || working, opens: true, onSelect: pick(onLocation) },
+      { icon: thread.location.kind === "worktree" ? FolderSymlink : FolderGit2, label: "Location", detail: inProject ? locationLabel(thread.location) : "Not in a project", disabled: !inProject || working, opens: true, onSelect: pick(onLocation) },
     ],
     [
-      { icon: SquarePen, label: thread.location.kind === "worktree" ? "New thread here" : "New thread in project", disabled: !inProject || working, onSelect: pick(onNewHere) },
+      { icon: SquarePen, label: thread.location.kind === "worktree" ? "New thread here" : "New thread in project", detail: !inProject ? "Not in a project" : working ? locationLabel(thread.location) : null, disabled: !inProject || working, onSelect: pick(onNewHere) },
       { icon: Split, label: "Fork thread", detail: "Copy the conversation into a new thread", onSelect: pick(() => onFork(false)) },
-      ...(inProject ? [{ icon: FolderSymlink, label: "Fork in a worktree", detail: "The copy gets a checkout of its own", disabled: working, onSelect: pick(() => onFork(true)) }] : []),
+      ...(inProject ? [{ icon: FolderSymlink, label: "Fork in a worktree", detail: working ? locationLabel(thread.location) : "The copy gets a checkout of its own", disabled: working, onSelect: pick(() => onFork(true)) }] : []),
     ],
     [
       { icon: PencilLine, label: "Rename…", onSelect: pick(onRename) },

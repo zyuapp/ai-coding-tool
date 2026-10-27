@@ -34,12 +34,12 @@ export function QueuedRow({ messages, surface, canSteer, onEdit, onSteer, onDrop
           {message.steering ? <span className="queued-state">Steering…</span> : (
             <span className="queued-actions">
               {isUsersOwn(message) && (
-                <button type="button" className="queued-edit" aria-label="Edit queued message" title="Edit" onClick={() => onEdit(message.id)}>
+                <button type="button" className="queued-edit" aria-label="Edit queued message" data-tip="Edit" onClick={() => onEdit(message.id)}>
                   <Pencil size={14} />
                 </button>
               )}
-              {canSteer && <button type="button" className="queued-steer" onClick={() => onSteer(message.id)}>Steer</button>}
-              <button type="button" className="queued-drop" aria-label="Remove queued message" onClick={() => onDrop(message.id)}>
+              {canSteer && <button type="button" className="queued-steer" data-tip="Send now, into the running turn" onClick={() => onSteer(message.id)}>Steer</button>}
+              <button type="button" className="queued-drop" aria-label="Remove queued message" data-tip="Remove" onClick={() => onDrop(message.id)}>
                 <X size={14} />
               </button>
             </span>

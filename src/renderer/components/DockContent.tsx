@@ -88,7 +88,8 @@ export function DockContent({ workspace, panels, launchers, activeTab, find, fin
           {launchers.map((launcher) => (
             <button key={launcher.id} type="button" aria-label={`Open ${launcher.title} panel`} disabled={launcher.disabled} onClick={launcher.open}>
               <launcher.icon size={18} aria-hidden="true" />
-              <span><strong>{launcher.title}</strong><small>{launcher.description}</small></span>
+              <span><strong>{launcher.title}</strong><small>{launcher.disabledReason ?? launcher.description}</small></span>
+              <kbd aria-hidden="true">/{launcher.command}</kbd>
             </button>
           ))}
         </div>

@@ -1,4 +1,4 @@
-import { LuChevronLeft as ChevronLeft, LuEllipsis as Ellipsis, LuQrCode as QrCode, LuX as X } from "react-icons/lu";
+import { LuChevronLeft as ChevronLeft, LuEllipsis as Ellipsis, LuQrCode as QrCode, LuSquarePen as SquarePen, LuX as X } from "react-icons/lu";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MobileCommand, MobileDraftView, MobileQuery, MobileThreadView } from "../contracts/mobile";
 import type { MobileConnectionState } from "../domain/mobile";
@@ -37,7 +37,24 @@ function Gate({ notice }: { notice: string | null }) {
     <div className="gate">
       <QrCode size={44} strokeWidth={1.4} aria-hidden="true" />
       <h1>AI Coding Tool</h1>
-      <p>{notice}</p>
+      <p>{notice ?? "Scan the QR code on your computer to connect this phone."}</p>
+    </div>
+  );
+}
+
+/** How long Undo stays offered after a thread is archived. */
+const UNDO_MS = 6000;
+
+/** The thread just archived, with Undo, at the foot of the list it left for. */
+function ArchivedToast({ title, onUndo, onDone }: { title: string; onUndo: () => void; onDone: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onDone, UNDO_MS);
+    return () => clearTimeout(timer);
+  }, [onDone]);
+  return (
+    <div className="undo-toast" role="status">
+      <span>Archived <strong>{title}</strong></span>
+      <button type="button" onClick={onUndo}>Undo</button>
     </div>
   );
 }
@@ -89,6 +106,7 @@ export function App() {
    * shows its title over a blank body rather than the thread the Mac still has open from before.
    */
   const [opening, setOpening] = useState<{ title: string; project: string | null; want: string; was: string } | null>(null);
+  const [archived, setArchived] = useState<{ id: string; title: string } | null>(null);
   const listScroll = useRef(0);
   const now = useNow();
   const thread = state.view.thread;
@@ -140,6 +158,8 @@ export function App() {
   const dismiss = useCallback((taskId: string) => send({ type: "task.dismiss", taskId }), [send]);
   const dismissAll = useCallback((projectId?: string) => send({ type: "task.dismiss-all", ...(projectId ? { projectId } : {}) }), [send]);
 
+  const forgetArchived = useCallback(() => setArchived(null), []);
+
   const back = useCallback(() => {
     setOpening(null);
     setSheet(null);
@@ -169,7 +189,7 @@ export function App() {
           ? <button type="button" className="ghost icon" onClick={back} aria-label={screen === "changes" ? "Back to thread" : "Back to threads"}><ChevronLeft size={22} /></button>
           : <span className="bar-spacer" />}
         {notice
-          ? <button type="button" className="banner" role="status" onClick={dismissNotice}><span>{notice}</span><X size={16} aria-hidden="true" /></button>
+          ? <button type="button" className="banner" onClick={dismissNotice}><span role="status">{notice}</span><X size={16} aria-hidden="true" /></button>
           : !reading
             ? <div className="bar-title bar-switch">
               <h1 className="sr-only">{title}</h1>
@@ -182,7 +202,10 @@ export function App() {
               <h1>{title}</h1>
               {subtitle && <p>{subtitle}</p>}
             </div>}
-        {screen === "thread" && thread && !pending && !notice && (
+        {!reading && (
+          <button type="button" className="ghost icon bar-action" aria-label="New thread" onClick={() => newThread(null, null)}><SquarePen size={20} strokeWidth={1.8} /></button>
+        )}
+        {screen === "thread" && thread && !pending && (
           <button type="button" className="ghost icon bar-action" aria-label="Thread options" aria-haspopup="dialog" onClick={() => setSheet("menu")}><Ellipsis size={20} /></button>
         )}
         <ConnectionMark connection={state.connection} />
@@ -191,7 +214,7 @@ export function App() {
         ? <Changes thread={thread} live={state.connection === "live"} query={query} />
         : reading
           ? thread && !pending
-            ? <ThreadBody thread={thread} connection={state.connection} waiting={waiting} returned={state.returned} send={send} sheet={sheet} onSheet={setSheet} onChanges={() => setScreen("changes")} onNewHere={() => newThread(thread.projectId, thread.projectName, thread.worktreeId ?? undefined)} onArchived={back} />
+            ? <ThreadBody thread={thread} connection={state.connection} waiting={waiting} returned={state.returned} send={send} sheet={sheet} onSheet={setSheet} onChanges={() => setScreen("changes")} onNewHere={() => newThread(thread.projectId, thread.projectName, thread.worktreeId ?? undefined)} onArchived={() => { setArchived({ id: thread.id, title: thread.title }); back(); }} />
             : draft && !pending
               ? <DraftBody draft={draft} waiting={waiting} send={send} sheet={sheet} onSheet={setSheet} onStartIn={(worktreeId) => newThread(draft.projectId, draft.projectName, worktreeId)} />
               : <div className="empty"><p>Opening the thread…</p></div>
@@ -207,6 +230,15 @@ export function App() {
             onDismiss={dismiss}
             onDismissAll={dismissAll}
           />}
+      {archived && !reading && <ArchivedToast
+        key={archived.id}
+        title={archived.title}
+        onDone={forgetArchived}
+        onUndo={() => {
+          send({ type: "task.restore", taskId: archived.id });
+          setArchived(null);
+        }}
+      />}
     </div>
   );
 }
@@ -245,7 +277,7 @@ function ThreadBody({ thread, connection, waiting, returned, send, sheet, onShee
         onSteerQueued={(messageId) => send({ type: "task.steer-queued", taskId: thread.id, messageId })}
         onDropQueued={(messageId) => send({ type: "task.drop-queued", taskId: thread.id, messageId })}
       />
-      {thread.approval && <ApprovalSheet approval={thread.approval} onDecide={(approval, allow) => send({ type: "run.decide", taskId: approval.taskId, runId: approval.runId, approvalId: approval.approvalId, allow })} />}
+      {thread.approval && <ApprovalSheet approval={thread.approval} refused={returned?.command.type === "run.decide" ? returned.requestId : null} onDecide={(approval, allow) => send({ type: "run.decide", taskId: approval.taskId, runId: approval.runId, approvalId: approval.approvalId, allow })} />}
       <Composer
         running={running}
         waiting={waiting}

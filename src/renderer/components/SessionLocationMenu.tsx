@@ -18,7 +18,7 @@ export function SessionLocationMenu({ view, openMenu, dispatch }: { view: Worktr
   if (view.worktreeId) entries.push({ label: "Return to local", disabled: !view.canMove, onSelect: () => dispatch({ type: "task.move-worktree", taskId: view.threadId, destination: { kind: "local" } }) });
   if (view.deleteRoot) entries.push("separator", { label: "Delete worktree…", danger: true, disabled: !view.canDelete, shortcut: view.busyCount ? `${view.busyCount} active` : undefined, onSelect: () => dispatch({ type: "worktree.confirm-delete", root: view.deleteRoot }) });
   return <div className="session-location">
-    <PopoverMenu id={WORKTREE_MENU} openMenu={openMenu} onSetOpenMenu={(menu) => dispatch({ type: "view.set-menu", menu })} label="Thread options" className="session-row session-location-row" popoverClassName="session-menu-popover" anchored items={entries}>
+    <PopoverMenu id={WORKTREE_MENU} openMenu={openMenu} onSetOpenMenu={(menu) => dispatch({ type: "view.set-menu", menu })} label={`${label}, thread options`} className="session-row session-location-row" popoverClassName="session-menu-popover" anchored items={entries}>
       <span className={`session-row-icon${view.worktreeId ? ` worktree-mark hue-${worktreeHue(view.worktreeId)}` : ""}`}>{view.worktreeId || working ? <FolderSymlink size={18} /> : <House size={18} />}</span>
       <span className="session-location-name" title={location.kind === "worktree" ? location.worktree.root : undefined}>
         <em className={working ? "text-sweep" : undefined}>{label}</em>

@@ -3,6 +3,11 @@ import { LuArrowLeft as ArrowLeft, LuArrowRight as ArrowRight, LuGlobe as Globe,
 import { browserTabTitle, type BrowserApproval, type BrowserTab } from "../../domain/browser";
 import { useDismissibleLayer } from "../focus";
 import { NativeSurface } from "./NativeSurface";
+import { SpinningIcon } from "./SpinningIcon";
+import { MAC } from "../platform";
+import { displayShortcut } from "../../domain/shortcuts";
+
+const tip = (label: string, binding: string) => `${label} (${displayShortcut(binding, MAC)})`;
 
 export type BrowserPanelProps = {
   tab: BrowserTab;
@@ -22,6 +27,8 @@ export function BrowserPanel({ tab, approval, focusToken = 0, find, onOpen, onGo
   const addressInput = useRef<HTMLInputElement>(null);
   const [address, setAddress] = useState(tab.url);
   const [editing, setEditing] = useState(false);
+  /** A click that focuses the address keeps the whole of it selected, as a browser's own bar does. */
+  const selectOnFocus = useRef(false);
   const stopEditing = () => {
     setAddress(tab.url);
     setEditing(false);
@@ -44,16 +51,24 @@ export function BrowserPanel({ tab, approval, focusToken = 0, find, onOpen, onGo
   return (
     <section className="browser-panel" aria-label="Browser">
       <div className="browser-bar">
-        <button type="button" aria-label="Back" disabled={!tab.canGoBack} onClick={() => onGo(-1)}><ArrowLeft size={16} /></button>
-        <button type="button" aria-label="Forward" disabled={!tab.canGoForward} onClick={() => onGo(1)}><ArrowRight size={16} /></button>
-        <button type="button" aria-label="Reload" disabled={!tab.url} onClick={onReload}><RotateCw size={14} /></button>
+        <button type="button" aria-label="Back" data-tip={tip("Back", "Mod+[")} disabled={!tab.canGoBack} onClick={() => onGo(-1)}><ArrowLeft size={16} /></button>
+        <button type="button" aria-label="Forward" data-tip={tip("Forward", "Mod+]")} disabled={!tab.canGoForward} onClick={() => onGo(1)}><ArrowRight size={16} /></button>
+        <button type="button" aria-label="Reload" data-tip={tip("Reload", "Mod+R")} disabled={!tab.url} onClick={onReload}><SpinningIcon icon={RotateCw} spinning={tab.loading} size={16} /></button>
         <input
           ref={addressInput}
           value={address}
           aria-label="Address"
           spellCheck={false}
           placeholder="Enter a web address"
-          onFocus={() => setEditing(true)}
+          onFocus={(event) => {
+            setEditing(true);
+            event.currentTarget.select();
+          }}
+          onMouseDown={(event) => { selectOnFocus.current = document.activeElement !== event.currentTarget; }}
+          onMouseUp={(event) => {
+            if (selectOnFocus.current) event.preventDefault();
+            selectOnFocus.current = false;
+          }}
           onInput={(event) => {
             setEditing(true);
             setAddress(event.currentTarget.value);
@@ -91,7 +106,12 @@ export function BrowserPanel({ tab, approval, focusToken = 0, find, onOpen, onGo
             <p>Open a page here and every thread can read it, signed in as you, in one session for the whole app.</p>
           </div>
         )}
-        {tab.error && <p className="browser-error">{tab.error}</p>}
+        {tab.error && (
+          <p className="browser-error" role="alert">
+            <span>{tab.error}</span>
+            {tab.url && <button type="button" onClick={onReload}>Try again</button>}
+          </p>
+        )}
       </NativeSurface>
     </section>
   );

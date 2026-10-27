@@ -16,7 +16,8 @@ export const useCommandControls = () => useContext(CommandContext);
 export function CommandButton({ command, disabled, onClick, title, ...props }: ComponentProps<"button"> & { command: AppCommand }) {
   const controls = useCommandControls();
   const unavailable = !controls.available(command);
-  return <button {...props} disabled={disabled || unavailable} title={unavailable ? REMOTE_UNSUPPORTED : title}
+  return <button {...props} disabled={disabled || unavailable} title={unavailable ? undefined : title}
+    {...(unavailable ? { "data-tip": REMOTE_UNSUPPORTED } : {})}
     onClick={onClick ?? (() => controls.dispatch(command))} />;
 }
 

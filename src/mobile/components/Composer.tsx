@@ -1,7 +1,7 @@
 import type { PendingQuestion, QuestionAddress } from "../../domain/agent-question";
 import { QuestionPrompt } from "../../renderer/components/QuestionPrompt";
 import { useQuestionAnswer } from "../client/useQuestionAnswer";
-import { LuArrowUp as ArrowUp } from "react-icons/lu";
+import { LuArrowUp as ArrowUp, LuChevronDown as ChevronDown } from "react-icons/lu";
 import { useLayoutEffect, useRef, useState } from "react";
 import type { MobileThreadSettings } from "../../contracts/mobile";
 import { engineLabel } from "../../domain/agent-engine";
@@ -12,7 +12,7 @@ const MAX_ROWS_PX = 168;
 /**
  * The composer sits above the keyboard and never scrolls with the transcript. Enter inserts a
  * newline the way every other phone keyboard does; sending is the button, which is where a thumb
- * already is.
+ * already is, or Cmd/Ctrl+Enter on a hardware keyboard.
  */
 /** A command of this thread's the computer turned down: a message's words, or the question it answered. */
 export type ReturnedToComposer = { id: string; text?: string; answer?: string };
@@ -77,12 +77,20 @@ export function Composer({ running, waiting, returned, settings, question, onAns
           enterKeyHint="enter"
           autoCapitalize="sentences"
           onInput={(event) => setDraft(event.currentTarget.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey) || event.nativeEvent.isComposing) return;
+            event.preventDefault();
+            send(onSend);
+          }}
         />
         <div className="composer-bar">
-          <button type="button" className="composer-settings" aria-label="Thread settings" onClick={onOpenSettings}>
-            <span className="setting-axis">Mode</span><span className="setting-value">{mode}</span>
-            <span className="setting-axis">Model</span><span className="setting-value">{model}</span>
-            {effort && <><span className="setting-axis">Effort</span><span className="setting-value">{effort}</span></>}
+          <button type="button" className="composer-settings" aria-label={`Thread settings: ${[mode, model, effort].filter(Boolean).join(", ")}`} aria-haspopup="dialog" onClick={onOpenSettings}>
+            <span className="composer-settings-values">
+              <span className="setting-axis">Mode</span><span className="setting-value">{mode}</span>
+              <span className="setting-axis">Model</span><span className="setting-value">{model}</span>
+              {effort && <><span className="setting-axis">Effort</span><span className="setting-value">{effort}</span></>}
+            </span>
+            <ChevronDown className="composer-settings-chevron" size={14} strokeWidth={2} aria-hidden="true" />
           </button>
           {/** While the run is going a message may join the queue behind it or cut into it; the stop stays where it was. */}
           {running && typed && onSteer && <button type="button" className="steer-button" onClick={() => send(onSteer)}>Steer</button>}

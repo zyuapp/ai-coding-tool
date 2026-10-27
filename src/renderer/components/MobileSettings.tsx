@@ -1,10 +1,11 @@
 import { LuCheck as Check, LuRefreshCw as RefreshCw, LuSmartphone as Smartphone } from "react-icons/lu";
 import { useEffect, useRef, useState } from "react";
 import { addressOrigin, type MobileAddress, type MobileConnectionState, type MobilePairingOffer, type MobileServerState, type MobileSessionView, type PairedDeviceView, type TailscaleState } from "../../domain/mobile";
-import { SettingGroup, SettingRow } from "./SettingRow";
+import { ConfirmAction, SettingGroup, SettingRow, SettingSwitch } from "./SettingRow";
 import { settingControl } from "../../domain/settings-catalog";
 import { ComputerSettings, type ComputerSettingsProps } from "./ComputerSettings";
 import { SpinningIcon } from "./SpinningIcon";
+import { CopyButton } from "./CopyButton";
 
 function statusLabel(remote: MobileServerState): string {
   if (!remote.enabled) return "Off";
@@ -172,7 +173,10 @@ function PairingSection({ pairing, ready, onCreatePairingCode }: { pairing: Mobi
             {live
               ? <p>Expires in {countdownLabel(remaining)}.</p>
               : <p className="phone-pairing-expired">This code has expired. Making a new one…</p>}
-            <code>{pairing.url}</code>
+            <div className="phone-pairing-url">
+              <code>{pairing.url}</code>
+              <CopyButton text={pairing.url} label="Copy pairing link" />
+            </div>
           </div>
         </div>
       )}
@@ -224,7 +228,7 @@ function DeviceSection({ devices: paired, sessions, onRevokeDevice }: { devices:
                 <p className={`phone-device-state${connection === "live" ? " live" : ""}`}>{deviceLabel(device, connection)}</p>
               </div>
               <div className="setting-row-action">
-                <button className="danger" type="button" onClick={() => onRevokeDevice(device.id)}>Remove</button>
+                <ConfirmAction className="danger" confirm={`Remove ${device.name}`} onConfirm={() => onRevokeDevice(device.id)}>Remove</ConfirmAction>
               </div>
             </div>
           );
@@ -262,8 +266,8 @@ export function MobileSettings({ remote, remoteChecking, onSetEnabled, onCreateP
           <span className={ready ? "ready" : ""}>{statusLabel(remote)}</span>
         </div>
 
-        <SettingRow id="phone.availability" status={listening} description="Serves the phone page and puts Tailscale in front of it. Turning it off drops every phone.">
-          <button type="button" role="switch" aria-checked={remote.enabled} aria-label="Phone access" onClick={() => onSetEnabled(!remote.enabled)}>{remote.enabled ? "Turn off" : "Turn on"}</button>
+        <SettingRow id="phone.availability" description="Serves the phone page and puts Tailscale in front of it. Turning it off drops every phone.">
+          <SettingSwitch id="phone.availability" on={remote.enabled} onChange={onSetEnabled} />
         </SettingRow>
 
         {remote.error && <p className="settings-error" role="alert">{remote.error}</p>}

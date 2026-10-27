@@ -84,7 +84,7 @@ function LineRow({ path, row, tokens, selected, commented, comments, onSelect, o
         className="diff-gutter"
         type="button"
         aria-label={`Add comment on ${rowLabel(row).toLowerCase()}`}
-        data-tip="Add comment"
+        data-tip="Comment · Shift-click to extend"
         onClick={(event) => onSelect(event.shiftKey)}
       >
         <i className="diff-comment-affordance" aria-hidden="true"><MessageSquarePlus size={12} /></i>
@@ -119,7 +119,7 @@ function SplitCell({ path, row, tokens, side, selected, commented, comments, onS
         className="diff-gutter static"
         type="button"
         aria-label={`Add comment on ${rowLabel(row).toLowerCase()}`}
-        data-tip="Add comment"
+        data-tip="Comment · Shift-click to extend"
         onClick={(event) => onSelect(event.shiftKey)}
       >
         <i className="diff-comment-affordance" aria-hidden="true"><MessageSquarePlus size={12} /></i>

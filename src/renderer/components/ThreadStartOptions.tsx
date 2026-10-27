@@ -59,7 +59,7 @@ export type ThreadStartOptionsProps = {
 
 function CoordinatorToggle({ coordinator, onSetCoordinator }: Pick<ThreadStartOptionsProps, "coordinator" | "onSetCoordinator">) {
   return (
-    <button type="button" className="thread-start-toggle thread-start-coordinator" aria-pressed={coordinator} onClick={() => onSetCoordinator(!coordinator)}>
+    <button type="button" className="thread-start-toggle thread-start-coordinator" aria-pressed={coordinator} data-tip="Hands the work to threads it starts" onClick={() => onSetCoordinator(!coordinator)}>
       <Waypoints size={14} />
       <span>Coordinator</span>
     </button>
@@ -149,7 +149,7 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
           <div className="thread-start-worktree">
             <FolderSymlink size={16} />
             <span>{startsInWorktree}</span>
-            <button type="button" aria-label={`Leave ${startsInWorktree}`} onClick={() => onSetWorktree(false)}><X size={14} /></button>
+            <button type="button" aria-label={`Leave ${startsInWorktree}`} data-tip="Start in the project instead" onClick={() => onSetWorktree(false)}><X size={14} /></button>
           </div>
         ) : (<>
         <div className={`thread-start-field ${branchesOpen ? "open" : ""}`} ref={branchRef}>
@@ -173,7 +173,7 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
           )}
         </div>
 
-        <button type="button" className="thread-start-toggle" aria-pressed={worktree} onClick={() => onSetWorktree(!worktree)}>
+        <button type="button" className="thread-start-toggle" aria-pressed={worktree} data-tip="Start in a checkout of its own" onClick={() => onSetWorktree(!worktree)}>
           <FolderSymlink size={14} />
           <span>Worktree</span>
         </button>

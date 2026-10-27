@@ -9,13 +9,13 @@ import { SpinningIcon } from "./SpinningIcon";
 
 const HIGH_SHARE = 90;
 
-function UsageBar({ share }: { share: number | null }) {
+function UsageBar({ label, share }: { label: string; share: number | null }) {
   return (
     <div className="usage-window-bar">
-      <span className="usage-window-track" aria-hidden="true">
+      <span className="usage-window-track" role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={barShare(share)} aria-valuetext={formatShare(share)}>
         <span className={`usage-window-fill ${(share ?? 0) >= HIGH_SHARE ? "high" : ""}`} style={{ width: `${barShare(share)}%` }} />
       </span>
-      <span className="usage-window-share">{formatShare(share)}</span>
+      <span className="usage-window-share" aria-hidden="true">{formatShare(share)}</span>
     </div>
   );
 }
@@ -121,7 +121,7 @@ function UsageWindows({ usage, timeZone }: { usage: Extract<PlanUsage, { status:
         return (
           <div className="usage-window" key={window.id}>
             <strong>{window.label}</strong>
-            <UsageBar share={window.utilization} />
+            <UsageBar label={window.label} share={window.utilization} />
             {reset && <p>{reset}</p>}
           </div>
         );

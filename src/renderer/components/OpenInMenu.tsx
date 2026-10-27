@@ -3,6 +3,7 @@ import { Fragment, useEffect, useRef } from "react";
 import type { InstalledApp } from "../../contracts/ipc";
 import type { ExternalAppKind } from "../../domain/external-apps";
 import { moveListFocus, useDismissibleLayer } from "../focus";
+import { useTypeahead } from "./PopoverMenu";
 
 export const OPEN_IN_MENU = "workspace:open-in";
 
@@ -23,8 +24,8 @@ const KIND_ICONS = {
 export type OpenInMenuProps = {
   openMenu: string | null;
   onSetOpenMenu: (menu: string | null) => void;
-  /** False while the thread has no checkout to hand over, such as a worktree still being made. */
-  enabled: boolean;
+  /** Why the thread has no checkout to hand over yet, such as a worktree still being made; null when it has one. */
+  blocked: string | null;
   /**
    * The applications this machine has, or null before any have been found. The main process scans
    * again once its answer is old enough, so one installed during the session turns up here.
@@ -35,12 +36,13 @@ export type OpenInMenuProps = {
 };
 
 /** The topbar button that hands the thread's checkout to another application on the machine. */
-export function OpenInMenu({ openMenu, onSetOpenMenu, enabled, apps, onListApps, onOpenInApp }: OpenInMenuProps) {
+export function OpenInMenu({ openMenu, onSetOpenMenu, blocked, apps, onListApps, onOpenInApp }: OpenInMenuProps) {
   const open = openMenu === OPEN_IN_MENU;
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const list = useRef<HTMLDivElement>(null);
   useDismissibleLayer(open, [root], () => onSetOpenMenu(null), trigger);
+  const typeahead = useTypeahead();
   useEffect(() => { if (open) onListApps(); }, [open]);
   /** The list itself takes focus, not a row, so it opens with nothing highlighted and still hears the arrow keys. */
   useEffect(() => { if (open) list.current?.focus(); }, [open]);
@@ -57,13 +59,20 @@ export function OpenInMenu({ openMenu, onSetOpenMenu, enabled, apps, onListApps,
         aria-label="Open this folder in another application"
         aria-haspopup="menu"
         aria-expanded={open}
-        disabled={!enabled}
+        disabled={blocked !== null}
+        data-tip={blocked ?? "Open in…"}
         onClick={() => onSetOpenMenu(open ? null : OPEN_IN_MENU)}
       >
         <ExternalLink size={18} aria-hidden="true" />
       </button>
       {open && (
-        <div ref={list} className="menu-popover open-in-popover" data-popover-menu role="menu" tabIndex={-1} onKeyDown={moveListFocus}>
+        <div ref={list} className="menu-popover open-in-popover" data-popover-menu role="menu" tabIndex={-1} onKeyDown={(event) => {
+          const rows = [...event.currentTarget.querySelectorAll<HTMLButtonElement>("button")];
+          if ((event.key === "Home" || event.key === "End") && rows.length) {
+            event.preventDefault();
+            rows[event.key === "Home" ? 0 : rows.length - 1]!.focus();
+          } else if (!typeahead(event, rows)) moveListFocus(event);
+        }}>
           {!apps && <p className="open-in-empty">Looking for applications…</p>}
           {apps && groups.length === 0 && <p className="open-in-empty">No application found</p>}
           {groups.map((group) => (

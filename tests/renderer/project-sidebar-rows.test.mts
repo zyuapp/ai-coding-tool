@@ -88,12 +88,12 @@ test("activity mode ranks threads into priority, running, and the rest, and only
   assert.equal(view.container.querySelector('nav[aria-label="Priority"] .task-spinner'), null);
 
   assert.deepEqual(
-    [...view.container.querySelectorAll('nav[aria-label="Priority"] .row-action')].map((button) => button.getAttribute("aria-label")),
+    [...view.container.querySelectorAll('nav[aria-label="Priority"] .row-action:not(.task-more)')].map((button) => button.getAttribute("aria-label")),
     ["Dismiss unread", "Dismiss seen"],
     "the priority list trades archive for dismiss, and a question has nothing to dismiss",
   );
   assert.deepEqual(
-    [...view.container.querySelectorAll('nav[aria-label="Running"] .row-action, nav[aria-label="Threads"] .row-action')],
+    [...view.container.querySelectorAll('nav[aria-label="Running"] .row-action:not(.task-more), nav[aria-label="Threads"] .row-action:not(.task-more)')],
     [],
     "and the other two offer nothing, rather than a second icon meaning something else",
   );
@@ -144,7 +144,7 @@ test("what waits on the user outranks a coordinator's threads at work, and only 
   const activity = await mount(renderProjectSidebar({
     mode: "activity", activityThreads: { priority: [waits, filed], running: [], threads: [], snoozed: [] }, runningThreadIds: new Set(["worker"]), sidebarCoordination: coordination,
   }));
-  assert.deepEqual([...activity.container.querySelectorAll('nav[aria-label="Priority"] .row-action')].map((button) => button.getAttribute("aria-label")), ["Dismiss filed"], "what waits on the user is answered, not dismissed");
+  assert.deepEqual([...activity.container.querySelectorAll('nav[aria-label="Priority"] .row-action:not(.task-more)')].map((button) => button.getAttribute("aria-label")), ["Dismiss filed"], "what waits on the user is answered, not dismissed");
   assert.ok(activity.container.querySelector('[aria-label="Dismiss all"]'), "Dismiss all counts a coordinator held by a thread under it, which it files away");
   await activity.render(renderProjectSidebar({ mode: "activity", activityThreads: { priority: [waits], running: [], threads: [], snoozed: [] }, sidebarCoordination: coordination }));
   assert.equal(activity.container.querySelector('[aria-label="Dismiss all"]'), null, "and offers nothing when there is nothing to file away");
@@ -347,7 +347,7 @@ test("opening a dotted row in projects mode takes its dot off", async () => {
   assert.equal(view.container.querySelector(".task-attention.failed"), null, "reading the thread takes the dot off");
   assert.deepEqual([...view.container.querySelectorAll(".task-dismiss")], [], "projects mode never offers a dismissal");
   assert.deepEqual(
-    [...view.container.querySelectorAll(".project-task-row .row-action")].map((button) => button.getAttribute("aria-label")),
+    [...view.container.querySelectorAll(".project-task-row .row-action:not(.task-more)")].map((button) => button.getAttribute("aria-label")),
     ["Archive Open task", "Archive Waiting task"],
     "archiving is a projects-mode row's only trailing action",
   );
@@ -559,12 +559,12 @@ test("a row's rail reserves slots only for the marks of threads the sidebar draw
   const activity = await mount(renderProjectSidebar({ ...props, mode: "activity", sections }));
   assert.equal(slots(activity), "3", "the role, the checkout, and the engine");
   await activity.render(renderProjectSidebar({ ...props, mode: "activity", sections: { ...sections, threads: false } }));
-  assert.equal(slots(activity), "1", "a folded list's threads draw no row to make room for");
+  assert.equal(slots(activity), "2", "a folded list's threads draw no row to make room for, past the menu and the one action every row offers");
   await activity.unmount();
 
   const folders = await mount(renderProjectSidebar({ ...props, mode: "projects", sections, expandedProjects: new Set(["project-1"]) }));
   assert.equal(slots(folders), "3");
   await folders.render(renderProjectSidebar({ ...props, mode: "projects", sections, expandedProjects: new Set() }));
-  assert.equal(slots(folders), "1", "a folded folder's threads draw no row to make room for");
+  assert.equal(slots(folders), "2", "a folded folder's threads draw no row to make room for");
   await folders.unmount();
 });

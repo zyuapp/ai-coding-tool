@@ -14,7 +14,7 @@ export type ApprovalCardProps = {
 export function ApprovalCard({ approval, onDecide }: ApprovalCardProps) {
   return (
     <section className="approval-card" aria-live="assertive">
-      <div className="approval-icon">!</div>
+      <div className="approval-icon" aria-hidden="true">!</div>
       <div>
         <strong>{approval.title}</strong>
         <p>{approval.description}</p>
@@ -23,8 +23,8 @@ export function ApprovalCard({ approval, onDecide }: ApprovalCardProps) {
           <pre>{JSON.stringify(approval.input, null, 2)}</pre>
         </details>
         <div className="approval-actions">
-          <button className="secondary" onClick={() => onDecide(approval, false)}>Deny</button>
-          <button onClick={() => onDecide(approval, true)}>Allow once</button>
+          <button type="button" className="secondary" onClick={() => onDecide(approval, false)}>Deny</button>
+          <button type="button" onClick={() => onDecide(approval, true)}>Allow once</button>
         </div>
       </div>
     </section>

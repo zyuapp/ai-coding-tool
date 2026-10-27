@@ -23,8 +23,9 @@ export const BackgroundProcessRow = memo(function BackgroundProcessRow({ process
         disabled={process.stopping}
         onClick={() => onStop(process.id)}
         aria-label={`Stop ${process.description}`}
+        data-tip="Stop"
       >
-        <Square size={12} />
+        <Square size={10} fill="currentColor" aria-hidden="true" />
       </button>
     </div>
   );
@@ -45,8 +46,9 @@ export const WorkflowProcessRow = memo(function WorkflowProcessRow({ workflow, o
           disabled={workflow.stopping}
           onClick={() => onStop(workflow.id)}
           aria-label={`Stop ${workflow.name}`}
+          data-tip="Stop"
         >
-          <Square size={12} />
+          <Square size={10} fill="currentColor" aria-hidden="true" />
         </button>
       )}
     </div>

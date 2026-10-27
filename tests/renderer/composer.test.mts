@@ -46,6 +46,12 @@ test("an active native goal stays visible and can be cleared", async () => {
   assert.match(query(view.container, ".goal-bar").textContent, /All checks pass/);
   assert.match(query(view.container, ".goal-detail").textContent, /Pass 2/);
   await act(async () => { query<HTMLButtonElement>(view.container, ".goal-clear").click(); });
+  assert.equal(cleared, 0, "the first press only asks");
+  await act(async () => { query<HTMLButtonElement>(view.container, ".goal-clear:not(.danger)").click(); });
+  assert.equal(cleared, 0, "Keep backs out");
+  assert.match(query(view.container, ".goal-bar").textContent, /All checks pass/);
+  await act(async () => { query<HTMLButtonElement>(view.container, ".goal-clear").click(); });
+  await act(async () => { query<HTMLButtonElement>(view.container, ".goal-clear.danger").click(); });
   assert.equal(cleared, 1);
   await view.unmount();
 });
@@ -326,6 +332,10 @@ test("the @ menu offers threads, keeps browsing in this project, and completes t
 
   await type("mail me at zhuocheng@gmail");
   assert.equal(view.container.querySelector(".thread-menu"), null, "an address is not a mention");
+
+  await type("compare with @nothing-like-this");
+  assert.deepEqual(offered(), []);
+  assert.equal(query(view.container, ".thread-menu .command-empty").textContent, "No thread matches", "a typo says so rather than closing the menu");
   await view.unmount();
 });
 
@@ -504,5 +514,53 @@ test("only the user's own queued words offer to be edited", async () => {
   const view = await mount(renderConversationComposer({ runActive: true, queuedMessages: [own, answer, sent] }));
   const editable = [...view.container.querySelectorAll(".queued-message")].map((row) => Boolean(row.querySelector(".queued-edit")));
   assert.deepEqual(editable, [true, false, false], "a decision's answer and another thread's message are not the user's to edit");
+  await view.unmount();
+});
+
+test("the attach button hands picked files to the surface, the way a drop would", async () => {
+  window.desktop = fakeDesktop();
+  const added: string[][] = [];
+  const view = await mount(renderConversationComposer({ onFilesAdd: (files) => { added.push(files.map((file) => file.name)); } }));
+  const input = query<HTMLInputElement>(view.container, 'input[type="file"]');
+  let opened = 0;
+  input.click = () => { opened += 1; };
+  await act(async () => { query<HTMLButtonElement>(view.container, ".composer-attach").click(); });
+  assert.equal(opened, 1, "the button opens the system picker");
+
+  const picked = [new dom.window.File(["a"], "notes.txt", { type: "text/plain" }), new dom.window.File(["b"], "shot.png", { type: "image/png" })];
+  Object.defineProperty(input, "files", { configurable: true, value: picked });
+  await act(async () => { input.dispatchEvent(new dom.window.Event("change", { bubbles: true })); });
+  assert.deepEqual(added, [["notes.txt", "shot.png"]]);
+  await view.unmount();
+
+  const disabled = await mount(renderConversationComposer({ disabled: true }));
+  assert.equal(query<HTMLButtonElement>(disabled.container, ".composer-attach").disabled, true);
+  await disabled.unmount();
+});
+
+test("while a run goes, a written message shows how to queue it or steer it in", async () => {
+  window.desktop = fakeDesktop();
+  const idle = await mount(renderConversationComposer({ prompt: "check the logs" }));
+  assert.equal(idle.container.querySelector(".composer-hint"), null, "with no run going Enter just sends");
+  await idle.unmount();
+
+  const empty = await mount(renderConversationComposer({ runActive: true }));
+  assert.equal(empty.container.querySelector(".composer-hint"), null, "nothing written, nothing to steer");
+  await empty.unmount();
+
+  const running = await mount(renderConversationComposer({ prompt: "check the logs", runActive: true }));
+  assert.match(query(running.container, ".composer-hint").textContent ?? "", /queue.*steer/);
+  await running.unmount();
+});
+
+test("a send notice can be put away", async () => {
+  window.desktop = fakeDesktop();
+  const notices: (string | null)[] = [];
+  const view = await mount(renderConversationComposer({
+    outbox: outbox({ state: { ...outbox().state, error: "Wait for the screenshots to finish loading." }, notice: (message) => { notices.push(message); } }),
+  }));
+  assert.match(query(view.container, ".attachment-error").textContent ?? "", /Wait for the screenshots/);
+  await act(async () => { query<HTMLButtonElement>(view.container, '.attachment-error button[aria-label="Dismiss"]').click(); });
+  assert.deepEqual(notices, [null]);
   await view.unmount();
 });

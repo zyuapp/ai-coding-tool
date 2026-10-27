@@ -213,7 +213,7 @@ test("the header's computer button names every computer and narrows the lists to
     assert.deepEqual(choices.map((choice) => choice.textContent), ["All", "My Mac", "linux-box", "old-laptop"]);
     assert.deepEqual(choices.map((choice) => choice.getAttribute("aria-checked")), ["true", "false", "false", "false"]);
     assert.equal(choices[3]!.classList.contains("offline"), true);
-    assert.equal(choices[3]!.title, "old-laptop is offline");
+    assert.equal(choices[3]!.dataset.tip, "old-laptop is offline");
     assert.equal(choices[3]!.disabled, false);
     await act(async () => { choices[2]!.click(); });
     assert.equal(trigger.dataset.tip, "Only linux-box");

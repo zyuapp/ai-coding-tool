@@ -273,7 +273,8 @@ test("the phone shows the thread the Mac actually has open, and says what went w
 
   receive({ kind: "patch", sequence: 3, patch: { error: "That worktree is busy." } });
   assert.match(document.querySelector(".banner")?.textContent ?? "", /That worktree is busy/);
-  assert.equal(document.querySelector(".banner")?.getAttribute("role"), "status");
+  assert.equal(document.querySelector(".banner [role=status]")?.textContent, "That worktree is busy.");
+  assert.ok(document.querySelector('button[aria-label="Thread options"]'), "the thread's options stay in reach while a notice is up");
 
   click(".banner");
   assert.equal(document.querySelector(".banner"), null, "a tap puts the sentence away");
@@ -550,4 +551,121 @@ test("the phone wears the theme the Mac sends and remembers it for the next visi
 test("the phone names a mode, model or effort only a newer build knows as it was sent", () => {
   assert.deepEqual(settingsSummary({ engine: "claude", model: "opus-next" as never, effort: "galaxy" as never, policy: "yolo" as never }), { mode: "yolo", model: "opus-next", effort: "galaxy" });
   assert.deepEqual(settingsSummary({ engine: "claude", model: "opus", effort: "high", policy: "confirm" }).effort, "High");
+});
+
+function frameOf(line: FakeSocket, type: string) {
+  const frame = line.sent.findLast((item) => item.kind === "command" && item.command.type === type);
+  assert.ok(frame && frame.kind === "command", `no ${type} sent`);
+  return frame;
+}
+
+test("archiving a thread from its menu goes back to the list and offers Undo, which restores it", () => {
+  const line = openPhone({ paired: true });
+  live(line);
+  click(".thread-row .thread-open");
+  click('button[aria-label="Thread options"]');
+  clickRow("Archive");
+  assert.deepEqual(lastCommand(line), { type: "task.archive", taskId: "t1" });
+  assert.ok(document.querySelector(".thread-list"), "back on the list");
+  assert.match(document.querySelector(".undo-toast")?.textContent ?? "", /Archived Fix the parser/);
+  click(".undo-toast button");
+  assert.deepEqual(lastCommand(line), { type: "task.restore", taskId: "t1" });
+  assert.equal(document.querySelector(".undo-toast"), null);
+});
+
+test("leaving a thread with Back offers no Undo, since nothing was archived", () => {
+  const line = openPhone({ paired: true });
+  live(line);
+  click(".thread-row .thread-open");
+  click('button[aria-label="Back to threads"]');
+  assert.equal(document.querySelector(".undo-toast"), null);
+});
+
+test("an approval answer says it is on its way, and one the Mac turns down can be given again", () => {
+  const line = openPhone({ paired: true });
+  live(line);
+  click(".thread-row .thread-open");
+  click(".approval-actions .allow");
+  assert.equal(document.querySelector(".approval-actions .allow")?.textContent, "Allowing…");
+  assert.equal(document.querySelector(".approval-actions .deny")?.textContent, "Deny");
+  const { requestId } = frameOf(line, "run.decide");
+  act(() => line.onmessage?.({ data: JSON.stringify({ kind: "ack", sequence: 2, requestId, ok: false, message: "The Mac could not take that answer." }) }));
+  assert.ok([...document.querySelectorAll<HTMLButtonElement>(".approval-actions button")].every((node) => !node.disabled), "the card is answerable again");
+  assert.equal(document.querySelector(".approval-actions .allow")?.textContent, "Allow");
+  click(".approval-actions .deny");
+  assert.deepEqual(lastCommand(line), { type: "run.decide", taskId: "t1", runId: "r1", approvalId: "a1", allow: false });
+  assert.equal(document.querySelector(".approval-actions .deny")?.textContent, "Denying…");
+});
+
+test("a link the phone cannot follow reads as text, and a web link opens", () => {
+  const line = openPhone({ paired: true });
+  const linked = view();
+  linked.thread = { ...linked.thread!, messages: [{ kind: "assistant", text: "See [parser.ts](src/parser.ts) and [the docs](https://example.com/docs).", at: 1 }] };
+  live(line, linked);
+  click(".thread-row .thread-open");
+  const anchors = [...document.querySelectorAll(".markdown a")];
+  assert.deepEqual(anchors.map((node) => node.getAttribute("href")), ["https://example.com/docs"]);
+  assert.match(document.querySelector(".markdown")?.textContent ?? "", /See parser\.ts and the docs/);
+});
+
+test("a run of several tool calls opens to list each one in order", () => {
+  const line = openPhone({ paired: true });
+  const worked = view();
+  worked.thread = { ...worked.thread!, messages: [{ kind: "tool", text: "Read", at: 1 }, { kind: "tool", text: "Bash", at: 2 }, { kind: "tool", text: "Read", at: 3 }, { kind: "assistant", text: "ok", at: 4 }, { kind: "tool", text: "Edit", at: 5 }] };
+  live(line, worked);
+  click(".thread-row .thread-open");
+  const [several, single] = [...document.querySelectorAll(".work")];
+  assert.equal(single?.querySelector("button"), null, "a single call has nothing more to show");
+  const toggle = several?.querySelector<HTMLButtonElement>("button.work-row");
+  assert.equal(toggle?.getAttribute("aria-expanded"), "false");
+  assert.equal(several?.querySelector(".work-calls"), null);
+  act(() => void toggle!.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true })));
+  assert.equal(toggle?.getAttribute("aria-expanded"), "true");
+  assert.deepEqual([...several!.querySelectorAll(".work-calls li")].map((node) => node.textContent), ["Read", "Bash", "Read"]);
+});
+
+test("Cmd or Ctrl+Enter sends from a hardware keyboard, and a bare Enter stays a newline", () => {
+  const line = openPhone({ paired: true });
+  const idle = view();
+  idle.thread = { ...idle.thread!, approval: null, status: "idle" };
+  live(line, idle);
+  click(".thread-row .thread-open");
+  const field = document.querySelector<HTMLTextAreaElement>(".composer-card textarea")!;
+  act(() => field.focus());
+  typeInto(".composer-card textarea", "ship it");
+  act(() => void field.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })));
+  assert.deepEqual(lastCommand(line), { type: "task.select", taskId: "t1" });
+  act(() => void field.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter", metaKey: true, bubbles: true, cancelable: true })));
+  assert.deepEqual(lastCommand(line), { type: "task.send", taskId: "t1", text: "ship it" });
+  assert.equal(field.value, "");
+});
+
+test("the settings summary names its values to a reader and Tab stays inside the sheet it opens", () => {
+  const line = openPhone({ paired: true });
+  live(line);
+  click(".thread-row .thread-open");
+  assert.equal(document.querySelector(".composer-settings")?.getAttribute("aria-label"), "Thread settings: Confirm, Opus, High");
+  click(".composer-settings");
+  const sheet = document.querySelector(".sheet")!;
+  const stops = [...sheet.querySelectorAll<HTMLButtonElement>("button")];
+  act(() => stops.at(-1)!.focus());
+  act(() => void stops.at(-1)!.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true })));
+  assert.equal(document.activeElement, stops[0]);
+  act(() => void stops[0]!.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true, cancelable: true })));
+  assert.equal(document.activeElement, stops.at(-1));
+});
+
+test("a phone with no notice still says how to pair", () => {
+  openPhone();
+  assert.match(document.querySelector(".gate p")?.textContent ?? "", /Scan the QR code on your computer/);
+});
+
+test("the list's bar starts a thread wherever the Mac is, and a thread's bar has no such button", () => {
+  const line = openPhone({ paired: true });
+  live(line);
+  click('.bar button[aria-label="New thread"]');
+  assert.deepEqual(lastCommand(line), { type: "task.new" });
+  click('button[aria-label="Back to threads"]');
+  click(".thread-row .thread-open");
+  assert.equal(document.querySelector('.bar button[aria-label="New thread"]'), null);
 });

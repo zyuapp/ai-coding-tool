@@ -1,5 +1,5 @@
 import { LuCheck as Check } from "react-icons/lu";
-import { createContext, useContext, useEffect, useRef, type ComponentPropsWithoutRef, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ComponentPropsWithoutRef, type KeyboardEvent, type ReactNode } from "react";
 import { settingControl, type SettingId, type SettingMark } from "../../domain/settings-catalog";
 
 export const SettingFocus = createContext<SettingMark | null>(null);
@@ -60,4 +60,51 @@ export function SettingRow({ id, status, description, className, children }: Set
 export function SettingGroup({ setting, children, ...section }: { setting: SettingId } & Omit<ComponentPropsWithoutRef<"section">, "className">) {
   const { ref, found } = useSettingMark<HTMLElement>(setting);
   return <section ref={ref} className={`settings-group${found ? " found" : ""}`} data-setting={setting} {...section}>{children}</section>;
+}
+
+/** An on/off control whose name is the catalog label of the row it sits in. */
+export function SettingSwitch({ id, on, onChange }: { id: SettingId; on: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <button type="button" role="switch" className="setting-switch" aria-checked={on} aria-label={settingControl(id).label} onClick={() => onChange(!on)}>
+      <span aria-hidden="true" />
+    </button>
+  );
+}
+
+export type ConfirmActionProps = Omit<ComponentPropsWithoutRef<"button">, "onClick" | "type"> & {
+  /** The destructive button the first press reveals, beside Cancel. */
+  confirm: string;
+  onConfirm: () => void;
+};
+
+/**
+ * A button that asks once more before it acts. The first press swaps it for the destructive button
+ * and Cancel, with the focus on Cancel; any answer, or Esc, puts the first button back and focuses it.
+ */
+export function ConfirmAction({ confirm, onConfirm, children, ...trigger }: ConfirmActionProps) {
+  const [confirming, setConfirming] = useState(false);
+  const first = useRef<HTMLButtonElement>(null);
+  const cancel = useRef<HTMLButtonElement>(null);
+  const asked = useRef(false);
+  useEffect(() => {
+    if (confirming) cancel.current?.focus();
+    else if (asked.current) first.current?.focus();
+    asked.current = confirming;
+  }, [confirming]);
+  const escape = (event: KeyboardEvent) => {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    event.stopPropagation();
+    setConfirming(false);
+  };
+  if (!confirming) return <button ref={first} type="button" {...trigger} onClick={() => setConfirming(true)}>{children}</button>;
+  return (
+    <>
+      <button type="button" className="danger" onKeyDown={escape} onClick={() => {
+        setConfirming(false);
+        onConfirm();
+      }}>{confirm}</button>
+      <button ref={cancel} type="button" onKeyDown={escape} onClick={() => setConfirming(false)}>Cancel</button>
+    </>
+  );
 }

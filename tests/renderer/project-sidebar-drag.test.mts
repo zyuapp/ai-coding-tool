@@ -109,7 +109,7 @@ test("a folder's menu opens on its trigger and every choice closes it", async ()
   await view.render(sidebar("project:project-1"));
   assert.equal(trigger().getAttribute("aria-expanded"), "true");
   const items = [...view.container.querySelectorAll<HTMLButtonElement>(".project-menu .menu-popover button")];
-  assert.deepEqual(items.map((item) => item.textContent), ["New task", "Edit…", "Remove"]);
+  assert.deepEqual(items.map((item) => item.textContent), ["New thread", "Edit…", "Remove"]);
 
   await act(async () => { item(items[2]).click(); });
   assert.deepEqual(removed, ["project-1"]);

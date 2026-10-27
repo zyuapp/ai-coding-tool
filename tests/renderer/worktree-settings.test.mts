@@ -117,7 +117,11 @@ test("active runs disable deletion, and an unavailable repository warns before d
   initial.activeRuns = { "Pick a model": activeRun("Pick a model", "run") };
   const active = await renderSettings(initial);
   try {
-    assert.equal(query<HTMLButtonElement>(active.container, ".worktree-row-actions button:last-child").disabled, true);
+    const deleteButton = query<HTMLButtonElement>(active.container, ".worktree-row-actions button:last-child");
+    assert.equal(deleteButton.getAttribute("aria-disabled"), "true");
+    assert.equal(deleteButton.dataset.tip, "Wait for the active run to finish", "the reason is reachable from the keyboard");
+    await act(async () => { deleteButton.click(); });
+    assert.equal(active.container.querySelector('[role="dialog"]'), null, "a busy worktree opens no delete confirmation");
     assert.match(active.container.textContent!, /Run active/);
   } finally { await active.unmount(); }
   const unavailable = fixture();

@@ -84,9 +84,9 @@
 .decision-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .decision-head strong { color: var(--accent); }
 .decision-from { font-size: var(--text-meta); }
-.decision-pager { display: flex; align-items: center; gap: 2px; margin-left: auto; color: var(--quiet); }
+.decision-pager { display: flex; align-items: center; gap: 2px; margin-left: auto; color: var(--muted-soft); font-variant-numeric: tabular-nums; }
 .decision-pager span { margin-right: 4px; }
-.decision-pager button { width: 22px; height: 22px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--quiet); cursor: pointer; }
+.decision-pager button { width: 26px; height: 26px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--muted-soft); cursor: pointer; }
 .decision-pager button:hover { background: var(--wash); color: var(--ink); }
 .decision-question { margin: 0 14px 2px; color: var(--ink); font-size: var(--text-control); font-weight: 600; }
 .decision-context { margin: 0 14px 4px; color: var(--muted); white-space: pre-wrap; }
@@ -99,12 +99,12 @@
 .decision-recommended { border-radius: 5px; padding: 0 6px; background: var(--accent-chip); color: var(--accent); font-size: var(--text-badge); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
 .decision-foot { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line-soft); }
 .decision-foot input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; background: var(--canvas); color: var(--ink); font: inherit; }
-.decision-foot input:focus { border-color: var(--line-strong); outline: none; }
+.decision-foot input:focus { border-color: var(--line-strong); }
 .decision-foot button { border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; background: var(--surface-inverse); color: var(--ink-inverse); font-weight: 600; cursor: pointer; }
 .decision-foot button.secondary { background: transparent; color: var(--ink-dim); font-weight: 500; }
 .decision-foot button:disabled { opacity: 0.4; cursor: default; }
 .decision-foot-gap { flex: 1; }
-/** A coordinator's suggested threads: one row each, started by its round arrow, dismissed by the ✕ that shows on hover. */
+/** A coordinator's suggested threads: one row each, started by its round arrow, dismissed by its ✕. */
 .suggestion-list { margin: 0; padding: 0 8px 8px; list-style: none; }
 .suggestion-row { display: flex; align-items: center; gap: 6px; min-width: 0; border-radius: 9px; padding: 5px 6px 5px 8px; }
 .suggestion-row:hover, .suggestion-row:focus-within { background: var(--surface-hover); }
@@ -115,8 +115,7 @@
 .suggestion-row.starting .suggestion-text { opacity: 0.7; }
 .suggestion-chip { flex: none; border-radius: 5px; padding: 0 6px; background: var(--wash); color: var(--quiet-strong); font-size: var(--text-badge); line-height: 18px; white-space: nowrap; }
 .suggestion-dismiss, .suggestion-start { flex: none; display: grid; place-items: center; padding: 0; cursor: pointer; }
-.suggestion-dismiss { width: 22px; height: 22px; border: 0; border-radius: 7px; background: transparent; color: var(--quiet-strong); opacity: 0; transition: opacity 0.15s ease; }
-.suggestion-row:hover .suggestion-dismiss, .suggestion-dismiss:focus-visible { opacity: 1; }
+.suggestion-dismiss { width: 26px; height: 26px; border: 0; border-radius: 7px; background: transparent; color: var(--quiet-strong); }
 .suggestion-dismiss:hover:not(:disabled) { background: var(--danger-chip); color: var(--danger); }
 button.suggestion-start { width: 26px; height: 26px; border: 0; border-radius: 50%; background: var(--surface-inverse); color: var(--ink-inverse); }
 button.suggestion-start:hover:not(:disabled) { opacity: 0.85; }
@@ -129,7 +128,7 @@ button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
 .elsewhere-place { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 8px 14px 10px; color: var(--muted); font-size: var(--text-meta); }
 .elsewhere-folder, .elsewhere-worktree { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
 .elsewhere-folder select { min-width: 0; max-width: 240px; border: 1px solid var(--line); border-radius: 7px; padding: 3px 6px; background: var(--canvas); color: var(--ink); font: inherit; }
-.elsewhere-folder select:focus { border-color: var(--line-strong); outline: none; }
+.elsewhere-folder select:focus { border-color: var(--line-strong); }
 .elsewhere-worktree { cursor: pointer; }
 .elsewhere-worktree input { margin: 0; accent-color: var(--accent); }
 .elsewhere-card .coordination-brief { margin: 0 14px 10px; border: 1px solid var(--line-soft); border-radius: 9px; }
@@ -205,13 +204,13 @@ button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
   padding: 0;
   background: transparent;
   color: var(--quiet-strong);
-  opacity: 0;
+  opacity: 0.5;
   transform: translateY(-50%);
   cursor: pointer;
   transition: opacity 0.15s ease;
 }
-.coordination-item:hover > .coordination-row-action, .coordination-item:focus-within > .coordination-row-action { opacity: 1; }
-.coordination-item:has(> .coordination-row-action):is(:hover, :focus-within) .coordination-row-marks { opacity: 0; }
+.coordination-item:hover > .coordination-row-action, .coordination-item:focus-within > .coordination-row-action, .coordination-row-action[data-action="reopen"] { opacity: 1; }
+.coordination-item:has(> .coordination-row-action) > .coordination-row { padding-right: 32px; }
 .coordination-row-action:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-soft); }
 .coordination-row-action[data-action="resolve"]:hover:not(:disabled), .thread-tab-resolution[data-action="resolve"]:hover:not(:disabled) { background: var(--success-surface); color: var(--success); }
 /** A resolved thread's check is ticked, and turns into an undo while pointed at. */
@@ -346,6 +345,10 @@ button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
   cursor: text;
 }
 .coordination-purpose:hover { background: var(--surface-hover); }
+.coordination-purpose:not(.editing) { display: flex; align-items: center; gap: 6px; }
+.coordination-purpose > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.coordination-purpose-edit { flex: none; margin-left: auto; color: var(--quiet-strong); opacity: 0; transition: opacity 0.15s ease; }
+.coordination-purpose:is(:hover, :focus-visible) .coordination-purpose-edit { opacity: 1; }
 .coordination-purpose.editing, .coordination-note-text.editing, .coordination-note-add:focus { border-color: var(--line-strong); background: var(--canvas); color: var(--ink); outline: none; }
 .coordination-placeholder { color: var(--quiet); font-weight: 450; }
 .coordination-memory { margin-top: 6px; }
@@ -385,7 +388,7 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
   padding: 0;
   background: transparent;
   color: var(--quiet-strong);
-  opacity: 0;
+  opacity: 0.45;
   cursor: pointer;
   transition: opacity 0.15s ease;
 }
@@ -421,17 +424,19 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
   border-radius: 6px;
   padding: 3px 8px;
   background: transparent;
-  color: var(--quiet);
+  color: var(--quiet-strong);
   font: inherit;
   font-size: var(--text-meta);
   font-weight: 550;
   cursor: pointer;
 }
 .coordination-stop-all:hover:not(:disabled) { background: var(--wash); color: var(--ink-soft); }
+.coordination-stop-all.danger { color: var(--danger); }
+.coordination-stop-all.danger:hover { background: var(--danger-chip); color: var(--danger); }
 .coordination-stop-all:disabled { opacity: 0.4; cursor: default; }
-.coordination-group-head > svg { color: var(--quiet); transition: transform 140ms ease; }
+.coordination-group-head > svg { color: var(--quiet-strong); transition: transform 140ms ease; }
 .coordination-group-head[aria-expanded="false"] > svg { transform: rotate(-90deg); }
-.coordination-group-count { color: var(--quiet); font-size: var(--text-meta); font-weight: 550; }
+.coordination-group-count { color: var(--quiet-strong); font-size: var(--text-meta); font-weight: 550; }
 .coordination-group.needs .coordination-group-head, .coordination-group.needs .coordination-group-count { color: var(--accent); }
 .coordination-overview .coordination-row strong { color: var(--ink-soft); font-size: var(--text-control); font-weight: 550; }
 .coordination-more {
@@ -440,7 +445,7 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
   border-radius: 8px;
   padding: 6px 8px 6px 39px;
   background: transparent;
-  color: var(--quiet);
+  color: var(--quiet-strong);
   font: inherit;
   font-size: var(--text-meta);
   text-align: left;
@@ -474,7 +479,7 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
 }
 .coordination-usage-thread:hover { background: var(--surface-hover); color: var(--ink-soft); }
 .coordination-usage-body > .coordination-more { width: calc(100% + 16px); margin-left: -8px; padding-left: 8px; }
-.right-dock-tabs [role="tab"] > em.attention { border-radius: 6px; padding: 0 6px; background: var(--accent-chip); color: var(--accent); font-weight: 650; }
+.right-dock-tabs [role="tab"] > em.attention { border-radius: 6px; padding: 0 6px; background: var(--accent); color: var(--accent-ink); font-weight: 650; }
 
 /* A coordinator's checkouts and pull requests in the session panel, each list scrolling on its own. */
 .session-panel .coordination-section > .subagent-list {
@@ -485,7 +490,7 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
   scrollbar-color: var(--scroll-thumb) transparent;
 }
 .coordination-worktree { cursor: default; }
-.coordination-worktree-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.15s ease; }
+.coordination-worktree-actions { display: flex; gap: 4px; opacity: 0.5; transition: opacity 0.15s ease; }
 .coordination-worktree:hover .coordination-worktree-actions, .coordination-worktree:focus-within .coordination-worktree-actions { opacity: 1; }
 .coordination-worktree-actions button {
   width: 22px;
@@ -572,8 +577,8 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
 }
 .thread-tab-chip:hover, .thread-tab-chip.open { border-color: var(--line); background: var(--surface-hover); color: var(--ink-soft); }
 .thread-tab-chip > svg { flex: none; color: var(--muted); }
-.thread-tab-chip.quiet { background: transparent; color: var(--quiet); }
-.thread-tab-chip.quiet > svg { color: var(--quiet); }
+.thread-tab-chip.quiet { background: transparent; color: var(--quiet-strong); }
+.thread-tab-chip.quiet > svg { color: var(--quiet-strong); }
 .thread-tab-chip.scheduled > svg { color: var(--info); }
 .thread-tab-branch code { min-width: 0; max-width: 160px; overflow: hidden; color: var(--ink-dim); font: var(--text-meta)/1 var(--mono); text-overflow: ellipsis; }
 .thread-tab-branch > svg:last-child { color: var(--quiet); }

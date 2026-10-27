@@ -1,7 +1,8 @@
-import { LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuPencil as Pencil, LuSquarePen as SquarePen, LuX as X } from "react-icons/lu";
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuPencil as Pencil, LuSquarePen as SquarePen, LuUndo2 as Undo, LuX as X } from "react-icons/lu";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { useModalFocus } from "../focus";
+import { MAC } from "../platform";
 import { renderAnnotated, type Annotation, type AnnotationKind, type Frame } from "../annotate/marks";
 import { useAnnotatorImage, useMarkPointer, usePaintedMarks } from "../annotate/use-annotator";
 
@@ -16,10 +17,17 @@ export {
 } from "../annotate/marks";
 export type { Annotation, AnnotationKind } from "../annotate/marks";
 
-const tools: { value: AnnotationKind; label: string; hint: string; icon: typeof SquarePen }[] = [
-  { value: "box", label: "Box", hint: "Drag a box over the area you mean", icon: SquarePen },
-  { value: "arrow", label: "Arrow", hint: "Drag from anywhere to point at the area you mean", icon: ArrowUpRight },
+const tools: { value: AnnotationKind; label: string; key: string; hint: string; icon: typeof SquarePen }[] = [
+  { value: "box", label: "Box", key: "b", hint: "Drag a box over the area you mean", icon: SquarePen },
+  { value: "arrow", label: "Arrow", key: "a", hint: "Drag from anywhere to point at the area you mean", icon: ArrowUpRight },
 ];
+
+const UNDO_KEYS = MAC ? "⌘Z" : "Ctrl+Z";
+
+/** Whether a key press belongs to a field being typed in rather than to the annotator. */
+function typing(target: EventTarget | null) {
+  return target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
+}
 
 /** What the next drag draws. */
 function ToolPicker({ tool, onPick }: { tool: AnnotationKind; onPick: (tool: AnnotationKind) => void }) {
@@ -33,6 +41,8 @@ function ToolPicker({ tool, onPick }: { tool: AnnotationKind; onPick: (tool: Ann
             key={entry.value}
             className={`annotator-tool ${entry.value === tool ? "active" : ""}`}
             aria-pressed={entry.value === tool}
+            aria-keyshortcuts={entry.key.toUpperCase()}
+            data-tip={`${entry.label} · ${entry.key.toUpperCase()}`}
             onClick={() => onPick(entry.value)}
           >
             <Icon size={16} aria-hidden="true" /> {entry.label}
@@ -79,15 +89,21 @@ function MarkTools({ shape, frame, mark, onKeep, onEdit, onRemove }: {
 }
 
 /** The note being typed, held under the box it belongs to. */
-function MarkLabel({ inputRef, box, frame, label, onLabel, onCommit, onClose }: {
-  inputRef: RefObject<HTMLInputElement | null>;
+function MarkLabel({ box, frame, label, selected, onLabel, onCommit, onClose }: {
   box: Omit<Annotation, "kind" | "text">;
   frame: Frame;
   label: string;
+  /** Set for a note already written, which is selected whole so typing replaces it. */
+  selected: boolean;
   onLabel: (label: string) => void;
   onCommit: () => void;
   onClose: () => void;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    inputRef.current?.focus();
+    if (selected) inputRef.current?.select();
+  }, []);
   return (
     <input
       ref={inputRef}
@@ -110,6 +126,141 @@ function MarkLabel({ inputRef, box, frame, label, onLabel, onCommit, onClose }: 
   );
 }
 
+/** The marks, and every earlier set of them, newest last, so each change can be taken back. */
+function useMarkHistory(annotations: Annotation[]) {
+  const [shapes, setShapes] = useState(annotations);
+  const [past, setPast] = useState<Annotation[][]>([]);
+  return {
+    shapes,
+    changed: past.length > 0,
+    change(next: Annotation[]) {
+      setPast((earlier) => [...earlier, shapes]);
+      setShapes(next);
+    },
+    undo() {
+      const previous = past.at(-1);
+      if (!previous) return false;
+      setPast((earlier) => earlier.slice(0, -1));
+      setShapes(previous);
+      return true;
+    },
+  };
+}
+
+type Box = Omit<Annotation, "kind" | "text">;
+
+/** The note being typed: onto a box just drawn, or onto one already on the image. */
+function useMarkNote(shapes: Annotation[], change: (next: Annotation[]) => void) {
+  const [pending, setPending] = useState<Box | null>(null);
+  const [editing, setEditing] = useState<number | null>(null);
+  const [label, setLabel] = useState("");
+
+  function close() {
+    setPending(null);
+    setEditing(null);
+    setLabel("");
+  }
+
+  return {
+    pending,
+    editing,
+    label,
+    setLabel,
+    draw: setPending,
+    composing: pending !== null || editing !== null,
+    /** The box the note belongs to. */
+    at: pending ?? (editing === null ? null : shapes[editing] ?? null),
+    close,
+    edit(index: number) {
+      setLabel(shapes[index]?.text ?? "");
+      setEditing(index);
+    },
+    /** Writes the note onto its box; a box just drawn is kept even with no note. */
+    commit() {
+      const text = label.trim();
+      if (editing !== null) {
+        if (shapes[editing] && shapes[editing].text !== text) change(shapes.map((shape, index) => (index === editing ? { ...shape, text } : shape)));
+      } else if (pending) change([...shapes, { kind: "box", ...pending, text }]);
+      else return;
+      close();
+    },
+  };
+}
+
+/** Keys the whole annotator answers: Escape, undo, and a letter per tool. None of them reach a field being typed in. */
+function useAnnotatorKeys({ composing, onEscape, onUndo, onTool }: {
+  composing: boolean;
+  onEscape: () => void;
+  onUndo: () => void;
+  onTool: (tool: AnnotationKind) => void;
+}) {
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.defaultPrevented) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onEscape();
+        return;
+      }
+      if (typing(event.target) || composing) return;
+      if (event.key.toLowerCase() === "z" && (MAC ? event.metaKey : event.ctrlKey) && !event.shiftKey && !event.altKey) {
+        event.preventDefault();
+        onUndo();
+        return;
+      }
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const picked = tools.find((entry) => entry.key === event.key.toLowerCase());
+      if (picked) {
+        event.preventDefault();
+        onTool(picked.value);
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  });
+}
+
+/** Which mark an arrow key walks to from the one picked, wrapping at either end. */
+function markStep(key: string, current: number | null, count: number) {
+  const step = key === "ArrowRight" || key === "ArrowDown" ? 1 : key === "ArrowLeft" || key === "ArrowUp" ? -1 : 0;
+  if (!step) return null;
+  return current === null ? (step > 0 ? 0 : count - 1) : (current + step + count) % count;
+}
+
+function AnnotatorFooter({ discarding, canUndo, hint, ready, onUndo, onKeep, onCancel, onDiscard, onDone }: {
+  discarding: boolean;
+  canUndo: boolean;
+  hint: string;
+  ready: boolean;
+  onUndo: () => void;
+  onKeep: () => void;
+  onCancel: () => void;
+  onDiscard: () => void;
+  onDone: () => void;
+}) {
+  if (discarding) {
+    return (
+      <footer className="annotator-bar" role="alert">
+        <span className="annotator-count">Discard the changes to these marks?</span>
+        <button type="button" className="annotator-action" onClick={onKeep}>Keep editing</button>
+        <button type="button" className="annotator-action danger" autoFocus onClick={onDiscard}>Discard</button>
+      </footer>
+    );
+  }
+  return (
+    <footer className="annotator-bar">
+      <button type="button" className="annotator-undo" aria-label="Undo" aria-keyshortcuts={MAC ? "Meta+Z" : "Control+Z"} data-tip={`Undo · ${UNDO_KEYS}`} disabled={!canUndo} onClick={onUndo}>
+        <Undo size={16} aria-hidden="true" />
+      </button>
+      <span className="annotator-count">{hint}</span>
+      <button type="button" className="annotator-action" onClick={onCancel}>Cancel</button>
+      <button type="button" className="annotator-action primary" disabled={!ready} onClick={onDone}>
+        <Check size={16} /> Done
+      </button>
+    </footer>
+  );
+}
+
 export type ImageAnnotatorProps = {
   source: string;
   annotations: Annotation[];
@@ -123,58 +274,77 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
   const dialogRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const labelRef = useRef<HTMLInputElement>(null);
   const [tool, setTool] = useState<AnnotationKind>("box");
-  const [shapes, setShapes] = useState(annotations);
+  const history = useMarkHistory(annotations);
+  const { shapes } = history;
   const [hovered, setHovered] = useState<number | null>(null);
-  const [pending, setPending] = useState<Omit<Annotation, "kind" | "text"> | null>(null);
-  const [editing, setEditing] = useState<number | null>(null);
-  const [label, setLabel] = useState("");
+  const [discarding, setDiscarding] = useState(false);
+  const note = useMarkNote(shapes, change);
+  const { pending, editing, composing } = note;
   useModalFocus(dialogRef);
-
-  const composing = pending !== null || editing !== null;
   const { image, frame } = useAnnotatorImage(source, stageRef);
   const { draft, handlers } = useMarkPointer({
-    tool,
-    frame,
-    shapes,
-    composing,
+    tool, frame, shapes, composing,
     onHover: setHovered,
-    onArrow: (arrow) => setShapes((current) => [...current, { kind: "arrow", ...arrow, text: "" }]),
-    onBox: setPending,
+    onArrow: (arrow) => change([...shapes, { kind: "arrow", ...arrow, text: "" }]),
+    onBox: note.draw,
   });
   usePaintedMarks(canvasRef, { image, frame, shapes, pending, draft, prefix });
 
-  useEffect(() => {
-    if (!pending && editing === null) return;
-    labelRef.current?.focus();
-    if (editing !== null) labelRef.current?.select();
-  }, [pending, editing]);
+  useAnnotatorKeys({
+    composing,
+    onEscape: () => {
+      if (pending) note.commit();
+      else if (editing !== null) note.close();
+      else if (discarding) setDiscarding(false);
+      else requestCancel();
+    },
+    onUndo: undo,
+    onTool: setTool,
+  });
 
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
-      event.preventDefault();
-      if (pending || editing !== null) closeLabel();
-      else onCancel();
-    }
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [pending, editing, onCancel]);
-
-  function closeLabel() {
-    setPending(null);
-    setEditing(null);
-    setLabel("");
+  function change(next: Annotation[]) {
+    history.change(next);
+    setDiscarding(false);
   }
 
-  /** Writes the note being typed onto the box it belongs to, whether that box is new or already drawn. */
-  function commitLabel() {
-    const at = editing;
-    if (at !== null) setShapes((current) => current.map((shape, index) => (index === at ? { ...shape, text: label.trim() } : shape)));
-    else if (pending) setShapes((current) => [...current, { kind: "box", ...pending, text: label.trim() }]);
-    else return;
-    closeLabel();
+  function undo() {
+    if (history.undo()) setHovered(null);
+  }
+
+  function remove(index: number) {
+    change(shapes.filter((_, at) => at !== index));
+    setHovered(null);
+  }
+
+  /** Closing throws the marks away, so marks changed since opening are only dropped once confirmed. */
+  function requestCancel() {
+    if (!history.changed) onCancel();
+    else setDiscarding(true);
+  }
+
+  /** Arrow keys walk the marks on the focused canvas; the walked-to mark takes Delete and Enter. */
+  function canvasKeyDown(event: ReactKeyboardEvent<HTMLCanvasElement>) {
+    if (composing || shapes.length === 0) return;
+    const next = markStep(event.key, hovered, shapes.length);
+    if (next !== null) {
+      event.preventDefault();
+      setHovered(next);
+      return;
+    }
+    if (hovered === null || !shapes[hovered]) return;
+    if (event.key === "Delete" || event.key === "Backspace") {
+      event.preventDefault();
+      remove(hovered);
+    } else if (event.key === "Enter" && shapes[hovered].kind === "box") {
+      event.preventDefault();
+      editMark(hovered);
+    }
+  }
+
+  function editMark(index: number) {
+    note.edit(index);
+    setHovered(null);
   }
 
   /** The number a box is drawn with, so what a control says matches what the screenshot shows. */
@@ -188,8 +358,6 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
   }
 
   const activeTool = tools.find((entry) => entry.value === tool)!;
-  /** The box the note being typed belongs to: a rect just drawn, or one already on the image. */
-  const composeAt = pending ?? (editing === null ? null : shapes[editing] ?? null);
 
   // Portalled to the body: the composer's stacking context sits below the topbar, which would paint over the overlay.
   return createPortal(
@@ -199,11 +367,11 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
           <ToolPicker
             tool={tool}
             onPick={(picked) => {
-              commitLabel();
+              note.commit();
               setTool(picked);
             }}
           />
-          <button type="button" className="annotator-close" onClick={onCancel} aria-label="Close annotator"><X size={16} /></button>
+          <button type="button" className="annotator-close" onClick={requestCancel} aria-label="Close annotator"><X size={16} /></button>
         </header>
         <div className="annotator-stage">
           <div className="annotator-fit" ref={stageRef}>
@@ -218,6 +386,8 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
                 ref={canvasRef}
                 style={{ width: `${frame.width}px`, height: `${frame.height}px` }}
                 aria-label="Screenshot canvas"
+                tabIndex={0}
+                onKeyDown={canvasKeyDown}
                 {...handlers}
               />
               {hovered !== null && shapes[hovered] && !composing && (
@@ -226,39 +396,36 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
                   frame={frame}
                   mark={`${prefix}${markNumber(hovered)}`}
                   onKeep={() => setHovered(hovered)}
-                  onEdit={() => {
-                    setLabel(shapes[hovered].text);
-                    setEditing(hovered);
-                    setHovered(null);
-                  }}
-                  onRemove={() => {
-                    setShapes((current) => current.filter((_, at) => at !== hovered));
-                    setHovered(null);
-                  }}
+                  onEdit={() => editMark(hovered)}
+                  onRemove={() => remove(hovered)}
                 />
               )}
-              {composeAt && (
+              {note.at && (
                 <MarkLabel
-                  inputRef={labelRef}
-                  box={composeAt}
+                  box={note.at}
+                  selected={editing !== null}
                   frame={frame}
-                  label={label}
-                  onLabel={setLabel}
-                  onCommit={commitLabel}
-                  onClose={closeLabel}
+                  label={note.label}
+                  onLabel={note.setLabel}
+                  onCommit={note.commit}
+                  onClose={pending ? note.commit : note.close}
                 />
               )}
             </div>
           )}
           </div>
         </div>
-        <footer className="annotator-bar">
-          <span className="annotator-count">{shapes.length === 0 ? activeTool.hint : `${shapes.length} mark${shapes.length === 1 ? "" : "s"}. Point at one to edit or remove it.`}</span>
-          <button type="button" className="annotator-action" onClick={onCancel}>Cancel</button>
-          <button type="button" className="annotator-action primary" disabled={!image} onClick={apply}>
-            <Check size={16} /> Done
-          </button>
-        </footer>
+        <AnnotatorFooter
+          discarding={discarding}
+          canUndo={history.changed}
+          hint={shapes.length === 0 ? activeTool.hint : `${shapes.length} mark${shapes.length === 1 ? "" : "s"}. Point at one to edit or remove it.`}
+          ready={Boolean(image)}
+          onUndo={undo}
+          onKeep={() => setDiscarding(false)}
+          onCancel={requestCancel}
+          onDiscard={onCancel}
+          onDone={apply}
+        />
       </div>
     </div>,
     document.body,

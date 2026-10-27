@@ -1,5 +1,5 @@
 import { LuCheck as Check } from "react-icons/lu";
-import { SettingGroup } from "./SettingRow";
+import { ConfirmAction, SettingGroup } from "./SettingRow";
 import { settingControl } from "../../domain/settings-catalog";
 import { AvailabilitySection } from "./AvailabilitySection";
 import { BrowserImportSection, type BrowserImportSettings } from "./BrowserImportSection";
@@ -9,27 +9,16 @@ export type BrowserSettingsProps = {
   browserTools: boolean;
   /** How many sites a run may open without asking, which clearing the session takes back. */
   allowedOrigins: string[];
-  /** Whether signing out is one press away from happening. */
-  confirming: boolean;
-  confirmationRef: React.RefObject<HTMLButtonElement | null>;
-  clearRef: React.RefObject<HTMLButtonElement | null>;
   onSetBrowserTools: (enabled: boolean) => void;
   onClearBrowserData: () => void;
-  onStartConfirm: () => void;
-  onCancelConfirm: () => void;
   browserImport: BrowserImportSettings;
 };
 
 export function BrowserSettings({
   browserTools,
   allowedOrigins,
-  confirming,
-  confirmationRef,
-  clearRef,
   onSetBrowserTools,
   onClearBrowserData,
-  onStartConfirm,
-  onCancelConfirm,
   browserImport,
 }: BrowserSettingsProps) {
   return (
@@ -52,15 +41,7 @@ export function BrowserSettings({
           </div>
           <div className="settings-group-action">
             <span>{allowedOrigins.length} {allowedOrigins.length === 1 ? "site allowed" : "sites allowed"}</span>
-            {confirming
-              ? <>
-                  <button ref={confirmationRef} className="danger" type="button" onClick={() => {
-                    onClearBrowserData();
-                    onCancelConfirm();
-                  }}>Sign out of everything</button>
-                  <button type="button" onClick={onCancelConfirm}>Cancel</button>
-                </>
-              : <button ref={clearRef} type="button" onClick={onStartConfirm}>Clear browser data</button>}
+            <ConfirmAction confirm="Sign out of everything" onConfirm={onClearBrowserData}>Clear browser data</ConfirmAction>
           </div>
         </div>
 

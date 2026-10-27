@@ -12,7 +12,7 @@ import { liftTime, resumesOnItsOwn, type LimitPause } from "../../domain/usage-l
 import { CommandButton } from "./CommandControl";
 import type { Annotation, AnnotationAnchor } from "../../domain/conversation";
 import type { Thread } from "../../domain/thread";
-import { groupTimeline, messageRows } from "../timeline/grouping";
+import { groupTimeline, messageRows, type TimelineGroup } from "../timeline/grouping";
 import { MAX_FIND_HITS, targetKey } from "../../domain/find";
 import { drawnMatches, paintMatches } from "../find/paint";
 import { useAnnotationMarkers, useAnnotationSelection, useSelectionCapture } from "../timeline/use-annotations";
@@ -91,6 +91,24 @@ function retryLabel(retry: RetryNotice) {
   return `${retry.message} Retrying${count}…`;
 }
 
+function ThinkingRow() {
+  return (
+    <div className="thinking-row" role="status">
+      <i aria-hidden="true" /><i aria-hidden="true" /><i aria-hidden="true" />
+      <span className="thinking-label">Working</span>
+    </div>
+  );
+}
+
+/** The newest turn, when it has settled on an answer. */
+function newestAnswer(groups: readonly TimelineGroup[]) {
+  for (let index = groups.length - 1; index >= 0; index -= 1) {
+    const group = groups[index]!;
+    if (group.kind === "turn") return group.final && !group.live ? group.id : undefined;
+  }
+  return undefined;
+}
+
 /** The newest message the user sent themselves, rather than one another thread or a schedule sent for them. */
 function newestPrompt(messages: Thread["messages"]) {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -142,6 +160,7 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
     overscan: 6,
   });
   const rowOfMessage = useMemo(() => messageRows(groups), [groups]);
+  const latestAnswer = useMemo(() => newestAnswer(groups), [groups]);
   const hit = find?.hit ?? null;
   const rendered = virtualizer.getVirtualItems().map((item) => item.key).join(",");
 
@@ -190,6 +209,7 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
               measure={virtualizer.measureElement}
               /** Only the live turn reads the tail, so a settled row's props hold still while it streams. */
               streamingTail={group.kind === "turn" && group.live ? streamingTail : null}
+              latest={group.id === latestAnswer}
               onViewAttachment={viewAttachment}
             />
           );
@@ -222,9 +242,7 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
         </div>
       )}
       {status === "running" && !compacting && !retrying && (
-        <div className="thinking-row">
-          <span /> <span /> <span />
-        </div>
+        <ThinkingRow />
       )}
       {!atBottom && (
         <div className="scroll-to-end-dock">
@@ -232,6 +250,7 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
           type="button"
           className="scroll-to-end"
           aria-label="Scroll to the latest message"
+          data-tip="Latest message"
           onClick={scrollToFoot}
         >
           <ChevronDown size={18} aria-hidden="true" />

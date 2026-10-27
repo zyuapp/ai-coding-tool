@@ -411,14 +411,20 @@ test("workspace header keeps session summary and right panel controls separate",
     onToggleSidebar: () => { sidebarToggles += 1; },
     onToggleSessionPanel: () => { summaryToggles += 1; },
     onToggleRightDock: () => { rightPanelToggles += 1; },
+    onChooseFolder: () => {},
   }));
 
   assert.equal(query(view.container, 'button[aria-label="Hide right panel"]').getAttribute("aria-pressed"), "true");
-  assert.equal(query(view.container, 'button[aria-label="Hide session summary"]').getAttribute("aria-pressed"), "true");
+  const summary = query(view.container, 'button[aria-label="Hide session summary, 2 agents working"]');
+  assert.equal(summary.getAttribute("aria-pressed"), "true");
+  assert.equal(summary.dataset.tip, "Session summary · 2 agents working");
+  assert.match(query(view.container, 'button[aria-label="Show sidebar"]').dataset.tip ?? "", /^Sidebar \(.+B\)$/);
+  assert.match(query(view.container, 'button[aria-label="Hide right panel"]').dataset.tip ?? "", /^Right panel \(.+\\\)$/);
+  assert.equal(query(view.container, ".open-in .session-toggle").dataset.tip, "Open in…");
   assert.match(view.container.textContent, /2/);
   await act(async () => {
     query<HTMLButtonElement>(view.container, 'button[aria-label="Show sidebar"]').click();
-    query<HTMLButtonElement>(view.container, 'button[aria-label="Hide session summary"]').click();
+    query<HTMLButtonElement>(view.container, 'button[aria-label="Hide session summary, 2 agents working"]').click();
     query<HTMLButtonElement>(view.container, 'button[aria-label="Hide right panel"]').click();
     query<HTMLButtonElement>(view.container, 'button[aria-label="Enter zen mode"]').click();
   });
@@ -442,7 +448,7 @@ test("the open-in list groups the applications this machine has, and hands one t
   const openIn = (found: InstalledApp[] | null) => React.createElement(OpenInMenu, {
     openMenu: menu,
     onSetOpenMenu: (next: string | null) => { menu = next; },
-    enabled: true,
+    blocked: null,
     apps: found,
     onListApps: () => { lists += 1; },
     onOpenInApp: (appId: string) => chosen.push(appId),
@@ -477,9 +483,11 @@ test("the open-in list groups the applications this machine has, and hands one t
 
 test("the open-in button waits for a folder to hand over", async () => {
   window.desktop = fakeDesktop();
-  const view = await mount(React.createElement(OpenInMenu, { openMenu: null, onSetOpenMenu: () => {}, enabled: false, apps: null, onListApps: () => {}, onOpenInApp: () => {} }));
+  const view = await mount(React.createElement(OpenInMenu, { openMenu: null, onSetOpenMenu: () => {}, blocked: "Worktree is still being created", apps: null, onListApps: () => {}, onOpenInApp: () => {} }));
 
-  assert.equal(query<HTMLButtonElement>(view.container, ".open-in .session-toggle").disabled, true);
+  const trigger = query<HTMLButtonElement>(view.container, ".open-in .session-toggle");
+  assert.equal(trigger.disabled, true);
+  assert.equal(trigger.dataset.tip, "Worktree is still being created", "the disabled button says why");
   await view.unmount();
 });
 
@@ -574,7 +582,7 @@ test("the heading names the paired computer a thread lives on, ahead of its fold
     sidebarOpen: false, sessionPanelOpen: false, rightDockOpen: false, zen: { available: false, tip: "Zen mode", onEnter: () => {} }, workingSubagents: 0, openMenu: null, canOpenFolder: true, apps: null,
     onListApps: () => {}, onSetOpenMenu: () => {}, onOpenInApp: () => {}, onRenameThread: () => {}, onForkThread: () => {}, onSetThreadRole: () => {}, onArchiveThread: () => {},
     coordinators: [], onSetCoordinator: () => {}, notifications: true, onSetMuted: () => {}, stoppable: false, onStopAll: () => {},
-    onToggleSidebar: () => {}, onToggleSessionPanel: () => {}, onToggleRightDock: () => {},
+    onToggleSidebar: () => {}, onToggleSessionPanel: () => {}, onToggleRightDock: () => {}, onChooseFolder: () => {},
   };
   const local = await mount(React.createElement(WorkspaceHeader, props));
   assert.equal(local.container.querySelector(".heading-host"), null, "a thread here carries no computer");
@@ -592,4 +600,72 @@ test("the heading names the paired computer a thread lives on, ahead of its fold
   const away = await mount(React.createElement(WorkspaceHeader, { ...props, host: { name: "zyuapp", offline: true } }));
   assert.equal(query(away.container, ".heading-host").classList.contains("offline"), true);
   await away.unmount();
+});
+
+test("the heading's title shows in full on hover and renames on double-click", async () => {
+  const renamed: string[] = [];
+  const props = {
+    currentThread: {
+      id: "thread", title: "A long thread title that the heading cuts short", engine: "claude", executionPolicy: "confirm", messages: [],
+      continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+    } satisfies Thread,
+    folder: "/project", folderLabel: "project",
+    sidebarOpen: false, sessionPanelOpen: false, rightDockOpen: false, zen: { available: false, tip: "Zen mode", onEnter: () => {} }, workingSubagents: 0, openMenu: null, canOpenFolder: true, apps: null,
+    onListApps: () => {}, onSetOpenMenu: () => {}, onOpenInApp: () => {}, onRenameThread: (_id: string, title: string) => { renamed.push(title); }, onForkThread: () => {}, onSetThreadRole: () => {}, onArchiveThread: () => {},
+    coordinators: [], onSetCoordinator: () => {}, notifications: true, onSetMuted: () => {}, stoppable: false, onStopAll: () => {},
+    onToggleSidebar: () => {}, onToggleSessionPanel: () => {}, onToggleRightDock: () => {}, onChooseFolder: () => {},
+  };
+  const view = await mount(React.createElement(WorkspaceHeader, props));
+  const title = query(view.container, ".heading-thread");
+  assert.equal(title.getAttribute("title"), "A long thread title that the heading cuts short");
+  assert.equal(query(view.container, ".thread-heading-menu > .menu-trigger").dataset.tip, "Thread actions");
+  await act(async () => { title.dispatchEvent(new window.MouseEvent("dblclick", { bubbles: true })); });
+  const input = query<HTMLInputElement>(view.container, "input.heading-rename");
+  assert.equal(input.value, "A long thread title that the heading cuts short");
+  await view.unmount();
+});
+
+test("with no project the heading offers to choose one", async () => {
+  let chosen = 0;
+  const view = await mount(React.createElement(WorkspaceHeader, {
+    folder: "", folderLabel: "",
+    sidebarOpen: true, sessionPanelOpen: false, rightDockOpen: false, zen: { available: false, tip: "Zen mode", onEnter: () => {} }, workingSubagents: 0, openMenu: null, canOpenFolder: false, apps: null,
+    onListApps: () => {}, onSetOpenMenu: () => {}, onOpenInApp: () => {}, onRenameThread: () => {}, onForkThread: () => {}, onSetThreadRole: () => {}, onArchiveThread: () => {},
+    coordinators: [], onSetCoordinator: () => {}, notifications: true, onSetMuted: () => {}, stoppable: false, onStopAll: () => {},
+    onToggleSidebar: () => {}, onToggleSessionPanel: () => {}, onToggleRightDock: () => {}, onChooseFolder: () => { chosen += 1; },
+  }));
+  const choose = query<HTMLButtonElement>(view.container, "button.heading-choose-folder");
+  assert.equal(choose.textContent, "Choose a project folder to begin");
+  await act(async () => { choose.click(); });
+  assert.equal(chosen, 1);
+  assert.equal(query(view.container, ".open-in .session-toggle").dataset.tip, "Choose a project folder first");
+  await view.unmount();
+});
+
+test("the subagent search clears from its button or Escape", async () => {
+  const roster: Subagent[] = [
+    { id: "a", description: "Read the reducer", status: "completed", startedAt: 1, activity: [] },
+    { id: "b", description: "Write the tests", status: "completed", startedAt: 2, activity: [] },
+  ];
+  const view = await mount(React.createElement(AgentsPanel, { subagents: roster, groups: OPEN_SUBAGENT_GROUPS, onSelect() {}, onSetGroup() {} }));
+  const search = query<HTMLInputElement>(view.container, 'input[aria-label="Search subagents"]');
+  const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")!.set!;
+  const type = (text: string) => act(async () => {
+    setValue.call(search, text);
+    search.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+  });
+  const names = () => [...view.container.querySelectorAll(".subagent-list strong")].map((node) => node.textContent);
+
+  assert.equal(view.container.querySelector(".agent-search-clear"), null, "an empty search has nothing to clear");
+  await type("reducer");
+  assert.deepEqual(names(), ["Read the reducer"]);
+  await act(async () => { query<HTMLButtonElement>(view.container, ".agent-search-clear").click(); });
+  assert.equal(search.value, "");
+  assert.equal(names().length, 2);
+
+  await type("tests");
+  await act(async () => { search.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })); });
+  assert.equal(search.value, "");
+  assert.equal(names().length, 2);
+  await view.unmount();
 });

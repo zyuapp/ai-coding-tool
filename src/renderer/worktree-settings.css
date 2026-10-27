@@ -9,9 +9,9 @@
 .worktree-project-select select { appearance: none; max-width: 260px; padding: 8px 34px 8px 12px; border: 1px solid var(--line-strong); border-radius: 7px; color: var(--ink); background: var(--surface); font: inherit; font-size: var(--text-meta); cursor: pointer; text-overflow: ellipsis; }
 .worktree-project-select > svg { position: absolute; top: 50%; right: 11px; transform: translateY(-50%); pointer-events: none; color: var(--muted); }
 .worktree-refresh, .worktree-row-actions button, .worktree-delete-actions button { padding: 7px 13px; border: 1px solid var(--line-strong); border-radius: 7px; color: var(--ink-dim); background: transparent; font-size: var(--text-meta); font-weight: 550; white-space: nowrap; cursor: pointer; }
-.worktree-refresh:hover, .worktree-row-actions button:hover, .worktree-delete-actions button:hover { background: var(--wash); border-color: var(--line-bright); }
-.worktree-refresh { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); }
-.worktree-settings button:disabled, .worktree-delete-actions button:disabled { opacity: .5; cursor: default; }
+.worktree-refresh:hover:not(:disabled), .worktree-row-actions button:hover:not([aria-disabled="true"]), .worktree-delete-actions button:hover:not(:disabled) { background: var(--wash); border-color: var(--line-bright); }
+.worktree-refresh { display: inline-flex; align-items: center; gap: 7px; }
+.worktree-settings button:is(:disabled, [aria-disabled="true"]), .worktree-delete-actions button:disabled { opacity: .5; cursor: default; }
 .worktree-setting-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 13px; padding: 23px 0; border-bottom: 1px solid var(--line-soft); }
 .worktree-setting-icon { display: grid; place-items: center; width: 28px; height: 28px; margin-top: 2px; border: 1px solid var(--info-line); border-radius: 8px; color: var(--info-soft); background: var(--info-surface-soft); }
 .worktree-setting-copy { min-width: 0; }
@@ -22,23 +22,24 @@
 .worktree-metadata > span { display: inline-flex; align-items: center; gap: 5px; overflow-wrap: anywhere; min-width: 0; }
 .worktree-metadata > span + span::before { content: "·"; margin-right: 3px; color: var(--quiet); }
 .worktree-status-clean { color: var(--success-soft); }
-.worktree-status-warning { color: var(--muted-strong); }
+.worktree-status-warning { color: var(--accent-soft); }
 .worktree-metadata svg { flex-shrink: 0; }
 .worktree-row-actions { display: flex; align-items: flex-start; justify-content: flex-end; gap: 8px; padding-top: 2px; margin-left: 15px; }
-.worktree-row-actions .worktree-reveal { border-color: transparent; color: var(--muted); }
-.worktree-row-actions button:not(.worktree-reveal):hover { color: var(--danger-soft); border-color: var(--danger-line); }
+.worktree-row-actions .worktree-delete { color: var(--danger-soft); }
+.worktree-row-actions .worktree-delete:hover:not([aria-disabled="true"]) { border-color: var(--danger-line-hover); background: var(--danger-surface); }
 .worktree-row-actions > span { padding: 7px 0; font-size: var(--text-meta); }
-.worktree-threads, .worktree-no-threads { margin: 10px 0 0; color: var(--muted); font-size: var(--text-meta); }
-.worktree-thread-link { display: inline-flex; align-items: center; gap: 6px; width: fit-content; max-width: 100%; padding: 0; border: 0; border-radius: 2px; background: transparent; color: var(--link); font-size: var(--text-meta); text-align: left; cursor: pointer; }
-.worktree-thread-link:hover { color: var(--link-hover); text-decoration: underline; text-underline-offset: 3px; }
+.worktree-threads, .worktree-no-threads { margin: 6px 0 0; color: var(--muted); font-size: var(--text-meta); }
+.worktree-thread-link { display: inline-flex; align-items: center; gap: 6px; width: fit-content; max-width: 100%; min-height: 26px; margin-inline: -6px; padding: 3px 6px; border: 0; border-radius: 6px; background: transparent; color: var(--link); font-size: var(--text-meta); text-align: left; cursor: pointer; }
+.worktree-thread-link:hover { background: var(--wash); color: var(--link-hover); text-decoration: underline; text-underline-offset: 3px; }
 .worktree-thread-link > svg { flex-shrink: 0; }
 .worktree-thread-link > span { overflow-wrap: anywhere; }
 .worktree-thread-link small { color: var(--muted); font-size: var(--text-tiny); }
-.worktree-thread-list { display: grid; gap: 8px; margin: 12px 0 0 19px; }
+.worktree-thread-list { display: grid; gap: 2px; margin: 6px 0 0 19px; }
 .worktree-thread-list.single { margin: 0; }
 .worktree-thread-list[hidden] { display: none; }
 .worktree-missing { margin-top: 27px; }
-.worktree-missing-toggle { display: flex; align-items: center; gap: 8px; padding: 0; border: 0; background: transparent; color: var(--muted); font-size: var(--text-meta); font-weight: 550; cursor: pointer; }
+.worktree-missing-toggle { display: flex; align-items: center; gap: 8px; min-height: 30px; margin-inline: -8px; padding: 4px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--ink-dim); font-size: var(--text-control); font-weight: 550; cursor: pointer; }
+.worktree-missing-toggle:hover { background: var(--wash); color: var(--ink); }
 .worktree-missing-description { margin: 12px 0 0 21px; color: var(--muted); font-size: var(--text-meta); line-height: 1.5; }
 .worktree-setting-row.missing { padding-block: 18px; }
 .worktree-setting-row.missing .worktree-setting-icon { color: var(--quiet-strong); border-color: var(--line); background: transparent; }

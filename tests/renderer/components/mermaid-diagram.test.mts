@@ -43,7 +43,7 @@ test("the diagram viewer wires zoom controls to the drawing size", async () => {
   const diagram = { markup: '<svg viewBox="0 0 400 200"></svg>', width: 400, height: 200 };
   const view = await mount(React.createElement(DiagramViewer, { diagram, onClose: () => {} }));
   const zoom = (label: string) => query<HTMLButtonElement>(document, `.viewer-zoom button[aria-label="${label}"]`);
-  const readout = () => query(document, ".viewer-zoom span").textContent;
+  const readout = () => query(document, ".viewer-zoom-level").textContent;
   const drawn = () => query<HTMLElement>(document, ".viewer-stage .mermaid-svg").style.getPropertyValue("--diagram-width");
 
   assert.equal(readout(), "100%");

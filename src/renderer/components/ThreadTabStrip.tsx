@@ -5,7 +5,7 @@ import { useMessageLinks, WebLink } from "./MarkdownMessage";
 import { GITHUB_CLI_URL, PULL_REQUEST_ICONS } from "./SessionPanel";
 import { useDismissibleLayer } from "../focus";
 import { deliveryLabel, type ThreadBrief } from "../../domain/coordination";
-import type { PullRequestAnswer } from "../../domain/pull-request";
+import type { PullRequestAnswer, PullRequestState } from "../../domain/pull-request";
 import type { ThreadTabView } from "../../application/workspace-state";
 
 export type ThreadTabStripActions = {
@@ -14,6 +14,8 @@ export type ThreadTabStripActions = {
   onSetBranchMenuOpen: (open: boolean) => void;
   onCheckoutBranch: (branch: string, create: boolean) => void;
 };
+
+const PULL_REQUEST_STATES: Record<PullRequestState, string> = { draft: "Draft", open: "Open", merged: "Merged", closed: "Closed" };
 
 /** What stands in for the checkout's chips until Git has answered for it. */
 function environmentNote(tab: ThreadTabView) {
@@ -44,7 +46,7 @@ function BranchChip({ branch, workspaceId, open, onSetOpen, onPick }: {
         ref={trigger}
         type="button"
         className={`thread-tab-chip thread-tab-branch ${open ? "open" : ""}`.trimEnd()}
-        aria-label="Branch"
+        aria-label={`Branch ${branch}`}
         aria-haspopup="listbox"
         aria-expanded={open}
         title={branch}
@@ -93,7 +95,7 @@ function PullRequestChip({ pullRequest }: { pullRequest: PullRequestAnswer }) {
       className="thread-tab-chip thread-tab-pull-request"
       data-state={state}
       href={url}
-      title={`#${number} ${title}`}
+      title={`#${number} · ${PULL_REQUEST_STATES[state]} · ${title}`}
       openInApp={links.openUrlInApp && (() => links.openUrlInApp!(url))}
     >
       <Icon size={14} aria-hidden="true" />
@@ -141,7 +143,7 @@ export function ThreadTabStrip({ tab, branchMenuOpen, actions }: { tab: ThreadTa
           <button
             type="button"
             className={`thread-tab-chip ${clean ? "quiet" : ""}`.trimEnd()}
-            aria-label="Review changes"
+            aria-label={clean ? "Review changes, none" : `Review changes, +${available.additions} −${available.deletions}`}
             title={available.baseline ? `Changes since ${available.baseline}` : "Uncommitted changes"}
             onClick={actions.onToggleChanges}
           >
@@ -157,7 +159,7 @@ export function ThreadTabStrip({ tab, branchMenuOpen, actions }: { tab: ThreadTa
           type="button"
           className={`thread-tab-chip ${tab.automation ? "scheduled" : "quiet"}`}
           aria-label="Open Automation panel"
-          title={tab.automation ? "Scheduled" : "Automations"}
+          data-tip={tab.automation ? "Scheduled" : "Automations"}
           onClick={actions.onOpenAutomations}
         >
           <AlarmClock size={14} aria-hidden="true" />

@@ -97,3 +97,16 @@ test("a name nothing answers says so instead of drawing an empty list", async ()
   assert.equal(document.querySelector(".thread-jump-empty")?.textContent, "Nothing here is called that");
   await view.unmount();
 });
+
+test("the search field is a combobox that points assistive technology at the picked row", async () => {
+  const view = await mount(JUMP);
+  const input = document.querySelector<HTMLInputElement>(".thread-jump-search input")!;
+  assert.equal(input.getAttribute("role"), "combobox");
+  assert.equal(input.getAttribute("aria-expanded"), "true");
+  assert.equal(input.getAttribute("aria-controls"), document.querySelector(".thread-jump-list")?.id);
+  assert.equal(document.getElementById(input.getAttribute("aria-activedescendant")!), rows()[1]);
+  await view.render(React.createElement(ThreadJump, { jump: { query: "nothing", index: 0, options: [] }, actions: { setJumpQuery() {}, stepJump() {}, chooseJump() {}, chooseJumpSetting() {}, closeJump() {} } }));
+  assert.equal(input.getAttribute("aria-expanded"), "false");
+  assert.equal(input.hasAttribute("aria-activedescendant"), false);
+  await view.unmount();
+});

@@ -341,3 +341,11 @@ test("a thread waiting on its checkout says so in the transcript, and its compos
   assert.match(query(view.container, ".waiting-row").textContent, /Starting/);
   await view.unmount();
 });
+
+test("a running turn says it is working to assistive tech, not only with dots", async () => {
+  const view = await mount(timelineView(transcript({ kind: "user", text: "go" }), "running"));
+  const row = query(view.container, ".thinking-row");
+  assert.equal(row.getAttribute("role"), "status");
+  assert.equal(row.textContent, "Working");
+  await view.unmount();
+});

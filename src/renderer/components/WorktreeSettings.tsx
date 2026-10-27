@@ -68,7 +68,7 @@ function WorktreeRow({ worktree, expanded, dispatch }: { worktree: WorktreeSetti
       </button>}
       {worktree.deleting
         ? <span className="text-sweep" role="status">{worktree.available ? "Deleting…" : "Forgetting…"}</span>
-        : <button type="button" disabled={worktree.busy} title={worktree.busy ? "Wait for the active run to finish before deleting this worktree" : undefined} onClick={() => dispatch({ type: "worktree.confirm-delete", root: worktree.root })}>
+        : <button type="button" className="worktree-delete" aria-disabled={worktree.busy || undefined} data-tip={worktree.busy ? "Wait for the active run to finish" : undefined} onClick={() => { if (!worktree.busy) dispatch({ type: "worktree.confirm-delete", root: worktree.root }); }}>
           {worktree.available ? "Delete…" : "Forget…"}
         </button>}
     </div>

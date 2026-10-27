@@ -49,7 +49,7 @@ function ThreadTabHeader({ tab, leadTitle, dispatch, branchMenuOpen, onClose }: 
           </div>
         </div>
         <ResolutionButton taskId={tab.id} title={thread.title} status={standing} className="thread-tab-resolution" size={18} />
-        <button type="button" aria-label={`Close ${thread.title}`} title={`Back to ${leadTitle}`} onClick={onClose}><X size={18} /></button>
+        <button type="button" aria-label={`Close ${thread.title} and return to ${leadTitle}`} data-tip={`Close · back to ${leadTitle}`} onClick={onClose}><X size={18} /></button>
       </header>
       <ThreadTabStrip
         tab={tab}

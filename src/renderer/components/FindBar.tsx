@@ -2,6 +2,12 @@ import { useEffect, useRef } from "react";
 import { LuChevronDown as ChevronDown, LuChevronUp as ChevronUp, LuSearch as Search, LuX as X } from "react-icons/lu";
 import type { FindView } from "../../application/workspace-state";
 import { useFocusReturn } from "../focus";
+import { displayShortcut } from "../../domain/shortcuts";
+import { MAC } from "../platform";
+
+const PREVIOUS_TIP = `Previous match (${displayShortcut("Shift+Enter", MAC)})`;
+const NEXT_TIP = `Next match (${displayShortcut("Enter", MAC)})`;
+const CLOSE_TIP = `Close (${displayShortcut("Escape", MAC)})`;
 
 export type FindBarProps = {
   find: FindView;
@@ -51,9 +57,9 @@ export function FindBar({ find, label, onQuery, onStep, onClose }: FindBarProps)
         <span className={`find-count ${searching && !find.matches && !find.counting ? "empty" : ""}`.trimEnd()} aria-live="polite">
           {searching && !find.matches ? (find.counting ? "Counting…" : "No matches") : count}
         </span>
-        <button type="button" aria-label="Previous match" disabled={!find.matches} onClick={() => onStep(-1)}><ChevronUp size={16} /></button>
-        <button type="button" aria-label="Next match" disabled={!find.matches} onClick={() => onStep(1)}><ChevronDown size={16} /></button>
-        <button type="button" aria-label="Close find" onClick={onClose}><X size={16} /></button>
+        <button type="button" aria-label="Previous match" data-tip={PREVIOUS_TIP} disabled={!find.matches} onClick={() => onStep(-1)}><ChevronUp size={16} /></button>
+        <button type="button" aria-label="Next match" data-tip={NEXT_TIP} disabled={!find.matches} onClick={() => onStep(1)}><ChevronDown size={16} /></button>
+        <button type="button" aria-label="Close find" data-tip={CLOSE_TIP} onClick={onClose}><X size={16} /></button>
       </div>
     </div>
   );

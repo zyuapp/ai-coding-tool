@@ -307,3 +307,64 @@ test("the review switches to uncommitted changes and returns to its branch targe
     assert.deepEqual([...view.container.querySelectorAll('.diff-side-trigger > span')].map((span) => span.textContent), ["main", "origin/main"]);
   } finally { await view.unmount(); }
 });
+
+test("the progress line takes the reader to the next file still to read", async () => {
+  seedReviewableProject();
+  window.desktop = threeFileDesktop();
+  const view = await mount(React.createElement(App));
+  await openReview(view);
+  const watch = watchScrolling();
+  const next = () => view.container.querySelector<HTMLButtonElement>(".diff-progress button");
+
+  assert.equal(item(next()).textContent, "0 of 3 viewed");
+  await act(async () => { item(next()).click(); });
+  assert.deepEqual(watch.scrolled, ["src/one.ts"]);
+
+  for (const path of ["src/one.ts", "src/two.ts", "src/three.ts"]) {
+    await act(async () => { query<HTMLInputElement>(view.container, `input[aria-label="Mark ${path} viewed"]`).click(); });
+  }
+  assert.equal(next(), null, "a finished review has nowhere left to go");
+  assert.match(query(view.container, ".diff-progress").textContent, /3 of 3 viewed/);
+
+  watch.restore();
+  await view.unmount();
+});
+
+test("the Changes tab says what its count is counting", async () => {
+  seedReviewableProject();
+  window.desktop = threeFileDesktop();
+  const view = await mount(React.createElement(App));
+  await openReview(view);
+  const badge = query(view.container, '.right-dock-tab [role="tab"] > em');
+  assert.equal(badge.getAttribute("role"), "img");
+  assert.equal(badge.getAttribute("aria-label"), "3 files unreviewed");
+  await view.unmount();
+});
+
+test("a comparison that cannot be read says so as an error, and Try again reads it again", async () => {
+  seedReviewableProject();
+  let reads = 0;
+  const working = reviewableDesktop();
+  window.desktop = fakeDesktop({
+    ...working,
+    diffSummary: async (...args: Parameters<typeof working.diffSummary>) => {
+      reads += 1;
+      return reads === 1 ? { status: "error", message: "git exited with 128" } : working.diffSummary(...args);
+    },
+  });
+  const view = await mount(React.createElement(App));
+  await showSession(view);
+  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Review changes"]').click(); });
+  for (let turn = 0; turn < 50 && !view.container.querySelector(".diff-error"); turn += 1) await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+
+  const error = query(view.container, ".diff-error");
+  assert.equal(error.getAttribute("role"), "alert");
+  assert.match(error.textContent, /git exited with 128/);
+  await act(async () => { query<HTMLButtonElement>(error, "button").click(); });
+  for (let turn = 0; turn < 100 && !view.container.querySelector(".diff-file-row"); turn += 1) await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+
+  assert.ok(reads >= 2);
+  assert.equal(view.container.querySelector(".diff-error"), null);
+  assert.ok(view.container.querySelector(".diff-file-row"), "the review draws once the read succeeds");
+  await view.unmount();
+});

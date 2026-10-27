@@ -1,4 +1,4 @@
-import { LuGitFork as GitFork, LuMessageSquareQuote as MessageSquareQuote, LuX as X } from "react-icons/lu";
+import { LuCheck as Check, LuGitFork as GitFork, LuMessageSquareQuote as MessageSquareQuote, LuX as X } from "react-icons/lu";
 import type { RefObject } from "react";
 import { createPortal } from "react-dom";
 import type { Annotation } from "../../domain/conversation";
@@ -20,6 +20,7 @@ export function AnnotationMarkers({ markers, annotations, noteReturn, onEdit }: 
       className="annotation-marker"
       style={{ left: marker.x, top: marker.y }}
       aria-label={`Edit annotation ${marker.number}`}
+      data-tip="Edit annotation"
       onClick={(event) => {
         const annotation = annotations.find((item) => item.id === marker.id);
         if (annotation?.anchor?.kind !== "message") return;
@@ -73,6 +74,7 @@ export function NoteEditor({ noting, editorRef, onChange, onCommit, onClose, onR
         autoFocus
         value={noting.note}
         placeholder="Annotate…"
+        aria-label="Annotation note"
         onInput={(event) => onChange({ ...noting, note: event.currentTarget.value })}
         onKeyDown={(event) => {
           /** Both keys close the editor, and neither may go on to land in the composer behind it. */
@@ -82,10 +84,14 @@ export function NoteEditor({ noting, editorRef, onChange, onCommit, onClose, onR
           else onClose();
         }}
       />
+      <button type="button" className="annotate-editor-save" aria-label="Save annotation" data-tip="Save · ↵" onClick={() => onCommit(noting)}>
+        <Check size={14} aria-hidden="true" />
+      </button>
       {noting.annotationId && (
         <button
           type="button"
           aria-label="Remove annotation"
+          data-tip="Remove"
           onClick={() => onRemove(noting.annotationId!)}
         >
           <X size={14} />

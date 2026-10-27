@@ -1,6 +1,8 @@
-import { CommandButton } from "./CommandControl";
+import { CommandButton, useCommandControls } from "./CommandControl";
+import { ConfirmAction } from "./SettingRow";
+import { REMOTE_UNSUPPORTED } from "../../contracts/computer-capabilities";
 import { useEffect, useState } from "react";
-import { LuAlarmClock as AlarmClock, LuPause as Pause, LuPlay as Play, LuRotateCw as RotateCw, LuTrash2 as Trash2 } from "react-icons/lu";
+import { LuAlarmClock as AlarmClock, LuPause as Pause, LuPlay as Play, LuTrash2 as Trash2 } from "react-icons/lu";
 import { isOneShotSchedule, type AutomationPatch, type AutomationView } from "../../domain/automation";
 
 export type AutomationPanelProps = {
@@ -64,6 +66,7 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
   const [surfaceWhen, setSurfaceWhen] = useState(automation?.surfaceWhen ?? "");
   const [endsWhen, setEndsWhen] = useState(automation?.endsWhen ?? "");
   const [now, setNow] = useState(() => Date.now());
+  const canDelete = useCommandControls().available({ type: "automation.delete" });
   const revision = automation ? `${automation.id}:${automation.updatedAt}` : "";
 
   useEffect(() => {
@@ -158,11 +161,11 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
 
         <div className="automation-actions">
           <CommandButton command={{ type: "automation.update", patch }} type="button" disabled={!dirty} onClick={() => onUpdate(patch)}>Save</CommandButton>
-          <CommandButton command={{ type: "automation.update", patch: { paused: !automation.paused } }} type="button" onClick={() => onUpdate({ paused: !automation.paused })} aria-label={automation.paused ? "Resume automation" : "Pause automation"}>
+          <CommandButton command={{ type: "automation.run-now" }} type="button" onClick={onRunNow}>Run now</CommandButton>
+          <CommandButton command={{ type: "automation.update", patch: { paused: !automation.paused } }} type="button" onClick={() => onUpdate({ paused: !automation.paused })} aria-label={automation.paused ? "Resume automation" : "Pause automation"} data-tip={automation.paused ? "Resume" : "Pause"}>
             {automation.paused ? <Play size={14} /> : <Pause size={14} />}
           </CommandButton>
-          <CommandButton command={{ type: "automation.run-now" }} type="button" onClick={onRunNow} aria-label="Run automation now"><RotateCw size={14} /></CommandButton>
-          <CommandButton command={{ type: "automation.delete" }} type="button" className="automation-remove" onClick={onDelete} aria-label="Remove automation"><Trash2 size={14} /></CommandButton>
+          <ConfirmAction className="automation-remove" aria-label="Remove automation" data-tip={canDelete ? "Remove" : REMOTE_UNSUPPORTED} disabled={!canDelete} confirm="Remove" onConfirm={onDelete}><Trash2 size={14} /></ConfirmAction>
         </div>
       </div>
     </section>

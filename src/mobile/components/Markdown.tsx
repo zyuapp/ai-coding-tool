@@ -7,8 +7,10 @@ function urlTransform(url: string): string {
   return /^https?:/i.test(url) ? defaultUrlTransform(url) : "";
 }
 
-function Link({ children, ...props }: ComponentProps<"a">) {
-  return <a {...props} target="_blank" rel="noreferrer">{children}</a>;
+/** A link the phone cannot follow reads as the text it labels, so nothing looks tappable that is not. */
+function Link({ children, href, node: _node, ...props }: ComponentProps<"a"> & { node?: unknown }) {
+  if (!href) return <>{children}</>;
+  return <a {...props} href={href} target="_blank" rel="noreferrer">{children}</a>;
 }
 
 export const Markdown = memo(function Markdown({ text }: { text: string }) {

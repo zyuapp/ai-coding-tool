@@ -55,7 +55,7 @@ export function FileHeader({ file, open, viewed, echo = false, onToggle, onOpenF
         className="diff-file-editor"
         type="button"
         aria-label={`Open ${file.path} in your editor`}
-        data-tip="Editor"
+        data-tip="Open in editor"
         {...reach}
         onClick={() => onOpenFile(file.path)}
       >

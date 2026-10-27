@@ -18,7 +18,7 @@ test("zoom fits the content, bounds buttons and pinches, and leaves ordinary scr
   const stage = query(view.container, ".stage");
   Object.defineProperties(stage, { clientWidth: { value: 400 }, clientHeight: { value: 200 } });
   await act(async () => { fireResizeObservers(); });
-  const readout = () => Number.parseInt(query(view.container, ".viewer-zoom span").textContent, 10);
+  const readout = () => Number.parseInt(query(view.container, ".viewer-zoom-level").textContent, 10);
   const button = (direction: string) => query<HTMLButtonElement>(view.container, `[aria-label="Zoom ${direction}"]`);
   assert.equal(readout(), 50, "oversized content starts fitted to the stage");
   assert.equal(button("out").disabled, true);
@@ -48,4 +48,11 @@ test("zoom fits the content, bounds buttons and pinches, and leaves ordinary scr
   assert.equal(readout(), 400);
   await wheel(true, 1000);
   assert.equal(readout(), 50);
+
+  const level = () => query<HTMLButtonElement>(view.container, ".viewer-zoom-level");
+  assert.equal(level().disabled, true, "a fitted view has nothing to reset");
+  await act(async () => { button("in").click(); button("in").click(); });
+  assert.ok(readout() > 50);
+  await act(async () => { level().click(); });
+  assert.equal(readout(), 50, "the readout fits the view again");
 });

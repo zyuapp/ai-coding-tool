@@ -111,7 +111,7 @@ export function BranchMenu({ branches, selected, onPick, anchor, menuRef, includ
   const anchored = useAnchoredStyle(anchor);
   const available = branches?.status === "available" ? branches : null;
   const names = available ? [...available.branches, ...(includeRemotes ? available.remotes : [])] : [];
-  const naming = extra ? null : newBranchName(names, query);
+  const naming = extra || !available ? null : newBranchName(names, query);
   const showExtra = extra && matchBranches([extra.label], query).length > 0;
   /** Remote names only mean something beside the local ones they are not, so only that list is grouped. */
   const groups = includeRemotes
@@ -121,6 +121,15 @@ export function BranchMenu({ branches, selected, onPick, anchor, menuRef, includ
       ].filter((group) => group.names.length > 0)
     : [{ label: null, names: matchBranches(names, query) }];
   const matched = groups.reduce((count, group) => count + group.names.length, 0);
+  /** Enter takes the top row: an existing match first, and a new branch only when nothing matches. */
+  const top = showExtra ? extra.value : groups[0]?.names[0];
+  function submit() {
+    if (top !== undefined) onPick(top, false);
+    else if (naming) onPick(naming, true);
+  }
+  let empty = "Reading branches…";
+  if (branches?.status === "error") empty = branches.message;
+  else if (branches) empty = "No branch matches";
 
   const option = (name: string, label: string, className?: string) => (
     <PickerOption
@@ -140,26 +149,26 @@ export function BranchMenu({ branches, selected, onPick, anchor, menuRef, includ
       style={anchored ?? undefined}
     >
       {title && <div className="branch-menu-title"><span>{title}</span><kbd>↑↓</kbd></div>}
-      <PickerSearch label="Search branches" value={query} onChange={setQuery} />
+      <PickerSearch label="Search branches" value={query} onChange={setQuery} onSubmit={submit} />
       <div role="listbox" aria-label="Branches">
-        {naming && (
-          <PickerOption selected={false} mark={<Plus size={14} />} onClick={() => onPick(naming, true)}>
-            Create branch “{naming}”
-          </PickerOption>
-        )}
         {showExtra && (
           <>
             {includeRemotes && <p className="branch-menu-group">Not a branch</p>}
             {option(extra.value, extra.label, "branch-menu-extra")}
           </>
         )}
-        {matched === 0 && !naming && !showExtra && <p className="branch-menu-empty">{branches ? "No branch matches" : "Reading branches…"}</p>}
+        {matched === 0 && !naming && !showExtra && <p className={`branch-menu-empty ${branches?.status === "error" ? "error" : ""}`.trimEnd()} role={branches?.status === "error" ? "alert" : undefined}>{empty}</p>}
         {groups.map((group) => (
           <Fragment key={group.label ?? "all"}>
             {group.label && <p className="branch-menu-group">{group.label}</p>}
             {group.names.map((name) => option(name, name))}
           </Fragment>
         ))}
+        {naming && (
+          <PickerOption selected={false} mark={<Plus size={14} />} onClick={() => onPick(naming, true)}>
+            Create branch “{naming}”
+          </PickerOption>
+        )}
       </div>
     </PickerPopover>
   );

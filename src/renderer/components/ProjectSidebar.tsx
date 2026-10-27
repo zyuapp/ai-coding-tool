@@ -18,6 +18,10 @@ import type { SnoozeHours } from "../../domain/thread-snooze";
 import type { ThreadRole } from "../../domain/thread-role";
 import type { AppUpdate } from "../../domain/app-update";
 import { SidebarFooter } from "./SidebarFooter";
+import { displayShortcut } from "../../domain/shortcuts";
+import { MAC } from "../platform";
+
+const NEW_THREAD_TIP = `New thread (${displayShortcut("Mod+N", MAC)})`;
 
 export type ProjectSidebarProps = {
   open: boolean;
@@ -91,10 +95,12 @@ export type ProjectSidebarProps = {
   onInstallUpdate: () => void;
 };
 
+const ROW_ACTION_SLOTS = 2;
+
 /**
  * How wide every rail is: the most marks any one drawn thread carries. Reserving a slot no row on
- * screen fills, for a thread in a folded list, only pushes the marks away from the titles. Every
- * thread carries its engine mark, which also covers the one slot an action needs.
+ * screen fills, for a thread in a folded list, only pushes the marks away from the titles. A row
+ * offers its menu and at most one action beside it, which take two slots.
  */
 function railSlotsFor(threads: Thread[], marks: Pick<ProjectSidebarProps, "blockedThreadIds" | "runningThreadIds" | "sideChatAttention" | "worktreeThreadIds" | "schedules">, { threadsByCoordinator, waitingLines }: SidebarCoordination) {
   return threads.reduce((widest, thread) => {
@@ -102,7 +108,7 @@ function railSlotsFor(threads: Thread[], marks: Pick<ProjectSidebarProps, "block
     const coordinationStatus = waitingLines.has(thread.id) || members.some((member) => marks.blockedThreadIds.has(member.id) || marks.runningThreadIds.has(member.id) || hasUnreadAttention(member));
     const status = marks.blockedThreadIds.has(thread.id) || marks.runningThreadIds.has(thread.id) || Boolean(thread.limitPause) || hasUnreadAttention(thread) || marks.sideChatAttention.has(thread.id) || coordinationStatus;
     return Math.max(widest, 1 + Number(Boolean(thread.role)) + Number(marks.worktreeThreadIds.has(thread.id)) + Number(marks.schedules.has(thread.id)) + Number(status));
-  }, 1);
+  }, ROW_ACTION_SLOTS);
 }
 
 /** The threads the sidebar draws a row for in its mode: those in the lists and folders left open. */
@@ -251,7 +257,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
       style={{ "--row-slots": railSlots } as React.CSSProperties}
     >
       <SidebarHeader mode={mode} canGoBack={canGoBack} canGoForward={canGoForward} onSetMode={onSetMode} onGoBack={onGoBack} onGoForward={onGoForward} computerLinks={computerLinks} computerName={computerName} computerFilter={computerFilter} onSetComputerFilter={onSetComputerFilter} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />
-      <button className="new-task-button" onClick={() => onNewThread()} aria-label="New task" data-tip="New task">
+      <button className="new-task-button" onClick={() => onNewThread()} aria-label="New thread" data-tip={NEW_THREAD_TIP}>
         {/** Two copies of one outline: the resting hairline, and the accent that draws over it on hover. */}
         <svg className="new-task-edge" aria-hidden="true" focusable="false">
           <rect className="new-task-edge-rest" pathLength={100} />
@@ -261,10 +267,10 @@ export const ProjectSidebar = memo(function ProjectSidebar({
       </button>
 
       <div className="sidebar-scroll">
-        {projects.length === 0 && computerFilter !== "all" && <div className="sidebar-project-empty">
+        {projects.length === 0 && <div className="sidebar-project-empty">
           {selectedComputer && selectedComputer.status !== "connected"
             ? <p role="alert">{offlineMessage(selectedComputer)}</p>
-            : <><p>{selectedComputer?.name ?? (computerName || "This computer")} has no projects yet</p><button type="button" onClick={onOpenFolder}>Add project</button></>}
+            : <><p>{computerFilter === "all" ? "No projects yet" : `${selectedComputer?.name ?? (computerName || "This computer")} has no projects yet`}</p><button type="button" className="sidebar-empty-action" onClick={onOpenFolder}>Add project</button></>}
         </div>}
         {mode === "activity" && <SidebarActivity
           activityThreads={activityThreads}

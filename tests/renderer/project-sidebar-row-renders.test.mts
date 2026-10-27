@@ -27,7 +27,7 @@ test("a background run's tool call redraws only its own row, in both sidebar mod
   const desktop = fakeDesktop({ listAutomations: async () => [automationView({ taskId: "quiet-3" })] });
   window.desktop = desktop;
   const view = await mount(React.createElement(App));
-  const row = (title: string) => query<HTMLElement>(view.container, `.task-row[title="${title}"], .project-task-row[title="${title}"]`);
+  const row = (title: string) => item([...view.container.querySelectorAll<HTMLElement>(".task-row, .project-task-row")].find((entry) => entry.title.split("\n")[0] === title));
 
   await act(async () => { row("Busy task").click(); });
   const textarea = query<HTMLTextAreaElement>(view.container, 'textarea[aria-label="Task prompt"]');

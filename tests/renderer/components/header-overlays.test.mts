@@ -1,0 +1,92 @@
+import { dom, mount, query } from "../../support/renderer-dom.mts";
+import assert from "node:assert/strict";
+import { test } from "vitest";
+import React, { act } from "react";
+import type { ThreadTabView } from "../../../src/application/workspace-state.ts";
+
+const { BranchMenu } = await import("../../../src/renderer/components/BranchMenu.tsx");
+const { ThreadTabStrip } = await import("../../../src/renderer/components/ThreadTabStrip.tsx");
+const { FindBar } = await import("../../../src/renderer/components/FindBar.tsx");
+
+async function type(input: HTMLInputElement, value: string) {
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")!.set!.call(input, value);
+    input.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true }));
+  });
+}
+
+async function enter(input: HTMLInputElement) {
+  await act(async () => { input.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
+}
+
+test("Enter in the branch search takes an existing match first, and makes a branch only when nothing matches", async () => {
+  const picks: Array<{ branch: string; create: boolean }> = [];
+  const view = await mount(React.createElement(BranchMenu, {
+    branches: { status: "available", branches: ["main", "feature-login", "feature-logout"], remotes: [], current: "main" },
+    selected: "main",
+    onPick: (branch: string, create: boolean) => { picks.push({ branch, create }); },
+  }));
+  try {
+    const input = query<HTMLInputElement>(view.container, 'input[aria-label="Search branches"]');
+    await type(input, "feature");
+    const labels = [...view.container.querySelectorAll('[role="option"]')].map((option) => option.textContent);
+    assert.deepEqual(labels, ["feature-login", "feature-logout", "Create branch “feature”"], "the new name follows the matches");
+    await enter(input);
+    assert.deepEqual(picks, [{ branch: "feature-login", create: false }]);
+    await type(input, "release");
+    await enter(input);
+    assert.deepEqual(picks.at(-1), { branch: "release", create: true });
+  } finally { await view.unmount(); }
+});
+
+test("a branch list Git could not read says why", async () => {
+  const view = await mount(React.createElement(BranchMenu, {
+    branches: { status: "error", message: "fatal: not a git repository" },
+    selected: null,
+    onPick: () => {},
+  }));
+  try {
+    const note = query(view.container, ".branch-menu-empty");
+    assert.equal(note.textContent, "fatal: not a git repository");
+    assert.equal(note.getAttribute("role"), "alert");
+    await type(query<HTMLInputElement>(view.container, 'input[aria-label="Search branches"]'), "new");
+    assert.equal(view.container.querySelector('[role="option"]'), null, "no branch is offered to a repository that cannot answer");
+  } finally { await view.unmount(); }
+});
+
+function tab(overrides: Partial<ThreadTabView>): ThreadTabView {
+  return {
+    thread: { id: "t", title: "T" },
+    folder: "/project",
+    workspaceId: "w",
+    environment: { status: "available", files: [{ path: "a.ts" }], branch: "feat/login", baseline: null, additions: 12, deletions: 3 },
+    pullRequest: { status: "found", pullRequest: { url: "https://example.com/pr/42", number: 42, title: "Login", state: "merged" } },
+    automation: null,
+    ...overrides,
+  } as unknown as ThreadTabView;
+}
+
+test("the thread strip's chips name what they show to assistive technology", async () => {
+  window.desktop = { branches: async () => ({ status: "available", branches: [], remotes: [], current: null }) } as unknown as typeof window.desktop;
+  const actions = { onToggleChanges() {}, onOpenAutomations() {}, onSetBranchMenuOpen() {}, onCheckoutBranch() {} };
+  const view = await mount(React.createElement(ThreadTabStrip, { tab: tab({}), branchMenuOpen: false, actions }));
+  try {
+    assert.ok(view.container.querySelector('button[aria-label="Branch feat/login"]'));
+    assert.ok(view.container.querySelector('button[aria-label="Review changes, +12 −3"]'));
+    assert.equal(query(view.container, ".thread-tab-pull-request").getAttribute("title"), "#42 · Merged · Login");
+    assert.equal(query(view.container, 'button[aria-label="Open Automation panel"]').dataset.tip, "Automations");
+  } finally { await view.unmount(); }
+});
+
+test("the find bar's buttons name their keys", async () => {
+  const view = await mount(React.createElement(FindBar, {
+    find: { query: "x", matches: 2, index: 0, counting: false, focus: 0 } as React.ComponentProps<typeof FindBar>["find"],
+    label: "thread",
+    onQuery() {}, onStep() {}, onClose() {},
+  }));
+  try {
+    assert.match(query(view.container, 'button[aria-label="Previous match"]').dataset.tip ?? "", /^Previous match \(/);
+    assert.match(query(view.container, 'button[aria-label="Next match"]').dataset.tip ?? "", /^Next match \(/);
+    assert.match(query(view.container, 'button[aria-label="Close find"]').dataset.tip ?? "", /^Close \(Esc/);
+  } finally { await view.unmount(); }
+});

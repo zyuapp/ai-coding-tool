@@ -2,7 +2,7 @@ import { shortcutKeys, type ShortcutSetting } from "../../domain/shortcuts";
 import type { DesktopShortcutUnavailable } from "../../application/workspace-state";
 import { MAC } from "../platform";
 import { shortcutSettingId } from "../../domain/settings-catalog";
-import { useSettingMark } from "./SettingRow";
+import { ConfirmAction, useSettingMark } from "./SettingRow";
 
 export type ShortcutSettingsProps = {
   shortcuts: ShortcutSetting[];
@@ -28,7 +28,7 @@ export function ShortcutSettings({ shortcuts, capturingShortcut, desktopShortcut
             <div><h3>{group}</h3></div>
             {index === 0 && (
               <div className="settings-group-action">
-                <button type="button" disabled={shortcuts.every((shortcut) => !shortcut.changed)} onClick={onResetShortcuts}>Restore defaults</button>
+                <ConfirmAction disabled={shortcuts.every((shortcut) => !shortcut.changed)} confirm="Restore all" onConfirm={onResetShortcuts}>Restore defaults</ConfirmAction>
               </div>
             )}
           </div>
@@ -72,9 +72,8 @@ function ShortcutRow({ shortcut, capturing, unavailable, onCaptureShortcut, onSe
               ? <kbd className="shortcut-keys">{shortcutKeys(shortcut.binding, MAC).map((key, index) => <span className="shortcut-key" key={index}>{key}</span>)}</kbd>
               : <em>Not set</em>}
             <button type="button" onClick={() => onCaptureShortcut(shortcut.id)}>Change</button>
-            {shortcut.changed
-              ? <button type="button" onClick={() => onSetShortcut(shortcut.id, shortcut.defaultBinding)}>Reset</button>
-              : <button type="button" disabled={!shortcut.binding} onClick={() => onSetShortcut(shortcut.id, null)}>Clear</button>}
+            <button type="button" disabled={!shortcut.changed} onClick={() => onSetShortcut(shortcut.id, shortcut.defaultBinding)}>Reset</button>
+            <button type="button" disabled={!shortcut.binding} onClick={() => onSetShortcut(shortcut.id, null)}>Clear</button>
           </>}
     </div>
   </div>;

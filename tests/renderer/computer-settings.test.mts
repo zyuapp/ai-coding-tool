@@ -105,3 +105,21 @@ test("a paired computer's row lists its software in one column of steps", async 
     await view.unmount();
   }
 });
+
+test("removing a paired computer asks once more before it forgets it", async () => {
+  const forgotten: string[] = [];
+  const view = await mount(settings({
+    links: [{ id: "mac", name: "MacBook", host: "mac.tail.ts.net", status: "connected", error: null, pairedAt: 1 }],
+    onForget: (id) => forgotten.push(id),
+  }));
+  try {
+    const row = view.container.querySelector("[data-computer='mac']")!;
+    await act(async () => { row.querySelector<HTMLButtonElement>("button[aria-label='Remove MacBook']")!.click(); });
+    assert.deepEqual(forgotten, []);
+    assert.equal(dom.window.document.activeElement?.textContent, "Cancel");
+    await act(async () => { row.querySelector<HTMLButtonElement>("button.danger")!.click(); });
+    assert.deepEqual(forgotten, ["mac"]);
+  } finally {
+    await view.unmount();
+  }
+});

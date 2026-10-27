@@ -10,6 +10,7 @@ import { isCommitHash, messageImagePath, messageImageUrl } from "../../domain/me
 import { messageImages, type MessageImage } from "../../application/message-images";
 import { useKnownCommit } from "../known-commits";
 import { MAX_VISUAL_SOURCE, VISUAL_LANGUAGE } from "../../domain/visual-frame";
+import { MAC } from "../platform";
 
 const APP_HREF = /^aicodingtool:/i;
 const WEB_HREF = /^https?:/i;
@@ -93,6 +94,9 @@ function MarkdownTable({ node, ...props }: ComponentProps<"table"> & ExtraProps)
   );
 }
 
+const IN_APP_CLICK = `${MAC ? "⌘" : "Ctrl"}-click to open in AI Coding Tool`;
+
+/** Opens in the browser, or with the platform's command modifier held, in the app's own browser panel. */
 export function WebLink({ children, openInApp, ...props }: ComponentProps<"a"> & { openInApp?: () => void }) {
   const link = useRef<HTMLAnchorElement>(null);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
@@ -103,6 +107,13 @@ export function WebLink({ children, openInApp, ...props }: ComponentProps<"a"> &
         ref={link}
         target="_blank"
         rel="noreferrer"
+        title={props.title ?? (openInApp ? IN_APP_CLICK : undefined)}
+        onClick={(event) => {
+          props.onClick?.(event);
+          if (!openInApp || event.defaultPrevented || !(MAC ? event.metaKey : event.ctrlKey)) return;
+          event.preventDefault();
+          openInApp();
+        }}
         onContextMenu={openInApp ? (event) => {
           event.preventDefault();
           setMenu({ x: event.clientX, y: event.clientY });

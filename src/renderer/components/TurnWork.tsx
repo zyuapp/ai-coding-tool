@@ -6,6 +6,7 @@ import type { AgentEngine } from "../../domain/agent-engine";
 import type { ConversationMessage } from "../../domain/conversation";
 import { describeToolCall, type ToolCall, type ToolFamily } from "../../domain/tool-call";
 import { timeSteps, toSegments, type TimedStep, type TurnSegment } from "../timeline/grouping";
+import { Copyable } from "./CopyButton";
 import { MarkdownMessage } from "./MarkdownMessage";
 import { StreamingText } from "./StreamingText";
 
@@ -100,7 +101,11 @@ const ToolStep = memo(function ToolStep({ engine, step, named = true, share }: {
       </span>
     </>
   );
-  return <Fold className="work-row" holds={[step.message.id]} messageId={step.message.id} summary={summary}>{() => <pre>{step.message.detail}</pre>}</Fold>;
+  return (
+    <Fold className="work-row" holds={[step.message.id]} messageId={step.message.id} summary={summary}>
+      {() => <Copyable text={step.message.detail ?? ""} label="Copy the output"><pre>{step.message.detail}</pre></Copyable>}
+    </Fold>
+  );
 });
 
 /** Run of tool calls: the newest one stays visible, the rest hide behind a +N counter. */

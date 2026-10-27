@@ -16,7 +16,7 @@ async function loaded(width: number, height: number) {
 
 test("a loaded picture exposes zoom controls and resizes its image", async () => {
   const view = await mount(React.createElement(AttachmentViewer, { source: "shot.png", onClose: () => {}, onDownload: () => {} }));
-  const readout = () => query(document, ".viewer-zoom span").textContent;
+  const readout = () => query(document, ".viewer-zoom-level").textContent;
   const zoom = (label: string) => query<HTMLButtonElement>(document, `.viewer-zoom button[aria-label="${label}"]`);
 
   assert.equal(document.querySelector(".viewer-zoom"), null);

@@ -1,5 +1,5 @@
 import { createContext, memo, useContext, useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
-import { LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuChevronDown as ChevronDown, LuCircleCheck as Resolved, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuTrash2 as Trash, LuUndo2 as Reopen, LuX as X } from "react-icons/lu";
+import { LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuChevronDown as ChevronDown, LuCircleCheck as Resolved, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuPencil as Pencil, LuTrash2 as Trash, LuUndo2 as Reopen, LuX as X } from "react-icons/lu";
 import { deliveryLabel, MAX_MEMORY_NOTE, MAX_PURPOSE, nextStepOf, OVERVIEW_GROUPS, type MemoryNote, type OverviewFold, type OverviewFolds, type OverviewGroup, type OverviewSection, type ThreadBrief, type ThreadModelChoice } from "../../domain/coordination";
 import { modelDelegable, modelEngine, modelLabel, type AgentEngine, type AgentModel, type EngineReadiness } from "../../domain/agent-engine";
 import type { AgentEffort } from "../../domain/run";
@@ -11,7 +11,7 @@ import { overviewGroups, type CoordinationUsage, type CoordinatedThreadView, typ
 import type { ThreadHost } from "../../application/computers";
 import type { MemberWorktree } from "../../application/member-worktrees";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
-import { CommandButton, CommandGate } from "./CommandControl";
+import { CommandButton, CommandGate, useCommandControls } from "./CommandControl";
 import { compactTokens } from "./ContextUsageMeter";
 import { ModelMenu } from "./ComposerSettings";
 import { HostMark } from "./HostMark";
@@ -105,7 +105,7 @@ export function CoordinatorOverview({ header, memory, members, usage, worktrees,
       {members.length
         ? OVERVIEW_GROUPS.map((group) => groups[group].length > 0 && (
             <ThreadGroup key={group} group={group} members={groups[group]} fold={folds[group] ?? {}} worktrees={worktrees} onSetFold={onSetFold} onSelect={onSelect}
-              {...(group === "working" ? { action: <StopAllButton taskId={header.taskId} stoppable={stoppable} /> } : {})} />
+              {...(group === "working" ? { action: <StopAllButton taskId={header.taskId} stoppable={stoppable} working={groups.working.length} /> } : {})} />
           ))
         : <p className="session-empty coordination-empty">No threads yet</p>}
       <CommandGate command={{ type: "memory.add", taskId: memory.taskId, text: "" }}>
@@ -172,13 +172,15 @@ function overviewFocus(place: OverviewPlace, root: HTMLElement, groups: Record<O
  * puts it back as it was. A `multiline` one wraps as it is read rather than scrolling sideways, and
  * Enter still saves it.
  */
-function InlineEdit({ value, label, placeholder, className, maxLength, multiline = false, onSave }: {
+function InlineEdit({ value, label, placeholder, className, maxLength, multiline = false, editIcon = false, onSave }: {
   value: string;
   label: string;
   placeholder?: string;
   className: string;
   maxLength: number;
   multiline?: boolean;
+  /** Marks the text as editable with a pencil while pointed at or focused. */
+  editIcon?: boolean;
   onSave: (text: string) => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
@@ -197,7 +199,8 @@ function InlineEdit({ value, label, placeholder, className, maxLength, multiline
   if (draft === null) {
     return (
       <button ref={reading} type="button" className={className} aria-label={value ? `Edit ${label.toLowerCase()}: ${value}` : placeholder ?? `Edit ${label.toLowerCase()}`} title={value || undefined} onClick={() => { settled.current = false; opened.current = value; setDraft(value); }}>
-        {value || <span className="coordination-placeholder">{placeholder}</span>}
+        {value ? <span>{value}</span> : <span className="coordination-placeholder">{placeholder}</span>}
+        {editIcon && <Pencil className="coordination-purpose-edit" size={12} aria-hidden="true" />}
       </button>
     );
   }
@@ -227,7 +230,7 @@ function InlineEdit({ value, label, placeholder, className, maxLength, multiline
 
 /** What the coordinator is for, in one line. Saving it empty takes it off. */
 function PurposeLine({ purpose, onSave }: { purpose: string | null; onSave: (purpose: string | null) => void }) {
-  return <InlineEdit value={purpose ?? ""} label="Purpose" placeholder="Add a purpose" className="coordination-purpose" maxLength={MAX_PURPOSE} onSave={(text) => onSave(text || null)} />;
+  return <InlineEdit value={purpose ?? ""} label="Purpose" placeholder="Add a purpose" className="coordination-purpose" maxLength={MAX_PURPOSE} editIcon onSave={(text) => onSave(text || null)} />;
 }
 
 /** How much of a note names the button that forgets it. */
@@ -347,8 +350,27 @@ function UsageSection({ usage, fold, onSetFold, onSelect }: { usage: Coordinatio
 }
 
 /** Stops the coordinator and everything working under it, as its thread menu does. */
-function StopAllButton({ taskId, stoppable }: { taskId: string; stoppable: boolean }) {
-  return <CommandButton type="button" className="coordination-stop-all" command={{ type: "coordination.stop-all", taskId }} disabled={!stoppable}>Stop all</CommandButton>;
+function StopAllButton({ taskId, stoppable, working }: { taskId: string; stoppable: boolean; working: number }) {
+  const [confirming, setConfirming] = useState(false);
+  const controls = useCommandControls();
+  const command = { type: "coordination.stop-all", taskId } as const;
+  return (
+    <CommandButton
+      type="button"
+      className={`coordination-stop-all ${confirming ? "danger" : ""}`.trimEnd()}
+      command={command}
+      disabled={!stoppable}
+      onBlur={() => setConfirming(false)}
+      onKeyDown={(event) => { if (confirming && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setConfirming(false); } }}
+      onClick={() => {
+        if (!confirming) return setConfirming(true);
+        setConfirming(false);
+        controls.dispatch(command);
+      }}
+    >
+      {confirming ? `Stop ${working === 1 ? "1 thread" : `${working} threads`}` : "Stop all"}
+    </CommandButton>
+  );
 }
 
 /** What the coordinator's new threads run on, picked with the composer's own chips. */

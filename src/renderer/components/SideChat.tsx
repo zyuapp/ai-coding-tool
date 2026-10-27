@@ -187,7 +187,7 @@ export function SideChat({ chat, sourceTitle, sourceContinued, onClose, ...props
             <span className="side-chat-fork"><GitFork size={18} /></span>
             <div><h2>{chat.title}</h2><p>Temporary · forked from {sourceTitle}</p></div>
           </div>
-          <button type="button" aria-label="Close side chat" onClick={onClose}><X size={18} /></button>
+          <button type="button" aria-label="Close side chat" data-tip="Close side chat" onClick={onClose}><X size={18} /></button>
         </header>
       }
       empty={{

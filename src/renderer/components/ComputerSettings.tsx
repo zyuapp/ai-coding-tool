@@ -4,9 +4,10 @@ import { MAX_COMPUTER_NAME, type ComputerLink, type ComputerPairing, type Discov
 import type { ComputerUpkeep, UpkeepItem, UpkeepPart } from "../../application/computer-updates";
 import type { AppCommand } from "../../contracts/commands";
 import { RenameInput, useRenaming } from "./SidebarRename";
-import { SettingGroup } from "./SettingRow";
+import { ConfirmAction, SettingGroup } from "./SettingRow";
 import { settingControl } from "../../domain/settings-catalog";
 import { SpinningIcon } from "./SpinningIcon";
+import { PAIRING_CODE_LENGTH } from "../../domain/mobile";
 
 export type ComputerSettingsProps = {
   found: DiscoveredComputer[];
@@ -71,7 +72,8 @@ function Software({ items, onCommand }: { items: readonly UpkeepItem[]; onComman
 /** The code the other computer printed, typed here, which is the whole of pairing. */
 function CodeEntry({ pairing, onPair, onCancel }: { pairing: ComputerPairing; onPair: (code: string) => void; onCancel: () => void }) {
   const [code, setCode] = useState("");
-  const ready = code.trim().length >= 8 && !pairing.busy;
+  const typed = code.trim().length;
+  const ready = typed >= PAIRING_CODE_LENGTH && !pairing.busy;
   return (
     <form
       className="computer-code"
@@ -81,7 +83,7 @@ function CodeEntry({ pairing, onPair, onCancel }: { pairing: ComputerPairing; on
       }}
     >
       <label>
-        <span>Code shown by {pairing.name}</span>
+        <span>Code shown by {pairing.name}{typed > 0 && typed < PAIRING_CODE_LENGTH && ` · ${PAIRING_CODE_LENGTH - typed} more`}</span>
         <input
           autoFocus
           autoComplete="off"
@@ -216,7 +218,7 @@ export function ComputerSettings({ found, searching, searchError, name, links, p
             {link.status !== "connected" && !upkeepOf.has(link.id) && <button type="button" onClick={() => onReconnect(link.id)}>Reconnect</button>}
             {upkeepOf.get(link.id)?.action && onCommand && <button type="button" onClick={() => onCommand(upkeepOf.get(link.id)!.action!.command)}>{upkeepOf.get(link.id)!.action!.label}</button>}
             <button type="button" className="icon" aria-label={`Rename ${link.name}`} data-tip="Rename" disabled={labels.editing === link.id} onClick={(event) => labels.start(link.id, event.currentTarget.closest(".setting-row"))}><Pencil size={14} aria-hidden="true" /></button>
-            <button type="button" className="icon danger" aria-label={`Remove ${link.name}`} data-tip="Remove" onClick={() => onForget(link.id)}><Trash size={14} aria-hidden="true" /></button>
+            <ConfirmAction className="icon danger" aria-label={`Remove ${link.name}`} data-tip="Remove" confirm="Remove" onConfirm={() => onForget(link.id)}><Trash size={14} aria-hidden="true" /></ConfirmAction>
           </div>
           <Software items={upkeepOf.get(link.id)?.items ?? []} onCommand={onCommand} />
         </div>

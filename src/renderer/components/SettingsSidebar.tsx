@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboa
 import { SETTINGS_JUMP_OPTIONS, SETTINGS_PAGE_LABELS, type SettingsJumpOption } from "../../domain/settings-catalog";
 import { rankSettingsJumps } from "../../domain/settings-jump";
 import { SETTINGS_SECTIONS, type SettingsSection } from "../../domain/settings-section";
+import { moveListFocus } from "../focus";
 
 const PAGE_ICONS: Record<SettingsSection, IconType> = {
   general: SlidersHorizontal,
@@ -22,7 +23,8 @@ const resultId = (option: SettingsJumpOption) => `settings-search-${option.id}`;
 
 export type SettingsSidebarProps = {
   section: SettingsSection;
-  backRef: React.RefObject<HTMLButtonElement | null>;
+  /** The search field, which takes the focus when settings opens. */
+  searchRef: React.RefObject<HTMLInputElement | null>;
   onClose: () => void;
   /** Opens a page, marking the control on it a search named. */
   onLand: (section: SettingsSection, settingId: string | null) => void;
@@ -32,7 +34,7 @@ export type SettingsSidebarProps = {
 };
 
 /** The way out of settings, a search across every page, and the list of pages the search stands in for while it has a query. */
-export function SettingsSidebar({ section, backRef, onClose, onLand, onRefreshEngines, onRefreshWorktrees, onRefreshRemote }: SettingsSidebarProps) {
+export function SettingsSidebar({ section, searchRef, onClose, onLand, onRefreshEngines, onRefreshWorktrees, onRefreshRemote }: SettingsSidebarProps) {
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState(0);
   const results = useMemo(() => rankSettingsJumps(query, SETTINGS_JUMP_OPTIONS.length), [query]);
@@ -71,7 +73,7 @@ export function SettingsSidebar({ section, backRef, onClose, onLand, onRefreshEn
   return (
     <aside className="settings-sidebar">
       <div className="settings-traffic-space" aria-hidden="true" />
-      <button ref={backRef} className="settings-back" type="button" onClick={onClose}>
+      <button className="settings-back" type="button" data-tip="Esc" onClick={onClose}>
         <ArrowLeft size={18} aria-hidden="true" />
         <span>Back to AI Coding Tool</span>
       </button>
@@ -79,6 +81,7 @@ export function SettingsSidebar({ section, backRef, onClose, onLand, onRefreshEn
       <label className="settings-search">
         <Search size={16} aria-hidden="true" />
         <input
+          ref={searchRef}
           value={query}
           role="combobox"
           aria-label="Search settings"
@@ -118,7 +121,7 @@ export function SettingsSidebar({ section, backRef, onClose, onLand, onRefreshEn
           </div>
         ) : <p className="settings-search-empty">No settings match</p>
       ) : (
-        <nav aria-label="Settings sections">
+        <nav aria-label="Settings sections" onKeyDown={moveListFocus}>
           {SETTINGS_SECTIONS.map((page) => {
             const Icon = PAGE_ICONS[page];
             return (

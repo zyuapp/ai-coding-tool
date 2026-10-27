@@ -90,6 +90,25 @@ test("a web link opens externally by default and offers the browser panel on rig
   await view.unmount();
 });
 
+test("a web link opens in the browser panel when clicked with the command key held", async () => {
+  const { MAC } = await import("../../../src/renderer/platform.ts");
+  const opened: string[] = [];
+  const view = await mountMessage("Read https://example.com/docs for the rest.", { openUrlInApp: (url) => opened.push(url) });
+  const link = query<HTMLAnchorElement>(view.container, "a");
+  const click = (held: boolean) => {
+    const event = new dom.window.MouseEvent("click", { bubbles: true, cancelable: true, metaKey: held && MAC, ctrlKey: held && !MAC });
+    link.dispatchEvent(event);
+    return event.defaultPrevented;
+  };
+
+  await act(async () => { assert.equal(click(false), false, "a plain click still goes to the default browser"); });
+  assert.deepEqual(opened, []);
+  await act(async () => { assert.equal(click(true), true); });
+  assert.deepEqual(opened, ["https://example.com/docs"]);
+  assert.match(link.title, /click to open in AI Coding Tool/);
+  await view.unmount();
+});
+
 test("an old reply previews image links, preserves its text, and enlarges in the app", async () => {
   const opened: string[] = [];
   const text = "Verified. [Screenshot](</tmp/old shot.png>)\n\n[Another][shot]\n\n[shot]: /tmp/second.png";

@@ -72,7 +72,7 @@ export function WorktreeMoveDialog({ move, onConfirm, onClose }: WorktreeMoveDia
         </div>
         <div className="worktree-move-actions">
           <button type="button" onClick={onClose}>Cancel</button>
-          <button ref={confirm} type="button" className="primary" onClick={onConfirm}>Confirm</button>
+          <button ref={confirm} type="button" className="primary" onClick={onConfirm}>{move.worktree ? "Move to worktree" : "Return to local"}</button>
         </div>
       </div>
     </div>,

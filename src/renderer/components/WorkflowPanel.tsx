@@ -73,6 +73,9 @@ function AgentRow({ agent, state, now, onSelect }: { agent: WorkflowAgent; state
   );
 }
 
+/** What a lane's bar colour says, for a reader who cannot see it. */
+const LANE_STATES: Record<WorkflowAgentState, string> = { queued: "queued", running: "running", done: "done", error: "failed", stopped: "stopped" };
+
 /** Every agent on one clock: queue time hollow, run time filled, all lanes sharing the same origin. */
 function Timeline({ workflow, groups, now, onSelect }: { workflow: Workflow; groups: WorkflowGroup[]; now: number; onSelect: (index: number) => void }) {
   const span = useMemo(() => workflowSpan(workflow, now), [workflow, now]);
@@ -90,7 +93,7 @@ function Timeline({ workflow, groups, now, onSelect }: { workflow: Workflow; gro
             const state = agentStateIn(workflow, agent);
             const bar = workflowBar(agent, span, now);
             return (
-              <button className="workflow-lane" type="button" key={agent.index} onClick={() => onSelect(agent.index)} aria-label={`Open ${agent.label} details`}>
+              <button className="workflow-lane" type="button" key={agent.index} onClick={() => onSelect(agent.index)} aria-label={`Open ${agent.label} details, ${LANE_STATES[state]}`}>
                 <span className="workflow-lane-name">{agent.label}</span>
                 <span className="workflow-lane-track">
                   {bar.queue && <i className="queue" style={{ left: `${bar.queue.left}%`, width: `${bar.queue.width}%` }} />}

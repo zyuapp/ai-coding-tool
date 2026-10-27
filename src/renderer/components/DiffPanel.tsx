@@ -55,7 +55,7 @@ function summaryMessage(result: DiffSummaryResult | null, loading: boolean, work
   if (!workspaceId) return "Open a project to review changes";
   /** A first read has nothing to draw, so one quiet line says why the list is not there yet. */
   if (!result) return loading ? "Reading the comparison…" : null;
-  if (result.status === "error") return result.message;
+  if (result.status === "error") return loading ? "Reading the comparison…" : result.message;
   if (result.status === "unknown") return "Workspace is no longer registered";
   if (result.status === "unavailable") return `Workspace is ${result.reason}`;
   if (result.files.length > 0) return null;
@@ -68,6 +68,11 @@ function summaryMessage(result: DiffSummaryResult | null, loading: boolean, work
 /** Whether the review still holds a file that opened folded because it is too large to draw. */
 function overDrawingBudget(files: DiffFileSummary[], collapsed: Set<string>) {
   return [...foldedForSize(files)].some((path) => collapsed.has(path));
+}
+
+/** Whether the line above the list is a failure the user can try again, rather than a wait or a fact. */
+function failed(result: DiffSummaryResult | null) {
+  return result?.status === "error";
 }
 
 /** The one line above the list: why it is not there, what it waits for, or why it opened folded. */
@@ -86,19 +91,32 @@ function panelNote(panel: {
   return null;
 }
 
+/** The line above the list, with a retry when it reports a failure. */
+function PanelNotice({ notice, failed, onRetry }: { notice: string; failed: boolean; onRetry: () => void }) {
+  return failed
+    ? <p className="diff-error" role="alert"><span>{notice}</span><button type="button" onClick={onRetry}>Try again</button></p>
+    : <p className="session-note">{notice}</p>;
+}
+
 /** What the review adds up to: how much of it the user has ticked off, and what it costs in lines. */
-function ReviewProgress({ files, viewed, additions, deletions }: {
+function ReviewProgress({ files, viewed, additions, deletions, onNext }: {
   files: DiffFileSummary[];
   viewed: Record<string, string>;
   additions: number;
   deletions: number;
+  onNext: () => void;
 }) {
   if (files.length === 0) return null;
+  const done = files.filter((file) => viewed[file.path]).length;
+  const label = `${done} of ${files.length} viewed`;
   return (
-    <p className="diff-progress">
-      <span>{files.filter((file) => viewed[file.path]).length} of {files.length} viewed</span>
+    <div className="diff-progress">
+      {done < files.length
+        ? <button type="button" data-tip="Next unviewed file" onClick={onNext}>{label}</button>
+        : <span>{label}</span>}
       <span className="change-counts"><strong>+{additions}</strong><em>−{deletions}</em></span>
-    </p>
+      <span className="diff-progress-meter" aria-hidden="true"><span style={{ width: `${(done / files.length) * 100}%` }} /></span>
+    </div>
   );
 }
 
@@ -238,6 +256,18 @@ export function DiffPanel({
     ? <DiffCommentEditor quote={quote} note={note} editing={editing !== null} noteRef={noteRef} onNote={setNote} onSubmit={comment} onClear={clear} onRemove={removeComment} />
     : <PanelRowView row={row} drawing={drawn.get(row.path)} paint={paints.get(row.path) ?? 0} {...rowView} />;
 
+  /** The first file still to read after the one being read, wrapping to the top of the review. */
+  const nextUnviewed = () => {
+    const from = pinned ? files.findIndex((file) => file.path === pinned.path) : -1;
+    const next = [...files.slice(from + 1), ...files.slice(0, from + 1)].find((file) => !diff.viewed[file.path]);
+    if (!next) return;
+    if (collapsed.has(next.path)) onSetCollapsed(next.path, false);
+    const index = rows.findIndex((row) => row.kind === "file" && row.path === next.path);
+    if (index === -1) return;
+    if (windowed) virtualizer.scrollToIndex(index, { align: "start" });
+    else (scrollRef.current?.children[index] as HTMLElement | undefined)?.scrollIntoView({ block: "start" });
+  };
+
   const overBudget = useMemo(() => overDrawingBudget(files, collapsed), [files, collapsed]);
   const notice = panelNote({ result: diff.result, loading: diff.loading, workspaceId, settling, overBudget, ignoreWhitespace: diff.ignoreWhitespace });
 
@@ -257,8 +287,8 @@ export function DiffPanel({
         onRefresh={onRefresh}
       />
 
-      {available && <ReviewProgress files={files} viewed={diff.viewed} additions={available.additions} deletions={available.deletions} />}
-      {notice && <p className="session-note">{notice}</p>}
+      {available && <ReviewProgress files={files} viewed={diff.viewed} additions={available.additions} deletions={available.deletions} onNext={nextUnviewed} />}
+      {notice && <PanelNotice notice={notice} failed={failed(diff.result) && !diff.loading} onRetry={onRefresh} />}
 
       <div className="diff-scroll">
         <div className="diff-files" ref={scrollRef} onScroll={syncPinned} aria-label="Changed files">

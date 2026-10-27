@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createElement, act } from "react";
 import { test } from "vitest";
 import { computerCommandAvailable } from "../../src/application/computers.ts";
-import { COMPUTER_CAPABILITIES } from "../../src/contracts/computer-capabilities.ts";
+import { COMPUTER_CAPABILITIES, REMOTE_UNSUPPORTED } from "../../src/contracts/computer-capabilities.ts";
 import type { AppCommand } from "../../src/contracts/commands.ts";
 import { CommandButton, CommandControlsProvider } from "../../src/renderer/components/CommandControl.tsx";
 import { MenuList } from "../../src/renderer/components/PopoverMenu.tsx";
@@ -36,11 +36,15 @@ test("thread menus and shared buttons disable unsupported operations on the corr
     assert.equal(query<HTMLButtonElement>(view.container, '[aria-label="Archive local"]').disabled, false);
     const rename = [...view.container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((item) => item.textContent === "Rename")!;
     assert.ok(rename.disabled);
+    assert.equal(rename.dataset.tip, REMOTE_UNSUPPORTED, "the reason shows in the shared tooltip");
+    assert.equal(remote().dataset.tip, REMOTE_UNSUPPORTED);
+    assert.equal(remote().title, "");
     await act(async () => remote().click());
     assert.deepEqual(commands, []);
     state.computers.paired[0]!.capabilities = COMPUTER_CAPABILITIES;
     await view.render(render());
     assert.equal(remote().disabled, false);
+    assert.equal(remote().dataset.tip, undefined);
     await act(async () => remote().click());
     assert.deepEqual(commands, [{ type: "task.archive", taskId: thread.id }]);
   } finally { await view.unmount(); }

@@ -7,17 +7,27 @@ import type { MobileApproval } from "../../contracts/mobile";
  * names that thread above it. Both answers are full-width and thumb-high,
  * and neither sits where the other was a moment ago, so an approval cannot be given by reflex.
  * One tap decides: the card dims and both buttons are disabled until the Mac takes the card away,
- * so a second tap cannot answer twice while the first is still on its way.
+ * so a second tap cannot answer twice while the first is still on its way. `refused` names the last
+ * answer the Mac turned down, which hands the card back to be answered again.
  */
-export function ApprovalSheet({ approval, onDecide }: { approval: MobileApproval; onDecide: (approval: MobileApproval, allow: boolean) => void }) {
-  const [decidedFor, setDecidedFor] = useState<string | null>(null);
-  const decided = decidedFor === approval.approvalId;
+export function ApprovalSheet({ approval, refused = null, onDecide }: {
+  approval: MobileApproval;
+  refused?: string | null;
+  onDecide: (approval: MobileApproval, allow: boolean) => void;
+}) {
+  const [decision, setDecision] = useState<{ approvalId: string; allow: boolean } | null>(null);
+  const [released, setReleased] = useState<string | null>(null);
+  if (refused !== null && refused !== released) {
+    setReleased(refused);
+    if (decision) setDecision(null);
+  }
+  const decided = decision?.approvalId === approval.approvalId ? decision : null;
   function decide(allow: boolean) {
-    setDecidedFor(approval.approvalId);
+    setDecision({ approvalId: approval.approvalId, allow });
     onDecide(approval, allow);
   }
   return (
-    <section className="approval" aria-live="assertive" data-decided={decided || undefined}>
+    <section className="approval" aria-live="assertive" data-decided={decided ? true : undefined}>
       <header>
         <span className="approval-glyph" aria-hidden="true"><ShieldAlert size={16} strokeWidth={1.9} /></span>
         <div>
@@ -33,8 +43,8 @@ export function ApprovalSheet({ approval, onDecide }: { approval: MobileApproval
         </details>
       )}
       <div className="approval-actions">
-        <button type="button" className="deny" disabled={decided} onClick={() => decide(false)}>Deny</button>
-        <button type="button" className="allow" disabled={decided} onClick={() => decide(true)}>Allow</button>
+        <button type="button" className="deny" disabled={decided !== null} onClick={() => decide(false)}>{decided?.allow === false ? "Denying…" : "Deny"}</button>
+        <button type="button" className="allow" disabled={decided !== null} onClick={() => decide(true)}>{decided?.allow ? "Allowing…" : "Allow"}</button>
       </div>
     </section>
   );

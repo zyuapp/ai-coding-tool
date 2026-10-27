@@ -78,7 +78,7 @@ export function PlanUsageWarning({ engine, engineLabel, model, usage, dismissed,
       <strong>{share >= 100 ? "Limit reached" : `${share}% used`}</strong>
       <span className="plan-usage-warning-window">{engineLabel} · {tightest.label}</span>
       {reset && <span className="plan-usage-warning-reset">{reset}</span>}
-      <button type="button" aria-label="Dismiss" onClick={() => onDismiss(warning)}><X size={14} aria-hidden="true" /></button>
+      <button type="button" aria-label="Dismiss" data-tip="Hide until reset" onClick={() => onDismiss(warning)}><X size={14} aria-hidden="true" /></button>
     </div>
   );
 }

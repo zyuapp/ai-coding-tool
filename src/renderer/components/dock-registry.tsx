@@ -13,6 +13,7 @@ import { isCoordinator } from "../../domain/coordination";
 import { engineLabel } from "../../domain/agent-engine";
 import type { DiffState } from "../../application/workspace-state";
 import type { FindTarget } from "../../domain/find";
+import { REMOTE_UNSUPPORTED } from "../../contracts/computer-capabilities";
 import type { ReactNode } from "react";
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;
@@ -29,6 +30,8 @@ export type DockPanel = {
   command?: string;
   icon: IconType;
   badge?: number;
+  /** What the badge counts, said in full. */
+  badgeLabel?: string;
   /** The badge counts what is waiting on the user rather than what is going on. */
   attention?: boolean;
   /** A tab the dock keeps for as long as it applies, so it has no close button. */
@@ -37,9 +40,15 @@ export type DockPanel = {
 };
 
 /** An entry in the picker and the add menu: a panel to open, or an action that creates one. */
-export type DockLauncher = { id: string; title: string; description: string; command: string; icon: IconType; disabled?: boolean; open: () => void };
+export type DockLauncher = { id: string; title: string; description: string; command: string; icon: IconType; disabled?: boolean; disabledReason?: string; open: () => void };
 
-export type DockTab = { id: string; title: string; icon: IconType; badge?: number; attention?: boolean; pinned?: boolean; unread?: boolean };
+export type DockTab = { id: string; title: string; icon: IconType; badge?: number; badgeLabel?: string; attention?: boolean; pinned?: boolean; unread?: boolean };
+
+/** A launcher, disabled with the reason when its host lacks the command or the workspace lacks what it needs. */
+function launcher(entry: Omit<DockLauncher, "disabled" | "disabledReason">, available: boolean, missing: string | null = null): DockLauncher {
+  const reason = available ? missing : REMOTE_UNSUPPORTED;
+  return reason ? { ...entry, disabled: true, disabledReason: reason } : entry;
+}
 
 /** The add menu is an `openMenu` value like any other, so the dock can tell when it is over a page. */
 export const ADD_TAB_MENU = "dock-add";
@@ -100,6 +109,7 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
       description: "Follow the threads working under this coordinator",
       icon: LayoutGrid,
       badge: needsYou,
+      badgeLabel: `${needsYou} need${needsYou === 1 ? "s" : ""} you`,
       attention: true,
       pinned: true,
       render: () => (
@@ -139,6 +149,7 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
       command: "subagents",
       icon: Bot,
       badge: workingSubagents,
+      badgeLabel: `${workingSubagents} working`,
       render: () => (inspectedSubagent
         ? <SubagentInspector subagent={inspectedSubagent} finding={findingAgents} onClose={onCloseInspector} onStop={workspace.actions.stopBackgroundProcess} />
         : <AgentsPanel
@@ -165,6 +176,7 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
       command: "diff",
       icon: FileDiff,
       badge: unreviewedFiles,
+      badgeLabel: `${unreviewedFiles} ${unreviewedFiles === 1 ? "file" : "files"} unreviewed`,
       render: () => (
         <DiffPanel
           /** Per thread, so a selection or a half-typed note never carries into another thread's review. */
@@ -213,10 +225,10 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
 
   /** One click opens the thing itself: a launcher makes a tab rather than a panel that holds tabs. */
   const launchers: DockLauncher[] = [
-    ...panels.flatMap(({ id, title, description, command, icon }) => command ? [{ id, title, description, command, icon, disabled: !workspace.commandControls.available({ type: "view.open-dock-panel", panel: id }), open: () => onOpenPanel(id) }] : []),
-    { id: "browser", title: "Browser", description: "Browse in one session the whole app shares", command: "browser", icon: Globe, disabled: !workspace.commandControls.available({ type: "browser.new-tab" }), open: () => void workspace.actions.newBrowserTab() },
-    { id: "terminal", title: "Terminal", description: `Run a shell here and let ${workspace.engineLabel} read what it prints`, command: "terminal", icon: SquareTerminal, disabled: !workspace.currentFolder || !workspace.commandControls.available({ type: "terminal.open" }), open: () => void workspace.actions.openTerminal() },
-    { id: "side-chat", title: "Side chat", description: "Start a focused conversation from this task", command: "side", icon: GitFork, disabled: !workspace.currentThread || !workspace.commandControls.available({ type: "side-chat.open", chatId: "new" }), open: onAddSideChat },
+    ...panels.flatMap(({ id, title, description, command, icon }) => command ? [launcher({ id, title, description, command, icon, open: () => onOpenPanel(id) }, workspace.commandControls.available({ type: "view.open-dock-panel", panel: id }))] : []),
+    launcher({ id: "browser", title: "Browser", description: "Browse in one session the whole app shares", command: "browser", icon: Globe, open: () => void workspace.actions.newBrowserTab() }, workspace.commandControls.available({ type: "browser.new-tab" })),
+    launcher({ id: "terminal", title: "Terminal", description: `Run a shell here and let ${workspace.engineLabel} read what it prints`, command: "terminal", icon: SquareTerminal, open: () => void workspace.actions.openTerminal() }, workspace.commandControls.available({ type: "terminal.open" }), workspace.currentFolder ? null : "Open a project to start a terminal"),
+    launcher({ id: "side-chat", title: "Side chat", description: "Start a focused conversation from this task", command: "side", icon: GitFork, open: onAddSideChat }, workspace.commandControls.available({ type: "side-chat.open", chatId: "new" }), workspace.currentThread ? null : "Open a thread to fork it"),
   ];
 
   return { panels, launchers };

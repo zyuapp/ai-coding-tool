@@ -1,6 +1,6 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { LuCheck as Check, LuChevronRight as ChevronRight, LuEllipsis as Ellipsis } from "react-icons/lu";
+import { LuCheck as Check, LuChevronDown as ChevronDown, LuChevronRight as ChevronRight, LuEllipsis as Ellipsis } from "react-icons/lu";
 import { useDismissibleLayer } from "../focus";
 import { useCommandControls } from "./CommandControl";
 import type { AppCommand } from "../../contracts/commands";
@@ -36,6 +36,38 @@ const EDGE = 8;
 
 /** The small gap between a row and a menu drawn outside the row's clipping container. */
 const ANCHOR_GAP = 4;
+
+/** How long the pointer may rest on a sibling before an open submenu gives way to it, so a diagonal path into the submenu keeps it. */
+const SUBMENU_INTENT_MS = 220;
+
+/** How long typed letters keep adding to one search before the next key starts a new one. */
+const TYPEAHEAD_MS = 700;
+
+/**
+ * Typing a row's first letters focuses it, as native menus do. A repeated single letter steps through
+ * the rows that start with it. Returns whether the key was a letter the list took.
+ */
+export function useTypeahead() {
+  const typed = useRef({ text: "", at: -Infinity });
+  return (event: KeyboardEvent<HTMLElement>, rows: readonly (HTMLButtonElement | null)[]) => {
+    if (event.key.length !== 1 || event.metaKey || event.ctrlKey || event.altKey) return false;
+    const fresh = event.timeStamp - typed.current.at > TYPEAHEAD_MS;
+    if (event.key === " " && fresh) return false;
+    const text = (fresh ? "" : typed.current.text) + event.key.toLowerCase();
+    typed.current = { text, at: event.timeStamp };
+    const usable = rows.filter((row): row is HTMLButtonElement => Boolean(row && !row.disabled));
+    const at = usable.indexOf(document.activeElement as HTMLButtonElement);
+    const needle = [...text].every((letter) => letter === text[0]) ? text[0] : text;
+    const start = needle.length === 1 ? at + 1 : Math.max(at, 0);
+    const match = [...usable.slice(start), ...usable.slice(0, start)]
+      .find((row) => (row.querySelector(".menu-label") ?? row).textContent?.trim().toLowerCase().startsWith(needle));
+    event.stopPropagation();
+    if (!match) return true;
+    event.preventDefault();
+    match.focus();
+    return true;
+  };
+}
 
 function usableIndexes(entries: MenuEntry[]): number[] {
   return entries.flatMap((entry, index) => entry !== "separator" && !entry.disabled ? [index] : []);
@@ -75,6 +107,41 @@ function SubmenuPanel({ children, top, autoFocus, onLeave }: { children: ReactNo
   }}>{children}</div>;
 }
 
+/** A sibling waiting out the pointer's way into an open submenu. */
+function useHoverIntent() {
+  const pending = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancel = () => {
+    if (pending.current) clearTimeout(pending.current);
+    pending.current = null;
+  };
+  useEffect(() => cancel, []);
+  /** Runs `apply` now, or after the pointer rests when `wait`, replacing whatever was waiting. */
+  const schedule = (apply: () => void, wait: boolean) => {
+    cancel();
+    if (!wait) return apply();
+    pending.current = setTimeout(() => { pending.current = null; apply(); }, SUBMENU_INTENT_MS);
+  };
+  return { schedule, cancel };
+}
+
+/**
+ * A list opened from an item is drawn to its right until the window runs out, then to its left,
+ * and lifted back up when it runs past the bottom. Measured once, while it still sits where the
+ * stylesheet put it: measuring it again would read the place the move just gave it and move again.
+ */
+function useSubmenuPlacement(isSubmenu: boolean, list: RefObject<HTMLDivElement | null>) {
+  const [placement, setPlacement] = useState({ flipped: false, lift: 0 });
+  const measured = useRef(false);
+  useLayoutEffect(() => {
+    if (!isSubmenu || measured.current) return;
+    const box = list.current?.getBoundingClientRect();
+    if (!box) return;
+    measured.current = true;
+    setPlacement({ flipped: box.right + EDGE > innerWidth, lift: Math.max(0, box.bottom + EDGE - innerHeight) });
+  }, [isSubmenu, list]);
+  return placement;
+}
+
 type MenuListProps = {
   entries: MenuEntry[];
   /** Closes the whole menu, however deep the item that was chosen sat. */
@@ -95,6 +162,8 @@ export function MenuList({ entries: supplied, onClose, className, style, menuRef
   const controls = useCommandControls();
   const entries = supplied.map((entry) => entry !== "separator" && entry.command && !controls.available(entry.command)
     ? { ...entry, disabled: true, title: REMOTE_UNSUPPORTED } : entry);
+  const typeahead = useTypeahead();
+  const intent = useHoverIntent();
   /** Which item's own list is open, and whether the keyboard asked for it, which is what focuses it. */
   const [sub, setSub] = useState<{ index: number; focus: boolean } | null>(null);
   const buttons = useRef<Array<HTMLButtonElement | null>>([]);
@@ -103,22 +172,8 @@ export function MenuList({ entries: supplied, onClose, className, style, menuRef
   const list = menuRef ?? fallback;
   const usable = usableIndexes(entries);
   const checkable = entries.some((entry) => entry !== "separator" && entry.checked !== undefined);
-  /**
-   * A list opened from an item is drawn to its right until the window runs out, then to its left,
-   * and lifted back up when it runs past the bottom. Measured once, while it still sits where the
-   * stylesheet put it: measuring it again would read the place the move just gave it and move again.
-   */
-  const [placement, setPlacement] = useState({ flipped: false, lift: 0 });
   const isSubmenu = Boolean(onLeave);
-  const measured = useRef(false);
-
-  useLayoutEffect(() => {
-    if (!isSubmenu || measured.current) return;
-    const box = list.current?.getBoundingClientRect();
-    if (!box) return;
-    measured.current = true;
-    setPlacement({ flipped: box.right + EDGE > innerWidth, lift: Math.max(0, box.bottom + EDGE - innerHeight) });
-  }, [isSubmenu, list]);
+  const placement = useSubmenuPlacement(isSubmenu, list);
 
   const first = usable[0];
   /** A top-level list takes focus without highlighting a row; a keyboard-opened nested list selects its first row. */
@@ -149,10 +204,28 @@ export function MenuList({ entries: supplied, onClose, className, style, menuRef
     setSub({ index, focus });
   }
 
-  function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+  function hover(index: number, button: HTMLButtonElement) {
+    const entry = entries[index];
+    if (entry === "separator") return intent.cancel();
+    intent.schedule(() => {
+      if (!entry.disabled && (entry.items?.length || entry.panel)) openSubmenu(index, false);
+      else setSub(null);
+      if (!entry.disabled) button.focus();
+    }, Boolean(sub && sub.index !== index));
+  }
+
+  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     const focused = buttons.current.findIndex((button) => button === document.activeElement);
     const entry = entries[focused];
-    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+    /** Keys from a submenu drawn inside this list belong to that submenu. */
+    const own = event.target === list.current || focused >= 0;
+    if (own && (event.key === "Home" || event.key === "End") && usable.length) {
+      event.preventDefault();
+      event.stopPropagation();
+      buttons.current[usable[event.key === "Home" ? 0 : usable.length - 1]!]?.focus();
+    } else if (own && typeahead(event, buttons.current)) {
+      return;
+    } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       event.stopPropagation();
       move(event.key === "ArrowDown" ? 1 : -1);
@@ -176,6 +249,8 @@ export function MenuList({ entries: supplied, onClose, className, style, menuRef
       tabIndex={isSubmenu ? undefined : -1}
       style={placement.lift && typeof style?.top === "number" ? { ...style, top: style.top - placement.lift } : style}
       onKeyDown={onKeyDown}
+      /** The pointer reached the open submenu, so the sibling it crossed on the way does not take over. */
+      onMouseOver={(event) => { if ((event.target as Element).closest(".menu-popover") !== list.current) intent.cancel(); }}
     >
       {search && <div className="menu-search">
         <input
@@ -206,15 +281,10 @@ export function MenuList({ entries: supplied, onClose, className, style, menuRef
               aria-haspopup={nested ? "menu" : undefined}
               aria-expanded={nested ? sub?.index === index : undefined}
               className={[entry.danger ? "danger-menu-item" : "", entry.className].filter(Boolean).join(" ") || undefined}
-              title={entry.title}
+              data-tip={entry.title}
               disabled={entry.disabled}
               /** The pointer highlights what it is over, which is the same highlight the keyboard moves. */
-              onMouseEnter={(event) => {
-                if (entry.disabled) { setSub(null); return; }
-                if (nested) openSubmenu(index, false);
-                else setSub(null);
-                event.currentTarget.focus();
-              }}
+              onMouseEnter={(event) => hover(index, event.currentTarget)}
               onClick={() => {
                 if (nested) return openSubmenu(index, true);
                 onClose();
@@ -309,12 +379,12 @@ export type PopoverMenuProps = {
   popoverClassName?: string;
   /** Draws the list against the window when a scrolling or rounded ancestor would crop it. */
   anchored?: boolean;
-  /** Sits ahead of the trigger, for a row that is also a menu. */
+  /** Makes the whole row the trigger: drawn inside it, with a chevron in place of the ellipsis. */
   children?: ReactNode;
 };
 
 /**
- * An ellipsis trigger and the list it opens. The reducer owns which menu is open, so the only
+ * An ellipsis trigger, or a whole row, and the list it opens. The reducer owns which menu is open, so the only
  * state here is the comparison; the shared dismissible layer handles outside presses and Escape,
  * and focus leaving closes it here.
  */
@@ -333,7 +403,6 @@ export function PopoverMenu({ id, openMenu, onSetOpenMenu, items, label, classNa
         if (!event.currentTarget.contains(event.relatedTarget) && !menu.current?.contains(event.relatedTarget)) onSetOpenMenu(null);
       }}
     >
-      {children}
       <button
         ref={trigger}
         className="menu-trigger"
@@ -341,9 +410,11 @@ export function PopoverMenu({ id, openMenu, onSetOpenMenu, items, label, classNa
         aria-label={label}
         aria-haspopup="menu"
         aria-expanded={open}
+        data-tip={children || open ? undefined : label}
         onClick={() => onSetOpenMenu(open ? null : id)}
       >
-        <Ellipsis size={16} />
+        {children}
+        {children ? <ChevronDown className="menu-trigger-chevron" size={14} aria-hidden="true" /> : <Ellipsis size={16} />}
       </button>
       {open && anchored && root.current
         ? <AnchoredMenuList entries={items} onClose={() => onSetOpenMenu(null)} className={popoverClassName} anchor={root.current} menuRef={menu} />

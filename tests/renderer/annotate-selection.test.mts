@@ -156,7 +156,7 @@ function selectLastWordSpilling(word: string) {
     if (at.nodeValue?.includes(word)) node = at;
   }
   assert.ok(node, `no text node holding ${word}`);
-  const after = document.querySelector(".answer-actions");
+  const after = document.querySelector(".message.assistant .message-actions");
   assert.ok(after, "the answer has a row of its own under the text");
   const range = document.createRange();
   range.setStart(node, (node.nodeValue ?? "").indexOf(word));

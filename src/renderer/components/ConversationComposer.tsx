@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { LuPaperclip as Paperclip, LuX as X } from "react-icons/lu";
+import { useRef, type ReactNode } from "react";
 import type { PendingQuestion, QuestionAddress } from "../../domain/agent-question";
 import { QuestionPrompt } from "./QuestionPrompt";
 import type { QueuedMessage, ReviewPicker as ReviewPickerState } from "../../application/workspace-state";
@@ -10,7 +11,7 @@ import type { ThreadHandleOption } from "../../domain/thread-handles";
 import type { AgentEngine, AgentModel, EngineReadiness } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import type { ContextUsage } from "../../domain/thread-run";
-import { AttachmentAnnotator, AttachmentStrip, useComposerAttachments, type ComposerOutbox } from "./ComposerAttachments";
+import { AttachmentAnnotator, AttachmentStrip, useComposerAttachments, type ComposerAttachments, type ComposerOutbox } from "./ComposerAttachments";
 import { ComposerSettings, EVERY_ENGINE_READY } from "./ComposerSettings";
 import { CommandMenu, ThreadMenu, menuActiveDescendant, menuControls, useComposerMenus, type ComposerAction } from "./ComposerMenus";
 import { ContextUsageMeter } from "./ContextUsageMeter";
@@ -26,6 +27,8 @@ import type { ActiveGoal } from "../../domain/goal";
 import { CommandButton, useCommandControls } from "./CommandControl";
 import { ReturnFocusContext } from "../focus";
 import type { AppCommand } from "../../contracts/commands";
+import { isImageFile } from "../dropped-files";
+import { MAC } from "../platform";
 
 const NOTHING = () => {};
 
@@ -36,6 +39,8 @@ function composerPlaceholder(surface: ComposerSurface, folder: string, disabled:
   if (surface === "tab") return "Reply to this thread";
   return folder ? `Ask ${engineLabel} to work on anything` : `Ask ${engineLabel} anything`;
 }
+
+const STEER_KEYS = MAC ? "⌘↵" : "Ctrl+↵";
 
 function sendLabel(surface: ComposerSurface, runActive: boolean) {
   if (surface === "side") return runActive ? "Stop side chat" : "Send side chat message";
@@ -59,9 +64,49 @@ function SendButton({ taskId, surface, runActive, command, disabled, onSend, onC
       disabled={!runActive && disabled}
       onClick={runActive ? onCancel : onSend}
       aria-label={sendLabel(surface, runActive)}
+      data-tip={runActive ? "Stop" : "Send ↵ · New line ⇧↵"}
     >
       {runActive ? <span className="stop-glyph" /> : "↑"}
     </CommandButton>
+  );
+}
+
+/** Opens the system file picker; what is picked rides the next send the way a drop or paste would. */
+function AttachButton({ disabled, attachments, onFilesAdd }: { disabled: boolean; attachments: ComposerAttachments; onFilesAdd?: (files: File[]) => void }) {
+  const input = useRef<HTMLInputElement>(null);
+  function onPick(picked: File[]) {
+    if (onFilesAdd) onFilesAdd(picked);
+    else void attachments.attachPasted(picked.filter(isImageFile));
+  }
+  return (
+    <>
+      <button type="button" className="composer-attach" aria-label="Attach files" data-tip="Attach files" disabled={disabled} onClick={() => input.current?.click()}>
+        <Paperclip size={16} aria-hidden="true" />
+      </button>
+      <input
+        ref={input}
+        type="file"
+        multiple
+        hidden
+        tabIndex={-1}
+        onChange={(event) => {
+          const files = Array.from(event.currentTarget.files ?? []);
+          event.currentTarget.value = "";
+          if (files.length > 0) onPick(files);
+        }}
+      />
+    </>
+  );
+}
+
+/** What the last send or attach had to say, until the user puts it away or the next one replaces it. */
+function SendNotice({ message, onDismiss }: { message: string | null; onDismiss: () => void }) {
+  if (!message) return null;
+  return (
+    <div className="attachment-error" role="status">
+      <span>{message}</span>
+      <button type="button" aria-label="Dismiss" data-tip="Dismiss" onClick={onDismiss}><X size={12} aria-hidden="true" /></button>
+    </div>
   );
 }
 
@@ -249,6 +294,8 @@ export function ConversationComposer({
     attachments.send(steer);
   }
 
+  const steerHint = runActive && !nothingToSend && !disabled && !attachments.sending;
+
   return (
     <footer className={`composer-wrap ${surface}`}>
       {surface === "main" && goal && <GoalBar goal={goal} onClear={onGoalClear} />}
@@ -279,7 +326,7 @@ export function ConversationComposer({
         {onPasteRemove && <PasteRow pastes={pastes} onRemove={onPasteRemove} />}
         {onFileRemove && <FileRow files={files} onRemove={onFileRemove} />}
         <AttachmentStrip attachments={attachments} />
-        {attachments.error && <p className="attachment-error" role="status">{attachments.error}</p>}
+        <SendNotice message={attachments.error} onDismiss={() => outbox.notice(null)} />
         <textarea
           ref={caret.textareaRef}
           value={prompt}
@@ -299,8 +346,10 @@ export function ConversationComposer({
           rows={2}
         />
         <div className="composer-bar">
+          <AttachButton disabled={disabled} attachments={attachments} onFilesAdd={onFilesAdd} />
           <ComposerSettings taskId={taskId} mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} coordinating={coordinating} fastMode={fastMode} onFastModeChange={onFastModeChange} onModeChange={onModeChange} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
           <div className="composer-actions">
+            {steerHint && <span className="composer-hint" aria-hidden="true"><kbd>↵</kbd> queue <kbd>{STEER_KEYS}</kbd> steer</span>}
             {planUsage && <PlanUsageMeter engineLabel={engineLabel} model={model} usage={planUsage.usage} />}
             {contextUsage && <ContextUsageMeter usage={contextUsage} />}
             <SendButton taskId={taskId} surface={surface} runActive={runActive} command={sendCommand} disabled={disabled || attachments.sending || waiting || nothingToSend} onSend={() => void submit()} onCancel={onCancel} />

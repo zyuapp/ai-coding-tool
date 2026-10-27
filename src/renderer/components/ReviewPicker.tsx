@@ -4,6 +4,7 @@ import type { ReviewPicker as ReviewPickerState } from "../../application/worksp
 import type { ReviewTarget } from "../../domain/review";
 import { moveListFocus, useDismissibleLayer } from "../focus";
 import { matchBranches, useBranches } from "./BranchMenu";
+import { MAC } from "../platform";
 
 type ReviewPickerProps = {
   picker: ReviewPickerState;
@@ -35,6 +36,7 @@ function Heading({ step, onBack }: { step: ReviewPickerState["step"]; onBack: ()
 }
 
 function TargetOptions({ onStep, onReview }: Pick<ReviewPickerProps, "onStep" | "onReview">) {
+  const [focused, setFocused] = useState(0);
   return (
     <div className="command-menu-list review-targets" role="listbox" aria-label="Review options" onKeyDown={moveListFocus}>
       {TARGETS.map((option, index) => {
@@ -45,8 +47,10 @@ function TargetOptions({ onStep, onReview }: Pick<ReviewPickerProps, "onStep" | 
             type="button"
             className="command-option review-option"
             role="option"
-            aria-selected={false}
+            aria-selected={index === focused}
             key={option.label}
+            onFocus={() => setFocused(index)}
+            onMouseEnter={(event) => event.currentTarget.focus()}
             onClick={() => option.target ? onReview(option.target) : onStep(option.step)}
           >
             <span className="command-mark app" aria-hidden="true"><Icon size={16} /></span>
@@ -112,8 +116,15 @@ function CustomPicker({ onReview }: Pick<ReviewPickerProps, "onReview">) {
   }
   return (
     <form className="review-form" onSubmit={submit}>
-      <label><span>Review instructions</span><textarea autoFocus rows={4} placeholder="What should Codex focus on?" value={instructions} onChange={(event) => setInstructions(event.target.value)} /></label>
-      <div className="review-form-actions"><button type="submit" className="primary" disabled={!custom}>Start review</button></div>
+      <label><span>Review instructions</span><textarea
+        autoFocus
+        rows={4}
+        placeholder="What should Codex focus on?"
+        value={instructions}
+        onChange={(event) => setInstructions(event.target.value)}
+        onKeyDown={(event) => { if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) submit(event); }}
+      /></label>
+      <div className="review-form-actions"><button type="submit" className="primary" disabled={!custom} data-tip={MAC ? "⌘↵" : "Ctrl+↵"}>Start review</button></div>
     </form>
   );
 }

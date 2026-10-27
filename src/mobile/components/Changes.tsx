@@ -164,16 +164,22 @@ export function Changes({ thread, live, query }: {
     });
   }
 
+  function refresh() {
+    asked.current.clear();
+    setPatches(new Map());
+    setReads((count) => count + 1);
+  }
+
   const note = live ? summaryNote(summary) : "Waiting for the line to come back.";
   const base = thread.branchRange.base;
   return (
     <div className="changes">
       <div className="changes-toolbar">
         <div className="segmented" role="radiogroup" aria-label="Comparison">
-          <button type="button" role="radio" aria-checked={mode === "uncommitted"} onClick={() => setMode("uncommitted")}>Uncommitted</button>
-          <button type="button" role="radio" aria-checked={mode === "branch"} onClick={() => setMode("branch")}>Against {base}</button>
+          <button type="button" role="radio" aria-checked={mode === "uncommitted"} onClick={() => setMode("uncommitted")}><span>Uncommitted</span></button>
+          <button type="button" role="radio" aria-checked={mode === "branch"} onClick={() => setMode("branch")}><span>Against {base}</span></button>
         </div>
-        <button type="button" className="ghost icon changes-refresh" aria-label="Read the comparison again" onClick={() => { asked.current.clear(); setPatches(new Map()); setReads((count) => count + 1); }}>
+        <button type="button" className="ghost icon changes-refresh" aria-label="Read the comparison again" onClick={refresh}>
           <SpinningIcon icon={RefreshCw} spinning={summary.status === "reading"} size={18} />
         </button>
       </div>
@@ -183,7 +189,12 @@ export function Changes({ thread, live, query }: {
           <span className="change-counts"><strong>+{summary.additions}</strong><em>−{summary.deletions}</em></span>
         </p>
       )}
-      {note && <p className="changes-note" role="status">{note}</p>}
+      {note && (
+        <div className="changes-note" role="status">
+          <p>{note}</p>
+          {live && summary.status === "error" && <button type="button" className="changes-retry" onClick={refresh}>Try again</button>}
+        </div>
+      )}
       <div className="changes-files">
         {files.map((file) => <FileCard key={file.path} file={file} open={open.has(file.path)} patch={patches.get(patchKey(file))} onToggle={() => toggle(file.path)} />)}
       </div>

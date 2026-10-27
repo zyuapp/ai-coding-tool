@@ -112,11 +112,60 @@ test("a finished answer copies whole, without the tool work that led to it", asy
   await copyFrom(view.container, "Copy the answer");
 
   assert.deepEqual(written, [ANSWER], "the answer is copied as written, and the tool call is not part of it");
-  const time = query<HTMLTimeElement>(view.container, ".answer-time");
-  assert.equal(time.textContent, new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(2000));
+  const time = query<HTMLTimeElement>(view.container, ".message-time");
+  assert.equal(time.dataset.clock, new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(2000));
+  assert.equal(time.textContent, "", "the clock is drawn from its attribute, so no search counts it");
   assert.equal(time.title, new Intl.DateTimeFormat(undefined, { dateStyle: "full", timeStyle: "medium" }).format(2000));
-  assert.ok(time.compareDocumentPosition(query(view.container, ".answer-actions .copy-affordance")) & Node.DOCUMENT_POSITION_FOLLOWING,
+  assert.ok(time.compareDocumentPosition(query(view.container, ".message-actions .copy-affordance")) & Node.DOCUMENT_POSITION_FOLLOWING,
     "the time stands before the copy button");
   await view.unmount();
   scroller.remove();
+});
+
+test("a message the user sent copies as written and keeps its time out of its text", async () => {
+  const written = clipboard();
+  const { timelineView, transcript } = await import("../support/timeline.mts");
+  const view = await mount(timelineView(transcript({ kind: "user", text: "Rename the reducer" }), "idle"));
+
+  await copyFrom(view.container, "Copy the message");
+
+  assert.deepEqual(written, ["Rename the reducer"]);
+  const row = query(view.container, '[data-message-id="m0"]');
+  assert.equal(row.textContent, "Rename the reducer", "a search of the message never finds its clock");
+  assert.ok(query<HTMLTimeElement>(row, ".message-time").dataset.clock);
+  await view.unmount();
+});
+
+test("only the newest settled answer keeps its time and copy button in view", async () => {
+  const { timelineView, transcript } = await import("../support/timeline.mts");
+  const messages = transcript(
+    { kind: "user", text: "first" },
+    { kind: "assistant", text: "older answer" },
+    { kind: "user", text: "second" },
+    { kind: "assistant", text: "newer answer" },
+  );
+  const settled = await mount(timelineView(messages, "idle"));
+  const turns = [...settled.container.querySelectorAll(".message.turn")];
+  assert.deepEqual(turns.map((turn) => turn.classList.contains("latest")), [false, true]);
+  await settled.unmount();
+
+  const running = await mount(timelineView([...messages, { id: "m4", at: 4000, kind: "user", text: "third" }, { id: "m5", at: 5000, kind: "tool", text: "Read", detail: "a.ts" }], "running"));
+  assert.equal(running.container.querySelector(".message.turn.latest"), null, "a turn under way is newer than any answer");
+  await running.unmount();
+});
+
+test("a tool call's output copies as it was printed", async () => {
+  const written = clipboard();
+  const { timelineView, transcript } = await import("../support/timeline.mts");
+  const view = await mount(timelineView(transcript({ kind: "user", text: "go" }, { kind: "tool", text: "Bash", detail: "$ ls\nsrc" }), "running"));
+
+  const step = query<HTMLDetailsElement>(view.container, ".work-row");
+  await act(async () => {
+    step.open = true;
+    step.dispatchEvent(new Event("toggle"));
+  });
+  await copyFrom(step, "Copy the output");
+
+  assert.deepEqual(written, ["$ ls\nsrc"]);
+  await view.unmount();
 });

@@ -20,6 +20,19 @@ let momentFormatter: Intl.DateTimeFormat | undefined;
 const clockTime = (at: number) => (clockFormatter ??= new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" })).format(at);
 const fullMoment = (at: number) => (momentFormatter ??= new Intl.DateTimeFormat(undefined, { dateStyle: "full", timeStyle: "medium" })).format(at);
 
+/**
+ * When a message was sent, and a copy of it. The clock is drawn from an attribute, so it is never a
+ * text node a search or a selection of the message could pick up.
+ */
+function MessageActions({ at, text, label }: { at: number; text: string; label: string }) {
+  return (
+    <div className="message-actions">
+      <time className="message-time" dateTime={new Date(at).toISOString()} title={fullMoment(at)} data-clock={clockTime(at)} />
+      {text && <CopyButton text={text} label={label} />}
+    </div>
+  );
+}
+
 function UserMessage({ message, onView }: { message: ConversationMessage; onView: (source: string) => void }) {
   const { taskId } = useContext(MessageArtifactScope);
   const label = messageLabel(message);
@@ -44,6 +57,7 @@ function UserMessage({ message, onView }: { message: ConversationMessage; onView
         ) : null}
         {label && <div className="message-origin">{label}</div>}
         {message.text && <div className="message-text">{message.text}</div>}
+        <MessageActions at={message.at} text={message.text} label="Copy the message" />
       </div>
     </article>
   );
@@ -58,6 +72,8 @@ type TimelineRowProps = {
   offset: number;
   measure: (node: Element | null) => void;
   streamingTail?: StreamingTail | null;
+  /** The newest settled answer, whose time and copy button stay in view without a hover. */
+  latest?: boolean;
   onViewAttachment: (source: string) => void;
 };
 
@@ -69,22 +85,17 @@ function LiveSteps({ engine, steps, tail }: { engine: AgentEngine; steps: Conver
 
 type Entry = Exclude<TimelineGroup, { kind: "updates" }>;
 
-function TimelineEntry({ engine, entry, streamingTail, onViewAttachment }: { engine: AgentEngine; entry: Entry; streamingTail?: StreamingTail | null; onViewAttachment: (source: string) => void }) {
+function TimelineEntry({ engine, entry, streamingTail, latest = false, onViewAttachment }: { engine: AgentEngine; entry: Entry; streamingTail?: StreamingTail | null; latest?: boolean; onViewAttachment: (source: string) => void }) {
   if (entry.kind === "threads") return <ThreadCards threadIds={entry.threadIds} />;
   if (entry.kind === "turn") {
     return (
-      <article className="message assistant turn">
+      <article className={latest ? "message assistant turn latest" : "message assistant turn"}>
         {entry.live
           ? <LiveSteps engine={engine} steps={entry.steps} tail={streamingTail} />
           : entry.steps.length > 0 && <SettledSteps engine={engine} steps={entry.steps} endsAt={entry.endsAt} />}
         {entry.final && <div data-message-id={entry.final.id} className="message-text markdown-body"><StreamingText committed={entry.final.text} messageId={entry.final.id} /></div>}
         {/* Outside the answer, so neither a search nor a selection of it picks the button up. */}
-        {entry.final && (
-          <div className="answer-actions">
-            <time className="answer-time" dateTime={new Date(entry.final.at).toISOString()} title={fullMoment(entry.final.at)}>{clockTime(entry.final.at)}</time>
-            <CopyButton text={entry.final.text} label="Copy the answer" />
-          </div>
-        )}
+        {entry.final && <MessageActions at={entry.final.at} text={entry.final.text} label="Copy the answer" />}
       </article>
     );
   }
@@ -139,7 +150,7 @@ function FoldedUpdates({ engine, group, onViewAttachment }: { engine: AgentEngin
   );
 }
 
-export const TimelineRow = memo(function TimelineRow({ engine, group, index, offset, measure, streamingTail, onViewAttachment }: TimelineRowProps) {
+export const TimelineRow = memo(function TimelineRow({ engine, group, index, offset, measure, streamingTail, latest, onViewAttachment }: TimelineRowProps) {
   const message = group.kind === "message" ? group.message : null;
   return (
     <div
@@ -152,7 +163,7 @@ export const TimelineRow = memo(function TimelineRow({ engine, group, index, off
     >
       {group.kind === "updates"
         ? <FoldedUpdates engine={engine} group={group} onViewAttachment={onViewAttachment} />
-        : <TimelineEntry engine={engine} entry={group} streamingTail={streamingTail} onViewAttachment={onViewAttachment} />}
+        : <TimelineEntry engine={engine} entry={group} streamingTail={streamingTail} latest={latest} onViewAttachment={onViewAttachment} />}
     </div>
   );
 });

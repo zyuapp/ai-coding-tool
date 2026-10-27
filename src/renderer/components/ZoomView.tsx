@@ -17,6 +17,8 @@ export type Zoom = {
   fit: number;
   zoomIn: () => void;
   zoomOut: () => void;
+  /** Back to the fitted size. */
+  reset: () => void;
 };
 
 function clamp(scale: number, fit: number): number {
@@ -101,18 +103,19 @@ export function useZoom(size: Sized | null): Zoom {
 
   const zoomIn = useCallback(() => setChosen((current) => clamp((current ?? fit) * SCALE_STEP, fit)), [fit]);
   const zoomOut = useCallback(() => setChosen((current) => clamp((current ?? fit) / SCALE_STEP, fit)), [fit]);
-  return { stage, scale, fit, zoomIn, zoomOut };
+  const reset = useCallback(() => setChosen(null), []);
+  return { stage, scale, fit, zoomIn, zoomOut, reset };
 }
 
-/** How big the view is, and the two presses that change it. */
+/** How big the view is, the two presses that change it, and the readout that fits it again. */
 export function ZoomControls({ zoom }: { zoom: Zoom }) {
   return (
     <div className="viewer-zoom" onClick={(event) => event.stopPropagation()}>
-      <button type="button" aria-label="Zoom out" disabled={zoom.scale <= zoom.fit} onClick={zoom.zoomOut}>
+      <button type="button" aria-label="Zoom out" data-tip="Zoom out" disabled={zoom.scale <= zoom.fit} onClick={zoom.zoomOut}>
         <Minus size={16} aria-hidden="true" />
       </button>
-      <span>{Math.round(zoom.scale * 100)}%</span>
-      <button type="button" aria-label="Zoom in" disabled={zoom.scale >= MAX_SCALE} onClick={zoom.zoomIn}>
+      <button type="button" className="viewer-zoom-level" aria-label={`Zoom ${Math.round(zoom.scale * 100)}%, fit to window`} data-tip="Fit to window" disabled={zoom.scale === zoom.fit} onClick={zoom.reset}>{Math.round(zoom.scale * 100)}%</button>
+      <button type="button" aria-label="Zoom in" data-tip="Zoom in" disabled={zoom.scale >= MAX_SCALE} onClick={zoom.zoomIn}>
         <Plus size={16} aria-hidden="true" />
       </button>
     </div>

@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Draggable, Droppable, type DraggableProvided } from "@hello-pangea/dnd";
-import { LuSquarePen as SquarePen } from "react-icons/lu";
+import { LuPlus as Plus, LuSquarePen as SquarePen } from "react-icons/lu";
 import { folderName, projectName, type Project } from "../../domain/project";
 import type { Thread } from "../../domain/thread";
 import type { SidebarSection, SidebarSections } from "../../domain/sidebar";
 import { worktreeName } from "../../domain/worktree";
 import type { WorktreeGroup } from "../../application/workspace-state";
-import { PopoverMenu } from "./PopoverMenu";
+import { PopoverMenu, type MenuItem } from "./PopoverMenu";
 import { RenameInput, useRenaming, type Renaming } from "./SidebarRename";
 import { ShowMore } from "./ShowMore";
 import type { ThreadRowRenderer } from "./SidebarThreadRow";
@@ -18,10 +18,13 @@ export const PROJECTS_DROPPABLE = "projects";
 export const PROJECT_DRAG = "project";
 const PROJECT_THREAD_LIMIT = 10;
 
-function FolderIcon() {
+/** A folder drawn open while its threads show beneath it. */
+function FolderIcon({ open }: { open: boolean }) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M3.5 7.5h6l2-2h3.8c1.8 0 2.7 0 3.4.35.62.32 1.13.83 1.45 1.45.35.7.35 1.6.35 3.4v4.4c0 1.8 0 2.7-.35 3.4a3.25 3.25 0 0 1-1.45 1.45c-.7.35-1.6.35-3.4.35H7.5c-1.8 0-2.7 0-3.4-.35a3.25 3.25 0 0 1-1.45-1.45c-.35-.7-.35-1.6-.35-3.4V9.2c0-.95 0-1.42.18-1.78.16-.32.42-.58.74-.74.36-.18.83-.18 1.78-.18Z" />
+      {open
+        ? <path d="M3 17.6V7.2c0-.95 0-1.42.18-1.78.16-.32.42-.58.74-.74.36-.18.83-.18 1.78-.18h3.3l2 2h4.3c.95 0 1.42 0 1.78.18.32.16.58.42.74.74.18.36.18.83.18 1.78v.3M3 17.6l2.05-6.15c.27-.8.4-1.2.65-1.5.22-.26.5-.46.82-.58.36-.14.78-.14 1.62-.14h11.1c.92 0 1.38 0 1.65.2.24.17.39.44.42.73.03.33-.18.74-.6 1.56l-2.6 5.2c-.33.66-.5 1-.75 1.23-.23.21-.5.37-.8.46-.33.1-.7.1-1.44.1H4.4c-.77 0-1.4-.63-1.4-1.4Z" />
+        : <path d="M3.5 7.5h6l2-2h3.8c1.8 0 2.7 0 3.4.35.62.32 1.13.83 1.45 1.45.35.7.35 1.6.35 3.4v4.4c0 1.8 0 2.7-.35 3.4a3.25 3.25 0 0 1-1.45 1.45c-.7.35-1.6.35-3.4.35H7.5c-1.8 0-2.7 0-3.4-.35a3.25 3.25 0 0 1-1.45-1.45c-.35-.7-.35-1.6-.35-3.4V9.2c0-.95 0-1.42.18-1.78.16-.32.42-.58.74-.74.36-.18.83-.18 1.78-.18Z" />}
     </svg>
   );
 }
@@ -125,7 +128,7 @@ function ProjectRow({
                   title={host ? `${project.root} on ${host.name}${host.offline ? ` (${host.reconnecting ? "reconnecting" : "offline"})` : ""}` : project.root}
                   aria-expanded={expanded}
                 >
-                  <span className="folder-icon"><FolderIcon /></span>
+                  <span className="folder-icon"><FolderIcon open={expanded} /></span>
                   <span>{projectName(project)}</span>
                 </button>}
             <PopoverMenu
@@ -135,16 +138,16 @@ function ProjectRow({
               label={`More options for ${projectName(project)}`}
               className="project-menu"
               items={[
-                { label: "New task", onSelect: () => onNewThread(project.id) },
+                { label: "New thread", onSelect: () => onNewThread(project.id) },
                 ...checkouts.map(({ worktree }) => ({
                   label: `New thread in ${worktreeName(worktree)}`,
                   onSelect: () => onNewThread(project.id, worktree.id),
                 })),
                 { label: "Edit…", onSelect: () => onEditProject(project.id) },
-                { label: "Remove", danger: true, onSelect: () => onRemoveProject(project.id) },
+                removeItem(threads.length, () => onRemoveProject(project.id)),
               ]}
             />
-            <button className="project-new" onClick={() => onNewThread(project.id)} aria-label={`New task in ${projectName(project)}`}><SquarePen size={16} /></button>
+            <button className="project-new" type="button" onClick={() => onNewThread(project.id)} aria-label={`New thread in ${projectName(project)}`} data-tip="New thread"><SquarePen size={16} aria-hidden="true" /></button>
           </div>
           {/** A folded folder holds no droppable, so a drag neither unfolds it nor opens a gap where it sits. */}
           {expanded && <Droppable droppableId={project.id} type="task">
@@ -167,6 +170,19 @@ function ProjectRow({
       )}
     </Draggable>
   );
+}
+
+/**
+ * Removing a folder archives every thread in it, so a folder holding any asks once more, naming how
+ * many, before it goes. An empty one goes at once.
+ */
+function removeItem(threadCount: number, onRemove: () => void): MenuItem {
+  if (threadCount === 0) return { label: "Remove", danger: true, onSelect: onRemove };
+  return {
+    label: "Remove",
+    danger: true,
+    items: [{ label: `Remove and archive ${threadCount} ${threadCount === 1 ? "thread" : "threads"}`, danger: true, onSelect: onRemove }],
+  };
 }
 
 /**
@@ -245,13 +261,16 @@ export function SidebarProjects({
         <button className="section-toggle" onClick={() => onSetSectionOpen("projects", !sections.projects)} aria-expanded={sections.projects}>
           <span>Projects</span><span className="section-chevron" aria-hidden="true" />
         </button>
-        <button className="section-action add-project" onClick={onOpenFolder} aria-label="Add project">＋</button>
+        <button className={`section-action add-project${projects.length === 0 ? " shown" : ""}`} type="button" onClick={onOpenFolder} aria-label="Add project" data-tip="Add project"><Plus size={16} aria-hidden="true" /></button>
       </div>
       {sections.projects && <nav className="project-list" aria-label="Projects">
         {computerGroups(projects, projectHosts).map(({ host, projects: held }) => (
           <Droppable key={host?.id ?? "local"} droppableId={`${PROJECTS_DROPPABLE}:${host?.id ?? "this"}`} type={`${PROJECT_DRAG}:${host?.id ?? "this"}`}>
             {(list) => <div className="computer-group" role={showComputers ? "group" : undefined} aria-label={showComputers ? host?.name ?? localName : undefined} ref={list.innerRef} {...list.droppableProps}>
-              {showComputers && <div className="computer-heading" aria-hidden="true"><HostMark name={host?.name ?? localName} offline={host?.offline} reconnecting={host?.reconnecting} /></div>}
+              {showComputers && <div className="computer-heading" aria-hidden="true">
+                <HostMark name={host?.name ?? localName} offline={host?.offline} reconnecting={host?.reconnecting} />
+                {host?.offline && <span className="computer-status">{host.reconnecting ? "Reconnecting" : "Offline"}</span>}
+              </div>}
               {held.map((project, offset) => (
                 <ProjectRow
                   key={project.id}
@@ -285,16 +304,7 @@ export function SidebarProjects({
         <button className="section-toggle" onClick={() => onSetSectionOpen("recents", !sections.recents)} aria-expanded={sections.recents}>
           <span>Recents</span><span className="section-chevron" aria-hidden="true" />
         </button>
-        <PopoverMenu
-          id="recents"
-          openMenu={openMenu}
-          onSetOpenMenu={onSetOpenMenu}
-          label="Recent chat options"
-          className="section-menu"
-          popoverClassName="section-menu-popover"
-          items={[{ label: "New chat", onSelect: () => onNewThread() }]}
-        />
-        <button className="section-action recent-new" onClick={() => onNewThread()} aria-label="New chat"><SquarePen size={16} /></button>
+        <button className="section-action recent-new" type="button" onClick={() => onNewThread()} aria-label="New chat" data-tip="New chat"><SquarePen size={16} aria-hidden="true" /></button>
       </div>
       {sections.recents && <Droppable droppableId={RECENTS_DROPPABLE} type="task">
         {(provided, snapshot) => (

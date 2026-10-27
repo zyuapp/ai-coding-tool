@@ -1,4 +1,4 @@
-import { LuX as X } from "react-icons/lu";
+import { LuMaximize2 as Maximize, LuX as X } from "react-icons/lu";
 import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useModalFocus } from "../focus";
@@ -98,7 +98,7 @@ export function DiagramViewer({ diagram, onClose }: { diagram: Diagram; onClose:
       onClick={(event) => { if (event.target === pressedOn.current) onClose(); }}
     >
       <ZoomControls zoom={zoom} />
-      <button type="button" className="viewer-close" onClick={onClose} aria-label="Close diagram"><X size={16} /></button>
+      <button type="button" className="viewer-close" onClick={onClose} aria-label="Close diagram" data-tip="Close · Esc"><X size={16} /></button>
       <div ref={zoom.stage} className="viewer-stage">
         <div
           className="mermaid-svg"
@@ -259,12 +259,20 @@ export function MermaidBlock({ source, pending = false }: { source: string; pend
     ? <span className="mermaid-svg" style={drawnAt(current.diagram, 1)} dangerouslySetInnerHTML={{ __html: current.diagram.markup }} />
     : null;
   return (
-    <div className="mermaid-block" ref={host}>
-      {!current.diagram && !current.error ? <span className="mermaid-loading">Rendering diagram…</span> : null}
-      {drawing && open
-        ? <button type="button" className="mermaid-open" aria-label="Open the diagram at full size" onClick={() => open(current.diagram!)}>{drawing}</button>
-        : drawing}
-      {current.error ? <details className="mermaid-error"><summary>Diagram could not be rendered</summary><pre><code>{source}</code></pre></details> : null}
-    </div>
+    <>
+      <div className="mermaid-block" ref={host}>
+        {!current.diagram && !current.error ? <span className="mermaid-loading">Rendering diagram…</span> : null}
+        {drawing && open
+          ? <button type="button" className="mermaid-open" aria-label="Open the diagram at full size" onClick={() => open(current.diagram!)}>{drawing}</button>
+          : drawing}
+        {current.error ? <details className="mermaid-error"><summary>Diagram could not be rendered</summary><pre><code>{source}</code></pre></details> : null}
+      </div>
+      {/* Pointer only: the drawing itself is the keyboard's way to open it. */}
+      {drawing && open && (
+        <button type="button" className="diagram-expand" tabIndex={-1} aria-hidden="true" data-tip="Full size" onClick={() => open(current.diagram!)}>
+          <Maximize size={14} aria-hidden="true" />
+        </button>
+      )}
+    </>
   );
 }

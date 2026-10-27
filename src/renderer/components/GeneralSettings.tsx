@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import type { CliState } from "../../application/cli-installation";
 import { CLI_COMMAND, CLI_INSTALL_PATH, type CliStatus } from "../../domain/cli";
-import { SettingRow } from "./SettingRow";
+import { ConfirmAction, SettingRow, SettingSwitch } from "./SettingRow";
 
 function cliDescription(status: CliStatus | null) {
   if (!status) return "Looking for the command…";
@@ -48,7 +48,7 @@ export function GeneralSettings({ cli: { status, busy, error }, onReadCli, onSet
         <SettingRow id="general.cli" status={status?.state === "installed"} description={cliDescription(status)}>
           {!status && !error && <em>Checking…</em>}
           {status?.state === "installed" && status.current === false && <button type="button" disabled={busy} onClick={() => onSetCliInstalled(true)}>{busy ? "Updating…" : "Update"}</button>}
-          {status?.state === "installed" && <button type="button" disabled={busy} onClick={() => onSetCliInstalled(false)}>{busy ? "Removing…" : "Uninstall"}</button>}
+          {status?.state === "installed" && <ConfirmAction disabled={busy} confirm={`Uninstall ${CLI_COMMAND}`} onConfirm={() => onSetCliInstalled(false)}>{busy ? "Removing…" : "Uninstall"}</ConfirmAction>}
           {(status?.state === "missing" || status?.state === "conflict") && (
             <button type="button" disabled={busy} onClick={() => onSetCliInstalled(true)}>
               {busy ? "Installing…" : status.state === "conflict" ? "Replace it" : "Install"}
@@ -66,8 +66,8 @@ export function GeneralSettings({ cli: { status, busy, error }, onReadCli, onSet
           </div>
         </div>
 
-        <SettingRow id="general.notifications" status={notifications} description="When a run finishes, fails, or needs permission in a thread you are away from.">
-          <button type="button" role="switch" aria-checked={notifications} onClick={() => onSetNotifications(!notifications)}>{notifications ? "Turn off" : "Turn on"}</button>
+        <SettingRow id="general.notifications" description="When a run finishes, fails, or needs permission in a thread you are away from.">
+          <SettingSwitch id="general.notifications" on={notifications} onChange={onSetNotifications} />
         </SettingRow>
       </section>
 
@@ -79,8 +79,8 @@ export function GeneralSettings({ cli: { status, busy, error }, onReadCli, onSet
           </div>
         </div>
 
-        <SettingRow id="general.chrome-browser" status={chromeBrowser} description="Claude drives the Chrome you already have open, instead of the browser panel, when you ask for your own browser. Needs the Claude in Chrome extension, and Chrome running.">
-          <button type="button" role="switch" aria-checked={chromeBrowser} onClick={() => onSetChromeBrowser(!chromeBrowser)}>{chromeBrowser ? "Turn off" : "Turn on"}</button>
+        <SettingRow id="general.chrome-browser" description="Claude drives the Chrome you already have open, instead of the browser panel, when you ask for your own browser. Needs the Claude in Chrome extension, and Chrome running.">
+          <SettingSwitch id="general.chrome-browser" on={chromeBrowser} onChange={onSetChromeBrowser} />
         </SettingRow>
       </section>
 

@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { createPortal } from "react-dom";
-import { LuArrowRight as ArrowRight, LuChevronDown as ChevronDown, LuColumns2 as Columns2, LuPilcrow as Pilcrow, LuRefreshCw as RefreshCw, LuRows3 as Rows3 } from "react-icons/lu";
+import { LuArrowRight as ArrowRight, LuChevronDown as ChevronDown, LuColumns2 as Columns2, LuSpace as Space, LuRefreshCw as RefreshCw, LuRows3 as Rows3 } from "react-icons/lu";
 import { DIFF_MODE_MENU, type DiffState } from "../../application/workspace-diff";
 import { DEFAULT_BRANCH_RANGE, type DiffMode, type DiffRange } from "../../domain/diff";
 import { BranchMenu, useAnchoredStyle, useBranches } from "./BranchMenu";
@@ -95,7 +95,7 @@ export function DiffToolbar({ diff, split, roomForTwo, currentBranch, workspaceI
         <ModePicker mode={diff.mode} disabled={!workspaceId} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} onSetMode={onSetMode} />
         <div className="diff-toolbar-actions">
           <button type="button" aria-label={split ? "Show one column" : "Show two columns"} aria-pressed={split} className={split ? "on" : ""} disabled={!roomForTwo} data-tip={roomForTwo ? (split ? "One column" : "Two columns") : "Too narrow"} onClick={onToggleSplit}>{split ? <Rows3 size={16} /> : <Columns2 size={16} />}</button>
-          <button type="button" aria-label={diff.ignoreWhitespace ? "Show whitespace changes" : "Hide whitespace changes"} aria-pressed={diff.ignoreWhitespace} className={diff.ignoreWhitespace ? "on" : ""} data-tip={diff.ignoreWhitespace ? "Show spacing" : "Hide spacing"} onClick={onToggleWhitespace}><Pilcrow size={16} /></button>
+          <button type="button" aria-label={diff.ignoreWhitespace ? "Show whitespace changes" : "Hide whitespace changes"} aria-pressed={diff.ignoreWhitespace} className={diff.ignoreWhitespace ? "on" : ""} data-tip={diff.ignoreWhitespace ? "Show spacing changes" : "Hide spacing changes"} onClick={onToggleWhitespace}><Space size={16} /></button>
           <button type="button" aria-label="Read the comparison again" data-tip="Read again" onClick={onRefresh}><SpinningIcon icon={RefreshCw} spinning={diff.loading} size={16} /></button>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { Fragment, useEffect, useId, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { LuSearch as Search, LuSettings as Settings } from "react-icons/lu";
 import type { JumpRow, JumpView } from "../../application/workspace-jump";
@@ -21,6 +21,7 @@ export type ThreadJumpProps = { jump: JumpView; actions: ThreadJumpActions };
 export function ThreadJump({ jump, actions }: ThreadJumpProps) {
   const input = useRef<HTMLInputElement>(null);
   const picked = useRef<HTMLButtonElement>(null);
+  const listId = useId();
   useFocusReturn(input);
 
   useEffect(() => {
@@ -60,20 +61,27 @@ export function ThreadJump({ jump, actions }: ThreadJumpProps) {
           <input
             ref={input}
             value={jump.query}
+            role="combobox"
             aria-label="Search threads and settings"
+            aria-autocomplete="list"
+            aria-expanded={jump.options.length > 0}
+            aria-controls={listId}
+            aria-activedescendant={chosen ? `${listId}-${jump.index}` : undefined}
             placeholder="Search threads, pull requests, and settings"
             spellCheck={false}
             onInput={(event) => actions.setJumpQuery(event.currentTarget.value)}
           />
         </div>
         {jump.options.length ? (
-          <div className="thread-jump-list" role="listbox" aria-label="Threads and settings">
+          <div id={listId} className="thread-jump-list" role="listbox" aria-label="Threads and settings">
             {jump.options.map((option, index) => (
               <Fragment key={option.id}>
                 {index === firstSetting && index > 0 && <p className="thread-jump-heading" role="presentation">Settings</p>}
                 <button
                   ref={index === jump.index ? picked : undefined}
+                  id={`${listId}-${index}`}
                   type="button"
+                  tabIndex={-1}
                   role="option"
                   aria-selected={index === jump.index}
                   className={`thread-jump-row ${index === jump.index ? "picked" : ""}`.trimEnd()}

@@ -118,7 +118,16 @@ test("paired phones are listed once each, with what they are doing and a way to 
   assert.match(document.querySelector("[data-device='device-1']")?.textContent ?? "", /Connected/);
   assert.match(document.querySelector("[data-device='device-2']")?.textContent ?? "", /Never connected/);
 
-  click("[aria-labelledby='phone-devices-heading'] button.danger", 1);
+  click("[data-device='device-2'] button.danger");
+  assert.deepEqual(calls.revoked, [], "one press only asks");
+  assert.equal(document.activeElement?.textContent, "Cancel", "the focus waits on the safe answer");
+  click("[data-device='device-2'] button:last-child");
+  assert.deepEqual(calls.revoked, []);
+  assert.equal(document.querySelector("[data-device='device-2'] button")?.textContent, "Remove");
+
+  click("[data-device='device-2'] button.danger");
+  assert.equal(document.querySelector("[data-device='device-2'] button.danger")?.textContent, "Remove iPad");
+  click("[data-device='device-2'] button.danger");
   assert.deepEqual(calls.revoked, ["device-2"]);
 });
 

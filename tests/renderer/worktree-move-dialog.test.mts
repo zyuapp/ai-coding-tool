@@ -23,9 +23,11 @@ test("the move confirmation says where the thread goes and what the move costs",
   assert.equal(query(document, ".worktree-move-copy h2").textContent, "Give this thread a worktree?");
   assert.match(query(document, ".worktree-move-copy p").textContent, /checkout of its own/);
   assert.equal(document.activeElement, query(document, ".worktree-move-actions button.primary"), "Confirm holds the focus, so Enter answers");
+  assert.equal(query(document, ".worktree-move-actions button.primary").textContent, "Move to worktree");
 
   await view.render(dialog({ worktree: false, changes: 1, others: 0 }, calls));
   assert.deepEqual(places(), ["Worktree", "Local"], "the move turns around with it");
+  assert.equal(query(document, ".worktree-move-actions button.primary").textContent, "Return to local");
   assert.equal(query(document, ".worktree-move-copy h2").textContent, "Return this thread to your project checkout?");
   assert.match(query(document, ".worktree-move-copy p").textContent, /Its 1 uncommitted change is committed first .* the worktree is removed\./);
 

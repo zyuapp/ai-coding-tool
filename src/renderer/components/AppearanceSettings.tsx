@@ -16,6 +16,7 @@ import {
 } from "../../domain/typography";
 import { canReadInstalledFonts, readInstalledFonts } from "../system-fonts";
 import { SettingRow } from "./SettingRow";
+import { moveListFocus } from "../focus";
 
 export type AppearanceSettingsProps = {
   /** The theme in effect, by id, whose ground is the one the theme tiles are drawn on. */
@@ -74,6 +75,7 @@ function ThemeSelect({ current, onChoose }: { current: Theme; onChoose: (family:
   const wrapper = useRef<HTMLDivElement>(null);
   const search = useRef<HTMLInputElement>(null);
   const chosen = useRef<HTMLButtonElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -81,8 +83,13 @@ function ThemeSelect({ current, onChoose }: { current: Theme; onChoose: (family:
     chosen.current?.scrollIntoView({ block: "nearest" });
   }, [open]);
 
-  function choose(family: string) {
+  function close() {
     setOpen(false);
+    trigger.current?.focus();
+  }
+
+  function choose(family: string) {
+    close();
     onChoose(family);
   }
 
@@ -97,17 +104,17 @@ function ThemeSelect({ current, onChoose }: { current: Theme; onChoose: (family:
       onKeyDown={(event) => {
         if (event.key === "Escape" && open) {
           event.stopPropagation();
-          setOpen(false);
+          close();
         }
       }}
     >
-      <button type="button" aria-label="Theme" aria-haspopup="listbox" aria-expanded={open} onClick={() => { setQuery(""); setOpen(!open); }}>
+      <button ref={trigger} type="button" aria-label="Theme" aria-haspopup="listbox" aria-expanded={open} onClick={() => { setQuery(""); setOpen(!open); }}>
         <ThemeSwatch id={current.id} />
         <span>{current.family}</span>
         <ChevronDown size={14} aria-hidden="true" />
       </button>
       {open && (
-        <div className="theme-select-popover">
+        <div className="theme-select-popover" onKeyDown={moveListFocus}>
           <label className="font-select-search">
             <Search size={14} aria-hidden="true" />
             <input
@@ -194,8 +201,14 @@ function FontSelect({ axis, label, chosen, onChoose }: {
   const [installed, setInstalled] = useState<string[] | null>(null);
   const wrapper = useRef<HTMLDivElement>(null);
   const search = useRef<HTMLInputElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
 
   useEffect(() => { if (open) search.current?.focus(); }, [open]);
+
+  function close() {
+    setOpen(false);
+    trigger.current?.focus();
+  }
 
   function toggle() {
     setQuery("");
@@ -207,7 +220,7 @@ function FontSelect({ axis, label, chosen, onChoose }: {
   }
 
   function choose(id: string) {
-    setOpen(false);
+    close();
     onChoose(id);
   }
 
@@ -243,16 +256,16 @@ function FontSelect({ axis, label, chosen, onChoose }: {
       onKeyDown={(event) => {
         if (event.key === "Escape" && open) {
           event.stopPropagation();
-          setOpen(false);
+          close();
         }
       }}
     >
-      <button type="button" aria-label={label} aria-haspopup="listbox" aria-expanded={open} onClick={toggle} {...faceProps(axis, current.id)}>
+      <button ref={trigger} type="button" aria-label={label} aria-haspopup="listbox" aria-expanded={open} onClick={toggle} {...faceProps(axis, current.id)}>
         <span>{current.label}</span>
         <ChevronDown size={14} aria-hidden="true" />
       </button>
       {open && (
-        <div className="font-select-popover">
+        <div className="font-select-popover" onKeyDown={moveListFocus}>
           <label className="font-select-search">
             <Search size={14} aria-hidden="true" />
             <input
@@ -314,6 +327,13 @@ function SizeField({ label, range, value, onChoose }: {
           if (keep) onChoose(clampSize(range, typed));
         }}
         onKeyDown={(event) => {
+          if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+            event.preventDefault();
+            const typed = Number(draft);
+            const next = stepSize(range, draft?.trim() && Number.isFinite(typed) ? clampSize(range, typed) : value, event.key === "ArrowUp" ? 1 : -1);
+            setDraft(String(next));
+            onChoose(next);
+          }
           if (event.key === "Enter") event.currentTarget.blur();
           if (event.key === "Escape") {
             event.stopPropagation();

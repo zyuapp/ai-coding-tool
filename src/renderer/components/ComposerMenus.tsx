@@ -93,7 +93,7 @@ export function useComposerMenus({ prompt, caret, actions, threads, workspaceId,
 
   const threadToken = handleTokenAt(prompt, Math.min(caret.caret, prompt.length));
   const matchingThreads = threadToken === null ? [] : rankThreadHandles(threads, threadToken.query, THREAD_MENU_LIMIT);
-  const threadMenuOpen = enabled && inputFocused && threadToken !== null && matchingThreads.length > 0 && dismissedPrompt !== prompt;
+  const threadMenuOpen = enabled && inputFocused && threadToken !== null && threads.length > 0 && dismissedPrompt !== prompt;
   useDismissibleLayer(threadMenuOpen, [textareaRef, threadMenuRef], dismiss, textareaRef);
 
   function chooseCommand(entry: MenuEntry) {
@@ -236,6 +236,7 @@ export function ThreadMenu({ menus }: { menus: ComposerMenus }) {
             <span className="command-source">{option.inScope ? (option.running ? "Running" : "") : option.project ?? "No project"}</span>
           </button>
         ))}
+        {matchingThreads.length === 0 && <p className="command-empty">No thread matches</p>}
       </div>
     </div>
   );

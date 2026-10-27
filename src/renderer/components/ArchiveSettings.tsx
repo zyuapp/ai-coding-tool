@@ -1,17 +1,12 @@
 import { LuArchive as Archive } from "react-icons/lu";
 import { ARCHIVE_RETENTION_MS } from "../../domain/thread-retention";
 import type { Thread } from "../../domain/thread";
+import { ConfirmAction } from "./SettingRow";
 
 export type ArchiveSettingsProps = {
   archivedThreads: Thread[];
-  /** Whether deleting every archived thread is one press away from happening. */
-  confirming: boolean;
-  confirmationRef: React.RefObject<HTMLButtonElement | null>;
-  clearRef: React.RefObject<HTMLButtonElement | null>;
   onRestoreThread: (threadId: string) => void;
   onClearArchive: () => void;
-  onStartConfirm: () => void;
-  onCancelConfirm: () => void;
 };
 
 function daysLeft(archivedAt: number) {
@@ -20,16 +15,7 @@ function daysLeft(archivedAt: number) {
   return remaining === 1 ? "Deletes in 1 day" : `Deletes in ${remaining} days`;
 }
 
-export function ArchiveSettings({
-  archivedThreads,
-  confirming,
-  confirmationRef,
-  clearRef,
-  onRestoreThread,
-  onClearArchive,
-  onStartConfirm,
-  onCancelConfirm,
-}: ArchiveSettingsProps) {
+export function ArchiveSettings({ archivedThreads, onRestoreThread, onClearArchive }: ArchiveSettingsProps) {
   return (
     <main className="settings-main">
       <div className="settings-page-heading">
@@ -45,15 +31,7 @@ export function ArchiveSettings({
           </div>
           <div className="settings-group-action">
             <span>{archivedThreads.length} archived</span>
-            {archivedThreads.length > 0 && (confirming
-              ? <>
-                  <button ref={confirmationRef} className="danger" type="button" onClick={() => {
-                    onClearArchive();
-                    onCancelConfirm();
-                  }}>Delete all</button>
-                  <button type="button" onClick={onCancelConfirm}>Cancel</button>
-                </>
-              : <button ref={clearRef} type="button" onClick={onStartConfirm}>Clear all</button>)}
+            {archivedThreads.length > 0 && <ConfirmAction confirm="Delete all" onConfirm={onClearArchive}>Clear all</ConfirmAction>}
           </div>
         </div>
 

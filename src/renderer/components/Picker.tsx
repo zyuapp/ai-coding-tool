@@ -7,10 +7,23 @@ export function PickerPopover({ className, ...props }: ComponentProps<"div">) {
   return <div className={`picker-popover ${className ?? ""}`.trimEnd()} data-popover-menu onKeyDown={moveListFocus} {...props} />;
 }
 
-export function PickerSearch({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+/** `onSubmit` answers Enter in the field, for a list whose top row is what a typed query means. */
+export function PickerSearch({ label, value, onChange, onSubmit }: { label: string; value: string; onChange: (value: string) => void; onSubmit?: () => void }) {
   return <label className="picker-search-field">
     <Search size={14} aria-hidden="true" />
-    <input className="picker-search" aria-label={label} placeholder={label} autoFocus value={value} onInput={(event) => onChange(event.currentTarget.value)} />
+    <input
+      className="picker-search"
+      aria-label={label}
+      placeholder={label}
+      autoFocus
+      value={value}
+      onInput={(event) => onChange(event.currentTarget.value)}
+      onKeyDown={onSubmit && ((event) => {
+        if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+        event.preventDefault();
+        onSubmit();
+      })}
+    />
   </label>;
 }
 

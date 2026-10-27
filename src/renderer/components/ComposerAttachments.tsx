@@ -1,4 +1,4 @@
-import { LuX as X } from "react-icons/lu";
+import { LuPencil as Pencil, LuX as X } from "react-icons/lu";
 import { useEffect, useRef, useState } from "react";
 import { markPrefix } from "../../application/attachments";
 import type { AttachmentSendState } from "../../application/composer-attachments";
@@ -191,6 +191,10 @@ export function useComposerAttachments(images: StagedImage[], outbox: ComposerOu
   };
 }
 
+function markCount(count: number) {
+  return count === 0 ? "" : `, ${count} mark${count === 1 ? "" : "s"}`;
+}
+
 export function AttachmentStrip({ attachments }: { attachments: ComposerAttachments }) {
   if (attachments.items.length === 0) return null;
 
@@ -198,14 +202,22 @@ export function AttachmentStrip({ attachments }: { attachments: ComposerAttachme
     <div className="attachment-row">
       {attachments.items.map((attachment, index) => (
         <div className="attachment-chip" key={attachment.id}>
-          <button type="button" className="attachment-open" onClick={() => attachments.annotate(attachment.id)} aria-label={`Annotate image ${index + 1}`}>
+          <button
+            type="button"
+            className="attachment-open"
+            onClick={() => attachments.annotate(attachment.id)}
+            aria-label={`Annotate image ${index + 1}${markCount(attachment.annotations.length)}`}
+            data-tip="Annotate"
+          >
             <img src={attachment.preview} alt="" />
-            {attachment.annotations.length > 0 && <span className="attachment-badge">{attachment.annotations.length}</span>}
+            <span className="attachment-edit" aria-hidden="true"><Pencil size={14} /></span>
+            {attachment.annotations.length > 0 && <span className="attachment-badge" aria-hidden="true">{attachment.annotations.length}</span>}
           </button>
           <button
             type="button"
             className="attachment-remove"
             aria-label={`Remove image ${index + 1}`}
+            data-tip="Remove"
             onClick={() => attachments.remove(attachment)}
           >
             <X size={12} />

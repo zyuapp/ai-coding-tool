@@ -1,7 +1,7 @@
 import { CommandButton } from "./CommandControl";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Draggable, type DraggableProvided } from "@hello-pangea/dnd";
-import { LuAlarmClock as AlarmClock, LuArchive as Archive, LuCheck as Check, LuFolderSymlink as FolderSymlink, LuHourglass as Hourglass } from "react-icons/lu";
+import { LuAlarmClock as AlarmClock, LuArchive as Archive, LuCheck as Check, LuEllipsis as Ellipsis, LuFolderSymlink as FolderSymlink, LuHourglass as Hourglass } from "react-icons/lu";
 import { pauseSummary } from "../../domain/usage-limit";
 import { projectName, type Project } from "../../domain/project";
 import { threadActivityAt, type Thread } from "../../domain/thread";
@@ -61,18 +61,38 @@ function scheduleLabel(automation: AutomationView) {
   return "Runs on a schedule";
 }
 
-/** The dot a row carries. What a run found is named outright: "Finished" says nothing a headline does. */
-function attentionMark(thread: Thread, sideChatWaiting: boolean, memberUnread: boolean) {
+/** What a row's status mark says, or null when it carries none. A coordinator's row speaks for its threads. */
+type RowStatus =
+  | { kind: "dot"; tone: ThreadOutcome | "approval" | null; label: string }
+  | { kind: "paused"; label: string }
+  | { kind: "working"; label: string };
+
+/**
+ * What waits on the user outranks work going on, as an approval does, since the row is where it is
+ * answered. What a run found is named outright: "Finished" says nothing a headline does.
+ */
+function rowStatus(row: RowState): RowStatus | null {
+  const { thread } = row;
+  if (row.blocked || row.memberBlocked) return { kind: "dot", tone: "approval", label: row.blocked ? BLOCKED_LABEL : MEMBER_BLOCKED_LABEL };
+  if (row.waiting) return { kind: "dot", tone: "approval", label: row.waiting };
+  if (row.pauseLabel !== null) return { kind: "paused", label: row.pauseLabel };
+  if (row.running) return { kind: "working", label: "Working" };
   const finding = newestUnreadFinding(thread);
-  if (finding) return <span key="status" className="task-attention" aria-label={finding.headline} />;
-  if (hasUnreadAttention(thread)) return <span key="status" className={`task-attention ${thread.outcome!}`} aria-label={OUTCOME_LABELS[thread.outcome!]} />;
+  if (finding) return { kind: "dot", tone: null, label: finding.headline };
+  if (hasUnreadAttention(thread)) return { kind: "dot", tone: thread.outcome!, label: OUTCOME_LABELS[thread.outcome!] };
   /** A side chat has no row, so the thread holding it says one of its chats is waiting. */
-  if (sideChatWaiting) return <span key="status" className="task-attention" aria-label={SIDE_CHAT_LABEL} />;
+  if (row.sideChatWaiting) return { kind: "dot", tone: null, label: SIDE_CHAT_LABEL };
   /** Nor does a thread under a coordinator, so the coordinator's row says one of them has news. */
-  if (memberUnread) return <span key="status" className="task-attention" aria-label={MEMBER_UNREAD_LABEL} />;
-  return false;
+  if (row.memberUnread) return { kind: "dot", tone: null, label: MEMBER_UNREAD_LABEL };
+  return null;
 }
 
+function statusMark(status: RowStatus | null): ReactNode {
+  if (!status) return false;
+  if (status.kind === "working") return <ThreadSpinner key="status" />;
+  if (status.kind === "paused") return <Hourglass key="status" className="task-paused" size={14} aria-label={status.label} />;
+  return <span key="status" className={status.tone ? `task-attention ${status.tone}` : "task-attention"} aria-label={status.label} />;
+}
 
 /**
  * What a row says under its title in activity mode: which computer and folder it lives in, and when
@@ -161,21 +181,41 @@ export type SidebarCoordination = {
 };
 
 /**
- * What can be done to a thread from its row. Activity mode offers dismissing on a priority row
- * - a thread still asking has nothing to dismiss - and nothing on the others, rather than two
- * different icons in one view; archiving a thread there is on its menu.
+ * What can be done to a thread from its row: its menu, and beside it the one action the list offers.
+ * Activity mode offers dismissing on a priority row - a thread still asking has nothing to dismiss -
+ * and nothing more on the others, rather than two different icons in one view.
  */
-function rowActionButtons(thread: Thread, action: RowAction, scheduled: boolean, onDismiss: (threadId: string) => void, onArchive: (threadId: string) => void): React.ReactNode[] {
+function rowActionButtons(row: RowState, action: RowAction): React.ReactNode[] {
+  const { thread, handlers } = row;
   return [
+    <button
+      key="menu"
+      className="row-action task-more"
+      type="button"
+      aria-label={`More options for ${thread.title}`}
+      aria-haspopup="menu"
+      aria-expanded={row.menuAt !== null}
+      data-tip="More"
+      onClick={(event) => {
+        event.stopPropagation();
+        const box = event.currentTarget.getBoundingClientRect();
+        handlers.openMenu(thread.id, { x: box.left, y: box.bottom + 4 }, event.currentTarget.closest(".task-entry"));
+      }}
+      onDoubleClick={(event) => event.stopPropagation()}
+    >
+      <Ellipsis size={16} aria-hidden="true" />
+    </button>,
     action === "dismiss" && <CommandButton command={{ type: "task.dismiss", taskId: thread.id }}
       key="dismiss"
       className="row-action task-dismiss"
       type="button"
-      aria-label={scheduled ? `Dismiss ${thread.title}, which keeps running on its schedule` : `Dismiss ${thread.title}`}
+      aria-label={row.schedule ? `Dismiss ${thread.title}, which keeps running on its schedule` : `Dismiss ${thread.title}`}
+      data-tip="Dismiss"
       onClick={(event) => {
         event.stopPropagation();
-        onDismiss(thread.id);
+        handlers.dismiss(thread.id);
       }}
+      onDoubleClick={(event) => event.stopPropagation()}
     >
       <Check size={14} aria-hidden="true" />
     </CommandButton>,
@@ -184,10 +224,12 @@ function rowActionButtons(thread: Thread, action: RowAction, scheduled: boolean,
       className="row-action task-archive"
       type="button"
       aria-label={`Archive ${thread.title}`}
+      data-tip="Archive"
       onClick={(event) => {
         event.stopPropagation();
-        onArchive(thread.id);
+        handlers.archive(thread.id);
       }}
+      onDoubleClick={(event) => event.stopPropagation()}
     >
       <Archive size={14} aria-hidden="true" />
     </CommandButton>,
@@ -247,28 +289,37 @@ type RowHandlers = {
 const NO_THREADS: Thread[] = [];
 
 /** The engine stays at the right edge, with status beside it, whatever other marks a row carries. */
-function rowMarks(row: RowState): ReactNode[] {
+function rowMarks(row: RowState, status: RowStatus | null): ReactNode[] {
   const { thread, worktree } = row;
   return [
     thread.role && <ThreadRoleMark key="role" role={thread.role} size={14} />,
     /** A thread's own mark names its checkout, and threads sharing one share its colour, so a list ranked by attention still groups by eye. */
-    row.inWorktree && <FolderSymlink key="worktree" className={`task-worktree${worktree ? ` worktree-mark hue-${worktreeHue(worktree.id)}` : ""}`} size={14} aria-label={`Works in ${worktree ? worktreeName(worktree) : "a worktree"}`} />,
-    row.schedule && <AlarmClock key="automation" className="task-automation" size={14} aria-label={scheduleLabel(row.schedule)} />,
-    /**
-     * A coordinator's row stands for its threads, so it shows the approval or the work they have going.
-     * What waits on the user outranks work going on, as an approval does, since the row is where it is answered.
-     */
-    row.blocked || row.memberBlocked
-      ? <span key="status" className="task-attention approval" aria-label={row.blocked ? BLOCKED_LABEL : MEMBER_BLOCKED_LABEL} />
-      : row.waiting
-        ? <span key="status" className="task-attention approval" aria-label={row.waiting} />
-      : row.pauseLabel !== null
-        ? <Hourglass key="status" className="task-paused" size={14} aria-label={row.pauseLabel} />
-        : row.running
-          ? <ThreadSpinner key="status" />
-          : attentionMark(thread, row.sideChatWaiting, row.memberUnread),
+    row.inWorktree && <FolderSymlink key="worktree" className={`task-worktree${worktree ? ` worktree-mark hue-${worktreeHue(worktree.id)}` : ""}`} size={14} aria-label={worktreeLabel(row)} />,
+    row.schedule && <AlarmClock key="automation" className={`task-automation${scheduleTrouble(row.schedule) ? " trouble" : ""}`} size={14} aria-label={scheduleLabel(row.schedule)} />,
+    statusMark(status),
     <ThreadEngineIcon key="engine" engine={thread.engine} className="task-engine" size={14} />,
   ].filter(Boolean);
+}
+
+function worktreeLabel(row: RowState) {
+  return `Works in ${row.worktree ? worktreeName(row.worktree) : "a worktree"}`;
+}
+
+/** A schedule that missed or failed its run is drawn apart from one that is well or paused on purpose. */
+function scheduleTrouble(automation: AutomationView) {
+  return !automation.paused && (automation.nextRunAt === null || automation.lastStatus === "failed" || automation.lastStatus === "skipped");
+}
+
+/** The row's hover text: its whole title, then what each of its marks says, since the marks take no pointer. */
+function rowTitle(row: RowState, status: RowStatus | null) {
+  const { thread, host } = row;
+  return [
+    thread.title,
+    row.away && host ? `${host.name} is ${host.reconnecting ? "reconnecting" : "offline"}` : null,
+    status?.label,
+    row.inWorktree ? worktreeLabel(row) : null,
+    row.schedule ? scheduleLabel(row.schedule) : null,
+  ].filter(Boolean).join("\n");
 }
 
 /**
@@ -277,11 +328,11 @@ function rowMarks(row: RowState): ReactNode[] {
  * action lands on the mark it stands in for, and every rail is the same width, so the slots line up
  * down the list. A layer that gains an icon keeps the other layer's geometry.
  */
-function threadRail(row: RowState, action: RowAction) {
-  const actions = rowActionButtons(row.thread, action, Boolean(row.schedule), row.handlers.dismiss, row.handlers.archive);
+function threadRail(row: RowState, status: RowStatus | null, away: boolean, action: RowAction) {
+  const actions = away ? [] : rowActionButtons(row, action);
   return (
     <span className="row-rail">
-      <span className="row-layer row-marks">{rowMarks(row)}</span>
+      <span className="row-layer row-marks">{rowMarks(row, status)}</span>
       {actions.length > 0 && <span className="row-layer row-actions">{actions}</span>}
     </span>
   );
@@ -290,6 +341,7 @@ function threadRail(row: RowState, action: RowAction) {
 /** The row itself, which is the same whether the list around it lets it be dragged or not. */
 function rowBody(row: RowState, className: string, content: ReactNode, action: RowAction, priority = false) {
   const { thread, away, handlers } = row;
+  const status = rowStatus(row);
   return (
     <>
     <div
@@ -302,7 +354,7 @@ function rowBody(row: RowState, className: string, content: ReactNode, action: R
         if (away) return;
         handlers.openMenu(thread.id, { x: event.clientX, y: event.clientY }, event.currentTarget.closest(".task-entry"));
       }}
-      title={thread.title}
+      title={rowTitle(row, status)}
     >
       {row.editing && !away
         ? <RenameInput
@@ -313,7 +365,7 @@ function rowBody(row: RowState, className: string, content: ReactNode, action: R
             onCommit={(value) => handlers.commitRename(thread.id, value)}
             onCancel={handlers.cancelRename}
           />
-        : <>{content}{threadRail(row, away ? "none" : action)}</>}
+        : <>{content}{threadRail(row, status, away, action)}</>}
     </div>
     {row.menuAt && <ContextMenu
       at={row.menuAt}

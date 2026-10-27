@@ -7,6 +7,13 @@ import { PopoverMenu } from "./PopoverMenu";
 import { RenameInput, useRenaming } from "./SidebarRename";
 import { threadMenuEntries } from "./thread-menu";
 import type { ThreadRole } from "../../domain/thread-role";
+import { displayShortcut } from "../../domain/shortcuts";
+import { MAC } from "../platform";
+
+/** A control's name with the fixed keystroke that does the same. */
+function keyed(label: string, binding: string) {
+  return `${label} (${displayShortcut(binding, MAC)})`;
+}
 
 export type WorkspaceHeaderProps = {
   currentThread?: Thread;
@@ -45,6 +52,7 @@ export type WorkspaceHeaderProps = {
   onToggleSidebar: () => void;
   onToggleSessionPanel: () => void;
   onToggleRightDock: () => void;
+  onChooseFolder: () => void;
 };
 
 function ThreadHeading({ currentThread, folder, folderLabel, host, openMenu, onSetOpenMenu, onRenameThread, onForkThread, onArchiveThread, onSetThreadRole, coordinators, onSetCoordinator, notifications, onSetMuted, stoppable, onStopAll }: Pick<WorkspaceHeaderProps, "currentThread" | "folder" | "folderLabel" | "host" | "openMenu" | "onSetOpenMenu" | "onRenameThread" | "onForkThread" | "onArchiveThread" | "onSetThreadRole" | "coordinators" | "onSetCoordinator" | "notifications" | "onSetMuted" | "stoppable" | "onStopAll">) {
@@ -69,7 +77,11 @@ function ThreadHeading({ currentThread, folder, folderLabel, host, openMenu, onS
               onCommit={(value) => name.commit(currentThread.id, value)}
               onCancel={name.cancel}
             />
-          : <span className="heading-thread">{currentThread?.title ?? "New task"}</span>}
+          : <span
+              className="heading-thread"
+              title={currentThread?.title}
+              onDoubleClick={currentThread && (() => name.start(currentThread.id))}
+            >{currentThread?.title ?? "New task"}</span>}
       </h1>
       {currentThread && <PopoverMenu
         id={`thread-heading:${currentThread.id}`}
@@ -95,7 +107,11 @@ function ThreadHeading({ currentThread, folder, folderLabel, host, openMenu, onS
   );
 }
 
-export function WorkspaceHeader({ currentThread, folder, folderLabel, host, sidebarOpen, sessionPanelOpen, rightDockOpen, zen, workingSubagents, openMenu, canOpenFolder, apps, onListApps, onSetOpenMenu, onOpenInApp, onRenameThread, onForkThread, onArchiveThread, onSetThreadRole, coordinators, onSetCoordinator, notifications, onSetMuted, stoppable, onStopAll, onToggleSidebar, onToggleSessionPanel, onToggleRightDock }: WorkspaceHeaderProps) {
+export function WorkspaceHeader({ currentThread, folder, folderLabel, host, sidebarOpen, sessionPanelOpen, rightDockOpen, zen, workingSubagents, openMenu, canOpenFolder, apps, onListApps, onSetOpenMenu, onOpenInApp, onRenameThread, onForkThread, onArchiveThread, onSetThreadRole, coordinators, onSetCoordinator, notifications, onSetMuted, stoppable, onStopAll, onToggleSidebar, onToggleSessionPanel, onToggleRightDock, onChooseFolder }: WorkspaceHeaderProps) {
+  const working = workingSubagents > 0 ? `${workingSubagents} ${workingSubagents === 1 ? "agent" : "agents"} working` : "";
+  let openInBlocked: string | null = null;
+  if (!folder) openInBlocked = "Choose a project folder first";
+  else if (!canOpenFolder) openInBlocked = "Worktree is still being created";
   return (
     <header className={`topbar ${sidebarOpen ? "" : "traffic-inset"}`.trimEnd()}>
       <div className="task-heading">
@@ -104,6 +120,7 @@ export function WorkspaceHeader({ currentThread, folder, folderLabel, host, side
           type="button"
           aria-label={`${sidebarOpen ? "Hide" : "Show"} sidebar`}
           aria-pressed={sidebarOpen}
+          data-tip={keyed("Sidebar", "Mod+B")}
           onClick={onToggleSidebar}
         >
           <PanelLeft size={18} aria-hidden="true" />
@@ -128,11 +145,11 @@ export function WorkspaceHeader({ currentThread, folder, folderLabel, host, side
             stoppable={stoppable}
             onStopAll={onStopAll}
           />
-          {!folder && <p>Choose a project folder to begin</p>}
+          {!folder && <button type="button" className="heading-choose-folder" onClick={onChooseFolder}>Choose a project folder to begin</button>}
         </div>
       </div>
       <div className="workspace-controls">
-        <OpenInMenu openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} enabled={canOpenFolder} apps={apps} onListApps={onListApps} onOpenInApp={onOpenInApp} />
+        <OpenInMenu openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} blocked={openInBlocked} apps={apps} onListApps={onListApps} onOpenInApp={onOpenInApp} />
         {zen.available && (
           <button className="session-toggle" type="button" aria-label="Enter zen mode" data-tip={zen.tip} onClick={zen.onEnter}>
             <Focus size={18} aria-hidden="true" />
@@ -141,8 +158,9 @@ export function WorkspaceHeader({ currentThread, folder, folderLabel, host, side
         <button
           className={`session-toggle ${sessionPanelOpen ? "active" : ""}`}
           type="button"
-          aria-label={`${sessionPanelOpen ? "Hide" : "Show"} session summary`}
+          aria-label={`${sessionPanelOpen ? "Hide" : "Show"} session summary${working ? `, ${working}` : ""}`}
           aria-pressed={sessionPanelOpen}
+          data-tip={working ? `Session summary · ${working}` : "Session summary"}
           onClick={onToggleSessionPanel}
         >
           <SlidersHorizontal size={18} aria-hidden="true" />
@@ -153,6 +171,7 @@ export function WorkspaceHeader({ currentThread, folder, folderLabel, host, side
           type="button"
           aria-label={`${rightDockOpen ? "Hide" : "Show"} right panel`}
           aria-pressed={rightDockOpen}
+          data-tip={keyed("Right panel", "Mod+\\")}
           onClick={onToggleRightDock}
         >
           <PanelRight size={18} aria-hidden="true" />

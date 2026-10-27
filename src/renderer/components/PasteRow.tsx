@@ -1,13 +1,23 @@
-import { LuClipboardPaste as ClipboardPaste, LuX as X } from "react-icons/lu";
+import { LuCheck as Check, LuClipboardPaste as ClipboardPaste, LuCopy as Copy, LuX as X } from "react-icons/lu";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { pasteSummary } from "../../application/pastes";
 import type { PastedText } from "../../domain/conversation";
 import { useModalFocus } from "../focus";
+import { copyText } from "../clipboard";
+
+/** How long the tick stands in for the copy icon after a copy. */
+const COPIED_MS = 1400;
 
 function PasteViewer({ paste, label, onClose }: { paste: PastedText; label: string; onClose: () => void }) {
   const dialog = useRef<HTMLDivElement>(null);
+  const [copied, setCopied] = useState(false);
   useModalFocus(dialog);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), COPIED_MS);
+    return () => clearTimeout(timer);
+  }, [copied]);
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
@@ -20,6 +30,15 @@ function PasteViewer({ paste, label, onClose }: { paste: PastedText; label: stri
 
   return createPortal(
     <div ref={dialog} className="viewer" role="dialog" aria-modal="true" aria-label={label} tabIndex={-1} onClick={onClose}>
+      <button
+        type="button"
+        className={`viewer-copy ${copied ? "copied" : ""}`}
+        aria-label={copied ? "Copied" : "Copy pasted text"}
+        data-tip="Copy"
+        onClick={(event) => { event.stopPropagation(); void copyText(paste.text).then((done) => { if (done) setCopied(true); }); }}
+      >
+        {copied ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}
+      </button>
       <button type="button" className="viewer-close" onClick={onClose} aria-label={`Close ${label.toLowerCase()}`}><X size={16} /></button>
       <pre className="paste-full" onClick={(event) => event.stopPropagation()}>{paste.text}</pre>
     </div>,
