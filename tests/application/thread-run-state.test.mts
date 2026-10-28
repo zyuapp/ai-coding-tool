@@ -341,6 +341,17 @@ test("assistant chunks, tool intents, and continuation updates preserve order", 
   assert.equal(continued.threads[0].continuationStatus, "available");
 });
 
+test("the text a run ends on is its answer; text a tool call followed is not", () => {
+  const note = applyRunEvent(state(), { type: "assistant.delta", taskId: "task-a", runId: "run-a", sequence: 1, messageId: "message-1", text: "Checking." });
+  const tool = applyRunEvent(note, { type: "tool.intent", taskId: "task-a", runId: "run-a", sequence: 2, intent: { toolId: "tool-1", name: "Bash", input: { command: "ls" } } });
+  const answer = applyRunEvent(tool, { type: "assistant.delta", taskId: "task-a", runId: "run-a", sequence: 3, messageId: "message-2", text: "Done." });
+  const ended = applyRunEvent(answer, { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 4, status: "succeeded" });
+  assert.deepEqual(ended.threads[0].messages.map((message) => message.answer), [undefined, undefined, true]);
+
+  const toolLast = applyRunEvent(tool, { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 3, status: "cancelled" });
+  assert.equal(toolLast.threads[0].messages.some((message) => message.answer), false);
+});
+
 test("a continuation the engine no longer has is dropped, so the thread starts over rather than failing again", () => {
   const continued = applyRunEvent(state(), { type: "continuation.updated", taskId: "task-a", runId: "run-a", sequence: 1, continuation: { provider: "codex", value: "thread-1" } });
   const lost = applyRunEvent(continued, { type: "continuation.lost", taskId: "task-a", runId: "run-a", sequence: 2 });

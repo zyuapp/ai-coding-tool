@@ -458,7 +458,8 @@ export class ClaudeSession {
         if (stream.activeMainStreamId === streamId) stream.activeMainStreamId = undefined;
       }
       for (const block of message.message.content) {
-        if (block.type === "text" && streamed === undefined && block.text.trim()) {
+        /** A synthetic error repeats what the run's failure reports. */
+        if (block.type === "text" && streamed === undefined && block.text.trim() && !(message.error && message.message.model === SYNTHETIC_MODEL)) {
           stream.emit({ type: "assistant", messageId: message.uuid, text: block.text });
         } else if (block.type === "tool_use") {
           stream.emit({ type: "tool", intent: normalizeToolIntent(block.name, block.input, block.id) });

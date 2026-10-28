@@ -17,6 +17,13 @@ test("a turn the plan's usage limit stops says when the limit lifts, and extra u
   assert.deepEqual(await run([{ ...rejected({}), rate_limit_info: { status: "allowed" } }, failed]), { status: "failed", message: "You've hit your limit" });
 });
 
+test("the limit's synthetic reply is left to the run's failure rather than written as an answer", async () => {
+  const synthetic = { type: "assistant", uuid: "reply-1", parent_tool_use_id: null, error: "rate_limit", message: { id: "reply-1", model: "<synthetic>", content: [{ type: "text", text: "You've hit your limit" }] } };
+  const emitted: string[] = [];
+  await new ClaudeAgentProvider(queryFactory([synthetic] as SDKMessage[])).execute(claudeInput({ emit: (event) => emitted.push(event.type) }));
+  assert.equal(emitted.includes("assistant"), false);
+});
+
 test("a turn stopped by the plan's usage limit says when the limit lifts", async () => {
   const window = (usedPercent: number, windowDurationMins: number, resetsAt: number) => ({ usedPercent, windowDurationMins, resetsAt });
   const snapshot = (primary: ReturnType<typeof window>, secondary: ReturnType<typeof window>) => ({ limitId: "codex", limitName: null, normalModelSlug: null, primary, secondary, credits: null, individualLimit: null, spendControlReached: null, planType: null, rateLimitReachedType: null });

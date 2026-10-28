@@ -64,6 +64,8 @@ export type ConversationMessage = {
   text: string;
   /** A delivered artifact or its failure stays visible when intermediate work folds away. */
   artifact?: true;
+  /** On assistant text, the last thing a run said. It stays visible when the work before it folds away. */
+  answer?: true;
   /** On a user message, who sent it when the user did not. */
   origin?: MessageOrigin;
   detail?: string;

@@ -648,6 +648,7 @@ function isConversationMessage(value: unknown): value is ConversationMessage {
     typeof value.kind === "string" && isMessageKind(value.kind) &&
     typeof value.text === "string" &&
     (value.artifact === undefined || value.artifact === true) &&
+    (value.answer === undefined || value.answer === true) &&
     (value.origin === undefined || value.kind === "user" && isMessageOrigin(value.origin)) &&
     (value.detail === undefined || typeof value.detail === "string") &&
     (value.tone === undefined || value.tone === "error") &&

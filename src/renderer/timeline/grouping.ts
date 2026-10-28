@@ -36,22 +36,25 @@ function endOf(group: TimelineEntry, next: TimelineEntry | undefined, runEndedAt
 
 /**
  * Assistant text and the tool calls it drives belong to one turn. A turn ending in assistant text is
- * settled; the newest turn of a running task is live and keeps collecting steps. A turn no answer
+ * settled; the newest turn of a running task is live and keeps collecting steps. A run's answer closes
+ * its turn, so work the agent takes up on its own afterwards folds apart from it. A turn no answer
  * closed ends where the next group opens, or where the run it belonged to stopped.
  */
 export function groupTimeline(messages: ConversationMessage[], { running, tailMessageId, runEndedAt, coordinator = false, starts = [] }: TimelineOptions): TimelineGroup[] {
   const groups: (TimelineEntry | ConversationMessage[])[] = [];
+  let open: ConversationMessage[] | null = null;
   for (const message of messages) {
     if (message.kind === "user" || message.kind === "system" || message.artifact) {
       const from = coordinator ? threadSender(message) : undefined;
       groups.push({ kind: "message", id: message.id, message, ...(from ? { from } : {}) });
+      open = null;
       continue;
     }
-    const open = groups.at(-1);
-    if (Array.isArray(open)) open.push(message);
-    else groups.push([message]);
+    if (!open) groups.push(open = []);
+    open.push(message);
+    if (message.answer) open = null;
   }
-  const liveTurn = running && Array.isArray(groups.at(-1)) ? groups.at(-1) : undefined;
+  const liveTurn = running && open ? open : undefined;
   const timeline: TimelineEntry[] = groups.map((group) => {
     if (!Array.isArray(group)) return group;
     const settled = group !== liveTurn && group.at(-1)!.kind === "assistant";

@@ -157,6 +157,32 @@ test("timeline groups keep user turns apart and leave a lone answer uncollapsed"
   assert.equal(liveTurn.live, true);
 });
 
+test("a run's answer stays out of the fold when the agent works on after it", () => {
+  const messages = transcript(
+    { kind: "user", text: "Release it" },
+    { kind: "tool", text: "Bash" },
+    { kind: "assistant", text: "The release is building.", answer: true },
+    { kind: "tool", text: "Bash" },
+    { kind: "assistant", text: "It is published.", answer: true },
+  );
+
+  const settled = groupTimeline(messages, { running: false });
+  assert.deepEqual(settled.map((group) => group.kind), ["message", "turn", "turn"]);
+  const [first, second] = [item(settled[1]), item(settled[2])];
+  if (first.kind !== "turn" || second.kind !== "turn") assert.fail("expected two turns");
+  assert.equal(first.final, messages[2]);
+  assert.deepEqual(second.steps, [messages[3]]);
+  assert.equal(second.final, messages[4]);
+
+  const waking = groupTimeline(messages.slice(0, 3), { running: true, tailMessageId: "next" });
+  const ended = item(waking[1]);
+  const live = item(waking[2]);
+  if (ended.kind !== "turn" || live.kind !== "turn") assert.fail("expected the answered turn and a live one");
+  assert.equal(ended.live, false);
+  assert.equal(ended.final, messages[2]);
+  assert.equal(live.live, true);
+});
+
 test("a coordinator's superseded thread updates fold into one row before the newest", () => {
   const messages = transcript(
     { kind: "user", text: "Ship it" },
