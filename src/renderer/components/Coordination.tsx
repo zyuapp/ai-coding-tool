@@ -171,16 +171,18 @@ function overviewFocus(place: OverviewPlace, root: HTMLElement, groups: Record<O
 
 /**
  * Text edited where it is read: a click turns it into a field, Enter or leaving it saves, and Esc
- * puts it back as it was. A `multiline` one wraps as it is read rather than scrolling sideways, and
- * Enter still saves it.
+ * puts it back as it was. A `multiline` one wraps as it is read and takes Shift+Enter as a new line.
+ * A `required` one emptied is marked invalid and is not saved: Enter keeps it open, leaving it puts
+ * the text back.
  */
-function InlineEdit({ value, label, placeholder, className, maxLength, multiline = false, editIcon = false, onSave }: {
+function InlineEdit({ value, label, placeholder, className, maxLength, multiline = false, required = false, editIcon = false, onSave }: {
   value: string;
   label: string;
   placeholder?: string;
   className: string;
   maxLength: number;
   multiline?: boolean;
+  required?: boolean;
   /** Marks the text as editable with a pencil while pointed at or focused. */
   editIcon?: boolean;
   onSave: (text: string) => void;
@@ -210,12 +212,14 @@ function InlineEdit({ value, label, placeholder, className, maxLength, multiline
     if (settled.current) return;
     settled.current = true;
     const saved = text?.trim();
-    if (saved !== undefined && saved !== opened.current && saved !== value) onSave(saved);
+    if (saved !== undefined && (saved || !required) && saved !== opened.current && saved !== value) onSave(saved);
     setDraft(null);
   };
+  const empty = required && !draft.trim();
   const field = {
     className: `${className} editing`,
     "aria-label": label,
+    "aria-invalid": empty || undefined,
     value: draft,
     placeholder,
     maxLength,
@@ -223,7 +227,12 @@ function InlineEdit({ value, label, placeholder, className, maxLength, multiline
     onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => { if (!settled.current) setDraft(event.currentTarget.value); },
     onBlur: (event: FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => finish(event.currentTarget.value),
     onKeyDown: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); refocus.current = true; finish(event.currentTarget.value); }
+      if (event.key === "Enter" && !event.nativeEvent.isComposing && !(multiline && event.shiftKey)) {
+        event.preventDefault();
+        if (required && !event.currentTarget.value.trim()) return;
+        refocus.current = true;
+        finish(event.currentTarget.value);
+      }
       if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); refocus.current = true; finish(null); }
     },
   };
@@ -253,8 +262,8 @@ function MemorySection({ memory, fold, onSetFold }: { memory: OverviewMemoryProp
       {open && <div className="subagent-list">
         {memory.notes.map((note) => (
           <div key={note.id} className="coordination-note">
-            {/** A note emptied while editing is left as it was; Forget is how one goes. */}
-            <InlineEdit value={note.text} label="Note" className="coordination-note-text" maxLength={MAX_MEMORY_NOTE} multiline onSave={(text) => { if (text) memory.onEdit(note.id, text); }} />
+            {/** Forget is how a note goes, so one emptied while editing is not saved. */}
+            <InlineEdit value={note.text} label="Note" className="coordination-note-text" maxLength={MAX_MEMORY_NOTE} multiline required onSave={(text) => memory.onEdit(note.id, text)} />
             <ForgetNote taskId={memory.taskId} note={note} />
           </div>
         ))}
@@ -293,7 +302,7 @@ function NoteInput({ notes, onAdd }: { notes: readonly MemoryNote[]; onAdd: (tex
   }
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     const typed = event.currentTarget.value.trim();
-    if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
       if (!typed) return;
       setSent({ text: typed, held: new Set(notes.map((note) => note.id)) });
@@ -618,7 +627,7 @@ export function MemberWorktreeList({ worktrees, onReveal, onDelete }: {
           return (
             <div key={worktree.id} className="coordination-row coordination-worktree">
               <span className={`coordination-row-mark worktree-mark hue-${worktreeHue(worktree.id)}`}><FolderSymlink size={12} aria-hidden="true" /></span>
-              <span title={`${worktree.root}\n${by}`}><strong>{worktree.name}</strong><small className={worktree.deleting ? "text-sweep" : undefined}>{detail}</small></span>
+              <span data-tip={worktree.root}><strong>{worktree.name}</strong><small className={worktree.deleting ? "text-sweep" : undefined}>{detail}</small></span>
               <span className="coordination-worktree-actions">
                 {onReveal && <button type="button" aria-label={`Reveal ${worktree.name}`} data-tip={MAC ? "Reveal in Finder" : "Show in file manager"} disabled={worktree.deleting} onClick={() => onReveal(worktree.root)}>
                   <FolderOpen size={14} />

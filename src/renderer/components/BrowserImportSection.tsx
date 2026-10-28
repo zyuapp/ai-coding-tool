@@ -3,7 +3,7 @@ import { SettingGroup } from "./SettingRow";
 import { settingControl } from "../../domain/settings-catalog";
 import { LuCheck as Check, LuRotateCw as Again } from "react-icons/lu";
 import { NO_BROWSER_IMPORT, sourceName, type BrowserImportPicker, type BrowserImportState } from "../../application/browser-import";
-import type { BrowserImportSource } from "../../domain/browser-import";
+import { MAX_IMPORT_SITES, type BrowserImportSource } from "../../domain/browser-import";
 import { SpinningIcon } from "./SpinningIcon";
 
 /** A long list draws this many rows; searching reaches the rest. */
@@ -36,6 +36,19 @@ function SitePicker({ picker, importing, onToggle, onFilter, onRun, onCancel }: 
   const matching = useMemo(() => (picker.sites ?? []).filter((site) => site.domain.includes(query)), [picker.sites, query]);
   const selected = new Set(picker.selected);
   const count = picker.selected.length;
+  const ticked = matching.filter((site) => selected.has(site.domain)).length;
+  const all = matching.length > 0 && ticked === matching.length;
+  const room = MAX_IMPORT_SITES - count;
+  const everyBox = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (everyBox.current) everyBox.current.indeterminate = ticked > 0 && !all;
+  });
+  /** Ticks every matching site the import has room for, or clears them once there is nothing left to tick. */
+  const toggleMatching = () => {
+    const adding = !all && room > 0;
+    const changed = adding ? matching.filter((site) => !selected.has(site.domain)).slice(0, room) : matching.filter((site) => selected.has(site.domain));
+    for (const site of changed) onToggle(site.domain);
+  };
   /** Escape empties the search first, then closes the picker. */
   const escape = (event: KeyboardEvent) => {
     if (event.key !== "Escape" || importing) return;
@@ -54,6 +67,13 @@ function SitePicker({ picker, importing, onToggle, onFilter, onRun, onCancel }: 
               <input type="search" autoFocus aria-label="Find a site" placeholder="Find a site…" value={picker.filter}
                 onInput={(event) => onFilter(event.currentTarget.value)} />
               <div className="browser-import-sites" role="group" aria-label="Sites">
+                {matching.length > 1 && (
+                  <label className="browser-import-every">
+                    <input ref={everyBox} type="checkbox" checked={all} onChange={toggleMatching} />
+                    <span>{query ? "All matching" : "All sites"}</span>
+                    <em>{ticked} of {matching.length}</em>
+                  </label>
+                )}
                 {matching.slice(0, SHOWN_SITES).map((site) => (
                   <label key={site.domain}>
                     <input type="checkbox" checked={selected.has(site.domain)} onChange={() => onToggle(site.domain)} />

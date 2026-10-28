@@ -90,6 +90,7 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
   const unreadable = branches?.status === "error" && !branch;
   /** Until the user picks one, the thread starts from wherever the checkout already is. */
   const selected = branch?.name ?? current;
+  const branchLabel = selected ?? (unreadable ? "Branches unavailable" : "Current branch");
 
   /** With nowhere to work a thread can only be a chat, so all it has left to answer is whether it coordinates. */
   if (!projects.length) {
@@ -106,7 +107,7 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
   return (
     <div className="thread-start" aria-label="How this thread starts">
       <div className={`thread-start-field thread-start-project ${projectsOpen ? "open" : ""}`} ref={projectRef}>
-        <button ref={projectTrigger} type="button" aria-label={showComputers && project ? `${label} on ${host?.name ?? "This computer"}` : "Project"} aria-haspopup="listbox" aria-expanded={projectsOpen} onClick={() => { setProjectQuery(""); setProjectsOpen(!projectsOpen); }}>
+        <button ref={projectTrigger} type="button" aria-label={`Project: ${label}${showComputers && project ? ` on ${host?.name ?? "This computer"}` : ""}`} aria-haspopup="listbox" aria-expanded={projectsOpen} onClick={() => { setProjectQuery(""); setProjectsOpen(!projectsOpen); }}>
           {project ? <FolderGit2 size={14} /> : <MessageCircle size={14} />}
           <span className="thread-start-project-label">
             <span>{label}</span>
@@ -154,9 +155,9 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
           </div>
         ) : (<>
         <div className={`thread-start-field ${branchesOpen ? "open" : ""}`} ref={branchRef}>
-          <button ref={branchTrigger} type="button" className={unreadable ? "error" : undefined} aria-label="Starting branch" aria-haspopup="listbox" aria-expanded={branchesOpen} aria-disabled={!workspaceId || undefined} data-tip={!workspaceId ? "Starts from the project's current branch" : unreadable ? branches.message : undefined} onClick={() => { if (workspaceId) setBranchesOpen(!branchesOpen); }}>
+          <button ref={branchTrigger} type="button" className={unreadable ? "error" : undefined} aria-label={`Starting branch: ${branchLabel}${branch?.create ? " (new)" : ""}`} aria-haspopup="listbox" aria-expanded={branchesOpen} aria-disabled={!workspaceId || undefined} data-tip={!workspaceId ? "Starts from the project's current branch" : unreadable ? branches.message : undefined} onClick={() => { if (workspaceId) setBranchesOpen(!branchesOpen); }}>
             {unreadable ? <CircleAlert size={14} /> : <GitBranch size={14} />}
-            <span>{selected ?? (unreadable ? "Branches unavailable" : "Current branch")}</span>
+            <span>{branchLabel}</span>
             {branch?.create && <small>new</small>}
             <ChevronDown size={14} />
           </button>
@@ -174,7 +175,7 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
           )}
         </div>
 
-        <button type="button" className="thread-start-toggle" aria-pressed={worktree} data-tip="Start in a checkout of its own" onClick={() => onSetWorktree(!worktree)}>
+        <button type="button" className="thread-start-toggle" aria-pressed={worktree} data-tip="Work in a new git worktree, leaving the project's checkout as it is" onClick={() => onSetWorktree(!worktree)}>
           <FolderSymlink size={14} />
           <span>Worktree</span>
         </button>

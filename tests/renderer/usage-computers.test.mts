@@ -42,3 +42,23 @@ test("with no paired computer the page is this computer's alone", async () => {
     await view.unmount();
   }
 });
+
+test("a provider this computer could not read offers to read it again beside its error", async () => {
+  const failing: PlanUsageState = { ...own, reports: { ...own.reports, codex: { status: "unavailable", message: "Codex did not answer." } } };
+  const paired: ComputerUsage[] = [{ id: "mac", name: "MacBook", status: "connected", supported: true, usage: failing }];
+  let refreshed = 0;
+  const view = await mount(React.createElement(UsageSettings, { usage: failing, computers: paired, onRefresh: () => { refreshed += 1; }, timeZone: "UTC" }));
+  try {
+    const retry = (id: string) => view.container.querySelector<HTMLButtonElement>(`[data-usage-computer='${id}'] .settings-error button`);
+    assert.equal(retry("mac"), null, "another computer's limits are not read from here");
+    assert.equal(retry("this")!.textContent, "Try again");
+    retry("this")!.click();
+    assert.equal(refreshed, 2);
+
+    await view.render(React.createElement(UsageSettings, { usage: { ...failing, reading: ["codex"] }, computers: paired, onRefresh() {}, timeZone: "UTC" }));
+    assert.equal(retry("this")!.disabled, true);
+    assert.equal(retry("this")!.textContent, "Reading…");
+  } finally {
+    await view.unmount();
+  }
+});

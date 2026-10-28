@@ -164,7 +164,7 @@ test("rows on a paired computer carry its name, and rows on one that cannot be r
     assert.deepEqual(rows.map((row) => row.querySelector("small")?.textContent), [
       rows[0]!.querySelector("small")!.textContent,
       `linux-box · app · ${rows[1]!.querySelector("small")!.textContent!.split(" · ").at(-1)}`,
-      `old-laptop · Offline · ${rows[2]!.querySelector("small")!.textContent!.split(" · ").at(-1)}`,
+      `old-laptop · ${rows[2]!.querySelector("small")!.textContent!.split(" · ").at(-1)}`,
     ]);
     assert.equal(rows[0]!.querySelector(".host-mark") === null, true);
     assert.equal(query(rows[1]!, "small > .host-mark").textContent, "linux-box");
@@ -203,10 +203,11 @@ test("the header's computer button names every computer and narrows the lists to
     const press = async (target: HTMLElement, key: string) => {
       await act(async () => { target.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key, bubbles: true })); });
     };
-    assert.equal(trigger.parentElement?.previousElementSibling?.getAttribute("aria-label"), "Rank threads by activity", "it sits beside the inbox toggle");
+    assert.equal(trigger.parentElement?.previousElementSibling?.getAttribute("aria-label"), "Sidebar view", "it sits beside the view switch");
     assert.ok(trigger.classList.contains("thread-nav-button"));
-    assert.equal(trigger.getAttribute("aria-label"), "Computers");
-    assert.equal(trigger.dataset.tip, "Computers");
+    assert.equal(trigger.getAttribute("aria-label"), "Computers, 1 offline");
+    assert.equal(trigger.dataset.tip, "Computers · old-laptop offline", "every computer listed flags the one out of reach");
+    assert.ok(trigger.classList.contains("some-away"));
     assert.equal(trigger.getAttribute("aria-haspopup"), "menu");
     assert.equal(trigger.getAttribute("aria-expanded"), "false");
     await act(async () => { trigger.click(); });
@@ -236,7 +237,7 @@ test("the header's computer button names every computer and narrows the lists to
     await act(async () => { trigger.click(); });
     await act(async () => { choicesInMenu()[0]!.click(); });
     assert.deepEqual(filters, ["linux", "this", "old", "all"]);
-    assert.equal(trigger.dataset.tip, "Computers");
+    assert.equal(trigger.dataset.tip, "Computers · old-laptop offline");
     await act(async () => { trigger.click(); });
     await press(query(view.container, '[role="menu"]'), "Escape");
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });

@@ -14,13 +14,16 @@ export type ApprovalCardProps = {
     input: Record<string, unknown>;
   };
   onDecide: (approval: Pick<ApprovalCardProps["approval"], "taskId" | "runId" | "approvalId">, allow: boolean) => void;
-  /** The keystrokes Allow and Deny answer to now; null where the user unbound one. */
-  bindings?: { allow: string | null; deny: string | null };
+  bindings?: DecideBindings;
 };
 
-const DEFAULT_BINDINGS = { allow: shortcutAction("run.allow")?.defaultBinding ?? null, deny: shortcutAction("run.deny")?.defaultBinding ?? null };
+/** The keystrokes Allow and Deny answer to; null where one is unbound. */
+export type DecideBindings = { allow: string | null; deny: string | null };
 
-function DecideButton({ label, binding, secondary = false, onDecide }: { label: string; binding: string | null; secondary?: boolean; onDecide: () => void }) {
+const DEFAULT_BINDINGS: DecideBindings = { allow: shortcutAction("run.allow")?.defaultBinding ?? null, deny: shortcutAction("run.deny")?.defaultBinding ?? null };
+
+/** Allow or Deny, with the keys that answer it beside its label. */
+export function DecideButton({ label, binding, secondary = false, onDecide }: { label: string; binding: string | null; secondary?: boolean; onDecide: () => void }) {
   return (
     <button type="button" {...(secondary ? { className: "secondary" } : {})} {...(binding ? { "data-tip": shortcutTip(label, binding) } : {})} onClick={onDecide}>
       {label}{binding && <kbd aria-hidden="true">{displayShortcut(binding, MAC)}</kbd>}

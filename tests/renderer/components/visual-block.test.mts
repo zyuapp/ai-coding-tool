@@ -91,3 +91,28 @@ test("a visual's error keeps its first line in view beside the retry", async () 
   assert.equal(query(view.container, ".visual-error .block-error-reason").textContent, "chart is not defined");
   await view.unmount();
 });
+
+test("a visual opens at full size in a viewer of its own, which keeps the inline height and closes on Escape", async () => {
+  const { DiagramViewerHost } = await import("../../../src/renderer/components/MermaidBlock.tsx");
+  const source = '<div id="viz-full"></div>';
+  const view = await mount(React.createElement(DiagramViewerHost, null, React.createElement(VisualBlock, { source })));
+  const inline = frameOf(view.container);
+  await say(inline.contentWindow, { type: "aicodingtool-visual:size", height: 200 });
+
+  const expand = query<HTMLButtonElement>(view.container, 'button[aria-label="Open the visual at full size"]');
+  assert.equal(expand.tabIndex, 0, "the keyboard reaches it, since the visual itself is no button");
+  await act(async () => { expand.click(); });
+  const dialog = query<HTMLElement>(document.body, '[role="dialog"][aria-label="Visual"]');
+  const full = dialog.querySelector("iframe") as HTMLIFrameElement & { contentWindow: Window };
+  assert.ok(full && full !== inline, "the viewer draws the visual in its own frame");
+  assert.equal(dialog.querySelector('button[aria-label="Open the visual at full size"]'), null);
+
+  await say(full.contentWindow, { type: "aicodingtool-visual:size", height: 640 });
+  await act(async () => { document.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+  assert.equal(document.querySelector('[role="dialog"]'), null);
+  await view.unmount();
+
+  const again = await mount(React.createElement(VisualBlock, { source }));
+  assert.equal(again.container.querySelector<HTMLElement>(".visual-block")!.style.getPropertyValue("--visual-height"), "200px", "the viewer's height is not kept for the inline visual");
+  await again.unmount();
+});

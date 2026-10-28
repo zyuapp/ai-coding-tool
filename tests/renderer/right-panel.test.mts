@@ -409,7 +409,7 @@ function seedLoneThread(continued: boolean) {
   }));
 }
 
-test("the right panel's tabs ignore Backspace and Delete, and End reaches the last tab", async () => {
+test("Delete closes the focused tab, Backspace does not, and End reaches the last tab", async () => {
   seedTaskWithSubagent();
   window.desktop = fakeDesktop();
   const view = await mount(React.createElement(App));
@@ -420,14 +420,18 @@ test("the right panel's tabs ignore Backspace and Delete, and End reaches the la
   }
   const tabs = () => [...view.container.querySelectorAll<HTMLButtonElement>('.right-dock [role="tab"]')];
   tabs()[0].focus();
-  for (const key of ["Backspace", "Delete"]) {
-    await act(async () => { tabs()[0].dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true })); });
-  }
-  assert.equal(tabs().length, 3, "a stray key never closes a tab");
+  await act(async () => { tabs()[0].dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true })); });
+  assert.equal(tabs().length, 3, "Backspace never closes a tab");
   await act(async () => { tabs()[0].dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true })); });
   assert.equal(dom.window.document.activeElement, tabs()[2]);
   await act(async () => { tabs()[2].dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })); });
   assert.equal(dom.window.document.activeElement, tabs()[0], "the walk wraps past the end");
+
+  const selected = tabs().find((tab) => tab.getAttribute("aria-selected") === "true");
+  assert.notEqual(tabs()[0], selected, "the focused tab need not be the one shown");
+  await act(async () => { tabs()[0].dispatchEvent(new KeyboardEvent("keydown", { key: "Delete", bubbles: true, cancelable: true })); });
+  assert.equal(tabs().length, 2, "Delete closes the tab the keyboard is on");
+  assert.ok(tabs().includes(item(selected)), "the tab being shown stays");
   await view.unmount();
 });
 
@@ -453,17 +457,18 @@ test("an add-menu entry that cannot open stays reachable, says why, and does not
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Show right panel"]').click(); });
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Add right panel tab"]').click(); });
 
-  const entry = (title: string) => item([...view.container.querySelectorAll<HTMLButtonElement>('.right-dock-add [role="menuitem"]')].find((button) => button.textContent === title));
+  const entry = (title: string) => item([...view.container.querySelectorAll<HTMLButtonElement>('.right-dock-add [role="menuitem"]')].find((button) => button.textContent.startsWith(title)));
   const terminal = entry("Terminal");
   assert.equal(terminal.getAttribute("aria-disabled"), "true");
   assert.equal(terminal.disabled, false, "the keyboard can still rest on it");
-  assert.equal(terminal.dataset.tip, "Open a project to start a terminal");
+  assert.equal(terminal.querySelector("small")?.textContent, "Open a project to start a terminal", "the reason is on the entry itself");
   await act(async () => { terminal.click(); });
   assert.equal(view.container.querySelectorAll('.right-dock [role="tab"]').length, 0);
   assert.ok(view.container.querySelector('.right-dock-add [role="menu"]'), "the menu stays open on an entry that cannot act");
 
   const sideChat = entry("Side chat");
   assert.equal(sideChat.dataset.tip, undefined);
+  assert.equal(sideChat.querySelector("small"), null);
   await act(async () => { sideChat.click(); });
   assert.equal(view.container.querySelectorAll('.right-dock [role="tab"]').length, 1);
   await view.unmount();
@@ -498,7 +503,16 @@ test("a strip with tabs past its edges offers every tab in one list", async () =
   const proto = dom.window.HTMLElement.prototype;
   const scrollWidth = Object.getOwnPropertyDescriptor(proto, "scrollWidth");
   const clientWidth = Object.getOwnPropertyDescriptor(proto, "clientWidth");
+  const rect = proto.getBoundingClientRect;
   let tight = false;
+  /** The strip shows 300px, and its tabs are 200px apiece from its left edge. */
+  proto.getBoundingClientRect = function (this: HTMLElement) {
+    if (!tight) return rect.call(this);
+    if (this.getAttribute("role") === "tablist") return dom.window.DOMRect.fromRect({ x: 0, width: 300 });
+    const strip = this.parentElement;
+    if (this.classList.contains("right-dock-tab") && strip) return dom.window.DOMRect.fromRect({ x: [...strip.children].indexOf(this) * 200, width: 200 });
+    return rect.call(this);
+  };
   Object.defineProperty(proto, "scrollWidth", { configurable: true, get(this: HTMLElement) { return tight && this.getAttribute("role") === "tablist" ? 600 : 0; } });
   Object.defineProperty(proto, "clientWidth", { configurable: true, get(this: HTMLElement) { return this.getAttribute("role") === "tablist" ? 300 : 0; } });
   try {
@@ -514,7 +528,10 @@ test("a strip with tabs past its edges offers every tab in one list", async () =
     }
     const tabs = () => [...view.container.querySelectorAll<HTMLButtonElement>('.right-dock [role="tab"]')];
     assert.equal(tabs().length, 3);
-    await act(async () => { query<HTMLButtonElement>(view.container, '.right-dock-overflow > button').click(); });
+    const trigger = query<HTMLButtonElement>(view.container, ".right-dock-overflow > button");
+    assert.equal(trigger.textContent, "1", "the list says how many tabs are out of sight");
+    assert.equal(trigger.getAttribute("aria-label"), "All tabs (3, 1 out of view)");
+    await act(async () => { trigger.click(); });
     const entries = [...view.container.querySelectorAll<HTMLButtonElement>('.right-dock-overflow [role="menuitemradio"]')];
     assert.equal(entries.length, 3);
     const checked = entries.findIndex((entry) => entry.getAttribute("aria-checked") === "true");
@@ -525,6 +542,7 @@ test("a strip with tabs past its edges offers every tab in one list", async () =
     assert.equal(view.container.querySelector('.right-dock-overflow [role="menu"]'), null, "picking a tab closes the list");
     await view.unmount();
   } finally {
+    proto.getBoundingClientRect = rect;
     if (scrollWidth) Object.defineProperty(proto, "scrollWidth", scrollWidth);
     else Reflect.deleteProperty(proto, "scrollWidth");
     if (clientWidth) Object.defineProperty(proto, "clientWidth", clientWidth);

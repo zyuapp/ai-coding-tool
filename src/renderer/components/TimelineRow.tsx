@@ -28,7 +28,7 @@ const fullMoment = (at: number) => (momentFormatter ??= new Intl.DateTimeFormat(
 function MessageActions({ at, text, label }: { at: number; text: string; label: string }) {
   return (
     <div className="message-actions">
-      <time className="message-time" dateTime={new Date(at).toISOString()} title={fullMoment(at)} data-clock={clockTime(at)} />
+      <time className="message-time" dateTime={new Date(at).toISOString()} data-tip={fullMoment(at)} data-clock={clockTime(at)} />
       {text && <CopyButton text={text} label={label} />}
     </div>
   );
@@ -46,16 +46,17 @@ function UserMessage({ message, onView }: { message: ConversationMessage; onView
   const sender = senderThread(message.origin);
   return (
     <article className="message user">
+      <MessageActions at={message.at} text={message.text} label="Copy the message" />
       <div className="message-stack">
         {message.annotations?.length ? <AnnotationRow annotations={message.annotations} /> : null}
         {message.pastes?.length ? <PasteRow pastes={message.pastes} /> : null}
         {message.files?.length ? <FileRow files={message.files} /> : null}
         {message.attachments?.length ? (
           <div className="message-attachments">
-            {message.attachments.map((file, index) => (
+            {message.attachments.map((file) => (
               <button
                 type="button" key={file} className="message-attachment"
-                aria-label={`View screenshot ${index + 1}`}
+                aria-label={`View ${file.split("/").at(-1)}`}
                 data-tip={file.split("/").at(-1)}
                 onClick={() => onView(attachmentUrl(file, taskId))}
               >
@@ -68,7 +69,6 @@ function UserMessage({ message, onView }: { message: ConversationMessage; onView
           ? <button type="button" className="message-origin message-origin-link" data-tip="Open thread" onClick={() => selectThread(sender)}>{label}<ArrowUpRight className="decision-from-arrow" size={12} aria-hidden="true" /></button>
           : <div className="message-origin">{label}</div>)}
         {message.text && <div className="message-text">{message.text}</div>}
-        <MessageActions at={message.at} text={message.text} label="Copy the message" />
       </div>
     </article>
   );

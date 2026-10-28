@@ -83,6 +83,7 @@ const member = (id: string, title: string): Thread => ({ id, title, engine: "cla
 test("a coordinator's session panel keeps its own rows and adds its threads' worktrees and pull requests", async () => {
   window.desktop = fakeDesktop();
   const revealed: string[] = [];
+  const opened: string[] = [];
   const deleted: string[] = [];
   const view = await mount(renderSessionPanel({
     hasProject: true,
@@ -99,6 +100,7 @@ test("a coordinator's session panel keeps its own rows and adds its threads' wor
       React.createElement(MemberPullRequestList, {
         key: "pull-requests",
         pullRequests: [{ pullRequest: { number: 12, title: "Add dark mode", url: "https://github.com/o/r/pull/12", state: "open" }, threads: [member("a", "Dark mode")] }],
+        onSelect: (threadId: string) => { opened.push(threadId); },
       }),
     ],
   }));
@@ -113,9 +115,17 @@ test("a coordinator's session panel keeps its own rows and adds its threads' wor
   assert.deepEqual([revealed, deleted], [["/tmp/wt-1"], ["/tmp/wt-1"]]);
   assert.equal(query<HTMLButtonElement>(worktrees, 'button[aria-label="Delete login"]').disabled, true, "a checkout with a run going cannot be deleted");
 
-  const link = query<HTMLAnchorElement>(query(view.container, '[aria-label="Pull requests from these threads"]'), "a");
+  const pullRequests = query(view.container, '[aria-label="Pull requests from these threads"]');
+  const link = query<HTMLAnchorElement>(pullRequests, "a");
   assert.equal(link.href, "https://github.com/o/r/pull/12");
-  assert.match(link.textContent, /Add dark mode#12 · Open · Dark mode/);
+  assert.equal(link.textContent, "Add dark mode");
+  assert.equal(query(link, "strong").dataset.tip, "#12 Add dark mode");
+  assert.equal(link.title, "", "the full title is an app tooltip, not a native one");
+  assert.match(query(pullRequests, ".coordination-pull-request").textContent, /Add dark mode#12 · Open · Dark mode/);
+  const thread = query<HTMLButtonElement>(pullRequests, 'button[aria-label="Open Dark mode"]');
+  assert.equal(link.contains(thread), false, "a thread's button is not inside the pull request's link");
+  await act(async () => { thread.click(); });
+  assert.deepEqual(opened, ["a"]);
   await view.unmount();
 });
 
@@ -187,6 +197,9 @@ test("the session panel lists the run's background processes and stops the one a
   assert.match(view.container.textContent, /npm run dev/);
   assert.match(view.container.textContent, /Stopping/);
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Stop npm run dev"]').click(); });
+  assert.deepEqual(stopped, [], "Stop asks once more");
+  assert.equal(dom.window.document.activeElement?.textContent, "Cancel", "with the keyboard on the safe answer");
+  await act(async () => { query<HTMLButtonElement>(view.container, ".process-stop-slot > button.armed").click(); });
   assert.deepEqual(stopped, ["bash-1"]);
   const stopping = query<HTMLButtonElement>(view.container, 'button[aria-label="Stopping Deploy events"]');
   assert.equal(stopping.disabled, true, "a stop already asked for cannot be asked for twice");
@@ -316,6 +329,8 @@ test("a working subagent can be stopped from its details, once", async () => {
   const subagent: Subagent = { id: "agent-1", description: "Review", status: "working", startedAt: 1, activity: [] };
   const view = await mount(React.createElement(SubagentInspector, { subagent, onClose() {}, onStop: (id: string) => { stopped.push(id); } }));
   await act(async () => { query<HTMLButtonElement>(view.container, ".workflow-stop").click(); });
+  assert.deepEqual(stopped, [], "Stop asks once more, as a workflow's does");
+  await act(async () => { query<HTMLButtonElement>(view.container, ".workflow-stop-actions > .armed").click(); });
   assert.deepEqual(stopped, ["agent-1"]);
   await view.render(React.createElement(SubagentInspector, { subagent: { ...subagent, stopping: true }, onClose() {}, onStop() {} }));
   assert.equal(query<HTMLButtonElement>(view.container, ".workflow-stop").disabled, true);
@@ -521,7 +536,7 @@ test("the open-in list groups the applications this machine has, and hands one t
   await view.unmount();
 });
 
-test("the open-in list says what it waits for while the folder cannot be handed over", async () => {
+test("Open in says what it waits for while the folder cannot be handed over", async () => {
   window.desktop = fakeDesktop();
   let menu: string | null = null;
   const apps: InstalledApp[] = [{ id: "finder", label: "Finder", kind: "files", icon: null }];
@@ -529,12 +544,16 @@ test("the open-in list says what it waits for while the folder cannot be handed 
   const view = await mount(openIn("Worktree is still being created"));
 
   const trigger = query<HTMLButtonElement>(view.container, ".open-in .session-toggle");
-  assert.equal(trigger.disabled, false);
+  assert.equal(trigger.getAttribute("aria-disabled"), "true", "it stays focusable, so its tip still says why");
+  assert.equal(trigger.dataset.tip, "Open in… · Worktree is still being created");
   await act(async () => { trigger.click(); });
   await view.render(openIn("Worktree is still being created"));
-  assert.equal(query(view.container, ".open-in-empty").textContent, "Worktree is still being created");
-  assert.equal(view.container.querySelectorAll(".open-in-popover button").length, 0, "no application is offered a folder that is not there yet");
+  assert.equal(menu, null);
+  assert.equal(view.container.querySelector(".open-in-popover"), null, "no list opens only to explain itself");
 
+  await view.render(openIn(null));
+  assert.equal(trigger.hasAttribute("aria-disabled"), false);
+  await act(async () => { trigger.click(); });
   await view.render(openIn(null));
   assert.equal(view.container.querySelector(".open-in-empty"), null);
   assert.equal(view.container.querySelectorAll(".open-in-popover button").length, 1);
@@ -614,6 +633,7 @@ test("the session panel lists a workflow as a process and opens its panel", asyn
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Open review-changes workflow"]').click(); });
   assert.deepEqual(opened, ["wf-1"]);
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Stop review-changes"]').click(); });
+  await act(async () => { query<HTMLButtonElement>(view.container, ".process-stop-slot > button.armed").click(); });
   assert.deepEqual(stopped, ["wf-1"]);
 
   await view.render(renderSessionPanel({
@@ -658,7 +678,7 @@ test("an empty subagents panel offers the composer, and a search that matches no
   const empty = await mount(React.createElement(CommandControlsProvider, { value: controls },
     React.createElement(AgentsPanel, { subagents: [], groups: OPEN_SUBAGENT_GROUPS, onSelect() {}, onSetGroup() {} })));
   const message = query<HTMLButtonElement>(empty.container, ".agents-panel-empty button");
-  assert.equal(message.textContent, "Message the thread");
+  assert.equal(message.textContent, "Ask the thread");
   await act(async () => { message.click(); });
   assert.deepEqual(sent, [{ type: "view.shortcut", action: "composer.focus", surface: "any" }]);
   await empty.unmount();

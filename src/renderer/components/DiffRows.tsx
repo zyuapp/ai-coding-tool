@@ -45,6 +45,13 @@ function rowLabel(row: Extract<DiffRow, { kind: DiffLineKind }>) {
  */
 const GUTTER_TIP = "Comment · Drag or Shift-click for more lines · ↑↓ from the file row";
 
+/** A note as its marker's tip shows it, cut to what a tip can hold. */
+function noteTip(note: string) {
+  const text = note.trim().replace(/\s+/g, " ");
+  if (!text) return "Edit comment";
+  return text.length > 140 ? `${text.slice(0, 139)}…` : text;
+}
+
 /** The numbered marks a commented row carries, each of which opens the note again. */
 function CommentMarkers({ row, comments, onEditComment }: {
   row: Extract<DiffRow, { kind: DiffLineKind }>;
@@ -59,7 +66,7 @@ function CommentMarkers({ row, comments, onEditComment }: {
           key={comment.annotation.id}
           type="button"
           aria-label={`Edit comment ${comment.number} on ${rowLabel(row).toLowerCase()}`}
-          data-tip="Edit comment"
+          data-tip={noteTip(comment.annotation.note)}
           onClick={() => onEditComment(comment)}
         >
           {comment.number}

@@ -22,7 +22,7 @@ function headerProps(overrides: Partial<React.ComponentProps<typeof WorkspaceHea
   };
 }
 
-test("the heading's title renames on one click and its project crumb is plain text", async () => {
+test("the heading's title renames on one click and its project crumb opens the Open in list", async () => {
   const renames: Array<[string, string]> = [];
   const view = await mount(React.createElement(WorkspaceHeader, headerProps({
     onRenameThread: (threadId: string, title: string) => { renames.push([threadId, title]); },
@@ -39,9 +39,55 @@ test("the heading's title renames on one click and its project crumb is plain te
     });
     assert.deepEqual(renames, [["codex-thread", "Renamed"]]);
 
-    const project = query(view.container, ".heading-project");
-    assert.equal(project.tagName, "SPAN");
-    assert.equal(project.textContent, "project");
+  } finally { await view.unmount(); }
+});
+
+test("the project crumb names the folder's path and opens the Open in list beneath itself", async () => {
+  let menu: string | null = null;
+  let listed = 0;
+  const props = (overrides: Partial<React.ComponentProps<typeof WorkspaceHeader>> = {}) => headerProps({
+    folder: "/home/me/project",
+    openMenu: menu,
+    apps: [{ id: "finder", label: "Finder", kind: "files" }] as React.ComponentProps<typeof WorkspaceHeader>["apps"],
+    onSetOpenMenu: (next: string | null) => { menu = next; },
+    onListApps: () => { listed += 1; },
+    ...overrides,
+  });
+  const view = await mount(React.createElement(WorkspaceHeader, props()));
+  try {
+    const crumb = query<HTMLButtonElement>(view.container, ".heading-project > button");
+    assert.equal(crumb.textContent, "project");
+    assert.equal(crumb.dataset.tip, "/home/me/project");
+    assert.equal(crumb.getAttribute("aria-haspopup"), "menu");
+    assert.equal(query(view.container, ".task-heading h1").hasAttribute("data-tip"), false, "the path is on a control the keyboard reaches");
+    await act(async () => { crumb.click(); });
+    await view.render(React.createElement(WorkspaceHeader, props()));
+    assert.equal(crumb.getAttribute("aria-expanded"), "true");
+    assert.equal(listed, 1);
+    const list = query(document, ".open-in-popover.anchored");
+    assert.equal(list.closest(".topbar"), null, "the list is drawn outside the heading, so it is not read as part of it");
+    assert.equal(query(list, '[role="menuitem"]').textContent, "Finder");
+    assert.equal(view.container.querySelector(".open-in.open"), null, "the toolbar's list stays closed");
+
+    menu = null;
+    await view.render(React.createElement(WorkspaceHeader, props({ canOpenFolder: false })));
+    const blocked = query<HTMLButtonElement>(view.container, ".heading-project > button");
+    assert.equal(blocked.getAttribute("aria-disabled"), "true");
+    assert.equal(blocked.dataset.tip, "/home/me/project · Worktree is still being created");
+    await act(async () => { blocked.click(); });
+    assert.equal(menu, null);
+  } finally { await view.unmount(); }
+});
+
+test("Open in says why it is off while the checkout is being made, and opens nothing", async () => {
+  let menu: string | null = null;
+  const view = await mount(React.createElement(WorkspaceHeader, headerProps({ canOpenFolder: false, onSetOpenMenu: (next: string | null) => { menu = next; } })));
+  try {
+    const trigger = query<HTMLButtonElement>(view.container, ".open-in > button");
+    assert.equal(trigger.getAttribute("aria-disabled"), "true");
+    assert.equal(trigger.dataset.tip, "Open in… · Worktree is still being created");
+    await act(async () => { trigger.click(); });
+    assert.equal(menu, null);
   } finally { await view.unmount(); }
 });
 
@@ -84,7 +130,7 @@ test("the heading names the paired computer a thread lives on, ahead of its fold
   assert.equal(mark.textContent, "zyuapp");
   assert.equal(mark.nextElementSibling?.className, "heading-separator");
   assert.equal(mark.nextElementSibling?.nextElementSibling?.textContent, "just-speak-linux");
-  assert.equal(query(remote.container, ".task-heading h1").dataset.tip, "/home/me/just-speak-linux on zyuapp");
+  assert.equal(query(remote.container, ".heading-project > button").dataset.tip, "/home/me/just-speak-linux on zyuapp");
   await remote.unmount();
 
   const away = await mount(React.createElement(WorkspaceHeader, { ...props, host: { id: "zyuapp-id", name: "zyuapp", offline: true } }));
@@ -102,7 +148,7 @@ test("an offline computer says so in the heading and reconnects from there", asy
     assert.equal(view.container.querySelector(".heading-host-state"), null);
     await view.render(header({ id: "laptop-id", name: "laptop", offline: true }));
     const state = query<HTMLButtonElement>(view.container, "button.heading-host-state");
-    assert.equal(state.textContent, "OfflineReconnect");
+    assert.equal(state.textContent, "Reconnect");
     await act(async () => { state.click(); });
     assert.deepEqual(sent, [{ type: "computers.reconnect", id: "laptop-id" }]);
     await view.render(header({ id: "laptop-id", name: "laptop", offline: true, reconnecting: true }));
@@ -113,21 +159,27 @@ test("an offline computer says so in the heading and reconnects from there", asy
   } finally { await view.unmount(); }
 });
 
-test("zen mode keeps its place in the toolbar and says why it is off on an empty thread", async () => {
+test("zen mode is offered once the thread has messages", async () => {
   let entered = 0;
   const zen = (available: boolean) => ({ available, tip: "Zen mode (⌘⇧F)", onEnter: () => { entered += 1; } });
   const view = await mount(React.createElement(WorkspaceHeader, headerProps({ zen: zen(false) })));
   try {
-    const off = query<HTMLButtonElement>(view.container, 'button[aria-label="Enter zen mode"]');
-    assert.equal(off.getAttribute("aria-disabled"), "true");
-    assert.equal(off.dataset.tip, "Zen mode (⌘⇧F) · Send a message first");
-    await act(async () => { off.click(); });
-    assert.equal(entered, 0);
+    assert.equal(view.container.querySelector('button[aria-label="Enter zen mode"]'), null);
     await view.render(React.createElement(WorkspaceHeader, headerProps({ zen: zen(true) })));
     const on = query<HTMLButtonElement>(view.container, 'button[aria-label="Enter zen mode"]');
     assert.equal(on.hasAttribute("aria-disabled"), false);
     assert.equal(on.dataset.tip, "Zen mode (⌘⇧F)");
     await act(async () => { on.click(); });
     assert.equal(entered, 1);
+  } finally { await view.unmount(); }
+});
+
+test("the session summary toggle says it takes the right panel's place while that is open", async () => {
+  const view = await mount(React.createElement(WorkspaceHeader, headerProps({ workingSubagents: 2 })));
+  try {
+    const toggle = () => query<HTMLButtonElement>(view.container, 'button[aria-pressed][aria-label*="session summary"]');
+    assert.equal(toggle().dataset.tip, "Session summary · 2 agents working");
+    await view.render(React.createElement(WorkspaceHeader, headerProps({ workingSubagents: 0, rightDockOpen: true })));
+    assert.equal(toggle().dataset.tip, "Session summary · Replaces right panel");
   } finally { await view.unmount(); }
 });

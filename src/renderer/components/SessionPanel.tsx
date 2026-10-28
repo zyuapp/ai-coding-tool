@@ -212,8 +212,11 @@ function SessionEnvironment({ hasProject, locationRow, automationCount, onOpenAu
 
 const PULL_REQUEST_STATES: Record<PullRequestState, string> = { draft: "Draft", open: "Open", merged: "Merged", closed: "Closed" };
 
-/** The pull requests a coordinator's threads have opened, each with the threads working on it. */
-export function MemberPullRequestList({ pullRequests }: { pullRequests: MemberPullRequest[] }) {
+/**
+ * The pull requests a coordinator's threads have opened, each with the threads working on it. The row
+ * opens the pull request; each thread named under it opens that thread.
+ */
+export function MemberPullRequestList({ pullRequests, onSelect }: { pullRequests: MemberPullRequest[]; onSelect?: (threadId: string) => void }) {
   const links = useMessageLinks();
   return (
     <section className="subagent-section coordination-section coordination-pull-requests" aria-label="Pull requests from these threads">
@@ -221,18 +224,31 @@ export function MemberPullRequestList({ pullRequests }: { pullRequests: MemberPu
       <div className="subagent-list">
         {pullRequests.map(({ pullRequest, threads }) => {
           const Icon = PULL_REQUEST_ICONS[pullRequest.state];
-          const by = threads.map((thread) => thread.title).join(", ");
           return (
-            <WebLink
-              key={pullRequest.url}
-              className="coordination-row coordination-pull-request"
-              href={pullRequest.url}
-              title={`#${pullRequest.number} ${pullRequest.title} · ${by}`}
-              openInApp={links.openUrlInApp && (() => links.openUrlInApp!(pullRequest.url))}
-            >
+            <div key={pullRequest.url} className="coordination-row coordination-pull-request">
               <span className="coordination-row-mark" data-state={pullRequest.state}><Icon size={12} aria-hidden="true" /></span>
-              <span><strong>{pullRequest.title}</strong><small>#{pullRequest.number} · {PULL_REQUEST_STATES[pullRequest.state]} · {by}</small></span>
-            </WebLink>
+              <span>
+                <WebLink
+                  className="coordination-pull-request-open"
+                  href={pullRequest.url}
+                  aria-label={`#${pullRequest.number} ${pullRequest.title}, ${PULL_REQUEST_STATES[pullRequest.state]}`}
+                  openInApp={links.openUrlInApp && (() => links.openUrlInApp!(pullRequest.url))}
+                >
+                  <strong data-tip={`#${pullRequest.number} ${pullRequest.title}`} data-tip-overflow>{pullRequest.title}</strong>
+                </WebLink>
+                <small>
+                  #{pullRequest.number} · {PULL_REQUEST_STATES[pullRequest.state]} ·{" "}
+                  {threads.map((thread, index) => (
+                    <span key={thread.id}>
+                      {index > 0 && ", "}
+                      {onSelect
+                        ? <button type="button" className="coordination-pull-request-thread" aria-label={`Open ${thread.title}`} onClick={() => onSelect(thread.id)}>{thread.title}</button>
+                        : thread.title}
+                    </span>
+                  ))}
+                </small>
+              </span>
+            </div>
           );
         })}
       </div>

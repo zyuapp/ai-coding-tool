@@ -185,7 +185,7 @@ test("ticking a file off folds its patch away and empties the tab's count", asyn
   await act(async () => { query<HTMLInputElement>(view.container, 'input[aria-label="Mark src/app.ts viewed"]').click(); });
 
   assert.equal(view.container.querySelectorAll(".diff-line").length, 0);
-  assert.match(query(view.container, ".diff-progress").textContent, /1 of 1 viewed/);
+  assert.equal(query(view.container, ".diff-progress-done").textContent, "Viewed");
   assert.deepEqual([...view.container.querySelectorAll('.right-dock-tab [role="tab"]')].map((tab) => tab.textContent), ["Changes"]);
   await view.unmount();
 });
@@ -367,7 +367,27 @@ test("the progress line takes the reader to the next file still to read", async 
     await act(async () => { query<HTMLInputElement>(view.container, `input[aria-label="Mark ${path} viewed"]`).click(); });
   }
   assert.equal(next(), null, "a finished review has nowhere left to go");
-  assert.match(query(view.container, ".diff-progress").textContent, /3 of 3 viewed/);
+  assert.equal(query(view.container, ".diff-progress-done").textContent, "All 3 viewed");
+
+  watch.restore();
+  await view.unmount();
+});
+
+test("N takes the reader to the next file still to read, and leaves a typed n alone", async () => {
+  seedReviewableProject();
+  window.desktop = threeFileDesktop();
+  const view = await mount(React.createElement(App));
+  await openReview(view);
+  const watch = watchScrolling();
+  const press = (target: Element) => act(async () => { target.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "n", bubbles: true, cancelable: true })); });
+
+  await press(query(view.container, ".diff-file-open"));
+  assert.deepEqual(watch.scrolled, ["src/one.ts"]);
+
+  await act(async () => { query<HTMLButtonElement>(view.container, ".diff-files .diff-gutter").click(); });
+  watch.scrolled.length = 0;
+  await press(query(view.container, ".diff-comment textarea"));
+  assert.deepEqual(watch.scrolled, [], "a note being typed keeps its n");
 
   watch.restore();
   await view.unmount();

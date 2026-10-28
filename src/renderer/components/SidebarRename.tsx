@@ -27,38 +27,49 @@ export type Renaming = ReturnType<typeof useRenaming>;
 
 /**
  * A name being typed in place, over the row it belongs to, selected whole so typing replaces it.
- * Enter and blur keep what was typed and Escape leaves it, so both lists rename the same way.
+ * Enter and blur keep what was typed and Escape leaves it, so both lists rename the same way. A
+ * required name refuses Enter on a blank field, marking it until something is typed, and a blank
+ * field left behind keeps the old name.
  */
-export function RenameInput({ inputRef, className, label, value, placeholder, onCommit, onCancel }: {
+export function RenameInput({ inputRef, className, label, value, placeholder, required = false, onCommit, onCancel }: {
   inputRef: React.RefObject<HTMLInputElement | null>;
   className: string;
   label: string;
   value: string;
   placeholder?: string;
+  required?: boolean;
   onCommit: (value: string) => void;
   onCancel: () => void;
 }) {
+  const [blank, setBlank] = useState(false);
   return (
     <input
       ref={inputRef}
-      className={className}
+      className={blank ? `${className} invalid` : className}
       aria-label={label}
+      aria-invalid={blank || undefined}
       autoFocus
       defaultValue={value}
       placeholder={placeholder}
       onFocus={(event) => event.currentTarget.select()}
       onClick={(event) => event.stopPropagation()}
       onDoubleClick={(event) => event.stopPropagation()}
+      onInput={() => setBlank(false)}
       /** The row answers Enter itself and dragging claims the arrow and space keys. */
       onKeyDown={(event) => {
         event.stopPropagation();
-        if (event.key === "Enter") onCommit(event.currentTarget.value);
-        else if (event.key === "Escape") {
+        if (event.key === "Enter") {
+          if (required && !event.currentTarget.value.trim()) setBlank(true);
+          else onCommit(event.currentTarget.value);
+        } else if (event.key === "Escape") {
           event.preventDefault();
           onCancel();
         }
       }}
-      onBlur={(event) => onCommit(event.currentTarget.value)}
+      onBlur={(event) => {
+        if (required && !event.currentTarget.value.trim()) onCancel();
+        else onCommit(event.currentTarget.value);
+      }}
     />
   );
 }

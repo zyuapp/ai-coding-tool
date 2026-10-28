@@ -10,6 +10,7 @@ import { isCoordinator } from "../../domain/coordination";
 import type { RetryNotice } from "../../domain/run";
 import { liftTime, resumesOnItsOwn, type LimitPause } from "../../domain/usage-limit";
 import { CommandButton } from "./CommandControl";
+import { shortcutTip } from "./TooltipLayer";
 import type { Annotation, AnnotationAnchor } from "../../domain/conversation";
 import type { Thread } from "../../domain/thread";
 import { groupTimeline, messageRows } from "../timeline/grouping";
@@ -92,7 +93,7 @@ function retryLabel(retry: RetryNotice) {
 }
 
 function StopRun({ taskId }: { taskId: string | undefined }) {
-  return taskId ? <CommandButton type="button" className="limit-action run-stop" command={{ type: "run.cancel", taskId }}>Stop</CommandButton> : null;
+  return taskId ? <CommandButton type="button" className="limit-action run-stop" command={{ type: "run.cancel", taskId }} data-tip={shortcutTip("Stop", "Escape")}>Stop</CommandButton> : null;
 }
 
 /** `since` is when the live turn's first step began; until it has one, the row counts from when it appeared. */

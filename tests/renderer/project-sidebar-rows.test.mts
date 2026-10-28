@@ -322,7 +322,7 @@ test("the sidebar switches to activity mode, and dismissing there takes the dot 
   );
 
   /** The one switch carries both directions, so pressing it again puts the folders back. */
-  await act(async () => { toggle().click(); });
+  await act(async () => { query<HTMLButtonElement>(view.container, '[aria-label="Group by project"]').click(); });
   assert.equal(toggle().getAttribute("aria-pressed"), "false");
   assert.equal(view.container.querySelector('nav[aria-label="Priority"]'), null);
   assert.ok(view.container.querySelector(".project-list"), "the folders come back");

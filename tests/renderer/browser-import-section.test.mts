@@ -39,3 +39,29 @@ test("Escape in the site picker empties the search, then closes the picker and r
     assert.equal(document.activeElement?.textContent, "Choose sites");
   } finally { await view.unmount(); }
 });
+
+test("All sites ticks every matching site in one go, and clears them once all are ticked", async () => {
+  const calls: string[] = [];
+  const sites = [{ domain: "github.com", cookies: 4 }, { domain: "gitlab.com", cookies: 2 }, { domain: "example.com", cookies: 1 }];
+  const state = (selected: string[], filter: string): BrowserImportSettings => ({
+    ...settings({ sourceId: SOURCE.id, sites, selected, filter }, calls),
+    onToggle: (site) => calls.push(`toggle:${site}`),
+  });
+  const every = () => query<HTMLInputElement>(document, ".browser-import-every input");
+  const view = await mount(React.createElement(BrowserImportSection, { settings: state(["gitlab.com"], "git") }));
+  try {
+    assert.match(query(document, ".browser-import-every").textContent!, /All matching1 of 2/);
+    assert.equal(every().indeterminate, true);
+    act(() => every().click());
+    assert.deepEqual(calls, ["toggle:github.com"], "only the matching site still unticked changes");
+
+    calls.length = 0;
+    await view.render(React.createElement(BrowserImportSection, { settings: state(["github.com", "gitlab.com"], "git") }));
+    assert.equal(every().checked, true);
+    act(() => every().click());
+    assert.deepEqual(calls, ["toggle:github.com", "toggle:gitlab.com"]);
+
+    await view.render(React.createElement(BrowserImportSection, { settings: state([], "github") }));
+    assert.equal(document.querySelector(".browser-import-every"), null, "a single match has its own box");
+  } finally { await view.unmount(); }
+});

@@ -58,7 +58,7 @@ test("the Needs-you card stays on the page the user is working in as others arri
       onSelect() {},
     }));
   const view = await mount(card([], [decision("d1")]));
-  const own = query<HTMLInputElement>(view.container, 'input[aria-label="Your own answer"]');
+  const own = query<HTMLInputElement>(view.container, '.decision-own input');
   const setValue = item(Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")).set;
   await act(async () => {
     own.focus();
@@ -70,7 +70,7 @@ test("the Needs-you card stays on the page the user is working in as others arri
   await view.render(card([approval], [decision("d1")], [request]));
   const page = query(view.container, '[aria-label="Decision waiting on you"]');
   assert.match(page.textContent, /3 of 3/, "an approval and a request ahead of it leave the decision on screen");
-  assert.equal(query<HTMLInputElement>(page, 'input[aria-label="Your own answer"]'), own, "with what was typed in it");
+  assert.equal(query<HTMLInputElement>(page, '.decision-own input'), own, "with what was typed in it");
   assert.equal(document.activeElement, own, "and where the user was typing");
   await act(async () => { required([...page.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === "Decide")).click(); });
   assert.deepEqual(answered, ["Drop it"]);
@@ -108,7 +108,7 @@ test("the Needs-you card keeps what the user chose or typed on a page through pa
   await act(async () => { button("Later").click(); });
   const setValue = item(Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")).set;
   await act(async () => {
-    const own = query<HTMLInputElement>(view.container, 'input[aria-label="Your own answer"]');
+    const own = query<HTMLInputElement>(view.container, '.decision-own input');
     own.focus();
     item(setValue).call(own, "Keep it behind a flag");
     own.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: "Keep it behind a flag" }));
@@ -122,7 +122,7 @@ test("the Needs-you card keeps what the user chose or typed on a page through pa
   assert.equal(query<HTMLSelectElement>(view.container, ".elsewhere-folder select").value, "lab", "the folder picked is still picked");
   assert.equal(query<HTMLInputElement>(view.container, ".elsewhere-worktree input").checked, true, "and so is the new worktree");
   await act(async () => { button("Later").click(); });
-  assert.equal(query<HTMLInputElement>(view.container, 'input[aria-label="Your own answer"]').value, "Keep it behind a flag", "the answer typed is still there");
+  assert.equal(query<HTMLInputElement>(view.container, '.decision-own input').value, "Keep it behind a flag", "the answer typed is still there");
   assert.ok(query(view.container, ".decision-options").classList.contains("overridden"), "the options show they give way to the answer typed");
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Next"]').click(); });
   assert.equal(required([...view.container.querySelectorAll<HTMLInputElement>('input[type="radio"]')].find((item) => item.checked)).value, "Drop it", "and so is the option chosen");
@@ -225,6 +225,9 @@ test("the Needs-you card asks to run a thread on another computer, in the folder
   const button = (label: string) => required([...page.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === label));
   await act(async () => { button("Allow").click(); });
   await act(async () => { button("Deny").click(); });
+  assert.equal(dispatched.length, 1, "Deny turns the request down only once confirmed, as Dismiss does");
+  assert.equal(dom.window.document.activeElement?.textContent, "Cancel");
+  await act(async () => { required(page.querySelector<HTMLButtonElement>("button.armed")).click(); });
   assert.deepEqual(dispatched, [
     { type: "proposal.start", taskId: "lead", proposalId: "p1", place: { project: "lab", worktree: false } },
     { type: "proposal.dismiss", taskId: "lead", proposalId: "p1" },
@@ -395,7 +398,7 @@ test("← and → turn the Needs-you card's pages, except while they move the ca
   assert.ok(query(view.container, '[aria-label="Decision waiting on you"]'), "→ turns to the next page");
   assert.equal(document.activeElement?.getAttribute("data-action"), "next", "and the keyboard lands on the pager");
 
-  const own = query<HTMLInputElement>(view.container, 'input[aria-label="Your own answer"]');
+  const own = query<HTMLInputElement>(view.container, '.decision-own input');
   await press(own, "ArrowLeft");
   assert.ok(query(view.container, '[aria-label="Decision waiting on you"]'), "← in the answer field moves the caret, not the page");
 
@@ -409,4 +412,28 @@ test("← and → turn the Needs-you card's pages, except while they move the ca
   await act(async () => { only.dispatchEvent(arrow); });
   assert.equal(arrow.defaultPrevented, false, "a card with one page leaves the arrows alone");
   await alone.unmount();
+});
+
+test("the Needs-you card's approval page offers the keys that answer it, as the approval card does", async () => {
+  const approval = { approvalId: "a1", taskId: "a", runId: "run-a", title: "Run a command?", description: "", toolName: "Bash", input: { command: "ls" } };
+  const decision: CoordinationDecisionView = { thread: member("b", "Settings"), decision: { id: "d1", question: "Keep the v2 reader?", options: [{ label: "Keep it", recommended: true }], raisedAt: 1 } };
+  const view = await mount(React.createElement(NeedsYouCard, {
+    approvals: [{ thread: member("a", "Login flake"), approval }],
+    decisions: [decision],
+    bindings: { allow: "Mod+Shift+A", deny: null },
+    onDecide() {},
+    onAnswer() {},
+    onSelect() {},
+  }));
+  const button = (label: string) => required([...view.container.querySelectorAll<HTMLButtonElement>(".decision-foot button")].find((item) => item.firstChild?.textContent === label));
+  const keys = query(button("Allow once"), "kbd");
+  assert.ok(button("Allow once").dataset.tip?.endsWith(`(${keys.textContent})`));
+  assert.equal(button("Deny").querySelector("kbd"), null, "an unbound one offers no keys");
+  assert.equal(query(view.container, ".decision-count").textContent, "1 of 2");
+
+  await act(async () => { button("Later").click(); });
+  const own = query<HTMLLabelElement>(view.container, "label.decision-own");
+  assert.equal(own.firstChild?.textContent, "Or your own answer", "the own answer is named on screen, not only in its placeholder");
+  assert.equal(query<HTMLInputElement>(own, "input").labels?.[0], own);
+  await view.unmount();
 });

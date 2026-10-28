@@ -5,7 +5,7 @@ import React, { act } from "react";
 import type { ThreadTabView } from "../../../src/application/workspace-state.ts";
 
 const { BranchMenu } = await import("../../../src/renderer/components/BranchMenu.tsx");
-const { ThreadTabStrip } = await import("../../../src/renderer/components/ThreadTabStrip.tsx");
+const { ThreadTabStrip, scheduleChipLabel } = await import("../../../src/renderer/components/ThreadTabStrip.tsx");
 const { FindBar } = await import("../../../src/renderer/components/FindBar.tsx");
 
 async function type(input: HTMLInputElement, value: string) {
@@ -19,7 +19,7 @@ async function enter(input: HTMLInputElement) {
   await act(async () => { input.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
 }
 
-test("Enter in the branch search takes an existing match first, and makes a branch only when nothing matches", async () => {
+test("Enter in the branch search makes a typed name no branch has, and checks out an exact name", async () => {
   const picks: Array<{ branch: string; create: boolean }> = [];
   const view = await mount(React.createElement(BranchMenu, {
     branches: { status: "available", branches: ["main", "feature-login", "feature-logout"], remotes: [], current: "main" },
@@ -30,12 +30,41 @@ test("Enter in the branch search takes an existing match first, and makes a bran
     const input = query<HTMLInputElement>(view.container, 'input[aria-label="Search branches"]');
     await type(input, "feature");
     const labels = [...view.container.querySelectorAll('[role="option"]')].map((option) => option.textContent);
-    assert.deepEqual(labels, ["feature-login", "feature-logout", "Create branch “feature”"], "the new name follows the matches");
+    assert.deepEqual(labels, ["Create branch “feature”", "feature-login", "feature-logout"], "the row Enter takes leads the list");
     await enter(input);
-    assert.deepEqual(picks, [{ branch: "feature-login", create: false }]);
-    await type(input, "release");
+    assert.deepEqual(picks, [{ branch: "feature", create: true }], "a fragment never checks out a branch it only resembles");
+    await type(input, "feature-logout");
+    assert.equal(view.container.querySelector('[role="option"]')?.textContent, "feature-logout");
     await enter(input);
-    assert.deepEqual(picks.at(-1), { branch: "release", create: true });
+    assert.deepEqual(picks.at(-1), { branch: "feature-logout", create: false });
+  } finally { await view.unmount(); }
+});
+
+test("Escape in the branch search clears what was typed before it closes the list", async () => {
+  const view = await mount(React.createElement(BranchMenu, {
+    branches: { status: "available", branches: ["main"], remotes: [], current: "main" },
+    selected: "main",
+    onPick: () => {},
+  }));
+  try {
+    const input = query<HTMLInputElement>(view.container, 'input[aria-label="Search branches"]');
+    await type(input, "ma");
+    const escape = new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+    await act(async () => { input.dispatchEvent(escape); });
+    assert.equal(input.value, "");
+    assert.equal(escape.defaultPrevented, true, "the list stays open");
+    const again = new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+    await act(async () => { input.dispatchEvent(again); });
+    assert.equal(again.defaultPrevented, false, "an empty search lets Escape close the list");
+  } finally { await view.unmount(); }
+});
+
+test("a branch list still being read says so to assistive technology", async () => {
+  const view = await mount(React.createElement(BranchMenu, { branches: null, selected: null, onPick: () => {} }));
+  try {
+    const note = query(view.container, ".branch-menu-empty");
+    assert.equal(note.textContent, "Reading branches…");
+    assert.equal(note.getAttribute("role"), "status");
   } finally { await view.unmount(); }
 });
 
@@ -79,16 +108,31 @@ test("the thread strip's chips name what they show to assistive technology", asy
     assert.ok("tipOverflow" in query(view.container, 'button[aria-label="Branch feat/login"]').dataset, "the name only repeats as a tip once it is cut short");
     assert.equal(query(view.container, 'button[aria-label="Review changes, +12 −3"]').dataset.tip, "Uncommitted changes");
     assert.equal(view.container.querySelector("[title]:not([title=''])"), null, "every hint uses the app's tooltip");
-    const automations = query(view.container, 'button[data-tip="Automations"]');
+    const automations = query(view.container, 'button[data-tip="Automation"]');
     assert.equal(automations.textContent, "Schedule", "an empty schedule reads as an action, not decoration");
+    assert.equal(automations.classList.contains("quiet"), false, "it is drawn as the button it is");
     assert.equal(automations.hasAttribute("aria-label"), false, "the visible words are its name");
   } finally { await view.unmount(); }
-  const scheduled = await mount(React.createElement(ThreadTabStrip, { tab: tab({ automation: { id: "a" } } as unknown as Partial<ThreadTabView>), branchMenuOpen: false, actions }));
+  const nextRunAt = Date.now() + 60_000;
+  const scheduled = await mount(React.createElement(ThreadTabStrip, { tab: tab({ automation: { id: "a", paused: false, nextRunAt } } as unknown as Partial<ThreadTabView>), branchMenuOpen: false, actions }));
   try {
-    const chip = query(scheduled.container, 'button[data-tip="Automations"]');
-    assert.equal(chip.textContent, "Scheduled");
+    const chip = query(scheduled.container, 'button[data-tip="Automation"]');
+    assert.equal(chip.textContent, scheduleChipLabel({ paused: false, nextRunAt } as never));
+    assert.match(chip.textContent ?? "", /^Next /);
     assert.ok(chip.classList.contains("scheduled"));
   } finally { await scheduled.unmount(); }
+});
+
+test("the schedule chip names the next run, or why there is none", () => {
+  const now = new Date(2026, 9, 28, 8, 0).getTime();
+  const at = (days: number, hour: number) => new Date(2026, 9, 28 + days, hour, 0).getTime();
+  const automation = (fields: object) => ({ paused: false, nextRunAt: null, ...fields }) as never;
+  assert.equal(scheduleChipLabel(null, now), "Schedule");
+  assert.equal(scheduleChipLabel(automation({ paused: true, nextRunAt: at(0, 9) }), now), "Paused");
+  assert.equal(scheduleChipLabel(automation({}), now), "Missed");
+  assert.equal(scheduleChipLabel(automation({ nextRunAt: at(0, 9) }), now), `Next ${new Date(at(0, 9)).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`);
+  assert.match(scheduleChipLabel(automation({ nextRunAt: at(2, 9) }), now), new RegExp(`^Next ${new Date(at(2, 9)).toLocaleDateString(undefined, { weekday: "short" })}`));
+  assert.equal(scheduleChipLabel(automation({ nextRunAt: at(20, 9) }), now), `Next ${new Date(at(20, 9)).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`);
 });
 
 test("a checkout Git could not read shows the failure with a retry, while reading stays quiet", async () => {

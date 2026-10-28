@@ -484,6 +484,7 @@ test("a compaction and a plain working run can each be stopped from the row that
   const stop = query<HTMLButtonElement>(query(view.container, ".thinking-row"), "button");
   assert.equal(stop.textContent, "Stop");
   assert.ok(stop.classList.contains("run-stop"), "every Stop in the transcript is drawn alike");
+  assert.match(stop.dataset.tip ?? "", /^Stop \(/, "the Stop names the key the composer stops with");
   await act(async () => { stop.click(); });
   assert.deepEqual(sent, [{ type: "run.cancel", taskId: "t1" }, { type: "run.cancel", taskId: "t1" }]);
   await view.unmount();

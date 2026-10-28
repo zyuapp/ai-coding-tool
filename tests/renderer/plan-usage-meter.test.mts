@@ -26,6 +26,7 @@ test("the meter shows the session and the week, and lists every window the model
     const rows = [...meter.querySelectorAll(".usage-card-label span:first-child")].map((row) => row.textContent);
     assert.deepEqual(rows, ["Current session", "Current week (all models)"], "another model's window stays out");
     assert.match(meter.querySelector(".usage-card-heading")!.textContent!, /Max plan/);
+    assert.equal(meter.querySelector(".plan-usage-meter .usage-card"), null, "the card sits beside the control, not inside it");
   } finally {
     await view.unmount();
   }
@@ -121,9 +122,11 @@ test("a meter that knows where the usage page is opens it, and one that does not
   let opened = 0;
   const linked = await mount(React.createElement(PlanUsageMeter, { engineLabel: "Claude", model: "opus", usage: usage(64), onOpen: () => { opened += 1; } }));
   try {
-    const meter = linked.container.querySelector<HTMLButtonElement>(".plan-usage")!;
+    const meter = linked.container.querySelector<HTMLButtonElement>(".plan-usage-meter")!;
     assert.equal(meter.tagName, "BUTTON");
-    assert.match(meter.getAttribute("aria-label") ?? "", /Open usage settings$/);
+    assert.equal(meter.getAttribute("aria-label"), "Claude plan: Current session 64% used, Current week (all models) 20% used");
+    assert.equal(meter.querySelector(".usage-card"), null, "the button holds only its reading");
+    assert.equal(meter.getAttribute("aria-describedby"), linked.container.querySelector(".usage-card")!.id);
     meter.click();
     assert.equal(opened, 1);
   } finally {
@@ -131,10 +134,11 @@ test("a meter that knows where the usage page is opens it, and one that does not
   }
   const readout = await mount(React.createElement(PlanUsageMeter, { engineLabel: "Claude", model: "opus", usage: usage(64) }));
   try {
-    const meter = readout.container.querySelector<HTMLElement>(".plan-usage")!;
+    const meter = readout.container.querySelector<HTMLElement>(".plan-usage-meter")!;
     assert.equal(meter.tagName, "SPAN");
     assert.equal(meter.tabIndex, 0, "it still opens its card to the keyboard");
   } finally {
     await readout.unmount();
   }
 });
+

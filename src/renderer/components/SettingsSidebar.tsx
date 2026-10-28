@@ -118,6 +118,7 @@ export function SettingsSidebar({ section, searchRef, onClose, onLand, onRefresh
                   aria-selected={index === picked}
                   className={index === picked ? "active" : undefined}
                   onMouseDown={(event) => event.preventDefault()}
+                  onPointerMove={() => { if (index !== picked) setPicked(index); }}
                   onClick={() => choose(option)}
                 >
                   <Icon size={18} aria-hidden="true" />
@@ -138,7 +139,7 @@ export function SettingsSidebar({ section, searchRef, onClose, onLand, onRefresh
           {SETTINGS_SECTIONS.map((page) => {
             const Icon = PAGE_ICONS[page];
             return (
-              <button key={page} className={section === page ? "active" : ""} type="button" aria-current={section === page ? "page" : undefined} onClick={() => land(page, null)}>
+              <button key={page} className={section === page ? "active" : ""} type="button" tabIndex={section === page ? 0 : -1} aria-current={section === page ? "page" : undefined} onClick={() => land(page, null)}>
                 <Icon size={18} aria-hidden="true" />
                 <span>{SETTINGS_PAGE_LABELS[page]}</span>
               </button>

@@ -30,7 +30,7 @@ function PasteViewer({ paste, label, onClose }: { paste: PastedText; label: stri
   }, [onClose]);
 
   return createPortal(
-    <div ref={dialog} className="viewer" role="dialog" aria-modal="true" aria-label={label} tabIndex={-1} onClick={onClose}>
+    <div ref={dialog} className="viewer paste" role="dialog" aria-modal="true" aria-label={label} tabIndex={-1} onClick={onClose}>
       <button
         type="button"
         className={`viewer-copy ${copied ? "copied" : ""}`}

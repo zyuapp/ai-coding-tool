@@ -4,6 +4,7 @@ import { LuBot as Bot, LuChevronUp as ChevronUp, LuLoaderCircle as LoaderCircle,
 import type { Subagent, SubagentActivity } from "../../domain/run";
 import { effortLabel } from "../../domain/agent-engine";
 import { Copyable } from "./CopyButton";
+import { ConfirmAction } from "./SettingRow";
 import { SpinningIcon } from "./SpinningIcon";
 import { statusLabel, StatusIcon } from "./SubagentList";
 import { shortcutTip } from "./TooltipLayer";
@@ -91,10 +92,11 @@ export function SubagentInspector({ subagent, finding = false, onClose, onStop }
               <span className={`agent-status ${subagent.status}`}><StatusIcon status={subagent.status} />{statusLabel(subagent.status)}</span>
             </div>
             {subagent.status === "working" && (
-              <button className="workflow-stop" type="button" disabled={subagent.stopping} onClick={() => onStop(subagent.id)}>
-                {subagent.stopping && <SpinningIcon icon={LoaderCircle} spinning size={12} aria-hidden="true" />}
-                {subagent.stopping ? "Stopping…" : "Stop"}
-              </button>
+              <span className="workflow-stop-actions">
+                {subagent.stopping
+                  ? <button className="workflow-stop" type="button" disabled><SpinningIcon icon={LoaderCircle} spinning size={12} aria-hidden="true" />Stopping…</button>
+                  : <ConfirmAction className="workflow-stop" confirm="Stop subagent" onConfirm={() => onStop(subagent.id)}>Stop</ConfirmAction>}
+              </span>
             )}
           </div>
           <div className="agent-details">

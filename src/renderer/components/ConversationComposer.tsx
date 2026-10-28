@@ -1,4 +1,4 @@
-import { LuCircleAlert as CircleAlert, LuInfo as Info, LuPaperclip as Paperclip, LuX as X } from "react-icons/lu";
+import { LuArrowUp as ArrowUp, LuCircleAlert as CircleAlert, LuInfo as Info, LuPaperclip as Paperclip, LuX as X } from "react-icons/lu";
 import { useId, useRef, type ReactNode } from "react";
 import type { PendingQuestion, QuestionAddress } from "../../domain/agent-question";
 import { QuestionPrompt } from "./QuestionPrompt";
@@ -42,9 +42,10 @@ function composerPlaceholder({ surface, folder, disabled, engineLabel }: {
   engineLabel: string;
 }) {
   if (surface === "side" && disabled) return "Main context required";
-  if (surface === "side") return "Ask a side question";
-  if (surface === "tab") return "Reply to this thread";
-  return folder ? `Ask ${engineLabel} to work on anything` : `Ask ${engineLabel} anything`;
+  const ask = surface === "side" ? "Ask a side question"
+    : surface === "tab" ? "Reply to this thread"
+      : folder ? `Ask ${engineLabel} to work on anything` : `Ask ${engineLabel} anything`;
+  return disabled ? ask : `${ask} · / for commands · @ for threads`;
 }
 
 const SEND_KEYS = displayShortcut("Enter", MAC);
@@ -56,18 +57,23 @@ function sendLabel(surface: ComposerSurface, runActive: boolean) {
   return runActive ? "Stop task" : "Send task";
 }
 
-function sendTip(runActive: boolean) {
-  return runActive ? shortcutTip("Stop", "Escape") : `${shortcutTip("Send", "Enter")} · ${shortcutTip("New line", "Shift+Enter")}`;
+/** `queued` is set while a run goes and something is written; `recall` once there is an earlier message to bring back. */
+function sendTip(runActive: boolean, { queued = false, recall = false } = {}) {
+  const keys = runActive
+    ? [shortcutTip("Stop", "Escape"), ...(queued ? [shortcutTip("Queue", "Enter"), shortcutTip("Steer", "Mod+Enter")] : [])]
+    : [shortcutTip("Send", "Enter"), shortcutTip("New line", "Shift+Enter"), ...(recall ? [shortcutTip("Previous message", "ArrowUp")] : [])];
+  return keys.join(" · ");
 }
 
 /** Sends what is written, or stops the run while one is going. `busy` is a send already on its way. */
-function SendButton({ taskId, surface, runActive, command, disabled, busy, onSend, onCancel }: {
+function SendButton({ taskId, surface, runActive, command, disabled, busy, tip, onSend, onCancel }: {
   taskId: string | undefined;
   surface: ComposerSurface;
   runActive: boolean;
   command: AppCommand;
   disabled: boolean;
   busy: boolean;
+  tip: string;
   onSend: () => void;
   onCancel: () => void;
 }) {
@@ -79,9 +85,9 @@ function SendButton({ taskId, surface, runActive, command, disabled, busy, onSen
       onClick={runActive ? onCancel : onSend}
       aria-label={sendLabel(surface, runActive)}
       aria-busy={sending || undefined}
-      data-tip={sendTip(runActive)}
+      data-tip={tip}
     >
-      {runActive ? <span className="stop-glyph" /> : sending ? <span className="send-spinner" aria-hidden="true" /> : "↑"}
+      {runActive ? <span className="stop-glyph" /> : sending ? <span className="send-spinner" aria-hidden="true" /> : <ArrowUp size={16} strokeWidth={2.5} aria-hidden="true" />}
     </CommandButton>
   );
 }
@@ -124,7 +130,7 @@ function SendNotice({ error, note, onDismiss }: { error: string | null; note: st
   );
 }
 
-/** Stands where the text would go for a thread this build cannot open, beside Stop while it runs. Update shows only once there is one to install. */
+/** Stands where the text would go for a thread this build cannot open, beside Stop while it runs. Offers the update once one is found, and a check for one until then. */
 function UnopenableComposer({ reason, taskId, surface, runActive, updateAvailable, onCancel }: {
   reason: string;
   taskId: string | undefined;
@@ -136,7 +142,9 @@ function UnopenableComposer({ reason, taskId, surface, runActive, updateAvailabl
   return (
     <div className="composer unopenable">
       <p className="composer-unopenable" role="status">{reason}</p>
-      {updateAvailable && <CommandButton command={{ type: "app.update" }} className="composer-unopenable-update">Update</CommandButton>}
+      {updateAvailable
+        ? <CommandButton command={{ type: "app.update" }} className="composer-unopenable-update">Update</CommandButton>
+        : <CommandButton command={{ type: "app.check-for-updates" }} className="composer-unopenable-check">Check for updates</CommandButton>}
       {runActive && <CommandButton command={{ type: "run.cancel", taskId }} className="send-button running" onClick={onCancel} aria-label={sendLabel(surface, true)} data-tip={sendTip(true)}>
         <span className="stop-glyph" />
       </CommandButton>}
@@ -390,7 +398,7 @@ export function ConversationComposer({
             {steerHint && <span className="composer-hint" id={hintId}><span><kbd>{SEND_KEYS}</kbd> queue</span><span><kbd>{STEER_KEYS}</kbd> steer</span></span>}
             {planUsage && <PlanUsageMeter engineLabel={engineLabel} model={model} usage={planUsage.usage} {...(planUsage.onOpen ? { onOpen: planUsage.onOpen } : {})} />}
             {contextUsage && <ContextUsageMeter usage={contextUsage} {...(onCompact ? { onCompact } : {})} />}
-            <SendButton taskId={taskId} surface={surface} runActive={runActive} command={sendCommand} disabled={disabled || nothingToSend} busy={!disabled && (attachments.sending || waiting)} onSend={() => void submit()} onCancel={onCancel} />
+            <SendButton taskId={taskId} surface={surface} runActive={runActive} command={sendCommand} disabled={disabled || nothingToSend} busy={!disabled && (attachments.sending || waiting)} tip={sendTip(runActive, { queued: steerHint, recall: history.length > 0 })} onSend={() => void submit()} onCancel={onCancel} />
           </div>
         </div>
       </div>}

@@ -53,6 +53,7 @@ test("removing an allowed site keeps the keyboard in the list", async () => {
   const remove = query<HTMLButtonElement>(view.container, 'button[aria-label="Remove https://b.test"]');
   await act(async () => { remove.focus(); remove.click(); });
   assert.equal(dom.window.document.activeElement?.getAttribute("aria-label"), "Remove https://a.test");
+  assert.equal(query(view.container, "[role='status'].settings-status").textContent, "Removed https://b.test");
   await view.unmount();
 });
 
@@ -78,27 +79,30 @@ test("a typed size out of range is clamped and the range stays in view", async (
   await act(async () => {});
   const row = query<HTMLElement>(view.container, '[data-setting="appearance.reading-size"]');
   const range = () => query(row, ".size-range");
-  assert.equal(range().textContent, "");
+  assert.match(range().textContent, /^\d+–\d+ px$/, "the range shows at rest");
   const field = query<HTMLInputElement>(row, "input");
   await type(field, "99");
-  assert.match(range().textContent, /^\d+–\d+ px$/, "the range shows while typing");
   await act(async () => { field.blur(); });
   assert.ok(sizes.length === 1 && sizes[0]! < 99);
   assert.ok(range().classList.contains("clamped"));
-  assert.match(range().textContent, /^\d+–\d+ px$/);
+  assert.match(range().textContent, /^Max \d+ px$/);
   await view.unmount();
 });
 
-test("Left and Right move between Light, Dark and Auto", async () => {
+test("Light, Dark and Auto are one stop that Left and Right choose along", async () => {
   window.desktop = fakeDesktop({});
-  const view = await mount(renderSettingsPanel({ initialSection: "appearance" }));
+  const modes: string[] = [];
+  const view = await mount(renderSettingsPanel({ initialSection: "appearance", onSetThemeMode: (mode) => modes.push(mode) }));
   await act(async () => {});
-  const buttons = [...view.container.querySelectorAll<HTMLButtonElement>(".segmented button")];
+  const buttons = [...view.container.querySelectorAll<HTMLButtonElement>(".segmented [role=radio]")];
+  assert.equal(buttons.filter((button) => button.tabIndex === 0).length, 1);
+  assert.equal(buttons.find((button) => button.tabIndex === 0)?.getAttribute("aria-checked"), "true");
   await act(async () => { buttons[0]!.focus(); });
   await act(async () => { key(buttons[0]!, "ArrowRight"); });
   assert.equal(dom.window.document.activeElement, buttons[1]);
   await act(async () => { key(buttons[1]!, "ArrowLeft"); key(buttons[0]!, "ArrowLeft"); });
   assert.equal(dom.window.document.activeElement, buttons[buttons.length - 1]);
+  assert.deepEqual(modes, ["dark", "light", "auto"]);
   await view.unmount();
 });
 

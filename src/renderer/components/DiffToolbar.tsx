@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { LuArrowRight as ArrowRight, LuCheck as Check, LuChevronDown as ChevronDown, LuColumns2 as Columns2, LuGitCommitHorizontal as Commit, LuPilcrow as Pilcrow, LuRefreshCw as RefreshCw } from "react-icons/lu";
+import { LuArrowRight as ArrowRight, LuCheck as Check, LuChevronDown as ChevronDown, LuColumns2 as Columns2, LuGitCommitHorizontal as Commit, LuKeyboard as Keyboard, LuRefreshCw as RefreshCw, LuSpace as Space } from "react-icons/lu";
 import { DIFF_MODE_MENU, type DiffState } from "../../application/workspace-diff";
 import { DEFAULT_BRANCH_RANGE, type DiffMode, type DiffRange } from "../../domain/diff";
 import { BranchMenu, useAnchoredStyle, useBranches } from "./BranchMenu";
@@ -8,8 +8,11 @@ import { useDismissibleLayer } from "../focus";
 import { PickerOption, PickerPopover } from "./Picker";
 import { SpinningIcon } from "./SpinningIcon";
 import { copyText } from "../clipboard";
+import { MAC } from "../platform";
+import { displayShortcut } from "../../domain/shortcuts";
 
 const BASE_MENU = "diff:base";
+const KEYS_MENU = "diff:keys";
 const COMPARE_MENU = "diff:compare";
 const HEAD_SIDE = { label: "HEAD", value: "HEAD" };
 const WORKING_SIDE = { label: "Working tree", value: "" };
@@ -89,11 +92,54 @@ function ModePicker({ mode, disabled, openMenu, onSetOpenMenu, onSetMode }: Menu
       aria-disabled={disabled || undefined}
       data-tip={disabled ? NO_PROJECT : undefined}
       onClick={disabled ? undefined : () => onSetOpenMenu(open ? null : DIFF_MODE_MENU)}
-    >{label}<ChevronDown size={12} /></button>
+    ><small>Review</small><span>{label}</span><ChevronDown size={12} /></button>
     {open && createPortal(
       <PickerPopover ref={menu} className="branch-menu anchored diff-mode-menu" role="menu" aria-label="Review mode" style={anchored ?? undefined}>
         {MODES.map((item) => <PickerOption key={item.value} role="menuitemradio" selected={mode === item.value} autoFocus={mode === item.value || (mode === "commit" && item.value === "uncommitted")} onClick={() => onSetMode(item.value)}>{item.label}<small>{item.description}</small></PickerOption>)}
       </PickerPopover>, document.body,
+    )}
+  </>;
+}
+
+/** How a review is read and commented on, from the pointer and from the keys. */
+const SHIFT = MAC ? "⇧" : "Shift";
+const REVIEW_GESTURES: ReadonlyArray<readonly [gesture: string, does: string]> = [
+  ["Click a line number", "Comment on that line"],
+  [`Drag or ${SHIFT}-click`, "Comment on more lines"],
+];
+const REVIEW_KEYS: ReadonlyArray<readonly [keys: string, does: string]> = [
+  ["N", "Next unviewed file"],
+  ["↑↓", "Walk files and line numbers"],
+  [MAC ? "⇧↑↓" : "Shift+↑↓", "Pick more lines"],
+  [displayShortcut("Enter", MAC), "Write the note"],
+];
+
+function ReviewKeys({ openMenu, onSetOpenMenu }: MenuControl) {
+  const open = openMenu === KEYS_MENU;
+  const trigger = useRef<HTMLButtonElement>(null);
+  const card = useRef<HTMLDivElement>(null);
+  const id = useId();
+  const anchored = useAnchoredStyle(open ? trigger.current : null, 280);
+  useDismissibleLayer(open, [trigger, card], () => onSetOpenMenu(null), trigger);
+  return <>
+    <button
+      ref={trigger}
+      type="button"
+      aria-label="Review keys"
+      aria-expanded={open}
+      aria-controls={open ? id : undefined}
+      data-tip={open ? undefined : "Review keys"}
+      onClick={() => onSetOpenMenu(open ? null : KEYS_MENU)}
+    >
+      <Keyboard size={16} />
+    </button>
+    {open && createPortal(
+      <div ref={card} id={id} className="picker-popover branch-menu anchored diff-keys" role="dialog" aria-label="Review keys" data-popover-menu style={anchored ?? undefined}>
+        <dl>
+          {REVIEW_GESTURES.map(([gesture, does]) => <div key={gesture}><dt>{gesture}</dt><dd>{does}</dd></div>)}
+          {REVIEW_KEYS.map(([keys, does]) => <div key={keys}><dt><kbd>{keys}</kbd></dt><dd>{does}</dd></div>)}
+        </dl>
+      </div>, document.body,
     )}
   </>;
 }
@@ -155,8 +201,9 @@ export function DiffToolbar({ diff, split, roomForTwo, currentBranch, workspaceI
           >
             <Columns2 size={16} />
           </button>
-          <button type="button" aria-label="Hide spacing changes" aria-pressed={diff.ignoreWhitespace} className={diff.ignoreWhitespace ? "on" : ""} data-tip={diff.ignoreWhitespace ? "Spacing changes hidden" : "Hide spacing changes"} onClick={onToggleWhitespace}><Pilcrow size={16} /></button>
-          <button type="button" aria-label="Read the comparison again" aria-busy={diff.loading || undefined} data-tip={diff.loading ? "Reading…" : "Read again"} onClick={onRefresh}><SpinningIcon icon={RefreshCw} spinning={diff.loading} size={16} /></button>
+          <button type="button" aria-label="Hide spacing changes" aria-pressed={diff.ignoreWhitespace} className={diff.ignoreWhitespace ? "on" : ""} data-tip={diff.ignoreWhitespace ? "Spacing changes hidden" : "Hide spacing changes"} onClick={onToggleWhitespace}><Space size={16} /></button>
+          <button type="button" aria-label="Refresh changes" aria-busy={diff.loading || undefined} data-tip={diff.loading ? "Refreshing…" : "Refresh"} onClick={onRefresh}><SpinningIcon icon={RefreshCw} spinning={diff.loading} size={16} /></button>
+          <ReviewKeys openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />
         </div>
       </div>
       {diff.mode === "branch" && <div className="diff-compare">

@@ -418,7 +418,7 @@ export type PopoverMenuProps = {
 };
 
 /**
- * An ellipsis trigger, or a whole row, and the list it opens. The reducer owns which menu is open, so the only
+ * An ellipsis trigger, or a whole row, and the list it opens on a click or a right-click. The reducer owns which menu is open, so the only
  * state here is the comparison; the shared dismissible layer handles outside presses and Escape,
  * and focus leaving closes it here.
  */
@@ -446,6 +446,10 @@ export function PopoverMenu({ id, openMenu, onSetOpenMenu, items, label, classNa
         aria-expanded={open}
         data-tip={children || open ? undefined : label}
         onClick={() => onSetOpenMenu(open ? null : id)}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          onSetOpenMenu(id);
+        }}
       >
         {children}
         {children ? <ChevronDown className="menu-trigger-chevron" size={14} aria-hidden="true" /> : <Ellipsis size={16} />}

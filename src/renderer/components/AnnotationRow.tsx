@@ -1,4 +1,4 @@
-import { LuLocateFixed as LocateFixed, LuPencil as Pencil, LuX as X } from "react-icons/lu";
+import { LuPencil as Pencil, LuX as X } from "react-icons/lu";
 import { useEffect, useId, useRef, useState } from "react";
 import type { Annotation } from "../../domain/conversation";
 
@@ -31,7 +31,7 @@ function AnnotationCard({ annotation, index, id, revealable }: { annotation: Ann
       <span className="annotation-card-head">
         <span className="annotation-pill-number">{index + 1}</span>
         Annotation
-        {revealable && <span className="annotation-card-action"><LocateFixed size={12} aria-hidden="true" />Show in transcript</span>}
+        {revealable && <span className="annotation-card-hint">Click to show in transcript</span>}
       </span>
       <span className="annotation-card-body">
         <span ref={quote} className="annotation-card-quote" data-clamped={quoteClamped || undefined}>{annotation.quote}</span>

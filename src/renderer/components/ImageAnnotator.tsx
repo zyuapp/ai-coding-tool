@@ -78,7 +78,7 @@ function MarkTools({ shape, frame, mark, picked, onKeep, onEdit, onRemove }: {
     >
       {shape.kind === "box" && (
         <button type="button" className="annotator-marktool" tabIndex={tabIndex} aria-label={`Edit note on mark ${mark}`} data-tip={shortcutTip("Edit note", "Enter")} onClick={onEdit}>
-          <Pencil size={12} />
+          <Pencil size={14} />
         </button>
       )}
       <button
@@ -89,7 +89,7 @@ function MarkTools({ shape, frame, mark, picked, onKeep, onEdit, onRemove }: {
         data-tip={shortcutTip("Delete", "Backspace")}
         onClick={onRemove}
       >
-        <X size={12} />
+        <X size={14} />
       </button>
     </div>
   );
@@ -168,6 +168,12 @@ function useMarkNote(shapes: Annotation[], change: (next: Annotation[]) => void)
     setLabel("");
   }
 
+  function written(): Annotation[] | null {
+    const text = label.trim();
+    if (editing !== null) return shapes[editing] && shapes[editing].text !== text ? shapes.map((shape, index) => (index === editing ? { ...shape, text } : shape)) : null;
+    return pending ? [...shapes, { kind: "box", ...pending, text }] : null;
+  }
+
   return {
     pending,
     editing,
@@ -182,13 +188,13 @@ function useMarkNote(shapes: Annotation[], change: (next: Annotation[]) => void)
       setLabel(shapes[index]?.text ?? "");
       setEditing(index);
     },
+    /** The marks with the note being typed written in, or null when it changes nothing. */
+    written,
     /** Writes the note onto its box; a box just drawn is kept even with no note. */
     commit() {
-      const text = label.trim();
-      if (editing !== null) {
-        if (shapes[editing] && shapes[editing].text !== text) change(shapes.map((shape, index) => (index === editing ? { ...shape, text } : shape)));
-      } else if (pending) change([...shapes, { kind: "box", ...pending, text }]);
-      else return;
+      if (pending === null && editing === null) return;
+      const next = written();
+      if (next) change(next);
       close();
     },
   };
@@ -316,8 +322,8 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
   useAnnotatorKeys({
     composing,
     onEscape: () => {
-      if (composing) note.close();
-      else if (discarding) setDiscarding(false);
+      if (discarding) setDiscarding(false);
+      else if (composing) note.close();
       else requestCancel();
     },
     onUndo: undo,
@@ -338,9 +344,9 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
     change(shapes.filter((_, at) => at !== index));
   }
 
-  /** Closing throws the marks away, so marks changed since opening are only dropped once confirmed. */
+  /** Closing throws the marks away, so marks changed since opening, or a note still being typed, are only dropped once confirmed. */
   function requestCancel() {
-    if (!history.changed) onCancel();
+    if (!history.changed && !note.written()) onCancel();
     else setDiscarding(true);
   }
 
@@ -372,9 +378,11 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
     return shapes.slice(0, index + 1).filter((shape) => shape.kind === "box").length;
   }
 
+  /** A note still being typed is part of what is applied. */
   function apply() {
     if (!image) return;
-    onApply(shapes, renderAnnotated(image, shapes, prefix));
+    const final = note.written() ?? shapes;
+    onApply(final, renderAnnotated(image, final, prefix));
   }
 
   const activeTool = tools.find((entry) => entry.value === tool)!;

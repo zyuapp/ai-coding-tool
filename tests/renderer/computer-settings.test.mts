@@ -64,7 +64,7 @@ test("a computer that is not connected says whether it is being dialled and why 
     assert.equal(status("up"), "Connected");
     assert.equal(status("dialling"), "Reconnecting… · That computer cannot be reached right now.");
     assert.equal(status("down"), "Offline");
-    assert.equal(row("up").querySelector("strong")!.dataset.tip, "up.tail.ts.net", "the address is a hover away");
+    assert.equal(row("up").querySelector(".computer-host")!.textContent, "up.tail.ts.net", "the address reads under no hover");
     assert.equal(reconnect("up"), undefined);
     await act(async () => { reconnect("dialling")!.click(); });
     await act(async () => { reconnect("down")!.click(); });
@@ -117,7 +117,10 @@ test("removing a paired computer asks once more before it forgets it", async () 
     await act(async () => { row.querySelector<HTMLButtonElement>("button[aria-label='Remove MacBook']")!.click(); });
     assert.deepEqual(forgotten, []);
     assert.equal(dom.window.document.activeElement?.textContent, "Cancel");
-    await act(async () => { row.querySelector<HTMLButtonElement>("button.danger")!.click(); });
+    const armed = row.querySelector<HTMLButtonElement>("button.danger.armed")!;
+    assert.equal(armed.getAttribute("aria-label"), "Remove MacBook", "the armed button still names the computer");
+    assert.equal(row.querySelector(".computer-host")?.textContent, "mac.tail.ts.net");
+    await act(async () => { armed.click(); });
     assert.deepEqual(forgotten, ["mac"]);
   } finally {
     await view.unmount();

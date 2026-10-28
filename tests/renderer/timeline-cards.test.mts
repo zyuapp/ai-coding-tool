@@ -32,6 +32,8 @@ test("a workflow row shows it opens a panel, and Stop reads as a stop at rest", 
   assert.ok(query(open, ".process-open-chevron"));
   await act(async () => { open.click(); });
   await act(async () => { query<HTMLButtonElement>(view.container, ".process-stop").click(); });
+  assert.deepEqual([opened, stopped], [["w"], []], "Stop asks once more");
+  await act(async () => { query<HTMLButtonElement>(view.container, ".process-stop-slot > button.armed").click(); });
   assert.deepEqual([opened, stopped], [["w"], ["w"]]);
   await view.render(row("completed"));
   assert.equal(view.container.querySelector(".process-stop"), null);

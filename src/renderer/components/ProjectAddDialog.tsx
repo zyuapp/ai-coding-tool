@@ -5,6 +5,11 @@ import type { AppCommand } from "../../contracts/commands";
 import type { ProjectAddState } from "../../application/project-add";
 import type { ComputerLink } from "../../domain/computers";
 import { useModalFocus } from "../focus";
+import { MAC } from "../platform";
+import { displayShortcut } from "../../domain/shortcuts";
+import { KeyHints } from "./ThreadJump";
+
+const SUGGESTION_KEYS = [["↑↓", "move"], [displayShortcut("Tab", MAC), "complete"], [displayShortcut("Escape", MAC), "dismiss"]] as const;
 
 export type ProjectAddDialogProps = {
   add: ProjectAddState;
@@ -68,6 +73,7 @@ export function ProjectAddDialog({ add, links, name, dispatch }: ProjectAddDialo
             tabIndex={-1} aria-selected={index === add.selected} onPointerDown={(event) => event.preventDefault()}
             onClick={() => dispatch({ type: "view.add-project-accept", index })}>{root}</button>)}
         </div>}
+        {add.suggestions.length > 0 && <KeyHints keys={SUGGESTION_KEYS} />}
         {error && <p className="project-edit-error" role="alert">{error}</p>}
         <div className="project-edit-actions">
           <button type="button" onClick={() => dispatch({ type: "view.add-project-close" })}>Cancel</button>

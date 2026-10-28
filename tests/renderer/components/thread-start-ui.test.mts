@@ -35,9 +35,11 @@ test("the start options say where a thread begins, and searching narrows the bra
   });
 
   const view = await mount(options(null, false));
-  const project = query<HTMLButtonElement>(view.container, 'button[aria-label="Project"]');
+  const project = query<HTMLButtonElement>(view.container, 'button[aria-label^="Project: "]');
   assert.equal(project.textContent, "ai-coding-tool", "a local-only picker names just the selected project");
-  assert.match(query(view.container, 'button[aria-label="Starting branch"]').textContent, /main/, "and so is the branch the checkout is on");
+  assert.match(query(view.container, 'button[aria-label^="Starting branch: "]').textContent, /main/, "and so is the branch the checkout is on");
+  assert.equal(project.getAttribute("aria-label"), "Project: ai-coding-tool", "the picker's name carries its value");
+  assert.equal(query(view.container, 'button[aria-label^="Starting branch: "]').getAttribute("aria-label"), "Starting branch: main");
   const worktreeToggle = query<HTMLButtonElement>(view.container, ".thread-start-toggle");
   assert.equal(worktreeToggle.textContent, "Worktree");
   assert.equal(worktreeToggle.getAttribute("aria-pressed"), "false", "a worktree is only ever asked for");
@@ -57,20 +59,20 @@ test("the start options say where a thread begins, and searching narrows the bra
   await act(async () => { item(projectOptions[0]).click(); });
   assert.deepEqual([...chosen.project], ["project-b"]);
 
-  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Starting branch"]').click(); });
+  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label^="Starting branch: "]').click(); });
   assert.ok(view.container.querySelector('input[aria-label="Search branches"]'), "the branch list is searchable");
   const branchOptions = [...view.container.querySelectorAll<HTMLButtonElement>('[role="option"]')];
   assert.deepEqual(branchOptions.map((option) => option.textContent), ["main", "fix-loader", "feature-x"], "every local branch is offered, newest first");
   await act(async () => { item(branchOptions.find((option) => option.textContent === "fix-loader")).click(); });
   assert.deepEqual([...chosen.branch], ["fix-loader"]);
 
-  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Starting branch"]').click(); });
+  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label^="Starting branch: "]').click(); });
   const reopened = [...view.container.querySelectorAll<HTMLButtonElement>('[role="option"]')];
   await act(async () => { item(reopened.find((option) => option.textContent === "main")).click(); });
   assert.deepEqual([...chosen.branch], ["fix-loader", null], "the branch the checkout is already on asks for nothing");
 
   await view.render(options({ name: "fix-loader", create: false }, false));
-  const branchTrigger = query<HTMLButtonElement>(view.container, 'button[aria-label="Starting branch"]');
+  const branchTrigger = query<HTMLButtonElement>(view.container, 'button[aria-label^="Starting branch: "]');
   assert.match(branchTrigger.textContent, /fix-loader/);
   await act(async () => { query<HTMLButtonElement>(view.container, ".thread-start-toggle").click(); });
   assert.deepEqual(chosen.worktree, [true]);
@@ -109,7 +111,7 @@ test("no project makes a chat, which is left only with whether it coordinates", 
     onSetCoordinator: (on) => { coordinating.push(on); },
   });
   const rows = () => [...view.container.querySelectorAll<HTMLButtonElement>('[role="option"]')];
-  const open = async () => { await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Project"]').click(); }); };
+  const open = async () => { await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label^="Project: "]').click(); }); };
 
   const view = await mount(options("project-a"));
   await open();
@@ -134,15 +136,28 @@ test("no project makes a chat, which is left only with whether it coordinates", 
   await view.unmount();
 });
 
-test("a new thread's empty transcript names only its project, or that it is a chat", async () => {
+test("a new thread's empty transcript names its project, or that it is a chat, and leads to the composer", async () => {
   const { TimelineEmptyState } = await import("../../../src/renderer/components/TimelineEmptyState.tsx");
-  const view = await mount(React.createElement(TimelineEmptyState, { restored: true, place: "ai-coding-tool" }));
+  const { CommandControlsProvider } = await import("../../../src/renderer/components/CommandControl.tsx");
+  const sent: unknown[] = [];
+  const provide = (props: React.ComponentProps<typeof TimelineEmptyState>) => React.createElement(
+    CommandControlsProvider,
+    { value: { available: () => true, dispatch: (command: unknown) => { sent.push(command); } } },
+    React.createElement(TimelineEmptyState, props),
+  );
+  const view = await mount(provide({ restored: true, place: "ai-coding-tool" }));
   assert.equal(query(view.container, ".empty-state h2").textContent, "ai-coding-tool");
   assert.equal(view.container.querySelector(".empty-state p"), null, "there is nothing to explain");
-  await view.render(React.createElement(TimelineEmptyState, { restored: true }));
+  const compose = query<HTMLButtonElement>(view.container, ".empty-compose");
+  assert.match(compose.textContent, /^Write a message/);
+  assert.ok(compose.querySelector("kbd")?.textContent, "the button names the keystroke that does the same");
+  await act(async () => { compose.click(); });
+  assert.deepEqual(sent, [{ type: "view.shortcut", action: "composer.focus", surface: "any" }]);
+  await view.render(provide({ restored: true }));
   assert.equal(query(view.container, ".empty-state h2").textContent, "New chat", "without a project it is a chat");
-  await view.render(React.createElement(TimelineEmptyState, { restored: false, place: "ai-coding-tool" }));
+  await view.render(provide({ restored: false, place: "ai-coding-tool" }));
   assert.equal(view.container.querySelector(".empty-state h2"), null, "nothing is named before the threads are read");
+  assert.equal(query(view.container, '.empty-state[role="status"]').textContent, "Loading threads…");
   await view.unmount();
 });
 
@@ -184,7 +199,7 @@ test("a branch the repository does not have is offered as one to create", async 
   });
 
   const view = await mount(options(null));
-  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Starting branch"]').click(); });
+  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label^="Starting branch: "]').click(); });
   const search = query<HTMLInputElement>(view.container, 'input[aria-label="Search branches"]');
   const setValue = item(Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")).set;
   const type = async (text: string) => {
@@ -208,7 +223,7 @@ test("a branch the repository does not have is offered as one to create", async 
   assert.deepEqual(chosen, [{ name: "loader-fix", create: true }]);
 
   await view.render(options({ name: "loader-fix", create: true }));
-  const trigger = query<HTMLButtonElement>(view.container, 'button[aria-label="Starting branch"]');
+  const trigger = query<HTMLButtonElement>(view.container, 'button[aria-label^="Starting branch: "]');
   assert.match(trigger.textContent, /loader-fix/);
   assert.match(trigger.textContent, /new/, "a branch yet to exist says so");
   await view.unmount();
@@ -257,7 +272,7 @@ test("the project picker labels and groups duplicate repository names by compute
     onSelectBranch() {}, onSetWorktree() {}, coordinator: false, onSetCoordinator() {},
   });
   const view = await mount(options("studio-one"));
-  const trigger = query<HTMLButtonElement>(view.container, 'button[aria-label="shared on Studio Mac"]');
+  const trigger = query<HTMLButtonElement>(view.container, 'button[aria-label="Project: shared on Studio Mac"]');
   assert.equal(query(trigger, ".host-mark.offline").textContent, "Studio Mac");
   await act(async () => { trigger.click(); });
   const groups = () => [...view.container.querySelectorAll('[role="group"]')];
@@ -292,11 +307,11 @@ test("the project picker labels and groups duplicate repository names by compute
   assert.deepEqual(chosen, ["air-one"], "the duplicate repository name still selects the correct project id");
   assert.equal(trigger.getAttribute("aria-expanded"), "false");
   await view.render(options("air-one"));
-  assert.equal(query(view.container, 'button[aria-label="shared on Air"] .host-mark').textContent, "Air");
+  assert.equal(query(view.container, 'button[aria-label="Project: shared on Air"] .host-mark').textContent, "Air");
   await view.render(options("local-one"));
-  assert.equal(query(view.container, 'button[aria-label="shared on This computer"] .host-mark').textContent, "This computer");
+  assert.equal(query(view.container, 'button[aria-label="Project: shared on This computer"] .host-mark').textContent, "This computer");
   await view.render(React.cloneElement(options("local-one"), { projects: projects.filter((project) => !projectHosts.has(project.id)) }));
-  const localTrigger = query<HTMLButtonElement>(view.container, 'button[aria-label="Project"]');
+  const localTrigger = query<HTMLButtonElement>(view.container, 'button[aria-label^="Project: "]');
   assert.equal(localTrigger.textContent, "shared", "hosts outside the picker leave its local-only presentation plain");
   await act(async () => { localTrigger.click(); });
   assert.equal(query(view.container, '[role="listbox"]').textContent, "No projectanothershared");
@@ -335,7 +350,7 @@ test("a branch picker that cannot read branches yet says where the thread starts
     onSetCoordinator() {},
   });
   const unread = await mount(options());
-  const picker = query<HTMLButtonElement>(unread.container, 'button[aria-label="Starting branch"]');
+  const picker = query<HTMLButtonElement>(unread.container, 'button[aria-label^="Starting branch: "]');
   assert.equal(picker.getAttribute("aria-disabled"), "true");
   assert.equal(picker.disabled, false, "it stays focusable, so its tip reaches the keyboard");
   assert.ok(picker.dataset.tip);
@@ -344,7 +359,7 @@ test("a branch picker that cannot read branches yet says where the thread starts
   await unread.unmount();
 
   const read = await mount(options("workspace-a"));
-  assert.equal(query(read.container, 'button[aria-label="Starting branch"]').dataset.tip, undefined);
+  assert.equal(query(read.container, 'button[aria-label^="Starting branch: "]').dataset.tip, undefined);
   await read.unmount();
 });
 
@@ -364,7 +379,7 @@ test("a branch list that cannot be read says so on the picker, which still opens
     onSetCoordinator() {},
   }));
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
-  const picker = query<HTMLButtonElement>(view.container, 'button[aria-label="Starting branch"]');
+  const picker = query<HTMLButtonElement>(view.container, 'button[aria-label^="Starting branch: "]');
   assert.equal(picker.textContent, "Branches unavailable");
   assert.ok(picker.classList.contains("error"));
   assert.equal(picker.dataset.tip, "not a git repository");

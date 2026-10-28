@@ -298,7 +298,7 @@ function ModelLibrary({ engine, engineLocked, engineAccess, model, modelLabel, f
                   <span className="model-row-label"><strong>{item.label}</strong><small data-tip={`${group.label} · ${item.description}`} data-tip-overflow>{group.label} · {item.description}</small></span>
                   {selected && <Check size={16} className="model-selected-check" aria-hidden="true" />}
                 </button>
-                {onModelFavorite && <button type="button" className="model-favorite" aria-label={`${favorite ? "Unpin" : "Pin"} ${item.label}`} aria-pressed={favorite} onClick={() => onModelFavorite(item.value, !favorite)}><Star size={16} fill={favorite ? "currentColor" : "none"} /></button>}
+                {onModelFavorite && <button type="button" className="model-favorite" aria-label={`${favorite ? "Unpin" : "Pin"} ${item.label}`} aria-pressed={favorite} data-tip={favorite ? "Unpin from Favorites" : "Pin to Favorites"} onClick={() => onModelFavorite(item.value, !favorite)}><Star size={16} fill={favorite ? "currentColor" : "none"} /></button>}
               </div>;
             })}
             {locked && <p className="setting-hint">Start a new thread to use {group.label}</p>}
@@ -378,7 +378,7 @@ export function ComposerSettings({ taskId, mode, engine, engineLabel, engineLock
     <div className="composer-settings">
       <CommandGate command={{ type: "task.set-policy", taskId, policy: mode }}><ChoiceMenu label="Permission mode" axis="Mode" heading={`How should ${engineLabel} actions be approved?`} choices={modes} value={mode} onChange={onModeChange} /></CommandGate>
       <CommandGate command={{ type: "task.set-model", taskId, engine, model }}><ModelMenu engine={engine} engineLocked={engineLocked} engineAccess={engineAccess} model={model} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onChange={onModelChange} onOpen={onEngineRead} onSignIn={onSignIn} {...(effortControl ? { effort: effortControl } : {})} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} /></CommandGate>
-      {capabilitiesFor(engine).fastMode && <CommandButton command={{ type: "task.set-fast-mode", taskId, fastMode: !fastMode }} type="button" className="fast-mode-toggle" aria-label="Fast mode" aria-pressed={fastMode} data-tip={`Fast mode ${fastMode ? "on" : "off"} · faster responses use more of your plan`} onClick={() => onFastModeChange(!fastMode)}><Zap size={16} aria-hidden="true" />{fastMode && <span aria-hidden="true">Fast</span>}</CommandButton>}
+      {capabilitiesFor(engine).fastMode && <CommandButton command={{ type: "task.set-fast-mode", taskId, fastMode: !fastMode }} type="button" className="fast-mode-toggle" aria-label="Fast mode" aria-pressed={fastMode} data-tip={`Fast mode ${fastMode ? "on" : "off"} · faster responses use more of your plan`} onClick={() => onFastModeChange(!fastMode)}><Zap size={14} fill={fastMode ? "currentColor" : "none"} aria-hidden="true" /><span aria-hidden="true">Fast</span></CommandButton>}
     </div>
   );
 }

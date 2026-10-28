@@ -24,6 +24,7 @@ test("the library filters providers, searches globally, pins without choosing, a
   assert.equal(menu.querySelectorAll(".model-choice").length, 1);
   const input = query<HTMLInputElement>(menu, "input");
   assert.equal(document.activeElement, input);
+  assert.equal(query<HTMLElement>(menu, '[aria-label="Unpin Astra"]').dataset.tip, "Unpin from Favorites");
   await act(async () => { query<HTMLButtonElement>(menu, '[aria-label="Unpin Astra"]').click(); });
   assert.deepEqual(pinned, [["gpt-6-astra", false]]);
   assert.deepEqual(selected, []);
@@ -71,10 +72,11 @@ test("the Codex speed toggle follows effort and dispatches both speed changes", 
   assert.equal(toggle.title, "");
   await act(async () => { toggle.click(); });
   assert.deepEqual(selected, [true]);
-  assert.equal(toggle.textContent, "");
+  assert.equal(toggle.textContent, "Fast", "an idle fast mode still names itself");
+  assert.equal(toggle.querySelector("svg")?.getAttribute("fill"), "none");
   await view.render(React.createElement(ComposerSettings, { ...props, fastMode: true }));
   assert.equal(toggle.getAttribute("aria-pressed"), "true");
-  assert.equal(toggle.textContent, "Fast", "an active fast mode names itself beside the bolt");
+  assert.equal(toggle.querySelector("svg")?.getAttribute("fill"), "currentColor", "an active fast mode fills its bolt");
   assert.equal(toggle.getAttribute("aria-label"), "Fast mode");
   await act(async () => { toggle.click(); });
   assert.deepEqual(selected, [true, false]);

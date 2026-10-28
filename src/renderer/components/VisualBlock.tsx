@@ -1,6 +1,9 @@
-import { LuCircleAlert as CircleAlert } from "react-icons/lu";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { LuCircleAlert as CircleAlert, LuMaximize2 as Maximize, LuX as X } from "react-icons/lu";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { renderMessage, themeMessage, VISUAL_FRAME_URL, visualFrameMessage, type VisualTheme } from "../../domain/visual-frame";
+import { useModalFocus } from "../focus";
+import { shortcutTip } from "./TooltipLayer";
 
 /** What a visual is styled with, by the names the visualize skill documents, read from the app's own tokens. */
 const COLOR_TOKENS: Array<[string, string]> = [
@@ -84,12 +87,66 @@ export function BlockError({ title, error, className, onRetry, children }: { tit
   );
 }
 
-/** `pending` marks a block whose fence has not closed yet, so its source still grows with the stream. */
-export function VisualBlock({ source, pending = false }: { source: string; pending?: boolean }) {
+/** A block over the whole window, closed by Escape, its close button, or a press and release on the backdrop. */
+export function BlockViewer({ label, className, controls, onClose, children }: { label: string; className: string; controls?: ReactNode; onClose: () => void; children: ReactNode }) {
+  const dialog = useRef<HTMLDivElement>(null);
+  const pressedOn = useRef<EventTarget | null>(null);
+  useModalFocus(dialog);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      onClose();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      ref={dialog}
+      className={`viewer ${className}`}
+      role="dialog"
+      aria-modal="true"
+      aria-label={label}
+      tabIndex={-1}
+      onPointerDown={(event) => { pressedOn.current = event.target; }}
+      onClick={(event) => { if (event.target === pressedOn.current) onClose(); }}
+    >
+      {controls}
+      <button type="button" className="viewer-close" onClick={onClose} aria-label={`Close ${label.toLowerCase()}`} data-tip={shortcutTip("Close", "Escape")}><X size={16} /></button>
+      {children}
+    </div>,
+    document.body,
+  );
+}
+
+/** Opens a visual at full size, where one is held above the transcript. */
+export const OpenVisual = createContext<((source: string) => void) | null>(null);
+
+export function VisualViewer({ source, onClose }: { source: string; onClose: () => void }) {
+  return (
+    <BlockViewer label="Visual" className="visual" onClose={onClose}>
+      <div className="viewer-stage">
+        <div className="viewer-visual" onClick={(event) => event.stopPropagation()}>
+          <VisualBlock source={source} full />
+        </div>
+      </div>
+    </BlockViewer>
+  );
+}
+
+/**
+ * `pending` marks a block whose fence has not closed yet, so its source still grows with the stream.
+ * `full` is the copy drawn in the viewer, whose height is its own and is not kept for the inline one.
+ */
+export function VisualBlock({ source, pending = false, full = false }: { source: string; pending?: boolean; full?: boolean }) {
   const host = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
+  const open = useContext(OpenVisual);
   const [visible, setVisible] = useState(false);
-  const [height, setHeight] = useState(() => heights.get(source));
+  const [height, setHeight] = useState(() => (full ? undefined : heights.get(source)));
   const [error, setError] = useState<string | null>(null);
   /** Each try draws into a fresh frame, so a visual that failed starts again from nothing. */
   const [attempt, setAttempt] = useState(0);
@@ -114,7 +171,7 @@ export function VisualBlock({ source, pending = false }: { source: string; pendi
       if (!frame.current || event.source !== frame.current.contentWindow) return;
       const message = visualFrameMessage(event.data);
       if (message?.type === "size") {
-        rememberHeight(source, message.height);
+        if (!full) rememberHeight(source, message.height);
         setHeight(message.height);
       }
       if (message?.type === "error") setError((shown) => shown ?? message.message);
@@ -128,7 +185,7 @@ export function VisualBlock({ source, pending = false }: { source: string; pendi
       window.removeEventListener("message", onMessage);
       restyleListeners.delete(restyle);
     };
-  }, [source]);
+  }, [source, full]);
 
   /** The frame's address is fixed, so the opaque origin it gets cannot be named; the markup is not secret. */
   const draw = useCallback(() => {
@@ -146,32 +203,39 @@ export function VisualBlock({ source, pending = false }: { source: string; pendi
   }, [drawing, source, attempt]);
 
   const retry = () => {
-    heights.delete(source);
+    if (!full) heights.delete(source);
     setHeight(undefined);
     setError(null);
     setAttempt((count) => count + 1);
   };
 
   return (
-    <div className="visual-block" ref={host} style={height === undefined ? undefined : { "--visual-height": `${height}px` } as CSSProperties}>
-      {live
-        ? <iframe
-            key={`${attempt}:${source}`}
-            ref={frame}
-            className="visual-frame"
-            title={title}
-            src={VISUAL_FRAME_URL}
-            sandbox="allow-scripts"
-            data-ready={height === undefined ? undefined : ""}
-            onLoad={draw}
-          />
-        : <span className="visual-loading">{pending ? <span className="text-sweep">Drawing visual…</span> : null}</span>}
-      {drawing && <span className="visual-loading visual-loading-over"><span className="text-sweep">Drawing visual…</span></span>}
-      {error ? (
-        <BlockError className="visual-error" title="The visual hit an error" error={error} onRetry={retry}>
-          <pre><code>{error}</code></pre>
-        </BlockError>
-      ) : null}
-    </div>
+    <>
+      <div className="visual-block" ref={host} style={height === undefined ? undefined : { "--visual-height": `${height}px` } as CSSProperties}>
+        {live
+          ? <iframe
+              key={`${attempt}:${source}`}
+              ref={frame}
+              className="visual-frame"
+              title={title}
+              src={VISUAL_FRAME_URL}
+              sandbox="allow-scripts"
+              data-ready={height === undefined ? undefined : ""}
+              onLoad={draw}
+            />
+          : <span className="visual-loading">{pending ? <span className="text-sweep">Drawing visual…</span> : null}</span>}
+        {drawing && <span className="visual-loading visual-loading-over"><span className="text-sweep">Drawing visual…</span></span>}
+        {error ? (
+          <BlockError className="visual-error" title="The visual hit an error" error={error} onRetry={retry}>
+            <pre><code>{error}</code></pre>
+          </BlockError>
+        ) : null}
+      </div>
+      {live && !full && !error && open && (
+        <button type="button" className="diagram-expand" aria-label="Open the visual at full size" data-tip="Full size" onClick={() => open(source)}>
+          <Maximize size={14} aria-hidden="true" />
+        </button>
+      )}
+    </>
   );
 }

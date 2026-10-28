@@ -116,7 +116,7 @@ export function Composer({ draftKey, running, waiting, returned, settings, quest
       {waiting > 0 && (
         <div className="composer-waiting" role="status">
           <CloudOff size={14} strokeWidth={2} aria-hidden="true" />
-          <span>{waiting} {waiting === 1 ? "message is" : "messages are"} waiting for the line to come back.</span>
+          <span>{waiting} waiting · offline</span>
           {onEditWaiting && <button type="button" className="composer-waiting-edit" onClick={onEditWaiting}>Edit</button>}
         </div>
       )}
@@ -129,6 +129,7 @@ export function Composer({ draftKey, running, waiting, returned, settings, quest
           value={draft}
           placeholder={`Ask ${engineLabel(settings.engine)} to work on anything`}
           aria-label="Message"
+          aria-keyshortcuts="Meta+Enter Control+Enter"
           enterKeyHint="enter"
           autoCapitalize="sentences"
           onInput={(event) => setDraft(event.currentTarget.value)}
@@ -153,7 +154,7 @@ export function Composer({ draftKey, running, waiting, returned, settings, quest
             ? <button type="button" className="composer-pill primary" aria-description="Sends it when this run ends" onClick={() => send(onSend)}><CornerDownRight size={14} strokeWidth={2.2} aria-hidden="true" />Queue</button>
             : running
               ? stop
-              : !blocked && <button type="button" className="send-button" onClick={() => send(onSend)} disabled={!typed} aria-label="Send"><ArrowUp size={18} strokeWidth={2.4} /></button>}
+              : !blocked && <button type="button" className="send-button" onClick={() => send(onSend)} disabled={!typed} aria-label="Send" aria-keyshortcuts="Meta+Enter Control+Enter"><ArrowUp size={18} strokeWidth={2.4} /></button>}
         </div>
       </div>
     </div>

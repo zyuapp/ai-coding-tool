@@ -11,6 +11,7 @@ import { RenameInput, useRenaming, type Renaming } from "./SidebarRename";
 import { ShowMore } from "./ShowMore";
 import type { ThreadRowRenderer } from "./SidebarThreadRow";
 import type { ThreadHost } from "../../application/computers";
+import type { ComputerFilter } from "../../domain/computers";
 import { HostMark } from "./HostMark";
 
 export const RECENTS_DROPPABLE = "recents";
@@ -205,6 +206,7 @@ function ProjectRow({
                       >
                         <FolderIcon open={expanded} />
                         <span>{name}</span>
+                        {!expanded && renderRow.folderStatus(threads)}
                       </button>}
                   <PopoverMenu
                     id={menuId}
@@ -279,7 +281,34 @@ export type SidebarProjectsProps = {
   onRenameProject: (projectId: string, name: string) => void;
   onEditProject: (projectId: string) => void;
   onRemoveProject: (projectId: string) => void;
+  /** Which computer the lists are narrowed to, which a computer's heading narrows them to and back. */
+  computerFilter?: ComputerFilter;
+  onSetComputerFilter?: (filter: ComputerFilter) => void;
 };
+
+/**
+ * A computer's name over its folders. Where the lists can be narrowed, choosing it shows that
+ * computer's folders alone, and choosing it again shows every computer's.
+ */
+function ComputerHeading({ host, name, filter, onSetFilter }: { host: ThreadHost | undefined; name: string; filter?: ComputerFilter; onSetFilter?: (filter: ComputerFilter) => void }) {
+  const content = <>
+    <HostMark name={name} offline={host?.offline} reconnecting={host?.reconnecting} />
+    {host?.offline && <span className="computer-heading-status">{host.reconnecting ? "Reconnecting" : "Offline"}</span>}
+  </>;
+  if (!onSetFilter) return <div className="computer-heading" aria-hidden="true">{content}</div>;
+  const own: ComputerFilter = host?.id ?? "this";
+  const narrowed = filter === own;
+  return (
+    <button
+      className="computer-heading"
+      type="button"
+      aria-pressed={narrowed}
+      aria-label={`Only ${name}`}
+      data-tip={narrowed ? "Show all computers" : `Only ${name}`}
+      onClick={() => onSetFilter(narrowed ? "all" : own)}
+    >{content}</button>
+  );
+}
 
 export function SidebarProjects({
   projects,
@@ -303,6 +332,8 @@ export function SidebarProjects({
   onRenameProject,
   onEditProject,
   onRemoveProject,
+  computerFilter,
+  onSetComputerFilter,
 }: SidebarProjectsProps) {
   const projectNames = useRenaming(onRenameProject);
   /** Headings only once a paired computer's folders sit beside this computer's own. */
@@ -323,10 +354,7 @@ export function SidebarProjects({
         {computerGroups(projects, projectHosts).map(({ host, projects: held }) => (
           <Droppable key={host?.id ?? "local"} droppableId={`${PROJECTS_DROPPABLE}:${host?.id ?? "this"}`} type={`${PROJECT_DRAG}:${host?.id ?? "this"}`}>
             {(list) => <div className="computer-group" role={showComputers ? "group" : undefined} aria-label={showComputers ? host?.name ?? localName : undefined} ref={list.innerRef} {...list.droppableProps}>
-              {showComputers && <div className="computer-heading" aria-hidden="true">
-                <HostMark name={host?.name ?? localName} offline={host?.offline} reconnecting={host?.reconnecting} />
-                {host?.offline && <span className="computer-heading-status">{host.reconnecting ? "Reconnecting" : "Offline"}</span>}
-              </div>}
+              {showComputers && <ComputerHeading host={host} name={host?.name ?? localName} filter={computerFilter} onSetFilter={onSetComputerFilter} />}
               {held.map((project, offset) => (
                 <ProjectRow
                   key={project.id}

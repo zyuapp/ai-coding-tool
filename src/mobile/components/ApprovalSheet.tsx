@@ -8,8 +8,8 @@ import { glanceable } from "../format";
  * names that thread above it. Both answers are full-width and thumb-high,
  * and neither sits where the other was a moment ago, so an approval cannot be given by reflex.
  * A detail short enough to take in at a glance is open, so what is being allowed is read first.
- * One tap decides: the card dims and both buttons are disabled until the Mac takes the card away,
- * so a second tap cannot answer twice while the first is still on its way. `refused` names the last
+ * One tap decides: the chosen answer spins and the other fades, both disabled until the Mac takes
+ * the card away, so a second tap cannot answer twice while the first is still on its way. `refused` names the last
  * answer the Mac turned down, which hands the card back to be answered again.
  */
 export function ApprovalSheet({ approval, refused = null, onDecide }: {
@@ -45,8 +45,12 @@ export function ApprovalSheet({ approval, refused = null, onDecide }: {
         </details>
       )}
       <div className="approval-actions">
-        <button type="button" className="deny" disabled={decided !== null} onClick={() => decide(false)}>{decided?.allow === false ? "Denying…" : "Deny"}</button>
-        <button type="button" className="allow" disabled={decided !== null} onClick={() => decide(true)}>{decided?.allow ? "Allowing…" : "Allow once"}</button>
+        <button type="button" className="deny" disabled={decided !== null} data-chosen={decided?.allow === false || undefined} onClick={() => decide(false)}>
+          {decided?.allow === false && <span className="line-spin" aria-hidden="true" />}{decided?.allow === false ? "Denying…" : "Deny"}
+        </button>
+        <button type="button" className="allow" disabled={decided !== null} data-chosen={decided?.allow || undefined} onClick={() => decide(true)}>
+          {decided?.allow && <span className="line-spin" aria-hidden="true" />}{decided?.allow ? "Allowing…" : "Allow once"}
+        </button>
       </div>
     </section>
   );

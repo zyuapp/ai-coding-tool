@@ -102,7 +102,7 @@ export function NoteEditor({ noting, editorRef, onChange, onCommit, onClose, onR
       <input
         autoFocus
         value={noting.note}
-        placeholder="Annotate…"
+        placeholder="Add a note · Enter saves, Esc cancels"
         aria-label="Annotation note"
         onInput={(event) => onChange({ ...noting, note: event.currentTarget.value })}
         onKeyDown={(event) => {

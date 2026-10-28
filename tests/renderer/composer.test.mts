@@ -353,6 +353,45 @@ test("the @ menu offers threads, keeps browsing in this project, and completes t
   await view.unmount();
 });
 
+test("the @ menu opens with no other threads and says there are none yet", async () => {
+  function Harness() {
+    const [prompt, setPrompt] = React.useState("");
+    return renderConversationComposer({ prompt, threads: [], onPromptChange: setPrompt });
+  }
+  const view = await mount(React.createElement(Harness));
+  const textarea = query<HTMLTextAreaElement>(view.container, "textarea");
+  const setValue = item(Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value")).set;
+  await act(async () => {
+    textarea.focus();
+    item(setValue).call(textarea, "ask @");
+    textarea.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText" }));
+  });
+  assert.equal(query(view.container, ".thread-menu .command-empty").textContent, "No other threads yet");
+  await view.unmount();
+});
+
+test("the prompt names the / and @ menus until it cannot take a message", async () => {
+  window.desktop = fakeDesktop();
+  const view = await mount(renderConversationComposer({ folder: "/project" }));
+  assert.equal(query<HTMLTextAreaElement>(view.container, "textarea").placeholder, "Ask Claude to work on anything · / for commands · @ for threads");
+  await view.unmount();
+  const side = await mount(renderConversationComposer({ surface: "side", disabled: true }));
+  assert.equal(query<HTMLTextAreaElement>(side.container, "textarea").placeholder, "Main context required");
+  await side.unmount();
+});
+
+test("Send names ↑ for the previous message once there is one, and draws its arrow as an icon", async () => {
+  window.desktop = fakeDesktop();
+  const fresh = await mount(renderConversationComposer({ prompt: "hi" }));
+  const send = query(fresh.container, ".send-button");
+  assert.doesNotMatch(send.dataset.tip ?? "", /Previous message/);
+  assert.ok(send.querySelector("svg"), "the arrow is an icon, not a font glyph");
+  await fresh.unmount();
+  const recalled = await mount(renderConversationComposer({ history: [{ text: "earlier", annotations: [], pastes: [], files: [], attachments: [] }] }));
+  assert.match(query(recalled.container, ".send-button").dataset.tip ?? "", / · Previous message \((↑|ArrowUp)\)$/);
+  await recalled.unmount();
+});
+
 test("the side surface keeps the slash palette but never offers to fork a fork", async () => {
   window.desktop = fakeDesktop({
     commands: async () => ({ status: "available", commands: [
@@ -572,7 +611,7 @@ test("while a run goes, a written message shows how to queue it or steer it in",
   assert.match(hint.textContent ?? "", /queue.*steer/);
   assert.equal(query(running.container, "textarea").getAttribute("aria-describedby"), hint.id, "the prompt names the keys to a screen reader too");
   assert.equal(hint.querySelectorAll("kbd").length, 2, "both keys stay named");
-  assert.match(query(running.container, ".send-button").dataset.tip ?? "", /^Stop \((Esc|Escape)\)$/, "Stop names its key, not the queue hint");
+  assert.match(query(running.container, ".send-button").dataset.tip ?? "", /^Stop \((Esc|Escape)\) · Queue \(.+\) · Steer \(.+\)$/, "Stop's tip also names the queue and steer keys");
   await running.unmount();
 });
 
@@ -616,14 +655,18 @@ test("a thread this build cannot open offers the update that opens it, once ther
     renderConversationComposer({ unopenable: "Runs on gemini, which this version can't open. Update to work in it here.", updateAvailable }));
   const view = await mount(shown(false));
   assert.equal(view.container.querySelector("textarea"), null);
-  assert.equal(view.container.querySelector(".composer-unopenable-update"), null, "no update found, nothing to press");
+  assert.equal(view.container.querySelector(".composer-unopenable-update"), null, "no update found, nothing to install");
+  await act(async () => { query<HTMLButtonElement>(view.container, ".composer-unopenable-check").click(); });
+  assert.deepEqual(dispatched, [{ type: "app.check-for-updates" }], "until one is found it can be looked for");
+  dispatched.length = 0;
   await view.render(shown(true));
+  assert.equal(view.container.querySelector(".composer-unopenable-check"), null);
   await act(async () => { query<HTMLButtonElement>(view.container, ".composer-unopenable-update").click(); });
   assert.deepEqual(dispatched, [{ type: "app.update" }]);
   await view.unmount();
 });
 
-test("the context ring only reads, and its card offers Compact where compacting is on offer", async () => {
+test("the context ring only reads, and Compact stands beside it once the window runs high", async () => {
   window.desktop = fakeDesktop();
   let compacted = 0;
   const onCompact = () => { compacted += 1; };
@@ -631,19 +674,38 @@ test("the context ring only reads, and its card offers Compact where compacting 
   const meter = query(low.container, '.context-usage [role="meter"]');
   assert.equal(meter.getAttribute("aria-valuenow"), "20");
   assert.equal(query(meter, ".context-usage-value").textContent, "20%");
-  assert.equal(meter.querySelector("button"), null, "the ring itself never compacts");
-  await act(async () => { query<HTMLButtonElement>(low.container, ".usage-card-action").click(); });
-  assert.equal(compacted, 1, "compacting is on offer at any share");
+  assert.equal(low.container.querySelector(".context-usage button"), null, "below the high mark /compact is the way in");
+  assert.equal(low.container.querySelector(".usage-card button"), null, "the hover card only reads");
   await low.unmount();
 
   const high = await mount(renderConversationComposer({ contextUsage: { tokens: 180_000, limit: 200_000, model: "claude-opus-5" }, onCompact }));
   assert.ok(query(high.container, ".context-usage").classList.contains("high"));
   assert.equal(query(high.container, ".context-usage-value").textContent, "90%");
+  await act(async () => { query<HTMLButtonElement>(high.container, ".context-usage-compact").click(); });
+  assert.equal(compacted, 1);
   await high.unmount();
 
   const unoffered = await mount(renderConversationComposer({ contextUsage: { tokens: 180_000, limit: 200_000, model: "claude-opus-5" } }));
-  assert.equal(unoffered.container.querySelector(".usage-card-action"), null, "where compacting is not on offer the card only reads");
+  assert.equal(unoffered.container.querySelector(".context-usage-compact"), null, "where compacting is not on offer the ring only reads");
   await unoffered.unmount();
+});
+
+test("a queued message held for a limit keeps Steer, off, saying when it comes back", async () => {
+  window.desktop = fakeDesktop();
+  const steered: string[] = [];
+  const queuedMessages = [{ id: "q-1", text: "next", prompt: "next", attachments: [] }];
+  const held = await mount(renderConversationComposer({ runActive: false, queuedMessages, onSteerQueued: (id) => { steered.push(id); } }));
+  const steer = query<HTMLButtonElement>(held.container, ".queued-steer");
+  assert.equal(steer.getAttribute("aria-disabled"), "true");
+  assert.equal(steer.dataset.tip, "Steer once the run resumes");
+  await act(async () => { steer.click(); });
+  assert.equal(steered.length, 0);
+  await held.unmount();
+
+  const running = await mount(renderConversationComposer({ runActive: true, queuedMessages, onSteerQueued: (id) => { steered.push(id); } }));
+  await act(async () => { query<HTMLButtonElement>(running.container, ".queued-steer").click(); });
+  assert.deepEqual(steered, ["q-1"]);
+  await running.unmount();
 });
 
 test("a queued message cut short opens out in place, and one that fits stays still", async () => {

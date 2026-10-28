@@ -39,7 +39,7 @@ export function StartOptions({ draft, onPickProject, onSetWorktree, onStartIn }:
       ) : draft.canWorktree && (
         <button type="button" className="thread-start-toggle" aria-pressed={draft.worktree} onClick={() => onSetWorktree(!draft.worktree)}>
           {draft.worktree ? <Check size={14} strokeWidth={2.4} aria-hidden="true" /> : <FolderSymlink size={14} aria-hidden="true" />}
-          <span>Worktree</span>
+          <span>New worktree</span>
         </button>
       )}
       {picking && (

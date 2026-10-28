@@ -83,7 +83,10 @@ export function WorktreeSettings({ page, error, notice, dispatch }: WorktreeSett
   const expanded = new Set(page.expandedThreads);
   return (
     <main className="settings-main worktree-settings">
-      <div className="settings-page-heading"><h2>Worktrees</h2></div>
+      <div className="settings-page-heading">
+        <h2>Worktrees</h2>
+        <p>Folders where threads work on their own copy of a project, apart from its checkout.</p>
+      </div>
       <section className="worktree-settings-list" aria-labelledby="worktrees-heading" aria-busy={page.loading}>
         <div className="worktree-toolbar">
           <h3 id="worktrees-heading">On this device{!page.loading && <span className="worktree-count">{page.available.length}</span>}</h3>
@@ -95,9 +98,11 @@ export function WorktreeSettings({ page, error, notice, dispatch }: WorktreeSett
               </select>
               <ChevronDown size={14} aria-hidden="true" />
             </div>}
-            <button type="button" className="worktree-refresh" disabled={page.loading} aria-busy={page.loading || undefined} data-tip="Compares commits with local Git refs. Fetch first for the latest." onClick={() => dispatch({ type: "worktree.refresh" })}>
-              <SpinningIcon icon={RefreshCw} spinning={page.loading} size={14} aria-hidden="true" />{page.loading ? "Reading…" : "Refresh"}
-            </button>
+            <div className="settings-group-action">
+              <button type="button" disabled={page.loading} aria-busy={page.loading || undefined} data-tip="Compares commits with local Git refs. Fetch first for the latest." onClick={() => dispatch({ type: "worktree.refresh" })}>
+                <SpinningIcon icon={RefreshCw} spinning={page.loading} size={14} aria-hidden="true" />{page.loading ? "Reading…" : "Refresh"}
+              </button>
+            </div>
           </div>
         </div>
         {error && <p className="settings-error" role="alert">{error}</p>}
@@ -108,7 +113,7 @@ export function WorktreeSettings({ page, error, notice, dispatch }: WorktreeSett
       </section>
       {page.missing.length > 0 && <section className="worktree-missing">
         <button type="button" className="worktree-missing-toggle" aria-expanded={page.missingOpen} aria-controls={missingId} onClick={() => dispatch({ type: "worktree.set-missing-open", open: !page.missingOpen })}>
-          <ChevronRight size={14} className={page.missingOpen ? "expanded" : ""} aria-hidden="true" />Missing folders <span className="worktree-count">{page.missing.length}</span>
+          <ChevronRight size={14} className={page.missingOpen ? "expanded" : ""} aria-hidden="true" />Missing folders <span className="worktree-count missing">{page.missing.length}</span>
         </button>
         <div id={missingId} hidden={!page.missingOpen}>
           <p className="worktree-missing-description">These folders are already gone. Forgetting them keeps your thread history.</p>

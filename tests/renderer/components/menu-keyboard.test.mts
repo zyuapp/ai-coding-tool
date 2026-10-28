@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import React, { act } from "react";
 
-import { ContextMenu, MenuList, type MenuEntry } from "../../../src/renderer/components/PopoverMenu.tsx";
+import { ContextMenu, MenuList, PopoverMenu, type MenuEntry } from "../../../src/renderer/components/PopoverMenu.tsx";
 
 const ENTRIES: MenuEntry[] = [
   { label: "Rename" },
@@ -129,3 +129,26 @@ test("Escape in a menu's search empties it first, and leaves closing to the menu
 function listRow(label: string) {
   return [...document.querySelectorAll<HTMLButtonElement>(".menu-popover > button")].find((button) => button.querySelector(".menu-label")?.textContent === label);
 }
+
+test("a right-click on a menu's trigger opens the same menu a click does, and never closes it", async () => {
+  const asked: Array<string | null> = [];
+  function Host() {
+    const [openMenu, setOpenMenu] = React.useState<string | null>(null);
+    return React.createElement(PopoverMenu, { id: "thread", openMenu, onSetOpenMenu: (menu: string | null) => { asked.push(menu); setOpenMenu(menu); }, items: ENTRIES, label: "Thread actions", className: "thread-heading-menu" });
+  }
+  const view = await mount(React.createElement(Host));
+  const trigger = document.querySelector<HTMLButtonElement>(".thread-heading-menu > .menu-trigger")!;
+  const rightClick = async () => {
+    const event = new dom.window.MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+    await act(async () => { trigger.dispatchEvent(event); });
+    return event.defaultPrevented;
+  };
+  try {
+    assert.equal(await rightClick(), true, "the system menu stays away");
+    assert.equal(trigger.getAttribute("aria-expanded"), "true");
+    assert.ok(listRow("Rename"));
+    await rightClick();
+    assert.equal(trigger.getAttribute("aria-expanded"), "true");
+    assert.deepEqual(asked, ["thread", "thread"]);
+  } finally { await view.unmount(); }
+});

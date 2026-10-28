@@ -8,7 +8,7 @@
 .worktree-menu-copy > span, .worktree-menu-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .worktree-menu-copy small { color: var(--muted); font-size: var(--text-badge); }
 .worktree-menu-choice:hover:not([aria-disabled="true"]) small, .worktree-menu-choice:focus-visible:not([aria-disabled="true"]):where(:root:not([data-focus-appearance="quiet"]) *) small { color: var(--accent-ink); }
-.worktree-menu-panel .worktree-menu-new { width: calc(100% - 10px); height: 26px; }
+.worktree-menu-panel .worktree-menu-new { width: calc(100% - 10px); height: 28px; }
 .worktree-menu-note { padding: 4px 10px; margin: 4px 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .worktree-menu-error { margin: 6px 10px; color: var(--danger); font-size: 11px; overflow-wrap: anywhere; }
 .worktree-menu-error p { margin: 0 0 5px; }

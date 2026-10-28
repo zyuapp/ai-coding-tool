@@ -21,20 +21,20 @@ export type ShortcutSettingsProps = {
 export function ShortcutSettings({ shortcuts, capturingShortcut, desktopShortcutUnavailable, onCaptureShortcut, onSetShortcut, onResetShortcuts }: ShortcutSettingsProps) {
   return (
     <main className="settings-main">
-      <div className="settings-page-heading">
-        <h2>Shortcuts</h2>
-        <p>The rest of the keyboard is fixed, so only the keystrokes worth choosing yourself are here.</p>
+      <div className="settings-page-heading with-action">
+        <div>
+          <h2>Shortcuts</h2>
+          <p>The rest of the keyboard is fixed, so only the keystrokes worth choosing yourself are here.</p>
+        </div>
+        <div className="settings-group-action">
+          <ConfirmAction disabled={shortcuts.every((shortcut) => !shortcut.changed)} confirm="Restore all" onConfirm={onResetShortcuts}>Restore defaults</ConfirmAction>
+        </div>
       </div>
 
-      {[...new Set(shortcuts.map((shortcut) => shortcut.group))].map((group, index) => (
+      {[...new Set(shortcuts.map((shortcut) => shortcut.group))].map((group) => (
         <section className="settings-group" key={group} aria-label={group}>
           <div className="settings-group-heading">
             <div><h3>{group}</h3></div>
-            {index === 0 && (
-              <div className="settings-group-action">
-                <ConfirmAction disabled={shortcuts.every((shortcut) => !shortcut.changed)} confirm="Restore all" onConfirm={onResetShortcuts}>Restore defaults</ConfirmAction>
-              </div>
-            )}
           </div>
 
           {shortcuts.filter((shortcut) => shortcut.group === group).map((shortcut) => (

@@ -48,3 +48,11 @@ test("the move confirmation says where the thread goes and what the move costs",
 
   await view.unmount();
 });
+
+test("returning to local starts on Cancel, since it commits changes and can remove the worktree", async () => {
+  const calls = { confirmed: 0, closed: 0 };
+  const view = await mount(dialog({ worktree: false, changes: 2, others: 0 }, calls));
+  try {
+    assert.equal(document.activeElement?.textContent, "Cancel");
+  } finally { await view.unmount(); }
+});

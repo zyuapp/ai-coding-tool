@@ -147,7 +147,7 @@ test("a refresh in flight keeps its button readable and names the refs it compar
   initial.worktreeManagementLoading = true;
   const view = await renderSettings(initial);
   try {
-    const refresh = query<HTMLButtonElement>(view.container, ".worktree-refresh");
+    const refresh = query<HTMLButtonElement>(view.container, ".worktree-toolbar .settings-group-action button");
     assert.equal(refresh.disabled, true);
     assert.equal(refresh.getAttribute("aria-busy"), "true");
     assert.match(refresh.textContent!, /Reading…/);

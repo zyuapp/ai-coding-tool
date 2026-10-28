@@ -6,6 +6,7 @@ import { useMessageLinks, WebLink } from "./MarkdownMessage";
 import { GITHUB_CLI_URL, PULL_REQUEST_ICONS } from "./SessionPanel";
 import { useDismissibleLayer } from "../focus";
 import { deliveryLabel, type ThreadBrief } from "../../domain/coordination";
+import type { AutomationView } from "../../domain/automation";
 import type { PullRequestAnswer, PullRequestState } from "../../domain/pull-request";
 import type { ThreadTabView } from "../../application/workspace-state";
 
@@ -17,6 +18,21 @@ export type ThreadTabStripActions = {
 };
 
 const PULL_REQUEST_STATES: Record<PullRequestState, string> = { draft: "Draft", open: "Open", merged: "Merged", closed: "Closed" };
+
+const RUN_TIME = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
+const RUN_WEEKDAY = new Intl.DateTimeFormat(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" });
+const RUN_DATE = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+const WEEK = 6 * 86_400_000;
+
+/** What the schedule chip says: when the next run is, or why there is none. */
+export function scheduleChipLabel(automation: AutomationView | null, now = Date.now()) {
+  if (!automation) return "Schedule";
+  if (automation.paused) return "Paused";
+  if (automation.nextRunAt === null) return "Missed";
+  const next = new Date(automation.nextRunAt);
+  if (next.toDateString() === new Date(now).toDateString()) return `Next ${RUN_TIME.format(next)}`;
+  return `Next ${(automation.nextRunAt - now < WEEK ? RUN_WEEKDAY : RUN_DATE).format(next)}`;
+}
 
 /** What stands in for the checkout's chips until Git has answered for it; `failed` when Git refused. */
 function environmentNote(tab: ThreadTabView): { text: string; failed?: boolean; reading?: boolean } | null {
@@ -167,12 +183,12 @@ export function ThreadTabStrip({ tab, branchMenuOpen, actions }: { tab: ThreadTa
         <PullRequestChip pullRequest={tab.pullRequest} />
         <button
           type="button"
-          className={`thread-tab-chip ${tab.automation ? "scheduled" : "quiet"}`}
-          data-tip="Automations"
+          className={`thread-tab-chip ${tab.automation && !tab.automation.paused ? "scheduled" : ""}`.trimEnd()}
+          data-tip="Automation"
           onClick={actions.onOpenAutomations}
         >
           <AlarmClock size={14} aria-hidden="true" />
-          <span>{tab.automation ? "Scheduled" : "Schedule"}</span>
+          <span>{scheduleChipLabel(tab.automation)}</span>
         </button>
         {brief && (
           <button

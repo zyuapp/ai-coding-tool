@@ -23,11 +23,12 @@ function explain({ worktree, changes, others }: WorktreeMoveView) {
 export function WorktreeMoveDialog({ move, onConfirm, onClose }: WorktreeMoveDialogProps) {
   const dialog = useRef<HTMLDivElement>(null);
   const confirm = useRef<HTMLButtonElement>(null);
+  const cancel = useRef<HTMLButtonElement>(null);
   const explanation = useId();
   useModalFocus(dialog);
 
-  /** Confirm holds the focus, so Enter answers the question the dialog came to ask. */
-  useEffect(() => { confirm.current?.focus(); }, []);
+  /** Enter takes a move that costs nothing; returning commits changes and can remove the worktree, so Cancel holds the focus. */
+  useEffect(() => { (move.worktree ? confirm : cancel).current?.focus(); }, []);
 
   /** Escape closes the question rather than reaching the window, which would answer it by stopping a run. */
   useEffect(() => {
@@ -73,7 +74,7 @@ export function WorktreeMoveDialog({ move, onConfirm, onClose }: WorktreeMoveDia
           <p id={explanation}>{explain(move)}</p>
         </div>
         <div className="worktree-move-actions">
-          <button type="button" onClick={onClose}>Cancel</button>
+          <button ref={cancel} type="button" onClick={onClose}>Cancel</button>
           <button ref={confirm} type="button" className="primary" onClick={onConfirm}>{move.worktree ? "Move to worktree" : "Return to local"}</button>
         </div>
       </div>

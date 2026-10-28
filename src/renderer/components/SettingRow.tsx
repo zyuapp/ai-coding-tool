@@ -20,7 +20,7 @@ export function useSettingMark<T extends HTMLElement>(id: string) {
     target.classList.remove("found");
     void target.offsetWidth;
     target.classList.add("found");
-    /** Without motion the flash never shows, so a still mark stays until the user next does something. */
+    /** A still mark outlasts the flash, staying until the user next does something. */
     target.dataset.landed = "";
     const clear = () => { delete target.dataset.landed; };
     const options = { capture: true, once: true } as const;
@@ -117,7 +117,7 @@ export function SettingSwitch({ id, on, onChange }: { id: SettingId; on: boolean
 }
 
 export type ConfirmActionProps = Omit<ComponentPropsWithoutRef<"button">, "onClick" | "type"> & {
-  /** The destructive button the first press reveals, beside Cancel. */
+  /** The destructive button the first press reveals, beside Cancel. It keeps the first button's `aria-label`, which names what it acts on. */
   confirm: string;
   onConfirm: () => void;
 };
@@ -157,7 +157,7 @@ export function ConfirmAction({ confirm, onConfirm, children, ...trigger }: Conf
   if (!confirming) return <button ref={first} type="button" {...trigger} onClick={() => { answered.current = false; setConfirming(true); }}>{children}</button>;
   return (
     <>
-      <button ref={danger} type="button" className="danger armed" onKeyDown={escape} onBlur={leave} onClick={() => {
+      <button ref={danger} type="button" className="danger armed" aria-label={trigger["aria-label"]} onKeyDown={escape} onBlur={leave} onClick={() => {
         answer();
         onConfirm();
       }}>{confirm}</button>

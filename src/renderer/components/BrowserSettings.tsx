@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { ConfirmAction, SettingGroup, useRowListFocus } from "./SettingRow";
 import { settingControl } from "../../domain/settings-catalog";
 import { AvailabilitySection } from "./AvailabilitySection";
@@ -24,6 +25,7 @@ export function BrowserSettings({
   browserImport,
 }: BrowserSettingsProps) {
   const rows = useRowListFocus<HTMLDivElement>();
+  const [removed, setRemoved] = useState<string | null>(null);
   return (
     <main className="settings-main">
       <div className="settings-page-heading">
@@ -41,10 +43,11 @@ export function BrowserSettings({
           <div>
             <h3 id="browser-session-heading">{settingControl("browser.session").label}</h3>
             <p>Signing out clears every cookie, cache, and stored login, and takes back the sites the agent may open on its own.</p>
+            <p role="status" className="settings-status done">{removed && `Removed ${removed}`}</p>
           </div>
           <div className="settings-group-action">
             <span>{allowedOrigins.length} {allowedOrigins.length === 1 ? "site allowed" : "sites allowed"}</span>
-            <ConfirmAction className="danger" confirm="Sign out of everything" onConfirm={onClearBrowserData}>Clear browser data</ConfirmAction>
+            <ConfirmAction className="danger" confirm="Sign out of everything" onConfirm={() => { setRemoved(null); onClearBrowserData(); }}>Clear browser data</ConfirmAction>
           </div>
         </div>
 
@@ -56,7 +59,7 @@ export function BrowserSettings({
                 <strong className="setting-origin">{origin}</strong>
                 {onForgetOrigin && (
                   <div className="setting-row-action">
-                    <button type="button" aria-label={`Remove ${origin}`} onClick={() => onForgetOrigin(origin)}>Remove</button>
+                    <button type="button" aria-label={`Remove ${origin}`} onClick={() => { setRemoved(origin); onForgetOrigin(origin); }}>Remove</button>
                   </div>
                 )}
               </div>

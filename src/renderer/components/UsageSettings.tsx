@@ -51,11 +51,11 @@ export function UsageSettings({ usage, name = "", computers = [], onRefresh, tim
       </div>
 
       {computers.length === 0
-        ? <Providers usage={usage} scope="this" asked timeZone={timeZone} />
+        ? <Providers usage={usage} scope="this" asked onRetry={onRefresh} timeZone={timeZone} />
         : (
           <div className="usage-computers">
             <ComputerSection id="this" name={name ? `This computer · ${name}` : "This computer"}>
-              <Providers usage={usage} scope="this" asked timeZone={timeZone} />
+              <Providers usage={usage} scope="this" asked onRetry={onRefresh} timeZone={timeZone} />
             </ComputerSection>
             {computers.map((computer) => (
               <ComputerSection key={computer.id} id={computer.id} name={computer.name}>
@@ -86,16 +86,16 @@ function PairedUsage({ computer, timeZone }: { computer: ComputerUsage; timeZone
   return <Providers usage={computer.usage} scope={computer.id} timeZone={timeZone} />;
 }
 
-/** `asked` marks this computer's own limits, which opening the page always reads. */
-function Providers({ usage: { reports, reading }, scope, asked = false, timeZone }: { usage: PlanUsageState; scope: string; asked?: boolean; timeZone: string }) {
+/** `asked` marks this computer's own limits, which opening the page always reads and `onRetry` reads again. */
+function Providers({ usage: { reports, reading }, scope, asked = false, onRetry, timeZone }: { usage: PlanUsageState; scope: string; asked?: boolean; onRetry?: () => void; timeZone: string }) {
   return (
     <div className="usage-providers">
-      {AGENT_ENGINES.map((engine) => <ProviderUsage key={engine} engine={engine} usage={reports[engine]} reading={asked || reading.includes(engine)} scope={scope} timeZone={timeZone} />)}
+      {AGENT_ENGINES.map((engine) => <ProviderUsage key={engine} engine={engine} usage={reports[engine]} reading={asked || reading.includes(engine)} retrying={reading.includes(engine)} onRetry={onRetry} scope={scope} timeZone={timeZone} />)}
     </div>
   );
 }
 
-function ProviderUsage({ engine, usage, reading, scope, timeZone }: { engine: AgentEngine; usage: PlanUsage | undefined; reading: boolean; scope: string; timeZone: string }) {
+function ProviderUsage({ engine, usage, reading, retrying, onRetry, scope, timeZone }: { engine: AgentEngine; usage: PlanUsage | undefined; reading: boolean; retrying: boolean; onRetry?: () => void; scope: string; timeZone: string }) {
   const heading = `usage-${scope}-${engine}-heading`;
   const plan = usage?.status === "available" ? planLabel(usage.subscription) : null;
   return (
@@ -107,7 +107,12 @@ function ProviderUsage({ engine, usage, reading, scope, timeZone }: { engine: Ag
 
       {usage === undefined && <p className="settings-empty">{reading ? "Reading usage…" : "Not read yet."}</p>}
       {usage?.status === "not-applicable" && <p className="settings-empty">No plan limits apply to this sign-in.</p>}
-      {usage?.status === "unavailable" && <p className="settings-error" role="alert">{usage.message}</p>}
+      {usage?.status === "unavailable" && (
+        <p className="settings-error" role="alert">
+          {usage.message}
+          {onRetry && <button type="button" className="settings-empty-action" disabled={retrying} aria-busy={retrying || undefined} onClick={onRetry}>{retrying ? "Reading…" : "Try again"}</button>}
+        </p>
+      )}
       {usage?.status === "available" && <UsageWindows usage={usage} timeZone={timeZone} />}
     </section>
   );

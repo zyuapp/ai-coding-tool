@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState, type RefObject } from "react";
-import { LuCheckCheck as CheckCheck, LuChevronDown as ChevronDown, LuFolder as Folder } from "react-icons/lu";
+import { LuCheckCheck as CheckCheck, LuChevronDown as ChevronDown, LuFolder as Folder, LuX as X } from "react-icons/lu";
 import { rankedMatches } from "../../domain/match-rank";
 import { projectName, type Project } from "../../domain/project";
 import type { SidebarSection, SidebarSections } from "../../domain/sidebar";
@@ -83,6 +83,14 @@ function ProjectFilter({ projects, projectHosts, project, onSetProject, openMenu
         {selected && projectHosts.get(selected.id) && <span className="activity-filter-host">{projectHosts.get(selected.id)!.name}</span>}
         <ChevronDown size={14} aria-hidden="true" />
       </button>
+      {selected && (
+        <button className="activity-filter-clear" type="button" aria-label="Show all projects" data-tip="All projects" onClick={() => {
+          onSetProject(null);
+          trigger.current?.focus();
+        }}>
+          <X size={14} aria-hidden="true" />
+        </button>
+      )}
       {open && anchor && <ProjectMenu projects={projects} projectHosts={projectHosts} selected={selected} onSetProject={onSetProject} onClose={() => onSetOpenMenu(null)} anchor={anchor} menuRef={menu} />}
     </div>
   );

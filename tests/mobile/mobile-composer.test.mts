@@ -45,8 +45,15 @@ test("messages held for the line can be taken back into the field", () => {
   const edit = vi.fn();
   const { render } = mount();
   render({ waiting: 2 });
+  assert.equal(document.querySelector(".composer-waiting span")?.textContent, "2 waiting · offline");
   assert.equal(document.querySelector(".composer-waiting button"), null, "nothing to offer without a way to take them back");
   render({ waiting: 2, onEditWaiting: edit });
   act(() => void document.querySelector(".composer-waiting-edit")!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
   assert.equal(edit.mock.calls.length, 1);
+});
+
+test("a hardware keyboard's send shortcut is announced on the field and on Send", () => {
+  mount().render({});
+  assert.equal(field().getAttribute("aria-keyshortcuts"), "Meta+Enter Control+Enter");
+  assert.equal(document.querySelector(".send-button")?.getAttribute("aria-keyshortcuts"), "Meta+Enter Control+Enter");
 });

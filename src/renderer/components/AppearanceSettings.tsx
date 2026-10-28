@@ -65,14 +65,17 @@ function ThemeSwatch({ id }: { id: string }) {
   );
 }
 
-/** Left and Right move along a row of segments, wrapping at the ends. */
-function moveSegmentFocus(event: KeyboardEvent<HTMLElement>) {
-  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+/** Left and Right, or Up and Down, choose the next segment along, wrapping at the ends, and take the keyboard to it. */
+function moveSegment(event: KeyboardEvent<HTMLElement>) {
+  const step = ({ ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 } as Record<string, number>)[event.key];
+  if (step === undefined) return;
   const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>("button")];
   const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
   if (at === -1) return;
   event.preventDefault();
-  buttons[(at + (event.key === "ArrowRight" ? 1 : buttons.length - 1)) % buttons.length]!.focus();
+  const next = buttons[(at + step + buttons.length) % buttons.length]!;
+  next.focus();
+  next.click();
 }
 
 /** The mark on the option Enter in the search picks. */
@@ -147,7 +150,7 @@ function ThemeSelect({ current, onChoose }: { current: Theme; onChoose: (family:
         }
       }}
     >
-      <button ref={trigger} type="button" aria-label="Theme" aria-haspopup="listbox" aria-expanded={open} onClick={() => { setQuery(""); setOpen(!open); }}>
+      <button ref={trigger} type="button" aria-label={`Theme: ${current.family}`} aria-haspopup="listbox" aria-expanded={open} onClick={() => { setQuery(""); setOpen(!open); }}>
         <ThemeSwatch id={current.id} />
         <span>{current.family}</span>
         <ChevronDown size={14} aria-hidden="true" />
@@ -300,7 +303,7 @@ function FontSelect({ axis, label, chosen, onChoose }: {
         }
       }}
     >
-      <button ref={trigger} type="button" aria-label={label} aria-haspopup="listbox" aria-expanded={open} onClick={toggle} {...faceProps(axis, current.id)}>
+      <button ref={trigger} type="button" aria-label={`${label}: ${current.label}`} aria-haspopup="listbox" aria-expanded={open} onClick={toggle} {...faceProps(axis, current.id)}>
         <span>{current.label}</span>
         <ChevronDown size={14} aria-hidden="true" />
       </button>
@@ -333,9 +336,9 @@ function FontSelect({ axis, label, chosen, onChoose }: {
 }
 
 /**
- * One size as `− 15 +`, in px. The steppers move a px at a time; the field takes a typed number and clamps
- * it to the range when it is committed, while Escape abandons the typing and keeps the settled size. The
- * range shows under the stepper while the field is being typed in, and stays after a number is clamped.
+ * One size as `− 15 +`, in px, after the range it may take. The steppers move a px at a time; the field
+ * takes a typed number and clamps it to the range when it is committed, which the range then says, while
+ * Escape abandons the typing and keeps the settled size.
  */
 function SizeField({ label, range, value, onChoose }: {
   label: string;
@@ -344,62 +347,70 @@ function SizeField({ label, range, value, onChoose }: {
   onChoose: (size: number) => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
-  const [clamped, setClamped] = useState(false);
+  /** Which end of the range a typed size was held to, until the size next changes. */
+  const [clamped, setClamped] = useState<"min" | "max" | null>(null);
   const abandoned = useRef(false);
   const step = (delta: 1 | -1) => {
-    setClamped(false);
+    setClamped(null);
     onChoose(stepSize(range, value, delta));
   };
 
+  let limit = `${range.min}–${range.max} px`;
+  if (clamped === "max") limit = `Max ${range.max} px`;
+  if (clamped === "min") limit = `Min ${range.min} px`;
+
   return (
-    <div className="size-stepper" data-tip={`${range.min}–${range.max} px`}>
-      <button type="button" aria-label={`Smaller ${label.toLowerCase()}`} disabled={value <= range.min} onClick={() => step(-1)}>
-        <Minus size={14} aria-hidden="true" />
-      </button>
-      <label className="size-value">
-        <input
-          type="text"
-          inputMode="numeric"
-          value={draft ?? String(value)}
-          aria-label={label}
-          onFocus={(event) => {
-            setClamped(false);
-            setDraft(String(value));
-            event.currentTarget.select();
-          }}
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={(event) => {
-            const typed = Number(event.target.value);
-            const keep = !abandoned.current && event.target.value.trim() && Number.isFinite(typed);
-            abandoned.current = false;
-            setDraft(null);
-            if (!keep) return;
-            setClamped(clampSize(range, typed) !== typed);
-            onChoose(clampSize(range, typed));
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-              event.preventDefault();
-              const typed = Number(draft);
-              const next = stepSize(range, draft?.trim() && Number.isFinite(typed) ? clampSize(range, typed) : value, event.key === "ArrowUp" ? 1 : -1);
-              setDraft(String(next));
-              onChoose(next);
-            }
-            if (event.key === "Enter") event.currentTarget.blur();
-            if (event.key === "Escape") {
-              event.stopPropagation();
-              abandoned.current = true;
-              event.currentTarget.blur();
-            }
-          }}
-        />
-        <span aria-hidden="true">px</span>
-      </label>
-      <button type="button" aria-label={`Larger ${label.toLowerCase()}`} disabled={value >= range.max} onClick={() => step(1)}>
-        <Plus size={14} aria-hidden="true" />
-      </button>
-      <span className={`size-range${clamped ? " clamped" : ""}`} role="status">{(draft !== null || clamped) && `${range.min}–${range.max} px`}</span>
-    </div>
+    <>
+      <span className={`size-range${clamped ? " clamped" : ""}`} role="status">{limit}</span>
+      <div className="size-stepper">
+        <button type="button" aria-label={`Smaller ${label.toLowerCase()}`} disabled={value <= range.min} onClick={() => step(-1)}>
+          <Minus size={14} aria-hidden="true" />
+        </button>
+        <label className="size-value">
+          <input
+            type="text"
+            inputMode="numeric"
+            value={draft ?? String(value)}
+            aria-label={label}
+            onFocus={(event) => {
+              setClamped(null);
+              setDraft(String(value));
+              event.currentTarget.select();
+            }}
+            onChange={(event) => setDraft(event.target.value)}
+            onBlur={(event) => {
+              const typed = Number(event.target.value);
+              const keep = !abandoned.current && event.target.value.trim() && Number.isFinite(typed);
+              abandoned.current = false;
+              setDraft(null);
+              if (!keep) return;
+              const kept = clampSize(range, typed);
+              setClamped(kept === typed ? null : typed > kept ? "max" : "min");
+              onChoose(kept);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+                event.preventDefault();
+                const typed = Number(draft);
+                const next = stepSize(range, draft?.trim() && Number.isFinite(typed) ? clampSize(range, typed) : value, event.key === "ArrowUp" ? 1 : -1);
+                setDraft(String(next));
+                onChoose(next);
+              }
+              if (event.key === "Enter") event.currentTarget.blur();
+              if (event.key === "Escape") {
+                event.stopPropagation();
+                abandoned.current = true;
+                event.currentTarget.blur();
+              }
+            }}
+          />
+          <span aria-hidden="true">px</span>
+        </label>
+        <button type="button" aria-label={`Larger ${label.toLowerCase()}`} disabled={value >= range.max} onClick={() => step(1)}>
+          <Plus size={14} aria-hidden="true" />
+        </button>
+      </div>
+    </>
   );
 }
 
@@ -434,13 +445,15 @@ export function AppearanceSettings({
             <p>Each theme comes in light and dark. Auto follows the system.</p>
           </div>
           <div className="settings-group-action">
-            <div className="segmented" role="group" aria-label="Light or dark" onKeyDown={moveSegmentFocus}>
+            <div className="segmented" role="radiogroup" aria-label="Light or dark" onKeyDown={moveSegment}>
               {MODES.map((mode) => (
                 <button
                   key={mode.id}
                   type="button"
+                  role="radio"
                   className={mode.id === themeMode ? "chosen" : ""}
-                  aria-pressed={mode.id === themeMode}
+                  aria-checked={mode.id === themeMode}
+                  tabIndex={mode.id === themeMode ? 0 : -1}
                   onClick={() => onSetThemeMode(mode.id)}
                 >
                   {mode.icon}

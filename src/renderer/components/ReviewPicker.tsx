@@ -42,6 +42,7 @@ function Heading({ step, current, onBack, onClose }: { step: ReviewPickerState["
         : <button type="button" className="review-back" aria-label="Back to review options" data-tip={shortcutTip("Back", "Escape")} onClick={onBack}><ChevronLeft size={16} /></button>}
       <span>{title}</span>
       {(step === "targets" || step === "base") && <kbd aria-hidden="true">↑↓</kbd>}
+      <kbd aria-hidden="true">{displayShortcut("Escape", MAC)}</kbd>
       <button type="button" className="review-close" aria-label="Close review picker" data-tip={step === "targets" ? shortcutTip("Close", "Escape") : "Close"} onClick={onClose}><X size={16} /></button>
     </div>
   );

@@ -49,6 +49,8 @@ export type ComposerMenus = {
   commandsLoading: boolean;
   matchingCommands: MenuEntry[];
   matchingThreads: ThreadHandleOption[];
+  /** Set once there is any other thread to name, so an empty menu can tell none from no match. */
+  anyThreads: boolean;
   selectedCommand: number;
   selectedThread: number;
   setSelectedCommand: Dispatch<SetStateAction<number>>;
@@ -95,7 +97,7 @@ export function useComposerMenus({ prompt, caret, actions, threads, workspaceId,
 
   const threadToken = handleTokenAt(prompt, Math.min(caret.caret, prompt.length));
   const matchingThreads = threadToken === null ? [] : rankThreadHandles(threads, threadToken.query, THREAD_MENU_LIMIT);
-  const threadMenuOpen = enabled && inputFocused && threadToken !== null && threads.length > 0 && dismissedPrompt !== prompt;
+  const threadMenuOpen = enabled && inputFocused && threadToken !== null && dismissedPrompt !== prompt;
   useDismissibleLayer(threadMenuOpen, [textareaRef, threadMenuRef], dismiss, textareaRef);
 
   function chooseCommand(entry: MenuEntry) {
@@ -166,7 +168,7 @@ export function useComposerMenus({ prompt, caret, actions, threads, workspaceId,
 
   return {
     commandMenuRef, threadMenuRef, commandMenuOpen, threadMenuOpen, commandsLoading,
-    matchingCommands, matchingThreads, selectedCommand, selectedThread,
+    matchingCommands, matchingThreads, anyThreads: threads.length > 0, selectedCommand, selectedThread,
     setSelectedCommand, setSelectedThread, chooseCommand, chooseThread, dismiss,
   };
 }
@@ -245,7 +247,7 @@ export function ThreadMenu({ menus }: { menus: ComposerMenus }) {
             {!option.inScope && <span className="command-source">{option.project ?? "No project"}</span>}
           </button>
         ))}
-        {matchingThreads.length === 0 && <p className="command-empty">No thread matches</p>}
+        {matchingThreads.length === 0 && <p className="command-empty">{menus.anyThreads ? "No thread matches" : "No other threads yet"}</p>}
       </div>
     </div>
   );

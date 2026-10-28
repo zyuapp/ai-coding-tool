@@ -13,10 +13,14 @@ export function newBranchName(branches: string[], query: string) {
   return name && !branches.includes(name) ? name : null;
 }
 
-/** Which branches a typed query keeps, matched loosely so a fragment of a name is enough. */
+/** Which branches a typed query keeps, matched loosely so a fragment of a name is enough, with the exact name first. */
 export function matchBranches(branches: string[], query: string) {
-  const needle = query.trim().toLowerCase();
-  return needle ? branches.filter((name) => name.toLowerCase().includes(needle)) : branches;
+  const typed = query.trim();
+  const needle = typed.toLowerCase();
+  if (!needle) return branches;
+  const matched = branches.filter((name) => name.toLowerCase().includes(needle));
+  const exact = matched.indexOf(typed);
+  return exact > 0 ? [typed, ...matched.slice(0, exact), ...matched.slice(exact + 1)] : matched;
 }
 
 /** The checkout's local branches, read again whenever the checkout changes or reading is turned on. */
@@ -121,11 +125,11 @@ export function BranchMenu({ branches, selected, onPick, anchor, menuRef, includ
       ].filter((group) => group.names.length > 0)
     : [{ label: null, names: matchBranches(names, query) }];
   const matched = groups.reduce((count, group) => count + group.names.length, 0);
-  /** Enter takes the top row: an existing match first, and a new branch only when nothing matches. */
+  /** Enter takes the top row: a typed name no branch has is made, and otherwise the best match is checked out. */
   const top = showExtra ? extra.value : groups[0]?.names[0];
   function submit() {
-    if (top !== undefined) onPick(top, false);
-    else if (naming) onPick(naming, true);
+    if (naming) onPick(naming, true);
+    else if (top !== undefined) onPick(top, false);
   }
   let empty = "Reading branches…";
   if (branches?.status === "error") empty = branches.message;
@@ -145,30 +149,35 @@ export function BranchMenu({ branches, selected, onPick, anchor, menuRef, includ
   const menu = (
     <PickerPopover
       ref={menuRef}
+      onKeyDownCapture={(event) => {
+        if (event.key !== "Escape" || !query || (event.target as HTMLElement).tagName !== "INPUT") return;
+        event.preventDefault();
+        setQuery("");
+      }}
       className={`branch-menu ${anchor ? "anchored" : ""} ${includeRemotes ? "grouped" : ""}`.trimEnd()}
       style={anchored ?? undefined}
     >
       {title && <div className="branch-menu-title"><span>{title}</span><kbd>↑↓</kbd></div>}
       <PickerSearch label="Search branches" value={query} onChange={setQuery} onSubmit={submit} />
       <div role="listbox" aria-label="Branches">
+        {naming && (
+          <PickerOption selected={false} mark={<Plus size={14} />} onClick={() => onPick(naming, true)}>
+            Create branch “{naming}”
+          </PickerOption>
+        )}
         {showExtra && (
           <>
             {includeRemotes && <p className="branch-menu-group">Not a branch</p>}
             {option(extra.value, extra.label, "branch-menu-extra")}
           </>
         )}
-        {matched === 0 && !naming && !showExtra && <p className={`branch-menu-empty ${branches?.status === "error" ? "error" : ""}`.trimEnd()} role={branches?.status === "error" ? "alert" : undefined}>{empty}</p>}
+        {matched === 0 && !naming && !showExtra && <p className={`branch-menu-empty ${branches?.status === "error" ? "error" : ""}`.trimEnd()} role={branches?.status === "error" ? "alert" : "status"}>{empty}</p>}
         {groups.map((group) => (
           <Fragment key={group.label ?? "all"}>
             {group.label && <p className="branch-menu-group">{group.label}</p>}
             {group.names.map((name) => option(name, name))}
           </Fragment>
         ))}
-        {naming && (
-          <PickerOption selected={false} mark={<Plus size={14} />} onClick={() => onPick(naming, true)}>
-            Create branch “{naming}”
-          </PickerOption>
-        )}
       </div>
     </PickerPopover>
   );

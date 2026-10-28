@@ -55,12 +55,14 @@ test("arrows navigate, Tab and Enter accept directories, Escape dismisses sugges
   try {
     await view.send({ type: "view.add-project-path", root: "/wo" });
     await view.send({ type: "project.directories", request: view.state().projectAdd!.request, directories: ["/work/", "/world/"] });
+    assert.deepEqual([...document.querySelectorAll(".key-hints > span")].map((hint) => hint.lastChild?.textContent), ["move", "complete", "dismiss"]);
     await key("ArrowDown");
     assert.equal(query(document.body, "[aria-selected='true']").textContent, "/work/");
     await key("ArrowDown");
     await key("Tab");
     assert.equal(query<HTMLInputElement>(document.body, "input").value, "/world/");
     assert.equal(document.body.querySelector("[role='listbox']"), null);
+    assert.equal(document.body.querySelector(".key-hints"), null);
     assert.equal(view.state().projectAdd?.saving, false);
     await view.send({ type: "project.directories", request: view.state().projectAdd!.request, directories: ["/world/app/"] });
     await key("Enter");

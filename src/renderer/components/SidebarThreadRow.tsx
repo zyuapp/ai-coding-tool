@@ -1,5 +1,5 @@
 import { CommandButton } from "./CommandControl";
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Draggable, type DraggableProvided } from "@hello-pangea/dnd";
 import { LuAlarmClock as AlarmClock, LuAlarmClockOff as AlarmClockOff, LuCheck as Check, LuClockAlert as ClockAlert, LuEllipsis as Ellipsis, LuFolderSymlink as FolderSymlink, LuHourglass as Hourglass, LuMonitorOff as MonitorOff } from "react-icons/lu";
 import { pauseSummary } from "../../domain/usage-limit";
@@ -92,7 +92,7 @@ function rowStatus(row: RowState): RowStatus | null {
 
 function statusMark(status: RowStatus | null): ReactNode {
   if (!status) return false;
-  if (status.kind === "working") return <ThreadSpinner key="status" />;
+  if (status.kind === "working") return <ThreadSpinner key="status" label={status.label} />;
   if (status.kind === "paused") return <Hourglass key="status" className="task-paused" size={14} role="img" aria-label={status.label} />;
   return <span key="status" className={status.tone ? `task-attention ${status.tone}` : "task-attention"} role="img" aria-label={status.label} />;
 }
@@ -114,12 +114,12 @@ function activityMeta(thread: Thread, host: ThreadHost | undefined, projectLabel
 
 /** A row's meta line: the computer it lives on, marked as one, ahead of whatever else the line says. */
 export function hostMeta(host: ThreadHost | undefined, ...parts: string[]): ReactNode {
-  if (!host) return parts.join(" · ");
-  const rest = [host.offline ? (host.reconnecting ? "Reconnecting" : "Offline") : null, ...parts].filter(Boolean).join(" · ");
+  const rest = parts.join(" · ");
+  if (!host) return rest;
   return <><HostMark name={host.name} offline={host.offline} reconnecting={host.reconnecting} />{rest && ` · ${rest}`}</>;
 }
 
-function ThreadSpinner() {
+function ThreadSpinner({ label }: { label: string }) {
   const ref = useRef<HTMLSpanElement>(null);
   // Anchor every spinner to the document timeline so rows that mount later stay in phase. A row that
   // mounts while nothing is drawing it has no animation to anchor yet, so each start is anchored too.
@@ -133,7 +133,7 @@ function ThreadSpinner() {
     element.addEventListener("animationstart", anchor);
     return () => element.removeEventListener("animationstart", anchor);
   }, []);
-  return <span ref={ref} className="task-spinner" aria-label="Working" />;
+  return <span ref={ref} className="task-spinner" role="img" aria-label={label} />;
 }
 
 export type ThreadRowsOptions = {
@@ -186,26 +186,13 @@ export type SidebarCoordination = {
 };
 
 /**
- * What can be done to a thread from its row: its menu, and in Priority dismissing ahead of it, which
- * lands on the dot it clears. Archiving is in the menu, a step from a stray click.
+ * What can be done to a thread from its row: its menu, and in Priority dismissing at the rail's
+ * outer edge, over the engine mark, so the status it clears stays in view. Archiving is in the menu,
+ * a step from a stray click.
  */
 function rowActionButtons(row: RowState, action: RowAction): React.ReactNode[] {
   const { thread, handlers } = row;
   return [
-    action === "dismiss" && <CommandButton command={{ type: "task.dismiss", taskId: thread.id }}
-      key="dismiss"
-      className="row-action task-dismiss"
-      type="button"
-      aria-label={row.schedule ? `Dismiss ${thread.title}, which keeps running on its schedule` : `Dismiss ${thread.title}`}
-      data-tip="Dismiss"
-      onClick={(event) => {
-        event.stopPropagation();
-        handlers.dismiss(thread.id);
-      }}
-      onDoubleClick={(event) => event.stopPropagation()}
-    >
-      <Check size={14} aria-hidden="true" />
-    </CommandButton>,
     <button
       key="menu"
       className="row-action task-more"
@@ -223,6 +210,20 @@ function rowActionButtons(row: RowState, action: RowAction): React.ReactNode[] {
     >
       <Ellipsis size={16} aria-hidden="true" />
     </button>,
+    action === "dismiss" && <CommandButton command={{ type: "task.dismiss", taskId: thread.id }}
+      key="dismiss"
+      className="row-action task-dismiss"
+      type="button"
+      aria-label={row.schedule ? `Dismiss ${thread.title}, which keeps running on its schedule` : `Dismiss ${thread.title}`}
+      data-tip="Dismiss"
+      onClick={(event) => {
+        event.stopPropagation();
+        handlers.dismiss(thread.id);
+      }}
+      onDoubleClick={(event) => event.stopPropagation()}
+    >
+      <Check size={14} aria-hidden="true" />
+    </CommandButton>,
   ].filter(Boolean);
 }
 
@@ -252,8 +253,8 @@ type RowState = {
   coordinators: readonly Thread[];
   stoppable: boolean;
   notifications: boolean;
-  /** A thread kept to its own folder, which a drag can reorder but not carry elsewhere. */
-  pinned: boolean;
+  /** Why a drag can reorder the thread within its folder but not carry it elsewhere, or null when it can. */
+  pinned: string | null;
   /** The folders an open menu offers to move the thread to, or null when it cannot move. */
   moveTargets: readonly Project[] | null;
   handlers: RowHandlers;
@@ -288,18 +289,33 @@ function railMark(key: string, tip: string, icon: ReactNode) {
   return <span key={key} className={`row-mark mark-${key}`} data-tip={tip}>{icon}</span>;
 }
 
-/** The engine stays at the right edge, with status beside it, whatever other marks a row carries. */
+/** The most slots a rail takes, so one row carrying many marks never shortens every title. */
+export const MAX_RAIL_SLOTS = 3;
+
+type RailMark = { key: string; tip: string; icon: ReactNode };
+
+/**
+ * The engine stays at the right edge, with status beside it, whatever other marks a row carries.
+ * Past three, the marks ahead of those two share one slot, a count that names each of them.
+ */
 function rowMarks(row: RowState, status: RowStatus | null): ReactNode[] {
   const { thread, worktree, host } = row;
-  return [
-    row.away && host && railMark("away", awayLabel(host), <MonitorOff className="task-away" size={14} role="img" aria-label={awayLabel(host)} />),
-    thread.role && roleIcon(thread.role) && railMark("role", threadRoleLabel(thread.role), <ThreadRoleMark role={thread.role} size={14} />),
+  const marks = [
+    row.away && host && { key: "away", tip: awayLabel(host), icon: <MonitorOff className="task-away" size={14} role="img" aria-label={awayLabel(host)} /> },
+    thread.role && roleIcon(thread.role) && { key: "role", tip: threadRoleLabel(thread.role), icon: <ThreadRoleMark role={thread.role} size={14} /> },
     /** A thread's own mark names its checkout, and threads sharing one share its colour, so a list ranked by attention still groups by eye. */
-    row.inWorktree && railMark("worktree", worktreeLabel(row), <FolderSymlink className={`task-worktree${worktree ? ` worktree-mark hue-${worktreeHue(worktree.id)}` : ""}`} size={14} role="img" aria-label={worktreeLabel(row)} />),
-    row.schedule && railMark("automation", scheduleLabel(row.schedule), scheduleMark(row.schedule)),
-    status && railMark("status", status.label, statusMark(status)),
-    isAgentEngine(thread.engine) && railMark("engine", `${engineLabel(thread.engine)} thread`, <ThreadEngineIcon engine={thread.engine} className="task-engine" size={14} />),
-  ].filter(Boolean);
+    row.inWorktree && { key: "worktree", tip: worktreeLabel(row), icon: <FolderSymlink className={`task-worktree${worktree ? ` worktree-mark hue-${worktreeHue(worktree.id)}` : ""}`} size={14} role="img" aria-label={worktreeLabel(row)} /> },
+    row.schedule && { key: "automation", tip: scheduleLabel(row.schedule), icon: scheduleMark(row.schedule) },
+    status && { key: "status", tip: status.label, icon: statusMark(status) },
+    isAgentEngine(thread.engine) && { key: "engine", tip: `${engineLabel(thread.engine)} thread`, icon: <ThreadEngineIcon engine={thread.engine} className="task-engine" size={14} /> },
+  ].filter((mark): mark is RailMark => Boolean(mark));
+  if (marks.length <= MAX_RAIL_SLOTS) return marks.map((mark) => railMark(mark.key, mark.tip, mark.icon));
+  const folded = marks.slice(0, -(MAX_RAIL_SLOTS - 1));
+  const tips = folded.map((mark) => mark.tip);
+  return [
+    railMark("more", tips.join(" · "), <span className="task-more-marks" role="img" aria-label={tips.join(", ")}>+{folded.length}</span>),
+    ...marks.slice(-(MAX_RAIL_SLOTS - 1)).map((mark) => railMark(mark.key, mark.tip, mark.icon)),
+  ];
 }
 
 function awayLabel(host: ThreadHost) {
@@ -371,8 +387,6 @@ function rowMenuEntries(row: RowState, priority: boolean): MenuEntry[] {
     ...(priority ? { onSnooze: (hours: SnoozeHours) => handlers.snooze(thread.id, hours) } : {}),
     ...(thread.snoozedUntil !== undefined ? { onUnsnooze: () => handlers.unsnooze(thread.id) } : {}),
   });
-  /** Snoozing is Priority's, so other lists show it unavailable rather than a different menu. */
-  if (!priority && thread.snoozedUntil === undefined) entries.splice(1, 0, { label: "Snooze", disabled: true, title: "Snooze from Priority" });
   const firstBreak = entries.indexOf("separator");
   entries.splice(firstBreak < 0 ? entries.length : firstBreak, 0, ...moveEntry(row));
   return entries.map((entry) => entry !== "separator" && entry.command?.type === "task.rename" ? { ...entry, shortcut: RENAME_KEY } : entry);
@@ -414,6 +428,8 @@ function rowBody(row: RowState, className: string, content: ReactNode, action: R
             className="task-rename"
             label={`Rename ${thread.title}`}
             value={thread.title}
+            placeholder={thread.title}
+            required
             onCommit={(value) => handlers.commitRename(thread.id, value)}
             onCancel={handlers.cancelRename}
           />
@@ -429,10 +445,13 @@ function rowBody(row: RowState, className: string, content: ReactNode, action: R
   );
 }
 
-/** Enter opens the row's thread and F2 renames it, as the menu's Rename does. */
-function rowKeys(event: React.KeyboardEvent<HTMLElement>, row: RowState) {
+/** Enter opens the row's thread and F2 renames it, as the menu's Rename does. Space opens it too where dragging does not claim it. */
+function rowKeys(event: React.KeyboardEvent<HTMLElement>, row: RowState, space = false) {
   if (event.target !== event.currentTarget) return;
-  if (event.key === "Enter") row.handlers.select(row.thread.id);
+  if (event.key === "Enter" || (space && event.key === " ")) {
+    if (event.key === " ") event.preventDefault();
+    row.handlers.select(row.thread.id);
+  }
   else if (event.key === RENAME_KEY && !row.away) {
     event.preventDefault();
     row.handlers.startRename(row.thread.id, event.currentTarget);
@@ -458,7 +477,8 @@ const ThreadRow = memo(function ThreadRow({ index, place, ...row }: RowState & {
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          data-pinned={row.pinned || undefined}
+          data-pinned={row.pinned ?? undefined}
+          aria-current={row.active || undefined}
           onKeyDown={(event) => rowKeys(event, row)}
         >
           {rowBody(row, `${place === "project" ? "project-task-row" : "task-row"} ${row.active ? "active" : ""}`, content, "none")}
@@ -471,12 +491,21 @@ const ThreadRow = memo(function ThreadRow({ index, place, ...row }: RowState & {
 /** Activity mode ranks its rows itself, so nothing there is dragged and no list places it. */
 const ActivityRow = memo(function ActivityRow({ projectLabel, action, priority, ...row }: RowState & { projectLabel: string | undefined; action: RowAction; priority: boolean }) {
   const { thread } = row;
+  const id = useId();
   return (
-    <div className="task-entry" tabIndex={0} onKeyDown={(event) => rowKeys(event, row)}>
+    <div
+      className="task-entry"
+      role="button"
+      tabIndex={0}
+      aria-labelledby={`${id}-title ${id}-meta`}
+      aria-current={row.active || undefined}
+      aria-disabled={row.away || undefined}
+      onKeyDown={(event) => rowKeys(event, row, true)}
+    >
       {rowBody(row, `task-row ${row.active ? "active" : ""}`, (
         <span className="task-row-text">
-          <span data-tip={thread.title} data-tip-overflow>{thread.title}</span>
-          <small>{activityMeta(thread, row.host, projectLabel, row.waiting, row.memberBlocked, row.pauseLabel)}</small>
+          <span id={`${id}-title`} data-tip={thread.title} data-tip-overflow>{thread.title}</span>
+          <small id={`${id}-meta`}>{activityMeta(thread, row.host, projectLabel, row.waiting, row.memberBlocked, row.pauseLabel)}</small>
         </span>
       ), action, priority)}
     </div>
@@ -554,8 +583,14 @@ export function useThreadRows({
    * A thread moves only among this computer's folders, and not out of the checkout it works in or
    * from under the coordinator it is drawn beneath.
    */
-  const pinned = (thread: Thread) => Boolean(threadHosts.has(thread.id) || thread.worktreeId || leadIdOf(thread));
-  const moveTargets = (thread: Thread) => pinned(thread) ? null : projects.filter((project) => !projectHosts.has(project.id));
+  const pinned = (thread: Thread) => {
+    const host = threadHosts.get(thread.id);
+    if (host) return `Stays in its folder on ${host.name}`;
+    if (thread.worktreeId) return "Stays in its worktree's folder";
+    if (leadIdOf(thread)) return "Stays with its coordinator";
+    return null;
+  };
+  const moveTargets = (thread: Thread) => pinned(thread) !== null ? null : projects.filter((project) => !projectHosts.has(project.id));
 
   const rowState = (thread: Thread): RowState => {
     const away = offline(thread.id);
@@ -587,9 +622,23 @@ export function useThreadRows({
     };
   };
 
-  const threadRow = (thread: Thread, index: number, place: ThreadRowPlace) => (
+  /** A folded folder's one mark: what most wants the user among the threads it hides. */
+  const folderStatus = (threads: Thread[]): ReactNode => {
+    let pressing: RowStatus | null = null;
+    for (const thread of threads) {
+      if (offline(thread.id)) continue;
+      const status = rowStatus(rowState(thread));
+      if (status && (!pressing || urgency(status) < urgency(pressing))) pressing = status;
+      if (pressing && urgency(pressing) === 0) break;
+    }
+    if (!pressing) return null;
+    const label = FOLDER_LABELS[pressing.kind === "dot" ? pressing.tone ?? "unread" : pressing.kind];
+    return <span className="row-mark folder-status" data-tip={label}>{statusMark({ ...pressing, label })}</span>;
+  };
+
+  const threadRow = Object.assign((thread: Thread, index: number, place: ThreadRowPlace) => (
     <ThreadRow key={thread.id} index={index} place={place} {...rowState(thread)} />
-  );
+  ), { folderStatus });
 
   const activityRow = (thread: Thread, action: RowAction, priority: boolean) => {
     const project = projects.find((item) => item.id === thread.projectId);
@@ -598,6 +647,22 @@ export function useThreadRows({
 
   return { threadRow, activityRow };
 }
+
+/** How much a status wants the user, most first: an answer, a failure, news, then work going on. */
+function urgency(status: RowStatus) {
+  if (status.kind === "dot") return status.tone === "approval" ? 0 : status.tone === "failed" ? 1 : 2;
+  return status.kind === "working" ? 3 : 4;
+}
+
+const FOLDER_LABELS: Record<ThreadOutcome | "approval" | "unread" | "working" | "paused", string> = {
+  approval: MEMBER_BLOCKED_LABEL,
+  failed: "A thread failed",
+  finished: MEMBER_UNREAD_LABEL,
+  stopped: MEMBER_UNREAD_LABEL,
+  unread: MEMBER_UNREAD_LABEL,
+  working: "A thread is working",
+  paused: "A thread is waiting out its usage limit",
+};
 
 export type ThreadRowRenderer = ReturnType<typeof useThreadRows>["threadRow"];
 export type ActivityRowRenderer = ReturnType<typeof useThreadRows>["activityRow"];

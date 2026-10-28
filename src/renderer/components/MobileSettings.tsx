@@ -1,4 +1,4 @@
-import { LuCheck as Check, LuRefreshCw as RefreshCw, LuSmartphone as Smartphone } from "react-icons/lu";
+import { LuArrowDown as ArrowDown, LuCheck as Check, LuRefreshCw as RefreshCw, LuSmartphone as Smartphone } from "react-icons/lu";
 import { useEffect, useRef, useState } from "react";
 import { addressOrigin, type MobileAddress, type MobileConnectionState, type MobilePairingOffer, type MobileServerState, type MobileSessionView, type PairedDeviceView, type TailscaleState } from "../../domain/mobile";
 import { ConfirmAction, SettingGroup, SettingRow, SettingStatus, SettingSwitch } from "./SettingRow";
@@ -108,12 +108,22 @@ function tailscaleSteps(tailscale: TailscaleState, on: boolean): Step[] {
   return steps;
 }
 
-function TailscaleSection({ remote, checking, onRefresh }: { remote: MobileServerState; checking: boolean; onRefresh: () => void }) {
+/** `shown` counts the asks to bring the next step into view; each one scrolls to it, marks it, and focuses what does it. */
+function TailscaleSection({ remote, checking, onRefresh, shown }: { remote: MobileServerState; checking: boolean; onRefresh: () => void; shown: number }) {
   const on = remote.enabled && remote.status === "listening";
   const address = addressOf(remote, "tailscale-https");
   const steps = tailscaleSteps(remote.tailscale, on);
   /** The first thing still to do is the one the user acts on, so only it is drawn as needed. */
   const needed = steps.find((step) => !step.done && step.hint && !(step.id === "serving" && !on))?.id ?? null;
+  const neededRow = useRef<HTMLDivElement>(null);
+  const check = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!shown) return;
+    const step = neededRow.current;
+    const control = step?.querySelector<HTMLElement>(".phone-check-link") ?? check.current;
+    (step ?? control)?.scrollIntoView({ block: "center" });
+    control?.focus({ preventScroll: true });
+  }, [shown]);
   return (
     <SettingGroup setting="phone.tailscale" aria-labelledby="phone-tailscale-heading">
       <div className="settings-group-heading">
@@ -122,11 +132,11 @@ function TailscaleSection({ remote, checking, onRefresh }: { remote: MobileServe
           <p>The phone reaches this computer over your tailnet, so both need Tailscale signed into the same account.</p>
         </div>
         <div className="settings-group-action">
-          <button type="button" disabled={checking} aria-busy={checking || undefined} onClick={onRefresh}><SpinningIcon icon={RefreshCw} spinning={checking} size={14} aria-hidden="true" />{checking ? "Checking…" : "Check again"}</button>
+          <button ref={check} type="button" disabled={checking} aria-busy={checking || undefined} onClick={onRefresh}><SpinningIcon icon={RefreshCw} spinning={checking} size={14} aria-hidden="true" />{checking ? "Checking…" : "Check again"}</button>
         </div>
       </div>
       {steps.map((step) => (
-        <div className={`phone-check${step.done ? "" : " waiting"}${step.id === needed ? " needed" : ""}`} key={step.id} data-step={step.id}>
+        <div ref={step.id === needed ? neededRow : undefined} className={`phone-check${step.done ? "" : " waiting"}${step.id === needed ? " needed" : ""}${step.id === needed && shown ? " found" : ""}`} key={step.id === needed ? `${step.id}-${shown}` : step.id} data-step={step.id}>
           <SettingStatus done={step.done} />
           <div>
             <strong>{step.name}</strong>
@@ -261,6 +271,7 @@ export type MobileSettingsProps = {
 export function MobileSettings({ remote, remoteChecking, onSetEnabled, onCreatePairingCode, onRevokeDevice, onRefreshTailscale, computers }: MobileSettingsProps) {
   const listening = remote.enabled && remote.status === "listening";
   const ready = listening && reachable(remote);
+  const [shownStep, setShownStep] = useState(0);
 
   return (
     <main className="settings-main">
@@ -274,7 +285,9 @@ export function MobileSettings({ remote, remoteChecking, onSetEnabled, onCreateP
       <section className="settings-group" aria-labelledby="phone-availability-heading">
         <div className="settings-group-heading">
           <div><h3 id="phone-availability-heading">Access</h3></div>
-          <span className={statusTone(remote)}>{statusLabel(remote)}</span>
+          {listening && !ready
+            ? <button type="button" className="settings-pill-jump" onClick={() => setShownStep((count) => count + 1)}>{statusLabel(remote)}<ArrowDown size={12} aria-hidden="true" /></button>
+            : <span className={statusTone(remote)}>{statusLabel(remote)}</span>}
         </div>
 
         <SettingRow id="phone.availability" description="Serves the phone page and puts Tailscale in front of it. Turning it off drops every phone.">
@@ -284,7 +297,7 @@ export function MobileSettings({ remote, remoteChecking, onSetEnabled, onCreateP
         {remote.error && <p className="settings-error" role="alert">{remote.error}</p>}
       </section>
 
-      <TailscaleSection remote={remote} checking={remoteChecking} onRefresh={onRefreshTailscale} />
+      <TailscaleSection remote={remote} checking={remoteChecking} onRefresh={onRefreshTailscale} shown={shownStep} />
 
       <PairingSection pairing={remote.pairing} ready={ready} onCreatePairingCode={onCreatePairingCode} />
 

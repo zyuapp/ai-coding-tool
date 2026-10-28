@@ -10,7 +10,7 @@ export function compactTokens(tokens: number): string {
 /** Past this share the window is close to compacting, so the meter takes the accent. */
 const HIGH_PERCENT = 80;
 
-/** The ring and its share, with a card giving the counts and, where compacting is on offer, a Compact button. */
+/** The ring and its share, with a card giving the counts. Once the window runs high, Compact stands beside the ring where compacting is on offer. */
 export function ContextUsageMeter({ usage, onCompact }: { usage: ContextUsage; onCompact?: () => void }) {
   const cardId = useId();
   const percent = Math.min(Math.round(usage.tokens / usage.limit * 100), 100);
@@ -18,24 +18,26 @@ export function ContextUsageMeter({ usage, onCompact }: { usage: ContextUsage; o
 
   return (
     <span className={`context-usage${high ? " high" : ""}`}>
-      <span
-        className="context-usage-meter"
-        role="meter"
-        tabIndex={0}
-        aria-label="Context window"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={percent}
-        aria-valuetext={`${percent}% used`}
-        aria-describedby={cardId}
-      >
-        <span className="context-usage-ring" style={{ "--context-progress": `${percent}%` } as CSSProperties} />
-        <span className="context-usage-value">{percent}%</span>
+      <span className="context-usage-gauge">
+        <span
+          className="context-usage-meter"
+          role="meter"
+          tabIndex={0}
+          aria-label="Context window"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={percent}
+          aria-valuetext={`${percent}% used`}
+          aria-describedby={cardId}
+        >
+          <span className="context-usage-ring" style={{ "--context-progress": `${percent}%` } as CSSProperties} />
+          <span className="context-usage-value">{percent}%</span>
+        </span>
+        <UsageCard id={cardId} title="Context window">
+          <UsageCardRow label={`${percent}% used`} value={`${100 - percent}% left`} share={percent} high={high} detail={`${compactTokens(usage.tokens)} / ${compactTokens(usage.limit)} tokens used`} />
+        </UsageCard>
       </span>
-      <UsageCard id={cardId} title="Context window">
-        <UsageCardRow label={`${percent}% used`} value={`${100 - percent}% left`} share={percent} high={high} detail={`${compactTokens(usage.tokens)} / ${compactTokens(usage.limit)} tokens used`} />
-        {onCompact && <button type="button" className="usage-card-action" onClick={onCompact}>Compact</button>}
-      </UsageCard>
+      {high && onCompact && <button type="button" className="context-usage-compact" onClick={onCompact}>Compact</button>}
     </span>
   );
 }

@@ -1,4 +1,4 @@
-import { LuCheck as Check, LuChevronDown as ChevronDown, LuFolder as Folder, LuSquarePen as SquarePen } from "react-icons/lu";
+import { LuCheck as Check, LuChevronDown as ChevronDown, LuEllipsis as Ellipsis, LuFolder as Folder, LuSquarePen as SquarePen } from "react-icons/lu";
 import { memo, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import type { MobileActivity, MobileProjectGroup, MobileThreadEntry } from "../../contracts/mobile";
 import { readActivityProject, readFolded, writeActivityProject, writeFolded, type MobileListMode } from "../client/storage";
@@ -83,6 +83,7 @@ function ThreadRow({ thread, meta, onOpen, onMenu, onDismiss }: {
       {/** A row that needs the user keeps saying so beside Dismiss, which takes the mark's place otherwise. */}
       {(!onDismiss || thread.status === "awaiting-approval" || thread.waiting) && <span className="thread-mark" aria-hidden="true" />}
       {onDismiss && <button type="button" className="thread-dismiss" aria-label={`Dismiss ${thread.title}`} onClick={onDismiss}><span className="thread-dismiss-disc"><Check size={14} strokeWidth={2.4} /></span></button>}
+      <button type="button" className="thread-more" aria-label={`Options for ${thread.title}`} aria-haspopup="dialog" onClick={onMenu}><Ellipsis size={18} strokeWidth={2} aria-hidden="true" /></button>
     </div>
   );
 }
@@ -165,7 +166,7 @@ export const ThreadList = memo(function ThreadList({ mode, groups, activity, fil
           <button type="button" className="section-toggle" aria-expanded={open} onClick={() => toggle(key)}>
             <span>{label}</span>
             {threads.length > 0 && <span className="section-count">{threads.length}</span>}
-            <span className="section-chevron" aria-hidden="true" />
+            <ChevronDown className="section-chevron" size={16} strokeWidth={2.2} aria-hidden="true" />
             {mark && <span className="section-mark" data-kind={mark} />}
             {mark && <span className="sr-only">{mark === "needs-you" ? "Needs you" : "Unread"}</span>}
           </button>

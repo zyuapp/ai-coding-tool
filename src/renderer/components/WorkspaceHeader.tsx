@@ -3,7 +3,7 @@ import type { InstalledApp } from "../../contracts/ipc";
 import type { Thread } from "../../domain/thread";
 import { CommandButton } from "./CommandControl";
 import { HostMark } from "./HostMark";
-import { OpenInMenu } from "./OpenInMenu";
+import { OpenInMenu, type OpenInMenuProps } from "./OpenInMenu";
 import { PopoverMenu } from "./PopoverMenu";
 import { RenameInput, useRenaming } from "./SidebarRename";
 import { threadMenuEntries } from "./thread-menu";
@@ -20,7 +20,7 @@ export type WorkspaceHeaderProps = {
   sidebarOpen: boolean;
   sessionPanelOpen: boolean;
   rightDockOpen: boolean;
-  /** Zen mode, which opens only on a thread with messages; `tip` names its keystroke. */
+  /** Zen mode, offered only on a thread with messages; `tip` names its keystroke. */
   zen: { available: boolean; tip: string; onEnter: () => void };
   workingSubagents: number;
   openMenu: string | null;
@@ -50,20 +50,20 @@ export type WorkspaceHeaderProps = {
   onChooseFolder: () => void;
 };
 
-function ThreadHeading({ currentThread, folder, folderLabel, host, openMenu, onSetOpenMenu, onRenameThread, onForkThread, onArchiveThread, onSetThreadRole, coordinators, onSetCoordinator, notifications, onSetMuted, stoppable, onStopAll }: Pick<WorkspaceHeaderProps, "currentThread" | "folder" | "folderLabel" | "host" | "openMenu" | "onSetOpenMenu" | "onRenameThread" | "onForkThread" | "onArchiveThread" | "onSetThreadRole" | "coordinators" | "onSetCoordinator" | "notifications" | "onSetMuted" | "stoppable" | "onStopAll">) {
+function ThreadHeading({ currentThread, folder, folderLabel, host, openMenu, onSetOpenMenu, openIn, onRenameThread, onForkThread, onArchiveThread, onSetThreadRole, coordinators, onSetCoordinator, notifications, onSetMuted, stoppable, onStopAll }: Pick<WorkspaceHeaderProps, "currentThread" | "folder" | "folderLabel" | "host" | "openMenu" | "onSetOpenMenu" | "onRenameThread" | "onForkThread" | "onArchiveThread" | "onSetThreadRole" | "coordinators" | "onSetCoordinator" | "notifications" | "onSetMuted" | "stoppable" | "onStopAll"> & { openIn: Pick<OpenInMenuProps, "blocked" | "apps" | "onListApps" | "onOpenInApp"> }) {
   const name = useRenaming((threadId, value) => { if (value.trim()) onRenameThread(threadId, value); });
   return (
     <div className="thread-heading-line">
-      <h1 data-tip={host ? `${folder} on ${host.name}` : folder || undefined}>
+      <h1>
         {host && <>
           <HostMark name={host.name} offline={host.offline} reconnecting={host.reconnecting} className="heading-host" />
           {host.offline && (host.reconnecting
             ? <span className="heading-host-state" role="status"><span className="text-sweep">Reconnecting…</span></span>
-            : <CommandButton type="button" className="heading-host-state" command={{ type: "computers.reconnect", id: host.id }} data-tip={`Reconnect to ${host.name}`}>Offline<span>Reconnect</span></CommandButton>)}
+            : <CommandButton type="button" className="heading-host-state" command={{ type: "computers.reconnect", id: host.id }} data-tip={`Reconnect to ${host.name}`}>Reconnect</CommandButton>)}
           <span className="heading-separator" aria-hidden="true">/</span>
         </>}
         {folder && <>
-          <span className="heading-project">{folderLabel}</span>
+          <OpenInMenu {...openIn} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} crumb={{ label: folderLabel, tip: host ? `${folder} on ${host.name}` : folder }} />
           <span className="heading-separator" aria-hidden="true">/</span>
         </>}
         {currentThread && name.editing === currentThread.id
@@ -108,6 +108,8 @@ function ThreadHeading({ currentThread, folder, folderLabel, host, openMenu, onS
 
 export function WorkspaceHeader({ currentThread, folder, folderLabel, host, sidebarOpen, sessionPanelOpen, rightDockOpen, zen, workingSubagents, openMenu, canOpenFolder, apps, onListApps, onSetOpenMenu, onOpenInApp, onRenameThread, onForkThread, onArchiveThread, onSetThreadRole, coordinators, onSetCoordinator, notifications, onSetMuted, stoppable, onStopAll, onToggleSidebar, onToggleSessionPanel, onToggleRightDock, onChooseFolder }: WorkspaceHeaderProps) {
   const working = workingSubagents > 0 ? `${workingSubagents} ${workingSubagents === 1 ? "agent" : "agents"} working` : "";
+  const openIn = { blocked: canOpenFolder ? null : "Worktree is still being created", apps, onListApps, onOpenInApp };
+  const summaryTip = ["Session summary", working, rightDockOpen && !sessionPanelOpen && "Replaces right panel"].filter(Boolean).join(" · ");
   return (
     <header className={`topbar ${sidebarOpen ? "" : "traffic-inset"}`.trimEnd()}>
       <div className="task-heading">
@@ -130,6 +132,7 @@ export function WorkspaceHeader({ currentThread, folder, folderLabel, host, side
             host={host}
             openMenu={openMenu}
             onSetOpenMenu={onSetOpenMenu}
+            openIn={openIn}
             onRenameThread={onRenameThread}
             onForkThread={onForkThread}
             onArchiveThread={onArchiveThread}
@@ -145,16 +148,9 @@ export function WorkspaceHeader({ currentThread, folder, folderLabel, host, side
         </div>
       </div>
       <div className="workspace-controls">
-        {folder && <OpenInMenu openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} blocked={canOpenFolder ? null : "Worktree is still being created"} apps={apps} onListApps={onListApps} onOpenInApp={onOpenInApp} />}
-        {folder && (
-          <button
-            className="session-toggle"
-            type="button"
-            aria-label="Enter zen mode"
-            aria-disabled={zen.available ? undefined : "true"}
-            data-tip={zen.available ? zen.tip : `${zen.tip} · Send a message first`}
-            onClick={zen.available ? zen.onEnter : undefined}
-          >
+        {folder && <OpenInMenu {...openIn} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />}
+        {folder && zen.available && (
+          <button className="session-toggle" type="button" aria-label="Enter zen mode" data-tip={zen.tip} onClick={zen.onEnter}>
             <Focus size={18} aria-hidden="true" />
           </button>
         )}
@@ -163,7 +159,7 @@ export function WorkspaceHeader({ currentThread, folder, folderLabel, host, side
           type="button"
           aria-label={`${sessionPanelOpen ? "Hide" : "Show"} session summary${working ? `, ${working}` : ""}`}
           aria-pressed={sessionPanelOpen}
-          data-tip={working ? `Session summary · ${working}` : "Session summary"}
+          data-tip={summaryTip}
           onClick={onToggleSessionPanel}
         >
           <ClipboardList size={18} aria-hidden="true" />

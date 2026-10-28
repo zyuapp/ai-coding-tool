@@ -6,10 +6,14 @@ import { THEMES } from "../../src/domain/theme.ts";
 const themesCss = await readFile(new URL("../../src/renderer/themes.css", import.meta.url), "utf8");
 const stylesCss = await readFile(new URL("../../src/renderer/styles.css", import.meta.url), "utf8");
 
-function primitives(id: string) {
+function themeBlock(id: string) {
   const block = new RegExp(`\\[data-theme="${id}"\\] \\{([^}]*)\\}`).exec(themesCss);
   assert.ok(block, `${id} has a block`);
-  return new Map([...block[1].matchAll(/(--p-[a-z0-9-]+):\s*(#[0-9a-f]{6});/g)].map(([, name, value]) => [name, value]));
+  return block[1];
+}
+
+function primitives(id: string) {
+  return new Map([...themeBlock(id).matchAll(/(--p-[a-z0-9-]+):\s*(#[0-9a-f]{6});/g)].map(([, name, value]) => [name, value]));
 }
 
 /** The semantic tokens styles.css derives, keyed by name, as their unresolved expressions. */
@@ -65,19 +69,14 @@ function failures(pairs: readonly Pair[]) {
 }
 
 const TEXT_GROUNDS = ["--canvas", "--sunken", "--surface", "--sidebar", "--surface-menu", "--surface-raised", "--surface-hover"];
-const TEXT = ["--ink", "--ink-soft", "--ink-dim", "--ink-faint", "--muted-strong", "--muted"];
-const QUIET = ["--muted-soft", "--quiet-strong", "--quiet"];
+const TEXT = ["--ink", "--ink-soft", "--ink-dim", "--ink-faint", "--muted-strong", "--muted", "--muted-soft", "--quiet-strong", "--quiet"];
 const LADDER = ["--ink", "--ink-soft", "--ink-dim", "--ink-faint", "--muted-strong", "--muted", "--muted-soft", "--quiet-strong", "--quiet", "--quiet-soft"];
 const HUES = ["--accent-text", "--danger", "--link", "--success", "--warning", "--info"];
-const AUTHORED_HUES = ["accent", "danger", "info", "link", "success"];
+const AUTHORED_HUES = ["accent", "danger", "info", "link", "success", "warning"];
 const HUE_GROUNDS = ["--canvas", "--sunken", "--surface", "--sidebar"];
 
-test("ink through muted read at AA on every surface text sits on, the selected row included", () => {
+test("ink through quiet read at AA on every surface text sits on, the selected row included", () => {
   assert.deepEqual(failures(TEXT.flatMap((ink) => [...TEXT_GROUNDS, "--surface-active"].map((ground) => [ink, ground, 4.5] as const))), []);
-});
-
-test("quiet text reads at AA on every surface but the selected row, and at 3:1 there", () => {
-  assert.deepEqual(failures(QUIET.flatMap((ink) => [...TEXT_GROUNDS.map((ground) => [ink, ground, 4.5] as const), [ink, "--surface-active", 3] as const])), []);
 });
 
 test("placeholders, glyphs and off states read at 3:1", () => {
@@ -117,13 +116,17 @@ test("the four text rungs stay a visible step apart, and the decorative grey sit
   assert.deepEqual(failed, []);
 });
 
-test("fg-3 sits a visible step above fg-4 and no higher than fg-2", () => {
+test("fg-0 down to fg-4 falls in four even steps, each at least 1.15:1 and 0.6 apart", () => {
   const failed: string[] = [];
   for (const theme of THEMES) {
     const palette = primitives(theme.id);
     const canvas = resolve("var(--canvas)", palette);
-    const [fg2, fg3, fg4] = ["--p-fg-2", "--p-fg-3", "--p-fg-4"].map((name) => contrast(resolve(`var(${name})`, palette), canvas));
-    if (fg3 / fg4 < 1.1 || fg3 > fg2) failed.push(`${theme.id}: fg-3 is ${(fg3 / fg4).toFixed(2)}:1 over fg-4`);
+    const ratios = [0, 1, 2, 3, 4].map((step) => contrast(resolve(`var(--p-fg-${step})`, palette), canvas));
+    const steps = ratios.slice(1).map((ratio, index) => ratios[index] / ratio);
+    ratios.slice(1).forEach((ratio, index) => {
+      if (steps[index] < 1.15 || ratios[index] - ratio < 0.6) failed.push(`${theme.id}: fg-${index} to fg-${index + 1} is ${steps[index].toFixed(2)}:1`);
+    });
+    if (Math.max(...steps) / Math.min(...steps) > 1.04) failed.push(`${theme.id}: steps run ${steps.map((step) => step.toFixed(2)).join(", ")}`);
   }
   assert.deepEqual(failed, []);
 });
@@ -131,6 +134,7 @@ test("fg-3 sits a visible step above fg-4 and no higher than fg-2", () => {
 const HUE_PAIRS: readonly Pair[] = [
   ...HUES.flatMap((ink) => HUE_GROUNDS.map((ground) => [ink, ground, 4.5] as const)),
   ...["--accent-text", "--info"].map((ink) => [ink, "--surface-hover", 4.5] as const),
+  ...["--danger", "--warning"].flatMap((ink) => ["--surface-hover", "--surface-active"].map((ground) => [ink, ground, 4.5] as const)),
   ["--danger", "--danger-surface", 4.5], ["--info", "--info-surface", 4.5], ["--info-soft", "--info-surface-soft", 4.5],
   ["--accent-soft", "--accent-chip", 4.5], ["--accent-soft", "--accent-surface", 4.5],
   ...[...TEXT_GROUNDS, "--surface-active"].map((ground) => ["--focus-ring", ground, 3] as const),
@@ -191,8 +195,49 @@ test("dividers stay visible on a dark canvas", () => {
   assert.deepEqual(failed, []);
 });
 
-test("input edges and the scroll thumb clear 3:1 against what they are drawn on", () => {
-  assert.deepEqual(failures(HUE_GROUNDS.flatMap((ground) => [["--line-input", ground, 3], ["--scroll-thumb", ground, 3]] as const)), []);
+test("input edges and the scroll thumb clear 3:1 against what they are drawn on, the selected row included", () => {
+  assert.deepEqual(failures([...HUE_GROUNDS, "--surface-hover", "--surface-active"].flatMap((ground) => [["--line-input", ground, 3], ["--scroll-thumb", ground, 3]] as const)), []);
+});
+
+function disabledOpacity(id: string) {
+  assert.equal(tokens.get("--disabled-opacity"), "var(--p-disabled-opacity)");
+  return Number(/--p-disabled-opacity:\s*([\d.]+);/.exec(themeBlock(id))![1]);
+}
+
+test("a disabled control's muted label still reads at 3:1, and its ink fades to under half its contrast", () => {
+  const failed: string[] = [];
+  for (const theme of THEMES) {
+    const palette = primitives(theme.id);
+    const opacity = disabledOpacity(theme.id);
+    for (const ground of ["--canvas", "--sunken", "--surface", "--sidebar"]) {
+      const under = resolve(`var(${ground})`, palette);
+      const faded = (ink: string) => {
+        const color = resolve(`var(${ink})`, palette);
+        return contrast(color.map((channel, index) => channel * opacity + under[index] * (1 - opacity)) as unknown as Rgb, under);
+      };
+      if (faded("--muted") < 3) failed.push(`${theme.id}: disabled --muted on ${ground} is ${faded("--muted").toFixed(2)}:1`);
+      if (faded("--ink") > contrast(resolve("var(--ink)", palette), under) / 2) failed.push(`${theme.id}: disabled --ink on ${ground} barely fades`);
+    }
+  }
+  assert.deepEqual(failed, []);
+});
+
+test("menu text on the glass surface reads at AA whatever shows through it", () => {
+  const alpha = Number(/\/ ([\d.]+)\)$/.exec(tokens.get("--surface-glass")!)![1]);
+  const failed: string[] = [];
+  for (const theme of THEMES) {
+    const palette = primitives(theme.id);
+    const glass = resolve("var(--p-bg-4)", palette);
+    for (const behind of ["--p-fg-0", "--p-bg-0"]) {
+      const seen = resolve(`var(${behind})`, palette);
+      const ground = glass.map((channel, index) => channel * alpha + seen[index] * (1 - alpha)) as unknown as Rgb;
+      for (const ink of ["--ink-dim", "--muted"]) {
+        const ratio = contrast(resolve(`var(${ink})`, palette), ground);
+        if (ratio < 4.5) failed.push(`${theme.id}: ${ink} over ${behind} is ${ratio.toFixed(2)}:1`);
+      }
+    }
+  }
+  assert.deepEqual(failed, []);
 });
 
 test("keyboard focus is drawn in the accent, so it never reads as muted chrome", () => {
@@ -229,8 +274,10 @@ test("no text size token falls below 12px", () => {
   assert.deepEqual(small, []);
 });
 
-test("a row's action slot is a 24px target", () => {
-  assert.ok(Number.parseInt(tokens.get("--row-slot")!) >= 24);
+test("a hit target is at least 24px, and a row's slot never wider than one", () => {
+  const [slot, target] = ["--row-slot", "--hit-target"].map((name) => Number.parseInt(tokens.get(name)!));
+  assert.ok(target >= 24);
+  assert.ok(slot <= target);
 });
 
 test("role marks clear 3:1 on every row ground, the selected row included", () => {

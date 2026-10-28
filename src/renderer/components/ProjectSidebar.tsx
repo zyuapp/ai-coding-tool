@@ -20,11 +20,14 @@ import type { ThreadRole } from "../../domain/thread-role";
 import type { AppUpdate } from "../../domain/app-update";
 import { SidebarFooter } from "./SidebarFooter";
 import { shortcutTip } from "./TooltipLayer";
+import { displayShortcut } from "../../domain/shortcuts";
+import { MAC } from "../platform";
 import { CommandButton } from "./CommandControl";
 import { roleIcon } from "./ThreadRoleMark";
 
 const NEW_THREAD_TIP = shortcutTip("New thread", "Mod+N");
 const SEARCH_TIP = shortcutTip("Search", "Mod+K");
+const SEARCH_KEYS = displayShortcut("Mod+K", MAC);
 
 export type ProjectSidebarProps = {
   open: boolean;
@@ -178,6 +181,7 @@ function NewThreadBar({ onNewThread }: { onNewThread: () => void }) {
       </button>
       <CommandButton command={{ type: "view.jump-open" }} className="sidebar-search" type="button" aria-label="Search threads and settings" data-tip={SEARCH_TIP}>
         <Search size={16} aria-hidden="true" />
+        <kbd aria-hidden="true">{SEARCH_KEYS}</kbd>
       </CommandButton>
     </div>
   );

@@ -48,9 +48,11 @@ export function PlanUsageMeter({ engineLabel, model, usage, onOpen }: PlanUsageP
   const Meter = onOpen ? "button" : "span";
 
   return (
-    <Meter className="plan-usage" {...(onOpen ? { type: "button" as const, onClick: onOpen } : { tabIndex: 0 })} aria-label={`${engineLabel} plan: ${label}${onOpen ? ". Open usage settings" : ""}`} aria-describedby={cardId}>
-      <Gauge className="plan-usage-icon" size={14} aria-hidden="true" />
-      <span className="plan-usage-parts" aria-hidden="true">{rows.map((row) => <MeterPart key={row.id} window={row} />)}</span>
+    <span className="plan-usage">
+      <Meter className="plan-usage-meter" {...(onOpen ? { type: "button" as const, onClick: onOpen } : { tabIndex: 0 })} aria-label={`${engineLabel} plan: ${label}`} aria-describedby={cardId}>
+        <Gauge className="plan-usage-icon" size={14} aria-hidden="true" />
+        <span className="plan-usage-parts" aria-hidden="true">{rows.map((row) => <MeterPart key={row.id} window={row} />)}</span>
+      </Meter>
       <UsageCard id={cardId} title={engineLabel} aside={planLabel(usage.subscription)}>
         {windows.map((window) => {
           const windowShare = Math.round(barShare(window.utilization));
@@ -63,9 +65,8 @@ export function PlanUsageMeter({ engineLabel, model, usage, onOpen }: PlanUsageP
             detail={formatReset(window.resetsAt, Date.now(), TIME_ZONE, { zone: false })}
           />;
         })}
-        {onOpen && <span className="usage-card-hint">Click for usage settings</span>}
       </UsageCard>
-    </Meter>
+    </span>
   );
 }
 

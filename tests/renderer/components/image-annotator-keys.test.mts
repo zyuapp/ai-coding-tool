@@ -187,3 +187,31 @@ test("Escape throws away a box just drawn, and Enter keeps it", async () => {
   assert.ok(query(document.body, '[aria-label="Delete mark 2"]'), "the kept box is the newest, so its tools show");
   await view.unmount();
 });
+
+test("Done keeps a box whose note is still being typed, and Cancel asks before dropping it", async () => {
+  const drawn = { x: 0.4, y: 0.4, width: 0.1, height: 0.1 };
+  const typeNote = async (text: string) => {
+    const field = query<HTMLInputElement>(document.body, ".annotator-label");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")!.set!.call(field, text);
+      field.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+      field.dispatchEvent(new dom.window.KeyboardEvent("keyup", { bubbles: true }));
+    });
+  };
+
+  const done = await open();
+  await act(async () => pointer.onBox(drawn));
+  await typeNote("Misaligned");
+  await act(async () => query<HTMLButtonElement>(document.body, ".annotator-action.primary").click());
+  assert.deepEqual(done.calls.applied, [[...marks, { kind: "box", ...drawn, text: "Misaligned" }]]);
+  await done.view.unmount();
+
+  const cancel = await open();
+  await act(async () => pointer.onBox(drawn));
+  await act(async () => query<HTMLButtonElement>(document.body, ".annotator-action:not(.primary)").click());
+  assert.equal(cancel.calls.cancelled, 0, "a box just drawn is a change");
+  assert.match(query(document.body, ".annotator-bar").textContent ?? "", /Discard/);
+  await act(async () => press(document.body, "Escape"));
+  assert.ok(query(document.body, ".annotator-label"), "Escape leaves the discard question first, keeping the note");
+  await cancel.view.unmount();
+});

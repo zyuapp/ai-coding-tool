@@ -130,8 +130,8 @@ export function AgentsPanel({ subagents, groups, finding = false, onSelect, onSe
         <div className="agents-panel-empty">
           <span className="agent-orb" aria-hidden="true"><Bot size={18} /></span>
           <h2>No subagents yet</h2>
-          <p>Subagents created by the main task will appear here.</p>
-          <CommandButton type="button" data-tip={shortcutTip("Message the thread", "Mod+L")} command={{ type: "view.shortcut", action: "composer.focus", surface: "any" }}>Message the thread</CommandButton>
+          <p>They appear here when the thread splits its work.</p>
+          <CommandButton type="button" data-tip={shortcutTip("Ask the thread", "Mod+L")} command={{ type: "view.shortcut", action: "composer.focus", surface: "any" }}>Ask the thread</CommandButton>
         </div>
       </section>
     );

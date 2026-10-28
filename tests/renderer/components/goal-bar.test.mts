@@ -34,3 +34,28 @@ test("a blocked goal shows why in place of its progress", async () => {
   assert.equal(query(view.container, ".goal-detail").textContent, "Tests fail");
   await view.unmount();
 });
+
+test("a goal too long for its line opens out in place, by click or key, and a short one stays plain", async () => {
+  const proto = dom.window.HTMLElement.prototype;
+  const scrollWidth = Object.getOwnPropertyDescriptor(proto, "scrollWidth");
+  Object.defineProperty(proto, "scrollWidth", { configurable: true, get(this: HTMLElement) { return this.parentElement?.classList.contains("goal-objective") ? 900 : 0; } });
+  try {
+    const view = await mount(React.createElement(GoalBar, { goal: { objective: "Ship the release with every check green", status: "active" }, onClear() {} }));
+    const objective = query<HTMLElement>(view.container, ".goal-objective");
+    assert.equal(objective.getAttribute("role"), "button");
+    assert.equal(objective.getAttribute("aria-expanded"), "false");
+    await act(async () => { objective.click(); });
+    assert.equal(objective.getAttribute("aria-expanded"), "true");
+    assert.ok(objective.classList.contains("open"));
+    await press(objective, "Enter");
+    assert.equal(objective.getAttribute("aria-expanded"), "false");
+    await view.unmount();
+  } finally {
+    if (scrollWidth) Object.defineProperty(proto, "scrollWidth", scrollWidth);
+    else Reflect.deleteProperty(proto, "scrollWidth");
+  }
+
+  const short = await mount(React.createElement(GoalBar, { goal: { objective: "Ship", status: "active" }, onClear() {} }));
+  assert.equal(query(short.container, ".goal-objective").getAttribute("role"), null);
+  await short.unmount();
+});

@@ -99,7 +99,7 @@ test("a font picker says it is still reading installed fonts", async () => {
   window.desktop = fakeDesktop({});
   const view = await mount(renderSettingsPanel({ initialSection: "appearance" }));
   await act(async () => {});
-  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Interface font"]').click(); });
+  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label^="Interface font:"]').click(); });
   assert.match(query(view.container, ".font-select-popover").textContent, /Reading installed fonts…/);
   await act(async () => { answer([{ family: "Avenir Next" }]); });
   assert.doesNotMatch(query(view.container, ".font-select-popover").textContent, /Reading installed fonts/);
@@ -112,7 +112,7 @@ test("a size field names its range", async () => {
   window.desktop = fakeDesktop({});
   const view = await mount(renderSettingsPanel({ initialSection: "appearance" }));
   await act(async () => {});
-  assert.match(query<HTMLElement>(view.container, '[data-setting="appearance.reading-size"] .size-stepper').dataset.tip ?? "", /^\d+–\d+ px$/);
+  assert.match(query(view.container, '[data-setting="appearance.reading-size"] .size-range').textContent, /^\d+–\d+ px$/);
   await view.unmount();
 });
 
@@ -124,5 +124,16 @@ test("a landed control keeps a still mark until the user next acts", async () =>
   assert.equal(row.hasAttribute("data-landed"), true);
   await act(async () => { dom.window.document.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "a" })); });
   assert.equal(row.hasAttribute("data-landed"), false);
+  await view.unmount();
+});
+
+test("a size field names its unit, and the unit belongs to the field", async () => {
+  window.desktop = fakeDesktop({});
+  const view = await mount(renderSettingsPanel({ initialSection: "appearance", readingSize: 15 }));
+  await act(async () => {});
+  const field = query<HTMLInputElement>(view.container, 'input[aria-label="Conversation text size"]');
+  const unit = item(field.closest("label"));
+  assert.equal(unit.textContent, "px");
+  assert.equal(field.labels?.[0], unit);
   await view.unmount();
 });

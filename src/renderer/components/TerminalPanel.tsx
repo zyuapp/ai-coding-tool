@@ -3,6 +3,7 @@ import type { TerminalSession } from "../../domain/terminal";
 import type { ComputerLink } from "../../domain/computers";
 import { LuCheck as Check, LuPlus as Plus, LuTriangleAlert as AlertTriangle, LuUnplug as Unplug } from "react-icons/lu";
 import { CommandButton } from "./CommandControl";
+import { ConfirmAction } from "./SettingRow";
 import { fitTerminalView, focusTerminalView, hideTerminalView, onTerminalInput, showTerminalView } from "../task-workspace/terminal-views";
 
 export type TerminalPanelProps = {
@@ -92,7 +93,9 @@ export function TerminalPanel({ terminal, computer, visible, focusToken = 0, fin
             {/** A module that failed to load stays failed for the life of the window, so reloading is the way back. */}
             <p><AlertTriangle size={14} aria-hidden="true" />The terminal could not load.</p>
             <small>{drawError}</small>
-            <button type="button" onClick={() => window.location.reload()}>Reload the app</button>
+            <span className="terminal-error-actions">
+              <ConfirmAction confirm="Reload window" onConfirm={() => window.location.reload()}>Reload window…</ConfirmAction>
+            </span>
           </div>
         )}
       </div>

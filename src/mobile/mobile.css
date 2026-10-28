@@ -256,8 +256,10 @@ button {
   inset: -6px 0;
 }
 
+/* The thumb stands out from the track: lighter in light themes, lifted toward the ink in dark ones. */
 .segmented button[aria-checked="true"] {
   background: var(--surface);
+  background: light-dark(var(--surface), color-mix(in srgb, var(--p-fg-0) 14%, var(--surface-raised)));
   color: var(--ink);
   box-shadow: inset 0 0 0 1px var(--line-input), 0 1px 2px rgb(var(--p-shadow) / calc(0.18 * var(--p-shadow-scale)));
 }
@@ -289,6 +291,15 @@ button {
 .line-mark[data-connection="offline"] {
   color: var(--danger);
   background: var(--danger-surface);
+}
+
+.line-since::before {
+  content: "· ";
+}
+
+.line-since {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
 
 .line-spin {
@@ -438,16 +449,12 @@ button {
 
 .section-chevron {
   flex: none;
-  width: 9px;
-  height: 9px;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-  transform: translateY(-2px) rotate(45deg);
+  margin-left: -4px;
   transition: transform 120ms ease;
 }
 
 .section-toggle[aria-expanded="false"] .section-chevron {
-  transform: translateY(2px) rotate(-45deg);
+  transform: rotate(-90deg);
 }
 
 /* A folded group keeps the dot its rows would have shown. */
@@ -467,14 +474,14 @@ button {
   box-shadow: inset 0 0 0 2px var(--accent);
 }
 
-/* Sits over the rows' mark column, so the glyph and the marks share one centre line. */
+/* Sits over the rows' options column, so the glyphs share one centre line. */
 .section-action {
   flex: none;
   display: grid;
   place-items: center;
   width: 44px;
   height: 44px;
-  margin-right: -3px;
+  margin-right: -2px;
   border-radius: 10px;
   color: var(--muted-strong);
 }
@@ -484,15 +491,23 @@ button {
   color: var(--ink-dim);
 }
 
+/* An outlined pill, as the list filter is at rest; the hit area reaches 44px. */
 .section-text-action {
+  position: relative;
   flex: none;
-  min-height: 44px;
-  padding: 0 10px;
-  margin-right: -3px;
-  border-radius: 10px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--line-input);
+  border-radius: 999px;
   font-size: var(--text-menu);
   font-weight: 600;
-  color: var(--muted-strong);
+  color: var(--ink-dim);
+}
+
+.section-text-action::before {
+  content: "";
+  position: absolute;
+  inset: -7px 0;
 }
 
 .section-text-action:active {
@@ -550,7 +565,9 @@ button {
 
 .thread-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 44px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: auto;
   align-items: center;
   width: 100%;
   min-height: 56px;
@@ -645,9 +662,20 @@ button {
   color: var(--accent);
 }
 
-/* A row that needs the user and has something to file away keeps its mark beside Dismiss. */
-.thread-row:has(> .thread-mark + .thread-dismiss) {
-  grid-template-columns: minmax(0, 1fr) 22px 44px;
+/* The row's options, also behind a long press or a context menu. */
+.thread-more {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 44px;
+  padding: 0;
+  border-radius: 10px;
+  color: var(--muted);
+}
+
+.thread-more:active {
+  background: var(--surface-active);
+  color: var(--ink);
 }
 
 /* One mark per row: a spinner while it works, a dot when it needs the user or has news, else nothing. */
@@ -803,7 +831,12 @@ button {
   height: 28px;
   padding: 0;
   border-radius: 8px;
-  color: var(--muted-strong);
+  color: var(--ink-faint);
+}
+
+.answer-meta > .copy-affordance svg {
+  width: 16px;
+  height: 16px;
 }
 
 .answer-meta > .copy-affordance::before {
@@ -844,8 +877,8 @@ button {
   font-size: var(--text-control);
 }
 
-.queued[data-steering] {
-  opacity: 0.6;
+.queued[data-steering] .queued-text {
+  color: var(--muted-strong);
 }
 
 .queued-mark {
@@ -882,7 +915,10 @@ button {
 
 .queued-state {
   flex: none;
-  padding-right: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 8px;
   font-size: var(--text-meta);
   color: var(--muted);
 }
@@ -894,13 +930,25 @@ button {
   gap: 4px;
 }
 
+/* The same pill as the composer's Steer now. */
 .queued-steer {
-  min-height: var(--tap);
-  padding: 0 14px;
-  border-radius: 8px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 36px;
+  padding: 0 12px 0 10px;
+  border: 1px solid var(--line-input);
+  border-radius: 18px;
   font-size: var(--text-menu);
   font-weight: 600;
   color: var(--ink-dim);
+}
+
+.queued-steer::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
 }
 
 .queued-drop {
@@ -912,8 +960,11 @@ button {
   color: var(--muted-strong);
 }
 
-.queued-steer:active,
 .queued-drop:active {
+  background: var(--surface-active);
+}
+
+.queued-steer:active {
   background: var(--surface-active);
 }
 
@@ -970,6 +1021,16 @@ button {
 
 button.work-row:active {
   background: var(--wash);
+}
+
+.work[data-single] {
+  border-color: transparent;
+  background: none;
+}
+
+.work[data-single] .work-row {
+  min-height: 28px;
+  padding-block: 2px;
 }
 
 /* What a run that opens shows on its closed row: how many calls, in a chip that turns with it. */
@@ -1201,11 +1262,6 @@ button.work-row:active {
   border-radius: 12px;
   background: var(--accent-surface);
   border: 1px solid var(--accent-line-strong);
-  transition: opacity 160ms ease;
-}
-
-.approval[data-decided] {
-  opacity: 0.6;
 }
 
 .approval header {
@@ -1300,6 +1356,10 @@ button.work-row:active {
 }
 
 .approval-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   min-height: 48px;
   border-radius: var(--radius-row);
   font-size: var(--text-content);
@@ -1319,6 +1379,18 @@ button.work-row:active {
 
 .approval-actions button:disabled {
   opacity: 1;
+}
+
+.approval-actions button:disabled:not([data-chosen]) {
+  opacity: 0.45;
+}
+
+.approval-actions .line-spin {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+  border-color: color-mix(in srgb, currentColor 30%, transparent);
+  border-right-color: currentColor;
 }
 
 .approval-actions button:not(:disabled):active {
@@ -1352,11 +1424,10 @@ button.work-row:active {
   color: var(--ink-faint);
   background: var(--surface);
   box-shadow: var(--shadow-float);
-  pointer-events: none;
 }
 
 .composer-waiting:has(button) {
-  padding-right: 3px;
+  padding: 3px 3px 3px 12px;
 }
 
 .composer-waiting svg {
@@ -1367,19 +1438,19 @@ button.work-row:active {
 .composer-waiting-edit {
   position: relative;
   flex: none;
-  min-height: 24px;
-  padding: 0 10px;
+  min-height: 32px;
+  padding: 0 14px;
   border-radius: 999px;
   background: var(--surface-raised);
+  font-size: var(--text-menu);
   font-weight: 600;
   color: var(--ink);
-  pointer-events: auto;
 }
 
 .composer-waiting-edit::before {
   content: "";
   position: absolute;
-  inset: -10px -4px;
+  inset: -6px -3px;
 }
 
 .composer-waiting-edit:active {
@@ -1387,10 +1458,7 @@ button.work-row:active {
 }
 
 .composer-waiting span {
-  min-width: 0;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .composer-card {
@@ -1574,14 +1642,14 @@ button.work-row:active {
   background: var(--ink-inverse);
 }
 
-/* Moved aside for Queue, Stop keeps its square but drops the fill. */
+/* Moved aside for Queue, Stop keeps a danger ring so it never reads as the disabled Send outline. */
 .send-button.stop-aside {
-  background: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--line-input);
+  background: var(--danger-surface);
+  box-shadow: inset 0 0 0 1.5px var(--danger);
 }
 
 .stop-aside .stop-glyph {
-  background: var(--ink-dim);
+  background: var(--danger);
 }
 
 /* Sheets --------------------------------------------------------------- */
@@ -1763,14 +1831,22 @@ button.work-row:active {
   margin: 8px 9px 4px;
   font-size: var(--text-meta);
   line-height: 1.4;
-  color: var(--quiet);
+  color: var(--muted);
+}
+
+/* A choice the computer did not take, under the group it was made in. */
+.sheet-refused {
+  margin: 4px 9px 2px;
+  font-size: var(--text-meta);
+  font-weight: 600;
+  color: var(--danger);
 }
 
 .sheet-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 12px;
   padding: 16px 9px 8px;
   text-align: center;
 }
@@ -2205,13 +2281,13 @@ button.thread-start-project:active {
 
 .diff-file-name em {
   font-style: normal;
-  color: var(--quiet);
+  color: var(--muted);
 }
 
 .diff-file-binary {
   flex: none;
   font-size: var(--text-meta);
-  color: var(--quiet);
+  color: var(--muted);
 }
 
 .diff-note {
@@ -2219,7 +2295,7 @@ button.thread-start-project:active {
   padding: 10px 12px 12px;
   border-top: 1px solid var(--line-soft);
   font-size: var(--text-meta);
-  color: var(--quiet);
+  color: var(--muted);
 }
 
 .diff-error {
@@ -2322,6 +2398,18 @@ button.thread-start-project:active {
   box-shadow: var(--shadow-float-lift);
   font-size: var(--text-control);
   animation: rise 260ms var(--ease);
+}
+
+/* Holds the Undo just above a thread's composer, whatever its height. */
+.toast-dock {
+  position: relative;
+  flex: none;
+  height: 0;
+  z-index: 2;
+}
+
+.toast-dock > .undo-toast {
+  bottom: 8px;
 }
 
 .undo-toast > span {
@@ -2508,7 +2596,8 @@ button.thread-start-project:active {
   }
 
   .sheet-option:hover,
-  .menu-row:not(:disabled):hover {
+  .menu-row:not(:disabled):hover,
+  .thread-more:hover {
     background: var(--surface-hover);
   }
 }
@@ -2519,8 +2608,19 @@ button.thread-start-project:active {
     transition: none !important;
   }
 
-  /* A ring that does not turn still has to read as work in progress next to the dots. */
+  .thinking-row .sr-only {
+    position: static;
+    width: auto;
+    height: auto;
+    clip-path: none;
+    margin-left: 4px;
+    font-size: var(--text-meta);
+    color: var(--muted);
+  }
+
+  /* A ring that does not turn reads as work in progress by its dotted edge, apart from the solid needs-you ring. */
   .thread-row[data-status="running"] .thread-mark::before {
+    border-style: dotted;
     border-color: var(--muted-strong);
   }
 }

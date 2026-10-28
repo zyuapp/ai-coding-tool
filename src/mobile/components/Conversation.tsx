@@ -1,5 +1,5 @@
 import type { IconType } from "react-icons";
-import { LuBot as Bot, LuChevronDown as ChevronDown, LuCornerDownRight as CornerDownRight, LuFileText as FileText, LuGlobe as Globe, LuHistory as History, LuPenLine as PenLine, LuSearch as Search, LuTerminal as Terminal, LuWrench as Wrench, LuX as X } from "react-icons/lu";
+import { LuBot as Bot, LuChevronDown as ChevronDown, LuCornerDownRight as CornerDownRight, LuFileText as FileText, LuGlobe as Globe, LuHistory as History, LuPenLine as PenLine, LuSearch as Search, LuTerminal as Terminal, LuWrench as Wrench, LuX as X, LuZap as Zap } from "react-icons/lu";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { MobileMessage, MobileThreadView } from "../../contracts/mobile";
 import type { AgentEngine } from "../../domain/agent-engine";
@@ -19,7 +19,7 @@ const FAMILY_ICONS: Record<ToolFamily, IconType> = {
   other: Wrench,
 };
 
-/** A run of more than one call opens to every call in the order it was made. */
+/** A run of more than one call is a card that opens to every call in the order it was made; a lone call is a plain line. */
 function ToolRun({ engine, calls }: { engine: AgentEngine; calls: MobileMessage[] }) {
   const [open, setOpen] = useState(false);
   const Icon = FAMILY_ICONS[runFamily(engine, calls)];
@@ -29,7 +29,7 @@ function ToolRun({ engine, calls }: { engine: AgentEngine; calls: MobileMessage[
       <span className="work-summary">{summariseTools(calls)}</span>
     </>
   );
-  if (calls.length < 2) return <div className="work"><div className="work-row">{row}</div></div>;
+  if (calls.length < 2) return <div className="work" data-single><div className="work-row">{row}</div></div>;
   return (
     <div className="work" data-open={open || undefined}>
       <button type="button" className="work-row" aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -133,9 +133,9 @@ export function Conversation({ thread, onSteerQueued, onDropQueued }: {
                 <span className="queued-text">{message.text}</span>
               </span>
               {message.steering
-                ? <span className="queued-state">Steering…</span>
+                ? <span className="queued-state"><span className="line-spin" aria-hidden="true" />Steering…</span>
                 : <span className="queued-actions">
-                  <button type="button" className="queued-steer" onClick={() => onSteerQueued(message.id)}>Steer</button>
+                  <button type="button" className="queued-steer" onClick={() => onSteerQueued(message.id)}><Zap size={14} strokeWidth={2.2} aria-hidden="true" />Steer</button>
                   <button type="button" className="queued-drop" aria-label="Remove queued message" onClick={() => {
                     onDropQueued(message.id);
                     returnToComposer(message.text);

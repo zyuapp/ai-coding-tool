@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, type ReactNode } from "react";
 import { BrowserPanel } from "./BrowserPanel";
 import { DockSideChats } from "./DockSideChat";
 import { DockThreadTabs } from "./DockThreadTab";
@@ -6,6 +6,7 @@ import { TerminalPanel } from "./TerminalPanel";
 import type { DockLauncher, DockPanel } from "./dock-registry";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import { usePanelFind } from "../find/use-panel-find";
+import { moveListFocus } from "../focus";
 import { DIFF_PANEL, type FindView } from "../../application/workspace-state";
 import type { FindResults } from "../../domain/find";
 
@@ -77,6 +78,7 @@ export function DockContent({ workspace, panels, launchers, activeTab, find, fin
 }) {
   const browserTab = workspace.browserTabs.find((tab) => tab.id === activeTab);
   const shownTerminal = workspace.terminals.find((terminal) => terminal.id === activeTab);
+  const described = useId();
   return (
     <div className="right-dock-content">
       <div className="right-dock-picker" hidden={activeTab !== "home"} aria-label="Choose a right panel">
@@ -84,18 +86,19 @@ export function DockContent({ workspace, panels, launchers, activeTab, find, fin
           <h2>Choose a panel</h2>
           <p>Inspect delegated work or start a focused conversation.</p>
         </header>
-        <div>
+        <div onKeyDown={moveListFocus}>
           {launchers.map((launcher) => (
             <button
               key={launcher.id}
               type="button"
               aria-label={`Open ${launcher.title} panel`}
+              aria-describedby={`${described}-${launcher.id}`}
               aria-disabled={launcher.disabled || undefined}
               data-tip={launcher.disabledReason !== launcher.disabledLabel ? launcher.disabledReason : undefined}
               onClick={launcher.disabled ? undefined : launcher.open}
             >
               <launcher.icon size={18} aria-hidden="true" />
-              <span><strong>{launcher.title}</strong><small>{launcher.disabledLabel ?? launcher.description}</small></span>
+              <span><strong>{launcher.title}</strong><small id={`${described}-${launcher.id}`}>{launcher.disabledLabel ?? launcher.description}</small></span>
               {!launcher.disabled && <kbd aria-hidden="true">/{launcher.command}</kbd>}
             </button>
           ))}

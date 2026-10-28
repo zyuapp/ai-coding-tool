@@ -43,7 +43,7 @@ export function WorktreeDeleteDialog({ worktree, dispatch }: { worktree: Worktre
         {worktree.busy && <p className="worktree-delete-warning" role="status">Wait for the active run to finish.</p>}
         <div className="worktree-delete-actions">
           <button ref={cancel} type="button" onClick={() => dispatch({ type: "worktree.confirm-delete", root: null })}>Cancel</button>
-          <button className="danger" type="button" disabled={worktree.busy || worktree.deleting} onClick={() => dispatch({ type: "worktree.delete", root: worktree.root, missingOnly: !worktree.available })}>{worktree.deleting ? "Deleting…" : worktree.available ? "Delete worktree" : "Forget folder"}</button>
+          <button className="danger" type="button" disabled={worktree.busy || worktree.deleting} aria-busy={worktree.deleting || undefined} onClick={() => dispatch({ type: "worktree.delete", root: worktree.root, missingOnly: !worktree.available })}>{worktree.deleting ? "Deleting…" : worktree.available ? "Delete worktree" : "Forget folder"}</button>
         </div>
       </div>
     </div>, document.body,

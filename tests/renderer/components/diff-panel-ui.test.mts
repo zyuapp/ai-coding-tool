@@ -190,7 +190,7 @@ test("Viewed keeps a short review's next file visible and it can still be marked
 
   await act(async () => { query<HTMLInputElement>(scroller, `[aria-label="Mark ${PATHS[1]} viewed"]`).click(); });
   assert.deepEqual(marked, PATHS);
-  assert.match(query(view.container, ".diff-progress").textContent, /2 of 2 viewed/);
+  assert.match(query(view.container, ".diff-progress").textContent, /All 2 viewed/);
 });
 
 test.each([false, true])("a patch opens with line numbers and syntax colours (split=%s)", async (split) => {
@@ -259,6 +259,7 @@ test("the progress row says how a comment is made until a line is picked or comm
   await act(async () => { query<HTMLButtonElement>(view.container, ".diff-comment .send-button").click(); });
   assert.equal(view.container.querySelector(".diff-comment"), null, "the note is taken");
   assert.equal(hint(), undefined, "a review already commented on has learnt it");
+  assert.equal(query<HTMLButtonElement>(view.container, ".diff-inline-comment-markers button").dataset.tip, "Why 22?", "the marker reads the note back");
   await view.unmount();
 });
 

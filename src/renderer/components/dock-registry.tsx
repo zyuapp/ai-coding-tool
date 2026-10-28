@@ -32,8 +32,8 @@ export type DockPanel = {
   badge?: number;
   /** What the badge counts, said in full. */
   badgeLabel?: string;
-  /** The badge counts what is waiting on the user rather than what is going on. */
-  attention?: boolean;
+  /** Whether the badge counts what waits on the user, or what is still going on, rather than a plain tally. */
+  badgeTone?: BadgeTone;
   /** A tab the dock keeps for as long as it applies, so it has no close button. */
   pinned?: boolean;
   render: () => ReactNode;
@@ -53,7 +53,9 @@ export type DockLauncher = {
   open: () => void;
 };
 
-export type DockTab = { id: string; title: string; icon: IconType; badge?: number; badgeLabel?: string; attention?: boolean; pinned?: boolean; unread?: boolean };
+export type BadgeTone = "attention" | "working";
+
+export type DockTab = { id: string; title: string; icon: IconType; badge?: number; badgeLabel?: string; badgeTone?: BadgeTone; pinned?: boolean; unread?: boolean };
 
 /** A launcher, disabled with the reason when its host lacks the command or the workspace lacks what it needs. */
 function launcher(entry: Omit<DockLauncher, "disabled" | "disabledReason" | "disabledLabel">, available: boolean, missing: string | null = null): DockLauncher {
@@ -121,7 +123,7 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
       icon: LayoutGrid,
       badge: needsYou,
       badgeLabel: `${needsYou} need${needsYou === 1 ? "s" : ""} you`,
-      attention: true,
+      badgeTone: "attention" as const,
       pinned: true,
       render: () => (
         <CoordinatorOverview
@@ -161,6 +163,7 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
       icon: Bot,
       badge: workingSubagents,
       badgeLabel: `${workingSubagents} working`,
+      badgeTone: "working" as const,
       render: () => (inspectedSubagent
         ? <SubagentInspector subagent={inspectedSubagent} finding={findingAgents} onClose={onCloseInspector} onStop={workspace.actions.stopBackgroundProcess} />
         : <AgentsPanel

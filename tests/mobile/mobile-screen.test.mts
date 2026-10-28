@@ -580,6 +580,8 @@ test("an approval answer says it is on its way, and one the Mac turns down can b
   click(".approval-actions .allow");
   assert.equal(document.querySelector(".approval-actions .allow")?.textContent, "Allowing…");
   assert.equal(document.querySelector(".approval-actions .deny")?.textContent, "Deny");
+  assert.ok(document.querySelector(".approval-actions .allow[data-chosen] .line-spin"), "the chosen answer spins");
+  assert.equal(document.querySelector(".approval-actions .deny[data-chosen]"), null, "the other one is not marked chosen");
   const { requestId } = frameOf(line, "run.decide");
   act(() => line.onmessage?.({ data: JSON.stringify({ kind: "ack", sequence: 2, requestId, ok: false, message: "The Mac could not take that answer." }) }));
   assert.ok([...document.querySelectorAll<HTMLButtonElement>(".approval-actions button")].every((node) => !node.disabled), "the card is answerable again");
@@ -587,6 +589,7 @@ test("an approval answer says it is on its way, and one the Mac turns down can b
   click(".approval-actions .deny");
   assert.deepEqual(lastCommand(line), { type: "run.decide", taskId: "t1", runId: "r1", approvalId: "a1", allow: false });
   assert.equal(document.querySelector(".approval-actions .deny")?.textContent, "Denying…");
+  assert.equal(document.querySelector(".approval-actions .allow[data-chosen]"), null);
 });
 
 test("a link the phone cannot follow reads as text, and a web link opens", () => {
@@ -609,6 +612,8 @@ test("a run of several tool calls opens to list each one in order", () => {
   const [several, single] = [...document.querySelectorAll(".work")];
   assert.equal(single?.querySelector("button"), null, "a single call has nothing more to show");
   assert.equal(single?.querySelector(".work-count"), null, "nor a count that looks like one");
+  assert.ok(single?.hasAttribute("data-single"), "a lone call is drawn as a plain line, not a card that opens");
+  assert.equal(several?.hasAttribute("data-single"), false);
   const toggle = several?.querySelector<HTMLButtonElement>("button.work-row");
   assert.equal(toggle?.getAttribute("aria-expanded"), "false");
   assert.equal(several?.querySelector(".work-calls"), null);

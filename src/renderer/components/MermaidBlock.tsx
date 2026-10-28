@@ -1,9 +1,6 @@
-import { LuMaximize2 as Maximize, LuX as X } from "react-icons/lu";
+import { LuMaximize2 as Maximize } from "react-icons/lu";
 import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
-import { createPortal } from "react-dom";
-import { useModalFocus } from "../focus";
-import { shortcutTip } from "./TooltipLayer";
-import { BlockError } from "./VisualBlock";
+import { BlockError, BlockViewer, OpenVisual, VisualViewer } from "./VisualBlock";
 import { ZoomControls, useZoom } from "./ZoomView";
 
 let initialized = false;
@@ -72,35 +69,9 @@ function drawnAt(diagram: Diagram, scale: number): CSSProperties {
 
 /** The diagram over the whole window: fitted on entry, then scalable between that and 400%. */
 export function DiagramViewer({ diagram, onClose }: { diagram: Diagram; onClose: () => void }) {
-  const dialog = useRef<HTMLDivElement>(null);
-  const pressedOn = useRef<EventTarget | null>(null);
   const zoom = useZoom(diagram.width ? diagram : null);
-  useModalFocus(dialog);
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      onClose();
-    }
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
-  return createPortal(
-    <div
-      ref={dialog}
-      className="viewer diagram"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Diagram"
-      tabIndex={-1}
-      onPointerDown={(event) => { pressedOn.current = event.target; }}
-      /** Only a press and release on the same backdrop dismisses, so a drag off the diagram does not. */
-      onClick={(event) => { if (event.target === pressedOn.current) onClose(); }}
-    >
-      <ZoomControls zoom={zoom} />
-      <button type="button" className="viewer-close" onClick={onClose} aria-label="Close diagram" data-tip={shortcutTip("Close", "Escape")}><X size={16} /></button>
+  return (
+    <BlockViewer label="Diagram" className="diagram" controls={<ZoomControls zoom={zoom} />} onClose={onClose}>
       <div ref={zoom.stage} className="viewer-stage">
         <div
           className="mermaid-svg"
@@ -109,8 +80,7 @@ export function DiagramViewer({ diagram, onClose }: { diagram: Diagram; onClose:
           dangerouslySetInnerHTML={{ __html: diagram.markup }}
         />
       </div>
-    </div>,
-    document.body,
+    </BlockViewer>
   );
 }
 
@@ -121,14 +91,20 @@ const OpenDiagram = createContext<((diagram: Diagram) => void) | null>(null);
  * it scrolls out of view.
  */
 export function DiagramViewerHost({ children }: { children: ReactNode }) {
-  const [diagram, setDiagram] = useState<Diagram | null>(null);
-  const open = useCallback((next: Diagram) => setDiagram(next), []);
+  const [shown, setShown] = useState<{ diagram: Diagram } | { visual: string } | null>(null);
+  const openDiagram = useCallback((diagram: Diagram) => setShown({ diagram }), []);
+  const openVisual = useCallback((visual: string) => setShown({ visual }), []);
+  const close = useCallback(() => setShown(null), []);
   /** The drawing on screen carries the theme it was rendered in, so a theme change closes it. */
-  useEffect(() => subscribeToGeneration(() => setDiagram(null)), []);
+  useEffect(() => subscribeToGeneration(() => setShown((current) => (current && "diagram" in current ? null : current))), []);
   return (
-    <OpenDiagram.Provider value={open}>
+    <OpenDiagram.Provider value={openDiagram}>
+    <OpenVisual.Provider value={openVisual}>
       {children}
-      {diagram && <DiagramViewer diagram={diagram} onClose={() => setDiagram(null)} />}
+      {shown && ("diagram" in shown
+        ? <DiagramViewer diagram={shown.diagram} onClose={close} />
+        : <VisualViewer source={shown.visual} onClose={close} />)}
+    </OpenVisual.Provider>
     </OpenDiagram.Provider>
   );
 }

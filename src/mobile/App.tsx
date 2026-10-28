@@ -1,7 +1,8 @@
 import { LuChevronDown as ChevronDown, LuChevronLeft as ChevronLeft, LuCloudOff as CloudOff, LuEllipsis as Ellipsis, LuQrCode as QrCode, LuSquarePen as SquarePen, LuX as X } from "react-icons/lu";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type TouchEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent } from "react";
 import type { MobileActivity, MobileCommand, MobileDraftView, MobileProjectGroup, MobileThreadEntry, MobileThreadView } from "../contracts/mobile";
 import { defaultModelFor, type AgentEngine } from "../domain/agent-engine";
+import type { WorktreeDestination } from "../domain/worktree";
 import { SETTINGS_PAGE_LABELS, settingControl } from "../domain/settings-catalog";
 import { PAIRING_CODE_LENGTH, type MobileConnectionState } from "../domain/mobile";
 import { useMobileClient } from "./client/useMobileClient";
@@ -11,7 +12,7 @@ import { ApprovalSheet } from "./components/ApprovalSheet";
 import { Changes } from "./components/Changes";
 import { Composer, type ReturnedToComposer } from "./components/Composer";
 import { Conversation } from "./components/Conversation";
-import { LocationSheet } from "./components/LocationSheet";
+import { LocationSheet, returnTrip } from "./components/LocationSheet";
 import { ProjectSheet } from "./components/ProjectSheet";
 import { RenameSheet } from "./components/RenameSheet";
 import { Segmented } from "./components/Segmented";
@@ -19,7 +20,7 @@ import { StartOptions } from "./components/StartOptions";
 import { ThreadList } from "./components/ThreadList";
 import { ThreadMenu, ThreadRowMenu } from "./components/ThreadMenu";
 import { ThreadSettings } from "./components/ThreadSettings";
-import { locationLabel } from "./format";
+import { locationLabel, relativeTime } from "./format";
 import { paintMobileTheme, resolveMobileTheme, writeStoredTheme } from "./theme";
 
 const CONNECTION_LABELS: Record<MobileConnectionState, string> = {
@@ -31,15 +32,23 @@ const CONNECTION_LABELS: Record<MobileConnectionState, string> = {
 
 /**
  * Quiet until it matters: a live line says nothing, a dead one shows a struck cloud, and one on its
- * way a turning ring. The region stays mounted on every screen so a reader hears each change.
+ * way a turning ring. A line down for a minute or more says for how long. The region stays mounted
+ * on every screen so a reader hears each change.
  */
-function ConnectionMark({ connection }: { connection: MobileConnectionState }) {
+function ConnectionMark({ connection, now }: { connection: MobileConnectionState; now: number }) {
+  const down = connection !== "live";
+  const [since, setSince] = useState(() => Date.now());
+  useEffect(() => {
+    if (down) setSince(Date.now());
+  }, [down]);
+  const long = down && now - since >= 60_000;
   return (
     <span className="line-status" role="status">
-      {connection !== "live" && (
+      {down && (
         <span className="line-mark" data-connection={connection}>
           {connection === "offline" ? <CloudOff size={14} strokeWidth={2.2} aria-hidden="true" /> : <span className="line-spin" aria-hidden="true" />}
           {CONNECTION_LABELS[connection]}
+          {long && <span className="line-since" aria-hidden="true">{relativeTime(since, now)}</span>}
         </span>
       )}
     </span>
@@ -141,8 +150,8 @@ function Banner({ notice, onDismiss }: { notice: string; onDismiss: () => void }
 const UNDO_MS = 9000;
 
 /**
- * What the toast at the foot of the list can take back. An archive is already sent and Undo restores
- * it; a dismissal is held, with its rows out of Priority, and only sent once the toast goes.
+ * What the toast can take back. An archive or a move is already sent and Undo reverses it; a
+ * dismissal is held, with its rows out of Priority, and only sent once the toast goes.
  */
 type Undoable = { key: string; verb: string; title: string; undo: () => void; settle?: () => void; holds?: readonly string[] };
 
@@ -310,7 +319,7 @@ function useScreenHistory(onPopped: () => void) {
 }
 
 /**
- * The one Undo the list offers at a time. Offering another, leaving the list or putting the page away
+ * The one Undo offered at a time. Offering another, leaving the list or putting the page away
  * carries out whatever the one before was holding back; dismissed rows stay out of Priority until the
  * Mac's list drops them.
  */
@@ -384,6 +393,23 @@ function useUndo(send: (command: MobileCommand) => void, lists: MobileActivity) 
   return { undoable, filing, offer, takeBack, settleUndo, dismiss, dismissAll };
 }
 
+/** What is sent at once and offered back: an archive, and a move to a checkout that already stands while the one left still stands too. */
+function useReversible(send: (command: MobileCommand) => void, offer: (next: Undoable | null) => void) {
+  const archive = useCallback((id: string, archivedTitle: string) => {
+    send({ type: "task.archive", taskId: id });
+    offer({ key: `archive:${id}`, verb: "Archived", title: archivedTitle, undo: () => send({ type: "task.restore", taskId: id }) });
+  }, [send, offer]);
+
+  const move = useCallback((moved: MobileThreadView, destination: WorktreeDestination, label: string) => {
+    send({ type: "task.move-worktree", taskId: moved.id, destination });
+    const home = returnTrip(moved);
+    if (!home || destination.kind === "new") return;
+    offer({ key: `move:${moved.id}:${JSON.stringify(destination)}`, verb: "Moved to", title: label, undo: () => send({ type: "task.move-worktree", taskId: moved.id, destination: home }) });
+  }, [send, offer]);
+
+  return { archive, move };
+}
+
 /** Where the list's New starts a thread: the project the activity list is narrowed to, else the one worked in last. */
 function startingProject(groups: MobileProjectGroup[], mode: MobileListMode): MobileProjectGroup | null {
   const narrowed = mode === "activity" ? readActivityProject(window.localStorage) : null;
@@ -418,6 +444,7 @@ export function App() {
    */
   const [opening, setOpening] = useState<{ title: string; project: string | null; want: string; was: string } | null>(null);
   const { undoable, filing, offer, takeBack, settleUndo, dismiss, dismissAll } = useUndo(send, state.view.activity);
+  const { archive, move } = useReversible(send, offer);
   /** The row a long press opened options for, over the list, and whether its rename is up instead. */
   const [rowMenu, setRowMenu] = useState<RowMenu | null>(null);
   const listScroll = useRef(0);
@@ -425,7 +452,8 @@ export function App() {
   const thread = state.view.thread;
   const draft = state.view.draft;
   /** Commands only wait on the line while it is down; on a live one they are simply on their way. */
-  const waiting = state.connection === "live" ? 0 : state.outbox.length;
+  const live = state.connection === "live";
+  const waiting = live ? 0 : state.outbox.length;
   const notice = state.notice ?? (state.view.error !== state.dismissedError ? state.view.error : null);
   const current = thread ? thread.id : draft ? "draft" : "none";
   const reading = screen !== "list";
@@ -496,10 +524,6 @@ export function App() {
     listScroll.current = top;
   }, []);
 
-  const archive = useCallback((id: string, archivedTitle: string) => {
-    send({ type: "task.archive", taskId: id });
-    offer({ key: `archive:${id}`, verb: "Archived", title: archivedTitle, undo: () => send({ type: "task.restore", taskId: id }) });
-  }, [send, offer]);
 
   const chooseListMode = useCallback((mode: MobileListMode) => {
     writeListMode(window.localStorage, mode);
@@ -507,6 +531,7 @@ export function App() {
   }, []);
 
   const swipe = useEdgeSwipe(reading && sheet === null, back);
+  const toast = undoable && <UndoToast key={undoable.key} undoable={undoable} onUndo={takeBack} onDone={settleUndo} />;
 
   if (state.entry === "blocked" && !state.credential) return <Gate notice={state.notice} />;
 
@@ -543,14 +568,14 @@ export function App() {
         {screen === "thread" && (pending ? opening.want !== "draft" : thread !== null) && (
           <button type="button" className="ghost icon bar-action" aria-label="Thread options" aria-haspopup="dialog" disabled={pending} onClick={() => setSheet("menu")}><Ellipsis size={20} /></button>
         )}
-        <ConnectionMark connection={state.connection} />
+        <ConnectionMark connection={state.connection} now={now} />
       </header>
       {notice && <Banner key={notice} notice={notice} onDismiss={dismissNotice} />}
       {screen === "changes" && thread
-        ? <Changes thread={thread} live={state.connection === "live"} query={query} />
+        ? <Changes thread={thread} live={live} query={query} />
         : reading
           ? thread && !pending
-            ? <ThreadBody thread={thread} waiting={waiting} returned={state.returned} send={send} sheet={sheet} onSheet={setSheet} onChanges={() => enter("changes")} onNewHere={() => newThread(thread.projectId, thread.projectName, thread.worktreeId ?? undefined)} onNewWith={(engine) => {
+            ? <ThreadBody thread={thread} live={live} toast={toast} waiting={waiting} returned={state.returned} send={send} onMove={move} sheet={sheet} onSheet={setSheet} onChanges={() => enter("changes")} onNewHere={() => newThread(thread.projectId, thread.projectName, thread.worktreeId ?? undefined)} onNewWith={(engine) => {
               newThread(thread.projectId, thread.projectName, thread.worktreeId ?? undefined);
               send({ type: "task.set-model", engine, model: defaultModelFor(engine) });
             }} onArchive={() => {
@@ -559,7 +584,7 @@ export function App() {
               archive(id, archivedTitle);
             }} />
             : draft && !pending
-              ? <DraftBody draft={draft} groups={state.view.groups} waiting={waiting} send={send} sheet={sheet} onSheet={setSheet} onProject={newThread} onStartIn={(worktreeId) => newThread(draft.projectId, draft.projectName, worktreeId)} />
+              ? <DraftBody draft={draft} groups={state.view.groups} live={live} waiting={waiting} send={send} sheet={sheet} onSheet={setSheet} onProject={newThread} onStartIn={(worktreeId) => newThread(draft.projectId, draft.projectName, worktreeId)} />
               : <div className="empty"><p>Opening the thread…</p></div>
           : <ThreadList
             mode={listMode}
@@ -576,7 +601,7 @@ export function App() {
             onDismissAll={dismissAll}
           />}
       {!reading && rowMenu && <RowOptions menu={rowMenu} send={send} onMenu={setRowMenu} onOpen={openThread} onDismiss={dismiss} onArchive={archive} />}
-      {undoable && !reading && <UndoToast key={undoable.key} undoable={undoable} onUndo={takeBack} onDone={settleUndo} />}
+      {(!reading || screen === "changes") && toast}
     </div>
   );
 }
@@ -619,14 +644,18 @@ function returnedTo(returned: ReturnedCommand | null, taskId: string): ReturnedT
   return null;
 }
 
-function ThreadBody({ thread, waiting, returned, send, sheet, onSheet, onChanges, onNewHere, onNewWith, onArchive }: {
+function ThreadBody({ thread, live, toast, waiting, returned, send, sheet, onSheet, onChanges, onMove, onNewHere, onNewWith, onArchive }: {
   thread: MobileThreadView;
+  live: boolean;
+  /** The Undo on offer, held above the composer. */
+  toast: ReactNode;
   waiting: number;
   returned: ReturnedCommand | null;
   send: (command: MobileCommand) => void;
   sheet: ThreadSheet;
   onSheet: (sheet: ThreadSheet) => void;
   onChanges: () => void;
+  onMove: (thread: MobileThreadView, destination: WorktreeDestination, label: string) => void;
   onNewHere: () => void;
   /** Starts a thread in the same place on another engine, which an existing thread cannot switch to. */
   onNewWith: (engine: AgentEngine) => void;
@@ -642,6 +671,7 @@ function ThreadBody({ thread, waiting, returned, send, sheet, onSheet, onChanges
         onSteerQueued={(messageId) => send({ type: "task.steer-queued", taskId: thread.id, messageId })}
         onDropQueued={(messageId) => send({ type: "task.drop-queued", taskId: thread.id, messageId })}
       />
+      {toast && <div className="toast-dock">{toast}</div>}
       {thread.approval && <ApprovalSheet approval={thread.approval} refused={returned?.command.type === "run.decide" ? returned.requestId : null} onDecide={(approval, allow) => send({ type: "run.decide", taskId: approval.taskId, runId: approval.runId, approvalId: approval.approvalId, allow })} />}
       <Composer
         running={running}
@@ -657,6 +687,7 @@ function ThreadBody({ thread, waiting, returned, send, sheet, onSheet, onChanges
       />
       {sheet === "settings" && <ThreadSettings
         settings={thread.settings}
+        live={live}
         locked
         onNewWith={onNewWith}
         onClose={close}
@@ -675,7 +706,7 @@ function ThreadBody({ thread, waiting, returned, send, sheet, onSheet, onChanges
         onRename={() => onSheet("rename")}
         onArchive={onArchive}
       />}
-      {sheet === "location" && <LocationSheet thread={thread} onClose={close} onMove={(destination) => send({ type: "task.move-worktree", taskId: thread.id, destination })} />}
+      {sheet === "location" && <LocationSheet thread={thread} onClose={close} onMove={(destination, label) => onMove(thread, destination, label)} />}
       {sheet === "rename" && <RenameSheet title={thread.title} onClose={close} onRename={(title) => send({ type: "task.rename", taskId: thread.id, title })} />}
     </>
   );
@@ -686,9 +717,10 @@ function ThreadBody({ thread, waiting, returned, send, sheet, onSheet, onChanges
  * that starts it, and it starts one from its own draft, so the text is put in the draft and then
  * sent. The screen it turns into arrives as the thread the Mac has open.
  */
-function DraftBody({ draft, groups, waiting, send, sheet, onSheet, onProject, onStartIn }: {
+function DraftBody({ draft, groups, live, waiting, send, sheet, onSheet, onProject, onStartIn }: {
   draft: MobileDraftView;
   groups: MobileProjectGroup[];
+  live: boolean;
   waiting: number;
   send: (command: MobileCommand) => void;
   sheet: ThreadSheet;
@@ -715,6 +747,7 @@ function DraftBody({ draft, groups, waiting, send, sheet, onSheet, onProject, on
       </Composer>
       {sheet === "settings" && <ThreadSettings
         settings={draft.settings}
+        live={live}
         locked={false}
         onClose={() => onSheet(null)}
         onPolicy={(policy) => send({ type: "task.set-policy", policy })}

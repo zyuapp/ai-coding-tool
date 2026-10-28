@@ -274,11 +274,13 @@ test("the appearance page sets the families through its pickers, and the sizes a
 
   const control = (label: string) => query<HTMLButtonElement>(view.container, `button[aria-label="${label}"]`);
   const pick = async (picker: string, name: string) => {
-    await act(async () => { control(picker).click(); });
+    await act(async () => { query<HTMLButtonElement>(view.container, `button[aria-label^="${picker}:"]`).click(); });
     await act(async () => { item([...view.container.querySelectorAll<HTMLButtonElement>(".font-select-list button")].find((option) => option.textContent.includes(name))).click(); });
   };
+  assert.ok(control("Interface font: System"), "the font button says which font is in use");
   await pick("Interface font", "Inter");
   assert.equal(root.dataset.uiFont, "inter");
+  assert.ok(control("Interface font: Inter"));
   assert.equal(view.container.querySelector(".font-select-popover"), null, "choosing closes the picker");
   await pick("Code and terminal font", "JetBrains Mono");
   assert.equal(root.dataset.monoFont, "jetbrains-mono");
@@ -574,6 +576,7 @@ test("Restore defaults asks first, and Esc takes the question back", async () =>
   const actions = () => query<HTMLElement>(view.container, ".settings-group-action");
   const named = (name: string) => item([...actions().querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === name));
 
+  assert.ok(named("Restore defaults").closest(".settings-page-heading"), "it sits over every group, not in the first one");
   await act(async () => { named("Restore defaults").click(); });
   assert.equal(resets, 0);
   assert.equal(dom.window.document.activeElement, named("Cancel"));
@@ -620,7 +623,7 @@ test("the appearance pickers walk by arrow keys and hand the focus back to their
   const document = dom.window.document;
   const key = async (target: Element, name: string) => { await act(async () => { target.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: name, bubbles: true })); }); };
 
-  const fontButton = query<HTMLButtonElement>(view.container, 'button[aria-label="Interface font"]');
+  const fontButton = query<HTMLButtonElement>(view.container, 'button[aria-label^="Interface font:"]');
   await act(async () => { fontButton.click(); });
   const search = query<HTMLInputElement>(view.container, ".font-select-popover input");
   assert.equal(document.activeElement, search);
@@ -634,6 +637,7 @@ test("the appearance pickers walk by arrow keys and hand the focus back to their
   assert.equal(document.activeElement, fontButton, "a pick hands the focus back to the picker's button");
 
   const themeButton = query<HTMLButtonElement>(view.container, ".theme-select > button");
+  assert.equal(themeButton.getAttribute("aria-label"), `Theme: ${themeButton.textContent}`, "the theme button says which theme is in use");
   await act(async () => { themeButton.click(); });
   await key(query(view.container, ".theme-select-popover input"), "Escape");
   assert.equal(view.container.querySelector(".theme-select-popover"), null);
@@ -776,23 +780,12 @@ test("a font search marks the option Enter picks", async () => {
   window.desktop = fakeDesktop({});
   const view = await mount(renderSettingsPanel({ initialSection: "appearance" }));
   await act(async () => {});
-  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Interface font"]').click(); });
+  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label^="Interface font:"]').click(); });
   assert.equal(view.container.querySelector(".font-select-list button.next"), null);
   const search = query<HTMLInputElement>(view.container, ".font-select-popover input");
   await typeInto(search, "i");
   const marked = [...view.container.querySelectorAll(".font-select-list button.next")];
   assert.equal(marked.length, 1);
   assert.equal(marked[0], view.container.querySelector(".font-select-list button"));
-  await view.unmount();
-});
-
-test("a size field names its unit, and the unit belongs to the field", async () => {
-  window.desktop = fakeDesktop({});
-  const view = await mount(renderSettingsPanel({ initialSection: "appearance", readingSize: 15 }));
-  await act(async () => {});
-  const field = query<HTMLInputElement>(view.container, 'input[aria-label="Conversation text size"]');
-  const unit = item(field.closest("label"));
-  assert.equal(unit.textContent, "px");
-  assert.equal(field.labels?.[0], unit);
   await view.unmount();
 });

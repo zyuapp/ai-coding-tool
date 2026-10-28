@@ -7,7 +7,7 @@ import { projectName } from "../../domain/project";
 import type { Thread } from "../../domain/thread";
 import type { CoordinationApprovalView, CoordinationDecisionView, ElsewhereView, ProposalView } from "../../application/coordination-view";
 import type { ApprovalView } from "../../application/thread-run-state";
-import { approvalCommand } from "./ApprovalCard";
+import { approvalCommand, DecideButton, type DecideBindings } from "./ApprovalCard";
 import { CommandButton, useCommandControls } from "./CommandControl";
 import { BriefDetails } from "./Coordination";
 import { HostMark } from "./HostMark";
@@ -80,14 +80,18 @@ function ConfirmCommand({ command, confirm, ...props }: Omit<ConfirmActionProps,
   return <ConfirmAction {...props} confirm={confirm} onConfirm={() => controls.dispatch(command)} />;
 }
 
+const UNBOUND: DecideBindings = { allow: null, deny: null };
+
 /**
  * Everything waiting on the user from a coordinator and its threads, one page at a time: approvals,
  * each thread asked for on another computer, decisions, then the threads it suggested here.
  */
-export function NeedsYouCard({ approvals, decisions, suggestions = null, onDecide, onAnswer, onSelect }: {
+export function NeedsYouCard({ approvals, decisions, suggestions = null, bindings = UNBOUND, onDecide, onAnswer, onSelect }: {
   approvals: CoordinationApprovalView[];
   decisions: CoordinationDecisionView[];
   suggestions?: SuggestionsProps | null;
+  /** The keys that answer the approval on screen, where the window's Allow and Deny shortcuts reach it. */
+  bindings?: DecideBindings;
   onDecide: (approval: Pick<ApprovalView, "taskId" | "runId" | "approvalId">, allow: boolean) => void;
   onAnswer: (threadId: string, decisionId: string, answer: string) => void;
   onSelect: (threadId: string) => void;
@@ -135,7 +139,7 @@ export function NeedsYouCard({ approvals, decisions, suggestions = null, onDecid
   const held = (form: ReactNode) => <div ref={card} onClickCapture={keepPlace} onKeyDown={onPagerKey}>{form}</div>;
   switch (current.kind) {
     case "approval":
-      return held(<ApprovalForm key={current.key} view={current.view} position={position} onStep={onStep} onDecide={onDecide} onSelect={onSelect} />);
+      return held(<ApprovalForm key={current.key} view={current.view} bindings={bindings} position={position} onStep={onStep} onDecide={onDecide} onSelect={onSelect} />);
     case "elsewhere":
       return held(<ElsewhereForm
         key={current.key}
@@ -186,8 +190,8 @@ function PagerControls({ position, onStep }: { position: Pager; onStep: (delta: 
   if (!position) return null;
   return (
     <span className="decision-pager">
-      <span>{position.index + 1} of {position.count}</span>
       <button type="button" aria-label="Previous" aria-keyshortcuts="ArrowLeft" data-tip={shortcutTip("Previous", "ArrowLeft")} data-action="previous" onClick={() => onStep(-1)}><ChevronLeft size={14} aria-hidden="true" /></button>
+      <span className="decision-count">{position.index + 1} of {position.count}</span>
       <button type="button" aria-label="Next" aria-keyshortcuts="ArrowRight" data-tip={shortcutTip("Next", "ArrowRight")} data-action="next" onClick={() => onStep(1)}><ChevronRight size={14} aria-hidden="true" /></button>
     </span>
   );
@@ -302,9 +306,10 @@ function ElsewhereForm({ taskId, request, draft, position, onStep, onDraft }: {
       <div className="decision-foot">
         {position && <button type="button" className="secondary" data-action="later" onClick={() => onStep(1)}>Later</button>}
         <span className="decision-foot-gap" />
-        <CommandButton type="button" className="secondary" command={{ type: "proposal.dismiss", taskId, proposalId: proposal.id }} disabled={starting}>Deny</CommandButton>
+        <ConfirmCommand className="secondary" confirm="Deny" command={{ type: "proposal.dismiss", taskId, proposalId: proposal.id }} disabled={starting}>Deny</ConfirmCommand>
         <CommandButton
           type="button"
+          className="decision-allow"
           command={{ type: "proposal.start", taskId, proposalId: proposal.id, place: { project, worktree } }}
           disabled={starting || refusal !== null}
           {...(refusal ? { "aria-describedby": ids.context } : {})}
@@ -317,8 +322,9 @@ function ElsewhereForm({ taskId, request, draft, position, onStep, onDraft }: {
 }
 
 /** A tool call a thread under the coordinator is waiting to run. */
-function ApprovalForm({ view, position, onStep, onDecide, onSelect }: {
+function ApprovalForm({ view, bindings, position, onStep, onDecide, onSelect }: {
   view: CoordinationApprovalView;
+  bindings: DecideBindings;
   position: Pager;
   onStep: (delta: 1 | -1) => void;
   onDecide: (approval: Pick<ApprovalView, "taskId" | "runId" | "approvalId">, allow: boolean) => void;
@@ -340,8 +346,8 @@ function ApprovalForm({ view, position, onStep, onDecide, onSelect }: {
       <div className="decision-foot">
         {position && <button type="button" className="secondary" data-action="later" onClick={() => onStep(1)}>Later</button>}
         <span className="decision-foot-gap" />
-        <button type="button" className="secondary" onClick={() => onDecide(approval, false)}>Deny</button>
-        <button type="button" onClick={() => onDecide(approval, true)}>Allow once</button>
+        <DecideButton label="Deny" binding={bindings.deny} secondary onDecide={() => onDecide(approval, false)} />
+        <DecideButton label="Allow once" binding={bindings.allow} onDecide={() => onDecide(approval, true)} />
       </div>
     </section>
   );
@@ -384,12 +390,10 @@ function DecisionForm({ view, draft, position, onStep, onDraft, onAnswer, onSele
         </div>}
       </div>
       <div className="decision-foot">
-        <input
-          value={own}
-          placeholder={decision.options.length ? "Or answer in your own words" : "Your answer"}
-          aria-label="Your own answer"
-          onChange={(event) => onDraft({ kind: "decision", choice, own: event.currentTarget.value })}
-        />
+        <label className="decision-own">
+          <span>{decision.options.length ? "Or your own answer" : "Your answer"}</span>
+          <input value={own} onChange={(event) => onDraft({ kind: "decision", choice, own: event.currentTarget.value })} />
+        </label>
         {position && <button type="button" className="secondary" data-action="later" onClick={() => onStep(1)}>Later</button>}
         <button type="submit" disabled={!answer}>Decide</button>
       </div>

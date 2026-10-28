@@ -214,7 +214,10 @@ export function ComputerSettings({ found, searching, searchError, name, links, p
                   onCommit={(value) => labels.commit(link.id, value)}
                   onCancel={labels.cancel}
                 />
-              : <strong data-tip={link.host} onDoubleClick={(event) => labels.start(link.id, event.currentTarget.closest(".setting-row"))}>{link.name}</strong>}
+              : <span className="computer-title">
+                  <strong onDoubleClick={(event) => labels.start(link.id, event.currentTarget.closest(".setting-row"))}>{link.name}</strong>
+                  {link.host !== link.name && <span className="computer-host">{link.host}</span>}
+                </span>}
             <StatusLine parts={upkeepOf.get(link.id)?.status ?? linkParts(link)} />
           </div>
           <div className="setting-row-action computer-actions">

@@ -110,6 +110,7 @@ test("Escape steps back to the review options, and closes from there", async () 
   await deeper.view.unmount();
 
   const top = await open("targets");
+  assert.match(query(top.view.container, ".review-heading").textContent ?? "", /Esc/, "the heading names the key that backs out");
   await press(query(top.view.container, '[role="option"]'), "Escape");
   assert.equal(top.calls.closed, 1);
   await act(async () => { query<HTMLButtonElement>(top.view.container, ".review-close").click(); });

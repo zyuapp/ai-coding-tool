@@ -109,3 +109,25 @@ test("a settings result shows in bold the part of its name the search typed", as
   assert.ok(marks.every((mark) => mark === "notif"));
   await view.unmount();
 });
+
+test("the pointer and the keyboard pick the same settings result", async () => {
+  window.desktop = fakeDesktop({});
+  const view = await mount(renderSettingsPanel({}));
+  await act(async () => {});
+  const field = await searchSettings(view, "text");
+  const options = [...view.container.querySelectorAll<HTMLButtonElement>(".settings-search-results [role='option']")];
+  assert.ok(options.length > 1);
+  await act(async () => { options[1]!.dispatchEvent(new dom.window.Event("pointermove", { bubbles: true })); });
+  assert.equal(options[1]!.getAttribute("aria-selected"), "true");
+  assert.equal(field.getAttribute("aria-activedescendant"), options[1]!.id);
+  await view.unmount();
+});
+
+test("the settings pages are one Tab stop, on the page that is open", async () => {
+  window.desktop = fakeDesktop({});
+  const view = await mount(renderSettingsPanel({ initialSection: "browser" }));
+  await act(async () => {});
+  const stops = [...view.container.querySelectorAll<HTMLButtonElement>(".settings-sidebar nav button")].filter((button) => button.tabIndex === 0);
+  assert.deepEqual(stops.map((button) => button.textContent), ["Browser"]);
+  await view.unmount();
+});

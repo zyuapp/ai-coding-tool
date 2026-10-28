@@ -106,7 +106,7 @@ test("a web link opens externally by default, and its right-click menu opens it 
   await view.unmount();
 });
 
-test("a web link opens in the browser panel when clicked with the command key held", async () => {
+test("a web link opens in the browser panel when clicked with the command key held, and stops naming that click once it is used", async () => {
   const { MAC } = await import("../../../src/renderer/platform.ts");
   const opened: string[] = [];
   const view = await mountMessage("Read https://example.com/docs for the rest.", { openUrlInApp: (url) => opened.push(url) });
@@ -117,11 +117,13 @@ test("a web link opens in the browser panel when clicked with the command key he
     return event.defaultPrevented;
   };
 
+  assert.equal(link.dataset.tip, `Open in app (${MAC ? "⌘" : "Ctrl+"}Click)`);
   await act(async () => { assert.equal(click(false), false, "a plain click still goes to the default browser"); });
   assert.deepEqual(opened, []);
   await act(async () => { assert.equal(click(true), true); });
   assert.deepEqual(opened, ["https://example.com/docs"]);
-  assert.equal(link.title, "", "the link carries no tooltip of its own; the context menu offers the app");
+  assert.equal(link.title, "");
+  assert.equal(link.dataset.tip, undefined, "once used, the click is named only in the link's menu");
   await view.unmount();
 });
 
@@ -239,8 +241,7 @@ test("a visual that never reports its size shows that it is drawing, then that i
   await view.unmount();
 });
 
-test("links into the app and the checkout carry a glyph and name where they go, and a web link names its in-app click", async () => {
-  const { MAC } = await import("../../../src/renderer/platform.ts");
+test("links into the app and the checkout carry a glyph and name where they go", async () => {
   const markdown = "See [the work](aicodingtool://thread/task-9), [the app](src/App.tsx:42) and [the docs](https://example.com).";
   const view = await mountMessage(markdown, { selectThread: () => {}, openFile: () => {}, openUrlInApp: () => {} });
   const [thread, file, web] = [...view.container.querySelectorAll<HTMLAnchorElement>("a")];
@@ -249,7 +250,6 @@ test("links into the app and the checkout carry a glyph and name where they go, 
   assert.ok(file.querySelector(".message-link-glyph"));
   assert.equal(file.dataset.tip, "src/App.tsx:42");
   assert.equal(web.querySelector(".message-link-glyph"), null, "a web link reads as an ordinary link");
-  assert.equal(web.dataset.tip, `Open in app (${MAC ? "⌘" : "Ctrl+"}Click)`);
   await view.unmount();
 
   const bare = await mountMessage("Read [the docs](https://example.com).");

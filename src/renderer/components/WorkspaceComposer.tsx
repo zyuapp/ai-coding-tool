@@ -67,7 +67,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       onAnswerQuestion={(question) => { if (thread) void workspace.dispatch({ type: "question.answer", taskId: thread.id, runId: question.runId, requestId: question.requestId, questionId: question.questionId }); }}
       goal={workspace.goal}
       unopenable={workspace.unopenable}
-      updateAvailable={workspace.appUpdate.status !== "idle"}
+      updateAvailable={workspace.appUpdate.status === "available" || workspace.appUpdate.status === "ready"}
       decisions={(coordination.approvals.length > 0 || coordination.decisions.length > 0 || coordination.proposals.length > 0) && <NeedsYouCard
         key={thread?.id}
         approvals={coordination.approvals}

@@ -22,29 +22,41 @@ export function LocationChoice({ icon, label, detail, current, disabled, onSelec
 }
 
 /**
+ * Where a thread could be moved back to from where it is now: its project's checkout, or a worktree
+ * it shares, which stays when it leaves. A worktree only it works in is taken away when it leaves.
+ */
+export function returnTrip(thread: Pick<MobileThreadView, "location" | "worktreeId">): WorktreeDestination | null {
+  if (thread.location.kind === "local") return { kind: "local" };
+  if (thread.location.kind === "worktree" && thread.location.threads > 1 && thread.worktreeId) return { kind: "worktree", id: thread.worktreeId };
+  return null;
+}
+
+/**
  * Where the thread works, and where it could: the project's own checkout, one it already has, or
  * a fresh one. Moving leaves the files where they are, which the sheet says once, above the choices.
  */
 export function LocationSheet({ thread, onClose, onMove }: {
   thread: MobileThreadView;
   onClose: () => void;
-  onMove: (destination: WorktreeDestination) => void;
+  /** Moves the thread, with the destination's name as its row shows it. */
+  onMove: (destination: WorktreeDestination, label: string) => void;
 }) {
   const location = thread.location;
   const inWorktree = location.kind === "worktree";
   const locked = !thread.canMove;
-  const move = (destination: WorktreeDestination) => () => { onClose(); onMove(destination); };
+  const move = (destination: WorktreeDestination, label: string) => () => { onClose(); onMove(destination, label); };
+  const home = thread.projectName ?? "Project";
   const branchOf = (choice: MobileWorktreeChoice) => choice.branch ?? "Detached";
   return (
     <Sheet title="Location" onClose={onClose}>
       <p className="sheet-note sheet-lead">{locked ? "Wait for the run to finish before moving the thread." : "Existing file changes stay in the old checkout."}</p>
       <section className="sheet-group" role="radiogroup" aria-label="Where this thread works">
-        <LocationChoice icon={<FolderGit2 size={18} strokeWidth={1.8} />} label={thread.projectName ?? "Project"} detail="The project's own checkout" current={location.kind === "local"} disabled={locked} onSelect={move({ kind: "local" })} />
-        {inWorktree && <LocationChoice icon={<FolderSymlink size={18} strokeWidth={1.8} />} label={location.name} detail={location.threads === 1 ? "Only this thread works here" : `${location.threads} threads work here`} current />}
+        <LocationChoice icon={<FolderGit2 size={18} strokeWidth={1.8} />} label={home} detail="The project's own checkout" current={location.kind === "local"} disabled={locked} onSelect={move({ kind: "local" }, home)} />
+        {inWorktree && <LocationChoice icon={<FolderSymlink size={18} strokeWidth={1.8} />} label={location.name} detail={location.threads === 1 ? "Removed once this thread leaves" : `${location.threads} threads work here`} current />}
         {thread.worktrees.map((choice) => (
-          <LocationChoice key={choice.id} icon={<FolderSymlink size={18} strokeWidth={1.8} />} label={choice.name} detail={branchOf(choice)} disabled={locked} onSelect={move({ kind: "worktree", id: choice.id })} />
+          <LocationChoice key={choice.id} icon={<FolderSymlink size={18} strokeWidth={1.8} />} label={choice.name} detail={branchOf(choice)} disabled={locked} onSelect={move({ kind: "worktree", id: choice.id }, choice.name)} />
         ))}
-        <LocationChoice icon={<Plus size={18} strokeWidth={1.8} />} label="New worktree" detail="A checkout of its own, cut from the project" disabled={locked} onSelect={move({ kind: "new" })} />
+        <LocationChoice icon={<Plus size={18} strokeWidth={1.8} />} label="New worktree" detail="A checkout of its own, cut from the project" disabled={locked} onSelect={move({ kind: "new" }, "New worktree")} />
       </section>
     </Sheet>
   );

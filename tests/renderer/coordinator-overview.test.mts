@@ -455,6 +455,50 @@ test("the Overview's purpose line and memory rows edit what the coordinator keep
   await mounted.unmount();
 });
 
+test("a memory note takes Shift+Enter as a new line, and one emptied stays open rather than saving", async () => {
+  window.desktop = fakeDesktop();
+  const edits: Array<[string, string]> = [];
+  const added: string[] = [];
+  const notes = { ...memory, notes: [{ id: "n1", text: "First line", at: 1 }], onEdit: (noteId: string, text: string) => { edits.push([noteId, text]); }, onAdd: (text: string) => { added.push(text); } };
+  const commandControls = { available: () => true, dispatch() {} };
+  const view = await mount(React.createElement(CommandControlsProvider, { value: commandControls },
+    React.createElement(CoordinatorOverview, { header, memory: notes, members: [], usage: null, worktrees: new Map(), folds: {}, onSetFold() {}, stoppable: false, onSelect() {} })));
+  const section = query(view.container, '[aria-label="Memory"]');
+  const press = async (field: HTMLTextAreaElement, key: string, shiftKey = false) => {
+    const event = new dom.window.KeyboardEvent("keydown", { key, shiftKey, bubbles: true, cancelable: true });
+    await act(async () => { field.dispatchEvent(event); });
+    return event.defaultPrevented;
+  };
+  const write = async (field: HTMLTextAreaElement, text: string) => {
+    await act(async () => {
+      field.focus();
+      item(Object.getOwnPropertyDescriptor(Object.getPrototypeOf(field), "value")).set?.call(field, text);
+      field.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
+      field.dispatchEvent(new dom.window.KeyboardEvent("keyup", { bubbles: true }));
+    });
+  };
+
+  await act(async () => { query<HTMLButtonElement>(section, 'button[aria-label^="Edit note: "]').click(); });
+  const note = query<HTMLTextAreaElement>(section, 'textarea[aria-label="Note"]');
+  assert.equal(await press(note, "Enter", true), false, "Shift+Enter is left to the field, which breaks the line");
+  await write(note, "");
+  assert.equal(note.getAttribute("aria-invalid"), "true", "an emptied note says so");
+  assert.equal(await press(note, "Enter"), true);
+  assert.ok(section.querySelector('textarea[aria-label="Note"]'), "Enter on an emptied note keeps it open");
+  assert.deepEqual(edits, []);
+  await write(note, "First line\nSecond line");
+  await press(note, "Enter");
+  assert.deepEqual(edits, [["n1", "First line\nSecond line"]]);
+
+  const add = query<HTMLTextAreaElement>(section, 'textarea[aria-label="Add a note"]');
+  await write(add, "One");
+  assert.equal(await press(add, "Enter", true), false, "a new note breaks its line on Shift+Enter too");
+  assert.deepEqual(added, []);
+  await press(add, "Enter");
+  assert.deepEqual(added, ["One"]);
+  await view.unmount();
+});
+
 test("the Overview's badge leaves out a suggestion already starting, as the sidebar does", () => {
   const brief = { intent: "fix it", doneWhen: "it works", delivers: "commit" as const };
   const lead: Thread = { ...member("lead", "Plan"), parentId: undefined, role: "coordinator", proposals: [{ id: "p1", title: "Docs", prompt: "Write them", brief, place: { worktree: false }, proposedAt: 1 }] };

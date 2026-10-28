@@ -1,5 +1,5 @@
-import { useLayoutEffect, useRef, useState } from "react";
-import { LuArrowDownWideNarrow as RankIcon, LuChevronLeft as ChevronLeft, LuChevronRight as ChevronRight, LuMonitor as Monitor, LuMonitorOff as MonitorOff } from "react-icons/lu";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { LuArrowDownWideNarrow as RankIcon, LuChevronLeft as ChevronLeft, LuChevronRight as ChevronRight, LuFolder as Folder, LuMonitor as Monitor, LuMonitorOff as MonitorOff } from "react-icons/lu";
 import { awayStatus, type ComputerFilter, type ComputerLink } from "../../domain/computers";
 import type { SidebarMode } from "../../domain/sidebar";
 import { useDismissibleLayer } from "../focus";
@@ -39,7 +39,10 @@ function ComputerSwitch({ links, name, filter, onSetFilter, openMenu, onSetOpenM
   const selected = choices.find((choice) => choice.filter === filter) ?? choices[0]!;
   const narrowed = selected.filter !== "all";
   const Screen = selected.away ? MonitorOff : Monitor;
-  const tip = !narrowed ? "Computers" : selected.filter === "this" ? `Only ${name || "this computer"}` : `Only ${selected.label}${selected.away ? ` (${selected.away})` : ""}`;
+  /** Computers out of reach while the lists draw from more than the one picked, which the trigger flags. */
+  const away = narrowed ? [] : choices.filter((choice) => choice.away);
+  const awayTip = away.map((choice) => `${choice.label} ${choice.away}`).join(" · ");
+  const tip = !narrowed ? ["Computers", awayTip].filter(Boolean).join(" · ") : selected.filter === "this" ? `Only ${name || "this computer"}` : `Only ${selected.label}${selected.away ? ` (${selected.away})` : ""}`;
   const entries: MenuItem[] = choices.map((choice) => ({
     label: choice.label,
     checked: filter === choice.filter,
@@ -54,8 +57,8 @@ function ComputerSwitch({ links, name, filter, onSetFilter, openMenu, onSetOpenM
       <button
         ref={trigger}
         type="button"
-        className={`thread-nav-button computer-switch-trigger${narrowed ? " active" : ""}${selected.away ? " offline" : ""}`}
-        aria-label="Computers"
+        className={`thread-nav-button computer-switch-trigger${narrowed ? " active" : ""}${selected.away ? " offline" : ""}${away.length ? " some-away" : ""}`}
+        aria-label={away.length ? `Computers, ${away.length} offline` : "Computers"}
         aria-haspopup="menu"
         aria-expanded={open}
         data-tip={tip}
@@ -73,6 +76,11 @@ function ComputerSwitch({ links, name, filter, onSetFilter, openMenu, onSetOpenM
     </div>
   );
 }
+
+const SIDEBAR_MODES = [
+  { value: "projects", label: "Group by project", tip: "Group by project", Icon: Folder },
+  { value: "activity", label: "Rank threads by activity", tip: "Rank by activity", Icon: RankIcon },
+] as const satisfies ReadonlyArray<{ value: SidebarMode; label: string; tip: string; Icon: unknown }>;
 
 export type SidebarHeaderProps = {
   mode: SidebarMode;
@@ -94,18 +102,22 @@ export function SidebarHeader({ mode, canGoBack, canGoForward, computerLinks, co
   return (
     <div className="traffic-space">
       <div className="sidebar-modes">
-        {/** One switch, not a pair: pressed ranks the threads, released puts them back under their folders. */}
-        <button
-          className={`thread-nav-button sidebar-mode-switch${mode === "activity" ? " active" : ""}`}
-          type="button"
-          aria-label="Rank threads by activity"
-          aria-pressed={mode === "activity"}
-          data-tip={mode === "activity" ? "Group by project" : "Rank by activity"}
-          onClick={() => onSetMode(mode === "activity" ? "projects" : "activity")}
-        >
-          <RankIcon size={16} aria-hidden="true" />
-          {mode === "activity" && <span className="sidebar-mode-name" aria-hidden="true">Activity</span>}
-        </button>
+        {/** Both ways of drawing the lists side by side, the one in effect filled. */}
+        <div className="sidebar-mode-switch" role="group" aria-label="Sidebar view">
+          {SIDEBAR_MODES.map(({ value, label, tip, Icon }) => (
+            <button
+              key={value}
+              className={`sidebar-mode${mode === value ? " active" : ""}`}
+              type="button"
+              aria-label={label}
+              aria-pressed={mode === value}
+              data-tip={tip}
+              onClick={() => { if (mode !== value) onSetMode(value); }}
+            >
+              <Icon size={16} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
         {computerLinks.length > 0 && <ComputerSwitch links={computerLinks} name={computerName} filter={computerFilter} onSetFilter={onSetComputerFilter} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />}
       </div>
       <div className="thread-nav">
@@ -121,6 +133,9 @@ export function SidebarHeader({ mode, canGoBack, canGoForward, computerLinks, co
 }
 
 const MIN_SIDEBAR_WIDTH = 220;
+/** How far one arrow press moves the edge, and one with Shift held. */
+const KEY_STEP = 10;
+const SHIFT_KEY_STEP = 50;
 
 /** Sets the sidebar's width from where its right edge should be, and returns the width it took. */
 function resizeSidebar(target: HTMLElement, clientX: number) {
@@ -143,14 +158,24 @@ function resetSidebar(target: HTMLElement) {
 }
 
 /**
- * The edge the sidebar is dragged wider by, which the arrow keys nudge ten pixels at a time, Home
- * and End take to its narrowest and widest, and a double-click or Enter puts back.
+ * The edge the sidebar is dragged wider by, which the arrow keys nudge ten pixels at a time, fifty
+ * with Shift, Home and End take to its narrowest and widest, and a double-click or Enter puts back.
  */
 export function SidebarResizer() {
   const edge = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number | null>(null);
+  const [widest, setWidest] = useState(() => Math.round(innerWidth / 2));
   useLayoutEffect(() => {
     if (edge.current) setWidth(sidebarWidth(edge.current));
+  }, []);
+  /** The window narrowing caps the sidebar at half of it, so what the edge reports follows. */
+  useEffect(() => {
+    const measure = () => {
+      setWidest(Math.round(innerWidth / 2));
+      if (edge.current) setWidth(sidebarWidth(edge.current));
+    };
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
   }, []);
   const resizeTo = (target: HTMLElement, clientX: number) => {
     const next = resizeSidebar(target, clientX);
@@ -164,7 +189,7 @@ export function SidebarResizer() {
       aria-label="Resize sidebar"
       aria-orientation="vertical"
       aria-valuemin={MIN_SIDEBAR_WIDTH}
-      aria-valuemax={Math.round(innerWidth / 2)}
+      aria-valuemax={widest}
       aria-valuenow={width ?? undefined}
       tabIndex={0}
       data-tip="Drag to resize · Double-click to reset"
@@ -177,12 +202,12 @@ export function SidebarResizer() {
         const target = event.currentTarget;
         const sidebar = target.parentElement;
         if (!sidebar) return;
-        const left = sidebar.getBoundingClientRect().left;
-        const right = sidebar.getBoundingClientRect().right;
+        const { left, right } = sidebar.getBoundingClientRect();
+        const step = event.shiftKey ? SHIFT_KEY_STEP : KEY_STEP;
         if (event.key === "Enter") setWidth(resetSidebar(target));
         else if (event.key === "Home") resizeTo(target, left);
         else if (event.key === "End") resizeTo(target, left + innerWidth);
-        else if (event.key === "ArrowLeft" || event.key === "ArrowRight") resizeTo(target, right + (event.key === "ArrowLeft" ? -10 : 10));
+        else if (event.key === "ArrowLeft" || event.key === "ArrowRight") resizeTo(target, right + (event.key === "ArrowLeft" ? -step : step));
         else return;
         event.preventDefault();
       }}

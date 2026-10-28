@@ -125,7 +125,7 @@ test("a finished answer copies whole, without the tool work that led to it", asy
   const time = query<HTMLTimeElement>(view.container, ".message-time");
   assert.equal(time.dataset.clock, new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(2000));
   assert.equal(time.textContent, "", "the clock is drawn from its attribute, so no search counts it");
-  assert.equal(time.title, new Intl.DateTimeFormat(undefined, { dateStyle: "full", timeStyle: "medium" }).format(2000));
+  assert.equal(time.dataset.tip, new Intl.DateTimeFormat(undefined, { dateStyle: "full", timeStyle: "medium" }).format(2000));
   assert.ok(time.compareDocumentPosition(query(view.container, ".message-actions .copy-affordance")) & Node.DOCUMENT_POSITION_FOLLOWING,
     "the time stands before the copy button");
   await view.unmount();
@@ -143,6 +143,7 @@ test("a message the user sent copies as written and keeps its time out of its te
   const row = query(view.container, '[data-message-id="m0"]');
   assert.equal(row.textContent, "Rename the reducer", "a search of the message never finds its clock");
   assert.ok(query<HTMLTimeElement>(row, ".message-time").dataset.clock);
+  assert.equal(row.querySelector(".message-stack .message-actions"), null, "the time and copy sit beside the message, adding no row under it");
   await view.unmount();
 });
 

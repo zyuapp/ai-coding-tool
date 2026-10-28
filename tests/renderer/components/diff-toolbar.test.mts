@@ -49,7 +49,7 @@ test("a reviewed commit's chip copies its full hash and says so", async () => {
   const chip = query<HTMLButtonElement>(view.container, ".diff-linked-commit");
   assert.equal(chip.textContent, COMMIT.slice(0, 7));
   assert.equal(chip.dataset.tip, `Copy ${COMMIT}`);
-  assert.equal(chip.closest(".diff-toolbar-lead")?.querySelector(".diff-mode-trigger")?.textContent, "Commit", "the chip sits beside the mode it belongs to");
+  assert.equal(chip.closest(".diff-toolbar-lead")?.querySelector(".diff-mode-trigger > span")?.textContent, "Commit", "the chip sits beside the mode it belongs to");
 
   await act(async () => { chip.click(); });
   assert.deepEqual(copied, [COMMIT]);
@@ -85,8 +85,40 @@ test("the spacing toggle names its state, and a read in progress says so", async
   const spacing = query<HTMLButtonElement>(view.container, 'button[aria-label="Hide spacing changes"]');
   assert.equal(spacing.getAttribute("aria-pressed"), "true");
   assert.equal(spacing.dataset.tip, "Spacing changes hidden");
-  const refresh = query<HTMLButtonElement>(view.container, 'button[aria-label="Read the comparison again"]');
+  const refresh = query<HTMLButtonElement>(view.container, 'button[aria-label="Refresh changes"]');
   assert.equal(refresh.getAttribute("aria-busy"), "true");
-  assert.equal(refresh.dataset.tip, "Reading…");
+  assert.equal(refresh.dataset.tip, "Refreshing…");
+  await view.unmount();
+});
+
+test("the mode chip names what it picks", async () => {
+  const view = await mount(toolbar());
+  const mode = query<HTMLButtonElement>(view.container, ".diff-mode-trigger");
+  assert.equal(mode.textContent, "ReviewUncommitted");
+  assert.equal(mode.getAttribute("aria-label"), "Review mode: Uncommitted");
+  await view.unmount();
+});
+
+test("the review keys open from the toolbar and close with Escape", async () => {
+  function Toolbar() {
+    const [openMenu, setOpenMenu] = React.useState<string | null>(null);
+    return toolbar({ openMenu, onSetOpenMenu: setOpenMenu });
+  }
+  const view = await mount(React.createElement(Toolbar));
+  const keys = query<HTMLButtonElement>(view.container, 'button[aria-label="Review keys"]');
+  assert.equal(keys.getAttribute("aria-expanded"), "false");
+  await act(async () => { keys.click(); });
+  assert.equal(keys.getAttribute("aria-expanded"), "true");
+  const card = query<HTMLElement>(dom.window.document.body, '[role="dialog"][aria-label="Review keys"]');
+  const listed = [...card.querySelectorAll("dd")].map((entry) => entry.textContent);
+  assert.ok(listed.includes("Next unviewed file"));
+  assert.ok(listed.includes("Pick more lines"));
+  assert.ok(listed.includes("Comment on that line"));
+
+  keys.focus();
+  await act(async () => { dom.window.document.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+  assert.equal(dom.window.document.querySelector('[role="dialog"][aria-label="Review keys"]'), null);
+  assert.equal(keys.getAttribute("aria-expanded"), "false");
+  assert.equal(dom.window.document.activeElement, keys, "the caret goes back to the button");
   await view.unmount();
 });

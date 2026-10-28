@@ -65,7 +65,15 @@ export function QueuedRow({ messages, surface, canSteer, onEdit, onSteer, onDrop
                   <Pencil size={14} />
                 </button>
               )}
-              {canSteer && <button type="button" className="queued-steer" data-tip="Send now, into the running turn" onClick={() => onSteer(message.id)}>Steer</button>}
+              <button
+                type="button"
+                className="queued-steer"
+                aria-disabled={!canSteer || undefined}
+                data-tip={canSteer ? "Send now, into the running turn" : "Steer once the run resumes"}
+                onClick={() => { if (canSteer) onSteer(message.id); }}
+              >
+                Steer
+              </button>
               <button type="button" className="queued-drop" aria-label="Remove queued message" data-tip="Remove" onClick={() => onDrop(message.id)}>
                 <X size={14} />
               </button>

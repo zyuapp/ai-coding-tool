@@ -72,8 +72,9 @@ test("a drafted pill shows its passage: the transcript scrolls to its marker, wh
   assert.ok(marker.classList.contains("flash"));
   assert.equal(view.container.querySelectorAll("button.annotation-pill-face").length, 1, "a pill with no passage on screen stays a label");
   const cards = [...view.container.querySelectorAll(".annotation-card")];
-  assert.match(query(item(cards, 0), ".annotation-card-head").textContent ?? "", /Show in transcript/, "the card names what a click does");
-  assert.equal(item(cards, 1).querySelector(".annotation-card-action"), null, "a pill that shows nothing promises nothing");
+  assert.match(query(item(cards, 0), ".annotation-card-head").textContent ?? "", /Click to show in transcript/, "the card names what a click on the pill does");
+  assert.equal(item(cards, 0).querySelector("button"), null, "the card is a tooltip, so it holds nothing to press");
+  assert.equal(item(cards, 1).querySelector(".annotation-card-hint"), null, "a pill that shows nothing promises nothing");
   await view.unmount();
   marker.remove();
 });

@@ -2,6 +2,7 @@ import { memo } from "react";
 import { LuBoxes as Boxes, LuChevronRight as ChevronRight, LuLoaderCircle as LoaderCircle, LuRadio as Radio, LuSquare as Square, LuTerminal as Terminal } from "react-icons/lu";
 import type { BackgroundProcess } from "../../domain/run";
 import { workflowAgentsDone, workflowStatusLabel, type Workflow } from "../../domain/workflow";
+import { ConfirmAction } from "./SettingRow";
 import { SpinningIcon } from "./SpinningIcon";
 
 export function processLabel(process: BackgroundProcess) {
@@ -9,14 +10,14 @@ export function processLabel(process: BackgroundProcess) {
   return process.kind === "shell" ? "Shell" : "Monitor";
 }
 
-/** While a stop is in flight the square gives way to a spinner. */
+/** Stop asks once more before it ends the process; while the stop is in flight a spinner holds its place. */
 function StopButton({ name, stopping, onStop }: { name: string; stopping: boolean | undefined; onStop: () => void }) {
   return (
-    <button className="process-stop" type="button" disabled={stopping} onClick={onStop} aria-label={stopping ? `Stopping ${name}` : `Stop ${name}`} data-tip={stopping ? "Stopping…" : "Stop"}>
+    <span className="process-stop-slot">
       {stopping
-        ? <SpinningIcon icon={LoaderCircle} spinning size={14} aria-hidden="true" />
-        : <Square size={12} fill="currentColor" aria-hidden="true" />}
-    </button>
+        ? <button className="process-stop" type="button" disabled aria-label={`Stopping ${name}`} data-tip="Stopping…"><SpinningIcon icon={LoaderCircle} spinning size={14} aria-hidden="true" /></button>
+        : <ConfirmAction className="process-stop" aria-label={`Stop ${name}`} data-tip="Stop" confirm="Stop" onConfirm={onStop}><Square size={12} fill="currentColor" aria-hidden="true" /></ConfirmAction>}
+    </span>
   );
 }
 

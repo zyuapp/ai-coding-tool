@@ -1,5 +1,8 @@
 import type { IconType } from "react-icons";
 import { LuMessageCircle } from "react-icons/lu";
+import { displayShortcut } from "../../domain/shortcuts";
+import { MAC } from "../platform";
+import { CommandButton } from "./CommandControl";
 
 function FolderIcon() {
   return (
@@ -19,7 +22,7 @@ type EmptyStateProps = {
 
 export function TimelineEmptyState({ restored, empty, place }: EmptyStateProps) {
   /** A transcript that has nothing yet because nothing has been read is not a transcript with nothing in it. */
-  if (!restored) return <div className="empty-state" />;
+  if (!restored) return <div className="empty-state" role="status"><span className="empty-loading text-sweep">Loading threads…</span></div>;
   if (empty) {
     const EmptyIcon = empty.icon;
     return (
@@ -30,11 +33,14 @@ export function TimelineEmptyState({ restored, empty, place }: EmptyStateProps) 
       </div>
     );
   }
-  /** Where the thread will work is all a new one needs to say; the composer under it asks the rest. */
+  /** A new thread names where it will work and points at the composer under it, which asks the rest. */
   return (
     <div className="empty-state empty-place">
       <div className="empty-glyph">{place ? <FolderIcon /> : <LuMessageCircle />}</div>
       <h2>{place ?? "New chat"}</h2>
+      <CommandButton type="button" className="empty-compose" command={{ type: "view.shortcut", action: "composer.focus", surface: "any" }}>
+        Write a message<kbd aria-hidden="true">{displayShortcut("Mod+L", MAC)}</kbd>
+      </CommandButton>
     </div>
   );
 }
