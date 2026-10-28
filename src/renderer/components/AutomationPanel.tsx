@@ -63,6 +63,14 @@ const NICKNAMES: Record<string, string> = {
   "@yearly": "0 0 1 1 *", "@annually": "0 0 1 1 *", "@monthly": "0 0 1 * *", "@weekly": "0 0 * * 0", "@daily": "0 0 * * *", "@midnight": "0 0 * * *", "@hourly": "0 * * * *",
 };
 
+/** Schedules most automations want, filled into the field as cron. */
+export const SCHEDULE_PRESETS: ReadonlyArray<{ label: string; cron: string }> = [
+  { label: "Hourly", cron: "0 * * * *" },
+  { label: "Daily", cron: "0 9 * * *" },
+  { label: "Weekdays", cron: "0 9 * * 1-5" },
+  { label: "Weekly", cron: "0 9 * * 1" },
+];
+
 const CRON_HINT = "Use cron, like 0 8 * * *, or a date, like 2026-11-01T09:00";
 
 /** Why the scheduler would turn this schedule down, or null when it takes it. */
@@ -123,6 +131,21 @@ function AutomationHeading({ status, started = false, onRunNow }: { status?: str
         <span data-state={status === "Paused" ? "paused" : undefined}>{status}</span>
       )}
     </header>
+  );
+}
+
+function SchedulePresets({ schedule, onPick }: { schedule: string; onPick: (cron: string) => void }) {
+  return (
+    <div className="automation-presets" role="group" aria-label="Common schedules">
+      {SCHEDULE_PRESETS.map(({ label, cron }) => {
+        const picked = schedule.trim() === cron;
+        return (
+          <button key={cron} type="button" aria-pressed={picked} onClick={() => onPick(cron)}>
+            {picked && <Check size={12} aria-hidden="true" />}{label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -235,13 +258,14 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
             className="automation-schedule"
             value={schedule}
             aria-invalid={readout?.error}
-            aria-describedby={readout ? "automation-schedule-readout" : undefined}
+            aria-describedby={readout ? `${scheduleId}-readout` : undefined}
             placeholder="0 8 * * *"
             spellCheck={false}
             autoFocus={!automation}
             onInput={(event) => setSchedule(event.currentTarget.value)}
           />
-          {readout && <small id="automation-schedule-readout" className={readout.error ? "error" : undefined}>{readout.text}</small>}
+          {readout && <small id={`${scheduleId}-readout`} className={readout.error ? "error" : undefined}>{readout.text}</small>}
+          <SchedulePresets schedule={schedule} onPick={setSchedule} />
         </div>
 
         <label className="automation-field">

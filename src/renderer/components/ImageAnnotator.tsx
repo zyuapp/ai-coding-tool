@@ -1,4 +1,4 @@
-import { LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuPencil as Pencil, LuSquarePen as SquarePen, LuUndo2 as Undo, LuX as X } from "react-icons/lu";
+import { LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuPencil as Pencil, LuSquare as Square, LuUndo2 as Undo, LuX as X } from "react-icons/lu";
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { useModalFocus } from "../focus";
@@ -19,8 +19,8 @@ export {
 } from "../annotate/marks";
 export type { Annotation, AnnotationKind } from "../annotate/marks";
 
-const tools: { value: AnnotationKind; label: string; key: string; hint: string; icon: typeof SquarePen }[] = [
-  { value: "box", label: "Box", key: "b", hint: "Drag a box over the area you mean", icon: SquarePen },
+const tools: { value: AnnotationKind; label: string; key: string; hint: string; icon: typeof Square }[] = [
+  { value: "box", label: "Box", key: "b", hint: "Drag a box over the area you mean", icon: Square },
   { value: "arrow", label: "Arrow", key: "a", hint: "Drag from anywhere to point at the area you mean", icon: ArrowUpRight },
 ];
 
@@ -168,6 +168,12 @@ function useMarkNote(shapes: Annotation[], change: (next: Annotation[]) => void)
     setLabel("");
   }
 
+  /** Backs out of the note: a box just drawn is kept bare, an existing note stays as it was. */
+  function cancel() {
+    if (pending) change([...shapes, { kind: "box", ...pending, text: "" }]);
+    close();
+  }
+
   function written(): Annotation[] | null {
     const text = label.trim();
     if (editing !== null) return shapes[editing] && shapes[editing].text !== text ? shapes.map((shape, index) => (index === editing ? { ...shape, text } : shape)) : null;
@@ -184,6 +190,7 @@ function useMarkNote(shapes: Annotation[], change: (next: Annotation[]) => void)
     /** The box the note belongs to. */
     at: pending ?? (editing === null ? null : shapes[editing] ?? null),
     close,
+    cancel,
     edit(index: number) {
       setLabel(shapes[index]?.text ?? "");
       setEditing(index);
@@ -238,10 +245,9 @@ function useAnnotatorKeys({ composing, onEscape, onUndo, onTool }: {
   }, []);
 }
 
-function markHint(count: number, toolHint: string, canvasFocused: boolean) {
+function markHint(count: number, toolHint: string) {
   if (count === 0) return toolHint;
-  const marks = `${count} mark${count === 1 ? "" : "s"}.`;
-  return canvasFocused ? `${marks} Arrow keys pick one, ${displayShortcut("Enter", MAC)} edits its note, ${displayShortcut("Backspace", MAC)} deletes it.` : marks;
+  return `${count} mark${count === 1 ? "" : "s"}. Arrow keys pick one, ${displayShortcut("Enter", MAC)} edits its note, ${displayShortcut("Backspace", MAC)} deletes it.`;
 }
 
 /** Which mark an arrow key walks to from the one picked, wrapping at either end. */
@@ -305,7 +311,6 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
   const [hovered, setHovered] = useState<number | null>(null);
   /** The mark whose tools are showing: the one pointed at or walked to, else the newest. */
   const picked = hovered !== null && shapes[hovered] ? hovered : shapes.length ? shapes.length - 1 : null;
-  const [canvasFocused, setCanvasFocused] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const note = useMarkNote(shapes, change);
   const { pending, editing, composing } = note;
@@ -323,7 +328,7 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
     composing,
     onEscape: () => {
       if (discarding) setDiscarding(false);
-      else if (composing) note.close();
+      else if (composing) note.cancel();
       else requestCancel();
     },
     onUndo: undo,
@@ -415,8 +420,6 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
                 aria-label="Screenshot canvas"
                 tabIndex={0}
                 onKeyDown={canvasKeyDown}
-                onFocus={() => setCanvasFocused(true)}
-                onBlur={() => setCanvasFocused(false)}
                 {...handlers}
               />
               {!composing && shapes.map((shape, index) => (
@@ -439,7 +442,7 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
                   label={note.label}
                   onLabel={note.setLabel}
                   onCommit={note.commit}
-                  onClose={note.close}
+                  onClose={note.cancel}
                 />
               )}
             </div>
@@ -449,7 +452,7 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
         <AnnotatorFooter
           discarding={discarding}
           canUndo={history.changed}
-          hint={markHint(shapes.length, activeTool.hint, canvasFocused)}
+          hint={markHint(shapes.length, activeTool.hint)}
           ready={Boolean(image)}
           onUndo={undo}
           onKeep={() => setDiscarding(false)}

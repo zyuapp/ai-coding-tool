@@ -105,6 +105,13 @@ function moveGridFocus(event: KeyboardEvent<HTMLElement>, field: HTMLInputElemen
   else tiles[Math.min(next, tiles.length - 1)]!.focus();
 }
 
+/** ArrowDown or ArrowUp on a closed list button opens its list, as on a native select. */
+function opensList(event: KeyboardEvent) {
+  if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return false;
+  event.preventDefault();
+  return true;
+}
+
 /**
  * Every family as one control: a button wearing the theme the window is in, and a popover of tiles
  * the search narrows. A tile carries its own theme, so it is drawn in the colours it offers.
@@ -150,7 +157,7 @@ function ThemeSelect({ current, onChoose }: { current: Theme; onChoose: (family:
         }
       }}
     >
-      <button ref={trigger} type="button" aria-label={`Theme: ${current.family}`} aria-haspopup="listbox" aria-expanded={open} onClick={() => { setQuery(""); setOpen(!open); }}>
+      <button ref={trigger} type="button" aria-label={`Theme: ${current.family}`} aria-haspopup="listbox" aria-expanded={open} onClick={() => { setQuery(""); setOpen(!open); }} onKeyDown={(event) => { if (!open && opensList(event)) { setQuery(""); setOpen(true); } }}>
         <ThemeSwatch id={current.id} />
         <span>{current.family}</span>
         <ChevronDown size={14} aria-hidden="true" />
@@ -303,7 +310,7 @@ function FontSelect({ axis, label, chosen, onChoose }: {
         }
       }}
     >
-      <button ref={trigger} type="button" aria-label={`${label}: ${current.label}`} aria-haspopup="listbox" aria-expanded={open} onClick={toggle} {...faceProps(axis, current.id)}>
+      <button ref={trigger} type="button" aria-label={`${label}: ${current.label}`} aria-haspopup="listbox" aria-expanded={open} onClick={toggle} onKeyDown={(event) => { if (!open && opensList(event)) toggle(); }} {...faceProps(axis, current.id)}>
         <span>{current.label}</span>
         <ChevronDown size={14} aria-hidden="true" />
       </button>

@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { LuArrowRight as ArrowRight, LuCheck as Check, LuChevronDown as ChevronDown, LuColumns2 as Columns2, LuGitCommitHorizontal as Commit, LuKeyboard as Keyboard, LuRefreshCw as RefreshCw, LuSpace as Space } from "react-icons/lu";
+import { LuArrowRight as ArrowRight, LuCheck as Check, LuChevronDown as ChevronDown, LuColumns2 as Columns2, LuCopy as Copy, LuGitCommitHorizontal as Commit, LuKeyboard as Keyboard, LuPilcrow as Pilcrow, LuRefreshCw as RefreshCw } from "react-icons/lu";
 import { DIFF_MODE_MENU, type DiffState } from "../../application/workspace-diff";
 import { DEFAULT_BRANCH_RANGE, type DiffMode, type DiffRange } from "../../domain/diff";
 import { BranchMenu, useAnchoredStyle, useBranches } from "./BranchMenu";
@@ -161,8 +161,9 @@ function LinkedCommit({ commit }: { commit: string }) {
       data-tip={tip}
       onClick={() => void copyText(commit).then(setCopied)}
     >
-      {copied ? <Check size={14} aria-hidden="true" /> : <Commit size={14} aria-hidden="true" />}
+      <Commit size={14} aria-hidden="true" />
       <code>{commit.slice(0, 7)}</code>
+      {copied ? <Check size={14} aria-hidden="true" /> : <Copy size={12} aria-hidden="true" />}
     </button>
   );
 }
@@ -201,7 +202,7 @@ export function DiffToolbar({ diff, split, roomForTwo, currentBranch, workspaceI
           >
             <Columns2 size={16} />
           </button>
-          <button type="button" aria-label="Hide spacing changes" aria-pressed={diff.ignoreWhitespace} className={diff.ignoreWhitespace ? "on" : ""} data-tip={diff.ignoreWhitespace ? "Spacing changes hidden" : "Hide spacing changes"} onClick={onToggleWhitespace}><Space size={16} /></button>
+          <button type="button" aria-label="Hide spacing changes" aria-pressed={diff.ignoreWhitespace} className={diff.ignoreWhitespace ? "on" : ""} data-tip={diff.ignoreWhitespace ? "Spacing changes hidden" : "Hide spacing changes"} onClick={onToggleWhitespace}><Pilcrow size={16} /></button>
           <button type="button" aria-label="Refresh changes" aria-busy={diff.loading || undefined} data-tip={diff.loading ? "Refreshing…" : "Refresh"} onClick={onRefresh}><SpinningIcon icon={RefreshCw} spinning={diff.loading} size={16} /></button>
           <ReviewKeys openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />
         </div>

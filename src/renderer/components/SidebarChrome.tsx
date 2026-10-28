@@ -71,6 +71,7 @@ function ComputerSwitch({ links, name, filter, onSetFilter, openMenu, onSetOpenM
       >
         <Screen size={16} aria-hidden="true" />
         {narrowed && <span className="computer-switch-name">{selected.label}</span>}
+        {away.length > 0 && <span className="computer-switch-away" aria-hidden="true">{away.length}</span>}
       </button>
       {open && <MenuList entries={entries} onClose={() => onSetOpenMenu(null)} className="computer-switch-menu" />}
     </div>

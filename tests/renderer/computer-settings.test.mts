@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import React, { act } from "react";
-import { ComputerSettings, type ComputerSettingsProps } from "../../src/renderer/components/ComputerSettings.tsx";
+import { ComputerSettings, computerAddress, type ComputerSettingsProps } from "../../src/renderer/components/ComputerSettings.tsx";
 import { dom, mount } from "../support/renderer-dom.mts";
 
 function settings(overrides: Partial<ComputerSettingsProps>) {
@@ -152,7 +152,7 @@ test("this computer's name says it was saved, and an unchanged name saves nothin
 });
 
 test("the address field reads as the only way to pair until the tailnet lists a computer", async () => {
-  const label = (view: Awaited<ReturnType<typeof mount>>) => view.container.querySelector(".computer-address label span")!.textContent;
+  const label = (view: Awaited<ReturnType<typeof mount>>) => view.container.querySelector(".computer-address label strong")!.textContent;
   const alone = await mount(settings({}));
   try {
     assert.equal(label(alone), "Pair by address");
@@ -175,6 +175,63 @@ test("looking for computers reads as busy rather than unavailable", async () => 
     assert.equal(look.textContent, "Looking…");
     assert.equal(look.getAttribute("aria-busy"), "true");
   } finally {
+    await view.unmount();
+  }
+});
+
+test("an address is a host with an optional port, and a pasted URL is trimmed to one", () => {
+  assert.equal(computerAddress(" studio.tail.ts.net "), "studio.tail.ts.net");
+  assert.equal(computerAddress("127.0.0.1:7737"), "127.0.0.1:7737");
+  assert.equal(computerAddress("https://studio.tail.ts.net/"), "studio.tail.ts.net");
+  assert.equal(computerAddress("[::1]:7737"), "[::1]:7737");
+  for (const typed of ["studio tail", "studio:", "studio:99999", "studio:0", "studio/path", "-studio"]) assert.equal(computerAddress(typed), null, typed);
+});
+
+test("an address that cannot be dialled says so beside the field instead of pairing", async () => {
+  const pairs: string[] = [];
+  const view = await mount(settings({ onPair: (host) => pairs.push(host) }));
+  try {
+    const address = view.container.querySelector<HTMLInputElement>(".computer-address input")!;
+    const setter = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")!.set!;
+    const type = async (text: string) => act(async () => {
+      setter.call(address, text);
+      address.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true }));
+    });
+    const submit = async () => act(async () => { address.closest("form")!.dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true })); });
+    await type("studio:port");
+    await submit();
+    assert.deepEqual(pairs, []);
+    assert.ok(view.container.querySelector(".computer-address [role='alert']"));
+    assert.equal(address.getAttribute("aria-invalid"), "true");
+    await type("https://studio.tail.ts.net/");
+    assert.equal(view.container.querySelector(".computer-address [role='alert']"), null, "typing again takes the error back");
+    await submit();
+    assert.deepEqual(pairs, ["studio.tail.ts.net"]);
+  } finally {
+    await view.unmount();
+  }
+});
+
+test("Esc on an edited name restores it without also leaving settings", async () => {
+  const view = await mount(settings({}));
+  const reached: string[] = [];
+  const listen = (event: Event) => reached.push((event as KeyboardEvent).key);
+  dom.window.document.addEventListener("keydown", listen);
+  try {
+    const field = view.container.querySelector<HTMLInputElement>(".computer-name input")!;
+    const setter = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")!.set!;
+    await act(async () => {
+      field.focus();
+      setter.call(field, "studio");
+      field.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true }));
+    });
+    await act(async () => { field.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })); });
+    assert.equal(field.value, "zhuo-mac");
+    assert.deepEqual(reached, []);
+    await act(async () => { field.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })); });
+    assert.deepEqual(reached, ["Escape"], "an unedited field lets Esc through");
+  } finally {
+    dom.window.document.removeEventListener("keydown", listen);
     await view.unmount();
   }
 });

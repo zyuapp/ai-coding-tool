@@ -129,6 +129,7 @@ test("a destination that cannot be chosen yet still takes the keyboard, like oth
     await choose("Move to worktree");
     const row = query<HTMLButtonElement>(document, '[data-choice-index="0"]');
     assert.equal(row.getAttribute("aria-disabled"), "true");
+    assert.equal(row.dataset.tip, "Wait for the worktrees to load", "a row that cannot be chosen says why");
     assert.equal(row.disabled, false);
     const input = query<HTMLInputElement>(document, '.worktree-menu-search input');
     await act(async () => input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));

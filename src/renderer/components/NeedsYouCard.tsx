@@ -277,7 +277,9 @@ function ElsewhereForm({ taskId, request, draft, position, onStep, onDraft }: {
   const { picked, worktree } = draft ?? { picked: null, worktree: proposal.place.worktree === true };
   /** A folder picked while that computer still holds it, else the one the view settles on, which follows its projects as they arrive. */
   const project = picked !== null && projects.some((item) => item.id === picked) ? picked : elsewhere.project ?? "";
-  const ids = pageIds(useId());
+  const root = projects.find((item) => item.id === project)?.root;
+  const id = useId();
+  const ids = pageIds(id);
   return (
     <section className="decision-card elsewhere-card" aria-label={`Run on ${computer.name}?`} aria-describedby={ids.question} tabIndex={-1}>
       <div className="decision-head">
@@ -289,7 +291,7 @@ function ElsewhereForm({ taskId, request, draft, position, onStep, onDraft }: {
         <div className="elsewhere-place">
           {projects.length > 0 && <label className="elsewhere-folder">
             <span>Folder</span>
-            <select value={project} onChange={(event) => onDraft({ kind: "elsewhere", picked: event.currentTarget.value, worktree })}>
+            <select value={project} aria-describedby={root ? `${id}-root` : undefined} onChange={(event) => onDraft({ kind: "elsewhere", picked: event.currentTarget.value, worktree })}>
               {projects.map((item) => <option key={item.id} value={item.id} title={item.root}>{projectName(item)}</option>)}
             </select>
           </label>}
@@ -297,6 +299,7 @@ function ElsewhereForm({ taskId, request, draft, position, onStep, onDraft }: {
             <input type="checkbox" checked={worktree} onChange={(event) => onDraft({ kind: "elsewhere", picked, worktree: event.currentTarget.checked })} />
             New worktree
           </label>
+          {root && <small className="elsewhere-root" id={`${id}-root`}>{root}</small>}
         </div>
         {proposal.brief && <BriefDetails brief={proposal.brief} />}
         {refusal

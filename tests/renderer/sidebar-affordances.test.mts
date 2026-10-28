@@ -174,6 +174,20 @@ test("a right-click on a folder opens its menu, and F2 renames it", async () => 
   } finally { await view.unmount(); }
 });
 
+test("double-clicking a folder renames it, folding it once rather than twice", async () => {
+  const toggled: string[] = [];
+  const view = await mount(React.createElement(Harness, { projects: [{ id: "p", root: "/work/p" }], onToggleProject: (id) => { toggled.push(id); } }));
+  try {
+    const main = query<HTMLButtonElement>(view.container, ".project-main");
+    await act(async () => {
+      for (const detail of [1, 2]) main.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true, detail }));
+      main.dispatchEvent(new dom.window.MouseEvent("dblclick", { bubbles: true, detail: 2 }));
+    });
+    assert.deepEqual(toggled, ["p"]);
+    assert.ok(view.container.querySelector(".project-rename"));
+  } finally { await view.unmount(); }
+});
+
 test("with no projects at all, the sidebar offers adding one, and the heading's add button is always there", async () => {
   let opened = 0;
   const view = await mount(renderProjectSidebar({ projects: [], onOpenFolder: () => { opened += 1; } }));

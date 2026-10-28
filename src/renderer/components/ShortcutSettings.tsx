@@ -19,6 +19,7 @@ export type ShortcutSettingsProps = {
 };
 
 export function ShortcutSettings({ shortcuts, capturingShortcut, desktopShortcutUnavailable, onCaptureShortcut, onSetShortcut, onResetShortcuts }: ShortcutSettingsProps) {
+  const changed = shortcuts.filter((shortcut) => shortcut.changed).length;
   return (
     <main className="settings-main">
       <div className="settings-page-heading with-action">
@@ -27,7 +28,8 @@ export function ShortcutSettings({ shortcuts, capturingShortcut, desktopShortcut
           <p>The rest of the keyboard is fixed, so only the keystrokes worth choosing yourself are here.</p>
         </div>
         <div className="settings-group-action">
-          <ConfirmAction disabled={shortcuts.every((shortcut) => !shortcut.changed)} confirm="Restore all" onConfirm={onResetShortcuts}>Restore defaults</ConfirmAction>
+          {changed > 0 && <span>{changed} changed</span>}
+          <ConfirmAction disabled={changed === 0} confirm="Restore all" onConfirm={onResetShortcuts}>Restore defaults</ConfirmAction>
         </div>
       </div>
 

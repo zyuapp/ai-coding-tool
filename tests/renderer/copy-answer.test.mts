@@ -80,6 +80,8 @@ test("a copy shows a tick, and the button holds no text a search could count", a
   assert.ok(button.classList.contains("copied"), "the copy is confirmed on the button that was pressed");
   assert.equal(button.dataset.tip, "Copied");
   assert.equal(view.container.textContent, before, "no button writes text into the answer");
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 60)); });
+  assert.equal(document.querySelector('body > [role="status"]')?.textContent, "Copied", "a screen reader hears the copy land");
   await view.unmount();
 });
 

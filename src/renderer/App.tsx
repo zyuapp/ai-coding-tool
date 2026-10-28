@@ -67,6 +67,12 @@ function zenTip(workspace: ReturnType<typeof useTaskWorkspace>, label: string) {
 }
 
 /** The error the last action ran into, with the settings page that clears it when there is one. */
+/** A paired computer's project is edited on that computer. */
+function editProjectHandler(workspace: ReturnType<typeof useTaskWorkspace>) {
+  const projectId = workspace.activeComputer ? undefined : workspace.currentProject?.id;
+  return projectId ? () => void workspace.actions.editProjectOpen(projectId) : undefined;
+}
+
 function ActionErrorBanner({ workspace }: { workspace: ReturnType<typeof useTaskWorkspace> }) {
   const message = workspace.storageError || workspace.actionError;
   if (!message) return null;
@@ -208,6 +214,7 @@ export function App() {
             notifications={workspace.notifications} onSetMuted={workspace.actions.setMuted}
             stoppable={Boolean(workspace.currentThread && workspace.stoppableCoordinatorIds.has(workspace.currentThread.id))}
             onStopAll={workspace.actions.stopAll} onChooseFolder={() => void workspace.actions.openFolder()}
+            onEditProject={editProjectHandler(workspace)}
             onToggleSidebar={() => void workspace.actions.setSidebarOpen(!sidebarOpen)}
             onToggleSessionPanel={() => {
               void workspace.actions.setDockOpen(false);

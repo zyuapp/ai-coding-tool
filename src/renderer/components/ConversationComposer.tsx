@@ -397,7 +397,7 @@ export function ConversationComposer({
           <AttachButton disabled={disabled} onFilesAdd={onFilesAdd} />
           <ComposerSettings taskId={taskId} mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} coordinating={coordinating} fastMode={fastMode} onFastModeChange={onFastModeChange} onModeChange={onModeChange} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
           <div className="composer-actions">
-            {steerHint && <span className="composer-hint" id={hintId}><span><kbd>{SEND_KEYS}</kbd> queue</span><span><kbd>{STEER_KEYS}</kbd> steer</span></span>}
+            {steerHint && <span className="composer-hint" id={hintId}><span><kbd>{SEND_KEYS}</kbd><span className="composer-hint-word">queue</span></span><span><kbd>{STEER_KEYS}</kbd><span className="composer-hint-word">steer</span></span></span>}
             {planUsage && <PlanUsageMeter engineLabel={engineLabel} model={model} usage={planUsage.usage} {...(planUsage.onOpen ? { onOpen: planUsage.onOpen } : {})} />}
             {contextUsage && <ContextUsageMeter usage={contextUsage} {...(onCompact ? { onCompact } : {})} />}
             <SendButton taskId={taskId} surface={surface} runActive={runActive} command={sendCommand} disabled={disabled || nothingToSend} busy={!disabled && (attachments.sending || waiting)} tip={sendTip(runActive, { queued: steerHint, recall: history.length > 0 })} onSend={() => void submit()} onCancel={onCancel} />

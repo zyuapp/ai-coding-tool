@@ -32,6 +32,11 @@ function statusWord(readiness: EngineReadiness) {
   return readiness.latest ? "Update available" : "Ready";
 }
 
+/** Whether the engine cannot run threads at all until the user fixes it. */
+function blocked(readiness: EngineReadiness) {
+  return readiness.access === "missing" || readiness.access === "outdated" || readiness.access === "unavailable";
+}
+
 /** What this engine is doing on this machine, under its name. */
 function statusLine(engine: AgentEngine, readiness: EngineReadiness) {
   const notice = engineNotice(engine, readiness);
@@ -96,7 +101,7 @@ export function EngineSettings({ engineAccess, checking, updating, onRefresh, on
                     ? <button type="button" aria-label={`${updating === engine ? "Updating" : "Update"} ${engineLabel(engine)}`} disabled={updating !== null || checking} aria-busy={updating === engine} onClick={() => onUpdate(engine)}>
                       {updating === engine && <RefreshCw size={14} aria-hidden="true" className="spinning" />}{updating === engine ? "Updating…" : "Update"}
                     </button>
-                    : <span className={`setting-pill${ready ? " ready" : ""}`}>{statusWord(readiness)}</span>}
+                    : <span className={`setting-pill${ready ? " ready" : blocked(readiness) ? " blocked" : ""}`}>{statusWord(readiness)}</span>}
               </div>
             </div>
           );

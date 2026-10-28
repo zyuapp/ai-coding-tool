@@ -103,30 +103,45 @@ function CodeEntry({ pairing, onPair, onCancel }: { pairing: ComputerPairing; on
   );
 }
 
+/** The address as dialled, with a pasted scheme or trailing slash dropped; null when it is not a host with an optional port. */
+export function computerAddress(text: string): string | null {
+  const address = text.trim().replace(/^(?:https?|wss?):\/\//i, "").replace(/\/+$/, "");
+  const match = /^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*|\[[0-9a-f:.]+\])(?::(\d{1,5}))?$/i.exec(address);
+  if (!match) return null;
+  const port = match[1] === undefined ? null : Number(match[1]);
+  return port === null || (port > 0 && port <= 65535) ? address : null;
+}
+
 /** A computer the tailnet does not list, named by address: the same pairing, with the code shown by that address. */
 function AddressEntry({ pairing, alternative, onPair }: { pairing: ComputerPairing | null; alternative: boolean; onPair: (host: string) => void }) {
   const [host, setHost] = useState("");
+  const [invalid, setInvalid] = useState(false);
   const typed = host.trim();
   return (
     <form
       className="computer-address"
       onSubmit={(event) => {
         event.preventDefault();
-        if (typed) onPair(typed);
+        const address = computerAddress(typed);
+        if (address) onPair(address);
+        else setInvalid(true);
       }}
     >
       <label>
-        <span>{alternative ? "Or pair by address" : "Pair by address"}</span>
+        <strong>{alternative ? "Or pair by address" : "Pair by address"}</strong>
         <input
           autoComplete="off"
           spellCheck={false}
           value={host}
-          placeholder="host:port"
+          placeholder="mac.tailnet.ts.net"
+          aria-invalid={invalid}
+          aria-describedby={invalid ? "computer-address-error" : undefined}
           disabled={pairing?.busy}
-          onInput={(event) => setHost(event.currentTarget.value)}
+          onInput={(event) => { setHost(event.currentTarget.value); setInvalid(false); }}
         />
       </label>
       <button type="submit" disabled={!typed || (pairing !== null && pairing.busy)}>Pair</button>
+      {invalid && <p id="computer-address-error" className="settings-error" role="alert">Enter a host name or IP address, with :port if it is not 443.</p>}
     </form>
   );
 }
@@ -163,6 +178,7 @@ function NameEntry({ name, onRename }: { name: string; onRename: (name: string) 
           onKeyDown={(event) => {
             if (event.key !== "Escape" || draft === name) return;
             event.preventDefault();
+            event.stopPropagation();
             setDraft(name);
           }}
         />

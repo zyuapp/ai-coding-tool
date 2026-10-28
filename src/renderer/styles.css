@@ -298,9 +298,6 @@ button, select { color: inherit; }
   opacity: var(--disabled-opacity);
   cursor: default;
 }
-/** A command its computer cannot run loses its fill and colour, keeps a readable quiet label and takes a dashed edge. */
-button[data-unsupported][aria-disabled="true"]:is(*, :hover, :active) { opacity: 1; filter: grayscale(1); border-color: transparent; background: transparent; box-shadow: none; color: var(--quiet); }
-button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet); outline-offset: -1px; }
 
 .app-shell {
   display: flex;
@@ -329,7 +326,7 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
   transition: margin-left var(--panel-slide-time) var(--panel-slide-ease);
 }
 /** A sidebar row under the pointer, and the open one a clear step past it, so both read without the accent bar. */
-.sidebar { --row-hover: var(--surface-active); --row-selected: var(--p-bg-6); }
+.sidebar { --row-hover: var(--surface-active); --row-selected: color-mix(in srgb, var(--p-bg-6) 90%, var(--p-fg-0)); }
 /** Hiding slides the sidebar off the left edge at its own width, so its contents never reflow. */
 .sidebar.hidden { margin-left: calc(-1 * var(--sidebar-width, 280px)); }
 .sidebar.hidden .sidebar-resizer { display: none; }
@@ -387,8 +384,8 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
 /** Both ways of drawing the lists, side by side in one track, the one in effect lifted out of it. */
 .sidebar-mode-switch { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--line-strong); border-radius: 8px; }
 .sidebar-mode {
-  width: 26px;
-  height: 24px;
+  width: 28px;
+  height: 26px;
   display: grid;
   place-items: center;
   border: 0;
@@ -615,6 +612,10 @@ button.computer-heading:hover > .host-mark { color: var(--ink-dim); }
 button.computer-heading[aria-pressed="true"] { background: var(--accent-chip); }
 button.computer-heading[aria-pressed="true"] > .host-mark { color: var(--accent-soft); }
 .computer-heading > .host-mark { min-width: 0; }
+/** The filter glyph says the heading narrows the lists: shown under the pointer or keyboard, and held while narrowed. */
+.computer-heading-filter { flex: none; margin-left: 6px; color: var(--muted); opacity: 0; transition: opacity 90ms ease; }
+button.computer-heading:is(:hover, :focus-visible, [aria-pressed="true"]) > .computer-heading-filter { opacity: 1; }
+button.computer-heading[aria-pressed="true"] > .computer-heading-filter { color: var(--accent-soft); }
 /** A computer, wherever it is named: a small screen ahead of the name. */
 .host-mark { display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 100%; vertical-align: -1px; color: var(--muted); font-size: var(--text-meta); font-weight: 500; }
 .host-mark > svg { flex: none; }
@@ -818,12 +819,15 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .row-mark { width: var(--row-slot); height: var(--row-slot); display: grid; place-items: center; transition: opacity 90ms ease; }
 /** Marks past the rail's three slots, counted in one. */
 .task-more-marks { color: var(--muted-strong); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
-/** Hidden actions stay in the tab order, so the keyboard reveals them by reaching them. */
+/** Hidden actions stay in the tab order, so the keyboard reveals them by reaching them. The open thread's row keeps them in view. */
 .row-action { opacity: 0; pointer-events: auto; transition: opacity 90ms ease; }
 .task-entry:hover .row-action,
 .task-entry:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) .row-action,
-.row-actions:has(:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *), [aria-expanded="true"]) .row-action { opacity: 1; }
+.row-actions:has(:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *), [aria-expanded="true"]) .row-action,
+.task-entry[aria-current] .row-action { opacity: 1; }
 .task-entry:hover .row-marks > :last-child,
+.task-entry[aria-current] .row-marks > :last-child,
+.task-entry[aria-current] .row-rail:has(.task-dismiss) .row-marks > :nth-last-child(2),
 .task-entry:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) .row-marks > :last-child,
 .row-rail:has(.row-actions :focus-visible:where(:root:not([data-focus-appearance="quiet"]) *), .row-actions [aria-expanded="true"]) .row-marks > :last-child,
 .task-entry:hover .row-rail:has(.task-dismiss) .row-marks > :nth-last-child(2),
@@ -972,7 +976,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .task-row-text > span, .task-row-text > small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .task-row-text > span { font-size: var(--text-control); line-height: 1.3; }
 .task-row-text > small { margin-top: 3px; color: var(--quiet); font-size: var(--text-meta); }
-.task-row.active .task-row-text > small { color: var(--muted-strong); }
+.task-row.active .task-row-text > small, .task-row.active .host-mark { color: var(--muted-strong); }
 .folder-button > span:nth-child(2),
 .project-main > span:nth-child(2),
 .project-task-row > span:first-child,
@@ -1112,7 +1116,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .open-in { position: relative; display: flex; }
 /** The session panel sits above the topbar, so the topbar rises over it while its list is open. */
 .topbar:has(.open-in.open) { z-index: 40; }
-.open-in-popover { top: 34px; right: 0; min-width: 208px; max-height: 60vh; overflow-y: auto; outline: none; -webkit-app-region: no-drag; }
+.open-in-popover { top: 42px; right: 0; min-width: 208px; max-height: 60vh; overflow-y: auto; outline: none; -webkit-app-region: no-drag; }
 .open-in-popover button { display: grid; grid-template-columns: 20px minmax(0, 1fr); align-items: center; gap: 9px; height: 28px; }
 .open-in-popover button > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .open-in-icon { display: grid; place-items: center; color: var(--muted); }
@@ -1192,9 +1196,10 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 }
 /* Both crumbs shrink, so a long project and a long title each give ground before the row clips. */
 .task-heading h1 > span { overflow: hidden; text-overflow: ellipsis; }
-.heading-project { flex: 0 1 auto; min-width: 4ch; color: var(--muted-soft); font-weight: 500; }
+.task-heading h1 > .heading-project { flex: 0 1 auto; min-width: 6ch; color: var(--muted); font-weight: 500; }
+.task-heading h1 > button.heading-project:hover { color: var(--ink-soft); }
 /* Use the name's text baseline for the crumb, keeping the icon out of baseline calculation. */
-.task-heading h1 > .heading-host { flex: 0 1 auto; align-items: baseline; min-width: 4ch; font-size: inherit; font-weight: 500; color: var(--muted-soft); }
+.task-heading h1 > .heading-host { flex: 0 1 auto; align-items: baseline; min-width: 4ch; font-size: inherit; font-weight: 500; color: var(--muted); }
 .task-heading h1 > .heading-host > svg { align-self: center; }
 /* Match the heading's visual weight and compensate for the font's lower optical center. */
 .task-heading h1 > .heading-host > svg,
@@ -1209,7 +1214,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .task-heading h1 > button { min-width: 4ch; height: 28px; margin: 0 -5px; border: 0; border-radius: 7px; padding: 0 5px; overflow: hidden; background: transparent; font: inherit; letter-spacing: inherit; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; -webkit-app-region: no-drag; transition: background 120ms ease, color 120ms ease; }
 .task-heading h1 > button:hover { background: var(--surface-hover); }
 /** An unreachable computer says so in words and offers the way back, beside its name. */
-.task-heading h1 > .heading-host-state { flex: none; align-self: center; height: 24px; display: inline-flex; align-items: center; gap: 6px; margin: 0; border: 1px solid var(--line-strong); border-radius: 7px; padding: 0 8px; background: var(--surface); color: var(--ink-dim); font-size: var(--text-meta); font-weight: 560; letter-spacing: normal; }
+.task-heading h1 > .heading-host-state { flex: none; align-self: center; height: 28px; display: inline-flex; align-items: center; gap: 6px; margin: 0; border: 1px solid var(--line-strong); border-radius: 7px; padding: 0 8px; background: var(--surface); color: var(--ink-dim); font-size: var(--text-meta); font-weight: 560; letter-spacing: normal; }
 .task-heading h1 > button.heading-host-state { color: var(--accent-text); cursor: pointer; }
 .task-heading h1 > button.heading-host-state:hover { border-color: var(--line-bright); background: var(--surface-hover); }
 .task-heading h1 > span.heading-host-state { border-color: transparent; background: transparent; color: var(--muted); }
@@ -1298,7 +1303,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
   inset: 0 7px;
   background: var(--line-input);
 }
-/** A grip on the edge, faint at rest and full while the pointer is over the dock, so the edge reads as one to drag. */
+/** A grip on the edge, drawn at rest and darker while the pointer is over the dock, so the edge reads as one to drag. */
 .right-dock-resizer::before {
   content: "";
   position: absolute;
@@ -1309,10 +1314,9 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
   margin-top: -16px;
   border-radius: 2px;
   background: var(--line-input);
-  opacity: 0.4;
-  transition: opacity 0.15s ease;
+  transition: background-color 0.15s ease;
 }
-.right-dock:hover > .right-dock-resizer::before, .right-dock-resizer:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *)::before { opacity: 1; }
+.right-dock:hover > .right-dock-resizer::before, .right-dock-resizer:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *)::before { background: var(--quiet-strong); }
 .right-dock-tabs { position: relative; z-index: 2; min-width: 0; display: flex; align-items: center; gap: 5px; border-bottom: 1px solid var(--line); padding: 0 8px; }
 /**
  * The strip scrolls without a bar, so the edge with more tabs past it fades out. Driven by its own
@@ -1368,7 +1372,8 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .right-dock-tab.active [role="tab"] > em:not(.attention, .working) { color: var(--ink-faint); }
 .right-dock-tab.unread [role="tab"] > span, .right-dock-add > div button.unread > span { color: var(--ink); font-weight: 620; }
 .right-dock-tabs [role="tab"] > em.working { background: var(--info-surface); box-shadow: inset 0 0 0 1px var(--info-line); color: var(--info); }
-.right-dock-tabs [role="tab"] > .right-dock-tab-attention { flex: none; width: 8px; height: 8px; margin: 0 3px 0 auto; border-radius: 50%; background: var(--info); box-shadow: 0 0 0 3px var(--info-surface); }
+/** Waiting on the user wears the accent, like the "needs you" count. */
+.right-dock-tabs [role="tab"] > .right-dock-tab-attention { flex: none; width: 8px; height: 8px; margin: 0 3px 0 auto; border-radius: 50%; background: var(--accent-text); box-shadow: 0 0 0 3px var(--accent-surface); }
 .right-dock-tab { position: relative; flex: 0 1 150px; min-width: 84px; padding: 0 4px 0 0; }
 .right-dock-tab > [role="tab"] { flex: 1; border: 0; border-radius: 8px 8px 0 0; padding-right: 2px; background: transparent; color: inherit; }
 .right-dock-tab > button:not([role="tab"]) { width: 26px; height: 32px; flex: 0 0 auto; display: grid; place-items: center; border: 0; border-radius: 7px; padding: 0; background: transparent; color: var(--quiet-strong); cursor: pointer; }
@@ -1379,7 +1384,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .right-dock-add > button, .right-dock-hide { width: 34px; height: 34px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 9px; background: transparent; color: var(--muted); cursor: pointer; }
 .right-dock-add > button:hover, .right-dock-add.open > button, .right-dock-hide:hover { background: var(--surface-hover); color: var(--ink-dim); }
 .right-dock-hide[aria-pressed="true"] { background: var(--surface-active); color: var(--ink); }
-.right-dock-add > div { position: absolute; z-index: 20; top: 40px; right: 0; width: 184px; display: grid; gap: 2px; border: 1px solid var(--line); border-radius: 11px; padding: 6px; background: var(--surface-menu); box-shadow: var(--shadow-popover); }
+.right-dock-add > div { position: absolute; z-index: 20; top: 40px; right: 0; width: 236px; display: grid; gap: 2px; border: 1px solid var(--line); border-radius: 11px; padding: 6px; background: var(--surface-menu); box-shadow: var(--shadow-popover); }
 .right-dock-overflow > div { width: max-content; min-width: 184px; max-width: 280px; max-height: min(420px, 70vh); overflow-y: auto; }
 .right-dock-add > div button { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 32px; border: 0; border-radius: 7px; padding: 6px 10px; background: transparent; color: var(--ink-dim); text-align: left; cursor: pointer; }
 .right-dock-add > div button > svg { flex: none; color: var(--muted); }
@@ -1389,7 +1394,8 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .right-dock-add > div button[aria-checked="true"] { background: var(--surface-active); color: var(--ink); font-weight: 560; }
 .right-dock-add > div button[aria-disabled="true"] { color: var(--quiet); cursor: default; }
 .right-dock-add > div button[aria-disabled="true"] > svg { color: var(--quiet); }
-.right-dock-add > div button > .right-dock-tab-attention { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--info); box-shadow: 0 0 0 3px var(--info-surface); }
+.right-dock-add > div button > .right-dock-tab-attention { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-text); box-shadow: 0 0 0 3px var(--accent-surface); }
+.right-dock-add > div button > kbd { flex: none; color: var(--quiet-strong); font: var(--text-meta) var(--mono); }
 /** xterm gives its scrollbar and decorations a z-index of their own; isolating the region keeps them
  *  under the tab strip, whose menu hangs over it. */
 .right-dock-content { isolation: isolate; }
@@ -1611,7 +1617,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .conversation > .empty-state p { max-width: 372px; color: var(--muted-soft); font-size: var(--text-control); line-height: 1.6; }
 /** A new thread names only where it works, and quietly: the composer under it asks the rest. */
 .conversation > .empty-state.empty-place h2 { margin: 16px 0 0; color: var(--ink-soft); font-size: var(--text-display); font-weight: 580; letter-spacing: -0.02em; }
-.conversation > .empty-state .empty-compose { display: inline-flex; align-items: center; gap: 8px; min-height: 28px; margin-top: 12px; border-radius: 7px; padding: 0 9px; background: transparent; color: var(--muted); font-size: var(--text-control); font-weight: 450; }
+.conversation > .empty-state .empty-compose { display: inline-flex; align-items: center; gap: 8px; min-height: 28px; margin-top: 12px; border: 1px solid var(--line-control); border-radius: 7px; padding: 0 9px; background: transparent; color: var(--muted); font-size: var(--text-control); font-weight: 450; }
 .conversation > .empty-state .empty-compose:hover { background: var(--surface-hover); color: var(--ink); }
 .empty-compose kbd { color: var(--quiet); font: var(--text-meta)/1 var(--mono); }
 /* Held back a moment, so a quick restore never flashes it. */
@@ -1912,6 +1918,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 :is(.suggestion-dismiss-slot, .process-stop-slot) > button.danger:hover, .decision-foot button.danger.armed:hover { background: var(--danger-chip); color: var(--danger); }
 .decision-foot .armed + button { border-color: var(--line-control); background: transparent; color: var(--ink-dim); font-weight: 500; }
 .suggestion-row:has(.armed) .suggestion-start, .decision-foot:has(.armed) :is(.suggestion-start-all, .decision-allow) { display: none; }
+.elsewhere-root { flex-basis: 100%; min-width: 0; overflow-wrap: anywhere; color: var(--muted); font-family: var(--mono); font-size: var(--text-meta); }
 .elsewhere-place .elsewhere-folder select { min-height: 28px; padding: 3px 8px; border-color: var(--line-input); }
 .message-detail { margin-top: 3px; color: var(--quiet-strong); font-size: var(--text-meta); white-space: pre-wrap; overflow-wrap: anywhere; }
 .message-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--text-content); }
@@ -2005,22 +2012,21 @@ button.message-image-unavailable:hover { background: var(--surface-hover); color
 .copyable > .copy-affordance { position: absolute; z-index: 2; top: 6px; right: 6px; }
 .copyable-table > .copy-affordance { top: 5px; }
 .copyable > .diagram-expand { position: absolute; z-index: 2; top: 6px; right: 38px; }
-/* Inert while hidden, so selecting a block's text is never caught by a button nobody can see. The newest
-   row shows them as bare glyphs, so the answer just written says it can be copied without a hover. */
-.copyable > :is(.copy-affordance, .diagram-expand) { opacity: 0; pointer-events: none; }
-.copyable:is(:hover, :focus-within) > :is(.copy-affordance, .diagram-expand),
-.copyable > :is(.copy-affordance, .diagram-expand):is(.copied, .failed),
-.timeline-row.newest .copyable > :is(.copy-affordance, .diagram-expand) { opacity: 1; pointer-events: auto; }
-.timeline-row.newest .copyable:not(:hover, :focus-within) > :is(.copy-affordance, .diagram-expand):not(.copied, .failed) { border-color: transparent; background: transparent; color: var(--quiet); }
+/* At rest every block shows its buttons as bare glyphs, so a block in any answer says it can be copied or opened. */
+.copyable:not(:hover, :focus-within) > :is(.copy-affordance, .diagram-expand):not(.copied, .failed) { border-color: transparent; background: transparent; color: var(--quiet); }
+/* Code wraps clear of the glyph in its corner. */
+.copyable > pre { padding-right: 40px; }
 .copyable:is(:hover, :focus-within) > :is(.copy-affordance, .diagram-expand):not(.copied, .failed, :hover) { border-color: var(--line-strong); color: var(--ink-dim); }
 .copy-affordance:hover, .diagram-expand:hover { border-color: var(--line-bright); color: var(--ink-soft); }
 .copy-affordance.copied { border-color: var(--success-line); color: var(--success-soft); }
 .copy-affordance.failed { border-color: var(--danger); color: var(--danger-soft); }
-/* Reserved height, so a message never shifts when its buttons fade in. Shown on the newest row, and on
-   any row under the pointer or holding focus. */
+/* Reserved height, so a message never shifts when its copy fades in. The time stays in view on every row;
+   the copy shows on the newest row, and on any row under the pointer or holding focus. */
 /* The inset matches a block's own button, so every button in an answer stands in one column. */
-.message-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; height: 28px; padding-right: 7px; opacity: 0; pointer-events: none; transition: opacity 110ms ease-out; }
-.timeline-row:is(.newest, :hover, :focus-within) .message-actions { opacity: 1; pointer-events: auto; }
+.message-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; height: 28px; padding-right: 7px; }
+.message-actions > .copy-affordance { opacity: 0; pointer-events: none; }
+.timeline-row:is(.newest, :hover, :focus-within) .message-actions > .copy-affordance,
+.message-actions > .copy-affordance:is(.copied, .failed) { opacity: 1; pointer-events: auto; }
 .message.turn > .message-actions { margin-top: 9px; }
 /* A message the user sent keeps its time and copy under its right edge, as an answer does, hung in
    the row's own bottom padding so they add no height. */
@@ -2197,7 +2203,11 @@ pre {
   color: var(--muted);
   font-size: var(--text-content);
 }
-.waiting-row > svg { width: 16px; height: 16px; color: var(--muted-strong); stroke-width: 1.8; }
+.waiting-row > svg, .retrying-row > svg, .compacting-row > svg { width: 16px; height: 16px; flex: none; color: var(--muted-strong); stroke-width: 1.8; }
+.retrying-reason { min-width: 0; overflow-wrap: anywhere; }
+.retrying-row > .text-sweep { flex: none; }
+.retrying-row > .copy-affordance { flex: none; }
+.retrying-row > .copy-affordance:not(:hover, :focus-visible, .copied, .failed) { border-color: transparent; background: transparent; color: var(--quiet); }
 .limit-row {
   display: flex;
   align-items: center;
@@ -2328,14 +2338,14 @@ pre {
   font-size: var(--text-control);
 }
 .settings-search input:focus { outline: none; }
-.settings-search-empty { margin: 0; padding: 9px 10px; color: var(--quiet-strong); font-size: var(--text-control); }
-.settings-search-empty button { display: block; margin-top: 6px; border: 0; padding: 0; background: none; color: var(--link); font: inherit; cursor: pointer; }
-.settings-search-empty button:hover { text-decoration: underline; }
+.settings-search-clear { flex: none; display: grid; place-items: center; width: 24px; height: 24px; margin-right: -5px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; }
+.settings-search-clear:hover { background: var(--wash); color: var(--ink-soft); }
+.settings-search-empty p { margin: 0; padding: 9px 10px 6px; color: var(--muted); font-size: var(--text-control); }
 .settings-sidebar :is(nav, .settings-search-results) { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .settings-search-results small { flex: none; max-width: 45%; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--quiet-strong); font-size: var(--text-meta); }
 .settings-search-results span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .settings-search-results mark { background: none; color: var(--ink); font-weight: 650; }
-.settings-sidebar :is(nav, .settings-search-results) button {
+.settings-sidebar :is(nav, .settings-search-results, .settings-search-empty) button {
   width: 100%;
   display: flex;
   align-items: center;
@@ -2349,8 +2359,8 @@ pre {
   text-align: left;
   cursor: pointer;
 }
-.settings-sidebar :is(nav, .settings-search-results) button:hover { background: var(--wash); color: var(--ink-dim); }
-.settings-sidebar :is(nav, .settings-search-results) button.active { position: relative; background: var(--surface-active); color: var(--ink); }
+.settings-sidebar :is(nav, .settings-search-results, .settings-search-empty) button:hover { background: var(--surface-active); color: var(--ink-dim); }
+.settings-sidebar :is(nav, .settings-search-results) button.active { position: relative; background: color-mix(in srgb, var(--p-bg-6) 90%, var(--p-fg-0)); color: var(--ink); font-weight: 560; }
 .settings-sidebar :is(nav, .settings-search-results) button.active > svg { color: var(--accent); }
 .settings-main {
   min-width: 0;
@@ -2633,8 +2643,9 @@ pre {
 .theme-preview-diff .removed { background: var(--diff-del-surface); border-left: 2px solid var(--danger); }
 .settings-group-heading > span, .setting-row-action .setting-pill { flex: 0 0 auto; border-radius: 999px; padding: 5px 9px; background: var(--accent-surface); color: var(--accent-soft); font-size: var(--text-meta); font-style: normal; font-weight: 600; }
 .settings-group-heading > span.ready, .setting-row-action .setting-pill.ready { background: color-mix(in srgb, var(--success) 8%, var(--p-bg-0)); color: var(--success-soft); }
+.setting-row-action .setting-pill.blocked { background: var(--danger-surface); color: var(--danger); }
 .settings-group-heading > span.neutral, .setting-row-action .setting-pill.neutral { background: var(--wash); color: var(--muted); }
-.settings-group-heading > button.settings-pill-jump { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; min-height: 26px; border: 1px solid var(--accent-line); border-radius: 999px; padding: 4px 9px; background: var(--accent-surface); color: var(--accent-soft); font-size: var(--text-meta); font-weight: 600; cursor: pointer; }
+.settings-group-heading > button.settings-pill-jump { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; min-height: 28px; border: 1px solid var(--accent-line); border-radius: 8px; padding: 4px 9px; background: var(--accent-surface); color: var(--accent-soft); font-size: var(--text-meta); font-weight: 600; cursor: pointer; }
 .settings-group-heading > button.settings-pill-jump:hover { border-color: var(--accent-text); color: var(--accent-text); }
 .setting-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) minmax(150px, auto); align-items: center; gap: 13px; border-top: 1px solid var(--line); padding: 19px 0; }
 .setting-status { width: 20px; height: 20px; display: grid; place-items: center; border: 1px solid var(--line-control); border-radius: 50%; color: var(--success-ink); }
@@ -3293,6 +3304,10 @@ pre {
 .automation-field > small { color: var(--muted-strong); font-size: var(--text-meta); }
 .automation-field > small.error { color: var(--danger); }
 .automation-field input[aria-invalid="true"] { border-color: var(--danger-line); }
+.automation-presets { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.automation-presets button { display: inline-flex; align-items: center; gap: 4px; min-height: 24px; border: 1px solid var(--line-control); border-radius: 7px; padding: 0 8px; background: transparent; color: var(--muted-strong); font-size: var(--text-meta); cursor: pointer; }
+.automation-presets button:hover { background: var(--surface-hover); color: var(--ink-soft); }
+.automation-presets button[aria-pressed="true"] { background: var(--surface-active); color: var(--ink); }
 .automation-quiet-sentence { margin: 9px 0 0; color: var(--quiet); font-size: var(--text-meta); line-height: 1.5; }
 .automation-quiet {
   display: flex;
@@ -3376,7 +3391,7 @@ pre {
   border-radius: 9px;
   padding: 5px 8px;
   background: transparent;
-  color: var(--muted);
+  color: var(--ink-faint);
   text-align: left;
   cursor: pointer;
 }
@@ -3410,9 +3425,9 @@ pre {
   gap: 8px;
   border-radius: 9px;
   padding: 5px 8px;
-  color: var(--muted);
+  color: var(--ink-faint);
 }
-.subagent-list .process-row:hover { background: var(--surface-hover); color: var(--ink-soft); }
+.subagent-list .process-row:has(> .process-open):hover { background: var(--surface-hover); color: var(--ink-soft); }
 .subagent-list .process-row > span:nth-child(2) { min-width: 0; display: grid; gap: 2px; }
 .process-stop {
   width: 26px;
@@ -3551,7 +3566,7 @@ pre {
 }
 .workflow-lane:hover { background: var(--surface-hover); }
 .workflow-lane:hover .workflow-lane-name { color: var(--ink-dim); }
-.workflow-lane-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: var(--text-meta); }
+.workflow-lane-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-strong); font-size: var(--text-meta); }
 .workflow-lane-track { position: relative; height: 100%; }
 .workflow-lane-track::before { content: ""; position: absolute; inset: 13px 0 auto; height: 1px; background: var(--line-soft); }
 .workflow-lane-track > i { position: absolute; top: 8px; height: 12px; border-radius: 3px; }
@@ -3673,7 +3688,7 @@ pre {
 }
 .command-menu-keys { display: flex; gap: 8px; margin-left: auto; }
 .command-menu-heading kbd {
-  color: var(--quiet-soft);
+  color: var(--quiet);
   font: 11px/1 var(--mono);
 }
 .command-menu-list { overflow-y: auto; padding: 6px; }
@@ -4399,8 +4414,9 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
   padding: 11px 14px;
   border-top: 1px solid var(--line-soft);
 }
-.annotator-count { margin-right: auto; color: var(--muted); font-size: var(--text-meta); }
+.annotator-count { min-width: 0; margin-right: auto; color: var(--muted); font-size: var(--text-meta); }
 .annotator-action {
+  flex: none;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -4448,7 +4464,7 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
   line-height: 1.5;
   field-sizing: content;
 }
-.composer textarea::placeholder { color: var(--quiet-soft); }
+.composer textarea::placeholder { color: var(--quiet); }
 /** Files dragged over the window land in this composer, so it lights up as the target. */
 :is(.workspace.dropping > .composer-wrap, .side-chat.dropping) .composer { box-shadow: var(--shadow-float), 0 0 0 2px var(--accent); }
 .composer:has(> textarea:focus):where(:root:not([data-focus-appearance="quiet"]) *) { box-shadow: var(--shadow-float), 0 0 0 2px var(--line-control); }
@@ -4589,8 +4605,7 @@ button.setting-hint:hover { color: var(--ink); }
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: conic-gradient(var(--context-fill, var(--ink-dim)) var(--context-progress), var(--meter-track) 0);
-  box-shadow: inset 0 0 0 1px var(--line-input);
+  background: conic-gradient(var(--context-fill, var(--ink-dim)) var(--context-progress), var(--line-input) 0);
   mask: radial-gradient(circle, transparent 45%, #000 48%);
 }
 .context-usage.high { --context-fill: var(--accent-text); color: var(--accent-text); }
@@ -4619,6 +4634,8 @@ button.setting-hint:hover { color: var(--ink); }
   transform: translateY(4px);
   transition: opacity 120ms ease, transform 120ms ease;
 }
+/** Bridges the gap down to the meter, so the pointer can cross into an open card. */
+.usage-card::after { content: ""; position: absolute; inset: 100% 0 auto; height: 15px; }
 .usage-card-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .usage-card-heading strong { font-weight: 600; }
 .usage-card-heading span { color: var(--quiet-strong); font-size: var(--text-meta); }
@@ -4631,7 +4648,7 @@ button.setting-hint:hover { color: var(--ink); }
 .usage-card-detail { color: var(--quiet-strong); font-size: var(--text-meta); }
 .context-usage-gauge:hover .usage-card, .plan-usage:hover .usage-card,
 :is(.context-usage-meter, .plan-usage-meter):focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) + .usage-card,
-.context-usage-meter:focus + .usage-card, span.plan-usage-meter:focus + .usage-card { opacity: 1; transform: translateY(0); }
+.context-usage-meter:focus + .usage-card, span.plan-usage-meter:focus + .usage-card { opacity: 1; pointer-events: auto; transform: translateY(0); cursor: auto; user-select: text; }
 
 .plan-usage { position: relative; display: flex; }
 .plan-usage-meter {
@@ -4703,19 +4720,26 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .send-button.busy:disabled { background: var(--surface-inverse); box-shadow: none; color: var(--ink-inverse); }
 .send-spinner { width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.9s linear infinite; }
 .stop-glyph { width: 10px; height: 10px; border-radius: 2px; background: var(--ink-inverse); }
+/** While a run goes, an arc circles Stop so it never reads as Send. */
+.send-button.running { position: relative; }
+.send-button.running::after { content: ""; position: absolute; inset: -4px; border: 2px solid transparent; border-top-color: var(--accent-text); border-radius: 50%; pointer-events: none; animation: spin 1.4s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .send-button.running::after { border-color: var(--accent-line); animation: none; } }
 
 @container (max-width: 560px) {
-  .composer-hint { display: none; }
+  .composer-hint-word { display: none; }
 }
 /** Plan meters share the bar with the settings, so the axis names and the meter's icon go first, then the weekly part, then the meter. */
 @container (max-width: 720px) {
   .composer:has(.plan-usage) :is(.setting-axis, .plan-usage-icon) { display: none; }
 }
+/** Narrower, one share stays: the one near its limit, else the first. */
 @container (max-width: 600px) {
-  .plan-usage-part + .plan-usage-part { display: none; }
+  .plan-usage-parts:not(:has(.near)) .plan-usage-part + .plan-usage-part,
+  .plan-usage-parts:has(.near) .plan-usage-part:not(.near) { display: none; }
+  .plan-usage-parts:has(.near) .plan-usage-part:not(.near) + .plan-usage-part::before { display: none; }
 }
 @container (max-width: 470px) {
-  .plan-usage { display: none; }
+  .plan-usage:not(:has(.near)) { display: none; }
 }
 /** The values still read on their own, so the axis names go before any control does. */
 @container (max-width: 470px) {
@@ -4727,10 +4751,10 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
   .goal-bar.blocked .goal-detail { max-width: 40cqw; overflow: hidden; text-overflow: ellipsis; }
   .plan-usage-warning-reset { display: none; }
   .composer-actions { gap: 8px; }
-  .context-usage-value, .plan-usage-icon { display: none; }
+  .plan-usage-icon { display: none; }
 }
 @container (max-width: 300px) {
-  .composer-hint, .context-usage-value { display: none; }
+  .composer-hint, .context-usage-ring { display: none; }
   .composer-settings { gap: 0; }
   .composer-bar { gap: 6px; padding-left: 10px; }
   .setting-menu > summary { padding-inline: 6px; }
@@ -4834,7 +4858,8 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .diff-linked-commit > code { font: var(--text-meta) var(--mono); }
 .diff-linked-commit > svg { flex: none; color: var(--quiet-strong); }
 .diff-linked-commit:hover { background: var(--surface-hover); color: var(--ink-dim); }
-.diff-linked-commit.copied > svg { color: var(--success); }
+.diff-linked-commit:hover > svg:last-child { color: var(--ink-dim); }
+.diff-linked-commit.copied > svg:last-child { color: var(--success); }
 .branch-menu.diff-mode-menu { min-width: 230px; }
 .diff-keys { padding: 10px 12px; }
 .diff-keys dl { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; gap: 7px 14px; margin: 0; font-size: var(--text-meta); }
@@ -4904,7 +4929,9 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .diff-file-name span { flex: 0 0 auto; overflow: hidden; text-overflow: ellipsis; }
 .diff-file-renamed { flex: none; padding: 1px 6px; border-radius: 999px; background: var(--chip); color: var(--muted); font-size: var(--text-badge); letter-spacing: 0.02em; }
 .diff-file-editor { display: grid; place-items: center; padding: 0; width: 28px; height: 28px; border: 0; border-radius: 7px; background: none; color: var(--muted); opacity: 0; cursor: pointer; }
-.diff-file-row:hover .diff-file-editor, .diff-file-editor:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) { opacity: 1; }
+/** Quietly shown on the row of the file being read, and in full on any row the pointer or focus is on. */
+.diff-file-pinned .diff-file-editor { opacity: 0.6; }
+.diff-file-row:is(:hover, :focus-within) .diff-file-editor { opacity: 1; }
 .diff-file-editor:hover { background: var(--surface-menu-hover); color: var(--ink-dim); }
 .diff-file-viewed { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; cursor: pointer; }
 .diff-file-viewed input { position: absolute; opacity: 0; width: 0; height: 0; outline: none; }
@@ -4922,8 +4949,7 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 /** A wrapped line is taller than one row, so the number sits on its first visual line rather than its middle. */
 .diff-gutter { position: relative; display: flex; flex: none; align-self: stretch; align-items: flex-start; gap: 0; padding: 0 0 0 20px; border: 0; background: none; color: var(--diff-gutter-ink); font: inherit; text-align: right; cursor: pointer; user-select: none; }
 .diff-gutter span { display: block; width: 38px; padding-right: 8px; }
-.diff-gutter .diff-comment-affordance { position: absolute; z-index: 2; top: 2px; left: 2px; display: grid; width: 16px; height: 16px; padding: 0; place-items: center; border: 1px solid var(--info-line); border-radius: 999px; background: var(--info-surface); color: var(--info-soft); opacity: 0; }
-:is(.diff-line, .diff-split-cell):is(.add, .delete) .diff-comment-affordance { opacity: 0.3; }
+.diff-gutter .diff-comment-affordance { position: absolute; z-index: 2; top: 2px; left: 2px; display: grid; width: 16px; height: 16px; padding: 0; place-items: center; border: 1px solid var(--info-line); border-radius: 999px; background: var(--info-surface); color: var(--info-soft); opacity: 0.3; }
 .diff-line.selected .diff-comment-affordance, .diff-split-cell.selected .diff-comment-affordance { opacity: 0.45; }
 .diff-line:hover .diff-comment-affordance, .diff-split-cell:hover .diff-comment-affordance { opacity: 0.7; }
 .diff-gutter:is(:hover, :focus-visible) .diff-comment-affordance { opacity: 1; }
@@ -5044,7 +5070,7 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
   font-size: var(--text-control);
   cursor: pointer;
 }
-.project-edit-path button:hover:not(:disabled) { border-color: var(--line-bright); color: var(--ink); }
+.project-edit-path button:hover:not(:disabled, [aria-disabled="true"]) { border-color: var(--line-bright); color: var(--ink); }
 .project-edit-field :is(input:read-only, input:disabled, select:disabled) { color: var(--muted); }
 .project-edit-error { margin: 0; color: var(--danger-soft); font-size: var(--text-meta); }
 .project-edit-note { margin: 0; color: var(--muted); font-size: var(--text-meta); }
@@ -5060,7 +5086,7 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 }
 .project-edit-actions button:hover:not(:disabled) { border-color: var(--line-bright); color: var(--ink); }
 .project-edit-actions button.primary { border-color: transparent; background: var(--accent); color: var(--accent-ink); font-weight: 600; }
-.project-edit-actions button.primary:hover:not(:disabled) { background: var(--accent-hover); }
+.project-edit-actions button.primary:hover:not(:disabled, [aria-disabled="true"]) { background: var(--accent-hover); }
 
 /* The move confirmation: where the thread goes, drawn once, because words say it slower. */
 .worktree-move { width: min(438px, 100%); overflow: hidden; }
@@ -5237,8 +5263,9 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .model-row-label small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--quiet); font-size: var(--text-meta); }
 .model-selected-check { margin-left: auto; flex-shrink: 0; color: var(--ink-faint); }
 .model-favorite { display: grid; place-items: center; flex-shrink: 0; padding: 10px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--quiet); cursor: pointer; }
-.model-favorite:hover { color: var(--ink-faint); }
-.model-favorite[aria-pressed="true"] { color: var(--accent); }
+.model-row:is(:hover, :focus-within, .selected) .model-favorite { color: var(--muted-strong); }
+.model-row .model-favorite:is(:hover, :focus-visible) { background: var(--wash); color: var(--ink-soft); }
+.model-row .model-favorite[aria-pressed="true"] { color: var(--accent); }
 .model-empty { margin: 18px 8px; color: var(--quiet); font-size: var(--text-meta); line-height: 1.6; }
 .model-library-footer { display: flex; justify-content: space-between; gap: 12px; padding: 10px 16px; border-top: 1px solid var(--line-soft); color: var(--quiet); font-size: var(--text-badge); flex-shrink: 0; }
 .model-library-footer span { display: flex; align-items: center; gap: 6px; }
@@ -5296,9 +5323,9 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 @container sidebar-strip (max-width: 214px) { .computer-switch-name { display: none; } }
 .computer-switch-trigger[aria-expanded="true"] { background: var(--wash); color: var(--muted-strong); }
 .computer-switch-trigger.offline > svg { color: var(--warning); }
-/** A computer out of reach while every computer is listed: a warning dot on the switch's corner. */
-.computer-switch-trigger.some-away { position: relative; }
-.computer-switch-trigger.some-away::after { content: ""; position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 1.5px var(--sidebar); }
+/** Computers out of reach while every computer is listed, counted beside the screen. */
+.computer-switch-trigger.some-away { width: auto; display: flex; gap: 4px; padding: 0 7px 0 6px; }
+.computer-switch-away { color: var(--warning); font-size: var(--text-meta); font-weight: 600; font-variant-numeric: tabular-nums; }
 /** Opened rightward, as the button sits near the window's left edge and a long computer name would push a right-anchored menu off it. */
 .computer-switch-menu { top: calc(100% + 4px); left: 0; right: auto; max-width: min(320px, calc(100vw - 28px)); -webkit-app-region: no-drag; }
 .computer-switch-menu button.offline { color: var(--quiet); }
@@ -5312,9 +5339,11 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .computer-code label { display: grid; gap: 5px; color: var(--muted); font-size: var(--text-meta); }
 .computer-code input { width: 12ch; border: 1px solid var(--line-input); border-radius: 7px; padding: 5px 9px; background: var(--wash); color: var(--ink); font: 600 var(--text-control)/1.4 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; }
 .computer-code-actions { display: flex; gap: 8px; }
-.computer-address { display: flex; align-items: end; gap: 8px; }
-.computer-address label { display: grid; gap: 5px; color: var(--muted); font-size: var(--text-meta); }
-.computer-address input { width: 24ch; border: 1px solid var(--line-input); border-radius: 7px; padding: 5px 9px; background: var(--wash); color: var(--ink); font: var(--text-control)/1.4 var(--mono); }
+.computer-address { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+.computer-address label { display: grid; gap: 7px; }
+.computer-address .settings-error { flex-basis: 100%; border: 0; padding: 0; }
+.computer-address input[aria-invalid="true"] { border-color: var(--danger-line); }
+.computer-address input { width: 28ch; border: 1px solid var(--line-input); border-radius: 7px; padding: 5px 9px; background: var(--wash); color: var(--ink); font: var(--text-control)/1.4 var(--mono); }
 .computer-name { display: flex; align-items: end; gap: 10px; }
 .computer-name label { display: grid; gap: 7px; }
 .computer-name-saved { display: inline-flex; align-items: center; gap: 5px; padding-bottom: 7px; color: var(--success-soft); font-size: var(--text-meta); }
@@ -5337,7 +5366,9 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .browser-import-picker input[type="search"]:focus { border-color: var(--accent-line); }
 .browser-import-sites { max-height: 280px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 4px; }
 .browser-import-sites label { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; border-radius: 6px; padding: 6px 8px; cursor: pointer; }
-.browser-import-sites label:hover { background: var(--control-hover); }
+.browser-import-sites label:hover:not(:has(input:disabled)) { background: var(--control-hover); }
+.browser-import-sites label:has(input:disabled) { cursor: default; }
+.browser-import-sites label:has(input:disabled) span { color: var(--quiet-strong); }
 .browser-import-sites input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
 .browser-import-sites span { overflow: hidden; color: var(--ink-dim); font-size: var(--text-control); text-overflow: ellipsis; white-space: nowrap; }
 .browser-import-sites em { color: var(--quiet-strong); font-size: var(--text-meta); font-style: normal; }
@@ -5346,7 +5377,8 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .browser-import-sites .browser-import-every span { color: var(--ink); font-weight: 560; }
 .browser-import-sites .browser-import-every em { font-variant-numeric: tabular-nums; }
 .browser-import-quiet { margin: 0; color: var(--quiet-strong); font-size: var(--text-meta); }
-.browser-import-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.browser-import-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
+.browser-import-limit { margin: 0 auto 0 0; color: var(--ink-dim); font-size: var(--text-meta); font-variant-numeric: tabular-nums; }
 .browser-import-actions button { border: 1px solid var(--line-strong); border-radius: 8px; padding: 7px 11px; background: var(--control); color: var(--ink-dim); font-size: var(--text-meta); font-weight: 560; cursor: pointer; }
 .browser-import-actions button:hover:not(:disabled) { border-color: var(--line-bright); background: var(--control-hover); }
 .browser-import-actions button:disabled { color: var(--quiet-strong); cursor: default; }

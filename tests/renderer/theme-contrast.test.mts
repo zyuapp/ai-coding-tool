@@ -195,6 +195,20 @@ test("dividers stay visible on a dark canvas", () => {
   assert.deepEqual(failed, []);
 });
 
+test("dividers stay visible on every dark pane they cross, the surface and sidebar included", () => {
+  const dark = THEMES.filter((candidate) => candidate.variant === "dark");
+  const pairs = HUE_GROUNDS.flatMap((ground) => [["--line-soft", ground, 1.08], ["--line", ground, 1.15]] as const);
+  assert.deepEqual(dark.flatMap((theme) => shortfalls(theme.id, primitives(theme.id), pairs)), []);
+});
+
+test("warning and alert never share the accent's colour, so the accent never reads as a warning", () => {
+  const shared = THEMES.flatMap((theme) => {
+    const palette = primitives(theme.id);
+    return ["--p-warning", "--p-alert"].filter((name) => palette.get(name) === palette.get("--p-accent")).map((name) => `${theme.id}: ${name}`);
+  });
+  assert.deepEqual(shared, []);
+});
+
 test("input edges and the scroll thumb clear 3:1 against what they are drawn on, the selected row included", () => {
   assert.deepEqual(failures([...HUE_GROUNDS, "--surface-hover", "--surface-active"].flatMap((ground) => [["--line-input", ground, 3], ["--scroll-thumb", ground, 3]] as const)), []);
 });

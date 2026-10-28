@@ -124,7 +124,9 @@ test("the Overview files threads ready for review and resolved apart, and resolv
   assert.equal(resolved.querySelectorAll(".coordination-row").length, 0);
   await act(async () => { query<HTMLButtonElement>(resolved, ".coordination-group-head").click(); });
   await view.render(overview({ resolved: { open: true } }));
-  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Reopen Old work"]').click(); });
+  const reopen = query<HTMLButtonElement>(view.container, 'button[aria-label="Reopen Old work"]');
+  assert.equal(reopen.querySelectorAll("svg").length, 1, "reopen shows one glyph that keeps its meaning under the pointer");
+  await act(async () => { reopen.click(); });
 
   assert.deepEqual(dispatched, [{ type: "task.resolve", taskId: "review" }, { type: "task.reopen", taskId: "old" }]);
   assert.deepEqual(folded, [["resolved", { open: true }]]);

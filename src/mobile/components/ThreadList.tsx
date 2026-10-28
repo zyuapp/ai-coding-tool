@@ -1,7 +1,7 @@
 import { LuCheck as Check, LuChevronDown as ChevronDown, LuEllipsis as Ellipsis, LuFolder as Folder, LuSquarePen as SquarePen } from "react-icons/lu";
 import { memo, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import type { MobileActivity, MobileProjectGroup, MobileThreadEntry } from "../../contracts/mobile";
-import { readActivityProject, readFolded, writeActivityProject, writeFolded, type MobileListMode } from "../client/storage";
+import { readFolded, writeFolded, type MobileListMode } from "../client/storage";
 import { activityMeta, groupMark, threadMeta } from "../format";
 import { ProjectSheet } from "./ProjectSheet";
 
@@ -78,6 +78,8 @@ function ThreadRow({ thread, meta, onOpen, onMenu, onDismiss }: {
         {thread.headline && <span className="thread-headline">{thread.headline}</span>}
         <span className="thread-meta">{meta}</span>
         {thread.waiting && thread.status !== "awaiting-approval" && <span className="sr-only">Needs you</span>}
+        {thread.status === "running" && !thread.waiting && <span className="sr-only">Running</span>}
+        {thread.status === "stopped" && thread.unread && <span className="sr-only">Stopped</span>}
         {thread.unread && <span className="sr-only">Unread</span>}
       </button>
       {/** A row that needs the user keeps saying so beside Dismiss, which takes the mark's place otherwise. */}
@@ -107,14 +109,17 @@ const ACTIVITY_SECTIONS: ReadonlyArray<{ key: keyof MobileActivity; label: strin
   { key: "snoozed", label: "Snoozed" },
 ];
 
-export const ThreadList = memo(function ThreadList({ mode, groups, activity, now, initialScrollTop, onScroll, onOpen, onMenu, onNew, onDismiss, onDismissAll }: {
+export const ThreadList = memo(function ThreadList({ mode, groups, activity, chosenProject, now, initialScrollTop, onScroll, onChooseProject, onOpen, onMenu, onNew, onDismiss, onDismissAll }: {
   mode: MobileListMode;
   groups: MobileProjectGroup[];
   activity: MobileActivity;
+  /** The project the activity list was last narrowed to, if any. */
+  chosenProject: string | null;
   now: number;
   /** Where the list was when it was last left, so coming back from a thread lands on the same rows. */
   initialScrollTop: number;
   onScroll: (top: number) => void;
+  onChooseProject: (projectId: string | null) => void;
   /** Names the thread and its project as the row shows them, so the screen can carry them before the Mac answers. */
   onOpen: (threadId: string, title: string, project: string | null) => void;
   /** Puts the row's options up over the list. */
@@ -125,7 +130,6 @@ export const ThreadList = memo(function ThreadList({ mode, groups, activity, now
   onDismissAll: (projectId?: string) => void;
 }) {
   const [folded, setFolded] = useState(() => readFolded(localStorage));
-  const [chosenProject, setChosenProject] = useState(() => readActivityProject(localStorage));
   const [picking, setPicking] = useState(false);
   const projects = useMemo(() => groups.filter((group) => group.projectId !== null), [groups]);
   /** A project the Mac no longer lists narrows nothing, so the list is never emptied by one that is gone. */
@@ -140,11 +144,6 @@ export const ThreadList = memo(function ThreadList({ mode, groups, activity, now
   useLayoutEffect(() => {
     if (scroller.current) scroller.current.scrollTop = restore.current;
   }, []);
-  function chooseProject(projectId: string | null) {
-    writeActivityProject(localStorage, projectId);
-    setChosenProject(projectId);
-  }
-
   function toggle(key: string) {
     const next = new Set(folded);
     if (!next.delete(key)) next.add(key);
@@ -210,7 +209,7 @@ export const ThreadList = memo(function ThreadList({ mode, groups, activity, now
         dismissable: key === "priority",
         project: (thread) => thread.projectName,
       }))}
-      {picking && <ProjectSheet projects={projects} selected={project} onClose={() => setPicking(false)} onSelect={chooseProject} />}
+      {picking && <ProjectSheet projects={projects} selected={project} onClose={() => setPicking(false)} onSelect={onChooseProject} />}
       {bare && (
         <div className="empty">
           <p>No threads yet</p>

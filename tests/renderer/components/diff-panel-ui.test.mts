@@ -288,3 +288,12 @@ test("a wait spins, and a review emptied by hidden spacing offers the spacing ba
   assert.equal(nothing.container.querySelector(".diff-status button"), null, "with spacing shown there is nothing to offer");
   await nothing.unmount();
 });
+
+test("a file's row says what happened to it in its name, not only in its icon's tip", async () => {
+  const view = await mount(panel());
+  await settled(view.container);
+  const header = query(view.container, ".diff-files .diff-file-open");
+  assert.equal(query(header, ".diff-file-icon").getAttribute("role"), "img");
+  assert.equal(query(header, ".diff-file-icon").getAttribute("aria-label"), "Changed file");
+  await view.unmount();
+});

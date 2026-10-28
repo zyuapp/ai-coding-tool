@@ -8,7 +8,7 @@ vi.mock("mermaid", () => ({ default: { initialize: () => {}, render: (id: string
 Object.defineProperty(dom.window.document, "fonts", { configurable: true, value: { ready: Promise.resolve() } });
 Object.defineProperty(globalThis, "getComputedStyle", { configurable: true, value: dom.window.getComputedStyle.bind(dom.window) });
 
-const { MermaidBlock } = await import("../../../src/renderer/components/MermaidBlock.tsx");
+const { DiagramViewerHost, MermaidBlock, redrawDiagrams } = await import("../../../src/renderer/components/MermaidBlock.tsx");
 
 async function settle() {
   await act(async () => { await vi.waitFor(() => assert.equal(document.querySelector(".mermaid-loading"), null)); });
@@ -31,5 +31,25 @@ test("a diagram that failed names why in view, and draws on a second try", async
   assert.equal(view.container.querySelector(".mermaid-error"), null);
   assert.ok(view.container.querySelector(".mermaid-svg svg"), "the second try draws the diagram");
   assert.notEqual(render.mock.calls[0]![0], render.mock.calls[1]![0], "each try renders under its own id");
+  await view.unmount();
+});
+
+test("an open diagram is redrawn in a new theme instead of closing, though its row has scrolled away", async () => {
+  render.mockReset();
+  render.mockResolvedValueOnce({ svg: '<svg viewBox="0 0 100 50"><g id="before"></g></svg>' });
+  const host = (child: React.ReactNode) => React.createElement(DiagramViewerHost, null, child);
+  const view = await mount(host(React.createElement(MermaidBlock, { source: "graph TD; A-->B;" })));
+  await settle();
+
+  await act(async () => { query<HTMLButtonElement>(view.container, ".mermaid-open").click(); });
+  assert.ok(document.querySelector(".viewer.diagram #before"));
+  await view.render(host(null));
+
+  render.mockResolvedValue({ svg: '<svg viewBox="0 0 100 50"><g id="after"></g></svg>' });
+  await act(async () => { redrawDiagrams(); });
+  await vi.waitFor(async () => {
+    await act(async () => {});
+    assert.ok(document.querySelector(".viewer.diagram #after"));
+  });
   await view.unmount();
 });

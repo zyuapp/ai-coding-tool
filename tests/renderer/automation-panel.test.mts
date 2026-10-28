@@ -91,7 +91,7 @@ test("the automation panel edits the schedule and prompt in one save", async () 
   assert.equal(save.disabled, true, "an untouched automation has nothing to save");
   assert.match(view.container.textContent, /Runs2/);
   assert.match(view.container.textContent, /succeeded at/);
-  assert.equal(query(view.container, "#automation-schedule-readout").textContent, "Every 5 minutes", "the schedule is read back in words");
+  assert.equal(item(dom.window.document.getElementById(item(schedule.getAttribute("aria-describedby")))).textContent, "Every 5 minutes", "the schedule is read back in words");
 
   await act(async () => {
     item(setInput).call(schedule, "0 8 * * *");
@@ -106,7 +106,7 @@ test("the automation panel edits the schedule and prompt in one save", async () 
   await act(async () => { query<HTMLButtonElement>(view.container, ".automation-actions button").click(); });
 
   assert.deepEqual(patches, [{ schedule: "0 8 * * *", prompt: "Check the PR and stop once it is approved" }]);
-  assert.match(query(view.container, "#automation-schedule-readout").textContent, /^Every day at 8:00/);
+  assert.match(item(dom.window.document.getElementById(item(schedule.getAttribute("aria-describedby")))).textContent, /^Every day at 8:00/);
   assert.match(save.textContent, /Save/);
 
   await act(async () => {
@@ -347,5 +347,27 @@ test("a missed automation's status runs it now", async () => {
     automation: automationView({ paused: true, nextRunAt: null }), engineLabel: "Claude", lastFoundAt: null, lastChecked: null, onUpdate() {}, onDelete() {}, onRunNow() {},
   }));
   assert.equal(view.container.querySelector(".automation-missed"), null, "a paused schedule is the user's own doing and asks for nothing");
+  await view.unmount();
+});
+
+test("a common schedule fills the field in, reads back, and shows as picked", async () => {
+  const patches: AutomationPatch[] = [];
+  const view = await mount(React.createElement(AutomationPanel, {
+    automation: automationView(), engineLabel: "Claude", lastFoundAt: null, lastChecked: null, onUpdate: (patch) => { patches.push(patch); }, onDelete() {}, onRunNow() {},
+  }));
+  const schedule = query<HTMLInputElement>(view.container, "input.automation-schedule");
+  const presets = [...view.container.querySelectorAll<HTMLButtonElement>(".automation-presets button")];
+  assert.deepEqual(presets.map((each) => each.textContent), ["Hourly", "Daily", "Weekdays", "Weekly"]);
+  assert.ok(presets.every((each) => each.getAttribute("aria-pressed") === "false"), "*/5 is none of them");
+
+  const weekdays = item(presets[2]);
+  await act(async () => { weekdays.click(); });
+  assert.equal(schedule.value, "0 9 * * 1-5");
+  assert.equal(weekdays.getAttribute("aria-pressed"), "true");
+  const readout = item(dom.window.document.getElementById(item(schedule.getAttribute("aria-describedby"))));
+  assert.match(readout.textContent ?? "", /^Weekdays at /);
+
+  await act(async () => { query<HTMLButtonElement>(view.container, ".automation-save").click(); });
+  assert.deepEqual(patches, [{ schedule: "0 9 * * 1-5", prompt: automationView().prompt }]);
   await view.unmount();
 });

@@ -108,7 +108,7 @@ test("a draft's project chip starts the draft over in another project", () => {
   drafting.thread = null;
   drafting.draft = { projectId: "p", projectName: "App", settings: { engine: "claude", model: "opus", effort: "high", policy: "confirm" }, worktree: false, worktreeName: null, worktrees: [], canWorktree: true };
   live(line, drafting);
-  click('.bar button[aria-label="New thread"]');
+  click('.bar button[aria-label^="New thread"]');
   click("button.thread-start-project");
   assert.equal(document.querySelector('.sheet [role="radiogroup"]')?.getAttribute("aria-label"), "Start in");
   clickButton("No project", ".sheet");

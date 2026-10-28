@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LuCircleAlert as Alert, LuCircleCheck as Check, LuDownload as Download, LuLoaderCircle as Loader, LuX as X } from "react-icons/lu";
 import type { Toast, ToastAction, ToastTone } from "../../domain/toast";
 
@@ -18,19 +18,32 @@ type ToastsProps = {
   toasts: readonly Toast[];
   onDismiss: (id: number) => void;
   onAction: (command: ToastAction["command"]) => void;
-  /** Told when the pointer or focus arrives on the cards and when both have left, so none leaves while it is being read. */
-  onHold?: (held: boolean) => void;
 };
 
-/** The cards in the window's top-right corner, newest on top. Each leaves on its own, or at its X. */
-export function Toasts({ toasts, onDismiss, onAction, onHold }: ToastsProps) {
+/**
+ * The cards in the window's top-right corner, newest on top. Each leaves on its own, or at its X.
+ * While the pointer or caret is on the cards, one whose time runs out stays until both have left.
+ */
+export function Toasts({ toasts, onDismiss, onAction }: ToastsProps) {
   const section = useRef<HTMLElement>(null);
   const holding = useRef({ pointer: false, focus: false, held: false });
+  const [held, setHeld] = useState(false);
+  const [kept, setKept] = useState<readonly Toast[]>([]);
+  const [closed, setClosed] = useState<ReadonlySet<number>>(() => new Set());
+  const [previous, setPrevious] = useState(toasts);
+  if (previous !== toasts) {
+    setPrevious(toasts);
+    const left = held ? previous.filter((toast) => !closed.has(toast.id) && !toasts.some((item) => item.id === toast.id)) : [];
+    if (left.length) setKept([...kept, ...left]);
+  }
+  const shown = kept.length ? [...toasts, ...kept].sort((a, b) => a.id - b.id) : toasts;
   const hold = (change: Partial<{ pointer: boolean; focus: boolean }>) => {
     const next = { ...holding.current, ...change };
-    const held = next.pointer || next.focus;
-    holding.current = { ...next, held };
-    if (held !== next.held) onHold?.(held);
+    const nowHeld = next.pointer || next.focus;
+    holding.current = { ...next, held: nowHeld };
+    if (nowHeld === next.held) return;
+    setHeld(nowHeld);
+    if (!nowHeld) { setKept([]); setClosed(new Set()); }
   };
   /** A card closed under the pointer or the caret can take the hold with it, since nothing then says it left. */
   useEffect(() => {
@@ -44,9 +57,11 @@ export function Toasts({ toasts, onDismiss, onAction, onHold }: ToastsProps) {
       const index = cards.indexOf(card);
       (cards[index + 1] ?? cards[index - 1])?.querySelector<HTMLElement>(".toast-close")?.focus();
     }
+    if (held) setClosed(new Set(closed).add(id));
+    setKept(kept.filter((toast) => toast.id !== id));
     onDismiss(id);
   };
-  if (!toasts.length) return null;
+  if (!shown.length) return null;
   return (
     <section
       ref={section}
@@ -57,7 +72,7 @@ export function Toasts({ toasts, onDismiss, onAction, onHold }: ToastsProps) {
       onFocus={() => hold({ focus: true })}
       onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) hold({ focus: false }); }}
     >
-      {[...toasts].reverse().map((toast) => {
+      {[...shown].reverse().map((toast) => {
         const Icon = ICONS[toast.tone];
         return (
           <div

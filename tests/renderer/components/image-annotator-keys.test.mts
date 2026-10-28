@@ -50,7 +50,7 @@ test("arrow keys on the canvas pick a mark, which Delete removes and undo puts b
   assert.ok(query(document.body, '.annotator-marktools.picked [aria-label="Delete arrow"]'), "the next press walks to the arrow");
 
   await act(async () => press(canvas, "Delete"));
-  assert.equal(query(document.body, ".annotator-count").textContent, "1 mark.");
+  assert.match(query(document.body, ".annotator-count").textContent ?? "", /^1 mark\. /);
   assert.equal(query<HTMLButtonElement>(document.body, ".annotator-undo").disabled, false);
 
   await act(async () => press(document.body, "z", { metaKey: true, ctrlKey: true }));
@@ -125,14 +125,9 @@ test("a picked mark keeps its tools after the pointer leaves the image", async (
   await view.unmount();
 });
 
-test("the focused canvas says which keys walk its marks", async () => {
-  const { view, canvas } = await open();
-  const hint = () => query(document.body, ".annotator-count").textContent ?? "";
-  assert.equal(hint(), "2 marks.");
-  await act(async () => { canvas.focus(); });
-  assert.match(hint(), /^2 marks\. Arrow keys pick one/);
-  await act(async () => { canvas.blur(); });
-  assert.equal(hint(), "2 marks.");
+test("the footer names the keys that walk the marks whenever there are marks", async () => {
+  const { view } = await open();
+  assert.match(query(document.body, ".annotator-count").textContent ?? "", /^2 marks\. Arrow keys pick one/);
   await view.unmount();
 });
 
@@ -172,19 +167,37 @@ test("the newest mark shows its tools before anything is pointed at", async () =
   await view.unmount();
 });
 
-test("Escape throws away a box just drawn, and Enter keeps it", async () => {
+test("Escape keeps a box just drawn without its note, and Enter keeps it with one", async () => {
   const drawn = { x: 0.4, y: 0.4, width: 0.1, height: 0.1 };
   const { view } = await open();
   await act(async () => pointer.onBox(drawn));
   await act(async () => press(query(document.body, ".annotator-label"), "Escape"));
   assert.equal(document.body.querySelector(".annotator-label"), null);
+  assert.match(query(document.body, ".annotator-count").textContent ?? "", /^3 marks/);
+  assert.equal(query<HTMLButtonElement>(document.body, ".annotator-undo").disabled, false, "the kept box can be taken back");
+  await act(async () => query<HTMLButtonElement>(document.body, ".annotator-undo").click());
   assert.match(query(document.body, ".annotator-count").textContent ?? "", /^2 marks/);
-  assert.equal(query<HTMLButtonElement>(document.body, ".annotator-undo").disabled, true);
 
   await act(async () => pointer.onBox(drawn));
   await act(async () => press(query(document.body, ".annotator-label"), "Enter"));
   assert.match(query(document.body, ".annotator-count").textContent ?? "", /^3 marks/);
   assert.ok(query(document.body, '[aria-label="Delete mark 2"]'), "the kept box is the newest, so its tools show");
+  await view.unmount();
+});
+
+test("Escape on a note being edited keeps the note it had", async () => {
+  const { view, calls } = await open();
+  await act(async () => query<HTMLButtonElement>(document.body, '[aria-label="Edit note on mark 1"]').click());
+  const field = query<HTMLInputElement>(document.body, ".annotator-label");
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")!.set!.call(field, "Changed");
+    field.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+  });
+  await act(async () => press(field, "Escape"));
+  assert.equal(document.body.querySelector(".annotator-label"), null);
+  assert.equal(query<HTMLButtonElement>(document.body, ".annotator-undo").disabled, true);
+  await act(async () => query<HTMLButtonElement>(document.body, ".annotator-action.primary").click());
+  assert.deepEqual(calls.applied, [marks]);
   await view.unmount();
 });
 

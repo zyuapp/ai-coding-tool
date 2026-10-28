@@ -100,12 +100,27 @@ function MarkdownTable({ node, ...props }: ComponentProps<"table"> & ExtraProps)
 /** How long a link must be rested on for its tip to have been read. */
 const TIP_READ_MS = 900;
 
-/** The in-app click is named on web links until it has been read once or used, then only in their menu. */
-let inAppClickKnown = false;
+const IN_APP_CLICK_KEY = "aicodingtool.in-app-click-known.v1";
+
+function storedInAppClick() {
+  try {
+    return localStorage.getItem(IN_APP_CLICK_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/** The in-app click is named on web links until it has been read once or used, then only in their menu, for good. */
+let inAppClickKnown = storedInAppClick();
 const inAppClickListeners = new Set<() => void>();
 function learnInAppClick() {
   if (inAppClickKnown) return;
   inAppClickKnown = true;
+  try {
+    localStorage.setItem(IN_APP_CLICK_KEY, "1");
+  } catch {
+    /** Unsaved, it is learned again next launch. */
+  }
   for (const listener of inAppClickListeners) listener();
 }
 function subscribeInAppClick(listener: () => void) {
@@ -159,6 +174,35 @@ export function WebLink({ children, openInApp, ...props }: ComponentProps<"a"> &
   );
 }
 
+/** Opens the file on click; its menu also copies the path. */
+function FileLink({ path, line, onOpen, children, ...props }: ComponentProps<"a"> & { path: string; line: number | null; onOpen: () => void }) {
+  const link = useRef<HTMLAnchorElement>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const entries: MenuEntry[] = [
+    { label: "Open file", onSelect: onOpen },
+    "separator",
+    { label: "Copy path", onSelect: () => { void copyText(path); } },
+  ];
+  return (
+    <>
+      <a
+        {...props}
+        ref={link}
+        className="message-link-file"
+        data-tip={line === null ? path : `${path}:${line}`}
+        onClick={(event) => { event.preventDefault(); onOpen(); }}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          setMenu({ x: event.clientX, y: event.clientY });
+        }}
+      >
+        <FileText className="message-link-glyph" aria-hidden="true" />{children}
+      </a>
+      {menu && <ContextMenu at={menu} returnFocus={link} onClose={() => setMenu(null)} entries={entries} />}
+    </>
+  );
+}
+
 function MarkdownLink({ children, ...props }: ComponentProps<"a">) {
   const actions = useContext(MessageLinks);
   const scope = useContext(MessageArtifactScope);
@@ -179,11 +223,7 @@ function MarkdownLink({ children, ...props }: ComponentProps<"a">) {
   }}>{children}</a>;
   const file = parseFileHref(href);
   if (file) return actions.openFile
-    ? (
-      <a {...props} className="message-link-file" data-tip={file.line === null ? file.file : `${file.file}:${file.line}`} onClick={(event) => { event.preventDefault(); actions.openFile!(file.file, file.line); }}>
-        <FileText className="message-link-glyph" aria-hidden="true" />{children}
-      </a>
-    )
+    ? <FileLink {...props} path={file.file} line={file.line} onOpen={() => actions.openFile!(file.file, file.line)}>{children}</FileLink>
     : <>{children}</>;
   if (WEB_HREF.test(href)) return <WebLink {...props} openInApp={actions.openUrlInApp && (() => actions.openUrlInApp!(href))}>{children}</WebLink>;
   return <a {...props} target="_blank" rel="noreferrer">{children}</a>;

@@ -443,7 +443,11 @@ test("a call that printed nothing says so when opened", async () => {
 
 test("a retrying run says how far along its retries are", async () => {
   const view = await mount(React.cloneElement(timelineView(transcript({ kind: "user", text: "go" }), "running"), { retrying: { message: "Overloaded.", attempt: 2, maxRetries: 5 } }));
-  assert.match(query(view.container, ".retrying-row").textContent, /Overloaded\. Retrying 2 of 5…/);
+  const row = query(view.container, ".retrying-row");
+  assert.match(row.textContent, /Overloaded\. Retrying 2 of 5…/);
+  assert.equal(query(row, ".retrying-reason").textContent, "Overloaded.");
+  assert.equal(query(row, ".text-sweep").textContent, "Retrying 2 of 5…", "only the retry moves, so the error reads as still text");
+  assert.equal(query<HTMLButtonElement>(row, "button").getAttribute("aria-label"), "Copy the error");
   await view.unmount();
 });
 
@@ -487,7 +491,7 @@ test("only the newest row keeps its message actions in view without a hover", as
 
 test("working, compacting and retrying rows leave stopping to the composer", async () => {
   const view = await mount(React.cloneElement(timelineView(transcript({ kind: "user", text: "go" }), "running"), { compacting: true }));
-  assert.match(query(view.container, ".compacting-row").textContent, /Compacting messages/);
+  assert.match(query(view.container, ".compacting-row").textContent, /Compacting messages…\d+s/, "a long compaction shows it is still moving");
   assert.equal(view.container.querySelector(".compacting-row button"), null);
   await view.render(timelineView(transcript({ kind: "user", text: "go" }), "running"));
   assert.equal(view.container.querySelector(".thinking-row button"), null);

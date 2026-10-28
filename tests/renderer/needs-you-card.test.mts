@@ -220,7 +220,11 @@ test("the Needs-you card asks to run a thread on another computer, in the folder
   assert.equal(box.checked, true);
   const folder = query<HTMLSelectElement>(page, ".elsewhere-folder select");
   assert.equal(folder.value, "app");
+  const root = () => query(page, ".elsewhere-root");
+  assert.equal(root().textContent, "/code/app", "the folder's full path shows under its name");
+  assert.equal(folder.getAttribute("aria-describedby"), root().id);
   await act(async () => { folder.value = "lab"; folder.dispatchEvent(new Event("change", { bubbles: true })); });
+  assert.equal(root().textContent, "/code/lab", "and follows the folder picked");
   await act(async () => { box.click(); });
   const button = (label: string) => required([...page.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === label));
   await act(async () => { button("Allow").click(); });

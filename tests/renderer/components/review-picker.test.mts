@@ -73,16 +73,16 @@ test("a commit is reviewed only once its SHA is hex, and anything else says so",
   await view.unmount();
 });
 
-test("custom instructions start on Mod+Enter, and a bare Enter stays a new line", async () => {
+test("custom instructions start on Enter, like the composer, and Shift+Enter stays a new line", async () => {
   const { view, calls } = await open("custom");
   const field = query<HTMLTextAreaElement>(view.container, ".review-form textarea");
-  await press(field, "Enter", { metaKey: true, ctrlKey: true });
+  await press(field, "Enter");
   assert.deepEqual(calls.reviews, [], "nothing to review yet");
 
   await type(field, "check the reducer");
-  await press(field, "Enter");
+  await press(field, "Enter", { shiftKey: true });
   assert.deepEqual(calls.reviews, []);
-  await press(field, "Enter", { metaKey: true, ctrlKey: true });
+  await press(field, "Enter");
   assert.deepEqual(calls.reviews, [{ type: "custom", instructions: "check the reducer" }]);
   await view.unmount();
 });

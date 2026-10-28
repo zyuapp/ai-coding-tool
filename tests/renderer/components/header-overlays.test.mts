@@ -5,7 +5,7 @@ import React, { act } from "react";
 import type { ThreadTabView } from "../../../src/application/workspace-state.ts";
 
 const { BranchMenu } = await import("../../../src/renderer/components/BranchMenu.tsx");
-const { ThreadTabStrip, scheduleChipLabel } = await import("../../../src/renderer/components/ThreadTabStrip.tsx");
+const { ThreadTabStrip, scheduleChipLabel, scheduleChipTip } = await import("../../../src/renderer/components/ThreadTabStrip.tsx");
 const { FindBar } = await import("../../../src/renderer/components/FindBar.tsx");
 
 async function type(input: HTMLInputElement, value: string) {
@@ -133,6 +133,10 @@ test("the schedule chip names the next run, or why there is none", () => {
   assert.equal(scheduleChipLabel(automation({ nextRunAt: at(0, 9) }), now), `Next ${new Date(at(0, 9)).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`);
   assert.match(scheduleChipLabel(automation({ nextRunAt: at(2, 9) }), now), new RegExp(`^Next ${new Date(at(2, 9)).toLocaleDateString(undefined, { weekday: "short" })}`));
   assert.equal(scheduleChipLabel(automation({ nextRunAt: at(20, 9) }), now), `Next ${new Date(at(20, 9)).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`);
+  assert.equal(scheduleChipTip(null), "Automation");
+  assert.equal(scheduleChipTip(automation({ paused: true, nextRunAt: at(0, 9) })), "Automation is paused");
+  assert.equal(scheduleChipTip(automation({})), "Last run was missed");
+  assert.equal(scheduleChipTip(automation({ nextRunAt: at(0, 9) })), "Automation");
 });
 
 test("a checkout Git could not read shows the failure with a retry, while reading stays quiet", async () => {
@@ -159,13 +163,15 @@ test("a checkout Git could not read shows the failure with a retry, while readin
 
 test("the brief toggle names the card it opens", async () => {
   const actions = { onToggleChanges() {}, onOpenAutomations() {}, onSetBranchMenuOpen() {}, onCheckoutBranch() {} };
-  const brief = { intent: "Fix it", doneWhen: "Tests pass", delivers: "commit" };
+  const brief = { intent: "Fix it\nThen ship", doneWhen: "Tests pass", delivers: "commit" };
   const view = await mount(React.createElement(ThreadTabStrip, { tab: tab({ thread: { id: "t", title: "T", brief } } as unknown as Partial<ThreadTabView>), branchMenuOpen: false, actions }));
   try {
     const toggle = query<HTMLButtonElement>(view.container, ".thread-tab-brief-toggle");
+    assert.equal(toggle.dataset.tip, "Fix it", "the ask shows before the card is opened");
     await act(async () => { toggle.click(); });
     const card = query(view.container, ".thread-tab-brief-card");
     assert.equal(toggle.getAttribute("aria-controls"), card.id);
+    assert.equal(toggle.dataset.tip, undefined, "an open card needs no preview");
   } finally { await view.unmount(); }
 });
 

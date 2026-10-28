@@ -65,7 +65,8 @@ export function ProjectAddDialog({ add, links, name, dispatch }: ProjectAddDialo
                 event.preventDefault();
                 dispatch({ type: "view.add-project-key", key });
               }} />
-            {local && <button type="button" disabled={add.saving} onClick={() => dispatch({ type: "view.add-project-pick" })}><FolderOpen size={14} aria-hidden="true" />Choose folder…</button>}
+            <button type="button" disabled={add.saving} aria-disabled={!local || undefined} data-tip={local ? undefined : "Only on this computer"}
+              onClick={() => { if (local) dispatch({ type: "view.add-project-pick" }); }}><FolderOpen size={14} aria-hidden="true" />Choose folder…</button>
           </div>
         </label>
         {add.suggestions.length > 0 && <div id="project-directory-options" className="project-directory-options" role="listbox" aria-label="Directories">
@@ -77,7 +78,8 @@ export function ProjectAddDialog({ add, links, name, dispatch }: ProjectAddDialo
         {error && <p className="project-edit-error" role="alert">{error}</p>}
         <div className="project-edit-actions">
           <button type="button" onClick={() => dispatch({ type: "view.add-project-close" })}>Cancel</button>
-          <button type="submit" className="primary" disabled={add.saving || offline || !add.root.trim()}>{add.saving ? "Opening…" : add.start ? "Start" : "Add project"}</button>
+          <button type="submit" className="primary" disabled={add.saving || offline} aria-disabled={!add.root.trim() || undefined}
+            data-tip={add.root.trim() ? undefined : "Pick a folder first"}>{add.saving ? "Opening…" : add.start ? "Start" : "Add project"}</button>
         </div>
       </form>
     </div>, document.body,

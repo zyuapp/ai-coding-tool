@@ -104,7 +104,7 @@ export function ThreadJump({ jump, actions }: ThreadJumpProps) {
                     ? <ThreadEngineIcon engine={option.engine} className="thread-jump-engine" size={14} />
                     : <Settings className="thread-jump-engine" size={14} role="img" aria-label="Setting" />}
                   <span className="thread-jump-title">{option.title}</span>
-                  {option.kind === "thread" && option.running && <span className="task-spinner" aria-label="Working" />}
+                  {option.kind === "thread" && option.running && <span className="task-spinner" role="img" aria-label="Working" />}
                   {option.kind === "thread" && option.namedPullRequest !== null && <span className="thread-jump-pull-request">#{option.namedPullRequest}</span>}
                   {option.kind === "thread"
                     ? option.project && <span className="thread-jump-project">{option.project}</span>

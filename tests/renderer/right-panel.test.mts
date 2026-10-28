@@ -525,7 +525,7 @@ test("a strip with tabs past its edges offers every tab in one list", async () =
     tight = true;
     for (let opened = 0; opened < 2; opened += 1) {
       await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Add right panel tab"]').click(); });
-      await act(async () => { item([...view.container.querySelectorAll<HTMLButtonElement>('.right-dock-add [role="menuitem"]')].find((button) => button.textContent === "Browser")).click(); });
+      await act(async () => { item([...view.container.querySelectorAll<HTMLButtonElement>('.right-dock-add [role="menuitem"]')].find((button) => button.textContent.startsWith("Browser"))).click(); });
     }
     const tabs = () => [...view.container.querySelectorAll<HTMLButtonElement>('.right-dock [role="tab"]')];
     assert.equal(tabs().length, 3);

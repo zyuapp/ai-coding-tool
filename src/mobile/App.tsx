@@ -6,7 +6,7 @@ import { SETTINGS_PAGE_LABELS, settingControl } from "../domain/settings-catalog
 import { PAIRING_CODE_LENGTH, type MobileConnectionState } from "../domain/mobile";
 import { useMobileClient } from "./client/useMobileClient";
 import type { ReturnedCommand } from "./client/protocol";
-import { readActivityProject, readListMode, readPairingCode, writeListMode, type MobileListMode } from "./client/storage";
+import { readActivityProject, readListMode, readPairingCode, writeActivityProject, writeListMode, type MobileListMode } from "./client/storage";
 import { ApprovalSheet } from "./components/ApprovalSheet";
 import { Changes } from "./components/Changes";
 import { Composer, type ReturnedToComposer } from "./components/Composer";
@@ -276,8 +276,8 @@ function useScreenHistory(onPopped: () => void) {
 }
 
 /** Where the list's New starts a thread: the project the activity list is narrowed to, else the one worked in last. */
-function startingProject(groups: MobileProjectGroup[], mode: MobileListMode): MobileProjectGroup | null {
-  const narrowed = mode === "activity" ? readActivityProject(window.localStorage) : null;
+function startingProject(groups: MobileProjectGroup[], mode: MobileListMode, activityProject: string | null): MobileProjectGroup | null {
+  const narrowed = mode === "activity" ? activityProject : null;
   const filtered = narrowed ? groups.find((group) => group.projectId === narrowed) : undefined;
   if (filtered) return filtered;
   let latest: { group: MobileProjectGroup; at: number } | null = null;
@@ -302,6 +302,7 @@ export function App() {
   const { state, send, query, dismissNotice } = useMobileClient();
   const [screen, setScreen] = useState<Screen>("list");
   const [listMode, setListMode] = useState<MobileListMode>(() => readListMode(window.localStorage));
+  const [activityProject, setActivityProject] = useState(() => readActivityProject(window.localStorage));
   const [sheet, setSheet] = useState<ThreadSheet>(null);
   /**
    * The thread a tap asked for, held until the Mac opens it or anything else. Until then the screen
@@ -395,10 +396,16 @@ export function App() {
     setListMode(mode);
   }, []);
 
+  const chooseActivityProject = useCallback((projectId: string | null) => {
+    writeActivityProject(window.localStorage, projectId);
+    setActivityProject(projectId);
+  }, []);
+
   const swipe = useEdgeSwipe(reading && sheet === null, back);
 
   if (state.entry === "blocked" && !state.credential) return <Gate notice={state.notice} />;
 
+  const start = reading ? null : startingProject(state.view.groups, listMode, activityProject);
   const pending = opening !== null && current === opening.was && current !== opening.want;
   const title = !reading ? "Threads" : screen === "changes" ? "Changes" : pending ? opening.title : thread ? thread.title : draft ? "New thread" : "Opening";
   const project = pending ? opening.project : thread ? thread.projectName : draft ? draft.projectName : undefined;
@@ -424,10 +431,7 @@ export function App() {
             {subtitle && <p>{subtitle}</p>}
           </div>}
         {!reading && (
-          <button type="button" className="ghost icon bar-action" aria-label="New thread" onClick={() => {
-            const start = startingProject(state.view.groups, listMode);
-            newThread(start?.projectId ?? null, start?.name ?? null);
-          }}><SquarePen size={20} strokeWidth={1.8} /></button>
+          <button type="button" className="ghost icon bar-action" aria-label={start ? `New thread in ${start.name}` : "New thread"} onClick={() => newThread(start?.projectId ?? null, start?.name ?? null)}><SquarePen size={20} strokeWidth={1.8} /></button>
         )}
         {screen === "thread" && (pending ? opening.want !== "draft" : thread !== null) && (
           <button type="button" className="ghost icon bar-action" aria-label="Thread options" aria-haspopup="dialog" disabled={pending} onClick={() => setSheet("menu")}><Ellipsis size={20} /></button>
@@ -454,9 +458,11 @@ export function App() {
             mode={listMode}
             groups={state.view.groups}
             activity={state.view.activity}
+            chosenProject={activityProject}
             now={now}
             initialScrollTop={listScroll.current}
             onScroll={rememberScroll}
+            onChooseProject={chooseActivityProject}
             onOpen={openThread}
             onMenu={openMenu}
             onNew={newFromList}

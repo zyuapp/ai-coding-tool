@@ -630,7 +630,7 @@ test("the session panel lists a workflow as a process and opens its panel", asyn
 
   assert.match(view.container.textContent, /2 running/);
   assert.match(view.container.textContent, /Running · 2\/3 agents/);
-  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Open review-changes workflow"]').click(); });
+  await act(async () => { query<HTMLButtonElement>(view.container, "button.process-open").click(); });
   assert.deepEqual(opened, ["wf-1"]);
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Stop review-changes"]').click(); });
   await act(async () => { query<HTMLButtonElement>(view.container, ".process-stop-slot > button.armed").click(); });

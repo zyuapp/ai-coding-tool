@@ -20,8 +20,6 @@ type ReviewPickerProps = {
   onClose: () => void;
 };
 
-const SUBMIT_KEYS = displayShortcut("Mod+Enter", MAC);
-
 function targets(engineLabel: string) {
   return [
     { step: "base" as const, label: "Review against a base branch", description: "Compare this branch with another branch.", icon: GitBranch },
@@ -191,9 +189,9 @@ function CustomPicker({ engineLabel, onReview }: Pick<ReviewPickerProps, "engine
         placeholder={`What should ${engineLabel} focus on?`}
         value={instructions}
         onChange={(event) => setInstructions(event.target.value)}
-        onKeyDown={(event) => { if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) submit(event); }}
+        onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) submit(event); }}
       /></label>
-      <div className="review-form-actions"><button type="submit" className="primary" disabled={!custom}>Start review <kbd aria-hidden="true">{SUBMIT_KEYS}</kbd></button></div>
+      <div className="review-form-actions"><button type="submit" className="primary" disabled={!custom}>Start review <kbd aria-hidden="true">{displayShortcut("Enter", MAC)}</kbd></button></div>
     </form>
   );
 }

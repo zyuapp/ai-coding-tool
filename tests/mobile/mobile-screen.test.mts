@@ -111,6 +111,7 @@ test("a row something waits on is marked as needing the user, and a folded group
   waiting.groups = [{ projectId: "p", name: "App", threads: [{ id: "lead", title: "Plan", projectId: "p", projectName: "App", attention: false, status: "running", waiting: true, headline: "A decision is waiting on you", lastActivityAt: Date.now(), unread: false }] }];
   act(() => line.onmessage?.({ data: JSON.stringify({ kind: "snapshot", sequence: 1, sessionId: "s1", build: BUILD, view: waiting }) }));
   assert.equal(document.querySelector(".thread-row")?.getAttribute("data-waiting"), "true");
+  assert.equal(document.querySelector(".thread-row .thread-open .sr-only")?.textContent, "Needs you", "the ring that takes the spinner's place is what a reader hears");
   assert.match(document.querySelector(".thread-row .thread-headline")?.textContent ?? "", /A decision is waiting on you/);
   assert.equal(groupMark(waiting.groups[0]!.threads), "needs-you");
 
@@ -325,6 +326,7 @@ test("the list ranks by what wants the user when asked, and a Priority row can b
   assert.equal(localStorage.getItem("aicodingtool.mobile.list"), "activity", "the choice survives a visit");
   assert.deepEqual([...document.querySelectorAll(".section-toggle > span:first-child")].map((node) => node.textContent), ["Priority", "Running", "Threads"]);
   assert.match(document.querySelector(".thread-headline")?.textContent ?? "", /Tests are red/);
+  assert.deepEqual([...document.querySelectorAll(".thread-row .sr-only")].map((node) => node.textContent), ["Unread", "Unread", "Running"]);
   assert.match(document.querySelectorAll(".thread-meta")[1]?.textContent ?? "", /^No project · Done/);
   assert.equal(document.querySelectorAll(".thread-dismiss").length, 1, "only a settled row is filed away; a blocked one is answered");
   click(".thread-dismiss");
@@ -375,7 +377,7 @@ test("the activity list narrows to one project, remembers it, and dismisses only
   assert.equal(document.querySelector(".list-filter")?.textContent, "Docs");
   assert.deepEqual(titles(), ["Write the guide"]);
   clickButton("Dismiss all");
-  click('.bar button[aria-label="New thread"]');
+  click('.bar button[aria-label="New thread in Docs"]');
   assert.deepEqual(frameOf(line, "task.dismiss-all").command, { type: "task.dismiss-all", projectId: "q" });
   localStorage.removeItem("aicodingtool.mobile.activity-project");
   localStorage.removeItem("aicodingtool.mobile.list");
@@ -621,12 +623,12 @@ test("a phone with no notice still says how to pair", () => {
 test("the list's bar starts a thread in the project worked in last, and a thread's bar has no such button", () => {
   const line = openPhone({ paired: true });
   live(line);
-  click('.bar button[aria-label="New thread"]');
+  click('.bar button[aria-label="New thread in App"]');
   assert.deepEqual(lastCommand(line), { type: "task.new", projectId: "p" });
   assert.equal(document.querySelector(".bar-title p")?.textContent, "App");
   click('button[aria-label="Back to threads"]');
   click(".thread-row .thread-open");
-  assert.equal(document.querySelector('.bar button[aria-label="New thread"]'), null);
+  assert.equal(document.querySelector('.bar button[aria-label^="New thread"]'), null);
 });
 
 test("an approval opens a short tool input before the answer, and keeps a long one folded", () => {

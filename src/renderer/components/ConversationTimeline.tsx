@@ -1,6 +1,6 @@
 import { elementScroll, useVirtualizer } from "@tanstack/react-virtual";
 import type { IconType } from "react-icons";
-import { LuChevronDown as ChevronDown, LuFolderSymlink as FolderSymlink, LuHourglass as Hourglass } from "react-icons/lu";
+import { LuChevronDown as ChevronDown, LuFoldVertical as FoldVertical, LuFolderSymlink as FolderSymlink, LuHourglass as Hourglass, LuRotateCw as RotateCw } from "react-icons/lu";
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { ThreadStart } from "../../application/coordination-view";
 import type { StreamingTail } from "../../application/thread-run-state";
@@ -10,6 +10,7 @@ import { isCoordinator } from "../../domain/coordination";
 import type { RetryNotice } from "../../domain/run";
 import { liftTime, resumesOnItsOwn, type LimitPause } from "../../domain/usage-limit";
 import { CommandButton } from "./CommandControl";
+import { CopyButton } from "./CopyButton";
 import type { Annotation, AnnotationAnchor } from "../../domain/conversation";
 import type { Thread } from "../../domain/thread";
 import { groupTimeline, messageRows } from "../timeline/grouping";
@@ -90,7 +91,30 @@ function limitLabel(pause: LimitPause & { position: number | null }, now: number
 
 function retryLabel(retry: RetryNotice) {
   const count = retry.attempt === undefined ? "" : retry.maxRetries === undefined ? ` ${retry.attempt}` : ` ${retry.attempt} of ${retry.maxRetries}`;
-  return `${retry.message} Retrying${count}…`;
+  return `Retrying${count}…`;
+}
+
+/** What failed reads as still text; only the retry itself moves. */
+function RetryingRow({ retry }: { retry: RetryNotice }) {
+  return (
+    <div className="retrying-row" role="status" aria-live="polite">
+      <RotateCw aria-hidden="true" />
+      <span className="retrying-reason">{retry.message}</span>{" "}
+      <span className="text-sweep">{retryLabel(retry)}</span>
+      {retry.message && <CopyButton text={retry.message} label="Copy the error" />}
+    </div>
+  );
+}
+
+function CompactingRow() {
+  const [shownAt] = useState(Date.now);
+  return (
+    <div className="compacting-row" role="status" aria-live="polite">
+      <FoldVertical aria-hidden="true" />
+      <span className="text-sweep">Compacting messages…</span>
+      <span className="thinking-elapsed" aria-hidden="true"><Elapsed startedAt={shownAt} endsAt={null} /></span>
+    </div>
+  );
 }
 
 /** `since` is when the live turn's first step began; until it has one, the row counts from when it appeared. */
@@ -253,16 +277,8 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
       <AnnotationMarkers markers={markers} annotations={annotations} noteReturn={annotate.noteReturn} onEdit={annotate.setNoting} flashing={flashing} />
       {waitingOn && <WaitingRow key={waitingOn} wait={waitingOn} />}
       {status !== "running" && limitPause && currentThread && <LimitRow pause={limitPause} taskId={currentThread.id} />}
-      {status === "running" && compacting && (
-        <div className="compacting-row" role="status" aria-live="polite">
-          <span className="text-sweep">Compacting messages…</span>
-        </div>
-      )}
-      {status === "running" && !compacting && retrying && (
-        <div className="retrying-row" role="status" aria-live="polite">
-          <span className="text-sweep">{retryLabel(retrying)}</span>
-        </div>
-      )}
+      {status === "running" && compacting && <CompactingRow />}
+      {status === "running" && !compacting && retrying && <RetryingRow retry={retrying} />}
       {status === "running" && !compacting && !retrying && (
         <ThinkingRow since={liveSince} />
       )}

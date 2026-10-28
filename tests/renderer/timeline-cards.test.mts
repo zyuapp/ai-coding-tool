@@ -22,6 +22,19 @@ test("Send answer shows the key that sends it, only where that key sends", async
   await view.unmount();
 });
 
+test("Enter on a picked option sends it, only where Enter sends", async () => {
+  let sent = 0;
+  const prompt = (submitOnEnter: boolean) => React.createElement(QuestionPrompt, { question, answer: "Blue", submitOnEnter, onAnswerChange() {}, onSubmit() { sent += 1; } });
+  const view = await mount(prompt(true));
+  const enter = () => act(async () => { query<HTMLInputElement>(view.container, 'input[type="radio"]').dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })); });
+  await enter();
+  assert.equal(sent, 1);
+  await view.render(prompt(false));
+  await enter();
+  assert.equal(sent, 1);
+  await view.unmount();
+});
+
 test("a workflow row shows it opens a panel, and Stop reads as a stop at rest", async () => {
   const workflow = (status: Workflow["status"]): Workflow => ({ id: "w", name: "Release", description: "", status, phases: [], agents: [], totalTokens: 0, totalToolCalls: 0, startedAt: 1 });
   const opened: string[] = [];
@@ -30,6 +43,8 @@ test("a workflow row shows it opens a panel, and Stop reads as a stop at rest", 
   const view = await mount(row("running"));
   const open = query<HTMLButtonElement>(view.container, ".process-open");
   assert.ok(query(open, ".process-open-chevron"));
+  assert.equal(open.getAttribute("aria-label"), null, "the row is read by its name and status");
+  assert.match(open.textContent, /Release.*Running/);
   await act(async () => { open.click(); });
   await act(async () => { query<HTMLButtonElement>(view.container, ".process-stop").click(); });
   assert.deepEqual([opened, stopped], [["w"], []], "Stop asks once more");

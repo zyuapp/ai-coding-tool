@@ -185,6 +185,7 @@ test("the engines page says what is wrong with each engine, and checks again on 
   assert.match(item(rows[1]).textContent, /Codex is not installed./);
   assert.match(item(rows[1]).textContent, /brew install --cask codex/);
   assert.match(item(rows[1]).textContent, /Not installed/);
+  assert.ok(query(item(rows[1]), ".setting-pill").classList.contains("blocked"), "an engine that cannot run reads apart from one with an update");
 
   await act(async () => { query<HTMLButtonElement>(view.container, ".settings-group-action button").click(); });
   assert.equal(checks, 1, "the button asks the machine again rather than showing what was read at startup");
@@ -577,6 +578,7 @@ test("Restore defaults asks first, and Esc takes the question back", async () =>
   const named = (name: string) => item([...actions().querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === name));
 
   assert.ok(named("Restore defaults").closest(".settings-page-heading"), "it sits over every group, not in the first one");
+  assert.equal(actions().querySelector("span")?.textContent, "1 changed");
   await act(async () => { named("Restore defaults").click(); });
   assert.equal(resets, 0);
   assert.equal(dom.window.document.activeElement, named("Cancel"));
@@ -642,6 +644,9 @@ test("the appearance pickers walk by arrow keys and hand the focus back to their
   await key(query(view.container, ".theme-select-popover input"), "Escape");
   assert.equal(view.container.querySelector(".theme-select-popover"), null);
   assert.equal(document.activeElement, themeButton, "Esc hands the focus back too");
+  await key(themeButton, "ArrowDown");
+  assert.ok(view.container.querySelector(".theme-select-popover"), "ArrowDown on the button opens the themes");
+  assert.equal(document.activeElement, query(view.container, ".theme-select-popover input"));
   await view.unmount();
 });
 

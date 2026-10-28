@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Draggable, Droppable, type DraggableProvided } from "@hello-pangea/dnd";
-import { LuChevronRight as ChevronRight, LuPlus as Plus, LuSquarePen as SquarePen } from "react-icons/lu";
+import { LuChevronRight as ChevronRight, LuListFilter as Filter, LuPlus as Plus, LuSquarePen as SquarePen } from "react-icons/lu";
 import { folderName, projectName, type Project } from "../../domain/project";
 import type { Thread } from "../../domain/thread";
 import type { SidebarSection, SidebarSections } from "../../domain/sidebar";
@@ -194,7 +194,7 @@ function ProjectRow({
                       />
                     : <button
                         className="project-main"
-                        onClick={() => onToggleProject(project.id)}
+                        onClick={(event) => { if (event.detail < 2) onToggleProject(project.id); }}
                         onDoubleClick={(event) => renaming.start(project.id, event.currentTarget.closest(".project-row"))}
                         onKeyDown={(event) => {
                           if (event.key !== "F2") return;
@@ -306,7 +306,7 @@ function ComputerHeading({ host, name, filter, onSetFilter }: { host: ThreadHost
       aria-label={`Only ${name}`}
       data-tip={narrowed ? "Show all computers" : `Only ${name}`}
       onClick={() => onSetFilter(narrowed ? "all" : own)}
-    >{content}</button>
+    >{content}<Filter className="computer-heading-filter" size={12} aria-hidden="true" /></button>
   );
 }
 

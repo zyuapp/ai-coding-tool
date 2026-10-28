@@ -44,7 +44,7 @@ export function FileHeader({ file, open, viewed, echo = false, onToggle, onOpenF
         <span className="diff-file-caret" aria-hidden="true" data-tip={open ? "Fold" : "Unfold"}>
           {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </span>
-        <span className="diff-file-icon" data-tip={STATUS_TOOLTIPS[file.status]}><StatusIcon status={file.status} /></span>
+        <span className="diff-file-icon" role="img" aria-label={STATUS_TOOLTIPS[file.status]} data-tip={STATUS_TOOLTIPS[file.status]}><StatusIcon status={file.status} /></span>
         <span className="diff-file-name" data-find-row={`${file.path}\n`} data-tip={file.path}>
           <em>{folder}</em>{name}
         </span>

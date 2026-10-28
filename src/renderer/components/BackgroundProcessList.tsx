@@ -39,7 +39,7 @@ export const BackgroundProcessRow = memo(function BackgroundProcessRow({ process
 export const WorkflowProcessRow = memo(function WorkflowProcessRow({ workflow, onOpen, onStop }: { workflow: Workflow; onOpen: (id: string) => void; onStop: (processId: string) => void }) {
   return (
     <div className="process-row">
-      <button className="process-open" type="button" onClick={() => onOpen(workflow.id)} aria-label={`Open ${workflow.name} workflow`}>
+      <button className="process-open" type="button" onClick={() => onOpen(workflow.id)}>
         <span className={`agent-orb ${workflow.status === "running" ? "" : workflow.status === "completed" ? "done" : "error"}`}><Boxes size={12} /></span>
         <span><strong>{workflow.name}</strong><small>{workflowLabel(workflow)}</small></span>
         <ChevronRight className="process-open-chevron" size={14} aria-hidden="true" />

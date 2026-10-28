@@ -5,6 +5,7 @@ import React, { act } from "react";
 import { App } from "../../src/renderer/App.tsx";
 import { mount, query } from "../support/renderer-dom.mts";
 import { seedProjectTasks } from "../support/sidebar.mts";
+import type { Toast } from "../../src/domain/toast.ts";
 
 vi.mock("../../src/renderer/task-workspace/workspace-connection.ts", () => import("../support/in-process-workspace.mts"));
 
@@ -63,26 +64,43 @@ test("an offer's button sends its command, and the offer has no timer to beat", 
   await view.unmount();
 });
 
-test("the cards are held while the pointer or the caret is on them, and let go once both have left", async () => {
+test("a card whose time runs out under the pointer or the caret stays until both have left", async () => {
   const { Toasts } = await import("../../src/renderer/components/Toasts.tsx");
-  const held: boolean[] = [];
-  const view = await mount(React.createElement(Toasts, {
-    toasts: [{ id: 1, tone: "success", title: "Pushed" }],
-    onDismiss: () => {},
-    onAction: () => {},
-    onHold: (value: boolean) => { held.push(value); },
-  }));
-  const toast = query(view.container, ".toast");
-  const close = query<HTMLButtonElement>(toast, ".toast-close");
+  const pushed = { id: 1, tone: "success" as const, title: "Pushed" };
+  const merged = { id: 2, tone: "success" as const, title: "Merged" };
+  const props = (toasts: Toast[]) => ({ toasts, onDismiss: () => {}, onAction: () => {} });
+  const titles = (container: HTMLElement) => [...container.querySelectorAll(".toast strong")].map((title) => title.textContent);
+  const view = await mount(React.createElement(Toasts, props([pushed, merged])));
   try {
-    await act(async () => { toast.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, relatedTarget: document.body })); });
-    assert.deepEqual(held, [true]);
+    const card = query(view.container, ".toast");
+    await act(async () => { card.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, relatedTarget: document.body })); });
+    await view.render(React.createElement(Toasts, props([merged])));
+    assert.deepEqual(titles(view.container), ["Merged", "Pushed"], "the pointer keeps the card whose time ran out");
+    const close = query<HTMLButtonElement>(view.container, ".toast-close");
     await act(async () => close.focus());
-    assert.deepEqual(held, [true], "focus arriving while the pointer holds them changes nothing");
-    await act(async () => { toast.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: document.body })); });
-    assert.deepEqual(held, [true], "the caret still holds them");
+    await act(async () => { card.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: document.body })); });
+    assert.deepEqual(titles(view.container), ["Merged", "Pushed"], "the caret still keeps it");
     await act(async () => close.blur());
-    assert.deepEqual(held, [true, false]);
+    assert.deepEqual(titles(view.container), ["Merged"]);
+    await view.render(React.createElement(Toasts, props([])));
+    assert.equal(view.container.querySelector(".toasts"), null, "with nothing holding them, cards leave on time");
+  } finally { await view.unmount(); }
+});
+
+test("a card closed at its X while the cards are held leaves at once", async () => {
+  const { Toasts } = await import("../../src/renderer/components/Toasts.tsx");
+  const pushed = { id: 1, tone: "success" as const, title: "Pushed" };
+  const merged = { id: 2, tone: "success" as const, title: "Merged" };
+  const dismissed: number[] = [];
+  const props = (toasts: Toast[]) => ({ toasts, onDismiss: (id: number) => { dismissed.push(id); }, onAction: () => {} });
+  const view = await mount(React.createElement(Toasts, props([pushed, merged])));
+  try {
+    const newest = query(view.container, ".toast");
+    await act(async () => { newest.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, relatedTarget: document.body })); });
+    await act(async () => { query<HTMLButtonElement>(newest, ".toast-close").click(); });
+    await view.render(React.createElement(Toasts, props([pushed])));
+    assert.deepEqual(dismissed, [2]);
+    assert.deepEqual([...view.container.querySelectorAll(".toast strong")].map((title) => title.textContent), ["Pushed"]);
   } finally { await view.unmount(); }
 });
 

@@ -35,7 +35,12 @@ export function QuestionPrompt({ question, answer, disabled = false, submitOnEnt
         <p id={id}>{question.question}</p>
         {question.options.length > 0 && <div className="question-options" role="radiogroup" aria-labelledby={id}>
           {question.options.map((option, index) => <label className="question-option" key={index}>
-            <input type="radio" name={id} value={option.label} checked={chosen && answer === option.label} disabled={unavailable} onChange={() => { setTyped(false); onAnswerChange(option.label); }} />
+            <input type="radio" name={id} value={option.label} checked={chosen && answer === option.label} disabled={unavailable} onChange={() => { setTyped(false); onAnswerChange(option.label); }} onKeyDown={(event) => {
+              if (submitOnEnter && event.key === "Enter" && event.currentTarget.checked) {
+                event.preventDefault();
+                event.currentTarget.form?.requestSubmit();
+              }
+            }} />
             <span><strong>{option.label}</strong>{option.description && <span className="question-option-description">{option.description}</span>}</span>
           </label>)}
         </div>}

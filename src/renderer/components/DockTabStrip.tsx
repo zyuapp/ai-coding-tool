@@ -164,7 +164,7 @@ export function DockTabStrip({ workspace, tabs, launchers, activeTab, expanded, 
               {tab.badge ? <em className={tab.badgeTone} role="img" aria-label={tab.badgeLabel ?? String(tab.badge)} data-tip={tab.badgeLabel}>{tab.badge}</em> : null}
               {tab.unread ? <span className="right-dock-tab-attention" role="img" aria-label="Waiting for you" data-tip="Waiting for you" /> : null}
             </button>
-            {!tab.pinned && <button type="button" tabIndex={-1} aria-label={`Close ${tab.title}`} data-tip={activeTab === tab.id && !expanded ? shortcutTip("Close tab", "Mod+W") : "Close tab"} onClick={() => onCloseTab(tab.id)}><X size={14} /></button>}
+            {!tab.pinned && <button type="button" tabIndex={-1} aria-label={`Close ${tab.title}`} data-tip={activeTab === tab.id && !expanded ? shortcutTip("Close tab", "Mod+W") : shortcutTip("Close tab", "Delete")} onClick={() => onCloseTab(tab.id)}><X size={14} /></button>}
           </div>
         ))}
       </div>
@@ -195,6 +195,7 @@ export function DockTabStrip({ workspace, tabs, launchers, activeTab, expanded, 
               >
                 <launcher.icon size={16} aria-hidden="true" />
                 <span>{launcher.title}{launcher.disabledLabel && <small>{launcher.disabledLabel}</small>}</span>
+                {!launcher.disabled && <kbd aria-hidden="true">/{launcher.command}</kbd>}
               </button>
             ))}
           </div>

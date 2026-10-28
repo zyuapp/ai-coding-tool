@@ -84,19 +84,31 @@ export function DiagramViewer({ diagram, onClose }: { diagram: Diagram; onClose:
   );
 }
 
-const OpenDiagram = createContext<((diagram: Diagram) => void) | null>(null);
+/** A diagram as opened: what it was drawn from, and the width it was drawn for, so a theme change can redraw it. */
+type OpenedDiagram = { diagram: Diagram; source: string; room: number; generation: number };
+
+const OpenDiagram = createContext<((opened: Omit<OpenedDiagram, "generation">) => void) | null>(null);
 
 /**
  * Holds the opened diagram above the transcript, which unmounts the row a diagram sits in as soon as
- * it scrolls out of view.
+ * it scrolls out of view. A theme change redraws it in place; one that no longer draws closes it.
  */
 export function DiagramViewerHost({ children }: { children: ReactNode }) {
-  const [shown, setShown] = useState<{ diagram: Diagram } | { visual: string } | null>(null);
-  const openDiagram = useCallback((diagram: Diagram) => setShown({ diagram }), []);
+  const [shown, setShown] = useState<OpenedDiagram | { visual: string } | null>(null);
+  const generation = useSyncExternalStore(subscribeToGeneration, readGeneration);
+  const openDiagram = useCallback((opened: Omit<OpenedDiagram, "generation">) => setShown({ ...opened, generation: readGeneration() }), []);
   const openVisual = useCallback((visual: string) => setShown({ visual }), []);
   const close = useCallback(() => setShown(null), []);
-  /** The drawing on screen carries the theme it was rendered in, so a theme change closes it. */
-  useEffect(() => subscribeToGeneration(() => setShown((current) => (current && "diagram" in current ? null : current))), []);
+  const stale = shown && "diagram" in shown && shown.generation !== generation ? shown : null;
+  useEffect(() => {
+    if (!stale) return;
+    let cancelled = false;
+    void drawDiagram(stale.source, "mermaid-viewer", stale.room).then((result) => {
+      if (cancelled || !result) return;
+      setShown((current) => (current !== stale ? current : result.diagram ? { ...stale, diagram: result.diagram, generation: readGeneration() } : null));
+    });
+    return () => { cancelled = true; };
+  }, [stale, generation]);
   return (
     <OpenDiagram.Provider value={openDiagram}>
     <OpenVisual.Provider value={openVisual}>
@@ -164,6 +176,49 @@ async function drawnHere(mermaid: typeof import("mermaid").default, id: string, 
   }
 }
 
+/**
+ * Draws a source in the current theme and remembers what it drew as. Nothing comes back when the theme
+ * changed before it finished, since that drawing is already stale.
+ */
+async function drawDiagram(source: string, id: string, room: number): Promise<Drawn | null> {
+  const drawnAs = readGeneration();
+  try {
+    const { default: mermaid } = await import("mermaid");
+    if (readGeneration() !== drawnAs) return null;
+    if (!initialized) {
+      /** A face that arrives later would widen every word Mermaid has already measured. */
+      await document.fonts.ready;
+      if (readGeneration() !== drawnAs) return null;
+      const scheme = getComputedStyle(document.documentElement).colorScheme;
+      const prose = getComputedStyle(document.body);
+      const size = Math.round(parseFloat(prose.fontSize)) || 16;
+      mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: "strict",
+        theme: scheme === "light" ? "default" : "dark",
+        /**
+         * A label drawn as SVG text is measured and painted in one place. An HTML label is
+         * measured in one and painted in another, which cuts a label that grew between the two.
+         */
+        htmlLabels: false,
+        fontFamily: prose.fontFamily,
+        /** Mermaid measures words against the number and paints them from the theme's own value. */
+        fontSize: size,
+        themeVariables: { fontSize: `${size}px` },
+      });
+      initialized = true;
+    }
+    /** Mermaid keys its scratch node on the id it is given, so two renders may not share one. */
+    const svg = await drawnHere(mermaid, `${id}-${drawnAs}`, source, room);
+    if (readGeneration() !== drawnAs) return null;
+    remember(source, { diagram: naturalDiagram(svg) });
+  } catch (error) {
+    if (readGeneration() !== drawnAs) return null;
+    remember(source, { error: error instanceof Error ? error.message : String(error) });
+  }
+  return drawn.get(source) ?? null;
+}
+
 /** `pending` marks a block whose fence has not closed yet, so its source still grows with the stream. */
 export function MermaidBlock({ source, pending = false }: { source: string; pending?: boolean }) {
   const host = useRef<HTMLDivElement>(null);
@@ -193,44 +248,9 @@ export function MermaidBlock({ source, pending = false }: { source: string; pend
   useEffect(() => {
     if (!visible || pending || drawn.has(source)) return;
     let cancelled = false;
-    void (async () => {
-      /** Mermaid keys its scratch node on the id it is given, so two renders may not share one. */
-      const drawnAs = generation;
-      try {
-        const { default: mermaid } = await import("mermaid");
-        if (readGeneration() !== drawnAs) return;
-        if (!initialized) {
-          /** A face that arrives later would widen every word Mermaid has already measured. */
-          await document.fonts.ready;
-          if (readGeneration() !== drawnAs) return;
-          const scheme = getComputedStyle(document.documentElement).colorScheme;
-          const prose = getComputedStyle(document.body);
-          const size = Math.round(parseFloat(prose.fontSize)) || 16;
-          mermaid.initialize({
-            startOnLoad: false,
-            securityLevel: "strict",
-            theme: scheme === "light" ? "default" : "dark",
-            /**
-             * A label drawn as SVG text is measured and painted in one place. An HTML label is
-             * measured in one and painted in another, which cuts a label that grew between the two.
-             */
-            htmlLabels: false,
-            fontFamily: prose.fontFamily,
-            /** Mermaid measures words against the number and paints them from the theme's own value. */
-            fontSize: size,
-            themeVariables: { fontSize: `${size}px` },
-          });
-          initialized = true;
-        }
-        const svg = await drawnHere(mermaid, `mermaid-${id}-${drawnAs}-${attempt}`, source, host.current?.clientWidth ?? 0);
-        if (readGeneration() !== drawnAs) return;
-        remember(source, { diagram: naturalDiagram(svg) });
-      } catch (error) {
-        if (readGeneration() !== drawnAs) return;
-        remember(source, { error: error instanceof Error ? error.message : String(error) });
-      }
-      if (!cancelled) setResult({ source, ...drawn.get(source) });
-    })();
+    void drawDiagram(source, `mermaid-${id}-${attempt}`, host.current?.clientWidth ?? 0).then((result) => {
+      if (!cancelled && result) setResult({ source, ...result });
+    });
     return () => { cancelled = true; };
   }, [id, source, visible, pending, generation, attempt]);
 
@@ -249,7 +269,7 @@ export function MermaidBlock({ source, pending = false }: { source: string; pend
       <div className="mermaid-block" ref={host}>
         {!current.diagram && !current.error ? <span className="mermaid-loading"><span className="text-sweep">Rendering diagram…</span></span> : null}
         {drawing && open
-          ? <button type="button" className="mermaid-open" aria-label="Open the diagram at full size" onClick={() => open(current.diagram!)}>{drawing}</button>
+          ? <button type="button" className="mermaid-open" aria-label="Open the diagram at full size" onClick={() => open({ diagram: current.diagram!, source, room: host.current?.clientWidth ?? 0 })}>{drawing}</button>
           : drawing}
         {current.error ? (
           <BlockError className="mermaid-error" title="Diagram could not be rendered" error={current.error} onRetry={retry}>
@@ -260,7 +280,7 @@ export function MermaidBlock({ source, pending = false }: { source: string; pend
       </div>
       {/* Pointer only: the drawing itself is the keyboard's way to open it. */}
       {drawing && open && (
-        <button type="button" className="diagram-expand" tabIndex={-1} aria-hidden="true" data-tip="Full size" onClick={() => open(current.diagram!)}>
+        <button type="button" className="diagram-expand" tabIndex={-1} aria-hidden="true" data-tip="Full size" onClick={() => open({ diagram: current.diagram!, source, room: host.current?.clientWidth ?? 0 })}>
           <Maximize size={14} aria-hidden="true" />
         </button>
       )}

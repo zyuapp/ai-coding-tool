@@ -39,6 +39,7 @@ function SitePicker({ picker, importing, onToggle, onFilter, onRun, onCancel }: 
   const ticked = matching.filter((site) => selected.has(site.domain)).length;
   const all = matching.length > 0 && ticked === matching.length;
   const room = MAX_IMPORT_SITES - count;
+  const full = room <= 0;
   const everyBox = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (everyBox.current) everyBox.current.indeterminate = ticked > 0 && !all;
@@ -76,7 +77,7 @@ function SitePicker({ picker, importing, onToggle, onFilter, onRun, onCancel }: 
                 )}
                 {matching.slice(0, SHOWN_SITES).map((site) => (
                   <label key={site.domain}>
-                    <input type="checkbox" checked={selected.has(site.domain)} onChange={() => onToggle(site.domain)} />
+                    <input type="checkbox" checked={selected.has(site.domain)} disabled={full && !selected.has(site.domain)} onChange={() => onToggle(site.domain)} />
                     <span>{site.domain}</span>
                     <em>{site.cookies} {site.cookies === 1 ? "cookie" : "cookies"}</em>
                   </label>
@@ -86,6 +87,7 @@ function SitePicker({ picker, importing, onToggle, onFilter, onRun, onCancel }: 
               {matching.length > SHOWN_SITES && <p className="browser-import-quiet">Showing {SHOWN_SITES} of {matching.length}. Search to find the rest.</p>}
             </>}
       <div className="browser-import-actions">
+        {full && <p className="browser-import-limit" role="status">Limit reached: {count} of {MAX_IMPORT_SITES} sites</p>}
         <button type="button" onClick={onCancel} disabled={importing}>Cancel</button>
         <button type="button" className="primary" onClick={onRun} disabled={importing || count === 0} aria-busy={importing || undefined}>
           {importing ? "Importing…" : count === 0 ? "Import" : `Import ${count} ${count === 1 ? "site" : "sites"}`}

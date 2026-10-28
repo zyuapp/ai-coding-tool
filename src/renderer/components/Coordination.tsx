@@ -1,5 +1,5 @@
 import { createContext, memo, useContext, useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
-import { LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuChevronDown as ChevronDown, LuCircleCheck as Resolved, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuPencil as Pencil, LuTrash2 as Trash, LuUndo2 as Reopen, LuX as X } from "react-icons/lu";
+import { LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuChevronDown as ChevronDown, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuPencil as Pencil, LuTrash2 as Trash, LuUndo2 as Reopen, LuX as X } from "react-icons/lu";
 import { deliveryLabel, MAX_MEMORY_NOTE, MAX_PURPOSE, nextStepOf, OVERVIEW_GROUPS, type MemoryNote, type OverviewFold, type OverviewFolds, type OverviewGroup, type OverviewSection, type ThreadBrief, type ThreadModelChoice } from "../../domain/coordination";
 import { modelDelegable, modelEngine, modelLabel, type AgentEngine, type AgentModel, type EngineReadiness } from "../../domain/agent-engine";
 import type { AgentEffort } from "../../domain/run";
@@ -474,9 +474,8 @@ const ThreadRow = memo(function ThreadRow({ view: { thread, status, summary, hos
 
 /**
  * Resolves a thread with nothing left waiting on it, or reopens a resolved one; nothing for a thread
- * that is working or waiting on the user. A resolved thread's button reads as a ticked check, which
- * turns into an undo once pointed at, so reopening never looks like running it again. Its icon is
- * even-sized, as its buttons are, so it sits centred on whole pixels rather than a half one.
+ * that is working or waiting on the user. Its icon is even-sized, as its buttons are, so it sits
+ * centred on whole pixels rather than a half one.
  */
 export function ResolutionButton({ taskId, title, status, className, size = 14 }: {
   taskId: string;
@@ -488,8 +487,7 @@ export function ResolutionButton({ taskId, title, status, className, size = 14 }
   if (status === "resolved") {
     return (
       <CommandButton command={{ type: "task.reopen", taskId }} className={className} data-action="reopen" aria-label={`Reopen ${title}`} data-tip="Reopen">
-        <Resolved className="resolution-ticked" size={size} aria-hidden="true" />
-        <Reopen className="resolution-undo" size={size} aria-hidden="true" />
+        <Reopen size={size} aria-hidden="true" />
       </CommandButton>
     );
   }

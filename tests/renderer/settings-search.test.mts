@@ -131,3 +131,20 @@ test("the settings pages are one Tab stop, on the page that is open", async () =
   assert.deepEqual(stops.map((button) => button.textContent), ["Browser"]);
   await view.unmount();
 });
+
+test("a settings search with a query offers a clear button that empties it and keeps the focus in the field", async () => {
+  window.desktop = fakeDesktop({});
+  const view = await mount(renderSettingsPanel({}));
+  await act(async () => {});
+
+  assert.equal(view.container.querySelector(".settings-search-clear"), null, "an empty search has nothing to clear");
+  const field = await searchSettings(view, "font");
+  const clear = query<HTMLButtonElement>(view.container, ".settings-search-clear");
+  assert.equal(clear.getAttribute("aria-label"), "Clear the search");
+  await act(async () => { clear.click(); });
+  assert.equal(field.value, "");
+  assert.equal(dom.window.document.activeElement, field);
+  assert.ok(view.container.querySelector(".settings-sidebar nav"));
+  assert.equal(view.container.querySelector(".settings-search-clear"), null);
+  await view.unmount();
+});

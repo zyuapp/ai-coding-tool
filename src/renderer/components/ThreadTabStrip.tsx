@@ -34,6 +34,13 @@ export function scheduleChipLabel(automation: AutomationView | null, now = Date.
   return `Next ${(automation.nextRunAt - now < WEEK ? RUN_WEEKDAY : RUN_DATE).format(next)}`;
 }
 
+/** What the schedule chip's tip says happened, where its label is a single word. */
+export function scheduleChipTip(automation: AutomationView | null) {
+  if (automation?.paused) return "Automation is paused";
+  if (automation && automation.nextRunAt === null) return "Last run was missed";
+  return "Automation";
+}
+
 /** What stands in for the checkout's chips until Git has answered for it; `failed` when Git refused. */
 function environmentNote(tab: ThreadTabView): { text: string; failed?: boolean; reading?: boolean } | null {
   if (!tab.folder) return { text: "No project" };
@@ -184,7 +191,7 @@ export function ThreadTabStrip({ tab, branchMenuOpen, actions }: { tab: ThreadTa
         <button
           type="button"
           className={`thread-tab-chip ${tab.automation && !tab.automation.paused ? "scheduled" : ""}`.trimEnd()}
-          data-tip="Automation"
+          data-tip={scheduleChipTip(tab.automation)}
           onClick={actions.onOpenAutomations}
         >
           <AlarmClock size={14} aria-hidden="true" />
@@ -196,6 +203,7 @@ export function ThreadTabStrip({ tab, branchMenuOpen, actions }: { tab: ThreadTa
             className={`thread-tab-chip thread-tab-brief-toggle ${briefOpen ? "open" : ""}`.trimEnd()}
             aria-expanded={briefOpen}
             aria-controls={briefOpen ? briefId : undefined}
+            data-tip={briefOpen ? undefined : brief.intent.split("\n", 1)[0]}
             onClick={() => setBriefOpen(!briefOpen)}
           >
             <ScrollText size={14} aria-hidden="true" />

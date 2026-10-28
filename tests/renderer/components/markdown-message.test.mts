@@ -76,6 +76,27 @@ test("only Markdown file links open a file, at the line they name", async () => 
   await view.unmount();
 });
 
+test("a file link's right-click menu opens the file or copies its path", async () => {
+  const opened: Array<[string, number | null]> = [];
+  const copied: string[] = [];
+  Object.defineProperty(dom.window.navigator, "clipboard", { configurable: true, value: { writeText: async (text: string) => { copied.push(text); } } });
+  const view = await mountMessage("See [the app](/checkout/src/App.tsx:42).", { openFile: (path, line) => opened.push([path, line]) });
+  const link = query<HTMLAnchorElement>(view.container, "a.message-link-file");
+  const menu = async () => {
+    await act(async () => { link.dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true, clientX: 50, clientY: 60 })); });
+    return [...document.querySelectorAll<HTMLButtonElement>(".context-menu-popover button")];
+  };
+
+  const items = await menu();
+  assert.deepEqual(items.map((item) => item.textContent), ["Open file", "Copy path"]);
+  await act(async () => { items[0]!.click(); });
+  assert.deepEqual(opened, [["/checkout/src/App.tsx", 42]]);
+  await act(async () => { (await menu())[1]!.click(); });
+  await act(async () => {});
+  assert.deepEqual(copied, ["/checkout/src/App.tsx"]);
+  await view.unmount();
+});
+
 test("a web link opens externally by default, and its right-click menu opens it either way or copies it", async () => {
   const opened: string[] = [];
   const external: string[] = [];
@@ -124,6 +145,7 @@ test("a web link opens in the browser panel when clicked with the command key he
   assert.deepEqual(opened, ["https://example.com/docs"]);
   assert.equal(link.title, "");
   assert.equal(link.dataset.tip, undefined, "once used, the click is named only in the link's menu");
+  assert.equal(localStorage.getItem("aicodingtool.in-app-click-known.v1"), "1", "the next launch remembers it was learned");
   await view.unmount();
 });
 
