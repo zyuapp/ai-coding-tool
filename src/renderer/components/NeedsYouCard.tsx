@@ -1,4 +1,4 @@
-import { useContext, useId, useRef, useState, type ReactNode } from "react";
+import { useContext, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { LuArrowUpRight as ArrowUpRight, LuChevronLeft as ChevronLeft, LuChevronRight as ChevronRight, LuPlay as Play, LuX as X } from "react-icons/lu";
 import type { ThreadModelChoice } from "../../domain/coordination";
 import { modelLabel } from "../../domain/agent-engine";
@@ -6,10 +6,12 @@ import { projectName } from "../../domain/project";
 import type { Thread } from "../../domain/thread";
 import type { CoordinationApprovalView, CoordinationDecisionView, ElsewhereView, ProposalView } from "../../application/coordination-view";
 import type { ApprovalView } from "../../application/thread-run-state";
+import { approvalCommand } from "./ApprovalCard";
 import { CommandButton } from "./CommandControl";
 import { BriefDetails } from "./Coordination";
 import { HostMark } from "./HostMark";
 import { placeOf, ReturnFocusContext, useKeyboardPlace } from "../focus";
+import { shortcutTip } from "./TooltipLayer";
 import "./coordination.css";
 
 /**
@@ -107,8 +109,18 @@ export function NeedsYouCard({ approvals, decisions, suggestions = null, onDecid
     [current.key]: draft,
   }));
   const draft = drafts[current.key];
+  /** ← and → turn the page as its pager would, except where they move a caret or a choice. */
+  const onPagerKey = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    const action = event.key === "ArrowLeft" ? "previous" : event.key === "ArrowRight" ? "next" : null;
+    if (!action || (event.target instanceof Element && event.target.closest("input, textarea, select"))) return;
+    const pager = card.current?.querySelector<HTMLElement>(`[data-action="${action}"]`);
+    if (!pager) return;
+    event.preventDefault();
+    pager.click();
+  };
   /** Every page is drawn in the same root, which outlives them, so the keyboard's place is found in it. */
-  const held = (form: ReactNode) => <div ref={card} onClickCapture={keepPlace}>{form}</div>;
+  const held = (form: ReactNode) => <div ref={card} onClickCapture={keepPlace} onKeyDown={onPagerKey}>{form}</div>;
   switch (current.kind) {
     case "approval":
       return held(<ApprovalForm key={current.key} view={current.view} position={position} onStep={onStep} onDecide={onDecide} onSelect={onSelect} />);
@@ -163,8 +175,8 @@ function PagerControls({ position, onStep }: { position: Pager; onStep: (delta: 
   return (
     <span className="decision-pager">
       <span>{position.index + 1} of {position.count}</span>
-      <button type="button" aria-label="Previous" data-tip="Previous" data-action="previous" onClick={() => onStep(-1)}><ChevronLeft size={14} aria-hidden="true" /></button>
-      <button type="button" aria-label="Next" data-tip="Next" data-action="next" onClick={() => onStep(1)}><ChevronRight size={14} aria-hidden="true" /></button>
+      <button type="button" aria-label="Previous" aria-keyshortcuts="ArrowLeft" data-tip={shortcutTip("Previous", "ArrowLeft")} data-action="previous" onClick={() => onStep(-1)}><ChevronLeft size={14} aria-hidden="true" /></button>
+      <button type="button" aria-label="Next" aria-keyshortcuts="ArrowRight" data-tip={shortcutTip("Next", "ArrowRight")} data-action="next" onClick={() => onStep(1)}><ChevronRight size={14} aria-hidden="true" /></button>
     </span>
   );
 }
@@ -300,7 +312,7 @@ function ApprovalForm({ view, position, onStep, onDecide, onSelect }: {
   onSelect: (threadId: string) => void;
 }) {
   const { thread, approval } = view;
-  const command = typeof approval.input.command === "string" ? approval.input.command : null;
+  const command = approvalCommand(approval.input);
   const ids = pageIds(useId());
   return (
     <section className="decision-card" aria-label="Approval waiting on you" aria-describedby={describedBy(ids.from, ids.question, approval.description && ids.context, command && ids.command)} tabIndex={-1}>

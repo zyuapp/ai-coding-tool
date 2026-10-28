@@ -12,13 +12,14 @@ const CommandContext = createContext<CommandControls>({ available: () => true, d
 export const CommandControlsProvider = CommandContext.Provider;
 export const useCommandControls = () => useContext(CommandContext);
 
-/** A new remote button declares its command once; availability and dispatch follow the shared contract. */
-export function CommandButton({ command, disabled, onClick, title, ...props }: ComponentProps<"button"> & { command: AppCommand }) {
+/**
+ * A new remote button declares its command once; availability and dispatch follow the shared contract.
+ * One its computer cannot run stays focusable, so the keyboard and a press both reach the reason.
+ */
+export function CommandButton({ command, disabled, onClick, ...props }: ComponentProps<"button"> & { command: AppCommand }) {
   const controls = useCommandControls();
-  const unavailable = !controls.available(command);
-  return <button {...props} disabled={disabled || unavailable} title={unavailable ? undefined : title}
-    {...(unavailable ? { "data-tip": REMOTE_UNSUPPORTED } : {})}
-    onClick={onClick ?? (() => controls.dispatch(command))} />;
+  if (!disabled && !controls.available(command)) return <button {...props} type="button" title={undefined} aria-disabled="true" data-tip={REMOTE_UNSUPPORTED} />;
+  return <button {...props} disabled={disabled} onClick={onClick ?? (() => controls.dispatch(command))} />;
 }
 
 /** A group that offers one operation, such as a setting picker, disappears when its host lacks it. */

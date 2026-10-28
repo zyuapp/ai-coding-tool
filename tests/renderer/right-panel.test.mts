@@ -297,7 +297,7 @@ test("every right panel view opens as a closable tab", async () => {
   const view = await mount(React.createElement(App));
 
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Show right panel"]').click(); });
-  const labels = [...view.container.querySelectorAll<HTMLButtonElement>(".right-dock-picker button:not([disabled])")].map((button) => button.getAttribute("aria-label"));
+  const labels = [...view.container.querySelectorAll<HTMLButtonElement>(".right-dock-picker button:not([aria-disabled])")].map((button) => button.getAttribute("aria-label"));
   assert.ok(labels.length >= 3);
 
   for (const label of labels) {
@@ -388,4 +388,107 @@ test("the right panel's tabs are one stop for Tab, walked with the arrow keys, a
   await act(async () => { item(tabs()[0].closest(".right-dock-tab")).dispatchEvent(new MouseEvent("auxclick", { button: 1, bubbles: true })); });
   assert.equal(tabs().length, count - 1, "a middle click closes the tab under it");
   await view.unmount();
+});
+
+/** One thread and no project; `continued` says whether the thread has a session a side chat can fork. */
+function seedLoneThread(continued: boolean) {
+  localStorage.clear();
+  localStorage.setItem("aicodingtool.store.v2", JSON.stringify({
+    tasks: JSON.stringify({ version: 2, value: [{
+      id: "main-task",
+      title: "Main task",
+      engine: "claude",
+      executionPolicy: "confirm",
+      messages: [],
+      ...(continued ? { continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" } : { continuationStatus: "none" }),
+      lastChangeSnapshot: { files: [], capturedAt: 1 },
+      updatedAt: 1,
+    }] }),
+    projects: JSON.stringify({ version: 2, value: [] }),
+    lastFolder: JSON.stringify({ version: 2, value: null }),
+  }));
+}
+
+test("the right panel's tabs ignore Backspace and Delete, and End reaches the last tab", async () => {
+  seedTaskWithSubagent();
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(App));
+
+  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Show right panel"]').click(); });
+  for (let opened = 0; opened < 3; opened += 1) {
+    await act(async () => { query<HTMLButtonElement>(view.container, '.right-dock-picker button[aria-label="Open Browser panel"]').click(); });
+  }
+  const tabs = () => [...view.container.querySelectorAll<HTMLButtonElement>('.right-dock [role="tab"]')];
+  tabs()[0].focus();
+  for (const key of ["Backspace", "Delete"]) {
+    await act(async () => { tabs()[0].dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true })); });
+  }
+  assert.equal(tabs().length, 3, "a stray key never closes a tab");
+  await act(async () => { tabs()[0].dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true })); });
+  assert.equal(dom.window.document.activeElement, tabs()[2]);
+  await act(async () => { tabs()[2].dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })); });
+  assert.equal(dom.window.document.activeElement, tabs()[0], "the walk wraps past the end");
+  await view.unmount();
+});
+
+test("a mouse wheel turns the tab strip sideways and leaves a sideways scroll alone", async () => {
+  seedTaskWithSubagent();
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(App));
+  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Show right panel"]').click(); });
+  await act(async () => { query<HTMLButtonElement>(view.container, '.right-dock-picker button[aria-label="Open Browser panel"]').click(); });
+
+  const strip = query<HTMLElement>(view.container, '.right-dock [role="tablist"]');
+  await act(async () => { strip.dispatchEvent(new dom.window.WheelEvent("wheel", { deltaY: 40, bubbles: true })); });
+  assert.equal(strip.scrollLeft, 40);
+  await act(async () => { strip.dispatchEvent(new dom.window.WheelEvent("wheel", { deltaX: 25, deltaY: 40, bubbles: true })); });
+  assert.equal(strip.scrollLeft, 40, "a trackpad's own sideways scroll is not added to");
+  await view.unmount();
+});
+
+test("an add-menu entry that cannot open stays reachable, says why, and does nothing when pressed", async () => {
+  seedLoneThread(true);
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(App));
+  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Show right panel"]').click(); });
+  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Add right panel tab"]').click(); });
+
+  const entry = (title: string) => item([...view.container.querySelectorAll<HTMLButtonElement>('.right-dock-add [role="menuitem"]')].find((button) => button.querySelector("strong")?.textContent === title));
+  const terminal = entry("Terminal");
+  assert.equal(terminal.getAttribute("aria-disabled"), "true");
+  assert.equal(terminal.disabled, false, "the keyboard can still rest on it");
+  assert.equal(query(terminal, "small").textContent, "Open a project to start a terminal");
+  assert.equal(terminal.querySelector("kbd"), null);
+  await act(async () => { terminal.click(); });
+  assert.equal(view.container.querySelectorAll('.right-dock [role="tab"]').length, 0);
+  assert.ok(view.container.querySelector('.right-dock-add [role="menu"]'), "the menu stays open on an entry that cannot act");
+
+  const sideChat = entry("Side chat");
+  assert.equal(query(sideChat, "small").textContent, "Start a focused conversation from this task");
+  await act(async () => { sideChat.click(); });
+  assert.equal(view.container.querySelectorAll('.right-dock [role="tab"]').length, 1);
+  await view.unmount();
+});
+
+test("a side chat with no main context to fork offers the main thread's composer", async () => {
+  seedLoneThread(false);
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(App));
+  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Show right panel"]').click(); });
+  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Add right panel tab"]').click(); });
+  await act(async () => { item([...view.container.querySelectorAll<HTMLButtonElement>('.right-dock-add button')].find((button) => button.textContent.includes("Side chat"))).click(); });
+
+  const go = query<HTMLButtonElement>(view.container, ".side-chat-action button");
+  assert.equal(go.textContent, "Message Main task");
+  await act(async () => { go.click(); });
+  await settleUntil(() => dom.window.document.activeElement === view.container.querySelector('textarea[aria-label="Task prompt"]'), "the main thread's composer takes the caret");
+  await view.unmount();
+
+  seedLoneThread(true);
+  const continued = await mount(React.createElement(App));
+  await act(async () => { query<HTMLButtonElement>(continued.container, 'button[aria-label="Show right panel"]').click(); });
+  await act(async () => { query<HTMLButtonElement>(continued.container, 'button[aria-label="Add right panel tab"]').click(); });
+  await act(async () => { item([...continued.container.querySelectorAll<HTMLButtonElement>('.right-dock-add button')].find((button) => button.textContent.includes("Side chat"))).click(); });
+  assert.equal(continued.container.querySelector(".side-chat-action"), null, "a chat that can fork asks nothing of the main thread");
+  await continued.unmount();
 });

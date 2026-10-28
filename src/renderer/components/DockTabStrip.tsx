@@ -1,12 +1,9 @@
-import type { KeyboardEvent, RefObject, SyntheticEvent } from "react";
+import { useEffect, useRef, type KeyboardEvent, type RefObject, type WheelEvent } from "react";
 import { LuMaximize2 as Maximize2, LuMinimize2 as Minimize2, LuPanelRightClose as PanelRightClose, LuPlus as Plus, LuX as X } from "react-icons/lu";
 import { ADD_TAB_MENU, type DockLauncher, type DockTab } from "./dock-registry";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import { moveListFocus } from "../focus";
-import { MAC } from "../platform";
-import { displayShortcut } from "../../domain/shortcuts";
-
-const tip = (label: string, binding: string) => `${label} (${displayShortcut(binding, MAC)})`;
+import { shortcutTip } from "./TooltipLayer";
 
 /** Left and Right walk the tabs, Home and End jump to either end; the strip is one stop for Tab. */
 function moveTabFocus(event: KeyboardEvent<HTMLElement>) {
@@ -21,11 +18,10 @@ function moveTabFocus(event: KeyboardEvent<HTMLElement>) {
   tabs[next].scrollIntoView({ block: "nearest", inline: "nearest" });
 }
 
-/** A tab names itself in a tooltip only while its title is cut short. */
-function tipWhenClipped({ currentTarget: tab }: SyntheticEvent<HTMLElement>) {
-  const title = tab.querySelector<HTMLElement>(":scope > span:not([role])");
-  if (title && title.scrollWidth > title.clientWidth) tab.dataset.tip = title.textContent ?? "";
-  else delete tab.dataset.tip;
+/** A mouse wheel turns the strip sideways, so tabs past its edge are reached without a trackpad. */
+function scrollTabs(event: WheelEvent<HTMLElement>) {
+  if (event.deltaX !== 0 || event.deltaY === 0) return;
+  event.currentTarget.scrollLeft += event.deltaY;
 }
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;
@@ -43,9 +39,13 @@ export function DockTabStrip({ workspace, tabs, launchers, activeTab, expanded, 
   addMenuTrigger: RefObject<HTMLButtonElement | null>;
   onCloseTab: (id: string) => void;
 }) {
+  const strip = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    strip.current?.querySelector('[aria-selected="true"]')?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }, [activeTab]);
   return (
     <div className={`right-dock-tabs ${expanded && !sidebarOpen ? "traffic-inset" : ""}`.trimEnd()}>
-      <div role="tablist" aria-label="Right panel tabs" onKeyDown={moveTabFocus}>
+      <div ref={strip} role="tablist" aria-label="Right panel tabs" onKeyDown={moveTabFocus} onWheel={scrollTabs}>
         {/** Marked here as well as on the view, so clicking a tab reports it while the caret is on its button. */}
         {tabs.map((tab, index) => (
           <div
@@ -59,15 +59,15 @@ export function DockTabStrip({ workspace, tabs, launchers, activeTab, expanded, 
               role="tab"
               aria-selected={activeTab === tab.id}
               tabIndex={activeTab === tab.id || (index === 0 && !tabs.some((other) => other.id === activeTab)) ? 0 : -1}
-              onPointerEnter={tipWhenClipped}
-              onFocus={tipWhenClipped}
+              data-tip={tab.title}
+              data-tip-overflow
               onClick={() => void workspace.actions.selectDockTab(tab.id)}
             >
               <tab.icon size={16} aria-hidden="true" /><span>{tab.title}</span>
               {tab.badge ? <em className={tab.attention ? "attention" : undefined} role="img" aria-label={tab.badgeLabel ?? String(tab.badge)} data-tip={tab.badgeLabel}>{tab.badge}</em> : null}
               {tab.unread ? <span className="right-dock-tab-attention" role="img" aria-label="Waiting for you" data-tip="Waiting for you" /> : null}
             </button>
-            {!tab.pinned && <button type="button" aria-label={`Close ${tab.title}`} data-tip="Close tab" onClick={() => onCloseTab(tab.id)}><X size={14} /></button>}
+            {!tab.pinned && <button type="button" aria-label={`Close ${tab.title}`} data-tip={activeTab === tab.id && !expanded ? shortcutTip("Close tab", "Mod+W") : "Close tab"} onClick={() => onCloseTab(tab.id)}><X size={14} /></button>}
           </div>
         ))}
       </div>
@@ -86,9 +86,17 @@ export function DockTabStrip({ workspace, tabs, launchers, activeTab, expanded, 
         {addMenuOpen && (
           <div role="menu" onKeyDown={moveListFocus}>
             {launchers.map((launcher, index) => (
-              <button key={launcher.id} type="button" role="menuitem" autoFocus={index === 0} disabled={launcher.disabled} onClick={() => { workspace.actions.setOpenMenu(null); launcher.open(); }}>
+              <button
+                key={launcher.id}
+                type="button"
+                role="menuitem"
+                autoFocus={index === 0}
+                aria-disabled={launcher.disabled || undefined}
+                data-tip={launcher.disabledReason !== launcher.disabledLabel ? launcher.disabledReason : undefined}
+                onClick={launcher.disabled ? undefined : () => { workspace.actions.setOpenMenu(null); launcher.open(); }}
+              >
                 <launcher.icon size={16} aria-hidden="true" />
-                <span><strong>{launcher.title}</strong>{launcher.disabledReason && <small>{launcher.disabledReason}</small>}</span>
+                <span><strong>{launcher.title}</strong><small>{launcher.disabledLabel ?? launcher.description}</small></span>
                 {!launcher.disabled && <kbd aria-hidden="true">/{launcher.command}</kbd>}
               </button>
             ))}
@@ -100,12 +108,12 @@ export function DockTabStrip({ workspace, tabs, launchers, activeTab, expanded, 
         type="button"
         aria-label={`${expanded ? "Restore" : "Expand"} right panel`}
         aria-pressed={expanded}
-        data-tip={tip(expanded ? "Restore panel" : "Expand panel", "Mod+Shift+\\")}
+        data-tip={shortcutTip(expanded ? "Restore panel" : "Expand panel", "Mod+Shift+\\")}
         onClick={() => void workspace.actions.setDockExpanded(!expanded)}
       >
         {expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
       </button>
-      <button className="right-dock-hide" type="button" aria-label="Hide right panel" data-tip={tip("Hide panel", "Mod+\\")} onClick={() => void workspace.actions.setDockOpen(false)}><PanelRightClose size={18} /></button>
+      <button className="right-dock-hide" type="button" aria-label="Hide right panel" data-tip={shortcutTip("Hide panel", "Mod+\\")} onClick={() => void workspace.actions.setDockOpen(false)}><PanelRightClose size={18} /></button>
     </div>
   );
 }

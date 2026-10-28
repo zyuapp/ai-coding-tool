@@ -4,9 +4,13 @@ import { test, vi } from "vitest";
 import { dom, mount, query } from "../../support/renderer-dom.mts";
 import type { Annotation } from "../../../src/renderer/annotate/marks.ts";
 
+const pointer = vi.hoisted(() => ({ onBox: (_box: { x: number; y: number; width: number; height: number }) => {} }));
 vi.mock("../../../src/renderer/annotate/use-annotator.ts", () => ({
   useAnnotatorImage: () => ({ image: {}, frame: { width: 400, height: 300 } }),
-  useMarkPointer: () => ({ draft: null, handlers: {} }),
+  useMarkPointer: (options: { onBox: typeof pointer.onBox }) => {
+    pointer.onBox = options.onBox;
+    return { draft: null, handlers: {} };
+  },
   usePaintedMarks: () => {},
 }));
 vi.mock("../../../src/renderer/annotate/marks.ts", async (original) => ({
@@ -143,5 +147,27 @@ test("the annotator listens for keys once, however often it redraws", async () =
   const pressed = [...document.body.querySelectorAll<HTMLButtonElement>(".annotator-tool")].find((button) => button.textContent?.includes("Box"));
   assert.equal(pressed?.getAttribute("aria-pressed"), "true", "the one listener still sees the latest state");
   added.mockRestore();
+  await view.unmount();
+});
+
+test("the newest mark shows its tools before anything is pointed at", async () => {
+  const { view } = await open();
+  assert.ok(query(document.body, '[aria-label="Delete arrow"]'));
+  await view.unmount();
+});
+
+test("Escape throws away a box just drawn, and Enter keeps it", async () => {
+  const drawn = { x: 0.4, y: 0.4, width: 0.1, height: 0.1 };
+  const { view } = await open();
+  await act(async () => pointer.onBox(drawn));
+  await act(async () => press(query(document.body, ".annotator-label"), "Escape"));
+  assert.equal(document.body.querySelector(".annotator-label"), null);
+  assert.match(query(document.body, ".annotator-count").textContent ?? "", /^2 marks/);
+  assert.equal(query<HTMLButtonElement>(document.body, ".annotator-undo").disabled, true);
+
+  await act(async () => pointer.onBox(drawn));
+  await act(async () => press(query(document.body, ".annotator-label"), "Enter"));
+  assert.match(query(document.body, ".annotator-count").textContent ?? "", /^3 marks/);
+  assert.ok(query(document.body, '[aria-label="Delete mark 2"]'), "the kept box is the newest, so its tools show");
   await view.unmount();
 });

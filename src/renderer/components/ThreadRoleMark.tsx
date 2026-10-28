@@ -18,5 +18,5 @@ export function roleIcon(role: ThreadRole): IconType | undefined {
 export function ThreadRoleMark({ role, size }: { role: ThreadRole; size: number }) {
   const Icon = roleIcon(role);
   if (!Icon) return null;
-  return <Icon className={`task-role role-${role}`} size={size} aria-label={threadRoleLabel(role)} />;
+  return <Icon className={`task-role role-${role}`} size={size} role="img" aria-label={threadRoleLabel(role)} />;
 }

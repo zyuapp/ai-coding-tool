@@ -44,13 +44,35 @@ test("a pill wears the note, and falls back to the quote when no note was taken"
 test("a keyboard reaches the card the pointer raises", async () => {
   const view = await mount(React.createElement(AnnotationRow, { annotations, onRemove: () => {} }));
   const pill = item(view.container.querySelectorAll(".annotation-pill"), 1);
+  const face = query<HTMLElement>(pill, ".annotation-pill-face");
   const card = query<HTMLElement>(pill, ".annotation-card");
 
-  assert.equal(pill.getAttribute("tabindex"), "0");
-  assert.equal(pill.getAttribute("aria-label"), "Annotation 2");
-  assert.equal(pill.getAttribute("aria-describedby"), card.id);
+  assert.equal(face.getAttribute("tabindex"), "0");
+  assert.equal(face.getAttribute("aria-label"), "Annotation 2");
+  assert.equal(face.getAttribute("aria-describedby"), card.id);
   assert.equal(card.getAttribute("role"), "tooltip");
   await view.unmount();
+});
+
+test("a drafted pill shows its passage: the transcript scrolls to its marker, which flashes", async () => {
+  const anchored: Annotation[] = [{ id: "c", quote: "the passage", note: "", anchor: { kind: "message", messageId: "m1", start: 0, end: 11 } }];
+  const marker = document.createElement("button");
+  marker.className = "annotation-marker";
+  marker.dataset.annotationId = "c";
+  let scrolled = 0;
+  marker.scrollIntoView = () => { scrolled += 1; };
+  document.body.append(marker);
+  const view = await mount(React.createElement(AnnotationRow, { annotations: [...anchored, ...annotations], onRemove: () => {} }));
+
+  const face = query<HTMLButtonElement>(view.container, "button.annotation-pill-face");
+  assert.equal(face.getAttribute("aria-label"), "Show annotation 1");
+  await act(async () => { face.click(); });
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
+  assert.equal(scrolled, 1);
+  assert.ok(marker.classList.contains("flash"));
+  assert.equal(view.container.querySelectorAll("button.annotation-pill-face").length, 1, "a pill with no passage on screen stays a label");
+  await view.unmount();
+  marker.remove();
 });
 
 test("a sent annotation keeps its card and loses its remove button", async () => {

@@ -6,7 +6,7 @@ import React, { act } from "react";
 import { settleUntil } from "../support/settle.mts";
 import { outbox, useSavingOutbox } from "../support/composer-outbox.mts";
 
-import type { PastedText, RunAttachment } from "../../src/domain/conversation.ts";
+import { MAX_ATTACHMENTS, type PastedText, type RunAttachment } from "../../src/domain/conversation.ts";
 
 import type { ConversationComposerProps } from "../../src/renderer/components/ConversationComposer.tsx";
 
@@ -48,19 +48,6 @@ test("an active native goal stays visible and can be cleared", async () => {
   assert.match(query(view.container, ".goal-bar").textContent, /All checks pass/);
   assert.match(query(view.container, ".goal-detail").textContent, /Pass 2/);
   await act(async () => { query<HTMLButtonElement>(view.container, ".goal-clear").click(); });
-  assert.equal(cleared, 0, "the first press only asks");
-  const cancel = query<HTMLButtonElement>(view.container, ".goal-confirm button:not(.danger)");
-  assert.equal(cancel.textContent, "Cancel");
-  assert.equal(document.activeElement, cancel, "the question lands on the safe answer");
-  await act(async () => { cancel.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
-  assert.equal(cleared, 0, "Escape backs out");
-  assert.equal(document.activeElement, query(view.container, ".goal-clear"), "and hands the focus back to Clear");
-  await act(async () => { query<HTMLButtonElement>(view.container, ".goal-clear").click(); });
-  await act(async () => { query<HTMLButtonElement>(view.container, ".goal-confirm button:not(.danger)").click(); });
-  assert.equal(cleared, 0, "Cancel backs out");
-  assert.match(query(view.container, ".goal-bar").textContent, /All checks pass/);
-  await act(async () => { query<HTMLButtonElement>(view.container, ".goal-clear").click(); });
-  await act(async () => { query<HTMLButtonElement>(view.container, ".goal-confirm .danger").click(); });
   assert.equal(cleared, 1);
   await view.unmount();
 });
@@ -166,6 +153,9 @@ test("a slash action runs at once and clears the draft", async () => {
     textarea.dispatchEvent(new Event("change", { bubbles: true }));
   });
   assert.deepEqual([...view.container.querySelectorAll('[role="option"] strong')].map((node) => node.textContent), ["/side", "/security-scan"]);
+  const [side, scan] = [...view.container.querySelectorAll<HTMLElement>('[role="option"]')];
+  assert.equal(scan?.dataset.tip, "Scan the repository for security issues. Extra details are hidden.", "a description cut short keeps its whole text on hover");
+  assert.equal(side?.dataset.tip, undefined, "one shown whole needs no tip");
 
   await act(async () => { textarea.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowDown" })); });
   assert.deepEqual(scrolled.at(-1), { id: "slash-command-1", options: { block: "nearest" } });
@@ -568,7 +558,8 @@ test("while a run goes, a written message shows how to queue it or steer it in",
   const hint = query(running.container, ".composer-hint");
   assert.match(hint.textContent ?? "", /queue.*steer/);
   assert.equal(query(running.container, "textarea").getAttribute("aria-describedby"), hint.id, "the prompt names the keys to a screen reader too");
-  assert.match(query(running.container, ".send-button").dataset.tip ?? "", /Stop · Queue \(.+\) · Steer \(.+\)/, "a composer too narrow for the hint still teaches it on Stop");
+  assert.ok(query(hint, ".composer-hint-queue"), "the queue half is the part a narrow composer lets go, keeping steer");
+  assert.equal(query(running.container, ".send-button").dataset.tip, "Stop", "the hint is not repeated on Stop");
   await running.unmount();
 });
 
@@ -578,9 +569,30 @@ test("a send notice can be put away", async () => {
   const view = await mount(renderConversationComposer({
     outbox: outbox({ state: { ...outbox().state, error: "Wait for the screenshots to finish loading." }, notice: (message) => { notices.push(message); } }),
   }));
-  assert.match(query(view.container, ".attachment-error").textContent ?? "", /Wait for the screenshots/);
+  const notice = query(view.container, ".attachment-error");
+  assert.match(notice.textContent ?? "", /Wait for the screenshots/);
+  assert.equal(notice.getAttribute("role"), "alert");
+  assert.ok(!notice.classList.contains("note"));
   await act(async () => { query<HTMLButtonElement>(view.container, '.attachment-error button[aria-label="Dismiss"]').click(); });
   assert.deepEqual(notices, [null]);
+  await view.unmount();
+});
+
+test("an image limit reads as a note, not a failure, and can be put away", async () => {
+  window.desktop = fakeDesktop();
+  const view = await mount(renderConversationComposer({ outbox: outbox() }));
+  const textarea = query<HTMLTextAreaElement>(view.container, "textarea");
+  const files = Array.from({ length: MAX_ATTACHMENTS + 1 }, (_, index) => new dom.window.File([new Uint8Array([1, 2, 3])], `shot-${index}.png`, { type: "image/png" }));
+  const paste = new dom.window.Event("paste", { bubbles: true });
+  Object.defineProperty(paste, "clipboardData", { value: { files } });
+  await act(async () => { textarea.dispatchEvent(paste); });
+  await settleUntil(() => view.container.querySelector(".attachment-error") !== null);
+  const notice = query(view.container, ".attachment-error");
+  assert.ok(notice.classList.contains("note"));
+  assert.equal(notice.getAttribute("role"), "status");
+  assert.equal(notice.textContent, `Only the first ${MAX_ATTACHMENTS} images were attached.`);
+  await act(async () => { query<HTMLButtonElement>(notice, 'button[aria-label="Dismiss"]').click(); });
+  assert.equal(view.container.querySelector(".attachment-error"), null);
   await view.unmount();
 });
 
@@ -595,14 +607,26 @@ test("a thread this build cannot open offers the update that opens it", async ()
   await view.unmount();
 });
 
-test("the context ring says how full it is only once compaction is near", async () => {
+test("the context ring says how full it is, and compacts once compaction is near", async () => {
   window.desktop = fakeDesktop();
-  const low = await mount(renderConversationComposer({ contextUsage: { tokens: 40_000, limit: 200_000, model: "claude-opus-5" } }));
-  assert.equal(low.container.querySelector(".context-usage-value"), null);
+  let compacted = 0;
+  const onCompact = () => { compacted += 1; };
+  const low = await mount(renderConversationComposer({ contextUsage: { tokens: 40_000, limit: 200_000, model: "claude-opus-5" }, onCompact }));
+  assert.equal(query(low.container, ".context-usage-value").textContent, "20%");
+  assert.equal(query(low.container, ".context-usage").tagName, "SPAN", "far from compaction it stays a readout");
   await low.unmount();
-  const high = await mount(renderConversationComposer({ contextUsage: { tokens: 180_000, limit: 200_000, model: "claude-opus-5" } }));
-  assert.equal(query(high.container, ".context-usage-value").textContent, "90%");
+
+  const high = await mount(renderConversationComposer({ contextUsage: { tokens: 180_000, limit: 200_000, model: "claude-opus-5" }, onCompact }));
+  const meter = query<HTMLButtonElement>(high.container, ".context-usage");
+  assert.equal(meter.tagName, "BUTTON");
+  assert.equal(query(meter, ".context-usage-value").textContent, "90%");
+  await act(async () => { meter.click(); });
+  assert.equal(compacted, 1);
   await high.unmount();
+
+  const unoffered = await mount(renderConversationComposer({ contextUsage: { tokens: 180_000, limit: 200_000, model: "claude-opus-5" } }));
+  assert.equal(query(unoffered.container, ".context-usage").tagName, "SPAN", "where compacting is not on offer the ring only reads");
+  await unoffered.unmount();
 });
 
 test("a queued message cut short opens out in place, and one that fits stays still", async () => {

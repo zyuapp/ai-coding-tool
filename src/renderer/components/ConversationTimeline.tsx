@@ -97,7 +97,7 @@ function ThinkingRow({ since }: { since: number | undefined }) {
   return (
     <div className="thinking-row" role="status">
       <i aria-hidden="true" /><i aria-hidden="true" /><i aria-hidden="true" />
-      <span className="thinking-label">Working</span>
+      <span className="thinking-label text-sweep">Working</span>
       <span className="thinking-elapsed" aria-hidden="true"><Elapsed startedAt={Math.min(since ?? shownAt, shownAt)} endsAt={null} /></span>
     </div>
   );
@@ -118,7 +118,7 @@ function LimitRow({ pause, taskId }: { pause: LimitPause & { position: number | 
       <Hourglass aria-hidden="true" />
       <span>{limitLabel(pause, now)}</span>
       {resumesOnItsOwn(pause)
-        ? <CommandButton type="button" className="limit-action" command={{ type: "limit.cancel", taskId }}>Don't resume</CommandButton>
+        ? <CommandButton type="button" className="limit-action" command={{ type: "limit.cancel", taskId }}>Cancel auto-resume</CommandButton>
         : <CommandButton type="button" className="limit-action" command={{ type: "limit.resume", taskId }}>Resume</CommandButton>}
     </div>
   );
@@ -222,6 +222,7 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
               group={group}
               index={item.index}
               offset={item.start - scrollMargin}
+              newest={item.index === groups.length - 1}
               measure={virtualizer.measureElement}
               /** Only the live turn reads the tail, so a settled row's props hold still while it streams. */
               streamingTail={group.kind === "turn" && group.live ? streamingTail : null}
@@ -241,6 +242,7 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
       {status === "running" && compacting && (
         <div className="compacting-row" role="status" aria-live="polite">
           <span className="text-sweep">Compacting messages…</span>
+          {currentThread && <CommandButton type="button" className="limit-action" command={{ type: "run.cancel", taskId: currentThread.id }}>Stop</CommandButton>}
         </div>
       )}
       {status === "running" && !compacting && retrying && (

@@ -62,7 +62,7 @@ test("a sidebar row renames itself on a double click, and on the menu's Rename",
   assert.equal(row().textContent.includes("Nightly audit"), true);
 
   await act(async () => { row().dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true })); });
-  assert.deepEqual([...document.querySelectorAll(".context-menu-popover > button")].map((button) => button.textContent), ["Rename", "Role", "Move to", "Copy link", "Fork", "Fork into a new worktree", "Archive"]);
+  assert.deepEqual([...document.querySelectorAll(".context-menu-popover > button")].map((button) => button.querySelector(".menu-label")?.textContent), ["Rename", "Role", "Move to", "Copy link", "Fork", "Fork into a new worktree", "Archive"]);
   await act(async () => { query<HTMLButtonElement>(document, ".context-menu-popover button").click(); });
   await type("Abandoned edit", "Escape");
   assert.equal(view.container.querySelector(".task-rename"), null);
@@ -109,7 +109,7 @@ test("a folder's menu opens on its trigger and every choice closes it", async ()
   await view.render(sidebar("project:project-1"));
   assert.equal(trigger().getAttribute("aria-expanded"), "true");
   const items = [...view.container.querySelectorAll<HTMLButtonElement>(".project-menu .menu-popover button")];
-  assert.deepEqual(items.map((item) => item.textContent), ["New thread", "Rename", "Edit…", "Remove"]);
+  assert.deepEqual(items.map((item) => item.querySelector(".menu-label")?.textContent), ["New thread", "Rename", "Edit…", "Remove"]);
 
   await act(async () => { item(items[3]).click(); });
   assert.deepEqual(removed, ["project-1"]);
@@ -152,7 +152,7 @@ test("a folder is lifted by its own row, and lifting one leaves every folded fol
     handle.focus();
     handle.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: " ", keyCode: 32, bubbles: true, cancelable: true }));
   });
-  assert.equal(view.container.querySelector('[data-rfd-droppable-id="first-project"]'), null, "a folded folder holds no drop target of its own");
+  assert.equal(view.container.querySelector('[data-rfd-droppable-id="first-project"] .project-tasks'), null, "a folded folder stays folded");
 
   await act(async () => {
     handle.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", keyCode: 27, bubbles: true, cancelable: true }));
@@ -191,8 +191,10 @@ test("a thread drag leaves a folded folder folded, and opens no gap where it sit
     onSelectThread() {}, onArchiveThread() {}, onDismissThread() {}, onDismissAll() {}, onMoveThread() {}, onMoveProject() {}, onOpenSettings() {},
   }));
 
-  const folded = () => [...view.container.querySelectorAll('[data-rfd-droppable-id="shut-project"], .task-list')];
+  const folded = () => [...view.container.querySelectorAll('[data-rfd-droppable-id="shut-project"] .project-tasks, .task-list')];
   assert.deepEqual(folded(), [], "a folded folder and a folded Recents render nothing to lay out");
+  const shut = query<HTMLElement>(view.container, '[data-rfd-droppable-id="shut-project"]');
+  assert.ok(shut.querySelector(":scope > .project-row"), "a folded folder's own row takes a dropped thread");
 
   const handle = query<HTMLElement>(view.container, '[data-rfd-drag-handle-draggable-id="open-task"]');
   await act(async () => {
@@ -201,6 +203,7 @@ test("a thread drag leaves a folded folder folded, and opens no gap where it sit
   });
 
   assert.deepEqual(folded(), [], "the drag opens no strip under either of them");
+  assert.ok([...shut.querySelectorAll<HTMLElement>(":scope > div:not(.project-row)")].every((holder) => holder.hidden), "nor a gap where it sits");
   assert.equal(view.container.querySelectorAll('[data-rfd-draggable-id="shut-task"]').length, 0, "and reveals nothing they hold");
   await act(async () => {
     handle.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", keyCode: 27, bubbles: true, cancelable: true }));

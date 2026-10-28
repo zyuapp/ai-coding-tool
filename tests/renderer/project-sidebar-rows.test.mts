@@ -559,12 +559,12 @@ test("a row's rail reserves slots only for the marks of threads the sidebar draw
   const activity = await mount(renderProjectSidebar({ ...props, mode: "activity", sections }));
   assert.equal(slots(activity), "3", "the role, the checkout, and the engine");
   await activity.render(renderProjectSidebar({ ...props, mode: "activity", sections: { ...sections, threads: false } }));
-  assert.equal(slots(activity), "2", "a folded list's threads draw no row to make room for, past the menu and the one action every row offers");
+  assert.equal(slots(activity), "1", "a folded list's threads draw no row to make room for");
   await activity.unmount();
 
   const folders = await mount(renderProjectSidebar({ ...props, mode: "projects", sections, expandedProjects: new Set(["project-1"]) }));
   assert.equal(slots(folders), "3");
   await folders.render(renderProjectSidebar({ ...props, mode: "projects", sections, expandedProjects: new Set() }));
-  assert.equal(slots(folders), "2", "a folded folder's threads draw no row to make room for");
+  assert.equal(slots(folders), "1", "a folded folder's threads draw no row to make room for");
   await folders.unmount();
 });

@@ -190,8 +190,9 @@ function EffortSlider({ steps, value, onChange }: { steps: readonly EffortSpec[]
         />)}
         <div className="effort-knob" />
       </div>
+      {last > 0 && <div className="effort-ends" aria-hidden="true"><span>{steps[0]!.label}</span><span>{steps[last]!.label}</span></div>}
     </div>
-    <span className={`effort-strip-value${steps[shown]?.delegates ? " delegates" : ""}`} title={steps[shown]?.description}>{steps[shown]?.label ?? value}</span>
+    <span className={`effort-strip-value${steps[shown]?.delegates ? " delegates" : ""}`} data-tip={steps[shown]?.description}>{steps[shown]?.label ?? value}</span>
   </>;
 }
 
@@ -292,9 +293,9 @@ function ModelLibrary({ engine, engineLocked, engineAccess, model, modelLabel, f
               const favorite = favorites.has(item.value);
               const Icon = item.icon;
               return <div key={item.value} className={`model-row${selected ? " selected" : ""}`}>
-                <button type="button" className="model-choice" aria-pressed={selected} disabled={!ready} onClick={() => { onChange(group.engine, item.value); if (!effort) close(); }} title={item.description}>
+                <button type="button" className="model-choice" aria-pressed={selected} disabled={!ready} onClick={() => { onChange(group.engine, item.value); if (!effort) close(); }}>
                   <span className="model-row-icon" aria-hidden="true"><Icon size={18} /></span>
-                  <span className="model-row-label"><strong>{item.label}</strong><small>{group.label} · {item.description}</small></span>
+                  <span className="model-row-label"><strong>{item.label}</strong><small data-tip={`${group.label} · ${item.description}`} data-tip-overflow>{group.label} · {item.description}</small></span>
                   {selected && <Check size={16} className="model-selected-check" aria-hidden="true" />}
                 </button>
                 {onModelFavorite && <button type="button" className="model-favorite" aria-label={`${favorite ? "Unpin" : "Pin"} ${item.label}`} aria-pressed={favorite} onClick={() => onModelFavorite(item.value, !favorite)}><Star size={16} fill={favorite ? "currentColor" : "none"} /></button>}
@@ -377,7 +378,7 @@ export function ComposerSettings({ taskId, mode, engine, engineLabel, engineLock
     <div className="composer-settings">
       <CommandGate command={{ type: "task.set-policy", taskId, policy: mode }}><ChoiceMenu label="Permission mode" axis="Mode" heading={`How should ${engineLabel} actions be approved?`} choices={modes} value={mode} onChange={onModeChange} /></CommandGate>
       <CommandGate command={{ type: "task.set-model", taskId, engine, model }}><ModelMenu engine={engine} engineLocked={engineLocked} engineAccess={engineAccess} model={model} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onChange={onModelChange} onOpen={onEngineRead} onSignIn={onSignIn} {...(effortControl ? { effort: effortControl } : {})} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} /></CommandGate>
-      {capabilitiesFor(engine).fastMode && <CommandButton command={{ type: "task.set-fast-mode", taskId, fastMode: !fastMode }} type="button" className="fast-mode-toggle" aria-label="Fast mode" aria-pressed={fastMode} title={`Fast mode ${fastMode ? "on" : "off"} · faster responses use more of your plan`} onClick={() => onFastModeChange(!fastMode)}><Zap size={16} aria-hidden="true" />{fastMode && <span aria-hidden="true">Fast</span>}</CommandButton>}
+      {capabilitiesFor(engine).fastMode && <CommandButton command={{ type: "task.set-fast-mode", taskId, fastMode: !fastMode }} type="button" className="fast-mode-toggle" aria-label="Fast mode" aria-pressed={fastMode} data-tip={`Fast mode ${fastMode ? "on" : "off"} · faster responses use more of your plan`} onClick={() => onFastModeChange(!fastMode)}><Zap size={16} aria-hidden="true" />{fastMode && <span aria-hidden="true">Fast</span>}</CommandButton>}
     </div>
   );
 }

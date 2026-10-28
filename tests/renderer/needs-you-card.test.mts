@@ -365,3 +365,30 @@ test("the page the keyboard is handed is read by who asks and what, and the last
   assert.equal(focusedName(), "Composer", "with nothing left, the composer takes the keyboard");
   await view.unmount();
 });
+
+test("← and → turn the Needs-you card's pages, except while they move the caret in an answer", async () => {
+  const approval: CoordinationApprovalView = { thread: member("a", "Login flake"), approval: { approvalId: "a1", taskId: "a", runId: "run-a", title: "Run a command?", description: "", toolName: "Bash", input: { command: "yarn test" } } };
+  const decision: CoordinationDecisionView = { thread: member("b", "Settings"), decision: { id: "d1", question: "Keep the v2 reader?", options: [], raisedAt: 1 } };
+  const view = await mount(React.createElement(NeedsYouCard, { approvals: [approval], decisions: [decision], onDecide() {}, onAnswer() {}, onSelect() {} }));
+  const press = (target: Element, key: string) => act(async () => { target.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true })); });
+  const allow = required([...view.container.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Allow once"));
+  allow.focus();
+  await press(allow, "ArrowRight");
+  assert.ok(query(view.container, '[aria-label="Decision waiting on you"]'), "→ turns to the next page");
+  assert.equal(document.activeElement?.getAttribute("data-action"), "next", "and the keyboard lands on the pager");
+
+  const own = query<HTMLInputElement>(view.container, 'input[aria-label="Your own answer"]');
+  await press(own, "ArrowLeft");
+  assert.ok(query(view.container, '[aria-label="Decision waiting on you"]'), "← in the answer field moves the caret, not the page");
+
+  await press(query(view.container, '[data-action="next"]'), "ArrowLeft");
+  assert.ok(query(view.container, '[aria-label="Approval waiting on you"]'), "← turns back");
+  await view.unmount();
+
+  const alone = await mount(React.createElement(NeedsYouCard, { approvals: [approval], decisions: [], onDecide() {}, onAnswer() {}, onSelect() {} }));
+  const only = query(alone.container, '[aria-label="Approval waiting on you"]');
+  const arrow = new dom.window.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true });
+  await act(async () => { only.dispatchEvent(arrow); });
+  assert.equal(arrow.defaultPrevented, false, "a card with one page leaves the arrows alone");
+  await alone.unmount();
+});

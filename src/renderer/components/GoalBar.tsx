@@ -1,5 +1,4 @@
 import type { ActiveGoal } from "../../domain/goal";
-import { ConfirmAction } from "./SettingRow";
 
 export function GoalBar({ goal, onClear }: { goal: ActiveGoal; onClear: () => void }) {
   const detail = goal.status === "blocked"
@@ -13,9 +12,7 @@ export function GoalBar({ goal, onClear }: { goal: ActiveGoal; onClear: () => vo
         <span className="goal-objective" data-tip={goal.objective} data-tip-overflow>{goal.objective}</span>
       </div>
       <span className="goal-detail">{detail}</span>
-      <span className="goal-confirm">
-        <ConfirmAction className="goal-clear" confirm="Clear goal" aria-label="Clear goal" onConfirm={onClear}>Clear</ConfirmAction>
-      </span>
+      <button type="button" className="goal-clear" aria-label="Clear goal" onClick={onClear}>Clear</button>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { LuChevronDown as ChevronDown, LuFolderGit2 as FolderGit2, LuFolderSymlink as FolderSymlink, LuX as X } from "react-icons/lu";
+import { LuCheck as Check, LuChevronDown as ChevronDown, LuFolderGit2 as FolderGit2, LuFolderSymlink as FolderSymlink, LuX as X } from "react-icons/lu";
 import { useState } from "react";
 import type { MobileDraftView } from "../../contracts/mobile";
 import { Sheet } from "./Sheet";
@@ -31,7 +31,7 @@ export function StartOptions({ draft, onPickProject, onSetWorktree, onStartIn }:
         </span>
       ) : (<>
         {draft.canWorktree && <button type="button" className="thread-start-toggle" aria-pressed={draft.worktree} onClick={() => onSetWorktree(!draft.worktree)}>
-          <FolderSymlink size={14} aria-hidden="true" />
+          {draft.worktree ? <Check size={14} strokeWidth={2.4} aria-hidden="true" /> : <FolderSymlink size={14} aria-hidden="true" />}
           <span>Worktree</span>
         </button>}
         {draft.worktrees.length > 0 && (

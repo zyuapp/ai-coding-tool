@@ -1,4 +1,4 @@
-import { LuAlarmClock as AlarmClock, LuChevronDown as ChevronDown, LuFileDiff as FileDiff, LuGitBranch as GitBranch, LuGitMerge as GitMerge, LuGitPullRequest as GitPullRequest, LuGitPullRequestClosed as GitPullRequestClosed, LuGitPullRequestDraft as GitPullRequestDraft } from "react-icons/lu";
+import { LuAlarmClock as AlarmClock, LuChevronDown as ChevronDown, LuChevronRight as ChevronRight, LuFileDiff as FileDiff, LuGitBranch as GitBranch, LuGitMerge as GitMerge, LuGitPullRequest as GitPullRequest, LuGitPullRequestClosed as GitPullRequestClosed, LuGitPullRequestDraft as GitPullRequestDraft } from "react-icons/lu";
 import { useRef, type ReactNode } from "react";
 import type { ChangedFilesResult } from "../../contracts/ipc";
 import type { BackgroundProcess, Subagent, SubagentGroup, SubagentGroups } from "../../domain/run";
@@ -177,6 +177,7 @@ function CheckoutRows({ environment, workspaceId, pullRequest, openMenu, onToggl
             <strong>+{available.additions}</strong><em>−{available.deletions}</em>
           </span>
         )}
+        <ChevronRight className="session-row-go" size={14} aria-hidden="true" />
       </button>
       <BranchRow
         branch={available?.branch ?? null}
@@ -202,6 +203,7 @@ function SessionEnvironment({ hasProject, locationRow, automationCount, onOpenAu
         <span className="session-row-icon"><AlarmClock size={18} /></span>
         <span>Automations</span>
         <span className="session-count">{automationCount}</span>
+        <ChevronRight className="session-row-go" size={14} aria-hidden="true" />
       </button>
     </div>
   );

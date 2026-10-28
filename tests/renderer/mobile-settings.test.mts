@@ -60,7 +60,9 @@ function text() {
 
 test("a bridge that is off says so and offers nothing to pair with", () => {
   const calls = draw(emptyMobileServerState());
-  assert.match(text(), /Off/);
+  const pill = document.querySelector<HTMLElement>("[aria-labelledby='phone-availability-heading'] .settings-group-heading > span");
+  assert.equal(pill?.textContent, "Off");
+  assert.equal(pill?.className, "neutral", "a bridge the user turned off is not drawn as a problem");
   assert.match(text(), /Turn phone access on and finish the Tailscale steps/);
   assert.match(text(), /No phone has paired/);
   assert.equal(document.querySelector<HTMLButtonElement>("[aria-labelledby='phone-pairing-heading'] button")?.disabled, true);
@@ -183,6 +185,7 @@ test("a tailnet that issues no certificate says where to turn it on", () => {
 test("a bridge that failed to start says why", () => {
   draw({ ...emptyMobileServerState(), enabled: true, status: "error", error: "listen EADDRINUSE: address already in use 127.0.0.1:7737" });
   assert.match(text(), /Failed to start/);
+  assert.equal(document.querySelector("[aria-labelledby='phone-availability-heading'] .settings-group-heading > span")?.className, "", "a failure keeps the warning tone");
   assert.match(document.querySelector("[role='alert']")?.textContent ?? "", /EADDRINUSE/);
 });
 

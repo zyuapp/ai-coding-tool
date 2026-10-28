@@ -1,4 +1,5 @@
 import type { RefObject } from "react";
+import { shortcutTip } from "./TooltipLayer";
 import { LuArrowUp as ArrowUp, LuCheck as Check, LuMessageSquarePlus as MessageSquarePlus, LuTrash2 as Trash2, LuX as X } from "react-icons/lu";
 
 export function DiffCommentEditor({ quote, note, editing, noteRef, onNote, onSubmit, onClear, onRemove }: {
@@ -34,7 +35,7 @@ export function DiffCommentEditor({ quote, note, editing, noteRef, onNote, onSub
         <MessageSquarePlus size={14} aria-hidden="true" />
         <span className="diff-comment-range">{quote?.split("\n")[0]}</span>
         {editing && <button type="button" aria-label="Remove comment" data-tip="Remove comment" onClick={onRemove}><Trash2 size={14} /></button>}
-        <button type="button" aria-label="Clear the selection" data-tip="Cancel (Esc)" onClick={onClear}><X size={14} /></button>
+        <button type="button" aria-label="Clear the selection" data-tip={shortcutTip("Cancel", "Escape")} onClick={onClear}><X size={14} /></button>
       </header>
       <textarea
         ref={noteRef}
@@ -46,7 +47,7 @@ export function DiffCommentEditor({ quote, note, editing, noteRef, onNote, onSub
       />
       <footer>
         <span className="diff-comment-hint">Enter to {editing ? "save" : "add"}, Shift + Enter for a new line</span>
-        <button className="send-button" type="submit" aria-label={editing ? "Save comment" : "Comment on the selected lines"} disabled={!note.trim()}>
+        <button className="send-button" type="submit" aria-label={editing ? "Save comment" : "Comment on the selected lines"} data-tip={shortcutTip(editing ? "Save" : "Comment", "Enter")} disabled={!note.trim()}>
           {editing ? <Check size={16} /> : <ArrowUp size={18} />}
         </button>
       </footer>

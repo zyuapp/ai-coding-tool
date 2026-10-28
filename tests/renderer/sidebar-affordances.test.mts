@@ -12,7 +12,7 @@ function menuItems() {
 }
 
 function menuItem(label: string) {
-  return menuItems().find((button) => button.textContent === label);
+  return menuItems().find((button) => (button.querySelector(".menu-label") ?? button).textContent === label);
 }
 
 function Harness(props: Partial<ProjectSidebarProps>) {
@@ -78,39 +78,66 @@ test("a row's title says what each of its marks means, and plain rows say only t
   } finally { await view.unmount(); }
 });
 
-test("removing a folder that holds threads asks once more, naming them; an empty folder goes at once", async () => {
+test("a folder's menu removes it in one choice, and moves it among its computer's folders", async () => {
+  const { CommandControlsProvider } = await import("../../src/renderer/components/CommandControl.tsx");
+  const sent: unknown[] = [];
+  const controls = { available: () => true, dispatch: (command: unknown) => { sent.push(command); } };
   const removed: string[] = [];
-  const props: Partial<ProjectSidebarProps> = {
-    projects: [{ id: "full", root: "/work/full" }, { id: "empty", root: "/work/empty" }],
-    expandedProjects: new Set(["full"]),
-    orderedThreads: [task("one", { projectId: "full" }), task("two", { projectId: "full" })],
+  const view = await mount(React.createElement(CommandControlsProvider, { value: controls }, React.createElement(Harness, {
+    projects: [{ id: "first", root: "/work/first" }, { id: "middle", root: "/work/middle" }, { id: "last", root: "/work/last" }],
+    expandedProjects: new Set(["first"]),
+    orderedThreads: [task("one", { projectId: "first" })],
     onRemoveProject: (id) => { removed.push(id); },
-  };
-  const view = await mount(React.createElement(Harness, props));
+  })));
   try {
-    await act(async () => { query<HTMLButtonElement>(view.container, '[aria-label="More options for full"]').click(); });
+    const open = async (name: string) => {
+      const trigger = query<HTMLButtonElement>(view.container, `[aria-label="More options for ${name}"]`);
+      await act(async () => { trigger.focus(); trigger.click(); });
+    };
+    await open("first");
+    assert.equal(menuItem("Move up"), undefined, "the first folder has nowhere up to go");
+    assert.equal(menuItem("Remove")!.getAttribute("aria-haspopup"), null, "Remove asks nothing more");
     await act(async () => { menuItem("Remove")!.click(); });
-    assert.deepEqual(removed, [], "the first choice only asks");
-    await act(async () => { menuItem("Remove and archive 2 threads")!.click(); });
-    assert.deepEqual(removed, ["full"]);
-  } finally { await view.unmount(); }
+    assert.deepEqual(removed, ["first"]);
 
-  const again = await mount(React.createElement(Harness, props));
-  try {
-    await act(async () => { query<HTMLButtonElement>(again.container, '[aria-label="More options for empty"]').click(); });
-    await act(async () => { menuItem("Remove")!.click(); });
-    assert.deepEqual(removed, ["full", "empty"]);
-  } finally { await again.unmount(); }
+    await open("middle");
+    await act(async () => { menuItem("Move up")!.click(); });
+    await open("middle");
+    await act(async () => { menuItem("Move down")!.click(); });
+    assert.deepEqual(sent, [
+      { type: "project.move", projectId: "middle", index: 0 },
+      { type: "project.move", projectId: "middle", index: 2 },
+    ]);
+
+    await open("last");
+    assert.equal(menuItem("Move down"), undefined, "the last folder has nowhere down to go");
+  } finally { await view.unmount(); }
 });
 
-test("with no projects at all, the sidebar offers adding one and keeps the heading's add button shown", async () => {
+test("a right-click on a folder opens its menu, and F2 renames it", async () => {
+  const view = await mount(React.createElement(Harness, { projects: [{ id: "p", root: "/work/p" }] }));
+  try {
+    const row = query<HTMLElement>(view.container, ".project-row");
+    await act(async () => { row.dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true, cancelable: true })); });
+    assert.equal(query(view.container, '[aria-label="More options for p"]').getAttribute("aria-expanded"), "true");
+    assert.equal(query(menuItem("Rename")!, ".menu-shortcut").textContent, "F2");
+    await act(async () => { document.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+
+    const main = query<HTMLButtonElement>(view.container, ".project-main");
+    await act(async () => { main.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
+    assert.equal(view.container.querySelector(".project-rename"), null, "Enter is the button's own");
+    await act(async () => { main.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "F2", bubbles: true, cancelable: true })); });
+    assert.equal(document.activeElement, query(view.container, ".project-rename"));
+  } finally { await view.unmount(); }
+});
+
+test("with no projects at all, the sidebar offers adding one, and the heading's add button is always there", async () => {
   let opened = 0;
   const view = await mount(renderProjectSidebar({ projects: [], onOpenFolder: () => { opened += 1; } }));
   try {
     assert.equal(query(view.container, ".sidebar-project-empty p").textContent, "No projects yet");
     await act(async () => { query<HTMLButtonElement>(view.container, ".sidebar-project-empty .sidebar-empty-action").click(); });
     const add = query<HTMLButtonElement>(view.container, '.projects-heading [aria-label="Add project"]');
-    assert.ok(add.classList.contains("shown"));
     assert.equal(add.dataset.tip, "Add project");
     await act(async () => { add.click(); });
     assert.equal(opened, 2);
@@ -119,22 +146,26 @@ test("with no projects at all, the sidebar offers adding one and keeps the headi
   const listed = await mount(renderProjectSidebar({ projects: [{ id: "p", root: "/work/p" }] }));
   try {
     assert.equal(listed.container.querySelector(".sidebar-project-empty"), null);
-    assert.equal(query(listed.container, '.projects-heading [aria-label="Add project"]').classList.contains("shown"), false);
+    assert.ok(listed.container.querySelector('.projects-heading [aria-label="Add project"]'));
   } finally { await listed.unmount(); }
 });
 
-test("Recents offers one new-thread button and no menu that repeats it, and says threads when empty", async () => {
-  let started = 0;
-  const view = await mount(renderProjectSidebar({ onNewThread: () => { started += 1; } }));
+test("Recents leaves starting a thread to the New thread button, and offers it when empty", async () => {
+  const started: (string | undefined)[] = [];
+  const view = await mount(renderProjectSidebar({ onNewThread: (projectId) => { started.push(projectId); } }));
   try {
     const heading = query(view.container, ".recents-heading");
-    assert.equal(heading.querySelector(".menu-trigger"), null);
-    const button = query<HTMLButtonElement>(heading, '[aria-label="New thread"]');
-    assert.equal(button.dataset.tip, "New thread");
-    await act(async () => { button.click(); });
-    assert.equal(started, 1);
-    assert.equal(query(view.container, '[aria-label="Project-less tasks"] .sidebar-empty').textContent, "No threads");
+    assert.equal(heading.querySelector(".menu-trigger, .section-action"), null);
+    const start = query<HTMLButtonElement>(view.container, '[aria-label="Project-less tasks"] .empty-tasks');
+    assert.equal(start.textContent, "Start a thread");
+    await act(async () => { start.click(); });
+    assert.deepEqual(started, [undefined]);
   } finally { await view.unmount(); }
+
+  const listed = await mount(renderProjectSidebar({ recentThreads: [task("loose")] }));
+  try {
+    assert.equal(listed.container.querySelector('[aria-label="Project-less tasks"] .empty-tasks'), null);
+  } finally { await listed.unmount(); }
 });
 
 test("an open folder with no threads offers to start one there", async () => {
@@ -191,9 +222,29 @@ test("the sidebar's edge says how to reset it, and Enter resets it as a double-c
     const edge = query<HTMLElement>(view.container, ".sidebar-resizer");
     const sidebar = edge.parentElement!;
     assert.equal(edge.dataset.tip, "Drag to resize · Double-click to reset");
+    assert.equal(edge.getAttribute("aria-valuemin"), "220");
+    assert.equal(edge.getAttribute("aria-valuemax"), String(Math.round(dom.window.innerWidth / 2)));
     sidebar.style.setProperty("--sidebar-width", "400px");
     await act(async () => { edge.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
     assert.equal(sidebar.style.getPropertyValue("--sidebar-width"), "");
+  } finally { await view.unmount(); }
+});
+
+test("the sidebar's edge steps with the arrow keys, Home takes it to its narrowest, and it says the width it took", async () => {
+  const view = await mount(renderProjectSidebar({}));
+  try {
+    const edge = query<HTMLElement>(view.container, ".sidebar-resizer");
+    const sidebar = edge.parentElement!;
+    const press = async (key: string) => {
+      const event = new dom.window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+      await act(async () => { edge.dispatchEvent(event); });
+      return event.defaultPrevented;
+    };
+    assert.equal(await press("Home"), true);
+    assert.equal(sidebar.style.getPropertyValue("--sidebar-width"), "220px");
+    assert.equal(edge.getAttribute("aria-valuenow"), "220");
+    assert.equal(await press("Tab"), false, "other keys pass through");
+    assert.equal(sidebar.style.getPropertyValue("--sidebar-width"), "220px");
   } finally { await view.unmount(); }
 });
 
@@ -217,6 +268,20 @@ test("the header's buttons name themselves and their keystrokes", async () => {
   try {
     assert.equal(query(activity.container, '[aria-label="Rank threads by activity"]').dataset.tip, "Group by project");
   } finally { await activity.unmount(); }
+});
+
+test("the search button beside New thread opens the jump palette and names its keystroke", async () => {
+  const { CommandControlsProvider } = await import("../../src/renderer/components/CommandControl.tsx");
+  const sent: string[] = [];
+  const controls = { available: () => true, dispatch: (command: { type: string }) => { sent.push(command.type); } };
+  const view = await mount(React.createElement(CommandControlsProvider, { value: controls }, renderProjectSidebar({})));
+  try {
+    const search = query<HTMLButtonElement>(view.container, ".new-task-bar .sidebar-search");
+    assert.match(search.dataset.tip ?? "", /^Search \(.+K\)$/);
+    assert.equal(query(view.container, ".new-task-button").textContent, "New thread");
+    await act(async () => { search.click(); });
+    assert.deepEqual(sent, ["view.jump-open"]);
+  } finally { await view.unmount(); }
 });
 
 test("the folder a new thread would start in is marked, and an open folder draws open", async () => {
@@ -263,7 +328,7 @@ test("a thread's menu moves it to another folder or to Recents, as a drag does",
   } finally { await view.unmount(); }
 });
 
-test("an update offered or ready says what a click does, and a download in progress is a ring", async () => {
+test("an update offered or ready says what a click does, and a download in progress shows how far it has come", async () => {
   const label = async (appUpdate: ProjectSidebarProps["appUpdate"]) => {
     const view = await mount(renderProjectSidebar({ appUpdate }));
     try {
@@ -272,6 +337,65 @@ test("an update offered or ready says what a click does, and a download in progr
     } finally { await view.unmount(); }
   };
   assert.deepEqual(await label({ status: "available", version: "1.2.0" }), ["Update", "Update to version 1.2.0"]);
-  assert.deepEqual(await label({ status: "downloading", version: "1.2.0", percent: 40 }), ["", "Downloading version 1.2.0: 40%"]);
+  assert.deepEqual(await label({ status: "downloading", version: "1.2.0", percent: 40 }), ["40%", "Downloading version 1.2.0: 40%"]);
   assert.deepEqual(await label({ status: "ready", version: "1.2.0" }), ["Restart", "Restart to install version 1.2.0"]);
+});
+
+test("a focused thread row renames on F2 and opens on Enter, and Enter on its own buttons leaves the selection alone", async () => {
+  const here = task("here", { projectId: "p" });
+  const selected: string[] = [];
+  const archived: string[] = [];
+  const view = await mount(React.createElement(Harness, {
+    projects: [{ id: "p", root: "/work/p" }],
+    expandedProjects: new Set(["p"]),
+    orderedThreads: [here],
+    onSelectThread: (id) => { selected.push(id); },
+    onArchiveThread: (id) => { archived.push(id); },
+  }));
+  try {
+    const entry = query<HTMLElement>(view.container, '[data-rfd-drag-handle-draggable-id="here"]');
+    const press = async (target: HTMLElement, key: string) => {
+      await act(async () => { target.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true })); });
+    };
+    await press(entry, "Enter");
+    assert.deepEqual(selected, ["here"]);
+
+    await press(query<HTMLButtonElement>(view.container, '[aria-label="Archive here"]'), "Enter");
+    assert.deepEqual(selected, ["here"], "Enter on a row's button is the button's own");
+
+    await press(entry, "F2");
+    assert.equal(document.activeElement, query(view.container, ".task-rename"));
+  } finally { await view.unmount(); }
+});
+
+test("the menu key opens a thread row's menu under the row, and Rename there names F2", async () => {
+  const view = await mount(React.createElement(Harness, {
+    projects: [{ id: "p", root: "/work/p" }],
+    expandedProjects: new Set(["p"]),
+    orderedThreads: [task("here", { projectId: "p" })],
+  }));
+  try {
+    const row = query<HTMLElement>(view.container, ".project-task-row");
+    await act(async () => { row.dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 0, clientY: 0 })); });
+    const menu = query<HTMLElement>(document, ".context-menu-popover");
+    assert.ok(menu);
+    assert.equal(query(menuItem("Rename")!, ".menu-shortcut").textContent, "F2");
+  } finally { await view.unmount(); }
+});
+
+test("a row on a computer that is away carries a mark saying so, and every mark names itself", async () => {
+  const view = await mount(renderProjectSidebar({
+    projects: [{ id: "p", root: "/work/p" }],
+    expandedProjects: new Set(["p"]),
+    orderedThreads: [task("here", { projectId: "p" }), task("away", { projectId: "p" })],
+    threadHosts: new Map([["away", { id: "laptop", name: "laptop", offline: true, reconnecting: false }]]),
+  }));
+  try {
+    const [here, away] = [...view.container.querySelectorAll<HTMLElement>(".project-task-row")];
+    assert.equal(here!.querySelector(".task-away"), null);
+    const mark = query<HTMLElement>(away!, ".task-away");
+    assert.equal(mark.getAttribute("aria-label"), "laptop is offline");
+    assert.equal(mark.closest<HTMLElement>(".row-mark")!.dataset.tip, "laptop is offline");
+    assert.ok([...away!.querySelectorAll<HTMLElement>(".row-mark")].every((slot) => slot.dataset.tip));
+  } finally { await view.unmount(); }
 });

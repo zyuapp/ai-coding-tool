@@ -19,11 +19,11 @@ export type ThreadTabStripActions = {
 const PULL_REQUEST_STATES: Record<PullRequestState, string> = { draft: "Draft", open: "Open", merged: "Merged", closed: "Closed" };
 
 /** What stands in for the checkout's chips until Git has answered for it; `failed` when Git refused. */
-function environmentNote(tab: ThreadTabView): { text: string; failed?: boolean } | null {
+function environmentNote(tab: ThreadTabView): { text: string; failed?: boolean; reading?: boolean } | null {
   if (!tab.folder) return { text: "No project" };
   if (!tab.workspaceId) return { text: "Reopen the project to inspect Git" };
   const environment = tab.environment;
-  if (!environment) return { text: "Reading Git…" };
+  if (!environment) return { text: "Reading Git…", reading: true };
   if (environment.status === "error") return { text: environment.message, failed: true };
   if (environment.status === "unknown") return { text: "Workspace is no longer registered" };
   if (environment.status === "unavailable") return { text: `Workspace is ${environment.reason}` };
@@ -99,11 +99,11 @@ function PullRequestChip({ pullRequest }: { pullRequest: PullRequestAnswer }) {
       data-state={state}
       href={url}
       title=""
-      data-tip={`#${number} · ${PULL_REQUEST_STATES[state]} · ${title}`}
+      data-tip={title}
       openInApp={links.openUrlInApp && (() => links.openUrlInApp!(url))}
     >
       <Icon size={14} aria-hidden="true" />
-      <span>#{number}</span>
+      <span>#{number} · {PULL_REQUEST_STATES[state]}</span>
     </WebLink>
   );
 }
@@ -163,7 +163,7 @@ export function ThreadTabStrip({ tab, branchMenuOpen, actions }: { tab: ThreadTa
               <span data-tip={note.text} data-tip-overflow>{note.text}</span>
               <CommandButton type="button" className="thread-tab-retry" command={{ type: "view.refresh-environment" }}>Retry</CommandButton>
             </span>
-          : <span className="thread-tab-note">{note.text}</span>)}
+          : <span className="thread-tab-note" role={note.reading ? "status" : undefined}><span className={note.reading ? "text-sweep" : undefined}>{note.text}</span></span>)}
         <PullRequestChip pullRequest={tab.pullRequest} />
         <button
           type="button"

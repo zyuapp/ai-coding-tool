@@ -51,7 +51,10 @@ async function openReview(view: MountView) {
 
 /** A review opens side by side, so the one-column view is what a test has to ask for. */
 async function showOneColumn(view: MountView) {
-  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Show one column"]').click(); });
+  const twoColumns = query<HTMLButtonElement>(view.container, 'button[aria-label="Two columns"]');
+  assert.equal(twoColumns.getAttribute("aria-pressed"), "true");
+  await act(async () => { twoColumns.click(); });
+  assert.equal(twoColumns.getAttribute("aria-pressed"), "false");
 }
 
 /** Opens the session panel, which is where the Changes row that reaches the review lives. */
@@ -302,14 +305,15 @@ test("a review hides the lines that only moved, and showing them reads the compa
 
   const names = () => [...view.container.querySelectorAll(".diff-files .diff-file-name")].map((name) => name.textContent);
   assert.deepEqual(names(), ["src/app.ts"], "the file whose lines only moved is not in the review");
-  assert.equal(query(view.container, 'button[aria-label="Show whitespace changes"]').getAttribute("aria-pressed"), "true");
+  const spacing = query<HTMLButtonElement>(view.container, 'button[aria-label="Hide spacing changes"]');
+  assert.equal(spacing.getAttribute("aria-pressed"), "true");
 
-  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Show whitespace changes"]').click(); });
+  await act(async () => { spacing.click(); });
   for (let turn = 0; turn < 100 && names().length < 2; turn += 1) await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
 
   assert.deepEqual(asked, [true, false], "the same comparison is read again, counted with whitespace");
   assert.deepEqual(names(), ["src/app.ts", "src/spaced.ts"]);
-  assert.ok(view.container.querySelector('button[aria-label="Hide whitespace changes"]'), "the button offers the way back");
+  assert.equal(spacing.getAttribute("aria-pressed"), "false", "the button offers the way back");
   await view.unmount();
 });
 

@@ -8,6 +8,6 @@ export function ShowMore({ label, expanded, onSelect }: { label: string; expande
       type="button"
       onClick={onSelect}
       {...(expanded === undefined ? {} : { "aria-expanded": expanded })}
-    >{label}<ChevronDown className="show-more-chevron" size={12} aria-hidden="true" /></button>
+    >{label}<ChevronDown className="show-more-chevron" size={14} aria-hidden="true" /></button>
   );
 }

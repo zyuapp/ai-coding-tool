@@ -1,7 +1,7 @@
 import type { PendingQuestion, QuestionAddress } from "../../domain/agent-question";
 import { QuestionPrompt } from "../../renderer/components/QuestionPrompt";
 import { useQuestionAnswer } from "../client/useQuestionAnswer";
-import { LuArrowUp as ArrowUp, LuChevronDown as ChevronDown } from "react-icons/lu";
+import { LuArrowUp as ArrowUp, LuChevronDown as ChevronDown, LuCloudOff as CloudOff, LuCornerDownRight as CornerDownRight, LuZap as Zap } from "react-icons/lu";
 import { useLayoutEffect, useRef, useState } from "react";
 import type { MobileThreadSettings } from "../../contracts/mobile";
 import { engineLabel } from "../../domain/agent-engine";
@@ -64,7 +64,7 @@ export function Composer({ running, waiting, returned, settings, question, onAns
 
   return (
     <div className="composer">
-      {waiting > 0 && <p className="composer-waiting">{waiting} {waiting === 1 ? "message is" : "messages are"} waiting for the line to come back.</p>}
+      {waiting > 0 && <p className="composer-waiting" role="status"><CloudOff size={14} strokeWidth={2} aria-hidden="true" /><span>{waiting} {waiting === 1 ? "message is" : "messages are"} waiting for the line to come back.</span></p>}
       {question && <QuestionPrompt question={question} answer={answer.answer} disabled={answer.submitting} submitOnEnter={false} onAnswerChange={answer.change} onSubmit={answer.submit} />}
       {children}
       <div className="composer-card">
@@ -93,8 +93,8 @@ export function Composer({ running, waiting, returned, settings, question, onAns
             <ChevronDown className="composer-settings-chevron" size={14} strokeWidth={2} aria-hidden="true" />
           </button>
           {/** While the run is going a message may join the queue behind it or cut into it; the stop stays where it was. */}
-          {running && typed && onSteer && <button type="button" className="composer-pill" onClick={() => send(onSteer)}>Steer</button>}
-          {running && typed && <button type="button" className="composer-pill" onClick={() => send(onSend)}>Queue</button>}
+          {running && typed && onSteer && <button type="button" className="composer-pill" aria-description="Send now, into the running turn" onClick={() => send(onSteer)}><Zap size={14} strokeWidth={2.2} aria-hidden="true" />Steer</button>}
+          {running && typed && <button type="button" className="composer-pill" aria-description="Send when this run ends" onClick={() => send(onSend)}><CornerDownRight size={14} strokeWidth={2.2} aria-hidden="true" />Queue</button>}
           {running
             ? <button type="button" className="send-button running" onClick={onStop} aria-label="Stop this run"><span className="stop-glyph" /></button>
             : <button type="button" className="send-button" onClick={() => send(onSend)} disabled={!typed} aria-label="Send"><ArrowUp size={18} strokeWidth={2.4} /></button>}

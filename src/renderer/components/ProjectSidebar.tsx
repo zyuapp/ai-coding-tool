@@ -1,6 +1,6 @@
 import { memo, useLayoutEffect, useMemo, useRef } from "react";
 import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
-import { LuPlus as Plus } from "react-icons/lu";
+import { LuPlus as Plus, LuSearch as Search, LuSquarePen as SquarePen } from "react-icons/lu";
 import type { Project, ThreadDropTarget } from "../../domain/project";
 import { hasUnreadAttention } from "../../domain/attention";
 import type { Thread } from "../../domain/thread";
@@ -18,10 +18,11 @@ import type { SnoozeHours } from "../../domain/thread-snooze";
 import type { ThreadRole } from "../../domain/thread-role";
 import type { AppUpdate } from "../../domain/app-update";
 import { SidebarFooter } from "./SidebarFooter";
-import { displayShortcut } from "../../domain/shortcuts";
-import { MAC } from "../platform";
+import { shortcutTip } from "./TooltipLayer";
+import { CommandButton } from "./CommandControl";
 
-const NEW_THREAD_TIP = `New thread (${displayShortcut("Mod+N", MAC)})`;
+const NEW_THREAD_TIP = shortcutTip("New thread", "Mod+N");
+const SEARCH_TIP = shortcutTip("Search", "Mod+K");
 
 export type ProjectSidebarProps = {
   open: boolean;
@@ -95,12 +96,11 @@ export type ProjectSidebarProps = {
   onInstallUpdate: () => void;
 };
 
-const ROW_ACTION_SLOTS = 2;
-
 /**
- * How wide every rail is: the most marks any one drawn thread carries. Reserving a slot no row on
- * screen fills, for a thread in a folded list, only pushes the marks away from the titles. A row
- * offers its menu and at most one action beside it, which take two slots.
+ * How wide every rail is at rest: the most marks any one drawn thread carries. Reserving a slot no
+ * row on screen fills, for a thread in a folded list, only pushes the marks away from the titles.
+ * Every thread carries its engine mark, so a rail has at least one slot; a hovered rail widens to
+ * fit its actions.
  */
 function railSlotsFor(threads: Thread[], marks: Pick<ProjectSidebarProps, "blockedThreadIds" | "runningThreadIds" | "sideChatAttention" | "worktreeThreadIds" | "schedules">, { threadsByCoordinator, waitingLines }: SidebarCoordination) {
   return threads.reduce((widest, thread) => {
@@ -108,7 +108,7 @@ function railSlotsFor(threads: Thread[], marks: Pick<ProjectSidebarProps, "block
     const coordinationStatus = waitingLines.has(thread.id) || members.some((member) => marks.blockedThreadIds.has(member.id) || marks.runningThreadIds.has(member.id) || hasUnreadAttention(member));
     const status = marks.blockedThreadIds.has(thread.id) || marks.runningThreadIds.has(thread.id) || Boolean(thread.limitPause) || hasUnreadAttention(thread) || marks.sideChatAttention.has(thread.id) || coordinationStatus;
     return Math.max(widest, 1 + Number(Boolean(thread.role)) + Number(marks.worktreeThreadIds.has(thread.id)) + Number(marks.schedules.has(thread.id)) + Number(status));
-  }, ROW_ACTION_SLOTS);
+  }, 1);
 }
 
 /** The threads the sidebar draws a row for in its mode: those in the lists and folders left open. */
@@ -153,6 +153,25 @@ function useProjectGroups(orderedThreads: Thread[], worktreeGroups: WorktreeGrou
   }, [orderedThreads, threadsByCoordinator]);
   const checkoutsByProject = useMemo(() => groupedBy(worktreeGroups, (group) => group.worktree.projectId), [worktreeGroups]);
   return { threadsByProject, checkoutsByProject };
+}
+
+function NewThreadBar({ onNewThread }: { onNewThread: () => void }) {
+  return (
+    <div className="new-task-bar">
+      <button className="new-task-button" type="button" onClick={() => onNewThread()} data-tip={NEW_THREAD_TIP}>
+        {/** Two copies of one outline: the resting hairline, and the accent that draws over it on hover. */}
+        <svg className="new-task-edge" aria-hidden="true" focusable="false">
+          <rect className="new-task-edge-rest" pathLength={100} />
+          <rect className="new-task-edge-draw" pathLength={100} />
+        </svg>
+        <SquarePen className="new-task-icon" size={16} aria-hidden="true" />
+        <span className="new-task-label">New thread</span>
+      </button>
+      <CommandButton command={{ type: "view.jump-open" }} className="sidebar-search" type="button" aria-label="Search threads and settings" data-tip={SEARCH_TIP}>
+        <Search size={16} aria-hidden="true" />
+      </CommandButton>
+    </div>
+  );
 }
 
 export const ProjectSidebar = memo(function ProjectSidebar({
@@ -257,20 +276,13 @@ export const ProjectSidebar = memo(function ProjectSidebar({
       style={{ "--row-slots": railSlots } as React.CSSProperties}
     >
       <SidebarHeader mode={mode} canGoBack={canGoBack} canGoForward={canGoForward} onSetMode={onSetMode} onGoBack={onGoBack} onGoForward={onGoForward} computerLinks={computerLinks} computerName={computerName} computerFilter={computerFilter} onSetComputerFilter={onSetComputerFilter} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />
-      <button className="new-task-button" onClick={() => onNewThread()} aria-label="New thread" data-tip={NEW_THREAD_TIP}>
-        {/** Two copies of one outline: the resting hairline, and the accent that draws over it on hover. */}
-        <svg className="new-task-edge" aria-hidden="true" focusable="false">
-          <rect className="new-task-edge-rest" pathLength={100} />
-          <rect className="new-task-edge-draw" pathLength={100} />
-        </svg>
-        <Plus className="new-task-icon" size={18} />
-      </button>
+      <NewThreadBar onNewThread={onNewThread} />
 
       <div className="sidebar-scroll">
         {projects.length === 0 && <div className="sidebar-project-empty">
           {selectedComputer && selectedComputer.status !== "connected"
-            ? <p role="alert">{offlineMessage(selectedComputer)}</p>
-            : <><p>{computerFilter === "all" ? "No projects yet" : `${selectedComputer?.name ?? (computerName || "This computer")} has no projects yet`}</p><button type="button" className="sidebar-empty-action" onClick={onOpenFolder}>Add project</button></>}
+            ? <><p role="alert">{offlineMessage(selectedComputer)}</p><button type="button" className="sidebar-empty-action" onClick={() => onSetComputerFilter("all")}>Show all computers</button></>
+            : <><p>{computerFilter === "all" ? "No projects yet" : `${selectedComputer?.name ?? (computerName || "This computer")} has no projects yet`}</p><button type="button" className="sidebar-empty-action" onClick={onOpenFolder}><Plus size={14} aria-hidden="true" />Add project</button></>}
         </div>}
         {mode === "activity" && <SidebarActivity
           activityThreads={activityThreads}

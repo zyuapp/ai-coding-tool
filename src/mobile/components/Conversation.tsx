@@ -1,5 +1,5 @@
 import type { IconType } from "react-icons";
-import { LuBot as Bot, LuChevronDown as ChevronDown, LuCornerDownRight as CornerDownRight, LuFileText as FileText, LuGlobe as Globe, LuPenLine as PenLine, LuSearch as Search, LuTerminal as Terminal, LuWrench as Wrench, LuX as X } from "react-icons/lu";
+import { LuBot as Bot, LuChevronDown as ChevronDown, LuCornerDownRight as CornerDownRight, LuFileText as FileText, LuGlobe as Globe, LuHistory as History, LuPenLine as PenLine, LuSearch as Search, LuTerminal as Terminal, LuWrench as Wrench, LuX as X } from "react-icons/lu";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { MobileMessage, MobileThreadView } from "../../contracts/mobile";
 import type { AgentEngine } from "../../domain/agent-engine";
@@ -105,7 +105,7 @@ export function Conversation({ thread, onSteerQueued, onDropQueued }: {
   return (
     <div className="transcript" ref={scroller} onScroll={onScroll}>
       {thread.loading && <p className="notice" role="status">Loading conversation…</p>}
-      {thread.omitted > 0 && <p className="omitted">{thread.omitted} earlier {thread.omitted === 1 ? "message" : "messages"} are only on the computer.</p>}
+      {thread.omitted > 0 && <p className="omitted"><History size={14} strokeWidth={2} aria-hidden="true" />{thread.omitted} earlier {thread.omitted === 1 ? "message" : "messages"} are only on the computer.</p>}
       {blocks.map((block) => (block.kind === "tools"
         ? <ToolRun key={block.key} engine={thread.settings.engine} calls={block.calls} />
         : <Message key={block.key} message={block.message} answer={block.answer} />))}

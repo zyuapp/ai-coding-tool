@@ -17,6 +17,11 @@ function statusLabel(remote: MobileServerState): string {
   }
 }
 
+function statusTone(remote: MobileServerState): string {
+  if (!remote.enabled || remote.status === "off" || remote.status === "starting") return "neutral";
+  return remote.status === "listening" && reachable(remote) ? "ready" : "";
+}
+
 function addressOf(remote: MobileServerState, kind: MobileAddress["kind"]): MobileAddress | null {
   return remote.addresses.find((address) => address.kind === kind) ?? null;
 }
@@ -269,7 +274,7 @@ export function MobileSettings({ remote, remoteChecking, onSetEnabled, onCreateP
       <section className="settings-group" aria-labelledby="phone-availability-heading">
         <div className="settings-group-heading">
           <div><h3 id="phone-availability-heading">Access</h3></div>
-          <span className={ready ? "ready" : ""}>{statusLabel(remote)}</span>
+          <span className={statusTone(remote)}>{statusLabel(remote)}</span>
         </div>
 
         <SettingRow id="phone.availability" description="Serves the phone page and puts Tailscale in front of it. Turning it off drops every phone.">

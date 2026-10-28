@@ -1,11 +1,13 @@
 import { LuShieldAlert as ShieldAlert } from "react-icons/lu";
 import { useState } from "react";
 import type { MobileApproval } from "../../contracts/mobile";
+import { glanceable } from "../format";
 
 /**
  * The one thing a phone is most often picked up for. One a thread under the open coordinator asks
  * names that thread above it. Both answers are full-width and thumb-high,
  * and neither sits where the other was a moment ago, so an approval cannot be given by reflex.
+ * A detail short enough to take in at a glance is open, so what is being allowed is read first.
  * One tap decides: the card dims and both buttons are disabled until the Mac takes the card away,
  * so a second tap cannot answer twice while the first is still on its way. `refused` names the last
  * answer the Mac turned down, which hands the card back to be answered again.
@@ -37,14 +39,14 @@ export function ApprovalSheet({ approval, refused = null, onDecide }: {
         </div>
       </header>
       {approval.detail && (
-        <details>
+        <details open={glanceable(approval.detail)}>
           <summary>{approval.toolName}</summary>
           <pre>{approval.detail}</pre>
         </details>
       )}
       <div className="approval-actions">
         <button type="button" className="deny" disabled={decided !== null} onClick={() => decide(false)}>{decided?.allow === false ? "Denying…" : "Deny"}</button>
-        <button type="button" className="allow" disabled={decided !== null} onClick={() => decide(true)}>{decided?.allow ? "Allowing…" : "Allow"}</button>
+        <button type="button" className="allow" disabled={decided !== null} onClick={() => decide(true)}>{decided?.allow ? "Allowing…" : "Allow once"}</button>
       </div>
     </section>
   );

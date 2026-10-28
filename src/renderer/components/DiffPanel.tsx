@@ -52,18 +52,21 @@ export type DiffPanelProps = DiffPickerActions & {
   onFindResults?: (results: FindResults) => void;
 };
 
-function summaryMessage(result: DiffSummaryResult | null, loading: boolean, workspaceId: string | undefined, ignoreWhitespace: boolean) {
-  if (!workspaceId) return "Open a project to review changes";
+/** The one line above the list: a wait, a fact, a failure to try again, or a review emptied by hidden spacing. */
+type PanelNote = { text: string; kind: "wait" | "fact" | "error" | "spacing" };
+
+const READING: PanelNote = { text: "Reading the comparison…", kind: "wait" };
+
+function summaryNote(result: DiffSummaryResult | null, loading: boolean, workspaceId: string | undefined, ignoreWhitespace: boolean): PanelNote | null {
+  if (!workspaceId) return { text: "Open a project to review changes", kind: "fact" };
   /** A first read has nothing to draw, so one quiet line says why the list is not there yet. */
-  if (!result) return loading ? "Reading the comparison…" : null;
-  if (result.status === "error") return loading ? "Reading the comparison…" : result.message;
-  if (result.status === "unknown") return "Workspace is no longer registered";
-  if (result.status === "unavailable") return `Workspace is ${result.reason}`;
+  if (!result) return loading ? READING : null;
+  if (result.status === "error") return loading ? READING : { text: result.message, kind: "error" };
+  if (result.status === "unknown") return { text: "Workspace is no longer registered", kind: "fact" };
+  if (result.status === "unavailable") return { text: `Workspace is ${result.reason}`, kind: "fact" };
   if (result.files.length > 0) return null;
-  /** An empty review is worth one more line when a setting is what emptied it. */
-  return ignoreWhitespace
-    ? "Nothing has changed in this comparison. Lines that only changed spacing are hidden."
-    : "Nothing has changed in this comparison";
+  /** An empty review offers the setting back when it is what emptied it. */
+  return { text: "Nothing has changed in this comparison", kind: ignoreWhitespace ? "spacing" : "fact" };
 }
 
 /** Whether the review still holds a file that opened folded because it is too large to draw. */
@@ -71,12 +74,6 @@ function overDrawingBudget(files: DiffFileSummary[], collapsed: Set<string>) {
   return [...foldedForSize(files)].some((path) => collapsed.has(path));
 }
 
-/** Whether the line above the list is a failure the user can try again, rather than a wait or a fact. */
-function failed(result: DiffSummaryResult | null) {
-  return result?.status === "error";
-}
-
-/** The one line above the list: why it is not there, what it waits for, or why it opened folded. */
 function panelNote(panel: {
   result: DiffSummaryResult | null;
   loading: boolean;
@@ -84,27 +81,33 @@ function panelNote(panel: {
   settling: boolean;
   overBudget: boolean;
   ignoreWhitespace: boolean;
-}) {
-  const message = summaryMessage(panel.result, panel.loading, panel.workspaceId, panel.ignoreWhitespace);
-  if (message) return message;
-  if (panel.settling) return "Reading the changes…";
-  if (panel.overBudget) return "This review is large, so its biggest files start folded.";
+}): PanelNote | null {
+  const summary = summaryNote(panel.result, panel.loading, panel.workspaceId, panel.ignoreWhitespace);
+  if (summary) return summary;
+  if (panel.settling) return { text: "Reading the changes…", kind: "wait" };
+  if (panel.overBudget) return { text: "This review is large, so its biggest files start folded.", kind: "fact" };
   return null;
 }
 
-/** The line above the list, with a retry when it reports a failure. */
-function PanelNotice({ notice, failed, onRetry }: { notice: string; failed: boolean; onRetry: () => void }) {
-  return failed
-    ? <p className="diff-error" role="alert"><span>{notice}</span><button type="button" onClick={onRetry}>Try again</button></p>
-    : <p className="session-note">{notice}</p>;
+function PanelNotice({ note, onRetry, onShowSpacing }: { note: PanelNote; onRetry: () => void; onShowSpacing: () => void }) {
+  if (note.kind === "error") return <p className="diff-error" role="alert"><span>{note.text}</span><button type="button" onClick={onRetry}>Try again</button></p>;
+  return (
+    <p className={`diff-status ${note.kind}`} role="status">
+      {note.kind === "wait" && <span className="task-spinner" aria-hidden="true" />}
+      <span>{note.text}</span>
+      {note.kind === "spacing" && <button type="button" onClick={onShowSpacing}>Show spacing changes</button>}
+    </p>
+  );
 }
 
 /** What the review adds up to: how much of it the user has ticked off, and what it costs in lines. */
-function ReviewProgress({ files, viewed, additions, deletions, onNext }: {
+function ReviewProgress({ files, viewed, additions, deletions, hint, onNext }: {
   files: DiffFileSummary[];
   viewed: Record<string, string>;
   additions: number;
   deletions: number;
+  /** While nothing is picked or commented on, the row says how a comment is made. */
+  hint: boolean;
   onNext: () => void;
 }) {
   if (files.length === 0) return null;
@@ -115,6 +118,7 @@ function ReviewProgress({ files, viewed, additions, deletions, onNext }: {
       {done < files.length
         ? <button type="button" aria-keyshortcuts="N" data-tip="Next unviewed file (N)" onClick={onNext}>{label}<ArrowDown size={12} aria-hidden="true" /></button>
         : <span>{label}</span>}
+      {hint && <span className="diff-progress-hint" data-tip="Click a line number to comment" data-tip-overflow>Click a line number to comment</span>}
       <span className="change-counts"><strong>+{additions}</strong><em>−{deletions}</em></span>
       <span className="diff-progress-meter" aria-hidden="true"><span style={{ width: `${(done / files.length) * 100}%` }} /></span>
     </div>
@@ -381,8 +385,8 @@ export function DiffPanel({
         onRefresh={onRefresh}
       />
 
-      {available && <ReviewProgress files={files} viewed={diff.viewed} additions={available.additions} deletions={available.deletions} onNext={nextUnviewed} />}
-      {notice && <PanelNotice notice={notice} failed={failed(diff.result) && !diff.loading} onRetry={onRefresh} />}
+      {available && <ReviewProgress files={files} viewed={diff.viewed} additions={available.additions} deletions={available.deletions} hint={!selection && diffComments.length === 0} onNext={nextUnviewed} />}
+      {notice && <PanelNotice note={notice} onRetry={onRefresh} onShowSpacing={() => onSetIgnoreWhitespace(false)} />}
 
       <div className="diff-scroll">
         <div className="diff-files" ref={scrollRef} onScroll={syncPinned} onPointerDown={startDrag} onPointerOver={dragOver} onKeyDown={reviewKeys} aria-label="Changed files">

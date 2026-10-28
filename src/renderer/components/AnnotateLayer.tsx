@@ -1,8 +1,9 @@
 import { LuCheck as Check, LuGitFork as GitFork, LuMessageSquareQuote as MessageSquareQuote, LuX as X } from "react-icons/lu";
-import type { RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import type { Annotation } from "../../domain/conversation";
 import type { AnnotationMarker, NoteDraft, Selected } from "../timeline/use-annotations";
+import { MAC } from "../platform";
 import { shortcutTip } from "./TooltipLayer";
 
 type MarkersProps = {
@@ -19,6 +20,7 @@ export function AnnotationMarkers({ markers, annotations, noteReturn, onEdit }: 
       type="button"
       key={marker.id}
       className="annotation-marker"
+      data-annotation-id={marker.id}
       style={{ left: marker.x, top: marker.y }}
       aria-label={`Edit annotation ${marker.number}`}
       data-tip="Edit annotation"
@@ -43,14 +45,40 @@ type PopoverProps = {
   onSide?: (selected: Selected) => void;
 };
 
+/** Keys a page already answers on the element that has focus. */
+const ANSWERS_KEYS = "input, textarea, select, button, a[href], [contenteditable=''], [contenteditable='true'], [role='button'], [role='option'], [role='menuitem'], [role='tab']";
+
 export function AnnotatePopover({ selection, toolbarRef, noteReturn, onNote, onSide }: PopoverProps) {
+  const latest = useRef({ selection, onNote, onSide });
+  useLayoutEffect(() => {
+    latest.current = { selection, onNote, onSide };
+  });
+  /** Enter adds the selection to the chat and Mod+Enter to the side chat, so a selection made from the keyboard is annotated from it too. */
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Enter" || event.defaultPrevented || event.shiftKey || event.altKey || event.isComposing) return;
+      if (event.target instanceof Element && event.target.closest(ANSWERS_KEYS)) return;
+      const { selection, onNote, onSide } = latest.current;
+      const mod = MAC ? event.metaKey : event.ctrlKey;
+      if (mod && !onSide) return;
+      if (!mod && (event.metaKey || event.ctrlKey)) return;
+      event.preventDefault();
+      if (mod) onSide?.(selection);
+      else {
+        noteReturn.current = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
+        onNote(selection);
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [noteReturn]);
   return createPortal(
     <div ref={toolbarRef} className="annotate-popover" role="toolbar" aria-label="Annotate selection" style={{ left: selection.x, top: selection.y }}>
-      <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={(event) => { noteReturn.current = event.currentTarget; onNote(selection); }}>
+      <button type="button" aria-keyshortcuts="Enter" data-tip={shortcutTip("Add to chat", "Enter")} onMouseDown={(event) => event.preventDefault()} onClick={(event) => { noteReturn.current = event.currentTarget; onNote(selection); }}>
         <MessageSquareQuote size={14} aria-hidden="true" />Add to chat
       </button>
       {onSide && (
-        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => onSide(selection)}>
+        <button type="button" aria-keyshortcuts={MAC ? "Meta+Enter" : "Control+Enter"} data-tip={shortcutTip("Add to side chat", "Mod+Enter")} onMouseDown={(event) => event.preventDefault()} onClick={() => onSide(selection)}>
           <GitFork size={14} aria-hidden="true" />Add to side chat
         </button>
       )}
@@ -91,6 +119,7 @@ export function NoteEditor({ noting, editorRef, onChange, onCommit, onClose, onR
       {noting.annotationId && (
         <button
           type="button"
+          className="annotate-editor-remove"
           aria-label="Remove annotation"
           data-tip="Remove"
           onClick={() => onRemove(noting.annotationId!)}

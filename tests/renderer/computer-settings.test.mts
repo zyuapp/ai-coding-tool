@@ -147,3 +147,31 @@ test("this computer's name says it was saved, and an unchanged name saves nothin
     await view.unmount();
   }
 });
+
+test("the address field reads as the only way to pair until the tailnet lists a computer", async () => {
+  const label = (view: Awaited<ReturnType<typeof mount>>) => view.container.querySelector(".computer-address label span")!.textContent;
+  const alone = await mount(settings({}));
+  try {
+    assert.equal(label(alone), "Pair by address");
+    assert.equal(alone.container.querySelector("[data-this-computer] .setting-status"), null, "this computer's name row carries no step circle");
+  } finally {
+    await alone.unmount();
+  }
+  const listed = await mount(settings({ found: [{ host: "studio:7737", name: "studio" } as ComputerSettingsProps["found"][number]] }));
+  try {
+    assert.equal(label(listed), "Or pair by address");
+  } finally {
+    await listed.unmount();
+  }
+});
+
+test("looking for computers reads as busy rather than unavailable", async () => {
+  const view = await mount(settings({ searching: true }));
+  try {
+    const look = view.container.querySelector<HTMLButtonElement>(".settings-group-action button")!;
+    assert.equal(look.textContent, "Looking…");
+    assert.equal(look.getAttribute("aria-busy"), "true");
+  } finally {
+    await view.unmount();
+  }
+});

@@ -17,5 +17,5 @@ export function engineIcon(engine: AgentEngine): IconType {
 export function ThreadEngineIcon({ engine, className, size }: { engine: AgentEngine; className?: string; size: number }) {
   if (!isAgentEngine(engine)) return null;
   const Icon = ENGINE_ICONS[engine];
-  return <Icon className={className} size={size} aria-label={`${engineLabel(engine)} thread`} />;
+  return <Icon className={className} size={size} role="img" aria-label={`${engineLabel(engine)} thread`} />;
 }

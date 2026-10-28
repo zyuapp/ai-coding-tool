@@ -60,3 +60,17 @@ test("a theme change is posted to every mounted frame without reloading it, and 
   restyleVisuals();
   assert.equal(posted.length, 2);
 });
+
+test("a visual that failed can be drawn again in a fresh frame, and one that drew offers no retry", async () => {
+  const view = await mount(React.createElement(VisualBlock, { source: '<div id="viz-retry"></div>' }));
+  const first = frameOf(view.container);
+  assert.equal(view.container.querySelector(".visual-error button"), null);
+
+  await say(first.contentWindow, { type: "aicodingtool-visual:error", message: "broke" });
+  const retry = view.container.querySelector<HTMLButtonElement>(".visual-error button");
+  assert.equal(retry?.textContent, "Try again");
+  await act(async () => { retry!.click(); });
+  assert.equal(view.container.querySelector(".visual-error"), null, "the error clears while it draws again");
+  assert.notEqual(frameOf(view.container), first, "the visual is drawn into a new frame");
+  await view.unmount();
+});

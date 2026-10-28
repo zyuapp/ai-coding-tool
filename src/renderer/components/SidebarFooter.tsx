@@ -1,9 +1,8 @@
 import { LuArrowDown as ArrowDown, LuRotateCw as Restart, LuSettings as Settings } from "react-icons/lu";
 import type { AppUpdate } from "../../domain/app-update";
-import { displayShortcut } from "../../domain/shortcuts";
-import { MAC } from "../platform";
+import { shortcutTip } from "./TooltipLayer";
 
-const SETTINGS_TIP = `Settings (${displayShortcut("Mod+,", MAC)})`;
+const SETTINGS_TIP = shortcutTip("Settings", "Mod+,");
 
 const RING_RADIUS = 6;
 const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
@@ -24,7 +23,7 @@ function ProgressRing({ percent }: { percent: number }) {
   );
 }
 
-/** A newer build: offered, then downloading, then waiting on a restart. */
+/** A newer build: offered, then downloading with how far it has come, then waiting on a restart. */
 function SidebarUpdate({ update, onDownload, onInstall }: {
   update: AppUpdate;
   onDownload: () => void;
@@ -46,7 +45,7 @@ function SidebarUpdate({ update, onDownload, onInstall }: {
       const label = `Downloading version ${update.version}: ${update.percent}%`;
       return (
         <div
-          className="sidebar-update downloading"
+          className="sidebar-update labelled downloading"
           role="progressbar"
           aria-label={label}
           aria-valuemin={0}
@@ -55,6 +54,7 @@ function SidebarUpdate({ update, onDownload, onInstall }: {
           data-tip={label}
         >
           <ProgressRing percent={update.percent} />
+          <span aria-hidden="true">{update.percent}%</span>
         </div>
       );
     }

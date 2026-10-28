@@ -37,7 +37,7 @@ export function useSettingMark<T extends HTMLElement>(id: string) {
 export type SettingRowProps = {
   /** The catalog entry the row draws its name from, which is also what the jump panel offers. */
   id: SettingId;
-  /** Whether the row's tick is filled. Left out, the row keeps the space blank. */
+  /** Whether the row's step is done. Left out, the row is a plain control with no circle. */
   status?: boolean;
   /** What the row says under its name. */
   description: ReactNode;
@@ -70,10 +70,8 @@ export function SettingRow({ id, status, description, className, children }: Set
   </>;
 
   return (
-    <div ref={ref} className={`setting-row${found ? " found" : ""}${className ? ` ${className}` : ""}`} data-setting={id}>
-      {status === undefined
-        ? <span className="setting-status blank" aria-hidden="true" />
-        : <SettingStatus done={status} />}
+    <div ref={ref} className={`setting-row${status === undefined ? " plain" : ""}${found ? " found" : ""}${className ? ` ${className}` : ""}`} data-setting={id}>
+      {status !== undefined && <SettingStatus done={status} />}
       {isValidElement(children) && children.type === SettingSwitch
         ? <label className="setting-row-text" htmlFor={switchId(id)}>{text}</label>
         : <div>{text}</div>}

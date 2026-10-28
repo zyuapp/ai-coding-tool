@@ -1,4 +1,5 @@
 import { Children, createContext, isValidElement, memo, useContext, useMemo, useRef, useState, type ComponentProps, type ReactElement, type ReactNode } from "react";
+import { LuArrowUpRight as ArrowUpRight, LuFileText as FileText } from "react-icons/lu";
 import Markdown, { defaultUrlTransform, type ExtraProps } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { parseFileHref, parseThreadHref } from "../../domain/markdown-links";
@@ -15,6 +16,7 @@ import { MAC } from "../platform";
 const APP_HREF = /^aicodingtool:/i;
 const WEB_HREF = /^https?:/i;
 const FILE_HREF = /^file:/i;
+const OPEN_IN_APP_TIP = `Open in app (${MAC ? "⌘" : "Ctrl+"}Click)`;
 
 /** What a link in a message can reach. A handler the host leaves out makes that link plain text. */
 export type MessageLinkActions = {
@@ -101,6 +103,7 @@ export function WebLink({ children, openInApp, ...props }: ComponentProps<"a"> &
   return (
     <>
       <a
+        data-tip={openInApp ? OPEN_IN_APP_TIP : undefined}
         {...props}
         ref={link}
         target="_blank"
@@ -134,7 +137,11 @@ function MarkdownLink({ children, ...props }: ComponentProps<"a">) {
   const messageId = useContext(MessageId);
   const href = props.href ?? "";
   const threadId = parseThreadHref(href);
-  if (threadId && actions.selectThread) return <a {...props} onClick={(event) => { event.preventDefault(); actions.selectThread!(threadId); }}>{children}</a>;
+  if (threadId && actions.selectThread) return (
+    <a {...props} className="message-link-thread" onClick={(event) => { event.preventDefault(); actions.selectThread!(threadId); }}>
+      {children}<ArrowUpRight className="message-link-glyph" aria-hidden="true" />
+    </a>
+  );
   /** Anything else under the scheme is text, never a live link. */
   if (APP_HREF.test(href)) return <>{children}</>;
   const image = messageImagePath(href);
@@ -144,7 +151,11 @@ function MarkdownLink({ children, ...props }: ComponentProps<"a">) {
   }}>{children}</a>;
   const file = parseFileHref(href);
   if (file) return actions.openFile
-    ? <a {...props} onClick={(event) => { event.preventDefault(); actions.openFile!(file.file, file.line); }}>{children}</a>
+    ? (
+      <a {...props} className="message-link-file" data-tip={file.line === null ? file.file : `${file.file}:${file.line}`} onClick={(event) => { event.preventDefault(); actions.openFile!(file.file, file.line); }}>
+        <FileText className="message-link-glyph" aria-hidden="true" />{children}
+      </a>
+    )
     : <>{children}</>;
   if (WEB_HREF.test(href)) return <WebLink {...props} openInApp={actions.openUrlInApp && (() => actions.openUrlInApp!(href))}>{children}</WebLink>;
   return <a {...props} target="_blank" rel="noreferrer">{children}</a>;

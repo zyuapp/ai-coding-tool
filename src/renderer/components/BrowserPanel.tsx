@@ -4,10 +4,7 @@ import { browserTabTitle, type BrowserApproval, type BrowserTab } from "../../do
 import { useDismissibleLayer } from "../focus";
 import { NativeSurface } from "./NativeSurface";
 import { SpinningIcon } from "./SpinningIcon";
-import { MAC } from "../platform";
-import { displayShortcut } from "../../domain/shortcuts";
-
-const tip = (label: string, binding: string) => `${label} (${displayShortcut(binding, MAC)})`;
+import { shortcutTip } from "./TooltipLayer";
 
 export type BrowserPanelProps = {
   tab: BrowserTab;
@@ -51,9 +48,9 @@ export function BrowserPanel({ tab, approval, focusToken = 0, find, onOpen, onGo
   return (
     <section className="browser-panel" aria-label="Browser">
       <div className="browser-bar">
-        <button type="button" aria-label="Back" data-tip={tip("Back", "Mod+[")} disabled={!tab.canGoBack} onClick={() => onGo(-1)}><ArrowLeft size={16} /></button>
-        <button type="button" aria-label="Forward" data-tip={tip("Forward", "Mod+]")} disabled={!tab.canGoForward} onClick={() => onGo(1)}><ArrowRight size={16} /></button>
-        <button type="button" aria-label="Reload" data-tip={tip("Reload", "Mod+R")} disabled={!tab.url} onClick={onReload}><SpinningIcon icon={RotateCw} spinning={tab.loading} size={16} /></button>
+        <button type="button" aria-label="Back" data-tip={shortcutTip("Back", "Mod+[")} disabled={!tab.canGoBack} onClick={() => onGo(-1)}><ArrowLeft size={16} /></button>
+        <button type="button" aria-label="Forward" data-tip={shortcutTip("Forward", "Mod+]")} disabled={!tab.canGoForward} onClick={() => onGo(1)}><ArrowRight size={16} /></button>
+        <button type="button" aria-label="Reload" data-tip={shortcutTip("Reload", "Mod+R")} disabled={!tab.url} onClick={onReload}><SpinningIcon icon={RotateCw} spinning={tab.loading} size={16} /></button>
         <input
           ref={addressInput}
           value={address}

@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import React, { act } from "react";
 
+import type { AppCommand } from "../../src/contracts/commands.ts";
 import type { InstalledApp } from "../../src/contracts/ipc.ts";
 import { NO_PULL_REQUEST } from "../../src/domain/pull-request.ts";
 import { OPEN_SUBAGENT_GROUPS, type BackgroundProcess, type Subagent, type SubagentActivity } from "../../src/domain/run.ts";
@@ -25,6 +26,7 @@ const { SubagentInspector } = await import("../../src/renderer/components/Subage
 const { AgentsPanel, matchSubagents } = await import("../../src/renderer/components/SubagentList.tsx");
 const { WorkspaceHeader } = await import("../../src/renderer/components/WorkspaceHeader.tsx");
 const { OpenInMenu } = await import("../../src/renderer/components/OpenInMenu.tsx");
+const { CommandControlsProvider } = await import("../../src/renderer/components/CommandControl.tsx");
 
 function renderSessionPanel(overrides: Partial<SessionPanelProps>) {
   return React.createElement(SessionPanel, {
@@ -181,7 +183,10 @@ test("the session panel lists the run's background processes and stops the one a
   assert.match(view.container.textContent, /Stopping/);
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Stop npm run dev"]').click(); });
   assert.deepEqual(stopped, ["bash-1"]);
-  assert.equal(query<HTMLButtonElement>(view.container, 'button[aria-label="Stop Deploy events"]').disabled, true, "a stop already asked for cannot be asked for twice");
+  const stopping = query<HTMLButtonElement>(view.container, 'button[aria-label="Stopping Deploy events"]');
+  assert.equal(stopping.disabled, true, "a stop already asked for cannot be asked for twice");
+  assert.ok(stopping.querySelector("svg.spinning"), "and turns while the process winds down");
+  assert.equal(query<HTMLButtonElement>(view.container, 'button[aria-label="Stop npm run dev"]').querySelector("svg.spinning"), null);
 
   await view.render(renderSessionPanel({
     environment: null, hasProject: true, subagents: [], backgroundProcesses: [], workflows: [], automationCount: 0, onSelect() {}, onOpenAutomations() {}, onStopProcess() {},
@@ -375,7 +380,7 @@ test("subagent inspector renders activity and closes", async () => {
   assert.match(view.container.textContent, /321 tokens/);
   assert.match(view.container.textContent, /Reading/);
   assert.equal(query(view.container, ".agent-tool summary").textContent, "Read");
-  const earlier = query<HTMLButtonElement>(view.container, ".agent-activity-earlier"); assert.equal(earlier.textContent, "Load earlier (1)");
+  const earlier = query<HTMLButtonElement>(view.container, ".agent-activity-earlier"); assert.equal(earlier.textContent, "Show 1 earlier");
   await act(async () => { earlier.click(); });
   assert.equal(view.container.querySelector(".agent-activity-earlier"), null);
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Close subagent details"]').click(); });
@@ -442,6 +447,7 @@ test("workspace header keeps session summary and right panel controls separate",
     onToggleSessionPanel: () => { summaryToggles += 1; },
     onToggleRightDock: () => { rightPanelToggles += 1; },
     onChooseFolder: () => {},
+    onNewThreadInProject: () => {},
   }));
 
   assert.equal(query(view.container, 'button[aria-label="Hide right panel"]').getAttribute("aria-pressed"), "true");
@@ -511,13 +517,23 @@ test("the open-in list groups the applications this machine has, and hands one t
   await view.unmount();
 });
 
-test("the open-in button waits for a folder to hand over", async () => {
+test("the open-in list says what it waits for while the folder cannot be handed over", async () => {
   window.desktop = fakeDesktop();
-  const view = await mount(React.createElement(OpenInMenu, { openMenu: null, onSetOpenMenu: () => {}, blocked: "Worktree is still being created", apps: null, onListApps: () => {}, onOpenInApp: () => {} }));
+  let menu: string | null = null;
+  const apps: InstalledApp[] = [{ id: "finder", label: "Finder", kind: "files", icon: null }];
+  const openIn = (blocked: string | null) => React.createElement(OpenInMenu, { openMenu: menu, onSetOpenMenu: (next: string | null) => { menu = next; }, blocked, apps, onListApps: () => {}, onOpenInApp: () => {} });
+  const view = await mount(openIn("Worktree is still being created"));
 
   const trigger = query<HTMLButtonElement>(view.container, ".open-in .session-toggle");
-  assert.equal(trigger.disabled, true);
-  assert.equal(trigger.dataset.tip, "Worktree is still being created", "the disabled button says why");
+  assert.equal(trigger.disabled, false);
+  await act(async () => { trigger.click(); });
+  await view.render(openIn("Worktree is still being created"));
+  assert.equal(query(view.container, ".open-in-empty").textContent, "Worktree is still being created");
+  assert.equal(view.container.querySelectorAll(".open-in-popover button").length, 0, "no application is offered a folder that is not there yet");
+
+  await view.render(openIn(null));
+  assert.equal(view.container.querySelector(".open-in-empty"), null);
+  assert.equal(view.container.querySelectorAll(".open-in-popover button").length, 1);
   await view.unmount();
 });
 
@@ -601,80 +617,6 @@ test("the session panel lists a workflow as a process and opens its panel", asyn
   await view.unmount();
 });
 
-test("the heading names the paired computer a thread lives on, ahead of its folder", async () => {
-  const props = {
-    currentThread: {
-      id: "remote-thread", title: "What is in this repo", engine: "claude", executionPolicy: "confirm", messages: [],
-      continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
-    } satisfies Thread,
-    folder: "/home/me/just-speak-linux",
-    folderLabel: "just-speak-linux",
-    sidebarOpen: false, sessionPanelOpen: false, rightDockOpen: false, zen: { available: false, tip: "Zen mode", onEnter: () => {} }, workingSubagents: 0, openMenu: null, canOpenFolder: true, apps: null,
-    onListApps: () => {}, onSetOpenMenu: () => {}, onOpenInApp: () => {}, onRenameThread: () => {}, onForkThread: () => {}, onSetThreadRole: () => {}, onArchiveThread: () => {},
-    coordinators: [], onSetCoordinator: () => {}, notifications: true, onSetMuted: () => {}, stoppable: false, onStopAll: () => {},
-    onToggleSidebar: () => {}, onToggleSessionPanel: () => {}, onToggleRightDock: () => {}, onChooseFolder: () => {},
-  };
-  const local = await mount(React.createElement(WorkspaceHeader, props));
-  assert.equal(local.container.querySelector(".heading-host"), null, "a thread here carries no computer");
-  const zen = query<HTMLButtonElement>(local.container, 'button[aria-label="Enter zen mode"]');
-  assert.ok(zen.disabled, "a thread without messages keeps zen mode in place, turned off");
-  assert.equal(zen.dataset.tip, "Send a message to use zen mode");
-  await local.unmount();
-
-  const remote = await mount(React.createElement(WorkspaceHeader, { ...props, host: { name: "zyuapp", offline: false } }));
-  const mark = query(remote.container, ".task-heading h1 > .heading-host");
-  assert.equal(mark.textContent, "zyuapp");
-  assert.equal(mark.nextElementSibling?.className, "heading-separator");
-  assert.equal(mark.nextElementSibling?.nextElementSibling?.textContent, "just-speak-linux");
-  assert.equal(query(remote.container, ".task-heading h1").dataset.tip, "/home/me/just-speak-linux on zyuapp");
-  await remote.unmount();
-
-  const away = await mount(React.createElement(WorkspaceHeader, { ...props, host: { name: "zyuapp", offline: true } }));
-  assert.equal(query(away.container, ".heading-host").classList.contains("offline"), true);
-  await away.unmount();
-});
-
-test("the heading's title shows in full on hover and renames on double-click", async () => {
-  const renamed: string[] = [];
-  const props = {
-    currentThread: {
-      id: "thread", title: "A long thread title that the heading cuts short", engine: "claude", executionPolicy: "confirm", messages: [],
-      continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
-    } satisfies Thread,
-    folder: "/project", folderLabel: "project",
-    sidebarOpen: false, sessionPanelOpen: false, rightDockOpen: false, zen: { available: false, tip: "Zen mode", onEnter: () => {} }, workingSubagents: 0, openMenu: null, canOpenFolder: true, apps: null,
-    onListApps: () => {}, onSetOpenMenu: () => {}, onOpenInApp: () => {}, onRenameThread: (_id: string, title: string) => { renamed.push(title); }, onForkThread: () => {}, onSetThreadRole: () => {}, onArchiveThread: () => {},
-    coordinators: [], onSetCoordinator: () => {}, notifications: true, onSetMuted: () => {}, stoppable: false, onStopAll: () => {},
-    onToggleSidebar: () => {}, onToggleSessionPanel: () => {}, onToggleRightDock: () => {}, onChooseFolder: () => {},
-  };
-  const view = await mount(React.createElement(WorkspaceHeader, props));
-  const title = query(view.container, ".heading-thread");
-  assert.equal(title.dataset.tip, "A long thread title that the heading cuts short");
-  assert.ok(title.classList.contains("renamable"));
-  assert.equal(query(view.container, ".thread-heading-menu > .menu-trigger").dataset.tip, "Thread actions");
-  await act(async () => { title.dispatchEvent(new window.MouseEvent("dblclick", { bubbles: true })); });
-  const input = query<HTMLInputElement>(view.container, "input.heading-rename");
-  assert.equal(input.value, "A long thread title that the heading cuts short");
-  await view.unmount();
-});
-
-test("with no project the heading offers to choose one", async () => {
-  let chosen = 0;
-  const view = await mount(React.createElement(WorkspaceHeader, {
-    folder: "", folderLabel: "",
-    sidebarOpen: true, sessionPanelOpen: false, rightDockOpen: false, zen: { available: false, tip: "Zen mode", onEnter: () => {} }, workingSubagents: 0, openMenu: null, canOpenFolder: false, apps: null,
-    onListApps: () => {}, onSetOpenMenu: () => {}, onOpenInApp: () => {}, onRenameThread: () => {}, onForkThread: () => {}, onSetThreadRole: () => {}, onArchiveThread: () => {},
-    coordinators: [], onSetCoordinator: () => {}, notifications: true, onSetMuted: () => {}, stoppable: false, onStopAll: () => {},
-    onToggleSidebar: () => {}, onToggleSessionPanel: () => {}, onToggleRightDock: () => {}, onChooseFolder: () => { chosen += 1; },
-  }));
-  const choose = query<HTMLButtonElement>(view.container, "button.heading-choose-folder");
-  assert.equal(choose.textContent, "Choose a project folder to begin");
-  await act(async () => { choose.click(); });
-  assert.equal(chosen, 1);
-  assert.equal(query(view.container, ".open-in .session-toggle").dataset.tip, "Choose a project folder first");
-  await view.unmount();
-});
-
 test("the subagent search clears from its button or Escape", async () => {
   const roster: Subagent[] = [
     { id: "a", description: "Read the reducer", status: "completed", startedAt: 1, activity: [] },
@@ -700,5 +642,50 @@ test("the subagent search clears from its button or Escape", async () => {
   await act(async () => { search.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })); });
   assert.equal(search.value, "");
   assert.equal(names().length, 2);
+  await view.unmount();
+});
+
+test("an empty subagents panel offers the composer, and a search that matches nothing offers the whole roster", async () => {
+  const sent: AppCommand[] = [];
+  const controls = { available: () => true, dispatch: (command: AppCommand) => { sent.push(command); } };
+  const empty = await mount(React.createElement(CommandControlsProvider, { value: controls },
+    React.createElement(AgentsPanel, { subagents: [], groups: OPEN_SUBAGENT_GROUPS, onSelect() {}, onSetGroup() {} })));
+  const message = query<HTMLButtonElement>(empty.container, ".agents-panel-empty button");
+  assert.equal(message.textContent, "Message the thread");
+  await act(async () => { message.click(); });
+  assert.deepEqual(sent, [{ type: "view.shortcut", action: "composer.focus", surface: "any" }]);
+  await empty.unmount();
+
+  const roster: Subagent[] = [{ id: "a", description: "Read the reducer", status: "failed", startedAt: 1, activity: [] }];
+  const view = await mount(React.createElement(AgentsPanel, { subagents: roster, groups: OPEN_SUBAGENT_GROUPS, onSelect() {}, onSetGroup() {} }));
+  assert.equal(view.container.querySelector(".agents-panel-empty"), null, "a panel with subagents has no empty state");
+  const search = query<HTMLInputElement>(view.container, 'input[aria-label="Search subagents"]');
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")!.set!.call(search, "nothing");
+    search.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+  });
+  const all = query<HTMLButtonElement>(view.container, ".agents-panel-none button");
+  await act(async () => { all.click(); });
+  assert.equal(search.value, "");
+  assert.equal(agentRow(view.container, "Read the reducer").querySelector('[role="img"]')?.getAttribute("aria-label"), "Failed");
+  await view.unmount();
+});
+
+test("each press of Show earlier in the inspector reads back twice as far as the last", async () => {
+  const subagent: Subagent = {
+    ...subagents[0],
+    activity: Array.from({ length: 200 }, (_, index) => ({ id: `step-${index}`, kind: "text" as const, text: `Step ${index}`, at: index })),
+  };
+  const measuredRows = rowHeights((node) => node.classList?.contains("agent-activity-row") ? 40 : 0);
+  const view = await mount(React.createElement(SubagentInspector, { subagent, onClose() {}, onStop() {} }));
+  sizeOf(query(view.container, ".inspector-scroll"), 360, 720);
+  await pumpResizeObservers();
+  const earlier = () => view.container.querySelector<HTMLButtonElement>(".agent-activity-earlier");
+  assert.equal(earlier()?.textContent, "Show 60 earlier");
+  await act(async () => { earlier()?.click(); });
+  assert.equal(earlier()?.textContent, "Show 80 earlier", "the second press reaches the start of the log");
+  await act(async () => { earlier()?.click(); });
+  assert.equal(earlier(), null);
+  measuredRows.restore();
   await view.unmount();
 });

@@ -59,7 +59,7 @@ export type ThreadStartOptionsProps = {
 
 function CoordinatorToggle({ coordinator, onSetCoordinator }: Pick<ThreadStartOptionsProps, "coordinator" | "onSetCoordinator">) {
   return (
-    <button type="button" className="thread-start-toggle thread-start-coordinator" aria-pressed={coordinator} data-tip="Hands the work to threads it starts" onClick={() => onSetCoordinator(!coordinator)}>
+    <button type="button" className="thread-start-toggle thread-start-coordinator" aria-pressed={coordinator} data-tip="Delegates work to new threads instead of editing files" onClick={() => onSetCoordinator(!coordinator)}>
       <Waypoints size={14} />
       <span>Coordinator</span>
     </button>
@@ -148,12 +148,12 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
         {!project ? null : startsInWorktree ? (
           <div className="thread-start-worktree">
             <FolderSymlink size={16} />
-            <span>{startsInWorktree}</span>
+            <span data-tip={startsInWorktree} data-tip-overflow>{startsInWorktree}</span>
             <button type="button" aria-label={`Leave ${startsInWorktree}`} data-tip="Start in the project instead" onClick={() => onSetWorktree(false)}><X size={14} /></button>
           </div>
         ) : (<>
         <div className={`thread-start-field ${branchesOpen ? "open" : ""}`} ref={branchRef}>
-          <button ref={branchTrigger} type="button" aria-label="Starting branch" aria-haspopup="listbox" aria-expanded={branchesOpen} disabled={!workspaceId} data-tip={workspaceId ? undefined : "Starts from the project's current branch"} onClick={() => setBranchesOpen(!branchesOpen)}>
+          <button ref={branchTrigger} type="button" aria-label="Starting branch" aria-haspopup="listbox" aria-expanded={branchesOpen} aria-disabled={!workspaceId || undefined} data-tip={!workspaceId ? "Starts from the project's current branch" : branches?.status === "error" ? branches.message : undefined} onClick={() => { if (workspaceId) setBranchesOpen(!branchesOpen); }}>
             <GitBranch size={14} />
             <span>{selected ?? (branches?.status === "error" ? "No branches" : "Current branch")}</span>
             {branch?.create && <small>new</small>}

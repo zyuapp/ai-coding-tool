@@ -19,7 +19,6 @@
 
   --surface-menu: var(--p-bg-3);
   --surface-hover: var(--p-bg-4);
-  --surface-inverse-off: color-mix(in srgb, var(--p-bg-6) 80%, var(--p-fg-5));
   --wash: rgb(from var(--p-fg-0) r g b / 0.045);
 
   --line: var(--p-line-1);
@@ -30,7 +29,7 @@
   --line-input: color-mix(in srgb, var(--p-fg-4) 70%, var(--p-line-2));
 
   /* Text, strongest to quietest. At 13px and under only --muted and stronger read; --quiet is for
-     600-weight section labels and 14px helper copy, --quiet-soft for placeholders. */
+     600-weight section labels, 14px helper copy and placeholders, --quiet-soft for disabled labels. */
   --ink: var(--p-fg-0);
   --ink-soft: color-mix(in srgb, var(--p-fg-0) 60%, var(--p-fg-1));
   --ink-dim: var(--p-fg-1);
@@ -248,11 +247,14 @@ button {
 .segmented button[aria-checked="true"] {
   background: var(--surface);
   color: var(--ink);
-  box-shadow: 0 1px 2px rgb(var(--p-shadow) / calc(0.18 * var(--p-shadow-scale)));
+  box-shadow: inset 0 0 0 1px var(--line-input), 0 1px 2px rgb(var(--p-shadow) / calc(0.18 * var(--p-shadow-scale)));
 }
 
 .line-mark {
   flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   padding: 4px 9px;
   border-radius: 999px;
   font-size: var(--text-meta);
@@ -267,47 +269,60 @@ button {
   background: var(--danger-surface);
 }
 
-.line-mark[data-connection="resuming"] {
-  animation: pulse 1.4s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  50% { opacity: 0.45; }
+.line-spin {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line-input);
+  border-right-color: currentColor;
+  animation: spin 900ms linear infinite;
 }
 
 /* A strip under the bar, so the title and the list switch stay where they are while it is up. */
 .banner {
   flex: none;
   display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
+  align-items: flex-start;
   min-height: 44px;
-  padding: 7px 10px 7px var(--gutter);
-  text-align: left;
+  padding-left: var(--gutter);
   color: var(--danger-soft);
   background: var(--danger-surface);
   box-shadow: inset 0 -1px 0 var(--line-soft);
   animation: fade 160ms ease-out;
 }
 
-.banner span {
+.banner-text {
   flex: 1;
   min-width: 0;
+  min-height: 44px;
+  padding: 7px 0;
+  text-align: left;
   font-size: var(--text-menu);
   line-height: 15px;
   font-weight: 500;
+  color: inherit;
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.banner svg {
-  flex: none;
+.banner[data-open] .banner-text {
+  display: block;
 }
 
-.banner:active {
+.banner-close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  padding: 0;
+  color: inherit;
+}
+
+.banner-close:active {
   background: color-mix(in srgb, var(--danger-surface) 70%, var(--surface-active));
 }
 
@@ -353,13 +368,26 @@ button {
   font-size: 13px;
   font-weight: 600;
   letter-spacing: -0.01em;
-  color: var(--muted);
+  color: var(--muted-strong);
 }
 
 .section-toggle > span:first-child {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.section-count {
+  flex: none;
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  font-size: var(--text-meta);
+  line-height: 18px;
+  text-align: center;
+  color: var(--muted-strong);
+  font-variant-numeric: tabular-nums;
 }
 
 .section-chevron {
@@ -402,7 +430,7 @@ button {
   height: 44px;
   margin-right: -3px;
   border-radius: 10px;
-  color: var(--muted);
+  color: var(--muted-strong);
 }
 
 .section-action:active {
@@ -437,7 +465,7 @@ button {
   min-height: 36px;
   margin: 8px 0 0 4px;
   padding: 0 10px 0 8px;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--line-input);
   border-radius: 10px;
   font-size: 14px;
   font-weight: 540;
@@ -489,6 +517,9 @@ button {
   padding: 9px 4px 9px 12px;
   border-radius: var(--radius-row) 0 0 var(--radius-row);
   text-align: left;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .thread-row:has(.thread-open:active) {
@@ -584,8 +615,8 @@ button {
   display: block;
   width: 14px;
   height: 14px;
-  border: 2px solid var(--line-bright);
-  border-right-color: var(--muted-strong);
+  border: 2px solid var(--line-input);
+  border-right-color: var(--ink-dim);
   animation: spin 900ms linear infinite;
 }
 
@@ -608,7 +639,9 @@ button {
   background: var(--info);
 }
 
+/* A stopped run's news is a square, as the Stop glyph is, so it never rests on hue beside the round news dot. */
 .thread-row[data-unread][data-status="stopped"] .thread-mark::before {
+  border-radius: 2px;
   background: var(--muted-strong);
 }
 
@@ -643,9 +676,21 @@ button {
 }
 
 .omitted {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   margin: 0;
-  text-align: center;
+  padding: 5px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
   font-size: var(--text-meta);
+  color: var(--muted-strong);
+}
+
+.omitted svg {
+  flex: none;
   color: var(--muted);
 }
 
@@ -797,10 +842,10 @@ button {
 }
 
 .thinking-row span[aria-hidden] {
-  width: 5px;
-  height: 5px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: var(--muted);
+  background: var(--muted-strong);
   animation: bounce 1.1s infinite ease-in-out;
 }
 
@@ -808,7 +853,7 @@ button {
 .thinking-row span:nth-child(3) { animation-delay: 0.28s; }
 
 @keyframes bounce {
-  0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.55; }
   30% { transform: translateY(-4px); opacity: 1; }
 }
 
@@ -865,7 +910,7 @@ button.work-row:active {
   height: 20px;
   border-radius: 6px;
   background: var(--surface-raised);
-  color: var(--muted-soft);
+  color: var(--muted);
 }
 
 /* A long run names every tool it used; two lines hold that where one cut it off. */
@@ -885,7 +930,7 @@ button.work-row:active {
   padding: 1px 7px;
   border-radius: 999px;
   background: var(--surface-raised);
-  color: var(--muted-soft);
+  color: var(--muted-strong);
   font-size: var(--text-meta);
   font-variant-numeric: tabular-nums;
 }
@@ -930,6 +975,9 @@ button.work-row:active {
 
 .markdown a {
   color: var(--link);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
 }
 
 .markdown code {
@@ -1180,19 +1228,33 @@ button.work-row:active {
 /* Floats over the transcript's bottom padding, so its coming and going moves nothing. */
 .composer-waiting {
   position: absolute;
-  left: 18px;
-  right: 18px;
-  bottom: 100%;
+  left: 12px;
+  bottom: calc(100% + 2px);
+  max-width: calc(100% - 24px);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   margin: 0;
-  padding: 3px 0;
-  font-size: 12px;
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: var(--text-meta);
   line-height: 1.5;
+  color: var(--muted-strong);
+  background: var(--surface);
+  pointer-events: none;
+}
+
+.composer-waiting svg {
+  flex: none;
   color: var(--muted);
-  background: var(--canvas);
+}
+
+.composer-waiting span {
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  pointer-events: none;
 }
 
 .composer-card {
@@ -1202,8 +1264,8 @@ button.work-row:active {
   transition: box-shadow 140ms ease-out;
 }
 
-.composer-card:focus-within {
-  box-shadow: inset 0 0 0 1px var(--line-input), var(--shadow-float-lift);
+.composer-card:has(textarea:focus) {
+  box-shadow: inset 0 0 0 1.5px var(--focus-ring), var(--shadow-float-lift);
 }
 
 .composer-card textarea {
@@ -1224,7 +1286,7 @@ button.work-row:active {
 }
 
 .composer-card textarea::placeholder {
-  color: var(--quiet-soft);
+  color: var(--quiet);
 }
 
 /* The desktop's question card, sized for a thumb: rows and Send answer at the tap height, text at the phone's control size. */
@@ -1301,8 +1363,11 @@ button.work-row:active {
 .composer-pill {
   position: relative;
   flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   min-height: 36px;
-  padding: 0 12px;
+  padding: 0 12px 0 10px;
   border-radius: 18px;
   border: 1px solid var(--line-input);
   font-size: var(--text-menu);
@@ -1340,8 +1405,11 @@ button.work-row:active {
   inset: -4px;
 }
 
+/* Off, the disc keeps its place as an outline, so where Send is never has to be guessed. */
 .send-button:disabled {
-  background: var(--surface-inverse-off);
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--line-input);
+  color: var(--muted);
 }
 
 .send-button:active {
@@ -1488,6 +1556,7 @@ button.work-row:active {
 
 .sheet-option[aria-checked="true"] {
   background: var(--surface-active);
+  box-shadow: inset 0 0 0 1px var(--line-input);
   color: var(--ink);
 }
 
@@ -1513,25 +1582,21 @@ button.work-row:active {
   display: grid;
   place-items: center;
   width: 16px;
-  color: var(--ink-faint);
+  color: var(--ink);
 }
 
 .fast-mode-switch { margin-top: 10px; }
 .fast-mode-switch > svg { flex: none; }
 .fast-mode-switch > span:first-of-type { flex: 1; }
-.switch-track { flex: none; width: 34px; height: 20px; padding: 3px; border-radius: 10px; background: var(--line-strong); box-shadow: inset 0 0 0 1px var(--line-input); transition: background 160ms ease, box-shadow 160ms ease; }
-.switch-track::after { content: ""; display: block; width: 14px; height: 14px; border-radius: 50%; background: var(--ink); transition: transform 180ms var(--ease), background 160ms ease; }
+.switch-track { flex: none; width: 34px; height: 20px; padding: 3px; border-radius: 10px; background: transparent; box-shadow: inset 0 0 0 1.5px var(--line-input); transition: background 160ms ease, box-shadow 160ms ease; }
+.switch-track::after { content: ""; display: block; width: 14px; height: 14px; border-radius: 50%; background: var(--muted-strong); transition: transform 180ms var(--ease), background 160ms ease; }
 .fast-mode-switch[aria-checked="true"] .switch-track { background: var(--accent); box-shadow: none; }
 .fast-mode-switch[aria-checked="true"] .switch-track::after { transform: translateX(14px); background: var(--accent-ink); }
 
-.sheet-new-engine {
-  margin-top: 6px;
-  color: var(--ink-dim);
-}
-
-.sheet-new-engine > svg {
-  flex: none;
-  color: var(--muted);
+/* Actions that leave the sheet sit under their own rule, apart from the choices it makes. */
+.sheet-actions {
+  margin-top: 8px;
+  border-top: 1px solid var(--line-soft);
 }
 
 .sheet-note {
@@ -1541,8 +1606,40 @@ button.work-row:active {
   color: var(--quiet);
 }
 
+.sheet-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 16px 9px 8px;
+  text-align: center;
+}
+
+.sheet-empty p {
+  margin: 0;
+  font-size: var(--text-control);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+/* Said before the choices it is about. */
+.sheet-lead {
+  margin: 2px 9px 6px;
+  color: var(--muted);
+}
+
 .sheet-done:disabled {
-  color: var(--quiet-soft);
+  color: var(--quiet);
+}
+
+.sheet-actions-head {
+  display: flex;
+  align-items: center;
+}
+
+.sheet-cancel {
+  font-weight: 500;
+  color: var(--muted-strong);
 }
 
 /* Menus ----------------------------------------------------------------- */
@@ -1612,14 +1709,14 @@ button.work-row:active {
 }
 
 .menu-copy small {
-  display: block;
+  display: -webkit-box;
   margin-top: 1px;
   font-size: 12px;
   line-height: 1.35;
   color: var(--muted);
-  white-space: nowrap;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .menu-chevron {
@@ -1654,11 +1751,12 @@ button.work-row:active {
 }
 
 .sheet-search input,
-.rename-form input {
+.rename-form input,
+.gate-code input {
   width: 100%;
   min-height: 44px;
   padding: 0 12px;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--line-input);
   border-radius: 10px;
   background: var(--surface);
   color: var(--ink);
@@ -1668,8 +1766,10 @@ button.work-row:active {
 }
 
 .sheet-search input:focus,
-.rename-form input:focus {
-  border-color: var(--accent-line-strong);
+.rename-form input:focus,
+.gate-code input:focus {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 1px var(--focus-ring);
 }
 
 /* Start options ---------------------------------------------------------- */
@@ -1707,7 +1807,8 @@ button.thread-start-project {
   flex: 0 1 auto;
   margin-right: auto;
   padding: 0 9px 0 11px;
-  color: var(--muted-strong);
+  border: 1px solid var(--line-input);
+  color: var(--ink-dim);
 }
 
 button.thread-start-project::before {
@@ -1811,9 +1912,18 @@ button.thread-start-project:active {
   backdrop-filter: blur(18px);
 }
 
-.changes-toolbar .segmented button {
+.changes-toolbar .segmented {
+  flex: 0 1 auto;
   min-width: 0;
-  max-width: 44vw;
+}
+
+.changes-toolbar .segmented button {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.changes-toolbar .segmented button:first-child {
+  flex-shrink: 0;
 }
 
 .changes-toolbar .segmented span {
@@ -1958,6 +2068,18 @@ button.thread-start-project:active {
   color: var(--quiet);
 }
 
+.diff-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--muted);
+}
+
+.diff-error p {
+  margin: 0;
+}
+
 /* Lines wrap, since a phone is too narrow to pan along every one. */
 .diff-body {
   border-top: 1px solid var(--line-soft);
@@ -2083,10 +2205,16 @@ button.thread-start-project:active {
   align-items: center;
   justify-content: center;
   margin-left: -8px;
+  border-radius: 12px;
 }
 
 .ghost:active {
-  opacity: 0.6;
+  background: var(--surface-active);
+  color: var(--ink);
+}
+
+.ghost:disabled {
+  color: var(--quiet);
 }
 
 .primary {
@@ -2101,6 +2229,11 @@ button.thread-start-project:active {
 
 .primary:active {
   transform: scale(0.98);
+}
+
+.primary:disabled {
+  background: var(--surface-raised);
+  color: var(--muted);
 }
 
 .empty {
@@ -2143,6 +2276,29 @@ button.thread-start-project:active {
   max-width: 26ch;
   font-size: var(--text-control);
   color: var(--muted);
+}
+
+.gate-code {
+  display: flex;
+  gap: 8px;
+  width: min(100%, 320px);
+  margin-top: 14px;
+}
+
+.gate-code input {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  font-family: var(--mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.gate-code input::placeholder {
+  font-family: var(--sans);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--quiet);
 }
 
 .gate .gate-path {

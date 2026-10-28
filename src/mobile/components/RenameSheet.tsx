@@ -10,7 +10,12 @@ export function RenameSheet({ title, onClose, onRename }: { title: string; onClo
     onClose();
   }
   return (
-    <Sheet title="Rename" onClose={onClose} action={<button type="button" className="sheet-done" disabled={!changed} onClick={save}>Save</button>}>
+    <Sheet title="Rename" onClose={onClose} action={
+      <span className="sheet-actions-head">
+        <button type="button" className="sheet-done sheet-cancel" onClick={onClose}>Cancel</button>
+        <button type="button" className="sheet-done" disabled={!changed} onClick={save}>Save</button>
+      </span>
+    }>
       <form className="rename-form" onSubmit={(event) => { event.preventDefault(); if (changed) save(); }}>
         <input
           type="text"

@@ -15,6 +15,7 @@ vi.mock("../../src/renderer/task-workspace/workspace-connection.ts", () => impor
 
 const { useTaskWorkspace } = await import("../../src/renderer/task-workspace/useTaskWorkspace.ts");
 const { AutomationPanel, automationStatusLabel, describeSchedule, formatCountdown } = await import("../../src/renderer/components/AutomationPanel.tsx");
+const { CommandControlsProvider } = await import("../../src/renderer/components/CommandControl.tsx");
 
 function startCommand(command: RunCommand | undefined): Extract<RunCommand, { type: "start" }> {
   assert.equal(command?.type, "start");
@@ -29,6 +30,47 @@ test("the automation panel explains itself before an automation exists", async (
   assert.match(view.container.textContent, /Ask Claude to repeat this task/);
   assert.match(view.container.textContent, /No automation yet/);
   assert.equal(view.container.querySelector('input[aria-label="Automation schedule"]'), null);
+  await view.unmount();
+});
+
+test("the automation panel sets up a schedule from its empty state, and Cancel or Esc goes back", async () => {
+  const dispatched: unknown[] = [];
+  const panel = () => React.createElement(CommandControlsProvider, { value: { available: () => true, dispatch: (command) => { dispatched.push(command); } } },
+    React.createElement(AutomationPanel, { automation: null, engineLabel: "Claude", lastFoundAt: null, lastChecked: null, onUpdate() {}, onDelete() {}, onRunNow() {} }));
+  const view = await mount(panel());
+  const setInput = item(Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")).set;
+  const setTextarea = item(Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value")).set;
+  const type = async (field: HTMLInputElement | HTMLTextAreaElement, text: string) => {
+    await act(async () => {
+      item(field instanceof dom.window.HTMLTextAreaElement ? setTextarea : setInput).call(field, text);
+      field.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
+    });
+  };
+  const button = (label: string) => [...view.container.querySelectorAll<HTMLButtonElement>("button")].find((each) => each.textContent === label);
+
+  await act(async () => { item(button("New schedule")).click(); });
+  const schedule = query<HTMLInputElement>(view.container, 'input[aria-label="Automation schedule"]');
+  assert.ok(dom.window.document.activeElement === schedule, "the schedule takes the keyboard");
+  const create = item(button("Create"));
+  assert.equal(create.disabled, true, "nothing to create yet");
+  await type(schedule, "0 8 * * 1-5");
+  assert.equal(create.disabled, true, "a schedule with no prompt cannot be created");
+  await type(query<HTMLTextAreaElement>(view.container, 'textarea[aria-label="Automation prompt"]'), "  Check the build  ");
+  assert.equal(create.disabled, false);
+  await act(async () => { create.click(); });
+  assert.deepEqual(dispatched, [{ type: "automation.save", draft: { schedule: "0 8 * * 1-5", prompt: "Check the build" } }]);
+
+  await act(async () => { item(button("Cancel")).click(); });
+  assert.ok(button("New schedule"), "Cancel goes back to the empty state");
+  await act(async () => { item(button("New schedule")).click(); });
+  assert.equal(query<HTMLInputElement>(view.container, 'input[aria-label="Automation schedule"]').value, "", "a cancelled draft is not kept");
+  await act(async () => { query(view.container, 'input[aria-label="Automation schedule"]').dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })); });
+  assert.ok(button("New schedule"), "so does Esc");
+
+  await view.render(React.createElement(CommandControlsProvider, { value: { available: () => true, dispatch() {} } },
+    React.createElement(AutomationPanel, { automation: automationView(), engineLabel: "Claude", lastFoundAt: null, lastChecked: null, onUpdate() {}, onDelete() {}, onRunNow() {} })));
+  assert.equal(button("Create"), undefined, "once saved, the panel edits the schedule");
+  assert.ok(button("Save"));
   await view.unmount();
 });
 
@@ -113,7 +155,9 @@ test("the automation panel pauses, reruns, and removes without editing", async (
 
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Pause automation"]').click(); });
   const button = (label: string) => [...view.container.querySelectorAll<HTMLButtonElement>(".automation-actions button")].find((each) => each.textContent === label);
+  assert.equal(query(view.container, 'button[aria-label="Pause automation"]').textContent, "Pause", "Pause says what it does");
   await act(async () => { button("Run now")!.click(); });
+  assert.ok(button("Started"), "Run now confirms the run started");
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Remove automation"]').click(); });
 
   assert.deepEqual([...patches], [{ paused: true }]);
@@ -150,8 +194,14 @@ test("the automation countdown stays readable at every distance", () => {
 
 test("the schedule readout only blocks what the scheduler rejects", () => {
   assert.equal(describeSchedule("0 8 * * *")?.error, undefined);
-  assert.equal(describeSchedule("@daily"), null, "a cron nickname saves without a readout");
-  assert.equal(describeSchedule("0 8 * * * *")?.error, true);
+  assert.equal(describeSchedule("@daily")?.error, undefined, "a cron nickname saves");
+  assert.match(describeSchedule("@daily")?.text ?? "", /^Every day at 12:00/, "and reads back as the cron it stands for");
+  assert.equal(describeSchedule("@hourly")?.text, "Every hour at :00");
+  assert.equal(describeSchedule("0 8 1 * *"), null, "a valid cron too unusual to say simply has no readout");
+  assert.equal(describeSchedule("0 8 * * * *")?.error, true, "seconds are refused, as the scheduler refuses them");
+  assert.equal(describeSchedule("99 * * * *")?.error, true, "a field out of range cannot be saved");
+  assert.equal(describeSchedule("@sometimes")?.error, true, "nor can a nickname the scheduler does not know");
+  assert.equal(describeSchedule("2020-01-01T09:00")?.error, true, "nor a date already past");
   assert.equal(describeSchedule(" ")?.error, true);
 });
 

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { TerminalSession } from "../../domain/terminal";
 import type { ComputerLink } from "../../domain/computers";
+import { LuPlus as Plus } from "react-icons/lu";
+import { CommandButton } from "./CommandControl";
 import { fitTerminalView, focusTerminalView, hideTerminalView, onTerminalInput, showTerminalView } from "../task-workspace/terminal-views";
 
 export type TerminalPanelProps = {
@@ -72,7 +74,10 @@ export function TerminalPanel({ terminal, computer, visible, focusToken = 0, fin
       <p className="terminal-status">
         <span>{computer ? `${computer.name} · ${terminal.cwd}` : terminal.cwd}</span>
         {computer && (!connected || connectionError) && <em role="status">{!connected ? computer.error ?? "Disconnected — reconnecting…" : connectionError}</em>}
-        {terminal.status === "exited" && <em className={!terminal.error && terminal.exitCode === 0 ? "clean" : undefined}>{terminal.error ?? `exited${terminal.exitCode === undefined ? "" : ` (${terminal.exitCode})`}`}</em>}
+        {terminal.status === "exited" && <>
+          <em className={!terminal.error && terminal.exitCode === 0 ? "clean" : undefined}>{terminal.error ?? `exited${terminal.exitCode === undefined ? "" : ` (${terminal.exitCode})`}`}</em>
+          <CommandButton command={{ type: "terminal.open", cwd: terminal.cwd }} type="button" className="terminal-new-shell"><Plus size={12} aria-hidden="true" />New shell</CommandButton>
+        </>}
       </p>
 
       {find}

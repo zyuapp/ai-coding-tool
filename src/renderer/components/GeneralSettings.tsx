@@ -1,8 +1,10 @@
 import { useEffect } from "react";
+import { LuLoaderCircle as LoaderCircle } from "react-icons/lu";
 import type { CliState } from "../../application/cli-installation";
 import { CLI_COMMAND, CLI_INSTALL_PATH, type CliStatus } from "../../domain/cli";
 import { NO_APP_UPDATE, type AppUpdate } from "../../domain/app-update";
 import { ConfirmAction, SettingRow, SettingSwitch } from "./SettingRow";
+import { SpinningIcon } from "./SpinningIcon";
 
 function cliDescription(status: CliStatus | null) {
   if (!status) return "Looking for the command…";
@@ -18,17 +20,17 @@ function cliDescription(status: CliStatus | null) {
   }
 }
 
-/** A newer build as the updater last reported it, and the steps that take it. */
-export type AppUpdateSettings = { state: AppUpdate; onDownload: () => void; onInstall: () => void };
+/** A newer build as the updater last reported it, and the steps that take it. `version` is the build running now. */
+export type AppUpdateSettings = { state: AppUpdate; version?: string | null; onDownload: () => void; onInstall: () => void };
 
 export const NO_APP_UPDATE_SETTINGS: AppUpdateSettings = { state: NO_APP_UPDATE, onDownload() {}, onInstall() {} };
 
-function updateDescription(update: AppUpdate) {
+function updateDescription(update: AppUpdate, current: string | null | undefined) {
   switch (update.status) {
     case "available": return `Version ${update.version} is available.`;
-    case "downloading": return `Downloading version ${update.version}… ${update.percent}%`;
+    case "downloading": return `Downloading version ${update.version}.`;
     case "ready": return `Version ${update.version} is downloaded. Restart to install it.`;
-    default: return null;
+    default: return current ? `Version ${current}.` : null;
   }
 }
 
@@ -62,7 +64,7 @@ export function GeneralSettings({ cli: { status, busy, error }, onReadCli, onSet
         </div>
 
         <SettingRow id="general.cli" status={status?.state === "installed"} description={cliDescription(status)}>
-          {!status && !error && <em>Checking…</em>}
+          {!status && !error && <em><SpinningIcon icon={LoaderCircle} spinning size={12} aria-hidden="true" />Checking…</em>}
           {status?.state === "installed" && status.current === false && <button type="button" disabled={busy} onClick={() => onSetCliInstalled(true)}>{busy ? "Updating…" : "Update"}</button>}
           {status?.state === "installed" && <ConfirmAction disabled={busy} confirm={`Uninstall ${CLI_COMMAND}`} onConfirm={() => onSetCliInstalled(false)}>{busy ? "Removing…" : "Uninstall"}</ConfirmAction>}
           {status?.state === "missing" && <button type="button" disabled={busy} onClick={() => onSetCliInstalled(true)}>{busy ? "Installing…" : "Install"}</button>}
@@ -101,10 +103,10 @@ export function GeneralSettings({ cli: { status, busy, error }, onReadCli, onSet
         <div className="settings-group-heading">
           <h3 id="app-heading">AI Coding Tool</h3>
         </div>
-        <SettingRow id="general.updates" description={updateDescription(update.state)}>
+        <SettingRow id="general.updates" description={updateDescription(update.state, update.version)}>
           {update.state.status === "idle" && <button type="button" onClick={onCheckForUpdates}>Check for updates</button>}
           {update.state.status === "available" && <button type="button" onClick={update.onDownload}>Download</button>}
-          {update.state.status === "downloading" && <button type="button" disabled>Downloading…</button>}
+          {update.state.status === "downloading" && <em role="status"><SpinningIcon icon={LoaderCircle} spinning size={12} aria-hidden="true" />{update.state.percent}%</em>}
           {update.state.status === "ready" && <button type="button" onClick={update.onInstall}>Restart to update</button>}
         </SettingRow>
         <SettingRow id="general.licenses" description={null}>

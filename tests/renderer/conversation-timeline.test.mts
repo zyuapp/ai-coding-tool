@@ -119,7 +119,7 @@ test("a settled turn folds its steps behind the final answer", async () => {
   const view = await mount(timelineView(messages, "idle"));
 
   const settled = query<HTMLDetailsElement>(view.container, ".work-group");
-  assert.equal(query(settled, ".work-summary").textContent, "3 steps");
+  assert.equal(query(settled, ".work-summary").textContent, "3 steps · 1 command", "the folded row says what the turn ran");
   assert.equal(query(view.container, ".message.turn > .message-text").textContent, "Fixed the race.");
   assert.equal(view.container.querySelector(".work-note"), null);
 
@@ -420,5 +420,91 @@ test("a usage limit's sentence keeps up with the clock while it waits", async (t
   assert.match(query(view.container, ".limit-row").textContent, /Usage limit reached\. Resumes at/);
   await act(async () => { vi.advanceTimersByTime(60_000); });
   assert.match(query(view.container, ".limit-row").textContent, /Usage limit reset\. Resuming\./);
+  await view.unmount();
+});
+
+test("a settled turn's folded row counts its edits and commands, and a turn that only read says only its steps", async () => {
+  const { workDigest } = await import("../../src/renderer/components/TurnWork.tsx");
+  const steps = transcript(
+    { kind: "tool", text: "Edit", detail: JSON.stringify({ file_path: "/a.ts" }) },
+    { kind: "tool", text: "Write", detail: JSON.stringify({ file_path: "/b.ts" }) },
+    { kind: "tool", text: "Bash", detail: JSON.stringify({ command: "npm test" }) },
+    { kind: "assistant", text: "Edited." },
+  );
+  assert.equal(workDigest("claude", steps), "2 edits · 1 command");
+  assert.equal(workDigest("claude", transcript({ kind: "tool", text: "Read", detail: JSON.stringify({ file_path: "/a.ts" }) })), "");
+});
+
+test("only the newest row keeps its message actions in view without a hover", async () => {
+  const messages = transcript(
+    { kind: "user", text: "First" },
+    { kind: "assistant", text: "One." },
+    { kind: "user", text: "Second" },
+    { kind: "assistant", text: "Two." },
+  );
+  const view = await mount(timelineView(messages, "idle"));
+  const rows = [...view.container.querySelectorAll(".timeline-row")];
+  assert.deepEqual(rows.map((row) => row.classList.contains("newest")), rows.map((_, index) => index === rows.length - 1));
+  assert.ok(rows.at(-1)!.querySelector(".message-actions .copy-affordance"), "the newest answer carries its copy button");
+  await view.unmount();
+});
+
+test("a compaction can be stopped from the row that says so, and a plain working row offers nothing to press", async () => {
+  const sent: unknown[] = [];
+  const { CommandControlsProvider } = await import("../../src/renderer/components/CommandControl.tsx");
+  const provide = (compacting: boolean) => React.createElement(
+    CommandControlsProvider,
+    { value: { available: () => true, dispatch: (command: unknown) => { sent.push(command); } } },
+    React.cloneElement(timelineView(transcript({ kind: "user", text: "go" }), "running"), { compacting }),
+  );
+  const view = await mount(provide(true));
+  const row = query(view.container, ".compacting-row");
+  assert.match(row.textContent, /Compacting messages/);
+  await act(async () => { query<HTMLButtonElement>(row, "button").click(); });
+  assert.deepEqual(sent, [{ type: "run.cancel", taskId: "t1" }]);
+
+  await view.render(provide(false));
+  assert.equal(view.container.querySelector(".compacting-row"), null);
+  assert.equal(query(view.container, ".thinking-row").querySelector("button"), null);
+  await view.unmount();
+});
+
+test("a limit that resumes on its own can have that cancelled, and a weekly one offers to resume", async () => {
+  const sent: unknown[] = [];
+  const { CommandControlsProvider } = await import("../../src/renderer/components/CommandControl.tsx");
+  const provide = (window: "session" | "weekly") => React.createElement(
+    CommandControlsProvider,
+    { value: { available: () => true, dispatch: (command: unknown) => { sent.push(command); } } },
+    React.cloneElement(timelineView(transcript({ kind: "user", text: "go" }), "idle"), { limitPause: { resetsAt: Date.now() + 60_000, window, pausedAt: Date.now(), position: null } }),
+  );
+  const view = await mount(provide("session"));
+  const cancel = query<HTMLButtonElement>(view.container, ".limit-row button");
+  assert.equal(cancel.textContent, "Cancel auto-resume");
+  await act(async () => { cancel.click(); });
+  assert.deepEqual(sent, [{ type: "limit.cancel", taskId: "t1" }]);
+
+  await view.render(provide("weekly"));
+  assert.equal(query(view.container, ".limit-row button").textContent, "Resume");
+  await view.unmount();
+});
+
+test("a thread's folded message keeps one control in its row, and opens its sender from inside the fold", async () => {
+  const { MessageLinkProvider } = await import("../../src/renderer/components/MarkdownMessage.tsx");
+  const selected: string[] = [];
+  const messages = transcript(
+    { kind: "user", text: "Fix login" },
+    { kind: "assistant", text: "Started a thread." },
+    { kind: "user", text: "Can I merge?", origin: { kind: "thread", threadId: "t2", title: "Fix login" }, detail: "From Fix login · t2" },
+  );
+  const plain = timelineView(messages, "idle");
+  const coordinator = React.cloneElement(plain, { currentThread: { ...plain.props.currentThread!, role: "coordinator" } });
+  const view = await mount(React.createElement(MessageLinkProvider, { actions: { selectThread: (id: string) => { selected.push(id); } }, children: coordinator }));
+  const fold = query<HTMLDetailsElement>(view.container, ".thread-message");
+  assert.equal(query(fold, "summary").querySelector("button"), null, "the summary is the row's only control");
+  await expand(fold);
+  const open = query<HTMLButtonElement>(fold, ".thread-message-open");
+  await act(async () => { open.click(); });
+  assert.deepEqual(selected, ["t2"]);
+  assert.equal(fold.open, true, "opening the sender leaves the fold as it was");
   await view.unmount();
 });

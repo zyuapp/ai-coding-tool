@@ -336,8 +336,11 @@ test("a branch picker that cannot read branches yet says where the thread starts
   });
   const unread = await mount(options());
   const picker = query<HTMLButtonElement>(unread.container, 'button[aria-label="Starting branch"]');
-  assert.equal(picker.disabled, true);
+  assert.equal(picker.getAttribute("aria-disabled"), "true");
+  assert.equal(picker.disabled, false, "it stays focusable, so its tip reaches the keyboard");
   assert.ok(picker.dataset.tip);
+  await act(async () => { picker.click(); });
+  assert.equal(picker.getAttribute("aria-expanded"), "false", "a click opens nothing");
   await unread.unmount();
 
   const read = await mount(options("workspace-a"));

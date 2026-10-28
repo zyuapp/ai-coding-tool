@@ -14,7 +14,7 @@ import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import type { SettingsSection } from "../../src/domain/settings-section.ts";
 import type { SettingsPanelProps } from "../../src/renderer/components/SettingsPanel.tsx";
-import { openSettingsPage, renderSettingsPanel, type MountView } from "../support/settings-panel.mts";
+import { openSettingsPage, renderSettingsPanel } from "../support/settings-panel.mts";
 import { task } from "../application/workspace-reducer-fixtures.mts";
 
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
@@ -440,12 +440,19 @@ test("settings rebind a shortcut, and the window is told what to match", async (
   /** jsdom is no Mac, so the panel spells its modifiers out rather than drawing them. */
   assert.deepEqual(keys("Allow"), ["Ctrl", "Shift", "A"]);
 
+  const buttons = (label: string) => [...row(label).querySelectorAll<HTMLButtonElement>("button")].map((button) => button.textContent);
+  assert.deepEqual(buttons("Allow"), ["Change", "Clear"]);
   await act(async () => { item([...row("Allow").querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Change")).click(); });
   assert.match(row("Allow").textContent, /Press a keystroke…/);
+  assert.equal(row("Allow").classList.contains("capturing"), true);
+  assert.equal(document.activeElement?.textContent, "Cancel", "the focus follows to Cancel so Escape and Tab stay in the row");
   assert.deepEqual(desktop.captures, [true]);
 
   await act(async () => { desktop.captureShortcut("Mod+Shift+K"); });
   assert.deepEqual(keys("Allow"), ["Ctrl", "Shift", "K"]);
+  assert.equal(row("Allow").classList.contains("capturing"), false);
+  assert.equal(document.activeElement?.textContent, "Change", "the focus returns to the button that started the capture");
+  assert.deepEqual(buttons("Allow"), ["Reset", "Change", "Clear"], "a changed shortcut can still be cleared in one press");
   assert.deepEqual(desktop.captures, [true, false], "the window goes back to acting on keystrokes");
   assert.deepEqual(item(desktop.shortcuts.at(-1)), { "run.allow": "Mod+Shift+K" });
 
@@ -531,107 +538,15 @@ test("Engines offers a reload and shows when it is waiting or complete", async (
     const view = await mount(renderSettingsPanel({ initialSection: "engines", agentSettingsReload: status, onReloadAgentSettings: () => { reloads++; } }));
     const section = query<HTMLElement>(view.container, '[aria-labelledby="agent-settings-heading"]');
     const button = query<HTMLButtonElement>(section, "button");
-    assert.equal(button.textContent, "Reload agent settings");
+    assert.equal(button.textContent, status === "reloading" ? "Reloading…" : "Reload agent settings");
     assert.equal(button.disabled, status === "reloading" || status === "pending");
+    assert.equal(button.getAttribute("aria-busy"), String(status === "reloading"), "only the reload in flight reads as busy rather than unavailable");
     if (status === "pending") assert.match(section.textContent, /Reload pending/);
     if (status === "reloaded") assert.match(section.textContent, /Settings reloaded/);
     await act(async () => { button.click(); });
     await view.unmount();
   }
   assert.equal(reloads, 3);
-});
-
-async function searchSettings(view: MountView, text: string) {
-  const field = query<HTMLInputElement>(view.container, 'input[aria-label="Search settings"]');
-  const setValue = item(Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")).set;
-  await act(async () => { field.focus(); });
-  await act(async () => {
-    item(setValue).call(field, text);
-    field.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true }));
-  });
-  return field;
-}
-
-const searchResults = (view: MountView) => [...view.container.querySelectorAll<HTMLButtonElement>(".settings-search-results [role='option']")]
-  .map((option) => option.textContent);
-
-test("a settings search stands in for the pages, and Enter lands on the control it picked", async () => {
-  window.desktop = fakeDesktop({});
-  const view = await mount(renderSettingsPanel({}));
-  await act(async () => {});
-
-  const field = await searchSettings(view, "terminal text");
-  assert.equal(view.container.querySelector(".settings-sidebar nav"), null, "the pages give way to the results");
-  assert.deepEqual(searchResults(view), ["Terminal textAppearance"]);
-
-  await act(async () => { field.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
-  assert.equal(field.value, "");
-  assert.equal(query(view.container, ".settings-sidebar nav [aria-current='page']").textContent, "Appearance");
-  assert.deepEqual([...view.container.querySelectorAll<HTMLElement>(".found")].map((row) => row.dataset.setting), ["appearance.terminal-size"]);
-  await view.unmount();
-});
-
-test("landing on the same control again flashes it again", async () => {
-  window.desktop = fakeDesktop({});
-  const view = await mount(renderSettingsPanel({}));
-  await act(async () => {});
-  const land = async () => {
-    const field = await searchSettings(view, "terminal text");
-    await act(async () => { field.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
-  };
-
-  await land();
-  const row = query<HTMLElement>(view.container, "[data-setting='appearance.terminal-size']");
-  const changes: (string | null)[] = [];
-  const observer = new dom.window.MutationObserver((records) => changes.push(...records.map((record) => record.oldValue)));
-  observer.observe(row, { attributes: true, attributeFilter: ["class"], attributeOldValue: true });
-  await land();
-  await act(async () => {});
-  observer.disconnect();
-  assert.ok(changes.some((value) => !value?.split(" ").includes("found")), "the mark is taken off and put back, which restarts the flash");
-  assert.ok(row.classList.contains("found"));
-  await view.unmount();
-});
-
-test("a search lands on a shortcut and on a group, not only on a page", async () => {
-  window.desktop = fakeDesktop({});
-  const view = await mount(renderSettingsPanel({ shortcuts: shortcutSettings({}) }));
-  await act(async () => {});
-  const marked = () => [...view.container.querySelectorAll<HTMLElement>(".found")].map((row) => row.dataset.setting);
-
-  await searchSettings(view, "deny");
-  await act(async () => { item([...view.container.querySelectorAll<HTMLButtonElement>(".settings-search-results [role='option']")][0]).click(); });
-  assert.deepEqual(marked(), ["shortcut.run.deny"]);
-
-  await searchSettings(view, "agent settings");
-  await act(async () => { item([...view.container.querySelectorAll<HTMLButtonElement>(".settings-search-results [role='option']")][0]).click(); });
-  assert.equal(query(view.container, ".settings-sidebar nav [aria-current='page']").textContent, "Engines");
-  assert.deepEqual(marked(), ["engines.agent-settings"]);
-  await view.unmount();
-});
-
-test("Escape empties a settings search before it can close settings, and a miss says so", async () => {
-  window.desktop = fakeDesktop({});
-  const view = await mount(renderSettingsPanel({}));
-  await act(async () => {});
-
-  const field = await searchSettings(view, "zzz");
-  assert.match(query(view.container, ".settings-search-empty").textContent, /^No settings match/);
-  await act(async () => { query<HTMLButtonElement>(view.container, ".settings-search-empty button").click(); });
-  assert.equal(field.value, "", "the miss offers the way back to the pages");
-  assert.ok(view.container.querySelector(".settings-sidebar nav"));
-  await searchSettings(view, "zzz");
-
-  const escape = new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
-  await act(async () => { field.dispatchEvent(escape); });
-  assert.equal(escape.defaultPrevented, true);
-  assert.equal(field.value, "");
-  assert.ok(view.container.querySelector(".settings-sidebar nav"));
-
-  const again = new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
-  await act(async () => { field.dispatchEvent(again); });
-  assert.equal(again.defaultPrevented, false, "an empty search leaves Escape to close settings");
-  await view.unmount();
 });
 
 test("every on/off setting is a switch named after its row", async () => {
@@ -672,14 +587,14 @@ test("Restore defaults asks first, and Esc takes the question back", async () =>
   await view.unmount();
 });
 
-test("a shortcut row offers Reset only once it is changed, and Clear otherwise", async () => {
+test("a shortcut row always offers Clear, and Reset beside it once it is changed", async () => {
   window.desktop = fakeDesktop({});
   const view = await mount(renderSettingsPanel({ initialSection: "shortcuts", shortcuts: shortcutSettings({ "project.start": "Mod+Shift+O" }) }));
   await act(async () => {});
   const rows = [...view.container.querySelectorAll<HTMLElement>(".shortcut-row")];
   const labels = (row: HTMLElement) => [...row.querySelectorAll<HTMLButtonElement>(".setting-row-action button")].map((button) => button.textContent);
   assert.deepEqual(labels(item(rows.find((row) => row.dataset.setting !== "shortcut.project.start" && row.querySelector(".shortcut-keys")))), ["Change", "Clear"]);
-  assert.deepEqual(labels(query<HTMLElement>(view.container, ".shortcut-row[data-setting='shortcut.project.start']")), ["Change", "Reset"]);
+  assert.deepEqual(labels(query<HTMLElement>(view.container, ".shortcut-row[data-setting='shortcut.project.start']")), ["Reset", "Change", "Clear"]);
   await view.unmount();
 });
 
@@ -736,5 +651,148 @@ test("arrow keys step a size field the way its buttons do", async () => {
   for (const key of ["ArrowUp", "ArrowUp", "ArrowDown"]) await act(async () => { field.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key, bubbles: true })); });
   assert.deepEqual(sizes, [16, 17, 16]);
   assert.equal(field.value, "16");
+  await view.unmount();
+});
+
+async function typeInto(field: HTMLInputElement, text: string) {
+  const setValue = item(Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")).set;
+  await act(async () => { field.focus(); });
+  await act(async () => {
+    item(setValue).call(field, text);
+    field.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true }));
+  });
+}
+
+test("a long archive offers a filter, and a filter that misses offers the way back", async () => {
+  window.desktop = fakeDesktop({});
+  const threads = Array.from({ length: 9 }, (_, index) => task(`Thread ${index + 1}`, { archivedAt: Date.now() }));
+  const view = await mount(renderSettingsPanel({ initialSection: "archive", archivedThreads: [...threads, task("Parser fix", { archivedAt: Date.now() })] }));
+  await act(async () => {});
+  const titles = () => [...view.container.querySelectorAll(".settings-group .setting-row strong")].map((title) => title.textContent);
+  const field = query<HTMLInputElement>(view.container, 'input[aria-label="Filter archived threads"]');
+
+  await typeInto(field, "parser");
+  assert.deepEqual(titles(), ["Parser fix"]);
+  const escape = new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+  await act(async () => { field.dispatchEvent(escape); });
+  assert.equal(escape.defaultPrevented, true, "Esc empties the filter before it can close settings");
+  assert.equal(titles().length, 10);
+
+  await typeInto(field, "zzz");
+  assert.deepEqual(titles(), []);
+  await act(async () => { query<HTMLButtonElement>(view.container, ".settings-empty-action").click(); });
+  assert.equal(field.value, "");
+  assert.equal(titles().length, 10);
+  assert.equal(dom.window.document.activeElement, field);
+
+  const empty = new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+  await act(async () => { field.dispatchEvent(empty); });
+  assert.equal(empty.defaultPrevented, false, "an empty filter leaves Esc to settings");
+  await view.unmount();
+
+  const short = await mount(renderSettingsPanel({ initialSection: "archive", archivedThreads: threads.slice(0, 3) }));
+  await act(async () => {});
+  assert.equal(short.container.querySelector('input[aria-label="Filter archived threads"]'), null);
+  assert.ok(query(short.container, ".settings-group-action button").classList.contains("danger"), "Clear all looks destructive before it is armed");
+  await short.unmount();
+});
+
+test("an allowed site can be taken back alone, and clearing everything looks destructive", async () => {
+  const forgotten: string[] = [];
+  window.desktop = fakeDesktop({});
+  const view = await mount(renderSettingsPanel({ initialSection: "browser", allowedOrigins: ["https://a.test", "https://b.test"], onForgetOrigin: (origin) => forgotten.push(origin) }));
+  await act(async () => {});
+  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Remove https://b.test"]').click(); });
+  assert.deepEqual(forgotten, ["https://b.test"]);
+  const clear = item([...view.container.querySelectorAll<HTMLButtonElement>(".settings-group-action button")].find((button) => button.textContent === "Clear browser data"));
+  assert.ok(clear.classList.contains("danger"));
+  assert.equal(view.container.querySelector('[data-setting="browser.session"] .setting-status'), null, "a site row carries no step circle");
+  await view.unmount();
+
+  const bare = await mount(renderSettingsPanel({ initialSection: "browser", allowedOrigins: ["https://a.test"] }));
+  await act(async () => {});
+  assert.equal(bare.container.querySelector('button[aria-label="Remove https://a.test"]'), null);
+  await bare.unmount();
+});
+
+test("a busy settings button reads as busy, while one only waiting its turn does not", async () => {
+  window.desktop = fakeDesktop({});
+  const view = await mount(renderSettingsPanel({ initialSection: "engines", engineChecking: true }));
+  await act(async () => {});
+  const check = query<HTMLButtonElement>(view.container, '[data-setting="engines.installed"] .settings-group-action button');
+  assert.equal(check.textContent, "Checking…");
+  assert.equal(check.getAttribute("aria-busy"), "true");
+  await view.unmount();
+
+  const idle = await mount(renderSettingsPanel({ initialSection: "engines", engineChecking: false }));
+  await act(async () => {});
+  assert.equal(query(idle.container, '[data-setting="engines.installed"] .settings-group-action button').getAttribute("aria-busy"), "false");
+  await idle.unmount();
+});
+
+test("a theme search marks the tile Enter picks, and arrows walk the tiles", async () => {
+  const chosen: string[] = [];
+  window.desktop = fakeDesktop({});
+  const view = await mount(renderSettingsPanel({ initialSection: "appearance", onSetThemeFamily: (family) => chosen.push(family) }));
+  await act(async () => {});
+  const document = dom.window.document;
+  const key = async (target: Element, name: string) => {
+    const event = new dom.window.KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true });
+    await act(async () => { target.dispatchEvent(event); });
+    return event;
+  };
+  const open = async () => {
+    await act(async () => { query<HTMLButtonElement>(view.container, ".theme-select > button").click(); });
+    return query<HTMLInputElement>(view.container, ".theme-select-popover input");
+  };
+
+  let search = await open();
+  assert.equal(view.container.querySelector(".theme-choice.next"), null, "nothing is marked before a search");
+  await key(search, "Enter");
+  assert.deepEqual(chosen, [], "Enter with no search picks nothing");
+  await key(search, "ArrowDown");
+  assert.equal(document.activeElement, query(view.container, ".theme-choice.chosen"), "Down from the search lands on the theme in use");
+  const tiles = [...view.container.querySelectorAll<HTMLButtonElement>(".theme-choice")];
+  const at = tiles.indexOf(document.activeElement as HTMLButtonElement);
+  await key(item(tiles[at]), "ArrowRight");
+  assert.equal(document.activeElement, tiles[at + 1]);
+  await key(item(tiles[at + 1]), "ArrowLeft");
+  assert.equal(document.activeElement, tiles[at]);
+
+  await typeInto(search, "gruv");
+  const marked = [...view.container.querySelectorAll(".theme-choice.next")];
+  assert.equal(marked.length, 1);
+  assert.match(item(marked[0]).textContent, /Gruvbox/);
+  await key(search, "Enter");
+  assert.deepEqual(chosen, ["Gruvbox"]);
+
+  search = await open();
+  await typeInto(search, "zzz");
+  assert.equal(view.container.querySelector(".theme-choice.next"), null);
+  await view.unmount();
+});
+
+test("a font search marks the option Enter picks", async () => {
+  window.desktop = fakeDesktop({});
+  const view = await mount(renderSettingsPanel({ initialSection: "appearance" }));
+  await act(async () => {});
+  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Interface font"]').click(); });
+  assert.equal(view.container.querySelector(".font-select-list button.next"), null);
+  const search = query<HTMLInputElement>(view.container, ".font-select-popover input");
+  await typeInto(search, "i");
+  const marked = [...view.container.querySelectorAll(".font-select-list button.next")];
+  assert.equal(marked.length, 1);
+  assert.equal(marked[0], view.container.querySelector(".font-select-list button"));
+  await view.unmount();
+});
+
+test("a size field names its unit, and the unit belongs to the field", async () => {
+  window.desktop = fakeDesktop({});
+  const view = await mount(renderSettingsPanel({ initialSection: "appearance", readingSize: 15 }));
+  await act(async () => {});
+  const field = query<HTMLInputElement>(view.container, 'input[aria-label="Conversation text size"]');
+  const unit = item(field.closest("label"));
+  assert.equal(unit.textContent, "px");
+  assert.equal(field.labels?.[0], unit);
   await view.unmount();
 });

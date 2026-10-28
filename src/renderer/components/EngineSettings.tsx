@@ -54,7 +54,7 @@ export function EngineSettings({ engineAccess, checking, updating, onRefresh, on
             <p>Install an engine in your terminal, then check again here.</p>
           </div>
           <div className="settings-group-action">
-            <button type="button" disabled={checking} onClick={onRefresh}>
+            <button type="button" disabled={checking} aria-busy={checking} onClick={onRefresh}>
               <SpinningIcon icon={RefreshCw} spinning={checking} size={14} aria-hidden="true" />{checking ? "Checking…" : "Check again"}
             </button>
           </div>
@@ -67,7 +67,7 @@ export function EngineSettings({ engineAccess, checking, updating, onRefresh, on
           const ready = !notice && readiness.access === "ready";
           return (
             <div className="setting-row engine-setting-row" key={engine}>
-              <span className={`setting-status ${ready ? "granted" : "pending"}`} aria-hidden="true"><ThreadEngineIcon engine={engine} size={14} /></span>
+              <span className="setting-glyph" aria-hidden="true"><ThreadEngineIcon engine={engine} size={16} /></span>
               <div>
                 <strong>{engineLabel(engine)}</strong>
                 <p>{statusLine(engine, readiness)}</p>
@@ -82,7 +82,7 @@ export function EngineSettings({ engineAccess, checking, updating, onRefresh, on
                 {readiness.access === "signed-out"
                   ? <button type="button" onClick={() => onSignIn(engine)}>Sign in</button>
                   : update?.command
-                    ? <button type="button" disabled={updating !== null || checking} onClick={() => onUpdate(engine)}>
+                    ? <button type="button" disabled={updating !== null || checking} aria-busy={updating === engine} onClick={() => onUpdate(engine)}>
                       {updating === engine && <RefreshCw size={14} aria-hidden="true" className="spinning" />}{updating === engine ? "Updating…" : "Update"}
                     </button>
                     : <span className={`setting-pill${ready ? " ready" : ""}`}>{statusWord(readiness)}</span>}
@@ -96,11 +96,11 @@ export function EngineSettings({ engineAccess, checking, updating, onRefresh, on
           <div>
             <h3 id="agent-settings-heading">{settingControl("engines.agent-settings").label}</h3>
             <p>Apply changes to Claude Code and Codex settings. Busy agents reload when their work finishes.</p>
-            <p role="status" className={`reload-status ${reloadStatus}`}>{reloadStatus === "idle" ? "" : reloadStatus === "reloading" ? "Reloading…" : reloadStatus === "pending" ? "Reload pending" : reloadStatus === "reloaded" ? "Settings reloaded" : "Could not reload settings. Try again."}</p>
+            <p role="status" className={`reload-status ${reloadStatus}`}>{reloadStatus === "pending" ? "Reload pending" : reloadStatus === "reloaded" ? "Settings reloaded" : reloadStatus === "failed" ? "Could not reload settings. Try again." : ""}</p>
           </div>
           <div className="settings-group-action">
-            <button type="button" onClick={onReload} disabled={reloadStatus === "reloading" || reloadStatus === "pending"}>
-              <SpinningIcon icon={RefreshCw} spinning={reloadStatus === "reloading"} size={14} aria-hidden="true" />Reload agent settings
+            <button type="button" onClick={onReload} disabled={reloadStatus === "reloading" || reloadStatus === "pending"} aria-busy={reloadStatus === "reloading"}>
+              <SpinningIcon icon={RefreshCw} spinning={reloadStatus === "reloading"} size={14} aria-hidden="true" />{reloadStatus === "reloading" ? "Reloading…" : "Reload agent settings"}
             </button>
           </div>
         </div>

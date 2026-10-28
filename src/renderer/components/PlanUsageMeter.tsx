@@ -48,7 +48,7 @@ export function PlanUsageMeter({ engineLabel, model, usage, onOpen }: PlanUsageP
   const Meter = onOpen ? "button" : "span";
 
   return (
-    <Meter className="plan-usage" {...(onOpen ? { type: "button" as const, onClick: onOpen } : { tabIndex: 0 })} aria-label={`${engineLabel} plan: ${label}`} aria-describedby={cardId}>
+    <Meter className="plan-usage" {...(onOpen ? { type: "button" as const, onClick: onOpen } : { tabIndex: 0 })} aria-label={`${engineLabel} plan: ${label}${onOpen ? ". Open usage settings" : ""}`} aria-describedby={cardId}>
       <span className="plan-usage-parts" aria-hidden="true">{rows.map((row) => <MeterPart key={row.id} window={row} />)}</span>
       <UsageCard id={cardId} title={engineLabel} aside={planLabel(usage.subscription)}>
         {windows.map((window) => {
@@ -62,27 +62,31 @@ export function PlanUsageMeter({ engineLabel, model, usage, onOpen }: PlanUsageP
             detail={formatReset(window.resetsAt, Date.now(), TIME_ZONE, { zone: false })}
           />;
         })}
+        {onOpen && <span className="usage-card-hint">Click for usage settings</span>}
       </UsageCard>
     </Meter>
   );
 }
 
 /** A line over the composer once a window the next message spends runs low, until the user puts it away. */
-export function PlanUsageWarning({ engine, engineLabel, model, usage, dismissed, limitPaused, onDismiss }: PlanUsageProps & ComposerPlanUsage & { engine: string }) {
+export function PlanUsageWarning({ engine, engineLabel, model, usage, dismissed, limitPaused, onDismiss, onOpen }: PlanUsageProps & ComposerPlanUsage & { engine: string }) {
   const tightest = tightestWindow(windowsFor(usage, modelLabel(model)));
   if (limitPaused || !tightest || tightest.utilization < NEAR_LIMIT_SHARE) return null;
   const warning = usageWarningKey(engine, tightest);
   if (dismissed.includes(warning)) return null;
   const share = Math.round(barShare(tightest.utilization));
   const reset = formatReset(tightest.resetsAt, Date.now(), TIME_ZONE, { zone: false });
+  const Summary = onOpen ? "button" : "span";
 
   return (
     <div className="plan-usage-warning" role="status">
-      <span className="plan-usage-track" aria-hidden="true"><span style={{ width: `${share}%` }} /></span>
-      <strong>{share >= 100 ? "Limit reached" : `${share}% used`}</strong>
-      <span className="plan-usage-warning-window">{engineLabel} · {tightest.label}</span>
+      <Summary className="plan-usage-warning-summary" {...(onOpen ? { type: "button" as const, onClick: onOpen, "data-tip": "Open usage settings" } : {})}>
+        <span className="plan-usage-track" aria-hidden="true"><span style={{ width: `${share}%` }} /></span>
+        <strong>{share >= 100 ? "Limit reached" : `${share}% used`}</strong>
+        <span className="plan-usage-warning-window">{engineLabel} · {tightest.label}</span>
+      </Summary>
       {reset && <span className="plan-usage-warning-reset">{reset}</span>}
-      <button type="button" aria-label="Hide usage warning until reset" data-tip="Hide until reset" onClick={() => onDismiss(warning)}><X size={14} aria-hidden="true" /></button>
+      <button type="button" className="plan-usage-warning-dismiss" aria-label="Hide usage warning until reset" data-tip="Hide until reset" onClick={() => onDismiss(warning)}><X size={14} aria-hidden="true" /></button>
     </div>
   );
 }

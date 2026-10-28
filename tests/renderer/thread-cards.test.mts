@@ -79,7 +79,11 @@ test("a card shows how its thread stands, opens it, and offers what to do next b
   assert.equal(review.closest(".coordination-card-open"), null);
 
   await view.render(cards(false));
-  assert.equal(query<HTMLButtonElement>(view.container, "button.coordination-card-step").disabled, true, "a computer whose build cannot take a step offers none");
+  const unavailable = query<HTMLButtonElement>(view.container, "button.coordination-card-step");
+  assert.equal(unavailable.getAttribute("aria-disabled"), "true", "a computer whose build cannot take a step offers none");
+  dispatched.length = 0;
+  await act(async () => { unavailable.click(); });
+  assert.deepEqual(dispatched, []);
   await view.unmount();
 });
 

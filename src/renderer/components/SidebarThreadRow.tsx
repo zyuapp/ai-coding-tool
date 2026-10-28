@@ -1,7 +1,7 @@
 import { CommandButton } from "./CommandControl";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Draggable, type DraggableProvided } from "@hello-pangea/dnd";
-import { LuAlarmClock as AlarmClock, LuArchive as Archive, LuCheck as Check, LuEllipsis as Ellipsis, LuFolderSymlink as FolderSymlink, LuHourglass as Hourglass } from "react-icons/lu";
+import { LuAlarmClock as AlarmClock, LuArchive as Archive, LuCheck as Check, LuEllipsis as Ellipsis, LuFolderSymlink as FolderSymlink, LuHourglass as Hourglass, LuMonitorOff as MonitorOff } from "react-icons/lu";
 import { pauseSummary } from "../../domain/usage-limit";
 import { projectName, type Project } from "../../domain/project";
 import { threadActivityAt, type Thread } from "../../domain/thread";
@@ -15,8 +15,9 @@ import { threadMenuEntries } from "./thread-menu";
 import type { SnoozeHours } from "../../domain/thread-snooze";
 import { RenameInput, useRenaming } from "./SidebarRename";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
-import { ThreadRoleMark } from "./ThreadRoleMark";
-import type { ThreadRole } from "../../domain/thread-role";
+import { roleIcon, ThreadRoleMark } from "./ThreadRoleMark";
+import { threadRoleLabel, type ThreadRole } from "../../domain/thread-role";
+import { engineLabel, isAgentEngine } from "../../domain/agent-engine";
 import type { ThreadHost } from "../../application/computers";
 import { rowHeadline } from "../../application/coordination";
 import { HostMark } from "./HostMark";
@@ -92,8 +93,8 @@ function rowStatus(row: RowState): RowStatus | null {
 function statusMark(status: RowStatus | null): ReactNode {
   if (!status) return false;
   if (status.kind === "working") return <ThreadSpinner key="status" />;
-  if (status.kind === "paused") return <Hourglass key="status" className="task-paused" size={14} aria-label={status.label} />;
-  return <span key="status" className={status.tone ? `task-attention ${status.tone}` : "task-attention"} aria-label={status.label} />;
+  if (status.kind === "paused") return <Hourglass key="status" className="task-paused" size={14} role="img" aria-label={status.label} />;
+  return <span key="status" className={status.tone ? `task-attention ${status.tone}` : "task-attention"} role="img" aria-label={status.label} />;
 }
 
 /**
@@ -295,17 +296,27 @@ type RowHandlers = {
 
 const NO_THREADS: Thread[] = [];
 
+/** A mark fills its slot, so pointing anywhere in the slot names it. */
+function railMark(key: string, tip: string, icon: ReactNode) {
+  return <span key={key} className="row-mark" data-tip={tip}>{icon}</span>;
+}
+
 /** The engine stays at the right edge, with status beside it, whatever other marks a row carries. */
 function rowMarks(row: RowState, status: RowStatus | null): ReactNode[] {
-  const { thread, worktree } = row;
+  const { thread, worktree, host } = row;
   return [
-    thread.role && <ThreadRoleMark key="role" role={thread.role} size={14} />,
+    row.away && host && railMark("away", awayLabel(host), <MonitorOff className="task-away" size={14} role="img" aria-label={awayLabel(host)} />),
+    thread.role && roleIcon(thread.role) && railMark("role", threadRoleLabel(thread.role), <ThreadRoleMark role={thread.role} size={14} />),
     /** A thread's own mark names its checkout, and threads sharing one share its colour, so a list ranked by attention still groups by eye. */
-    row.inWorktree && <FolderSymlink key="worktree" className={`task-worktree${worktree ? ` worktree-mark hue-${worktreeHue(worktree.id)}` : ""}`} size={14} aria-label={worktreeLabel(row)} />,
-    row.schedule && <AlarmClock key="automation" className={`task-automation${scheduleTrouble(row.schedule) ? " trouble" : ""}`} size={14} aria-label={scheduleLabel(row.schedule)} />,
-    statusMark(status),
-    <ThreadEngineIcon key="engine" engine={thread.engine} className="task-engine" size={14} />,
+    row.inWorktree && railMark("worktree", worktreeLabel(row), <FolderSymlink className={`task-worktree${worktree ? ` worktree-mark hue-${worktreeHue(worktree.id)}` : ""}`} size={14} role="img" aria-label={worktreeLabel(row)} />),
+    row.schedule && railMark("automation", scheduleLabel(row.schedule), <AlarmClock className={`task-automation${scheduleTrouble(row.schedule) ? " trouble" : ""}`} size={14} role="img" aria-label={scheduleLabel(row.schedule)} />),
+    status && railMark("status", status.label, statusMark(status)),
+    isAgentEngine(thread.engine) && railMark("engine", `${engineLabel(thread.engine)} thread`, <ThreadEngineIcon engine={thread.engine} className="task-engine" size={14} />),
   ].filter(Boolean);
+}
+
+function awayLabel(host: ThreadHost) {
+  return `${host.name} is ${host.reconnecting ? "reconnecting" : "offline"}`;
 }
 
 function worktreeLabel(row: RowState) {
@@ -322,7 +333,7 @@ function rowTitle(row: RowState, status: RowStatus | null) {
   const { thread, host } = row;
   return [
     thread.title,
-    row.away && host ? `${host.name} is ${host.reconnecting ? "reconnecting" : "offline"}` : null,
+    row.away && host ? awayLabel(host) : null,
     status?.label,
     row.inWorktree ? worktreeLabel(row) : null,
     row.schedule ? scheduleLabel(row.schedule) : null,
@@ -379,7 +390,16 @@ function rowMenuEntries(row: RowState, priority: boolean): MenuEntry[] {
   });
   const firstBreak = entries.indexOf("separator");
   entries.splice(firstBreak < 0 ? entries.length : firstBreak, 0, ...moveEntry(row));
-  return entries;
+  return entries.map((entry) => entry !== "separator" && entry.command?.type === "task.rename" ? { ...entry, shortcut: RENAME_KEY } : entry);
+}
+
+const RENAME_KEY = "F2";
+
+/** Where a menu opens: at the pointer, or under the row's start when the keyboard's menu key asked. */
+function menuPoint(event: React.MouseEvent<HTMLElement>) {
+  if (event.clientX !== 0 || event.clientY !== 0) return { x: event.clientX, y: event.clientY };
+  const box = event.currentTarget.getBoundingClientRect();
+  return { x: box.left + 12, y: box.bottom + 4 };
 }
 
 /**
@@ -399,7 +419,7 @@ function rowBody(row: RowState, className: string, content: (title: string) => R
       onContextMenu={(event) => {
         event.preventDefault();
         if (away) return;
-        handlers.openMenu(thread.id, { x: event.clientX, y: event.clientY }, event.currentTarget.closest(".task-entry"));
+        handlers.openMenu(thread.id, menuPoint(event), event.currentTarget.closest(".task-entry"));
       }}
     >
       {row.editing && !away
@@ -423,8 +443,14 @@ function rowBody(row: RowState, className: string, content: (title: string) => R
   );
 }
 
-function selectOnEnter(event: React.KeyboardEvent, row: RowState) {
+/** Enter opens the row's thread and F2 renames it, as the menu's Rename does. */
+function rowKeys(event: React.KeyboardEvent<HTMLElement>, row: RowState) {
+  if (event.target !== event.currentTarget) return;
   if (event.key === "Enter") row.handlers.select(row.thread.id);
+  else if (event.key === RENAME_KEY && !row.away) {
+    event.preventDefault();
+    row.handlers.startRename(row.thread.id, event.currentTarget);
+  }
 }
 
 /** Where a draggable row sits: under its folder, or in Recents with when it last moved. */
@@ -446,7 +472,7 @@ const ThreadRow = memo(function ThreadRow({ index, place, ...row }: RowState & {
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          onKeyDown={(event) => selectOnEnter(event, row)}
+          onKeyDown={(event) => rowKeys(event, row)}
         >
           {rowBody(row, `${place === "project" ? "project-task-row" : "task-row"} ${row.active ? "active" : ""}`, content, "archive")}
         </div>
@@ -459,7 +485,7 @@ const ThreadRow = memo(function ThreadRow({ index, place, ...row }: RowState & {
 const ActivityRow = memo(function ActivityRow({ projectLabel, action, priority, ...row }: RowState & { projectLabel: string | undefined; action: RowAction; priority: boolean }) {
   const { thread } = row;
   return (
-    <div className="task-entry" tabIndex={0} onKeyDown={(event) => selectOnEnter(event, row)}>
+    <div className="task-entry" tabIndex={0} onKeyDown={(event) => rowKeys(event, row)}>
       {rowBody(row, `task-row ${row.active ? "active" : ""}`, (title) => (
         <span className="task-row-text" title={title}>
           <span>{thread.title}</span>

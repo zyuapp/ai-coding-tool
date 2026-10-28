@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { createPortal } from "react-dom";
-import { LuArrowRight as ArrowRight, LuChevronDown as ChevronDown, LuColumns2 as Columns2, LuPilcrow as Pilcrow, LuRefreshCw as RefreshCw, LuRows3 as Rows3 } from "react-icons/lu";
+import { LuArrowRight as ArrowRight, LuChevronDown as ChevronDown, LuColumns2 as Columns2, LuRefreshCw as RefreshCw, LuSpace as Space } from "react-icons/lu";
 import { DIFF_MODE_MENU, type DiffState } from "../../application/workspace-diff";
 import { DEFAULT_BRANCH_RANGE, type DiffMode, type DiffRange } from "../../domain/diff";
 import { BranchMenu, useAnchoredStyle, useBranches } from "./BranchMenu";
@@ -29,6 +29,8 @@ type MenuControl = {
 type SidePickerProps = MenuControl & {
   id: string;
   label: string;
+  /** The word the chip leads with, saying which end of the comparison it is. */
+  role: string;
   value: string;
   extra: { label: string; value: string };
   /** The working tree wears its current branch's name, while the list still names it Working tree. */
@@ -37,7 +39,7 @@ type SidePickerProps = MenuControl & {
   onPick: (value: string) => void;
 };
 
-function SidePicker({ id, label, value, extra, currentBranch, workspaceId, openMenu, onSetOpenMenu, onPick }: SidePickerProps) {
+function SidePicker({ id, label, role, value, extra, currentBranch, workspaceId, openMenu, onSetOpenMenu, onPick }: SidePickerProps) {
   const open = openMenu === id;
   const row = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -50,7 +52,7 @@ function SidePicker({ id, label, value, extra, currentBranch, workspaceId, openM
   return (
     <div ref={row} className="diff-side" data-popover-menu>
       <button ref={trigger} className="diff-side-trigger" type="button" aria-label={`${label}: ${description}`} aria-haspopup="listbox" aria-expanded={open} data-tip={`${label}: ${description}`} disabled={!workspaceId} onClick={() => onSetOpenMenu(open ? null : id)}>
-        <span>{shown}</span><ChevronDown size={12} />
+        <small>{role}</small><span>{shown}</span><ChevronDown size={12} />
       </button>
       {open && <BranchMenu menuRef={menu} anchor={row.current} branches={branches} includeRemotes extra={extra} title={label} selected={value} onPick={(picked) => { onSetOpenMenu(null); onPick(picked); }} />}
     </div>
@@ -94,16 +96,26 @@ export function DiffToolbar({ diff, split, roomForTwo, currentBranch, workspaceI
       <div className="diff-toolbar-main">
         <ModePicker mode={diff.mode} disabled={!workspaceId} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} onSetMode={onSetMode} />
         <div className="diff-toolbar-actions">
-          <button type="button" aria-label={split ? "Show one column" : "Show two columns"} aria-pressed={split} className={split ? "on" : ""} disabled={!roomForTwo} data-tip={roomForTwo ? (split ? "One column" : "Two columns") : "Too narrow"} onClick={onToggleSplit}>{split ? <Rows3 size={16} /> : <Columns2 size={16} />}</button>
-          <button type="button" aria-label={diff.ignoreWhitespace ? "Show whitespace changes" : "Hide whitespace changes"} aria-pressed={diff.ignoreWhitespace} className={diff.ignoreWhitespace ? "on" : ""} data-tip={diff.ignoreWhitespace ? "Show spacing changes" : "Hide spacing changes"} onClick={onToggleWhitespace}><Pilcrow size={16} /></button>
+          <button
+            type="button"
+            aria-label="Two columns"
+            aria-pressed={split}
+            aria-disabled={!roomForTwo || undefined}
+            className={split ? "on" : ""}
+            data-tip={roomForTwo ? "Two columns" : "Two columns need a wider panel"}
+            onClick={roomForTwo ? onToggleSplit : undefined}
+          >
+            <Columns2 size={16} />
+          </button>
+          <button type="button" aria-label="Hide spacing changes" aria-pressed={diff.ignoreWhitespace} className={diff.ignoreWhitespace ? "on" : ""} data-tip="Hide spacing changes" onClick={onToggleWhitespace}><Space size={16} /></button>
           <button type="button" aria-label="Read the comparison again" data-tip="Read again" onClick={onRefresh}><SpinningIcon icon={RefreshCw} spinning={diff.loading} size={16} /></button>
         </div>
       </div>
       {diff.range.kind === "commit" && <code className="diff-linked-commit" title={diff.range.commit}>{diff.range.commit.slice(0, 7)}</code>}
       {diff.mode === "branch" && <div className="diff-compare">
-        <SidePicker id={COMPARE_MENU} label="Compare" value={range.compare ?? ""} extra={WORKING_SIDE} currentBranch={currentBranch} workspaceId={workspaceId} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} onPick={(compare) => onSetRange({ ...range, compare: compare || null })} />
+        <SidePicker id={COMPARE_MENU} label="Compare" role="From" value={range.compare ?? ""} extra={WORKING_SIDE} currentBranch={currentBranch} workspaceId={workspaceId} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} onPick={(compare) => onSetRange({ ...range, compare: compare || null })} />
         <ArrowRight className="diff-range-arrow" size={14} aria-hidden="true" />
-        <SidePicker id={BASE_MENU} label="Target branch" value={range.base} extra={HEAD_SIDE} workspaceId={workspaceId} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} onPick={(base) => onSetRange({ ...range, base })} />
+        <SidePicker id={BASE_MENU} label="Target branch" role="Into" value={range.base} extra={HEAD_SIDE} workspaceId={workspaceId} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} onPick={(base) => onSetRange({ ...range, base })} />
       </div>}
     </header>
   );

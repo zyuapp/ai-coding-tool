@@ -11,7 +11,7 @@ import { App } from "../../src/renderer/App.tsx";
 vi.mock("../../src/renderer/task-workspace/workspace-connection.ts", () => import("../support/in-process-workspace.mts"));
 
 function menuItem(label: string) {
-  return [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((button) => button.textContent === label);
+  return [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((button) => (button.querySelector(".menu-label") ?? button).textContent === label);
 }
 
 test("Priority's right-click submenu snoozes a thread into Snoozed, and Unsnooze brings it back", async () => {

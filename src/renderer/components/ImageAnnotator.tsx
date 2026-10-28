@@ -289,8 +289,10 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
   const [tool, setTool] = useState<AnnotationKind>("box");
   const history = useMarkHistory(annotations);
   const { shapes } = history;
-  /** The mark whose tools are showing: the last one pointed at or walked to, until a drag or a change moves on. */
+  /** The mark last pointed at or walked to, until a change moves on. */
   const [hovered, setHovered] = useState<number | null>(null);
+  /** The mark whose tools are showing: the one pointed at or walked to, else the newest. */
+  const picked = hovered !== null && shapes[hovered] ? hovered : shapes.length ? shapes.length - 1 : null;
   const [canvasFocused, setCanvasFocused] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const note = useMarkNote(shapes, change);
@@ -308,8 +310,7 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
   useAnnotatorKeys({
     composing,
     onEscape: () => {
-      if (pending) note.commit();
-      else if (editing !== null) note.close();
+      if (composing) note.close();
       else if (discarding) setDiscarding(false);
       else requestCancel();
     },
@@ -319,6 +320,7 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
 
   function change(next: Annotation[]) {
     history.change(next);
+    setHovered(null);
     setDiscarding(false);
   }
 
@@ -328,7 +330,6 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
 
   function remove(index: number) {
     change(shapes.filter((_, at) => at !== index));
-    setHovered(null);
   }
 
   /** Closing throws the marks away, so marks changed since opening are only dropped once confirmed. */
@@ -339,20 +340,19 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
 
   /** Arrow keys walk the marks on the focused canvas; the walked-to mark takes Delete and Enter. */
   function canvasKeyDown(event: ReactKeyboardEvent<HTMLCanvasElement>) {
-    if (composing || shapes.length === 0) return;
-    const next = markStep(event.key, hovered, shapes.length);
+    if (composing || picked === null) return;
+    const next = markStep(event.key, picked, shapes.length);
     if (next !== null) {
       event.preventDefault();
       setHovered(next);
       return;
     }
-    if (hovered === null || !shapes[hovered]) return;
     if (event.key === "Delete" || event.key === "Backspace") {
       event.preventDefault();
-      remove(hovered);
-    } else if (event.key === "Enter" && shapes[hovered].kind === "box") {
+      remove(picked);
+    } else if (event.key === "Enter" && shapes[picked]!.kind === "box") {
       event.preventDefault();
-      editMark(hovered);
+      editMark(picked);
     }
   }
 
@@ -405,14 +405,14 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
                 onBlur={() => setCanvasFocused(false)}
                 {...handlers}
               />
-              {hovered !== null && shapes[hovered] && !composing && (
+              {picked !== null && !composing && (
                 <MarkTools
-                  shape={shapes[hovered]}
+                  shape={shapes[picked]!}
                   frame={frame}
-                  mark={`${prefix}${markNumber(hovered)}`}
-                  onKeep={() => setHovered(hovered)}
-                  onEdit={() => editMark(hovered)}
-                  onRemove={() => remove(hovered)}
+                  mark={`${prefix}${markNumber(picked)}`}
+                  onKeep={() => setHovered(picked)}
+                  onEdit={() => editMark(picked)}
+                  onRemove={() => remove(picked)}
                 />
               )}
               {note.at && (
@@ -423,7 +423,7 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
                   label={note.label}
                   onLabel={note.setLabel}
                   onCommit={note.commit}
-                  onClose={pending ? note.commit : note.close}
+                  onClose={note.close}
                 />
               )}
             </div>

@@ -1,12 +1,12 @@
-import { LuChevronLeft as ChevronLeft, LuEllipsis as Ellipsis, LuQrCode as QrCode, LuSquarePen as SquarePen, LuX as X } from "react-icons/lu";
+import { LuChevronLeft as ChevronLeft, LuCloudOff as CloudOff, LuEllipsis as Ellipsis, LuQrCode as QrCode, LuSquarePen as SquarePen, LuX as X } from "react-icons/lu";
 import { useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
-import type { MobileCommand, MobileDraftView, MobileProjectGroup, MobileThreadView } from "../contracts/mobile";
+import type { MobileActivity, MobileCommand, MobileDraftView, MobileProjectGroup, MobileThreadView } from "../contracts/mobile";
 import { defaultModelFor, type AgentEngine } from "../domain/agent-engine";
 import { SETTINGS_PAGE_LABELS, settingControl } from "../domain/settings-catalog";
-import type { MobileConnectionState } from "../domain/mobile";
+import { PAIRING_CODE_LENGTH, type MobileConnectionState } from "../domain/mobile";
 import { useMobileClient } from "./client/useMobileClient";
 import type { ReturnedCommand } from "./client/protocol";
-import { readListMode, writeListMode, type MobileListMode } from "./client/storage";
+import { readListMode, readPairingCode, writeListMode, type MobileListMode } from "./client/storage";
 import { ApprovalSheet } from "./components/ApprovalSheet";
 import { Changes } from "./components/Changes";
 import { Composer, type ReturnedToComposer } from "./components/Composer";
@@ -29,32 +29,87 @@ const CONNECTION_LABELS: Record<MobileConnectionState, string> = {
   live: "Live",
 };
 
-/** Quiet until it matters: a live line says nothing, and everything else says one word. */
+/** Quiet until it matters: a live line says nothing, a dead one shows a struck cloud, and one on its way a turning ring. */
 function ConnectionMark({ connection }: { connection: MobileConnectionState }) {
   if (connection === "live") return null;
-  return <span className="line-mark" data-connection={connection}>{CONNECTION_LABELS[connection]}</span>;
+  return (
+    <span className="line-mark" data-connection={connection}>
+      {connection === "offline" ? <CloudOff size={14} strokeWidth={2.2} aria-hidden="true" /> : <span className="line-spin" aria-hidden="true" />}
+      {CONNECTION_LABELS[connection]}
+    </span>
+  );
 }
 
 /** Where the desktop shows its pairing QR code. */
 const PAIRING_PATH = ["Settings", SETTINGS_PAGE_LABELS.phone, settingControl("phone.pairing").label].join(" › ");
 
-/** A phone with no token and no code can do nothing but be shown one. */
+/** This page's address carrying `code`, as the QR code would have opened it. */
+function pairingAddress(code: string): string {
+  const url = new URL(window.location.href);
+  url.hash = `pair=${code.trim().toUpperCase()}`;
+  return url.href;
+}
+
+/** A phone with no token and no code is shown where the code is, and may type the one printed beside the QR. */
 function Gate({ notice }: { notice: string | null }) {
+  const [code, setCode] = useState("");
+  const address = pairingAddress(code);
+  const ready = readPairingCode(address) !== null;
   return (
     <div className="gate">
       <QrCode size={44} strokeWidth={1.4} aria-hidden="true" />
       <h1>AI Coding Tool</h1>
       <p>{notice ?? "Scan the QR code on your computer to connect this phone."}</p>
       <p className="gate-path">{PAIRING_PATH}</p>
+      <form
+        className="gate-code"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!ready) return;
+          window.location.replace(address);
+          window.location.reload();
+        }}
+      >
+        <input
+          type="text"
+          aria-label="Pairing code"
+          placeholder="Or type the code"
+          value={code}
+          maxLength={PAIRING_CODE_LENGTH}
+          autoCapitalize="characters"
+          autoComplete="one-time-code"
+          autoCorrect="off"
+          spellCheck={false}
+          enterKeyHint="go"
+          onInput={(event) => setCode(event.currentTarget.value.toUpperCase())}
+        />
+        <button type="submit" className="primary" disabled={!ready}>Pair</button>
+      </form>
     </div>
   );
 }
 
-/** How long Undo stays offered after a thread is archived, counted again once a finger lets go of it. */
+/** A notice under the bar: the words open to their full length, and only the cross puts it away. */
+function Banner({ notice, onDismiss }: { notice: string; onDismiss: () => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="banner" role="status" data-open={open || undefined}>
+      <button type="button" className="banner-text" aria-expanded={open} onClick={() => setOpen((was) => !was)}>{notice}</button>
+      <button type="button" className="banner-close" aria-label="Dismiss" onClick={onDismiss}><X size={16} aria-hidden="true" /></button>
+    </div>
+  );
+}
+
+/** How long Undo stays offered, counted again once a finger lets go of it. */
 const UNDO_MS = 9000;
 
-/** The thread just archived, with Undo, at the foot of the list it left for. */
-function ArchivedToast({ title, onUndo, onDone }: { title: string; onUndo: () => void; onDone: () => void }) {
+/**
+ * What the toast at the foot of the list can take back. An archive is already sent and Undo restores
+ * it; a dismissal is held, with its rows out of Priority, and only sent once the toast goes.
+ */
+type Undoable = { key: string; verb: string; title: string; undo: () => void; settle?: () => void; holds?: readonly string[] };
+
+function UndoToast({ undoable, onUndo, onDone }: { undoable: Undoable; onUndo: () => void; onDone: () => void }) {
   const [held, setHeld] = useState(false);
   useEffect(() => {
     if (held) return;
@@ -64,11 +119,18 @@ function ArchivedToast({ title, onUndo, onDone }: { title: string; onUndo: () =>
   const release = () => setHeld(false);
   return (
     <div className="undo-toast" role="status" onPointerDown={() => setHeld(true)} onPointerUp={release} onPointerCancel={release} onPointerLeave={release}>
-      <span>Archived <strong>{title}</strong></span>
+      <span>{undoable.verb} <strong>{undoable.title}</strong></span>
       <button type="button" onClick={onUndo}>Undo</button>
     </div>
   );
 }
+
+/** The Priority rows Dismiss all files away, in `projectId` or in every project. */
+function dismissableIds(activity: MobileActivity, projectId?: string): string[] {
+  return activity.priority.filter((thread) => thread.attention && (!projectId || thread.projectId === projectId)).map((thread) => thread.id);
+}
+
+const NONE: ReadonlySet<string> = new Set();
 
 const LIST_MODES: { value: MobileListMode; label: string }[] = [{ value: "projects", label: "Projects" }, { value: "activity", label: "Activity" }];
 
@@ -119,11 +181,86 @@ function useEdgeSwipe(enabled: boolean, onSwipe: () => void) {
   } : {}, [enabled, onSwipe]);
 }
 
+/**
+ * The one Undo the list offers at a time. Offering another, leaving the list or putting the page away
+ * carries out whatever the one before was holding back; dismissed rows stay out of Priority until the
+ * Mac's list drops them.
+ */
+function useUndo(send: (command: MobileCommand) => void, lists: MobileActivity) {
+  const [undoable, setUndoable] = useState<Undoable | null>(null);
+  const offered = useRef<Undoable | null>(null);
+  /** Priority rows dismissed and not yet gone from the Mac's list, kept out of it meanwhile. */
+  const [filing, setFiling] = useState<ReadonlySet<string>>(NONE);
+  const activity = useRef(lists);
+  activity.current = lists;
+
+  /** Puts up a new Undo, carrying out whatever the one before it was holding back. */
+  const offer = useCallback((next: Undoable | null) => {
+    const previous = offered.current;
+    offered.current = next;
+    setUndoable(next);
+    previous?.settle?.();
+  }, []);
+
+  const takeBack = useCallback(() => {
+    const taken = offered.current;
+    offered.current = null;
+    setUndoable(null);
+    taken?.undo();
+  }, []);
+
+  const settleUndo = useCallback(() => offer(null), [offer]);
+
+  const file = useCallback((ids: string[], title: string, settle: () => void) => {
+    setFiling((was) => new Set([...was, ...ids]));
+    offer({
+      key: `dismiss:${ids.join(",")}`,
+      verb: "Dismissed",
+      title,
+      holds: ids,
+      undo: () => setFiling((was) => new Set([...was].filter((id) => !ids.includes(id)))),
+      settle,
+    });
+  }, [offer]);
+
+  const dismiss = useCallback((taskId: string, title: string) => {
+    file([taskId], title, () => send({ type: "task.dismiss", taskId }));
+  }, [file, send]);
+
+  /** Carried out as Dismiss all only while nothing has joined Priority since; otherwise row by row, so nothing unseen goes with it. */
+  const dismissAll = useCallback((ids: string[], title: string, projectId?: string) => {
+    file(ids, title, () => {
+      if (dismissableIds(activity.current, projectId).every((id) => ids.includes(id))) send({ type: "task.dismiss-all", ...(projectId ? { projectId } : {}) });
+      else for (const taskId of ids) send({ type: "task.dismiss", taskId });
+    });
+  }, [file, send]);
+
+  /** A row stays out of Priority until the Mac's list no longer has it there. */
+  useEffect(() => {
+    if (!filing.size) return;
+    const held = new Set(undoable?.holds);
+    const priority = new Set(lists.priority.map((thread) => thread.id));
+    const kept = [...filing].filter((id) => held.has(id) || priority.has(id));
+    if (kept.length !== filing.size) setFiling(kept.length ? new Set(kept) : NONE);
+  }, [filing, undoable, lists]);
+
+  /** What the toast is holding back is carried out once the page is put away, as it is when the list is left. */
+  useEffect(() => {
+    const hidden = () => {
+      if (document.visibilityState === "hidden") settleUndo();
+    };
+    document.addEventListener("visibilitychange", hidden);
+    return () => document.removeEventListener("visibilitychange", hidden);
+  }, [settleUndo]);
+
+  return { undoable, filing, offer, takeBack, settleUndo, dismiss, dismissAll };
+}
+
 /** Where the phone is: the list, the thread the Mac has open, or that thread's changes. */
 type Screen = "list" | "thread" | "changes";
 
 /**
- * A notice sits in a strip under the bar until it is tapped away, so the title and the list switch stay put.
+ * A notice sits in a strip under the bar until it is put away, so the title and the list switch stay put.
  *
  * The conversation is the one the desktop has open, because the desktop's selection is the only one
  * there is. So the phone asks for a thread and then shows whichever one arrives rather than waiting
@@ -140,7 +277,7 @@ export function App() {
    * shows its title over a blank body rather than the thread the Mac still has open from before.
    */
   const [opening, setOpening] = useState<{ title: string; project: string | null; want: string; was: string } | null>(null);
-  const [archived, setArchived] = useState<{ id: string; title: string } | null>(null);
+  const { undoable, filing, offer, takeBack, settleUndo, dismiss, dismissAll } = useUndo(send, state.view.activity);
   const listScroll = useRef(0);
   const now = useNow();
   const thread = state.view.thread;
@@ -169,30 +306,30 @@ export function App() {
     if (screen === "changes" && !thread) setScreen("thread");
   }, [screen, thread]);
 
-  const openThread = useCallback((taskId: string, title: string, project: string | null) => {
+  /** With `menu`, the thread opens with its options already up, as a long press on its row asks. */
+  const openThread = useCallback((taskId: string, title: string, project: string | null, menu = false) => {
+    settleUndo();
     setOpening({ title, project, want: taskId, was: current });
     setScreen("thread");
-    setSheet(null);
+    setSheet(menu ? "menu" : null);
     send({ type: "task.select", taskId });
-  }, [send, current]);
+  }, [send, current, settleUndo]);
+
+  const openMenu = useCallback((taskId: string, title: string, project: string | null) => openThread(taskId, title, project, true), [openThread]);
 
   const newThread = useCallback((projectId: string | null, project: string | null, worktreeId?: string) => {
+    settleUndo();
     setOpening({ title: "New thread", project, want: "draft", was: current });
     setScreen("thread");
     setSheet(null);
     send({ type: "task.new", ...(projectId ? { projectId } : {}), ...(worktreeId ? { worktreeId } : {}) });
-  }, [send, current]);
+  }, [send, current, settleUndo]);
 
   const newFromList = useCallback((projectId: string | null, project: string | null) => newThread(projectId, project), [newThread]);
 
   const rememberScroll = useCallback((top: number) => {
     listScroll.current = top;
   }, []);
-
-  const dismiss = useCallback((taskId: string) => send({ type: "task.dismiss", taskId }), [send]);
-  const dismissAll = useCallback((projectId?: string) => send({ type: "task.dismiss-all", ...(projectId ? { projectId } : {}) }), [send]);
-
-  const forgetArchived = useCallback(() => setArchived(null), []);
 
   const back = useCallback(() => {
     setOpening(null);
@@ -236,12 +373,12 @@ export function App() {
         {!reading && (
           <button type="button" className="ghost icon bar-action" aria-label="New thread" onClick={() => newThread(null, null)}><SquarePen size={20} strokeWidth={1.8} /></button>
         )}
-        {screen === "thread" && thread && !pending && (
-          <button type="button" className="ghost icon bar-action" aria-label="Thread options" aria-haspopup="dialog" onClick={() => setSheet("menu")}><Ellipsis size={20} /></button>
+        {screen === "thread" && (pending ? opening.want !== "draft" : thread !== null) && (
+          <button type="button" className="ghost icon bar-action" aria-label="Thread options" aria-haspopup="dialog" disabled={pending} onClick={() => setSheet("menu")}><Ellipsis size={20} /></button>
         )}
         <ConnectionMark connection={state.connection} />
       </header>
-      {notice && <button type="button" className="banner" onClick={dismissNotice}><span role="status">{notice}</span><X size={16} aria-hidden="true" /></button>}
+      {notice && <Banner key={notice} notice={notice} onDismiss={dismissNotice} />}
       {screen === "changes" && thread
         ? <Changes thread={thread} live={state.connection === "live"} query={query} />
         : reading
@@ -249,7 +386,11 @@ export function App() {
             ? <ThreadBody thread={thread} connection={state.connection} waiting={waiting} returned={state.returned} send={send} sheet={sheet} onSheet={setSheet} onChanges={() => setScreen("changes")} onNewHere={() => newThread(thread.projectId, thread.projectName, thread.worktreeId ?? undefined)} onNewWith={(engine) => {
               newThread(thread.projectId, thread.projectName, thread.worktreeId ?? undefined);
               send({ type: "task.set-model", engine, model: defaultModelFor(engine) });
-            }} onArchived={() => { setArchived({ id: thread.id, title: thread.title }); back(); }} />
+            }} onArchived={() => {
+              const { id, title: archivedTitle } = thread;
+              back();
+              offer({ key: `archive:${id}`, verb: "Archived", title: archivedTitle, undo: () => send({ type: "task.restore", taskId: id }) });
+            }} />
             : draft && !pending
               ? <DraftBody draft={draft} groups={state.view.groups} waiting={waiting} send={send} sheet={sheet} onSheet={setSheet} onProject={newThread} onStartIn={(worktreeId) => newThread(draft.projectId, draft.projectName, worktreeId)} />
               : <div className="empty"><p>Opening the thread…</p></div>
@@ -260,20 +401,14 @@ export function App() {
             now={now}
             initialScrollTop={listScroll.current}
             onScroll={rememberScroll}
+            filing={filing}
             onOpen={openThread}
+            onMenu={openMenu}
             onNew={newFromList}
             onDismiss={dismiss}
             onDismissAll={dismissAll}
           />}
-      {archived && !reading && <ArchivedToast
-        key={archived.id}
-        title={archived.title}
-        onDone={forgetArchived}
-        onUndo={() => {
-          send({ type: "task.restore", taskId: archived.id });
-          setArchived(null);
-        }}
-      />}
+      {undoable && !reading && <UndoToast key={undoable.key} undoable={undoable} onUndo={takeBack} onDone={settleUndo} />}
     </div>
   );
 }

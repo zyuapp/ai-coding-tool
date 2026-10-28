@@ -202,13 +202,13 @@ export function App() {
             canOpenFolder={Boolean(workspace.folder) && workspace.location?.kind !== "creating"}
             onSetOpenMenu={workspace.actions.setOpenMenu} apps={workspace.installedApps} onListApps={() => void workspace.actions.listApps()}
             onOpenInApp={(appId) => void workspace.actions.openFolderInApp(appId)}
-            onRenameThread={workspace.actions.renameThread}
-            onForkThread={workspace.actions.forkThread}
+            onRenameThread={workspace.actions.renameThread} onForkThread={workspace.actions.forkThread}
             onArchiveThread={workspace.actions.archiveThread} onSetThreadRole={workspace.actions.setThreadRole}
             coordinators={workspace.coordinatorsByComputer.get(workspace.activeComputer?.id ?? null) ?? NO_COORDINATORS} onSetCoordinator={workspace.actions.setCoordinator}
             notifications={workspace.notifications} onSetMuted={workspace.actions.setMuted}
             stoppable={Boolean(workspace.currentThread && workspace.stoppableCoordinatorIds.has(workspace.currentThread.id))}
             onStopAll={workspace.actions.stopAll} onChooseFolder={() => void workspace.actions.openFolder()}
+            onNewThreadInProject={() => void workspace.dispatch({ type: "task.new", ...(workspace.currentThread?.projectId ? { projectId: workspace.currentThread.projectId } : {}) })}
             onToggleSidebar={() => void workspace.actions.setSidebarOpen(!sidebarOpen)}
             onToggleSessionPanel={() => {
               void workspace.actions.setDockOpen(false);

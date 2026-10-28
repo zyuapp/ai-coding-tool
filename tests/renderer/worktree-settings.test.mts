@@ -51,6 +51,9 @@ test("filters both groups, opens missing folders for an empty project, and can c
     assert.match(view.container.textContent!, /feat\/model-selection/);
     assert.match(view.container.textContent!, /2 changed files/);
     assert.match(view.container.textContent!, /3 commits not in main/);
+    const path = query(view.container, ".worktree-settings-list .worktree-path");
+    assert.equal(query(path, "code").textContent, fixture().worktrees[0].root);
+    assert.equal(query(path, "button").getAttribute("aria-label"), "Copy path");
     const filter = query<HTMLSelectElement>(view.container, "select");
     await act(async () => { filter.value = "other"; filter.dispatchEvent(new window.Event("change", { bubbles: true })); });
     assert.equal(view.container.querySelector(".worktree-settings-list .worktree-setting-row"), null);
@@ -84,7 +87,7 @@ test("delete confirmation focuses Cancel, closes with Escape, and restores focus
     const button = query<HTMLButtonElement>(view.container, ".worktree-row-actions button:last-child");
     button.focus();
     await act(async () => button.click());
-    assert.match(query(document, '[role="dialog"]').textContent, /Uncommitted changes are saved/);
+    assert.match(query(document, '[role="dialog"]').textContent, /uncommitted changes are saved as a commit/);
     assert.equal(document.activeElement?.textContent, "Cancel");
     const escape = new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
     await act(async () => { document.activeElement?.dispatchEvent(escape); await new Promise((resolve) => setTimeout(resolve, 10)); });
@@ -105,7 +108,7 @@ test("Forget explains thread retention and dispatches a missing-only removal", a
   try {
     await view.send({ type: "worktree.filter-project", project: "other" });
     await click("Forget…");
-    assert.match(query(document, '[role="dialog"]').textContent, /Your thread history stays/);
+    assert.match(query(document, '[role="dialog"]').textContent, /Thread history stays/);
     await click("Forget folder");
     const deletion = view.effects.find((effect) => effect.type === "delete-worktree");
     assert.equal(deletion?.missingOnly, true);

@@ -96,6 +96,11 @@ export function groupMark(threads: Pick<MobileThreadEntry, "status" | "unread" |
   return null;
 }
 
+/** Whether a tool's input reads at a glance: a few short lines, not a file. */
+export function glanceable(detail: string): boolean {
+  return detail.length <= 400 && detail.split("\n").length <= 8;
+}
+
 let clockFormatter: Intl.DateTimeFormat | undefined;
 
 export function clockTime(at: number): string {

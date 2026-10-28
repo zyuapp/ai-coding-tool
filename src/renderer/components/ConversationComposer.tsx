@@ -1,4 +1,4 @@
-import { LuPaperclip as Paperclip, LuX as X } from "react-icons/lu";
+import { LuCircleAlert as CircleAlert, LuInfo as Info, LuPaperclip as Paperclip, LuX as X } from "react-icons/lu";
 import { useId, useRef, type ReactNode } from "react";
 import type { PendingQuestion, QuestionAddress } from "../../domain/agent-question";
 import { QuestionPrompt } from "./QuestionPrompt";
@@ -35,10 +35,21 @@ const NOTHING = () => {};
 
 export type { ComposerAction };
 
-function composerPlaceholder(surface: ComposerSurface, folder: string, disabled: boolean, engineLabel: string) {
-  if (surface === "side") return disabled ? "Main context required" : "Ask a side question";
-  if (surface === "tab") return "Reply to this thread";
-  return folder ? `Ask ${engineLabel} to work on anything` : `Ask ${engineLabel} anything`;
+/** The ask, then a second line naming what the prompt's own keys open: `/` always, `@` and ↑ when they have something to offer. */
+function composerPlaceholder({ surface, folder, disabled, engineLabel, mentions, recalls }: {
+  surface: ComposerSurface;
+  folder: string;
+  disabled: boolean;
+  engineLabel: string;
+  mentions: boolean;
+  recalls: boolean;
+}) {
+  if (surface === "side" && disabled) return "Main context required";
+  const ask = surface === "side" ? "Ask a side question"
+    : surface === "tab" ? "Reply to this thread"
+    : folder ? `Ask ${engineLabel} to work on anything` : `Ask ${engineLabel} anything`;
+  const keys = ["/ commands", ...(mentions ? ["@ threads"] : []), ...(recalls ? ["↑ last message"] : [])];
+  return `${ask}\n${keys.join("  ·  ")}`;
 }
 
 const SEND_KEYS = displayShortcut("Enter", MAC);
@@ -50,17 +61,15 @@ function sendLabel(surface: ComposerSurface, runActive: boolean) {
   return runActive ? "Stop task" : "Send task";
 }
 
-function sendTip(runActive: boolean, steerable: boolean) {
-  if (!runActive) return `${shortcutTip("Send", "Enter")} · ${shortcutTip("New line", "Shift+Enter")}`;
-  return steerable ? `Stop · ${shortcutTip("Queue", "Enter")} · ${shortcutTip("Steer", "Mod+Enter")}` : "Stop";
+function sendTip(runActive: boolean) {
+  return runActive ? "Stop" : `${shortcutTip("Send", "Enter")} · ${shortcutTip("New line", "Shift+Enter")}`;
 }
 
 /** Sends what is written, or stops the run while one is going. `busy` is a send already on its way. */
-function SendButton({ taskId, surface, runActive, steerable, command, disabled, busy, onSend, onCancel }: {
+function SendButton({ taskId, surface, runActive, command, disabled, busy, onSend, onCancel }: {
   taskId: string | undefined;
   surface: ComposerSurface;
   runActive: boolean;
-  steerable: boolean;
   command: AppCommand;
   disabled: boolean;
   busy: boolean;
@@ -75,7 +84,7 @@ function SendButton({ taskId, surface, runActive, steerable, command, disabled, 
       onClick={runActive ? onCancel : onSend}
       aria-label={sendLabel(surface, runActive)}
       aria-busy={sending || undefined}
-      data-tip={sendTip(runActive, steerable)}
+      data-tip={sendTip(runActive)}
     >
       {runActive ? <span className="stop-glyph" /> : sending ? <span className="send-spinner" aria-hidden="true" /> : "↑"}
     </CommandButton>
@@ -87,7 +96,7 @@ function AttachButton({ disabled, onFilesAdd }: { disabled: boolean; onFilesAdd:
   const input = useRef<HTMLInputElement>(null);
   return (
     <>
-      <button type="button" className="composer-attach" aria-label="Attach files" data-tip="Attach files" disabled={disabled} onClick={() => input.current?.click()}>
+      <button type="button" className="composer-attach" aria-label="Attach files" data-tip="Attach files, or drop or paste them" disabled={disabled} onClick={() => input.current?.click()}>
         <Paperclip size={16} aria-hidden="true" />
       </button>
       <input
@@ -106,11 +115,14 @@ function AttachButton({ disabled, onFilesAdd }: { disabled: boolean; onFilesAdd:
   );
 }
 
-/** What the last send or attach had to say, until the user puts it away or the next one replaces it. */
-function SendNotice({ message, onDismiss }: { message: string | null; onDismiss: () => void }) {
+/** What the last send or attach had to say, until the user puts it away or the next one replaces it. A failure outranks a note. */
+function SendNotice({ error, note, onDismiss }: { error: string | null; note: string | null; onDismiss: () => void }) {
+  const message = error ?? note;
   if (!message) return null;
+  const Icon = error ? CircleAlert : Info;
   return (
-    <div className="attachment-error" role="status">
+    <div className={`attachment-error${error ? "" : " note"}`} role={error ? "alert" : "status"}>
+      <Icon size={14} aria-hidden="true" />
       <span>{message}</span>
       <button type="button" aria-label="Dismiss" data-tip="Dismiss" onClick={onDismiss}><X size={12} aria-hidden="true" /></button>
     </div>
@@ -171,6 +183,8 @@ export type ConversationComposerProps = {
   fastMode: boolean;
   onFastModeChange: (fastMode: boolean) => void;
   contextUsage?: ContextUsage;
+  /** Compacts the thread's context. Set only while compacting is on offer. */
+  onCompact?: () => void;
   /** The plan limits of the engine this composer sends to. A surface that shows none passes none. */
   planUsage?: ComposerPlanUsage;
   runActive: boolean;
@@ -256,6 +270,7 @@ export function ConversationComposer({
   fastMode,
   onFastModeChange,
   contextUsage,
+  onCompact,
   planUsage,
   runActive,
   question,
@@ -349,7 +364,7 @@ export function ConversationComposer({
         {onPasteRemove && <PasteRow pastes={pastes} onRemove={onPasteRemove} />}
         {onFileRemove && <FileRow files={files} onRemove={onFileRemove} />}
         <AttachmentStrip attachments={attachments} />
-        <SendNotice message={attachments.error} onDismiss={() => outbox.notice(null)} />
+        <SendNotice error={attachments.error} note={attachments.note} onDismiss={attachments.dismissNotice} />
         <textarea
           ref={caret.textareaRef}
           value={prompt}
@@ -360,7 +375,7 @@ export function ConversationComposer({
           onBlur={(event) => composerBlur(event, menus, caret)}
           onKeyDown={(event) => composerKeyDown(event, { menus, runActive, sending: attachments.sending, stepRecall, submit })}
           disabled={disabled}
-          placeholder={composerPlaceholder(surface, folder, disabled, engineLabel)}
+          placeholder={composerPlaceholder({ surface, folder, disabled, engineLabel, mentions: threads.length > 0, recalls: history.length > 0 })}
           aria-label={surface === "side" ? "Side chat prompt" : surface === "tab" ? "Thread prompt" : "Task prompt"}
           aria-autocomplete="list"
           aria-controls={reviewPicker ? "review-picker" : menuControls(menus)}
@@ -373,10 +388,10 @@ export function ConversationComposer({
           <AttachButton disabled={disabled} onFilesAdd={onFilesAdd} />
           <ComposerSettings taskId={taskId} mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} coordinating={coordinating} fastMode={fastMode} onFastModeChange={onFastModeChange} onModeChange={onModeChange} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
           <div className="composer-actions">
-            {steerHint && <span className="composer-hint" id={hintId}><kbd>{SEND_KEYS}</kbd> queue <kbd>{STEER_KEYS}</kbd> steer</span>}
+            {steerHint && <span className="composer-hint" id={hintId}><span className="composer-hint-queue"><kbd>{SEND_KEYS}</kbd> queue</span><span><kbd>{STEER_KEYS}</kbd> steer</span></span>}
             {planUsage && <PlanUsageMeter engineLabel={engineLabel} model={model} usage={planUsage.usage} {...(planUsage.onOpen ? { onOpen: planUsage.onOpen } : {})} />}
-            {contextUsage && <ContextUsageMeter usage={contextUsage} />}
-            <SendButton taskId={taskId} surface={surface} runActive={runActive} steerable={steerHint} command={sendCommand} disabled={disabled || nothingToSend} busy={!disabled && (attachments.sending || waiting)} onSend={() => void submit()} onCancel={onCancel} />
+            {contextUsage && <ContextUsageMeter usage={contextUsage} {...(onCompact ? { onCompact } : {})} />}
+            <SendButton taskId={taskId} surface={surface} runActive={runActive} command={sendCommand} disabled={disabled || nothingToSend} busy={!disabled && (attachments.sending || waiting)} onSend={() => void submit()} onCancel={onCancel} />
           </div>
         </div>
       </div>}

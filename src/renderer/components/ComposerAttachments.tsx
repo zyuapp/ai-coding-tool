@@ -45,6 +45,9 @@ export type ComposerOutbox = {
 export type ComposerAttachments = {
   items: Attachment[];
   error: string | null;
+  /** What the strip itself has to say that is not a failure, such as a limit it kept to. */
+  note: string | null;
+  dismissNotice: () => void;
   /** Set while the images are being written out, so a second send cannot start on top of the first. */
   sending: boolean;
   editing: Attachment | undefined;
@@ -61,6 +64,7 @@ export function useComposerAttachments(images: StagedImage[], outbox: ComposerOu
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [annotating, setAnnotating] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
   const outgoing = useRef(outbox);
   outgoing.current = outbox;
   /** Which staged images have already been read in, so a rerender never reads the same one twice. */
@@ -69,14 +73,17 @@ export function useComposerAttachments(images: StagedImage[], outbox: ComposerOu
   async function attachPasted(files: File[]) {
     const room = MAX_ATTACHMENTS - attachments.length;
     if (room <= 0) {
-      outbox.notice(`You can attach up to ${MAX_ATTACHMENTS} images.`);
+      setNote(`You can attach up to ${MAX_ATTACHMENTS} images.`);
+      outbox.notice(null);
       return;
     }
     try {
       const added = await Promise.all(files.slice(0, room).map(readImage));
       setAttachments((current) => [...current, ...added]);
-      outbox.notice(files.length > room ? `Only the first ${room} image${room === 1 ? "" : "s"} were attached.` : null);
+      setNote(files.length > room ? `Only the first ${room} image${room === 1 ? "" : "s"} were attached.` : null);
+      outbox.notice(null);
     } catch (error) {
+      setNote(null);
       outbox.notice(error instanceof Error ? error.message : String(error));
     }
   }
@@ -97,9 +104,11 @@ export function useComposerAttachments(images: StagedImage[], outbox: ComposerOu
 
   function send(steer: boolean) {
     if (loading || images.some((image) => takenImages.current.has(image.id) && !attachments.some((attachment) => attachment.id === image.id))) {
-      outbox.notice("Wait for the screenshots to finish loading.");
+      setNote("Wait for the screenshots to finish loading.");
+      outbox.notice(null);
       return;
     }
+    setNote(null);
     if (attachments.every((attachment) => attachment.annotations.length === 0)) {
       outbox.send(attachments.map((attachment) => leaving(attachment, attachment.source)), steer);
       return;
@@ -156,6 +165,7 @@ export function useComposerAttachments(images: StagedImage[], outbox: ComposerOu
             .filter(({ image }) => !current.some((item) => item.id === image.id))
             .map(({ image, preview, context }) => ({ id: image.id, source: preview, preview, annotations: [], path: image.path, ...(context ? { context } : {}) })),
         ]);
+        setNote(null);
         outgoing.current.notice(null);
       } catch (error) {
         if (cancelled) return;
@@ -175,6 +185,11 @@ export function useComposerAttachments(images: StagedImage[], outbox: ComposerOu
   return {
     items: attachments,
     error: outbox.state.error,
+    note,
+    dismissNotice: () => {
+      setNote(null);
+      outbox.notice(null);
+    },
     sending: outbox.state.busy || loading,
     editing: attachments.find((attachment) => attachment.id === annotating),
     attachPasted,
@@ -211,7 +226,6 @@ export function AttachmentStrip({ attachments }: { attachments: ComposerAttachme
           >
             <img src={attachment.preview} alt="" />
             <span className="attachment-edit" aria-hidden="true"><Pencil size={14} /></span>
-            <span className="attachment-edit-mark" aria-hidden="true"><Pencil size={10} /></span>
             {attachment.annotations.length > 0 && <span className="attachment-badge" aria-hidden="true">{attachment.annotations.length}</span>}
           </button>
           <button

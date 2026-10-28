@@ -1,3 +1,4 @@
+import { LuArrowUpRight as ArrowUpRight } from "react-icons/lu";
 import { memo, useContext, useMemo } from "react";
 import { attachmentUrl } from "../../application/attachments";
 import type { StreamingTail } from "../../application/thread-run-state";
@@ -55,6 +56,7 @@ function UserMessage({ message, onView }: { message: ConversationMessage; onView
               <button
                 type="button" key={file} className="message-attachment"
                 aria-label={`View screenshot ${index + 1}`}
+                data-tip={file.split("/").at(-1)}
                 onClick={() => onView(attachmentUrl(file, taskId))}
               >
                 <img src={attachmentUrl(file, taskId)} alt="" />
@@ -63,7 +65,7 @@ function UserMessage({ message, onView }: { message: ConversationMessage; onView
           </div>
         ) : null}
         {label && (sender && selectThread
-          ? <button type="button" className="message-origin message-origin-link" data-tip="Open thread" onClick={() => selectThread(sender)}>{label}</button>
+          ? <button type="button" className="message-origin message-origin-link" data-tip="Open thread" onClick={() => selectThread(sender)}>{label}<ArrowUpRight className="decision-from-arrow" size={12} aria-hidden="true" /></button>
           : <div className="message-origin">{label}</div>)}
         {message.text && <div className="message-text">{message.text}</div>}
         <MessageActions at={message.at} text={message.text} label="Copy the message" />
@@ -79,6 +81,8 @@ type TimelineRowProps = {
   index: number;
   /** Where the virtualizer holds this row, in the scroller's own terms. */
   offset: number;
+  /** The transcript's last row, whose message actions stay in view without a hover. */
+  newest: boolean;
   measure: (node: Element | null) => void;
   streamingTail?: StreamingTail | null;
   onViewAttachment: (source: string) => void;
@@ -125,15 +129,22 @@ function ThreadMessage({ from, message }: { from: string; message: ConversationM
   const sender = senderThread(message.origin);
   const summary = (
     <>
-      {sender && selectThread
-        ? <button type="button" className="work-lead thread-sender" data-tip="Open thread" onClick={(event) => { event.preventDefault(); selectThread(sender); }}>{from}</button>
-        : <span className="work-lead">{from}</span>}
+      <span className="work-lead">{from}</span>
       <span className="thread-message-preview">{message.text}</span>
     </>
   );
   return (
     <Fold className="work-group thread-message" holds={[message.id]} summary={summary}>
-      {() => <div className="thread-message-text">{message.text}</div>}
+      {() => (
+        <div className="thread-message-body">
+          <div className="thread-message-text">{message.text}</div>
+          {sender && selectThread && (
+            <button type="button" className="message-origin-link thread-message-open" onClick={() => selectThread(sender)}>
+              Open thread<ArrowUpRight className="decision-from-arrow" size={12} aria-hidden="true" />
+            </button>
+          )}
+        </div>
+      )}
     </Fold>
   );
 }
@@ -161,11 +172,11 @@ function FoldedUpdates({ engine, group, onViewAttachment }: { engine: AgentEngin
   );
 }
 
-export const TimelineRow = memo(function TimelineRow({ engine, group, index, offset, measure, streamingTail, onViewAttachment }: TimelineRowProps) {
+export const TimelineRow = memo(function TimelineRow({ engine, group, index, offset, newest, measure, streamingTail, onViewAttachment }: TimelineRowProps) {
   const message = group.kind === "message" ? group.message : null;
   return (
     <div
-      className={`timeline-row ${message?.kind ?? group.kind}`}
+      className={`timeline-row ${message?.kind ?? group.kind}${newest ? " newest" : ""}`}
       data-index={index}
       data-group-id={group.id}
       data-message-id={message?.id}

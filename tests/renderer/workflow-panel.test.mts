@@ -42,11 +42,11 @@ test("the workflow panel groups agents by phase, draws their lanes, and opens on
   assert.match(view.container.textContent, /worktree/);
   assert.match(view.container.textContent, /Agent returned no structured output/);
 
-  await act(async () => { view.container.querySelector('button[aria-label="Stop review-changes"]'); });
   await act(async () => { query<HTMLButtonElement>(view.container, ".workflow-stop").click(); });
-  assert.deepEqual(stopped, [], "Stop asks once more, as Stop all does");
-  await act(async () => { query<HTMLButtonElement>(view.container, ".workflow-stop-group > .danger").click(); });
-  assert.deepEqual(stopped, ["wf-1"]);
+  assert.deepEqual(stopped, ["wf-1"], "Stop stops at once, as a subagent's Stop does");
+  await view.render(React.createElement(WorkflowPanel, { workflow: { ...liveWorkflow, stopping: true }, onStop: (id) => { stopped.push(id); } }));
+  assert.equal(query<HTMLButtonElement>(view.container, ".workflow-stop").textContent, "Stopping");
+  assert.equal(query<HTMLButtonElement>(view.container, ".workflow-stop").disabled, true, "a workflow on its way out cannot be stopped twice");
   assert.match(query(view.container, ".workflow-lane").dataset.tip ?? "", / · (queued|running|done|failed|stopped)/, "a lane names its timing on hover");
 
   await act(async () => { query<HTMLElement>(view.container, '.workflow-row[aria-label="Open verify:store.ts details"]').click(); });

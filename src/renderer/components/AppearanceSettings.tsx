@@ -1,5 +1,5 @@
-import { LuCheck as Check, LuChevronDown as ChevronDown, LuMinus as Minus, LuMoon as Moon, LuPlus as Plus, LuSearch as Search, LuSun as Sun, LuSunMoon as SunMoon } from "react-icons/lu";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { LuCheck as Check, LuChevronDown as ChevronDown, LuCornerDownLeft as Enter, LuMinus as Minus, LuMoon as Moon, LuPlus as Plus, LuSearch as Search, LuSun as Sun, LuSunMoon as SunMoon } from "react-icons/lu";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { THEMES, themeFamilies, themeFor, themeOrDefault, type Theme, type ThemeMode } from "../../domain/theme";
 import {
   MONO_FONTS,
@@ -65,6 +65,33 @@ function ThemeSwatch({ id }: { id: string }) {
   );
 }
 
+/** The mark on the option Enter in the search picks. */
+const EnterMark = () => <Enter size={14} className="enter-mark" aria-hidden="true" />;
+
+/**
+ * Arrow keys across a grid of tiles: Left and Right step through them in order, Up and Down move a
+ * row, keeping the column. Down from the search lands on the first tile; Up from the top row goes back.
+ */
+function moveGridFocus(event: KeyboardEvent<HTMLElement>, field: HTMLInputElement | null, first: HTMLButtonElement | null) {
+  const tiles = [...event.currentTarget.querySelectorAll<HTMLButtonElement>(".theme-choice")];
+  if (!tiles.length) return;
+  const at = tiles.indexOf(document.activeElement as HTMLButtonElement);
+  if (at === -1) {
+    if (event.key !== "ArrowDown") return;
+    event.preventDefault();
+    (first ?? tiles[0]!).focus();
+    return;
+  }
+  const top = tiles[0]!.offsetTop;
+  const columns = Math.max(1, tiles.findIndex((tile) => tile.offsetTop !== top) === -1 ? tiles.length : tiles.findIndex((tile) => tile.offsetTop !== top));
+  const step = ({ ArrowLeft: -1, ArrowRight: 1, ArrowUp: -columns, ArrowDown: columns } as Record<string, number>)[event.key];
+  if (step === undefined) return;
+  event.preventDefault();
+  const next = at + step;
+  if (next < 0) field?.focus();
+  else tiles[Math.min(next, tiles.length - 1)]!.focus();
+}
+
 /**
  * Every family as one control: a button wearing the theme the window is in, and a popover of tiles
  * the search narrows. A tile carries its own theme, so it is drawn in the colours it offers.
@@ -95,6 +122,8 @@ function ThemeSelect({ current, onChoose }: { current: Theme; onChoose: (family:
 
   const term = query.trim().toLowerCase();
   const families = themeFamilies().filter((family) => !term || family.toLowerCase().includes(term));
+  /** What Enter in the search picks: the first match while a search narrows the tiles. */
+  const target = term ? families[0] : undefined;
 
   return (
     <div
@@ -114,7 +143,7 @@ function ThemeSelect({ current, onChoose }: { current: Theme; onChoose: (family:
         <ChevronDown size={14} aria-hidden="true" />
       </button>
       {open && (
-        <div className="theme-select-popover" onKeyDown={moveListFocus}>
+        <div className="theme-select-popover" onKeyDown={(event) => moveGridFocus(event, search.current, target ? null : chosen.current)}>
           <label className="font-select-search">
             <Search size={14} aria-hidden="true" />
             <input
@@ -123,8 +152,8 @@ function ThemeSelect({ current, onChoose }: { current: Theme; onChoose: (family:
               value={query}
               placeholder="Search themes"
               aria-label="Search themes"
-              onChange={(event) => setQuery(event.target.value)}
-              onKeyDown={(event) => { if (event.key === "Enter" && families[0]) choose(families[0]); }}
+              onInput={(event) => setQuery(event.currentTarget.value)}
+              onKeyDown={(event) => { if (event.key === "Enter" && target) choose(target); }}
             />
           </label>
           <div className="theme-choices compact" role="listbox" aria-label="Theme">
@@ -138,14 +167,14 @@ function ThemeSelect({ current, onChoose }: { current: Theme; onChoose: (family:
                   type="button"
                   role="option"
                   aria-selected={picked}
-                  className={`theme-choice${picked ? " chosen" : ""}`}
+                  className={`theme-choice${picked ? " chosen" : ""}${family === target ? " next" : ""}`}
                   data-theme={option.id}
                   onClick={() => choose(family)}
                 >
                   <ThemePreview />
                   <span className="theme-choice-name">
                     {family}
-                    {picked && <Check size={14} aria-hidden="true" />}
+                    {family === target ? <EnterMark /> : picked && <Check size={14} aria-hidden="true" />}
                   </span>
                 </button>
               );
@@ -231,7 +260,7 @@ function FontSelect({ axis, label, chosen, onChoose }: {
     (!term || family.toLowerCase().includes(term)) && !bundled.some((font) => font.label === family));
   const shown = extras.slice(0, 100);
   /** What Enter in the search lands on, so typing a name and pressing Enter is the whole gesture. */
-  const first = families[0]?.id ?? (shown.length ? customFontId(shown[0]) : undefined);
+  const first = !term ? undefined : families[0]?.id ?? (shown.length ? customFontId(shown[0]!) : undefined);
 
   const option = (id: string, name: string) => (
     <li key={id} role="none">
@@ -239,12 +268,12 @@ function FontSelect({ axis, label, chosen, onChoose }: {
         type="button"
         role="option"
         aria-selected={id === current.id}
-        className={id === current.id ? "chosen" : ""}
+        className={[id === current.id && "chosen", id === first && "next"].filter(Boolean).join(" ") || undefined}
         onClick={() => choose(id)}
         {...faceProps(axis, id)}
       >
         <span>{name}</span>
-        {id === current.id && <Check size={14} aria-hidden="true" />}
+        {id === first ? <EnterMark /> : id === current.id && <Check size={14} aria-hidden="true" />}
       </button>
     </li>
   );
@@ -275,7 +304,7 @@ function FontSelect({ axis, label, chosen, onChoose }: {
               value={query}
               placeholder="Search fonts"
               aria-label={`Search fonts for ${label.toLowerCase()}`}
-              onChange={(event) => setQuery(event.target.value)}
+              onInput={(event) => setQuery(event.currentTarget.value)}
               onKeyDown={(event) => { if (event.key === "Enter" && first) choose(first); }}
             />
           </label>
@@ -311,39 +340,42 @@ function SizeField({ label, range, value, onChoose }: {
       <button type="button" aria-label={`Smaller ${label.toLowerCase()}`} disabled={value <= range.min} onClick={() => onChoose(stepSize(range, value, -1))}>
         <Minus size={14} aria-hidden="true" />
       </button>
-      <input
-        type="text"
-        inputMode="numeric"
-        value={draft ?? String(value)}
-        aria-label={label}
-        onFocus={(event) => {
-          setDraft(String(value));
-          event.currentTarget.select();
-        }}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={(event) => {
-          const typed = Number(event.target.value);
-          const keep = !abandoned.current && event.target.value.trim() && Number.isFinite(typed);
-          abandoned.current = false;
-          setDraft(null);
-          if (keep) onChoose(clampSize(range, typed));
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-            event.preventDefault();
-            const typed = Number(draft);
-            const next = stepSize(range, draft?.trim() && Number.isFinite(typed) ? clampSize(range, typed) : value, event.key === "ArrowUp" ? 1 : -1);
-            setDraft(String(next));
-            onChoose(next);
-          }
-          if (event.key === "Enter") event.currentTarget.blur();
-          if (event.key === "Escape") {
-            event.stopPropagation();
-            abandoned.current = true;
-            event.currentTarget.blur();
-          }
-        }}
-      />
+      <label className="size-value">
+        <input
+          type="text"
+          inputMode="numeric"
+          value={draft ?? String(value)}
+          aria-label={label}
+          onFocus={(event) => {
+            setDraft(String(value));
+            event.currentTarget.select();
+          }}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={(event) => {
+            const typed = Number(event.target.value);
+            const keep = !abandoned.current && event.target.value.trim() && Number.isFinite(typed);
+            abandoned.current = false;
+            setDraft(null);
+            if (keep) onChoose(clampSize(range, typed));
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+              event.preventDefault();
+              const typed = Number(draft);
+              const next = stepSize(range, draft?.trim() && Number.isFinite(typed) ? clampSize(range, typed) : value, event.key === "ArrowUp" ? 1 : -1);
+              setDraft(String(next));
+              onChoose(next);
+            }
+            if (event.key === "Enter") event.currentTarget.blur();
+            if (event.key === "Escape") {
+              event.stopPropagation();
+              abandoned.current = true;
+              event.currentTarget.blur();
+            }
+          }}
+        />
+        <span aria-hidden="true">px</span>
+      </label>
       <button type="button" aria-label={`Larger ${label.toLowerCase()}`} disabled={value >= range.max} onClick={() => onChoose(stepSize(range, value, 1))}>
         <Plus size={14} aria-hidden="true" />
       </button>

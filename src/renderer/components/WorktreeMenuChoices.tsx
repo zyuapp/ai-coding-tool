@@ -4,6 +4,12 @@ import { LuCheck as Check, LuPlus as Plus } from "react-icons/lu";
 import type { AppCommand } from "../../contracts/commands";
 import type { WorktreeMenuChoice, WorktreeMenuList, WorktreeMenuView } from "../../application/worktree-menu";
 
+function emptyNote(list: WorktreeMenuList, view: WorktreeMenuView): string {
+  if (list === "destinations" && view.loading) return "Reading worktrees…";
+  if (view.search[list].trim()) return "No matches";
+  return list === "threads" ? "No other threads" : "No other worktrees";
+}
+
 export function WorktreeMenuChoices({ view, list, dispatch }: { view: WorktreeMenuView; list: WorktreeMenuList; dispatch: (command: AppCommand) => void }) {
   const scroll = useRef<HTMLDivElement>(null);
   const search = useRef<HTMLInputElement>(null);
@@ -63,7 +69,7 @@ export function WorktreeMenuChoices({ view, list, dispatch }: { view: WorktreeMe
     <div ref={scroll} className="worktree-menu-list" role="menu" aria-label={list === "threads" ? "Threads here" : "Move destinations"} style={{ height: Math.min(rows.length, 5) * 44 }}>
       {virtual ? <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>{virtualizer.getVirtualItems().map((item) => <div key={item.key} style={{ position: "absolute", top: item.start, height: item.size, width: "100%" }}>{choice(rows[item.index], item.index)}</div>)}</div> : rows.map((row, index) => <div key={row.id}>{choice(row, index)}</div>)}
     </div>
-    {!rows.length && <p className="worktree-menu-note">{list === "destinations" && view.loading ? "Reading worktrees…" : "No matches."}</p>}
+    {!rows.length && <p className="worktree-menu-note">{emptyNote(list, view)}</p>}
     {list === "destinations" && <>
       {view.error && <div className="worktree-menu-error"><p role="alert">{view.error}</p><button type="button" onClick={() => dispatch({ type: "worktree.menu-open", list: "destinations" })}>Retry</button></div>}
       <p className="worktree-menu-note">Existing file changes stay in the old checkout.</p>

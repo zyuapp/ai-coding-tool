@@ -12,6 +12,8 @@ import { ConversationTimeline, type ConversationTimelineProps } from "./Conversa
 import { ConversationComposer } from "./ConversationComposer";
 import type { ComposerOutbox } from "./ComposerAttachments";
 import { useFileDrop } from "../file-drop";
+import { CommandButton } from "./CommandControl";
+import { shortcutTip } from "./TooltipLayer";
 
 export type DockConversationProps = {
   chat: DockConversationView;
@@ -63,7 +65,7 @@ export type DockConversationProps = {
  * A thread talked to from a dock tab: its transcript, its approval, and its composer. The tab draws
  * its own header and says what the thread is.
  */
-export function DockConversation({ chat, engineLabel, focusToken = 0, find = null, findBar, folder = "", workspaceId, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, outbox, onAnswerQuestion, onQuestionAnswerChange, onCancel, onDecide, onPolicyChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onFastModeChange, onEditQueued, onSteerQueued, onDropQueued, className, label, header, empty, surface, disabled = false, error = null, note }: DockConversationProps & {
+export function DockConversation({ chat, engineLabel, focusToken = 0, find = null, findBar, folder = "", workspaceId, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, outbox, onAnswerQuestion, onQuestionAnswerChange, onCancel, onDecide, onPolicyChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onFastModeChange, onEditQueued, onSteerQueued, onDropQueued, className, label, header, empty, surface, disabled = false, error = null, note, action }: DockConversationProps & {
   className: string;
   label: string;
   header: ReactNode;
@@ -72,6 +74,8 @@ export function DockConversation({ chat, engineLabel, focusToken = 0, find = nul
   disabled?: boolean;
   error?: string | null;
   note?: string;
+  /** What the user can do to bring a disabled conversation back, drawn above its composer. */
+  action?: ReactNode;
 }) {
   const transcriptRef = useRef<HTMLDivElement>(null);
   const drop = useFileDrop(onFilesAdd);
@@ -103,6 +107,7 @@ export function DockConversation({ chat, engineLabel, focusToken = 0, find = nul
         />
         {chat.approval && <ApprovalCard approval={chat.approval} onDecide={onDecide} />}
       </div>
+      {action && <div className="side-chat-action">{action}</div>}
       {error && <p className="side-chat-error" role="alert">{error}</p>}
       <ConversationComposer
         taskId={chat.thread.id}
@@ -180,6 +185,11 @@ export function SideChat({ chat, sourceTitle, sourceContinued, onClose, ...props
       label="Side chat"
       surface="side"
       disabled={!available}
+      action={available ? null : (
+        <CommandButton type="button" data-tip={shortcutTip("Message the main thread", "Mod+L")} command={{ type: "view.shortcut", action: "composer.focus", surface: "any" }}>
+          Message {sourceTitle}
+        </CommandButton>
+      )}
       header={
         <header className="side-chat-header">
           <div className="side-chat-title">

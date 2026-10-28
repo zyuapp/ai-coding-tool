@@ -32,19 +32,20 @@ test("thread menus and shared buttons disable unsupported operations on the corr
   const view = await mount(render());
   try {
     const remote = () => query<HTMLButtonElement>(view.container, '[aria-label="Archive remote"]');
-    assert.ok(remote().disabled);
-    assert.equal(query<HTMLButtonElement>(view.container, '[aria-label="Archive local"]').disabled, false);
+    assert.equal(remote().getAttribute("aria-disabled"), "true");
+    assert.equal(remote().disabled, false, "it stays focusable so the keyboard reaches its reason");
+    assert.equal(query<HTMLButtonElement>(view.container, '[aria-label="Archive local"]').getAttribute("aria-disabled"), null);
     const rename = [...view.container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((item) => item.querySelector(".menu-label")?.textContent === "Rename")!;
-    assert.ok(rename.disabled);
+    assert.equal(rename.getAttribute("aria-disabled"), "true");
     assert.equal(query(rename, ".menu-shortcut").textContent, "Not on remote", "the row says why without a pointer");
     assert.equal(rename.dataset.tip, REMOTE_UNSUPPORTED, "the reason shows in the shared tooltip");
     assert.equal(remote().dataset.tip, REMOTE_UNSUPPORTED);
     assert.equal(remote().title, "");
-    await act(async () => remote().click());
+    await act(async () => { remote().click(); rename.click(); });
     assert.deepEqual(commands, []);
     state.computers.paired[0]!.capabilities = COMPUTER_CAPABILITIES;
     await view.render(render());
-    assert.equal(remote().disabled, false);
+    assert.equal(remote().getAttribute("aria-disabled"), null);
     assert.equal(remote().dataset.tip, undefined);
     await act(async () => remote().click());
     assert.deepEqual(commands, [{ type: "task.archive", taskId: thread.id }]);

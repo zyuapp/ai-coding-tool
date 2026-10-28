@@ -1,9 +1,10 @@
+import { Cron } from "croner";
 import { CommandButton, useCommandControls } from "./CommandControl";
 import { ConfirmAction } from "./SettingRow";
 import { REMOTE_UNSUPPORTED } from "../../contracts/computer-capabilities";
 import { useEffect, useState } from "react";
-import { LuAlarmClock as AlarmClock, LuCheck as Check, LuPause as Pause, LuPlay as Play, LuTrash2 as Trash2 } from "react-icons/lu";
-import { isOneShotSchedule, type AutomationPatch, type AutomationView } from "../../domain/automation";
+import { LuAlarmClock as AlarmClock, LuCheck as Check, LuPause as Pause, LuPlay as Play, LuPlus as Plus, LuTrash2 as Trash2, LuTriangleAlert as AlertTriangle } from "react-icons/lu";
+import { isOneShotSchedule, scheduleFieldCount, type AutomationPatch, type AutomationView } from "../../domain/automation";
 
 export type AutomationPanelProps = {
   automation: AutomationView | null;
@@ -55,14 +56,38 @@ export function automationFacts(automation: AutomationView, lastFoundAt: number 
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-/** A schedule read back in words, or why it cannot be read; null for a valid cron too unusual to say simply. */
+/** The cron each nickname the scheduler accepts stands for. */
+const NICKNAMES: Record<string, string> = {
+  "@yearly": "0 0 1 1 *", "@annually": "0 0 1 1 *", "@monthly": "0 0 1 * *", "@weekly": "0 0 * * 0", "@daily": "0 0 * * *", "@midnight": "0 0 * * *", "@hourly": "0 * * * *",
+};
+
+const CRON_HINT = "Use cron, like 0 8 * * *, or a date, like 2026-11-01T09:00";
+
+/** Why the scheduler would turn this schedule down, or null when it takes it. */
+function scheduleProblem(schedule: string): string | null {
+  if (!isOneShotSchedule(schedule) && scheduleFieldCount(schedule) > 5) return "Runs at most once a minute, so use five fields";
+  let cron: Cron;
+  try {
+    cron = new Cron(schedule, { paused: true });
+  } catch {
+    return CRON_HINT;
+  }
+  try {
+    return cron.nextRun() ? null : "Never runs again";
+  } finally {
+    cron.stop();
+  }
+}
+
+/** A schedule read back in words, or why it cannot be saved; null for a valid cron too unusual to say simply. */
 export function describeSchedule(schedule: string): { text: string; error?: true } | null {
   const trimmed = schedule.trim();
   if (!trimmed) return { text: "Needs a schedule", error: true };
+  const problem = scheduleProblem(trimmed);
+  if (problem) return { text: problem, error: true };
   if (isOneShotSchedule(trimmed)) return { text: `Once, ${new Date(trimmed).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}` };
-  const fields = trimmed.split(/\s+/);
-  if (fields.length === 1 && trimmed.startsWith("@")) return null;
-  if (fields.length !== 5) return { text: "Use cron, like 0 8 * * *, or a date, like 2026-11-01T09:00", error: true };
+  const fields = (NICKNAMES[trimmed.toLowerCase()] ?? trimmed).split(/\s+/);
+  if (fields.length !== 5) return null;
   const [minute, hour, day, month, weekday] = fields;
   const every = minute.match(/^\*\/(\d+)$/);
   if (every && hour === "*" && day === "*" && month === "*" && weekday === "*") return { text: `Every ${every[1]} minutes` };
@@ -83,14 +108,32 @@ export function lastRunLabel(automation: AutomationView, at: number) {
   return `${automation.lastStatus ?? "ran"} at ${formatMoment(when, at)}`;
 }
 
+/** Missed is the one status that needs the user, so it alone stands out. */
+function AutomationHeading({ status }: { status?: string }) {
+  return (
+    <header className="agents-panel-heading">
+      <div><h2>Automation</h2><p>Repeat this task on a schedule</p></div>
+      {status && (
+        <span data-state={status === "Missed" ? "missed" : status === "Paused" ? "paused" : undefined}>
+          {status === "Missed" && <AlertTriangle size={12} aria-hidden="true" />}{status}
+        </span>
+      )}
+    </header>
+  );
+}
+
 export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChecked, onUpdate, onDelete, onRunNow }: AutomationPanelProps) {
   const [schedule, setSchedule] = useState(automation?.schedule ?? "");
   const [prompt, setPrompt] = useState(automation?.prompt ?? "");
   const [surfaceWhen, setSurfaceWhen] = useState(automation?.surfaceWhen ?? "");
   const [endsWhen, setEndsWhen] = useState(automation?.endsWhen ?? "");
   const [now, setNow] = useState(() => Date.now());
-  const [saved, setSaved] = useState(false);
-  const canDelete = useCommandControls().available({ type: "automation.delete" });
+  /** What the last press confirmed, shown on its button for a moment. */
+  const [done, setDone] = useState<"saved" | "started" | null>(null);
+  /** A new schedule being written before any exists. */
+  const [creating, setCreating] = useState(false);
+  const controls = useCommandControls();
+  const canDelete = controls.available({ type: "automation.delete" });
   const revision = automation ? `${automation.id}:${automation.updatedAt}` : "";
 
   useEffect(() => {
@@ -98,13 +141,14 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
     setPrompt(automation?.prompt ?? "");
     setSurfaceWhen(automation?.surfaceWhen ?? "");
     setEndsWhen(automation?.endsWhen ?? "");
+    if (automation) setCreating(false);
   }, [revision]);
 
   useEffect(() => {
-    if (!saved) return;
-    const timer = window.setTimeout(() => setSaved(false), 1_600);
+    if (!done) return;
+    const timer = window.setTimeout(() => setDone(null), 1_600);
     return () => window.clearTimeout(timer);
-  }, [saved]);
+  }, [done]);
 
   useEffect(() => {
     if (!automation || automation.nextRunAt === null) return;
@@ -112,16 +156,17 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
     return () => window.clearInterval(timer);
   }, [automation?.nextRunAt]);
 
-  if (!automation) {
+  if (!automation && !creating) {
     return (
       <section className="automation-panel" aria-label="Automation">
-        <header className="agents-panel-heading">
-          <div><h2>Automation</h2><p>Repeat this task on a schedule</p></div>
-        </header>
+        <AutomationHeading />
         <div className="agents-panel-empty">
           <span className="agent-orb"><AlarmClock size={18} /></span>
           <h2>No automation yet</h2>
           <p>Ask {engineLabel} to repeat this task, like “run this every morning at 8”. It appears here.</p>
+          <CommandButton command={{ type: "automation.save", draft: { prompt: "", schedule: "" } }} type="button" onClick={() => setCreating(true)}>
+            <Plus size={14} aria-hidden="true" />New schedule
+          </CommandButton>
         </div>
       </section>
     );
@@ -129,29 +174,46 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
 
   /** A one-time run always surfaces, so it has no quiet sentence to say or keep. */
   const oneShot = isOneShotSchedule(schedule);
-  const surfaceChanged = !oneShot && surfaceWhen !== (automation.surfaceWhen ?? "");
-  const endChanged = endsWhen !== (automation.endsWhen ?? "");
-  const dirty = schedule !== automation.schedule || prompt !== automation.prompt || surfaceChanged || endChanged;
+  const surfaceChanged = !oneShot && surfaceWhen !== (automation?.surfaceWhen ?? "");
+  const endChanged = endsWhen !== (automation?.endsWhen ?? "");
+  const dirty = !automation || schedule !== automation.schedule || prompt !== automation.prompt || surfaceChanged || endChanged;
   const readout = describeSchedule(schedule);
   const patch = { schedule, prompt, ...(surfaceChanged ? { surfaceWhen } : {}), ...(endChanged ? { endsWhen } : {}) };
+  const draft = {
+    schedule: schedule.trim(),
+    prompt: prompt.trim(),
+    ...(!oneShot && surfaceWhen.trim() ? { surfaceWhen: surfaceWhen.trim() } : {}),
+    ...(endsWhen.trim() ? { endsWhen: endsWhen.trim() } : {}),
+  };
+  const cancelCreate = () => {
+    setSchedule("");
+    setPrompt("");
+    setSurfaceWhen("");
+    setEndsWhen("");
+    setCreating(false);
+  };
 
   return (
     <section className="automation-panel" aria-label="Automation">
-      <header className="agents-panel-heading">
-        <div><h2>Automation</h2><p>Repeat this task on a schedule</p></div>
-        <span>{automationStatusLabel(automation, now)}</span>
-      </header>
+      <AutomationHeading status={automation ? automationStatusLabel(automation, now) : undefined} />
 
-      <div className="automation-body">
+      <div className="automation-body" onKeyDown={(event) => {
+        if (automation || event.key !== "Escape") return;
+        event.preventDefault();
+        event.stopPropagation();
+        cancelCreate();
+      }}>
         <label className="automation-field">
           <span>Schedule</span>
           <input
+            className="automation-schedule"
             value={schedule}
             aria-label="Automation schedule"
             aria-invalid={readout?.error}
             aria-describedby={readout ? "automation-schedule-readout" : undefined}
             placeholder="0 8 * * *"
             spellCheck={false}
+            autoFocus={!automation}
             onInput={(event) => setSchedule(event.currentTarget.value)}
           />
           {readout && <small id="automation-schedule-readout" className={readout.error ? "error" : undefined}>{readout.text}</small>}
@@ -163,6 +225,7 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
             value={prompt}
             rows={10}
             aria-label="Automation prompt"
+            placeholder={automation ? undefined : "What each run should do"}
             onInput={(event) => setPrompt(event.currentTarget.value)}
           />
         </label>
@@ -189,18 +252,31 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
           />
         </label>
 
-        <dl className="automation-meta">
-          {automationFacts(automation, lastFoundAt, lastChecked, now).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
-        </dl>
+        {automation && (
+          <dl className="automation-meta">
+            {automationFacts(automation, lastFoundAt, lastChecked, now).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
+          </dl>
+        )}
 
-        <div className="automation-actions">
-          <CommandButton command={{ type: "automation.update", patch }} type="button" className="primary" disabled={!dirty || readout?.error} onClick={() => { onUpdate(patch); setSaved(true); }}>{saved && !dirty ? <><Check size={14} aria-hidden="true" />Saved</> : "Save"}</CommandButton>
-          <CommandButton command={{ type: "automation.run-now" }} type="button" onClick={onRunNow}>Run now</CommandButton>
-          <CommandButton command={{ type: "automation.update", patch: { paused: !automation.paused } }} type="button" onClick={() => onUpdate({ paused: !automation.paused })} aria-label={automation.paused ? "Resume automation" : "Pause automation"} data-tip={automation.paused ? "Resume" : "Pause"}>
-            {automation.paused ? <Play size={14} /> : <Pause size={14} />}
-          </CommandButton>
-          <ConfirmAction className="automation-remove" aria-label="Remove automation" data-tip={canDelete ? "Remove" : REMOTE_UNSUPPORTED} disabled={!canDelete} confirm="Remove" onConfirm={onDelete}><Trash2 size={14} /></ConfirmAction>
-        </div>
+        {automation ? (
+          <div className="automation-actions">
+            <CommandButton command={{ type: "automation.update", patch }} type="button" className="automation-save primary" disabled={!dirty || readout?.error} onClick={() => { onUpdate(patch); setDone("saved"); }}>
+              {done === "saved" && !dirty ? <><Check size={14} aria-hidden="true" />Saved</> : "Save"}
+            </CommandButton>
+            <CommandButton command={{ type: "automation.run-now" }} type="button" onClick={() => { onRunNow(); setDone("started"); }}>
+              {done === "started" ? <><Check size={14} aria-hidden="true" />Started</> : "Run now"}
+            </CommandButton>
+            <CommandButton command={{ type: "automation.update", patch: { paused: !automation.paused } }} type="button" aria-label={automation.paused ? "Resume automation" : "Pause automation"} onClick={() => onUpdate({ paused: !automation.paused })}>
+              {automation.paused ? <Play size={14} aria-hidden="true" /> : <Pause size={14} aria-hidden="true" />}{automation.paused ? "Resume" : "Pause"}
+            </CommandButton>
+            <ConfirmAction className="automation-remove" aria-label="Remove automation" data-tip={canDelete ? "Remove" : REMOTE_UNSUPPORTED} disabled={!canDelete} confirm="Remove" onConfirm={onDelete}><Trash2 size={14} /></ConfirmAction>
+          </div>
+        ) : (
+          <div className="automation-actions">
+            <CommandButton command={{ type: "automation.save", draft }} type="button" className="automation-save primary" disabled={!draft.prompt || readout?.error}>Create</CommandButton>
+            <button type="button" onClick={cancelCreate}>Cancel</button>
+          </div>
+        )}
       </div>
     </section>
   );

@@ -1,7 +1,9 @@
 import { memo, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { LuBot as Bot, LuCircleCheckBig as CheckCircle2, LuCircleDot as CircleDot, LuCircleX as XCircle, LuSearch as Search, LuX as X } from "react-icons/lu";
+import { LuBot as Bot, LuCircleCheckBig as CheckCircle2, LuCircleDot as CircleDot, LuCirclePause as CirclePause, LuCircleStop as CircleStop, LuCircleX as XCircle, LuSearch as Search, LuX as X } from "react-icons/lu";
 import { OPEN_SUBAGENT_GROUPS, type Subagent, type SubagentGroup, type SubagentGroups, type SubagentStatus } from "../../domain/run";
+import { CommandButton } from "./CommandControl";
+import { shortcutTip } from "./TooltipLayer";
 
 /** Failures first, then the work still going: a session with a thousand subagents is read from the top. */
 const STATUS_RANK: Record<SubagentStatus, number> = { failed: 0, working: 1, idle: 2, stopped: 3, completed: 4 };
@@ -15,11 +17,15 @@ export function statusLabel(status: SubagentStatus) {
   return { working: "Working", idle: "Idle", completed: "Completed", failed: "Failed", stopped: "Stopped" }[status];
 }
 
-export function StatusIcon({ status }: { status: SubagentStatus }) {
-  if (status === "working") return <CircleDot className="agent-working-icon" size={16} />;
-  if (status === "idle") return <CircleDot size={16} />;
-  if (status === "completed") return <CheckCircle2 size={16} />;
-  return <XCircle size={16} />;
+const STATUS_ICONS = { working: CircleDot, idle: CirclePause, completed: CheckCircle2, failed: XCircle, stopped: CircleStop };
+
+/** Each status has its own shape, so it reads without its colour. Unlabelled, it stands beside a label that names it. */
+export function StatusIcon({ status, labelled = false }: { status: SubagentStatus; labelled?: boolean }) {
+  const Icon = STATUS_ICONS[status];
+  const className = `agent-status-icon ${status}${status === "working" ? " agent-working-icon" : ""}`;
+  return labelled
+    ? <Icon className={className} size={16} role="img" aria-label={statusLabel(status)} />
+    : <Icon className={className} size={16} aria-hidden="true" />;
 }
 
 /** One steady line per subagent: what it is doing now, or what it came back with. */
@@ -47,11 +53,12 @@ export function countByStatus(subagents: Subagent[]) {
 }
 
 export const SubagentRow = memo(function SubagentRow({ subagent, onSelect }: { subagent: Subagent; onSelect: (id: string) => void }) {
+  const line = subagentLine(subagent);
   return (
     <button type="button" className="agent-row" onClick={() => onSelect(subagent.id)}>
       <span className={`agent-orb ${subagent.status}`} aria-hidden="true"><Bot size={12} /></span>
-      <span><strong>{subagent.description}</strong><small>{subagentLine(subagent)}</small></span>
-      <StatusIcon status={subagent.status} />
+      <span><strong data-tip={subagent.description} data-tip-overflow>{subagent.description}</strong><small data-tip={line} data-tip-overflow>{line}</small></span>
+      <StatusIcon status={subagent.status} labelled />
     </button>
   );
 });
@@ -79,7 +86,7 @@ function renderRow(row: Row, onSelect: (id: string) => void, onSetGroup: (group:
   return (
     <button className="subagent-group" type="button" aria-expanded={row.open} onClick={() => onSetGroup(row.status, !row.open)}>
       <span>{statusLabel(row.status)}<span className="section-chevron" aria-hidden="true" /></span>
-      <span>{row.count}</span>
+      <span className="subagent-group-count">{row.count}</span>
     </button>
   );
 }
@@ -121,9 +128,10 @@ export function AgentsPanel({ subagents, groups, finding = false, onSelect, onSe
           <div><h2>Subagents</h2><p>Work delegated from this task</p></div>
         </header>
         <div className="agents-panel-empty">
-          <span className="agent-orb"><Bot size={18} /></span>
+          <span className="agent-orb" aria-hidden="true"><Bot size={18} /></span>
           <h2>No subagents yet</h2>
           <p>Subagents created by the main task will appear here.</p>
+          <CommandButton type="button" data-tip={shortcutTip("Message the thread", "Mod+L")} command={{ type: "view.shortcut", action: "composer.focus", surface: "any" }}>Message the thread</CommandButton>
         </div>
       </section>
     );
@@ -159,11 +167,14 @@ export function AgentsPanel({ subagents, groups, finding = false, onSelect, onSe
             placeholder="Search subagents"
             aria-label="Search subagents"
           />
-          {query && <button type="button" className="agent-search-clear" aria-label="Clear the search" data-tip="Clear (Esc)" onClick={() => { setQuery(""); searchRef.current?.focus(); }}><X size={12} aria-hidden="true" /></button>}
+          {query && <button type="button" className="agent-search-clear" aria-label="Clear the search" data-tip={shortcutTip("Clear", "Escape")} onClick={() => { setQuery(""); searchRef.current?.focus(); }}><X size={12} aria-hidden="true" /></button>}
         </label>
       </div>
       {rows.length === 0 ? (
-        <p className="session-empty agents-panel-none">No subagents match.</p>
+        <div className="agents-panel-none">
+          <p className="session-empty">No subagents match.</p>
+          <button type="button" onClick={() => { setStatus(null); setQuery(""); }}>Show all</button>
+        </div>
       ) : (
         <div className="subagent-list agents-panel-list" ref={scrollRef} aria-live="polite">
           {virtual ? (

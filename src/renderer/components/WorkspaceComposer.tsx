@@ -53,6 +53,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       fastMode={workspace.fastMode}
       onFastModeChange={workspace.actions.setFastMode}
       contextUsage={workspace.currentThread?.contextUsage}
+      {...(compact.length ? { onCompact: workspace.actions.compactContext } : {})}
       planUsage={{
         usage: workspace.threadPlanUsage.reports[workspace.engine],
         dismissed: workspace.planUsage.dismissed,

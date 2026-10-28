@@ -55,7 +55,7 @@ export function useTypeahead() {
     if (event.key === " " && fresh) return false;
     const text = (fresh ? "" : typed.current.text) + event.key.toLowerCase();
     typed.current = { text, at: event.timeStamp };
-    const usable = rows.filter((row): row is HTMLButtonElement => Boolean(row && !row.disabled));
+    const usable = rows.filter((row): row is HTMLButtonElement => Boolean(row && !row.disabled && row.getAttribute("aria-disabled") !== "true"));
     const at = usable.indexOf(document.activeElement as HTMLButtonElement);
     const needle = [...text].every((letter) => letter === text[0]) ? text[0] : text;
     const start = needle.length === 1 ? at + 1 : Math.max(at, 0);
@@ -69,8 +69,9 @@ export function useTypeahead() {
   };
 }
 
-function usableIndexes(entries: MenuEntry[]): number[] {
-  return entries.flatMap((entry, index) => entry !== "separator" && !entry.disabled ? [index] : []);
+/** Every item the keyboard can rest on. A disabled item stays reachable so its reason can be read. */
+function itemIndexes(entries: MenuEntry[]): number[] {
+  return entries.flatMap((entry, index) => entry !== "separator" ? [index] : []);
 }
 
 function SubmenuPanel({ children, top, autoFocus, onLeave }: { children: ReactNode; top: number; autoFocus: boolean; onLeave: () => void }) {
@@ -157,6 +158,33 @@ type MenuListProps = {
   search?: { value: string; label: string; onChange: (value: string) => void };
 };
 
+type MenuSearchProps = {
+  search: NonNullable<MenuListProps["search"]>;
+  field: RefObject<HTMLInputElement | null>;
+  /** Enter, which takes the list's top item. */
+  onSubmit: () => void;
+};
+
+/** Escape empties a typed search before it closes the menu, as every other search field does. */
+function MenuSearch({ search, field, onSubmit }: MenuSearchProps) {
+  return <div className="menu-search">
+    <input
+      ref={field}
+      type="search"
+      value={search.value}
+      placeholder={search.label}
+      aria-label={search.label}
+      onInput={(event) => search.onChange(event.currentTarget.value)}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && search.value) search.onChange("");
+        else if (event.key === "Enter") onSubmit();
+        else return;
+        event.preventDefault();
+      }}
+    />
+  </div>;
+}
+
 /** Choosing an item always closes the menu, so no item has to remember to. */
 export function MenuList({ entries: supplied, onClose, className, style, menuRef, autoFocus, onLeave, search }: MenuListProps) {
   const controls = useCommandControls();
@@ -170,12 +198,13 @@ export function MenuList({ entries: supplied, onClose, className, style, menuRef
   const field = useRef<HTMLInputElement>(null);
   const fallback = useRef<HTMLDivElement>(null);
   const list = menuRef ?? fallback;
-  const usable = usableIndexes(entries);
+  const usable = itemIndexes(entries);
   const checkable = entries.some((entry) => entry !== "separator" && entry.checked !== undefined);
   const isSubmenu = Boolean(onLeave);
   const placement = useSubmenuPlacement(isSubmenu, list);
 
-  const first = usable[0];
+  /** The first item that can be chosen, which Enter in the field takes and a keyboard-opened list starts on. */
+  const first = usable.find((index) => !(entries[index] as MenuItem).disabled);
   /** A top-level list takes focus without highlighting a row; a keyboard-opened nested list selects its first row. */
   useEffect(() => {
     if (search) return;
@@ -210,7 +239,7 @@ export function MenuList({ entries: supplied, onClose, className, style, menuRef
     intent.schedule(() => {
       if (!entry.disabled && (entry.items?.length || entry.panel)) openSubmenu(index, false);
       else setSub(null);
-      if (!entry.disabled) button.focus();
+      button.focus();
     }, Boolean(sub && sub.index !== index));
   }
 
@@ -229,7 +258,7 @@ export function MenuList({ entries: supplied, onClose, className, style, menuRef
       event.preventDefault();
       event.stopPropagation();
       move(event.key === "ArrowDown" ? 1 : -1);
-    } else if (event.key === "ArrowRight" && entry && entry !== "separator" && (entry.items?.length || entry.panel)) {
+    } else if (event.key === "ArrowRight" && entry && entry !== "separator" && !entry.disabled && (entry.items?.length || entry.panel)) {
       event.preventDefault();
       event.stopPropagation();
       openSubmenu(focused, true);
@@ -252,21 +281,7 @@ export function MenuList({ entries: supplied, onClose, className, style, menuRef
       /** The pointer reached the open submenu, so the sibling it crossed on the way does not take over. */
       onMouseOver={(event) => { if ((event.target as Element).closest(".menu-popover") !== list.current) intent.cancel(); }}
     >
-      {search && <div className="menu-search">
-        <input
-          ref={field}
-          type="search"
-          value={search.value}
-          placeholder={search.label}
-          aria-label={search.label}
-          onInput={(event) => search.onChange(event.currentTarget.value)}
-          onKeyDown={(event) => {
-            if (event.key !== "Enter" || first === undefined) return;
-            event.preventDefault();
-            buttons.current[first]?.click();
-          }}
-        />
-      </div>}
+      {search && <MenuSearch search={search} field={field} onSubmit={() => { if (first !== undefined) buttons.current[first]?.click(); }} />}
       {search && !usable.length && <p className="menu-empty">No matches</p>}
       {entries.map((entry, index) => {
         if (entry === "separator") return <div key={`separator-${index}`} className="menu-separator" role="separator" />;
@@ -282,10 +297,12 @@ export function MenuList({ entries: supplied, onClose, className, style, menuRef
               aria-expanded={nested ? sub?.index === index : undefined}
               className={[entry.danger ? "danger-menu-item" : "", entry.className].filter(Boolean).join(" ") || undefined}
               data-tip={entry.title}
-              disabled={entry.disabled}
+              aria-disabled={entry.disabled || undefined}
+              data-default={search && index === first ? "" : undefined}
               /** The pointer highlights what it is over, which is the same highlight the keyboard moves. */
               onMouseEnter={(event) => hover(index, event.currentTarget)}
               onClick={() => {
+                if (entry.disabled) return;
                 if (nested) return openSubmenu(index, true);
                 onClose();
                 if (entry.onSelect) entry.onSelect();

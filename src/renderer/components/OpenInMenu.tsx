@@ -59,8 +59,7 @@ export function OpenInMenu({ openMenu, onSetOpenMenu, blocked, apps, onListApps,
         aria-label="Open this folder in another application"
         aria-haspopup="menu"
         aria-expanded={open}
-        disabled={blocked !== null}
-        data-tip={blocked ?? "Open in…"}
+        data-tip="Open in…"
         onClick={() => onSetOpenMenu(open ? null : OPEN_IN_MENU)}
       >
         <ExternalLink size={18} aria-hidden="true" />
@@ -73,9 +72,10 @@ export function OpenInMenu({ openMenu, onSetOpenMenu, blocked, apps, onListApps,
             rows[event.key === "Home" ? 0 : rows.length - 1]!.focus();
           } else if (!typeahead(event, rows)) moveListFocus(event);
         }}>
-          {!apps && <p className="open-in-empty">Looking for applications…</p>}
-          {apps && groups.length === 0 && <p className="open-in-empty">No application found</p>}
-          {groups.map((group) => (
+          {blocked && <p className="open-in-empty" role="status">{blocked}</p>}
+          {!blocked && !apps && <p className="open-in-empty" role="status">Looking for applications…</p>}
+          {!blocked && apps && groups.length === 0 && <p className="open-in-empty">No application found</p>}
+          {!blocked && groups.map((group) => (
             <Fragment key={group.kind}>
               <p className="open-in-group">{group.label}</p>
               {group.apps.map((app) => {

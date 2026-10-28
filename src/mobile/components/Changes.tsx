@@ -24,6 +24,14 @@ function summaryNote(summary: Summary): string | null {
   }
 }
 
+const STATUS_NAMES: Record<DiffFileSummary["status"], string> = {
+  added: "Added",
+  untracked: "Added",
+  deleted: "Deleted",
+  renamed: "Renamed",
+  modified: "Modified",
+};
+
 function StatusIcon({ status }: { status: DiffFileSummary["status"] }) {
   if (status === "added" || status === "untracked") return <FilePlus2 size={16} />;
   if (status === "deleted") return <FileMinus2 size={16} />;
@@ -47,10 +55,17 @@ function Line({ row, tokens }: { row: DiffRow; tokens: ThemedToken[] | undefined
   );
 }
 
-function PatchBody({ patch }: { patch: Patch }) {
+function PatchBody({ patch, onRetry }: { patch: Patch; onRetry: () => void }) {
   const [whole, setWhole] = useState(false);
   if (patch.status === "reading") return <p className="diff-note">Reading the file…</p>;
-  if (patch.status === "error") return <p className="diff-note">{patch.message}</p>;
+  if (patch.status === "error") {
+    return (
+      <div className="diff-note diff-error" role="status">
+        <p>{patch.message}</p>
+        <button type="button" className="changes-retry" onClick={onRetry}>Try again</button>
+      </div>
+    );
+  }
   if (patch.status === "too-large") return <p className="diff-note">This file's patch is too large to read here.</p>;
   const rows = whole ? patch.rows : patch.rows.slice(0, ROW_CAP);
   const hidden = patch.rows.length - rows.length;
@@ -67,19 +82,19 @@ function PatchBody({ patch }: { patch: Patch }) {
   );
 }
 
-function FileCard({ file, open, patch, onToggle }: { file: DiffFileSummary; open: boolean; patch: Patch | undefined; onToggle: () => void }) {
+function FileCard({ file, open, patch, onToggle, onRetry }: { file: DiffFileSummary; open: boolean; patch: Patch | undefined; onToggle: () => void; onRetry: () => void }) {
   const { folder, name } = splitPath(file.path);
   return (
     <section className="diff-file" data-open={open || undefined}>
       <button type="button" className="diff-file-row" aria-expanded={open} onClick={onToggle}>
         <span className="diff-file-caret" aria-hidden="true">{open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>
         <span className="diff-file-icon" data-status={file.status} aria-hidden="true"><StatusIcon status={file.status} /></span>
-        <span className="diff-file-name"><em>{folder}</em>{name}</span>
+        <span className="diff-file-name"><em>{folder}</em>{name}<span className="sr-only">, {STATUS_NAMES[file.status]}</span></span>
         {file.binary
           ? <span className="diff-file-binary">binary</span>
           : <span className="change-counts"><strong>+{file.additions}</strong><em>−{file.deletions}</em></span>}
       </button>
-      {open && (file.binary ? <p className="diff-note">Binary file</p> : patch && <PatchBody patch={patch} />)}
+      {open && (file.binary ? <p className="diff-note">Binary file</p> : patch && <PatchBody patch={patch} onRetry={onRetry} />)}
     </section>
   );
 }
@@ -100,6 +115,8 @@ export function Changes({ thread, live, query }: {
   const [summary, setSummary] = useState<Summary>({ status: "reading" });
   const [patches, setPatches] = useState<Map<string, Patch>>(new Map());
   const [open, setOpen] = useState<Set<string>>(new Set());
+  /** Bumped to ask again for a file whose read was refused. */
+  const [patchTries, setPatchTries] = useState(0);
   const range: DiffRange = mode === "branch" ? thread.branchRange : UNCOMMITTED;
   const key = rangeKey(range);
   const taskId = thread.id;
@@ -155,7 +172,7 @@ export function Changes({ thread, live, query }: {
       );
     }
     /** Keyed by what the comparison reduces to, not by the fresh range object. */
-  }, [summary, files, open, patchKey, query, taskId, key]);
+  }, [summary, files, open, patchKey, query, taskId, key, patchTries]);
 
   function toggle(path: string) {
     setOpen((current) => {
@@ -197,7 +214,7 @@ export function Changes({ thread, live, query }: {
         </div>
       )}
       <div className="changes-files">
-        {files.map((file) => <FileCard key={file.path} file={file} open={open.has(file.path)} patch={patches.get(patchKey(file))} onToggle={() => toggle(file.path)} />)}
+        {files.map((file) => <FileCard key={file.path} file={file} open={open.has(file.path)} patch={patches.get(patchKey(file))} onToggle={() => toggle(file.path)} onRetry={() => setPatchTries((count) => count + 1)} />)}
       </div>
     </div>
   );

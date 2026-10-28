@@ -1,5 +1,5 @@
 import { LuCheck as Check, LuSquarePen as SquarePen, LuZap as Zap } from "react-icons/lu";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useState, type KeyboardEvent } from "react";
 import type { MobileThreadSettings } from "../../contracts/mobile";
 import { Sheet } from "./Sheet";
 import { AGENT_ENGINES, capabilitiesFor, byEngine, byModel, effortForModel, effortsFor, engineLabel, modelsFor, type AgentEngine, type AgentModel, type EffortSpec } from "../../domain/agent-engine";
@@ -17,42 +17,68 @@ const coordinatorEffortsOf = byModel((model) => effortChoices(effortsFor(model.i
 /** One model list headed by engine, so choosing a model is how an engine is chosen. */
 const modelGroups = AGENT_ENGINES.map((engine) => ({ engine, label: engineLabel(engine), choices: modelsOf[engine] }));
 
-function OptionButton<T extends string>({ choice, selected, onSelect }: { choice: Choice<T>; selected: boolean; onSelect: () => void }) {
+/** A group's one Tab stop is its chosen option, or its first when none is; the arrow keys move the choice, as the list switch's do. */
+function OptionButton<T extends string>({ choice, selected, stop, onSelect }: { choice: Choice<T>; selected: boolean; stop: boolean; onSelect: () => void }) {
   return (
-    <button type="button" role="radio" aria-checked={selected} className="sheet-option" onClick={onSelect}>
+    <button type="button" role="radio" aria-checked={selected} tabIndex={stop ? 0 : -1} className="sheet-option" onClick={onSelect}>
       <span><strong>{choice.label}</strong>{choice.description && <small>{choice.description}</small>}</span>
-      <span className="sheet-check" aria-hidden="true">{selected && <Check size={16} />}</span>
+      <span className="sheet-check" aria-hidden="true">{selected && <Check size={16} strokeWidth={2.6} />}</span>
     </button>
   );
 }
 
+function moveChoice(event: KeyboardEvent<HTMLElement>) {
+  const step = event.key === "ArrowDown" || event.key === "ArrowRight" ? 1 : event.key === "ArrowUp" || event.key === "ArrowLeft" ? -1 : 0;
+  if (!step) return;
+  const radios = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')];
+  const at = radios.indexOf(event.target as HTMLButtonElement);
+  if (at < 0) return;
+  event.preventDefault();
+  const next = radios[(at + step + radios.length) % radios.length]!;
+  next.focus();
+  next.click();
+}
+
 function Group<T extends string>({ heading, choices, value, onChange }: { heading: string; choices: readonly Choice<T>[]; value: T; onChange: (value: T) => void }) {
+  const known = choices.some((choice) => choice.value === value);
   return (
-    <section className="sheet-group" role="radiogroup" aria-label={heading}>
+    <section className="sheet-group" role="radiogroup" aria-label={heading} onKeyDown={moveChoice}>
       <h3>{heading}</h3>
-      {choices.map((choice) => <OptionButton key={choice.value} choice={choice} selected={choice.value === value} onSelect={() => onChange(choice.value)} />)}
+      {choices.map((choice, index) => <OptionButton key={choice.value} choice={choice} selected={choice.value === value} stop={known ? choice.value === value : index === 0} onSelect={() => onChange(choice.value)} />)}
     </section>
   );
 }
 
 /** A thread that already has an engine offers only that engine's models; the others start a thread on theirs. */
 function ModelGroup({ engine, model, locked, onModel, onNewWith }: { engine: AgentEngine; model: AgentModel; locked: boolean; onModel: (engine: AgentEngine, model: AgentModel) => void; onNewWith?: (engine: AgentEngine) => void }) {
+  const shown = modelGroups.filter((group) => !locked || group.engine === engine);
+  const known = shown.some((group) => group.engine === engine && group.choices.some((choice) => choice.value === model));
+  const others = locked && onNewWith ? modelGroups.filter((group) => group.engine !== engine) : [];
   return (
-    <section className="sheet-group" role="radiogroup" aria-label="Model">
-      <h3>Model</h3>
-      {modelGroups.filter((group) => !locked || group.engine === engine).map((group) => (
-        <Fragment key={group.engine}>
-          <h4 className="sheet-subheading">{group.label}</h4>
-          {group.choices.map((choice) => <OptionButton key={choice.value} choice={choice} selected={group.engine === engine && choice.value === model} onSelect={() => onModel(group.engine, choice.value)} />)}
-        </Fragment>
-      ))}
-      {locked && onNewWith && modelGroups.filter((group) => group.engine !== engine).map((group) => (
-        <button key={group.engine} type="button" className="sheet-option sheet-new-engine" onClick={() => onNewWith(group.engine)}>
-          <span><strong>New thread with {group.label}</strong></span>
-          <SquarePen size={16} strokeWidth={1.8} aria-hidden="true" />
-        </button>
-      ))}
-    </section>
+    <>
+      <section className="sheet-group" role="radiogroup" aria-label="Model" onKeyDown={moveChoice}>
+        <h3>Model</h3>
+        {shown.map((group, groupIndex) => (
+          <Fragment key={group.engine}>
+            <h4 className="sheet-subheading">{group.label}</h4>
+            {group.choices.map((choice, index) => {
+              const selected = group.engine === engine && choice.value === model;
+              return <OptionButton key={choice.value} choice={choice} selected={selected} stop={known ? selected : groupIndex === 0 && index === 0} onSelect={() => onModel(group.engine, choice.value)} />;
+            })}
+          </Fragment>
+        ))}
+      </section>
+      {others.length > 0 && (
+        <div className="menu-group sheet-actions">
+          {others.map((group) => (
+            <button key={group.engine} type="button" className="menu-row sheet-new-engine" onClick={() => onNewWith!(group.engine)}>
+              <span className="menu-glyph" aria-hidden="true"><SquarePen size={18} strokeWidth={1.8} /></span>
+              <span className="menu-copy"><strong>New thread with {group.label}</strong></span>
+            </button>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 

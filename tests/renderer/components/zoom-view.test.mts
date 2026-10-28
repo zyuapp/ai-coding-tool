@@ -56,3 +56,38 @@ test("zoom fits the content, bounds buttons and pinches, and leaves ordinary scr
   await act(async () => { level().click(); });
   assert.equal(readout(), 50, "the readout fits the view again");
 });
+
+test("+, − and 0 zoom the open viewer, but not while the keyboard is elsewhere or typing", async (t) => {
+  const outside = document.createElement("button");
+  document.body.append(outside);
+  const field = document.createElement("input");
+  const view = await mount(React.createElement(Viewer));
+  t.onTestFinished(async () => { await view.unmount(); outside.remove(); });
+  const stage = query(view.container, ".stage");
+  Object.defineProperties(stage, { clientWidth: { value: 400 }, clientHeight: { value: 200 } });
+  await act(async () => { fireResizeObservers(); });
+  stage.append(field);
+  const readout = () => Number.parseInt(query(view.container, ".viewer-zoom-level").textContent, 10);
+  const press = async (target: EventTarget, key: string) => {
+    const event = new dom.window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+    await act(async () => { target.dispatchEvent(event); });
+    return event.defaultPrevented;
+  };
+
+  assert.equal(readout(), 50);
+  assert.equal(await press(document.body, "+"), true);
+  assert.ok(readout() > 50, "+ with nothing focused zooms in");
+  const zoomed = readout();
+  assert.equal(await press(query(view.container, '[aria-label="Zoom in"]'), "="), true);
+  assert.ok(readout() > zoomed, "= inside the viewer zooms in too");
+  const before = readout();
+  assert.equal(await press(document.body, "-"), true);
+  assert.ok(readout() < before, "- zooms out");
+  assert.equal(await press(document.body, "0"), true);
+  assert.equal(readout(), 50, "0 fits the view again");
+
+  assert.equal(await press(outside, "+"), false, "a key pressed on a control outside the viewer is left to it");
+  assert.equal(readout(), 50);
+  assert.equal(await press(field, "+"), false, "a key typed into a field stays text");
+  assert.equal(readout(), 50);
+});

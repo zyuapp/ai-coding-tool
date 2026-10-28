@@ -116,7 +116,9 @@ test("folders sit under the computer that holds them, this computer's first, and
     assert.deepEqual(groups.map((group) => group.getAttribute("aria-label")), ["My Mac", "linux-box", "old-laptop"]);
     assert.deepEqual(groups.map((group) => query(group, ".computer-heading .host-mark").textContent), ["My Mac", "linux-box", "old-laptop"]);
     assert.deepEqual(groups.map((group) => query(group, ".computer-heading .host-mark").classList.contains("offline")), [false, false, true]);
-    assert.equal(query(groups[2]!, ".host-mark").title, "old-laptop is offline");
+    assert.equal(query(groups[2]!, ".host-mark").dataset.tip, "old-laptop · Offline");
+    assert.equal(query(groups[2]!, ".host-mark > svg").getAttribute("aria-label"), "Offline");
+    assert.equal(query(groups[0]!, ".host-mark").dataset.tip, undefined);
     assert.deepEqual(groups.map((group) => [...group.querySelectorAll(".project-main")].map((button) => button.textContent)), [
       ["Local app"], ["A long remote project name", "Other"], ["Offline app"],
     ], "a row carries the folder name alone");
@@ -280,7 +282,7 @@ test("a sidebar with no paired computer draws no computer button", async () => {
   const view = await mount(renderProjectSidebar({}));
   try {
     assert.equal(view.container.querySelector(".computer-switch") === null, true);
-    assert.equal(query(view.container, ".traffic-space").nextElementSibling, query(view.container, ".new-task-button"));
+    assert.equal(query(view.container, ".traffic-space").nextElementSibling, query(view.container, ".new-task-bar"));
   } finally {
     await view.unmount();
   }
@@ -385,10 +387,11 @@ test("a paired computer's thread offers to move under only that computer's coord
   assert.equal((await offered(new Map([[null, [here]], ["linux", [task("linux-lead", { role: "coordinator", title: "Lead there" })]]]))).some((label) => label.startsWith("Move under")), true);
 });
 
-test("an empty device offers adding a project, while an offline device shows its link error and dims the button", async () => {
+test("an empty device offers adding a project, while an offline device shows its link error and offers every computer instead", async () => {
   let added = 0;
+  const filters: string[] = [];
   const link = { id: "linux", name: "zyuapp", host: "linux", pairedAt: 1, status: "connected" as const, error: null };
-  const props = { computerLinks: [link], computerFilter: "linux", onOpenFolder: () => { added += 1; } };
+  const props = { computerLinks: [link], computerFilter: "linux", onOpenFolder: () => { added += 1; }, onSetComputerFilter: (filter: string) => { filters.push(filter); } };
   const view = await mount(renderProjectSidebar(props));
   try {
     assert.equal(query(view.container, ".sidebar-project-empty p").textContent, "zyuapp has no projects yet");
@@ -397,6 +400,10 @@ test("an empty device offers adding a project, while an offline device shows its
     await view.render(renderProjectSidebar({ ...props, computerLinks: [{ ...link, status: "offline", error: "Connection refused" }] }));
     assert.equal(query(view.container, ".sidebar-project-empty [role='alert']").textContent, "zyuapp is offline. Connection refused");
     assert.ok(query(view.container, ".computer-switch-trigger").classList.contains("offline"));
-    assert.equal(view.container.querySelector(".sidebar-project-empty button") === null, true);
+    const showAll = query<HTMLButtonElement>(view.container, ".sidebar-project-empty button");
+    assert.equal(showAll.textContent, "Show all computers");
+    await act(async () => showAll.click());
+    assert.deepEqual(filters, ["all"]);
+    assert.equal(added, 1);
   } finally { await view.unmount(); }
 });

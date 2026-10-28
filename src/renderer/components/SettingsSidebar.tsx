@@ -21,6 +21,13 @@ const PAGE_ICONS: Record<SettingsSection, IconType> = {
 
 const resultId = (option: SettingsJumpOption) => `settings-search-${option.id}`;
 
+/** A result's title with the part the query typed in bold, where the title contains it. */
+function Matched({ title, term }: { title: string; term: string }) {
+  const at = term ? title.toLowerCase().indexOf(term) : -1;
+  if (at === -1) return <span>{title}</span>;
+  return <span>{title.slice(0, at)}<mark>{title.slice(at, at + term.length)}</mark>{title.slice(at + term.length)}</span>;
+}
+
 export type SettingsSidebarProps = {
   section: SettingsSection;
   /** The search field, which takes the focus when settings opens. */
@@ -114,7 +121,7 @@ export function SettingsSidebar({ section, searchRef, onClose, onLand, onRefresh
                   onClick={() => choose(option)}
                 >
                   <Icon size={18} aria-hidden="true" />
-                  <span>{option.title}</span>
+                  <Matched title={option.title} term={query.trim().toLowerCase()} />
                   {option.page && <small>{option.page}</small>}
                 </button>
               );

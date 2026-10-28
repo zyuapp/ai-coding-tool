@@ -106,6 +106,7 @@ export type SettingsPanelProps = {
   onRefreshWorktrees: () => void;
   onWorktreeCommand: (command: WorktreeCommand) => void;
   onClearBrowserData: () => void;
+  onForgetOrigin?: (origin: string) => void;
   browserImport?: BrowserImportSettings;
   onCaptureShortcut: (action: string | null) => void;
   onSetShortcut: (action: string, binding: string | null) => void;
@@ -171,6 +172,7 @@ export function SettingsPanel({
   onRefreshWorktrees,
   onWorktreeCommand,
   onClearBrowserData,
+  onForgetOrigin,
   browserImport = NO_BROWSER_IMPORT_SETTINGS,
   onCaptureShortcut,
   onSetShortcut,
@@ -244,7 +246,7 @@ export function SettingsPanel({
       {section === "shortcuts" && <ShortcutSettings shortcuts={shortcuts} capturingShortcut={capturingShortcut} desktopShortcutUnavailable={desktopShortcutUnavailable} onCaptureShortcut={onCaptureShortcut} onSetShortcut={onSetShortcut} onResetShortcuts={onResetShortcuts} />}
 
       {section === "browser" && <BrowserSettings browserTools={browserTools} allowedOrigins={allowedOrigins}
-        onSetBrowserTools={onSetBrowserTools} onClearBrowserData={onClearBrowserData} browserImport={browserImport} />}
+        onSetBrowserTools={onSetBrowserTools} onClearBrowserData={onClearBrowserData} onForgetOrigin={onForgetOrigin} browserImport={browserImport} />}
 
       {section === "phone" && (
         <MobileSettings

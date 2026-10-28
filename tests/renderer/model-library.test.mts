@@ -67,7 +67,8 @@ test("the Codex speed toggle follows effort and dispatches both speed changes", 
   assert.equal(toggle.parentElement?.lastElementChild, toggle);
   assert.ok(toggle.previousElementSibling?.querySelector('summary[aria-label^="Model and effort: Sol, "]'));
   assert.equal(toggle.getAttribute("aria-pressed"), "false");
-  assert.match(toggle.title, /use more of your plan/);
+  assert.match(toggle.dataset.tip ?? "", /use more of your plan/);
+  assert.equal(toggle.title, "");
   await act(async () => { toggle.click(); });
   assert.deepEqual(selected, [true]);
   assert.equal(toggle.textContent, "");

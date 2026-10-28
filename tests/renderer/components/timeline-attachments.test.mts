@@ -9,7 +9,7 @@ test("a timeline thumbnail and its viewer both address the thread that holds the
   const opened: string[] = [];
   const view = await mount(React.createElement(MessageArtifactScope.Provider, { value: { root: "/linux", taskId: "remote-thread" } },
     React.createElement(TimelineRow, {
-      engine: "claude", index: 0, offset: 0, measure: () => {},
+      engine: "claude", index: 0, offset: 0, newest: false, measure: () => {},
       group: { kind: "message", id: "message", message: { id: "message", kind: "user", text: "Look here", at: 1, attachments: ["/linux/attachments/shot.png"] } },
       onViewAttachment: (source) => opened.push(source),
     }),

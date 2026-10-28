@@ -11,7 +11,8 @@
 .worktree-refresh, .worktree-row-actions button, .worktree-delete-actions button { padding: 7px 13px; border: 1px solid var(--line-strong); border-radius: 7px; color: var(--ink-dim); background: transparent; font-size: var(--text-meta); font-weight: 550; white-space: nowrap; cursor: pointer; }
 .worktree-refresh:hover:not(:disabled), .worktree-row-actions button:hover:not([aria-disabled="true"]), .worktree-delete-actions button:hover:not(:disabled) { background: var(--wash); border-color: var(--line-bright); }
 .worktree-refresh { display: inline-flex; align-items: center; gap: 7px; }
-.worktree-settings button:is(:disabled, [aria-disabled="true"]), .worktree-delete-actions button:disabled { opacity: .5; cursor: default; }
+.worktree-settings button:is(:disabled, [aria-disabled="true"]):not([aria-busy="true"]), .worktree-delete-actions button:disabled:not([aria-busy="true"]) { opacity: .5; cursor: default; }
+.worktree-settings button[aria-busy="true"]:disabled, .worktree-delete-actions button[aria-busy="true"]:disabled { opacity: 1; color: var(--muted); cursor: default; }
 .worktree-setting-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 13px; padding: 23px 0; border-bottom: 1px solid var(--line-soft); }
 .worktree-setting-icon { display: grid; place-items: center; width: 28px; height: 28px; margin-top: 2px; border: 1px solid var(--info-line); border-radius: 8px; color: var(--info-soft); background: var(--info-surface-soft); }
 .worktree-setting-copy { min-width: 0; }
@@ -25,8 +26,7 @@
 .worktree-status-warning { color: var(--accent-soft); }
 .worktree-metadata svg { flex-shrink: 0; }
 .worktree-row-actions { display: flex; align-items: flex-start; justify-content: flex-end; gap: 8px; padding-top: 2px; margin-left: 15px; }
-.worktree-row-actions .worktree-delete { color: var(--danger-soft); }
-.worktree-row-actions .worktree-delete:hover:not([aria-disabled="true"]) { border-color: var(--danger-line-hover); background: var(--danger-surface); }
+.worktree-row-actions .worktree-delete:is(:hover, :focus-visible):not([aria-disabled="true"]) { border-color: var(--danger-line-hover); background: var(--danger-surface); color: var(--danger-soft); }
 .worktree-row-actions > span { padding: 7px 0; font-size: var(--text-meta); }
 .worktree-threads, .worktree-no-threads { margin: 6px 0 0; color: var(--muted); font-size: var(--text-meta); }
 .worktree-thread-link { display: inline-flex; align-items: center; gap: 6px; width: fit-content; max-width: 100%; min-height: 26px; margin-inline: -6px; padding: 3px 6px; border: 0; border-radius: 6px; background: transparent; color: var(--link); font-size: var(--text-meta); text-align: left; cursor: pointer; }

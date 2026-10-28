@@ -1,3 +1,4 @@
+import { LuCircleAlert as CircleAlert } from "react-icons/lu";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { renderMessage, themeMessage, VISUAL_FRAME_URL, visualFrameMessage, type VisualTheme } from "../../domain/visual-frame";
 
@@ -69,6 +70,8 @@ export function VisualBlock({ source, pending = false }: { source: string; pendi
   const [visible, setVisible] = useState(false);
   const [height, setHeight] = useState(() => heights.get(source));
   const [error, setError] = useState<string | null>(null);
+  /** Each try draws into a fresh frame, so a visual that failed starts again from nothing. */
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     const element = host.current;
@@ -118,13 +121,20 @@ export function VisualBlock({ source, pending = false }: { source: string; pendi
     if (!drawing) return;
     const timer = setTimeout(() => setError((shown) => shown ?? "The visual did not finish drawing."), VISUAL_TIMEOUT_MS);
     return () => clearTimeout(timer);
-  }, [drawing, source]);
+  }, [drawing, source, attempt]);
+
+  const retry = () => {
+    heights.delete(source);
+    setHeight(undefined);
+    setError(null);
+    setAttempt((count) => count + 1);
+  };
 
   return (
     <div className="visual-block" ref={host} style={height === undefined ? undefined : { "--visual-height": `${height}px` } as CSSProperties}>
       {live
         ? <iframe
-            key={source}
+            key={`${attempt}:${source}`}
             ref={frame}
             className="visual-frame"
             title="Visual"
@@ -133,9 +143,14 @@ export function VisualBlock({ source, pending = false }: { source: string; pendi
             data-ready={height === undefined ? undefined : ""}
             onLoad={draw}
           />
-        : <span className="visual-loading">{pending ? "Drawing visual…" : null}</span>}
-      {drawing && <span className="visual-loading visual-loading-over">Drawing visual…</span>}
-      {error ? <details className="visual-error"><summary>The visual hit an error</summary><pre><code>{error}</code></pre></details> : null}
+        : <span className="visual-loading">{pending ? <span className="text-sweep">Drawing visual…</span> : null}</span>}
+      {drawing && <span className="visual-loading visual-loading-over"><span className="text-sweep">Drawing visual…</span></span>}
+      {error ? (
+        <div className="visual-error" role="alert">
+          <details><summary><CircleAlert className="notice-icon" aria-hidden="true" />The visual hit an error</summary><pre><code>{error}</code></pre></details>
+          <button type="button" className="limit-action" onClick={retry}>Try again</button>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ConfirmAction } from "./SettingRow";
+import { shortcutTip } from "./TooltipLayer";
 import { LuArrowLeft as ArrowLeft, LuBoxes as Boxes, LuCircleCheckBig as CheckCircle2, LuCircleDot as CircleDot, LuCircleX as XCircle, LuClock as Clock, LuSquare as Square, LuTriangleAlert as AlertTriangle } from "react-icons/lu";
 import {
   agentStateIn,
@@ -132,7 +132,7 @@ function AgentInspector({ workflow, agent, now, onBack }: { workflow: Workflow; 
       event.stopPropagation();
       onBack();
     }}>
-      <button className="session-back" type="button" autoFocus data-tip="Back (Esc)" onClick={onBack}><ArrowLeft size={16} />{workflow.name}</button>
+      <button className="session-back" type="button" autoFocus data-tip={shortcutTip("Back", "Escape")} onClick={onBack}><ArrowLeft size={16} />{workflow.name}</button>
       <div className="workflow-inspect-body">
         <div className="workflow-inspect-heading">
           <span className={`agent-orb ${state}`}><AgentIcon state={state} /></span>
@@ -187,11 +187,7 @@ export function WorkflowPanel({ workflow, onStop }: { workflow: Workflow; onStop
           <span className={`agent-orb ${live ? "" : workflow.status === "completed" ? "done" : "error"}`}><Boxes size={16} /></span>
           <h2>{workflow.name}</h2>
           {live && (
-            <span className="workflow-stop-group">
-              {workflow.stopping
-                ? <button className="workflow-stop" type="button" disabled>Stopping</button>
-                : <ConfirmAction className="workflow-stop" confirm="Stop workflow" onConfirm={() => onStop(workflow.id)}>Stop</ConfirmAction>}
-            </span>
+            <button className="workflow-stop" type="button" disabled={workflow.stopping} onClick={() => onStop(workflow.id)}>{workflow.stopping ? "Stopping" : "Stop"}</button>
           )}
         </div>
         <p className="workflow-head-sub">

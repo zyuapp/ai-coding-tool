@@ -4,6 +4,7 @@ import type { WorktreeSettingsPage, WorktreeSettingsView } from "../../applicati
 import type { WorktreeCommand } from "../../contracts/commands";
 import { WorktreeDeleteDialog } from "./WorktreeDeleteDialog";
 import { SpinningIcon } from "./SpinningIcon";
+import { CopyButton } from "./CopyButton";
 
 type Dispatch = (command: WorktreeCommand) => void;
 
@@ -32,7 +33,7 @@ function WorktreeStatus({ worktree }: { worktree: WorktreeSettingsView }) {
     <span className={changedFiles === 0 ? "worktree-status-clean" : "worktree-status-warning"}>
       {changedFiles === 0 ? <Check size={14} aria-hidden="true" /> : <CirclePlus size={14} aria-hidden="true" />}{changes}
     </span>
-    <span title="Compared with local Git refs. Refresh after fetching to update the comparison.">{commits}</span>
+    <span data-tip="Compared with local Git refs. Refresh after fetching to update the comparison.">{commits}</span>
   </>;
 }
 
@@ -58,7 +59,8 @@ function WorktreeRow({ worktree, expanded, dispatch }: { worktree: WorktreeSetti
   return <article className={`worktree-setting-row${worktree.available ? "" : " missing"}`} aria-label={worktree.title}>
     <span className="worktree-setting-icon" aria-hidden="true"><FolderGit2 size={16} /></span>
     <div className="worktree-setting-copy">
-      <div className="worktree-title"><h4 title={worktree.root}>{worktree.title}</h4>{worktree.busy && <span className="worktree-busy">Run active</span>}</div>
+      <div className="worktree-title"><h4>{worktree.title}</h4>{worktree.busy && <span className="worktree-busy">Run active</span>}</div>
+      <div className="worktree-path"><code>{worktree.root}</code><CopyButton text={worktree.root} label="Copy path" /></div>
       <div className="worktree-metadata"><span>{worktree.project}</span><WorktreeStatus worktree={worktree} /></div>
       <WorktreeThreads worktree={worktree} expanded={expanded} dispatch={dispatch} />
     </div>

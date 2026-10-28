@@ -36,7 +36,7 @@ export function ComputerUseSettings({ computerUse, onSetComputerUse, access: { p
             <h3 id="runtime-heading">Platform setup</h3>
             <p>Checking what this computer can use…</p>
           </div>
-          <span>Checking…</span>
+          <span className="neutral">Checking…</span>
         </div>
         {error && <p className="settings-error" role="alert">{error}</p>}
       </section>
@@ -63,12 +63,12 @@ export function ComputerUseSettings({ computerUse, onSetComputerUse, access: { p
 
         <SettingRow id="computer-use.accessibility" status={Boolean(permissions?.accessibility)} description="Allows AI Coding Tool to click, type, and navigate apps.">
           {permissions?.accessibility ? <em className="granted">Done</em> : !permissions && <em>Checking…</em>}
-          {permissions && !permissions.accessibility && <button type="button" disabled={busy !== null} onClick={() => onEnable("accessibility")}>{busy === "accessibility" ? "Opening…" : "Enable Accessibility"}</button>}
+          {permissions && !permissions.accessibility && <button type="button" disabled={busy !== null} aria-busy={busy === "accessibility"} onClick={() => onEnable("accessibility")}>{busy === "accessibility" ? "Opening…" : "Enable Accessibility"}</button>}
         </SettingRow>
 
         <SettingRow id="computer-use.screen-recording" status={Boolean(permissions?.screenRecording)} description="Allows AI Coding Tool to see app windows. System audio is not recorded.">
           {permissions?.screenRecording ? <em className="granted">Done</em> : !permissions && <em>Checking…</em>}
-          {permissions && !permissions.screenRecording && <button type="button" disabled={busy !== null} onClick={() => onEnable("screenRecording")}>{busy === "screenRecording" ? "Opening…" : "Enable Screen Recording"}</button>}
+          {permissions && !permissions.screenRecording && <button type="button" disabled={busy !== null} aria-busy={busy === "screenRecording"} onClick={() => onEnable("screenRecording")}>{busy === "screenRecording" ? "Opening…" : "Enable Screen Recording"}</button>}
         </SettingRow>
 
         {error && <p className="settings-error" role="alert">{error}</p>}
@@ -81,7 +81,7 @@ export function ComputerUseSettings({ computerUse, onSetComputerUse, access: { p
             <h3 id="runtime-heading">Platform setup</h3>
             <p>Computer use is not available on this platform.</p>
           </div>
-          <span>Unavailable</span>
+          <span className="neutral">Unavailable</span>
         </div>
         {error && <p className="settings-error" role="alert">{error}</p>}
       </section>

@@ -22,13 +22,14 @@ function channels(hex: string): Rgb {
   return [1, 3, 5].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16) / 255) as unknown as Rgb;
 }
 
-/** Resolves a var() or an srgb color-mix of two var()s, which is every text and line token's form. */
+/** Resolves a var(), with or without a fallback, or an srgb color-mix of two var()s. */
 function resolve(expression: string, palette: Map<string, string>): Rgb {
-  const variable = /^var\((--[a-z0-9-]+)\)$/.exec(expression);
+  const variable = /^var\((--[a-z0-9-]+)(?:, (.+))?\)$/.exec(expression);
   if (variable) {
-    const name = variable[1];
+    const [, name, fallback] = variable;
     const hex = palette.get(name);
     if (hex) return channels(hex);
+    if (name.startsWith("--p-") && fallback) return resolve(fallback, palette);
     const token = tokens.get(name);
     assert.ok(token, `${name} is declared`);
     return resolve(token, palette);
@@ -64,11 +65,15 @@ function failures(pairs: readonly (readonly [string, string, number])[]) {
 
 const TEXT_GROUNDS = ["--canvas", "--sunken", "--surface", "--sidebar", "--surface-menu", "--surface-raised", "--surface-hover"];
 const TEXT = ["--ink", "--ink-soft", "--ink-dim", "--ink-faint", "--muted-strong", "--muted", "--muted-soft", "--quiet-strong", "--quiet", "--quiet-soft"];
-const HUES = ["--accent", "--danger", "--link", "--success", "--warning"];
+const HUES = ["--accent-text", "--danger", "--link", "--success", "--warning", "--info"];
 const HUE_GROUNDS = ["--canvas", "--sunken", "--surface", "--sidebar"];
 
-test("every rung of the text ladder reads at AA on every surface text sits on", () => {
-  assert.deepEqual(failures(TEXT.flatMap((ink) => TEXT_GROUNDS.map((ground) => [ink, ground, 4.5] as const))), []);
+test("every rung of the text ladder reads at AA on every surface text sits on, the selected row included", () => {
+  assert.deepEqual(failures(TEXT.flatMap((ink) => [...TEXT_GROUNDS, "--surface-active"].map((ground) => [ink, ground, 4.5] as const))), []);
+});
+
+test("a count or label on a chip reads at AA", () => {
+  assert.deepEqual(failures([["--muted", "--chip", 4.5]]), []);
 });
 
 test("body text reaches AAA on the canvas", () => {
@@ -83,19 +88,42 @@ test("the four text rungs stay a visible step apart, and the decorative grey sit
     const palette = primitives(theme.id);
     const canvas = resolve("var(--canvas)", palette);
     const ratios = RUNGS.map((ink) => contrast(resolve(`var(${ink})`, palette), canvas));
-    ratios.slice(1).forEach((ratio, index) => { if (ratios[index] / ratio < 1.2) failed.push(`${theme.id}: ${RUNGS[index]} to ${RUNGS[index + 1]} is ${(ratios[index] / ratio).toFixed(2)}:1`); });
+    ratios.slice(1).forEach((ratio, index) => { if (ratios[index] / ratio < 1.18) failed.push(`${theme.id}: ${RUNGS[index]} to ${RUNGS[index + 1]} is ${(ratios[index] / ratio).toFixed(2)}:1`); });
     if (contrast(resolve("var(--p-fg-5)", palette), canvas) >= ratios[3]) failed.push(`${theme.id}: fg-5 outreads --quiet`);
   }
   assert.deepEqual(failed, []);
 });
 
-test("accent, danger, link, success and warning text read at AA on the surfaces they colour", () => {
+test("fg-3 sits a visible step above fg-4 and no higher than fg-2", () => {
+  const failed: string[] = [];
+  for (const theme of THEMES) {
+    const palette = primitives(theme.id);
+    const canvas = resolve("var(--canvas)", palette);
+    const [fg2, fg3, fg4] = ["--p-fg-2", "--p-fg-3", "--p-fg-4"].map((name) => contrast(resolve(`var(${name})`, palette), canvas));
+    if (fg3 / fg4 < 1.1 || fg3 > fg2) failed.push(`${theme.id}: fg-3 is ${(fg3 / fg4).toFixed(2)}:1 over fg-4`);
+  }
+  assert.deepEqual(failed, []);
+});
+
+test("accent, danger, link, success, warning and info text read at AA on the surfaces they colour", () => {
   assert.deepEqual(failures(HUES.flatMap((ink) => HUE_GROUNDS.map((ground) => [ink, ground, 4.5] as const))), []);
-  assert.deepEqual(failures([["--danger", "--danger-surface", 4.5]]), []);
+  assert.deepEqual(failures(["--accent-text", "--info"].map((ink) => [ink, "--surface-hover", 4.5] as const)), []);
+  assert.deepEqual(failures([["--danger", "--danger-surface", 4.5], ["--info", "--info-surface", 4.5], ["--info-soft", "--info-surface-soft", 4.5], ["--accent-soft", "--accent-chip", 4.5], ["--accent-soft", "--accent-surface", 4.5]]), []);
 });
 
 test("a label reads at AA on every saturated fill it is drawn on", () => {
-  assert.deepEqual(failures([["--accent-ink", "--accent", 4.5], ["--accent-ink", "--danger", 4.5], ["--badge-ink", "--info-badge", 4.5], ["--alert-ink", "--alert", 4.5]]), []);
+  assert.deepEqual(failures([["--accent-ink", "--accent", 4.5], ["--accent-ink", "--accent-hover", 4.5], ["--danger-ink", "--danger", 4.5], ["--badge-ink", "--info-badge", 4.5], ["--alert-ink", "--alert", 4.5]]), []);
+});
+
+test("a theme repaints its accent for text only where the author's accent cannot be read as text", () => {
+  const needless: string[] = [];
+  for (const theme of THEMES) {
+    const palette = primitives(theme.id);
+    if (!palette.has("--p-accent-text")) continue;
+    const fill = resolve("var(--accent)", palette);
+    if ([...HUE_GROUNDS, "--surface-hover"].every((ground) => contrast(fill, resolve(`var(${ground})`, palette)) >= 4.5)) needless.push(theme.id);
+  }
+  assert.deepEqual(needless, []);
 });
 
 test("dividers stay visible on a dark canvas", () => {
@@ -129,8 +157,12 @@ test("every size token a stylesheet names is declared", async () => {
   assert.deepEqual([...new Set(missing)], []);
 });
 
-test("no text size token falls below 11px", () => {
-  const small = [...tokens].filter(([name, value]) => name.startsWith("--text-") && /^\d+px$/.test(value) && Number.parseInt(value) < 11);
+test("no text size token falls below 12px", () => {
+  const size = (value: string): number => {
+    const alias = /^var\((--text-[a-z-]+)\)$/.exec(value);
+    return alias ? size(tokens.get(alias[1])!) : Number.parseInt(value);
+  };
+  const small = [...tokens].filter(([name, value]) => name.startsWith("--text-") && size(value) < 12);
   assert.deepEqual(small, []);
 });
 

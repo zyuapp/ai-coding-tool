@@ -40,14 +40,25 @@ export type DockPanel = {
 };
 
 /** An entry in the picker and the add menu: a panel to open, or an action that creates one. */
-export type DockLauncher = { id: string; title: string; description: string; command: string; icon: IconType; disabled?: boolean; disabledReason?: string; open: () => void };
+export type DockLauncher = {
+  id: string;
+  title: string;
+  description: string;
+  command: string;
+  icon: IconType;
+  disabled?: boolean;
+  /** Why it is off, in full, and the few words a launcher shows in its place. */
+  disabledReason?: string;
+  disabledLabel?: string;
+  open: () => void;
+};
 
 export type DockTab = { id: string; title: string; icon: IconType; badge?: number; badgeLabel?: string; attention?: boolean; pinned?: boolean; unread?: boolean };
 
 /** A launcher, disabled with the reason when its host lacks the command or the workspace lacks what it needs. */
-function launcher(entry: Omit<DockLauncher, "disabled" | "disabledReason">, available: boolean, missing: string | null = null): DockLauncher {
-  const reason = available ? missing : REMOTE_UNSUPPORTED;
-  return reason ? { ...entry, disabled: true, disabledReason: reason } : entry;
+function launcher(entry: Omit<DockLauncher, "disabled" | "disabledReason" | "disabledLabel">, available: boolean, missing: string | null = null): DockLauncher {
+  if (!available) return { ...entry, disabled: true, disabledReason: REMOTE_UNSUPPORTED, disabledLabel: "Not on remote" };
+  return missing ? { ...entry, disabled: true, disabledReason: missing, disabledLabel: missing } : entry;
 }
 
 /** The add menu is an `openMenu` value like any other, so the dock can tell when it is over a page. */

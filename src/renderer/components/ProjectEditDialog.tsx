@@ -16,6 +16,7 @@ export function ProjectEditDialog({ editor, onSave, onClose }: ProjectEditDialog
   const dialog = useRef<HTMLDivElement>(null);
   const [name, setName] = useState(project.name ?? "");
   const [root, setRoot] = useState(project.root);
+  const [pickError, setPickError] = useState<string | null>(null);
   useModalFocus(dialog);
 
   /** Escape closes the editor rather than reaching the window, which would answer it by stopping a run. */
@@ -67,15 +68,21 @@ export function ProjectEditDialog({ editor, onSave, onClose }: ProjectEditDialog
         <label className="project-edit-field">
           <span>Folder</span>
           <div className="project-edit-path">
-            <input value={root} spellCheck={false} readOnly={saving} onChange={(event) => setRoot(event.target.value)} />
+            <input value={root} spellCheck={false} readOnly={saving} onChange={(event) => { setRoot(event.target.value); setPickError(null); }} />
             {/** The picker only fills the field; nothing moves until the folder is saved. */}
-            <button type="button" disabled={saving} onClick={() => void window.desktop.openFolder().then((chosen) => { if (chosen) setRoot(chosen.root); })}>
-              <FolderOpen size={14} aria-hidden="true" />Choose…
+            <button type="button" disabled={saving} onClick={() => {
+              setPickError(null);
+              window.desktop.openFolder().then(
+                (chosen) => { if (chosen) setRoot(chosen.root); },
+                (reason: unknown) => setPickError(reason instanceof Error ? reason.message : "Couldn't open the folder picker."),
+              );
+            }}>
+              <FolderOpen size={14} aria-hidden="true" />Choose folder…
             </button>
           </div>
         </label>
-        {error && <p className="project-edit-error" role="alert">{error}</p>}
-        {!error && checkouts > 0 && trimmedRoot !== project.root && (
+        {(error || pickError) && <p className="project-edit-error" role="alert">{error || pickError}</p>}
+        {!error && !pickError && checkouts > 0 && trimmedRoot !== project.root && (
           <p className="project-edit-note">
             {checkouts === 1 ? "1 worktree stays" : `${checkouts} worktrees stay`} where they are: they are checkouts of the folder this project is leaving.
           </p>

@@ -192,13 +192,16 @@ test("the phone shows the thread the Mac actually has open, and says what went w
 
   receive({ kind: "patch", sequence: 3, patch: { error: "That worktree is busy." } });
   assert.match(document.querySelector(".banner")?.textContent ?? "", /That worktree is busy/);
-  assert.equal(document.querySelector(".banner [role=status]")?.textContent, "That worktree is busy.");
+  assert.equal(document.querySelector(".banner[role=status] .banner-text")?.textContent, "That worktree is busy.");
   assert.ok(document.querySelector('button[aria-label="Thread options"]'), "the thread's options stay in reach while a notice is up");
   assert.equal(document.querySelector(".bar-title h1")?.textContent, "Rewrite the docs", "the title stays while a notice is up");
   assert.equal(document.querySelector(".bar .banner"), null, "the notice sits under the bar, not in it");
 
-  click(".banner");
-  assert.equal(document.querySelector(".banner"), null, "a tap puts the sentence away");
+  click(".banner-text");
+  assert.equal(document.querySelector(".banner")?.getAttribute("data-open"), "true", "a tap on the words opens them to their full length");
+  assert.equal(document.querySelector(".banner-text")?.getAttribute("aria-expanded"), "true");
+  click(".banner-close");
+  assert.equal(document.querySelector(".banner"), null, "the cross puts the sentence away");
   receive({ kind: "patch", sequence: 4, patch: { thread: { kind: "changed", id: "t2", delta: { status: "idle" } } } });
   assert.equal(document.querySelector(".banner"), null, "and it stays away while the Mac says the same thing");
   receive({ kind: "patch", sequence: 5, patch: { error: "The Mac is busy." } });
@@ -323,12 +326,66 @@ test("the list ranks by what wants the user when asked, and a Priority row can b
   assert.match(document.querySelector(".thread-headline")?.textContent ?? "", /Tests are red/);
   assert.match(document.querySelectorAll(".thread-meta")[1]?.textContent ?? "", /^No project · Done/);
   assert.equal(document.querySelectorAll(".thread-dismiss").length, 1, "only a settled row is filed away; a blocked one is answered");
+  const sent = line.sent.length;
   click(".thread-dismiss");
-  assert.deepEqual(lastCommand(line), { type: "task.dismiss", taskId: "t3" });
-  clickButton("Dismiss all");
-  assert.deepEqual(lastCommand(line), { type: "task.dismiss-all" });
+  assert.equal(line.sent.length, sent, "a dismissal waits out its Undo");
+  assert.deepEqual([...document.querySelectorAll(".thread-title")].map((node) => node.textContent), ["Fix the parser", "Rewrite the docs"], "the row leaves Priority at once");
+  assert.match(document.querySelector(".undo-toast")?.textContent ?? "", /Dismissed Nightly check/);
+  clickButton("Undo");
+  assert.equal(line.sent.length, sent, "Undo sends nothing");
+  assert.equal(document.querySelector(".undo-toast"), null);
+  assert.equal(document.querySelectorAll(".thread-dismiss").length, 1, "the row is back");
+  click(".thread-dismiss");
   click(".thread-row .thread-open");
-  assert.deepEqual(lastCommand(line), { type: "task.select", taskId: "t1" });
+  assert.deepEqual(line.sent.slice(-2).map((frame) => frame.kind === "command" ? frame.command : null), [
+    { type: "task.dismiss", taskId: "t3" },
+    { type: "task.select", taskId: "t1" },
+  ], "leaving the list carries the dismissal out first");
+});
+
+test("Dismiss all files Priority away behind one Undo that names how many", () => {
+  vi.useFakeTimers();
+  try {
+    const line = openPhone({ paired: true });
+    const ranked = view();
+    const row = { projectId: "p", projectName: "App", status: "idle", lastActivityAt: 1, unread: true, attention: true, outcome: "finished" } as const;
+    ranked.activity = { priority: [{ ...row, id: "a", title: "One" }, { ...row, id: "b", title: "Two" }], running: [], threads: [], snoozed: [] };
+    live(line, ranked);
+    click('.segmented button[aria-checked="false"]');
+    const sent = line.sent.length;
+    clickButton("Dismiss all");
+    assert.match(document.querySelector(".undo-toast")?.textContent ?? "", /Dismissed 2 threads/);
+    assert.equal(document.querySelectorAll(".thread-row").length, 0);
+    assert.match(document.querySelector(".group-empty")?.textContent ?? "", /Nothing waiting/);
+    assert.equal(line.sent.length, sent);
+    act(() => void vi.advanceTimersByTime(9000));
+    assert.deepEqual(lastCommand(line), { type: "task.dismiss-all" });
+    assert.equal(document.querySelector(".undo-toast"), null);
+    assert.equal(document.querySelectorAll(".thread-row").length, 0, "the rows stay gone until the Mac's list drops them");
+  } finally {
+    vi.useRealTimers();
+    localStorage.removeItem("aicodingtool.mobile.list");
+  }
+});
+
+test("a row that joins Priority while Undo is up is not dismissed with the rows that were seen", () => {
+  vi.useFakeTimers();
+  try {
+    const line = openPhone({ paired: true });
+    const ranked = view();
+    const row = { projectId: "p", projectName: "App", status: "idle", lastActivityAt: 1, unread: true, attention: true, outcome: "finished" } as const;
+    ranked.activity = { priority: [{ ...row, id: "a", title: "One" }], running: [], threads: [], snoozed: [] };
+    live(line, ranked);
+    click('.segmented button[aria-checked="false"]');
+    clickButton("Dismiss all");
+    act(() => line.onmessage?.({ data: JSON.stringify({ kind: "patch", sequence: 2, patch: { activity: { ...ranked.activity, priority: [{ ...row, id: "a", title: "One" }, { ...row, id: "c", title: "Three" }] } } }) }));
+    assert.deepEqual([...document.querySelectorAll(".thread-title")].map((node) => node.textContent), ["Three"]);
+    act(() => void vi.advanceTimersByTime(9000));
+    assert.deepEqual(lastCommand(line), { type: "task.dismiss", taskId: "a" });
+  } finally {
+    vi.useRealTimers();
+    localStorage.removeItem("aicodingtool.mobile.list");
+  }
 });
 
 test("the activity list narrows to one project, remembers it, and dismisses only its rows", () => {
@@ -358,7 +415,8 @@ test("the activity list narrows to one project, remembers it, and dismisses only
   assert.equal(document.querySelector(".list-filter")?.textContent, "Docs");
   assert.deepEqual(titles(), ["Write the guide"]);
   clickButton("Dismiss all");
-  assert.deepEqual(lastCommand(line), { type: "task.dismiss-all", projectId: "q" });
+  click('.bar button[aria-label="New thread"]');
+  assert.deepEqual(frameOf(line, "task.dismiss-all").command, { type: "task.dismiss-all", projectId: "q" });
   localStorage.removeItem("aicodingtool.mobile.activity-project");
   localStorage.removeItem("aicodingtool.mobile.list");
 });
@@ -495,7 +553,7 @@ test("an approval answer says it is on its way, and one the Mac turns down can b
   const { requestId } = frameOf(line, "run.decide");
   act(() => line.onmessage?.({ data: JSON.stringify({ kind: "ack", sequence: 2, requestId, ok: false, message: "The Mac could not take that answer." }) }));
   assert.ok([...document.querySelectorAll<HTMLButtonElement>(".approval-actions button")].every((node) => !node.disabled), "the card is answerable again");
-  assert.equal(document.querySelector(".approval-actions .allow")?.textContent, "Allow");
+  assert.equal(document.querySelector(".approval-actions .allow")?.textContent, "Allow once");
   click(".approval-actions .deny");
   assert.deepEqual(lastCommand(line), { type: "run.decide", taskId: "t1", runId: "r1", approvalId: "a1", allow: false });
   assert.equal(document.querySelector(".approval-actions .deny")?.textContent, "Denying…");
@@ -574,4 +632,41 @@ test("the list's bar starts a thread wherever the Mac is, and a thread's bar has
   click('button[aria-label="Back to threads"]');
   click(".thread-row .thread-open");
   assert.equal(document.querySelector('.bar button[aria-label="New thread"]'), null);
+});
+
+test("an approval opens a short tool input before the answer, and keeps a long one folded", () => {
+  const line = openPhone({ paired: true });
+  live(line);
+  click(".thread-row .thread-open");
+  assert.equal(document.querySelector(".approval details")?.hasAttribute("open"), true, "a short input is read before Allow once");
+  assert.equal(document.querySelector(".approval-actions .allow")?.textContent, "Allow once");
+
+  const long = view();
+  long.thread = { ...long.thread!, approval: { ...long.thread!.approval!, approvalId: "a2", detail: Array.from({ length: 40 }, (_, index) => `line ${index}`).join("\n") } };
+  live(line, long);
+  assert.equal(document.querySelector(".approval details")?.hasAttribute("open"), false);
+});
+
+test("a file whose patch could not be read offers Try again, which reads it again, and names its status to a reader", async () => {
+  const line = openPhone({ paired: true });
+  live(line);
+  click(".thread-row .thread-open");
+  click('button[aria-label="Thread options"]');
+  clickRow("Changes");
+  const summary = queries(line).at(-1)!;
+  await act(async () => line.onmessage?.({ data: JSON.stringify({ kind: "answer", sequence: 2, requestId: summary.requestId, ok: true, result: {
+    status: "available", range: { kind: "uncommitted" }, ignoreWhitespace: true, additions: 1, deletions: 0,
+    files: [{ path: "src/new.ts", status: "added", additions: 1, deletions: 0, binary: false }],
+  } }) }));
+  assert.match(document.querySelector(".diff-file-row")?.textContent ?? "", /new\.ts, Added/);
+  click(".diff-file-row");
+  const first = queries(line).at(-1)!;
+  assert.equal(first.query.kind, "diff-patch");
+  await act(async () => line.onmessage?.({ data: JSON.stringify({ kind: "answer", sequence: 3, requestId: first.requestId, ok: false, message: "The Mac could not read it." }) }));
+  assert.match(document.querySelector(".diff-error")?.textContent ?? "", /could not read it/);
+  const asked = queries(line).length;
+  clickButton("Try again", ".diff-file");
+  assert.equal(queries(line).length, asked + 1);
+  assert.deepEqual(queries(line).at(-1)!.query, first.query);
+  assert.equal(document.querySelector(".diff-error"), null, "the file says it is reading again");
 });

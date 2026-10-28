@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef, type KeyboardEvent } from "react";
 import { SettingGroup } from "./SettingRow";
 import { settingControl } from "../../domain/settings-catalog";
 import { LuCheck as Check, LuRotateCw as Again } from "react-icons/lu";
@@ -36,9 +36,16 @@ function SitePicker({ picker, importing, onToggle, onFilter, onRun, onCancel }: 
   const matching = useMemo(() => (picker.sites ?? []).filter((site) => site.domain.includes(query)), [picker.sites, query]);
   const selected = new Set(picker.selected);
   const count = picker.selected.length;
+  /** Escape empties the search first, then closes the picker. */
+  const escape = (event: KeyboardEvent) => {
+    if (event.key !== "Escape" || importing) return;
+    event.preventDefault();
+    if (picker.filter) onFilter("");
+    else onCancel();
+  };
 
   return (
-    <div className="browser-import-picker">
+    <div className="browser-import-picker" onKeyDown={escape}>
       {picker.sites === null
         ? <p className="browser-import-quiet">Reading sites…</p>
         : picker.sites.length === 0
@@ -73,6 +80,13 @@ function SourceRow({ source, sources, settings }: { source: BrowserImportSource;
   const picking = state.picker?.sourceId === source.id;
   const last = state.last?.sourceId === source.id ? state.last : null;
   const shown = sources.filter((item) => item.browser === source.browser).length > 1;
+  const choose = useRef<HTMLButtonElement>(null);
+  const wasPicking = useRef(picking);
+  useEffect(() => {
+    const active = document.activeElement;
+    if (wasPicking.current && !picking && (!active || active === document.body)) choose.current?.focus();
+    wasPicking.current = picking;
+  }, [picking]);
   return (
     <>
       <div className="setting-row browser-import-source">
@@ -84,7 +98,7 @@ function SourceRow({ source, sources, settings }: { source: BrowserImportSource;
         {!picking && (
           <div className="setting-row-action">
             {last && <button type="button" onClick={settings.onAgain} disabled={state.importing}><SpinningIcon icon={Again} spinning={state.importing} size={12} /> {state.importing ? "Importing…" : "Import again"}</button>}
-            <button type="button" onClick={() => settings.onChoose(source.id)} disabled={state.importing}>Choose sites</button>
+            <button ref={choose} type="button" onClick={() => settings.onChoose(source.id)} disabled={state.importing}>Choose sites</button>
           </div>
         )}
       </div>

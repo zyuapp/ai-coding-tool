@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { LuCheck as Check } from "react-icons/lu";
 import type { MobileProjectGroup } from "../../contracts/mobile";
 import { rankedMatches } from "../../domain/match-rank";
@@ -15,12 +15,13 @@ export function ProjectSheet({ projects, selected, none = "All projects", label 
   onSelect: (projectId: string | null) => void;
 }) {
   const [query, setQuery] = useState("");
+  const field = useRef<HTMLInputElement>(null);
   const searching = query.trim() !== "";
   const choices = [...(searching ? [] : [{ projectId: null, name: none }]), ...rankedMatches(projects, query, (project) => [project.name])];
   return (
     <Sheet title="Project" onClose={onClose}>
       <div className="sheet-search">
-        <input type="search" aria-label="Search projects" placeholder="Search projects" value={query} enterKeyHint="search" onInput={(event) => setQuery(event.currentTarget.value)} />
+        <input ref={field} type="search" aria-label="Search projects" placeholder="Search projects" value={query} enterKeyHint="search" onInput={(event) => setQuery(event.currentTarget.value)} />
       </div>
       <section className="sheet-group" role="radiogroup" aria-label={label}>
         {choices.map(({ projectId, name }) => {
@@ -33,7 +34,12 @@ export function ProjectSheet({ projects, selected, none = "All projects", label 
           );
         })}
       </section>
-      {!choices.length && <p className="sheet-note">No matches</p>}
+      {!choices.length && (
+        <div className="sheet-empty">
+          <p>No project matches “{query.trim()}”</p>
+          <button type="button" className="section-text-action" onClick={() => { setQuery(""); field.current?.focus(); }}>Clear search</button>
+        </div>
+      )}
     </Sheet>
   );
 }

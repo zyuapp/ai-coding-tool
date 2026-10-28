@@ -105,6 +105,36 @@ test("keyboard tooltips follow navigation but stay closed after Alt and window r
   } finally { await view.unmount(); stop(); }
 });
 
+test("an open tip describes its control, and leaves when the tip does", async () => {
+  const view = await mountElement(React.createElement(React.Fragment, null,
+    React.createElement("button", { type: "button", "aria-label": "Close", "aria-describedby": "note", "data-tip": "Close (Esc)" }, "×"),
+    React.createElement("button", { type: "button", "aria-label": "Archive", "data-tip": "Archive", id: "named" }, "▣"),
+    React.createElement("span", { id: "note" }, "note"),
+    React.createElement(TooltipLayer),
+  ));
+  const close = view.container.querySelector("button")!;
+  const named = view.container.querySelector<HTMLButtonElement>("#named")!;
+
+  hover(close);
+  await rest();
+  const id = tooltip()!.id;
+  assert.ok(id);
+  assert.equal(close.getAttribute("aria-describedby"), `note ${id}`);
+
+  hover(named);
+  await rest();
+  assert.equal(tooltip()?.textContent, "Archive");
+  assert.equal(close.getAttribute("aria-describedby"), "note");
+  assert.equal(named.getAttribute("aria-describedby"), null, "a tip that only repeats the name adds nothing");
+
+  hover(close);
+  await rest();
+  await act(async () => { document.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+  assert.equal(tooltip(), null);
+  assert.equal(close.getAttribute("aria-describedby"), "note");
+  await view.unmount();
+});
+
 test("a tip that repeats its text shows only while that text is cut short", async () => {
   const view = await mountElement(React.createElement(React.Fragment, null,
     React.createElement("button", { type: "button", "data-tip": "feature/very-long-branch", "data-tip-overflow": "" },
@@ -127,4 +157,32 @@ test("a tip that repeats its text shows only while that text is cut short", asyn
   await view.unmount();
 });
 
+});
+
+test("pressing a control that cannot act shows its reason at once, and an enabled one shows nothing", async () => {
+  const view = await mountElement(React.createElement(React.Fragment, null,
+    React.createElement("button", { type: "button", id: "off", "aria-disabled": "true", "data-tip": "Not on that computer" }, "Archive"),
+    React.createElement("button", { type: "button", id: "on", "data-tip": "Rename" }, "Rename"),
+    React.createElement(TooltipLayer),
+  ));
+  try {
+    await act(async () => view.container.querySelector<HTMLButtonElement>("#on")!.click());
+    await rest(1);
+    assert.equal(tooltip(), null);
+    await act(async () => view.container.querySelector<HTMLButtonElement>("#off")!.click());
+    await rest(1);
+    assert.equal(tooltip()?.textContent, "Not on that computer");
+  } finally { await view.unmount(); }
+});
+
+test("holding a modifier keeps the tip, and any other key takes it away", async () => {
+  const view = await mount();
+  try {
+    hover(view.container.querySelector("button")!);
+    await rest();
+    await act(async () => { document.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Meta", metaKey: true, bubbles: true })); });
+    assert.ok(tooltip());
+    await act(async () => { document.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "c", metaKey: true, bubbles: true })); });
+    assert.equal(tooltip(), null);
+  } finally { await view.unmount(); }
 });

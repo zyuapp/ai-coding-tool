@@ -1,13 +1,14 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { LuBot as Bot, LuLoaderCircle as LoaderCircle, LuWrench as Wrench, LuX as X } from "react-icons/lu";
+import { LuBot as Bot, LuChevronUp as ChevronUp, LuLoaderCircle as LoaderCircle, LuWrench as Wrench, LuX as X } from "react-icons/lu";
 import type { Subagent, SubagentActivity } from "../../domain/run";
 import { effortLabel } from "../../domain/agent-engine";
 import { Copyable } from "./CopyButton";
 import { SpinningIcon } from "./SpinningIcon";
 import { statusLabel, StatusIcon } from "./SubagentList";
+import { shortcutTip } from "./TooltipLayer";
 
-/** How much of a log opens with the subagent. The rest is read backwards, a window at a time. */
+/** How much of a log opens with the subagent. The rest is read backwards, each window twice the last. */
 const TAIL = 60;
 
 /** Above this many rows the log is windowed; a short log is cheaper drawn whole. */
@@ -79,12 +80,12 @@ export function SubagentInspector({ subagent, finding = false, onClose, onStop }
     >
       <header className="inspector-header">
         <span>Subagent</span>
-        <button type="button" aria-label="Close subagent details" data-tip="Close (Esc)" onClick={onClose}><X size={18} aria-hidden="true" /></button>
+        <button type="button" aria-label="Close subagent details" data-tip={shortcutTip("Close", "Escape")} onClick={onClose}><X size={18} aria-hidden="true" /></button>
       </header>
       <div className="inspector-scroll" ref={scrollRef}>
         <div ref={introductionRef}>
           <div className="agent-detail-heading">
-            <span className={`agent-orb ${subagent.status}`}><Bot size={18} /></span>
+            <span className={`agent-orb ${subagent.status}`} aria-hidden="true"><Bot size={18} /></span>
             <div>
               <h2>{subagent.description}</h2>
               <span className={`agent-status ${subagent.status}`}><StatusIcon status={subagent.status} />{statusLabel(subagent.status)}</span>
@@ -120,8 +121,8 @@ export function SubagentInspector({ subagent, finding = false, onClose, onStop }
         </div>
         <div className="agent-activity" aria-live="polite">
           {start > 0 && (
-            <button className="agent-activity-earlier" type="button" onClick={() => setLimit(limit + TAIL)}>
-              Load earlier ({start})
+            <button className="agent-activity-earlier" type="button" onClick={() => setLimit(limit * 2)}>
+              <ChevronUp size={14} aria-hidden="true" />Show {Math.min(start, limit)} earlier
             </button>
           )}
           {shown === 0 ? (

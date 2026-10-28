@@ -47,6 +47,23 @@ function AnnotationCard({ annotation, index, id }: { annotation: Annotation; ind
   );
 }
 
+const FLASH_MS = 1800;
+
+/** Brings a drafted annotation's marker into view in the transcript and flashes it. */
+function revealPassage(annotation: Annotation) {
+  if (annotation.anchor?.kind !== "message") return;
+  const { messageId } = annotation.anchor;
+  const marker = () => [...document.querySelectorAll<HTMLElement>(".annotation-marker")].find((element) => element.dataset.annotationId === annotation.id);
+  const target = marker() ?? [...document.querySelectorAll<HTMLElement>("[data-message-id]")].find((element) => element.dataset.messageId === messageId);
+  target?.scrollIntoView({ block: "center" });
+  requestAnimationFrame(() => {
+    const found = marker();
+    if (!found) return;
+    found.classList.add("flash");
+    setTimeout(() => found.classList.remove("flash"), FLASH_MS);
+  });
+}
+
 /** One annotation at rest: its number, then the note the user wrote, falling back to the quote. */
 function AnnotationPill({ annotation, index, onRemove }: {
   annotation: Annotation;
@@ -55,15 +72,24 @@ function AnnotationPill({ annotation, index, onRemove }: {
 }) {
   const cardId = useId();
   const note = annotation.note.trim();
-
-  return (
-    <span className="annotation-pill" role="listitem" tabIndex={0} aria-label={`Annotation ${index + 1}`} aria-describedby={cardId}>
+  const face = (
+    <>
       <span className="annotation-pill-number">{index + 1}</span>
       <span className="annotation-pill-label">
         {note || <span className="annotation-pill-quote">“{annotation.quote}</span>}
       </span>
+    </>
+  );
+
+  return (
+    <span className="annotation-pill" role="listitem">
+      {annotation.anchor?.kind === "message" ? (
+        <button type="button" className="annotation-pill-face" aria-label={`Show annotation ${index + 1}`} aria-describedby={cardId} onClick={() => revealPassage(annotation)}>{face}</button>
+      ) : (
+        <span className="annotation-pill-face" tabIndex={0} aria-label={`Annotation ${index + 1}`} aria-describedby={cardId}>{face}</span>
+      )}
       {onRemove && (
-        <button type="button" aria-label={`Remove annotation ${index + 1}`} data-tip="Remove" onClick={() => onRemove(annotation.id)}>
+        <button type="button" className="annotation-pill-remove" aria-label={`Remove annotation ${index + 1}`} data-tip="Remove" onClick={() => onRemove(annotation.id)}>
           <X size={12} />
         </button>
       )}

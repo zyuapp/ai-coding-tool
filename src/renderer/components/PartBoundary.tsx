@@ -1,4 +1,5 @@
 import { Component, createRef, useEffect, useRef, useState, type ErrorInfo, type ReactNode } from "react";
+import { LuCircleAlert as CircleAlert } from "react-icons/lu";
 import { copyText } from "../clipboard";
 import { firstFocusable } from "../focus";
 
@@ -74,7 +75,7 @@ export class PartBoundary extends Component<PartBoundaryProps, { failed: boolean
     return (
       <div ref={this.fallback} className={this.props.className}>
         <div className="part-fallback" role="status">
-          <p>This part couldn’t be shown.</p>
+          <p><CircleAlert size={16} aria-hidden="true" />This part couldn’t be shown.</p>
           <button type="button" onClick={this.retry}>Try again</button>
           {this.state.error && <CopyError text={`The ${this.props.name} could not be shown.\n${this.state.error}`} />}
         </div>

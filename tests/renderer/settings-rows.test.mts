@@ -11,14 +11,16 @@ vi.mock("../../src/renderer/task-workspace/workspace-connection.ts", () => impor
 
 const { App } = await import("../../src/renderer/App.tsx");
 
-test("a status circle says whether its step is done, and a pending one is drawn apart from a decorative blank", async () => {
+test("a status circle says whether its step is done, and a row with no step draws no circle", async () => {
   window.desktop = fakeDesktop({ cliStatus: async () => ({ state: "missing", path: "/usr/local/bin/aic" }) });
   const view = await mount(React.createElement(App));
   await openSettingsPage(view, "General");
   const status = query<HTMLElement>(view.container, '[data-setting="general.cli"] .setting-status');
   assert.equal(status.classList.contains("pending"), true);
   assert.equal(status.textContent, "Not done");
-  assert.equal(query<HTMLElement>(view.container, '[data-setting="general.notifications"] .setting-status').classList.contains("blank"), true);
+  const plain = query<HTMLElement>(view.container, '[data-setting="general.notifications"]');
+  assert.equal(plain.querySelector(".setting-status"), null);
+  assert.equal(plain.classList.contains("plain"), true);
   await view.unmount();
 });
 
@@ -71,18 +73,19 @@ test("the updates row follows a found update through download to restart", async
   const calls: string[] = [];
   const update = (state: NonNullable<SettingsPanelProps["appUpdate"]>["state"]) => ({ state, onDownload: () => calls.push("download"), onInstall: () => calls.push("install") });
   window.desktop = fakeDesktop({});
-  const view = await mount(renderSettingsPanel({ appUpdate: update({ status: "idle" }) }));
+  const view = await mount(renderSettingsPanel({ appUpdate: { ...update({ status: "idle" }), version: "8.1.0" } }));
   await act(async () => {});
   const row = () => query<HTMLElement>(view.container, '[data-setting="general.updates"]');
   assert.equal(query(row(), "button").textContent, "Check for updates");
+  assert.match(row().textContent, /Version 8\.1\.0\./, "the running version is named while nothing newer is known");
 
   await view.render(renderSettingsPanel({ appUpdate: update({ status: "available", version: "9.0.0" }) }));
   assert.match(row().textContent, /Version 9\.0\.0 is available/);
   await act(async () => { query<HTMLButtonElement>(row(), "button").click(); });
 
   await view.render(renderSettingsPanel({ appUpdate: update({ status: "downloading", version: "9.0.0", percent: 40 }) }));
-  assert.match(row().textContent, /40%/);
-  assert.equal(query<HTMLButtonElement>(row(), "button").disabled, true);
+  assert.equal(query(row(), '[role="status"]').textContent, "40%");
+  assert.equal(row().querySelector("button"), null, "a download in progress offers nothing to press");
 
   await view.render(renderSettingsPanel({ appUpdate: update({ status: "ready", version: "9.0.0" }) }));
   await act(async () => { query<HTMLButtonElement>(row(), "button").click(); });

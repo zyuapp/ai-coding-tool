@@ -111,11 +111,14 @@ export function useZoom(size: Sized | null): Zoom {
 export function ZoomControls({ zoom }: { zoom: Zoom }) {
   const latest = useRef(zoom);
   latest.current = zoom;
-  /** + and − zoom and 0 fits, while the view is open and nothing is being typed. */
+  const controls = useRef<HTMLDivElement>(null);
+  /** + and − zoom and 0 fits, while the keyboard is in the viewer, or nowhere, and nothing is being typed. */
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey || event.defaultPrevented) return;
       const target = event.target;
+      const viewer = controls.current?.parentElement;
+      if (target instanceof Element && target !== target.ownerDocument.body && !viewer?.contains(target)) return;
       if (target instanceof HTMLElement && (target.isContentEditable || target.matches("input, textarea, select"))) return;
       const act = { "+": latest.current.zoomIn, "=": latest.current.zoomIn, "-": latest.current.zoomOut, "0": latest.current.reset }[event.key];
       if (!act) return;
@@ -126,7 +129,7 @@ export function ZoomControls({ zoom }: { zoom: Zoom }) {
     return () => document.removeEventListener("keydown", onKey);
   }, []);
   return (
-    <div className="viewer-zoom" onClick={(event) => event.stopPropagation()}>
+    <div ref={controls} className="viewer-zoom" onClick={(event) => event.stopPropagation()}>
       <button type="button" aria-label="Zoom out" aria-keyshortcuts="-" data-tip="Zoom out (−)" disabled={zoom.scale <= zoom.fit} onClick={zoom.zoomOut}>
         <Minus size={16} aria-hidden="true" />
       </button>

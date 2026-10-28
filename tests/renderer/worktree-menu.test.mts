@@ -203,7 +203,7 @@ test("deletion uses the standard warning and a linked run blocks an open confirm
     const dialog = query(document, '[role="dialog"]');
     assert.equal(view.state().settingsOpen, false);
     assert.match(dialog.textContent, /2 linked threads return/);
-    assert.match(dialog.textContent, /Uncommitted changes are saved/);
+    assert.match(dialog.textContent, /uncommitted changes are saved as a commit/);
     assert.match(dialog.textContent, /Git-ignored files are deleted/);
     assert.equal(document.activeElement?.textContent, "Cancel");
     await view.send({ type: "task.send", taskId: "thread-1", text: "Continue", attachments: [] });
@@ -238,11 +238,15 @@ test("a running thread's blocked worktree entries say what to wait for", async (
     assert.equal(menuButton("Move to worktree").dataset.tip, undefined);
     await view.send({ type: "task.send", taskId: "thread-0", text: "Continue", attachments: [] });
     for (const label of ["Move to worktree", "Return to local"]) {
-      assert.ok(menuButton(label).disabled);
+      assert.equal(menuButton(label).getAttribute("aria-disabled"), "true");
       assert.equal(menuButton(label).dataset.tip, "Wait for the run to finish");
+      assert.equal(menuButton(label).querySelector(".menu-shortcut")?.textContent, "Run active", "the reason shows without hovering");
     }
-    assert.ok(menuButton("Delete worktree…").disabled);
+    assert.equal(menuButton("Delete worktree…").getAttribute("aria-disabled"), "true");
     assert.equal(menuButton("Delete worktree…").dataset.tip, "Wait for the active runs to finish");
+    assert.equal(menuButton("Delete worktree…").querySelector(".menu-shortcut")?.textContent, "Run active");
+    await act(async () => menuButton("Return to local").click());
+    assert.equal(view.state().threads[0].worktreeId, "wt1", "a blocked item does nothing when chosen");
   } finally { await view.unmount(); }
 });
 
@@ -253,5 +257,36 @@ test("deleting closes the question and the row says the worktree is going", asyn
     await click(".worktree-delete-actions .danger");
     assert.equal(document.querySelector(".worktree-delete-dialog"), null);
     assert.match(query(view.container, ".session-location-name").textContent ?? "", /^Removing worktree…/);
+  } finally { await view.unmount(); }
+});
+
+test("Enter in the destination search does nothing when nothing matches", async () => {
+  const initial = fixture();
+  delete initial.threads[0].worktreeId;
+  const view = await renderMenu(initial);
+  try {
+    await openLocationMenu();
+    await choose("Move to worktree");
+    await view.send({ type: "worktrees.loaded", worktrees: initial.managedWorktrees! });
+    await search("no such branch");
+    assert.equal(query(document, ".worktree-menu-panel .worktree-menu-note").textContent, "No matches");
+    const input = query<HTMLInputElement>(document, ".worktree-menu-search input");
+    await act(async () => input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    assert.equal(view.state().threads[0].worktreeId, undefined);
+    assert.equal(view.state().openMenu, "session:location", "Enter with nothing to take leaves the menu open");
+  } finally { await view.unmount(); }
+});
+
+test("an empty destination list says there is nowhere else to go rather than that nothing matched", async () => {
+  const initial = fixture();
+  initial.worktrees = [];
+  initial.managedWorktrees = [];
+  initial.threads.forEach((thread) => { delete thread.worktreeId; });
+  const view = await renderMenu(initial);
+  try {
+    await openLocationMenu();
+    await choose("Move to worktree");
+    await view.send({ type: "worktrees.loaded", worktrees: [] });
+    assert.equal(query(document, ".worktree-menu-panel .worktree-menu-note").textContent, "No other worktrees");
   } finally { await view.unmount(); }
 });

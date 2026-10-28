@@ -183,8 +183,7 @@ test("Stop all keeps the keyboard's place once the group it heads is gone", asyn
   const working = row(member("w", "Dark mode"), "working");
   const done = row(member("d", "Login flake"), "done");
   const view = await mount(overview([working, done]));
-  await act(async () => { query<HTMLButtonElement>(view.container, ".coordination-stop-all").click(); });
-  await act(async () => { const confirm = query<HTMLButtonElement>(view.container, ".coordination-stop > .danger"); confirm.focus(); confirm.click(); });
+  await act(async () => { const stop = query<HTMLButtonElement>(view.container, ".coordination-stop-all"); stop.focus(); stop.click(); });
   await view.render(overview([{ ...working, status: "idle" }, done]));
   assert.ok(!view.container.querySelector('[aria-label="Working"]'), "nothing under the coordinator works any more");
   const head = query(view.container, '[aria-label="Done"] .coordination-group-head');
@@ -299,19 +298,12 @@ test("the Overview's Working group stops the coordinator and every thread under 
   assert.ok(stop.closest(".coordination-group-heading")?.querySelector(".coordination-group-head"));
   assert.equal(query(mounted.container, '[aria-label="Done"]').querySelector(".coordination-stop-all"), null, "only the Working group stops anything");
   await act(async () => { stop.click(); });
-  assert.deepEqual(dispatched.filter((input) => input.type === "coordination.stop-all"), [], "the first press asks, naming how many it stops");
-  const confirm = () => query<HTMLButtonElement>(working, ".coordination-stop > .danger");
-  assert.equal(confirm().textContent, "Stop 1 thread");
-  assert.equal(dom.window.document.activeElement?.textContent, "Cancel", "the focus waits on Cancel, not on the stop");
-  await act(async () => { confirm().dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
-  assert.equal(query(working, ".coordination-stop-all").textContent, "Stop all", "Esc takes the question back");
-  await act(async () => { query<HTMLButtonElement>(working, ".coordination-stop-all").click(); });
-  await act(async () => { confirm().click(); });
-  assert.deepEqual(dispatched.filter((input) => input.type === "coordination.stop-all"), [{ type: "coordination.stop-all", taskId: "lead" }]);
-  assert.equal(query(working, ".coordination-stop-all").textContent, "Stop all");
+  assert.deepEqual(dispatched.filter((input) => input.type === "coordination.stop-all"), [{ type: "coordination.stop-all", taskId: "lead" }], "Stop all stops at once, as the thread menu's does");
 
   await mounted.render(shown(false));
-  assert.equal(query<HTMLButtonElement>(mounted.container, ".coordination-stop-all").disabled, true, "a computer whose build cannot stop them all says so");
+  assert.equal(query<HTMLButtonElement>(mounted.container, ".coordination-stop-all").getAttribute("aria-disabled"), "true", "a computer whose build cannot stop them all says so");
+  await act(async () => { query<HTMLButtonElement>(mounted.container, ".coordination-stop-all").click(); });
+  assert.equal(dispatched.filter((input) => input.type === "coordination.stop-all").length, 1, "and sends nothing");
   await mounted.unmount();
 });
 
@@ -332,7 +324,7 @@ test("the Overview's Usage section shows what the coordinator and its threads sp
   const mounted = await mount(shown({}));
   const usage = query(mounted.container, '[aria-label="Usage"]');
   const head = query<HTMLButtonElement>(usage, ".coordination-group-head");
-  assert.equal(head.textContent, "Usage3.1M");
+  assert.equal(head.textContent, "Usage3.1M · coordinator 8%", "the folded head says the coordinator's own share");
   assert.equal(head.dataset.tip, "3,104,220 tokens");
   assert.equal(head.getAttribute("aria-expanded"), "false", "it starts folded");
   assert.equal(usage.querySelector(".coordination-usage-body"), null);
@@ -413,8 +405,15 @@ test("the Overview's purpose line and memory rows edit what the coordinator keep
   assert.equal(query(section, "button.coordination-note-forget").getAttribute("aria-label"), "Forget note: Keep every reply short Keep every reply short Keep every re…", "a long one only by its first words, which its edit button reads whole");
   await mounted.render(overview(lead));
   const forget = section.querySelectorAll<HTMLButtonElement>('button[aria-label^="Forget note: "]')[1];
-  assert.ok(forget.parentElement?.querySelector('button[aria-label^="Edit note: "]'), "Forget sits beside the note it drops, not inside it");
+  assert.ok(forget.closest(".coordination-note")?.querySelector('button[aria-label^="Edit note: "]'), "Forget sits beside the note it drops, not inside it");
+  assert.equal(forget.closest('button[aria-label^="Edit note: "]'), null);
   await act(async () => { forget.focus(); forget.click(); });
+  assert.equal(dispatched.some((input) => input.type === "memory.forget"), false, "the first press asks");
+  assert.equal(dom.window.document.activeElement?.textContent, "Cancel", "the focus waits on Cancel");
+  await act(async () => { dom.window.document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+  assert.equal(section.querySelector(".coordination-note-actions > .danger"), null, "Esc takes the question back");
+  await act(async () => { const again = section.querySelectorAll<HTMLButtonElement>('button[aria-label^="Forget note: "]')[1]!; again.focus(); again.click(); });
+  await act(async () => { const sure = query<HTMLButtonElement>(section, ".coordination-note-actions > .danger"); sure.focus(); sure.click(); });
   const kept = { ...item(lead.memory), notes: [item(lead.memory).notes[0]!], revision: 3 };
   await mounted.render(overview({ ...lead, memory: kept }));
   const add = query<HTMLTextAreaElement>(section, 'textarea[aria-label="Add a note"]');

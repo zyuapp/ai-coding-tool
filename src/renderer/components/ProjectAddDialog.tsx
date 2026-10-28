@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { LuFolderOpen as FolderOpen } from "react-icons/lu";
 import type { AppCommand } from "../../contracts/commands";
 import type { ProjectAddState } from "../../application/project-add";
 import type { ComputerLink } from "../../domain/computers";
@@ -59,7 +60,7 @@ export function ProjectAddDialog({ add, links, name, dispatch }: ProjectAddDialo
                 event.preventDefault();
                 dispatch({ type: "view.add-project-key", key });
               }} />
-            {local && <button type="button" disabled={add.saving} onClick={() => dispatch({ type: "view.add-project-pick" })}>Choose folder…</button>}
+            {local && <button type="button" disabled={add.saving} onClick={() => dispatch({ type: "view.add-project-pick" })}><FolderOpen size={14} aria-hidden="true" />Choose folder…</button>}
           </div>
         </label>
         {add.suggestions.length > 0 && <div id="project-directory-options" className="project-directory-options" role="listbox" aria-label="Directories">

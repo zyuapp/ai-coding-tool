@@ -73,7 +73,8 @@ test("the thread strip's chips name what they show to assistive technology", asy
   try {
     assert.ok(view.container.querySelector('button[aria-label="Branch feat/login"]'));
     assert.ok(view.container.querySelector('button[aria-label="Review changes, +12 −3"]'));
-    assert.equal(query(view.container, ".thread-tab-pull-request").dataset.tip, "#42 · Merged · Login");
+    assert.equal(query(view.container, ".thread-tab-pull-request").textContent, "#42 · Merged", "the state is a word, not only a colour");
+    assert.equal(query(view.container, ".thread-tab-pull-request").dataset.tip, "Login");
     assert.equal(query(view.container, 'button[aria-label="Branch feat/login"]').dataset.tip, "feat/login");
     assert.ok("tipOverflow" in query(view.container, 'button[aria-label="Branch feat/login"]').dataset, "the name only repeats as a tip once it is cut short");
     assert.equal(query(view.container, 'button[aria-label="Review changes, +12 −3"]').dataset.tip, "Uncommitted changes");
@@ -92,6 +93,7 @@ test("a checkout Git could not read shows the failure with a retry, while readin
   try {
     const reading = query(view.container, ".thread-tab-note");
     assert.equal(reading.textContent, "Reading Git…");
+    assert.ok(reading.querySelector(".text-sweep"), "reading shows as in progress");
     assert.equal(reading.classList.contains("failed"), false);
     assert.equal(view.container.querySelector(".thread-tab-retry"), null);
     await view.render(strip({ status: "error", message: "fatal: bad object HEAD" }));

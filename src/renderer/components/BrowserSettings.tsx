@@ -1,4 +1,3 @@
-import { LuCheck as Check } from "react-icons/lu";
 import { ConfirmAction, SettingGroup } from "./SettingRow";
 import { settingControl } from "../../domain/settings-catalog";
 import { AvailabilitySection } from "./AvailabilitySection";
@@ -11,6 +10,8 @@ export type BrowserSettingsProps = {
   allowedOrigins: string[];
   onSetBrowserTools: (enabled: boolean) => void;
   onClearBrowserData: () => void;
+  /** Takes back one site, so the agent asks before it opens that site again. */
+  onForgetOrigin?: (origin: string) => void;
   browserImport: BrowserImportSettings;
 };
 
@@ -19,6 +20,7 @@ export function BrowserSettings({
   allowedOrigins,
   onSetBrowserTools,
   onClearBrowserData,
+  onForgetOrigin,
   browserImport,
 }: BrowserSettingsProps) {
   return (
@@ -41,19 +43,23 @@ export function BrowserSettings({
           </div>
           <div className="settings-group-action">
             <span>{allowedOrigins.length} {allowedOrigins.length === 1 ? "site allowed" : "sites allowed"}</span>
-            <ConfirmAction confirm="Sign out of everything" onConfirm={onClearBrowserData}>Clear browser data</ConfirmAction>
+            <ConfirmAction className="danger" confirm="Sign out of everything" onConfirm={onClearBrowserData}>Clear browser data</ConfirmAction>
           </div>
         </div>
 
         {allowedOrigins.length === 0
           ? <p className="settings-empty">The agent has to ask before it opens any site.</p>
           : allowedOrigins.map((origin) => (
-            <div className="setting-row" key={origin}>
-              <span className="setting-status granted" aria-hidden="true"><Check size={14} /></span>
+            <div className="setting-row plain" key={origin}>
               <div>
                 <strong>{origin}</strong>
                 <p>The agent can open this site without asking.</p>
               </div>
+              {onForgetOrigin && (
+                <div className="setting-row-action">
+                  <button type="button" aria-label={`Remove ${origin}`} onClick={() => onForgetOrigin(origin)}>Remove</button>
+                </div>
+              )}
             </div>
           ))}
       </SettingGroup>

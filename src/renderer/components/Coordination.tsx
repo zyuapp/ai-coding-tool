@@ -107,7 +107,7 @@ export function CoordinatorOverview({ header, memory, members, usage, worktrees,
       {members.length
         ? OVERVIEW_GROUPS.map((group) => groups[group].length > 0 && (
             <ThreadGroup key={group} group={group} members={groups[group]} fold={folds[group] ?? {}} worktrees={worktrees} onSetFold={onSetFold} onSelect={onSelect}
-              {...(group === "working" ? { action: <StopAllButton taskId={header.taskId} stoppable={stoppable} working={groups.working.length} /> } : {})} />
+              {...(group === "working" ? { action: <StopAllButton taskId={header.taskId} stoppable={stoppable} /> } : {})} />
           ))
         : <p className="session-empty coordination-empty">No threads yet</p>}
       <CommandGate command={{ type: "memory.add", taskId: memory.taskId, text: "" }}>
@@ -139,7 +139,7 @@ function groupHeads(root: HTMLElement): HTMLElement[] {
 }
 
 function rememberOverviewPlace(pressed: HTMLElement, root: HTMLElement): OverviewPlace | null {
-  if (pressed.matches(".coordination-note-forget")) return { kind: "note", index: [...root.querySelectorAll(".coordination-note-forget")].indexOf(pressed) };
+  if (pressed.matches(".coordination-note-actions > .danger")) return { kind: "note", index: [...root.querySelectorAll(".coordination-note-actions")].indexOf(pressed.parentElement!) };
   const section = pressed.closest<HTMLElement>("[data-section]");
   if (!section) return null;
   if (pressed.matches(".coordination-stop > .danger")) return { kind: "stop", index: groupHeads(root).indexOf(section.querySelector<HTMLElement>(".coordination-group-head")!) };
@@ -255,19 +255,27 @@ function MemorySection({ memory, fold, onSetFold }: { memory: OverviewMemoryProp
           <div key={note.id} className="coordination-note">
             {/** A note emptied while editing is left as it was; Forget is how one goes. */}
             <InlineEdit value={note.text} label="Note" className="coordination-note-text" maxLength={MAX_MEMORY_NOTE} multiline onSave={(text) => { if (text) memory.onEdit(note.id, text); }} />
-            <CommandButton
-              command={{ type: "memory.forget", taskId: memory.taskId, noteId: note.id }}
-              className="coordination-note-forget"
-              aria-label={`Forget note: ${noteName(note.text)}`}
-              data-tip="Forget"
-            >
-              <X size={12} aria-hidden="true" />
-            </CommandButton>
+            <ForgetNote taskId={memory.taskId} note={note} />
           </div>
         ))}
         <NoteInput notes={memory.notes} onAdd={memory.onAdd} />
       </div>}
     </section>
+  );
+}
+
+/** Forgets a note on the second press. */
+function ForgetNote({ taskId, note }: { taskId: string; note: MemoryNote }) {
+  const controls = useCommandControls();
+  const command = { type: "memory.forget", taskId, noteId: note.id } as const;
+  const unavailable = !controls.available(command);
+  return (
+    <span className="coordination-note-actions">
+      <ConfirmAction className="coordination-note-forget" aria-label={`Forget note: ${noteName(note.text)}`} data-tip={unavailable ? REMOTE_UNSUPPORTED : "Forget"} disabled={unavailable}
+        confirm="Forget" onConfirm={() => controls.dispatch(command)}>
+        <X size={14} aria-hidden="true" />
+      </ConfirmAction>
+    </span>
   );
 }
 
@@ -326,11 +334,12 @@ function UsageSection({ usage, fold, onSetFold, onSelect }: { usage: Coordinatio
   const { total, coordinator, byModel, byThread } = usage;
   const shown = fold.all ? byThread : byThread.slice(0, OVERVIEW_LIMIT);
   const own = shareOf(coordinator, total);
+  const ownShare = `${own > 0 && own < 1 ? "<1" : Math.round(own)}%`;
   return (
     <section className="coordination-group coordination-usage" aria-label="Usage" data-section="usage">
-      <FoldHead label="Usage" count={compactTokens(total)} title={`${total.toLocaleString("en-US")} tokens`} open={open} onToggle={() => onSetFold("usage", { open: !open })} />
+      <FoldHead label="Usage" count={`${compactTokens(total)} · coordinator ${ownShare}`} title={`${total.toLocaleString("en-US")} tokens`} open={open} onToggle={() => onSetFold("usage", { open: !open })} />
       {open && <div className="coordination-usage-body">
-        <p className="coordination-usage-own">This coordinator <strong>{compactTokens(coordinator)}</strong> · {own > 0 && own < 1 ? "<1" : Math.round(own)}%</p>
+        <p className="coordination-usage-own">This coordinator <strong>{compactTokens(coordinator)}</strong> · {ownShare}</p>
         <h4>By model</h4>
         {byModel.map(({ model, tokens }) => (
           <div key={model} className="coordination-usage-model" data-tip={`${tokens.toLocaleString("en-US")} tokens`}>
@@ -357,14 +366,10 @@ function UsageSection({ usage, fold, onSetFold, onSelect }: { usage: Coordinatio
 }
 
 /** Stops the coordinator and everything working under it, as its thread menu does. */
-function StopAllButton({ taskId, stoppable, working }: { taskId: string; stoppable: boolean; working: number }) {
-  const controls = useCommandControls();
-  const command = { type: "coordination.stop-all", taskId } as const;
-  const unavailable = !controls.available(command);
+function StopAllButton({ taskId, stoppable }: { taskId: string; stoppable: boolean }) {
   return (
     <span className="coordination-stop">
-      <ConfirmAction className="coordination-stop-all" disabled={!stoppable || unavailable} {...(unavailable ? { "data-tip": REMOTE_UNSUPPORTED } : {})}
-        confirm={`Stop ${working === 1 ? "1 thread" : `${working} threads`}`} onConfirm={() => controls.dispatch(command)}>Stop all</ConfirmAction>
+      <CommandButton command={{ type: "coordination.stop-all", taskId }} type="button" className="coordination-stop-all danger" disabled={!stoppable}>Stop all</CommandButton>
     </span>
   );
 }
@@ -610,7 +615,7 @@ export function MemberWorktreeList({ worktrees, onReveal, onDelete }: {
               <span title={`${worktree.root}\n${by}`}><strong>{worktree.name}</strong><small className={worktree.deleting ? "text-sweep" : undefined}>{detail}</small></span>
               <span className="coordination-worktree-actions">
                 {onReveal && <button type="button" aria-label={`Reveal ${worktree.name}`} data-tip={MAC ? "Reveal in Finder" : "Show in file manager"} disabled={worktree.deleting} onClick={() => onReveal(worktree.root)}>
-                  <FolderOpen size={12} />
+                  <FolderOpen size={14} />
                 </button>}
                 <button
                   type="button"
@@ -620,7 +625,7 @@ export function MemberWorktreeList({ worktrees, onReveal, onDelete }: {
                   disabled={worktree.busy || worktree.deleting}
                   onClick={() => onDelete(worktree.root)}
                 >
-                  <Trash size={12} />
+                  <Trash size={14} />
                 </button>
               </span>
             </div>

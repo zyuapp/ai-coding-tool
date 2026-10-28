@@ -1,4 +1,4 @@
-import { LuCheck as Check, LuMonitor as Monitor, LuPencil as Pencil, LuRefreshCw as RefreshCw, LuTrash2 as Trash } from "react-icons/lu";
+import { LuCheck as Check, LuMonitor as Monitor, LuPlus as Plus, LuPencil as Pencil, LuRefreshCw as RefreshCw, LuTrash2 as Trash } from "react-icons/lu";
 import { useEffect, useState } from "react";
 import { MAX_COMPUTER_NAME, type ComputerLink, type ComputerPairing, type DiscoveredComputer } from "../../domain/computers";
 import type { ComputerUpkeep, UpkeepItem, UpkeepPart } from "../../application/computer-updates";
@@ -95,7 +95,7 @@ function CodeEntry({ pairing, onPair, onCancel }: { pairing: ComputerPairing; on
         />
       </label>
       <div className="computer-code-actions">
-        <button type="submit" disabled={!ready}>{pairing.busy ? "Pairing…" : "Pair"}</button>
+        <button type="submit" disabled={!ready} aria-busy={pairing.busy}>{pairing.busy ? "Pairing…" : "Pair"}</button>
         <button type="button" onClick={onCancel} disabled={pairing.busy}>Cancel</button>
       </div>
       {pairing.error && <p className="settings-error" role="alert">{pairing.error}</p>}
@@ -104,7 +104,7 @@ function CodeEntry({ pairing, onPair, onCancel }: { pairing: ComputerPairing; on
 }
 
 /** A computer the tailnet does not list, named by address: the same pairing, with the code shown by that address. */
-function AddressEntry({ pairing, onPair }: { pairing: ComputerPairing | null; onPair: (host: string) => void }) {
+function AddressEntry({ pairing, alternative, onPair }: { pairing: ComputerPairing | null; alternative: boolean; onPair: (host: string) => void }) {
   const [host, setHost] = useState("");
   const typed = host.trim();
   return (
@@ -116,7 +116,7 @@ function AddressEntry({ pairing, onPair }: { pairing: ComputerPairing | null; on
       }}
     >
       <label>
-        <span>Or pair by address</span>
+        <span>{alternative ? "Or pair by address" : "Pair by address"}</span>
         <input
           autoComplete="off"
           spellCheck={false}
@@ -198,12 +198,12 @@ export function ComputerSettings({ found, searching, searchError, name, links, p
           <p>Another computer running AI Coding Tool, or <code>aic serve</code>, shows its threads here beside your own.</p>
         </div>
         <div className="settings-group-action">
-          <button type="button" disabled={searching} onClick={onDiscover}><SpinningIcon icon={RefreshCw} spinning={searching} size={14} aria-hidden="true" />{searching ? "Looking…" : "Look again"}</button>
+          <button type="button" disabled={searching} aria-busy={searching} onClick={onDiscover}><SpinningIcon icon={RefreshCw} spinning={searching} size={14} aria-hidden="true" />{searching ? "Looking…" : "Look again"}</button>
         </div>
       </div>
 
       <div className="setting-row" data-this-computer>
-        <span className="setting-status granted" aria-hidden="true"><Check size={14} /></span>
+        <span className="setting-glyph" aria-hidden="true"><Monitor size={16} /></span>
         <div>
           <NameEntry name={name} onRename={onRename} />
         </div>
@@ -211,7 +211,7 @@ export function ComputerSettings({ found, searching, searchError, name, links, p
 
       {links.map((link) => (
         <div className="setting-row" key={link.id} data-computer={link.id}>
-          <span className={`setting-status ${link.status === "connected" ? "granted" : "blank"}`} aria-hidden="true">{link.status === "connected" ? <Check size={14} /> : <Monitor size={14} />}</span>
+          <span className="setting-glyph" aria-hidden="true"><Monitor size={16} /></span>
           <div>
             {labels.editing === link.id
               ? <RenameInput
@@ -237,7 +237,7 @@ export function ComputerSettings({ found, searching, searchError, name, links, p
 
       {offered.map((computer) => (
         <div className="setting-row" key={computer.host} data-found={computer.host}>
-          <span className="setting-status blank" aria-hidden="true"><Monitor size={14} /></span>
+          <span className="setting-glyph" aria-hidden="true"><Monitor size={16} /></span>
           <div>
             <strong>{computer.name}</strong>
             <p>{computer.host}{computer.os ? ` · ${computer.os}` : ""}</p>
@@ -250,9 +250,9 @@ export function ComputerSettings({ found, searching, searchError, name, links, p
       ))}
 
       <div className="setting-row" data-address>
-        <span className="setting-status blank" aria-hidden="true"><Monitor size={14} /></span>
+        <span className="setting-glyph" aria-hidden="true"><Plus size={16} /></span>
         <div>
-          <AddressEntry pairing={pairing} onPair={(host) => onPair(host, host, "")} />
+          <AddressEntry pairing={pairing} alternative={offered.length > 0} onPair={(host) => onPair(host, host, "")} />
           {pairing && !offered.some((computer) => computer.host === pairing.host) && <CodeEntry pairing={pairing} onPair={(code) => onPair(pairing.host, pairing.name, code)} onCancel={onCancelPairing} />}
         </div>
       </div>

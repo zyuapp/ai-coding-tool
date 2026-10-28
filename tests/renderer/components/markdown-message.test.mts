@@ -147,7 +147,7 @@ test("generated artifacts remain visible beside the final answer after work fold
   const opened: string[] = [];
   const groups = groupTimeline(messages, { running: false });
   const view = await mount(React.createElement(MessageLinkProvider, { actions: { openImage: (source) => opened.push(source) }, children: groups.map((group, index) =>
-    React.createElement(TimelineRow, { key: group.id, engine: "codex", group, index, offset: 0, measure: () => {}, onViewAttachment: () => {} })) }));
+    React.createElement(TimelineRow, { key: group.id, engine: "codex", group, index, offset: 0, newest: false, measure: () => {}, onViewAttachment: () => {} })) }));
   assert.equal(view.container.querySelector("details")?.open, false);
   const image = query<HTMLImageElement>(view.container, "img");
   assert.equal(image.closest("details"), null);
@@ -209,4 +209,22 @@ test("a visual that never reports its size shows that it is drawing, then that i
   assert.equal(view.container.querySelector(".visual-loading-over"), null);
   assert.match(query(view.container, ".visual-error").textContent, /did not finish drawing/);
   await view.unmount();
+});
+
+test("links into the app and the checkout carry a glyph and name where they go, and a web link names its in-app click", async () => {
+  const { MAC } = await import("../../../src/renderer/platform.ts");
+  const markdown = "See [the work](aicodingtool://thread/task-9), [the app](src/App.tsx:42) and [the docs](https://example.com).";
+  const view = await mountMessage(markdown, { selectThread: () => {}, openFile: () => {}, openUrlInApp: () => {} });
+  const [thread, file, web] = [...view.container.querySelectorAll<HTMLAnchorElement>("a")];
+  assert.ok(thread.querySelector(".message-link-glyph"));
+  assert.equal(thread.textContent, "the work", "the glyph adds no words to the link");
+  assert.ok(file.querySelector(".message-link-glyph"));
+  assert.equal(file.dataset.tip, "src/App.tsx:42");
+  assert.equal(web.querySelector(".message-link-glyph"), null, "a web link reads as an ordinary link");
+  assert.equal(web.dataset.tip, `Open in app (${MAC ? "⌘" : "Ctrl+"}Click)`);
+  await view.unmount();
+
+  const bare = await mountMessage("Read [the docs](https://example.com).");
+  assert.equal(query<HTMLAnchorElement>(bare.container, "a").dataset.tip, undefined, "nothing to open in the app, nothing to name");
+  await bare.unmount();
 });

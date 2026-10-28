@@ -123,6 +123,7 @@ test("a meter that knows where the usage page is opens it, and one that does not
   try {
     const meter = linked.container.querySelector<HTMLButtonElement>(".plan-usage")!;
     assert.equal(meter.tagName, "BUTTON");
+    assert.match(meter.getAttribute("aria-label") ?? "", /Open usage settings$/);
     meter.click();
     assert.equal(opened, 1);
   } finally {

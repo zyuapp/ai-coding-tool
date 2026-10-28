@@ -1,4 +1,4 @@
-import { LuCornerDownRight as CornerDownRight, LuPencil as Pencil, LuX as X } from "react-icons/lu";
+import { LuChevronDown as ChevronDown, LuCornerDownRight as CornerDownRight, LuPencil as Pencil, LuX as X } from "react-icons/lu";
 import type { QueuedMessage } from "../../application/workspace-state";
 import { isUsersOwn, messageLabel } from "../../domain/message-origin";
 import { useState, type KeyboardEvent } from "react";
@@ -16,8 +16,7 @@ function QueuedText({ text }: { text: string }) {
   const [ref, cut] = useClamped<HTMLParagraphElement>(text);
   const toggles = cut || open;
   return (
-    <p
-      ref={ref}
+    <div
       className={`queued-text${open ? " open" : ""}${toggles ? " toggles" : ""}`}
       {...(toggles ? {
         role: "button",
@@ -31,8 +30,9 @@ function QueuedText({ text }: { text: string }) {
         },
       } : {})}
     >
-      {text}
-    </p>
+      <p ref={ref}>{text}</p>
+      {toggles && <ChevronDown className="queued-chevron" size={14} aria-hidden="true" />}
+    </div>
   );
 }
 
