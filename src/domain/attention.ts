@@ -154,14 +154,15 @@ export function withClosedIssues(thread: Thread, reportedIssues: string[]): Thre
 }
 
 /** What a row's status mark stands for: an approval, a verdict or news, work going on, or a usage-limit wait. */
-export type AttentionTone = ThreadOutcome | "approval" | "unread" | "working" | "paused";
+export type AttentionTone = ThreadOutcome | "approval" | "unread" | "working" | "paused" | "monitoring";
 
 /** How much a status wants the user, most first: an answer, a failure, news, then work going on. */
 export function attentionUrgency(tone: AttentionTone): number {
   if (tone === "approval") return 0;
   if (tone === "failed") return 1;
   if (tone === "working") return 3;
-  return tone === "paused" ? 4 : 2;
+  if (tone === "paused") return 4;
+  return tone === "monitoring" ? 5 : 2;
 }
 
 export const MEMBER_BLOCKED_LABEL = "A thread needs your approval";
@@ -177,4 +178,5 @@ export const FOLDER_LABELS: Record<AttentionTone, string> = {
   unread: MEMBER_UNREAD_LABEL,
   working: "A thread is working",
   paused: "A thread is waiting out its usage limit",
+  monitoring: "A thread is monitoring",
 };

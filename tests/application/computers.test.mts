@@ -371,7 +371,7 @@ test("the sidebar lists every computer's threads, tagged, and the filter narrows
 test("a thread ranks and marks the same on a paired computer as on this one", () => {
   const finished = { ...remoteThread, outcome: "finished" as const };
   const conditions: Array<[string, Partial<WorkspaceState>, "priority" | "running", boolean]> = [
-    ["finished, with background processes alone", { backgroundProcesses: { "remote-thread": [{ id: "watch", kind: "monitor", description: "CI" }] } }, "priority", false],
+    ["finished, with background processes alone", { backgroundProcesses: { "remote-thread": [{ id: "watch", kind: "monitor", description: "CI" }] } }, "running", false],
     ["a working subagent", { subagents: { "remote-thread": [{ id: "agent", description: "Review", status: "working", startedAt: 1, activity: [] }] } }, "running", true],
     ["a session limit", { threads: [{ ...remoteThread, limitPause: { resetsAt: 10, window: "session", pausedAt: 1 } }] }, "running", true],
     ["a live watch", { automations: [{ ...automation("remote-thread"), endsWhen: "it merges" }] }, "running", false],
@@ -382,6 +382,7 @@ test("a thread ranks and marks the same on a paired computer as on this one", ()
     for (const view of [deriveView(here), deriveView(there)]) {
       assert.deepEqual(view.activityThreads[section].map((thread) => thread.id), ["remote-thread"], condition);
       assert.equal(view.runningThreadIds.has("remote-thread"), working, condition);
+      assert.equal(view.monitoringThreadIds.has("remote-thread"), condition.includes("background"), condition);
     }
   }
 });

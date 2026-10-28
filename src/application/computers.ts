@@ -440,7 +440,7 @@ const NO_ACTIVITY = new Set<string>();
  */
 export function remoteActivity(computer: Pick<PairedComputer, "status">, holder: WorkspaceState): ThreadActivity {
   const activity = threadActivity(holder);
-  return computer.status === "connected" ? activity : { ...activity, working: NO_ACTIVITY };
+  return computer.status === "connected" ? activity : { ...activity, working: NO_ACTIVITY, monitoring: NO_ACTIVITY };
 }
 
 /**
@@ -459,6 +459,7 @@ export type RemoteCollections = {
   worktrees: Worktree[];
   worktreeThreadIds: Set<string>;
   busy: Set<string>;
+  monitoring: Set<string>;
   ranked: Set<string>;
   blocked: Set<string>;
   /** The coordinators with work going that Stop all would stop. */
@@ -470,12 +471,12 @@ export type RemoteCollections = {
   unreadCount: number;
 };
 
-export const NO_REMOTE_COLLECTIONS: RemoteCollections = { threads: [], projects: [], worktrees: [], worktreeThreadIds: new Set(), busy: new Set(), ranked: new Set(), blocked: new Set(), stoppable: new Set(), threadHosts: new Map(), projectHosts: new Map(), sideChatAttention: new Set(), unreadCount: 0 };
+export const NO_REMOTE_COLLECTIONS: RemoteCollections = { threads: [], projects: [], worktrees: [], worktreeThreadIds: new Set(), busy: new Set(), monitoring: new Set(), ranked: new Set(), blocked: new Set(), stoppable: new Set(), threadHosts: new Map(), projectHosts: new Map(), sideChatAttention: new Set(), unreadCount: 0 };
 
 export function remoteCollections(computers: ComputersState): RemoteCollections {
   const shown = shownComputers(computers);
   if (!shown.length) return NO_REMOTE_COLLECTIONS;
-  const gathered: RemoteCollections = { threads: [], projects: [], worktrees: [], worktreeThreadIds: new Set(), busy: new Set(), ranked: new Set(), blocked: new Set(), stoppable: new Set(), threadHosts: new Map(), projectHosts: new Map(), sideChatAttention: new Set(), unreadCount: 0 };
+  const gathered: RemoteCollections = { threads: [], projects: [], worktrees: [], worktreeThreadIds: new Set(), busy: new Set(), monitoring: new Set(), ranked: new Set(), blocked: new Set(), stoppable: new Set(), threadHosts: new Map(), projectHosts: new Map(), sideChatAttention: new Set(), unreadCount: 0 };
   for (const computer of shown) {
     const remote = computer.state;
     if (!remote) continue;
@@ -498,6 +499,7 @@ export function remoteCollections(computers: ComputersState): RemoteCollections 
     const activity = remoteActivity(computer, remote);
     for (const id of lists.worktreeThreadIds) gathered.worktreeThreadIds.add(id);
     for (const id of activity.working) gathered.busy.add(id);
+    for (const id of activity.monitoring) gathered.monitoring.add(id);
     if (live) for (const id of stoppableCoordinators(remote)) gathered.stoppable.add(id);
     for (const id of activity.ranked) gathered.ranked.add(id);
     for (const id of activity.blocked) gathered.blocked.add(id);

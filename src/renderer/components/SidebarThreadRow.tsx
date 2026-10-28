@@ -1,7 +1,7 @@
 import { CommandButton } from "./CommandControl";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Draggable, type DraggableProvided } from "@hello-pangea/dnd";
-import { LuAlarmClock as AlarmClock, LuAlarmClockOff as AlarmClockOff, LuCheck as Check, LuClockAlert as ClockAlert, LuEllipsis as Ellipsis, LuFolderSymlink as FolderSymlink, LuHourglass as Hourglass, LuMonitorOff as MonitorOff } from "react-icons/lu";
+import { LuActivity as Activity, LuAlarmClock as AlarmClock, LuAlarmClockOff as AlarmClockOff, LuCheck as Check, LuClockAlert as ClockAlert, LuEllipsis as Ellipsis, LuFolderSymlink as FolderSymlink, LuHourglass as Hourglass, LuMonitorOff as MonitorOff } from "react-icons/lu";
 import { pauseSummary } from "../../domain/usage-limit";
 import { projectName, type Project } from "../../domain/project";
 import { threadActivityAt, type Thread } from "../../domain/thread";
@@ -64,7 +64,8 @@ function scheduleLabel(automation: AutomationView) {
 type RowStatus =
   | { kind: "dot"; tone: ThreadOutcome | "approval" | null; label: string }
   | { kind: "paused"; label: string }
-  | { kind: "working"; label: string };
+  | { kind: "working"; label: string }
+  | { kind: "monitoring"; label: string };
 
 /**
  * What waits on the user outranks work going on, as an approval does, since the row is where it is
@@ -76,6 +77,7 @@ function rowStatus(row: RowState): RowStatus | null {
   if (row.waiting) return { kind: "dot", tone: "approval", label: row.waiting };
   if (row.pauseLabel !== null) return { kind: "paused", label: row.pauseLabel };
   if (row.running) return { kind: "working", label: "Working" };
+  if (row.monitoring) return { kind: "monitoring", label: "Monitoring" };
   const finding = newestUnreadFinding(thread);
   if (finding) return { kind: "dot", tone: null, label: finding.headline };
   if (hasUnreadAttention(thread)) return { kind: "dot", tone: thread.outcome!, label: OUTCOME_LABELS[thread.outcome!] };
@@ -90,6 +92,7 @@ function statusMark(status: RowStatus | null): ReactNode {
   if (!status) return false;
   if (status.kind === "working") return <ThreadSpinner key="status" label={status.label} />;
   if (status.kind === "paused") return <Hourglass key="status" className="task-paused" size={14} role="img" aria-label={status.label} />;
+  if (status.kind === "monitoring") return <Activity key="status" className="task-monitoring" size={14} role="img" aria-label={status.label} />;
   return <span key="status" className={status.tone ? `task-attention ${status.tone}` : "task-attention"} role="img" aria-label={status.label} />;
 }
 
@@ -136,6 +139,8 @@ export type ThreadRowsOptions = {
   projects: Project[];
   currentId: string | null;
   runningThreadIds: Set<string>;
+  /** Threads not running whose background shell or monitor will wake them. */
+  monitoringThreadIds: Set<string>;
   /** Threads stopped on an approval only the user can answer. A subset of `runningThreadIds`. */
   blockedThreadIds: Set<string>;
   /** Threads holding a side chat with something unseen, which have no row of their own. */
@@ -231,6 +236,8 @@ type RowState = {
   away: boolean;
   /** The thread, or one working under it, has a run going. */
   running: boolean;
+  /** The agent's turn is over, but a background shell or monitor it left will wake it. */
+  monitoring: boolean;
   blocked: boolean;
   memberBlocked: boolean;
   sideChatWaiting: boolean;
@@ -506,6 +513,7 @@ const ActivityRow = memo(function ActivityRow({ projectLabel, action, priority, 
 
 /** Both lists draw the same row, so both of them ask this for one: only the placement differs. */
 export function useThreadRows({
+  monitoringThreadIds,
   projects,
   currentId,
   runningThreadIds,
@@ -581,6 +589,7 @@ export function useThreadRows({
     const menuOpen = openMenu === `task:${thread.id}` && !away;
     return {
       thread,
+      monitoring: monitoringThreadIds.has(thread.id),
       active: thread.id === currentId,
       away,
       running: runningThreadIds.has(thread.id) || members.some((member) => runningThreadIds.has(member.id)),

@@ -39,13 +39,14 @@ test("activity mode ranks threads into priority, running, and the rest, and only
     draftProjectId: null,
     expandedProjects: new Set(),
     runningThreadIds: new Set(["busy", "asked"]),
+    monitoringThreadIds: new Set(["watching"]),
     blockedThreadIds: new Set(["asked"]),
     schedules: new Map(),
     worktreeGroups: [],
     worktreeThreadIds: new Set(),
     activityThreads: {
       priority: [thread("asked", { projectId: "project-1" }), thread("unread", { outcome: "finished", outcomeUnread: true }), thread("seen", { outcome: "finished" })],
-      running: [thread("busy")],
+      running: [thread("busy"), thread("watching", { outcome: "finished", outcomeUnread: true })],
       threads: [thread("quiet")],
       snoozed: [],
     },
@@ -66,7 +67,9 @@ test("activity mode ranks threads into priority, running, and the rest, and only
 
   const listed = (label: string) => [...view.container.querySelectorAll(`nav[aria-label="${label}"] .task-row-text > span`)].map((row) => row.textContent);
   assert.deepEqual(listed("Priority"), ["asked", "unread", "seen"]);
-  assert.deepEqual(listed("Running"), ["busy"]);
+  assert.deepEqual(listed("Running"), ["busy", "watching"]);
+  assert.equal(view.container.querySelectorAll('nav[aria-label="Running"] .task-spinner').length, 1, "only the thread with a run spins");
+  assert.equal(query(view.container, 'nav[aria-label="Running"] [aria-label="Monitoring"]').getAttribute("class"), "task-monitoring", "a thread its background work will wake says so in place of its unread verdict");
   assert.deepEqual(listed("Threads"), ["quiet"]);
   assert.equal(view.container.querySelector('[data-rfd-draggable-id]'), null, "activity mode ranks its own rows, so none of them drag");
 

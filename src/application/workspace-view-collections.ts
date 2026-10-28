@@ -83,6 +83,7 @@ function createViewCollections() {
   const busy = selector((state) => [threadActivity(state).working], (state) => threadActivity(state).working, sameIds);
   const blocked = selector((state) => [threadActivity(state).blocked], (state) => threadActivity(state).blocked, sameIds);
   const ranked = selector((state) => [threadActivity(state).ranked], (state) => threadActivity(state).ranked, sameIds);
+  const monitoring = selector((state) => [threadActivity(state).monitoring], (state) => threadActivity(state).monitoring, sameIds);
 
   /**
    * The threads that can take others under them, for the menu that moves a thread under one, by the
@@ -145,6 +146,7 @@ function createViewCollections() {
   const everyBusy = selector((state) => [busy(state), remote(state)], (state) => union(busy(state), remote(state).busy), sameIds);
   /** What the activity list ranks as running: every busy thread, and every thread a live watch holds between its ticks. */
   const everyRanked = selector((state) => [ranked(state), remote(state)], (state) => union(ranked(state), remote(state).ranked), sameIds);
+  const everyMonitoring = selector((state) => [monitoring(state), remote(state)], (state) => union(monitoring(state), remote(state).monitoring), sameIds);
   const everyStoppable = selector((state) => [stoppable(state), remote(state)], (state) => union(stoppable(state), remote(state).stoppable), sameIds);
   const everyBlocked = selector((state) => [blocked(state), remote(state)], (state) => union(blocked(state), remote(state).blocked), sameIds);
   const everySideChatAttention = selector((state) => [threadLists(state).sideChatAttention, remote(state)], (state) => union(threadLists(state).sideChatAttention, remote(state).sideChatAttention), sameIds);
@@ -240,6 +242,7 @@ function createViewCollections() {
       blocked: blocked(state),
       everyBusy: everyBusy(state),
       everyRanked: everyRanked(state),
+      everyMonitoring: everyMonitoring(state),
       everyBlocked: everyBlocked(state),
       everyStoppable: everyStoppable(state),
       remote: remote(state),

@@ -27,6 +27,7 @@ export function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
       draftProjectId={workspace.currentProject?.id ?? null}
       expandedProjects={workspace.expandedProjects}
       runningThreadIds={workspace.runningThreadIds}
+      monitoringThreadIds={workspace.monitoringThreadIds}
       blockedThreadIds={workspace.blockedThreadIds}
       sideChatAttention={workspace.sideChatAttention}
       schedules={workspace.schedules}

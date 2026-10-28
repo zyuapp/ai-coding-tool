@@ -146,7 +146,7 @@ test("project names, schedules, and worktree settings update independently of th
   assert.equal(settings.threads, before.threads);
 });
 
-test("a finished run settles while its background processes stay visible, and working subagents keep it running", () => {
+test("a finished run settles into monitoring while its background processes stay, and working subagents keep it running", () => {
   for (const engine of ["claude", "codex"] as const) {
     const state = populated();
     state.threads = state.threads.map((thread) => ({ ...thread, engine }));
@@ -161,12 +161,14 @@ test("a finished run settles while its background processes stay visible, and wo
       const finished = applyRunEvent(working, { type: "run.status", taskId: "current", runId: "run", sequence: 1, status: "succeeded" });
       const view = deriveView(finished);
       assert.deepEqual([...view.runningThreadIds], delegated.length ? ["current"] : []);
-      assert.deepEqual(view.activityThreads.running.map((thread) => thread.id), delegated.length ? ["current"] : []);
+      assert.deepEqual(view.activityThreads.running.map((thread) => thread.id), ["current"]);
+      assert.deepEqual([...view.monitoringThreadIds], delegated.length ? [] : ["current"]);
       assert.deepEqual(view.backgroundProcesses, state.backgroundProcesses.current);
       assert.deepEqual(view.subagents, delegated);
       for (const status of ["idle", "completed", "failed", "stopped"] as const) {
         const settled = deriveView({ ...finished, subagents: { current: [{ ...subagent, status }] } });
         assert.deepEqual([...settled.runningThreadIds], [], `a ${status} subagent is not work`);
+        assert.deepEqual([...settled.monitoringThreadIds], ["current"]);
         assert.deepEqual(settled.backgroundProcesses, state.backgroundProcesses.current);
         assert.equal(settled.subagents[0].status, status);
       }

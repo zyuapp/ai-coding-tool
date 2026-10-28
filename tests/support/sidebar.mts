@@ -17,6 +17,7 @@ export function renderProjectSidebar(overrides: Partial<ProjectSidebarProps>) {
     draftProjectId: null,
     expandedProjects: new Set<string>(),
     runningThreadIds: new Set<string>(),
+    monitoringThreadIds: new Set<string>(),
     blockedThreadIds: new Set<string>(),
     sideChatAttention: new Set<string>(),
     schedules: new Map<string, AutomationView>(),

@@ -39,6 +39,8 @@ export type ProjectSidebarProps = {
   draftProjectId: string | null;
   expandedProjects: Set<string>;
   runningThreadIds: Set<string>;
+  /** Threads not running whose background shell or monitor will wake them. */
+  monitoringThreadIds: Set<string>;
   /** Threads stopped on an approval only the user can answer. A subset of {@link runningThreadIds}. */
   blockedThreadIds: Set<string>;
   /** Threads holding a side chat with something unseen, which have no row of their own. */
@@ -106,11 +108,11 @@ export type ProjectSidebarProps = {
  * draws them. Reserving a slot no row on screen fills, for a thread in a folded list, only pushes
  * the marks away from the titles. A rail keeps at least one slot for its actions to land on.
  */
-function railSlotsFor(threads: Thread[], marks: Pick<ProjectSidebarProps, "blockedThreadIds" | "runningThreadIds" | "sideChatAttention" | "worktreeThreadIds" | "schedules" | "threadHosts">, { threadsByCoordinator, waitingLines }: SidebarCoordination) {
+function railSlotsFor(threads: Thread[], marks: Pick<ProjectSidebarProps, "blockedThreadIds" | "runningThreadIds" | "monitoringThreadIds" | "sideChatAttention" | "worktreeThreadIds" | "schedules" | "threadHosts">, { threadsByCoordinator, waitingLines }: SidebarCoordination) {
   return threads.reduce((widest, thread) => {
     const members = threadsByCoordinator.get(thread.id) ?? [];
     const coordinationStatus = waitingLines.has(thread.id) || members.some((member) => marks.blockedThreadIds.has(member.id) || marks.runningThreadIds.has(member.id) || hasUnreadAttention(member));
-    const status = marks.blockedThreadIds.has(thread.id) || marks.runningThreadIds.has(thread.id) || Boolean(thread.limitPause) || hasUnreadAttention(thread) || marks.sideChatAttention.has(thread.id) || coordinationStatus;
+    const status = marks.blockedThreadIds.has(thread.id) || marks.runningThreadIds.has(thread.id) || marks.monitoringThreadIds.has(thread.id) || Boolean(thread.limitPause) || hasUnreadAttention(thread) || marks.sideChatAttention.has(thread.id) || coordinationStatus;
     const drawn = [
       marks.threadHosts.get(thread.id)?.offline === true,
       Boolean(thread.role && roleIcon(thread.role)),
@@ -197,6 +199,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
   draftProjectId,
   expandedProjects,
   runningThreadIds,
+  monitoringThreadIds,
   blockedThreadIds,
   sideChatAttention,
   schedules, limitPositions,
@@ -251,6 +254,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
     projects,
     currentId,
     runningThreadIds,
+    monitoringThreadIds,
     blockedThreadIds,
     sideChatAttention,
     schedules, limitPositions,
@@ -271,8 +275,8 @@ export const ProjectSidebar = memo(function ProjectSidebar({
   });
 
   const railSlots = useMemo(
-    () => railSlotsFor(drawnThreads(mode, sections, activityThreads, threadsByProject, expandedProjects, recentThreads), { blockedThreadIds, runningThreadIds, sideChatAttention, worktreeThreadIds, schedules, threadHosts }, sidebarCoordination),
-    [mode, sections, activityThreads, threadsByProject, expandedProjects, recentThreads, blockedThreadIds, runningThreadIds, sideChatAttention, worktreeThreadIds, schedules, threadHosts, sidebarCoordination],
+    () => railSlotsFor(drawnThreads(mode, sections, activityThreads, threadsByProject, expandedProjects, recentThreads), { blockedThreadIds, runningThreadIds, monitoringThreadIds, sideChatAttention, worktreeThreadIds, schedules, threadHosts }, sidebarCoordination),
+    [mode, sections, activityThreads, threadsByProject, expandedProjects, recentThreads, blockedThreadIds, runningThreadIds, monitoringThreadIds, sideChatAttention, worktreeThreadIds, schedules, threadHosts, sidebarCoordination],
   );
 
   /** Stepping through threads from the keyboard is blind unless the list follows the one now open. */

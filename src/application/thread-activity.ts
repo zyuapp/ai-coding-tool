@@ -30,7 +30,9 @@ export type ThreadActivity = {
   blocked: Set<string>;
   /** Threads waiting out a usage limit, which a row shows in place of working. */
   paused: Set<string>;
-  /** What the activity list ranks under Running: the working threads, and those a live watch holds between its ticks. */
+  /** Threads not working whose session keeps a background shell or monitor going, either of which wakes the agent when it ends. */
+  monitoring: Set<string>;
+  /** What the activity list ranks under Running: the working and monitoring threads, and those a live watch holds between its ticks. */
   ranked: Set<string>;
 };
 
@@ -82,7 +84,12 @@ function deriveActivity(state: WorkspaceState): ThreadActivity {
   }
   /** A paused thread's queue is what it holds for the user's return, not work of its own. */
   for (const [taskId, queued] of Object.entries(state.queuedMessages)) if (queued.length && !paused.has(taskId)) working.add(taskId);
-  return { working, blocked, paused, ranked: withWatchedThreads(working, state.automations) };
+  const monitoring = new Set<string>();
+  for (const [taskId, processes] of Object.entries(state.backgroundProcesses)) {
+    if (!working.has(taskId) && processes.some((process) => !process.stopping)) monitoring.add(taskId);
+  }
+  const ranked = monitoring.size ? new Set([...working, ...monitoring]) : working;
+  return { working, blocked, paused, monitoring, ranked: withWatchedThreads(ranked, state.automations) };
 }
 
 /**

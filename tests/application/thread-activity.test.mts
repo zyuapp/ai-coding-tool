@@ -30,7 +30,8 @@ const MATRIX: Array<[string, Partial<WorkspaceState>, ThreadStatus, boolean, boo
   ["a finished workflow", { workflows: { t: [workflow("completed")] } }, "idle", false, false],
   ["a working subagent", { subagents: { t: [subagent("working")] } }, "working", true, true],
   ["a stopped subagent", { subagents: { t: [subagent("stopped")] } }, "idle", false, false],
-  ["background processes alone", { backgroundProcesses: { t: [{ id: "shell", kind: "shell", description: "npm run dev" }] } }, "idle", false, false],
+  ["background processes alone", { backgroundProcesses: { t: [{ id: "shell", kind: "shell", description: "npm run dev" }] } }, "idle", false, true],
+  ["a background process stopping", { backgroundProcesses: { t: [{ id: "shell", kind: "shell", description: "npm run dev", stopping: true }] } }, "idle", false, false],
   ["a session limit", { threads: [task("t", { worktreeId: "wt", limitPause: { ...session, pausedAt: 1 } })] }, "paused", true, true],
   ["a weekly limit", { threads: [task("t", { worktreeId: "wt", limitPause: { ...weekly, pausedAt: 1 } })] }, "paused", false, false],
   ["a weekly limit holding a message", { threads: [task("t", { worktreeId: "wt", limitPause: { ...weekly, pausedAt: 1 } })], queuedMessages: { t: queued } }, "paused", false, false],
@@ -51,6 +52,12 @@ test("each condition gives a thread one status, whether it is working, and wheth
     assert.equal(activity.working.has("t"), working, condition);
     assert.equal(activity.ranked.has("t"), ranked, condition);
   }
+});
+
+test("a thread monitors when background work alone will wake it", () => {
+  const watch = { t: [{ id: "watch", kind: "monitor" as const, description: "CI" }] };
+  assert.ok(threadActivity(workspace({ threads: [task("t")], backgroundProcesses: watch })).monitoring.has("t"));
+  assert.ok(!threadActivity(workspace({ threads: [task("t")], backgroundProcesses: watch, activeRuns: { t: activeRun("t", "run") } })).monitoring.has("t"), "a run going shows as working");
 });
 
 test("each state is answered once, and lists outlive changes that keep threads and side chats", () => {

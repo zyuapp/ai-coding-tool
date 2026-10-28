@@ -10,7 +10,7 @@ import type { OverviewFolds } from "../domain/coordination.js";
  */
 const OWN_VIEW_KEYS = [
   "unreadCount", "sideChatAttention", "threads", "orderedThreads", "threadsByProject", "projects", "startProjects", "activityThreads", "recentThreads", "threadSlots",
-  "runningThreadIds", "blockedThreadIds", "stoppableCoordinatorIds", "worktreeThreadIds", "worktreeGroups", "worktreesById", "schedules", "archivedThreads",
+  "runningThreadIds", "monitoringThreadIds", "blockedThreadIds", "stoppableCoordinatorIds", "worktreeThreadIds", "worktreeGroups", "worktreesById", "schedules", "archivedThreads",
   "managedWorktrees", "worktreeSettings", "worktreeManagementError", "worktreeManagementNotice", "worktreeDeleteConfirmation",
   "installedApps", "cli", "planUsage", "computerUsePermissions", "computerUseSetup", "storageError", "hiddenThreads", "restored", "viewingImage",
   "expandedProjects", "projectAdd", "projectEditor", "worktreeMove", "forkName", "archivePrompt", "sections", "subagentGroups", "theme", "themeMode", "uiFont", "monoFont", "readingSize", "terminalSize",
