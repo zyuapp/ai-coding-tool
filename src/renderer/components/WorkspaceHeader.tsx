@@ -171,7 +171,7 @@ export function WorkspaceHeader({ currentThread, folder, folderLabel, host, side
           type="button"
           aria-label={`${rightDockOpen ? "Hide" : "Show"} right panel`}
           aria-pressed={rightDockOpen}
-          data-tip={[shortcutTip("Right panel", "Mod+\\"), sessionPanelOpen && !rightDockOpen && "Replaces session summary"].filter(Boolean).join(" · ")}
+          data-tip={shortcutTip("Right panel", "Mod+\\")}
           onClick={onToggleRightDock}
         >
           <PanelRight size={18} aria-hidden="true" />

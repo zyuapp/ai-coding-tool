@@ -6,15 +6,18 @@ import { useEffect, useId, useState } from "react";
 import { MAC } from "../platform";
 import { shortcutTip } from "./TooltipLayer";
 import { LuAlarmClock as AlarmClock, LuCheck as Check, LuPause as Pause, LuPlay as Play, LuPlus as Plus, LuTrash2 as Trash2, LuTriangleAlert as AlertTriangle } from "react-icons/lu";
-import { isOneShotSchedule, scheduleFieldCount, type AutomationPatch, type AutomationView } from "../../domain/automation";
+import { automationFields, editedAutomationFields, isOneShotSchedule, sameAutomationFields, scheduleFieldCount, type AutomationEdit, type AutomationFields, type AutomationPatch, type AutomationView } from "../../domain/automation";
 
 export type AutomationPanelProps = {
   automation: AutomationView | null;
+  /** Edits not yet saved, kept while the panel is closed. */
+  edit?: AutomationEdit | undefined;
   /** What the engine running this thread is called. */
   engineLabel: string;
   /** When a run on this thread last found something, which is the only proof a quiet schedule works. */
   lastFoundAt: number | null;
   lastChecked: { at: number; note: string } | null;
+  onEdit?: (base: AutomationFields, fields: AutomationFields) => void;
   onUpdate: (patch: AutomationPatch) => void;
   onDelete: () => void;
   onRunNow: () => void;
@@ -124,25 +127,6 @@ function AutomationHeading({ status }: { status?: string }) {
   );
 }
 
-type AutomationFields = { schedule: string; prompt: string; surfaceWhen: string; endsWhen: string };
-
-/** Edits not yet saved, by automation, kept until saved; dropped once the saved fields they started from change. */
-const unsavedEdits = new Map<string, { base: AutomationFields; fields: AutomationFields }>();
-
-function sameFields(a: AutomationFields, b: AutomationFields) {
-  return a.schedule === b.schedule && a.prompt === b.prompt && a.surfaceWhen === b.surfaceWhen && a.endsWhen === b.endsWhen;
-}
-
-function savedFields(automation: AutomationView | null): AutomationFields {
-  return { schedule: automation?.schedule ?? "", prompt: automation?.prompt ?? "", surfaceWhen: automation?.surfaceWhen ?? "", endsWhen: automation?.endsWhen ?? "" };
-}
-
-function startingFields(automation: AutomationView | null): AutomationFields {
-  const saved = savedFields(automation);
-  const kept = automation ? unsavedEdits.get(automation.id) : undefined;
-  return kept && sameFields(kept.base, saved) ? kept.fields : saved;
-}
-
 function ConditionField({ label, value, placeholder, onChange }: { label: string; value: string; placeholder: string; onChange: (value: string) => void }) {
   return (
     <label className="automation-field">
@@ -168,11 +152,11 @@ function AutomationEmpty({ engineLabel, onCreate }: { engineLabel: string; onCre
   );
 }
 
-export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChecked, onUpdate, onDelete, onRunNow }: AutomationPanelProps) {
-  const [schedule, setSchedule] = useState(() => startingFields(automation).schedule);
-  const [prompt, setPrompt] = useState(() => startingFields(automation).prompt);
-  const [surfaceWhen, setSurfaceWhen] = useState(() => startingFields(automation).surfaceWhen);
-  const [endsWhen, setEndsWhen] = useState(() => startingFields(automation).endsWhen);
+export function AutomationPanel({ automation, edit, engineLabel, lastFoundAt, lastChecked, onEdit, onUpdate, onDelete, onRunNow }: AutomationPanelProps) {
+  const [schedule, setSchedule] = useState(() => editedAutomationFields(automation, edit).schedule);
+  const [prompt, setPrompt] = useState(() => editedAutomationFields(automation, edit).prompt);
+  const [surfaceWhen, setSurfaceWhen] = useState(() => editedAutomationFields(automation, edit).surfaceWhen);
+  const [endsWhen, setEndsWhen] = useState(() => editedAutomationFields(automation, edit).endsWhen);
   const [now, setNow] = useState(() => Date.now());
   /** What the last press confirmed, shown on its button for a moment. */
   const [done, setDone] = useState<"saved" | "started" | null>(null);
@@ -184,7 +168,7 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
   const revision = automation ? `${automation.id}:${automation.updatedAt}` : "";
 
   useEffect(() => {
-    const fields = startingFields(automation);
+    const fields = editedAutomationFields(automation, edit);
     setSchedule(fields.schedule);
     setPrompt(fields.prompt);
     setSurfaceWhen(fields.surfaceWhen);
@@ -195,9 +179,9 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
   useEffect(() => {
     if (!automation) return;
     const fields = { schedule, prompt, surfaceWhen, endsWhen };
-    const saved = savedFields(automation);
-    if (sameFields(fields, saved)) unsavedEdits.delete(automation.id);
-    else unsavedEdits.set(automation.id, { base: saved, fields });
+    const base = automationFields(automation);
+    if (edit ? sameAutomationFields(edit.fields, fields) && sameAutomationFields(edit.base, base) : sameAutomationFields(fields, base)) return;
+    onEdit?.(base, fields);
   }, [revision, schedule, prompt, surfaceWhen, endsWhen]);
 
   useEffect(() => {

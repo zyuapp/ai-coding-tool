@@ -1,6 +1,6 @@
 import { LuCheck as Check, LuMonitor as Monitor, LuPlus as Plus, LuPencil as Pencil, LuRefreshCw as RefreshCw, LuTrash2 as Trash } from "react-icons/lu";
 import { useEffect, useState } from "react";
-import { MAX_COMPUTER_NAME, type ComputerLink, type ComputerPairing, type DiscoveredComputer } from "../../domain/computers";
+import { computerAddress, MAX_COMPUTER_NAME, type ComputerLink, type ComputerPairing, type DiscoveredComputer } from "../../domain/computers";
 import type { ComputerUpkeep, UpkeepAction, UpkeepItem, UpkeepPart } from "../../application/computer-updates";
 import type { AppCommand } from "../../contracts/commands";
 import { RenameInput, useRenaming } from "./SidebarRename";
@@ -120,15 +120,6 @@ function CodeEntry({ pairing, onPair, onCancel }: { pairing: ComputerPairing; on
       {pairing.error && <p className="settings-error" role="alert">{pairing.error}</p>}
     </form>
   );
-}
-
-/** The address as dialled, with a pasted scheme or trailing slash dropped; null when it is not a host with an optional port. */
-export function computerAddress(text: string): string | null {
-  const address = text.trim().replace(/^(?:https?|wss?):\/\//i, "").replace(/\/+$/, "");
-  const match = /^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*|\[[0-9a-f:.]+\])(?::(\d{1,5}))?$/i.exec(address);
-  if (!match) return null;
-  const port = match[1] === undefined ? null : Number(match[1]);
-  return port === null || (port > 0 && port <= 65535) ? address : null;
 }
 
 /** A computer the tailnet does not list, named by address: the same pairing, with the code shown by that address. */

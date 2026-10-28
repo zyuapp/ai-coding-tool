@@ -43,6 +43,26 @@ export type Automation = {
   overrunCount?: number;
 };
 
+/** The fields the automation panel edits, each empty when unset. */
+export type AutomationFields = { schedule: string; prompt: string; surfaceWhen: string; endsWhen: string };
+
+/** Edits the panel holds unsaved, with the saved fields they began from. */
+export type AutomationEdit = { base: AutomationFields; fields: AutomationFields };
+
+export function automationFields(automation: Pick<Automation, "schedule" | "prompt" | "surfaceWhen" | "endsWhen"> | null): AutomationFields {
+  return { schedule: automation?.schedule ?? "", prompt: automation?.prompt ?? "", surfaceWhen: automation?.surfaceWhen ?? "", endsWhen: automation?.endsWhen ?? "" };
+}
+
+export function sameAutomationFields(a: AutomationFields, b: AutomationFields): boolean {
+  return a.schedule === b.schedule && a.prompt === b.prompt && a.surfaceWhen === b.surfaceWhen && a.endsWhen === b.endsWhen;
+}
+
+/** The unsaved edits while the saved fields they began from still stand, else the saved fields. */
+export function editedAutomationFields(automation: Pick<Automation, "schedule" | "prompt" | "surfaceWhen" | "endsWhen"> | null, edit: AutomationEdit | undefined): AutomationFields {
+  const saved = automationFields(automation);
+  return edit && sameAutomationFields(edit.base, saved) ? edit.fields : saved;
+}
+
 /** What the renderer renders: the record plus the firing time only the scheduler can compute. */
 export type AutomationView = Automation & { nextRunAt: number | null };
 

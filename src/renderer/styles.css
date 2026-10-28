@@ -363,22 +363,6 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
   background: var(--line-input);
 }
 .sidebar-resizer:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *)::after { inset: 0 3.5px; background: var(--accent); }
-/** The dock's grip, on the sidebar's edge while the pointer is over the sidebar. */
-.sidebar-resizer::before {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 3px;
-  width: 4px;
-  height: 32px;
-  margin-top: -16px;
-  border-radius: 2px;
-  background: var(--line-input);
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-.sidebar:hover > .sidebar-resizer::before { opacity: 1; }
-.sidebar-resizer:is(:hover, :focus-visible)::before { opacity: 0; }
 
 .traffic-space {
   height: var(--window-strip);
@@ -565,7 +549,6 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
   place-items: center;
   border-radius: 999px;
   background: var(--surface-active);
-  box-shadow: inset 0 0 0 1px var(--line-control);
   color: var(--muted);
   font-size: 11px;
   font-weight: 600;
@@ -830,8 +813,8 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
  * actions it offers. Both fill from the right edge and every rail is the same width, at most three
  * slots, so the slots line up down the list and the title never moves. An action shows while the row
  * is hovered, focused from the keyboard or has its menu open, and covers only the marks in its own
- * slots: the menu sits on the engine, and in Priority dismiss sits one slot further in, so the status
- * mark it clears stays in view. The open thread shows its menu at rest, quietly.
+ * slots: the menu sits on the engine, and in Priority dismiss takes the engine's slot and the menu
+ * the one beside it.
  */
 .row-rail {
   flex: none;
@@ -839,7 +822,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
   width: calc(min(3, max(var(--row-slots), var(--rail-actions, 1))) * var(--row-slot));
   height: var(--row-slot);
 }
-.priority-list { --rail-actions: 3; }
+.priority-list { --rail-actions: 2; }
 .row-layer { grid-area: 1 / 1; display: flex; align-items: center; justify-content: flex-end; }
 .row-actions { position: relative; z-index: 1; pointer-events: none; }
 .row-mark { width: var(--row-slot); height: var(--row-slot); display: grid; place-items: center; transition: opacity 90ms ease; }
@@ -849,16 +832,13 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .row-action { opacity: 0; pointer-events: auto; transition: opacity 90ms ease; }
 .task-entry:hover .row-action,
 .task-entry:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) .row-action,
-.row-actions:has(:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *), [aria-expanded="true"]) .row-action,
-.task-entry[aria-current] .task-more { opacity: 1; }
-.task-entry[aria-current]:not(:hover) .task-more:not(:hover, [aria-expanded="true"]) { color: var(--muted); }
-.task-entry[aria-current] .row-rail:has(.task-more) .row-marks > :last-child,
+.row-actions:has(:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *), [aria-expanded="true"]) .row-action { opacity: 1; }
 .task-entry:hover .row-rail:has(.row-actions) .row-marks > :last-child,
 .task-entry:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) .row-rail:has(.row-actions) .row-marks > :last-child,
 .row-rail:has(.row-actions :focus-visible:where(:root:not([data-focus-appearance="quiet"]) *), .row-actions [aria-expanded="true"]) .row-marks > :last-child,
-.task-entry:hover .row-rail:has(.task-dismiss) .row-marks > :nth-last-child(3),
-.task-entry:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) .row-rail:has(.task-dismiss) .row-marks > :nth-last-child(3),
-.row-rail:has(.row-actions :focus-visible:where(:root:not([data-focus-appearance="quiet"]) *), .row-actions [aria-expanded="true"]):has(.task-dismiss) .row-marks > :nth-last-child(3) { opacity: 0; }
+.task-entry:hover .row-rail:has(.task-dismiss) .row-marks > :nth-last-child(2),
+.task-entry:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) .row-rail:has(.task-dismiss) .row-marks > :nth-last-child(2),
+.row-rail:has(.row-actions :focus-visible:where(:root:not([data-focus-appearance="quiet"]) *), .row-actions [aria-expanded="true"]):has(.task-dismiss) .row-marks > :nth-last-child(2) { opacity: 0; }
 /** A target wider and taller than the slot it covers, which its margins keep from moving the slots. */
 .row-action {
   width: 28px;
@@ -874,7 +854,6 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
   cursor: pointer;
 }
 .row-action:hover { background: var(--wash); color: var(--ink); }
-.task-dismiss { margin-right: calc(var(--row-slot) - 3px); }
 .task-dismiss:hover { color: var(--info); }
 .project-task-row {
   width: 100%;
@@ -1142,10 +1121,6 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 /** The way out rests as an outline, so it stays legible without drawing the eye; it fills under the pointer. */
 .zen-titlebar .session-toggle.active { background: transparent; color: var(--muted-strong); transition: background 160ms ease, color 160ms ease; }
 .zen-titlebar .session-toggle.active:is(:hover, :focus-visible) { background: var(--surface-active); color: var(--ink-soft); }
-/** Entering zen names its way out once, then leaves only the button. */
-.zen-hint { margin-right: 8px; color: var(--muted); font-size: var(--text-meta); white-space: nowrap; pointer-events: none; animation: zen-hint 3.2s ease forwards; }
-.zen-hint kbd { margin-right: 4px; border-radius: 4px; padding: 0 5px; background: var(--chip); color: var(--ink-dim); font: inherit; line-height: 18px; }
-@keyframes zen-hint { 0% { opacity: 0; } 8%, 78% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
 /** Without the sidebar the topbar owns the window edge, so it starts clear of the traffic lights. */
 .topbar.traffic-inset { padding-left: max(22px, var(--window-controls-inset)); }
 .workspace-controls { display: flex; align-items: center; gap: 4px; }
@@ -1179,7 +1154,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
   -webkit-app-region: no-drag;
 }
 .session-toggle:hover { background: var(--surface-hover); color: var(--muted-strong); }
-.session-toggle.active { border-color: var(--line-control); background: var(--row-selected, var(--surface-active)); color: var(--ink); }
+.session-toggle.active { border-color: var(--line-control); background: var(--row-selected); color: var(--ink); }
 .session-toggle:is(:disabled, [aria-disabled="true"]) { opacity: 0.6; cursor: default; }
 .session-toggle:is(:disabled, [aria-disabled="true"]):hover { background: transparent; color: var(--quiet); }
 .session-toggle > span {
@@ -2057,8 +2032,13 @@ button.message-image-unavailable:hover { background: var(--surface-hover); color
 .copyable > .copy-affordance { position: absolute; z-index: 2; top: 6px; right: 6px; }
 .copyable-table > .copy-affordance { top: 5px; }
 .copyable > .diagram-expand { position: absolute; z-index: 2; top: 6px; right: 38px; }
-/* At rest a block's buttons are bare glyphs, so every block says it can be copied or opened without a hover. */
-.copyable:not(:hover, :focus-within) > :is(.copy-affordance, .diagram-expand):not(.copied, .failed) { border-color: transparent; background: transparent; color: var(--quiet); }
+/* Inert while hidden, so selecting a block's text is never caught by a button nobody can see. The newest
+   row shows them as bare glyphs, so the answer just written says it can be copied without a hover. */
+.copyable > :is(.copy-affordance, .diagram-expand) { opacity: 0; pointer-events: none; }
+.copyable:is(:hover, :focus-within) > :is(.copy-affordance, .diagram-expand),
+.copyable > :is(.copy-affordance, .diagram-expand):is(.copied, .failed),
+.timeline-row.newest .copyable > :is(.copy-affordance, .diagram-expand) { opacity: 1; pointer-events: auto; }
+.timeline-row.newest .copyable:not(:hover, :focus-within) > :is(.copy-affordance, .diagram-expand):not(.copied, .failed) { border-color: transparent; background: transparent; color: var(--quiet); }
 .copyable:is(:hover, :focus-within) > :is(.copy-affordance, .diagram-expand):not(.copied, .failed, :hover) { border-color: var(--line-strong); color: var(--ink-dim); }
 .copy-affordance:hover, .diagram-expand:hover { border-color: var(--line-bright); color: var(--ink-soft); }
 .copy-affordance.copied { border-color: var(--success-line); color: var(--success-soft); }
@@ -2955,11 +2935,6 @@ pre {
   cursor: pointer;
 }
 .queued-steer:hover:not([aria-disabled="true"]) { border-color: var(--accent-text); color: var(--accent-text); }
-.queued-actions:has(> .armed) > :is(.queued-edit, .queued-steer) { display: none; }
-.queued-actions > :is(.armed, .armed + button) { min-height: 28px; padding: 0 11px; border: 1px solid var(--line-control); border-radius: 8px; background: transparent; color: var(--ink-dim); font-size: var(--text-meta); font-weight: 520; cursor: pointer; }
-.queued-actions > .armed { margin-right: 2px; border-color: var(--danger-line); color: var(--danger); }
-.queued-actions > .armed:hover { background: var(--danger-chip); }
-.queued-actions > .armed + button:hover { background: var(--surface-hover); color: var(--ink); }
 .queued-edit, .queued-drop {
   display: grid;
   width: 28px;
@@ -3763,7 +3738,7 @@ button.coordination-pull-request-thread { margin-block: -2px; padding-block: 2px
   cursor: pointer;
 }
 .review-option:focus { background: var(--surface-menu-hover); }
-.command-option.selected { background: color-mix(in srgb, var(--p-bg-6) 93%, var(--p-fg-0)); }
+.command-option.selected { background: var(--row-selected); }
 .command-option.selected .command-copy strong { color: var(--ink); }
 .command-option.selected .command-copy small { color: var(--ink-dim); }
 .command-mark {
@@ -4571,10 +4546,6 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
 .composer-hint { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: var(--text-meta); white-space: nowrap; }
 .composer-hint > span { display: inline-flex; align-items: center; gap: 5px; }
 .composer-hint kbd { color: var(--ink-dim); font: 11px/1 var(--mono); }
-.composer-hint:has(> button) { gap: 0; }
-.composer-hint > button { display: inline-flex; align-items: center; gap: 5px; min-width: 24px; min-height: 24px; justify-content: center; padding: 0 6px; border: 0; border-radius: 6px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
-.composer-hint > button:hover { background: var(--wash); color: var(--ink-dim); }
-.composer-hint > button:hover kbd { color: var(--ink); }
 .fast-mode-toggle {
   display: flex;
   align-items: center;
@@ -4587,7 +4558,6 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
   border: 0;
   border-radius: 15px;
   background: var(--wash);
-  box-shadow: inset 0 0 0 1px var(--line-control);
   color: var(--muted);
   font-size: var(--text-meta);
   font-weight: 560;
@@ -4608,7 +4578,7 @@ button.file-name:hover { background: var(--surface-hover); color: var(--ink); }
   list-style: none;
 }
 .setting-menu > summary::-webkit-details-marker { display: none; }
-.setting-menu > summary { background: var(--wash); box-shadow: inset 0 0 0 1px var(--line-control); }
+.setting-menu > summary { background: var(--wash); }
 .setting-menu > summary:hover { background: var(--surface-hover); }
 .setting-menu[open] > summary { background: var(--surface-active); }
 /** The axis is named so the value beside it needs no decoding. */
@@ -4806,12 +4776,8 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .stop-glyph { width: 10px; height: 10px; border-radius: 2px; background: var(--ink-inverse); }
 .send-button + .send-button { margin-left: -6px; }
 
-/** The hint keeps its keys in narrow bars; the words stay for screen readers. */
-@container (max-width: 720px) {
-  .composer-hint > button .composer-hint-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-}
 @container (max-width: 560px) {
-  .composer-hint-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .composer-hint { display: none; }
 }
 /** Plan meters share the bar with the settings, so the axis names and the meter's icon go first, then the weekly part, then the meter. */
 @container (max-width: 720px) {
@@ -4821,7 +4787,7 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
   .plan-usage-part + .plan-usage-part { display: none; }
 }
 @container (max-width: 470px) {
-  .plan-usage, .composer-hint { display: none; }
+  .plan-usage { display: none; }
 }
 /** The values still read on their own, so the axis names go before any control does. */
 @container (max-width: 470px) {
@@ -5016,9 +4982,7 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .diff-file-name span { flex: 0 0 auto; overflow: hidden; text-overflow: ellipsis; }
 .diff-file-renamed { flex: none; padding: 1px 6px; border-radius: 999px; background: var(--chip); color: var(--muted); font-size: var(--text-badge); letter-spacing: 0.02em; }
 .diff-file-editor { display: grid; place-items: center; padding: 0; width: 28px; height: 28px; border: 0; border-radius: 7px; background: none; color: var(--muted); opacity: 0; cursor: pointer; }
-/** The file being read keeps its open action in faint view. */
-.diff-file-pinned .diff-file-editor { opacity: 0.5; }
-.diff-file-row:is(:hover, :focus-within) .diff-file-editor { opacity: 1; }
+.diff-file-row:hover .diff-file-editor, .diff-file-editor:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) { opacity: 1; }
 .diff-file-editor:hover { background: var(--surface-menu-hover); color: var(--ink-dim); }
 .diff-file-viewed { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; }
 .diff-file-viewed input { position: absolute; opacity: 0; width: 0; height: 0; outline: none; }

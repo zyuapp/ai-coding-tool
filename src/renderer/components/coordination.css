@@ -211,12 +211,15 @@ button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
   transform: translateY(-50%);
   cursor: pointer;
 }
-/** Resolving is what a reviewed or finished thread waits on, so its check is framed and named. */
-.coordination-item:is(.review, .done) > .coordination-row-action { width: auto; display: inline-flex; align-items: center; gap: 4px; padding: 0 8px 0 6px; box-shadow: inset 0 0 0 1px var(--line-control); color: var(--ink-dim); font: inherit; font-size: var(--text-meta); font-weight: 550; }
-.coordination-item:is(.review, .done) > .coordination-row-action > svg { color: var(--success); }
-.coordination-item:is(.review, .done):has(> .coordination-row-action) > .coordination-row { padding-right: 88px; }
+/** Resolving is what a reviewed or finished thread waits on, so its check is framed. */
+.coordination-item:is(.review, .done) > .coordination-row-action { box-shadow: inset 0 0 0 1px var(--line-control); color: var(--ink-dim); }
 .coordination-row-action:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-soft); }
 .coordination-row-action[data-action="resolve"]:hover:not(:disabled) { background: var(--success-surface); color: var(--success); }
+/** A resolved thread's check is ticked, and turns into an undo while pointed at. */
+.coordination-row-action[data-action="reopen"] { color: var(--success); }
+.coordination-row-action[data-action="reopen"] > .resolution-undo { display: none; }
+.coordination-row-action[data-action="reopen"]:is(:hover, :focus-visible) > .resolution-ticked { display: none; }
+.coordination-row-action[data-action="reopen"]:is(:hover, :focus-visible) > .resolution-undo { display: block; }
 /* The threads a coordinator started, as cards in its conversation where each began, wrapping across the column. */
 .coordination-cards { display: flex; flex-wrap: wrap; gap: 8px; }
 .coordination-card {

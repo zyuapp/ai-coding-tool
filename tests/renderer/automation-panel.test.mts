@@ -5,7 +5,7 @@ import { test, vi } from "vitest";
 import React, { act } from "react";
 import type { RunCommand } from "../../src/contracts/ipc.ts";
 
-import type { AutomationPatch } from "../../src/domain/automation.ts";
+import type { AutomationEdit, AutomationFields, AutomationPatch } from "../../src/domain/automation.ts";
 import type { Thread } from "../../src/domain/thread.ts";
 
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
@@ -368,8 +368,10 @@ test("the automation panel's conditions are plain fields whose placeholders say 
 
 test("unsaved automation edits survive closing the panel, until the saved automation changes", async () => {
   const automation = automationView({ id: "kept-edits" });
-  const props = { engineLabel: "Claude", lastFoundAt: null, lastChecked: null, onUpdate() {}, onDelete() {}, onRunNow() {} };
+  const edits: AutomationEdit[] = [];
+  const props = { engineLabel: "Claude", lastFoundAt: null, lastChecked: null, onUpdate() {}, onDelete() {}, onRunNow() {}, onEdit: (base: AutomationFields, fields: AutomationFields) => { edits.push({ base, fields }); } };
   const first = await mount(React.createElement(AutomationPanel, { automation, ...props }));
+  assert.equal(edits.length, 0, "an untouched panel holds nothing");
   const prompt = query<HTMLTextAreaElement>(first.container, ".automation-field textarea");
   const setTextarea = item(Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value")).set;
   await act(async () => {
@@ -377,13 +379,17 @@ test("unsaved automation edits survive closing the panel, until the saved automa
     prompt.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: "Edited prompt" }));
   });
   await first.unmount();
+  const edit = item(edits.at(-1));
+  assert.equal(edit.fields.prompt, "Edited prompt");
+  assert.equal(edit.base.prompt, automation.prompt);
 
-  const second = await mount(React.createElement(AutomationPanel, { automation: { ...automation, runCount: automation.runCount + 1, updatedAt: automation.updatedAt + 1 }, ...props }));
+  const second = await mount(React.createElement(AutomationPanel, { automation: { ...automation, runCount: automation.runCount + 1, updatedAt: automation.updatedAt + 1 }, edit, ...props }));
   assert.equal(query<HTMLTextAreaElement>(second.container, ".automation-field textarea").value, "Edited prompt", "a run in between keeps the edit");
   assert.equal(query<HTMLButtonElement>(second.container, ".automation-save").disabled, false);
   await second.unmount();
 
-  const third = await mount(React.createElement(AutomationPanel, { automation: { ...automation, prompt: "Changed by the agent", updatedAt: automation.updatedAt + 2 }, ...props }));
+  const third = await mount(React.createElement(AutomationPanel, { automation: { ...automation, prompt: "Changed by the agent", updatedAt: automation.updatedAt + 2 }, edit, ...props }));
   assert.equal(query<HTMLTextAreaElement>(third.container, ".automation-field textarea").value, "Changed by the agent");
+  assert.equal(item(edits.at(-1)).fields.prompt, "Changed by the agent", "an edit the saved automation outran is let go");
   await third.unmount();
 });

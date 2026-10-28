@@ -25,6 +25,7 @@ function noticeActions(dispatch: (input: WorkspaceInput) => Promise<void>) {
     installUpdate: () => dispatch({ type: "app.install-update" }),
     dismissHiddenThreads: () => dispatch({ type: "view.dismiss-hidden-tasks" }),
     dismissToast: (id: number) => dispatch({ type: "view.dismiss-toast", id }),
+    holdToasts: (held: boolean) => dispatch({ type: "view.hold-toasts", held }),
   };
 }
 

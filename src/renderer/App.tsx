@@ -6,8 +6,6 @@ import { AttachmentViewer } from "./components/AttachmentViewer";
 import { DiagramViewerHost } from "./components/MermaidBlock";
 import { FindBar } from "./components/FindBar";
 import { shortcutTip, TooltipLayer } from "./components/TooltipLayer";
-import { displayShortcut } from "../domain/shortcuts";
-import { MAC } from "./platform";
 import { Toasts } from "./components/Toasts";
 import { WorkspaceDialogs } from "./components/WorkspaceDialogs";
 import { RightDock } from "./components/RightDock";
@@ -53,10 +51,9 @@ function HiddenThreadsNotice({ workspace }: { workspace: ReturnType<typeof useTa
 }
 
 /** What zen mode leaves of the topbar: a strip to drag the window by, and the way back out. */
-function ZenTitlebar({ tip, binding, onLeave }: { tip: string; binding: string | undefined; onLeave: () => void }) {
+function ZenTitlebar({ tip, onLeave }: { tip: string; onLeave: () => void }) {
   return (
     <div className="zen-titlebar">
-      {binding && <span className="zen-hint" aria-hidden="true"><kbd>{displayShortcut(binding, MAC)}</kbd>to leave</span>}
       <button className="session-toggle active" type="button" aria-label="Leave zen mode" data-tip={tip} onClick={onLeave}>
         <Focus size={18} aria-hidden="true" />
       </button>
@@ -64,14 +61,9 @@ function ZenTitlebar({ tip, binding, onLeave }: { tip: string; binding: string |
   );
 }
 
-/** The keystroke zen mode is bound to. */
-function zenBinding(workspace: ReturnType<typeof useTaskWorkspace>) {
-  return workspace.shortcuts.find((row) => row.id === "zen.toggle")?.binding || undefined;
-}
-
-/** A tooltip that offers zen mode's keystroke. */
+/** The keystroke zen mode is bound to, for the tooltips that offer it. */
 function zenTip(workspace: ReturnType<typeof useTaskWorkspace>, label: string) {
-  const binding = zenBinding(workspace);
+  const binding = workspace.shortcuts.find((row) => row.id === "zen.toggle")?.binding;
   return binding ? shortcutTip(label, binding) : label;
 }
 
@@ -197,7 +189,7 @@ export function App() {
         inert={settingsVisible}
         {...workspaceDrop.props}
       >
-        {workspace.zen ? <ZenTitlebar tip={zenTip(workspace, "Leave zen mode")} binding={zenBinding(workspace)} onLeave={() => void workspace.dispatch({ type: "view.set-zen", zen: false })} /> : <PartBoundary name="header" className={`topbar ${sidebarOpen ? "" : "traffic-inset"}`.trimEnd()} resetKey={shownKey}>
+        {workspace.zen ? <ZenTitlebar tip={zenTip(workspace, "Leave zen mode")} onLeave={() => void workspace.dispatch({ type: "view.set-zen", zen: false })} /> : <PartBoundary name="header" className={`topbar ${sidebarOpen ? "" : "traffic-inset"}`.trimEnd()} resetKey={shownKey}>
           <WorkspaceHeader
             currentThread={workspace.currentThread}
             folder={workspace.folder}
@@ -267,7 +259,7 @@ export function App() {
       <WorkspaceDialogs workspace={workspace} />
       {settingsVisible && <Suspense fallback={null}><WorkspaceSettings workspace={workspace} onClose={closeSettings} /></Suspense>}
       {workspace.jump && <ThreadJump jump={workspace.jump} actions={workspace.actions} />}
-      <Toasts toasts={workspace.visibleToasts} onDismiss={(id) => void workspace.actions.dismissToast(id)} onAction={(command) => void workspace.dispatch(command)} />
+      <Toasts toasts={workspace.visibleToasts} onDismiss={(id) => void workspace.actions.dismissToast(id)} onHold={(held) => void workspace.actions.holdToasts(held)} onAction={(command) => void workspace.dispatch(command)} />
       <TooltipLayer />
     </main>
     </DiagramViewerHost>

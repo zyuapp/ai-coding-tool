@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import React, { act } from "react";
-import { ComputerSettings, computerAddress, type ComputerSettingsProps } from "../../src/renderer/components/ComputerSettings.tsx";
+import { ComputerSettings, type ComputerSettingsProps } from "../../src/renderer/components/ComputerSettings.tsx";
+import { computerAddress } from "../../src/domain/computers.ts";
 import { dom, mount } from "../support/renderer-dom.mts";
 
 function settings(overrides: Partial<ComputerSettingsProps>) {

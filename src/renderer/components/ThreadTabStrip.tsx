@@ -122,7 +122,7 @@ function PullRequestChip({ pullRequest }: { pullRequest: PullRequestAnswer }) {
         openInApp={links.openUrlInApp && (() => links.openUrlInApp!(GITHUB_CLI_URL))}
       >
         <GitPullRequest size={14} aria-hidden="true" />
-        <span>Install gh for pull requests</span>
+        <span>Install gh</span>
       </WebLink>
     );
   }

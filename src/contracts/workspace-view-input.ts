@@ -7,9 +7,10 @@ import type { WorkspaceEvent } from "../application/workspace-reducer.js";
 import { isBrowserAction, isString, MAX_PROMPT_LENGTH, MAX_URL_LENGTH } from "./ipc.js";
 import type { ExternalCommand } from "./threads.js";
 import { isAgentEffort, isAgentEngine, isAgentModel } from "../domain/agent-engine.js";
-import { isAutomationDraft, isAutomationPatch, type AutomationDraft } from "../domain/automation.js";
+import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationFields } from "../domain/automation.js";
 import { isImportSite, isImportSourceId } from "../domain/browser-import.js";
 import { isCaptureOptions } from "../domain/capture.js";
+import { computerAddress } from "../domain/computers.js";
 import { isScreenshotContext } from "../domain/screenshot-context.js";
 import { MAX_ATTACHMENT_ENCODED_BYTES, type Annotation, type AnnotationAnchor, type AttachedFile, type AttachedFileDraft, type OutgoingAttachment, type PastedText, type RunAttachment } from "../domain/conversation.js";
 import type { ImageAnnotation } from "../domain/image-annotation.js";
@@ -78,6 +79,9 @@ const nullableText = nullable(text);
 const step = literals(-1, 1);
 const readingPoint = nullable(object({ anchor: text, depth: number }));
 const dropTarget = object({ projectId: nullableText, index: number });
+/** A host, with an optional port, already in the form it is dialled in. */
+const hostAddress: Validator<string> = (value): value is string => typeof value === "string" && computerAddress(value) === value;
+const automationFields = object<AutomationFields>({ schedule: text, prompt: text, surfaceWhen: text, endsWhen: text });
 const runAttachment = object<RunAttachment>({ path: text, labels: array(text), context: optional(isScreenshotContext) });
 const pastedText = object<PastedText>({ id: text, text });
 const remoteSender = object<RemoteSender>({ threadId: deviceId, title: text, computer: deviceId });
@@ -354,6 +358,7 @@ const commands = {
   "automation.update": { fields: { taskId: optionalText, patch: isAutomationPatch }, at: "thread" },
   "automation.delete": { fields: { taskId: optionalText }, at: "thread" },
   "automation.run-now": { fields: { taskId: optionalText }, at: "thread" },
+  "view.edit-automation": { fields: { taskId: text, base: automationFields, fields: automationFields }, at: "local" },
   "browser.open": { fields: { taskId: optionalText, url: text, tabId: optionalText, newTab: optionalBoolean }, at: "panel", agent: drivesBrowser },
   "browser.new-tab": { fields: {}, at: "panel" },
   "browser.close-tab": { fields: { taskId: optionalText, tabId: text }, at: "panel", agent: drivesBrowser },
@@ -387,6 +392,7 @@ const commands = {
   "terminal.open": { fields: { cwd: optionalText }, at: "thread" },
   "terminal.select": { fields: { terminalId: text }, at: "terminal" },
   "terminal.close": { fields: { terminalId: text }, at: "terminal" },
+  "terminal.restart": { fields: { terminalId: text }, at: "terminal" },
   "terminal.input": { fields: { terminalId: text, data: (value): value is string => typeof value === "string" && value.length <= MAX_TERMINAL_INPUT }, at: "terminal" },
   "terminal.resize": { fields: { terminalId: text, cols: isTerminalDimension, rows: isTerminalDimension }, at: "terminal" },
   "remote.set-enabled": { fields: { enabled: boolean }, at: "local" },
@@ -394,7 +400,7 @@ const commands = {
   "remote.revoke-device": { fields: { deviceId: text }, at: "local" },
   "remote.refresh": { fields: {}, at: "local" },
   "computers.discover": { fields: {}, at: "local" },
-  "computers.pair": { fields: { host: text, name: text, code: text }, at: "local" },
+  "computers.pair": { fields: { host: hostAddress, name: text, code: text }, at: "local" },
   "computers.cancel-pairing": { fields: {}, at: "local" },
   "computers.forget": { fields: { id: text }, at: "local" },
   "computers.reconnect": { fields: { id: optionalText }, at: "local" },
@@ -410,6 +416,7 @@ const commands = {
   "view.dismiss-action-error": { fields: {}, at: "local" },
   "view.dismiss-hidden-tasks": { fields: {}, at: "local" },
   "view.dismiss-toast": { fields: { id: number }, at: "local" },
+  "view.hold-toasts": { fields: { held: boolean }, at: "local" },
   "view.toggle-project": { fields: { projectId: text }, at: "local" },
   "view.edit-project": { fields: { projectId: nullableText }, at: "local" },
   "view.move-worktree": { fields: { worktree: nullable(boolean) }, at: "local" },

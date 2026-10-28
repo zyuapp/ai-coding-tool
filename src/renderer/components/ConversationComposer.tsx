@@ -13,7 +13,7 @@ import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import type { ContextUsage } from "../../domain/thread-run";
 import { AttachmentAnnotator, AttachmentStrip, useComposerAttachments, type ComposerOutbox } from "./ComposerAttachments";
 import { ComposerSettings, EVERY_ENGINE_READY } from "./ComposerSettings";
-import { CommandMenu, ThreadMenu, menuActiveDescendant, menuControls, useComposerMenus, type ComposerAction, type ComposerMenus } from "./ComposerMenus";
+import { CommandMenu, ThreadMenu, menuActiveDescendant, menuControls, useComposerMenus, type ComposerAction } from "./ComposerMenus";
 import { ContextUsageMeter } from "./ContextUsageMeter";
 import { PlanUsageMeter, PlanUsageWarning, type ComposerPlanUsage } from "./PlanUsageMeter";
 import { QueuedRow } from "./QueuedRow";
@@ -110,21 +110,13 @@ function SendButton({ taskId, surface, runActive, queueable, command, disabled, 
   );
 }
 
-/** What the bar can tell about the prompt: the keys that queue and steer while a run goes, or the menus an empty prompt opens. */
-function ComposerHint({ id, steer, menus, threads }: { id: string; steer: boolean; menus: ComposerMenus | null; threads: boolean }) {
-  if (steer) {
-    return (
-      <span className="composer-hint" id={id}>
-        <span><kbd>{SEND_KEYS}</kbd> <span className="composer-hint-word">queue</span></span>
-        <span><kbd>{STEER_KEYS}</kbd> <span className="composer-hint-word">steer</span></span>
-      </span>
-    );
-  }
-  if (!menus) return null;
+/** The keys that queue and steer while a run goes and something is written. */
+function ComposerHint({ id, steer }: { id: string; steer: boolean }) {
+  if (!steer) return null;
   return (
-    <span className="composer-hint">
-      <button type="button" data-tip="Commands" onMouseDown={(event) => event.preventDefault()} onClick={() => menus.open("/")}><kbd>/</kbd> <span className="composer-hint-word">commands</span></button>
-      {threads && <button type="button" data-tip="Mention a thread" onMouseDown={(event) => event.preventDefault()} onClick={() => menus.open("@")}><kbd>@</kbd> <span className="composer-hint-word">threads</span></button>}
+    <span className="composer-hint" id={id}>
+      <span><kbd>{SEND_KEYS}</kbd> queue</span>
+      <span><kbd>{STEER_KEYS}</kbd> steer</span>
     </span>
   );
 }
@@ -434,7 +426,7 @@ export function ConversationComposer({
           <AttachButton disabled={disabled} onFilesAdd={onFilesAdd} />
           <ComposerSettings taskId={taskId} mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} coordinating={coordinating} fastMode={fastMode} onFastModeChange={onFastModeChange} onModeChange={onModeChange} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
           <div className="composer-actions">
-            <ComposerHint id={hintId} steer={steerHint} menus={!prompt && !disabled ? menus : null} threads={threads.length > 0} />
+            <ComposerHint id={hintId} steer={steerHint} />
             {planUsage && <PlanUsageMeter engineLabel={engineLabel} model={model} usage={planUsage.usage} {...(planUsage.onOpen ? { onOpen: planUsage.onOpen } : {})} />}
             {contextUsage && <ContextUsageMeter usage={contextUsage} {...(onCompact ? { onCompact } : {})} />}
             <SendButton taskId={taskId} surface={surface} runActive={runActive} queueable={steerHint} command={sendCommand} disabled={disabled || nothingToSend} busy={!disabled && (attachments.sending || waiting)} recall={history.length > 0} onSend={() => void submit()} onCancel={onCancel} />

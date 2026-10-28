@@ -130,9 +130,9 @@ test("the Overview files threads ready for review and resolved apart, and resolv
   await act(async () => { query<HTMLButtonElement>(resolved, ".coordination-group-head").click(); });
   await view.render(overview({ resolved: { open: true } }));
   const reopen = query<HTMLButtonElement>(view.container, 'button[aria-label="Reopen Old work"]');
-  assert.equal(reopen.querySelectorAll("svg").length, 1, "a resolved row offers its undo at rest");
+  assert.ok(reopen.querySelector(".resolution-ticked") && reopen.querySelector(".resolution-undo"), "a resolved row is ticked, turning to an undo only when pointed at");
   assert.equal(reopen.textContent, "");
-  assert.equal(query(view.container, 'button[aria-label="Resolve Docs"]').textContent, "Resolve", "a finished row names its Resolve");
+  assert.equal(query(view.container, 'button[aria-label="Resolve Docs"]').textContent, "", "Resolve is a glyph, named by its tip");
   await act(async () => { reopen.click(); });
 
   assert.deepEqual(dispatched, [{ type: "task.resolve", taskId: "review" }, { type: "task.reopen", taskId: "old" }]);

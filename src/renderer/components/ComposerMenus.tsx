@@ -59,8 +59,6 @@ export type ComposerMenus = {
   chooseThread: (option: ThreadHandleOption) => void;
   /** Closes whichever menu is open until the prompt changes again. */
   dismiss: () => void;
-  /** Types `/` or `@` at the caret, which opens that menu. */
-  open: (trigger: "/" | "@") => void;
 };
 
 /** The `/` and `@` menus the prompt opens: what they hold, what is selected, and what choosing does. */
@@ -129,15 +127,6 @@ export function useComposerMenus({ prompt, caret, actions, threads, workspaceId,
     moveCaret(threadToken.start + inserted.length);
   }
 
-  function open(trigger: "/" | "@") {
-    const at = Math.min(caret.caret, prompt.length);
-    const inserted = `${/(^|\s)$/.test(prompt.slice(0, at)) ? "" : " "}${trigger}`;
-    onPromptChange(prompt.slice(0, at) + inserted + prompt.slice(at));
-    setDismissedPrompt(null);
-    setInputFocused(true);
-    moveCaret(at + inserted.length);
-  }
-
   useEffect(() => {
     let cancelled = false;
     setCommandsLoading(true);
@@ -180,7 +169,7 @@ export function useComposerMenus({ prompt, caret, actions, threads, workspaceId,
   return {
     commandMenuRef, threadMenuRef, commandMenuOpen, threadMenuOpen, commandsLoading,
     matchingCommands, matchingThreads, anyThreads: threads.length > 0, selectedCommand, selectedThread,
-    setSelectedCommand, setSelectedThread, chooseCommand, chooseThread, dismiss, open,
+    setSelectedCommand, setSelectedThread, chooseCommand, chooseThread, dismiss,
   };
 }
 

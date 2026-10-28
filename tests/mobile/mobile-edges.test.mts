@@ -27,6 +27,6 @@ test("the answer's copy button has no chip at rest", () => {
   assert.doesNotMatch(rule(".answer-meta > .copy-affordance"), /background/);
 });
 
-test("the transcript makes room for the pills over the composer so they never cover the last line", () => {
-  assert.match(rule(".transcript:has(~ .composer :is(.composer-waiting, .composer-steer-hint))"), /padding-bottom: 56px/);
+test("the transcript makes room for the offline chip over the composer so it never covers the last line", () => {
+  assert.match(rule(".transcript:has(~ .composer .composer-waiting)"), /padding-bottom: 56px/);
 });

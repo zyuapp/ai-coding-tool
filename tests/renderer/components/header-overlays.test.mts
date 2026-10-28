@@ -19,7 +19,7 @@ async function enter(input: HTMLInputElement) {
   await act(async () => { input.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
 }
 
-test("Enter in the branch search checks out the top match, and makes a name nothing matches", async () => {
+test("Enter in the branch search makes a typed name no branch has, and checks out an exact name", async () => {
   const picks: Array<{ branch: string; create: boolean }> = [];
   const view = await mount(React.createElement(BranchMenu, {
     branches: { status: "available", branches: ["main", "feature-login", "feature-logout"], remotes: [], current: "main" },
@@ -30,9 +30,9 @@ test("Enter in the branch search checks out the top match, and makes a name noth
     const input = query<HTMLInputElement>(view.container, 'input[aria-label="Search branches"]');
     await type(input, "feature");
     const labels = [...view.container.querySelectorAll('[role="option"]')].map((option) => option.textContent);
-    assert.deepEqual(labels, ["feature-login", "feature-logout", "Create branch “feature”"], "the row Enter takes leads the list");
+    assert.deepEqual(labels, ["Create branch “feature”", "feature-login", "feature-logout"], "the row Enter takes leads the list");
     await enter(input);
-    assert.deepEqual(picks, [{ branch: "feature-login", create: false }]);
+    assert.deepEqual(picks, [{ branch: "feature", create: true }], "a fragment never checks out a branch it only resembles");
     await type(input, "feature-logout");
     assert.equal(view.container.querySelector('[role="option"]')?.textContent, "feature-logout");
     await enter(input);

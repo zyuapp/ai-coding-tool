@@ -27,7 +27,7 @@ test("a running shell offers a new one in the same folder, and an exited one res
   assert.equal(exited.classList.contains("primary"), true, "an exited shell makes a new one the next step");
   assert.equal(exited.textContent, "Restart shell");
   await act(async () => { exited.click(); });
-  assert.deepEqual(dispatched.slice(1), [{ type: "terminal.open", cwd: "/project" }, { type: "terminal.close", terminalId: "t1" }], "restarting replaces the exited tab rather than adding one");
+  assert.deepEqual(dispatched.slice(1), [{ type: "terminal.restart", terminalId: "t1" }], "restarting is one command");
 
   await view.render(panel(shell({ status: "exited", exitCode: 0 })));
   assert.equal(query(view.container, ".terminal-status em").className, "clean");

@@ -4,15 +4,15 @@ import { test } from "vitest";
 
 const css = await readFile(new URL("../../src/renderer/styles.css", import.meta.url), "utf8");
 
-test("the open thread shows its menu at rest, over the engine mark only when there is a menu", () => {
-  assert.match(css, /\.task-entry\[aria-current\] \.task-more \{ opacity: 1; \}/);
-  assert.match(css, /\.task-entry\[aria-current\] \.row-rail:has\(\.task-more\) \.row-marks > :last-child,/);
+test("the open thread's menu waits for hover or focus like every row's", () => {
+  assert.doesNotMatch(css, /\.task-entry\[aria-current\] \.task-more/);
+  assert.doesNotMatch(css, /\.task-entry\[aria-current\] \.row-rail/);
 });
 
-test("in Priority, Dismiss sits a slot ahead of the status mark, which stays in view", () => {
-  assert.match(css, /\.priority-list \{ --rail-actions: 3; \}/);
-  assert.match(css, /\.task-dismiss \{ margin-right: calc\(var\(--row-slot\) - 3px\); \}/);
-  assert.doesNotMatch(css, /:has\(\.task-dismiss\) \.row-marks > :nth-last-child\(2\)/);
+test("in Priority, Dismiss covers the engine slot and the menu the one beside it", () => {
+  assert.match(css, /\.priority-list \{ --rail-actions: 2; \}/);
+  assert.match(css, /:has\(\.task-dismiss\) \.row-marks > :nth-last-child\(2\)/);
+  assert.doesNotMatch(css, /\.task-dismiss \{ margin-right/);
 });
 
 test("a draggable thread shows its grip on the open row too", () => {

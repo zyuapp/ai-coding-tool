@@ -83,6 +83,24 @@ export function unreviewedFileCount(diff: DiffState) {
 
 export type DockRegistry = { panels: DockPanel[]; launchers: DockLauncher[] };
 
+/** The schedule of the dock's own thread, or of the thread tab it is about. */
+function automationPanel(workspace: Workspace, scheduled: Workspace["threadTabs"][number] | undefined) {
+  const automation = scheduled ? scheduled.automation : workspace.automation;
+  return (
+    <AutomationPanel
+      automation={automation}
+      edit={automation ? workspace.automationEdits[automation.taskId] : undefined}
+      engineLabel={scheduled ? engineLabel(scheduled.thread.engine) : workspace.engineLabel}
+      lastFoundAt={scheduled ? scheduled.thread.lastFindingAt ?? null : workspace.lastFoundAt}
+      lastChecked={scheduled ? scheduled.thread.lastChecked ?? null : workspace.lastChecked}
+      onEdit={(base, fields) => { if (automation) void workspace.dispatch({ type: "view.edit-automation", taskId: automation.taskId, base, fields }); }}
+      onUpdate={(patch) => void workspace.actions.updateAutomation(patch, scheduled?.id)}
+      onDelete={() => void workspace.actions.deleteAutomation(scheduled?.id)}
+      onRunNow={() => void workspace.actions.runAutomationNow(scheduled?.id)}
+    />
+  );
+}
+
 export function buildDock({ workspace, inspectedSubagent, workingSubagents, unreviewedFiles, onInspectSubagent, onCloseInspector, onOpenPanel, onAddSideChat }: {
   workspace: Workspace;
   inspectedSubagent: Workspace["subagents"][number] | undefined;
@@ -223,17 +241,7 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
       description: "Edit the schedule that repeats this task",
       command: "automation",
       icon: AlarmClock,
-      render: () => (
-        <AutomationPanel
-          automation={scheduled ? scheduled.automation : workspace.automation}
-          engineLabel={scheduled ? engineLabel(scheduled.thread.engine) : workspace.engineLabel}
-          lastFoundAt={scheduled ? scheduled.thread.lastFindingAt ?? null : workspace.lastFoundAt}
-          lastChecked={scheduled ? scheduled.thread.lastChecked ?? null : workspace.lastChecked}
-          onUpdate={(patch) => void workspace.actions.updateAutomation(patch, scheduled?.id)}
-          onDelete={() => void workspace.actions.deleteAutomation(scheduled?.id)}
-          onRunNow={() => void workspace.actions.runAutomationNow(scheduled?.id)}
-        />
-      ),
+      render: () => automationPanel(workspace, scheduled),
     },
   ];
 

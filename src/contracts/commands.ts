@@ -1,5 +1,5 @@
 import type { ComputerFilter } from "../domain/computers.js";
-import type { AutomationDraft, AutomationPatch } from "../domain/automation.js";
+import type { AutomationDraft, AutomationFields, AutomationPatch } from "../domain/automation.js";
 import type { SnoozeHours } from "../domain/thread-snooze.js";
 import type { ThreadRole } from "../domain/thread-role.js";
 import type { NextStep, OverviewSection, RemoteLead, ThreadBrief } from "../domain/coordination.js";
@@ -403,6 +403,8 @@ export type TerminalCommand =
   | { type: "terminal.open"; cwd?: string }
   | { type: "terminal.select"; terminalId: string }
   | { type: "terminal.close"; terminalId: string }
+  /** A fresh shell in the same folder, in the tab of the one it replaces. */
+  | { type: "terminal.restart"; terminalId: string }
   /** Keystrokes on their way to the shell, and the size it believes it has. Neither changes state. */
   | { type: "terminal.input"; terminalId: string; data: string }
   | { type: "terminal.resize"; terminalId: string; cols: number; rows: number };
@@ -475,6 +477,10 @@ export type ViewCommand =
   | { type: "view.dismiss-hidden-tasks" }
   /** Takes a toast down, whether the user closed it or its time ran out. */
   | { type: "view.dismiss-toast"; id: number }
+  /** Holds a thread's unsaved automation edits, with the saved fields they began from; edits equal to those drop it. */
+  | { type: "view.edit-automation"; taskId: string; base: AutomationFields; fields: AutomationFields }
+  /** Stops the toasts' time while the pointer or the caret is on them; letting go gives each its time again. */
+  | { type: "view.hold-toasts"; held: boolean }
   | { type: "view.toggle-project"; projectId: string }
   /** Opens the folder editor on one project, or closes whichever it was on with a null. */
   | { type: "view.edit-project"; projectId: string | null }

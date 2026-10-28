@@ -757,7 +757,7 @@ button {
   gap: 16px;
 }
 
-.transcript:has(~ .composer :is(.composer-waiting, .composer-steer-hint)) {
+.transcript:has(~ .composer .composer-waiting) {
   padding-bottom: 56px;
 }
 
@@ -1499,25 +1499,6 @@ button.work-row .work-summary {
 
 .composer-waiting span {
   white-space: nowrap;
-}
-
-.composer-steer-hint {
-  position: absolute;
-  right: 12px;
-  bottom: calc(100% + 2px);
-  max-width: calc(100% - 24px);
-  margin: 0;
-  padding: 3px 10px;
-  border: 1px solid var(--line-control);
-  border-radius: 999px;
-  font-size: var(--text-meta);
-  line-height: 1.5;
-  color: var(--muted-strong);
-  background: var(--surface);
-  box-shadow: var(--shadow-float);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .composer-card {

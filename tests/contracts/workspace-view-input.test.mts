@@ -161,3 +161,18 @@ test("what an agent may send is a command the window itself accepts, held to the
   assert.equal(isExternalCommand({ type: "browser.go", delta: 1 }), false, "an agent names the thread driving the browser");
   assert.equal(isExternalCommand({ type: "task.send", taskId: "task-1", text: "  \n " }), false, "a blank message would be answered as sent with nothing sent");
 });
+
+test("pairing takes only a host, with an optional port, in the form it is dialled in", () => {
+  for (const host of ["studio.tail.ts.net", "127.0.0.1:7737", "[::1]:7737"]) assert.equal(isWorkspaceViewInput({ type: "computers.pair", host, name: "Studio", code: "" }), true, host);
+  for (const host of ["https://studio.tail.ts.net/", " studio", "studio tail", "studio:99999", ""]) assert.equal(isWorkspaceViewInput({ type: "computers.pair", host, name: "Studio", code: "" }), false, host);
+});
+
+test("toast holds, automation edits, and shell restarts are checked at the view boundary", () => {
+  const fields = { schedule: "0 8 * * *", prompt: "Check", surfaceWhen: "", endsWhen: "" };
+  assert.equal(isWorkspaceViewInput({ type: "view.hold-toasts", held: true }), true);
+  assert.equal(isWorkspaceViewInput({ type: "view.hold-toasts", held: "yes" }), false);
+  assert.equal(isWorkspaceViewInput({ type: "view.edit-automation", taskId: "t", base: fields, fields }), true);
+  assert.equal(isWorkspaceViewInput({ type: "view.edit-automation", taskId: "t", base: fields, fields: { ...fields, prompt: 1 } }), false);
+  assert.equal(isWorkspaceViewInput({ type: "terminal.restart", terminalId: "shell" }), true);
+  assert.equal(isWorkspaceViewInput({ type: "terminal.restart" }), false);
+});

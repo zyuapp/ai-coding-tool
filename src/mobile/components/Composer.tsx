@@ -20,24 +20,6 @@ export function returnToComposer(text: string) {
   handBack?.(text);
 }
 
-const STEER_LEARNED_KEY = "mobile.steer-learned";
-
-function steerLearned(): boolean {
-  try {
-    return localStorage.getItem(STEER_LEARNED_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function learnSteer() {
-  try {
-    localStorage.setItem(STEER_LEARNED_KEY, "1");
-  } catch {
-    // A refused store only shows the hint again next time.
-  }
-}
-
 function keep(key: string | undefined, text: string) {
   if (!key) return;
   if (text) drafts.set(key, text);
@@ -91,7 +73,6 @@ export function Composer({ draftKey, running, waiting, returned, settings, quest
     setGiven(returned.id);
     if (!draft.trim()) setDraft(returned.text);
   }
-  const [learned, setLearned] = useState(steerLearned);
   const field = useRef<HTMLTextAreaElement>(null);
   const { mode, model, effort } = settingsSummary(settings);
 
@@ -128,14 +109,6 @@ export function Composer({ draftKey, running, waiting, returned, settings, quest
     how(text);
   }
 
-  function choose(how: (text: string) => void) {
-    if (!learned) {
-      learnSteer();
-      setLearned(true);
-    }
-    send(how);
-  }
-
   const stop = <button type="button" className={queueing ? "send-button stop-aside" : "send-button running"} onClick={onStop} aria-label="Stop this run"><span className="stop-glyph" /></button>;
 
   return (
@@ -147,7 +120,6 @@ export function Composer({ draftKey, running, waiting, returned, settings, quest
           {onEditWaiting && <button type="button" className="composer-waiting-edit" onClick={onEditWaiting}>Edit</button>}
         </div>
       )}
-      {queueing && onSteer && !learned && waiting === 0 && <p className="composer-steer-hint" aria-hidden="true">Steer joins this run · Queue waits for it</p>}
       {question && <QuestionPrompt question={question} answer={answer.answer} disabled={answer.submitting} submitOnEnter={false} onAnswerChange={answer.change} onSubmit={answer.submit} />}
       {children}
       <div className="composer-card" data-blocked={blocked || undefined}>
@@ -177,9 +149,9 @@ export function Composer({ draftKey, running, waiting, returned, settings, quest
             <ChevronDown className="composer-settings-chevron" size={14} strokeWidth={2} aria-hidden="true" />
           </button>
           {queueing && onStop && stop}
-          {queueing && onSteer && <button type="button" className="composer-pill" aria-description="Sends it into the running turn" onClick={() => choose(onSteer)}><Zap size={14} strokeWidth={2.2} aria-hidden="true" />Steer now</button>}
+          {queueing && onSteer && <button type="button" className="composer-pill" aria-description="Sends it into the running turn" onClick={() => send(onSteer)}><Zap size={14} strokeWidth={2.2} aria-hidden="true" />Steer now</button>}
           {queueing
-            ? <button type="button" className="composer-pill primary" aria-description="Sends it when this run ends" onClick={() => choose(onSend)}><CornerDownRight size={14} strokeWidth={2.2} aria-hidden="true" />Queue</button>
+            ? <button type="button" className="composer-pill primary" aria-description="Sends it when this run ends" onClick={() => send(onSend)}><CornerDownRight size={14} strokeWidth={2.2} aria-hidden="true" />Queue</button>
             : running
               ? stop
               : !blocked && <button type="button" className="send-button" onClick={() => send(onSend)} disabled={!typed} aria-label="Send" aria-keyshortcuts="Meta+Enter Control+Enter"><ArrowUp size={18} strokeWidth={2.4} /></button>}

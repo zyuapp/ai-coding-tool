@@ -167,6 +167,24 @@ test("closing a terminal hands the panel its neighbour and kills only the shell 
   assert.deepEqual(dock(empty.state).terminals, []);
 });
 
+test("restarting a shell starts a new one in its folder, in its tab, and kills the old one", () => {
+  const first = reduce(workspace({ lastFolder: "/repo" }), { type: "terminal.open" });
+  const second = reduce(first.state, { type: "terminal.open", cwd: "/other" });
+  const [one, two] = dock(second.state).terminals;
+
+  const restarted = reduce(second.state, { type: "terminal.restart", terminalId: one.id });
+  const [fresh, kept] = dock(restarted.state).terminals;
+  assert.equal(dock(restarted.state).terminals.length, 2, "the dead tab is replaced, not joined");
+  assert.notEqual(fresh.id, one.id);
+  assert.deepEqual({ cwd: fresh.cwd, status: fresh.status }, { cwd: "/repo", status: "running" });
+  assert.equal(kept, two);
+  assert.equal(dock(restarted.state).terminalId, fresh.id);
+  assert.equal(dock(restarted.state).tab, fresh.id);
+  assert.deepEqual(restarted.effects.slice(0, 2), [{ type: "terminal.close", terminalId: one.id }, { type: "terminal.start", terminalId: fresh.id, cwd: "/repo" }]);
+
+  assert.equal(reduce(second.state, { type: "terminal.restart", terminalId: "gone" }).state, second.state, "a shell already gone is left alone");
+});
+
 test("⌘W closes the terminal in front, then the dock behind it", () => {
   const opened = reduce(workspace({ lastFolder: "/repo" }), { type: "terminal.open" });
   const [terminal] = dock(opened.state).terminals;

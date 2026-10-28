@@ -59,3 +59,12 @@ export function offlineMessage(link: Pick<ComputerLink, "name" | "status" | "err
   const away = `${link.name} is ${awayStatus(link.status)}.`;
   return link.error ? `${away} ${link.error}` : away;
 }
+
+/** The address as dialled, with a pasted scheme or trailing slash dropped; null when it is not a host with an optional port. */
+export function computerAddress(text: string): string | null {
+  const address = text.trim().replace(/^(?:https?|wss?):\/\//i, "").replace(/\/+$/, "");
+  const match = /^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*|\[[0-9a-f:.]+\])(?::(\d{1,5}))?$/i.exec(address);
+  if (!match) return null;
+  const port = match[1] === undefined ? null : Number(match[1]);
+  return port === null || (port > 0 && port <= 65535) ? address : null;
+}

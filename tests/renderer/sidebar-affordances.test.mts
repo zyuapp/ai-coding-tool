@@ -503,7 +503,7 @@ test("a rail holds three marks at most, folding the ones ahead of status and eng
   } finally { await view.unmount(); }
 });
 
-test("in Priority, the menu keeps the engine's slot, Dismiss sits on the row alone, and the menu never repeats it", async () => {
+test("in Priority, Dismiss takes the engine's slot so the status mark stays in view, and the menu never repeats it", async () => {
   const dismissed: string[] = [];
   const view = await mount(React.createElement(Harness, {
     mode: "activity",
@@ -512,16 +512,16 @@ test("in Priority, the menu keeps the engine's slot, Dismiss sits on the row alo
   }));
   try {
     const actions = [...view.container.querySelectorAll<HTMLElement>('nav[aria-label="Priority"] .row-action')];
-    assert.deepEqual(actions.map((action) => action.dataset.tip), ["Dismiss", "More"]);
+    assert.deepEqual(actions.map((action) => action.dataset.tip), ["More", "Dismiss"]);
     const marks = [...view.container.querySelectorAll<HTMLElement>('nav[aria-label="Priority"] .row-mark')];
     assert.deepEqual(marks.map((mark) => mark.dataset.tip), ["Finished", "Claude thread"]);
 
-    await act(async () => { actions[1]!.click(); });
+    await act(async () => { actions[0]!.click(); });
     assert.ok(menuItem("Rename"));
     assert.equal(menuItem("Dismiss"), undefined, "the row's own button is the one way to dismiss it");
     await act(async () => { document.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
 
-    await act(async () => { actions[0]!.click(); });
+    await act(async () => { actions[1]!.click(); });
     assert.deepEqual(dismissed, ["done"]);
   } finally { await view.unmount(); }
 });

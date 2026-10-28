@@ -14,7 +14,7 @@ import { rescheduledToasts } from "../toasts.js";
 export const DESKTOP_INPUTS = [
   "image.open", "image.close", "image.download", "file.open", "app.list", "apps.listed", "app.open-folder", "app.check-for-updates",
   "app.download-update", "app.install-update", "app.update-changed", "app.open-source-licenses", "terminal.open", "terminal.select", "terminal.close",
-  "terminal.input", "terminal.resize", "terminal.updated", "view.closed", "view.mounted"
+  "terminal.restart", "terminal.input", "terminal.resize", "terminal.updated", "view.closed", "view.mounted"
 ] as const;
 type DesktopInput = Extract<WorkspaceInput, { type: (typeof DESKTOP_INPUTS)[number] }>;
 
@@ -26,13 +26,15 @@ export function reduceDesktop(state: WorkspaceState, input: DesktopInput): Works
       return settled({ ...state, viewingImage: null });
     case "image.download":
       return settled({ ...state, actionError: null }, state.viewingImage ? [{ type: "image.download", source: state.viewingImage }] : []);
-    case "view.mounted":
-      return settled(state, [
+    case "view.mounted": {
+      const mounted = state.toastsHeld ? { ...state, toastsHeld: false } : state;
+      return settled(mounted, [
         { type: "apply-shortcuts", overrides: state.shortcuts },
         { type: "apply-capture-options", options: { sound: state.captureSound, focus: state.captureFocus } },
         ...shownPageEffects(state),
-        ...rescheduledToasts(state),
+        ...rescheduledToasts(mounted),
       ]);
+    }
 
     case "view.closed": {
       const docks = { ...state.docks };
@@ -125,6 +127,18 @@ export function reduceDesktop(state: WorkspaceState, input: DesktopInput): Works
         ? terminals[index - 1] ?? terminals[index] ?? null
         : terminals.find((terminal) => terminal.id === dock.terminalId) ?? null;
       return settled(withDock(state, owner, { terminals, terminalId: next?.id ?? null, tab }), [{ type: "terminal.close", terminalId: input.terminalId }]);
+    }
+
+    case "terminal.restart": {
+      const owner = ownerOfTerminal(state, input.terminalId);
+      if (!owner) return settled(state);
+      const dock = dockFor(state, owner);
+      const old = dock.terminals.find((terminal) => terminal.id === input.terminalId)!;
+      const terminal: TerminalSession = { id: crypto.randomUUID(), title: terminalTitle(old.cwd), cwd: old.cwd, taskId: old.taskId, status: "running" };
+      const replaced = withDock({ ...state, actionError: null }, owner, { terminals: dock.terminals.map((item) => item === old ? terminal : item), terminalId: terminal.id });
+      const restarted = showDockTab(replaced, owner, terminal.id);
+      const focused = focusDockTab(restarted, owner, terminal.id);
+      return settled(focused.state, [{ type: "terminal.close", terminalId: old.id }, { type: "terminal.start", terminalId: terminal.id, cwd: old.cwd }, ...focused.effects]);
     }
 
     /** Keystrokes and the size the shell believes it has. Neither is state, so only the effect happens. */

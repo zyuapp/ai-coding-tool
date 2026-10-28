@@ -187,27 +187,13 @@ export type SidebarCoordination = {
 };
 
 /**
- * What can be done to a thread from its row: its menu over the engine mark, as on every row, and in
- * Priority dismissing just ahead of the status mark it clears, which stays in view. Archiving is in
- * the menu, a step from a stray click.
+ * What can be done to a thread from its row: its menu, and in Priority dismissing at the rail's
+ * outer edge, over the engine mark, so the status it clears stays in view. Archiving is in the menu,
+ * a step from a stray click.
  */
 function rowActionButtons(row: RowState, action: RowAction): React.ReactNode[] {
   const { thread, handlers } = row;
   return [
-    action === "dismiss" && <CommandButton command={{ type: "task.dismiss", taskId: thread.id }}
-      key="dismiss"
-      className="row-action task-dismiss"
-      type="button"
-      aria-label={row.schedule ? `Dismiss ${thread.title}, which keeps running on its schedule` : `Dismiss ${thread.title}`}
-      data-tip="Dismiss"
-      onClick={(event) => {
-        event.stopPropagation();
-        handlers.dismiss(thread.id);
-      }}
-      onDoubleClick={(event) => event.stopPropagation()}
-    >
-      <Check size={14} aria-hidden="true" />
-    </CommandButton>,
     <button
       key="menu"
       className="row-action task-more"
@@ -225,6 +211,20 @@ function rowActionButtons(row: RowState, action: RowAction): React.ReactNode[] {
     >
       <Ellipsis size={16} aria-hidden="true" />
     </button>,
+    action === "dismiss" && <CommandButton command={{ type: "task.dismiss", taskId: thread.id }}
+      key="dismiss"
+      className="row-action task-dismiss"
+      type="button"
+      aria-label={row.schedule ? `Dismiss ${thread.title}, which keeps running on its schedule` : `Dismiss ${thread.title}`}
+      data-tip="Dismiss"
+      onClick={(event) => {
+        event.stopPropagation();
+        handlers.dismiss(thread.id);
+      }}
+      onDoubleClick={(event) => event.stopPropagation()}
+    >
+      <Check size={14} aria-hidden="true" />
+    </CommandButton>,
   ].filter(Boolean);
 }
 

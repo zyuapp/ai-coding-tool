@@ -6,7 +6,7 @@ import { coordinationNote } from "../coordination.js";
 import { declinedTick, raisedFinding, whyTickCannotRun } from "../findings.js";
 import { withNothingToReport } from "../run-testimony.js";
 import { threadOnScreen } from "../thread-attention.js";
-import { isWatching, type AutomationView } from "../../domain/automation.js";
+import { isWatching, sameAutomationFields, type AutomationView } from "../../domain/automation.js";
 import { coordinatorOf, withCoordinationNote } from "../../domain/coordination.js";
 import type { Thread } from "../../domain/thread.js";
 import { automationRunPrompt, updateThread } from "../thread-run-state.js";
@@ -15,7 +15,7 @@ import type { PendingRun, WorkspaceState } from "../workspace-state.js";
 
 export const AUTOMATION_INPUTS = [
   "automation.fired", "automation.notify", "automation.nothing-to-report", "automation.save", "automation.update", "automation.delete",
-  "automation.run-now", "automations.changed"
+  "automation.run-now", "automations.changed", "view.edit-automation"
 ] as const;
 type AutomationInput = Extract<WorkspaceInput, { type: (typeof AUTOMATION_INPUTS)[number] }>;
 
@@ -64,7 +64,12 @@ export function reduceAutomations(state: WorkspaceState, input: AutomationInput)
 
     case "automation.delete": {
       const taskId = targetId(state, input.taskId);
-      return taskId ? settled(state, [{ type: "automation.delete", taskId }]) : settled(state);
+      return taskId ? settled(withoutAutomationEdit(state, taskId), [{ type: "automation.delete", taskId }]) : settled(state);
+    }
+
+    case "view.edit-automation": {
+      if (sameAutomationFields(input.fields, input.base)) return settled(withoutAutomationEdit(state, input.taskId));
+      return settled({ ...state, automationEdits: { ...state.automationEdits, [input.taskId]: { base: input.base, fields: input.fields } } });
     }
 
     case "automation.run-now": {
@@ -114,4 +119,10 @@ export function retireAutomations(state: WorkspaceState, taskIds: Iterable<strin
 
 export function ack(pending: PendingRun, started: boolean): WorkspaceEffect[] {
   return pending.automationId ? [{ type: "automation.ack", ack: { automationId: pending.automationId, runId: pending.runId, started } }] : [];
+}
+
+function withoutAutomationEdit(state: WorkspaceState, taskId: string): WorkspaceState {
+  if (!(taskId in state.automationEdits)) return state;
+  const { [taskId]: _dropped, ...automationEdits } = state.automationEdits;
+  return { ...state, automationEdits };
 }

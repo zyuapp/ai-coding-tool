@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { MAX_TOASTS, TOAST_LIFETIME_MS } from "../../src/domain/toast.ts";
+import { withToast } from "../../src/application/toasts.ts";
 import type { EngineStatus } from "../../src/domain/agent-engine.ts";
 import { run, workspace } from "./workspace-reducer-fixtures.mts";
 
@@ -95,4 +96,32 @@ test("an up-to-date launch offers nothing", () => {
   const found = reduce(reduce(workspace(), { type: "engine.read" }).state, { type: "engine.status", status: { claude: { access: "ready", version: "2.1.260" }, codex: { access: "missing", fix: "brew install --cask codex" } } });
   assert.deepEqual(found.effects, []);
   assert.deepEqual(found.state.toasts, [], "an engine that is not installed is the user's to install");
+});
+
+test("held toasts stop their time, a toast raised meanwhile waits too, and letting go gives each its time again", () => {
+  const launched = reduce(workspace(), { type: "app.launched", version: "0.8.0" }).state;
+  const held = reduce(launched, { type: "view.hold-toasts", held: true });
+  assert.equal(held.state.toastsHeld, true);
+  assert.deepEqual(held.effects, [{ type: "schedule-toast-dismissal", id: 1, at: null }]);
+  assert.equal(reduce(held.state, { type: "view.hold-toasts", held: true }).state, held.state, "holding again changes nothing");
+
+  const raised = reduce(held.state, { type: "app.launched", version: "0.9.0" });
+  assert.deepEqual(raised.state.toasts.map((toast) => toast.id), [1, 2]);
+  assert.deepEqual(raised.effects, [], "a toast raised while held waits with the rest");
+
+  const released = reduce(raised.state, { type: "view.hold-toasts", held: false });
+  assert.equal(released.state.toastsHeld, false);
+  assert.deepEqual(released.effects.map((effect) => effect.type === "schedule-toast-dismissal" && effect.id), [1, 2]);
+  assert.ok(released.effects.every((effect) => effect.type === "schedule-toast-dismissal" && effect.at !== null && effect.at - Date.now() <= TOAST_LIFETIME_MS));
+});
+
+test("a result replacing its progress while held keeps one card, and a window that mounts again lets go", () => {
+  const held = reduce(workspace(), { type: "view.hold-toasts", held: true }).state;
+  const progress = withToast(held, { tone: "progress", title: "Updating Codex", subject: "codex", persistent: true }).state;
+  const result = withToast(progress, { tone: "success", title: "Codex updated", subject: "codex" });
+  assert.deepEqual(result.state.toasts.map((toast) => toast.title), ["Codex updated"]);
+  assert.deepEqual(result.effects, [{ type: "schedule-toast-dismissal", id: 1, at: null }]);
+  const mounted = reduce(result.state, { type: "view.mounted" });
+  assert.equal(mounted.state.toastsHeld, false);
+  assert.ok(mounted.effects.some((effect) => effect.type === "schedule-toast-dismissal" && effect.id === 1 && effect.at !== null));
 });

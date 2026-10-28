@@ -191,12 +191,10 @@ test("zen mode is offered once the thread has messages", async () => {
   } finally { await view.unmount(); }
 });
 
-test("the right panel toggle says it takes the session summary's place while that is open", async () => {
+test("the right panel toggle's tip names it and its shortcut, whatever else is open", async () => {
   const view = await mount(React.createElement(WorkspaceHeader, headerProps({ sessionPanelOpen: true })));
   try {
     const toggle = () => query<HTMLButtonElement>(view.container, 'button[aria-pressed][aria-label*="right panel"]');
-    assert.match(item(toggle().dataset.tip), /^Right panel \(.+\) · Replaces session summary$/);
-    await view.render(React.createElement(WorkspaceHeader, headerProps({ sessionPanelOpen: false })));
     assert.match(item(toggle().dataset.tip), /^Right panel \(.+\)$/);
   } finally { await view.unmount(); }
 });

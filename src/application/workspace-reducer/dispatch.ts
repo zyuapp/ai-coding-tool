@@ -68,7 +68,7 @@ export const CLAIMS = [
   claim(STORE_INPUTS, reduceStore),
   claim(COMPOSER_INPUTS, reduceComposer),
   claim(["view.set-model-favorite"], reduceModelFavorite),
-  claim(["view.dismiss-toast"], reduceToasts),
+  claim(["view.dismiss-toast", "view.hold-toasts"], reduceToasts),
   claim(APP_UPDATE_INPUTS, reduceAppUpdate),
   claim(SETTINGS_INPUTS, reduceSettings),
   claim(DOCK_INPUTS, reduceDock),

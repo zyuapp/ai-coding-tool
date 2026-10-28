@@ -5,7 +5,7 @@ import React, { act } from "react";
 
 const { ForkNameDialog } = await import("../../../src/renderer/components/ForkNameDialog.tsx");
 
-test("the fork dialog says what a fork copies and where it goes, and Enter takes the suggested name", async () => {
+test("the fork dialog asks only for a name, and Enter takes the suggested one", async () => {
   const confirmed: string[] = [];
   const dialog = (worktree: boolean) => React.createElement(ForkNameDialog, {
     fork: { taskId: "thread-1", title: "Audit (fork)", worktree } ,
@@ -14,14 +14,12 @@ test("the fork dialog says what a fork copies and where it goes, and Enter takes
   });
   const view = await mount(dialog(false));
   try {
-    const scrim = query(document, '[role="dialog"]');
-    const summary = document.getElementById(scrim.getAttribute("aria-describedby") ?? "");
-    assert.equal(summary?.textContent, "Copies this conversation into a new thread.");
+    assert.equal(query(document, '[role="dialog"]').hasAttribute("aria-describedby"), false);
     await act(async () => { query<HTMLButtonElement>(document, 'button[type="submit"]').click(); });
     assert.deepEqual(confirmed, ["Audit (fork)"]);
   } finally { await view.unmount(); }
   const worktree = await mount(dialog(true));
   try {
-    assert.match(query(document, ".project-edit-note").textContent ?? "", /its own checkout/);
+    assert.equal(document.querySelector(".project-edit-note"), null);
   } finally { await worktree.unmount(); }
 });

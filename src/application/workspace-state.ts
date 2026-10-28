@@ -33,7 +33,7 @@ import { findView } from "./workspace-find.js";
 export { findTargetFor } from "./workspace-find.js";
 export type { FindView } from "./workspace-find.js";
 export { EMPTY_DIFF, diffFor, diffMatches, foldedOnLoad, retainedViews, withDiff, type DiffState } from "./workspace-diff.js";
-import type { AutomationView } from "../domain/automation.js";
+import type { AutomationEdit, AutomationView } from "../domain/automation.js";
 import { NO_APP_UPDATE, type AppBuild, type AppUpdate, type AppUpdateRequest } from "../domain/app-update.js";
 import type { Toast } from "../domain/toast.js";
 import { visibleToasts } from "./toasts.js";
@@ -406,6 +406,10 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   toasts: Toast[];
   /** The id the last toast took, so each one has its own. */
   toastSequence: number;
+  /** Unsaved edits in each thread's automation panel. Session-only. */
+  automationEdits: Record<string, AutomationEdit>;
+  /** The pointer or the caret is on the toasts, so none leaves on its own. Session-only. */
+  toastsHeld: boolean;
   /** What the user closed toasts about, so the same ones are not raised again. Kept between launches. */
   dismissedToasts: string[];
   /** The computers this one is paired with, each mirrored here as it changes there. Session-only. */
@@ -532,6 +536,8 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     appUpdateRequest: null,
     toasts: [],
     toastSequence: 0,
+    toastsHeld: false,
+    automationEdits: {},
     dismissedToasts: [],
     computers: NO_COMPUTERS,
     focused: true,
@@ -733,7 +739,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state,
     inspectedWorkflow: workflowById(state, dock.workflowId) ?? null,
     streamingTail: state.currentId ? state.streamingTails[state.currentId] ?? null : null,
     readingPoint: state.currentId ? state.readingPoints[state.currentId] ?? null : null,
-    automation: state.automations.find((item) => item.taskId === state.currentId) ?? null,
+    automation: state.automations.find((item) => item.taskId === state.currentId) ?? null, automationEdits: state.automationEdits,
     schedules: collections.schedules,
     /** When a run on this thread last found something, which is what the automation panel reports. */
     lastFoundAt: currentThread?.lastFindingAt ?? null,
