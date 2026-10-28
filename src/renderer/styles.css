@@ -680,7 +680,9 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
 .project-main:has(> .folder-status) { grid-template-columns: 18px minmax(0, 1fr) minmax(var(--row-slot), auto); }
 .folder-status:has(> .folder-status-count) { width: auto; display: flex; gap: 4px; padding: 0 4px; }
 .folder-status-count { color: var(--muted-strong); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
-/** New thread stays in view on every folder, quiet until the row is pointed at; the menu shows on the row hovered, focused or current. */
+/** While the folder's own buttons are hidden, its mark sits in the last rail slot, in line with the thread rows' marks. */
+.project-row:not(:hover, :focus-within, .current):not(:has(.project-menu.open)) .folder-status { position: absolute; right: var(--row-inset); }
+/** A folder's New thread and menu show on the row hovered, focused or current. */
 .project-menu, .project-new { opacity: 0; }
 .project-row:hover :is(.project-menu, .project-new),
 .project-row:focus-within:where(:root:not([data-focus-appearance="quiet"]) *) :is(.project-menu, .project-new),
