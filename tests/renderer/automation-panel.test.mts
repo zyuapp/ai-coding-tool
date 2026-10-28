@@ -332,66 +332,58 @@ test("the automation panel's fields are named by their visible labels, and Mod+E
   await view.unmount();
 });
 
-test("a missed automation's status runs it now", async () => {
+test("a missed automation shows its status apart from Run now, which it raises", async () => {
   let ranNow = 0;
   const view = await mount(React.createElement(AutomationPanel, {
-    automation: automationView({ nextRunAt: null, lastStatus: "missed" }), engineLabel: "Claude", lastFoundAt: null, lastChecked: null, onUpdate() {}, onDelete() {}, onRunNow: () => { ranNow += 1; },
+    automation: automationView({ id: "missed", nextRunAt: null, lastStatus: "missed" }), engineLabel: "Claude", lastFoundAt: null, lastChecked: null, onUpdate() {}, onDelete() {}, onRunNow: () => { ranNow += 1; },
   }));
-  const missed = query<HTMLButtonElement>(view.container, ".agents-panel-heading .automation-missed");
-  assert.match(missed.textContent, /Missed.*Run now/);
-  await act(async () => { missed.click(); });
+  const status = query(view.container, '.agents-panel-heading > span[data-state="missed"]');
+  assert.equal(status.textContent, "Missed");
+  assert.equal(view.container.querySelector(".agents-panel-heading button"), null, "the status is not a second Run now");
+  const runNow = item([...view.container.querySelectorAll<HTMLButtonElement>(".automation-actions button")].find((each) => each.textContent === "Run now"));
+  assert.ok(runNow.classList.contains("primary"));
+  await act(async () => { runNow.click(); });
   assert.equal(ranNow, 1);
-  assert.match(query(view.container, ".agents-panel-heading .automation-missed").textContent, /Started/);
+  assert.match(runNow.textContent, /Started/);
 
   await view.render(React.createElement(AutomationPanel, {
-    automation: automationView({ paused: true, nextRunAt: null }), engineLabel: "Claude", lastFoundAt: null, lastChecked: null, onUpdate() {}, onDelete() {}, onRunNow() {},
+    automation: automationView({ id: "missed", paused: true, nextRunAt: null }), engineLabel: "Claude", lastFoundAt: null, lastChecked: null, onUpdate() {}, onDelete() {}, onRunNow() {},
   }));
-  assert.equal(view.container.querySelector(".automation-missed"), null, "a paused schedule is the user's own doing and asks for nothing");
+  assert.equal(view.container.querySelector('[data-state="missed"]'), null, "a paused schedule is the user's own doing and asks for nothing");
+  const plainRunNow = item([...view.container.querySelectorAll<HTMLButtonElement>(".automation-actions button")].find((each) => /Run now|Started/.test(each.textContent)));
+  assert.equal(plainRunNow.classList.contains("primary"), false);
   await view.unmount();
 });
 
-test("a common schedule fills the field in, reads back, and shows as picked", async () => {
-  const patches: AutomationPatch[] = [];
+test("the automation panel's conditions are plain fields whose placeholders say what empty means", async () => {
   const view = await mount(React.createElement(AutomationPanel, {
-    automation: automationView(), engineLabel: "Claude", lastFoundAt: null, lastChecked: null, onUpdate: (patch) => { patches.push(patch); }, onDelete() {}, onRunNow() {},
-  }));
-  const schedule = query<HTMLInputElement>(view.container, "input.automation-schedule");
-  const presets = [...view.container.querySelectorAll<HTMLButtonElement>(".automation-presets button")];
-  assert.deepEqual(presets.map((each) => each.textContent), ["Hourly", "Daily", "Weekdays", "Weekly"]);
-  assert.ok(presets.every((each) => each.getAttribute("aria-pressed") === "false"), "*/5 is none of them");
-
-  const weekdays = item(presets[2]);
-  await act(async () => { weekdays.click(); });
-  assert.equal(schedule.value, "0 9 * * 1-5");
-  assert.equal(weekdays.getAttribute("aria-pressed"), "true");
-  const readout = item(dom.window.document.getElementById(item(schedule.getAttribute("aria-describedby"))));
-  assert.match(readout.textContent ?? "", /^Weekdays at /);
-
-  await act(async () => { query<HTMLButtonElement>(view.container, ".automation-save").click(); });
-  assert.deepEqual(patches, [{ schedule: "0 9 * * 1-5", prompt: automationView().prompt }]);
-  await view.unmount();
-});
-
-test("the automation panel's conditions give an example and say what an empty or filled one means", async () => {
-  const view = await mount(React.createElement(AutomationPanel, {
-    automation: automationView(), engineLabel: "Claude", lastFoundAt: null, lastChecked: null, onUpdate() {}, onDelete() {}, onRunNow() {},
+    automation: automationView({ id: "conditions" }), engineLabel: "Claude", lastFoundAt: null, lastChecked: null, onUpdate() {}, onDelete() {}, onRunNow() {},
   }));
   const field = (label: string) => item([...view.container.querySelectorAll<HTMLInputElement>(".automation-field input")].find((input) => input.labels?.[0]?.textContent === label));
-  const meaning = (input: HTMLInputElement) => dom.window.document.getElementById(item(input.getAttribute("aria-describedby")))?.textContent;
-  assert.equal(field("Notify me when").placeholder, "Tests fail");
-  assert.equal(field("Stop when").placeholder, "The PR merges");
-  assert.equal(meaning(field("Notify me when")), "Every run notifies you");
-  assert.equal(meaning(field("Stop when")), "Repeats until removed");
-
-  const setInput = item(Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")).set;
-  for (const label of ["Notify me when", "Stop when"]) {
-    const input = field(label);
-    await act(async () => {
-      item(setInput).call(input, "tests fail");
-      input.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: "tests fail" }));
-    });
-  }
-  assert.equal(meaning(field("Notify me when")), "Other runs stay quiet");
-  assert.equal(meaning(field("Stop when")), "Repeats until then");
+  assert.equal(field("Notify me when").placeholder, "Every run");
+  assert.equal(field("Stop when").placeholder, "Repeats until removed");
+  assert.equal(view.container.querySelector(".automation-field small:not([id$='-readout'])"), null);
   await view.unmount();
+});
+
+test("unsaved automation edits survive closing the panel, until the saved automation changes", async () => {
+  const automation = automationView({ id: "kept-edits" });
+  const props = { engineLabel: "Claude", lastFoundAt: null, lastChecked: null, onUpdate() {}, onDelete() {}, onRunNow() {} };
+  const first = await mount(React.createElement(AutomationPanel, { automation, ...props }));
+  const prompt = query<HTMLTextAreaElement>(first.container, ".automation-field textarea");
+  const setTextarea = item(Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value")).set;
+  await act(async () => {
+    item(setTextarea).call(prompt, "Edited prompt");
+    prompt.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: "Edited prompt" }));
+  });
+  await first.unmount();
+
+  const second = await mount(React.createElement(AutomationPanel, { automation: { ...automation, runCount: automation.runCount + 1, updatedAt: automation.updatedAt + 1 }, ...props }));
+  assert.equal(query<HTMLTextAreaElement>(second.container, ".automation-field textarea").value, "Edited prompt", "a run in between keeps the edit");
+  assert.equal(query<HTMLButtonElement>(second.container, ".automation-save").disabled, false);
+  await second.unmount();
+
+  const third = await mount(React.createElement(AutomationPanel, { automation: { ...automation, prompt: "Changed by the agent", updatedAt: automation.updatedAt + 2 }, ...props }));
+  assert.equal(query<HTMLTextAreaElement>(third.container, ".automation-field textarea").value, "Changed by the agent");
+  await third.unmount();
 });

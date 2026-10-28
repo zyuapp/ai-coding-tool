@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import React, { act } from "react";
 import type { Thread } from "../../src/domain/thread.ts";
-import { mount, query } from "../support/renderer-dom.mts";
+import { item, mount, query } from "../support/renderer-dom.mts";
 
 const { WorkspaceHeader } = await import("../../src/renderer/components/WorkspaceHeader.tsx");
 
@@ -29,8 +29,9 @@ test("the heading's title renames on one click", async () => {
   })));
   try {
     const title = query<HTMLButtonElement>(view.container, "button.heading-thread");
-    assert.equal(title.dataset.tip, "Rename");
-    assert.ok(title.querySelector("svg"), "the title carries a pencil, so renaming is found without hovering");
+    assert.equal(title.dataset.tip, "Codex thread");
+    assert.equal("tipOverflow" in title.dataset, true, "a cut-short title shows in full on hover and focus");
+    assert.equal(query<SVGElement>(title, "svg").dataset.tip, "Rename");
     await act(async () => { title.click(); });
     const input = query<HTMLInputElement>(view.container, "input.heading-rename");
     await act(async () => {
@@ -187,6 +188,16 @@ test("zen mode is offered once the thread has messages", async () => {
     assert.equal(on.dataset.tip, "Zen mode (⌘⇧F)");
     await act(async () => { on.click(); });
     assert.equal(entered, 1);
+  } finally { await view.unmount(); }
+});
+
+test("the right panel toggle says it takes the session summary's place while that is open", async () => {
+  const view = await mount(React.createElement(WorkspaceHeader, headerProps({ sessionPanelOpen: true })));
+  try {
+    const toggle = () => query<HTMLButtonElement>(view.container, 'button[aria-pressed][aria-label*="right panel"]');
+    assert.match(item(toggle().dataset.tip), /^Right panel \(.+\) · Replaces session summary$/);
+    await view.render(React.createElement(WorkspaceHeader, headerProps({ sessionPanelOpen: false })));
+    assert.match(item(toggle().dataset.tip), /^Right panel \(.+\)$/);
   } finally { await view.unmount(); }
 });
 

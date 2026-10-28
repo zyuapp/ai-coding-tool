@@ -20,7 +20,7 @@ import { useDrawnFiles, usePanelRows, usePinnedFile, useRoomForTwo, useSelection
 import { useReadWholeReview, useReviewFind } from "../diff/use-review-find";
 import { useLazyColours } from "../diff/use-colours";
 import { DiffCommentEditor } from "./DiffCommentEditor";
-import { DiffToolbar, type DiffPickerActions } from "./DiffToolbar";
+import { DiffToolbar, KEYS_MENU, type DiffPickerActions } from "./DiffToolbar";
 import { PanelRowView, PinnedFileRow } from "./DiffRows";
 
 /** What an unwrapped line costs. Rows wrap, so the windowing measures each one and corrects this. */
@@ -126,6 +126,19 @@ function ReviewProgress({ files, viewed, additions, deletions, hint, onNext }: {
 
 function typing(target: EventTarget) {
   return target instanceof HTMLElement && (target.isContentEditable || target.matches("input:not([type=checkbox]), textarea, select"));
+}
+
+/** Review shortcuts: n jumps to the next unread file, ? lists the keys, o opens the focused file. */
+function panelKeys({ onNext, onToggleKeys, onOpenFile }: { onNext: () => void; onToggleKeys: () => void; onOpenFile: (path: string) => void }) {
+  return (event: KeyboardEvent<HTMLElement>) => {
+    if (event.metaKey || event.ctrlKey || event.altKey || typing(event.target)) return;
+    const path = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-path]")?.dataset.path : undefined;
+    if (event.key === "n") onNext();
+    else if (event.key === "?") onToggleKeys();
+    else if (event.key === "o" && path) onOpenFile(path);
+    else return;
+    event.preventDefault();
+  };
 }
 
 function gutterOf(target: EventTarget | null) {
@@ -367,11 +380,11 @@ export function DiffPanel({
   const notice = panelNote({ result: diff.result, loading: diff.loading, workspaceId, settling, overBudget, ignoreWhitespace: diff.ignoreWhitespace });
 
   return (
-    <section className="diff-panel" aria-label="Changes" ref={panelRef} onKeyDown={(event) => {
-      if (event.key !== "n" || event.metaKey || event.ctrlKey || event.altKey || typing(event.target)) return;
-      event.preventDefault();
-      nextUnviewed();
-    }}>
+    <section className="diff-panel" aria-label="Changes" ref={panelRef} onKeyDown={panelKeys({
+      onNext: nextUnviewed,
+      onToggleKeys: () => onSetOpenMenu(openMenu === KEYS_MENU ? null : KEYS_MENU),
+      onOpenFile,
+    })}>
       <DiffToolbar
         {...comparisonActions}
         diff={diff}

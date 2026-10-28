@@ -5,7 +5,7 @@ import React, { act } from "react";
 import type { ThreadTabView } from "../../../src/application/workspace-state.ts";
 
 const { BranchMenu } = await import("../../../src/renderer/components/BranchMenu.tsx");
-const { ThreadTabStrip, scheduleChipLabel, scheduleChipTip } = await import("../../../src/renderer/components/ThreadTabStrip.tsx");
+const { ThreadTabStrip, scheduleChipLabel, scheduleChipTip, scheduleChipTone } = await import("../../../src/renderer/components/ThreadTabStrip.tsx");
 const { FindBar } = await import("../../../src/renderer/components/FindBar.tsx");
 
 async function type(input: HTMLInputElement, value: string) {
@@ -140,6 +140,10 @@ test("the schedule chip names the next run, or why there is none", () => {
   assert.equal(scheduleChipTip(automation({ paused: true, nextRunAt: at(0, 9) })), "Automation is paused");
   assert.equal(scheduleChipTip(automation({})), "Last run was missed");
   assert.equal(scheduleChipTip(automation({ nextRunAt: at(0, 9) })), "Automation");
+  assert.equal(scheduleChipTone(null), null);
+  assert.equal(scheduleChipTone(automation({ paused: true, nextRunAt: at(0, 9) })), null);
+  assert.equal(scheduleChipTone(automation({})), "missed", "a missed run warns rather than reading as on schedule");
+  assert.equal(scheduleChipTone(automation({ nextRunAt: at(0, 9) })), "scheduled");
 });
 
 test("a checkout Git could not read shows the failure with a retry, while reading stays quiet", async () => {
@@ -158,7 +162,9 @@ test("a checkout Git could not read shows the failure with a retry, while readin
     await view.render(strip({ status: "error", message: "fatal: bad object HEAD" }));
     const failed = query(view.container, ".thread-tab-note.failed");
     assert.equal(failed.getAttribute("role"), "alert");
-    assert.equal(query(failed, "[data-tip]").dataset.tip, "fatal: bad object HEAD");
+    const message = query(failed, "[data-tip]");
+    assert.equal(message.dataset.tip, "fatal: bad object HEAD");
+    assert.equal(query(failed, ".thread-tab-retry").getAttribute("aria-describedby"), message.id, "Retry reads the full error to the keyboard");
     await act(async () => { query<HTMLButtonElement>(failed, ".thread-tab-retry").click(); });
     assert.deepEqual(sent, [{ type: "view.refresh-environment" }]);
   } finally { await view.unmount(); }

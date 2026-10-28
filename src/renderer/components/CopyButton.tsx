@@ -10,7 +10,7 @@ const CONFIRM_MS = 1400;
  * carries no text of its own: a search walks the text nodes of a message, and a word here would be
  * counted as part of the answer.
  */
-export function CopyButton({ text, label }: { text: string; label: string }) {
+export function CopyButton({ text, label, className = "copy-affordance" }: { text: string; label: string; className?: string }) {
   const [result, setResult] = useState<"copied" | "failed" | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (timer.current !== null) clearTimeout(timer.current); }, []);
@@ -18,7 +18,7 @@ export function CopyButton({ text, label }: { text: string; label: string }) {
   return (
     <button
       type="button"
-      className={result ? `copy-affordance ${result}` : "copy-affordance"}
+      className={result ? `${className} ${result}` : className}
       aria-label={result === "failed" ? "Copy failed" : result === "copied" ? "Copied" : label}
       data-tip={result === "failed" ? "Copy failed" : result === "copied" ? "Copied" : label}
       onClick={(event) => {

@@ -77,9 +77,9 @@ function ThreadHeading({ currentThread, folder, folderLabel, host, openMenu, onS
               onCancel={name.cancel}
             />
           : currentThread
-            ? <button type="button" className="heading-thread renamable" data-tip="Rename" onClick={(event) => name.start(currentThread.id, event.currentTarget)}>
+            ? <button type="button" className="heading-thread renamable" data-tip={currentThread.title} data-tip-overflow onClick={(event) => name.start(currentThread.id, event.currentTarget)}>
                 <span>{currentThread.title}</span>
-                <Pencil size={14} aria-hidden="true" />
+                <Pencil size={14} aria-hidden="true" data-tip="Rename" />
               </button>
             : <span className="heading-thread">New task</span>}
       </h1>
@@ -171,7 +171,7 @@ export function WorkspaceHeader({ currentThread, folder, folderLabel, host, side
           type="button"
           aria-label={`${rightDockOpen ? "Hide" : "Show"} right panel`}
           aria-pressed={rightDockOpen}
-          data-tip={shortcutTip("Right panel", "Mod+\\")}
+          data-tip={[shortcutTip("Right panel", "Mod+\\"), sessionPanelOpen && !rightDockOpen && "Replaces session summary"].filter(Boolean).join(" · ")}
           onClick={onToggleRightDock}
         >
           <PanelRight size={18} aria-hidden="true" />

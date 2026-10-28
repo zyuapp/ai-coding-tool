@@ -13,6 +13,9 @@ export type ArchiveSettingsProps = {
   onClearArchive: () => void;
 };
 
+/** How many archived threads the page lists before it offers a filter. */
+export const ARCHIVE_FILTER_FROM = 8;
+
 function daysLeft(archivedAt: number) {
   const remaining = Math.ceil((archivedAt + ARCHIVE_RETENTION_MS - Date.now()) / 86_400_000);
   if (remaining <= 0) return "Deletes on next launch";
@@ -26,7 +29,8 @@ export function ArchiveSettings({ archivedThreads, projects = [], onRestoreThrea
   const [restored, setRestored] = useState<string | null>(null);
   const names = new Map(projects.map((project) => [project.id, projectName(project)]));
   const projectOf = (thread: Thread) => (thread.projectId && names.get(thread.projectId)) ?? null;
-  const term = query.trim().toLowerCase();
+  const filtering = archivedThreads.length > ARCHIVE_FILTER_FROM;
+  const term = filtering ? query.trim().toLowerCase() : "";
   const shown = term ? archivedThreads.filter((thread) => [thread.title, projectOf(thread) ?? ""].some((text) => text.toLowerCase().includes(term))) : archivedThreads;
   const count = archivedThreads.length === 1 ? "1 thread" : `${archivedThreads.length} threads`;
   return (
@@ -49,7 +53,7 @@ export function ArchiveSettings({ archivedThreads, projects = [], onRestoreThrea
           </div>
         </div>
 
-        {archivedThreads.length > 0 && (
+        {filtering && (
           <label className="settings-filter">
             <Search size={14} aria-hidden="true" />
             <input

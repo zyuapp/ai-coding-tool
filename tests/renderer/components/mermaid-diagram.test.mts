@@ -41,13 +41,14 @@ test("markup without a usable viewBox is left exactly as it came", () => {
 
 test("the diagram viewer wires zoom controls to the drawing size", async () => {
   const diagram = { markup: '<svg viewBox="0 0 400 200"></svg>', width: 400, height: 200 };
-  const view = await mount(React.createElement(DiagramViewer, { diagram, onClose: () => {} }));
+  const view = await mount(React.createElement(DiagramViewer, { diagram, source: "graph TD; A-->B", onClose: () => {} }));
   const zoom = (label: string) => query<HTMLButtonElement>(document, `.viewer-zoom button[aria-label="${label}"]`);
   const readout = () => query(document, ".viewer-zoom-level").textContent;
   const drawn = () => query<HTMLElement>(document, ".viewer-stage .mermaid-svg").style.getPropertyValue("--diagram-width");
 
   assert.equal(readout(), "100%");
   assert.equal(drawn(), "400px");
+  assert.ok(query(document, 'button.viewer-copy[aria-label="Copy the source"]'), "the viewer offers the diagram's source");
   assert.equal(zoom("Zoom out").disabled, true);
 
   await act(async () => { zoom("Zoom in").click(); });
@@ -59,7 +60,7 @@ test("the diagram viewer wires zoom controls to the drawing size", async () => {
 test("the diagram viewer closes on Escape and on the backdrop, but not on a drag off the diagram", async () => {
   const closed: string[] = [];
   const diagram = { markup: '<svg viewBox="0 0 400 200"></svg>', width: 400, height: 200 };
-  const view = await mount(React.createElement(DiagramViewer, { diagram, onClose: () => closed.push("closed") }));
+  const view = await mount(React.createElement(DiagramViewer, { diagram, source: "graph TD; A-->B", onClose: () => closed.push("closed") }));
   const backdrop = query(document, ".viewer.diagram");
   const drawing = query(document, ".viewer-stage .mermaid-svg");
   const press = (target: Element) => target.dispatchEvent(new dom.window.PointerEvent("pointerdown", { bubbles: true }));

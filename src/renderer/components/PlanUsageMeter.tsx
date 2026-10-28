@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { LuChevronRight as ChevronRight, LuGauge as Gauge, LuX as X } from "react-icons/lu";
+import { LuGauge as Gauge, LuX as X } from "react-icons/lu";
 import { barShare, formatReset, NEAR_LIMIT_SHARE, planLabel, sessionAndWeek, tightestWindow, usageWarningKey, windowsFor, windowSpan, type PlanUsage, type UsageWindow } from "../../domain/plan-usage";
 import { modelLabel, type AgentModel } from "../../domain/agent-engine";
 import { UsageCard, UsageCardRow } from "./UsageCard";
@@ -65,7 +65,6 @@ export function PlanUsageMeter({ engineLabel, model, usage, onOpen }: PlanUsageP
             detail={formatReset(window.resetsAt, Date.now(), TIME_ZONE, { zone: false })}
           />;
         })}
-        {onOpen && <button type="button" className="usage-card-open" tabIndex={-1} onClick={onOpen}>Usage settings<ChevronRight size={12} aria-hidden="true" /></button>}
       </UsageCard>
     </span>
   );

@@ -143,6 +143,35 @@ test("a destination that cannot be chosen yet still takes the keyboard, like oth
   } finally { await view.unmount(); }
 });
 
+test("New worktree stays reachable while a run blocks it, says why, and does nothing", async () => {
+  const view = await renderMenu();
+  try {
+    await openLocationMenu();
+    await choose("Move to worktree");
+    await view.send({ type: "task.send", taskId: "thread-0", text: "Continue", attachments: [] });
+    const creating = query<HTMLButtonElement>(document, ".worktree-menu-new");
+    assert.equal(creating.disabled, false);
+    assert.equal(creating.getAttribute("aria-disabled"), "true");
+    assert.equal(creating.dataset.tip, "Wait for the run to finish");
+    await act(async () => creating.click());
+    assert.equal(view.effects.some((effect) => effect.type === "create-worktree"), false);
+  } finally { await view.unmount(); }
+});
+
+test("Escape in the destination search clears what was typed before it closes the list", async () => {
+  const view = await renderMenu();
+  try {
+    await openLocationMenu();
+    await choose("Move to worktree");
+    await search("login");
+    const input = query<HTMLInputElement>(document, ".worktree-menu-search input");
+    assert.ok(input.closest(".menu-search-field"), "the field matches the other menu searches");
+    await act(async () => input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })));
+    assert.equal(query<HTMLInputElement>(document, ".worktree-menu-search input").value, "");
+    assert.ok(document.querySelector(".worktree-menu-search"), "the list stays open");
+  } finally { await view.unmount(); }
+});
+
 test("the whole location row opens its menu, labelled with where the thread is", async () => {
   const view = await renderMenu();
   try {

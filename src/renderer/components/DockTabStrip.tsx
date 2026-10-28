@@ -4,6 +4,7 @@ import { ADD_TAB_MENU, type DockLauncher, type DockTab } from "./dock-registry";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import { moveListFocus, useDismissibleLayer } from "../focus";
 import { shortcutTip } from "./TooltipLayer";
+import { useTypeahead } from "./PopoverMenu";
 
 const TABS_MENU = "dock:tabs";
 
@@ -20,6 +21,18 @@ function moveTabFocus(event: KeyboardEvent<HTMLElement>) {
   tabs[next].scrollIntoView({ block: "nearest", inline: "nearest" });
 }
 
+/** Arrows, Home and End walk a menu's items, and typing jumps to the item whose name starts that way. */
+function useMenuKeys() {
+  const typeahead = useTypeahead();
+  return (event: KeyboardEvent<HTMLElement>) => {
+    const rows = [...event.currentTarget.querySelectorAll<HTMLButtonElement>("button")];
+    if ((event.key === "Home" || event.key === "End") && rows.length) {
+      event.preventDefault();
+      rows[event.key === "Home" ? 0 : rows.length - 1]!.focus();
+    } else if (!typeahead(event, rows)) moveListFocus(event);
+  };
+}
+
 /** A mouse wheel turns the strip sideways, so tabs past its edge are reached without a trackpad. */
 function scrollTabs(event: WheelEvent<HTMLElement>) {
   if (event.deltaX !== 0 || event.deltaY === 0) return;
@@ -27,6 +40,12 @@ function scrollTabs(event: WheelEvent<HTMLElement>) {
 }
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;
+
+/** The tab's title, followed by what its count and dot stand for. */
+function tabTip(tab: DockTab) {
+  const status = [tab.badge ? tab.badgeLabel ?? String(tab.badge) : null, tab.unread ? "Waiting for you" : null].filter(Boolean);
+  return [tab.title, ...status].join(" · ");
+}
 
 type Clipping = { overflowing: boolean; hidden: number };
 
@@ -75,6 +94,7 @@ function TabList({ workspace, tabs, hidden, activeTab }: { workspace: Workspace;
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   useDismissibleLayer(open, [root], () => workspace.actions.setOpenMenu(null), trigger);
+  const menuKeys = useMenuKeys();
   return (
     <div ref={root} className={`right-dock-add right-dock-overflow ${open ? "open" : ""}`.trimEnd()} data-popover-menu>
       <button
@@ -90,7 +110,7 @@ function TabList({ workspace, tabs, hidden, activeTab }: { workspace: Workspace;
         {hidden > 0 && <span aria-hidden="true">{hidden}</span>}
       </button>
       {open && (
-        <div role="menu" aria-label="Open tabs" onKeyDown={moveListFocus}>
+        <div role="menu" aria-label="Open tabs" onKeyDown={menuKeys}>
           {tabs.map((tab, index) => (
             <button
               key={tab.id}
@@ -127,6 +147,7 @@ export function DockTabStrip({ workspace, tabs, launchers, activeTab, expanded, 
 }) {
   const strip = useRef<HTMLDivElement>(null);
   const { overflowing, hidden } = useClipping(strip, tabs.length);
+  const menuKeys = useMenuKeys();
   /** Delete closes the focused tab, as the arrows move between them; a pinned tab stays. */
   const onStripKey = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key !== "Delete" || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return moveTabFocus(event);
@@ -156,13 +177,13 @@ export function DockTabStrip({ workspace, tabs, launchers, activeTab, expanded, 
               aria-selected={activeTab === tab.id}
               tabIndex={activeTab === tab.id || (index === 0 && !tabs.some((other) => other.id === activeTab)) ? 0 : -1}
               aria-keyshortcuts={tab.pinned ? undefined : "Delete"}
-              data-tip={tab.title}
-              data-tip-overflow
+              data-tip={tabTip(tab)}
+              data-tip-overflow={tab.badge || tab.unread ? undefined : true}
               onClick={() => void workspace.actions.selectDockTab(tab.id)}
             >
               <tab.icon size={16} aria-hidden="true" /><span>{tab.title}</span>
-              {tab.badge ? <em className={tab.badgeTone} role="img" aria-label={tab.badgeLabel ?? String(tab.badge)} data-tip={tab.badgeLabel}>{tab.badge}</em> : null}
-              {tab.unread ? <span className="right-dock-tab-attention" role="img" aria-label="Waiting for you" data-tip="Waiting for you" /> : null}
+              {tab.badge ? <em className={tab.badgeTone} role="img" aria-label={tab.badgeLabel ?? String(tab.badge)}>{tab.badge}</em> : null}
+              {tab.unread ? <span className="right-dock-tab-attention" role="img" aria-label="Waiting for you" /> : null}
             </button>
             {!tab.pinned && <button type="button" tabIndex={-1} aria-label={`Close ${tab.title}`} data-tip={activeTab === tab.id && !expanded ? shortcutTip("Close tab", "Mod+W") : "Close tab"} onClick={() => onCloseTab(tab.id)}><X size={14} /></button>}
           </div>
@@ -182,7 +203,7 @@ export function DockTabStrip({ workspace, tabs, launchers, activeTab, expanded, 
           <Plus size={18} />
         </button>
         {addMenuOpen && (
-          <div role="menu" onKeyDown={moveListFocus}>
+          <div role="menu" onKeyDown={menuKeys}>
             {launchers.map((launcher, index) => (
               <button
                 key={launcher.id}

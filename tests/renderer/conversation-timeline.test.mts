@@ -530,6 +530,9 @@ test("a thread's folded message keeps one control in its row, and opens its send
   const view = await mount(React.createElement(MessageLinkProvider, { actions: { selectThread: (id: string) => { selected.push(id); } }, children: coordinator }));
   const fold = query<HTMLDetailsElement>(view.container, ".thread-message");
   assert.equal(query(fold, "summary").querySelector("button"), null, "the summary is the row's only control");
+  const sent = query<HTMLTimeElement>(fold, "summary time.message-time");
+  assert.equal(sent.dateTime, new Date(messages.at(-1)!.at).toISOString(), "the folded row says when it was sent");
+  assert.equal(query(fold, "summary").textContent?.includes(sent.dataset.clock!), false, "the time is no text a search could match");
   await expand(fold);
   const open = query<HTMLButtonElement>(fold, ".thread-message-open");
   await act(async () => { open.click(); });

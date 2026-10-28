@@ -10,6 +10,8 @@
 .worktree-project-select > svg { position: absolute; top: 50%; right: 11px; transform: translateY(-50%); pointer-events: none; color: var(--muted); }
 .worktree-refresh, .worktree-row-actions button, .worktree-delete-actions button { padding: 7px 13px; border: 1px solid var(--line-strong); border-radius: 7px; color: var(--ink-dim); background: transparent; font-size: var(--text-meta); font-weight: 550; white-space: nowrap; cursor: pointer; }
 .worktree-refresh:hover:not(:disabled), .worktree-row-actions button:hover:not([aria-disabled="true"]), .worktree-delete-actions button:hover:not(:disabled) { background: var(--wash); border-color: var(--line-bright); }
+.worktree-row-actions button { border-radius: 8px; background: var(--control); }
+.worktree-row-actions button:hover:not([aria-disabled="true"]) { background: var(--control-hover); }
 .worktree-refresh { display: inline-flex; align-items: center; gap: 7px; }
 .worktree-settings button:is(:disabled, [aria-disabled="true"]):not([aria-busy="true"]), .worktree-delete-actions button:disabled:not([aria-busy="true"]) { opacity: .5; cursor: default; }
 .worktree-settings button[aria-busy="true"]:disabled, .worktree-delete-actions button[aria-busy="true"]:disabled { opacity: 1; color: var(--muted); cursor: default; }

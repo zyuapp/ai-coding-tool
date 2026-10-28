@@ -58,7 +58,7 @@ test("an archive offers a filter, and a filter that misses offers the way back",
 
   const short = await mount(renderSettingsPanel({ initialSection: "archive", archivedThreads: threads.slice(0, 3) }));
   await act(async () => {});
-  assert.ok(short.container.querySelector('input[aria-label="Filter archived threads"]'), "a short archive keeps the same filter");
+  assert.equal(short.container.querySelector('input[aria-label="Filter archived threads"]'), null, "a short archive lists its threads without a filter");
   assert.ok(query(short.container, ".settings-group-action button").classList.contains("danger"), "Clear all looks destructive before it is armed");
   await short.unmount();
 
@@ -71,7 +71,8 @@ test("an archive offers a filter, and a filter that misses offers the way back",
 test("each archived thread names its project, and the filter finds threads by it", async () => {
   window.desktop = fakeDesktop({});
   const projects = [{ id: "p1", root: "/work/parser" }, { id: "p2", root: "/work/site", name: "Website" }];
-  const threads = [task("fix-1", { title: "Fix", archivedAt: Date.now(), projectId: "p1" }), task("fix-2", { title: "Fix", archivedAt: Date.now(), projectId: "p2" })];
+  const filler = Array.from({ length: 8 }, (_, index) => task(`Other ${index + 1}`, { archivedAt: Date.now() }));
+  const threads = [task("fix-1", { title: "Fix", archivedAt: Date.now(), projectId: "p1" }), task("fix-2", { title: "Fix", archivedAt: Date.now(), projectId: "p2" }), ...filler];
   const view = await mount(renderSettingsPanel({ initialSection: "archive", archivedThreads: threads, projects }));
   await act(async () => {});
   const lines = () => [...view.container.querySelectorAll(".settings-group .setting-row p")].map((line) => line.textContent);

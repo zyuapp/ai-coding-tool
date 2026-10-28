@@ -63,14 +63,6 @@ const NICKNAMES: Record<string, string> = {
   "@yearly": "0 0 1 1 *", "@annually": "0 0 1 1 *", "@monthly": "0 0 1 * *", "@weekly": "0 0 * * 0", "@daily": "0 0 * * *", "@midnight": "0 0 * * *", "@hourly": "0 * * * *",
 };
 
-/** Schedules most automations want, filled into the field as cron. */
-export const SCHEDULE_PRESETS: ReadonlyArray<{ label: string; cron: string }> = [
-  { label: "Hourly", cron: "0 * * * *" },
-  { label: "Daily", cron: "0 9 * * *" },
-  { label: "Weekdays", cron: "0 9 * * 1-5" },
-  { label: "Weekly", cron: "0 9 * * 1" },
-];
-
 const CRON_HINT = "Use cron, like 0 8 * * *, or a date, like 2026-11-01T09:00";
 
 /** Why the scheduler would turn this schedule down, or null when it takes it. */
@@ -118,53 +110,45 @@ export function lastRunLabel(automation: AutomationView, at: number) {
   return `${automation.lastStatus ?? "ran"} at ${formatMoment(when, at)}`;
 }
 
-/** Missed is the one status that needs the user, so it alone stands out, and runs the task when pressed. */
-function AutomationHeading({ status, started = false, onRunNow }: { status?: string; started?: boolean; onRunNow?: () => void }) {
+/** Missed is the one status that needs the user, so it alone stands out. */
+function AutomationHeading({ status }: { status?: string }) {
   return (
     <header className="agents-panel-heading">
       <div><h2>Automation</h2><p>Repeat this task on a schedule</p></div>
-      {status === "Missed" && onRunNow ? (
-        <CommandButton command={{ type: "automation.run-now" }} type="button" className="automation-missed" data-state="missed" onClick={onRunNow}>
-          {started ? <><Check size={12} aria-hidden="true" />Started</> : <><AlertTriangle size={12} aria-hidden="true" />Missed<span>Run now</span></>}
-        </CommandButton>
-      ) : status && (
-        <span data-state={status === "Paused" ? "paused" : undefined}>{status}</span>
+      {status && (
+        <span data-state={status === "Paused" ? "paused" : status === "Missed" ? "missed" : undefined}>
+          {status === "Missed" && <AlertTriangle size={12} aria-hidden="true" />}{status}
+        </span>
       )}
     </header>
   );
 }
 
-function SchedulePresets({ schedule, onPick }: { schedule: string; onPick: (cron: string) => void }) {
-  return (
-    <div className="automation-presets" role="group" aria-label="Common schedules">
-      {SCHEDULE_PRESETS.map(({ label, cron }) => {
-        const picked = schedule.trim() === cron;
-        return (
-          <button key={cron} type="button" aria-pressed={picked} onClick={() => onPick(cron)}>
-            {picked && <Check size={12} aria-hidden="true" />}{label}
-          </button>
-        );
-      })}
-    </div>
-  );
+type AutomationFields = { schedule: string; prompt: string; surfaceWhen: string; endsWhen: string };
+
+/** Edits not yet saved, by automation, kept until saved; dropped once the saved fields they started from change. */
+const unsavedEdits = new Map<string, { base: AutomationFields; fields: AutomationFields }>();
+
+function sameFields(a: AutomationFields, b: AutomationFields) {
+  return a.schedule === b.schedule && a.prompt === b.prompt && a.surfaceWhen === b.surfaceWhen && a.endsWhen === b.endsWhen;
 }
 
-/** A sentence the agent checks after each run, with what an empty or filled field means beneath it. */
-function ConditionField({ label, value, example, unset, set, onChange }: {
-  label: string;
-  value: string;
-  example: string;
-  unset: string;
-  set: string;
-  onChange: (value: string) => void;
-}) {
-  const id = useId();
+function savedFields(automation: AutomationView | null): AutomationFields {
+  return { schedule: automation?.schedule ?? "", prompt: automation?.prompt ?? "", surfaceWhen: automation?.surfaceWhen ?? "", endsWhen: automation?.endsWhen ?? "" };
+}
+
+function startingFields(automation: AutomationView | null): AutomationFields {
+  const saved = savedFields(automation);
+  const kept = automation ? unsavedEdits.get(automation.id) : undefined;
+  return kept && sameFields(kept.base, saved) ? kept.fields : saved;
+}
+
+function ConditionField({ label, value, placeholder, onChange }: { label: string; value: string; placeholder: string; onChange: (value: string) => void }) {
   return (
-    <div className="automation-field">
-      <label htmlFor={id}>{label}</label>
-      <input id={id} value={value} placeholder={example} aria-describedby={`${id}-meaning`} onInput={(event) => onChange(event.currentTarget.value)} />
-      <small id={`${id}-meaning`}>{value.trim() ? set : unset}</small>
-    </div>
+    <label className="automation-field">
+      <span>{label}</span>
+      <input value={value} placeholder={placeholder} onInput={(event) => onChange(event.currentTarget.value)} />
+    </label>
   );
 }
 
@@ -185,10 +169,10 @@ function AutomationEmpty({ engineLabel, onCreate }: { engineLabel: string; onCre
 }
 
 export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChecked, onUpdate, onDelete, onRunNow }: AutomationPanelProps) {
-  const [schedule, setSchedule] = useState(automation?.schedule ?? "");
-  const [prompt, setPrompt] = useState(automation?.prompt ?? "");
-  const [surfaceWhen, setSurfaceWhen] = useState(automation?.surfaceWhen ?? "");
-  const [endsWhen, setEndsWhen] = useState(automation?.endsWhen ?? "");
+  const [schedule, setSchedule] = useState(() => startingFields(automation).schedule);
+  const [prompt, setPrompt] = useState(() => startingFields(automation).prompt);
+  const [surfaceWhen, setSurfaceWhen] = useState(() => startingFields(automation).surfaceWhen);
+  const [endsWhen, setEndsWhen] = useState(() => startingFields(automation).endsWhen);
   const [now, setNow] = useState(() => Date.now());
   /** What the last press confirmed, shown on its button for a moment. */
   const [done, setDone] = useState<"saved" | "started" | null>(null);
@@ -200,12 +184,21 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
   const revision = automation ? `${automation.id}:${automation.updatedAt}` : "";
 
   useEffect(() => {
-    setSchedule(automation?.schedule ?? "");
-    setPrompt(automation?.prompt ?? "");
-    setSurfaceWhen(automation?.surfaceWhen ?? "");
-    setEndsWhen(automation?.endsWhen ?? "");
+    const fields = startingFields(automation);
+    setSchedule(fields.schedule);
+    setPrompt(fields.prompt);
+    setSurfaceWhen(fields.surfaceWhen);
+    setEndsWhen(fields.endsWhen);
     if (automation) setCreating(false);
   }, [revision]);
+
+  useEffect(() => {
+    if (!automation) return;
+    const fields = { schedule, prompt, surfaceWhen, endsWhen };
+    const saved = savedFields(automation);
+    if (sameFields(fields, saved)) unsavedEdits.delete(automation.id);
+    else unsavedEdits.set(automation.id, { base: saved, fields });
+  }, [revision, schedule, prompt, surfaceWhen, endsWhen]);
 
   useEffect(() => {
     if (!done) return;
@@ -227,6 +220,7 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
   const endChanged = endsWhen !== (automation?.endsWhen ?? "");
   const dirty = !automation || schedule !== automation.schedule || prompt !== automation.prompt || surfaceChanged || endChanged;
   const readout = describeSchedule(schedule);
+  const status = automation ? automationStatusLabel(automation, now) : undefined;
   const patch = { schedule, prompt, ...(surfaceChanged ? { surfaceWhen } : {}), ...(endChanged ? { endsWhen } : {}) };
   const draft = {
     schedule: schedule.trim(),
@@ -253,7 +247,7 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
 
   return (
     <section className="automation-panel" aria-label="Automation">
-      <AutomationHeading status={automation ? automationStatusLabel(automation, now) : undefined} started={done === "started"} onRunNow={runNow} />
+      <AutomationHeading status={status} />
 
       <div className="automation-body" onKeyDown={(event) => {
         if (event.key === "Enter" && (MAC ? event.metaKey : event.ctrlKey) && !event.nativeEvent.isComposing) {
@@ -284,7 +278,6 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
             onInput={(event) => setSchedule(event.currentTarget.value)}
           />
           {readout && <small id={`${scheduleId}-readout`} className={readout.error ? "error" : undefined}>{readout.text}</small>}
-          <SchedulePresets schedule={schedule} onPick={setSchedule} />
         </div>
 
         <label className="automation-field">
@@ -298,10 +291,10 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
         </label>
 
         {oneShot ? null : (
-          <ConditionField label="Notify me when" value={surfaceWhen} example="Tests fail" unset="Every run notifies you" set="Other runs stay quiet" onChange={setSurfaceWhen} />
+          <ConditionField label="Notify me when" value={surfaceWhen} placeholder="Every run" onChange={setSurfaceWhen} />
         )}
 
-        <ConditionField label="Stop when" value={endsWhen} example="The PR merges" unset="Repeats until removed" set="Repeats until then" onChange={setEndsWhen} />
+        <ConditionField label="Stop when" value={endsWhen} placeholder="Repeats until removed" onChange={setEndsWhen} />
 
         {automation && (
           <dl className="automation-meta">
@@ -314,13 +307,13 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
             <CommandButton command={{ type: "automation.update", patch }} type="button" className="automation-save primary" aria-keyshortcuts={MAC ? "Meta+Enter" : "Control+Enter"} data-tip={shortcutTip("Save", "Mod+Enter")} disabled={!canSave} onClick={save}>
               {done === "saved" && !dirty ? <><Check size={14} aria-hidden="true" />Saved</> : "Save"}
             </CommandButton>
-            <CommandButton command={{ type: "automation.run-now" }} type="button" onClick={runNow}>
+            <CommandButton command={{ type: "automation.run-now" }} type="button" className={status === "Missed" && !dirty ? "primary" : undefined} onClick={runNow}>
               {done === "started" ? <><Check size={14} aria-hidden="true" />Started</> : "Run now"}
             </CommandButton>
             <CommandButton command={{ type: "automation.update", patch: { paused: !automation.paused } }} type="button" aria-label={automation.paused ? "Resume automation" : "Pause automation"} onClick={() => onUpdate({ paused: !automation.paused })}>
               {automation.paused ? <Play size={14} aria-hidden="true" /> : <Pause size={14} aria-hidden="true" />}{automation.paused ? "Resume" : "Pause"}
             </CommandButton>
-            <ConfirmAction className="automation-remove" aria-label="Remove automation" data-tip={canDelete ? "Remove" : REMOTE_UNSUPPORTED} disabled={!canDelete} confirm="Remove" onConfirm={onDelete}><Trash2 size={14} /></ConfirmAction>
+            <ConfirmAction className="automation-remove" aria-label="Remove automation" data-tip={canDelete ? undefined : REMOTE_UNSUPPORTED} disabled={!canDelete} confirm="Remove" onConfirm={onDelete}><Trash2 size={14} aria-hidden="true" />Remove</ConfirmAction>
           </div>
         ) : (
           <div className="automation-actions">

@@ -125,7 +125,7 @@ test("a folder's menu asks before removing one that holds threads, and moves it 
     await open("first");
     assert.equal(menuItem("Move up"), undefined, "the first folder has nowhere up to go");
     assert.equal(menuItem("Remove")!.getAttribute("aria-haspopup"), "menu", "a folder holding threads asks first");
-    assert.equal(query(menuItem("Remove")!, ".menu-shortcut").textContent, "Archives 1 thread", "what removing costs shows before the confirm opens");
+    assert.equal(menuItem("Remove")!.querySelector(".menu-shortcut"), null, "the confirm names what removing costs, once");
     await act(async () => { menuItem("Remove")!.click(); });
     assert.deepEqual(menuItems().slice(-2).map((item) => item.textContent), ["Keep project", "Remove and archive 1 thread"]);
     await act(async () => { menuItem("Keep project")!.click(); });
@@ -503,7 +503,7 @@ test("a rail holds three marks at most, folding the ones ahead of status and eng
   } finally { await view.unmount(); }
 });
 
-test("in Priority, the menu keeps the engine's slot and Dismiss sits over the status it clears, and the menu offers Dismiss too", async () => {
+test("in Priority, the menu keeps the engine's slot, Dismiss sits on the row alone, and the menu never repeats it", async () => {
   const dismissed: string[] = [];
   const view = await mount(React.createElement(Harness, {
     mode: "activity",
@@ -514,15 +514,15 @@ test("in Priority, the menu keeps the engine's slot and Dismiss sits over the st
     const actions = [...view.container.querySelectorAll<HTMLElement>('nav[aria-label="Priority"] .row-action')];
     assert.deepEqual(actions.map((action) => action.dataset.tip), ["Dismiss", "More"]);
     const marks = [...view.container.querySelectorAll<HTMLElement>('nav[aria-label="Priority"] .row-mark')];
-    assert.deepEqual(marks.map((mark) => mark.dataset.tip), ["Finished", "Claude thread"], "Dismiss lines up over the status mark, the menu over the engine");
+    assert.deepEqual(marks.map((mark) => mark.dataset.tip), ["Finished", "Claude thread"]);
 
     await act(async () => { actions[1]!.click(); });
-    assert.equal(menuItems()[0]!.textContent, "Dismiss");
-    await act(async () => { menuItem("Dismiss")!.click(); });
-    assert.deepEqual(dismissed, ["done"]);
+    assert.ok(menuItem("Rename"));
+    assert.equal(menuItem("Dismiss"), undefined, "the row's own button is the one way to dismiss it");
+    await act(async () => { document.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
 
-    await act(async () => { query<HTMLButtonElement>(view.container, 'nav[aria-label="Running"] .task-more').click(); });
-    assert.equal(menuItem("Dismiss"), undefined, "only a row Priority can dismiss offers it");
+    await act(async () => { actions[0]!.click(); });
+    assert.deepEqual(dismissed, ["done"]);
   } finally { await view.unmount(); }
 });
 

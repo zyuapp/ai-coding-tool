@@ -757,7 +757,7 @@ button {
   gap: 16px;
 }
 
-.transcript:has(~ .composer .composer-waiting) {
+.transcript:has(~ .composer :is(.composer-waiting, .composer-steer-hint)) {
   padding-bottom: 56px;
 }
 
@@ -1501,6 +1501,25 @@ button.work-row .work-summary {
   white-space: nowrap;
 }
 
+.composer-steer-hint {
+  position: absolute;
+  right: 12px;
+  bottom: calc(100% + 2px);
+  max-width: calc(100% - 24px);
+  margin: 0;
+  padding: 3px 10px;
+  border: 1px solid var(--line-control);
+  border-radius: 999px;
+  font-size: var(--text-meta);
+  line-height: 1.5;
+  color: var(--muted-strong);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .composer-card {
   border-radius: var(--radius-card);
   background: var(--surface);
@@ -2017,6 +2036,33 @@ button.work-row .work-summary {
   padding: 4px 9px 8px;
 }
 
+.rename-field {
+  position: relative;
+  display: block;
+}
+
+.rename-form .rename-field input {
+  padding-right: var(--tap);
+}
+
+/* Empties the title in one tap; the input keeps focus. */
+.field-clear {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  padding: 0;
+  border-radius: 10px;
+  color: var(--muted);
+}
+
+.field-clear:active {
+  color: var(--ink);
+}
+
 /* Narrows a long list of choices; it stays above them while they scroll. */
 .sheet-search {
   position: sticky;
@@ -2082,7 +2128,7 @@ button.thread-start-project {
   flex: 0 1 auto;
   margin-right: auto;
   padding: 0 9px 0 11px;
-  border: 1px solid var(--line-input);
+  border: 1px solid var(--line-control);
   color: var(--ink-dim);
 }
 
@@ -2111,7 +2157,7 @@ button.thread-start-project:active {
 .thread-start-toggle {
   position: relative;
   flex: none;
-  border: 1px solid var(--line-input);
+  border: 1px solid var(--line-control);
   color: var(--ink-dim);
 }
 
@@ -2137,7 +2183,6 @@ button.thread-start-project:active {
   border-color: var(--line);
 }
 
-.thread-start-toggle[aria-pressed="true"],
 .thread-start-where[data-chosen] {
   border-color: var(--accent-line-strong);
   background: var(--accent-chip);

@@ -118,7 +118,8 @@ test("folders sit under the computer that holds them, this computer's first, and
     assert.deepEqual(groups.map((group) => query(group, ".computer-heading .host-mark").classList.contains("offline")), [false, false, true]);
     assert.equal(query(groups[2]!, ".host-mark").dataset.tip, "old-laptop · Offline");
     assert.equal(query(groups[2]!, ".host-mark > svg").getAttribute("aria-label"), "Offline");
-    assert.equal(query(groups[0]!, ".host-mark").dataset.tip, undefined);
+    assert.equal(query(groups[0]!, ".host-mark").dataset.tip, "My Mac");
+    assert.equal("tipOverflow" in query(groups[0]!, ".host-mark").dataset, true);
     assert.deepEqual(groups.map((group) => [...group.querySelectorAll(".project-main")].map((button) => button.textContent)), [
       ["Local app"], ["A long remote project name", "Other"], ["Offline app"],
     ], "a row carries the folder name alone");

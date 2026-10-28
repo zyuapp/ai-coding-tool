@@ -8,7 +8,7 @@ import { displayShortcut } from "../../domain/shortcuts";
 import type { Thread } from "../../domain/thread";
 import type { CoordinationApprovalView, CoordinationDecisionView, ElsewhereView, ProposalView } from "../../application/coordination-view";
 import type { ApprovalView } from "../../application/thread-run-state";
-import { approvalCommand, DecideButton, type DecideBindings } from "./ApprovalCard";
+import { approvalSubject, DecideButton, type DecideBindings } from "./ApprovalCard";
 import { CommandButton, useCommandControls } from "./CommandControl";
 import { BriefDetails } from "./Coordination";
 import { HostMark } from "./HostMark";
@@ -254,8 +254,8 @@ function SuggestionRow({ taskId, threadModel, view }: { taskId: string; threadMo
       </span>}
       {starting
         ? <span className="suggestion-start task-spinner" role="status" aria-label={`Starting ${proposal.title}`} />
-        : <CommandButton type="button" className="suggestion-start" data-action="start" aria-label={`Start ${proposal.title}`} command={{ type: "proposal.start", taskId, proposalId: proposal.id }}>
-            <Play size={12} fill="currentColor" aria-hidden="true" />Start
+        : <CommandButton type="button" className="suggestion-start" data-action="start" aria-label={`Start ${proposal.title}`} data-tip="Start" command={{ type: "proposal.start", taskId, proposalId: proposal.id }}>
+            <Play size={12} fill="currentColor" aria-hidden="true" />
           </CommandButton>}
     </li>
   );
@@ -336,17 +336,16 @@ function ApprovalForm({ view, bindings, position, onStep, onDecide, onSelect }: 
   onSelect: (threadId: string) => void;
 }) {
   const { thread, approval } = view;
-  const command = approvalCommand(approval.input);
+  const subject = approvalSubject(approval.input);
   const ids = pageIds(useId());
   return (
-    <section className="decision-card" aria-label="Approval waiting on you" aria-describedby={describedBy(ids.from, ids.question, approval.description && ids.context, command && ids.command)} tabIndex={-1}>
+    <section className="decision-card" aria-label="Approval waiting on you" aria-describedby={describedBy(ids.from, ids.question, approval.description && ids.context, subject && ids.command)} tabIndex={-1}>
       <NeedsYouHead id={ids.from} thread={thread} position={position} onStep={onStep} onSelect={onSelect} />
       <div className="decision-body">
         <p className="decision-question" id={ids.question}>{approval.title}</p>
         {approval.description && <p className="decision-context" id={ids.context}>{approval.description}</p>}
-        {command
-          ? <pre className="decision-command" id={ids.command}>{command}</pre>
-          : <details className="decision-tool"><summary>{approval.toolName}</summary><pre>{JSON.stringify(approval.input, null, 2)}</pre></details>}
+        {subject && <pre className="decision-command" id={ids.command}>{subject.text}</pre>}
+        {(!subject || subject.more) && <details className="decision-tool"><summary>{approval.toolName}</summary><pre>{JSON.stringify(approval.input, null, 2)}</pre></details>}
       </div>
       <div className="decision-foot">
         {position && <button type="button" className="secondary" data-action="later" onClick={() => onStep(1)}>Later</button>}
@@ -397,10 +396,10 @@ function DecisionForm({ view, draft, position, onStep, onDraft, onAnswer, onSele
       <div className="decision-foot">
         <label className="decision-own">
           <span>{decision.options.length ? "Or your own answer" : "Your answer"}</span>
-          <input value={own} placeholder="Type your answer…" onChange={(event) => onDraft({ kind: "decision", choice, own: event.currentTarget.value })} />
+          <input value={own} onChange={(event) => onDraft({ kind: "decision", choice, own: event.currentTarget.value })} />
         </label>
         {position && <button type="button" className="secondary" data-action="later" onClick={() => onStep(1)}>Later</button>}
-        <button type="submit" disabled={!answer}>Decide<kbd aria-hidden="true">{displayShortcut("Enter", MAC)}</kbd></button>
+        <button type="submit" disabled={!answer}>Send answer<kbd aria-hidden="true">{displayShortcut("Enter", MAC)}</kbd></button>
       </div>
     </form>
   );

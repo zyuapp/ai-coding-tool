@@ -10,9 +10,10 @@ import { SpinningIcon } from "./SpinningIcon";
 import { copyText } from "../clipboard";
 import { MAC } from "../platform";
 import { displayShortcut } from "../../domain/shortcuts";
+import { shortcutTip } from "./TooltipLayer";
 
 const BASE_MENU = "diff:base";
-const KEYS_MENU = "diff:keys";
+export const KEYS_MENU = "diff:keys";
 const COMPARE_MENU = "diff:compare";
 const HEAD_SIDE = { label: "HEAD", value: "HEAD" };
 const WORKING_SIDE = { label: "Working tree", value: "" };
@@ -117,9 +118,11 @@ const REVIEW_GESTURES: ReadonlyArray<readonly [gesture: string, does: string]> =
 ];
 const REVIEW_KEYS: ReadonlyArray<readonly [keys: string, does: string]> = [
   ["N", "Next unviewed file"],
+  ["O", "Open the file in your editor"],
   ["↑↓", "Walk files and line numbers"],
   [MAC ? "⇧↑↓" : "Shift+↑↓", "Pick more lines"],
   [displayShortcut("Enter", MAC), "Write the note"],
+  ["?", "Show these keys"],
 ];
 
 function ReviewKeys({ openMenu, onSetOpenMenu }: MenuControl) {
@@ -134,9 +137,10 @@ function ReviewKeys({ openMenu, onSetOpenMenu }: MenuControl) {
       ref={trigger}
       type="button"
       aria-label="Review keys"
+      aria-keyshortcuts="?"
       aria-expanded={open}
       aria-controls={open ? id : undefined}
-      data-tip={open ? undefined : "Review keys"}
+      data-tip={open ? undefined : shortcutTip("Review keys", "?")}
       onClick={() => onSetOpenMenu(open ? null : KEYS_MENU)}
     >
       <Keyboard size={16} />
@@ -163,14 +167,14 @@ function LinkedCommit({ commit }: { commit: string }) {
   const tip = copied === true ? "Copied" : copied === false ? "Copy failed" : `Copy ${commit}`;
   return (
     <button
-      className={`diff-linked-commit ${copied ? "copied" : ""}`.trimEnd()}
+      className={`diff-linked-commit ${copied === true ? "copied" : copied === false ? "failed" : ""}`.trimEnd()}
       type="button"
       aria-label={copied === null ? `Copy commit ${commit}` : tip}
       data-tip={tip}
       onClick={() => void copyText(commit).then(setCopied)}
     >
       <Commit size={14} aria-hidden="true" />
-      <code>{commit.slice(0, 7)}</code>
+      {copied === null ? <code>{commit.slice(0, 7)}</code> : <span>{tip}</span>}
       {copied ? <Check size={14} aria-hidden="true" /> : <Copy size={12} aria-hidden="true" />}
     </button>
   );
@@ -210,7 +214,7 @@ export function DiffToolbar({ diff, split, roomForTwo, currentBranch, workspaceI
           >
             <Columns2 size={16} />
           </button>
-          <button type="button" aria-label="Hide spacing changes" aria-pressed={diff.ignoreWhitespace} className={diff.ignoreWhitespace ? "on" : ""} data-tip={diff.ignoreWhitespace ? "Spacing changes hidden" : "Hide spacing changes"} onClick={onToggleWhitespace}><Pilcrow size={16} />{diff.ignoreWhitespace && <span>Spacing hidden</span>}</button>
+          <button type="button" aria-label="Hide spacing changes" aria-pressed={diff.ignoreWhitespace} className={diff.ignoreWhitespace ? "on" : ""} data-tip={diff.ignoreWhitespace ? "Spacing changes hidden" : "Hide spacing changes"} onClick={onToggleWhitespace}><Pilcrow size={16} /></button>
           <button type="button" aria-label="Refresh changes" aria-busy={diff.loading || undefined} data-tip={diff.loading ? "Refreshing…" : "Refresh"} onClick={onRefresh}><SpinningIcon icon={RefreshCw} spinning={diff.loading} size={16} /></button>
           <ReviewKeys openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />
         </div>

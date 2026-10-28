@@ -155,7 +155,7 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
           </div>
         ) : (<>
         <div className={`thread-start-field ${branchesOpen ? "open" : ""}`} ref={branchRef}>
-          <button ref={branchTrigger} type="button" className={unreadable ? "error" : undefined} aria-label={`Starting branch: ${branchLabel}${branch?.create ? " (new)" : ""}`} aria-haspopup="listbox" aria-expanded={branchesOpen} aria-disabled={!workspaceId || undefined} data-tip={!workspaceId ? "Starts from the project's current branch" : unreadable ? branches.message : undefined} onClick={() => { if (workspaceId) setBranchesOpen(!branchesOpen); }}>
+          <button ref={branchTrigger} type="button" className={unreadable ? "error" : undefined} aria-label={`Starting branch: ${branchLabel}${branch?.create ? " (new)" : ""}`} aria-haspopup="listbox" aria-expanded={branchesOpen} aria-disabled={!workspaceId || undefined} tabIndex={workspaceId ? undefined : -1} data-tip={!workspaceId ? "Starts from the project's current branch" : unreadable ? branches.message : undefined} onClick={() => { if (workspaceId) setBranchesOpen(!branchesOpen); }}>
             {unreadable ? <CircleAlert size={14} /> : <GitBranch size={14} />}
             <span>{branchLabel}</span>
             {branch?.create && <small>new</small>}

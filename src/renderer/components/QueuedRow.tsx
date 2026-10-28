@@ -4,6 +4,7 @@ import { isUsersOwn, messageLabel } from "../../domain/message-origin";
 import { useState, type KeyboardEvent } from "react";
 import { AnnotationRow, useClamped } from "./AnnotationRow";
 import type { ComposerSurface } from "./ConversationComposer";
+import { ConfirmAction } from "./SettingRow";
 
 function QueuedOrigin({ message }: { message: QueuedMessage }) {
   const label = messageLabel(message);
@@ -62,7 +63,7 @@ export function QueuedRow({ messages, surface, canSteer, onEdit, onSteer, onDrop
             <span className="queued-actions">
               {isUsersOwn(message) && (
                 <button type="button" className="queued-edit" aria-label="Edit queued message" data-tip="Edit" onClick={() => onEdit(message.id)}>
-                  <Pencil size={14} />
+                  <Pencil size={14} aria-hidden="true" />
                 </button>
               )}
               <button
@@ -74,9 +75,9 @@ export function QueuedRow({ messages, surface, canSteer, onEdit, onSteer, onDrop
               >
                 Steer
               </button>
-              <button type="button" className="queued-drop" aria-label="Remove queued message" data-tip="Remove" onClick={() => onDrop(message.id)}>
-                <X size={14} />
-              </button>
+              <ConfirmAction className="queued-drop" aria-label="Remove queued message" data-tip="Remove" confirm="Remove" onConfirm={() => onDrop(message.id)}>
+                <X size={14} aria-hidden="true" />
+              </ConfirmAction>
             </span>
           )}
         </div>

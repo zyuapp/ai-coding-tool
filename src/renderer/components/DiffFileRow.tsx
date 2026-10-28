@@ -1,5 +1,6 @@
 import { LuCheck as Check, LuChevronDown as ChevronDown, LuChevronRight as ChevronRight, LuFilePlus2 as FilePlus2, LuFileMinus2 as FileMinus2, LuFilePen as FilePen, LuFileSymlink as FileSymlink, LuSquareArrowOutUpRight as OpenOut } from "react-icons/lu";
 import type { DiffFileSummary } from "../../domain/diff";
+import { shortcutTip } from "./TooltipLayer";
 
 function StatusIcon({ status }: { status: DiffFileSummary["status"] }) {
   if (status === "added" || status === "untracked") return <FilePlus2 size={16} />;
@@ -39,7 +40,7 @@ export function FileHeader({ file, open, viewed, echo = false, onToggle, onOpenF
   const { folder, name } = splitPath(file.path);
   const reach = echo ? { tabIndex: -1 } : {};
   return (
-    <div className={`diff-file-row ${viewed ? "viewed" : ""}`.trimEnd()}>
+    <div className={`diff-file-row ${viewed ? "viewed" : ""}`.trimEnd()} data-path={file.path}>
       <button className="diff-file-open" type="button" aria-expanded={open} {...reach} onClick={onToggle}>
         <span className="diff-file-caret" aria-hidden="true" data-tip={open ? "Fold" : "Unfold"}>
           {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
@@ -55,7 +56,8 @@ export function FileHeader({ file, open, viewed, echo = false, onToggle, onOpenF
         className="diff-file-editor"
         type="button"
         aria-label={`Open ${file.path} in your editor`}
-        data-tip="Open in editor"
+        aria-keyshortcuts="O"
+        data-tip={shortcutTip("Open in editor", "O")}
         {...reach}
         onClick={() => onOpenFile(file.path)}
       >

@@ -61,7 +61,7 @@ function SettingMenu({ label, axis, heading, value, detail, danger = false, onOp
   return <details ref={details} className={`setting-menu${danger ? " danger" : ""}`} onToggle={(event) => { setOpen(event.currentTarget.open); if (event.currentTarget.open) onOpen?.(); }}>
     <summary ref={summary} aria-label={label}>
       <span className="setting-axis">{axis}</span>
-      <span className="setting-value">{value}</span>
+      <span className="setting-value" {...(typeof value === "string" ? { "data-tip": value, "data-tip-overflow": true } : {})}>{value}</span>
       {detail !== undefined && <span className="setting-detail"><span aria-hidden="true">·</span>{detail}</span>}
       <ChevronDown size={12} className="setting-chevron" aria-hidden="true" />
     </summary>

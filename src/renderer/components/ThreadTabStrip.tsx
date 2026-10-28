@@ -41,6 +41,12 @@ export function scheduleChipTip(automation: AutomationView | null) {
   return "Automation";
 }
 
+/** The schedule chip's tone: calm while it waits for its next run, a warning once a run was missed. */
+export function scheduleChipTone(automation: AutomationView | null): "scheduled" | "missed" | null {
+  if (!automation || automation.paused) return null;
+  return automation.nextRunAt === null ? "missed" : "scheduled";
+}
+
 /** The schedule chip's glyph, so a paused or missed schedule reads without its word. */
 function scheduleChipIcon(automation: AutomationView | null) {
   if (automation?.paused) return CirclePause;
@@ -116,7 +122,7 @@ function PullRequestChip({ pullRequest }: { pullRequest: PullRequestAnswer }) {
         openInApp={links.openUrlInApp && (() => links.openUrlInApp!(GITHUB_CLI_URL))}
       >
         <GitPullRequest size={14} aria-hidden="true" />
-        <span>Install gh</span>
+        <span>Install gh for pull requests</span>
       </WebLink>
     );
   }
@@ -158,6 +164,7 @@ function BriefCard({ id, brief }: { id: string; brief: ThreadBrief }) {
 export function ThreadTabStrip({ tab, branchMenuOpen, actions }: { tab: ThreadTabView; branchMenuOpen: boolean; actions: ThreadTabStripActions }) {
   const [briefOpen, setBriefOpen] = useState(false);
   const briefId = useId();
+  const noteId = useId();
   const available = tab.environment?.status === "available" ? tab.environment : null;
   const note = environmentNote(tab);
   const brief = tab.thread.brief;
@@ -191,14 +198,14 @@ export function ThreadTabStrip({ tab, branchMenuOpen, actions }: { tab: ThreadTa
         )}
         {note && (note.failed
           ? <span className="thread-tab-note failed" role="alert">
-              <span data-tip={note.text} data-tip-overflow>{note.text}</span>
-              <CommandButton type="button" className="thread-tab-retry" command={{ type: "view.refresh-environment" }}>Retry</CommandButton>
+              <span id={noteId} data-tip={note.text} data-tip-overflow>{note.text}</span>
+              <CommandButton type="button" className="thread-tab-retry" aria-describedby={noteId} command={{ type: "view.refresh-environment" }}>Retry</CommandButton>
             </span>
           : <span className="thread-tab-note" role={note.reading ? "status" : undefined}><span className={note.reading ? "text-sweep" : undefined}>{note.text}</span></span>)}
         <PullRequestChip pullRequest={tab.pullRequest} />
         <button
           type="button"
-          className={`thread-tab-chip ${tab.automation && !tab.automation.paused ? "scheduled" : ""}`.trimEnd()}
+          className={`thread-tab-chip ${scheduleChipTone(tab.automation) ?? ""}`.trimEnd()}
           data-tip={scheduleChipTip(tab.automation)}
           onClick={actions.onOpenAutomations}
         >

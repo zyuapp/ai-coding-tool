@@ -352,7 +352,7 @@ test("a branch picker that cannot read branches yet says where the thread starts
   const unread = await mount(options());
   const picker = query<HTMLButtonElement>(unread.container, 'button[aria-label^="Starting branch: "]');
   assert.equal(picker.getAttribute("aria-disabled"), "true");
-  assert.equal(picker.disabled, false, "it stays focusable, so its tip reaches the keyboard");
+  assert.equal(picker.tabIndex, -1, "Tab skips a picker that has nothing to offer");
   assert.ok(picker.dataset.tip);
   await act(async () => { picker.click(); });
   assert.equal(picker.getAttribute("aria-expanded"), "false", "a click opens nothing");
@@ -360,6 +360,7 @@ test("a branch picker that cannot read branches yet says where the thread starts
 
   const read = await mount(options("workspace-a"));
   assert.equal(query(read.container, 'button[aria-label^="Starting branch: "]').dataset.tip, undefined);
+  assert.equal(query<HTMLButtonElement>(read.container, 'button[aria-label^="Starting branch: "]').tabIndex, 0);
   await read.unmount();
 });
 

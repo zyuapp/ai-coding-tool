@@ -13,7 +13,7 @@ import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import type { ContextUsage } from "../../domain/thread-run";
 import { AttachmentAnnotator, AttachmentStrip, useComposerAttachments, type ComposerOutbox } from "./ComposerAttachments";
 import { ComposerSettings, EVERY_ENGINE_READY } from "./ComposerSettings";
-import { CommandMenu, ThreadMenu, menuActiveDescendant, menuControls, useComposerMenus, type ComposerAction } from "./ComposerMenus";
+import { CommandMenu, ThreadMenu, menuActiveDescendant, menuControls, useComposerMenus, type ComposerAction, type ComposerMenus } from "./ComposerMenus";
 import { ContextUsageMeter } from "./ContextUsageMeter";
 import { PlanUsageMeter, PlanUsageWarning, type ComposerPlanUsage } from "./PlanUsageMeter";
 import { QueuedRow } from "./QueuedRow";
@@ -57,38 +57,75 @@ function sendLabel(surface: ComposerSurface, runActive: boolean) {
   return runActive ? "Stop task" : "Send task";
 }
 
-/** `queued` is set while a run goes and something is written; `recall` once there is an earlier message to bring back. */
-function sendTip(runActive: boolean, { queued = false, recall = false } = {}) {
+/** `recall` is set once there is an earlier message to bring back. */
+function sendTip(runActive: boolean, { recall = false } = {}) {
   const keys = runActive
-    ? [shortcutTip("Stop", "Escape"), ...(queued ? [shortcutTip("Queue", "Enter"), shortcutTip("Steer", "Mod+Enter")] : [])]
+    ? [shortcutTip("Stop", "Escape")]
     : [shortcutTip("Send", "Enter"), shortcutTip("New line", "Shift+Enter"), ...(recall ? [shortcutTip("Previous message", "ArrowUp")] : [])];
   return keys.join(" · ");
 }
 
-/** Sends what is written, or stops the run while one is going. `busy` is a send already on its way. */
-function SendButton({ taskId, surface, runActive, command, disabled, busy, tip, onSend, onCancel }: {
+const QUEUE_TIP = [shortcutTip("Queue", "Enter"), shortcutTip("Steer", "Mod+Enter")].join(" · ");
+
+/**
+ * Sends what is written, or stops the run while one is going. While a run goes and something is
+ * written, a queue button stands beside Stop so a click never stops the run in its place. `busy` is
+ * a send already on its way.
+ */
+function SendButton({ taskId, surface, runActive, queueable, command, disabled, busy, recall, onSend, onCancel }: {
   taskId: string | undefined;
   surface: ComposerSurface;
   runActive: boolean;
+  queueable: boolean;
   command: AppCommand;
   disabled: boolean;
   busy: boolean;
-  tip: string;
+  recall: boolean;
   onSend: () => void;
   onCancel: () => void;
 }) {
-  const sending = busy && !runActive;
+  if (runActive) {
+    return (
+      <>
+        {queueable && <CommandButton command={command} className="send-button" disabled={disabled || busy} onClick={onSend} aria-label={surface === "side" ? "Queue side chat message" : "Queue message"} data-tip={QUEUE_TIP}>
+          <ArrowUp size={16} strokeWidth={2.5} aria-hidden="true" />
+        </CommandButton>}
+        <CommandButton command={{ type: "run.cancel", taskId }} className="send-button running" onClick={onCancel} aria-label={sendLabel(surface, true)} data-tip={sendTip(true)}>
+          <span className="stop-glyph" />
+        </CommandButton>
+      </>
+    );
+  }
   return (
-    <CommandButton command={runActive ? { type: "run.cancel", taskId } : command}
-      className={`send-button ${runActive ? "running" : ""} ${sending ? "busy" : ""}`}
-      disabled={!runActive && (disabled || busy)}
-      onClick={runActive ? onCancel : onSend}
-      aria-label={sendLabel(surface, runActive)}
-      aria-busy={sending || undefined}
-      data-tip={tip}
+    <CommandButton command={command}
+      className={`send-button${busy ? " busy" : ""}`}
+      disabled={disabled || busy}
+      onClick={onSend}
+      aria-label={sendLabel(surface, false)}
+      aria-busy={busy || undefined}
+      data-tip={sendTip(false, { recall })}
     >
-      {runActive ? <span className="stop-glyph" /> : sending ? <span className="send-spinner" aria-hidden="true" /> : <ArrowUp size={16} strokeWidth={2.5} aria-hidden="true" />}
+      {busy ? <span className="send-spinner" aria-hidden="true" /> : <ArrowUp size={16} strokeWidth={2.5} aria-hidden="true" />}
     </CommandButton>
+  );
+}
+
+/** What the bar can tell about the prompt: the keys that queue and steer while a run goes, or the menus an empty prompt opens. */
+function ComposerHint({ id, steer, menus, threads }: { id: string; steer: boolean; menus: ComposerMenus | null; threads: boolean }) {
+  if (steer) {
+    return (
+      <span className="composer-hint" id={id}>
+        <span><kbd>{SEND_KEYS}</kbd> <span className="composer-hint-word">queue</span></span>
+        <span><kbd>{STEER_KEYS}</kbd> <span className="composer-hint-word">steer</span></span>
+      </span>
+    );
+  }
+  if (!menus) return null;
+  return (
+    <span className="composer-hint">
+      <button type="button" data-tip="Commands" onMouseDown={(event) => event.preventDefault()} onClick={() => menus.open("/")}><kbd>/</kbd> <span className="composer-hint-word">commands</span></button>
+      {threads && <button type="button" data-tip="Mention a thread" onMouseDown={(event) => event.preventDefault()} onClick={() => menus.open("@")}><kbd>@</kbd> <span className="composer-hint-word">threads</span></button>}
+    </span>
   );
 }
 
@@ -189,8 +226,6 @@ export type ConversationComposerProps = {
   contextUsage?: ContextUsage;
   /** Compacts the thread's context. Set only while compacting is on offer. */
   onCompact?: () => void;
-  /** Set while the thread's context is being compacted. */
-  compacting?: boolean;
   /** The plan limits of the engine this composer sends to. A surface that shows none passes none. */
   planUsage?: ComposerPlanUsage;
   runActive: boolean;
@@ -280,7 +315,6 @@ export function ConversationComposer({
   onFastModeChange,
   contextUsage,
   onCompact,
-  compacting = false,
   planUsage,
   runActive,
   question,
@@ -400,10 +434,10 @@ export function ConversationComposer({
           <AttachButton disabled={disabled} onFilesAdd={onFilesAdd} />
           <ComposerSettings taskId={taskId} mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} coordinating={coordinating} fastMode={fastMode} onFastModeChange={onFastModeChange} onModeChange={onModeChange} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
           <div className="composer-actions">
-            {steerHint && <span className="composer-hint" id={hintId}><span><kbd>{SEND_KEYS}</kbd> queue</span><span><kbd>{STEER_KEYS}</kbd> steer</span></span>}
+            <ComposerHint id={hintId} steer={steerHint} menus={!prompt && !disabled ? menus : null} threads={threads.length > 0} />
             {planUsage && <PlanUsageMeter engineLabel={engineLabel} model={model} usage={planUsage.usage} {...(planUsage.onOpen ? { onOpen: planUsage.onOpen } : {})} />}
-            {contextUsage && <ContextUsageMeter usage={contextUsage} compacting={compacting} {...(onCompact ? { onCompact } : {})} />}
-            <SendButton taskId={taskId} surface={surface} runActive={runActive} command={sendCommand} disabled={disabled || nothingToSend} busy={!disabled && (attachments.sending || waiting)} tip={sendTip(runActive, { queued: steerHint, recall: history.length > 0 })} onSend={() => void submit()} onCancel={onCancel} />
+            {contextUsage && <ContextUsageMeter usage={contextUsage} {...(onCompact ? { onCompact } : {})} />}
+            <SendButton taskId={taskId} surface={surface} runActive={runActive} queueable={steerHint} command={sendCommand} disabled={disabled || nothingToSend} busy={!disabled && (attachments.sending || waiting)} recall={history.length > 0} onSend={() => void submit()} onCancel={onCancel} />
           </div>
         </div>
       </div>}

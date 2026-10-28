@@ -12,9 +12,10 @@ function rule(selector: string): string {
 }
 
 test("labelled pills and buttons on the phone wear the quiet control edge", () => {
-  for (const selector of [".composer-pill", ".queued-steer", ".changes-retry", ".work-more"]) {
+  for (const selector of [".composer-pill", ".queued-steer", ".changes-retry", ".work-more", "button.thread-start-project"]) {
     assert.match(rule(selector), /border: 1px solid var\(--line-control\)/, selector);
   }
+  assert.match(mobileCss, /\n\.thread-start-toggle \{\n  position: relative;[^}]*border: 1px solid var\(--line-control\)/, ".thread-start-toggle");
 });
 
 test("a copy says what happened in words, not only by colour", () => {
@@ -26,6 +27,6 @@ test("the answer's copy button has no chip at rest", () => {
   assert.doesNotMatch(rule(".answer-meta > .copy-affordance"), /background/);
 });
 
-test("the transcript makes room for the offline pill so it never covers the last line", () => {
-  assert.match(rule(".transcript:has(~ .composer .composer-waiting)"), /padding-bottom: 56px/);
+test("the transcript makes room for the pills over the composer so they never cover the last line", () => {
+  assert.match(rule(".transcript:has(~ .composer :is(.composer-waiting, .composer-steer-hint))"), /padding-bottom: 56px/);
 });

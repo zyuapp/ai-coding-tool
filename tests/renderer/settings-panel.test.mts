@@ -714,9 +714,12 @@ test("a theme search marks the tile Enter picks, and arrows walk the tiles", asy
   await key(search, "ArrowDown");
   assert.equal(document.activeElement, query(view.container, ".theme-choice.chosen"), "Down from the search lands on the theme in use");
   const tiles = [...view.container.querySelectorAll<HTMLButtonElement>(".theme-choice")];
+  const stops = () => tiles.filter((tile) => tile.tabIndex === 0);
+  assert.deepEqual(stops(), [query(view.container, ".theme-choice.chosen")], "Tab stops on the chosen tile alone");
   const at = tiles.indexOf(document.activeElement as HTMLButtonElement);
   await key(item(tiles[at]), "ArrowRight");
   assert.equal(document.activeElement, tiles[at + 1]);
+  assert.deepEqual(stops(), [tiles[at + 1]], "the Tab stop follows the arrows");
   await key(item(tiles[at + 1]), "ArrowLeft");
   assert.equal(document.activeElement, tiles[at]);
 

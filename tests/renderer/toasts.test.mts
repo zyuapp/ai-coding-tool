@@ -63,26 +63,43 @@ test("an offer's button sends its command, and the offer has no timer to beat", 
   await view.unmount();
 });
 
-test("the cards are held while the pointer or the caret is on them, and let go once both have left", async () => {
+test("a card whose time runs out stays while the pointer or the caret is on the cards, and leaves once both have left", async () => {
   const { Toasts } = await import("../../src/renderer/components/Toasts.tsx");
-  const held: boolean[] = [];
-  const view = await mount(React.createElement(Toasts, {
-    toasts: [{ id: 1, tone: "success", title: "Pushed" }],
-    onDismiss: () => {},
-    onAction: () => {},
-    onHold: (value: boolean) => { held.push(value); },
-  }));
+  const pushed = { id: 1, tone: "success" as const, title: "Pushed" };
+  const failed = { id: 2, tone: "error" as const, title: "Couldn't push", message: "Run `git pull` first." };
+  const props = { onDismiss: () => {}, onAction: () => {} };
+  const view = await mount(React.createElement(Toasts, { ...props, toasts: [pushed, failed] }));
+  const titles = () => [...view.container.querySelectorAll(".toast strong")].map((title) => title.textContent);
   const toast = query(view.container, ".toast");
-  const close = query<HTMLButtonElement>(toast, ".toast-close");
   try {
     await act(async () => { toast.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, relatedTarget: document.body })); });
-    assert.deepEqual(held, [true]);
+    await view.render(React.createElement(Toasts, { ...props, toasts: [pushed] }));
+    assert.deepEqual(titles(), ["Couldn't push", "Pushed"], "the pointer keeps the card that ran out");
+
+    const close = query<HTMLButtonElement>(view.container, ".toast-close");
     await act(async () => close.focus());
-    assert.deepEqual(held, [true], "focus arriving while the pointer holds them changes nothing");
     await act(async () => { toast.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: document.body })); });
-    assert.deepEqual(held, [true], "the caret still holds them");
+    assert.deepEqual(titles(), ["Couldn't push", "Pushed"], "the caret still keeps it");
+
     await act(async () => close.blur());
-    assert.deepEqual(held, [true, false]);
+    assert.deepEqual(titles(), ["Pushed"], "letting go takes it away");
+  } finally { await view.unmount(); }
+});
+
+test("closing a held card takes it away even though its time already ran out", async () => {
+  const { Toasts } = await import("../../src/renderer/components/Toasts.tsx");
+  const dismissed: number[] = [];
+  const pushed = { id: 1, tone: "success" as const, title: "Pushed" };
+  const failed = { id: 2, tone: "error" as const, title: "Couldn't push" };
+  const props = { onDismiss: (id: number) => { dismissed.push(id); }, onAction: () => {} };
+  const view = await mount(React.createElement(Toasts, { ...props, toasts: [pushed, failed] }));
+  const titles = () => [...view.container.querySelectorAll(".toast strong")].map((title) => title.textContent);
+  try {
+    await act(async () => { query(view.container, ".toast").dispatchEvent(new MouseEvent("mouseover", { bubbles: true, relatedTarget: document.body })); });
+    await view.render(React.createElement(Toasts, { ...props, toasts: [pushed] }));
+    await act(async () => { query<HTMLButtonElement>(view.container, ".toast.error .toast-close").click(); });
+    assert.deepEqual(dismissed, [2]);
+    assert.deepEqual(titles(), ["Pushed"]);
   } finally { await view.unmount(); }
 });
 

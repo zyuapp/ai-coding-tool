@@ -68,6 +68,11 @@ test("a coordinator's Overview groups its threads by what they need, each openin
   await view.render(overview({ working: { all: true }, done: { open: true } }));
   assert.equal(query(view.container, '[aria-label="Working"]').querySelectorAll(".coordination-row").length, 8, "a group the user asked to see whole shows every thread");
   assert.equal(query(view.container, '[aria-label="Done"]').querySelectorAll(".coordination-row").length, 5);
+  const less = query<HTMLButtonElement>(view.container, '[aria-label="Working"] .coordination-more');
+  assert.equal(less.textContent, "Show less");
+  assert.equal(less.getAttribute("aria-expanded"), "true");
+  await act(async () => { less.click(); });
+  assert.deepEqual(folded.at(-1), ["working", { all: false }], "a whole group folds back to five");
 
   await act(async () => { query<HTMLButtonElement>(busy, 'button[aria-label="Open Dark mode"]').click(); });
   assert.equal(opened, "a");
@@ -125,7 +130,9 @@ test("the Overview files threads ready for review and resolved apart, and resolv
   await act(async () => { query<HTMLButtonElement>(resolved, ".coordination-group-head").click(); });
   await view.render(overview({ resolved: { open: true } }));
   const reopen = query<HTMLButtonElement>(view.container, 'button[aria-label="Reopen Old work"]');
-  assert.deepEqual([...reopen.querySelectorAll("svg")].map((icon) => icon.getAttribute("class")), ["resolution-ticked", "resolution-undo"], "a resolved row reads as ticked, and turns to undo once pointed at");
+  assert.equal(reopen.querySelectorAll("svg").length, 1, "a resolved row offers its undo at rest");
+  assert.equal(reopen.textContent, "");
+  assert.equal(query(view.container, 'button[aria-label="Resolve Docs"]').textContent, "Resolve", "a finished row names its Resolve");
   await act(async () => { reopen.click(); });
 
   assert.deepEqual(dispatched, [{ type: "task.resolve", taskId: "review" }, { type: "task.reopen", taskId: "old" }]);
@@ -153,6 +160,12 @@ test("resolving or reopening from a row, or showing more, keeps the keyboard's p
   await press('[aria-label="Done"] .coordination-more');
   await view.render(overview([ready, done[0]!, resolved(done[1]!), ...done.slice(2)], { done: { open: true, all: true } }));
   assert.equal(focused(), "Open Done 6", "Show more hands focus to the first row it brought in");
+
+  await press('[aria-label="Done"] .coordination-more[aria-expanded="true"]');
+  await view.render(overview([ready, done[0]!, resolved(done[1]!), ...done.slice(2)], { done: { open: true } }));
+  assert.equal(dom.window.document.activeElement?.textContent, "Show 1 more", "Show less hands focus to the Show more that replaced it");
+  await press('[aria-label="Done"] .coordination-more');
+  await view.render(overview([ready, done[0]!, resolved(done[1]!), ...done.slice(2)], { done: { open: true, all: true } }));
 
   await press('button[aria-label="Resolve Done 6"]');
   const rest = [ready, done[0]!, resolved(done[1]!), ...done.slice(2, 6), resolved(done[6]!)];
@@ -312,7 +325,7 @@ test("the Overview's Working group stops the coordinator and every thread under 
 
   await mounted.render(shown(false));
   const unsupported = query<HTMLButtonElement>(mounted.container, ".coordination-stop-all");
-  assert.equal(unsupported.disabled, true, "a computer whose build cannot stop them all says so");
+  assert.equal(unsupported.getAttribute("aria-disabled"), "true", "a computer whose build cannot stop them all says so");
   assert.ok(unsupported.dataset.tip);
   await act(async () => { unsupported.click(); });
   assert.equal(dispatched.filter((input) => input.type === "coordination.stop-all").length, 1, "and sends nothing");
@@ -548,10 +561,12 @@ test("a full memory says so in the row that adds a note", async () => {
   const overview = (kept: typeof notes) => React.createElement(CoordinatorOverview, { header, memory: { ...memory, notes: kept }, members: [], usage: null, worktrees: new Map(), folds: {}, onSetFold() {}, onSelect() {}, stoppable: true });
   const view = await mount(overview(notes));
   const add = () => query<HTMLTextAreaElement>(view.container, 'textarea[aria-label="Add a note"]');
-  assert.equal(add().placeholder, "Memory is full · forget a note to add one");
-  assert.equal(query(view.container, ".coordination-note-hint").textContent, "full");
+  assert.equal(add().placeholder, "Memory is full");
+  assert.equal(add().disabled, true);
+  assert.equal(view.container.querySelector(".coordination-note-hint"), null);
   await view.render(overview(notes.slice(1)));
   assert.equal(add().placeholder, "Add a note");
+  assert.equal(add().disabled, false);
   assert.equal(query(view.container, ".coordination-note-hint").textContent, "↵ add");
   await view.unmount();
 });

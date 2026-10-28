@@ -15,6 +15,7 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
       settingMark={workspace.settingsFocus}
       onLand={(section, settingId) => void workspace.actions.openSettingsSection(section, settingId)}
       archivedThreads={workspace.archivedThreads}
+      projects={workspace.projects}
       cli={workspace.cli}
       onReadCli={() => void workspace.actions.readCli()}
       onSetCliInstalled={(installed) => void workspace.actions.setCliInstalled(installed)}

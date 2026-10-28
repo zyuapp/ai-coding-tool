@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { TerminalSession } from "../../domain/terminal";
 import type { ComputerLink } from "../../domain/computers";
-import { LuCheck as Check, LuPlus as Plus, LuTriangleAlert as AlertTriangle, LuUnplug as Unplug } from "react-icons/lu";
-import { CommandButton } from "./CommandControl";
+import { LuCheck as Check, LuPlus as Plus, LuRotateCw as RotateCw, LuTriangleAlert as AlertTriangle, LuUnplug as Unplug } from "react-icons/lu";
+import { CommandButton, useCommandControls } from "./CommandControl";
 import { ConfirmAction } from "./SettingRow";
 import { fitTerminalView, focusTerminalView, hideTerminalView, onTerminalInput, showTerminalView } from "../task-workspace/terminal-views";
 
@@ -30,6 +30,7 @@ export function TerminalPanel({ terminal, computer, visible, focusToken = 0, fin
   /** Why the panel is empty. Drawing is the view's, not the workspace's, so the reason is the panel's too. */
   const [drawError, setDrawError] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const controls = useCommandControls();
   const computerId = computer?.id;
   const connected = !computer || computer.status === "connected";
 
@@ -72,6 +73,13 @@ export function TerminalPanel({ terminal, computer, visible, focusToken = 0, fin
 
   const clean = !terminal.error && terminal.exitCode === 0;
   const exitLabel = `Exited${terminal.exitCode === undefined ? "" : ` (${terminal.exitCode})`}`;
+  const exited = terminal.status === "exited";
+  const open = { type: "terminal.open", cwd: terminal.cwd } as const;
+  /** An exited shell's tab gives way to the one that restarts it, so dead tabs never pile up. */
+  const restart = () => {
+    controls.dispatch(open);
+    controls.dispatch({ type: "terminal.close", terminalId: terminal.id });
+  };
 
   return (
     <section className="terminal-panel" aria-label="Terminal">
@@ -81,7 +89,9 @@ export function TerminalPanel({ terminal, computer, visible, focusToken = 0, fin
         {terminal.status === "exited" && (clean
           ? <em className="clean" role="status"><Check size={12} aria-hidden="true" />{terminal.error ?? exitLabel}</em>
           : <em role="status"><AlertTriangle size={12} aria-hidden="true" />{terminal.error ?? exitLabel}</em>)}
-        <CommandButton command={{ type: "terminal.open", cwd: terminal.cwd }} type="button" className={`terminal-new-shell ${terminal.status === "exited" ? "primary" : ""}`.trimEnd()}><Plus size={12} aria-hidden="true" />New shell</CommandButton>
+        {exited
+          ? <CommandButton command={open} type="button" className="terminal-new-shell primary" onClick={restart}><RotateCw size={12} aria-hidden="true" />Restart shell</CommandButton>
+          : <CommandButton command={open} type="button" className="terminal-new-shell"><Plus size={12} aria-hidden="true" />New shell</CommandButton>}
       </p>
 
       {find}

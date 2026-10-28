@@ -220,7 +220,7 @@ test("a thread's options button shows, off, while the thread is still on its way
   assert.equal(document.querySelector<HTMLButtonElement>('button[aria-label="Thread options"]')?.disabled, false);
 });
 
-test("the settings sheet's choices are one Tab stop per group, moved with the arrow keys", () => {
+test("the settings sheet's arrow keys move focus within a group, and only a press makes the choice", () => {
   const line = openPhone({ paired: true });
   live(line);
   click(".thread-row .thread-open");
@@ -229,14 +229,33 @@ test("the settings sheet's choices are one Tab stop per group, moved with the ar
   assert.deepEqual(modes().map((node) => node.tabIndex).filter((index) => index === 0).length, 1);
   const checked = modes().findIndex((node) => node.getAttribute("aria-checked") === "true");
   const next = (checked + 1) % modes().length;
+  const sent = line.sent.length;
   act(() => void modes()[checked]!.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true })));
   assert.ok(document.activeElement === modes()[next], "focus moves to the next choice, wrapping at the end");
+  assert.equal(line.sent.length, sent, "arrowing past a choice sends nothing");
+  assert.equal(modes()[checked]?.getAttribute("aria-checked"), "true");
+  act(() => void modes()[next]!.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true })));
   assert.equal(lastCommand(line)?.type, "task.set-policy");
   assert.equal(modes()[next]?.getAttribute("aria-checked"), "true");
   assert.deepEqual(modes().map((node) => node.tabIndex), modes().map((_, index) => index === next ? 0 : -1));
-  const sent = line.sent.length;
-  act(() => void modes()[next]!.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })));
-  assert.equal(line.sent.length, sent, "keys other than the arrows leave the choice alone");
+});
+
+test("a draft's worktree chip opens Start in, with or without worktrees to pick", () => {
+  const line = openPhone({ paired: true });
+  const drafting = view();
+  drafting.thread = null;
+  drafting.draft = { projectId: "p", projectName: "App", settings: { engine: "claude", model: "opus", effort: "high", policy: "confirm" }, worktree: false, worktreeName: null, worktrees: [], canWorktree: true };
+  live(line, drafting);
+  click('.bar button[aria-label^="New thread"]');
+  const chip = () => document.querySelector<HTMLButtonElement>("button.thread-start-where");
+  assert.equal(chip()?.getAttribute("aria-haspopup"), "dialog");
+  assert.equal(chip()?.hasAttribute("aria-pressed"), false);
+  click("button.thread-start-where");
+  assert.equal(document.querySelector('.sheet [role="radiogroup"]')?.getAttribute("aria-label"), "Where this thread starts");
+  assert.deepEqual([...document.querySelectorAll(".sheet .location-option strong")].map((node) => node.textContent), ["App", "New worktree"]);
+  clickButton("New worktreeA checkout of its own, cut from the project", ".sheet");
+  assert.deepEqual(lastCommand(line), { type: "task.set-worktree", worktree: true });
+  assert.equal(document.querySelector(".sheet"), null);
 });
 
 test("Rename offers Cancel beside Save, and Cancel renames nothing", () => {
@@ -250,6 +269,22 @@ test("Rename offers Cancel beside Save, and Cancel renames nothing", () => {
   clickButton("Cancel", ".sheet");
   assert.equal(document.querySelector(".sheet"), null);
   assert.equal(line.sent.length, sent);
+});
+
+test("Rename's clear button empties the title, which Save then sends", () => {
+  const line = openPhone({ paired: true });
+  live(line);
+  click(".thread-row .thread-open");
+  click('button[aria-label="Thread options"]');
+  clickRow("Rename");
+  click('.rename-field button[aria-label="Clear title"]');
+  const field = document.querySelector<HTMLInputElement>(".rename-field input")!;
+  assert.equal(field.value, "");
+  assert.equal(document.activeElement, field);
+  assert.equal(document.querySelector('.rename-field button[aria-label="Clear title"]'), null, "nothing left to clear");
+  click(".sheet-head button:last-child");
+  assert.equal(lastCommand(line)?.type, "task.rename");
+  assert.equal((lastCommand(line) as { title: string }).title, "");
 });
 
 test("a group says how many threads it holds, open or folded", () => {

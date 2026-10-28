@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { LuFolderOpen as FolderOpen } from "react-icons/lu";
+import { LuFolderOpen as FolderOpen, LuLoaderCircle as LoaderCircle } from "react-icons/lu";
 import type { ProjectEditorView } from "../../application/workspace-state";
 import { folderName } from "../../domain/project";
 import { useModalFocus } from "../focus";
+import { SpinningIcon } from "./SpinningIcon";
 
 export type ProjectEditDialogProps = {
   editor: ProjectEditorView;
@@ -14,10 +15,15 @@ export type ProjectEditDialogProps = {
 export function ProjectEditDialog({ editor, onSave, onClose }: ProjectEditDialogProps) {
   const { project, checkouts, saving, error } = editor;
   const dialog = useRef<HTMLDivElement>(null);
+  const nameField = useRef<HTMLInputElement>(null);
   const [name, setName] = useState(project.name ?? "");
   const [root, setRoot] = useState(project.root);
   const [pickError, setPickError] = useState<string | null>(null);
   useModalFocus(dialog);
+  useEffect(() => {
+    nameField.current?.focus();
+    nameField.current?.select();
+  }, []);
 
   /** Escape closes the editor rather than reaching the window, which would answer it by stopping a run. */
   useEffect(() => {
@@ -34,7 +40,8 @@ export function ProjectEditDialog({ editor, onSave, onClose }: ProjectEditDialog
   const unchanged = trimmedRoot === project.root && name.trim() === (project.name ?? "");
 
   function save() {
-    if (!trimmedRoot || saving || unchanged) return;
+    if (!trimmedRoot || saving) return;
+    if (unchanged) return onClose();
     onSave({ name: name.trim() || null, root: trimmedRoot });
   }
 
@@ -50,6 +57,7 @@ export function ProjectEditDialog({ editor, onSave, onClose }: ProjectEditDialog
     >
       <form
         className="modal-panel project-edit-panel"
+        aria-busy={saving}
         onSubmit={(event) => {
           event.preventDefault();
           save();
@@ -59,6 +67,7 @@ export function ProjectEditDialog({ editor, onSave, onClose }: ProjectEditDialog
         <label className="project-edit-field">
           <span>Name</span>
           <input
+            ref={nameField}
             value={name}
             placeholder={folderName(trimmedRoot || project.root)}
             readOnly={saving}
@@ -89,7 +98,7 @@ export function ProjectEditDialog({ editor, onSave, onClose }: ProjectEditDialog
         )}
         <div className="project-edit-actions">
           <button type="button" onClick={onClose}>Cancel</button>
-          <button type="submit" className="primary" disabled={!trimmedRoot || saving || unchanged}>{saving ? "Saving…" : "Save"}</button>
+          <button type="submit" className="primary" disabled={!trimmedRoot || saving}>{saving ? <><SpinningIcon icon={LoaderCircle} spinning size={14} aria-hidden="true" />Saving…</> : "Save"}</button>
         </div>
       </form>
     </div>,

@@ -72,6 +72,32 @@ test("a failed reload says why, and engine buttons name their engine", async () 
   await view.unmount();
 });
 
+function Engines({ onSignIn }: { onSignIn: (engine: string) => void }) {
+  const [claude, setClaude] = React.useState<"signed-out" | "ready">("signed-out");
+  return React.createElement(React.Fragment, null,
+    React.createElement("button", { id: "flip", onClick: () => setClaude((access) => access === "ready" ? "signed-out" : "ready") }),
+    renderSettingsPanel({ initialSection: "engines", engineAccess: { claude: { access: claude }, codex: { access: "ready" } }, onSignInEngine: onSignIn }));
+}
+
+test("Sign in waits for the engine to sign in, and a later sign-out offers it fresh", async () => {
+  window.desktop = fakeDesktop({});
+  const asked: string[] = [];
+  const view = await mount(React.createElement(Engines, { onSignIn: (engine) => asked.push(engine) }));
+  await act(async () => {});
+  const signIn = () => query<HTMLButtonElement>(view.container, 'button[aria-label="Sign in to Claude"]');
+  assert.equal(signIn().textContent, "Sign in");
+  await act(async () => { signIn().click(); });
+  assert.deepEqual(asked, ["claude"]);
+  assert.equal(signIn().textContent, "Waiting for sign-in…");
+  assert.equal(signIn().getAttribute("aria-busy"), "true");
+  assert.equal(signIn().disabled, false, "a sign-in left unfinished can be started again");
+  await act(async () => { query<HTMLButtonElement>(view.container, "#flip").click(); });
+  assert.equal(view.container.querySelector('button[aria-label="Sign in to Claude"]'), null);
+  await act(async () => { query<HTMLButtonElement>(view.container, "#flip").click(); });
+  assert.equal(signIn().textContent, "Sign in");
+  await view.unmount();
+});
+
 test("a typed size out of range is clamped and the range stays in view", async () => {
   window.desktop = fakeDesktop({});
   const sizes: number[] = [];

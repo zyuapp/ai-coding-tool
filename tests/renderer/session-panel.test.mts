@@ -606,9 +606,12 @@ test("the session panel's branch row moves the checkout onto the branch it is gi
 
   await view.render(renderSessionPanel({ ...panel(null).props, workspaceId: undefined, environment: null }));
   const disabled = item(sessionRow(view.container, "Branch"));
-  assert.equal(disabled.disabled, true, "with no checkout there is no branch to change");
+  assert.equal(disabled.getAttribute("aria-disabled"), "true", "with no checkout there is no branch to change");
+  assert.equal(disabled.disabled, false, "it stays focusable, so its tip still says why");
   assert.equal(disabled.dataset.tip, "Reopen the project to inspect Git", "and the row says why");
   assert.equal(disabled.getAttribute("aria-label"), null, "the row is read by what it shows");
+  await act(async () => { disabled.click(); });
+  assert.equal(disabled.getAttribute("aria-expanded"), "false", "and pressing it opens nothing");
   await view.unmount();
 });
 

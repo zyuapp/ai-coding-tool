@@ -129,11 +129,7 @@ test("a meter that knows where the usage page is opens it, and one that does not
     assert.equal(meter.getAttribute("aria-describedby"), linked.container.querySelector(".usage-card")!.id);
     meter.click();
     assert.equal(opened, 1);
-    const open = linked.container.querySelector<HTMLButtonElement>(".usage-card .usage-card-open")!;
-    assert.equal(open.textContent, "Usage settings", "the card names where a click leads");
-    assert.equal(open.tabIndex, -1, "the meter itself is the keyboard's way in");
-    open.click();
-    assert.equal(opened, 2);
+    assert.equal(linked.container.querySelector(".usage-card button"), null, "the meter is the one way in");
   } finally {
     await linked.unmount();
   }
@@ -142,7 +138,6 @@ test("a meter that knows where the usage page is opens it, and one that does not
     const meter = readout.container.querySelector<HTMLElement>(".plan-usage-meter")!;
     assert.equal(meter.tagName, "SPAN");
     assert.equal(meter.tabIndex, 0, "it still opens its card to the keyboard");
-    assert.equal(readout.container.querySelector(".usage-card-open"), null);
   } finally {
     await readout.unmount();
   }

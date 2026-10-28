@@ -222,3 +222,41 @@ test("resting on a control that cannot act shows its reason without the usual wa
     assert.equal(tooltip()?.textContent, "Not on that computer");
   } finally { await view.unmount(); }
 });
+
+test("the pointer can move onto a disabled control's reason without losing it, and leaving the reason takes it away", async () => {
+  const view = await mountElement(React.createElement(React.Fragment, null,
+    React.createElement("button", { type: "button", id: "off", "aria-disabled": "true", "data-tip": "Not on that computer" }, "Archive"),
+    React.createElement("span", { id: "gap" }, "gap"),
+    React.createElement(TooltipLayer),
+  ));
+  try {
+    hover(view.container.querySelector("#off")!);
+    await rest(100);
+    assert.equal(tooltip()?.getAttribute("data-hoverable"), "true");
+
+    hover(view.container.querySelector("#gap")!);
+    await rest(100);
+    hover(tooltip()!);
+    await rest(1000);
+    assert.equal(tooltip()?.textContent, "Not on that computer", "resting on the reason keeps it");
+
+    await act(async () => { tooltip()!.dispatchEvent(new dom.window.MouseEvent("pointerdown", { bubbles: true })); });
+    assert.ok(tooltip(), "pressing on the reason keeps it");
+
+    hover(view.container.querySelector("#gap")!);
+    await rest(400);
+    assert.equal(tooltip(), null);
+  } finally { await view.unmount(); }
+});
+
+test("an ordinary tip lets clicks through and leaves as soon as the pointer does", async () => {
+  const view = await mount();
+  try {
+    hover(view.container.querySelector("button")!);
+    await rest();
+    assert.equal(tooltip()?.getAttribute("data-hoverable"), "false");
+    hover(view.container);
+    await act(async () => {});
+    assert.equal(tooltip(), null);
+  } finally { await view.unmount(); }
+});

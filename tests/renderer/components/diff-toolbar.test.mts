@@ -54,6 +54,7 @@ test("a reviewed commit's chip copies its full hash and says so", async () => {
   await act(async () => { chip.click(); });
   assert.deepEqual(copied, [COMMIT]);
   assert.equal(chip.dataset.tip, "Copied");
+  assert.equal(chip.textContent, "Copied", "the chip says so without a hover");
   assert.ok(chip.classList.contains("copied"));
   await view.unmount();
 });
@@ -123,18 +124,13 @@ test("the review keys open from the toolbar and close with Escape", async () => 
   await view.unmount();
 });
 
-test("a long branch name keeps its end in view, and the spacing filter says when it is on", async () => {
+test("a long branch name keeps its end in view", async () => {
   const view = await mount(toolbar({ currentBranch: "feature/review-panel-polish", diff: diffState({ mode: "branch", range: { kind: "branches", base: "origin/main", compare: null }, ignoreWhitespace: true }) }));
   const [from, into] = [...view.container.querySelectorAll<HTMLElement>(".diff-side-trigger > span")];
   assert.equal(from.textContent, "feature/review-panel-polish · working");
   assert.equal(from.lastElementChild?.textContent, "nel-polish · working");
   assert.equal(into.childElementCount, 1, "a short name is not split");
-  assert.equal(query(view.container, 'button[aria-label="Hide spacing changes"]').textContent, "Spacing hidden");
   await view.unmount();
-
-  const off = await mount(toolbar());
-  assert.equal(query(off.container, 'button[aria-label="Hide spacing changes"]').textContent, "");
-  await off.unmount();
 });
 
 test("a commit review lists its commit as the checked mode", async () => {

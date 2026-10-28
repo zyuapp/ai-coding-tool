@@ -477,7 +477,8 @@ test("an add-menu entry that cannot open stays reachable, says why, and does not
 
 test("a side chat with no main context to fork offers the main thread's composer", async () => {
   seedLoneThread(false);
-  window.desktop = fakeDesktop();
+  const desktop = fakeDesktop();
+  window.desktop = desktop;
   const view = await mount(React.createElement(App));
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Show right panel"]').click(); });
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Add right panel tab"]').click(); });
@@ -486,7 +487,19 @@ test("a side chat with no main context to fork offers the main thread's composer
   const go = query<HTMLButtonElement>(view.container, ".side-chat-action button");
   assert.equal(go.textContent, "Message Main task");
   await act(async () => { go.click(); });
-  await settleUntil(() => dom.window.document.activeElement === view.container.querySelector('textarea[aria-label="Task prompt"]'), "the main thread's composer takes the caret");
+  const main = query<HTMLTextAreaElement>(view.container, 'textarea[aria-label="Task prompt"]');
+  await settleUntil(() => dom.window.document.activeElement === main, "the main thread's composer takes the caret");
+
+  const setValue = item(Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value")).set;
+  await act(async () => {
+    item(setValue).call(main, "Look at the code");
+    main.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: "Look at the code" }));
+  });
+  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Send task"]').click(); });
+  const start = startCommand(desktop.sent[0]);
+  await act(async () => { desktop.listener({ type: "continuation.updated", taskId: start.taskId, runId: start.runId, sequence: 1, continuation: { provider: "claude", value: "main-session" } }); });
+  await settleUntil(() => dom.window.document.activeElement === view.container.querySelector('textarea[aria-label="Side chat prompt"]'), "the caret comes back to the side chat once it can fork");
+  assert.equal(view.container.querySelector(".side-chat-action"), null);
   await view.unmount();
 
   seedLoneThread(true);

@@ -211,15 +211,12 @@ button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
   transform: translateY(-50%);
   cursor: pointer;
 }
-/** Resolving is what a reviewed or finished thread waits on, so its check is framed. */
-.coordination-item:is(.review, .done) > .coordination-row-action { box-shadow: inset 0 0 0 1px var(--line-control); color: var(--ink-dim); }
+/** Resolving is what a reviewed or finished thread waits on, so its check is framed and named. */
+.coordination-item:is(.review, .done) > .coordination-row-action { width: auto; display: inline-flex; align-items: center; gap: 4px; padding: 0 8px 0 6px; box-shadow: inset 0 0 0 1px var(--line-control); color: var(--ink-dim); font: inherit; font-size: var(--text-meta); font-weight: 550; }
+.coordination-item:is(.review, .done) > .coordination-row-action > svg { color: var(--success); }
+.coordination-item:is(.review, .done):has(> .coordination-row-action) > .coordination-row { padding-right: 88px; }
 .coordination-row-action:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-soft); }
 .coordination-row-action[data-action="resolve"]:hover:not(:disabled) { background: var(--success-surface); color: var(--success); }
-/** A resolved thread's check is ticked, and turns into an undo while pointed at. */
-.coordination-row-action[data-action="reopen"] { color: var(--success); }
-.coordination-row-action[data-action="reopen"] > .resolution-undo { display: none; }
-.coordination-row-action[data-action="reopen"]:is(:hover, :focus-visible) > .resolution-ticked { display: none; }
-.coordination-row-action[data-action="reopen"]:is(:hover, :focus-visible) > .resolution-undo { display: block; }
 /* The threads a coordinator started, as cards in its conversation where each began, wrapping across the column. */
 .coordination-cards { display: flex; flex-wrap: wrap; gap: 8px; }
 .coordination-card {
@@ -381,11 +378,12 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
 .coordination-note-text[aria-invalid="true"] { border-color: var(--danger-line); }
 .coordination-note-add { border: 1px dashed var(--line-control); }
 .coordination-note-add::placeholder { color: var(--quiet-strong); }
-.coordination-note-add:hover:not(:focus) { border-style: solid; background: var(--wash); }
+.coordination-note-add:hover:not(:focus, :disabled) { border-style: solid; background: var(--wash); }
+.coordination-note-add:disabled { cursor: default; }
 .coordination-memory > .subagent-list { gap: 4px; }
 .coordination-note-add:focus { padding-right: 52px; }
 .coordination-note-hint { position: absolute; right: 9px; bottom: 7px; color: var(--quiet-strong); font: var(--text-meta)/1 var(--mono); opacity: 0; pointer-events: none; transition: opacity 0.15s ease; }
-.coordination-note-add:focus:not(:placeholder-shown) + .coordination-note-hint { opacity: 1; }
+.coordination-note-add:focus + .coordination-note-hint { opacity: 1; }
 /** Forget, and once pressed its question, sit over the note's right end. */
 .coordination-note-actions { position: absolute; top: 3px; right: 3px; display: flex; gap: 4px; border-radius: 8px; }
 .coordination-note-actions:has(.danger) { background: var(--sunken); box-shadow: -10px 0 8px var(--sunken); }
@@ -447,10 +445,10 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
   font-weight: 550;
   cursor: pointer;
 }
-.coordination-stop > button:hover:not(:disabled) { background: var(--wash); color: var(--ink-soft); }
+.coordination-stop > button:hover:not(:disabled, [aria-disabled="true"]) { background: var(--wash); color: var(--ink-soft); }
 .coordination-stop > button.danger { border-color: var(--danger-line); color: var(--danger); }
-.coordination-stop > button.danger:hover { background: var(--danger-chip); color: var(--danger); }
-.coordination-stop > button:disabled { opacity: 0.45; cursor: default; }
+.coordination-stop > button.danger:hover:not([aria-disabled="true"]) { background: var(--danger-chip); color: var(--danger); }
+.coordination-stop > button:is(:disabled, [aria-disabled="true"]) { opacity: 0.45; cursor: default; }
 .coordination-group-head > svg { color: var(--quiet-strong); transition: transform 140ms ease; }
 .coordination-group-head[aria-expanded="false"] > svg { transform: rotate(-90deg); }
 .coordination-group-count { color: var(--quiet-strong); font-size: var(--text-meta); font-weight: 550; }
@@ -458,9 +456,12 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
 .coordination-overview .coordination-row strong { color: var(--ink-soft); font-size: var(--text-control); font-weight: 550; }
 .coordination-more {
   width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   border: 0;
   border-radius: 8px;
-  padding: 6px 8px 6px 39px;
+  padding: 6px 8px 6px 19px;
   background: transparent;
   color: var(--quiet-strong);
   font: inherit;
@@ -469,6 +470,7 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
   cursor: pointer;
 }
 .coordination-more:hover { background: var(--wash); color: var(--muted); }
+.coordination-more[aria-expanded="true"] > svg { transform: rotate(180deg); }
 /** What a coordinator and its threads spent, lined up under its head's label, its bars thin cuts of the plan-usage ones. */
 .coordination-usage { margin-top: 6px; }
 .coordination-usage-body { padding: 0 8px 4px 29px; color: var(--muted); font-size: var(--text-menu); }
@@ -478,8 +480,8 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
 .coordination-usage-model, .coordination-usage-thread { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 26px; }
 .coordination-usage-model { grid-template-columns: 7.5em minmax(0, 1fr) auto; }
 :is(.coordination-usage-model, .coordination-usage-thread) > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.coordination-usage-track { height: 4px; overflow: hidden; border-radius: 2px; background: var(--meter-track); }
-.coordination-usage-fill { display: block; height: 100%; border-radius: 2px; background: var(--info); }
+.coordination-usage-track { height: 6px; overflow: hidden; border-radius: 3px; background: var(--meter-track); }
+.coordination-usage-fill { display: block; height: 100%; border-radius: 3px; background: var(--info); }
 .coordination-usage-tokens { color: var(--quiet-strong); font-size: var(--text-meta); font-variant-numeric: tabular-nums; }
 .coordination-usage-thread {
   box-sizing: border-box;

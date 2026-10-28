@@ -79,9 +79,9 @@ function BranchRow({ branch, workspaceId, openMenu, onSetOpenMenu, onCheckoutBra
         type="button"
         aria-haspopup="listbox"
         aria-expanded={open}
-        disabled={!workspaceId}
+        aria-disabled={!workspaceId || undefined}
         data-tip={workspaceId ? undefined : NO_CHECKOUT}
-        onClick={() => onSetOpenMenu(open ? null : BRANCH_MENU)}
+        onClick={workspaceId ? () => onSetOpenMenu(open ? null : BRANCH_MENU) : undefined}
       >
         <span className="session-row-icon"><GitBranch size={18} /></span>
         <span>Branch</span>

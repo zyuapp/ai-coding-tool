@@ -35,19 +35,46 @@ test("a folder picker that fails says so in the dialog, and typing a path clears
   } finally { await view.unmount(); }
 });
 
-test("a chosen folder fills the field and enables Save; a cancelled pick leaves both alone", async () => {
+test("a chosen folder fills the field and is what Save saves; a cancelled pick leaves it alone", async () => {
   let answer: { root: string } | null = null;
   const view = await dialog(() => Promise.resolve(answer));
   try {
-    const save = query<HTMLButtonElement>(document.body, "button[type=submit]");
     await act(async () => { choose().click(); });
     assert.equal(rootField().value, "/work/api");
-    assert.equal(save.disabled, true);
     answer = { root: "/work/web" };
     await act(async () => { choose().click(); });
     assert.equal(rootField().value, "/work/web");
-    assert.equal(save.disabled, false);
     assert.equal(document.querySelector(".project-edit-error"), null);
+    await act(async () => { query<HTMLButtonElement>(document.body, "button[type=submit]").click(); });
+    assert.deepEqual(view.saved, [{ name: null, root: "/work/web" }]);
+    assert.equal(view.closed(), 0);
+  } finally { await view.unmount(); }
+});
+
+test("the editor opens with the name selected, and Save with nothing changed just closes it", async () => {
+  const view = await dialog(() => Promise.resolve(null));
+  try {
+    const name = query<HTMLInputElement>(document.body, ".project-edit-field input");
+    assert.equal(document.activeElement, name);
+    assert.equal(name.selectionStart, 0);
+    assert.equal(name.selectionEnd, name.value.length);
+    const save = query<HTMLButtonElement>(document.body, "button[type=submit]");
+    assert.equal(save.disabled, false);
+    await act(async () => { save.click(); });
+    assert.deepEqual(view.saved, []);
+    assert.equal(view.closed(), 1);
+  } finally { await view.unmount(); }
+});
+
+test("while saving, the form is busy and Save shows a spinner", async () => {
+  Object.defineProperty(window, "desktop", { configurable: true, value: { openFolder: () => Promise.resolve(null) } });
+  const view = await mount(createElement(ProjectEditDialog, { editor: { ...editor, saving: true }, onSave: () => {}, onClose: () => {} }));
+  try {
+    assert.equal(query(document.body, ".project-edit-panel").getAttribute("aria-busy"), "true");
+    const save = query<HTMLButtonElement>(document.body, "button[type=submit]");
+    assert.equal(save.disabled, true);
+    assert.equal(save.textContent, "Saving…");
+    assert.ok(save.querySelector("svg"));
   } finally { await view.unmount(); }
 });
 
@@ -68,7 +95,9 @@ test("a computer's mark names an offline or reconnecting state in its glyph and 
   ));
   try {
     const [online, offline, reconnecting] = [...view.container.querySelectorAll<HTMLElement>(".host-mark")];
-    assert.equal(online!.dataset.tip, undefined);
+    assert.equal(online!.dataset.tip, "Studio");
+    assert.equal("tipOverflow" in online!.dataset, true);
+    assert.equal("tipOverflow" in offline!.dataset, false);
     assert.equal(online!.classList.contains("offline"), false);
     assert.equal(query(online!, "svg").getAttribute("aria-hidden"), "true");
     assert.equal(offline!.dataset.tip, "Linux · Offline");

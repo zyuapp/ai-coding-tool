@@ -21,14 +21,16 @@ let momentFormatter: Intl.DateTimeFormat | undefined;
 const clockTime = (at: number) => (clockFormatter ??= new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" })).format(at);
 const fullMoment = (at: number) => (momentFormatter ??= new Intl.DateTimeFormat(undefined, { dateStyle: "full", timeStyle: "medium" })).format(at);
 
-/**
- * When a message was sent, and a copy of it. The clock is drawn from an attribute, so it is never a
- * text node a search or a selection of the message could pick up.
- */
+/** The clock is drawn from an attribute, so it is never a text node a search or a selection of the message could pick up. */
+function MessageTime({ at }: { at: number }) {
+  return <time className="message-time" dateTime={new Date(at).toISOString()} data-tip={fullMoment(at)} data-clock={clockTime(at)} />;
+}
+
+/** When a message was sent, and a copy of it. */
 function MessageActions({ at, text, label }: { at: number; text: string; label: string }) {
   return (
     <div className="message-actions">
-      <time className="message-time" dateTime={new Date(at).toISOString()} data-tip={fullMoment(at)} data-clock={clockTime(at)} />
+      <MessageTime at={at} />
       {text && <CopyButton text={text} label={label} />}
     </div>
   );
@@ -131,6 +133,7 @@ function ThreadMessage({ from, message }: { from: string; message: ConversationM
     <>
       <span className="work-lead">{from}</span>
       <span className="thread-message-preview">{message.text}</span>
+      <MessageTime at={message.at} />
     </>
   );
   return (

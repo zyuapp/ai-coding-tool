@@ -100,6 +100,12 @@ test("a paired computer's row lists its software in one column of steps", async 
     await act(async () => { row.querySelector<HTMLButtonElement>("[data-software='codex'] button")!.click(); });
     await act(async () => { row.querySelector<HTMLButtonElement>("[data-software='app'] button")!.click(); });
     assert.deepEqual(commands, [{ type: "engine.update", engine: "codex", computerId: "mac" }, { type: "app.update", computerId: "mac" }]);
+    const sent = row.querySelector<HTMLButtonElement>("[data-software='app'] button")!;
+    assert.equal(sent.disabled, true, "a sent step waits for that computer's answer");
+    assert.equal(sent.getAttribute("aria-busy"), "true");
+    assert.ok(sent.querySelector(".spinning"));
+    await act(async () => { sent.click(); });
+    assert.equal(commands.length, 2, "a second press sends nothing more");
     assert.ok(row.querySelector("button[aria-label='Rename MacBook']") && row.querySelector("button[aria-label='Remove MacBook']"));
   } finally {
     await view.unmount();

@@ -17,7 +17,7 @@ const coordinatorEffortsOf = byModel((model) => effortChoices(effortsFor(model.i
 /** One model list headed by engine, so choosing a model is how an engine is chosen. */
 const modelGroups = AGENT_ENGINES.map((engine) => ({ engine, label: engineLabel(engine), choices: modelsOf[engine] }));
 
-/** A group's one Tab stop is its chosen option, or its first when none is; the arrow keys move the choice, as the list switch's do. */
+/** A group's one Tab stop is its chosen option, or its first when none is; the arrow keys move focus, and Space or Enter makes the choice. */
 function OptionButton<T extends string>({ choice, selected, stop, onSelect }: { choice: Choice<T>; selected: boolean; stop: boolean; onSelect: () => void }) {
   return (
     <button type="button" role="radio" aria-checked={selected} tabIndex={stop ? 0 : -1} className="sheet-option" onClick={onSelect}>
@@ -36,7 +36,6 @@ function moveChoice(event: KeyboardEvent<HTMLElement>) {
   event.preventDefault();
   const next = radios[(at + step + radios.length) % radios.length]!;
   next.focus();
-  next.click();
 }
 
 function Refused({ shown }: { shown: boolean }) {

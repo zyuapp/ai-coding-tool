@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ForkName } from "../../application/workspace-state";
 import { TITLE_LIMIT } from "../../domain/thread";
@@ -15,6 +15,7 @@ export function ForkNameDialog({ fork, onConfirm, onClose }: ForkNameDialogProps
   const dialog = useRef<HTMLDivElement>(null);
   const field = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState(fork.title);
+  const summary = useId();
   useModalFocus(dialog);
 
   useEffect(() => { field.current?.select(); }, []);
@@ -39,6 +40,7 @@ export function ForkNameDialog({ fork, onConfirm, onClose }: ForkNameDialogProps
       role="dialog"
       aria-modal="true"
       aria-label={heading}
+      aria-describedby={summary}
       ref={dialog}
       tabIndex={-1}
       onPointerDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
@@ -51,6 +53,7 @@ export function ForkNameDialog({ fork, onConfirm, onClose }: ForkNameDialogProps
         }}
       >
         <h2>{heading}</h2>
+        <p id={summary} className="project-edit-note">{fork.worktree ? "Copies this conversation into a new thread with its own checkout." : "Copies this conversation into a new thread."}</p>
         <label className="project-edit-field">
           <span>Name</span>
           <input

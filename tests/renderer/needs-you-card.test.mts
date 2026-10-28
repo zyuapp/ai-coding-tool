@@ -41,9 +41,9 @@ test("the Needs-you card pages through approvals and decisions and answers each"
 
   await act(async () => { button("Later").click(); });
   assert.ok(query(view.container, '[aria-label="Decision waiting on you"]'), "Later moves to the next item");
-  assert.ok(button("Decide").querySelector("kbd"), "Decide shows the key that sends it");
-  assert.equal(query<HTMLInputElement>(view.container, ".decision-own input").placeholder, "Type your answer…");
-  await act(async () => { button("Decide").click(); });
+  assert.ok(button("Send answer").querySelector("kbd"), "Send answer shows the key that sends it");
+  assert.equal(query<HTMLInputElement>(view.container, ".decision-own input").placeholder, "", "the visible label names the field");
+  await act(async () => { button("Send answer").click(); });
   assert.deepEqual(answered, ["Keep it"]);
   await view.unmount();
 });
@@ -77,7 +77,7 @@ test("the Needs-you card stays on the page the user is working in as others arri
   assert.match(page.textContent, /3 of 3/, "an approval and a request ahead of it leave the decision on screen");
   assert.equal(query<HTMLInputElement>(page, '.decision-own input'), own, "with what was typed in it");
   assert.equal(document.activeElement, own, "and where the user was typing");
-  await act(async () => { required([...page.querySelectorAll<HTMLButtonElement>("button")].find((item) => labelOf(item) === "Decide")).click(); });
+  await act(async () => { required([...page.querySelectorAll<HTMLButtonElement>("button")].find((item) => labelOf(item) === "Send answer")).click(); });
   assert.deepEqual(answered, ["Drop it"]);
 
   await view.render(card([approval], [decision("d2")], [request]));
@@ -133,7 +133,7 @@ test("the Needs-you card keeps what the user chose or typed on a page through pa
   assert.equal(required([...view.container.querySelectorAll<HTMLInputElement>('input[type="radio"]')].find((item) => item.checked)).value, "Drop it", "and so is the option chosen");
   assert.equal(query(view.container, ".decision-options").classList.contains("overridden"), false);
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Previous"]').click(); });
-  await act(async () => { button("Decide").click(); });
+  await act(async () => { button("Send answer").click(); });
   assert.deepEqual(answered, ["Keep it behind a flag"]);
 
   await view.render(card([decision("d2")]));
@@ -309,14 +309,14 @@ test("the Needs-you card keeps the keyboard's place as its pages turn and are an
   await view.render(card([], [decision("d1"), decision("d2")]));
   assert.equal(focusedName(), "Decision waiting on you", "an answered page hands focus to the page that took its place");
 
-  await press("Decide");
+  await press("Send answer");
   await view.render(card([], [decision("d2")]));
   assert.equal(focusedName(), "Decision waiting on you", "so does a decided one");
   assert.match(view.container.textContent, /Keep d2\?/);
 
   const composer = dom.window.document.body.appendChild(dom.window.document.createElement("textarea"));
   composer.setAttribute("aria-label", "Composer");
-  await press("Decide");
+  await press("Send answer");
   await act(async () => { composer.focus(); });
   await view.render(card([], [decision("d3"), decision("d4")]));
   assert.equal(focusedName(), "Composer", "focus the user has moved on stays where it went");
@@ -389,7 +389,7 @@ test("the page the keyboard is handed is read by who asks and what, and the last
   assert.equal(focusedName(), "Decision waiting on you");
   assert.deepEqual(read(), ["Settings", "Keep the v2 reader?"]);
 
-  await press("Decide");
+  await press("Send answer");
   await view.render(shown([], []));
   await settleFrame();
   assert.equal(focusedName(), "Composer", "with nothing left, the composer takes the keyboard");

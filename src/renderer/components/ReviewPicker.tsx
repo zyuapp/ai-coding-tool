@@ -198,7 +198,10 @@ function CustomPicker({ engineLabel, onReview, value: instructions, onChange: se
         onChange={(event) => setInstructions(event.target.value)}
         onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) submit(event); }}
       /></label>
-      <div className="review-form-actions"><button type="submit" className="primary" disabled={!custom}>Start review <kbd aria-hidden="true">{displayShortcut("Enter", MAC)}</kbd></button></div>
+      <div className="review-form-actions">
+        <span className="review-form-keys" aria-hidden="true"><kbd>{displayShortcut("Shift+Enter", MAC)}</kbd>New line</span>
+        <button type="submit" className="primary" disabled={!custom}>Start review <kbd aria-hidden="true">{displayShortcut("Enter", MAC)}</kbd></button>
+      </div>
     </form>
   );
 }

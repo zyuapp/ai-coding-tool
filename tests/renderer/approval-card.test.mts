@@ -8,6 +8,7 @@ import { mount, query } from "../support/renderer-dom.mts";
 
 const { ApprovalCard } = await import("../../src/renderer/components/ApprovalCard.tsx");
 const { SystemNotice } = await import("../../src/renderer/components/SystemNotice.tsx");
+const { ShowMore } = await import("../../src/renderer/components/ShowMore.tsx");
 
 const approval = (input: Record<string, unknown>) => ({ approvalId: "a1", taskId: "t", runId: "r", title: "Run a command?", description: "Wants to clean the build", toolName: "Bash", input });
 
@@ -39,11 +40,21 @@ test("the approval card shows the command it would run and decides it either way
   assert.equal(reboundButton("Deny").querySelector("kbd"), null);
   await rebound.unmount();
 
-  const other = await mount(React.createElement(ApprovalCard, { approval: { ...approval({ path: "a.txt" }), description: "" }, onDecide() {} }));
+  const other = await mount(React.createElement(ApprovalCard, { approval: { ...approval({ query: "a" }), description: "" }, onDecide() {} }));
   assert.equal(other.container.querySelector(".approval-command"), null);
-  assert.equal(query(other.container, "details summary").textContent, "Bash", "a call with no command keeps its input behind the tool's name");
+  assert.equal(query(other.container, "details summary").textContent, "Bash", "a call with nothing to read in full keeps its input behind the tool's name");
   assert.equal(query(other.container, ".approval-card").hasAttribute("aria-describedby"), false);
   await other.unmount();
+
+  const file = await mount(React.createElement(ApprovalCard, { approval: approval({ file_path: "src/a.ts" }), onDecide() {} }));
+  assert.equal(query(file.container, ".approval-command").textContent, "src/a.ts", "the file a call touches is read in full");
+  assert.equal(file.container.querySelector("details"), null, "nothing else is left to open");
+  await file.unmount();
+
+  const edit = await mount(React.createElement(ApprovalCard, { approval: approval({ file_path: "src/a.ts", old_string: "a", new_string: "b" }), onDecide() {} }));
+  assert.equal(query(edit.container, ".approval-command").textContent, "src/a.ts");
+  assert.match(query(edit.container, "details pre").textContent, /new_string/, "the rest of the input stays one fold away");
+  await edit.unmount();
 });
 
 test("a failure notice carries an alert mark and a copy button, a neutral notice only its own mark", async () => {
@@ -57,4 +68,13 @@ test("a failure notice carries an alert mark and a copy button, a neutral notice
   assert.ok(query(info.container, ".message.system .notice-icon"));
   assert.equal(info.container.querySelector(".copy-affordance"), null);
   await info.unmount();
+});
+
+test("show more always says whether the rest is open", async () => {
+  const closed = await mount(React.createElement(ShowMore, { label: "Show 3 more", expanded: false, onSelect() {} }));
+  assert.equal(query(closed.container, ".show-more").getAttribute("aria-expanded"), "false");
+  await closed.unmount();
+  const open = await mount(React.createElement(ShowMore, { label: "Show less", expanded: true, onSelect() {} }));
+  assert.equal(query(open.container, ".show-more").getAttribute("aria-expanded"), "true");
+  await open.unmount();
 });

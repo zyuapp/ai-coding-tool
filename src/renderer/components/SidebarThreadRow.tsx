@@ -188,8 +188,8 @@ export type SidebarCoordination = {
 
 /**
  * What can be done to a thread from its row: its menu over the engine mark, as on every row, and in
- * Priority dismissing beside it, over the status mark it clears. Archiving is in the menu, a step
- * from a stray click.
+ * Priority dismissing just ahead of the status mark it clears, which stays in view. Archiving is in
+ * the menu, a step from a stray click.
  */
 function rowActionButtons(row: RowState, action: RowAction): React.ReactNode[] {
   const { thread, handlers } = row;
@@ -374,11 +374,8 @@ function moveEntry(row: RowState): MenuEntry[] {
   return items.length ? [{ label: "Move to", items }] : [];
 }
 
-function rowMenuEntries(row: RowState, priority: boolean, action: RowAction): MenuEntry[] {
+function rowMenuEntries(row: RowState, priority: boolean): MenuEntry[] {
   const { thread, handlers } = row;
-  const dismiss: MenuEntry[] = action === "dismiss"
-    ? [{ label: "Dismiss", command: { type: "task.dismiss", taskId: thread.id }, onSelect: () => handlers.dismiss(thread.id) }, "separator"]
-    : [];
   const entries = threadMenuEntries(thread, {
     onRename: () => handlers.startRename(thread.id),
     onFork: (worktree) => handlers.fork(thread.id, worktree),
@@ -395,7 +392,7 @@ function rowMenuEntries(row: RowState, priority: boolean, action: RowAction): Me
   });
   const firstBreak = entries.indexOf("separator");
   entries.splice(firstBreak < 0 ? entries.length : firstBreak, 0, ...moveEntry(row));
-  return [...dismiss, ...entries.map((entry) => entry !== "separator" && entry.command?.type === "task.rename" ? { ...entry, shortcut: RENAME_KEY } : entry)];
+  return entries.map((entry) => entry !== "separator" && entry.command?.type === "task.rename" ? { ...entry, shortcut: RENAME_KEY } : entry);
 }
 
 const RENAME_KEY = "F2";
@@ -445,7 +442,7 @@ function rowBody(row: RowState, className: string, content: ReactNode, action: R
       at={row.menuAt}
       returnFocus={handlers.menuReturn}
       onClose={handlers.closeMenu}
-      entries={rowMenuEntries(row, priority, action)}
+      entries={rowMenuEntries(row, priority)}
     />}
     </>
   );
@@ -516,10 +513,10 @@ const ActivityRow = memo(function ActivityRow({ projectLabel, action, priority, 
 
 /** Both lists draw the same row, so both of them ask this for one: only the placement differs. */
 export function useThreadRows({
-  monitoringThreadIds,
   projects,
   currentId,
   runningThreadIds,
+  monitoringThreadIds,
   blockedThreadIds,
   sideChatAttention,
   schedules,
@@ -592,10 +589,10 @@ export function useThreadRows({
     const menuOpen = openMenu === `task:${thread.id}` && !away;
     return {
       thread,
-      monitoring: monitoringThreadIds.has(thread.id),
       active: thread.id === currentId,
       away,
       running: runningThreadIds.has(thread.id) || members.some((member) => runningThreadIds.has(member.id)),
+      monitoring: monitoringThreadIds.has(thread.id),
       blocked: blockedThreadIds.has(thread.id),
       memberBlocked: members.some((member) => blockedThreadIds.has(member.id)),
       sideChatWaiting: sideChatAttention.has(thread.id),

@@ -90,7 +90,7 @@ export function BlockError({ title, error, className, onRetry, children }: { tit
 }
 
 /** A block over the whole window, closed by Escape, its close button, or a press and release on the backdrop. */
-export function BlockViewer({ label, className, controls, onClose, children }: { label: string; className: string; controls?: ReactNode; onClose: () => void; children: ReactNode }) {
+export function BlockViewer({ label, className, source, controls, onClose, children }: { label: string; className: string; source: string; controls?: ReactNode; onClose: () => void; children: ReactNode }) {
   const dialog = useRef<HTMLDivElement>(null);
   const pressedOn = useRef<EventTarget | null>(null);
   useModalFocus(dialog);
@@ -117,6 +117,7 @@ export function BlockViewer({ label, className, controls, onClose, children }: {
       onClick={(event) => { if (event.target === pressedOn.current) onClose(); }}
     >
       {controls}
+      <CopyButton className="viewer-copy" text={source} label="Copy the source" />
       <button type="button" className="viewer-close" onClick={onClose} aria-label={`Close ${label.toLowerCase()}`} data-tip={shortcutTip("Close", "Escape")}><X size={16} /></button>
       {children}
     </div>,
@@ -129,7 +130,7 @@ export const OpenVisual = createContext<((source: string) => void) | null>(null)
 
 export function VisualViewer({ source, onClose }: { source: string; onClose: () => void }) {
   return (
-    <BlockViewer label="Visual" className="visual" onClose={onClose}>
+    <BlockViewer label="Visual" className="visual" source={source} onClose={onClose}>
       <div className="viewer-stage">
         <div className="viewer-visual" onClick={(event) => event.stopPropagation()}>
           <VisualBlock source={source} full />
@@ -229,7 +230,8 @@ export function VisualBlock({ source, pending = false, full = false }: { source:
         {drawing && <span className="visual-loading visual-loading-over"><span className="text-sweep">Drawing visual…</span></span>}
         {error ? (
           <BlockError className="visual-error" title="The visual hit an error" error={error} onRetry={retry}>
-            <pre><code>{error}</code></pre>
+            <p className="block-error-message">{error}</p>
+            <pre><code>{source}</code></pre>
           </BlockError>
         ) : null}
       </div>

@@ -79,7 +79,6 @@ function ThreadRow({ thread, meta, onOpen, onMenu, onDismiss }: {
         <span className="thread-meta">{meta}</span>
         {thread.waiting && thread.status !== "awaiting-approval" && <span className="sr-only">Needs you</span>}
         {thread.status === "running" && !thread.waiting && <span className="sr-only">Running</span>}
-        {thread.status === "stopped" && thread.unread && <span className="sr-only">Stopped</span>}
         {thread.unread && <span className="sr-only">Unread</span>}
       </button>
       {/** A row that needs the user keeps saying so beside Dismiss, which takes the mark's place otherwise. */}

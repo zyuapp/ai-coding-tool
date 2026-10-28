@@ -16,7 +16,7 @@ export function HostMark({ name, offline = false, reconnecting = false, classNam
   const state = offline ? (reconnecting ? "Reconnecting" : "Offline") : null;
   const classes = ["host-mark", offline && "offline", offline && reconnecting && "reconnecting", className].filter(Boolean).join(" ");
   return (
-    <span className={classes} data-tip={state ? `${name} · ${state}` : undefined}>
+    <span className={classes} data-tip={state ? `${name} · ${state}` : name} data-tip-overflow={state ? undefined : ""}>
       {state ? <MonitorOff size={12} role="img" aria-label={state} /> : <Monitor size={12} aria-hidden="true" />}
       <span>{name}</span>
     </span>

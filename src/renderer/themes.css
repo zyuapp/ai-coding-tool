@@ -18,7 +18,8 @@
  *
  * A borrowed palette keeps its author's hexes for the ink, the accent, the five state hues and the
  * sixteen ansi slots; the rest of the ramps are derived by mixing that palette's own ground toward
- * its own ink. fg-4 reads at 4.5:1 on bg-0 through bg-5, and fg-1 to fg-3 split the way from fg-0
+ * its own ink. fg-4 reads at 4.5:1 on bg-0 through bg-5 and at 4:1 on bg-6, the hover ground, which
+ * sits close enough to bg-5 that fg-2 reads at 4.5:1 on the selected row too. fg-1 to fg-3 split the way from fg-0
  * down to fg-4 into four equal contrast steps on bg-0, each at least 1.15:1. Where an author's ink
  * is too faint to leave room for those steps, fg-0 moves away from the ground only as far as that
  * takes. fg-5 is the author's own faintest grey, for fills and edges rather than text.
@@ -44,7 +45,7 @@
   --p-bg-3: #171b20;
   --p-bg-4: #1b2028;
   --p-bg-5: #20242a;
-  --p-bg-6: #2a2f36;
+  --p-bg-6: #292d34;
 
   --p-line-0: #1d2229;
   --p-line-1: #272c34;
@@ -320,7 +321,7 @@
   --p-bg-3: #1a1a29;
   --p-bg-4: #26263a;
   --p-bg-5: #313244;
-  --p-bg-6: #45475a;
+  --p-bg-6: #393a4d;
 
   --p-line-0: #272839;
   --p-line-1: #313244;
@@ -391,7 +392,7 @@
   --p-bg-3: #eaecf0;
   --p-bg-4: #e0e3ea;
   --p-bg-5: #ccd0da;
-  --p-bg-6: #bcc0cc;
+  --p-bg-6: #bfc3ce;
 
   --p-line-0: #e0e4ec;
   --p-line-1: #dce0e8;
@@ -593,7 +594,7 @@
   --p-bg-3: #333c40;
   --p-bg-4: #394246;
   --p-bg-5: #3f484b;
-  --p-bg-6: #475152;
+  --p-bg-6: #475052;
   --p-line-0: #373f44;
   --p-line-1: #3e474a;
   --p-line-2: #495253;
@@ -726,7 +727,7 @@
   --p-bg-3: #161a20;
   --p-bg-4: #1f232a;
   --p-bg-5: #262b32;
-  --p-bg-6: #333840;
+  --p-bg-6: #2e333b;
   --p-line-0: #1c2027;
   --p-line-1: #252a31;
   --p-line-2: #333840;
@@ -855,7 +856,7 @@
   --p-bg-3: #242525;
   --p-bg-4: #32302f;
   --p-bg-5: #3c3836;
-  --p-bg-6: #504945;
+  --p-bg-6: #46403d;
 
   --p-line-0: #332f2e;
   --p-line-1: #3c3836;
@@ -928,7 +929,7 @@
   --p-bg-3: #f4ecc0;
   --p-bg-4: #ebdbb2;
   --p-bg-5: #e3d3a7;
-  --p-bg-6: #d5c4a1;
+  --p-bg-6: #d6c5a1;
 
   --p-line-0: #f0e3b8;
   --p-line-1: #e3d3a7;
@@ -1263,7 +1264,7 @@
   --p-bg-3: #292a2a;
   --p-bg-4: #303233;
   --p-bg-5: #37393b;
-  --p-bg-6: #424648;
+  --p-bg-6: #3e4143;
   --p-line-0: #2c2d2e;
   --p-line-1: #343637;
   --p-line-2: #424648;
@@ -1654,7 +1655,7 @@
   --p-bg-3: #081d2f;
   --p-bg-4: #0e2537;
   --p-bg-5: #142b3d;
-  --p-bg-6: #1d3549;
+  --p-bg-6: #1c3448;
   --p-line-0: #0f2436;
   --p-line-1: #172e40;
   --p-line-2: #233a4e;
@@ -1785,7 +1786,7 @@
   --p-bg-3: #343e4a;
   --p-bg-4: #3b4854;
   --p-bg-5: #40505d;
-  --p-bg-6: #495e6b;
+  --p-bg-6: #455966;
   --p-line-0: #37424e;
   --p-line-1: #3d4c58;
   --p-line-2: #495e6b;
@@ -2180,7 +2181,7 @@
   --p-bg-3: #0a333d;
   --p-bg-4: #153c45;
   --p-bg-5: #1d434b;
-  --p-bg-6: #2c4e56;
+  --p-bg-6: #294b53;
   --p-line-0: #0f3741;
   --p-line-1: #193f48;
   --p-line-2: #2c4e56;
@@ -2317,7 +2318,7 @@
   --p-bg-3: #1b1c2a;
   --p-bg-4: #24263a;
   --p-bg-5: #292e42;
-  --p-bg-6: #343a54;
+  --p-bg-6: #313750;
 
   --p-line-0: #262838;
   --p-line-1: #292e42;
@@ -2388,7 +2389,7 @@
   --p-bg-3: #dcdee5;
   --p-bg-4: #d0d5e3;
   --p-bg-5: #c4c8da;
-  --p-bg-6: #b6bacb;
+  --p-bg-6: #b8bccd;
 
   --p-line-0: #d2d5e0;
   --p-line-1: #c9cdde;
@@ -2464,7 +2465,7 @@
   --p-bg-3: #191919;
   --p-bg-4: #21211f;
   --p-bg-5: #272725;
-  --p-bg-6: #31312f;
+  --p-bg-6: #30302e;
   --p-line-0: #212120;
   --p-line-1: #2b2a28;
   --p-line-2: #373734;

@@ -18,9 +18,12 @@ const NEXT_MS = 60;
 /** How far a tooltip sits from what it explains, and how close it may come to the window's edge. */
 const GAP = 8;
 
+/** How long a reason stays once the pointer leaves its control, so the pointer can cross onto it. */
+const LINGER_MS = 300;
+
 const MODIFIERS = new Set(["Shift", "Control", "Alt", "Meta", "CapsLock"]);
 
-type Tip = { text: string; rect: DOMRect };
+type Tip = { text: string; rect: DOMRect; hoverable: boolean };
 
 /** A control's tooltip: its name, with the keystroke that does the same. */
 export function shortcutTip(label: string, binding: string) {
@@ -74,6 +77,7 @@ export function TooltipLayer() {
   const box = useRef<HTMLDivElement>(null);
   const described = useRef<HTMLElement | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const linger = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showing = useRef<HTMLElement | null>(null);
   const open = useRef(false);
 
@@ -83,7 +87,13 @@ export function TooltipLayer() {
       described.current = null;
     };
 
+    const stay = () => {
+      if (linger.current) clearTimeout(linger.current);
+      linger.current = null;
+    };
+
     const hide = () => {
+      stay();
       if (timer.current) clearTimeout(timer.current);
       timer.current = null;
       release();
@@ -104,15 +114,27 @@ export function TooltipLayer() {
       timer.current = setTimeout(() => {
         open.current = true;
         if (describe(element, id, text)) described.current = element;
-        setTip({ text, rect: element.getBoundingClientRect() });
+        setTip({ text, rect: element.getBoundingClientRect(), hoverable: element.getAttribute("aria-disabled") === "true" });
       }, delay);
     };
 
+    const onTip = (target: EventTarget | null) => target instanceof Node && !!box.current?.contains(target);
+
     const over = (event: MouseEvent) => {
+      if (onTip(event.target)) return stay();
       const element = tipped(event.target);
       /** A control that cannot act explains why as soon as the pointer reaches it. */
-      if (element) show(element, open.current || element.getAttribute("aria-disabled") === "true" ? NEXT_MS : DELAY_MS);
+      if (element) {
+        stay();
+        show(element, open.current || element.getAttribute("aria-disabled") === "true" ? NEXT_MS : DELAY_MS);
+      }
+      /** A reason can be long, so the pointer may move onto it to read it; any other tip leaves at once. */
+      else if (open.current && box.current?.dataset.hoverable === "true") linger.current ??= setTimeout(hide, LINGER_MS);
       else hide();
+    };
+
+    const down = (event: PointerEvent) => {
+      if (!onTip(event.target)) hide();
     };
 
     /** Pressing a control that cannot act answers with its reason at once. */
@@ -135,7 +157,7 @@ export function TooltipLayer() {
 
     document.addEventListener("mouseover", over);
     document.addEventListener("focusin", focus);
-    document.addEventListener("pointerdown", hide, true);
+    document.addEventListener("pointerdown", down, true);
     document.addEventListener("click", press);
     document.addEventListener("keydown", key, true);
     /** A tooltip names a place on screen, so anything that moves that place takes it away. */
@@ -145,13 +167,14 @@ export function TooltipLayer() {
     return () => {
       document.removeEventListener("mouseover", over);
       document.removeEventListener("focusin", focus);
-      document.removeEventListener("pointerdown", hide, true);
+      document.removeEventListener("pointerdown", down, true);
       document.removeEventListener("click", press);
       document.removeEventListener("keydown", key, true);
       document.removeEventListener("scroll", hide, true);
       window.removeEventListener("blur", hide);
       window.removeEventListener("resize", hide);
       if (timer.current) clearTimeout(timer.current);
+      stay();
       release();
     };
   }, [id]);
@@ -170,5 +193,5 @@ export function TooltipLayer() {
   }, [tip]);
 
   if (!tip) return null;
-  return createPortal(<div className="tooltip" role="tooltip" id={id} ref={box}><TipText text={tip.text} /></div>, document.body);
+  return createPortal(<div className="tooltip" role="tooltip" id={id} ref={box} data-hoverable={tip.hoverable}><TipText text={tip.text} /></div>, document.body);
 }

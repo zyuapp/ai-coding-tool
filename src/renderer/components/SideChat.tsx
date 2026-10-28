@@ -1,6 +1,6 @@
 import type { QuestionAddress } from "../../domain/agent-question";
 import { LuGitFork as GitFork, LuX as X } from "react-icons/lu";
-import { useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { DockConversationView, FindView, SideChatView } from "../../application/workspace-state";
 import type { ReadingPoint } from "../../contracts/commands";
 import { sentPrompts, type Annotation, type AnnotationAnchor, type AttachedFile, type PastedText } from "../../domain/conversation";
@@ -12,7 +12,7 @@ import { ConversationTimeline, type ConversationTimelineProps } from "./Conversa
 import { ConversationComposer } from "./ConversationComposer";
 import type { ComposerOutbox } from "./ComposerAttachments";
 import { useFileDrop } from "../file-drop";
-import { CommandButton } from "./CommandControl";
+import { CommandButton, useCommandControls } from "./CommandControl";
 import { shortcutTip } from "./TooltipLayer";
 
 export type DockConversationProps = {
@@ -174,7 +174,7 @@ export function DockConversation({ chat, engineLabel, focusToken = 0, find = nul
 }
 
 /** A fork of the thread on screen, asked beside it and never saved. */
-export function SideChat({ chat, sourceTitle, sourceContinued, onClose, ...props }: DockConversationProps & {
+export function SideChat({ chat, sourceTitle, sourceContinued, onClose, focusToken = 0, ...props }: DockConversationProps & {
   chat: SideChatView;
   /** What the thread this chat forks is called, and whether it has a session for the chat to fork. */
   sourceTitle: string;
@@ -182,9 +182,21 @@ export function SideChat({ chat, sourceTitle, sourceContinued, onClose, ...props
   onClose: () => void;
 }) {
   const available = sourceContinued || Boolean(chat.thread.continuation);
+  const controls = useCommandControls();
+  /** Sent to the main thread from here, the caret comes back here once the chat can fork it. */
+  const awaitingSource = useRef(false);
+  const [returned, setReturned] = useState(0);
+  useEffect(() => {
+    if (!available || !awaitingSource.current) return;
+    awaitingSource.current = false;
+    const at = document.activeElement;
+    if (!at || at === document.body || at.tagName === "TEXTAREA") setReturned((count) => count + 1);
+  }, [available]);
+  const messageSource = { type: "view.shortcut", action: "composer.focus", surface: "any" } as const;
   return (
     <DockConversation
       {...props}
+      focusToken={focusToken + returned}
       chat={chat}
       error={chat.error}
       className="side-chat"
@@ -192,7 +204,7 @@ export function SideChat({ chat, sourceTitle, sourceContinued, onClose, ...props
       surface="side"
       disabled={!available}
       action={available ? null : (
-        <CommandButton type="button" data-tip={shortcutTip("Message the main thread", "Mod+L")} command={{ type: "view.shortcut", action: "composer.focus", surface: "any" }}>
+        <CommandButton type="button" data-tip={shortcutTip("Message the main thread", "Mod+L")} command={messageSource} onClick={() => { awaitingSource.current = true; controls.dispatch(messageSource); }}>
           Message {sourceTitle}
         </CommandButton>
       )}

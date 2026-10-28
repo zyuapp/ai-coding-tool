@@ -27,5 +27,6 @@ test("the row under the pointer wears the same highlight in a menu and a picker"
 });
 
 test("a command the computer cannot run is marked apart from a busy one", () => {
-  assert.match(css, /button\[data-unsupported\]:not\(:focus-visible\) \{ outline: 1px dashed currentColor;/);
+  assert.match(css, /button\[data-unsupported\]\[aria-disabled="true"\]:is\(\*, :hover, :active\) \{ opacity: 1; filter: grayscale\(1\);[^}]*color: var\(--quiet\); \}/);
+  assert.match(css, /button\[data-unsupported\]:not\(:focus-visible\) \{ outline: 1px dashed var\(--quiet\);/);
 });

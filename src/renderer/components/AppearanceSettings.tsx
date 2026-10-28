@@ -119,6 +119,7 @@ function opensList(event: KeyboardEvent) {
 function ThemeSelect({ current, onChoose }: { current: Theme; onChoose: (family: string) => void }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [roving, setRoving] = useState<string | null>(null);
   const wrapper = useRef<HTMLDivElement>(null);
   const search = useRef<HTMLInputElement>(null);
   const chosen = useRef<HTMLButtonElement>(null);
@@ -144,6 +145,8 @@ function ThemeSelect({ current, onChoose }: { current: Theme; onChoose: (family:
   const families = themeFamilies().filter((family) => !term || family.toLowerCase().includes(term));
   /** What Enter in the search picks: the first match while a search narrows the tiles. */
   const target = term ? families[0] : undefined;
+  /** The one tile Tab stops on: the last one the arrows reached, else the chosen theme, else the first. */
+  const stop = (roving && families.includes(roving) ? roving : undefined) ?? families.find((family) => themeFor(family, current.variant).id === current.id) ?? families[0];
 
   return (
     <div
@@ -157,7 +160,7 @@ function ThemeSelect({ current, onChoose }: { current: Theme; onChoose: (family:
         }
       }}
     >
-      <button ref={trigger} type="button" aria-label={`Theme: ${current.family}`} aria-haspopup="listbox" aria-expanded={open} onClick={() => { setQuery(""); setOpen(!open); }} onKeyDown={(event) => { if (!open && opensList(event)) { setQuery(""); setOpen(true); } }}>
+      <button ref={trigger} type="button" aria-label={`Theme: ${current.family}`} aria-haspopup="listbox" aria-expanded={open} onClick={() => { setQuery(""); setRoving(null); setOpen(!open); }} onKeyDown={(event) => { if (!open && opensList(event)) { setQuery(""); setRoving(null); setOpen(true); } }}>
         <ThemeSwatch id={current.id} />
         <span>{current.family}</span>
         <ChevronDown size={14} aria-hidden="true" />
@@ -187,6 +190,8 @@ function ThemeSelect({ current, onChoose }: { current: Theme; onChoose: (family:
                   type="button"
                   role="option"
                   aria-selected={picked}
+                  tabIndex={family === stop ? 0 : -1}
+                  onFocus={() => setRoving(family)}
                   className={`theme-choice${picked ? " chosen" : ""}${family === target ? " next" : ""}`}
                   data-theme={option.id}
                   onClick={() => choose(family)}

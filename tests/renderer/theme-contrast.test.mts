@@ -79,6 +79,24 @@ test("ink through quiet read at AA on every surface text sits on, the selected r
   assert.deepEqual(failures(TEXT.flatMap((ink) => [...TEXT_GROUNDS, "--surface-active"].map((ground) => [ink, ground, 4.5] as const))), []);
 });
 
+test("text on a hovered row reads at AA down to --quiet-strong and --quiet at 4:1; on the selected row down to --muted", () => {
+  const hovered = TEXT.map((ink) => [ink, "--row-hover", ink === "--quiet" ? 4 : 4.5] as const);
+  const selected = TEXT.slice(0, TEXT.indexOf("--muted") + 1).map((ink) => [ink, "--row-selected", 4.5] as const);
+  assert.deepEqual(failures([...hovered, ...selected, ["--ink", "--surface-menu-hover", 4.5], ["--quiet", "--surface-menu-hover", 4]]), []);
+});
+
+test("a hovered row is a visible step past the active one, and the selected row a step past hover", () => {
+  assert.equal(tokens.get("--row-hover"), "var(--p-bg-6)");
+  const failed: string[] = [];
+  for (const theme of THEMES) {
+    const palette = primitives(theme.id);
+    const [active, hover, selected] = ["--surface-active", "--row-hover", "--row-selected"].map((name) => resolve(`var(${name})`, palette));
+    if (contrast(hover, active) < 1.07) failed.push(`${theme.id}: hover over active is ${contrast(hover, active).toFixed(2)}:1`);
+    if (contrast(selected, hover) < 1.1) failed.push(`${theme.id}: selected over hover is ${contrast(selected, hover).toFixed(2)}:1`);
+  }
+  assert.deepEqual(failed, []);
+});
+
 test("glyphs and off states read at 3:1", () => {
   assert.deepEqual(failures([...TEXT_GROUNDS, "--surface-active"].map((ground) => ["--quiet-soft", ground, 3] as const)), []);
 });
@@ -209,6 +227,11 @@ function disabledOpacity(id: string) {
   assert.equal(tokens.get("--disabled-opacity"), "var(--p-disabled-opacity)");
   return Number(/--p-disabled-opacity:\s*([\d.]+);/.exec(themeBlock(id))![1]);
 }
+
+test("a filled action with nothing to do trades its fill for the off fill, with its label readable on it", () => {
+  assert.match(stylesCss, /button\.primary[^{]*:is\(:disabled, \[aria-disabled="true"\]\)[^{]*\{[^}]*background: var\(--surface-inverse-off\);[^}]*color: var\(--muted\);/);
+  assert.deepEqual(failures([["--muted", "--surface-inverse-off", 4]]), []);
+});
 
 test("a disabled control's muted label still reads at 3:1, and its ink fades to under half its contrast", () => {
   const failed: string[] = [];

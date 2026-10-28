@@ -596,25 +596,6 @@ test("the attach button hands picked files to the surface, the way a drop would"
   await disabled.unmount();
 });
 
-test("while a run goes, a written message shows how to queue it or steer it in", async () => {
-  window.desktop = fakeDesktop();
-  const idle = await mount(renderConversationComposer({ prompt: "check the logs" }));
-  assert.equal(idle.container.querySelector(".composer-hint"), null, "with no run going Enter just sends");
-  await idle.unmount();
-
-  const empty = await mount(renderConversationComposer({ runActive: true }));
-  assert.equal(empty.container.querySelector(".composer-hint"), null, "nothing written, nothing to steer");
-  await empty.unmount();
-
-  const running = await mount(renderConversationComposer({ prompt: "check the logs", runActive: true }));
-  const hint = query(running.container, ".composer-hint");
-  assert.match(hint.textContent ?? "", /queue.*steer/);
-  assert.equal(query(running.container, "textarea").getAttribute("aria-describedby"), hint.id, "the prompt names the keys to a screen reader too");
-  assert.equal(hint.querySelectorAll("kbd").length, 2, "both keys stay named");
-  assert.match(query(running.container, ".send-button").dataset.tip ?? "", /^Stop \((Esc|Escape)\) · Queue \(.+\) · Steer \(.+\)$/, "Stop's tip also names the queue and steer keys");
-  await running.unmount();
-});
-
 test("a send notice can be put away", async () => {
   window.desktop = fakeDesktop();
   const notices: (string | null)[] = [];
@@ -681,16 +662,10 @@ test("the context ring only reads, and Compact stands beside it once the window 
   const high = await mount(renderConversationComposer({ contextUsage: { tokens: 180_000, limit: 200_000, model: "claude-opus-5" }, onCompact }));
   assert.ok(query(high.container, ".context-usage").classList.contains("high"));
   assert.equal(query(high.container, ".context-usage-value").textContent, "90%");
+  assert.equal(query(high.container, ".context-usage-compact").dataset.tip, "Summarize older context to free space");
   await act(async () => { query<HTMLButtonElement>(high.container, ".context-usage-compact").click(); });
   assert.equal(compacted, 1);
   await high.unmount();
-
-  const compacting = await mount(renderConversationComposer({ contextUsage: { tokens: 180_000, limit: 200_000, model: "claude-opus-5" }, compacting: true, runActive: true }));
-  const busy = query<HTMLButtonElement>(compacting.container, ".context-usage-compact");
-  assert.ok(busy.disabled, "a compact under way cannot be asked for twice");
-  assert.equal(busy.getAttribute("aria-busy"), "true");
-  assert.equal(busy.textContent, "Compacting…");
-  await compacting.unmount();
 
   const unoffered = await mount(renderConversationComposer({ contextUsage: { tokens: 180_000, limit: 200_000, model: "claude-opus-5" } }));
   assert.equal(unoffered.container.querySelector(".context-usage-compact"), null, "where compacting is not on offer the ring only reads");

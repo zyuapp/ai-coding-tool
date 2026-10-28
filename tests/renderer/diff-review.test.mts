@@ -394,6 +394,33 @@ test("N takes the reader to the next file still to read, and leaves a typed n al
   await view.unmount();
 });
 
+test("O opens the focused file in the editor, and ? shows the review keys", async () => {
+  seedReviewableProject();
+  const desktop = threeFileDesktop();
+  window.desktop = desktop;
+  const view = await mount(React.createElement(App));
+  await openReview(view);
+  const press = (target: Element, key: string) => act(async () => { target.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true })); });
+  const keysOpen = () => dom.window.document.querySelector('[role="dialog"][aria-label="Review keys"]') !== null;
+
+  const row = view.container.querySelectorAll(".diff-file-open")[1]!;
+  await press(row, "o");
+  assert.deepEqual(desktop.browserCalls.filter((call) => call[0] === "open-file").map((call) => call[2]), ["src/two.ts"]);
+
+  await press(row, "?");
+  assert.equal(keysOpen(), true);
+  await press(row, "?");
+  assert.equal(keysOpen(), false);
+
+  await act(async () => { query<HTMLButtonElement>(view.container, ".diff-files .diff-gutter").click(); });
+  const note = query(view.container, ".diff-comment textarea");
+  await press(note, "o");
+  await press(note, "?");
+  assert.equal(desktop.browserCalls.filter((call) => call[0] === "open-file").length, 1, "a note being typed keeps its letters");
+  assert.equal(keysOpen(), false);
+  await view.unmount();
+});
+
 test("the Changes tab says what its count is counting", async () => {
   seedReviewableProject();
   window.desktop = threeFileDesktop();

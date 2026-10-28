@@ -68,15 +68,14 @@ function StartThread({ recents, onSelect }: { recents?: boolean; onSelect: () =>
 }
 
 /**
- * Removing a folder archives every thread in it, so one holding threads says how many before it is
- * opened, and asks first, with the safe choice where the keyboard lands.
+ * Removing a folder archives every thread in it, so one holding threads asks first, with the safe
+ * choice where the keyboard lands.
  */
 function removeEntry(threadCount: number, onRemove: () => void): MenuItem {
   if (threadCount === 0) return { label: "Remove", danger: true, onSelect: onRemove };
   const threads = threadCount === 1 ? "1 thread" : `${threadCount} threads`;
   return {
     label: "Remove",
-    detail: `Archives ${threads}`,
     danger: true,
     items: [
       { label: "Keep project" },
