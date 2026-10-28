@@ -864,13 +864,12 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .project-task-row.active::before, .task-row.active::before {
   content: "";
   position: absolute;
-  top: 50%;
+  top: 7px;
+  bottom: 7px;
   left: 3px;
   width: 3px;
-  height: 14px;
-  margin-top: -7px;
   border-radius: 2px;
-  background: var(--accent);
+  background: var(--accent-text);
 }
 .project-task-row > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .task-rename {
