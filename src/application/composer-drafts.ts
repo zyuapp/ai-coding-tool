@@ -35,6 +35,21 @@ export function withAnnotations(state: WorkspaceState, key: string, annotations:
   return { ...state, annotations: withDrafts(state.annotations, key, annotations) };
 }
 
+/** A transcript asked to show one of its drafted annotations. Each ask bumps `count`, which is what the transcript answers. */
+export type AnnotationReveal = { taskId: string; annotationId: string; messageId: string; count: number };
+
+/** The reveal meant for the transcript a composer drafts into, so no other transcript scrolls to it. */
+export function annotationRevealFor(state: Pick<WorkspaceState, "annotationReveal">, key: string): AnnotationReveal | null {
+  return state.annotationReveal?.taskId === key ? state.annotationReveal : null;
+}
+
+/** Asks the transcript that drafted an annotation to show its passage. One with no passage there is left alone. */
+export function revealAnnotation(state: WorkspaceState, key: string, annotationId: string): WorkspaceState {
+  const anchor = annotationsFor(state, key).find((item) => item.id === annotationId)?.anchor;
+  if (anchor?.kind !== "message") return state;
+  return { ...state, annotationReveal: { taskId: key, annotationId, messageId: anchor.messageId, count: (state.annotationReveal?.count ?? 0) + 1 } };
+}
+
 export function pastesFor(state: Pick<WorkspaceState, "pastes">, key: string): PastedText[] {
   return draftsFor(state.pastes, key);
 }
@@ -98,7 +113,7 @@ function freshFiles(held: AttachedFile[], arriving: AttachedFileDraft[]) {
 }
 
 export type ComposerDraftCommand =
-  | AnnotationCommand
+  | Exclude<AnnotationCommand, { type: "annotation.reveal" }>
   | PasteCommand
   | ImageCommand
   | Extract<FileCommand, { type: "file.attach" | "file.detach" | "file.recall" }>;

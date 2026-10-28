@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { test, vi } from "vitest";
+import { test } from "vitest";
 import { act } from "react";
-import { click, clickButton, clickRow, dom, lastCommand, live, openPhone, typeInto, view } from "../support/mobile-phone.mts";
+import { click, clickButton, clickRow, dom, lastCommand, live, openPhone, patchView, typeInto, view } from "../support/mobile-phone.mts";
 
 /** A one-finger touch as React reads it: the event's `touches` and `changedTouches` lists. */
 function touch(node: Element, type: "touchstart" | "touchmove" | "touchend", x: number, y: number) {
@@ -102,28 +102,6 @@ test("a sheet pulled down by its head far enough closes, and a short pull spring
   assert.equal(document.querySelector(".sheet"), null);
 });
 
-test("Undo after archiving stays while a finger is on it", () => {
-  vi.useFakeTimers();
-  try {
-    const line = openPhone({ paired: true });
-    live(line);
-    click(".thread-row .thread-open");
-    click('button[aria-label="Thread options"]');
-    clickRow("Archive");
-    const toast = document.querySelector(".undo-toast")!;
-    pointer(toast, "pointerdown", 0);
-    act(() => void vi.advanceTimersByTime(20_000));
-    assert.ok(document.querySelector(".undo-toast"), "held, it stays");
-    pointer(toast, "pointerup", 0);
-    act(() => void vi.advanceTimersByTime(8_000));
-    assert.ok(document.querySelector(".undo-toast"));
-    act(() => void vi.advanceTimersByTime(2_000));
-    assert.equal(document.querySelector(".undo-toast"), null);
-  } finally {
-    vi.useRealTimers();
-  }
-});
-
 test("a draft's project chip starts the draft over in another project", () => {
   const line = openPhone({ paired: true });
   const drafting = view();
@@ -200,9 +178,11 @@ test("a row's options rename, fork and archive it from the list, and archiving o
   openRowMenu();
   clickRow("Archive");
   assert.deepEqual(lastCommand(line), { type: "task.archive", taskId: "t1" });
-  assert.match(document.querySelector(".undo-toast")?.textContent ?? "", /Archived Fix the parser/);
+  patchView(line, 2, { undo: { id: 1, title: "Archived “Fix the parser”", command: { type: "task.restore", taskId: "t1" } } });
+  assert.match(document.querySelector(".undo-toast")?.textContent ?? "", /Archived “Fix the parser”/);
   click(".undo-toast button");
   assert.deepEqual(lastCommand(line), { type: "task.restore", taskId: "t1" });
+  assert.equal(document.querySelector(".undo-toast"), null, "a tapped Undo goes at once, before the Mac takes it down");
 });
 
 test("a row a finger rests on sinks until the press lands or lets go", () => {

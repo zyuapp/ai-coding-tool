@@ -1,11 +1,11 @@
 import { CommandButton } from "./CommandControl";
-import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Draggable, type DraggableProvided } from "@hello-pangea/dnd";
 import { LuAlarmClock as AlarmClock, LuAlarmClockOff as AlarmClockOff, LuCheck as Check, LuClockAlert as ClockAlert, LuEllipsis as Ellipsis, LuFolderSymlink as FolderSymlink, LuHourglass as Hourglass, LuMonitorOff as MonitorOff } from "react-icons/lu";
 import { pauseSummary } from "../../domain/usage-limit";
 import { projectName, type Project } from "../../domain/project";
 import { threadActivityAt, type Thread } from "../../domain/thread";
-import { hasUnreadAttention, newestUnreadFinding } from "../../domain/attention";
+import { attentionUrgency, FOLDER_LABELS, hasUnreadAttention, MEMBER_BLOCKED_LABEL, MEMBER_UNREAD_LABEL, newestUnreadFinding, type AttentionTone } from "../../domain/attention";
 import type { ThreadOutcome } from "../../domain/thread-run";
 import { worktreeHue, worktreeName, type Worktree } from "../../domain/worktree";
 import type { AutomationView } from "../../domain/automation";
@@ -21,8 +21,8 @@ import { engineLabel, isAgentEngine } from "../../domain/agent-engine";
 import type { ThreadHost } from "../../application/computers";
 import { rowHeadline } from "../../application/coordination";
 import { HostMark } from "./HostMark";
-import { leadIdOf } from "../../domain/coordination";
 import type { ThreadDropTarget } from "../../domain/project";
+import { threadMoveBlock } from "../../application/thread-order";
 
 /** What a row offers beside its menu: dismissing, in Priority, or nothing more. */
 export type RowAction = "dismiss" | "none";
@@ -35,11 +35,7 @@ const OUTCOME_LABELS: Record<ThreadOutcome, string> = {
 
 const BLOCKED_LABEL = "Needs approval";
 
-const MEMBER_BLOCKED_LABEL = "A thread needs your approval";
-
 const SIDE_CHAT_LABEL = "A side chat is waiting";
-
-const MEMBER_UNREAD_LABEL = "A thread has something new";
 
 const TIME_FORMAT = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
 
@@ -491,21 +487,17 @@ const ThreadRow = memo(function ThreadRow({ index, place, ...row }: RowState & {
 /** Activity mode ranks its rows itself, so nothing there is dragged and no list places it. */
 const ActivityRow = memo(function ActivityRow({ projectLabel, action, priority, ...row }: RowState & { projectLabel: string | undefined; action: RowAction; priority: boolean }) {
   const { thread } = row;
-  const id = useId();
   return (
     <div
       className="task-entry"
-      role="button"
       tabIndex={0}
-      aria-labelledby={`${id}-title ${id}-meta`}
       aria-current={row.active || undefined}
-      aria-disabled={row.away || undefined}
       onKeyDown={(event) => rowKeys(event, row, true)}
     >
       {rowBody(row, `task-row ${row.active ? "active" : ""}`, (
         <span className="task-row-text">
-          <span id={`${id}-title`} data-tip={thread.title} data-tip-overflow>{thread.title}</span>
-          <small id={`${id}-meta`}>{activityMeta(thread, row.host, projectLabel, row.waiting, row.memberBlocked, row.pauseLabel)}</small>
+          <span data-tip={thread.title} data-tip-overflow>{thread.title}</span>
+          <small>{activityMeta(thread, row.host, projectLabel, row.waiting, row.memberBlocked, row.pauseLabel)}</small>
         </span>
       ), action, priority)}
     </div>
@@ -579,17 +571,8 @@ export function useThreadRows({
   const checkouts = useMemo(() => new Map(worktreeGroups.flatMap(({ worktree, threads }) =>
     threads.map((thread) => [thread.id, worktree] as const))), [worktreeGroups]);
 
-  /**
-   * A thread moves only among this computer's folders, and not out of the checkout it works in or
-   * from under the coordinator it is drawn beneath.
-   */
-  const pinned = (thread: Thread) => {
-    const host = threadHosts.get(thread.id);
-    if (host) return `Stays in its folder on ${host.name}`;
-    if (thread.worktreeId) return "Stays in its worktree's folder";
-    if (leadIdOf(thread)) return "Stays with its coordinator";
-    return null;
-  };
+  const coordinated = useMemo(() => new Set([...coordination.threadsByCoordinator.values()].flat().map((thread) => thread.id)), [coordination.threadsByCoordinator]);
+  const pinned = (thread: Thread) => threadMoveBlock(thread, threadHosts.get(thread.id), coordinated.has(thread.id));
   const moveTargets = (thread: Thread) => pinned(thread) !== null ? null : projects.filter((project) => !projectHosts.has(project.id));
 
   const rowState = (thread: Thread): RowState => {
@@ -628,11 +611,11 @@ export function useThreadRows({
     for (const thread of threads) {
       if (offline(thread.id)) continue;
       const status = rowStatus(rowState(thread));
-      if (status && (!pressing || urgency(status) < urgency(pressing))) pressing = status;
-      if (pressing && urgency(pressing) === 0) break;
+      if (status && (!pressing || attentionUrgency(statusTone(status)) < attentionUrgency(statusTone(pressing)))) pressing = status;
+      if (pressing && attentionUrgency(statusTone(pressing)) === 0) break;
     }
     if (!pressing) return null;
-    const label = FOLDER_LABELS[pressing.kind === "dot" ? pressing.tone ?? "unread" : pressing.kind];
+    const label = FOLDER_LABELS[statusTone(pressing)];
     return <span className="row-mark folder-status" data-tip={label}>{statusMark({ ...pressing, label })}</span>;
   };
 
@@ -648,21 +631,9 @@ export function useThreadRows({
   return { threadRow, activityRow };
 }
 
-/** How much a status wants the user, most first: an answer, a failure, news, then work going on. */
-function urgency(status: RowStatus) {
-  if (status.kind === "dot") return status.tone === "approval" ? 0 : status.tone === "failed" ? 1 : 2;
-  return status.kind === "working" ? 3 : 4;
+function statusTone(status: RowStatus): AttentionTone {
+  return status.kind === "dot" ? status.tone ?? "unread" : status.kind;
 }
-
-const FOLDER_LABELS: Record<ThreadOutcome | "approval" | "unread" | "working" | "paused", string> = {
-  approval: MEMBER_BLOCKED_LABEL,
-  failed: "A thread failed",
-  finished: MEMBER_UNREAD_LABEL,
-  stopped: MEMBER_UNREAD_LABEL,
-  unread: MEMBER_UNREAD_LABEL,
-  working: "A thread is working",
-  paused: "A thread is waiting out its usage limit",
-};
 
 export type ThreadRowRenderer = ReturnType<typeof useThreadRows>["threadRow"];
 export type ActivityRowRenderer = ReturnType<typeof useThreadRows>["activityRow"];

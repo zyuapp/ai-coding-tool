@@ -3,6 +3,7 @@ import { threadActivityAt, type Thread } from "../domain/thread.js";
 import { wantsAttention } from "../domain/attention.js";
 import { coordinatedThreadIds } from "../domain/coordination.js";
 import type { SidebarMode, SidebarSections } from "../domain/sidebar.js";
+import type { ThreadHost } from "./computers.js";
 
 /** The activity sidebar's lists, in the order they are drawn. */
 export type ActivitySections = Record<"priority" | "running" | "threads" | "snoozed", Thread[]>;
@@ -81,22 +82,32 @@ export function nextSortIndex(threads: Thread[]): number {
 }
 
 /**
+ * Why a thread can reorder within its folder but not be carried to another, or null when it can:
+ * it lives on another computer, works in a checkout cut from one project, or is drawn beneath its
+ * coordinator.
+ */
+export function threadMoveBlock(thread: Thread, host: Pick<ThreadHost, "name"> | undefined, coordinated: boolean): string | null {
+  if (host) return `Stays in its folder on ${host.name}`;
+  if (thread.worktreeId) return "Stays in its worktree's folder";
+  if (coordinated) return "Stays with its coordinator";
+  return null;
+}
+
+/**
  * Moves one thread into `target` and renumbers the visible list. `target.index` counts rows in the
  * destination group with the moved thread already taken out, matching what a drop reports. A group is
- * one list in the sidebar: a project's threads, or the project-less list.
- *
- * A checkout is cut from one project, so a thread working in one reorders freely inside that
- * project's list but is never carried to another project.
+ * one list in the sidebar: a project's threads, or the project-less list. A thread
+ * {@link threadMoveBlock} pins reorders only within its own group.
  */
 export function moveThread(threads: Thread[], threadId: string, target: ThreadDropTarget): Thread[] {
-  /** Threads under a coordinator are drawn beneath it, so a drop's index never counts them. */
   const members = coordinatedThreadIds(threads);
-  const visible = orderThreads(threads.filter((thread) => thread.archivedAt === undefined && !members.has(thread.id)));
-  const moving = visible.find((thread) => thread.id === threadId);
-  if (!moving) return threads;
-  const rest = visible.filter((thread) => thread.id !== threadId);
+  const moving = threads.find((thread) => thread.id === threadId && thread.archivedAt === undefined);
   const projectId = target.projectId ?? undefined;
-  if (moving.worktreeId && projectId !== moving.projectId) return threads;
+  if (!moving || (projectId !== moving.projectId && threadMoveBlock(moving, undefined, members.has(moving.id)))) return threads;
+  /** Threads under a coordinator are drawn beneath it, so a drop's index never counts them, nor places one. */
+  const visible = orderThreads(threads.filter((thread) => thread.archivedAt === undefined && !members.has(thread.id)));
+  if (!visible.includes(moving)) return threads;
+  const rest = visible.filter((thread) => thread !== moving);
 
   const group = rest.filter((thread) => thread.projectId === projectId);
   const anchor = group[Math.max(0, target.index)];

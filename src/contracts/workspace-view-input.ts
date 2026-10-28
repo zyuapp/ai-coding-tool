@@ -281,6 +281,8 @@ const commands = {
   "proposal.start": { fields: { taskId: text, proposalId: optionalText, proposalIds: optional(proposalIds), place: optional(proposalPlace) }, at: "thread" },
   "proposal.dismiss": { fields: { taskId: text, proposalId: optionalText, proposalIds: optional(proposalIds) }, at: "thread" },
   "task.dismiss": { fields: { taskId: text }, at: "thread" },
+  /** The reducer itself carries this to the computers holding the threads it names. */
+  "task.undismiss": { fields: { taskIds: array(text) }, at: "local" },
   "task.snooze": { fields: { taskId: text, hours: isSnoozeHours }, at: "thread" },
   "task.unsnooze": { fields: { taskId: text }, at: "thread" },
   /** The reducer itself carries this to the computers shown in the sidebar. */
@@ -305,6 +307,7 @@ const commands = {
   "annotation.note": { fields: { taskId: optionalText, annotationId: text, note: text }, at: "local" },
   "annotation.remove": { fields: { taskId: optionalText, annotationId: text }, at: "local" },
   "annotation.recall": { fields: { taskId: optionalText, annotations: array(annotation) }, at: "local" },
+  "annotation.reveal": { fields: { taskId: optionalText, annotationId: text }, at: "local" },
   "paste.add": { fields: { taskId: optionalText, text: text }, at: "local" },
   "paste.remove": { fields: { taskId: optionalText, pasteId: text }, at: "local" },
   "paste.recall": { fields: { taskId: optionalText, pastes: array(pastedText) }, at: "local" },

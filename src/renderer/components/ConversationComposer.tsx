@@ -45,7 +45,7 @@ function composerPlaceholder({ surface, folder, disabled, engineLabel }: {
   const ask = surface === "side" ? "Ask a side question"
     : surface === "tab" ? "Reply to this thread"
       : folder ? `Ask ${engineLabel} to work on anything` : `Ask ${engineLabel} anything`;
-  return disabled ? ask : `${ask} · / for commands · @ for threads`;
+  return ask;
 }
 
 const SEND_KEYS = displayShortcut("Enter", MAC);
@@ -228,6 +228,7 @@ export type ConversationComposerProps = {
   onReviewClose?: () => void;
   onAnnotationRecall?: (annotations: Annotation[]) => void;
   onAnnotationRemove?: (annotationId: string) => void;
+  onAnnotationReveal?: (annotationId: string) => void;
   onPasteAdd?: (text: string) => void;
   onPasteRecall?: (pastes: PastedText[]) => void;
   onPasteRemove?: (pasteId: string) => void;
@@ -296,6 +297,7 @@ export function ConversationComposer({
   onReviewClose = NOTHING,
   onAnnotationRecall,
   onAnnotationRemove,
+  onAnnotationReveal,
   onPasteAdd,
   onPasteRecall,
   onPasteRemove,
@@ -367,7 +369,7 @@ export function ConversationComposer({
         )}
         {menus.commandMenuOpen && <CommandMenu menus={menus} />}
         {menus.threadMenuOpen && <ThreadMenu menus={menus} />}
-        {onAnnotationRemove && <AnnotationRow annotations={annotations} onRemove={onAnnotationRemove} />}
+        {onAnnotationRemove && <AnnotationRow annotations={annotations} onRemove={onAnnotationRemove} onReveal={onAnnotationReveal} />}
         {onPasteRemove && <PasteRow pastes={pastes} onRemove={onPasteRemove} />}
         {onFileRemove && <FileRow files={files} onRemove={onFileRemove} />}
         <AttachmentStrip attachments={attachments} />

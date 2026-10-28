@@ -23,7 +23,8 @@ import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeById } from "../thread-location.js";
 import { DRAFT_DOCK, dockFor, frontDock, sideChatIds, withDock, type WorkspaceState } from "../workspace-state.js";
 import { threadActivity, threadLists } from "../thread-activity.js";
-import { dismissed, readAttention, wantsAttention } from "../../domain/attention.js";
+import { attentionOf, dismissed, readAttention, wantsAttention, withAttentionBack } from "../../domain/attention.js";
+import { offerUndo, quotedTitle } from "../undo.js";
 import { readRow } from "../thread-attention.js";
 import { clampTitle, type Thread } from "../../domain/thread.js";
 import { asCoordinator, coordinatorOf, effortRoleOf } from "../../domain/coordination.js";
@@ -32,7 +33,7 @@ import { cancelPause } from "../limit-pauses.js";
 import { capabilitiesFor, defaultModelFor, effortForModel, engineHasModel, modelHasEffort } from "../../domain/agent-engine.js";
 
 export const THREAD_COMMAND_INPUTS = [
-  "task.new", "task.select", "task.dismiss", "task.dismiss-all", "task.archive", "task.snooze", "task.unsnooze", "snoozes.elapsed", "task.restore",
+  "task.new", "task.select", "task.dismiss", "task.undismiss", "task.dismiss-all", "task.archive", "task.snooze", "task.unsnooze", "snoozes.elapsed", "task.restore",
   "task.clear-archive", "task.rename", "task.set-role", "title.suggested", "task.fork", "view.fork-name", "task.move", "task.set-policy", "task.set-model",
   "task.set-effort", "task.set-fast-mode"
 ] as const;
@@ -92,7 +93,7 @@ function dismissablePriority(state: WorkspaceState, projectId?: string): Thread[
  * reads: none waiting on an approval, and only those with something to file away. A computer that is
  * out of reach, or whose build cannot take it, says so.
  */
-function dismissElsewhere(state: WorkspaceState, rows: ReadonlySet<string>): { effects: WorkspaceEffect[]; errors: string[] } {
+function dismissElsewhere(state: WorkspaceState, rows: ReadonlySet<string>): { effects: WorkspaceEffect[]; errors: string[]; ids: string[] } {
   const inputs = new Map<string, { computer: PairedComputer; inputs: AppCommand[] }>();
   const here = threadActivity(state);
   const shown = shownComputers(state.computers);
@@ -108,12 +109,70 @@ function dismissElsewhere(state: WorkspaceState, rows: ReadonlySet<string>): { e
   }
   const effects: WorkspaceEffect[] = [];
   const errors: string[] = [];
+  const ids: string[] = [];
   for (const { computer, inputs: commands } of inputs.values()) {
     if (computer.status !== "connected") errors.push(offlineMessage(computer));
     else if (!commands.every((command) => supportsComputerCommand(computer.capabilities, command))) errors.push(`${computer.name}: ${REMOTE_UNSUPPORTED}`);
-    else effects.push({ type: "computer.forward", id: computer.id, inputs: commands });
+    else {
+      effects.push({ type: "computer.forward", id: computer.id, inputs: commands });
+      if (supportsComputerCommand(computer.capabilities, UNDISMISS)) ids.push(...commands.flatMap((command) => command.type === "task.dismiss" ? [command.taskId] : []));
+    }
   }
-  return { effects, errors };
+  return { effects, errors, ids };
+}
+
+const UNDISMISS: AppCommand = { type: "task.undismiss", taskIds: [] };
+
+/** Files the threads away, keeping what each gave up so the dismissal's Undo can put it back. */
+function fileAway(state: WorkspaceState, ids: ReadonlySet<string>): WorkspaceState {
+  const threads = dismissed(state.threads, new Set(ids));
+  if (threads === state.threads) return state;
+  const filedAttention = Object.fromEntries(state.threads.filter((thread) => ids.has(thread.id) && wantsAttention(thread)).map((thread) => [thread.id, attentionOf(thread)]));
+  return { ...state, threads, filedAttention };
+}
+
+/** The threads here a dismissal took something from. */
+function takenFrom(before: WorkspaceState, after: WorkspaceState, ids: ReadonlySet<string>): string[] {
+  return after === before ? [] : [...ids].filter((id) => after.filedAttention[id]);
+}
+
+/**
+ * Puts back what the last dismissal took from the named threads and those under them here, and asks
+ * each paired computer holding any of the others to do the same with its own.
+ */
+function undismiss(state: WorkspaceState, taskIds: readonly string[]): WorkspaceTransition {
+  const ids = dismissedWith(state.threads, new Set(taskIds), new Set());
+  const { filedAttention } = state;
+  const threads = state.threads.map((thread) => ids.has(thread.id) && filedAttention[thread.id] ? withAttentionBack(thread, filedAttention[thread.id]!) : thread);
+  const kept = Object.fromEntries(Object.entries(filedAttention).filter(([id]) => !ids.has(id)));
+  const restored = threads.some((thread, index) => thread !== state.threads[index]);
+  const next = restored || Object.keys(kept).length !== Object.keys(filedAttention).length ? { ...state, threads, filedAttention: kept } : state;
+  const elsewhere = new Map<string, { computer: PairedComputer; taskIds: string[] }>();
+  for (const taskId of taskIds) {
+    if (state.threads.some((thread) => thread.id === taskId)) continue;
+    const computer = computerOfThread(state, taskId);
+    if (!computer) continue;
+    const held = elsewhere.get(computer.id) ?? { computer, taskIds: [] };
+    held.taskIds.push(taskId);
+    elsewhere.set(computer.id, held);
+  }
+  const effects: WorkspaceEffect[] = [];
+  const errors: string[] = [];
+  for (const { computer, taskIds: held } of elsewhere.values()) {
+    const command: AppCommand = { type: "task.undismiss", taskIds: held };
+    if (computer.status !== "connected") errors.push(offlineMessage(computer));
+    else if (!supportsComputerCommand(computer.capabilities, command)) errors.push(`${computer.name}: ${REMOTE_UNSUPPORTED}`);
+    else effects.push({ type: "computer.forward", id: computer.id, inputs: [command] });
+  }
+  return errors.length ? rejected(next, errors.join("\n"), effects) : settled(next, effects);
+}
+
+/** The Undo of a dismissal of `rows`, which took `taskIds` here and on paired computers. */
+function dismissalUndo(transition: WorkspaceTransition, rows: readonly Thread[], taskIds: Iterable<string>): WorkspaceTransition {
+  const ids = [...new Set(taskIds)];
+  if (!rows.length || !ids.length) return transition;
+  const title = rows.length === 1 ? `Dismissed ${quotedTitle(rows[0]!)}` : `Dismissed ${rows.length} threads`;
+  return offerUndo(transition, title, { type: "task.undismiss", taskIds: ids });
 }
 
 /** The row Priority moves on to once this one leaves it: the one below, or the one above when it was last. */
@@ -135,11 +194,14 @@ function dismissPriority(state: WorkspaceState, localOnly = false, projectId?: s
   /** A coordinator in Priority is there for its threads too, so filing it away files them with it. */
   const rows = new Set(own ? dismissablePriority(state, projectId).map((thread) => thread.id) : []);
   const dotted = dismissedWith(state.threads, rows, threadActivity(state).blocked);
-  const next = dotted.size ? { ...state, threads: dismissed(state.threads, dotted) } : state;
+  const next = fileAway(state, dotted);
   if (localOnly) return settled(next);
-  const { effects, errors } = dismissElsewhere(state, rows);
+  const { effects, errors, ids } = dismissElsewhere(state, rows);
+  const filedRows = state.threads.filter((thread) => rows.has(thread.id));
+  const filedIds = [...takenFrom(state, next, dotted), ...ids];
   for (const computer of shownComputers(state.computers)) {
-    if (computer.status !== "connected" || !computer.state || !dismissablePriority(computer.state, projectId).length) continue;
+    const remoteRows = computer.status === "connected" && computer.state ? dismissablePriority(computer.state, projectId) : [];
+    if (!remoteRows.length) continue;
     const scoped: AppCommand = { type: "task.dismiss-all", localOnly: true, ...(projectId ? { projectId } : {}) };
     /** Older hosts already dismiss only their own threads and do not know the scope field, but nothing narrower holds without the project. */
     const command: AppCommand = projectId || supportsComputerCommand(computer.capabilities, scoped) ? scoped : { type: "task.dismiss-all" };
@@ -148,8 +210,12 @@ function dismissPriority(state: WorkspaceState, localOnly = false, projectId?: s
       continue;
     }
     effects.push({ type: "computer.forward", id: computer.id, inputs: [command] });
+    if (!supportsComputerCommand(computer.capabilities, UNDISMISS)) continue;
+    filedRows.push(...remoteRows);
+    filedIds.push(...remoteRows.map((thread) => thread.id));
   }
-  return errors.length ? rejected(next, errors.join("\n"), effects) : settled(next, effects);
+  if (errors.length) return rejected(next, errors.join("\n"), effects);
+  return dismissalUndo(settled(next, effects), filedRows, filedIds);
 }
 
 /**
@@ -182,6 +248,30 @@ function archiveThread(state: WorkspaceState, taskId: string): WorkspaceTransiti
     ...fileThread(state, state.threads.find((thread) => thread.id === taskId), true),
     ...[...closed].map((tabId): WorkspaceEffect => ({ type: "browser.close", tabId })),
   ]);
+}
+
+/** Archives the thread and offers it back. */
+function archiveWithUndo(state: WorkspaceState, taskId: string): WorkspaceTransition {
+  const thread = state.threads.find((item) => item.id === taskId);
+  const archived = archiveThread(state, taskId);
+  if (!thread || thread.archivedAt !== undefined) return archived;
+  return offerUndo(archived, `Archived ${quotedTitle(thread)}`, { type: "task.restore", taskId: thread.id });
+}
+
+/** Files one row away, with the threads under it, here and on the paired computers holding them. */
+function dismissThread(state: WorkspaceState, taskId: string): WorkspaceTransition {
+  const dotted = dismissedWith(state.threads, new Set([taskId]), threadActivity(state).blocked);
+  const filed = fileAway(state, dotted);
+  const elsewhere = dismissElsewhere(state, new Set([taskId]));
+  if (filed === state && !elsewhere.effects.length && !elsewhere.errors.length) return settled(state);
+  /** Filing away the thread being read moves on to the row that takes its place, so Priority can be worked down without going back to the list. */
+  const successor = state.sidebarMode === "activity" && state.currentId === taskId
+    ? priorityNeighbour(state, taskId)
+    : undefined;
+  const landed = successor ? landOnThread(filed, successor) : filed;
+  if (elsewhere.errors.length) return rejected(landed, elsewhere.errors.join("\n"), elsewhere.effects);
+  const row = state.threads.find((thread) => thread.id === taskId);
+  return dismissalUndo(settled(landed, elsewhere.effects), row ? [row] : [], [...takenFrom(state, filed, dotted), ...elsewhere.ids]);
 }
 
 export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommandInput): WorkspaceTransition {
@@ -239,24 +329,17 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
       return lead ? { ...focused, effects: [...focused.effects, ...followUps(refreshThreadEnvironment(focused.state, input.taskId))] } : focused;
     }
 
-    case "task.dismiss": {
-      const threads = dismissed(state.threads, dismissedWith(state.threads, new Set([input.taskId]), threadActivity(state).blocked));
-      const elsewhere = dismissElsewhere(state, new Set([input.taskId]));
-      if (threads === state.threads && !elsewhere.effects.length && !elsewhere.errors.length) return settled(state);
-      /** Filing away the thread being read moves on to the row that takes its place, so Priority can be worked down without going back to the list. */
-      const successor = state.sidebarMode === "activity" && state.currentId === input.taskId
-        ? priorityNeighbour(state, input.taskId)
-        : undefined;
-      const filed = threads === state.threads ? state : { ...state, threads };
-      const landed = successor ? landOnThread(filed, successor) : filed;
-      return elsewhere.errors.length ? rejected(landed, elsewhere.errors.join("\n"), elsewhere.effects) : settled(landed, elsewhere.effects);
-    }
+    case "task.dismiss":
+      return dismissThread(state, input.taskId);
+
+    case "task.undismiss":
+      return undismiss(state, input.taskIds);
 
     case "task.dismiss-all":
       return dismissPriority(state, input.localOnly, input.projectId);
 
     case "task.archive":
-      return archiveThread(state, input.taskId);
+      return archiveWithUndo(state, input.taskId);
 
     /** Restoring leaves the retired automation gone; the user re-arms it themselves. */
     case "task.restore": {

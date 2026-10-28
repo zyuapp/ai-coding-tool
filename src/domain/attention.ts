@@ -9,6 +9,7 @@
 import { createConversationMessage } from "./conversation.js";
 import { MAX_FINDINGS, MAX_HANDLED_ISSUES, type AutomationFinding } from "./finding.js";
 import type { Thread } from "./thread.js";
+import type { ThreadOutcome } from "./thread-run.js";
 
 export function unreadFindings(thread: Thread): AutomationFinding[] {
   return (thread.findings ?? []).filter((finding) => !finding.read);
@@ -130,6 +131,25 @@ export function dismissed(threads: Thread[], dismissing: Set<string>): Thread[] 
   return filed.map((thread) => dismissing.has(thread.id) ? withoutFindings(withHandledIssues(thread)) : thread);
 }
 
+/** What a dismissal takes from a thread, kept so Undo can put it back. */
+export type FiledAttention = Pick<Thread, "outcome" | "outcomeUnread" | "findings" | "handledIssues">;
+
+export function attentionOf({ outcome, outcomeUnread, findings, handledIssues }: Thread): FiledAttention {
+  return { outcome, outcomeUnread, findings, handledIssues };
+}
+
+/** Puts back what a dismissal took, unless the thread has something new to say since. */
+export function withAttentionBack(thread: Thread, filed: FiledAttention): Thread {
+  if (wantsAttention(thread)) return thread;
+  const { outcome: _outcome, outcomeUnread: _unread, findings: _findings, handledIssues: _handled, ...rest } = thread;
+  const back: Thread = { ...rest };
+  if (filed.outcome) back.outcome = filed.outcome;
+  if (filed.outcomeUnread) back.outcomeUnread = filed.outcomeUnread;
+  if (filed.findings) back.findings = filed.findings;
+  if (filed.handledIssues) back.handledIssues = filed.handledIssues;
+  return back;
+}
+
 function withHandledIssues(thread: Thread): Thread {
   const keys = findingKeys(thread);
   if (!keys.length) return thread;
@@ -151,3 +171,29 @@ export function withClosedIssues(thread: Thread, reportedIssues: string[]): Thre
   }
   return { ...thread, handledIssues: still };
 }
+
+/** What a row's status mark stands for: an approval, a verdict or news, work going on, or a usage-limit wait. */
+export type AttentionTone = ThreadOutcome | "approval" | "unread" | "working" | "paused";
+
+/** How much a status wants the user, most first: an answer, a failure, news, then work going on. */
+export function attentionUrgency(tone: AttentionTone): number {
+  if (tone === "approval") return 0;
+  if (tone === "failed") return 1;
+  if (tone === "working") return 3;
+  return tone === "paused" ? 4 : 2;
+}
+
+export const MEMBER_BLOCKED_LABEL = "A thread needs your approval";
+
+export const MEMBER_UNREAD_LABEL = "A thread has something new";
+
+/** What a folded folder's mark says for the most pressing status among the threads it hides. */
+export const FOLDER_LABELS: Record<AttentionTone, string> = {
+  approval: MEMBER_BLOCKED_LABEL,
+  failed: "A thread failed",
+  finished: MEMBER_UNREAD_LABEL,
+  stopped: MEMBER_UNREAD_LABEL,
+  unread: MEMBER_UNREAD_LABEL,
+  working: "A thread is working",
+  paused: "A thread is waiting out its usage limit",
+};

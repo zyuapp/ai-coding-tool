@@ -415,15 +415,9 @@ test("a call that printed nothing says so when opened", async () => {
   await view.unmount();
 });
 
-test("a retrying run can be stopped from the row that says so", async () => {
-  const sent: unknown[] = [];
-  const { CommandControlsProvider } = await import("../../src/renderer/components/CommandControl.tsx");
-  const timeline = React.cloneElement(timelineView(transcript({ kind: "user", text: "go" }), "running"), { retrying: { message: "Overloaded.", attempt: 2, maxRetries: 5 } });
-  const view = await mount(React.createElement(CommandControlsProvider, { value: { available: () => true, dispatch: (command: unknown) => { sent.push(command); } } }, timeline));
-  const row = query(view.container, ".retrying-row");
-  assert.match(row.textContent, /Overloaded\. Retrying 2 of 5…/);
-  await act(async () => { query<HTMLButtonElement>(row, "button").click(); });
-  assert.deepEqual(sent, [{ type: "run.cancel", taskId: "t1" }]);
+test("a retrying run says how far along its retries are", async () => {
+  const view = await mount(React.cloneElement(timelineView(transcript({ kind: "user", text: "go" }), "running"), { retrying: { message: "Overloaded.", attempt: 2, maxRetries: 5 } }));
+  assert.match(query(view.container, ".retrying-row").textContent, /Overloaded\. Retrying 2 of 5…/);
   await view.unmount();
 });
 
@@ -465,28 +459,12 @@ test("only the newest row keeps its message actions in view without a hover", as
   await view.unmount();
 });
 
-test("a compaction and a plain working run can each be stopped from the row that says so", async () => {
-  const sent: unknown[] = [];
-  const { CommandControlsProvider } = await import("../../src/renderer/components/CommandControl.tsx");
-  const provide = (compacting: boolean) => React.createElement(
-    CommandControlsProvider,
-    { value: { available: () => true, dispatch: (command: unknown) => { sent.push(command); } } },
-    React.cloneElement(timelineView(transcript({ kind: "user", text: "go" }), "running"), { compacting }),
-  );
-  const view = await mount(provide(true));
-  const row = query(view.container, ".compacting-row");
-  assert.match(row.textContent, /Compacting messages/);
-  await act(async () => { query<HTMLButtonElement>(row, "button").click(); });
-  assert.deepEqual(sent, [{ type: "run.cancel", taskId: "t1" }]);
-
-  await view.render(provide(false));
-  assert.equal(view.container.querySelector(".compacting-row"), null);
-  const stop = query<HTMLButtonElement>(query(view.container, ".thinking-row"), "button");
-  assert.equal(stop.textContent, "Stop");
-  assert.ok(stop.classList.contains("run-stop"), "every Stop in the transcript is drawn alike");
-  assert.match(stop.dataset.tip ?? "", /^Stop \(/, "the Stop names the key the composer stops with");
-  await act(async () => { stop.click(); });
-  assert.deepEqual(sent, [{ type: "run.cancel", taskId: "t1" }, { type: "run.cancel", taskId: "t1" }]);
+test("working, compacting and retrying rows leave stopping to the composer", async () => {
+  const view = await mount(React.cloneElement(timelineView(transcript({ kind: "user", text: "go" }), "running"), { compacting: true }));
+  assert.match(query(view.container, ".compacting-row").textContent, /Compacting messages/);
+  assert.equal(view.container.querySelector(".compacting-row button"), null);
+  await view.render(timelineView(transcript({ kind: "user", text: "go" }), "running"));
+  assert.equal(view.container.querySelector(".thinking-row button"), null);
   await view.unmount();
 });
 

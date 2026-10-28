@@ -4,19 +4,18 @@ import { LuChevronDown as ChevronDown, LuFolderSymlink as FolderSymlink, LuHourg
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { ThreadStart } from "../../application/coordination-view";
 import type { StreamingTail } from "../../application/thread-run-state";
-import type { FindView, ReadingPoint, ThreadWait } from "../../application/workspace-state";
+import type { AnnotationReveal, FindView, ReadingPoint, ThreadWait } from "../../application/workspace-state";
 import type { AgentEngine } from "../../domain/agent-engine";
 import { isCoordinator } from "../../domain/coordination";
 import type { RetryNotice } from "../../domain/run";
 import { liftTime, resumesOnItsOwn, type LimitPause } from "../../domain/usage-limit";
 import { CommandButton } from "./CommandControl";
-import { shortcutTip } from "./TooltipLayer";
 import type { Annotation, AnnotationAnchor } from "../../domain/conversation";
 import type { Thread } from "../../domain/thread";
 import { groupTimeline, messageRows } from "../timeline/grouping";
 import { MAX_FIND_HITS, targetKey } from "../../domain/find";
 import { drawnMatches, paintMatches } from "../find/paint";
-import { useAnnotationMarkers, useAnnotationSelection, useSelectionCapture } from "../timeline/use-annotations";
+import { useAnnotationMarkers, useAnnotationReveal, useAnnotationSelection, useSelectionCapture } from "../timeline/use-annotations";
 import { useReadingView } from "../timeline/use-reading-view";
 import { AnnotatePopover, AnnotationMarkers, NoteEditor } from "./AnnotateLayer";
 import { TimelineEmptyState } from "./TimelineEmptyState";
@@ -63,6 +62,8 @@ export type ConversationTimelineProps = {
   find?: FindView | null;
   /** This composer's drafted annotations, whose anchors are highlighted and numbered here. */
   annotations?: Annotation[];
+  /** The workspace's latest ask for this transcript to show one of those annotations. */
+  annotationReveal?: AnnotationReveal | null;
   /** Offered on selected assistant text: annotate into this transcript's composer. */
   onAnnotateAdd?: (draft: { quote: string; note: string; anchor: AnnotationAnchor }) => void;
   onAnnotateNote?: (annotationId: string, note: string) => void;
@@ -92,19 +93,14 @@ function retryLabel(retry: RetryNotice) {
   return `${retry.message} Retrying${count}…`;
 }
 
-function StopRun({ taskId }: { taskId: string | undefined }) {
-  return taskId ? <CommandButton type="button" className="limit-action run-stop" command={{ type: "run.cancel", taskId }} data-tip={shortcutTip("Stop", "Escape")}>Stop</CommandButton> : null;
-}
-
 /** `since` is when the live turn's first step began; until it has one, the row counts from when it appeared. */
-function ThinkingRow({ since, taskId }: { since: number | undefined; taskId: string | undefined }) {
+function ThinkingRow({ since }: { since: number | undefined }) {
   const [shownAt] = useState(Date.now);
   return (
     <div className="thinking-row" role="status">
       <i aria-hidden="true" /><i aria-hidden="true" /><i aria-hidden="true" />
       <span className="thinking-label text-sweep">Working</span>
       <span className="thinking-elapsed" aria-hidden="true"><Elapsed startedAt={Math.min(since ?? shownAt, shownAt)} endsAt={null} /></span>
-      <StopRun taskId={taskId} />
     </div>
   );
 }
@@ -151,7 +147,7 @@ function newestPrompt(messages: Thread["messages"]) {
   return undefined;
 }
 
-export function ConversationTimeline({ currentThread, engine, engineLabel, folder, workspaceId, status, compacting, retrying = null, limitPause = null, waitingOn = null, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, restored = true, place, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide, threadCards = null, starts = NO_STARTS }: ConversationTimelineProps) {
+export function ConversationTimeline({ currentThread, engine, engineLabel, folder, workspaceId, status, compacting, retrying = null, limitPause = null, waitingOn = null, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, restored = true, place, find, annotations = EMPTY_ANNOTATIONS, annotationReveal = null, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide, threadCards = null, starts = NO_STARTS }: ConversationTimelineProps) {
   const messages = currentThread?.messages ?? [];
   const artifactScope = useMemo(() => ({ root: folder, taskId: currentThread?.id, workspaceId }), [folder, currentThread?.id, workspaceId]);
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -218,6 +214,11 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
   });
   useSelectionCapture({ timelineRef, scrollContainerRef, threadId: currentThread?.id, onAnnotateAdd, setSelection: annotate.setSelection, dismissNote: annotate.dismissNote });
   const markers = useAnnotationMarkers({ timelineRef, annotations, rendered, messageCount: messages.length });
+  const scrollToMessage = useCallback((messageId: string) => {
+    const row = rowOfMessage.get(messageId);
+    if (row !== undefined) virtualizer.scrollToIndex(row, { align: "center" });
+  }, [rowOfMessage, virtualizer]);
+  const flashing = useAnnotationReveal({ reveal: annotationReveal, markers, timelineRef, scrollToMessage });
 
   if (currentThread?.historySummary) return <div className="empty-state" role="status"><span className="text-sweep">Loading conversation…</span></div>;
 
@@ -249,23 +250,21 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
           );
         })}
       </div>
-      <AnnotationMarkers markers={markers} annotations={annotations} noteReturn={annotate.noteReturn} onEdit={annotate.setNoting} />
+      <AnnotationMarkers markers={markers} annotations={annotations} noteReturn={annotate.noteReturn} onEdit={annotate.setNoting} flashing={flashing} />
       {waitingOn && <WaitingRow key={waitingOn} wait={waitingOn} />}
       {status !== "running" && limitPause && currentThread && <LimitRow pause={limitPause} taskId={currentThread.id} />}
       {status === "running" && compacting && (
         <div className="compacting-row" role="status" aria-live="polite">
           <span className="text-sweep">Compacting messages…</span>
-          <StopRun taskId={currentThread?.id} />
         </div>
       )}
       {status === "running" && !compacting && retrying && (
         <div className="retrying-row" role="status" aria-live="polite">
           <span className="text-sweep">{retryLabel(retrying)}</span>
-          <StopRun taskId={currentThread?.id} />
         </div>
       )}
       {status === "running" && !compacting && !retrying && (
-        <ThinkingRow since={liveSince} taskId={currentThread?.id} />
+        <ThinkingRow since={liveSince} />
       )}
       {!atBottom && (
         <div className="scroll-to-end-dock">

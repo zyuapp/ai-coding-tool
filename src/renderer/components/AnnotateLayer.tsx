@@ -12,14 +12,16 @@ type MarkersProps = {
   /** The marker a note was opened from, which takes focus back when the editor closes. */
   noteReturn: RefObject<HTMLElement | null>;
   onEdit: (note: NoteDraft) => void;
+  /** The marker a reveal is flashing. */
+  flashing?: string | null;
 };
 
-export function AnnotationMarkers({ markers, annotations, noteReturn, onEdit }: MarkersProps) {
+export function AnnotationMarkers({ markers, annotations, noteReturn, onEdit, flashing = null }: MarkersProps) {
   return markers.map((marker) => (
     <button
       type="button"
       key={marker.id}
-      className="annotation-marker"
+      className={marker.id === flashing ? "annotation-marker flash" : "annotation-marker"}
       data-annotation-id={marker.id}
       style={{ left: marker.x, top: marker.y }}
       aria-label={`Edit annotation ${marker.number}`}

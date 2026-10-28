@@ -108,6 +108,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       onReviewClose={workspace.actions.closeReview}
       onAnnotationRecall={(annotations) => void workspace.dispatch({ type: "annotation.recall", annotations })}
       onAnnotationRemove={(annotationId) => void workspace.dispatch({ type: "annotation.remove", annotationId })}
+      onAnnotationReveal={(annotationId) => void workspace.dispatch({ type: "annotation.reveal", annotationId })}
       onPasteAdd={(text) => void workspace.dispatch({ type: "paste.add", text })}
       onPasteRecall={(pastes) => void workspace.dispatch({ type: "paste.recall", pastes })}
       onPasteRemove={(pasteId) => void workspace.dispatch({ type: "paste.remove", pasteId })}

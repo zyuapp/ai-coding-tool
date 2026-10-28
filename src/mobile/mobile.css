@@ -2420,10 +2420,6 @@ button.thread-start-project:active {
   white-space: nowrap;
 }
 
-.undo-toast strong {
-  font-weight: 600;
-}
-
 .undo-toast button {
   flex: none;
   min-height: var(--tap);

@@ -1,8 +1,7 @@
 import { LuChevronDown as ChevronDown, LuChevronLeft as ChevronLeft, LuCloudOff as CloudOff, LuEllipsis as Ellipsis, LuQrCode as QrCode, LuSquarePen as SquarePen, LuX as X } from "react-icons/lu";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent } from "react";
-import type { MobileActivity, MobileCommand, MobileDraftView, MobileProjectGroup, MobileThreadEntry, MobileThreadView } from "../contracts/mobile";
+import type { MobileCommand, MobileDraftView, MobileProjectGroup, MobileThreadEntry, MobileThreadView, MobileUndo } from "../contracts/mobile";
 import { defaultModelFor, type AgentEngine } from "../domain/agent-engine";
-import type { WorktreeDestination } from "../domain/worktree";
 import { SETTINGS_PAGE_LABELS, settingControl } from "../domain/settings-catalog";
 import { PAIRING_CODE_LENGTH, type MobileConnectionState } from "../domain/mobile";
 import { useMobileClient } from "./client/useMobileClient";
@@ -12,7 +11,7 @@ import { ApprovalSheet } from "./components/ApprovalSheet";
 import { Changes } from "./components/Changes";
 import { Composer, type ReturnedToComposer } from "./components/Composer";
 import { Conversation } from "./components/Conversation";
-import { LocationSheet, returnTrip } from "./components/LocationSheet";
+import { LocationSheet } from "./components/LocationSheet";
 import { ProjectSheet } from "./components/ProjectSheet";
 import { RenameSheet } from "./components/RenameSheet";
 import { Segmented } from "./components/Segmented";
@@ -146,48 +145,15 @@ function Banner({ notice, onDismiss }: { notice: string; onDismiss: () => void }
   );
 }
 
-/** How long Undo stays offered, counted again once a finger or the focus lets go of it. */
-const UNDO_MS = 9000;
-
-/**
- * What the toast can take back. An archive or a move is already sent and Undo reverses it; a
- * dismissal is held, with its rows out of Priority, and only sent once the toast goes.
- */
-type Undoable = { key: string; verb: string; title: string; undo: () => void; settle?: () => void; holds?: readonly string[] };
-
-function UndoToast({ undoable, onUndo, onDone }: { undoable: Undoable; onUndo: () => void; onDone: () => void }) {
-  const [pressed, setPressed] = useState(false);
-  const [focused, setFocused] = useState(false);
-  const held = pressed || focused;
-  useEffect(() => {
-    if (held) return;
-    const timer = setTimeout(onDone, UNDO_MS);
-    return () => clearTimeout(timer);
-  }, [onDone, held]);
-  const release = () => setPressed(false);
+/** The desktop's Undo for what was last archived, dismissed or moved, which leaves when the desktop's does. */
+function UndoToast({ undo, onUndo }: { undo: MobileUndo; onUndo: () => void }) {
   return (
-    <div
-      className="undo-toast"
-      role="status"
-      onPointerDown={() => setPressed(true)}
-      onPointerUp={release}
-      onPointerCancel={release}
-      onPointerLeave={release}
-      onFocus={() => setFocused(true)}
-      onBlur={(event) => setFocused(event.currentTarget.contains(event.relatedTarget as Node | null))}
-    >
-      <span>{undoable.verb} <strong>{undoable.title}</strong></span>
+    <div className="undo-toast" role="status">
+      <span>{undo.title}</span>
       <button type="button" onClick={onUndo}>Undo</button>
     </div>
   );
 }
-
-/** The Priority rows Dismiss all files away, in `projectId` or in every project. */
-function dismissableIds(activity: MobileActivity, projectId?: string): string[] {
-  return activity.priority.filter((thread) => thread.attention && (!projectId || thread.projectId === projectId)).map((thread) => thread.id);
-}
-
-const NONE: ReadonlySet<string> = new Set();
 
 const LIST_MODES: { value: MobileListMode; label: string }[] = [{ value: "projects", label: "Projects" }, { value: "activity", label: "Activity" }];
 
@@ -318,98 +284,6 @@ function useScreenHistory(onPopped: () => void) {
   return useMemo(() => ({ pushed, unwound }), [pushed, unwound]);
 }
 
-/**
- * The one Undo offered at a time. Offering another, leaving the list or putting the page away
- * carries out whatever the one before was holding back; dismissed rows stay out of Priority until the
- * Mac's list drops them.
- */
-function useUndo(send: (command: MobileCommand) => void, lists: MobileActivity) {
-  const [undoable, setUndoable] = useState<Undoable | null>(null);
-  const offered = useRef<Undoable | null>(null);
-  /** Priority rows dismissed and not yet gone from the Mac's list, kept out of it meanwhile. */
-  const [filing, setFiling] = useState<ReadonlySet<string>>(NONE);
-  const activity = useRef(lists);
-  activity.current = lists;
-
-  /** Puts up a new Undo, carrying out whatever the one before it was holding back. */
-  const offer = useCallback((next: Undoable | null) => {
-    const previous = offered.current;
-    offered.current = next;
-    setUndoable(next);
-    previous?.settle?.();
-  }, []);
-
-  const takeBack = useCallback(() => {
-    const taken = offered.current;
-    offered.current = null;
-    setUndoable(null);
-    taken?.undo();
-  }, []);
-
-  const settleUndo = useCallback(() => offer(null), [offer]);
-
-  const file = useCallback((ids: string[], title: string, settle: () => void) => {
-    setFiling((was) => new Set([...was, ...ids]));
-    offer({
-      key: `dismiss:${ids.join(",")}`,
-      verb: "Dismissed",
-      title,
-      holds: ids,
-      undo: () => setFiling((was) => new Set([...was].filter((id) => !ids.includes(id)))),
-      settle,
-    });
-  }, [offer]);
-
-  const dismiss = useCallback((taskId: string, title: string) => {
-    file([taskId], title, () => send({ type: "task.dismiss", taskId }));
-  }, [file, send]);
-
-  /** Carried out as Dismiss all only while nothing has joined Priority since; otherwise row by row, so nothing unseen goes with it. */
-  const dismissAll = useCallback((ids: string[], title: string, projectId?: string) => {
-    file(ids, title, () => {
-      if (dismissableIds(activity.current, projectId).every((id) => ids.includes(id))) send({ type: "task.dismiss-all", ...(projectId ? { projectId } : {}) });
-      else for (const taskId of ids) send({ type: "task.dismiss", taskId });
-    });
-  }, [file, send]);
-
-  /** A row stays out of Priority until the Mac's list no longer has it there. */
-  useEffect(() => {
-    if (!filing.size) return;
-    const held = new Set(undoable?.holds);
-    const priority = new Set(lists.priority.map((thread) => thread.id));
-    const kept = [...filing].filter((id) => held.has(id) || priority.has(id));
-    if (kept.length !== filing.size) setFiling(kept.length ? new Set(kept) : NONE);
-  }, [filing, undoable, lists]);
-
-  /** What the toast is holding back is carried out once the page is put away, as it is when the list is left. */
-  useEffect(() => {
-    const hidden = () => {
-      if (document.visibilityState === "hidden") settleUndo();
-    };
-    document.addEventListener("visibilitychange", hidden);
-    return () => document.removeEventListener("visibilitychange", hidden);
-  }, [settleUndo]);
-
-  return { undoable, filing, offer, takeBack, settleUndo, dismiss, dismissAll };
-}
-
-/** What is sent at once and offered back: an archive, and a move to a checkout that already stands while the one left still stands too. */
-function useReversible(send: (command: MobileCommand) => void, offer: (next: Undoable | null) => void) {
-  const archive = useCallback((id: string, archivedTitle: string) => {
-    send({ type: "task.archive", taskId: id });
-    offer({ key: `archive:${id}`, verb: "Archived", title: archivedTitle, undo: () => send({ type: "task.restore", taskId: id }) });
-  }, [send, offer]);
-
-  const move = useCallback((moved: MobileThreadView, destination: WorktreeDestination, label: string) => {
-    send({ type: "task.move-worktree", taskId: moved.id, destination });
-    const home = returnTrip(moved);
-    if (!home || destination.kind === "new") return;
-    offer({ key: `move:${moved.id}:${JSON.stringify(destination)}`, verb: "Moved to", title: label, undo: () => send({ type: "task.move-worktree", taskId: moved.id, destination: home }) });
-  }, [send, offer]);
-
-  return { archive, move };
-}
-
 /** Where the list's New starts a thread: the project the activity list is narrowed to, else the one worked in last. */
 function startingProject(groups: MobileProjectGroup[], mode: MobileListMode): MobileProjectGroup | null {
   const narrowed = mode === "activity" ? readActivityProject(window.localStorage) : null;
@@ -443,8 +317,8 @@ export function App() {
    * shows its title over a blank body rather than the thread the Mac still has open from before.
    */
   const [opening, setOpening] = useState<{ title: string; project: string | null; want: string; was: string } | null>(null);
-  const { undoable, filing, offer, takeBack, settleUndo, dismiss, dismissAll } = useUndo(send, state.view.activity);
-  const { archive, move } = useReversible(send, offer);
+  /** The Undo already tapped, kept off screen until the desktop takes it down. */
+  const [taken, setTaken] = useState<string | null>(null);
   /** The row a long press opened options for, over the list, and whether its rename is up instead. */
   const [rowMenu, setRowMenu] = useState<RowMenu | null>(null);
   const listScroll = useRef(0);
@@ -500,23 +374,25 @@ export function App() {
   }, [screen, thread, back]);
 
   const openThread = useCallback((taskId: string, title: string, project: string | null) => {
-    settleUndo();
     setRowMenu(null);
     setOpening({ title, project, want: taskId, was: current });
     enter("thread");
     setSheet(null);
     send({ type: "task.select", taskId });
-  }, [send, current, settleUndo, enter]);
+  }, [send, current, enter]);
 
   const openMenu = useCallback((entry: MobileThreadEntry) => setRowMenu({ thread: entry, renaming: false }), []);
 
   const newThread = useCallback((projectId: string | null, project: string | null, worktreeId?: string) => {
-    settleUndo();
     setOpening({ title: "New thread", project, want: "draft", was: current });
     enter("thread");
     setSheet(null);
     send({ type: "task.new", ...(projectId ? { projectId } : {}), ...(worktreeId ? { worktreeId } : {}) });
-  }, [send, current, settleUndo, enter]);
+  }, [send, current, enter]);
+
+  const dismiss = useCallback((taskId: string) => send({ type: "task.dismiss", taskId }), [send]);
+  const dismissAll = useCallback((projectId?: string) => send({ type: "task.dismiss-all", ...(projectId ? { projectId } : {}) }), [send]);
+  const archive = useCallback((taskId: string) => send({ type: "task.archive", taskId }), [send]);
 
   const newFromList = useCallback((projectId: string | null, project: string | null) => newThread(projectId, project), [newThread]);
 
@@ -531,7 +407,12 @@ export function App() {
   }, []);
 
   const swipe = useEdgeSwipe(reading && sheet === null, back);
-  const toast = undoable && <UndoToast key={undoable.key} undoable={undoable} onUndo={takeBack} onDone={settleUndo} />;
+  const undo = state.view.undo;
+  const undoKey = undo && `${undo.id}:${JSON.stringify(undo.command)}`;
+  const toast = undo && undoKey !== taken && <UndoToast key={undoKey} undo={undo} onUndo={() => {
+    setTaken(undoKey);
+    send(undo.command);
+  }} />;
 
   if (state.entry === "blocked" && !state.credential) return <Gate notice={state.notice} />;
 
@@ -575,13 +456,13 @@ export function App() {
         ? <Changes thread={thread} live={live} query={query} />
         : reading
           ? thread && !pending
-            ? <ThreadBody thread={thread} live={live} toast={toast} waiting={waiting} returned={state.returned} send={send} onMove={move} sheet={sheet} onSheet={setSheet} onChanges={() => enter("changes")} onNewHere={() => newThread(thread.projectId, thread.projectName, thread.worktreeId ?? undefined)} onNewWith={(engine) => {
+            ? <ThreadBody thread={thread} live={live} toast={toast} waiting={waiting} returned={state.returned} send={send} sheet={sheet} onSheet={setSheet} onChanges={() => enter("changes")} onNewHere={() => newThread(thread.projectId, thread.projectName, thread.worktreeId ?? undefined)} onNewWith={(engine) => {
               newThread(thread.projectId, thread.projectName, thread.worktreeId ?? undefined);
               send({ type: "task.set-model", engine, model: defaultModelFor(engine) });
             }} onArchive={() => {
-              const { id, title: archivedTitle } = thread;
+              const { id } = thread;
               back();
-              archive(id, archivedTitle);
+              archive(id);
             }} />
             : draft && !pending
               ? <DraftBody draft={draft} groups={state.view.groups} live={live} waiting={waiting} send={send} sheet={sheet} onSheet={setSheet} onProject={newThread} onStartIn={(worktreeId) => newThread(draft.projectId, draft.projectName, worktreeId)} />
@@ -593,7 +474,6 @@ export function App() {
             now={now}
             initialScrollTop={listScroll.current}
             onScroll={rememberScroll}
-            filing={filing}
             onOpen={openThread}
             onMenu={openMenu}
             onNew={newFromList}
@@ -614,8 +494,8 @@ function RowOptions({ menu: { thread, renaming }, send, onMenu, onOpen, onDismis
   send: (command: MobileCommand) => void;
   onMenu: (menu: RowMenu | null) => void;
   onOpen: (taskId: string, title: string, project: string | null) => void;
-  onDismiss: (taskId: string, title: string) => void;
-  onArchive: (taskId: string, title: string) => void;
+  onDismiss: (taskId: string) => void;
+  onArchive: (taskId: string) => void;
 }) {
   const close = () => onMenu(null);
   if (renaming) return <RenameSheet title={thread.title} onClose={close} onRename={(title) => send({ type: "task.rename", taskId: thread.id, title })} />;
@@ -626,8 +506,8 @@ function RowOptions({ menu: { thread, renaming }, send, onMenu, onOpen, onDismis
       onOpen={() => onOpen(thread.id, thread.title, thread.projectName)}
       onRename={() => onMenu({ thread, renaming: true })}
       onFork={() => send({ type: "task.fork", taskId: thread.id })}
-      {...(thread.attention ? { onDismiss: () => onDismiss(thread.id, thread.title) } : {})}
-      onArchive={() => onArchive(thread.id, thread.title)}
+      {...(thread.attention ? { onDismiss: () => onDismiss(thread.id) } : {})}
+      onArchive={() => onArchive(thread.id)}
     />
   );
 }
@@ -644,7 +524,7 @@ function returnedTo(returned: ReturnedCommand | null, taskId: string): ReturnedT
   return null;
 }
 
-function ThreadBody({ thread, live, toast, waiting, returned, send, sheet, onSheet, onChanges, onMove, onNewHere, onNewWith, onArchive }: {
+function ThreadBody({ thread, live, toast, waiting, returned, send, sheet, onSheet, onChanges, onNewHere, onNewWith, onArchive }: {
   thread: MobileThreadView;
   live: boolean;
   /** The Undo on offer, held above the composer. */
@@ -655,7 +535,6 @@ function ThreadBody({ thread, live, toast, waiting, returned, send, sheet, onShe
   sheet: ThreadSheet;
   onSheet: (sheet: ThreadSheet) => void;
   onChanges: () => void;
-  onMove: (thread: MobileThreadView, destination: WorktreeDestination, label: string) => void;
   onNewHere: () => void;
   /** Starts a thread in the same place on another engine, which an existing thread cannot switch to. */
   onNewWith: (engine: AgentEngine) => void;
@@ -706,7 +585,7 @@ function ThreadBody({ thread, live, toast, waiting, returned, send, sheet, onShe
         onRename={() => onSheet("rename")}
         onArchive={onArchive}
       />}
-      {sheet === "location" && <LocationSheet thread={thread} onClose={close} onMove={(destination, label) => onMove(thread, destination, label)} />}
+      {sheet === "location" && <LocationSheet thread={thread} onClose={close} onMove={(destination) => send({ type: "task.move-worktree", taskId: thread.id, destination })} />}
       {sheet === "rename" && <RenameSheet title={thread.title} onClose={close} onRename={(title) => send({ type: "task.rename", taskId: thread.id, title })} />}
     </>
   );

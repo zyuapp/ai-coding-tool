@@ -548,7 +548,7 @@ test("a thread rename refuses a blank name with a mark, and a blank field left b
   } finally { await view.unmount(); }
 });
 
-test("an activity row is a button named by its title and meta line, marked current when open, and Space opens it", async () => {
+test("an activity row holds its buttons without being one, is marked current when open, and Space and Enter open it", async () => {
   const selected: string[] = [];
   const view = await mount(renderProjectSidebar({
     mode: "activity",
@@ -558,16 +558,21 @@ test("an activity row is a button named by its title and meta line, marked curre
   }));
   try {
     const [open, other] = [...view.container.querySelectorAll<HTMLElement>('nav[aria-label="Threads"] > .task-entry')];
-    assert.equal(open!.getAttribute("role"), "button");
+    assert.equal(open!.getAttribute("role"), null, "a row holding buttons is not itself a button");
+    assert.equal(open!.querySelector('[role="button"]'), null);
+    assert.ok(open!.querySelector("button"), "its More button stays reachable");
+    assert.equal(open!.tabIndex, 0);
     assert.equal(open!.getAttribute("aria-current"), "true");
     assert.equal(other!.getAttribute("aria-current"), null);
-    const [title, meta] = open!.getAttribute("aria-labelledby")!.split(" ").map((id) => document.getElementById(id));
-    assert.equal(title!.textContent, "open");
-    assert.equal(meta!.tagName, "SMALL");
     const space = new dom.window.KeyboardEvent("keydown", { key: " ", bubbles: true, cancelable: true });
     await act(async () => { other!.dispatchEvent(space); });
     assert.deepEqual(selected, ["other"]);
     assert.equal(space.defaultPrevented, true);
+    await act(async () => { open!.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
+    assert.deepEqual(selected, ["other", "open"]);
+    const fromButton = new dom.window.KeyboardEvent("keydown", { key: " ", bubbles: true, cancelable: true });
+    await act(async () => { other!.querySelector("button")!.dispatchEvent(fromButton); });
+    assert.deepEqual(selected, ["other", "open"], "a key on the row's own button is that button's");
   } finally { await view.unmount(); }
 });
 

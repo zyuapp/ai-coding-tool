@@ -70,7 +70,6 @@ export function FileHeader({ file, open, viewed, echo = false, onToggle, onOpenF
           onChange={(event) => onSetViewed(file.path, event.currentTarget.checked)}
         />
         <Check size={14} aria-hidden="true" />
-        <span aria-hidden="true">Viewed</span>
       </label>
     </div>
   );

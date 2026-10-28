@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test, vi } from "vitest";
 import { act } from "react";
-import { click, clickRow, lastCommand, live, openPhone, view } from "../support/mobile-phone.mts";
+import { click, clickRow, lastCommand, live, openPhone, patchView, view } from "../support/mobile-phone.mts";
 
 test("every row carries a visible options button that opens the row's options", () => {
   const line = openPhone({ paired: true });
@@ -54,7 +54,7 @@ test("a setting tapped while the line is down waits with its command instead of 
   }
 });
 
-test("moving a thread to a checkout that stands offers Undo above the composer, which moves it back", () => {
+test("the Mac's Undo for a move shows above the composer, and moves the thread back", () => {
   const line = openPhone({ paired: true });
   const housed = view();
   housed.thread = { ...housed.thread!, worktrees: [{ id: "wt-2", name: "Spike", branch: "spike" }] };
@@ -64,13 +64,14 @@ test("moving a thread to a checkout that stands offers Undo above the composer, 
   clickRow("Location");
   click('.location-option[aria-checked="false"]:not(:disabled)');
   assert.deepEqual(lastCommand(line), { type: "task.move-worktree", taskId: "t1", destination: { kind: "worktree", id: "wt-2" } });
+  patchView(line, 2, { undo: { id: 1, title: "Moved to Spike", command: { type: "task.move-worktree", taskId: "t1", destination: { kind: "local" } } } });
   assert.match(document.querySelector(".toast-dock .undo-toast")?.textContent ?? "", /Moved to Spike/);
   click(".undo-toast button");
   assert.deepEqual(lastCommand(line), { type: "task.move-worktree", taskId: "t1", destination: { kind: "local" } });
   assert.equal(document.querySelector(".undo-toast"), null);
 });
 
-test("leaving a worktree only this thread works in says it goes, and offers no Undo that could not bring it back", () => {
+test("leaving a worktree only this thread works in says it goes", () => {
   const line = openPhone({ paired: true });
   const housed = view();
   housed.thread = { ...housed.thread!, location: { kind: "worktree", name: "Feature", threads: 1 }, worktreeId: "wt-1", worktrees: [] };
@@ -81,7 +82,6 @@ test("leaving a worktree only this thread works in says it goes, and offers no U
   assert.equal(document.querySelector('.location-option[aria-checked="true"] small')?.textContent, "Removed once this thread leaves");
   click('.location-option[aria-checked="false"]:not(:disabled)');
   assert.deepEqual(lastCommand(line), { type: "task.move-worktree", taskId: "t1", destination: { kind: "local" } });
-  assert.equal(document.querySelector(".undo-toast"), null);
 });
 
 test("a line down for a minute or more says for how long", () => {

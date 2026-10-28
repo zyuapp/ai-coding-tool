@@ -36,6 +36,8 @@ export { EMPTY_DIFF, diffFor, diffMatches, foldedOnLoad, retainedViews, withDiff
 import type { AutomationView } from "../domain/automation.js";
 import { NO_APP_UPDATE, type AppBuild, type AppUpdate, type AppUpdateRequest } from "../domain/app-update.js";
 import type { Toast } from "../domain/toast.js";
+import type { FiledAttention } from "../domain/attention.js";
+import { visibleToasts } from "./toasts.js";
 import { emptyMobileServerState, type MobileServerState } from "../domain/mobile.js";
 import { selectedComputer, NO_COMPUTERS, type ComputersState } from "./computers.js";
 import { overlaidView } from "./workspace-view-overlay.js";
@@ -54,7 +56,8 @@ import type { Workflow } from "../domain/workflow.js";
 import { DEFAULT_ENGINE, DEFAULT_MODEL, byEngine, capabilitiesFor, defaultEffortFor, defaultModelFor, effortForModel, engineLabel, isAgentEngine, unopenableEngine, type AgentEngine, type AgentModel, type EngineCapabilities, type EngineReadiness, type EngineStatus } from "../domain/agent-engine.js";
 import { engineReadinessOf } from "./engine-access.js";
 import { DEFAULT_EFFORT, OPEN_SUBAGENT_GROUPS, type AgentEffort, type ExecutionPolicy, type Subagent, type SubagentGroups } from "../domain/run.js";
-import { annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-drafts.js";
+import { annotationRevealFor, annotationsFor, filesFor, imagesFor, pastesFor, type AnnotationReveal } from "./composer-drafts.js";
+export type { AnnotationReveal } from "./composer-drafts.js";
 import type { Annotation, AttachedFile, PastedText, StagedImage } from "../domain/conversation.js";
 import type { MessageOrigin } from "../domain/message-origin.js";
 import { projectName, type Project } from "../domain/project.js";
@@ -340,6 +343,8 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   diffs: Record<string, DiffState>;
   /** Where each thread was left reading, keyed by thread id. Session-only, and never persisted. */
   readingPoints: Record<string, ReadingPoint>;
+  /** The drafted annotation a transcript was last asked to show, and a count bumped by each ask. Session-only. */
+  annotationReveal: AnnotationReveal | null;
   /** The find bar, and what a page or a shell reported after searching itself. */
   find: FindState | null;
   findResults: FindResults | null;
@@ -402,6 +407,8 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   toastSequence: number;
   /** What the user closed toasts about, so the same ones are not raised again. Kept between launches. */
   dismissedToasts: string[];
+  /** What the last dismissal took from each thread it filed away, which its Undo puts back. Session-only. */
+  filedAttention: Record<string, FiledAttention>;
   /** The computers this one is paired with, each mirrored here as it changes there. Session-only. */
   computers: ComputersState;
   focused: boolean;
@@ -498,6 +505,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     docks: {},
     diffs: {},
     readingPoints: {},
+    annotationReveal: null,
     find: null,
     findResults: null,
     jump: null, zen: false,
@@ -525,6 +533,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     toasts: [],
     toastSequence: 0,
     dismissedToasts: [],
+    filedAttention: {},
     computers: NO_COMPUTERS,
     focused: true,
     activeRuns: {},
@@ -704,7 +713,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state,
     ...modelView(state, currentThread),
     fastMode: capabilitiesFor(currentThread?.engine ?? state.draftEngine).fastMode && (currentThread ? currentThread.fastMode ?? false : state.draftFastMode),
     prompt: state.prompts[promptKey(state)] ?? "",
-    annotations: annotationsFor(state, promptKey(state)),
+    annotations: annotationsFor(state, promptKey(state)), annotationReveal: annotationRevealFor(state, promptKey(state)),
     pastes: pastesFor(state, promptKey(state)),
     images: imagesFor(state, promptKey(state)),
     files: filesFor(state, promptKey(state)),
@@ -816,7 +825,7 @@ function deriveOwnView(state: WorkspaceState, window: WorktreeMenuState = state,
     remote: state.remote,
     remoteChecking: state.remoteChecking,
     appUpdate: state.appUpdate,
-    toasts: state.toasts,
+    visibleToasts: visibleToasts(state),
     /** The paired computers as the chrome draws them, and the one whose thread is on screen. */
     computerLinks: collections.computerLinks,
     /** Each paired computer's own plan limits, beside this computer's `planUsage`. */

@@ -1,4 +1,4 @@
-import { annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-drafts.js";
+import { annotationRevealFor, annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-drafts.js";
 import { promptKey, type OwnWorkspaceView, type SideChatView, type ThreadTabView, type WorkspaceState } from "./workspace-state.js";
 import { heldViews } from "./view-reuse.js";
 import type { WorktreeMenuState } from "./worktree-menu.js";
@@ -16,7 +16,7 @@ const OWN_VIEW_KEYS = [
   "expandedProjects", "projectAdd", "projectEditor", "worktreeMove", "forkName", "sections", "subagentGroups", "theme", "themeMode", "uiFont", "monoFont", "readingSize", "terminalSize",
   "sidebarMode", "activityProject", "sidebarOpen", "sessionPanelOpen", "captureSound", "captureFocus", "chromeBrowser", "computerUse", "browserTools", "notifications",
   "favoriteModels", "shortcuts", "capturingShortcut", "desktopShortcutUnavailable", "composerFocus", "settingsOpen", "settingsSection", "settingsFocus",
-  "openMenu", "jump", "zen", "remote", "remoteChecking", "appUpdate", "toasts", "canGoBack", "canGoForward", "browserOrigins", "browserImport",
+  "openMenu", "jump", "zen", "remote", "remoteChecking", "appUpdate", "visibleToasts", "canGoBack", "canGoForward", "browserOrigins", "browserImport",
   "computerLinks", "computerUsage", "computerUpkeep", "activeComputer", "computerName", "computerFilter", "computerPairing", "computersFound", "computersSearching", "computersSearchError", "threadHosts", "projectHosts",
   "threadsByCoordinator", "waitingLines", "coordinatorsByComputer",
 ] as const;
@@ -34,6 +34,7 @@ function localDraft(state: WorkspaceState, key: string) {
   return {
     prompt: state.prompts[key] ?? "",
     annotations: annotationsFor(state, key),
+    annotationReveal: annotationRevealFor(state, key),
     pastes: pastesFor(state, key),
     images: imagesFor(state, key),
     files: filesFor(state, key),

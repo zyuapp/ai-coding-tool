@@ -157,3 +157,29 @@ test("an annotation made in a side chat focuses that chat's composer, not the th
   assert.equal(noted.composerFocus, opened.composerFocus, "the thread's own composer is left alone");
   assert.deepEqual(noted.dockFocus, { owner: "task-1", tab: "chat-1", count: opened.dockFocus!.count + 1 });
 });
+
+test("revealing a drafted annotation asks only the transcript that drafted it, each ask bumping the count", () => {
+  const anchor = { kind: "message", messageId: "m-1", start: 0, end: 9 } as const;
+  const drafted = run(currentWorkspace(), [
+    { type: "side-chat.open", chatId: "chat-1" },
+    { type: "annotation.add", quote: "in the thread", anchor },
+    { type: "annotation.add", taskId: "chat-1", quote: "in the fork", anchor },
+    { type: "annotation.add", quote: "a bare reference" },
+  ]);
+  const [mine, bare] = drafted.annotations["task-1"]!;
+  const [forked] = drafted.annotations["chat-1"]!;
+  assert.ok(mine && bare && forked);
+
+  const revealed = reduce(drafted, { type: "annotation.reveal", taskId: "chat-1", annotationId: forked.id }).state;
+  assert.deepEqual(revealed.annotationReveal, { taskId: "chat-1", annotationId: forked.id, messageId: "m-1", count: 1 });
+  assert.deepEqual(deriveView(revealed).sideChats[0].annotationReveal, revealed.annotationReveal);
+  assert.equal(deriveView(revealed).annotationReveal, null, "the thread holding the same message is not asked");
+
+  const again = reduce(revealed, { type: "annotation.reveal", annotationId: mine.id }).state;
+  assert.deepEqual(again.annotationReveal, { taskId: "task-1", annotationId: mine.id, messageId: "m-1", count: 2 });
+  assert.deepEqual(deriveView(again).annotationReveal, again.annotationReveal);
+  assert.equal(deriveView(again).sideChats[0].annotationReveal, null);
+
+  assert.equal(reduce(again, { type: "annotation.reveal", annotationId: bare.id }).state, again, "a reference with no passage shows nothing");
+  assert.equal(reduce(again, { type: "annotation.reveal", annotationId: forked.id }).state, again, "another composer's annotation is not this one's to show");
+});

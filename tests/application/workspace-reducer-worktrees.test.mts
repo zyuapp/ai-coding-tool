@@ -246,7 +246,7 @@ test("archiving a thread cancels its run and keeps its checkout", () => {
 
   const archived = reduce(state, { type: "task.archive", taskId: "task-a" });
 
-  assert.deepEqual(archived.effects.filter((effect) => effect.type !== "browser.show" && effect.type !== "focus-window"), [
+  assert.deepEqual(archived.effects.filter((effect) => effect.type !== "browser.show" && effect.type !== "focus-window" && effect.type !== "schedule-toast-dismissal"), [
     { type: "send-run-command", command: { type: "cancel", taskId: "task-a", runId: "run-a" } },
     { type: "send-run-command", command: { type: "archive", taskId: "task-a", channel: "main", archived: true } },
   ]);
@@ -266,7 +266,7 @@ test("archiving one thread leaves a checkout another thread is still working in 
 
   const archived = reduce(state, { type: "task.archive", taskId: "task-a" });
 
-  assert.deepEqual(archived.effects, [], "the checkout goes back only when the last thread lets go");
+  assert.deepEqual(archived.effects.filter((effect) => effect.type !== "schedule-toast-dismissal"), [], "the checkout goes back only when the last thread lets go");
   assert.deepEqual(archived.state.worktrees, [worktree]);
 });
 

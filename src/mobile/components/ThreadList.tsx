@@ -107,12 +107,10 @@ const ACTIVITY_SECTIONS: ReadonlyArray<{ key: keyof MobileActivity; label: strin
   { key: "snoozed", label: "Snoozed" },
 ];
 
-export const ThreadList = memo(function ThreadList({ mode, groups, activity, filing, now, initialScrollTop, onScroll, onOpen, onMenu, onNew, onDismiss, onDismissAll }: {
+export const ThreadList = memo(function ThreadList({ mode, groups, activity, now, initialScrollTop, onScroll, onOpen, onMenu, onNew, onDismiss, onDismissAll }: {
   mode: MobileListMode;
   groups: MobileProjectGroup[];
   activity: MobileActivity;
-  /** Priority rows already dismissed while Undo is still offered, which Priority no longer shows. */
-  filing: ReadonlySet<string>;
   now: number;
   /** Where the list was when it was last left, so coming back from a thread lands on the same rows. */
   initialScrollTop: number;
@@ -122,9 +120,9 @@ export const ThreadList = memo(function ThreadList({ mode, groups, activity, fil
   /** Puts the row's options up over the list. */
   onMenu: (thread: MobileThreadEntry) => void;
   onNew: (projectId: string | null, project: string | null) => void;
-  onDismiss: (threadId: string, title: string) => void;
-  /** Files away the Priority rows shown, named as the toast names them, in `projectId` or every project. */
-  onDismissAll: (threadIds: string[], title: string, projectId?: string) => void;
+  onDismiss: (threadId: string) => void;
+  /** Files away the Priority rows in `projectId`, or in every project. */
+  onDismissAll: (projectId?: string) => void;
 }) {
   const [folded, setFolded] = useState(() => readFolded(localStorage));
   const [chosenProject, setChosenProject] = useState(() => readActivityProject(localStorage));
@@ -133,10 +131,7 @@ export const ThreadList = memo(function ThreadList({ mode, groups, activity, fil
   /** A project the Mac no longer lists narrows nothing, so the list is never emptied by one that is gone. */
   const narrowed = projects.find((group) => group.projectId === chosenProject);
   const project = narrowed?.projectId ?? null;
-  const shown = useMemo(() => {
-    const narrowedTo = project ? narrowActivity(activity, project) : activity;
-    return filing.size ? { ...narrowedTo, priority: narrowedTo.priority.filter((thread) => !filing.has(thread.id)) } : narrowedTo;
-  }, [activity, project, filing]);
+  const shown = useMemo(() => project ? narrowActivity(activity, project) : activity, [activity, project]);
   const dismissable = shown.priority.filter((thread) => thread.attention);
   /** A list with nothing in it keeps its groups, which are how a project is started into, under one plain way to start. */
   const bare = !groups.some((group) => group.threads.length);
@@ -179,7 +174,7 @@ export const ThreadList = memo(function ThreadList({ mode, groups, activity, fil
             meta={extra.meta(thread)}
             onOpen={() => onOpen(thread.id, thread.title, extra.project(thread))}
             onMenu={() => onMenu(thread)}
-            {...(extra.dismissable && thread.attention ? { onDismiss: () => onDismiss(thread.id, thread.title) } : {})}
+            {...(extra.dismissable && thread.attention ? { onDismiss: () => onDismiss(thread.id) } : {})}
           />
         ))}
         {open && !threads.length && extra.empty && <p className="group-empty">{extra.empty}</p>}
@@ -208,7 +203,7 @@ export const ThreadList = memo(function ThreadList({ mode, groups, activity, fil
       {/** Snoozed only shows while something is in it, as on the desktop. */}
       {mode === "activity" && ACTIVITY_SECTIONS.filter(({ key }) => key !== "snoozed" || shown.snoozed.length).map(({ key, label }) => section({ key: `activity:${key}`, label, threads: shown[key] }, {
         action: key === "priority" && dismissable.length
-          ? <button type="button" className="section-text-action" onClick={() => onDismissAll(dismissable.map((thread) => thread.id), dismissable.length === 1 ? dismissable[0]!.title : `${dismissable.length} threads`, project ?? undefined)}>Dismiss all</button>
+          ? <button type="button" className="section-text-action" onClick={() => onDismissAll(project ?? undefined)}>Dismiss all</button>
           : undefined,
         empty: key === "priority" ? "Nothing waiting" : undefined,
         meta: (thread) => activityMeta(thread, now),

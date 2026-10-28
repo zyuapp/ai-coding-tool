@@ -27,6 +27,7 @@ function view(title: string): MobileView {
     thread: { id: "t1", title, projectId: "p", projectName: "App", worktreeId: null, messages: [], omitted: 0, streamingTail: null, status: "idle", approval: null, queued: [], settings: { engine: "claude", model: "opus", effort: "high", policy: "confirm" }, location: { kind: "local" }, worktrees: [], canMove: true, changes: null, reviewable: true, branchRange: { kind: "branches", base: "HEAD", compare: null } },
     draft: null,
     error: null,
+    undo: null,
   };
 }
 

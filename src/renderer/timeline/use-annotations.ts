@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
+import type { AnnotationReveal } from "../../application/workspace-state";
 import type { Annotation, AnnotationAnchor } from "../../domain/conversation";
 import { useDismissibleLayer } from "../focus";
 import { ANNOTATION_HIGHLIGHT, highlights, renderedOffset, renderedRange } from "./highlights";
@@ -209,4 +210,54 @@ export function useAnnotationMarkers({ timelineRef, annotations, rendered, messa
     };
   }, [annotations, rendered, messageCount]);
   return markers;
+}
+
+/** As long as the marker's flash animation runs. */
+const FLASH_MS = 1800;
+
+type RevealOptions = {
+  reveal: AnnotationReveal | null;
+  markers: AnnotationMarker[];
+  timelineRef: RefObject<HTMLDivElement | null>;
+  /** Draws a message's row when its marker is not on screen to be scrolled to. */
+  scrollToMessage: (messageId: string) => void;
+};
+
+/**
+ * Answers each reveal the workspace records for this transcript, and no earlier one: the passage is
+ * brought into view, centred on its marker once that is drawn, and the marker flashes.
+ * Returns the id of the marker flashing.
+ */
+export function useAnnotationReveal({ reveal, markers, timelineRef, scrollToMessage }: RevealOptions) {
+  const answered = useRef(reveal?.count);
+  const centering = useRef<string | null>(null);
+  const [flashing, setFlashing] = useState<{ id: string; count: number } | null>(null);
+
+  useEffect(() => {
+    if (!reveal || reveal.count === answered.current) return;
+    answered.current = reveal.count;
+    centering.current = reveal.annotationId;
+    setFlashing({ id: reveal.annotationId, count: reveal.count });
+    if (!markers.some((marker) => marker.id === reveal.annotationId)) scrollToMessage(reveal.messageId);
+  }, [reveal]);
+
+  useEffect(() => {
+    const id = centering.current;
+    if (!id) return;
+    const marker = [...(timelineRef.current?.querySelectorAll<HTMLElement>(".annotation-marker") ?? [])].find((element) => element.dataset.annotationId === id);
+    if (!marker) return;
+    centering.current = null;
+    marker.scrollIntoView({ block: "center" });
+  }, [markers, flashing]);
+
+  useEffect(() => {
+    if (!flashing) return;
+    const timer = setTimeout(() => {
+      centering.current = null;
+      setFlashing(null);
+    }, FLASH_MS);
+    return () => clearTimeout(timer);
+  }, [flashing]);
+
+  return flashing?.id ?? null;
 }

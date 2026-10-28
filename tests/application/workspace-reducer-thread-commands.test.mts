@@ -15,11 +15,12 @@ test("archiving a thread retires its automation and cancels a run still going", 
   });
 
   const archived = reduce(state, { type: "task.archive", taskId: "task-a" });
-  assert.deepEqual(archived.effects, [{ type: "automation.delete", taskId: "task-a" }]);
+  const work = (effects: ReturnType<typeof reduce>["effects"]) => effects.filter((effect) => effect.type !== "schedule-toast-dismissal");
+  assert.deepEqual(work(archived.effects), [{ type: "automation.delete", taskId: "task-a" }]);
   assert.ok(archived.state.threads[0].archivedAt);
 
   const running = reduce(state, { type: "task.archive", taskId: "task-b" });
-  assert.deepEqual(running.effects, [
+  assert.deepEqual(work(running.effects), [
     { type: "automation.delete", taskId: "task-b" },
     { type: "send-run-command", command: { type: "cancel", taskId: "task-b", runId: "run-b" } },
     { type: "send-run-command", command: { type: "archive", taskId: "task-b", channel: "main", archived: true } },

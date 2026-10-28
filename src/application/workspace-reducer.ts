@@ -10,6 +10,7 @@ import { prunedFind } from "./workspace-reducer/find.js";
 import { settledZen, zenAllowed } from "./workspace-zen.js";
 import { settledUnlisted } from "./project-commands.js";
 import { rejected, settled } from "./workspace-reducer/shared.js";
+import { forwardedUndo, usesUndo, withoutUndo } from "./undo.js";
 import { activeComputer, computerOfThread, selectedComputer, leavesComputer, routeInput, type InputRoute } from "./computers.js";
 import { supportsComputerCommand } from "../contracts/computer-capabilities.js";
 import { clampTitle } from "../domain/thread.js";
@@ -30,7 +31,10 @@ export { AUTOMATION_PANEL, DIFF_PANEL, OVERVIEW_PANEL, WORKFLOW_PANEL } from "./
  * driving the app); events report what the outside world did back. Nothing here touches Electron.
  */
 export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransition {
-  const transition = reduceInput(state, input);
+  /** An Undo goes once used, and taking an action back offers no Undo of its own. */
+  const undoing = usesUndo(state, input);
+  const reduced = reduceInput(undoing ? withoutUndo(state) : state, input);
+  const transition = undoing ? { ...reduced, state: withoutUndo(reduced.state) } : reduced;
   const zen = settledZen(state, transition.state);
   return zen === transition.state ? transition : { ...transition, state: zen };
 }
@@ -49,7 +53,7 @@ function reduceInput(state: WorkspaceState, input: WorkspaceInput): WorkspaceTra
   }
   const route = routeInput(state, input);
   if (route.kind === "refuse") return rejected(state, route.message);
-  if (route.kind === "computer" && !route.also) return forwarded(state, route);
+  if (route.kind === "computer" && !route.also) return forwardedUndo(state, input, forwarded(state, route));
   const carried = route.kind === "computer" ? [forwardEffect(route)] : [];
   const left = leavingComputer(state, input);
   const applied = reconcileAppUpdate(left, reconcileCoordination(left, reconcileLimitPauses(left, reconcileSnoozes(left, apply(left, input), input), input), input));

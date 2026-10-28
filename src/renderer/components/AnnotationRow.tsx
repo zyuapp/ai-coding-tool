@@ -21,7 +21,7 @@ export function useClamped<T extends HTMLElement = HTMLSpanElement>(text: string
 }
 
 /** The card a pill raises on hover or keyboard focus: which annotation, what was quoted, what the user wrote. */
-function AnnotationCard({ annotation, index, id, revealable }: { annotation: Annotation; index: number; id: string; revealable: boolean }) {
+function AnnotationCard({ annotation, index, id }: { annotation: Annotation; index: number; id: string }) {
   const note = annotation.note.trim();
   const [quote, quoteClamped] = useClamped(annotation.quote);
   const [written, noteClamped] = useClamped(note);
@@ -31,7 +31,6 @@ function AnnotationCard({ annotation, index, id, revealable }: { annotation: Ann
       <span className="annotation-card-head">
         <span className="annotation-pill-number">{index + 1}</span>
         Annotation
-        {revealable && <span className="annotation-card-hint">Click to show in transcript</span>}
       </span>
       <span className="annotation-card-body">
         <span ref={quote} className="annotation-card-quote" data-clamped={quoteClamped || undefined}>{annotation.quote}</span>
@@ -48,32 +47,16 @@ function AnnotationCard({ annotation, index, id, revealable }: { annotation: Ann
   );
 }
 
-const FLASH_MS = 1800;
-
-/** Brings a drafted annotation's marker into view in the transcript and flashes it. */
-function revealPassage(annotation: Annotation) {
-  if (annotation.anchor?.kind !== "message") return;
-  const { messageId } = annotation.anchor;
-  const marker = () => [...document.querySelectorAll<HTMLElement>(".annotation-marker")].find((element) => element.dataset.annotationId === annotation.id);
-  const target = marker() ?? [...document.querySelectorAll<HTMLElement>("[data-message-id]")].find((element) => element.dataset.messageId === messageId);
-  target?.scrollIntoView({ block: "center" });
-  requestAnimationFrame(() => {
-    const found = marker();
-    if (!found) return;
-    found.classList.add("flash");
-    setTimeout(() => found.classList.remove("flash"), FLASH_MS);
-  });
-}
-
 /** One annotation at rest: its number, then the note the user wrote, falling back to the quote. */
-function AnnotationPill({ annotation, index, onRemove }: {
+function AnnotationPill({ annotation, index, onRemove, onReveal }: {
   annotation: Annotation;
   index: number;
   onRemove?: (annotationId: string) => void;
+  onReveal?: (annotationId: string) => void;
 }) {
   const cardId = useId();
   const note = annotation.note.trim();
-  const revealable = annotation.anchor?.kind === "message";
+  const revealable = Boolean(onReveal) && annotation.anchor?.kind === "message";
   const face = (
     <>
       <span className="annotation-pill-number">{index + 1}</span>
@@ -86,7 +69,7 @@ function AnnotationPill({ annotation, index, onRemove }: {
   return (
     <span className="annotation-pill" role="listitem">
       {revealable ? (
-        <button type="button" className="annotation-pill-face" aria-label={`Show annotation ${index + 1}`} aria-describedby={cardId} onClick={() => revealPassage(annotation)}>{face}</button>
+        <button type="button" className="annotation-pill-face" aria-label={`Show annotation ${index + 1}`} aria-describedby={cardId} onClick={() => onReveal?.(annotation.id)}>{face}</button>
       ) : (
         <span className="annotation-pill-face" tabIndex={0} aria-label={`Annotation ${index + 1}`} aria-describedby={cardId}>{face}</span>
       )}
@@ -95,22 +78,24 @@ function AnnotationPill({ annotation, index, onRemove }: {
           <X size={12} />
         </button>
       )}
-      <AnnotationCard annotation={annotation} index={index} id={cardId} revealable={revealable} />
+      <AnnotationCard annotation={annotation} index={index} id={cardId} />
     </span>
   );
 }
 
-/** Annotations as numbered pills: removable while drafted in a composer, read-only on a sent message. */
-export function AnnotationRow({ annotations, onRemove }: {
+/** Annotations as numbered pills: removable and revealable while drafted in a composer, read-only on a sent message. */
+export function AnnotationRow({ annotations, onRemove, onReveal }: {
   annotations: Annotation[];
   onRemove?: (annotationId: string) => void;
+  /** Shows a drafted annotation's passage in the transcript it was taken from. */
+  onReveal?: (annotationId: string) => void;
 }) {
   if (annotations.length === 0) return null;
 
   return (
     <div className="annotation-row" role="list" aria-label="Annotations">
       {annotations.map((annotation, index) => (
-        <AnnotationPill key={annotation.id} annotation={annotation} index={index} onRemove={onRemove} />
+        <AnnotationPill key={annotation.id} annotation={annotation} index={index} onRemove={onRemove} onReveal={onReveal} />
       ))}
     </div>
   );

@@ -34,6 +34,7 @@ export type DockConversationProps = {
   onAnnotateNote: (annotationId: string, note: string) => void;
   onAnnotateRecall: (annotations: Annotation[]) => void;
   onAnnotateRemove: (annotationId: string) => void;
+  onAnnotateReveal: (annotationId: string) => void;
   onPasteAdd: (text: string) => void;
   onPasteRecall: (pastes: PastedText[]) => void;
   onPasteRemove: (pasteId: string) => void;
@@ -67,7 +68,7 @@ export type DockConversationProps = {
  * A thread talked to from a dock tab: its transcript, its approval, and its composer. The tab draws
  * its own header and says what the thread is.
  */
-export function DockConversation({ chat, engineLabel, focusToken = 0, find = null, findBar, folder = "", workspaceId, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, outbox, onAnswerQuestion, onQuestionAnswerChange, onCancel, onDecide, onPolicyChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onFastModeChange, onEditQueued, onSteerQueued, onDropQueued, updateAvailable = false, className, label, header, empty, surface, disabled = false, error = null, note, action }: DockConversationProps & {
+export function DockConversation({ chat, engineLabel, focusToken = 0, find = null, findBar, folder = "", workspaceId, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onAnnotateReveal, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, outbox, onAnswerQuestion, onQuestionAnswerChange, onCancel, onDecide, onPolicyChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onFastModeChange, onEditQueued, onSteerQueued, onDropQueued, updateAvailable = false, className, label, header, empty, surface, disabled = false, error = null, note, action }: DockConversationProps & {
   className: string;
   label: string;
   header: ReactNode;
@@ -102,6 +103,7 @@ export function DockConversation({ chat, engineLabel, focusToken = 0, find = nul
           readingPoint={readingPoint}
           onReadingPointMove={onReadingPointMove}
           annotations={chat.annotations}
+          annotationReveal={chat.annotationReveal}
           onAnnotateAdd={onAnnotateAdd}
           onAnnotateNote={onAnnotateNote}
           onAnnotateRemove={onAnnotateRemove}
@@ -145,6 +147,7 @@ export function DockConversation({ chat, engineLabel, focusToken = 0, find = nul
         onPromptChange={onPrompt}
         onAnnotationRecall={onAnnotateRecall}
         onAnnotationRemove={onAnnotateRemove}
+        onAnnotationReveal={onAnnotateReveal}
         onPasteAdd={onPasteAdd}
         onPasteRecall={onPasteRecall}
         onPasteRemove={onPasteRemove}

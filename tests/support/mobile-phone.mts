@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
-import type { MobileClientMessage, MobileView } from "../../src/contracts/mobile.ts";
+import type { MobileClientMessage, MobilePatch, MobileView } from "../../src/contracts/mobile.ts";
 import { MOBILE_CREDENTIAL_KEY, MOBILE_FOLDED_KEY } from "../../src/mobile/client/storage.ts";
 import { App } from "../../src/mobile/App.tsx";
 
@@ -77,6 +77,7 @@ export function view(): MobileView {
     },
     draft: null,
     error: null,
+    undo: null,
   };
 }
 
@@ -144,4 +145,9 @@ export function queries(line: FakeSocket) {
 export function live(line: FakeSocket, body: MobileView = view()) {
   act(() => line.onopen?.());
   act(() => line.onmessage?.({ data: JSON.stringify({ kind: "snapshot", sequence: 1, sessionId: "s9", build: BUILD, view: body }) }));
+}
+
+/** A change the Mac pushes after the snapshot `live` sent, numbered `sequence`. */
+export function patchView(line: FakeSocket, sequence: number, patch: MobilePatch) {
+  act(() => line.onmessage?.({ data: JSON.stringify({ kind: "patch", sequence, patch }) }));
 }

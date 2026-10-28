@@ -7,7 +7,7 @@ import { MOBILE_FOLDED_KEY } from "../../src/mobile/client/storage.ts";
 import { groupMark, settingsSummary } from "../../src/mobile/format.ts";
 import { defaultModelFor } from "../../src/domain/agent-engine.ts";
 import { ensureLanguage } from "../../src/renderer/diff/highlight.ts";
-import { BUILD, CODE, TOKEN, click, clickButton, clickRow, dom, lastCommand, live, openPhone, queries, typeInto, view, type FakeSocket } from "../support/mobile-phone.mts";
+import { BUILD, CODE, TOKEN, click, clickButton, clickRow, dom, lastCommand, live, openPhone, patchView, queries, typeInto, view, type FakeSocket } from "../support/mobile-phone.mts";
 
 test("the phone page pairs from the address, opens a thread, and answers an approval", () => {
   const line = openPhone({ code: CODE });
@@ -298,7 +298,7 @@ test("a group folds shut and stays shut across a reload", () => {
 test("a Mac with no threads still shows a group to start one in", () => {
   const line = openPhone({ paired: true });
   act(() => line.onopen?.());
-  const bare: MobileView = { groups: [{ projectId: null, name: "Recents", threads: [] }], activity: { priority: [], running: [], threads: [], snoozed: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" }, thread: null, draft: null, error: null };
+  const bare: MobileView = { groups: [{ projectId: null, name: "Recents", threads: [] }], activity: { priority: [], running: [], threads: [], snoozed: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" }, thread: null, draft: null, error: null, undo: null };
   act(() => line.onmessage?.({ data: JSON.stringify({ kind: "snapshot", sequence: 1, sessionId: "s6", build: BUILD, view: bare }) }));
   assert.ok(document.querySelector(".group-header .section-action"), "the empty group still offers New");
   assert.equal(document.querySelector(".group-empty"), null, "one empty line for the whole list, not one per group");
@@ -327,25 +327,20 @@ test("the list ranks by what wants the user when asked, and a Priority row can b
   assert.match(document.querySelector(".thread-headline")?.textContent ?? "", /Tests are red/);
   assert.match(document.querySelectorAll(".thread-meta")[1]?.textContent ?? "", /^No project · Done/);
   assert.equal(document.querySelectorAll(".thread-dismiss").length, 1, "only a settled row is filed away; a blocked one is answered");
-  const sent = line.sent.length;
   click(".thread-dismiss");
-  assert.equal(line.sent.length, sent, "a dismissal waits out its Undo");
-  assert.deepEqual([...document.querySelectorAll(".thread-title")].map((node) => node.textContent), ["Fix the parser", "Rewrite the docs"], "the row leaves Priority at once");
-  assert.match(document.querySelector(".undo-toast")?.textContent ?? "", /Dismissed Nightly check/);
+  assert.deepEqual(lastCommand(line), { type: "task.dismiss", taskId: "t3" }, "a dismissal goes at once");
+  patchView(line, 2, {
+    activity: { ...ranked.activity, priority: ranked.activity.priority.slice(0, 1) },
+    undo: { id: 1, title: "Dismissed “Nightly check”", command: { type: "task.undismiss", taskIds: ["t3"] } },
+  });
+  assert.equal(document.querySelectorAll(".thread-dismiss").length, 0);
+  assert.match(document.querySelector(".undo-toast")?.textContent ?? "", /Dismissed “Nightly check”/);
   clickButton("Undo");
-  assert.equal(line.sent.length, sent, "Undo sends nothing");
+  assert.deepEqual(lastCommand(line), { type: "task.undismiss", taskIds: ["t3"] });
   assert.equal(document.querySelector(".undo-toast"), null);
-  assert.equal(document.querySelectorAll(".thread-dismiss").length, 1, "the row is back");
-  click(".thread-dismiss");
-  click(".thread-row .thread-open");
-  assert.deepEqual(line.sent.slice(-2).map((frame) => frame.kind === "command" ? frame.command : null), [
-    { type: "task.dismiss", taskId: "t3" },
-    { type: "task.select", taskId: "t1" },
-  ], "leaving the list carries the dismissal out first");
 });
 
-test("Dismiss all files Priority away behind one Undo that names how many", () => {
-  vi.useFakeTimers();
+test("Dismiss all is sent at once, and the Mac's Undo shows until the Mac takes it down", () => {
   try {
     const line = openPhone({ paired: true });
     const ranked = view();
@@ -353,38 +348,13 @@ test("Dismiss all files Priority away behind one Undo that names how many", () =
     ranked.activity = { priority: [{ ...row, id: "a", title: "One" }, { ...row, id: "b", title: "Two" }], running: [], threads: [], snoozed: [] };
     live(line, ranked);
     click('.segmented button[aria-checked="false"]');
-    const sent = line.sent.length;
     clickButton("Dismiss all");
-    assert.match(document.querySelector(".undo-toast")?.textContent ?? "", /Dismissed 2 threads/);
-    assert.equal(document.querySelectorAll(".thread-row").length, 0);
-    assert.match(document.querySelector(".group-empty")?.textContent ?? "", /Nothing waiting/);
-    assert.equal(line.sent.length, sent);
-    act(() => void vi.advanceTimersByTime(9000));
     assert.deepEqual(lastCommand(line), { type: "task.dismiss-all" });
+    patchView(line, 2, { undo: { id: 1, title: "Dismissed 2 threads", command: { type: "task.undismiss", taskIds: ["a", "b"] } } });
+    assert.match(document.querySelector(".undo-toast")?.textContent ?? "", /Dismissed 2 threads/);
+    patchView(line, 3, { undo: null });
     assert.equal(document.querySelector(".undo-toast"), null);
-    assert.equal(document.querySelectorAll(".thread-row").length, 0, "the rows stay gone until the Mac's list drops them");
   } finally {
-    vi.useRealTimers();
-    localStorage.removeItem("aicodingtool.mobile.list");
-  }
-});
-
-test("a row that joins Priority while Undo is up is not dismissed with the rows that were seen", () => {
-  vi.useFakeTimers();
-  try {
-    const line = openPhone({ paired: true });
-    const ranked = view();
-    const row = { projectId: "p", projectName: "App", status: "idle", lastActivityAt: 1, unread: true, attention: true, outcome: "finished" } as const;
-    ranked.activity = { priority: [{ ...row, id: "a", title: "One" }], running: [], threads: [], snoozed: [] };
-    live(line, ranked);
-    click('.segmented button[aria-checked="false"]');
-    clickButton("Dismiss all");
-    act(() => line.onmessage?.({ data: JSON.stringify({ kind: "patch", sequence: 2, patch: { activity: { ...ranked.activity, priority: [{ ...row, id: "a", title: "One" }, { ...row, id: "c", title: "Three" }] } } }) }));
-    assert.deepEqual([...document.querySelectorAll(".thread-title")].map((node) => node.textContent), ["Three"]);
-    act(() => void vi.advanceTimersByTime(9000));
-    assert.deepEqual(lastCommand(line), { type: "task.dismiss", taskId: "a" });
-  } finally {
-    vi.useRealTimers();
     localStorage.removeItem("aicodingtool.mobile.list");
   }
 });
@@ -559,7 +529,8 @@ test("archiving a thread from its menu goes back to the list and offers Undo, wh
   clickRow("Archive");
   assert.deepEqual(lastCommand(line), { type: "task.archive", taskId: "t1" });
   assert.ok(document.querySelector(".thread-list"), "back on the list");
-  assert.match(document.querySelector(".undo-toast")?.textContent ?? "", /Archived Fix the parser/);
+  patchView(line, 2, { thread: { kind: "closed" }, undo: { id: 1, title: "Archived “Fix the parser”", command: { type: "task.restore", taskId: "t1" } } });
+  assert.match(document.querySelector(".undo-toast")?.textContent ?? "", /Archived “Fix the parser”/);
   click(".undo-toast button");
   assert.deepEqual(lastCommand(line), { type: "task.restore", taskId: "t1" });
   assert.equal(document.querySelector(".undo-toast"), null);

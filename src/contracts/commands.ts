@@ -141,6 +141,8 @@ export type TaskCommand =
   | { type: "proposal.dismiss"; taskId: string; proposalId?: string; proposalIds?: string[] }
   /** Takes the dot off a thread, which is the only thing that does. Opening the thread only dims it. */
   | { type: "task.dismiss"; taskId: string }
+  /** Puts back what the last dismissal took from these threads, wherever they are held, unless they have something new since. */
+  | { type: "task.undismiss"; taskIds: string[] }
   | { type: "task.snooze"; taskId: string; hours: SnoozeHours }
   /** Brings a snoozed thread back before its time. */
   | { type: "task.unsnooze"; taskId: string }
@@ -218,7 +220,9 @@ export type AnnotationCommand =
   | { type: "annotation.add"; taskId?: string; quote: string; note?: string; anchor?: AnnotationAnchor }
   | { type: "annotation.note"; taskId?: string; annotationId: string; note: string }
   | { type: "annotation.remove"; taskId?: string; annotationId: string }
-  | { type: "annotation.recall"; taskId?: string; annotations: Annotation[] };
+  | { type: "annotation.recall"; taskId?: string; annotations: Annotation[] }
+  /** Scrolls the transcript that drafted the annotation to its passage and flashes its marker. */
+  | { type: "annotation.reveal"; taskId?: string; annotationId: string };
 
 /**
  * Text pasted into a composer, kept aside as a pill instead of filling the prompt. Drafted the way

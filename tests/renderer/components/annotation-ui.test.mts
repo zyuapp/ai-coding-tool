@@ -54,29 +54,65 @@ test("a keyboard reaches the card the pointer raises", async () => {
   await view.unmount();
 });
 
-test("a drafted pill shows its passage: the transcript scrolls to its marker, which flashes", async () => {
+test("a drafted pill asks to show its passage, and the card says nothing a tooltip would repeat", async () => {
   const anchored: Annotation[] = [{ id: "c", quote: "the passage", note: "", anchor: { kind: "message", messageId: "m1", start: 0, end: 11 } }];
-  const marker = document.createElement("button");
-  marker.className = "annotation-marker";
-  marker.dataset.annotationId = "c";
-  let scrolled = 0;
-  marker.scrollIntoView = () => { scrolled += 1; };
-  document.body.append(marker);
-  const view = await mount(React.createElement(AnnotationRow, { annotations: [...anchored, ...annotations], onRemove: () => {} }));
+  const revealed: string[] = [];
+  const view = await mount(React.createElement(AnnotationRow, { annotations: [...anchored, ...annotations], onRemove: () => {}, onReveal: (id: string) => { revealed.push(id); } }));
 
   const face = query<HTMLButtonElement>(view.container, "button.annotation-pill-face");
   assert.equal(face.getAttribute("aria-label"), "Show annotation 1");
   await act(async () => { face.click(); });
-  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
-  assert.equal(scrolled, 1);
-  assert.ok(marker.classList.contains("flash"));
-  assert.equal(view.container.querySelectorAll("button.annotation-pill-face").length, 1, "a pill with no passage on screen stays a label");
+  assert.deepEqual(revealed, ["c"]);
+  assert.equal(view.container.querySelectorAll("button.annotation-pill-face").length, 1, "a pill with no passage stays a label");
   const cards = [...view.container.querySelectorAll(".annotation-card")];
-  assert.match(query(item(cards, 0), ".annotation-card-head").textContent ?? "", /Click to show in transcript/, "the card names what a click on the pill does");
+  assert.doesNotMatch(query(item(cards, 0), ".annotation-card-head").textContent ?? "", /Click to show/);
   assert.equal(item(cards, 0).querySelector("button"), null, "the card is a tooltip, so it holds nothing to press");
-  assert.equal(item(cards, 1).querySelector(".annotation-card-hint"), null, "a pill that shows nothing promises nothing");
+
+  await view.render(React.createElement(AnnotationRow, { annotations: anchored }));
+  assert.equal(view.container.querySelector("button.annotation-pill-face"), null, "a row nobody can reveal from offers no button");
   await view.unmount();
-  marker.remove();
+});
+
+test("a transcript answers only a new reveal of its own: it scrolls to its marker and flashes it", async () => {
+  const { useAnnotationReveal } = await import("../../../src/renderer/timeline/use-annotations.ts");
+  const { AnnotationMarkers } = await import("../../../src/renderer/components/AnnotateLayer.tsx");
+  type Reveal = { taskId: string; annotationId: string; messageId: string; count: number } | null;
+  const scrolled: string[] = [];
+  const drawnRows: string[] = [];
+
+  function Transcript({ name, reveal, placed }: { name: string; reveal: Reveal; placed: boolean }) {
+    const timelineRef = React.useRef<HTMLDivElement>(null);
+    const markers = placed ? [{ id: "c", number: 1, x: 0, y: 0 }] : [];
+    const flashing = useAnnotationReveal({ reveal, markers, timelineRef, scrollToMessage: (id) => { drawnRows.push(`${name}:${id}`); } });
+    return React.createElement("div", { ref: timelineRef, "data-transcript": name },
+      React.createElement(AnnotationMarkers, { markers, annotations: [], noteReturn: { current: null }, onEdit: () => {}, flashing }));
+  }
+  function Both({ thread, side, placed = true }: { thread: Reveal; side: Reveal; placed?: boolean }) {
+    return React.createElement(React.Fragment, null,
+      React.createElement(Transcript, { name: "thread", reveal: thread, placed: true }),
+      React.createElement(Transcript, { name: "side", reveal: side, placed }));
+  }
+  (window.HTMLElement.prototype as HTMLElement).scrollIntoView = function (this: HTMLElement) {
+    scrolled.push(this.closest<HTMLElement>("[data-transcript]")?.dataset.transcript ?? "");
+  };
+
+  const earlier = { taskId: "thread", annotationId: "c", messageId: "m1", count: 1 };
+  const view = await mount(React.createElement(Both, { thread: earlier, side: null }));
+  assert.deepEqual(scrolled, [], "a reveal made before the transcript was drawn is not replayed");
+
+  const forSide = { taskId: "chat", annotationId: "c", messageId: "m1", count: 2 };
+  await view.render(React.createElement(Both, { thread: null, side: forSide }));
+  assert.deepEqual(scrolled, ["side"], "the fork holding the same message is the only one that moves");
+  const flashing = [...view.container.querySelectorAll<HTMLElement>(".annotation-marker.flash")];
+  assert.deepEqual(flashing.map((marker) => marker.closest<HTMLElement>("[data-transcript]")?.dataset.transcript), ["side"]);
+
+  const offscreen = { ...forSide, count: 3 };
+  await view.render(React.createElement(Both, { thread: null, side: offscreen, placed: false }));
+  assert.deepEqual(drawnRows, ["side:m1"], "a marker not drawn has its message's row brought in first");
+  await view.render(React.createElement(Both, { thread: null, side: offscreen, placed: true }));
+  assert.deepEqual(scrolled, ["side", "side"], "and is centred once it is drawn");
+  await view.unmount();
+  delete (window.HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
 });
 
 test("a sent annotation keeps its card and loses its remove button", async () => {

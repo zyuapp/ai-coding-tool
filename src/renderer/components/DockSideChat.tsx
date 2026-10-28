@@ -24,6 +24,7 @@ export function chatHandlers(dispatch: Dispatch, chatId: string, images: DockCon
     onAnnotateNote: (annotationId: string, note: string) => void dispatch({ type: "annotation.note", taskId: chatId, annotationId, note }),
     onAnnotateRecall: (annotations: Annotation[]) => void dispatch({ type: "annotation.recall", taskId: chatId, annotations }),
     onAnnotateRemove: (annotationId: string) => void dispatch({ type: "annotation.remove", taskId: chatId, annotationId }),
+    onAnnotateReveal: (annotationId: string) => void dispatch({ type: "annotation.reveal", taskId: chatId, annotationId }),
     onPasteAdd: (text: string) => void dispatch({ type: "paste.add", taskId: chatId, text }),
     onPasteRecall: (pastes: PastedText[]) => void dispatch({ type: "paste.recall", taskId: chatId, pastes }),
     onPasteRemove: (pasteId: string) => void dispatch({ type: "paste.remove", taskId: chatId, pasteId }),

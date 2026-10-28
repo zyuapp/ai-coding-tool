@@ -71,6 +71,7 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
           restored={workspace.restored}
           {...(workspace.currentProject ? { place: projectName(workspace.currentProject) } : {})}
           annotations={workspace.annotations}
+          annotationReveal={workspace.annotationReveal}
           onAnnotateAdd={({ quote, note, anchor }) => void workspace.dispatch({ type: "annotation.add", quote, note, anchor })}
           onAnnotateNote={(annotationId, note) => void workspace.dispatch({ type: "annotation.note", annotationId, note })}
           onAnnotateRemove={(annotationId) => void workspace.dispatch({ type: "annotation.remove", annotationId })}

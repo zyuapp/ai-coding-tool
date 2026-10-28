@@ -63,7 +63,7 @@ function ThreadHeading({ currentThread, folder, folderLabel, host, openMenu, onS
           <span className="heading-separator" aria-hidden="true">/</span>
         </>}
         {folder && <>
-          <OpenInMenu {...openIn} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} crumb={{ label: folderLabel, tip: host ? `${folder} on ${host.name}` : folder }} />
+          <span className="heading-project" data-tip={host ? `${folder} on ${host.name}` : folder}>{folderLabel}</span>
           <span className="heading-separator" aria-hidden="true">/</span>
         </>}
         {currentThread && name.editing === currentThread.id

@@ -43,7 +43,7 @@ function rowLabel(row: Extract<DiffRow, { kind: DiffLineKind }>) {
  * Gutters are out of the Tab order: the keyboard reaches them with the arrows from a file's row, and
  * Shift with an arrow picks more lines, as dragging down the gutter does.
  */
-const GUTTER_TIP = "Comment · Drag or Shift-click for more lines · ↑↓ from the file row";
+const GUTTER_TIP = "Add comment";
 
 /** A note as its marker's tip shows it, cut to what a tip can hold. */
 function noteTip(note: string) {

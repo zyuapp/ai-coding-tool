@@ -1,11 +1,11 @@
 /** The composer draft: its text, and everything staged alongside it. */
 import { settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { composerDraft } from "../composer-drafts.js";
+import { composerDraft, revealAnnotation } from "../composer-drafts.js";
 import { promptKey, sameReadingPoint, withPrompt, type WorkspaceState } from "../workspace-state.js";
 
 export const COMPOSER_INPUTS = [
-  "annotation.add", "annotation.note", "annotation.remove", "annotation.recall", "paste.add", "paste.remove", "paste.recall", "image.add",
+  "annotation.add", "annotation.note", "annotation.remove", "annotation.recall", "annotation.reveal", "paste.add", "paste.remove", "paste.recall", "image.add",
   "image.remove", "image.recall", "file.attach", "file.detach", "file.recall", "view.set-prompt", "view.reading-point", "view.dismiss-action-error",
   "view.dismiss-hidden-tasks"
 ] as const;
@@ -27,6 +27,9 @@ export function reduceComposer(state: WorkspaceState, input: ComposerInput): Wor
     case "file.detach":
     case "file.recall":
       return composerDraft(state, input, input.taskId ?? promptKey(state));
+
+    case "annotation.reveal":
+      return settled(revealAnnotation(state, input.taskId ?? promptKey(state), input.annotationId));
 
     case "view.set-prompt":
       return settled(withPrompt(state, input.taskId ?? promptKey(state), input.prompt));

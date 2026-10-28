@@ -4,7 +4,7 @@ import type { Annotation, AttachedFile, PastedText, StagedImage } from "../domai
 import type { RetryNotice } from "../domain/run.js";
 import type { PendingQuestion } from "../domain/agent-question.js";
 import { type ApprovalView, type StreamingTail, type ThreadRunStatus } from "./thread-run-state.js";
-import { annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-drafts.js";
+import { annotationRevealFor, annotationsFor, filesFor, imagesFor, pastesFor, type AnnotationReveal } from "./composer-drafts.js";
 import { runStatus } from "./run-record.js";
 import { coordinatedThreadStatus, type CoordinatedThreadStatus } from "./coordination.js";
 import { projectFor, threadWorkspaceId } from "./thread-location.js";
@@ -23,6 +23,7 @@ export type DockConversationView = {
   thread: Thread;
   prompt: string;
   annotations: Annotation[];
+  annotationReveal: AnnotationReveal | null;
   pastes: PastedText[];
   images: StagedImage[];
   files: AttachedFile[];
@@ -61,6 +62,7 @@ function dockConversationView(state: WorkspaceState, thread: Thread): DockConver
     thread,
     prompt: state.prompts[thread.id] ?? "",
     annotations: annotationsFor(state, thread.id),
+    annotationReveal: annotationRevealFor(state, thread.id),
     pastes: pastesFor(state, thread.id),
     images: imagesFor(state, thread.id),
     files: filesFor(state, thread.id),

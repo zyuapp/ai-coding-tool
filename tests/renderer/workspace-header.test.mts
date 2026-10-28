@@ -22,7 +22,7 @@ function headerProps(overrides: Partial<React.ComponentProps<typeof WorkspaceHea
   };
 }
 
-test("the heading's title renames on one click and its project crumb opens the Open in list", async () => {
+test("the heading's title renames on one click", async () => {
   const renames: Array<[string, string]> = [];
   const view = await mount(React.createElement(WorkspaceHeader, headerProps({
     onRenameThread: (threadId: string, title: string) => { renames.push([threadId, title]); },
@@ -42,7 +42,7 @@ test("the heading's title renames on one click and its project crumb opens the O
   } finally { await view.unmount(); }
 });
 
-test("the project crumb names the folder's path and opens the Open in list beneath itself", async () => {
+test("the project crumb names the folder's path, and only the toolbar button opens the Open in list", async () => {
   let menu: string | null = null;
   let listed = 0;
   const props = (overrides: Partial<React.ComponentProps<typeof WorkspaceHeader>> = {}) => headerProps({
@@ -55,26 +55,21 @@ test("the project crumb names the folder's path and opens the Open in list benea
   });
   const view = await mount(React.createElement(WorkspaceHeader, props()));
   try {
-    const crumb = query<HTMLButtonElement>(view.container, ".heading-project > button");
+    const crumb = query<HTMLElement>(view.container, ".heading-project");
     assert.equal(crumb.textContent, "project");
     assert.equal(crumb.dataset.tip, "/home/me/project");
-    assert.equal(crumb.getAttribute("aria-haspopup"), "menu");
-    assert.equal(query(view.container, ".task-heading h1").hasAttribute("data-tip"), false, "the path is on a control the keyboard reaches");
-    await act(async () => { crumb.click(); });
+    assert.equal(crumb.querySelector("button"), null, "the crumb is a label, not a second Open in trigger");
+    const openIn = query<HTMLButtonElement>(view.container, '.open-in > button[aria-haspopup="menu"]');
+    await act(async () => { openIn.click(); });
     await view.render(React.createElement(WorkspaceHeader, props()));
-    assert.equal(crumb.getAttribute("aria-expanded"), "true");
+    assert.equal(openIn.getAttribute("aria-expanded"), "true");
     assert.equal(listed, 1);
-    const list = query(document, ".open-in-popover.anchored");
-    assert.equal(list.closest(".topbar"), null, "the list is drawn outside the heading, so it is not read as part of it");
-    assert.equal(query(list, '[role="menuitem"]').textContent, "Finder");
-    assert.equal(view.container.querySelector(".open-in.open"), null, "the toolbar's list stays closed");
+    assert.equal(query(view.container, '.open-in-popover [role="menuitem"]').textContent, "Finder");
 
     menu = null;
     await view.render(React.createElement(WorkspaceHeader, props({ canOpenFolder: false })));
-    const blocked = query<HTMLButtonElement>(view.container, ".heading-project > button");
-    assert.equal(blocked.getAttribute("aria-disabled"), "true");
-    assert.equal(blocked.dataset.tip, "/home/me/project · Worktree is still being created");
-    await act(async () => { blocked.click(); });
+    assert.equal(openIn.getAttribute("aria-disabled"), "true");
+    await act(async () => { openIn.click(); });
     assert.equal(menu, null);
   } finally { await view.unmount(); }
 });
@@ -130,7 +125,7 @@ test("the heading names the paired computer a thread lives on, ahead of its fold
   assert.equal(mark.textContent, "zyuapp");
   assert.equal(mark.nextElementSibling?.className, "heading-separator");
   assert.equal(mark.nextElementSibling?.nextElementSibling?.textContent, "just-speak-linux");
-  assert.equal(query(remote.container, ".heading-project > button").dataset.tip, "/home/me/just-speak-linux on zyuapp");
+  assert.equal(query(remote.container, ".heading-project").dataset.tip, "/home/me/just-speak-linux on zyuapp");
   await remote.unmount();
 
   const away = await mount(React.createElement(WorkspaceHeader, { ...props, host: { id: "zyuapp-id", name: "zyuapp", offline: true } }));

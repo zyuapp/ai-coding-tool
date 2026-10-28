@@ -420,7 +420,7 @@ test("an unreachable computer's threads stay listed, dimmed, while only a connec
       assert.equal(dismissed.state.actionError, null);
       assert.equal(dismissed.state.threads[0].outcome, undefined);
       assert.equal(dismissed.state.computers.paired[0].state, remote);
-      assert.deepEqual(dismissed.effects, []);
+      assert.deepEqual(dismissed.effects.filter((effect) => effect.type !== "schedule-toast-dismissal"), [], "nothing goes to the computer that is away");
     }
   }
 });

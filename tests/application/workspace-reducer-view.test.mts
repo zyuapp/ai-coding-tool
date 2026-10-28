@@ -315,6 +315,19 @@ test("the zen keystroke enters zen mode on a thread with messages and the same k
   assert.equal(reduce(entered, zenKey).state.zen, false);
 });
 
+test("zen mode shows only the toasts about something that went wrong", () => {
+  const toasts = [
+    { id: 1, tone: "success", title: "AI Coding Tool updated" },
+    { id: 2, tone: "error", title: "Couldn't update Claude" },
+  ] as const;
+  const state = workspace({ threads: [talked("task-a")], currentId: "task-a", toasts: [...toasts] });
+  assert.deepEqual(deriveView(state).visibleToasts, toasts);
+  const entered = reduce(state, zenKey).state;
+  assert.deepEqual(deriveView(entered).visibleToasts.map((toast) => toast.id), [2]);
+  assert.equal(deriveView(entered).visibleToasts, deriveView(entered).visibleToasts, "a redraw keeps the same list");
+  assert.deepEqual(deriveView(reduce(entered, zenKey).state).visibleToasts.map((toast) => toast.id), [1, 2]);
+});
+
 test("the zen keystroke does nothing on a draft or a thread without messages", () => {
   assert.equal(reduce(workspace({ threads: [talked("task-a")], currentId: null }), zenKey).state.zen, false);
   assert.equal(reduce(workspace({ threads: [task("task-a")], currentId: "task-a" }), zenKey).state.zen, false);

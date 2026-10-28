@@ -801,7 +801,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
  * slots, so the slots line up down the list and the title never moves. An action shows while the row
  * is hovered, focused from the keyboard or has its menu open, and covers only the marks in its own
  * slots: the menu sits on the engine, and in Priority dismiss takes the engine's slot and the menu
- * the slot two along, so the status mark stays in view.
+ * the one beside it.
  */
 .row-rail {
   flex: none;
@@ -809,7 +809,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
   width: calc(min(3, max(var(--row-slots), var(--rail-actions, 1))) * var(--row-slot));
   height: var(--row-slot);
 }
-.priority-list { --rail-actions: 3; }
+.priority-list { --rail-actions: 2; }
 .row-layer { grid-area: 1 / 1; display: flex; align-items: center; justify-content: flex-end; }
 .row-actions { position: relative; z-index: 1; pointer-events: none; }
 .row-mark { width: var(--row-slot); height: var(--row-slot); display: grid; place-items: center; transition: opacity 90ms ease; }
@@ -817,16 +817,15 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .task-more-marks { color: var(--muted-strong); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
 /** Hidden actions stay in the tab order, so the keyboard reveals them by reaching them. */
 .row-action { opacity: 0; pointer-events: auto; transition: opacity 90ms ease; }
-.row-actions:has(.task-dismiss) > .task-more { margin-right: calc(var(--row-slot) - 3px); }
 .task-entry:hover .row-action,
 .task-entry:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) .row-action,
 .row-actions:has(:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *), [aria-expanded="true"]) .row-action { opacity: 1; }
 .task-entry:hover .row-marks > :last-child,
 .task-entry:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) .row-marks > :last-child,
 .row-rail:has(.row-actions :focus-visible:where(:root:not([data-focus-appearance="quiet"]) *), .row-actions [aria-expanded="true"]) .row-marks > :last-child,
-.task-entry:hover .row-rail:has(.task-dismiss) .row-marks > :nth-last-child(3),
-.task-entry:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) .row-rail:has(.task-dismiss) .row-marks > :nth-last-child(3),
-.row-rail:has(.row-actions :focus-visible:where(:root:not([data-focus-appearance="quiet"]) *), .row-actions [aria-expanded="true"]):has(.task-dismiss) .row-marks > :nth-last-child(3) { opacity: 0; }
+.task-entry:hover .row-rail:has(.task-dismiss) .row-marks > :nth-last-child(2),
+.task-entry:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) .row-rail:has(.task-dismiss) .row-marks > :nth-last-child(2),
+.row-rail:has(.row-actions :focus-visible:where(:root:not([data-focus-appearance="quiet"]) *), .row-actions [aria-expanded="true"]):has(.task-dismiss) .row-marks > :nth-last-child(2) { opacity: 0; }
 /** A target wider and taller than the slot it covers, which its margins keep from moving the slots. */
 .row-action {
   width: 28px;
@@ -1201,12 +1200,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 }
 /* Both crumbs shrink, so a long project and a long title each give ground before the row clips. */
 .task-heading h1 > span { overflow: hidden; text-overflow: ellipsis; }
-/** The project crumb opens the Open in list beneath it, so it reads and behaves like the title beside it. */
-.task-heading h1 > .heading-project { flex: 0 1 auto; min-width: 4ch; display: flex; overflow: visible; }
-.heading-project > button { min-width: 0; height: 28px; margin: 0 -5px; border: 0; border-radius: 7px; padding: 0 5px; overflow: hidden; background: transparent; color: var(--muted-soft); font: inherit; font-weight: 500; letter-spacing: inherit; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; -webkit-app-region: no-drag; transition: background 120ms ease, color 120ms ease; }
-.heading-project > button:not([aria-disabled="true"]):hover, .heading-project.open > button { background: var(--surface-hover); color: var(--ink-dim); }
-.heading-project > button[aria-disabled="true"] { cursor: default; }
-.open-in-popover.anchored { position: fixed; z-index: 1000; top: auto; right: auto; }
+.heading-project { flex: 0 1 auto; min-width: 4ch; color: var(--muted-soft); font-weight: 500; }
 /* Use the name's text baseline for the crumb, keeping the icon out of baseline calculation. */
 .task-heading h1 > .heading-host { flex: 0 1 auto; align-items: baseline; min-width: 4ch; font-size: inherit; font-weight: 500; color: var(--muted-soft); }
 .task-heading h1 > .heading-host > svg { align-self: center; }
@@ -2200,7 +2194,6 @@ pre {
 .thinking-row i:nth-child(3) { animation-delay: 0.28s; }
 .thinking-label { margin-left: 5px; font-size: var(--text-meta); line-height: 1; }
 .thinking-elapsed { margin-left: 5px; color: var(--quiet-strong); font-size: var(--text-meta); font-variant-numeric: tabular-nums; line-height: 1; }
-.thinking-row > .run-stop { margin-left: 10px; }
 .compacting-row,
 .retrying-row,
 .waiting-row {
@@ -2234,8 +2227,6 @@ pre {
 }
 .limit-action:hover:not(:disabled) { background: var(--surface-hover); }
 /* Stopping a run reads the same here as on a workflow or subagent. */
-.limit-action.run-stop { border-color: var(--danger-line); color: var(--danger); font-size: var(--text-menu); font-weight: 550; }
-.limit-action.run-stop:hover:not(:disabled) { border-color: var(--danger-line-hover); background: var(--danger-surface); }
 /** A band of brighter ink travels across the letters, so a wait reads as motion in the word itself. */
 .text-sweep {
   background-image: linear-gradient(90deg, var(--muted) 0%, var(--muted) 35%, var(--ink) 50%, var(--muted) 65%, var(--muted) 100%);
@@ -3916,7 +3907,6 @@ button.annotation-pill-face { cursor: pointer; }
   letter-spacing: 0.07em;
   text-transform: uppercase;
 }
-.annotation-card-hint { margin-left: auto; color: var(--quiet); font-weight: 450; letter-spacing: 0; text-transform: none; }
 .annotation-card-body { display: grid; gap: 9px; padding: 11px 12px 12px; }
 .annotation-card-quote {
   position: relative;
@@ -4731,6 +4721,13 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 @container (max-width: 560px) {
   .composer-hint { display: none; }
 }
+/** Plan meters share the bar with the settings, so the axis names and the meter's icon go first, then the weekly part. */
+@container (max-width: 720px) {
+  .composer:has(.plan-usage) :is(.setting-axis, .plan-usage-icon) { display: none; }
+}
+@container (max-width: 600px) {
+  .plan-usage-part + .plan-usage-part { display: none; }
+}
 /** The values still read on their own, so the axis names go before any control does. */
 @container (max-width: 470px) {
   .setting-axis { display: none; }
@@ -4917,11 +4914,10 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 .diff-file-name em { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-style: normal; color: var(--quiet); }
 .diff-file-name span { flex: 0 0 auto; overflow: hidden; text-overflow: ellipsis; }
 .diff-file-renamed { flex: none; padding: 1px 6px; border-radius: 999px; background: var(--chip); color: var(--muted); font-size: var(--text-badge); letter-spacing: 0.02em; }
-.diff-file-editor { display: grid; place-items: center; padding: 0; width: 28px; height: 28px; border: 0; border-radius: 7px; background: none; color: var(--muted); cursor: pointer; }
+.diff-file-editor { display: grid; place-items: center; padding: 0; width: 28px; height: 28px; border: 0; border-radius: 7px; background: none; color: var(--muted); opacity: 0; cursor: pointer; }
+.diff-file-row:hover .diff-file-editor, .diff-file-editor:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) { opacity: 1; }
 .diff-file-editor:hover { background: var(--surface-menu-hover); color: var(--ink-dim); }
-.diff-file-viewed { display: flex; align-items: center; justify-content: center; gap: 6px; height: 24px; padding: 0 6px 0 3px; border-radius: 6px; cursor: pointer; }
-.diff-file-viewed > span { color: var(--quiet-strong); font-size: var(--text-meta); }
-.diff-file-viewed:hover > span, .diff-file-viewed:has(input:checked) > span { color: var(--ink-dim); }
+.diff-file-viewed { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; cursor: pointer; }
 .diff-file-viewed input { position: absolute; opacity: 0; width: 0; height: 0; outline: none; }
 .diff-file-viewed svg { box-sizing: border-box; width: 16px; height: 16px; padding: 1px; border: 1.5px solid var(--line-input); border-radius: 4px; color: transparent; }
 .diff-file-viewed:hover svg { border-color: var(--quiet-strong); color: var(--quiet-strong); }

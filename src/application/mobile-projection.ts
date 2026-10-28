@@ -4,6 +4,7 @@ import { projectName, type Project } from "../domain/project.js";
 import type { Thread } from "../domain/thread.js";
 import { hasUnreadAttention, newestUnreadFinding } from "../domain/attention.js";
 import { DEFAULT_BRANCH_RANGE } from "../domain/diff.js";
+import { UNDO_SUBJECT } from "../domain/toast.js";
 import { themeFor, themeOrDefault } from "../domain/theme.js";
 import { worktreeName } from "../domain/worktree.js";
 import { orderThreads } from "./thread-order.js";
@@ -22,6 +23,7 @@ import type {
   MobileProjectGroup,
   MobileTheme,
   MobileThreadDelta,
+  MobileUndo,
   MobileThreadEntry,
   MobileThreadView,
   MobileView,
@@ -51,6 +53,7 @@ export function emptyMobileView(): MobileView {
     thread: null,
     draft: null,
     error: null,
+    undo: null,
   };
 }
 
@@ -107,7 +110,16 @@ export function projectMobileView(state: WorkspaceState, at: number): MobileView
     thread,
     draft: thread ? null : projectMobileDraft(state, view),
     error: state.actionError,
+    undo: projectMobileUndo(state),
   };
+}
+
+/** The desktop's Undo, of which there is only ever one, which the phone offers the same way. */
+function projectMobileUndo(state: WorkspaceState): MobileUndo | null {
+  const toast = state.toasts.find((item) => item.subject === UNDO_SUBJECT);
+  const command = toast?.action?.command;
+  if (!toast || !command || command.type === "engine.update") return null;
+  return { id: toast.id, title: toast.title, command };
 }
 
 /**
@@ -249,6 +261,7 @@ export function diffMobileView(previous: MobileView, next: MobileView): MobilePa
   if (thread) patch.thread = thread;
   if (!same(previous.draft, next.draft)) patch.draft = next.draft;
   if (previous.error !== next.error) patch.error = next.error;
+  if (!same(previous.undo, next.undo)) patch.undo = next.undo;
   return Object.keys(patch).length ? patch : null;
 }
 
@@ -341,6 +354,7 @@ export function applyMobilePatch(view: MobileView, patch: MobilePatch): MobileVi
     theme: patch.theme ?? view.theme,
     draft: "draft" in patch ? patch.draft ?? null : view.draft,
     error: "error" in patch ? patch.error ?? null : view.error,
+    undo: "undo" in patch ? patch.undo ?? null : view.undo,
   };
   if (!patch.thread) return { ...rest, thread: view.thread };
   if (patch.thread.kind === "closed") return { ...rest, thread: null };

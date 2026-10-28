@@ -41,6 +41,19 @@ export function rescheduledToasts(state: WorkspaceState, now = Date.now()): Toas
   return state.toasts.flatMap((toast) => toast.persistent ? [] : [{ type: "schedule-toast-dismissal" as const, id: toast.id, at: now + TOAST_LIFETIME_MS }]);
 }
 
+const zenToasts = new WeakMap<Toast[], Toast[]>();
+
+/** The toasts the corner shows: all of them, or in zen mode only the errors, held so a redraw keeps the same list. */
+export function visibleToasts(state: Pick<WorkspaceState, "toasts" | "zen">): Toast[] {
+  if (!state.zen) return state.toasts;
+  let errors = zenToasts.get(state.toasts);
+  if (!errors) {
+    errors = state.toasts.filter((toast) => toast.tone === "error");
+    zenToasts.set(state.toasts, errors);
+  }
+  return errors;
+}
+
 export function reduceToasts(state: WorkspaceState, input: ToastInput): WorkspaceTransition {
   if (input.type === "app.launched") return withToast(state, { tone: "success", title: "AI Coding Tool updated", message: `Now on ${input.version}.` });
   const toast = state.toasts.find((item) => item.id === input.id);

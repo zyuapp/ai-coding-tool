@@ -1,7 +1,7 @@
 import { task } from "./workspace-reducer-fixtures.mts";
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { activitySections, backfillSortIndex, moveThread, nextSortIndex, orderThreads } from "../../src/application/thread-order.ts";
+import { activitySections, backfillSortIndex, moveThread, nextSortIndex, orderThreads, threadMoveBlock } from "../../src/application/thread-order.ts";
 import type { Thread } from "../../src/domain/thread.ts";
 
 function ids(threads: Thread[]) {
@@ -80,6 +80,29 @@ test("a thread working in a checkout reorders in its project's list but never le
 
   assert.equal(moveThread(threads, "first", { projectId: "project-2", index: 0 }), threads, "a checkout is cut from one project, so nothing drags a thread in one to another");
   assert.equal(moveThread(threads, "first", { projectId: null, index: 0 }), threads, "and nothing drags one out to the project-less list");
+});
+
+test("a thread drawn under its coordinator stays with it, and stands free once the coordinator is gone", () => {
+  const threads = [
+    task("lead", { projectId: "project-1", role: "coordinator", sortIndex: 0 }),
+    task("member", { projectId: "project-1", parentId: "lead", sortIndex: 1 }),
+    task("loose", { projectId: "project-1", sortIndex: 2 }),
+  ];
+  assert.equal(moveThread(threads, "member", { projectId: "project-2", index: 0 }), threads);
+  assert.equal(moveThread(threads, "member", { projectId: "project-1", index: 0 }), threads, "it holds no place of its own in the list");
+
+  const freed = threads.map((thread) => thread.id === "lead" ? { ...thread, archivedAt: 5 } : thread);
+  const moved = moveThread(freed, "member", { projectId: "project-2", index: 0 });
+  assert.equal(moved.find((item) => item.id === "member")!.projectId, "project-2");
+});
+
+test("one rule says why a thread cannot leave its folder, the first that holds it winning", () => {
+  const laptop = { name: "laptop" };
+  assert.equal(threadMoveBlock(task("free"), undefined, false), null);
+  assert.equal(threadMoveBlock(task("away"), laptop, false), "Stays in its folder on laptop");
+  assert.equal(threadMoveBlock(task("checkout", { worktreeId: "wt1" }), laptop, true), "Stays in its folder on laptop");
+  assert.equal(threadMoveBlock(task("checkout", { worktreeId: "wt1" }), undefined, true), "Stays in its worktree's folder");
+  assert.equal(threadMoveBlock(task("member"), undefined, true), "Stays with its coordinator");
 });
 
 test("activity leads with the threads that want the user, and every thread appears once", () => {

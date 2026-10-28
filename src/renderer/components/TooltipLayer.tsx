@@ -63,10 +63,9 @@ function undescribe(element: HTMLElement, id: string) {
   else element.removeAttribute("aria-describedby");
 }
 
-/** Whether the element, or text inside it, is cut short by its box. */
+/** Whether the element, or one of its own children, is cut short by its box. */
 function truncated(element: HTMLElement) {
-  return [element, ...element.querySelectorAll<HTMLElement>("*")]
-    .some((node) => node instanceof HTMLElement && node.scrollWidth > node.clientWidth);
+  return [element, ...element.children].some((node) => node instanceof HTMLElement && node.scrollWidth > node.clientWidth);
 }
 
 export function TooltipLayer() {

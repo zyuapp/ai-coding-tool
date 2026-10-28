@@ -370,10 +370,10 @@ test("the @ menu opens with no other threads and says there are none yet", async
   await view.unmount();
 });
 
-test("the prompt names the / and @ menus until it cannot take a message", async () => {
+test("the prompt asks for work, and says why when it cannot take a message", async () => {
   window.desktop = fakeDesktop();
   const view = await mount(renderConversationComposer({ folder: "/project" }));
-  assert.equal(query<HTMLTextAreaElement>(view.container, "textarea").placeholder, "Ask Claude to work on anything · / for commands · @ for threads");
+  assert.equal(query<HTMLTextAreaElement>(view.container, "textarea").placeholder, "Ask Claude to work on anything");
   await view.unmount();
   const side = await mount(renderConversationComposer({ surface: "side", disabled: true }));
   assert.equal(query<HTMLTextAreaElement>(side.container, "textarea").placeholder, "Main context required");
