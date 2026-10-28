@@ -27,6 +27,7 @@
   --line-strong: var(--p-line-2);
   --line-bright: var(--p-line-3);
   --line-input: color-mix(in srgb, var(--p-fg-4) 70%, var(--p-line-2));
+  --line-control: color-mix(in srgb, var(--p-line-2) 50%, var(--p-line-3));
 
   /* Text, strongest to quietest. At 13px and under only --muted and stronger read; --quiet is for
      600-weight section labels, 14px helper copy and placeholders, --quiet-soft for disabled labels. */
@@ -261,7 +262,7 @@ button {
   background: var(--surface);
   background: light-dark(var(--surface), color-mix(in srgb, var(--p-fg-0) 14%, var(--surface-raised)));
   color: var(--ink);
-  box-shadow: inset 0 0 0 1px var(--line-input), 0 1px 2px rgb(var(--p-shadow) / calc(0.18 * var(--p-shadow-scale)));
+  box-shadow: inset 0 0 0 1px var(--line-control), 0 1px 2px rgb(var(--p-shadow) / calc(0.18 * var(--p-shadow-scale)));
 }
 
 .line-status {
@@ -497,7 +498,7 @@ button {
   flex: none;
   min-height: 32px;
   padding: 0 12px;
-  border: 1px solid var(--line-input);
+  border: 1px solid var(--line-control);
   border-radius: 999px;
   font-size: var(--text-menu);
   font-weight: 600;
@@ -526,7 +527,7 @@ button {
   min-height: 36px;
   margin: 8px 0 0 4px;
   padding: 0 10px 0 8px;
-  border: 1px solid var(--line-input);
+  border: 1px solid var(--line-control);
   border-radius: 10px;
   font-size: 14px;
   font-weight: 540;

@@ -212,7 +212,7 @@ button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
   cursor: pointer;
 }
 /** Resolving is what a reviewed or finished thread waits on, so its check is framed. */
-.coordination-item:is(.review, .done) > .coordination-row-action { box-shadow: inset 0 0 0 1px var(--line-input); color: var(--ink-dim); }
+.coordination-item:is(.review, .done) > .coordination-row-action { box-shadow: inset 0 0 0 1px var(--line-control); color: var(--ink-dim); }
 .coordination-row-action:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-soft); }
 .coordination-row-action[data-action="resolve"]:hover:not(:disabled) { background: var(--success-surface); color: var(--success); }
 /** A resolved thread's check is ticked, and turns into an undo while pointed at. */
@@ -377,9 +377,9 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
 .coordination-note-text { padding-right: 34px; }
 /** A note reads as a field at rest, and the row that adds one as an empty one. */
 .coordination-note-text:not(.editing) { border-color: var(--line-soft); white-space: pre-wrap; }
-.coordination-note-text:not(.editing):hover { border-color: var(--line-input); background: var(--surface-hover); color: var(--ink-soft); }
+.coordination-note-text:not(.editing):hover { border-color: var(--line-control); background: var(--surface-hover); color: var(--ink-soft); }
 .coordination-note-text[aria-invalid="true"] { border-color: var(--danger-line); }
-.coordination-note-add { border: 1px dashed var(--line-input); }
+.coordination-note-add { border: 1px dashed var(--line-control); }
 .coordination-note-add::placeholder { color: var(--quiet-strong); }
 .coordination-note-add:hover:not(:focus) { border-style: solid; background: var(--wash); }
 .coordination-memory > .subagent-list { gap: 4px; }
@@ -404,7 +404,7 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
   font-weight: 550;
   cursor: pointer;
 }
-.coordination-note-actions > button:not(.coordination-note-forget) { padding: 0 8px; border: 1px solid var(--line-input); color: var(--ink-dim); }
+.coordination-note-actions > button:not(.coordination-note-forget) { padding: 0 8px; border: 1px solid var(--line-control); color: var(--ink-dim); }
 .coordination-note-actions > button.danger { border-color: var(--danger-line); color: var(--danger); }
 .coordination-note-actions > button:not(.coordination-note-forget):hover { background: var(--surface-hover); }
 .coordination-note-actions > button.danger:hover { background: var(--danger-chip); }
@@ -437,7 +437,7 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
 .coordination-stop > button {
   flex: none;
   min-height: 24px;
-  border: 1px solid var(--line-input);
+  border: 1px solid var(--line-control);
   border-radius: 7px;
   padding: 0 9px;
   background: transparent;
