@@ -1871,7 +1871,7 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .timeline-row.user { padding-bottom: 36px; }
 .timeline-row.turn { padding-bottom: 26px; }
 .message { margin: 0; }
-.message.user { display: flex; justify-content: flex-end; }
+.message.user { display: flex; flex-direction: column; align-items: flex-end; }
 .message-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; min-width: 0; max-width: min(72%, 680px); }
 .message.user .message-text {
   max-width: 100%;
@@ -2030,9 +2030,9 @@ button.message-image-unavailable:hover { background: var(--surface-hover); color
 .message-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; height: 28px; padding-right: 7px; opacity: 0; pointer-events: none; transition: opacity 110ms ease-out; }
 .timeline-row:is(.newest, :hover, :focus-within) .message-actions { opacity: 1; pointer-events: auto; }
 .message.turn > .message-actions { margin-top: 9px; }
-/* A message the user sent keeps its time and copy beside its last line, in the room left of it, so
-   they add no height. A zero-width anchor lets them spill into that room. */
-.message.user > .message-actions { flex: none; align-self: flex-end; width: 0; margin: 0 10px 8px 0; padding: 0; }
+/* A message the user sent keeps its time and copy under its right edge, as an answer does, hung in
+   the row's own bottom padding so they add no height. */
+.message.user > .message-actions { order: 1; margin: 4px 0 -32px; }
 /* Drawn from its attribute and out of any selection, so neither a search nor a copy of the message carries the time. */
 .message-time { color: var(--quiet-strong); font-size: var(--text-meta); font-variant-numeric: tabular-nums; white-space: nowrap; user-select: none; }
 .message-time::before { content: attr(data-clock); }
@@ -3136,9 +3136,7 @@ pre {
 .side-chat-transcript .message { margin-bottom: 25px; }
 .side-chat-transcript .message.user { margin-bottom: 30px; }
 .side-chat-transcript .message-stack { max-width: 92%; }
-/* A side chat's messages leave no room beside them, so the time and copy sit under the message. */
-.side-chat-transcript .message.user { flex-direction: column; align-items: flex-end; }
-.side-chat-transcript .message.user > .message-actions { order: 1; align-self: auto; width: auto; margin: 4px 0 0; padding-right: 7px; }
+.side-chat-transcript .message.user > .message-actions { margin-bottom: 0; }
 .side-chat-transcript .message.user .message-text { padding: 9px 13px; }
 .side-chat-transcript .message-text { font-size: var(--text-content); }
 .side-chat-action { display: flex; justify-content: center; padding: 0 17px 12px; }
