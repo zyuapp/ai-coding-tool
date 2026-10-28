@@ -6,14 +6,8 @@ import { OpenInMenu } from "./OpenInMenu";
 import { PopoverMenu } from "./PopoverMenu";
 import { RenameInput, useRenaming } from "./SidebarRename";
 import { threadMenuEntries } from "./thread-menu";
+import { shortcutTip } from "./TooltipLayer";
 import type { ThreadRole } from "../../domain/thread-role";
-import { displayShortcut } from "../../domain/shortcuts";
-import { MAC } from "../platform";
-
-/** A control's name with the fixed keystroke that does the same. */
-function keyed(label: string, binding: string) {
-  return `${label} (${displayShortcut(binding, MAC)})`;
-}
 
 export type WorkspaceHeaderProps = {
   currentThread?: Thread;
@@ -25,7 +19,7 @@ export type WorkspaceHeaderProps = {
   sidebarOpen: boolean;
   sessionPanelOpen: boolean;
   rightDockOpen: boolean;
-  /** Zen mode, offered only on a thread with messages; `tip` names its keystroke. */
+  /** Zen mode, which opens only on a thread with messages; `tip` names its keystroke. */
   zen: { available: boolean; tip: string; onEnter: () => void };
   workingSubagents: number;
   openMenu: string | null;
@@ -59,7 +53,7 @@ function ThreadHeading({ currentThread, folder, folderLabel, host, openMenu, onS
   const name = useRenaming((threadId, value) => { if (value.trim()) onRenameThread(threadId, value); });
   return (
     <div className="thread-heading-line">
-      <h1 title={host ? `${folder} on ${host.name}` : folder || undefined}>
+      <h1 data-tip={host ? `${folder} on ${host.name}` : folder || undefined}>
         {host && <>
           <HostMark name={host.name} offline={host.offline} reconnecting={host.reconnecting} className="heading-host" />
           <span className="heading-separator" aria-hidden="true">/</span>
@@ -78,8 +72,9 @@ function ThreadHeading({ currentThread, folder, folderLabel, host, openMenu, onS
               onCancel={name.cancel}
             />
           : <span
-              className="heading-thread"
-              title={currentThread?.title}
+              className={`heading-thread ${currentThread ? "renamable" : ""}`.trimEnd()}
+              data-tip={currentThread?.title}
+              data-tip-overflow
               onDoubleClick={currentThread && (() => name.start(currentThread.id))}
             >{currentThread?.title ?? "New task"}</span>}
       </h1>
@@ -120,7 +115,7 @@ export function WorkspaceHeader({ currentThread, folder, folderLabel, host, side
           type="button"
           aria-label={`${sidebarOpen ? "Hide" : "Show"} sidebar`}
           aria-pressed={sidebarOpen}
-          data-tip={keyed("Sidebar", "Mod+B")}
+          data-tip={shortcutTip("Sidebar", "Mod+B")}
           onClick={onToggleSidebar}
         >
           <PanelLeft size={18} aria-hidden="true" />
@@ -150,11 +145,9 @@ export function WorkspaceHeader({ currentThread, folder, folderLabel, host, side
       </div>
       <div className="workspace-controls">
         <OpenInMenu openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} blocked={openInBlocked} apps={apps} onListApps={onListApps} onOpenInApp={onOpenInApp} />
-        {zen.available && (
-          <button className="session-toggle" type="button" aria-label="Enter zen mode" data-tip={zen.tip} onClick={zen.onEnter}>
-            <Focus size={18} aria-hidden="true" />
-          </button>
-        )}
+        <button className="session-toggle" type="button" aria-label="Enter zen mode" disabled={!zen.available} data-tip={zen.available ? zen.tip : "Send a message to use zen mode"} onClick={zen.onEnter}>
+          <Focus size={18} aria-hidden="true" />
+        </button>
         <button
           className={`session-toggle ${sessionPanelOpen ? "active" : ""}`}
           type="button"
@@ -171,7 +164,7 @@ export function WorkspaceHeader({ currentThread, folder, folderLabel, host, side
           type="button"
           aria-label={`${rightDockOpen ? "Hide" : "Show"} right panel`}
           aria-pressed={rightDockOpen}
-          data-tip={keyed("Right panel", "Mod+\\")}
+          data-tip={shortcutTip("Right panel", "Mod+\\")}
           onClick={onToggleRightDock}
         >
           <PanelRight size={18} aria-hidden="true" />

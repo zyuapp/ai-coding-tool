@@ -73,8 +73,45 @@ test("the thread strip's chips name what they show to assistive technology", asy
   try {
     assert.ok(view.container.querySelector('button[aria-label="Branch feat/login"]'));
     assert.ok(view.container.querySelector('button[aria-label="Review changes, +12 −3"]'));
-    assert.equal(query(view.container, ".thread-tab-pull-request").getAttribute("title"), "#42 · Merged · Login");
+    assert.equal(query(view.container, ".thread-tab-pull-request").dataset.tip, "#42 · Merged · Login");
+    assert.equal(query(view.container, 'button[aria-label="Branch feat/login"]').dataset.tip, "feat/login");
+    assert.ok("tipOverflow" in query(view.container, 'button[aria-label="Branch feat/login"]').dataset, "the name only repeats as a tip once it is cut short");
+    assert.equal(query(view.container, 'button[aria-label="Review changes, +12 −3"]').dataset.tip, "Uncommitted changes");
+    assert.equal(view.container.querySelector("[title]:not([title=''])"), null, "every hint uses the app's tooltip");
     assert.equal(query(view.container, 'button[aria-label="Open Automation panel"]').dataset.tip, "Automations");
+  } finally { await view.unmount(); }
+});
+
+test("a checkout Git could not read shows the failure with a retry, while reading stays quiet", async () => {
+  const { CommandControlsProvider } = await import("../../../src/renderer/components/CommandControl.tsx");
+  const sent: unknown[] = [];
+  const actions = { onToggleChanges() {}, onOpenAutomations() {}, onSetBranchMenuOpen() {}, onCheckoutBranch() {} };
+  const strip = (environment: unknown) => React.createElement(CommandControlsProvider, { value: { available: () => true, dispatch: (command: unknown) => { sent.push(command); } } },
+    React.createElement(ThreadTabStrip, { tab: tab({ environment } as Partial<ThreadTabView>), branchMenuOpen: false, actions }));
+  const view = await mount(strip(null));
+  try {
+    const reading = query(view.container, ".thread-tab-note");
+    assert.equal(reading.textContent, "Reading Git…");
+    assert.equal(reading.classList.contains("failed"), false);
+    assert.equal(view.container.querySelector(".thread-tab-retry"), null);
+    await view.render(strip({ status: "error", message: "fatal: bad object HEAD" }));
+    const failed = query(view.container, ".thread-tab-note.failed");
+    assert.equal(failed.getAttribute("role"), "alert");
+    assert.equal(query(failed, "[data-tip]").dataset.tip, "fatal: bad object HEAD");
+    await act(async () => { query<HTMLButtonElement>(failed, ".thread-tab-retry").click(); });
+    assert.deepEqual(sent, [{ type: "view.refresh-environment" }]);
+  } finally { await view.unmount(); }
+});
+
+test("the brief toggle names the card it opens", async () => {
+  const actions = { onToggleChanges() {}, onOpenAutomations() {}, onSetBranchMenuOpen() {}, onCheckoutBranch() {} };
+  const brief = { intent: "Fix it", doneWhen: "Tests pass", delivers: "commit" };
+  const view = await mount(React.createElement(ThreadTabStrip, { tab: tab({ thread: { id: "t", title: "T", brief } } as unknown as Partial<ThreadTabView>), branchMenuOpen: false, actions }));
+  try {
+    const toggle = query<HTMLButtonElement>(view.container, ".thread-tab-brief-toggle");
+    await act(async () => { toggle.click(); });
+    const card = query(view.container, ".thread-tab-brief-card");
+    assert.equal(toggle.getAttribute("aria-controls"), card.id);
   } finally { await view.unmount(); }
 });
 

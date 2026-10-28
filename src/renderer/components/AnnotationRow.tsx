@@ -2,15 +2,15 @@ import { LuPencil as Pencil, LuX as X } from "react-icons/lu";
 import { useEffect, useId, useRef, useState } from "react";
 import type { Annotation } from "../../domain/conversation";
 
-/** Whether a line-clamped element cuts its text, so the fade only covers text that is really there. */
-function useClamped(text: string) {
-  const ref = useRef<HTMLSpanElement>(null);
+/** Whether a clamped or ellipsized element cuts its text, so what stands in for the rest only shows when there is a rest. */
+export function useClamped<T extends HTMLElement = HTMLSpanElement>(text: string) {
+  const ref = useRef<T>(null);
   const [clamped, setClamped] = useState(false);
 
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
-    const measure = () => setClamped(element.scrollHeight > element.clientHeight);
+    const measure = () => setClamped(element.scrollHeight > element.clientHeight || element.scrollWidth > element.clientWidth);
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(element);
@@ -63,7 +63,7 @@ function AnnotationPill({ annotation, index, onRemove }: {
         {note || <span className="annotation-pill-quote">“{annotation.quote}</span>}
       </span>
       {onRemove && (
-        <button type="button" aria-label={`Remove annotation ${index + 1}`} onClick={() => onRemove(annotation.id)}>
+        <button type="button" aria-label={`Remove annotation ${index + 1}`} data-tip="Remove" onClick={() => onRemove(annotation.id)}>
           <X size={12} />
         </button>
       )}

@@ -1,5 +1,5 @@
-import { LuCheck as Check, LuZap as Zap } from "react-icons/lu";
-import { Fragment } from "react";
+import { LuCheck as Check, LuSquarePen as SquarePen, LuZap as Zap } from "react-icons/lu";
+import { Fragment, useEffect, useState } from "react";
 import type { MobileThreadSettings } from "../../contracts/mobile";
 import { Sheet } from "./Sheet";
 import { AGENT_ENGINES, capabilitiesFor, byEngine, byModel, effortForModel, effortsFor, engineLabel, modelsFor, type AgentEngine, type AgentModel, type EffortSpec } from "../../domain/agent-engine";
@@ -35,8 +35,8 @@ function Group<T extends string>({ heading, choices, value, onChange }: { headin
   );
 }
 
-/** A thread that already has an engine offers only that engine's models; the others say how to get them. */
-function ModelGroup({ engine, model, locked, onModel }: { engine: AgentEngine; model: AgentModel; locked: boolean; onModel: (engine: AgentEngine, model: AgentModel) => void }) {
+/** A thread that already has an engine offers only that engine's models; the others start a thread on theirs. */
+function ModelGroup({ engine, model, locked, onModel, onNewWith }: { engine: AgentEngine; model: AgentModel; locked: boolean; onModel: (engine: AgentEngine, model: AgentModel) => void; onNewWith?: (engine: AgentEngine) => void }) {
   return (
     <section className="sheet-group" role="radiogroup" aria-label="Model">
       <h3>Model</h3>
@@ -46,30 +46,56 @@ function ModelGroup({ engine, model, locked, onModel }: { engine: AgentEngine; m
           {group.choices.map((choice) => <OptionButton key={choice.value} choice={choice} selected={group.engine === engine && choice.value === model} onSelect={() => onModel(group.engine, choice.value)} />)}
         </Fragment>
       ))}
-      {locked && modelGroups.filter((group) => group.engine !== engine).map((group) => (
-        <div key={group.engine} className="sheet-option sheet-locked" aria-disabled="true"><span><strong>Start a new thread to use {group.label}</strong></span></div>
+      {locked && onNewWith && modelGroups.filter((group) => group.engine !== engine).map((group) => (
+        <button key={group.engine} type="button" className="sheet-option sheet-new-engine" onClick={() => onNewWith(group.engine)}>
+          <span><strong>New thread with {group.label}</strong></span>
+          <SquarePen size={16} strokeWidth={1.8} aria-hidden="true" />
+        </button>
       ))}
     </section>
   );
 }
 
-export function ThreadSettings({ settings, locked, onClose, onPolicy, onModel, onEffort, onFastMode }: {
+/** How long a tapped choice shows as made while the computer has yet to echo it back. */
+const PENDING_MS = 4000;
+
+type Pending = Partial<Pick<MobileThreadSettings, "policy" | "engine" | "model" | "effort" | "fastMode">>;
+
+/**
+ * The choice a tap made, shown at once and let go of when the computer's settings agree with it or
+ * after a while, so one it turned down goes back to what it really is.
+ */
+function usePending(settings: MobileThreadSettings) {
+  const [pending, setPending] = useState<Pending>({});
+  const echoed = (Object.keys(pending) as (keyof Pending)[]).every((key) => settings[key] === pending[key]);
+  useEffect(() => {
+    if (!Object.keys(pending).length) return;
+    if (echoed) { setPending({}); return; }
+    const timer = setTimeout(() => setPending({}), PENDING_MS);
+    return () => clearTimeout(timer);
+  }, [pending, echoed]);
+  return [{ ...settings, ...pending }, (next: Pending) => setPending((current) => ({ ...current, ...next }))] as const;
+}
+
+export function ThreadSettings({ settings: given, locked, onNewWith, onClose, onPolicy, onModel, onEffort, onFastMode }: {
   settings: MobileThreadSettings;
   /** Set for a thread that exists, whose engine is settled; a draft may still pick either. */
   locked: boolean;
+  onNewWith?: (engine: AgentEngine) => void;
   onClose: () => void;
   onPolicy: (policy: ExecutionPolicy) => void;
   onModel: (engine: AgentEngine, model: AgentModel) => void;
   onFastMode: (fastMode: boolean) => void;
   onEffort: (engine: AgentEngine, effort: AgentEffort) => void;
 }) {
+  const [settings, choose] = usePending(given);
   const efforts = (settings.coordinating ? coordinatorEffortsOf : effortsOf)[settings.model];
   return (
     <Sheet title="Settings" label="Thread settings" onClose={onClose}>
-      <Group heading="Mode" choices={MODES} value={settings.policy} onChange={onPolicy} />
-      <ModelGroup engine={settings.engine} model={settings.model} locked={locked} onModel={onModel} />
-      {efforts.length > 0 && <Group heading="Effort" choices={efforts} value={effortForModel(settings.model, settings.effort, settings.coordinating ? "coordinator" : undefined)} onChange={(effort) => onEffort(settings.engine, effort)} />}
-      {capabilitiesFor(settings.engine).fastMode && <button type="button" className="sheet-option fast-mode-switch" role="switch" aria-label="Fast mode" aria-checked={settings.fastMode ?? false} onClick={() => onFastMode(!settings.fastMode)}>
+      <Group heading="Mode" choices={MODES} value={settings.policy} onChange={(policy) => { choose({ policy }); onPolicy(policy); }} />
+      <ModelGroup engine={settings.engine} model={settings.model} locked={locked} onNewWith={onNewWith} onModel={(engine, model) => { choose({ engine, model }); onModel(engine, model); }} />
+      {efforts.length > 0 && <Group heading="Effort" choices={efforts} value={effortForModel(settings.model, settings.effort, settings.coordinating ? "coordinator" : undefined)} onChange={(effort) => { choose({ effort }); onEffort(settings.engine, effort); }} />}
+      {capabilitiesFor(settings.engine).fastMode && <button type="button" className="sheet-option fast-mode-switch" role="switch" aria-label="Fast mode" aria-checked={settings.fastMode ?? false} onClick={() => { const fastMode = !settings.fastMode; choose({ fastMode }); onFastMode(fastMode); }}>
         <Zap size={20} aria-hidden="true" />
         <span><strong>Fast mode</strong><small>Faster responses · uses more of your plan</small></span>
         <span className="switch-track" aria-hidden="true" />

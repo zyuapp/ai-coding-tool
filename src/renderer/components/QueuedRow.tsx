@@ -1,12 +1,39 @@
 import { LuCornerDownRight as CornerDownRight, LuPencil as Pencil, LuX as X } from "react-icons/lu";
 import type { QueuedMessage } from "../../application/workspace-state";
 import { isUsersOwn, messageLabel } from "../../domain/message-origin";
-import { AnnotationRow } from "./AnnotationRow";
+import { useState, type KeyboardEvent } from "react";
+import { AnnotationRow, useClamped } from "./AnnotationRow";
 import type { ComposerSurface } from "./ConversationComposer";
 
 function QueuedOrigin({ message }: { message: QueuedMessage }) {
   const label = messageLabel(message);
   return label ? <p className="queued-origin">{label}</p> : null;
+}
+
+/** A queued message's words on one line, opened out in place when they run past it. */
+function QueuedText({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const [ref, cut] = useClamped<HTMLParagraphElement>(text);
+  const toggles = cut || open;
+  return (
+    <p
+      ref={ref}
+      className={`queued-text${open ? " open" : ""}${toggles ? " toggles" : ""}`}
+      {...(toggles ? {
+        role: "button",
+        tabIndex: 0,
+        "aria-expanded": open,
+        onClick: () => setOpen(!open),
+        onKeyDown: (event: KeyboardEvent) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          setOpen(!open);
+        },
+      } : {})}
+    >
+      {text}
+    </p>
+  );
 }
 
 /** Messages waiting on the run, each with what it carries and what you can do to it. */
@@ -28,7 +55,7 @@ export function QueuedRow({ messages, surface, canSteer, onEdit, onSteer, onDrop
           <CornerDownRight className="queued-mark" size={14} aria-hidden="true" />
           <div className="queued-body">
             <QueuedOrigin message={message} />
-            {message.text && <p className="queued-text">{message.text}</p>}
+            {message.text && <QueuedText text={message.text} />}
             {message.annotations?.length ? <AnnotationRow annotations={message.annotations} /> : null}
           </div>
           {message.steering ? <span className="queued-state">Steering…</span> : (

@@ -229,3 +229,29 @@ test("deletion confirmation and new-worktree selection dispatch their effects", 
     assert.equal(creating.state().threads[0].worktreeId, "wt1");
   } finally { await creating.unmount(); }
 });
+
+test("a running thread's blocked worktree entries say what to wait for", async () => {
+  const view = await renderMenu();
+  try {
+    await openLocationMenu();
+    assert.equal(menuButton("Move to worktree").disabled, false);
+    assert.equal(menuButton("Move to worktree").dataset.tip, undefined);
+    await view.send({ type: "task.send", taskId: "thread-0", text: "Continue", attachments: [] });
+    for (const label of ["Move to worktree", "Return to local"]) {
+      assert.ok(menuButton(label).disabled);
+      assert.equal(menuButton(label).dataset.tip, "Wait for the run to finish");
+    }
+    assert.ok(menuButton("Delete worktree…").disabled);
+    assert.equal(menuButton("Delete worktree…").dataset.tip, "Wait for the active runs to finish");
+  } finally { await view.unmount(); }
+});
+
+test("deleting closes the question and the row says the worktree is going", async () => {
+  const view = await renderMenu();
+  try {
+    await openLocationMenu(); await choose("Delete worktree…");
+    await click(".worktree-delete-actions .danger");
+    assert.equal(document.querySelector(".worktree-delete-dialog"), null);
+    assert.match(query(view.container, ".session-location-name").textContent ?? "", /^Removing worktree…/);
+  } finally { await view.unmount(); }
+});

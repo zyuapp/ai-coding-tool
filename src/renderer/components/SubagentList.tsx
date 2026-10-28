@@ -37,7 +37,7 @@ export function matchSubagents(subagents: Subagent[], status: SubagentStatus | n
   const needle = query.trim().toLowerCase();
   return orderSubagents(subagents).filter((subagent) =>
     (!status || subagent.status === status)
-    && (!needle || `${subagent.description} ${subagent.lastToolName ?? ""}`.toLowerCase().includes(needle)));
+    && (!needle || `${subagent.description} ${subagent.lastToolName ?? ""} ${subagent.summary ?? ""}`.toLowerCase().includes(needle)));
 }
 
 export function countByStatus(subagents: Subagent[]) {
@@ -48,8 +48,8 @@ export function countByStatus(subagents: Subagent[]) {
 
 export const SubagentRow = memo(function SubagentRow({ subagent, onSelect }: { subagent: Subagent; onSelect: (id: string) => void }) {
   return (
-    <button className="agent-row" onClick={() => onSelect(subagent.id)} aria-label={`Open ${subagent.description} details`}>
-      <span className={`agent-orb ${subagent.status}`}><Bot size={12} /></span>
+    <button type="button" className="agent-row" onClick={() => onSelect(subagent.id)}>
+      <span className={`agent-orb ${subagent.status}`} aria-hidden="true"><Bot size={12} /></span>
       <span><strong>{subagent.description}</strong><small>{subagentLine(subagent)}</small></span>
       <StatusIcon status={subagent.status} />
     </button>
@@ -159,7 +159,7 @@ export function AgentsPanel({ subagents, groups, finding = false, onSelect, onSe
             placeholder="Search subagents"
             aria-label="Search subagents"
           />
-          {query && <button type="button" className="agent-search-clear" aria-label="Clear the search" data-tip="Clear · Esc" onClick={() => { setQuery(""); searchRef.current?.focus(); }}><X size={12} aria-hidden="true" /></button>}
+          {query && <button type="button" className="agent-search-clear" aria-label="Clear the search" data-tip="Clear (Esc)" onClick={() => { setQuery(""); searchRef.current?.focus(); }}><X size={12} aria-hidden="true" /></button>}
         </label>
       </div>
       {rows.length === 0 ? (

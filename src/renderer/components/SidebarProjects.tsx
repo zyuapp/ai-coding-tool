@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Draggable, Droppable, type DraggableProvided } from "@hello-pangea/dnd";
 import { LuPlus as Plus, LuSquarePen as SquarePen } from "react-icons/lu";
 import { folderName, projectName, type Project } from "../../domain/project";
@@ -99,6 +99,7 @@ function ProjectRow({
 }: ProjectRowProps) {
   const shown = visibleCount(threads, currentId, showAll);
   const hidden = threads.length - shown;
+  const header = useRef<HTMLDivElement>(null);
   return (
     <Draggable draggableId={project.id} index={index} disableInteractiveElementBlocking>
       {(dragged: DraggableProvided, snapshot) => (
@@ -110,7 +111,7 @@ function ProjectRow({
           {/** The header row is the handle, buttons and all: the library refuses to lift from a
             *  button unless told otherwise, and the row is nothing but buttons. It swallows the
             *  click a drag ends on, so the row keeps its click-to-fold. */}
-          <div className={`project-row ${current ? "current" : ""}`} {...dragged.dragHandleProps}>
+          <div ref={header} className={`project-row ${current ? "current" : ""}`} {...dragged.dragHandleProps}>
             {renaming.editing === project.id
               ? <RenameInput
                   inputRef={renaming.input}
@@ -143,6 +144,7 @@ function ProjectRow({
                   label: `New thread in ${worktreeName(worktree)}`,
                   onSelect: () => onNewThread(project.id, worktree.id),
                 })),
+                { label: "Rename", onSelect: () => renaming.start(project.id, header.current) },
                 { label: "Edit…", onSelect: () => onEditProject(project.id) },
                 removeItem(threads.length, () => onRemoveProject(project.id)),
               ]}
@@ -158,7 +160,7 @@ function ProjectRow({
               </div>
             )}
           </Droppable>}
-          {expanded && threads.length === 0 && <p className="empty-tasks">No threads yet</p>}
+          {expanded && threads.length === 0 && <button className="empty-tasks" type="button" onClick={() => onNewThread(project.id)}>Start a thread</button>}
           {expanded && (hidden > 0 || showAll) && (
             <ShowMore
               label={hidden > 0 ? `Show ${hidden} more` : "Show less"}
@@ -259,7 +261,9 @@ export function SidebarProjects({
     <>
       <div className="section-heading projects-heading">
         <button className="section-toggle" onClick={() => onSetSectionOpen("projects", !sections.projects)} aria-expanded={sections.projects}>
-          <span>Projects</span><span className="section-chevron" aria-hidden="true" />
+          <span>Projects</span>
+          {!sections.projects && projects.length > 0 && <span className="section-count">{projects.length}</span>}
+          <span className="section-chevron" aria-hidden="true" />
         </button>
         <button className={`section-action add-project${projects.length === 0 ? " shown" : ""}`} type="button" onClick={onOpenFolder} aria-label="Add project" data-tip="Add project"><Plus size={16} aria-hidden="true" /></button>
       </div>
@@ -269,7 +273,7 @@ export function SidebarProjects({
             {(list) => <div className="computer-group" role={showComputers ? "group" : undefined} aria-label={showComputers ? host?.name ?? localName : undefined} ref={list.innerRef} {...list.droppableProps}>
               {showComputers && <div className="computer-heading" aria-hidden="true">
                 <HostMark name={host?.name ?? localName} offline={host?.offline} reconnecting={host?.reconnecting} />
-                {host?.offline && <span className="computer-status">{host.reconnecting ? "Reconnecting" : "Offline"}</span>}
+                {host?.offline && <span className="computer-heading-status">{host.reconnecting ? "Reconnecting" : "Offline"}</span>}
               </div>}
               {held.map((project, offset) => (
                 <ProjectRow
@@ -302,14 +306,16 @@ export function SidebarProjects({
 
       <div className="section-heading recents-heading">
         <button className="section-toggle" onClick={() => onSetSectionOpen("recents", !sections.recents)} aria-expanded={sections.recents}>
-          <span>Recents</span><span className="section-chevron" aria-hidden="true" />
+          <span>Recents</span>
+          {!sections.recents && recentThreads.length > 0 && <span className="section-count">{recentThreads.length}</span>}
+          <span className="section-chevron" aria-hidden="true" />
         </button>
-        <button className="section-action recent-new" type="button" onClick={() => onNewThread()} aria-label="New chat" data-tip="New chat"><SquarePen size={16} aria-hidden="true" /></button>
+        <button className="section-action recent-new" type="button" onClick={() => onNewThread()} aria-label="New thread" data-tip="New thread"><SquarePen size={16} aria-hidden="true" /></button>
       </div>
       {sections.recents && <Droppable droppableId={RECENTS_DROPPABLE} type="task">
         {(provided, snapshot) => (
           <nav className="task-list" aria-label="Project-less tasks" ref={provided.innerRef} {...provided.droppableProps}>
-            {recentThreads.length === 0 && !snapshot.isDraggingOver && <p className="sidebar-empty">No chats</p>}
+            {recentThreads.length === 0 && !snapshot.isDraggingOver && <p className="sidebar-empty">No threads</p>}
             {recentThreads.map((thread, index) => renderRow(thread, index, "recent"))}
             {provided.placeholder}
           </nav>

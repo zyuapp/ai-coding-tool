@@ -93,7 +93,7 @@ export function BrowserPanel({ tab, approval, focusToken = 0, find, onOpen, onGo
         <div className="browser-approval" role="alert">
           <ShieldAlert size={16} aria-hidden="true" />
           <p>The agent wants to open <strong>{browserTabTitle({ title: "", url: approval.url })}</strong>. It browses with every login you have here.</p>
-          <button className="primary" type="button" onClick={() => onDecide(approval.approvalId, true)}>Allow this site</button>
+          <button className="primary" type="button" onClick={() => onDecide(approval.approvalId, true)}>Always allow this site</button>
           <button type="button" onClick={() => onDecide(approval.approvalId, false)}>Block</button>
         </div>
       )}
@@ -104,6 +104,7 @@ export function BrowserPanel({ tab, approval, focusToken = 0, find, onOpen, onGo
             <span className="agent-orb"><Globe size={18} /></span>
             <h2>No page open</h2>
             <p>Open a page here and every thread can read it, signed in as you, in one session for the whole app.</p>
+            <button type="button" onClick={() => addressInput.current?.focus()}>Type an address</button>
           </div>
         )}
         {tab.error && (

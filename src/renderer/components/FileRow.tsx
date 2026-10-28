@@ -15,13 +15,13 @@ export function FileRow({ files, onRemove }: {
       {files.map((file) => (
         <span className="file-pill" role="listitem" key={file.id}>
           {file.folder ? (
-            <span className="file-name" title={file.path}>
+            <span className="file-name" data-tip={file.path}>
               <Folder size={12} aria-hidden="true" />
               <strong>{file.name}</strong>
               <small>Folder</small>
             </span>
           ) : (
-            <button type="button" className="file-name" title={file.path} onClick={() => links.openFile?.(file.path, null)} aria-label={`Open ${file.name}`}>
+            <button type="button" className="file-name" data-tip={file.path} onClick={() => links.openFile?.(file.path, null)} aria-label={`Open ${file.name}`}>
               <FileMark size={12} aria-hidden="true" />
               <strong>{file.name}</strong>
             </button>

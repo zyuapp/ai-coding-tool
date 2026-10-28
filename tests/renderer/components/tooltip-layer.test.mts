@@ -105,4 +105,26 @@ test("keyboard tooltips follow navigation but stay closed after Alt and window r
   } finally { await view.unmount(); stop(); }
 });
 
+test("a tip that repeats its text shows only while that text is cut short", async () => {
+  const view = await mountElement(React.createElement(React.Fragment, null,
+    React.createElement("button", { type: "button", "data-tip": "feature/very-long-branch", "data-tip-overflow": "" },
+      React.createElement("code", null, "feature/very-long-branch")),
+    React.createElement(TooltipLayer),
+  ));
+  const chip = view.container.querySelector("button")!;
+  const code = chip.querySelector("code")!;
+
+  hover(code);
+  await rest();
+  assert.equal(tooltip(), null, "the whole name is already on screen");
+
+  Object.defineProperty(code, "scrollWidth", { configurable: true, value: 240 });
+  Object.defineProperty(code, "clientWidth", { configurable: true, value: 160 });
+  hover(view.container);
+  hover(code);
+  await rest();
+  assert.equal(tooltip()?.textContent, "feature/very-long-branch");
+  await view.unmount();
+});
+
 });

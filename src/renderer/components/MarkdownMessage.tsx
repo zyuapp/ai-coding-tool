@@ -94,8 +94,6 @@ function MarkdownTable({ node, ...props }: ComponentProps<"table"> & ExtraProps)
   );
 }
 
-const IN_APP_CLICK = `${MAC ? "⌘" : "Ctrl"}-click to open in AI Coding Tool`;
-
 /** Opens in the browser, or with the platform's command modifier held, in the app's own browser panel. */
 export function WebLink({ children, openInApp, ...props }: ComponentProps<"a"> & { openInApp?: () => void }) {
   const link = useRef<HTMLAnchorElement>(null);
@@ -107,7 +105,6 @@ export function WebLink({ children, openInApp, ...props }: ComponentProps<"a"> &
         ref={link}
         target="_blank"
         rel="noreferrer"
-        title={props.title ?? (openInApp ? IN_APP_CLICK : undefined)}
         onClick={(event) => {
           props.onClick?.(event);
           if (!openInApp || event.defaultPrevented || !(MAC ? event.metaKey : event.ctrlKey)) return;
@@ -161,7 +158,7 @@ function MarkdownCode({ children, ...props }: ComponentProps<"code">) {
   /** A reply can name a commit in some other repository, which has no diff here to open. */
   const known = useKnownCommit(actions.openCommit ? scope.workspaceId : undefined, hash);
   return hash && known && actions.openCommit
-    ? <button type="button" className="message-commit" aria-label={`View commit ${hash}`} onClick={() => actions.openCommit!(hash, scope.taskId)}><code {...props}>{children}</code></button>
+    ? <button type="button" className="message-commit" aria-label={`View commit ${hash}`} data-tip="Open commit" onClick={() => actions.openCommit!(hash, scope.taskId)}><code {...props}>{children}</code></button>
     : <code {...props}>{children}</code>;
 }
 

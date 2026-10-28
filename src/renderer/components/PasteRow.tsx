@@ -5,6 +5,7 @@ import { pasteSummary } from "../../application/pastes";
 import type { PastedText } from "../../domain/conversation";
 import { useModalFocus } from "../focus";
 import { copyText } from "../clipboard";
+import { shortcutTip } from "./TooltipLayer";
 
 /** How long the tick stands in for the copy icon after a copy. */
 const COPIED_MS = 1400;
@@ -39,7 +40,7 @@ function PasteViewer({ paste, label, onClose }: { paste: PastedText; label: stri
       >
         {copied ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}
       </button>
-      <button type="button" className="viewer-close" onClick={onClose} aria-label={`Close ${label.toLowerCase()}`}><X size={16} /></button>
+      <button type="button" className="viewer-close" onClick={onClose} aria-label={`Close ${label.toLowerCase()}`} data-tip={shortcutTip("Close", "Escape")}><X size={16} /></button>
       <pre className="paste-full" onClick={(event) => event.stopPropagation()}>{paste.text}</pre>
     </div>,
     document.body,
@@ -65,7 +66,7 @@ export function PasteRow({ pastes, onRemove }: {
             <small>{pasteSummary(paste.text)}</small>
           </button>
           {onRemove && (
-            <button type="button" className="paste-remove" aria-label={`Remove pasted text ${index + 1}`} onClick={() => onRemove(paste.id)}>
+            <button type="button" className="paste-remove" aria-label={`Remove pasted text ${index + 1}`} data-tip="Remove" onClick={() => onRemove(paste.id)}>
               <X size={12} />
             </button>
           )}

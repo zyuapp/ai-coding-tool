@@ -73,9 +73,10 @@ export function SettingsSidebar({ section, searchRef, onClose, onLand, onRefresh
   return (
     <aside className="settings-sidebar">
       <div className="settings-traffic-space" aria-hidden="true" />
-      <button className="settings-back" type="button" data-tip="Esc" onClick={onClose}>
+      <button className="settings-back" type="button" aria-keyshortcuts="Escape" onClick={onClose}>
         <ArrowLeft size={18} aria-hidden="true" />
         <span>Back to AI Coding Tool</span>
+        <kbd aria-hidden="true">Esc</kbd>
       </button>
       <h1>Settings</h1>
       <label className="settings-search">
@@ -119,7 +120,12 @@ export function SettingsSidebar({ section, searchRef, onClose, onLand, onRefresh
               );
             })}
           </div>
-        ) : <p className="settings-search-empty">No settings match</p>
+        ) : (
+          <p className="settings-search-empty">
+            No settings match
+            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => { setQuery(""); searchRef.current?.focus(); }}>Show all pages</button>
+          </p>
+        )
       ) : (
         <nav aria-label="Settings sections" onKeyDown={moveListFocus}>
           {SETTINGS_SECTIONS.map((page) => {

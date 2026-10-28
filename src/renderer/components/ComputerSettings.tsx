@@ -131,15 +131,25 @@ function AddressEntry({ pairing, onPair }: { pairing: ComputerPairing | null; on
   );
 }
 
+/** How long the field says a new name was saved. */
+const SAVED_FOR = 2000;
+
 /** What this computer calls itself, kept as it is typed and given once the field is left or Enter is pressed. */
 function NameEntry({ name, onRename }: { name: string; onRename: (name: string) => void }) {
   const [draft, setDraft] = useState(name);
+  const [saved, setSaved] = useState(false);
   useEffect(() => setDraft(name), [name]);
+  useEffect(() => {
+    if (!saved) return;
+    const timer = setTimeout(() => setSaved(false), SAVED_FOR);
+    return () => clearTimeout(timer);
+  }, [saved]);
   const commit = () => {
     const typed = draft.trim();
     if (typed === name) return setDraft(name);
     if (!typed) setDraft(name);
     onRename(typed);
+    setSaved(true);
   };
   return (
     <form
@@ -150,13 +160,13 @@ function NameEntry({ name, onRename }: { name: string; onRename: (name: string) 
       }}
     >
       <label>
-        <span>Name</span>
+        <span>This computer's name</span>
         <input
           autoComplete="off"
           spellCheck={false}
           maxLength={MAX_COMPUTER_NAME}
           value={draft}
-          onInput={(event) => setDraft(event.currentTarget.value)}
+          onInput={(event) => { setDraft(event.currentTarget.value); setSaved(false); }}
           onBlur={commit}
           onKeyDown={(event) => {
             if (event.key !== "Escape") return;
@@ -165,6 +175,7 @@ function NameEntry({ name, onRename }: { name: string; onRename: (name: string) 
           }}
         />
       </label>
+      <span className="computer-name-saved" role="status">{saved && <><Check size={14} aria-hidden="true" />Saved</>}</span>
     </form>
   );
 }
@@ -192,7 +203,7 @@ export function ComputerSettings({ found, searching, searchError, name, links, p
       </div>
 
       <div className="setting-row" data-this-computer>
-        <span className="setting-status granted"><Check size={14} /></span>
+        <span className="setting-status granted" aria-hidden="true"><Check size={14} /></span>
         <div>
           <NameEntry name={name} onRename={onRename} />
         </div>
@@ -200,7 +211,7 @@ export function ComputerSettings({ found, searching, searchError, name, links, p
 
       {links.map((link) => (
         <div className="setting-row" key={link.id} data-computer={link.id}>
-          <span className={`setting-status ${link.status === "connected" ? "granted" : "blank"}`}>{link.status === "connected" ? <Check size={14} /> : <Monitor size={14} />}</span>
+          <span className={`setting-status ${link.status === "connected" ? "granted" : "blank"}`} aria-hidden="true">{link.status === "connected" ? <Check size={14} /> : <Monitor size={14} />}</span>
           <div>
             {labels.editing === link.id
               ? <RenameInput
@@ -226,7 +237,7 @@ export function ComputerSettings({ found, searching, searchError, name, links, p
 
       {offered.map((computer) => (
         <div className="setting-row" key={computer.host} data-found={computer.host}>
-          <span className="setting-status blank"><Monitor size={14} /></span>
+          <span className="setting-status blank" aria-hidden="true"><Monitor size={14} /></span>
           <div>
             <strong>{computer.name}</strong>
             <p>{computer.host}{computer.os ? ` · ${computer.os}` : ""}</p>
@@ -239,7 +250,7 @@ export function ComputerSettings({ found, searching, searchError, name, links, p
       ))}
 
       <div className="setting-row" data-address>
-        <span className="setting-status blank"><Monitor size={14} /></span>
+        <span className="setting-status blank" aria-hidden="true"><Monitor size={14} /></span>
         <div>
           <AddressEntry pairing={pairing} onPair={(host) => onPair(host, host, "")} />
           {pairing && !offered.some((computer) => computer.host === pairing.host) && <CodeEntry pairing={pairing} onPair={(code) => onPair(pairing.host, pairing.name, code)} onCancel={onCancelPairing} />}

@@ -180,7 +180,6 @@ export function SideChat({ chat, sourceTitle, sourceContinued, onClose, ...props
       label="Side chat"
       surface="side"
       disabled={!available}
-      note="Nothing here is saved · closes without a trace"
       header={
         <header className="side-chat-header">
           <div className="side-chat-title">
@@ -193,7 +192,7 @@ export function SideChat({ chat, sourceTitle, sourceContinued, onClose, ...props
       empty={{
         icon: GitFork,
         title: available ? "Work from a copy of this thread" : "Main context unavailable",
-        description: available ? "This conversation starts from the main thread's context, then continues on its own branch. It is never saved." : "Send a message in the main thread first, then open /side again.",
+        description: available ? "This conversation starts from the main thread's context, then continues on its own branch." : "Send a message in the main thread to enable this chat.",
       }}
     />
   );

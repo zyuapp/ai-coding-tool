@@ -104,7 +104,7 @@
 .decision-foot button.secondary { background: transparent; color: var(--ink-dim); font-weight: 500; }
 .decision-foot button:disabled { opacity: 0.4; cursor: default; }
 .decision-foot-gap { flex: 1; }
-/** A coordinator's suggested threads: one row each, started by its round arrow, dismissed by its ✕. */
+/** A coordinator's suggested threads: one row each, started by its round arrow, dismissed by the ✕ that shows on hover. */
 .suggestion-list { margin: 0; padding: 0 8px 8px; list-style: none; }
 .suggestion-row { display: flex; align-items: center; gap: 6px; min-width: 0; border-radius: 9px; padding: 5px 6px 5px 8px; }
 .suggestion-row:hover, .suggestion-row:focus-within { background: var(--surface-hover); }
@@ -115,7 +115,8 @@
 .suggestion-row.starting .suggestion-text { opacity: 0.7; }
 .suggestion-chip { flex: none; border-radius: 5px; padding: 0 6px; background: var(--wash); color: var(--quiet-strong); font-size: var(--text-badge); line-height: 18px; white-space: nowrap; }
 .suggestion-dismiss, .suggestion-start { flex: none; display: grid; place-items: center; padding: 0; cursor: pointer; }
-.suggestion-dismiss { width: 26px; height: 26px; border: 0; border-radius: 7px; background: transparent; color: var(--quiet-strong); }
+.suggestion-dismiss { width: 26px; height: 26px; border: 0; border-radius: 7px; background: transparent; color: var(--quiet-strong); opacity: 0; transition: opacity 0.15s ease; }
+.suggestion-row:is(:hover, :focus-within) .suggestion-dismiss { opacity: 1; }
 .suggestion-dismiss:hover:not(:disabled) { background: var(--danger-chip); color: var(--danger); }
 button.suggestion-start { width: 26px; height: 26px; border: 0; border-radius: 50%; background: var(--surface-inverse); color: var(--ink-inverse); }
 button.suggestion-start:hover:not(:disabled) { opacity: 0.85; }
@@ -204,13 +205,13 @@ button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
   padding: 0;
   background: transparent;
   color: var(--quiet-strong);
-  opacity: 0.5;
+  opacity: 0;
   transform: translateY(-50%);
   cursor: pointer;
   transition: opacity 0.15s ease;
 }
-.coordination-item:hover > .coordination-row-action, .coordination-item:focus-within > .coordination-row-action, .coordination-row-action[data-action="reopen"] { opacity: 1; }
-.coordination-item:has(> .coordination-row-action) > .coordination-row { padding-right: 32px; }
+.coordination-item:hover > .coordination-row-action, .coordination-item:focus-within > .coordination-row-action { opacity: 1; }
+.coordination-item:has(> .coordination-row-action):is(:hover, :focus-within) .coordination-row-marks { opacity: 0; }
 .coordination-row-action:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-soft); }
 .coordination-row-action[data-action="resolve"]:hover:not(:disabled), .thread-tab-resolution[data-action="resolve"]:hover:not(:disabled) { background: var(--success-surface); color: var(--success); }
 /** A resolved thread's check is ticked, and turns into an undo while pointed at. */
@@ -347,7 +348,7 @@ button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
 .coordination-purpose:hover { background: var(--surface-hover); }
 .coordination-purpose:not(.editing) { display: flex; align-items: center; gap: 6px; }
 .coordination-purpose > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.coordination-purpose-edit { flex: none; margin-left: auto; color: var(--quiet-strong); opacity: 0; transition: opacity 0.15s ease; }
+.coordination-purpose-edit { flex: none; margin-left: auto; color: var(--quiet-strong); opacity: 0.6; transition: opacity 0.15s ease; }
 .coordination-purpose:is(:hover, :focus-visible) .coordination-purpose-edit { opacity: 1; }
 .coordination-purpose.editing, .coordination-note-text.editing, .coordination-note-add:focus { border-color: var(--line-strong); background: var(--canvas); color: var(--ink); outline: none; }
 .coordination-placeholder { color: var(--quiet); font-weight: 450; }
@@ -376,6 +377,9 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
 .coordination-note-text:not(.editing):hover { background: var(--surface-hover); color: var(--ink-soft); }
 .coordination-note-add::placeholder { color: var(--quiet); }
 .coordination-note-add:hover:not(:focus) { background: var(--wash); }
+.coordination-note-add:focus { padding-right: 52px; }
+.coordination-note-hint { position: absolute; right: 9px; bottom: 7px; color: var(--quiet-strong); font: var(--text-meta)/1 var(--mono); opacity: 0; pointer-events: none; transition: opacity 0.15s ease; }
+.coordination-note-add:focus:not(:placeholder-shown) + .coordination-note-hint { opacity: 1; }
 .coordination-note-forget {
   position: absolute;
   right: 5px;
@@ -388,7 +392,7 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
   padding: 0;
   background: transparent;
   color: var(--quiet-strong);
-  opacity: 0.45;
+  opacity: 0;
   cursor: pointer;
   transition: opacity 0.15s ease;
 }
@@ -418,7 +422,8 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
 /** A head with an action of its own sticks as one bar, the fold button filling what the action leaves. */
 .coordination-group-heading { position: sticky; z-index: 1; top: -10px; display: flex; align-items: center; background: var(--sunken); }
 .coordination-group-heading > .coordination-group-head { position: static; flex: 1; min-width: 0; }
-.coordination-stop-all {
+.coordination-stop { flex: none; display: flex; gap: 2px; }
+.coordination-stop > button {
   flex: none;
   border: 0;
   border-radius: 6px;
@@ -430,10 +435,10 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
   font-weight: 550;
   cursor: pointer;
 }
-.coordination-stop-all:hover:not(:disabled) { background: var(--wash); color: var(--ink-soft); }
-.coordination-stop-all.danger { color: var(--danger); }
-.coordination-stop-all.danger:hover { background: var(--danger-chip); color: var(--danger); }
-.coordination-stop-all:disabled { opacity: 0.4; cursor: default; }
+.coordination-stop > button:hover:not(:disabled) { background: var(--wash); color: var(--ink-soft); }
+.coordination-stop > button.danger { color: var(--danger); }
+.coordination-stop > button.danger:hover { background: var(--danger-chip); color: var(--danger); }
+.coordination-stop > button:disabled { opacity: 0.4; cursor: default; }
 .coordination-group-head > svg { color: var(--quiet-strong); transition: transform 140ms ease; }
 .coordination-group-head[aria-expanded="false"] > svg { transform: rotate(-90deg); }
 .coordination-group-count { color: var(--quiet-strong); font-size: var(--text-meta); font-weight: 550; }
@@ -490,7 +495,7 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
   scrollbar-color: var(--scroll-thumb) transparent;
 }
 .coordination-worktree { cursor: default; }
-.coordination-worktree-actions { display: flex; gap: 4px; opacity: 0.5; transition: opacity 0.15s ease; }
+.coordination-worktree-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.15s ease; }
 .coordination-worktree:hover .coordination-worktree-actions, .coordination-worktree:focus-within .coordination-worktree-actions { opacity: 1; }
 .coordination-worktree-actions button {
   width: 22px;
@@ -586,6 +591,10 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
 .thread-tab-pull-request[data-state="merged"] > svg { color: var(--pr-merged); }
 .thread-tab-pull-request[data-state="closed"] > svg { color: var(--danger); }
 .thread-tab-note { min-width: 0; overflow: hidden; color: var(--quiet); font-size: var(--text-meta); text-overflow: ellipsis; white-space: nowrap; }
+.thread-tab-note.failed { display: inline-flex; align-items: center; gap: 6px; height: 26px; border: 1px solid var(--danger-line); border-radius: 8px; padding: 0 3px 0 9px; background: var(--danger-surface); color: var(--danger-soft); }
+.thread-tab-note.failed > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.thread-tab-retry { flex: none; height: 20px; border: 0; border-radius: 6px; padding: 0 7px; background: transparent; color: var(--danger-soft); font: inherit; font-weight: 600; cursor: pointer; }
+.thread-tab-retry:hover:not(:disabled) { background: var(--danger-line); color: var(--ink); }
 .thread-tab-brief-toggle { margin-left: auto; }
 .thread-tab-brief-toggle > svg:last-child { color: var(--quiet); transition: transform 140ms ease; }
 .thread-tab-brief-toggle.open > svg:last-child { transform: rotate(180deg); }

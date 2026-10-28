@@ -34,7 +34,7 @@ test("attached files wear their names, and a folder says it is one", async () =>
 
   assert.deepEqual(pills.map((pill) => query(pill, ".file-name strong").textContent), ["report.pdf", "shots"]);
   assert.equal(query(pills[1], ".file-name small").textContent, "Folder");
-  assert.equal(query(pills[0], ".file-name").getAttribute("title"), "/Users/me/report.pdf");
+  assert.equal(query<HTMLElement>(pills[0], ".file-name").dataset.tip, "/Users/me/report.pdf");
   assert.equal(pills[0].tagName === "SPAN" && query(pills[0], "button.file-name").tagName, "BUTTON", "a file opens; a folder does not");
   assert.equal(pills[1].querySelector("button.file-name"), null);
   await view.unmount();

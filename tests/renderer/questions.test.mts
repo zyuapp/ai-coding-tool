@@ -37,7 +37,7 @@ async function asking(surface: "main" | "side") {
       onQuestionAnswerChange: (question, text) => dispatch({ type: "question.set-answer", taskId: "task-a", ...question, text }),
       onAnswerQuestion: (question) => dispatch({ type: "question.answer", taskId: "task-a", ...question }),
       outbox: outbox({ send: (_attachments, steer) => dispatch({ type: "task.send", steer }) }),
-      onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, onCancel() {},
+      onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, onCancel() {}, onFilesAdd() {},
     });
   }
   const view = await mount(React.createElement(Harness));
@@ -58,7 +58,9 @@ test.each(["main", "side"] as const)("%s choices and custom answers leave the me
   assert.equal(answer.value, "");
   assert.equal(send.disabled, true);
   await act(async () => { query<HTMLInputElement>(container, 'input[value="Green"]').click(); });
-  assert.equal(answer.value, "Green");
+  assert.equal(query<HTMLInputElement>(container, 'input[value="Green"]').checked, true);
+  assert.equal(answer.value, "", "a picked option stays out of the typed answer");
+  assert.equal(send.disabled, false);
   assert.equal(message.value, "Keep this message");
   assert.deepEqual(session.effects, []);
   await type(answer, "Purple, please");

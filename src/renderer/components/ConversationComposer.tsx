@@ -1,5 +1,5 @@
 import { LuPaperclip as Paperclip, LuX as X } from "react-icons/lu";
-import { useRef, type ReactNode } from "react";
+import { useId, useRef, type ReactNode } from "react";
 import type { PendingQuestion, QuestionAddress } from "../../domain/agent-question";
 import { QuestionPrompt } from "./QuestionPrompt";
 import type { QueuedMessage, ReviewPicker as ReviewPickerState } from "../../application/workspace-state";
@@ -11,7 +11,7 @@ import type { ThreadHandleOption } from "../../domain/thread-handles";
 import type { AgentEngine, AgentModel, EngineReadiness } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import type { ContextUsage } from "../../domain/thread-run";
-import { AttachmentAnnotator, AttachmentStrip, useComposerAttachments, type ComposerAttachments, type ComposerOutbox } from "./ComposerAttachments";
+import { AttachmentAnnotator, AttachmentStrip, useComposerAttachments, type ComposerOutbox } from "./ComposerAttachments";
 import { ComposerSettings, EVERY_ENGINE_READY } from "./ComposerSettings";
 import { CommandMenu, ThreadMenu, menuActiveDescendant, menuControls, useComposerMenus, type ComposerAction } from "./ComposerMenus";
 import { ContextUsageMeter } from "./ContextUsageMeter";
@@ -27,8 +27,9 @@ import type { ActiveGoal } from "../../domain/goal";
 import { CommandButton, useCommandControls } from "./CommandControl";
 import { ReturnFocusContext } from "../focus";
 import type { AppCommand } from "../../contracts/commands";
-import { isImageFile } from "../dropped-files";
 import { MAC } from "../platform";
+import { displayShortcut } from "../../domain/shortcuts";
+import { shortcutTip } from "./TooltipLayer";
 
 const NOTHING = () => {};
 
@@ -40,7 +41,8 @@ function composerPlaceholder(surface: ComposerSurface, folder: string, disabled:
   return folder ? `Ask ${engineLabel} to work on anything` : `Ask ${engineLabel} anything`;
 }
 
-const STEER_KEYS = MAC ? "⌘↵" : "Ctrl+↵";
+const SEND_KEYS = displayShortcut("Enter", MAC);
+const STEER_KEYS = displayShortcut("Mod+Enter", MAC);
 
 function sendLabel(surface: ComposerSurface, runActive: boolean) {
   if (surface === "side") return runActive ? "Stop side chat" : "Send side chat message";
@@ -48,36 +50,41 @@ function sendLabel(surface: ComposerSurface, runActive: boolean) {
   return runActive ? "Stop task" : "Send task";
 }
 
-/** Sends what is written, or stops the run while one is going. */
-function SendButton({ taskId, surface, runActive, command, disabled, onSend, onCancel }: {
+function sendTip(runActive: boolean, steerable: boolean) {
+  if (!runActive) return `${shortcutTip("Send", "Enter")} · ${shortcutTip("New line", "Shift+Enter")}`;
+  return steerable ? `Stop · ${shortcutTip("Queue", "Enter")} · ${shortcutTip("Steer", "Mod+Enter")}` : "Stop";
+}
+
+/** Sends what is written, or stops the run while one is going. `busy` is a send already on its way. */
+function SendButton({ taskId, surface, runActive, steerable, command, disabled, busy, onSend, onCancel }: {
   taskId: string | undefined;
   surface: ComposerSurface;
   runActive: boolean;
+  steerable: boolean;
   command: AppCommand;
   disabled: boolean;
+  busy: boolean;
   onSend: () => void;
   onCancel: () => void;
 }) {
+  const sending = busy && !runActive;
   return (
     <CommandButton command={runActive ? { type: "run.cancel", taskId } : command}
-      className={`send-button ${runActive ? "running" : ""}`}
-      disabled={!runActive && disabled}
+      className={`send-button ${runActive ? "running" : ""} ${sending ? "busy" : ""}`}
+      disabled={!runActive && (disabled || busy)}
       onClick={runActive ? onCancel : onSend}
       aria-label={sendLabel(surface, runActive)}
-      data-tip={runActive ? "Stop" : "Send ↵ · New line ⇧↵"}
+      aria-busy={sending || undefined}
+      data-tip={sendTip(runActive, steerable)}
     >
-      {runActive ? <span className="stop-glyph" /> : "↑"}
+      {runActive ? <span className="stop-glyph" /> : sending ? <span className="send-spinner" aria-hidden="true" /> : "↑"}
     </CommandButton>
   );
 }
 
 /** Opens the system file picker; what is picked rides the next send the way a drop or paste would. */
-function AttachButton({ disabled, attachments, onFilesAdd }: { disabled: boolean; attachments: ComposerAttachments; onFilesAdd?: (files: File[]) => void }) {
+function AttachButton({ disabled, onFilesAdd }: { disabled: boolean; onFilesAdd: (files: File[]) => void }) {
   const input = useRef<HTMLInputElement>(null);
-  function onPick(picked: File[]) {
-    if (onFilesAdd) onFilesAdd(picked);
-    else void attachments.attachPasted(picked.filter(isImageFile));
-  }
   return (
     <>
       <button type="button" className="composer-attach" aria-label="Attach files" data-tip="Attach files" disabled={disabled} onClick={() => input.current?.click()}>
@@ -92,7 +99,7 @@ function AttachButton({ disabled, attachments, onFilesAdd }: { disabled: boolean
         onChange={(event) => {
           const files = Array.from(event.currentTarget.files ?? []);
           event.currentTarget.value = "";
-          if (files.length > 0) onPick(files);
+          if (files.length > 0) onFilesAdd(files);
         }}
       />
     </>
@@ -106,6 +113,25 @@ function SendNotice({ message, onDismiss }: { message: string | null; onDismiss:
     <div className="attachment-error" role="status">
       <span>{message}</span>
       <button type="button" aria-label="Dismiss" data-tip="Dismiss" onClick={onDismiss}><X size={12} aria-hidden="true" /></button>
+    </div>
+  );
+}
+
+/** Stands where the text would go for a thread this build cannot open, beside Stop while it runs. */
+function UnopenableComposer({ reason, taskId, surface, runActive, onCancel }: {
+  reason: string;
+  taskId: string | undefined;
+  surface: ComposerSurface;
+  runActive: boolean;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="composer unopenable">
+      <p className="composer-unopenable" role="status">{reason}</p>
+      <CommandButton command={{ type: "app.update" }} className="composer-unopenable-update">Update</CommandButton>
+      {runActive && <CommandButton command={{ type: "run.cancel", taskId }} className="send-button running" onClick={onCancel} aria-label={sendLabel(surface, true)}>
+        <span className="stop-glyph" />
+      </CommandButton>}
     </div>
   );
 }
@@ -185,8 +211,8 @@ export type ConversationComposerProps = {
   onPasteAdd?: (text: string) => void;
   onPasteRecall?: (pastes: PastedText[]) => void;
   onPasteRemove?: (pasteId: string) => void;
-  /** Files pasted in from the desktop. The surface decides what each one becomes. */
-  onFilesAdd?: (files: File[]) => void;
+  /** Files pasted, picked, or dropped in from the desktop. The surface decides what each one becomes. */
+  onFilesAdd: (files: File[]) => void;
   onFileRecall?: (files: AttachedFile[]) => void;
   onImageRecall?: (paths: string[]) => void;
   onFileRemove?: (fileId: string) => void;
@@ -295,6 +321,7 @@ export function ConversationComposer({
   }
 
   const steerHint = runActive && !nothingToSend && !disabled && !attachments.sending;
+  const hintId = useId();
 
   return (
     <footer className={`composer-wrap ${surface}`}>
@@ -304,16 +331,12 @@ export function ConversationComposer({
       <QueuedRow messages={queuedMessages} surface={surface} canSteer={runActive} onEdit={onEditQueued} onSteer={onSteerQueued} onDrop={onDropQueued} />
       {planUsage && <PlanUsageWarning engine={engine} engineLabel={engineLabel} model={model} {...planUsage} />}
       {surface === "main" && startOptions}
-      {unopenable ? <div className="composer unopenable">
-        <p className="composer-unopenable" role="status">{unopenable}</p>
-        {runActive && <CommandButton command={{ type: "run.cancel", taskId }} className="send-button running" onClick={onCancel} aria-label={sendLabel(surface, true)}>
-          <span className="stop-glyph" />
-        </CommandButton>}
-      </div> : <div className="composer">
+      {unopenable ? <UnopenableComposer reason={unopenable} taskId={taskId} surface={surface} runActive={runActive} onCancel={onCancel} /> : <div className="composer">
         {reviewPicker && (
           <ReviewPicker
             picker={reviewPicker}
             {...(workspaceId ? { workspaceId } : {})}
+            engineLabel={engineLabel}
             returnFocus={caret.textareaRef}
             onStep={onReviewStep}
             onReview={onReview}
@@ -343,16 +366,17 @@ export function ConversationComposer({
           aria-controls={reviewPicker ? "review-picker" : menuControls(menus)}
           aria-expanded={Boolean(reviewPicker) || menus.commandMenuOpen || menus.threadMenuOpen}
           aria-activedescendant={menuActiveDescendant(menus)}
+          aria-describedby={steerHint ? hintId : undefined}
           rows={2}
         />
         <div className="composer-bar">
-          <AttachButton disabled={disabled} attachments={attachments} onFilesAdd={onFilesAdd} />
+          <AttachButton disabled={disabled} onFilesAdd={onFilesAdd} />
           <ComposerSettings taskId={taskId} mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} coordinating={coordinating} fastMode={fastMode} onFastModeChange={onFastModeChange} onModeChange={onModeChange} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
           <div className="composer-actions">
-            {steerHint && <span className="composer-hint" aria-hidden="true"><kbd>↵</kbd> queue <kbd>{STEER_KEYS}</kbd> steer</span>}
-            {planUsage && <PlanUsageMeter engineLabel={engineLabel} model={model} usage={planUsage.usage} />}
+            {steerHint && <span className="composer-hint" id={hintId}><kbd>{SEND_KEYS}</kbd> queue <kbd>{STEER_KEYS}</kbd> steer</span>}
+            {planUsage && <PlanUsageMeter engineLabel={engineLabel} model={model} usage={planUsage.usage} {...(planUsage.onOpen ? { onOpen: planUsage.onOpen } : {})} />}
             {contextUsage && <ContextUsageMeter usage={contextUsage} />}
-            <SendButton taskId={taskId} surface={surface} runActive={runActive} command={sendCommand} disabled={disabled || attachments.sending || waiting || nothingToSend} onSend={() => void submit()} onCancel={onCancel} />
+            <SendButton taskId={taskId} surface={surface} runActive={runActive} steerable={steerHint} command={sendCommand} disabled={disabled || nothingToSend} busy={!disabled && (attachments.sending || waiting)} onSend={() => void submit()} onCancel={onCancel} />
           </div>
         </div>
       </div>}

@@ -23,7 +23,9 @@ function reportDockWidth(target: HTMLElement) {
   if (!panel || !parent) return;
   target.setAttribute("aria-valuemin", String(MIN_DOCK_WIDTH));
   target.setAttribute("aria-valuemax", String(Math.round(parent.getBoundingClientRect().width - MIN_DOCK_WIDTH)));
-  target.setAttribute("aria-valuenow", String(Math.round(panel.getBoundingClientRect().width)));
+  const width = Math.round(panel.getBoundingClientRect().width);
+  target.setAttribute("aria-valuenow", String(width));
+  target.setAttribute("aria-valuetext", `${width} pixels wide`);
 }
 
 function resizeRightDock(target: HTMLElement, clientX: number) {
@@ -108,9 +110,17 @@ export function RightDock({ workspace, panels, launchers, open, expanded, sideba
             resetRightDock(event.currentTarget);
             return;
           }
-          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
           const panel = event.currentTarget.parentElement;
-          if (panel) resizeRightDock(event.currentTarget, panel.getBoundingClientRect().left + (event.key === "ArrowLeft" ? -10 : 10));
+          const parent = panel?.parentElement;
+          if (!panel || !parent) return;
+          const edge = panel.getBoundingClientRect().left;
+          const bounds = parent.getBoundingClientRect();
+          const step = event.shiftKey ? 50 : 10;
+          /** Home and End take the width to its least and most, as the separator's value reads it. */
+          const to = { ArrowLeft: edge - step, ArrowRight: edge + step, Home: bounds.right, End: bounds.left }[event.key];
+          if (to === undefined) return;
+          event.preventDefault();
+          resizeRightDock(event.currentTarget, to);
         }}
       />
       <DockTabStrip

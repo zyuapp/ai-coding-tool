@@ -72,7 +72,7 @@ export function TerminalPanel({ terminal, computer, visible, focusToken = 0, fin
       <p className="terminal-status">
         <span>{computer ? `${computer.name} · ${terminal.cwd}` : terminal.cwd}</span>
         {computer && (!connected || connectionError) && <em role="status">{!connected ? computer.error ?? "Disconnected — reconnecting…" : connectionError}</em>}
-        {terminal.status === "exited" && <em>{terminal.error ?? `exited${terminal.exitCode === undefined ? "" : ` (${terminal.exitCode})`}`}</em>}
+        {terminal.status === "exited" && <em className={!terminal.error && terminal.exitCode === 0 ? "clean" : undefined}>{terminal.error ?? `exited${terminal.exitCode === undefined ? "" : ` (${terminal.exitCode})`}`}</em>}
       </p>
 
       {find}

@@ -3,6 +3,7 @@ import type { RefObject } from "react";
 import { createPortal } from "react-dom";
 import type { Annotation } from "../../domain/conversation";
 import type { AnnotationMarker, NoteDraft, Selected } from "../timeline/use-annotations";
+import { shortcutTip } from "./TooltipLayer";
 
 type MarkersProps = {
   markers: AnnotationMarker[];
@@ -84,7 +85,7 @@ export function NoteEditor({ noting, editorRef, onChange, onCommit, onClose, onR
           else onClose();
         }}
       />
-      <button type="button" className="annotate-editor-save" aria-label="Save annotation" data-tip="Save · ↵" onClick={() => onCommit(noting)}>
+      <button type="button" className="annotate-editor-save" aria-label="Save annotation" data-tip={shortcutTip("Save", "Enter")} onClick={() => onCommit(noting)}>
         <Check size={14} aria-hidden="true" />
       </button>
       {noting.annotationId && (

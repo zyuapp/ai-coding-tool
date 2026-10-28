@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { keyboardFocusVisible } from "../focus-appearance";
+import { displayShortcut } from "../../domain/shortcuts";
+import { MAC } from "../platform";
 
 /**
  * One tooltip for the whole window, moved to whatever the pointer is resting on. Controls opt in with
@@ -18,8 +20,19 @@ const GAP = 8;
 
 type Tip = { text: string; rect: DOMRect };
 
+/** A control's tooltip: its name, with the keystroke that does the same. */
+export function shortcutTip(label: string, binding: string) {
+  return `${label} (${displayShortcut(binding, MAC)})`;
+}
+
 function tipped(target: EventTarget | null) {
   return target instanceof Element ? target.closest<HTMLElement>("[data-tip]") : null;
+}
+
+/** Whether the element, or text inside it, is cut short by its box. */
+function truncated(element: HTMLElement) {
+  return [element, ...element.querySelectorAll<HTMLElement>("*")]
+    .some((node) => node instanceof HTMLElement && node.scrollWidth > node.clientWidth);
 }
 
 export function TooltipLayer() {
@@ -44,7 +57,8 @@ export function TooltipLayer() {
       if (timer.current) clearTimeout(timer.current);
       showing.current = element;
       const text = element.dataset.tip;
-      if (!text) return hide();
+      /** `data-tip-overflow` marks a tip that repeats visible text, so it shows only while that text is cut short. */
+      if (!text || ("tipOverflow" in element.dataset && !truncated(element))) return hide();
       timer.current = setTimeout(() => {
         open.current = true;
         setTip({ text, rect: element.getBoundingClientRect() });

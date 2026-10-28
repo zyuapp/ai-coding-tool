@@ -2,7 +2,7 @@ import { CommandButton, useCommandControls } from "./CommandControl";
 import { ConfirmAction } from "./SettingRow";
 import { REMOTE_UNSUPPORTED } from "../../contracts/computer-capabilities";
 import { useEffect, useState } from "react";
-import { LuAlarmClock as AlarmClock, LuPause as Pause, LuPlay as Play, LuTrash2 as Trash2 } from "react-icons/lu";
+import { LuAlarmClock as AlarmClock, LuCheck as Check, LuPause as Pause, LuPlay as Play, LuTrash2 as Trash2 } from "react-icons/lu";
 import { isOneShotSchedule, type AutomationPatch, type AutomationView } from "../../domain/automation";
 
 export type AutomationPanelProps = {
@@ -42,15 +42,37 @@ export function formatCountdown(nextRunAt: number, at: number) {
 }
 
 /** What the panel has to answer: is this schedule alive, and has it ever found anything. */
-export function automationMeta(automation: AutomationView, lastFoundAt: number | null, lastChecked: { at: number; note: string } | null, at: number) {
+export function automationFacts(automation: AutomationView, lastFoundAt: number | null, lastChecked: { at: number; note: string } | null, at: number): Array<[string, string]> {
   return [
-    `${automation.runCount} ${automation.runCount === 1 ? "run" : "runs"}`,
-    lastRunLabel(automation, at),
-    lastFoundAt ? `found something ${formatMoment(lastFoundAt, at)}` : "nothing found yet",
+    ["Runs", String(automation.runCount)],
+    ["Last run", lastRunLabel(automation, at)],
+    ["Last found", lastFoundAt ? formatMoment(lastFoundAt, at) : "Nothing yet"],
     /** A schedule that only ever settles in silence has nothing else to prove it is still looking. */
-    ...(lastChecked ? [`checked ${lastChecked.note} ${formatMoment(lastChecked.at, at)}`] : []),
-    ...(automation.overrunCount ? [`${automation.overrunCount} dropped for overrunning`] : []),
-  ].join(" · ");
+    ...(lastChecked ? [["Last checked", `${lastChecked.note} ${formatMoment(lastChecked.at, at)}`] as [string, string]] : []),
+    ...(automation.overrunCount ? [["Dropped", `${automation.overrunCount} for overrunning`] as [string, string]] : []),
+  ];
+}
+
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+/** A schedule read back in words, or why it cannot be read; null for a valid cron too unusual to say simply. */
+export function describeSchedule(schedule: string): { text: string; error?: true } | null {
+  const trimmed = schedule.trim();
+  if (!trimmed) return { text: "Needs a schedule", error: true };
+  if (isOneShotSchedule(trimmed)) return { text: `Once, ${new Date(trimmed).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}` };
+  const fields = trimmed.split(/\s+/);
+  if (fields.length !== 5) return { text: "Use cron, like 0 8 * * *, or a date, like 2026-11-01T09:00", error: true };
+  const [minute, hour, day, month, weekday] = fields;
+  const every = minute.match(/^\*\/(\d+)$/);
+  if (every && hour === "*" && day === "*" && month === "*" && weekday === "*") return { text: `Every ${every[1]} minutes` };
+  if (!/^\d+$/.test(minute) || day !== "*" || month !== "*") return null;
+  if (hour === "*" && weekday === "*") return { text: `Every hour at :${minute.padStart(2, "0")}` };
+  if (!/^\d+$/.test(hour)) return null;
+  const time = new Date(2000, 0, 1, Number(hour), Number(minute)).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  if (weekday === "*") return { text: `Every day at ${time}` };
+  if (weekday === "1-5") return { text: `Weekdays at ${time}` };
+  if (/^[0-6]$/.test(weekday)) return { text: `Every ${WEEKDAYS[Number(weekday)]} at ${time}` };
+  return null;
 }
 
 /** A tick that never ran still has a status, so the moment shown is the status's rather than the run's. */
@@ -66,6 +88,7 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
   const [surfaceWhen, setSurfaceWhen] = useState(automation?.surfaceWhen ?? "");
   const [endsWhen, setEndsWhen] = useState(automation?.endsWhen ?? "");
   const [now, setNow] = useState(() => Date.now());
+  const [saved, setSaved] = useState(false);
   const canDelete = useCommandControls().available({ type: "automation.delete" });
   const revision = automation ? `${automation.id}:${automation.updatedAt}` : "";
 
@@ -75,6 +98,12 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
     setSurfaceWhen(automation?.surfaceWhen ?? "");
     setEndsWhen(automation?.endsWhen ?? "");
   }, [revision]);
+
+  useEffect(() => {
+    if (!saved) return;
+    const timer = window.setTimeout(() => setSaved(false), 1_600);
+    return () => window.clearTimeout(timer);
+  }, [saved]);
 
   useEffect(() => {
     if (!automation || automation.nextRunAt === null) return;
@@ -102,6 +131,7 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
   const surfaceChanged = !oneShot && surfaceWhen !== (automation.surfaceWhen ?? "");
   const endChanged = endsWhen !== (automation.endsWhen ?? "");
   const dirty = schedule !== automation.schedule || prompt !== automation.prompt || surfaceChanged || endChanged;
+  const readout = describeSchedule(schedule);
   const patch = { schedule, prompt, ...(surfaceChanged ? { surfaceWhen } : {}), ...(endChanged ? { endsWhen } : {}) };
 
   return (
@@ -117,9 +147,13 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
           <input
             value={schedule}
             aria-label="Automation schedule"
+            aria-invalid={readout?.error}
+            aria-describedby={readout ? "automation-schedule-readout" : undefined}
+            placeholder="0 8 * * *"
             spellCheck={false}
             onInput={(event) => setSchedule(event.currentTarget.value)}
           />
+          {readout && <small id="automation-schedule-readout" className={readout.error ? "error" : undefined}>{readout.text}</small>}
         </label>
 
         <label className="automation-field">
@@ -138,7 +172,7 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
             <input
               value={surfaceWhen}
               aria-label="What a run of this automation surfaces for"
-              placeholder="Every run surfaces. Say what is worth surfacing and the rest stay quiet."
+              placeholder="Every run surfaces"
               onInput={(event) => setSurfaceWhen(event.currentTarget.value)}
             />
           </label>
@@ -149,18 +183,17 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
           <input
             value={endsWhen}
             aria-label="What finishes this automation"
-            placeholder="Repeats until removed. Say what finishes it and the thread stays running until then."
+            placeholder="Repeats until removed"
             onInput={(event) => setEndsWhen(event.currentTarget.value)}
           />
         </label>
 
-        <p className="automation-meta">
-          <AlarmClock size={14} aria-hidden="true" />
-          <span>{automationMeta(automation, lastFoundAt, lastChecked, now)}</span>
-        </p>
+        <dl className="automation-meta">
+          {automationFacts(automation, lastFoundAt, lastChecked, now).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
+        </dl>
 
         <div className="automation-actions">
-          <CommandButton command={{ type: "automation.update", patch }} type="button" disabled={!dirty} onClick={() => onUpdate(patch)}>Save</CommandButton>
+          <CommandButton command={{ type: "automation.update", patch }} type="button" className="primary" disabled={!dirty || readout?.error} onClick={() => { onUpdate(patch); setSaved(true); }}>{saved && !dirty ? <><Check size={14} aria-hidden="true" />Saved</> : "Save"}</CommandButton>
           <CommandButton command={{ type: "automation.run-now" }} type="button" onClick={onRunNow}>Run now</CommandButton>
           <CommandButton command={{ type: "automation.update", patch: { paused: !automation.paused } }} type="button" onClick={() => onUpdate({ paused: !automation.paused })} aria-label={automation.paused ? "Resume automation" : "Pause automation"} data-tip={automation.paused ? "Resume" : "Pause"}>
             {automation.paused ? <Play size={14} /> : <Pause size={14} />}

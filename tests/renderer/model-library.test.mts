@@ -65,17 +65,23 @@ test("the Codex speed toggle follows effort and dispatches both speed changes", 
   const view = await mount(React.createElement(ComposerSettings, props));
   const toggle = query<HTMLButtonElement>(view.container, 'button[aria-label="Fast mode"]');
   assert.equal(toggle.parentElement?.lastElementChild, toggle);
-  assert.ok(toggle.previousElementSibling?.querySelector('summary[aria-label="Model and effort"]'));
+  assert.ok(toggle.previousElementSibling?.querySelector('summary[aria-label^="Model and effort: Sol, "]'));
   assert.equal(toggle.getAttribute("aria-pressed"), "false");
   assert.match(toggle.title, /use more of your plan/);
   await act(async () => { toggle.click(); });
   assert.deepEqual(selected, [true]);
+  assert.equal(toggle.textContent, "");
   await view.render(React.createElement(ComposerSettings, { ...props, fastMode: true }));
   assert.equal(toggle.getAttribute("aria-pressed"), "true");
+  assert.equal(toggle.textContent, "Fast", "an active fast mode names itself beside the bolt");
+  assert.equal(toggle.getAttribute("aria-label"), "Fast mode");
   await act(async () => { toggle.click(); });
   assert.deepEqual(selected, [true, false]);
   await view.render(React.createElement(ComposerSettings, { ...props, engine: "claude", engineLabel: "Claude", model: "opus" }));
   assert.equal(view.container.querySelector('button[aria-label="Fast mode"]'), null);
+  assert.equal(view.container.querySelector(".setting-menu.danger"), null);
+  await view.render(React.createElement(ComposerSettings, { ...props, mode: "bypass" }));
+  assert.equal(query(view.container, ".setting-menu.danger summary").getAttribute("aria-label"), "Permission mode: Bypass", "bypass is marked on the chip, not only inside its menu");
   await view.unmount();
 });
 

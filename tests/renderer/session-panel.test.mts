@@ -13,6 +13,12 @@ import type { SessionPanelProps } from "../../src/renderer/components/SessionPan
 
 import { dom, item, mount, pumpResizeObservers, query, rowHeights, sizeOf } from "../support/renderer-dom.mts";
 
+function agentRow(container: Element, name: string) {
+  const row = [...container.querySelectorAll<HTMLButtonElement>(".agent-row")].find((button) => button.querySelector("strong")?.textContent === name);
+  assert.ok(row, `no subagent row named ${name}`);
+  return row;
+}
+
 const { MemberPullRequestList, SessionPanel } = await import("../../src/renderer/components/SessionPanel.tsx");
 const { MemberWorktreeList } = await import("../../src/renderer/components/Coordination.tsx");
 const { SubagentInspector } = await import("../../src/renderer/components/SubagentInspector.tsx");
@@ -123,7 +129,7 @@ test("session panel renders Git and subagent states and selects an agent", async
   assert.match(view.container.textContent, /\+4−2/);
   assert.match(view.container.textContent, /main/);
   assert.match(view.container.textContent, /1 working/);
-  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Open Working agent details"]').click(); });
+  await act(async () => { agentRow(view.container, "Working agent").click(); });
   assert.equal(selected, "working");
 
   const automations = query<HTMLButtonElement>(view.container, 'button[aria-label="Open Automation panel"]');
@@ -303,10 +309,34 @@ test("a working subagent can be stopped from its details, once", async () => {
   assert.deepEqual(stopped, ["agent-1"]);
   await view.render(React.createElement(SubagentInspector, { subagent: { ...subagent, stopping: true }, onClose() {}, onStop() {} }));
   assert.equal(query<HTMLButtonElement>(view.container, ".workflow-stop").disabled, true);
-  assert.equal(query(view.container, ".workflow-stop").textContent, "Stopping");
+  assert.equal(query(view.container, ".workflow-stop").textContent, "Stopping…");
   await view.render(React.createElement(SubagentInspector, { subagent: { ...subagent, status: "completed" }, onClose() {}, onStop() {} }));
   assert.equal(view.container.querySelector(".workflow-stop"), null);
   await view.unmount();
+});
+
+test("Escape closes the subagent details unless a control inside used it", async () => {
+  let closed = 0;
+  const subagent: Subagent = { id: "agent-1", description: "Review", status: "completed", startedAt: 1, activity: [{ id: "t", kind: "tool", title: "Read", text: "output", at: 1 }] };
+  const view = await mount(React.createElement(SubagentInspector, { subagent, onClose: () => { closed += 1; }, onStop() {} }));
+  const press = (target: Element, used = false) => act(async () => {
+    if (used) target.addEventListener("keydown", (event) => event.preventDefault(), { once: true });
+    target.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+  });
+  await press(query(view.container, ".agent-tool summary"), true);
+  assert.equal(closed, 0);
+  await press(query(view.container, ".agent-tool summary"));
+  assert.equal(closed, 1);
+  assert.ok(view.container.querySelector(".agent-tool .copyable .copy-affordance"), "a tool's output can be copied");
+  await view.unmount();
+});
+
+test("the subagent search reads what each one came back with", async () => {
+  const roster: Subagent[] = [
+    { id: "a", description: "Audit", status: "completed", startedAt: 1, activity: [], summary: "Found a race in the reducer" },
+    { id: "b", description: "Tests", status: "completed", startedAt: 2, activity: [] },
+  ];
+  assert.deepEqual(matchSubagents(roster, null, "race").map((agent) => agent.id), ["a"]);
 });
 
 test("expanding a tall prompt keeps the beginning of a virtual activity log reachable", async () => {
@@ -586,7 +616,9 @@ test("the heading names the paired computer a thread lives on, ahead of its fold
   };
   const local = await mount(React.createElement(WorkspaceHeader, props));
   assert.equal(local.container.querySelector(".heading-host"), null, "a thread here carries no computer");
-  assert.equal(local.container.querySelector('button[aria-label="Enter zen mode"]'), null, "a thread without messages offers no zen mode");
+  const zen = query<HTMLButtonElement>(local.container, 'button[aria-label="Enter zen mode"]');
+  assert.ok(zen.disabled, "a thread without messages keeps zen mode in place, turned off");
+  assert.equal(zen.dataset.tip, "Send a message to use zen mode");
   await local.unmount();
 
   const remote = await mount(React.createElement(WorkspaceHeader, { ...props, host: { name: "zyuapp", offline: false } }));
@@ -594,7 +626,7 @@ test("the heading names the paired computer a thread lives on, ahead of its fold
   assert.equal(mark.textContent, "zyuapp");
   assert.equal(mark.nextElementSibling?.className, "heading-separator");
   assert.equal(mark.nextElementSibling?.nextElementSibling?.textContent, "just-speak-linux");
-  assert.equal(query(remote.container, ".task-heading h1").getAttribute("title"), "/home/me/just-speak-linux on zyuapp");
+  assert.equal(query(remote.container, ".task-heading h1").dataset.tip, "/home/me/just-speak-linux on zyuapp");
   await remote.unmount();
 
   const away = await mount(React.createElement(WorkspaceHeader, { ...props, host: { name: "zyuapp", offline: true } }));
@@ -617,7 +649,8 @@ test("the heading's title shows in full on hover and renames on double-click", a
   };
   const view = await mount(React.createElement(WorkspaceHeader, props));
   const title = query(view.container, ".heading-thread");
-  assert.equal(title.getAttribute("title"), "A long thread title that the heading cuts short");
+  assert.equal(title.dataset.tip, "A long thread title that the heading cuts short");
+  assert.ok(title.classList.contains("renamable"));
   assert.equal(query(view.container, ".thread-heading-menu > .menu-trigger").dataset.tip, "Thread actions");
   await act(async () => { title.dispatchEvent(new window.MouseEvent("dblclick", { bubbles: true })); });
   const input = query<HTMLInputElement>(view.container, "input.heading-rename");

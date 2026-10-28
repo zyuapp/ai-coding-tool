@@ -101,7 +101,7 @@ export function ThreadJump({ jump, actions }: ThreadJumpProps) {
             ))}
           </div>
         ) : (
-          <p className="thread-jump-empty">Nothing here is called that</p>
+          <p className="thread-jump-empty">No matches</p>
         )}
       </div>
     </div>,

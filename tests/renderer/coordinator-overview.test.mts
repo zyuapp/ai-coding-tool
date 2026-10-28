@@ -183,7 +183,8 @@ test("Stop all keeps the keyboard's place once the group it heads is gone", asyn
   const working = row(member("w", "Dark mode"), "working");
   const done = row(member("d", "Login flake"), "done");
   const view = await mount(overview([working, done]));
-  await act(async () => { const stop = query<HTMLButtonElement>(view.container, ".coordination-stop-all"); stop.focus(); stop.click(); });
+  await act(async () => { query<HTMLButtonElement>(view.container, ".coordination-stop-all").click(); });
+  await act(async () => { const confirm = query<HTMLButtonElement>(view.container, ".coordination-stop > .danger"); confirm.focus(); confirm.click(); });
   await view.render(overview([{ ...working, status: "idle" }, done]));
   assert.ok(!view.container.querySelector('[aria-label="Working"]'), "nothing under the coordinator works any more");
   const head = query(view.container, '[aria-label="Done"] .coordination-group-head');
@@ -295,17 +296,19 @@ test("the Overview's Working group stops the coordinator and every thread under 
   const stop = query<HTMLButtonElement>(working, ".coordination-stop-all");
   assert.equal(stop.textContent, "Stop all");
   assert.equal(stop.closest(".coordination-group-head"), null, "it sits beside the fold button, never inside it");
-  assert.ok(stop.parentElement?.querySelector(".coordination-group-head"));
+  assert.ok(stop.closest(".coordination-group-heading")?.querySelector(".coordination-group-head"));
   assert.equal(query(mounted.container, '[aria-label="Done"]').querySelector(".coordination-stop-all"), null, "only the Working group stops anything");
   await act(async () => { stop.click(); });
   assert.deepEqual(dispatched.filter((input) => input.type === "coordination.stop-all"), [], "the first press asks, naming how many it stops");
-  assert.equal(stop.textContent, "Stop 1 thread");
-  await act(async () => { stop.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
-  assert.equal(stop.textContent, "Stop all", "Esc takes the question back");
-  await act(async () => { stop.click(); });
-  await act(async () => { stop.click(); });
+  const confirm = () => query<HTMLButtonElement>(working, ".coordination-stop > .danger");
+  assert.equal(confirm().textContent, "Stop 1 thread");
+  assert.equal(dom.window.document.activeElement?.textContent, "Cancel", "the focus waits on Cancel, not on the stop");
+  await act(async () => { confirm().dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+  assert.equal(query(working, ".coordination-stop-all").textContent, "Stop all", "Esc takes the question back");
+  await act(async () => { query<HTMLButtonElement>(working, ".coordination-stop-all").click(); });
+  await act(async () => { confirm().click(); });
   assert.deepEqual(dispatched.filter((input) => input.type === "coordination.stop-all"), [{ type: "coordination.stop-all", taskId: "lead" }]);
-  assert.equal(stop.textContent, "Stop all");
+  assert.equal(query(working, ".coordination-stop-all").textContent, "Stop all");
 
   await mounted.render(shown(false));
   assert.equal(query<HTMLButtonElement>(mounted.container, ".coordination-stop-all").disabled, true, "a computer whose build cannot stop them all says so");
@@ -330,7 +333,7 @@ test("the Overview's Usage section shows what the coordinator and its threads sp
   const usage = query(mounted.container, '[aria-label="Usage"]');
   const head = query<HTMLButtonElement>(usage, ".coordination-group-head");
   assert.equal(head.textContent, "Usage3.1M");
-  assert.equal(head.title, "3,104,220 tokens");
+  assert.equal(head.dataset.tip, "3,104,220 tokens");
   assert.equal(head.getAttribute("aria-expanded"), "false", "it starts folded");
   assert.equal(usage.querySelector(".coordination-usage-body"), null);
   await act(async () => { head.click(); });

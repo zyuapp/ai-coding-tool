@@ -12,7 +12,7 @@ import { liftTime, resumesOnItsOwn, type LimitPause } from "../../domain/usage-l
 import { CommandButton } from "./CommandControl";
 import type { Annotation, AnnotationAnchor } from "../../domain/conversation";
 import type { Thread } from "../../domain/thread";
-import { groupTimeline, messageRows, type TimelineGroup } from "../timeline/grouping";
+import { groupTimeline, messageRows } from "../timeline/grouping";
 import { MAX_FIND_HITS, targetKey } from "../../domain/find";
 import { drawnMatches, paintMatches } from "../find/paint";
 import { useAnnotationMarkers, useAnnotationSelection, useSelectionCapture } from "../timeline/use-annotations";
@@ -20,7 +20,7 @@ import { useReadingView } from "../timeline/use-reading-view";
 import { AnnotatePopover, AnnotationMarkers, NoteEditor } from "./AnnotateLayer";
 import { TimelineEmptyState } from "./TimelineEmptyState";
 import { TimelineRow } from "./TimelineRow";
-import { RevealedMessage } from "./TurnWork";
+import { Elapsed, RevealedMessage } from "./TurnWork";
 import { ThreadCardsContext, type ThreadCardsView } from "./Coordination";
 import { MessageArtifactScope, useMessageLinks } from "./MarkdownMessage";
 
@@ -91,22 +91,37 @@ function retryLabel(retry: RetryNotice) {
   return `${retry.message} Retrying${count}…`;
 }
 
-function ThinkingRow() {
+/** `since` is when the live turn's first step began; until it has one, the row counts from when it appeared. */
+function ThinkingRow({ since }: { since: number | undefined }) {
+  const [shownAt] = useState(Date.now);
   return (
     <div className="thinking-row" role="status">
       <i aria-hidden="true" /><i aria-hidden="true" /><i aria-hidden="true" />
       <span className="thinking-label">Working</span>
+      <span className="thinking-elapsed" aria-hidden="true"><Elapsed startedAt={Math.min(since ?? shownAt, shownAt)} endsAt={null} /></span>
     </div>
   );
 }
 
-/** The newest turn, when it has settled on an answer. */
-function newestAnswer(groups: readonly TimelineGroup[]) {
-  for (let index = groups.length - 1; index >= 0; index -= 1) {
-    const group = groups[index]!;
-    if (group.kind === "turn") return group.final && !group.live ? group.id : undefined;
-  }
-  return undefined;
+/** How often a usage limit's sentence is read again, so its time and line hold true while it waits. */
+const LIMIT_TICK_MS = 30_000;
+
+function LimitRow({ pause, taskId }: { pause: LimitPause & { position: number | null }; taskId: string }) {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), LIMIT_TICK_MS);
+    return () => clearInterval(timer);
+  }, [pause.resetsAt]);
+  return (
+    <div className="limit-row" role="status">
+      <Hourglass aria-hidden="true" />
+      <span>{limitLabel(pause, now)}</span>
+      {resumesOnItsOwn(pause)
+        ? <CommandButton type="button" className="limit-action" command={{ type: "limit.cancel", taskId }}>Don't resume</CommandButton>
+        : <CommandButton type="button" className="limit-action" command={{ type: "limit.resume", taskId }}>Resume</CommandButton>}
+    </div>
+  );
 }
 
 /** The newest message the user sent themselves, rather than one another thread or a schedule sent for them. */
@@ -160,7 +175,8 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
     overscan: 6,
   });
   const rowOfMessage = useMemo(() => messageRows(groups), [groups]);
-  const latestAnswer = useMemo(() => newestAnswer(groups), [groups]);
+  const newestGroup = groups.at(-1);
+  const liveSince = newestGroup?.kind === "turn" && newestGroup.live ? newestGroup.steps[0]?.at : undefined;
   const hit = find?.hit ?? null;
   const rendered = virtualizer.getVirtualItems().map((item) => item.key).join(",");
 
@@ -185,7 +201,7 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
   useSelectionCapture({ timelineRef, scrollContainerRef, threadId: currentThread?.id, onAnnotateAdd, setSelection: annotate.setSelection, dismissNote: annotate.dismissNote });
   const markers = useAnnotationMarkers({ timelineRef, annotations, rendered, messageCount: messages.length });
 
-  if (currentThread?.historySummary) return <div className="empty-state" role="status">Loading conversation…</div>;
+  if (currentThread?.historySummary) return <div className="empty-state" role="status"><span className="text-sweep">Loading conversation…</span></div>;
 
   if (!drawn) {
     return <TimelineEmptyState restored={restored} {...(empty ? { empty } : {})} {...(place ? { place } : {})} />;
@@ -209,7 +225,6 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
               measure={virtualizer.measureElement}
               /** Only the live turn reads the tail, so a settled row's props hold still while it streams. */
               streamingTail={group.kind === "turn" && group.live ? streamingTail : null}
-              latest={group.id === latestAnswer}
               onViewAttachment={viewAttachment}
             />
           );
@@ -222,15 +237,7 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
           <span className="text-sweep">{WAIT_LABELS[waitingOn]}</span>
         </div>
       )}
-      {status !== "running" && limitPause && currentThread && (
-        <div className="limit-row" role="status">
-          <Hourglass aria-hidden="true" />
-          <span>{limitLabel(limitPause, Date.now())}</span>
-          {resumesOnItsOwn(limitPause)
-            ? <CommandButton type="button" className="limit-action" command={{ type: "limit.cancel", taskId: currentThread.id }}>Don't resume</CommandButton>
-            : <CommandButton type="button" className="limit-action" command={{ type: "limit.resume", taskId: currentThread.id }}>Resume</CommandButton>}
-        </div>
-      )}
+      {status !== "running" && limitPause && currentThread && <LimitRow pause={limitPause} taskId={currentThread.id} />}
       {status === "running" && compacting && (
         <div className="compacting-row" role="status" aria-live="polite">
           <span className="text-sweep">Compacting messages…</span>
@@ -239,16 +246,17 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
       {status === "running" && !compacting && retrying && (
         <div className="retrying-row" role="status" aria-live="polite">
           <span className="text-sweep">{retryLabel(retrying)}</span>
+          {currentThread && <CommandButton type="button" className="limit-action" command={{ type: "run.cancel", taskId: currentThread.id }}>Stop</CommandButton>}
         </div>
       )}
       {status === "running" && !compacting && !retrying && (
-        <ThinkingRow />
+        <ThinkingRow since={liveSince} />
       )}
       {!atBottom && (
         <div className="scroll-to-end-dock">
         <button
           type="button"
-          className="scroll-to-end"
+          className={status === "running" ? "scroll-to-end live" : "scroll-to-end"}
           aria-label="Scroll to the latest message"
           data-tip="Latest message"
           onClick={scrollToFoot}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { ConfirmAction } from "./SettingRow";
 import { LuArrowLeft as ArrowLeft, LuBoxes as Boxes, LuCircleCheckBig as CheckCircle2, LuCircleDot as CircleDot, LuCircleX as XCircle, LuClock as Clock, LuSquare as Square, LuTriangleAlert as AlertTriangle } from "react-icons/lu";
 import {
   agentStateIn,
@@ -76,6 +77,17 @@ function AgentRow({ agent, state, now, onSelect }: { agent: WorkflowAgent; state
 /** What a lane's bar colour says, for a reader who cannot see it. */
 const LANE_STATES: Record<WorkflowAgentState, string> = { queued: "queued", running: "running", done: "done", error: "failed", stopped: "stopped" };
 
+/** How long a lane's agent waited and ran, as its bar draws them. */
+function laneTip(agent: WorkflowAgent, state: WorkflowAgentState, now: number) {
+  const waited = agent.queuedAt !== undefined ? (agent.startedAt ?? now) - agent.queuedAt : undefined;
+  const ran = workflowAgentDuration(agent, now);
+  return [
+    `${agent.label} · ${LANE_STATES[state]}`,
+    ...(waited !== undefined ? [`waited ${formatElapsed(waited)}`] : []),
+    ...(ran !== undefined ? [`ran ${formatElapsed(ran)}`] : []),
+  ].join(" · ");
+}
+
 /** Every agent on one clock: queue time hollow, run time filled, all lanes sharing the same origin. */
 function Timeline({ workflow, groups, now, onSelect }: { workflow: Workflow; groups: WorkflowGroup[]; now: number; onSelect: (index: number) => void }) {
   const span = useMemo(() => workflowSpan(workflow, now), [workflow, now]);
@@ -93,7 +105,7 @@ function Timeline({ workflow, groups, now, onSelect }: { workflow: Workflow; gro
             const state = agentStateIn(workflow, agent);
             const bar = workflowBar(agent, span, now);
             return (
-              <button className="workflow-lane" type="button" key={agent.index} onClick={() => onSelect(agent.index)} aria-label={`Open ${agent.label} details, ${LANE_STATES[state]}`}>
+              <button className="workflow-lane" type="button" key={agent.index} onClick={() => onSelect(agent.index)} aria-label={`Open ${agent.label} details, ${LANE_STATES[state]}`} data-tip={laneTip(agent, state, now)}>
                 <span className="workflow-lane-name">{agent.label}</span>
                 <span className="workflow-lane-track">
                   {bar.queue && <i className="queue" style={{ left: `${bar.queue.left}%`, width: `${bar.queue.width}%` }} />}
@@ -114,8 +126,13 @@ function AgentInspector({ workflow, agent, now, onBack }: { workflow: Workflow; 
   const waited = agent.queuedAt !== undefined && agent.startedAt !== undefined ? agent.startedAt - agent.queuedAt : undefined;
 
   return (
-    <div className="workflow-inspect">
-      <button className="session-back" type="button" onClick={onBack}><ArrowLeft size={16} />{workflow.name}</button>
+    <div className="workflow-inspect" onKeyDown={(event) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      onBack();
+    }}>
+      <button className="session-back" type="button" autoFocus data-tip="Back (Esc)" onClick={onBack}><ArrowLeft size={16} />{workflow.name}</button>
       <div className="workflow-inspect-body">
         <div className="workflow-inspect-heading">
           <span className={`agent-orb ${state}`}><AgentIcon state={state} /></span>
@@ -170,9 +187,11 @@ export function WorkflowPanel({ workflow, onStop }: { workflow: Workflow; onStop
           <span className={`agent-orb ${live ? "" : workflow.status === "completed" ? "done" : "error"}`}><Boxes size={16} /></span>
           <h2>{workflow.name}</h2>
           {live && (
-            <button className="workflow-stop" type="button" disabled={workflow.stopping} onClick={() => onStop(workflow.id)}>
-              {workflow.stopping ? "Stopping" : "Stop"}
-            </button>
+            <span className="workflow-stop-group">
+              {workflow.stopping
+                ? <button className="workflow-stop" type="button" disabled>Stopping</button>
+                : <ConfirmAction className="workflow-stop" confirm="Stop workflow" onConfirm={() => onStop(workflow.id)}>Stop</ConfirmAction>}
+            </span>
           )}
         </div>
         <p className="workflow-head-sub">

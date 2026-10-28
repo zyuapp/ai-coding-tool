@@ -346,6 +346,79 @@ test("a running turn says it is working to assistive tech, not only with dots", 
   const view = await mount(timelineView(transcript({ kind: "user", text: "go" }), "running"));
   const row = query(view.container, ".thinking-row");
   assert.equal(row.getAttribute("role"), "status");
-  assert.equal(row.textContent, "Working");
+  assert.equal(query(row, ".thinking-label").textContent, "Working");
+  assert.equal(query(row, ".thinking-elapsed").getAttribute("aria-hidden"), "true", "the ticking time is not read out every second");
+  await view.unmount();
+});
+
+test("the working row shows how long the live turn has run", async (t) => {
+  vi.useFakeTimers({ toFake: ["setInterval", "Date"] });
+  vi.setSystemTime(100_000);
+  t.onTestFinished(() => { vi.useRealTimers(); });
+  const running: TimelineMessage[] = [
+    { id: "u", at: 10_000, kind: "user", text: "go" },
+    { id: "l0", at: 88_000, kind: "tool", text: "Bash", detail: "one" },
+  ];
+  const view = await mount(timelineView(running, "running"));
+  assert.equal(query(view.container, ".thinking-elapsed").textContent, "12s");
+  await act(async () => { vi.advanceTimersByTime(3_000); });
+  assert.equal(query(view.container, ".thinking-elapsed").textContent, "15s");
+  await view.unmount();
+});
+
+test("a fold opened for a find match can still be closed by hand", async () => {
+  const messages = transcript(
+    { kind: "user", text: "Fix it" },
+    { kind: "tool", text: "Bash", detail: "retry the build" },
+    { kind: "assistant", text: "Done." },
+  );
+  const find: NonNullable<TimelineProps["find"]> = {
+    target: { kind: "thread", taskId: null }, query: "retry", index: 0, focus: 1, matches: 1, counting: false,
+    hit: { messageId: "m1", field: "detail", start: 0, occurrence: 0 },
+  };
+  const view = await mount(timelineView(messages, "idle", undefined, undefined, find));
+  const fold = query<HTMLDetailsElement>(view.container, ".work-group");
+  assert.equal(fold.open, true);
+  await act(async () => {
+    fold.open = false;
+    fold.dispatchEvent(new Event("toggle"));
+  });
+  assert.equal(fold.open, false);
+  assert.equal(view.container.querySelector(".work-steps"), null);
+  await view.render(timelineView(messages, "idle", undefined, undefined, { ...find, hit: { ...find.hit!, start: 1, occurrence: 1 } }));
+  assert.equal(fold.open, false, "the same match does not reopen what the reader closed");
+  await view.unmount();
+});
+
+test("a call that printed nothing says so when opened", async () => {
+  const messages = transcript({ kind: "user", text: "Fix it" }, { kind: "tool", text: "Bash" });
+  const view = await mount(timelineView(messages, "running"));
+  await expand(query<HTMLDetailsElement>(view.container, ".work-row"));
+  assert.equal(query(view.container, ".work-empty").textContent, "No output");
+  assert.equal(view.container.querySelector(".work-row pre"), null);
+  await view.unmount();
+});
+
+test("a retrying run can be stopped from the row that says so", async () => {
+  const sent: unknown[] = [];
+  const { CommandControlsProvider } = await import("../../src/renderer/components/CommandControl.tsx");
+  const timeline = React.cloneElement(timelineView(transcript({ kind: "user", text: "go" }), "running"), { retrying: { message: "Overloaded.", attempt: 2, maxRetries: 5 } });
+  const view = await mount(React.createElement(CommandControlsProvider, { value: { available: () => true, dispatch: (command: unknown) => { sent.push(command); } } }, timeline));
+  const row = query(view.container, ".retrying-row");
+  assert.match(row.textContent, /Overloaded\. Retrying 2 of 5…/);
+  await act(async () => { query<HTMLButtonElement>(row, "button").click(); });
+  assert.deepEqual(sent, [{ type: "run.cancel", taskId: "t1" }]);
+  await view.unmount();
+});
+
+test("a usage limit's sentence keeps up with the clock while it waits", async (t) => {
+  vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+  vi.setSystemTime(100_000);
+  t.onTestFinished(() => { vi.useRealTimers(); });
+  const timeline = React.cloneElement(timelineView(transcript({ kind: "user", text: "go" }), "idle"), { limitPause: { resetsAt: 130_000, window: "session", pausedAt: 90_000, position: null } });
+  const view = await mount(timeline);
+  assert.match(query(view.container, ".limit-row").textContent, /Usage limit reached\. Resumes at/);
+  await act(async () => { vi.advanceTimersByTime(60_000); });
+  assert.match(query(view.container, ".limit-row").textContent, /Usage limit reset\. Resuming\./);
   await view.unmount();
 });

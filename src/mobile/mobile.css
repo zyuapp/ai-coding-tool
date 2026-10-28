@@ -27,7 +27,7 @@
   --line-mid: color-mix(in srgb, var(--p-line-1) 50%, var(--p-line-2));
   --line-strong: var(--p-line-2);
   --line-bright: var(--p-line-3);
-  --line-input: color-mix(in srgb, var(--p-fg-5) 75%, var(--p-line-2));
+  --line-input: color-mix(in srgb, var(--p-fg-4) 70%, var(--p-line-2));
 
   /* Text, strongest to quietest. At 13px and under only --muted and stronger read; --quiet is for
      600-weight section labels and 14px helper copy, --quiet-soft for placeholders. */
@@ -275,18 +275,19 @@ button {
   50% { opacity: 0.45; }
 }
 
-/* Takes the title's slot in the bar, so it covers no row and moves nothing while it is up. */
+/* A strip under the bar, so the title and the list switch stay where they are while it is up. */
 .banner {
-  flex: 1;
-  min-width: 0;
-  min-height: 44px;
+  flex: none;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 4px;
-  border-radius: var(--radius-row);
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 7px 10px 7px var(--gutter);
   text-align: left;
   color: var(--danger-soft);
+  background: var(--danger-surface);
+  box-shadow: inset 0 -1px 0 var(--line-soft);
   animation: fade 160ms ease-out;
 }
 
@@ -304,11 +305,10 @@ button {
 
 .banner svg {
   flex: none;
-  opacity: 0.7;
 }
 
 .banner:active {
-  background: var(--danger-surface);
+  background: color-mix(in srgb, var(--danger-surface) 70%, var(--surface-active));
 }
 
 @keyframes fade {
@@ -385,8 +385,12 @@ button {
   background: var(--info);
 }
 
+/* Needs-you is a ring, as on the desktop, so it never rests on hue alone beside the news dot. */
 .section-mark[data-kind="needs-you"] {
-  background: var(--accent);
+  width: 10px;
+  height: 10px;
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 
 /* Sits over the rows' mark column, so the glyph and the marks share one centre line. */
@@ -404,6 +408,22 @@ button {
 .section-action:active {
   background: var(--surface-active);
   color: var(--ink-dim);
+}
+
+.section-text-action {
+  flex: none;
+  min-height: 44px;
+  padding: 0 10px;
+  margin-right: -3px;
+  border-radius: 10px;
+  font-size: var(--text-menu);
+  font-weight: 600;
+  color: var(--muted-strong);
+}
+
+.section-text-action:active {
+  background: var(--surface-active);
+  color: var(--ink);
 }
 
 /* Narrows the activity list to one project; outlined at rest, filled once it is narrowed. */
@@ -518,10 +538,20 @@ button {
   height: 44px;
   justify-self: end;
   border-radius: 10px;
-  color: var(--muted);
 }
 
-.thread-dismiss:active {
+/* An outlined disc, so the tick reads as something to press rather than a state already reached. */
+.thread-dismiss-disc {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--line-input);
+  color: var(--muted-strong);
+}
+
+.thread-dismiss:active .thread-dismiss-disc {
   background: var(--surface-active);
   color: var(--ink);
 }
@@ -568,7 +598,10 @@ button {
 }
 
 .thread-row[data-status="awaiting-approval"] .thread-mark::before {
-  background: var(--accent);
+  width: 10px;
+  height: 10px;
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 
 .thread-row[data-unread][data-status="idle"] .thread-mark::before {
@@ -580,15 +613,16 @@ button {
 }
 
 /*
- * What waits on the user outranks work going on and news, as on the desktop: the needs-you dot takes
+ * What waits on the user outranks work going on and news, as on the desktop: the needs-you ring takes
  * the spinner's or the news dot's place. It is as specific as the rules it overrides, and comes after them.
  */
 .thread-row[data-waiting][data-status] .thread-mark::before {
   display: block;
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border: 0;
-  background: var(--accent);
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--accent);
   animation: none;
 }
 
@@ -906,6 +940,47 @@ button.work-row:active {
   font-size: 0.88em;
 }
 
+.markdown .code-block {
+  position: relative;
+  margin: 0 0 13px;
+}
+
+.markdown .code-block > pre {
+  margin: 0;
+  padding-right: 44px;
+}
+
+/* The tile is 30px; the thumb gets 44. */
+.code-block > .copy-affordance {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--muted-strong);
+}
+
+.code-block > .copy-affordance::before {
+  content: "";
+  position: absolute;
+  inset: -7px;
+}
+
+.code-block > .copy-affordance:active {
+  background: var(--surface-active);
+  color: var(--ink);
+}
+
+.code-block > .copy-affordance.copied {
+  color: var(--success);
+}
+
 .markdown pre {
   margin: 0 0 13px;
   padding: 11px;
@@ -1128,7 +1203,7 @@ button.work-row:active {
 }
 
 .composer-card:focus-within {
-  box-shadow: var(--shadow-float-lift);
+  box-shadow: inset 0 0 0 1px var(--line-input), var(--shadow-float-lift);
 }
 
 .composer-card textarea {
@@ -1174,6 +1249,7 @@ button.work-row:active {
 .composer-settings {
   flex: 1;
   min-width: 0;
+  container-type: inline-size;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -1202,36 +1278,45 @@ button.work-row:active {
 }
 
 .setting-axis {
+  flex: none;
   font-size: 12px;
   color: var(--muted);
 }
 
 .setting-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 14px;
   color: var(--ink-faint);
   margin-right: 7px;
 }
 
-/* Cuts into the run that is going. Text where the disc is a glyph, because the two mean different things. */
-.steer-button {
+/* Too narrow for names and values both, the values stay, so effort is never the one cut off. */
+@container (max-width: 270px) {
+  .setting-axis { display: none; }
+}
+
+/* Steer cuts into the run that is going and Queue waits behind it: words beside the Stop disc, since they differ only in when. */
+.composer-pill {
   position: relative;
   flex: none;
   min-height: 36px;
   padding: 0 12px;
   border-radius: 18px;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--line-input);
   font-size: var(--text-menu);
   font-weight: 600;
   color: var(--ink-dim);
 }
 
-.steer-button::before {
+.composer-pill::before {
   content: "";
   position: absolute;
   inset: -4px;
 }
 
-.steer-button:active {
+.composer-pill:active {
   background: var(--surface-active);
 }
 
@@ -1439,10 +1524,14 @@ button.work-row:active {
 .fast-mode-switch[aria-checked="true"] .switch-track { background: var(--accent); box-shadow: none; }
 .fast-mode-switch[aria-checked="true"] .switch-track::after { transform: translateX(14px); background: var(--accent-ink); }
 
-.sheet-locked {
-  color: var(--quiet);
-  background: transparent;
-  border: 0;
+.sheet-new-engine {
+  margin-top: 6px;
+  color: var(--ink-dim);
+}
+
+.sheet-new-engine > svg {
+  flex: none;
+  color: var(--muted);
 }
 
 .sheet-note {
@@ -1501,8 +1590,9 @@ button.work-row:active {
   color: var(--muted-strong);
 }
 
-.menu-row:disabled .menu-glyph {
-  color: var(--quiet-soft);
+.menu-row:disabled .menu-glyph,
+.menu-row:disabled .menu-copy strong {
+  opacity: 0.55;
 }
 
 .menu-row[data-danger] .menu-glyph {
@@ -1543,6 +1633,11 @@ button.work-row:active {
 
 .location-option:disabled:not([aria-checked="true"]) {
   color: var(--quiet);
+}
+
+/* Where the thread already is: focusable, so the sheet opens on it, but there is nothing to press. */
+.location-option[aria-checked="true"]:active {
+  background: var(--surface-active);
 }
 
 .rename-form {
@@ -1605,6 +1700,24 @@ button.work-row:active {
   flex: 1;
   min-width: 0;
   color: var(--muted);
+}
+
+button.thread-start-project {
+  position: relative;
+  flex: 0 1 auto;
+  margin-right: auto;
+  padding: 0 9px 0 11px;
+  color: var(--muted-strong);
+}
+
+button.thread-start-project::before {
+  content: "";
+  position: absolute;
+  inset: -6px 0;
+}
+
+button.thread-start-project:active {
+  background: var(--surface-active);
 }
 
 .thread-start-project span,
@@ -1815,6 +1928,9 @@ button.work-row:active {
   color: var(--muted-soft);
 }
 
+.diff-file-icon:is([data-status="added"], [data-status="untracked"]) { color: var(--success); }
+.diff-file-icon[data-status="deleted"] { color: var(--danger); }
+
 .diff-file-name {
   flex: 1;
   min-width: 0;
@@ -1842,18 +1958,16 @@ button.work-row:active {
   color: var(--quiet);
 }
 
+/* Lines wrap, since a phone is too narrow to pan along every one. */
 .diff-body {
   border-top: 1px solid var(--line-soft);
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
   font: 12px/1.55 var(--mono);
 }
 
 .diff-line {
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
   min-height: 19px;
-  min-width: max-content;
 }
 
 .diff-line.hunk {
@@ -1867,8 +1981,8 @@ button.work-row:active {
 
 .diff-gutter {
   flex: none;
-  width: 3.4em;
-  padding-right: 6px;
+  width: calc(4ch + 6px);
+  padding-right: 5px;
   text-align: right;
   color: var(--quiet);
   background: var(--sunken);
@@ -1881,10 +1995,12 @@ button.work-row:active {
 
 .diff-line code {
   flex: 1;
-  padding: 0 12px 0 8px;
+  min-width: 0;
+  padding: 0 10px 0 6px;
   color: var(--code-ink);
   font-family: inherit;
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .diff-line.add code::before,
@@ -2027,6 +2143,17 @@ button.work-row:active {
   max-width: 26ch;
   font-size: var(--text-control);
   color: var(--muted);
+}
+
+.gate .gate-path {
+  max-width: none;
+  margin-top: 4px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  font-size: var(--text-menu);
+  font-weight: 560;
+  color: var(--ink-dim);
 }
 
 @media (hover: hover) {

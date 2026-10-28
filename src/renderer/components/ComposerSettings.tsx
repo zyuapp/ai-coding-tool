@@ -1,6 +1,6 @@
 import { CommandGate, CommandButton, useCommandControls } from "./CommandControl";
 import type { IconType } from "react-icons";
-import { LuSearch as Search, LuStar as Star, LuGrid2X2 as Grid, LuX as X, LuBrain as Brain, LuCheck as Check, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuShieldOff as ShieldOff, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
+import { LuSearch as Search, LuStar as Star, LuGrid2X2 as Grid, LuX as X, LuBrain as Brain, LuCheck as Check, LuChevronDown as ChevronDown, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuShieldOff as ShieldOff, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
 import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { AGENT_ENGINES, capabilitiesFor, byEngine, effortForModel, effortsFor, engineLabel, engineNotice, isAgentModel, modelsFor, type AgentEngine, type AgentModel, type EffortSpec, type EngineNotice, type EngineReadiness } from "../../domain/agent-engine";
 import { POLICIES, type AgentEffort, type ExecutionPolicy } from "../../domain/run";
@@ -36,13 +36,16 @@ function ReadinessHint({ notice, onOpenSettings }: { notice: EngineNotice; onOpe
   </div>;
 }
 
-function SettingMenu({ label, axis, heading, value, detail, onOpen, onKeyDown, library = false, children }: {
+function SettingMenu({ label, axis, heading, value, detail, danger = false, onOpen, onKeyDown, library = false, children }: {
+  /** The menu's name with its current value, as a screen reader says the chip. */
   label: string;
   axis: string;
   heading: string;
   value: ReactNode;
   /** A second value read after the first, such as the effort beside its model. */
   detail?: ReactNode;
+  /** Set while the value is one that acts without asking. */
+  danger?: boolean;
   onOpen?: () => void;
   onKeyDown?: (event: KeyboardEvent<HTMLElement>) => void;
   library?: boolean;
@@ -55,11 +58,12 @@ function SettingMenu({ label, axis, heading, value, detail, onOpen, onKeyDown, l
   const close = () => { if (details.current) details.current.open = false; };
   useDismissibleLayer(open, [details], close, summary);
 
-  return <details ref={details} className="setting-menu" onToggle={(event) => { setOpen(event.currentTarget.open); if (event.currentTarget.open) onOpen?.(); }}>
+  return <details ref={details} className={`setting-menu${danger ? " danger" : ""}`} onToggle={(event) => { setOpen(event.currentTarget.open); if (event.currentTarget.open) onOpen?.(); }}>
     <summary ref={summary} aria-label={label}>
       <span className="setting-axis">{axis}</span>
       <span className="setting-value">{value}</span>
       {detail !== undefined && <span className="setting-detail"><span aria-hidden="true">·</span>{detail}</span>}
+      <ChevronDown size={12} className="setting-chevron" aria-hidden="true" />
     </summary>
     {open && <div className={`setting-popover${library ? " model-library" : ""}`} role={library ? "dialog" : "listbox"} aria-label={heading} onKeyDown={onKeyDown ?? (library ? undefined : moveListFocus)}>
       {!library && <div className="setting-heading">{heading}</div>}
@@ -100,7 +104,7 @@ function ChoiceMenu<T extends string>({ label, axis, heading, choices, value, on
 }) {
   /** A value only a newer build on a paired computer knows is named as it is, never as one of these. */
   const selected = choices.find((item) => item.value === value);
-  return <SettingMenu label={label} axis={axis} heading={heading} value={selected?.label ?? value}>
+  return <SettingMenu label={`${label}: ${selected?.label ?? value}`} axis={axis} heading={heading} value={selected?.label ?? value} danger={selected?.danger}>
     {(close) => choices.map((item) => <Option key={item.value} item={item} selected={item.value === value} onSelect={() => { onChange(item.value); close(); }} />)}
   </SettingMenu>;
 }
@@ -328,7 +332,7 @@ export function ModelMenu({ onOpen, ...props }: ModelLibraryProps & { onOpen: ()
     if (next) effort.onChange(next.id);
   };
   return <SettingMenu
-    label={steps.length ? "Model and effort" : "Model"}
+    label={`${steps.length ? "Model and effort" : "Model"}: ${modelLabel}${steps.length ? `, ${shown?.label ?? value}` : ""}`}
     axis="Model"
     heading={steps.length ? "Choose a model and effort" : "Choose a model"}
     value={modelLabel}
@@ -373,7 +377,7 @@ export function ComposerSettings({ taskId, mode, engine, engineLabel, engineLock
     <div className="composer-settings">
       <CommandGate command={{ type: "task.set-policy", taskId, policy: mode }}><ChoiceMenu label="Permission mode" axis="Mode" heading={`How should ${engineLabel} actions be approved?`} choices={modes} value={mode} onChange={onModeChange} /></CommandGate>
       <CommandGate command={{ type: "task.set-model", taskId, engine, model }}><ModelMenu engine={engine} engineLocked={engineLocked} engineAccess={engineAccess} model={model} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onChange={onModelChange} onOpen={onEngineRead} onSignIn={onSignIn} {...(effortControl ? { effort: effortControl } : {})} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} /></CommandGate>
-      {capabilitiesFor(engine).fastMode && <CommandButton command={{ type: "task.set-fast-mode", taskId, fastMode: !fastMode }} type="button" className="fast-mode-toggle" aria-label="Fast mode" aria-pressed={fastMode} title={`Fast mode ${fastMode ? "on" : "off"} · faster responses use more of your plan`} onClick={() => onFastModeChange(!fastMode)}><Zap size={16} aria-hidden="true" /></CommandButton>}
+      {capabilitiesFor(engine).fastMode && <CommandButton command={{ type: "task.set-fast-mode", taskId, fastMode: !fastMode }} type="button" className="fast-mode-toggle" aria-label="Fast mode" aria-pressed={fastMode} title={`Fast mode ${fastMode ? "on" : "off"} · faster responses use more of your plan`} onClick={() => onFastModeChange(!fastMode)}><Zap size={16} aria-hidden="true" />{fastMode && <span aria-hidden="true">Fast</span>}</CommandButton>}
     </div>
   );
 }

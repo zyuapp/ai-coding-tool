@@ -25,7 +25,7 @@ import type { ProjectSidebarProps } from "../../src/renderer/components/ProjectS
 import type { ThreadRequestHost } from "../../src/host/thread-requests.ts";
 import { executeWorkspaceInput } from "../../src/application/workspace-execution.ts";
 
-const { AutomationPanel, automationMeta, lastRunLabel } = await import("../../src/renderer/components/AutomationPanel.tsx");
+const { AutomationPanel, automationFacts, lastRunLabel } = await import("../../src/renderer/components/AutomationPanel.tsx");
 const { answerThreadRequest } = await import("../../src/host/thread-requests.ts");
 const { ProjectSidebar } = await import("../../src/renderer/components/ProjectSidebar.tsx");
 
@@ -267,8 +267,8 @@ test("what a silent tick looked at is kept, since it is all such a schedule ever
   assert.equal(lastChecked.note, "the last hour of Datadog errors");
   assert.ok(lastChecked.at > 0);
   assert.equal(thread.outcome, undefined, "keeping what it checked is not the same as surfacing");
-  assert.match(automationMeta(automationView({ runCount: 3, lastStatus: "succeeded", lastStatusAt: lastChecked.at }), null, lastChecked, lastChecked.at),
-    /nothing found yet · checked the last hour of Datadog errors /);
+  const facts = new Map(automationFacts(automationView({ runCount: 3, lastStatus: "succeeded", lastStatusAt: lastChecked.at }), null, lastChecked, lastChecked.at));
+  assert.deepEqual([facts.get("Last found"), facts.get("Last checked")?.startsWith("the last hour of Datadog errors ")], ["Nothing yet", true]);
 });
 
 test("a quiet tick that found something bumps the thread and leads the list", () => {
@@ -798,8 +798,10 @@ test("the automation panel says whether the schedule is alive and whether it has
   const at = Date.parse("2026-08-17T09:00:00Z");
   const automation = automationView({ id: "a", schedule: "*/30 * * * *", runCount: 48, lastRunAt: at - 60_000, lastStatusAt: at - 60_000, lastStatus: "succeeded", nextRunAt: at + 60_000, overrunCount: 2 });
 
-  assert.match(automationMeta(automation, null, null, at), /^48 runs · succeeded at .* · nothing found yet · 2 dropped for overrunning$/);
-  assert.match(automationMeta(automation, at - 120_000, null, at), /found something /);
+  const facts = new Map(automationFacts(automation, null, null, at));
+  assert.deepEqual([facts.get("Runs"), facts.get("Last found"), facts.get("Dropped")], ["48", "Nothing yet", "2 for overrunning"]);
+  assert.match(facts.get("Last run") ?? "", /^succeeded at /);
+  assert.notEqual(new Map(automationFacts(automation, at - 120_000, null, at)).get("Last found"), "Nothing yet");
 });
 
 test("the panel keeps the sentence a schedule surfaces for, rather than trading it for a default", async () => {

@@ -1,3 +1,5 @@
+import { LuChevronDown as ChevronDown } from "react-icons/lu";
+
 /** The quiet line under a shortened list that opens the rest of it. */
 export function ShowMore({ label, expanded, onSelect }: { label: string; expanded?: boolean; onSelect: () => void }) {
   return (
@@ -6,6 +8,6 @@ export function ShowMore({ label, expanded, onSelect }: { label: string; expande
       type="button"
       onClick={onSelect}
       {...(expanded === undefined ? {} : { "aria-expanded": expanded })}
-    >{label}</button>
+    >{label}<ChevronDown className="show-more-chevron" size={12} aria-hidden="true" /></button>
   );
 }

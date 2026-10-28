@@ -211,6 +211,7 @@ export function AttachmentStrip({ attachments }: { attachments: ComposerAttachme
           >
             <img src={attachment.preview} alt="" />
             <span className="attachment-edit" aria-hidden="true"><Pencil size={14} /></span>
+            <span className="attachment-edit-mark" aria-hidden="true"><Pencil size={10} /></span>
             {attachment.annotations.length > 0 && <span className="attachment-badge" aria-hidden="true">{attachment.annotations.length}</span>}
           </button>
           <button

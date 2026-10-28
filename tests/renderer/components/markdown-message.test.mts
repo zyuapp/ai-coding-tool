@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import React, { act } from "react";
 import type { MessageLinkActions } from "../../../src/renderer/components/MarkdownMessage.tsx";
 import { isImageSource } from "../../../src/domain/message-artifacts.ts";
@@ -105,7 +105,7 @@ test("a web link opens in the browser panel when clicked with the command key he
   assert.deepEqual(opened, []);
   await act(async () => { assert.equal(click(true), true); });
   assert.deepEqual(opened, ["https://example.com/docs"]);
-  assert.match(link.title, /click to open in AI Coding Tool/);
+  assert.equal(link.title, "", "the link carries no tooltip of its own; the context menu offers the app");
   await view.unmount();
 });
 
@@ -195,4 +195,18 @@ test("a visual fence becomes a sandboxed frame once it has closed, and an oversi
   assert.equal(oversized.container.querySelector("iframe"), null);
   assert.ok(oversized.container.querySelector("pre code.language-visual"));
   await oversized.unmount();
+});
+
+test("a visual that never reports its size shows that it is drawing, then that it failed", async (t) => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  t.onTestFinished(() => { vi.useRealTimers(); });
+  const { VISUAL_TIMEOUT_MS } = await import("../../../src/renderer/components/VisualBlock.tsx");
+  const view = await mount(React.createElement(MarkdownMessage, null, "```visual\n<div id=\"viz-stuck\">Hi</div>\n```"));
+  assert.ok(view.container.querySelector("iframe"));
+  assert.match(query(view.container, ".visual-loading-over").textContent, /Drawing visual/);
+  assert.equal(view.container.querySelector(".visual-error"), null);
+  await act(async () => { vi.advanceTimersByTime(VISUAL_TIMEOUT_MS); });
+  assert.equal(view.container.querySelector(".visual-loading-over"), null);
+  assert.match(query(view.container, ".visual-error").textContent, /did not finish drawing/);
+  await view.unmount();
 });

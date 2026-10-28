@@ -11,6 +11,8 @@ import type { PastedText, RunAttachment } from "../../src/domain/conversation.ts
 import type { ConversationComposerProps } from "../../src/renderer/components/ConversationComposer.tsx";
 
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
+import type { AppCommand } from "../../src/contracts/commands.ts";
+import { CommandControlsProvider } from "../../src/renderer/components/CommandControl.tsx";
 
 const { ConversationComposer } = await import("../../src/renderer/components/ConversationComposer.tsx");
 
@@ -31,7 +33,7 @@ function renderConversationComposer(overrides: Partial<ConversationComposerProps
     outbox: outbox(),
     onSteerQueued() {},
     onEditQueued() {}, onDropQueued() {},
-    onCancel() {},
+    onCancel() {}, onFilesAdd() {},
     ...overrides,
   });
 }
@@ -47,11 +49,18 @@ test("an active native goal stays visible and can be cleared", async () => {
   assert.match(query(view.container, ".goal-detail").textContent, /Pass 2/);
   await act(async () => { query<HTMLButtonElement>(view.container, ".goal-clear").click(); });
   assert.equal(cleared, 0, "the first press only asks");
-  await act(async () => { query<HTMLButtonElement>(view.container, ".goal-clear:not(.danger)").click(); });
-  assert.equal(cleared, 0, "Keep backs out");
+  const cancel = query<HTMLButtonElement>(view.container, ".goal-confirm button:not(.danger)");
+  assert.equal(cancel.textContent, "Cancel");
+  assert.equal(document.activeElement, cancel, "the question lands on the safe answer");
+  await act(async () => { cancel.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+  assert.equal(cleared, 0, "Escape backs out");
+  assert.equal(document.activeElement, query(view.container, ".goal-clear"), "and hands the focus back to Clear");
+  await act(async () => { query<HTMLButtonElement>(view.container, ".goal-clear").click(); });
+  await act(async () => { query<HTMLButtonElement>(view.container, ".goal-confirm button:not(.danger)").click(); });
+  assert.equal(cleared, 0, "Cancel backs out");
   assert.match(query(view.container, ".goal-bar").textContent, /All checks pass/);
   await act(async () => { query<HTMLButtonElement>(view.container, ".goal-clear").click(); });
-  await act(async () => { query<HTMLButtonElement>(view.container, ".goal-clear.danger").click(); });
+  await act(async () => { query<HTMLButtonElement>(view.container, ".goal-confirm .danger").click(); });
   assert.equal(cleared, 1);
   await view.unmount();
 });
@@ -492,16 +501,20 @@ test("the send button holds while the checkout a send needs is still being made"
     prompt: "Refactor the loader", folder: "/project", workspaceId: "workspace-1", mode: "confirm", engine: "claude", engineLabel: "Claude", model: "opus", effort: "medium",
     runActive: false, waiting, queuedMessages: [],
     onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSteerQueued() {}, onEditQueued() {}, onDropQueued() {},
-    outbox: outbox({ send: () => { sent.push("sent"); } }), onCancel() {},
+    outbox: outbox({ send: () => { sent.push("sent"); } }), onCancel() {}, onFilesAdd() {},
   });
 
   const view = await mount(composer(true));
   const send = query<HTMLButtonElement>(view.container, ".send-button");
   assert.equal(send.disabled, true, "a second Enter is refused visibly rather than swallowed");
+  assert.equal(send.getAttribute("aria-busy"), "true", "the held send reads as on its way, not as nothing to send");
+  assert.ok(send.querySelector(".send-spinner"));
   await act(async () => { send.click(); });
   assert.deepEqual(sent, []);
 
   await view.render(composer(false));
+  assert.equal(query(view.container, ".send-button").getAttribute("aria-busy"), null);
+  assert.equal(view.container.querySelector(".send-button .send-spinner"), null);
   await act(async () => { query<HTMLButtonElement>(view.container, ".send-button").click(); });
   assert.deepEqual(sent, ["sent"], "the button works again once the checkout has landed");
   await view.unmount();
@@ -549,7 +562,10 @@ test("while a run goes, a written message shows how to queue it or steer it in",
   await empty.unmount();
 
   const running = await mount(renderConversationComposer({ prompt: "check the logs", runActive: true }));
-  assert.match(query(running.container, ".composer-hint").textContent ?? "", /queue.*steer/);
+  const hint = query(running.container, ".composer-hint");
+  assert.match(hint.textContent ?? "", /queue.*steer/);
+  assert.equal(query(running.container, "textarea").getAttribute("aria-describedby"), hint.id, "the prompt names the keys to a screen reader too");
+  assert.match(query(running.container, ".send-button").dataset.tip ?? "", /Stop · Queue \(.+\) · Steer \(.+\)/, "a composer too narrow for the hint still teaches it on Stop");
   await running.unmount();
 });
 
@@ -562,5 +578,76 @@ test("a send notice can be put away", async () => {
   assert.match(query(view.container, ".attachment-error").textContent ?? "", /Wait for the screenshots/);
   await act(async () => { query<HTMLButtonElement>(view.container, '.attachment-error button[aria-label="Dismiss"]').click(); });
   assert.deepEqual(notices, [null]);
+  await view.unmount();
+});
+
+test("a thread this build cannot open offers the update that opens it", async () => {
+  window.desktop = fakeDesktop();
+  const dispatched: AppCommand[] = [];
+  const view = await mount(React.createElement(CommandControlsProvider, { value: { available: () => true, dispatch: (command) => { dispatched.push(command); } } },
+    renderConversationComposer({ unopenable: "Runs on gemini, which this version can't open. Update to work in it here." })));
+  assert.equal(view.container.querySelector("textarea"), null);
+  await act(async () => { query<HTMLButtonElement>(view.container, ".composer-unopenable-update").click(); });
+  assert.deepEqual(dispatched, [{ type: "app.update" }]);
+  await view.unmount();
+});
+
+test("the context ring says how full it is only once compaction is near", async () => {
+  window.desktop = fakeDesktop();
+  const low = await mount(renderConversationComposer({ contextUsage: { tokens: 40_000, limit: 200_000, model: "claude-opus-5" } }));
+  assert.equal(low.container.querySelector(".context-usage-value"), null);
+  await low.unmount();
+  const high = await mount(renderConversationComposer({ contextUsage: { tokens: 180_000, limit: 200_000, model: "claude-opus-5" } }));
+  assert.equal(query(high.container, ".context-usage-value").textContent, "90%");
+  await high.unmount();
+});
+
+test("a queued message cut short opens out in place, and one that fits stays still", async () => {
+  window.desktop = fakeDesktop();
+  const width = Object.getOwnPropertyDescriptor(dom.window.HTMLElement.prototype, "scrollWidth");
+  Object.defineProperty(dom.window.HTMLElement.prototype, "scrollWidth", { configurable: true, get(this: HTMLElement) { return this.textContent?.startsWith("Long") ? 900 : 0; } });
+  try {
+    const view = await mount(renderConversationComposer({ runActive: true, queuedMessages: [
+      { id: "long", text: "Long message that runs well past the row", prompt: "Long", attachments: [] },
+      { id: "short", text: "Short", prompt: "Short", attachments: [] },
+    ] }));
+    const [long, short] = [...view.container.querySelectorAll<HTMLElement>(".queued-text")];
+    assert.equal(short.getAttribute("role"), null, "text that fits is not a control");
+    assert.equal(long.getAttribute("aria-expanded"), "false");
+    await act(async () => { long.click(); });
+    assert.equal(long.getAttribute("aria-expanded"), "true");
+    assert.ok(long.classList.contains("open"));
+    await act(async () => { long.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
+    assert.equal(long.getAttribute("aria-expanded"), "false", "Enter folds it back");
+    await view.unmount();
+  } finally {
+    if (width) Object.defineProperty(dom.window.HTMLElement.prototype, "scrollWidth", width);
+    else delete (dom.window.HTMLElement.prototype as { scrollWidth?: number }).scrollWidth;
+  }
+});
+
+test("Enter in the base branch search reviews the top match, in the reviewing engine's words", async () => {
+  window.desktop = fakeDesktop();
+  const reviews: unknown[] = [];
+  const steps: string[] = [];
+  const picker = (step: "targets" | "base") => renderConversationComposer({
+    workspaceId: "workspace-1", engine: "codex", engineLabel: "Codex", model: "gpt-6-astra",
+    reviewPicker: { taskId: "task-1", step },
+    onReview: (target) => { reviews.push(target); },
+    onReviewStep: (next) => { steps.push(next); },
+  });
+  const view = await mount(picker("targets"));
+  assert.match(query(view.container, ".review-menu").textContent ?? "", /Tell Codex what to inspect/);
+  await view.render(picker("base"));
+  await settleUntil(() => view.container.querySelectorAll(".review-branch-list > button").length > 0);
+  const search = query<HTMLInputElement>(view.container, ".review-search input");
+  const setValue = item(Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")).set;
+  await act(async () => {
+    item(setValue).call(search, "fix");
+    search.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true }));
+  });
+  await act(async () => { search.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })); });
+  assert.deepEqual(reviews, [{ type: "baseBranch", branch: "fix-loader" }]);
+  assert.match(query(view.container, ".review-back").dataset.tip ?? "", /^Back \(Esc(ape)?\)$/);
   await view.unmount();
 });

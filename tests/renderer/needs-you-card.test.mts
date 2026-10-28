@@ -32,7 +32,7 @@ test("the Needs-you card pages through approvals and decisions and answers each"
   assert.match(card.textContent, /Login flake1 of 2/);
   assert.equal(query(card, ".decision-command").textContent, "yarn test:e2e -u");
   const button = (label: string) => required([...view.container.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === label));
-  await act(async () => { button("Allow").click(); });
+  await act(async () => { button("Allow once").click(); });
   await act(async () => { button("Deny").click(); });
   assert.deepEqual(decided, [["a1", true], ["a1", false]]);
 
@@ -280,7 +280,7 @@ test("the Needs-you card keeps the keyboard's place as its pages turn and are an
   assert.equal(focusedName(), "Later", "and Later");
 
   await press("Previous");
-  await press("Allow");
+  await press("Allow once");
   await view.render(card([], [decision("d1"), decision("d2")]));
   assert.equal(focusedName(), "Decision waiting on you", "an answered page hands focus to the page that took its place");
 
@@ -350,7 +350,7 @@ test("the page the keyboard is handed is read by who asks and what, and the last
   };
   const read = () => (dom.window.document.activeElement?.getAttribute("aria-describedby") ?? "").split(" ").map((id) => dom.window.document.getElementById(id)?.textContent);
 
-  await press("Allow");
+  await press("Allow once");
   await view.render(shown([approval("a2")], [decision]));
   assert.equal(focusedName(), "Approval waiting on you");
   assert.deepEqual(read(), ["Thread a2", "Run a2?", "Lists the folder", "ls"]);

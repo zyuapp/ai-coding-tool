@@ -18,6 +18,8 @@ import { HostMark } from "./HostMark";
 import { useMessageLinks, WebLink } from "./MarkdownMessage";
 import { PULL_REQUEST_ICONS } from "./SessionPanel";
 import { MAC } from "../platform";
+import { ConfirmAction } from "./SettingRow";
+import { REMOTE_UNSUPPORTED } from "../../contracts/computer-capabilities";
 import { placeOf, useKeyboardPlace } from "../focus";
 import "./coordination.css";
 
@@ -140,7 +142,7 @@ function rememberOverviewPlace(pressed: HTMLElement, root: HTMLElement): Overvie
   if (pressed.matches(".coordination-note-forget")) return { kind: "note", index: [...root.querySelectorAll(".coordination-note-forget")].indexOf(pressed) };
   const section = pressed.closest<HTMLElement>("[data-section]");
   if (!section) return null;
-  if (pressed.matches(".coordination-stop-all")) return { kind: "stop", index: groupHeads(root).indexOf(section.querySelector<HTMLElement>(".coordination-group-head")!) };
+  if (pressed.matches(".coordination-stop > .danger")) return { kind: "stop", index: groupHeads(root).indexOf(section.querySelector<HTMLElement>(".coordination-group-head")!) };
   const rows = sectionRows(section);
   if (pressed.matches(".coordination-more")) return { kind: "more", section: section.dataset.section!, index: rows.length };
   if (!pressed.matches('[data-action="resolve"], [data-action="reopen"]')) return null;
@@ -257,7 +259,7 @@ function MemorySection({ memory, fold, onSetFold }: { memory: OverviewMemoryProp
               command={{ type: "memory.forget", taskId: memory.taskId, noteId: note.id }}
               className="coordination-note-forget"
               aria-label={`Forget note: ${noteName(note.text)}`}
-              title="Forget"
+              data-tip="Forget"
             >
               <X size={12} aria-hidden="true" />
             </CommandButton>
@@ -291,7 +293,12 @@ function NoteInput({ notes, onAdd }: { notes: readonly MemoryNote[]; onAdd: (tex
     }
     if (event.key === "Escape" && event.currentTarget.value) { event.preventDefault(); event.stopPropagation(); setText(""); }
   };
-  return <textarea rows={1} className="coordination-note-add" aria-label="Add a note" placeholder="Add a note" maxLength={MAX_MEMORY_NOTE} value={text} onChange={(event) => setText(event.currentTarget.value)} onKeyDown={onKeyDown} />;
+  return (
+    <div className="coordination-note">
+      <textarea rows={1} className="coordination-note-add" aria-label="Add a note" placeholder="Add a note" maxLength={MAX_MEMORY_NOTE} value={text} onChange={(event) => setText(event.currentTarget.value)} onKeyDown={onKeyDown} />
+      <kbd className="coordination-note-hint" aria-hidden="true">↵ add</kbd>
+    </div>
+  );
 }
 
 /**
@@ -300,7 +307,7 @@ function NoteInput({ notes, onAdd }: { notes: readonly MemoryNote[]; onAdd: (tex
  */
 function FoldHead({ label, count, title, open, action, onToggle }: { label: string; count: number | string; title?: string; open: boolean; action?: ReactNode; onToggle: () => void }) {
   const head = (
-    <button type="button" className="coordination-group-head" aria-expanded={open} title={title} onClick={onToggle}>
+    <button type="button" className="coordination-group-head" aria-expanded={open} data-tip={title} onClick={onToggle}>
       <ChevronDown size={14} aria-hidden="true" />
       <span>{label}</span>
       <span className="coordination-group-count">{count}</span>
@@ -326,7 +333,7 @@ function UsageSection({ usage, fold, onSetFold, onSelect }: { usage: Coordinatio
         <p className="coordination-usage-own">This coordinator <strong>{compactTokens(coordinator)}</strong> · {own > 0 && own < 1 ? "<1" : Math.round(own)}%</p>
         <h4>By model</h4>
         {byModel.map(({ model, tokens }) => (
-          <div key={model} className="coordination-usage-model" title={`${tokens.toLocaleString("en-US")} tokens`}>
+          <div key={model} className="coordination-usage-model" data-tip={`${tokens.toLocaleString("en-US")} tokens`}>
             <span>{modelLabel(model)}</span>
             <span className="coordination-usage-track" aria-hidden="true"><span className="coordination-usage-fill" style={{ width: `${shareOf(tokens, total)}%` }} /></span>
             <span className="coordination-usage-tokens">{compactTokens(tokens)}</span>
@@ -335,7 +342,7 @@ function UsageSection({ usage, fold, onSetFold, onSelect }: { usage: Coordinatio
         {byThread.length > 0 && <>
           <h4>By thread</h4>
           {shown.map(({ thread, tokens }) => (
-            <button key={thread.id} type="button" className="coordination-usage-thread" aria-label={`Open ${thread.title}`} title={`${tokens.toLocaleString("en-US")} tokens`} onClick={() => onSelect(thread.id)}>
+            <button key={thread.id} type="button" className="coordination-usage-thread" aria-label={`Open ${thread.title}`} data-tip={`${tokens.toLocaleString("en-US")} tokens`} onClick={() => onSelect(thread.id)}>
               <span>{thread.title}</span>
               <span className="coordination-usage-tokens">{compactTokens(tokens)}</span>
             </button>
@@ -351,25 +358,14 @@ function UsageSection({ usage, fold, onSetFold, onSelect }: { usage: Coordinatio
 
 /** Stops the coordinator and everything working under it, as its thread menu does. */
 function StopAllButton({ taskId, stoppable, working }: { taskId: string; stoppable: boolean; working: number }) {
-  const [confirming, setConfirming] = useState(false);
   const controls = useCommandControls();
   const command = { type: "coordination.stop-all", taskId } as const;
+  const unavailable = !controls.available(command);
   return (
-    <CommandButton
-      type="button"
-      className={`coordination-stop-all ${confirming ? "danger" : ""}`.trimEnd()}
-      command={command}
-      disabled={!stoppable}
-      onBlur={() => setConfirming(false)}
-      onKeyDown={(event) => { if (confirming && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setConfirming(false); } }}
-      onClick={() => {
-        if (!confirming) return setConfirming(true);
-        setConfirming(false);
-        controls.dispatch(command);
-      }}
-    >
-      {confirming ? `Stop ${working === 1 ? "1 thread" : `${working} threads`}` : "Stop all"}
-    </CommandButton>
+    <span className="coordination-stop">
+      <ConfirmAction className="coordination-stop-all" disabled={!stoppable || unavailable} {...(unavailable ? { "data-tip": REMOTE_UNSUPPORTED } : {})}
+        confirm={`Stop ${working === 1 ? "1 thread" : `${working} threads`}`} onConfirm={() => controls.dispatch(command)}>Stop all</ConfirmAction>
+    </span>
   );
 }
 
@@ -471,7 +467,7 @@ export function ResolutionButton({ taskId, title, status, className, size = 14 }
 }) {
   if (status === "resolved") {
     return (
-      <CommandButton command={{ type: "task.reopen", taskId }} className={className} data-action="reopen" aria-label={`Reopen ${title}`} title="Reopen">
+      <CommandButton command={{ type: "task.reopen", taskId }} className={className} data-action="reopen" aria-label={`Reopen ${title}`} data-tip="Reopen">
         <Resolved className="resolution-ticked" size={size} aria-hidden="true" />
         <Reopen className="resolution-undo" size={size} aria-hidden="true" />
       </CommandButton>
@@ -479,7 +475,7 @@ export function ResolutionButton({ taskId, title, status, className, size = 14 }
   }
   if (!canResolve(status)) return null;
   return (
-    <CommandButton command={{ type: "task.resolve", taskId }} className={className} data-action="resolve" aria-label={`Resolve ${title}`} title="Resolve">
+    <CommandButton command={{ type: "task.resolve", taskId }} className={className} data-action="resolve" aria-label={`Resolve ${title}`} data-tip="Resolve">
       <Check size={size} aria-hidden="true" />
     </CommandButton>
   );
@@ -609,18 +605,18 @@ export function MemberWorktreeList({ worktrees, onReveal, onDelete }: {
           const by = worktree.threads.map((thread) => thread.title).join(", ");
           const detail = worktree.deleting ? "Deleting…" : worktree.branch ? `${worktree.branch} · ${by}` : by;
           return (
-            <div key={worktree.id} className="coordination-row coordination-worktree" title={`${worktree.root}\n${by}`}>
+            <div key={worktree.id} className="coordination-row coordination-worktree">
               <span className={`coordination-row-mark worktree-mark hue-${worktreeHue(worktree.id)}`}><FolderSymlink size={12} aria-hidden="true" /></span>
-              <span><strong>{worktree.name}</strong><small className={worktree.deleting ? "text-sweep" : undefined}>{detail}</small></span>
+              <span title={`${worktree.root}\n${by}`}><strong>{worktree.name}</strong><small className={worktree.deleting ? "text-sweep" : undefined}>{detail}</small></span>
               <span className="coordination-worktree-actions">
-                {onReveal && <button type="button" aria-label={`Reveal ${worktree.name}`} title={MAC ? "Reveal in Finder" : "Show in file manager"} disabled={worktree.deleting} onClick={() => onReveal(worktree.root)}>
+                {onReveal && <button type="button" aria-label={`Reveal ${worktree.name}`} data-tip={MAC ? "Reveal in Finder" : "Show in file manager"} disabled={worktree.deleting} onClick={() => onReveal(worktree.root)}>
                   <FolderOpen size={12} />
                 </button>}
                 <button
                   type="button"
                   className="danger"
                   aria-label={`Delete ${worktree.name}`}
-                  title={worktree.busy ? "Wait for its threads to finish before deleting" : "Delete worktree…"}
+                  data-tip={worktree.busy ? "Wait for its threads to finish before deleting" : "Delete worktree…"}
                   disabled={worktree.busy || worktree.deleting}
                   onClick={() => onDelete(worktree.root)}
                 >

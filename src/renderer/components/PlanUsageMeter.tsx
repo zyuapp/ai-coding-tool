@@ -14,6 +14,8 @@ export type ComposerPlanUsage = {
   /** Set while the thread waits out a limit, which the transcript already says. */
   limitPaused: boolean;
   onDismiss: (warning: string) => void;
+  /** Opens the Usage settings page. A surface without settings of its own leaves it out. */
+  onOpen?: () => void;
 };
 
 /** `model` is the one the composer sends to, which picks out the windows only it spends. */
@@ -34,7 +36,7 @@ function MeterPart({ window }: { window: UsageWindow & { utilization: number } }
  * The composer's plan at a glance: the session and the fullest week the model spends, or the
  * fullest window alone for a plan that names neither. Hover lists every window it spends.
  */
-export function PlanUsageMeter({ engineLabel, model, usage }: PlanUsageProps) {
+export function PlanUsageMeter({ engineLabel, model, usage, onOpen }: PlanUsageProps & { onOpen?: () => void }) {
   const cardId = useId();
   const windows = windowsFor(usage, modelLabel(model));
   const { session, week } = sessionAndWeek(windows);
@@ -43,8 +45,10 @@ export function PlanUsageMeter({ engineLabel, model, usage }: PlanUsageProps) {
   if (usage?.status !== "available" || !rows.length) return null;
   const label = rows.map((row) => `${row.label} ${Math.round(barShare(row.utilization))}% used`).join(", ");
 
+  const Meter = onOpen ? "button" : "span";
+
   return (
-    <span className="plan-usage" tabIndex={0} aria-label={`${engineLabel} plan: ${label}`} aria-describedby={cardId}>
+    <Meter className="plan-usage" {...(onOpen ? { type: "button" as const, onClick: onOpen } : { tabIndex: 0 })} aria-label={`${engineLabel} plan: ${label}`} aria-describedby={cardId}>
       <span className="plan-usage-parts" aria-hidden="true">{rows.map((row) => <MeterPart key={row.id} window={row} />)}</span>
       <UsageCard id={cardId} title={engineLabel} aside={planLabel(usage.subscription)}>
         {windows.map((window) => {
@@ -59,7 +63,7 @@ export function PlanUsageMeter({ engineLabel, model, usage }: PlanUsageProps) {
           />;
         })}
       </UsageCard>
-    </span>
+    </Meter>
   );
 }
 
@@ -78,7 +82,7 @@ export function PlanUsageWarning({ engine, engineLabel, model, usage, dismissed,
       <strong>{share >= 100 ? "Limit reached" : `${share}% used`}</strong>
       <span className="plan-usage-warning-window">{engineLabel} · {tightest.label}</span>
       {reset && <span className="plan-usage-warning-reset">{reset}</span>}
-      <button type="button" aria-label="Dismiss" data-tip="Hide until reset" onClick={() => onDismiss(warning)}><X size={14} aria-hidden="true" /></button>
+      <button type="button" aria-label="Hide usage warning until reset" data-tip="Hide until reset" onClick={() => onDismiss(warning)}><X size={14} aria-hidden="true" /></button>
     </div>
   );
 }

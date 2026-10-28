@@ -14,7 +14,7 @@ import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import type { SettingsSection } from "../../src/domain/settings-section.ts";
 import type { SettingsPanelProps } from "../../src/renderer/components/SettingsPanel.tsx";
-import { mobileSettingsProps } from "../support/mobile-desktop.mts";
+import { openSettingsPage, renderSettingsPanel, type MountView } from "../support/settings-panel.mts";
 import { task } from "../application/workspace-reducer-fixtures.mts";
 
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
@@ -28,77 +28,6 @@ const { SettingsPanel } = await import("../../src/renderer/components/SettingsPa
 function startCommand(command: RunCommand | undefined): Extract<RunCommand, { type: "start" }> {
   assert.equal(command?.type, "start");
   return command;
-}
-
-type SettingsTestOverrides = Partial<SettingsPanelProps> & {
-  /** The page and control the sheet opens on, landed through the workspace reducer. */
-  initialSection?: SettingsSection;
-  initialSetting?: string;
-  captureSound?: boolean;
-  captureFocus?: boolean;
-  onSetTheme?: () => void;
-  onSetCaptureOptions?: () => void;
-};
-
-const settingsOpened = (state: WorkspaceState, section: SettingsSection, settingId?: string | null) =>
-  reduce(state, { type: "view.set-settings-open", open: true, section, ...(settingId ? { settingId } : {}) }).state;
-
-/** The sheet with its page and mark held by the workspace reducer, the way the app holds them. */
-function ReducedSettings({ initialSection = "general", initialSetting, ...props }: SettingsTestOverrides & Omit<SettingsPanelProps, "section" | "settingMark" | "onLand">) {
-  const [state, setState] = React.useState(() => settingsOpened(emptyWorkspaceState(), initialSection, initialSetting));
-  return React.createElement(SettingsPanel, {
-    ...props,
-    section: state.settingsSection ?? "general",
-    settingMark: state.settingsFocus,
-    onLand: (section, settingId) => setState((current) => settingsOpened(current, section, settingId)),
-  });
-}
-
-function renderSettingsPanel(overrides: SettingsTestOverrides) {
-  return React.createElement(ReducedSettings, {
-    onClose() {},
-    archivedThreads: [], worktreeSettings: deriveView(emptyWorkspaceState()).worktreeSettings, worktreeManagementError: null, worktreeManagementNotice: null,
-    cli: deriveView(emptyWorkspaceState()).cli, onReadCli() {}, onSetCliInstalled() {},
-    planUsage: deriveView(emptyWorkspaceState()).planUsage, onReadPlanUsage() {},
-    computerUseAccess: deriveView(emptyWorkspaceState()).computerUsePermissions, onEnableComputerUse() {}, onRestartForComputerUse() {},
-    theme: "aicodingtool-dark",
-    themeMode: "auto",
-    uiFont: "system",
-    monoFont: "system",
-    readingSize: 15,
-    terminalSize: 13,
-    allowedOrigins: [],
-    chromeBrowser: false, computerUse: true, browserTools: true, notifications: true,
-    agentSettingsReload: "idle", onReloadAgentSettings() {},
-    engineAccess: { claude: { access: "ready" }, codex: { access: "ready" } }, engineChecking: false, engineUpdating: null,
-    remoteChecking: false,
-    shortcuts: [],
-    capturingShortcut: null,
-    desktopShortcutUnavailable: null,
-    onSetThemeFamily() {},
-    onSetThemeMode() {},
-    onSetUiFont() {},
-    onSetMonoFont() {},
-    onSetReadingSize() {},
-    onSetTerminalSize() {},
-    onSetChromeBrowser() {}, onSetComputerUse() {}, onSetBrowserTools() {}, onSetNotifications() {},
-    onCheckForUpdates() {}, onOpenSourceLicenses() {},
-    onRestoreThread() {}, onClearArchive() {}, onRefreshEngines() {}, onSignInEngine() {}, onUpdateEngine() {}, onRefreshWorktrees() {}, onWorktreeCommand() {},
-    onClearBrowserData() {},
-    onCaptureShortcut() {},
-    onSetShortcut() {},
-    onResetShortcuts() {}, ...mobileSettingsProps,
-    ...overrides,
-  });
-}
-
-/** Opens settings on one of its pages, named the way its sidebar names it. */
-type MountView = Awaited<ReturnType<typeof mount>>;
-
-async function openSettingsPage(view: MountView, name: string) {
-  await act(async () => { query<HTMLButtonElement>(view.container, ".sidebar-settings").click(); });
-  await settleUntil(() => Boolean(view.container.querySelector(".settings-sidebar")), "settings never opened");
-  await act(async () => { item([...view.container.querySelectorAll<HTMLButtonElement>(".settings-sidebar nav button")].find((button) => button.textContent === name)).click(); });
 }
 
 test("General Settings keeps updates and licenses reachable without the app menu", async () => {
@@ -687,7 +616,11 @@ test("Escape empties a settings search before it can close settings, and a miss 
   await act(async () => {});
 
   const field = await searchSettings(view, "zzz");
-  assert.equal(query(view.container, ".settings-search-empty").textContent, "No settings match");
+  assert.match(query(view.container, ".settings-search-empty").textContent, /^No settings match/);
+  await act(async () => { query<HTMLButtonElement>(view.container, ".settings-search-empty button").click(); });
+  assert.equal(field.value, "", "the miss offers the way back to the pages");
+  assert.ok(view.container.querySelector(".settings-sidebar nav"));
+  await searchSettings(view, "zzz");
 
   const escape = new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
   await act(async () => { field.dispatchEvent(escape); });
@@ -739,13 +672,14 @@ test("Restore defaults asks first, and Esc takes the question back", async () =>
   await view.unmount();
 });
 
-test("a shortcut row keeps Reset and Clear in the same places whatever the binding", async () => {
+test("a shortcut row offers Reset only once it is changed, and Clear otherwise", async () => {
   window.desktop = fakeDesktop({});
-  const view = await mount(renderSettingsPanel({ initialSection: "shortcuts", shortcuts: shortcutSettings({}) }));
+  const view = await mount(renderSettingsPanel({ initialSection: "shortcuts", shortcuts: shortcutSettings({ "project.start": "Mod+Shift+O" }) }));
   await act(async () => {});
-  const row = query<HTMLElement>(view.container, ".shortcut-row");
-  const buttons = [...row.querySelectorAll<HTMLButtonElement>(".setting-row-action button")];
-  assert.deepEqual(buttons.map((button) => [button.textContent, button.disabled]), [["Change", false], ["Reset", true], ["Clear", false]]);
+  const rows = [...view.container.querySelectorAll<HTMLElement>(".shortcut-row")];
+  const labels = (row: HTMLElement) => [...row.querySelectorAll<HTMLButtonElement>(".setting-row-action button")].map((button) => button.textContent);
+  assert.deepEqual(labels(item(rows.find((row) => row.dataset.setting !== "shortcut.project.start" && row.querySelector(".shortcut-keys")))), ["Change", "Clear"]);
+  assert.deepEqual(labels(query<HTMLElement>(view.container, ".shortcut-row[data-setting='shortcut.project.start']")), ["Change", "Reset"]);
   await view.unmount();
 });
 

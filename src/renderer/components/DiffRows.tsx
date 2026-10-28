@@ -39,6 +39,12 @@ function rowLabel(row: Extract<DiffRow, { kind: DiffLineKind }>) {
   return `Unchanged line ${row.newLine}`;
 }
 
+/**
+ * Gutters are out of the Tab order: the keyboard reaches them with the arrows from a file's row, and
+ * Shift with an arrow picks more lines, as dragging down the gutter does.
+ */
+const GUTTER_TIP = "Comment · Drag or Shift-click for more lines";
+
 /** The numbered marks a commented row carries, each of which opens the note again. */
 function CommentMarkers({ row, comments, onEditComment }: {
   row: Extract<DiffRow, { kind: DiffLineKind }>;
@@ -83,8 +89,11 @@ function LineRow({ path, row, tokens, selected, commented, comments, onSelect, o
       <button
         className="diff-gutter"
         type="button"
+        tabIndex={-1}
+        data-path={path}
+        data-key={row.key}
         aria-label={`Add comment on ${rowLabel(row).toLowerCase()}`}
-        data-tip="Comment · Shift-click to extend"
+        data-tip={GUTTER_TIP}
         onClick={(event) => onSelect(event.shiftKey)}
       >
         <i className="diff-comment-affordance" aria-hidden="true"><MessageSquarePlus size={12} /></i>
@@ -118,8 +127,11 @@ function SplitCell({ path, row, tokens, side, selected, commented, comments, onS
       <button
         className="diff-gutter static"
         type="button"
+        tabIndex={-1}
+        data-path={path}
+        data-key={row.key}
         aria-label={`Add comment on ${rowLabel(row).toLowerCase()}`}
-        data-tip="Comment · Shift-click to extend"
+        data-tip={GUTTER_TIP}
         onClick={(event) => onSelect(event.shiftKey)}
       >
         <i className="diff-comment-affordance" aria-hidden="true"><MessageSquarePlus size={12} /></i>

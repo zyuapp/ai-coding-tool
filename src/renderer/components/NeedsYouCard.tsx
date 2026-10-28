@@ -1,5 +1,5 @@
 import { useContext, useId, useRef, useState, type ReactNode } from "react";
-import { LuArrowUp as ArrowUp, LuChevronDown as ChevronDown, LuChevronUp as ChevronUp, LuX as X } from "react-icons/lu";
+import { LuArrowUpRight as ArrowUpRight, LuChevronLeft as ChevronLeft, LuChevronRight as ChevronRight, LuPlay as Play, LuX as X } from "react-icons/lu";
 import type { ThreadModelChoice } from "../../domain/coordination";
 import { modelLabel } from "../../domain/agent-engine";
 import { projectName } from "../../domain/project";
@@ -152,7 +152,7 @@ function NeedsYouHead({ id, thread, position, onStep, onSelect }: { id: string; 
   return (
     <div className="decision-head">
       <strong>Needs you</strong>
-      <button type="button" id={id} className="decision-from" onClick={() => onSelect(thread.id)}>{thread.title}</button>
+      <button type="button" id={id} className="decision-from" data-tip="Open thread" onClick={() => onSelect(thread.id)}>{thread.title}<ArrowUpRight className="decision-from-arrow" size={12} aria-hidden="true" /></button>
       <PagerControls position={position} onStep={onStep} />
     </div>
   );
@@ -163,8 +163,8 @@ function PagerControls({ position, onStep }: { position: Pager; onStep: (delta: 
   return (
     <span className="decision-pager">
       <span>{position.index + 1} of {position.count}</span>
-      <button type="button" aria-label="Previous" data-tip="Previous" data-action="previous" onClick={() => onStep(-1)}><ChevronUp size={14} aria-hidden="true" /></button>
-      <button type="button" aria-label="Next" data-tip="Next" data-action="next" onClick={() => onStep(1)}><ChevronDown size={14} aria-hidden="true" /></button>
+      <button type="button" aria-label="Previous" data-tip="Previous" data-action="previous" onClick={() => onStep(-1)}><ChevronLeft size={14} aria-hidden="true" /></button>
+      <button type="button" aria-label="Next" data-tip="Next" data-action="next" onClick={() => onStep(1)}><ChevronRight size={14} aria-hidden="true" /></button>
     </span>
   );
 }
@@ -216,15 +216,15 @@ function SuggestionRow({ taskId, threadModel, view }: { taskId: string; threadMo
         className="suggestion-dismiss"
         data-action="dismiss"
         aria-label={`Dismiss ${proposal.title}`}
-        title="Dismiss"
+        data-tip="Dismiss"
         command={{ type: "proposal.dismiss", taskId, proposalId: proposal.id }}
       >
         <X size={12} aria-hidden="true" />
       </CommandButton>}
       {starting
         ? <span className="suggestion-start task-spinner" role="status" aria-label={`Starting ${proposal.title}`} />
-        : <CommandButton type="button" className="suggestion-start" data-action="start" aria-label={`Start ${proposal.title}`} title="Start" command={{ type: "proposal.start", taskId, proposalId: proposal.id }}>
-            <ArrowUp size={14} aria-hidden="true" />
+        : <CommandButton type="button" className="suggestion-start" data-action="start" aria-label={`Start ${proposal.title}`} data-tip="Start" command={{ type: "proposal.start", taskId, proposalId: proposal.id }}>
+            <Play size={12} fill="currentColor" aria-hidden="true" />
           </CommandButton>}
     </li>
   );
@@ -316,7 +316,7 @@ function ApprovalForm({ view, position, onStep, onDecide, onSelect }: {
         {position && <button type="button" className="secondary" data-action="later" onClick={() => onStep(1)}>Later</button>}
         <span className="decision-foot-gap" />
         <button type="button" className="secondary" onClick={() => onDecide(approval, false)}>Deny</button>
-        <button type="button" onClick={() => onDecide(approval, true)}>Allow</button>
+        <button type="button" onClick={() => onDecide(approval, true)}>Allow once</button>
       </div>
     </section>
   );

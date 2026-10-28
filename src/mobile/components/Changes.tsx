@@ -5,6 +5,7 @@ import type { MobileQuery, MobileThreadView } from "../../contracts/mobile";
 import { diffRows, fileFingerprint, languageForPath, parseFilePatch, rangeKey, UNCOMMITTED, type DiffFileSummary, type DiffRange, type DiffRow } from "../../domain/diff";
 import { ensureLanguage, fileTokens, type FileTokens, type ThemedToken } from "../../renderer/diff/highlight";
 import { SpinningIcon } from "../../renderer/components/SpinningIcon";
+import { Segmented } from "./Segmented";
 
 /** A patch drawn whole would take a phone with it, so a long one is cut here until asked for. */
 const ROW_CAP = 1_500;
@@ -72,7 +73,7 @@ function FileCard({ file, open, patch, onToggle }: { file: DiffFileSummary; open
     <section className="diff-file" data-open={open || undefined}>
       <button type="button" className="diff-file-row" aria-expanded={open} onClick={onToggle}>
         <span className="diff-file-caret" aria-hidden="true">{open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>
-        <span className="diff-file-icon" aria-hidden="true"><StatusIcon status={file.status} /></span>
+        <span className="diff-file-icon" data-status={file.status} aria-hidden="true"><StatusIcon status={file.status} /></span>
         <span className="diff-file-name"><em>{folder}</em>{name}</span>
         {file.binary
           ? <span className="diff-file-binary">binary</span>
@@ -175,10 +176,10 @@ export function Changes({ thread, live, query }: {
   return (
     <div className="changes">
       <div className="changes-toolbar">
-        <div className="segmented" role="radiogroup" aria-label="Comparison">
-          <button type="button" role="radio" aria-checked={mode === "uncommitted"} onClick={() => setMode("uncommitted")}><span>Uncommitted</span></button>
-          <button type="button" role="radio" aria-checked={mode === "branch"} onClick={() => setMode("branch")}><span>Against {base}</span></button>
-        </div>
+        <Segmented label="Comparison" value={mode} onChange={setMode} segments={[
+          { value: "uncommitted", label: <span>Uncommitted</span> },
+          { value: "branch", label: <span>Against {base}</span> },
+        ]} />
         <button type="button" className="ghost icon changes-refresh" aria-label="Read the comparison again" onClick={refresh}>
           <SpinningIcon icon={RefreshCw} spinning={summary.status === "reading"} size={18} />
         </button>

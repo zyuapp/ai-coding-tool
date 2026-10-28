@@ -116,3 +116,24 @@ test("the warning shows once a window runs low, and stays away once put away", a
     await paused.unmount();
   }
 });
+
+test("a meter that knows where the usage page is opens it, and one that does not stays a readout", async () => {
+  let opened = 0;
+  const linked = await mount(React.createElement(PlanUsageMeter, { engineLabel: "Claude", model: "opus", usage: usage(64), onOpen: () => { opened += 1; } }));
+  try {
+    const meter = linked.container.querySelector<HTMLButtonElement>(".plan-usage")!;
+    assert.equal(meter.tagName, "BUTTON");
+    meter.click();
+    assert.equal(opened, 1);
+  } finally {
+    await linked.unmount();
+  }
+  const readout = await mount(React.createElement(PlanUsageMeter, { engineLabel: "Claude", model: "opus", usage: usage(64) }));
+  try {
+    const meter = readout.container.querySelector<HTMLElement>(".plan-usage")!;
+    assert.equal(meter.tagName, "SPAN");
+    assert.equal(meter.tabIndex, 0, "it still opens its card to the keyboard");
+  } finally {
+    await readout.unmount();
+  }
+});

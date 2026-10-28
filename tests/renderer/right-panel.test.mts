@@ -13,6 +13,12 @@ import type { Thread } from "../../src/domain/thread.ts";
 
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
 
+function agentRow(container: Element, name: string) {
+  const row = [...container.querySelectorAll<HTMLButtonElement>(".agent-row")].find((button) => button.querySelector("strong")?.textContent === name);
+  assert.ok(row, `no subagent row named ${name}`);
+  return row;
+}
+
 vi.mock("../../src/renderer/task-workspace/workspace-connection.ts", () => import("../support/in-process-workspace.mts"));
 
 const { App } = await import("../../src/renderer/App.tsx");
@@ -146,7 +152,8 @@ test("a side chat composes with everything the main composer has", async () => {
 
   const settings = view.container.querySelectorAll<HTMLDetailsElement>(".composer-settings .setting-menu");
   assert.equal(settings.length, 2, "permission mode, and model with its effort");
-  assert.equal(query(item(settings[1]), "summary").getAttribute("aria-label"), "Model and effort");
+  assert.match(query(item(settings[1]), "summary").getAttribute("aria-label")!, /^Model and effort: .+, .+$/);
+  assert.equal(query(item(settings[0]), "summary").getAttribute("aria-label"), "Permission mode: Edits", "the chip says its current value aloud");
   assert.equal(query(item(settings[0]), ".setting-value").textContent, "Edits", "the chat's own policy is selected, not the first one on offer");
   await act(async () => { query<HTMLElement>(item(settings[0]), "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   assert.deepEqual(
@@ -181,10 +188,10 @@ test("closing subagent details returns to the agents tab", async () => {
   assert.equal(view.container.querySelector('.right-dock [role="tab"]'), null);
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Open Subagents panel"]').click(); });
   assert.match(query(view.container, '.right-dock [role="tab"]').textContent, /Subagents/);
-  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Open Complete agent details"]').click(); });
+  await act(async () => { agentRow(view.container, "Complete agent").click(); });
   assert.ok(view.container.querySelector(".subagent-inspector"));
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Close subagent details"]').click(); });
-  assert.ok(view.container.querySelector('.agents-panel button[aria-label="Open Complete agent details"]'));
+  assert.ok(view.container.querySelector(".agents-panel")?.textContent?.includes("Complete agent"));
 
   await view.unmount();
 });
@@ -259,7 +266,7 @@ test("session summary stays outside the tabbed right panel", async () => {
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Show session summary"]').click(); });
   assert.ok(view.container.querySelector('.workspace > .session-panel'));
   assert.equal(view.container.querySelector('.right-dock .session-panel'), null);
-  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Open Complete agent details"]').click(); });
+  await act(async () => { agentRow(view.container, "Complete agent").click(); });
   assert.equal(view.container.querySelector('.workspace > .session-panel'), null);
   assert.ok(view.container.querySelector('.right-dock .subagent-inspector'));
 
@@ -340,6 +347,13 @@ test("right panel reports its width and returns to the layout's width on double-
   assert.equal(edge.getAttribute("aria-valuemin"), "320");
   assert.equal(edge.getAttribute("aria-valuemax"), "680");
   assert.equal(edge.getAttribute("aria-valuenow"), "400");
+  assert.equal(edge.getAttribute("aria-valuetext"), "400 pixels wide");
+  await act(async () => { edge.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", shiftKey: true, bubbles: true })); });
+  assert.equal(workspace.style.getPropertyValue("--right-dock-width"), "450px", "Shift takes a bigger step");
+  await act(async () => { edge.dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true })); });
+  assert.equal(workspace.style.getPropertyValue("--right-dock-width"), "680px", "End goes to the widest");
+  await act(async () => { edge.dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true })); });
+  assert.equal(workspace.style.getPropertyValue("--right-dock-width"), "320px", "Home goes to the narrowest");
 
   await act(async () => { edge.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })); });
   assert.equal(workspace.style.getPropertyValue("--right-dock-width"), "");

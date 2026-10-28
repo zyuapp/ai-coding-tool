@@ -68,6 +68,7 @@ function ComputerSwitch({ links, name, filter, onSetFilter, openMenu, onSetOpenM
         }}
       >
         <Screen size={16} aria-hidden="true" />
+        {narrowed && <span className="computer-switch-name">{selected.label}</span>}
       </button>
       {open && <MenuList entries={entries} onClose={() => onSetOpenMenu(null)} className="computer-switch-menu" />}
     </div>
@@ -125,7 +126,11 @@ function resizeSidebar(target: HTMLElement, clientX: number) {
   if (sidebar) sidebar.style.setProperty("--sidebar-width", `${Math.min(innerWidth / 2, Math.max(220, clientX - sidebar.getBoundingClientRect().left))}px`);
 }
 
-/** The edge the sidebar is dragged wider by, which the arrow keys nudge ten pixels at a time and a double-click puts back. */
+function resetSidebar(target: HTMLElement) {
+  target.parentElement?.style.removeProperty("--sidebar-width");
+}
+
+/** The edge the sidebar is dragged wider by, which the arrow keys nudge ten pixels at a time and a double-click or Enter puts back. */
 export function SidebarResizer() {
   return (
     <div
@@ -134,12 +139,18 @@ export function SidebarResizer() {
       aria-label="Resize sidebar"
       aria-orientation="vertical"
       tabIndex={0}
+      data-tip="Drag to resize · Double-click to reset"
       onPointerDown={(event) => event.currentTarget.setPointerCapture(event.pointerId)}
-      onDoubleClick={(event) => event.currentTarget.parentElement?.style.removeProperty("--sidebar-width")}
+      onDoubleClick={(event) => resetSidebar(event.currentTarget)}
       onPointerMove={(event) => {
         if (event.currentTarget.hasPointerCapture(event.pointerId)) resizeSidebar(event.currentTarget, event.clientX);
       }}
       onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          resetSidebar(event.currentTarget);
+          return;
+        }
         if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
         const sidebar = event.currentTarget.parentElement;
         if (sidebar) resizeSidebar(event.currentTarget, sidebar.getBoundingClientRect().right + (event.key === "ArrowLeft" ? -10 : 10));

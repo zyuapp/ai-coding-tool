@@ -1,6 +1,8 @@
 import { LuChevronLeft as ChevronLeft, LuEllipsis as Ellipsis, LuQrCode as QrCode, LuSquarePen as SquarePen, LuX as X } from "react-icons/lu";
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { MobileCommand, MobileDraftView, MobileQuery, MobileThreadView } from "../contracts/mobile";
+import { useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
+import type { MobileCommand, MobileDraftView, MobileProjectGroup, MobileThreadView } from "../contracts/mobile";
+import { defaultModelFor, type AgentEngine } from "../domain/agent-engine";
+import { SETTINGS_PAGE_LABELS, settingControl } from "../domain/settings-catalog";
 import type { MobileConnectionState } from "../domain/mobile";
 import { useMobileClient } from "./client/useMobileClient";
 import type { ReturnedCommand } from "./client/protocol";
@@ -10,7 +12,9 @@ import { Changes } from "./components/Changes";
 import { Composer, type ReturnedToComposer } from "./components/Composer";
 import { Conversation } from "./components/Conversation";
 import { LocationSheet } from "./components/LocationSheet";
+import { ProjectSheet } from "./components/ProjectSheet";
 import { RenameSheet } from "./components/RenameSheet";
+import { Segmented } from "./components/Segmented";
 import { StartOptions } from "./components/StartOptions";
 import { ThreadList } from "./components/ThreadList";
 import { ThreadMenu } from "./components/ThreadMenu";
@@ -31,6 +35,9 @@ function ConnectionMark({ connection }: { connection: MobileConnectionState }) {
   return <span className="line-mark" data-connection={connection}>{CONNECTION_LABELS[connection]}</span>;
 }
 
+/** Where the desktop shows its pairing QR code. */
+const PAIRING_PATH = ["Settings", SETTINGS_PAGE_LABELS.phone, settingControl("phone.pairing").label].join(" › ");
+
 /** A phone with no token and no code can do nothing but be shown one. */
 function Gate({ notice }: { notice: string | null }) {
   return (
@@ -38,29 +45,35 @@ function Gate({ notice }: { notice: string | null }) {
       <QrCode size={44} strokeWidth={1.4} aria-hidden="true" />
       <h1>AI Coding Tool</h1>
       <p>{notice ?? "Scan the QR code on your computer to connect this phone."}</p>
+      <p className="gate-path">{PAIRING_PATH}</p>
     </div>
   );
 }
 
-/** How long Undo stays offered after a thread is archived. */
-const UNDO_MS = 6000;
+/** How long Undo stays offered after a thread is archived, counted again once a finger lets go of it. */
+const UNDO_MS = 9000;
 
 /** The thread just archived, with Undo, at the foot of the list it left for. */
 function ArchivedToast({ title, onUndo, onDone }: { title: string; onUndo: () => void; onDone: () => void }) {
+  const [held, setHeld] = useState(false);
   useEffect(() => {
+    if (held) return;
     const timer = setTimeout(onDone, UNDO_MS);
     return () => clearTimeout(timer);
-  }, [onDone]);
+  }, [onDone, held]);
+  const release = () => setHeld(false);
   return (
-    <div className="undo-toast" role="status">
+    <div className="undo-toast" role="status" onPointerDown={() => setHeld(true)} onPointerUp={release} onPointerCancel={release} onPointerLeave={release}>
       <span>Archived <strong>{title}</strong></span>
       <button type="button" onClick={onUndo}>Undo</button>
     </div>
   );
 }
 
+const LIST_MODES: { value: MobileListMode; label: string }[] = [{ value: "projects", label: "Projects" }, { value: "activity", label: "Activity" }];
+
 /** Which sheet the thread has up, at most one at a time. */
-type ThreadSheet = "settings" | "menu" | "location" | "rename" | null;
+type ThreadSheet = "settings" | "menu" | "location" | "rename" | "project" | null;
 
 /** Relative times are only ever minutes coarse, so the clock they read wakes twice a minute. */
 function useNow(): number {
@@ -85,11 +98,32 @@ function useDesktopTheme(theme: { dark: string; light: string; mode: "dark" | "l
   }, [theme]);
 }
 
+/** How near the left edge a swipe back has to start, and how far right it has to travel. */
+const EDGE_PX = 24;
+const SWIPE_PX = 72;
+
+/** A swipe in from the left edge goes back, as it does across iOS. */
+function useEdgeSwipe(enabled: boolean, onSwipe: () => void) {
+  const start = useRef<{ x: number; y: number } | null>(null);
+  return useMemo(() => enabled ? {
+    onTouchStart: (event: TouchEvent) => {
+      const touch = event.touches[0];
+      start.current = event.touches.length === 1 && touch && touch.clientX <= EDGE_PX ? { x: touch.clientX, y: touch.clientY } : null;
+    },
+    onTouchEnd: (event: TouchEvent) => {
+      const from = start.current;
+      const touch = event.changedTouches[0];
+      start.current = null;
+      if (from && touch && touch.clientX - from.x >= SWIPE_PX && Math.abs(touch.clientY - from.y) < SWIPE_PX / 2) onSwipe();
+    },
+  } : {}, [enabled, onSwipe]);
+}
+
 /** Where the phone is: the list, the thread the Mac has open, or that thread's changes. */
 type Screen = "list" | "thread" | "changes";
 
 /**
- * A notice takes the bar's title slot until it is tapped away, so it covers no row and moves none.
+ * A notice sits in a strip under the bar until it is tapped away, so the title and the list switch stay put.
  *
  * The conversation is the one the desktop has open, because the desktop's selection is the only one
  * there is. So the phone asks for a thread and then shows whichever one arrives rather than waiting
@@ -171,6 +205,8 @@ export function App() {
     setListMode(mode);
   }, []);
 
+  const swipe = useEdgeSwipe(reading && sheet === null, back);
+
   if (state.entry === "blocked" && !state.credential) return <Gate notice={state.notice} />;
 
   const pending = opening !== null && current === opening.was && current !== opening.want;
@@ -183,25 +219,20 @@ export function App() {
       : null;
 
   return (
-    <div className="app">
+    <div className="app" {...swipe}>
       <header className="bar">
         {reading
           ? <button type="button" className="ghost icon" onClick={back} aria-label={screen === "changes" ? "Back to thread" : "Back to threads"}><ChevronLeft size={22} /></button>
           : <span className="bar-spacer" />}
-        {notice
-          ? <button type="button" className="banner" onClick={dismissNotice}><span role="status">{notice}</span><X size={16} aria-hidden="true" /></button>
-          : !reading
-            ? <div className="bar-title bar-switch">
-              <h1 className="sr-only">{title}</h1>
-              <div className="segmented" role="radiogroup" aria-label="List">
-                <button type="button" role="radio" aria-checked={listMode === "projects"} onClick={() => chooseListMode("projects")}>Projects</button>
-                <button type="button" role="radio" aria-checked={listMode === "activity"} onClick={() => chooseListMode("activity")}>Activity</button>
-              </div>
-            </div>
-            : <div className="bar-title">
-              <h1>{title}</h1>
-              {subtitle && <p>{subtitle}</p>}
-            </div>}
+        {!reading
+          ? <div className="bar-title bar-switch">
+            <h1 className="sr-only">{title}</h1>
+            <Segmented label="List" segments={LIST_MODES} value={listMode} onChange={chooseListMode} />
+          </div>
+          : <div className="bar-title">
+            <h1>{title}</h1>
+            {subtitle && <p>{subtitle}</p>}
+          </div>}
         {!reading && (
           <button type="button" className="ghost icon bar-action" aria-label="New thread" onClick={() => newThread(null, null)}><SquarePen size={20} strokeWidth={1.8} /></button>
         )}
@@ -210,13 +241,17 @@ export function App() {
         )}
         <ConnectionMark connection={state.connection} />
       </header>
+      {notice && <button type="button" className="banner" onClick={dismissNotice}><span role="status">{notice}</span><X size={16} aria-hidden="true" /></button>}
       {screen === "changes" && thread
         ? <Changes thread={thread} live={state.connection === "live"} query={query} />
         : reading
           ? thread && !pending
-            ? <ThreadBody thread={thread} connection={state.connection} waiting={waiting} returned={state.returned} send={send} sheet={sheet} onSheet={setSheet} onChanges={() => setScreen("changes")} onNewHere={() => newThread(thread.projectId, thread.projectName, thread.worktreeId ?? undefined)} onArchived={() => { setArchived({ id: thread.id, title: thread.title }); back(); }} />
+            ? <ThreadBody thread={thread} connection={state.connection} waiting={waiting} returned={state.returned} send={send} sheet={sheet} onSheet={setSheet} onChanges={() => setScreen("changes")} onNewHere={() => newThread(thread.projectId, thread.projectName, thread.worktreeId ?? undefined)} onNewWith={(engine) => {
+              newThread(thread.projectId, thread.projectName, thread.worktreeId ?? undefined);
+              send({ type: "task.set-model", engine, model: defaultModelFor(engine) });
+            }} onArchived={() => { setArchived({ id: thread.id, title: thread.title }); back(); }} />
             : draft && !pending
-              ? <DraftBody draft={draft} waiting={waiting} send={send} sheet={sheet} onSheet={setSheet} onStartIn={(worktreeId) => newThread(draft.projectId, draft.projectName, worktreeId)} />
+              ? <DraftBody draft={draft} groups={state.view.groups} waiting={waiting} send={send} sheet={sheet} onSheet={setSheet} onProject={newThread} onStartIn={(worktreeId) => newThread(draft.projectId, draft.projectName, worktreeId)} />
               : <div className="empty"><p>Opening the thread…</p></div>
           : <ThreadList
             mode={listMode}
@@ -255,7 +290,7 @@ function returnedTo(returned: ReturnedCommand | null, taskId: string): ReturnedT
   return null;
 }
 
-function ThreadBody({ thread, connection, waiting, returned, send, sheet, onSheet, onChanges, onNewHere, onArchived }: {
+function ThreadBody({ thread, connection, waiting, returned, send, sheet, onSheet, onChanges, onNewHere, onNewWith, onArchived }: {
   thread: MobileThreadView;
   connection: MobileConnectionState;
   waiting: number;
@@ -265,6 +300,8 @@ function ThreadBody({ thread, connection, waiting, returned, send, sheet, onShee
   onSheet: (sheet: ThreadSheet) => void;
   onChanges: () => void;
   onNewHere: () => void;
+  /** Starts a thread in the same place on another engine, which an existing thread cannot switch to. */
+  onNewWith: (engine: AgentEngine) => void;
   /** The thread is gone from the list, so the screen goes back to it. */
   onArchived: () => void;
 }) {
@@ -293,6 +330,7 @@ function ThreadBody({ thread, connection, waiting, returned, send, sheet, onShee
       {sheet === "settings" && <ThreadSettings
         settings={thread.settings}
         locked
+        onNewWith={onNewWith}
         onClose={close}
         onPolicy={(policy) => send({ type: "task.set-policy", taskId: thread.id, policy })}
         onModel={(engine, model) => send({ type: "task.set-model", taskId: thread.id, engine, model })}
@@ -321,14 +359,18 @@ function ThreadBody({ thread, connection, waiting, returned, send, sheet, onShee
  * that starts it, and it starts one from its own draft, so the text is put in the draft and then
  * sent. The screen it turns into arrives as the thread the Mac has open.
  */
-function DraftBody({ draft, waiting, send, sheet, onSheet, onStartIn }: {
+function DraftBody({ draft, groups, waiting, send, sheet, onSheet, onProject, onStartIn }: {
   draft: MobileDraftView;
+  groups: MobileProjectGroup[];
   waiting: number;
   send: (command: MobileCommand) => void;
   sheet: ThreadSheet;
   onSheet: (sheet: ThreadSheet) => void;
+  /** Starts the draft over in another project, or in none. */
+  onProject: (projectId: string | null, project: string | null) => void;
   onStartIn: (worktreeId: string) => void;
 }) {
+  const projects = useMemo(() => groups.filter((group) => group.projectId !== null), [groups]);
   return (
     <>
       <div className="empty" />
@@ -342,7 +384,7 @@ function DraftBody({ draft, waiting, send, sheet, onSheet, onStartIn }: {
         }}
         onOpenSettings={() => onSheet("settings")}
       >
-        <StartOptions draft={draft} onSetWorktree={(worktree) => send({ type: "task.set-worktree", worktree })} onStartIn={onStartIn} />
+        <StartOptions draft={draft} onPickProject={projects.length ? () => onSheet("project") : undefined} onSetWorktree={(worktree) => send({ type: "task.set-worktree", worktree })} onStartIn={onStartIn} />
       </Composer>
       {sheet === "settings" && <ThreadSettings
         settings={draft.settings}
@@ -352,6 +394,16 @@ function DraftBody({ draft, waiting, send, sheet, onSheet, onStartIn }: {
         onModel={(engine, model) => send({ type: "task.set-model", engine, model })}
         onFastMode={(fastMode) => send({ type: "task.set-fast-mode", fastMode })}
         onEffort={(engine, effort) => send({ type: "task.set-effort", engine, effort })}
+      />}
+      {sheet === "project" && <ProjectSheet
+        projects={projects}
+        selected={draft.projectId}
+        none="No project"
+        label="Start in"
+        onClose={() => onSheet(null)}
+        onSelect={(projectId) => {
+          if (projectId !== draft.projectId) onProject(projectId, projects.find((group) => group.projectId === projectId)?.name ?? null);
+        }}
       />}
     </>
   );

@@ -60,15 +60,16 @@ export function ProjectEditDialog({ editor, onSave, onClose }: ProjectEditDialog
           <input
             value={name}
             placeholder={folderName(trimmedRoot || project.root)}
+            readOnly={saving}
             onChange={(event) => setName(event.target.value)}
           />
         </label>
         <label className="project-edit-field">
           <span>Folder</span>
           <div className="project-edit-path">
-            <input value={root} spellCheck={false} onChange={(event) => setRoot(event.target.value)} />
+            <input value={root} spellCheck={false} readOnly={saving} onChange={(event) => setRoot(event.target.value)} />
             {/** The picker only fills the field; nothing moves until the folder is saved. */}
-            <button type="button" onClick={() => void window.desktop.openFolder().then((chosen) => { if (chosen) setRoot(chosen.root); })}>
+            <button type="button" disabled={saving} onClick={() => void window.desktop.openFolder().then((chosen) => { if (chosen) setRoot(chosen.root); })}>
               <FolderOpen size={14} aria-hidden="true" />Choose…
             </button>
           </div>
@@ -81,7 +82,7 @@ export function ProjectEditDialog({ editor, onSave, onClose }: ProjectEditDialog
         )}
         <div className="project-edit-actions">
           <button type="button" onClick={onClose}>Cancel</button>
-          <button type="submit" className="primary" disabled={!trimmedRoot || saving || unchanged}>{saving ? "Opening…" : "Save"}</button>
+          <button type="submit" className="primary" disabled={!trimmedRoot || saving || unchanged}>{saving ? "Saving…" : "Save"}</button>
         </div>
       </form>
     </div>,

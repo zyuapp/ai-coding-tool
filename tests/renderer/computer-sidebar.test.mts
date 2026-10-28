@@ -162,7 +162,7 @@ test("rows on a paired computer carry its name, and rows on one that cannot be r
     assert.deepEqual(rows.map((row) => row.querySelector("small")?.textContent), [
       rows[0]!.querySelector("small")!.textContent,
       `linux-box · app · ${rows[1]!.querySelector("small")!.textContent!.split(" · ").at(-1)}`,
-      `old-laptop · ${rows[2]!.querySelector("small")!.textContent!.split(" · ").at(-1)}`,
+      `old-laptop · Offline · ${rows[2]!.querySelector("small")!.textContent!.split(" · ").at(-1)}`,
     ]);
     assert.equal(rows[0]!.querySelector(".host-mark") === null, true);
     assert.equal(query(rows[1]!, "small > .host-mark").textContent, "linux-box");
@@ -259,11 +259,14 @@ test("the computer button is pressed while the lists are narrowed, and dimmed wh
   try {
     const trigger = () => query<HTMLButtonElement>(view.container, ".computer-switch-trigger");
     assert.deepEqual([trigger().classList.contains("active"), trigger().classList.contains("offline")], [false, false]);
+    assert.equal(trigger().textContent, "", "showing every computer, the button is the icon alone");
     await view.render(renderProjectSidebar({ computerLinks: links, computerFilter: "linux" }));
     assert.deepEqual([trigger().classList.contains("active"), trigger().classList.contains("offline")], [true, false]);
     assert.equal(trigger().dataset.tip, "Only linux-box");
+    assert.equal(trigger().textContent, "linux-box", "narrowed, it names the computer");
     await view.render(renderProjectSidebar({ computerLinks: links, computerFilter: "this", computerName: "" }));
     assert.equal(trigger().dataset.tip, "Only this computer");
+    assert.equal(trigger().textContent, "This computer");
     assert.ok(trigger().classList.contains("active"));
     await view.render(renderProjectSidebar({ computerLinks: links, computerFilter: "old" }));
     assert.deepEqual([trigger().classList.contains("active"), trigger().classList.contains("offline")], [true, true]);
@@ -311,7 +314,7 @@ test("the Priority view narrows to one project from its own list, naming the com
     assert.deepEqual(picked, ["remote-api"]);
     await view.render(props("remote-api"));
     assert.deepEqual([trigger().textContent, trigger().classList.contains("narrowed")], ["apilinux-box", true]);
-    await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Dismiss all"]').click(); });
+    await act(async () => { query<HTMLButtonElement>(view.container, '.dismiss-all').click(); });
     assert.deepEqual(dismissed, ["remote-api"], "dismiss all keeps to the project shown");
     await view.render(renderProjectSidebar({ mode: "projects", projects }));
     assert.equal(view.container.querySelector(".activity-filter"), null, "the projects view is untouched");

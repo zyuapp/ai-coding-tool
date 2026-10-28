@@ -4,21 +4,26 @@ import type { MobileDraftView } from "../../contracts/mobile";
 import { Sheet } from "./Sheet";
 
 /**
- * How the thread starts once it has a project: in the project's checkout, in one of its own, or in
+ * Where the thread starts: which project, and within it the project's checkout, one of its own, or
  * one the project already has. A project with no repository has no checkouts to offer, so it shows
  * none. Nothing here touches disk; the first message does that.
  */
-export function StartOptions({ draft, onSetWorktree, onStartIn }: {
+export function StartOptions({ draft, onPickProject, onSetWorktree, onStartIn }: {
   draft: MobileDraftView;
+  /** Absent when there is no project to choose. */
+  onPickProject?: () => void;
   onSetWorktree: (worktree: boolean) => void;
   onStartIn: (worktreeId: string) => void;
 }) {
   const [picking, setPicking] = useState(false);
-  if (draft.projectId === null) return null;
+  if (draft.projectId === null && !onPickProject) return null;
+  const project = <><FolderGit2 size={14} aria-hidden="true" /><span>{draft.projectName ?? "No project"}</span></>;
   return (
     <div className="thread-start" aria-label="How this thread starts">
-      <span className="thread-start-project"><FolderGit2 size={14} aria-hidden="true" /><span>{draft.projectName}</span></span>
-      {draft.worktreeName ? (
+      {onPickProject
+        ? <button type="button" className="thread-start-project" aria-haspopup="dialog" aria-label={`Project: ${draft.projectName ?? "None"}`} onClick={onPickProject}>{project}<ChevronDown size={14} aria-hidden="true" /></button>
+        : <span className="thread-start-project">{project}</span>}
+      {draft.projectId === null ? null : draft.worktreeName ? (
         <span className="thread-start-worktree">
           <FolderSymlink size={14} aria-hidden="true" />
           <span>{draft.worktreeName}</span>

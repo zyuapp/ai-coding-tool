@@ -62,7 +62,7 @@ test("a sidebar row renames itself on a double click, and on the menu's Rename",
   assert.equal(row().textContent.includes("Nightly audit"), true);
 
   await act(async () => { row().dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true })); });
-  assert.deepEqual([...document.querySelectorAll(".context-menu-popover > button")].map((button) => button.textContent), ["Rename", "Role", "Copy link", "Fork", "Fork into a new worktree", "Archive"]);
+  assert.deepEqual([...document.querySelectorAll(".context-menu-popover > button")].map((button) => button.textContent), ["Rename", "Role", "Move to", "Copy link", "Fork", "Fork into a new worktree", "Archive"]);
   await act(async () => { query<HTMLButtonElement>(document, ".context-menu-popover button").click(); });
   await type("Abandoned edit", "Escape");
   assert.equal(view.container.querySelector(".task-rename"), null);
@@ -109,9 +109,9 @@ test("a folder's menu opens on its trigger and every choice closes it", async ()
   await view.render(sidebar("project:project-1"));
   assert.equal(trigger().getAttribute("aria-expanded"), "true");
   const items = [...view.container.querySelectorAll<HTMLButtonElement>(".project-menu .menu-popover button")];
-  assert.deepEqual(items.map((item) => item.textContent), ["New thread", "Edit…", "Remove"]);
+  assert.deepEqual(items.map((item) => item.textContent), ["New thread", "Rename", "Edit…", "Remove"]);
 
-  await act(async () => { item(items[2]).click(); });
+  await act(async () => { item(items[3]).click(); });
   assert.deepEqual(removed, ["project-1"]);
   assert.equal(opened.at(-1), null, "choosing an item closes the menu without the item saying so");
   await view.unmount();

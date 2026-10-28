@@ -98,6 +98,10 @@ export type SidebarActivityProps = {
   projectFilter: ProjectFilterProps;
 };
 
+function dismissAllLabel(count: number) {
+  return count === 1 ? "Dismiss 1 thread" : `Dismiss all ${count} threads`;
+}
+
 export function SidebarActivity({ activityThreads, sections, blockedThreadIds, threadsByCoordinator, onSetSectionOpen, onDismissAll, renderRow, projectFilter }: SidebarActivityProps) {
   return (
     <>
@@ -118,7 +122,7 @@ export function SidebarActivity({ activityThreads, sections, blockedThreadIds, t
                 <span className="section-chevron" aria-hidden="true" />
               </button>
               {key === "priority" && dottedCount > 0 && (
-                <button className="section-action" type="button" onClick={onDismissAll} aria-label="Dismiss all" data-tip={dottedCount === 1 ? "Dismiss 1" : `Dismiss all ${dottedCount}`}>
+                <button className="section-action dismiss-all" type="button" onClick={onDismissAll} aria-label={dismissAllLabel(dottedCount)} data-tip={dismissAllLabel(dottedCount)}>
                   <CheckCheck size={16} aria-hidden="true" />
                 </button>
               )}

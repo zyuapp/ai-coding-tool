@@ -34,7 +34,7 @@ export function DiffCommentEditor({ quote, note, editing, noteRef, onNote, onSub
         <MessageSquarePlus size={14} aria-hidden="true" />
         <span className="diff-comment-range">{quote?.split("\n")[0]}</span>
         {editing && <button type="button" aria-label="Remove comment" data-tip="Remove comment" onClick={onRemove}><Trash2 size={14} /></button>}
-        <button type="button" aria-label="Clear the selection" data-tip="Cancel · Esc" onClick={onClear}><X size={14} /></button>
+        <button type="button" aria-label="Clear the selection" data-tip="Cancel (Esc)" onClick={onClear}><X size={14} /></button>
       </header>
       <textarea
         ref={noteRef}

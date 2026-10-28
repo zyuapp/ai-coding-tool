@@ -29,6 +29,14 @@ test("a loaded picture exposes zoom controls and resizes its image", async () =>
   assert.ok(Number.parseInt(readout(), 10) > 100);
   assert.equal(Math.round(Number.parseFloat(image.style.width) / 800 * 100), Number.parseInt(readout(), 10));
 
+  const key = (name: string) => document.dispatchEvent(new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true }));
+  await act(async () => { key("0"); });
+  assert.equal(readout(), "100%", "0 fits it again");
+  await act(async () => { key("+"); });
+  assert.ok(Number.parseInt(readout(), 10) > 100, "+ zooms in");
+  await act(async () => { key("-"); });
+  assert.equal(readout(), "100%", "− zooms back out");
+
   await view.unmount();
 });
 

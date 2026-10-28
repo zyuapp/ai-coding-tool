@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useId, useState } from "react";
 import type { PendingQuestion } from "../../domain/agent-question";
 import "./question-prompt.css";
 
@@ -12,6 +12,14 @@ export function QuestionPrompt({ question, answer, disabled = false, submitOnEnt
 }) {
   const id = useId();
   const unavailable = disabled || question.submitting;
+  /** Whether the answer was typed rather than picked, so a typed answer that matches an option's label stays typed. */
+  const [typed, setTyped] = useState(false);
+  const [asked, setAsked] = useState(question.id);
+  if (asked !== question.id) {
+    setAsked(question.id);
+    setTyped(false);
+  }
+  const chosen = !typed && question.options.some((option) => option.label === answer);
   return (
     <form className="question-prompt" aria-label="Pending question" onSubmit={(event) => {
       event.preventDefault();
@@ -25,7 +33,7 @@ export function QuestionPrompt({ question, answer, disabled = false, submitOnEnt
         <p id={id}>{question.question}</p>
         {question.options.length > 0 && <div className="question-options" role="radiogroup" aria-labelledby={id}>
           {question.options.map((option, index) => <label className="question-option" key={index}>
-            <input type="radio" name={id} value={option.label} checked={answer === option.label} disabled={unavailable} onChange={() => onAnswerChange(option.label)} />
+            <input type="radio" name={id} value={option.label} checked={chosen && answer === option.label} disabled={unavailable} onChange={() => { setTyped(false); onAnswerChange(option.label); }} />
             <span><strong>{option.label}</strong>{option.description && <span className="question-option-description">{option.description}</span>}</span>
           </label>)}
         </div>}
@@ -34,12 +42,12 @@ export function QuestionPrompt({ question, answer, disabled = false, submitOnEnt
         <label htmlFor={`${id}-answer`}>Your answer</label>
         <textarea
           id={`${id}-answer`}
-          value={answer}
+          value={chosen ? "" : answer}
           rows={2}
           placeholder={question.options.length ? "Or type your answer…" : "Type your answer…"}
           aria-describedby={id}
           disabled={unavailable}
-          onInput={(event) => onAnswerChange(event.currentTarget.value)}
+          onInput={(event) => { setTyped(true); onAnswerChange(event.currentTarget.value); }}
           onKeyDown={(event) => {
             if (submitOnEnter && event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
               event.preventDefault();

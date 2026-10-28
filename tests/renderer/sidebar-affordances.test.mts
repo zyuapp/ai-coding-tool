@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import React, { act, useState } from "react";
-import { mount, query } from "../support/renderer-dom.mts";
+import { dom, mount, query } from "../support/renderer-dom.mts";
 import { renderProjectSidebar } from "../support/sidebar.mts";
 import { automationView } from "../support/desktop-api.mts";
 import { task } from "../application/workspace-reducer-fixtures.mts";
@@ -50,7 +50,7 @@ test("a thread row's ellipsis opens the same menu a right-click does, and an unr
   } finally { await view.unmount(); }
 });
 
-test("a row's hover text says what each of its marks means, and plain rows say only their title", async () => {
+test("a row's title says what each of its marks means, and plain rows say only their title", async () => {
   const asked = task("asked", { projectId: "p" });
   const scheduled = task("scheduled", { projectId: "p" });
   const plain = task("plain", { projectId: "p" });
@@ -65,7 +65,9 @@ test("a row's hover text says what each of its marks means, and plain rows say o
     threadHosts: new Map([["away", { id: "laptop", name: "laptop", offline: true, reconnecting: false }]]),
   }));
   try {
-    const titles = [...view.container.querySelectorAll<HTMLElement>(".project-task-row")].map((row) => row.title);
+    const rows = [...view.container.querySelectorAll<HTMLElement>(".project-task-row")];
+    assert.deepEqual(rows.map((row) => row.hasAttribute("title")), [false, false, false, false], "the row's buttons show only their own tips");
+    const titles = rows.map((row) => query(row, ":scope > span:first-child").title);
     assert.deepEqual(titles, [
       "asked\nNeeds approval",
       "scheduled\nRuns on a schedule, and its last run failed",
@@ -121,16 +123,84 @@ test("with no projects at all, the sidebar offers adding one and keeps the headi
   } finally { await listed.unmount(); }
 });
 
-test("Recents offers one new-chat button and no menu that repeats it", async () => {
+test("Recents offers one new-thread button and no menu that repeats it, and says threads when empty", async () => {
   let started = 0;
   const view = await mount(renderProjectSidebar({ onNewThread: () => { started += 1; } }));
   try {
     const heading = query(view.container, ".recents-heading");
     assert.equal(heading.querySelector(".menu-trigger"), null);
-    const button = query<HTMLButtonElement>(heading, '[aria-label="New chat"]');
-    assert.equal(button.dataset.tip, "New chat");
+    const button = query<HTMLButtonElement>(heading, '[aria-label="New thread"]');
+    assert.equal(button.dataset.tip, "New thread");
     await act(async () => { button.click(); });
     assert.equal(started, 1);
+    assert.equal(query(view.container, '[aria-label="Project-less tasks"] .sidebar-empty').textContent, "No threads");
+  } finally { await view.unmount(); }
+});
+
+test("an open folder with no threads offers to start one there", async () => {
+  const started: (string | undefined)[] = [];
+  const view = await mount(renderProjectSidebar({
+    projects: [{ id: "p", root: "/work/p" }],
+    expandedProjects: new Set(["p"]),
+    onNewThread: (projectId) => { started.push(projectId); },
+  }));
+  try {
+    const start = query<HTMLButtonElement>(view.container, ".project-group .empty-tasks");
+    assert.equal(start.textContent, "Start a thread");
+    await act(async () => { start.click(); });
+    assert.deepEqual(started, ["p"]);
+  } finally { await view.unmount(); }
+});
+
+test("a folded Projects or Recents heading says how many it holds, and an open one does not", async () => {
+  const props: Partial<ProjectSidebarProps> = {
+    projects: [{ id: "a", root: "/work/a" }, { id: "b", root: "/work/b" }],
+    recentThreads: [task("loose")],
+  };
+  const open = await mount(renderProjectSidebar(props));
+  try {
+    assert.equal(open.container.querySelector(".section-count"), null);
+  } finally { await open.unmount(); }
+  const folded = await mount(renderProjectSidebar({ ...props, sections: { projects: false, recents: false, priority: true, running: true, threads: true, snoozed: true } }));
+  try {
+    assert.equal(query(folded.container, ".projects-heading .section-count").textContent, "2");
+    assert.equal(query(folded.container, ".recents-heading .section-count").textContent, "1");
+  } finally { await folded.unmount(); }
+});
+
+test("a folder's menu renames it in place, as a double-click does", async () => {
+  const renamed: [string, string][] = [];
+  const view = await mount(React.createElement(Harness, {
+    projects: [{ id: "p", root: "/work/p" }],
+    onRenameProject: (id, name) => { renamed.push([id, name]); },
+  }));
+  try {
+    await act(async () => { query<HTMLButtonElement>(view.container, '[aria-label="More options for p"]').click(); });
+    await act(async () => { menuItem("Rename")!.click(); });
+    const input = query<HTMLInputElement>(view.container, ".project-rename");
+    assert.equal(document.activeElement, input);
+    input.value = "Work";
+    await act(async () => { input.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
+    assert.deepEqual(renamed, [["p", "Work"]]);
+  } finally { await view.unmount(); }
+});
+
+test("the sidebar's edge says how to reset it, and Enter resets it as a double-click does", async () => {
+  const view = await mount(renderProjectSidebar({}));
+  try {
+    const edge = query<HTMLElement>(view.container, ".sidebar-resizer");
+    const sidebar = edge.parentElement!;
+    assert.equal(edge.dataset.tip, "Drag to resize · Double-click to reset");
+    sidebar.style.setProperty("--sidebar-width", "400px");
+    await act(async () => { edge.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
+    assert.equal(sidebar.style.getPropertyValue("--sidebar-width"), "");
+  } finally { await view.unmount(); }
+});
+
+test("the Settings button names its keystroke", async () => {
+  const view = await mount(renderProjectSidebar({}));
+  try {
+    assert.match(query(view.container, ".sidebar-settings").dataset.tip ?? "", /^Settings \(.+,\)$/);
   } finally { await view.unmount(); }
 });
 
@@ -161,4 +231,47 @@ test("the folder a new thread would start in is marked, and an open folder draws
     const [open, shut] = rows.map((row) => query(row, ".folder-icon path").getAttribute("d"));
     assert.notEqual(open, shut);
   } finally { await view.unmount(); }
+});
+
+test("a thread's menu moves it to another folder or to Recents, as a drag does", async () => {
+  const here = task("here", { projectId: "a" });
+  const checkout = task("checkout", { projectId: "a", worktreeId: "w" });
+  const moved: [string, { projectId: string | null; index: number }][] = [];
+  const view = await mount(React.createElement(Harness, {
+    projects: [{ id: "a", root: "/work/a" }, { id: "b", root: "/work/b" }, { id: "remote", root: "/work/remote" }],
+    projectHosts: new Map([["remote", { id: "laptop", name: "laptop", offline: false, reconnecting: false }]]),
+    expandedProjects: new Set(["a"]),
+    orderedThreads: [here, checkout],
+    onMoveThread: (id, target) => { moved.push([id, target]); },
+  }));
+  try {
+    await act(async () => { query<HTMLButtonElement>(view.container, '[aria-label="More options for here"]').click(); });
+    await act(async () => { menuItem("Move to")!.click(); });
+    assert.equal(menuItem("a"), undefined, "the folder it is in is not offered");
+    assert.equal(menuItem("remote"), undefined, "another computer's folder is not offered");
+    await act(async () => { menuItem("b")!.click(); });
+    assert.deepEqual(moved, [["here", { projectId: "b", index: 0 }]]);
+
+    await act(async () => { query<HTMLButtonElement>(view.container, '[aria-label="More options for here"]').click(); });
+    await act(async () => { menuItem("Move to")!.click(); });
+    await act(async () => { menuItem("Recents")!.click(); });
+    assert.deepEqual(moved.at(-1), ["here", { projectId: null, index: 0 }]);
+
+    await act(async () => { query<HTMLButtonElement>(view.container, '[aria-label="More options for checkout"]').click(); });
+    assert.ok(menuItem("Rename"));
+    assert.equal(menuItem("Move to"), undefined, "a thread in a worktree stays in its project");
+  } finally { await view.unmount(); }
+});
+
+test("an update offered or ready says what a click does, and a download in progress is a ring", async () => {
+  const label = async (appUpdate: ProjectSidebarProps["appUpdate"]) => {
+    const view = await mount(renderProjectSidebar({ appUpdate }));
+    try {
+      const indicator = query<HTMLElement>(view.container, ".sidebar-update");
+      return [indicator.textContent, indicator.getAttribute("aria-label")];
+    } finally { await view.unmount(); }
+  };
+  assert.deepEqual(await label({ status: "available", version: "1.2.0" }), ["Update", "Update to version 1.2.0"]);
+  assert.deepEqual(await label({ status: "downloading", version: "1.2.0", percent: 40 }), ["", "Downloading version 1.2.0: 40%"]);
+  assert.deepEqual(await label({ status: "ready", version: "1.2.0" }), ["Restart", "Restart to install version 1.2.0"]);
 });

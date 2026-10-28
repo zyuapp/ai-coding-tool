@@ -2,12 +2,11 @@ import { useEffect, useRef } from "react";
 import { LuChevronDown as ChevronDown, LuChevronUp as ChevronUp, LuSearch as Search, LuX as X } from "react-icons/lu";
 import type { FindView } from "../../application/workspace-state";
 import { useFocusReturn } from "../focus";
-import { displayShortcut } from "../../domain/shortcuts";
-import { MAC } from "../platform";
+import { shortcutTip } from "./TooltipLayer";
 
-const PREVIOUS_TIP = `Previous match (${displayShortcut("Shift+Enter", MAC)})`;
-const NEXT_TIP = `Next match (${displayShortcut("Enter", MAC)})`;
-const CLOSE_TIP = `Close (${displayShortcut("Escape", MAC)})`;
+const PREVIOUS_TIP = shortcutTip("Previous match", "Shift+Enter");
+const NEXT_TIP = shortcutTip("Next match", "Enter");
+const CLOSE_TIP = shortcutTip("Close", "Escape");
 
 export type FindBarProps = {
   find: FindView;

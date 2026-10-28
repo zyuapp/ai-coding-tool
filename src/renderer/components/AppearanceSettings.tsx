@@ -198,7 +198,8 @@ function FontSelect({ axis, label, chosen, onChoose }: {
   const bundled = axis === "uiFont" ? UI_FONTS : MONO_FONTS;
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [installed, setInstalled] = useState<string[] | null>(null);
+  /** The families this machine has, `"reading"` while they are asked for, and null before the first open. */
+  const [installed, setInstalled] = useState<string[] | "reading" | null>(null);
   const wrapper = useRef<HTMLDivElement>(null);
   const search = useRef<HTMLInputElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -214,7 +215,7 @@ function FontSelect({ axis, label, chosen, onChoose }: {
     setQuery("");
     setOpen(!open);
     if (!open && installed === null && canReadInstalledFonts()) {
-      setInstalled([]);
+      setInstalled("reading");
       void readInstalledFonts().then(setInstalled);
     }
   }
@@ -226,7 +227,7 @@ function FontSelect({ axis, label, chosen, onChoose }: {
 
   const term = query.trim().toLowerCase();
   const families = bundled.filter((font) => !term || font.label.toLowerCase().includes(term));
-  const extras = (installed ?? []).filter((family) =>
+  const extras = (Array.isArray(installed) ? installed : []).filter((family) =>
     (!term || family.toLowerCase().includes(term)) && !bundled.some((font) => font.label === family));
   const shown = extras.slice(0, 100);
   /** What Enter in the search lands on, so typing a name and pressing Enter is the whole gesture. */
@@ -283,8 +284,9 @@ function FontSelect({ axis, label, chosen, onChoose }: {
             {shown.length > 0 && <li className="font-select-heading" role="none">On this computer</li>}
             {shown.map((family) => option(customFontId(family), family))}
           </ul>
+          {installed === "reading" && <p className="font-select-note">Reading installed fonts…</p>}
           {extras.length > shown.length && <p className="font-select-note">Showing the first 100 of {extras.length}. Narrow the search to see the rest.</p>}
-          {!families.length && !shown.length && <p className="font-select-note">No font here is called that.</p>}
+          {!families.length && !shown.length && installed !== "reading" && <p className="font-select-note">No font here is called that.</p>}
         </div>
       )}
     </div>
@@ -305,7 +307,7 @@ function SizeField({ label, range, value, onChoose }: {
   const abandoned = useRef(false);
 
   return (
-    <div className="size-stepper">
+    <div className="size-stepper" data-tip={`${range.min}–${range.max} px`}>
       <button type="button" aria-label={`Smaller ${label.toLowerCase()}`} disabled={value <= range.min} onClick={() => onChoose(stepSize(range, value, -1))}>
         <Minus size={14} aria-hidden="true" />
       </button>

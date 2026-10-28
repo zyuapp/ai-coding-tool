@@ -109,13 +109,29 @@ export function useZoom(size: Sized | null): Zoom {
 
 /** How big the view is, the two presses that change it, and the readout that fits it again. */
 export function ZoomControls({ zoom }: { zoom: Zoom }) {
+  const latest = useRef(zoom);
+  latest.current = zoom;
+  /** + and − zoom and 0 fits, while the view is open and nothing is being typed. */
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey || event.defaultPrevented) return;
+      const target = event.target;
+      if (target instanceof HTMLElement && (target.isContentEditable || target.matches("input, textarea, select"))) return;
+      const act = { "+": latest.current.zoomIn, "=": latest.current.zoomIn, "-": latest.current.zoomOut, "0": latest.current.reset }[event.key];
+      if (!act) return;
+      event.preventDefault();
+      act();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
   return (
     <div className="viewer-zoom" onClick={(event) => event.stopPropagation()}>
-      <button type="button" aria-label="Zoom out" data-tip="Zoom out" disabled={zoom.scale <= zoom.fit} onClick={zoom.zoomOut}>
+      <button type="button" aria-label="Zoom out" aria-keyshortcuts="-" data-tip="Zoom out (−)" disabled={zoom.scale <= zoom.fit} onClick={zoom.zoomOut}>
         <Minus size={16} aria-hidden="true" />
       </button>
-      <button type="button" className="viewer-zoom-level" aria-label={`Zoom ${Math.round(zoom.scale * 100)}%, fit to window`} data-tip="Fit to window" disabled={zoom.scale === zoom.fit} onClick={zoom.reset}>{Math.round(zoom.scale * 100)}%</button>
-      <button type="button" aria-label="Zoom in" data-tip="Zoom in" disabled={zoom.scale >= MAX_SCALE} onClick={zoom.zoomIn}>
+      <button type="button" className="viewer-zoom-level" aria-label={`Zoom ${Math.round(zoom.scale * 100)}%, fit to window`} aria-keyshortcuts="0" data-tip="Fit to window (0)" disabled={zoom.scale === zoom.fit} onClick={zoom.reset}>{Math.round(zoom.scale * 100)}%</button>
+      <button type="button" aria-label="Zoom in" aria-keyshortcuts="+" data-tip="Zoom in (+)" disabled={zoom.scale >= MAX_SCALE} onClick={zoom.zoomIn}>
         <Plus size={16} aria-hidden="true" />
       </button>
     </div>

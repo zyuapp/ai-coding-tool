@@ -19,7 +19,7 @@ test("the window draws an empty shell until the store has loaded, never an empty
   const shell = view.container.querySelector("main.app-shell");
   assert.ok(shell);
   assert.equal(shell.childElementCount, 0);
-  assert.doesNotMatch(view.container.textContent ?? "", /No chats|Choose a project folder/);
+  assert.doesNotMatch(view.container.textContent ?? "", /No threads|Choose a project folder/);
 
   await act(async () => {
     load({ version: 2, hiddenTasks: 0, projects: [project], worktrees: [], tasks: [], lastFolder: project.root });

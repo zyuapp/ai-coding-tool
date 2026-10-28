@@ -318,3 +318,29 @@ test("a branch search keeps what the query names, and everything when it is empt
   assert.equal(newBranchName(branches, "main"), null, "a branch that exists is picked rather than made");
   assert.equal(newBranchName(branches, "   "), null);
 });
+
+test("a branch picker that cannot read branches yet says where the thread starts instead", async () => {
+  const { ThreadStartOptions } = await import("../../../src/renderer/components/ThreadStartOptions.tsx");
+  window.desktop = fakeDesktop();
+  const options = (workspaceId?: string) => React.createElement(ThreadStartOptions, {
+    projects: [{ id: "project-a", root: "/repo/ai-coding-tool" }],
+    projectId: "project-a",
+    ...(workspaceId ? { workspaceId } : {}),
+    branch: null,
+    worktree: false,
+    onSelectProject() {},
+    onSelectBranch() {},
+    onSetWorktree() {},
+    coordinator: false,
+    onSetCoordinator() {},
+  });
+  const unread = await mount(options());
+  const picker = query<HTMLButtonElement>(unread.container, 'button[aria-label="Starting branch"]');
+  assert.equal(picker.disabled, true);
+  assert.ok(picker.dataset.tip);
+  await unread.unmount();
+
+  const read = await mount(options("workspace-a"));
+  assert.equal(query(read.container, 'button[aria-label="Starting branch"]').dataset.tip, undefined);
+  await read.unmount();
+});

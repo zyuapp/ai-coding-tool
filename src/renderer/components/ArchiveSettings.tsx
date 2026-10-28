@@ -39,7 +39,7 @@ export function ArchiveSettings({ archivedThreads, onRestoreThread, onClearArchi
           ? <p className="settings-empty">Nothing archived.</p>
           : archivedThreads.map((thread) => (
             <div className="setting-row" key={thread.id}>
-              <span className="setting-status archived"><Archive size={14} /></span>
+              <span className="setting-status archived" aria-hidden="true"><Archive size={14} /></span>
               <div>
                 <strong>{thread.title}</strong>
                 <p>{daysLeft(thread.archivedAt!)}</p>

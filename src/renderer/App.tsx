@@ -5,7 +5,7 @@ import { MessageLinkProvider } from "./components/MarkdownMessage";
 import { AttachmentViewer } from "./components/AttachmentViewer";
 import { DiagramViewerHost } from "./components/MermaidBlock";
 import { FindBar } from "./components/FindBar";
-import { TooltipLayer } from "./components/TooltipLayer";
+import { shortcutTip, TooltipLayer } from "./components/TooltipLayer";
 import { Toasts } from "./components/Toasts";
 import { WorkspaceDialogs } from "./components/WorkspaceDialogs";
 import { RightDock } from "./components/RightDock";
@@ -22,8 +22,6 @@ import { attachDroppedFiles, imageSources } from "./dropped-files";
 import { useComposerFocusRecovery, useEscapeLayers, useLatestDispatch, useMessageLinks, useSubagentInspection } from "./app-shell";
 import { PartBoundary } from "./components/PartBoundary";
 import type { Thread } from "../domain/thread";
-import { displayShortcut } from "../domain/shortcuts";
-import { MAC } from "./platform";
 
 /** A thread on a computer holding no coordinators can be moved under none. */
 const NO_COORDINATORS: readonly Thread[] = [];
@@ -44,7 +42,7 @@ function HiddenThreadsNotice({ workspace }: { workspace: ReturnType<typeof useTa
     <div className="storage-notice" role="status">
       <span>{hidden} {hidden === 1 ? "thread needs" : "threads need"} a newer version</span>
       <button className="storage-notice-link" type="button" onClick={() => void workspace.actions.checkForUpdates()}>Update</button>
-      <button type="button" aria-label="Dismiss" onClick={() => void workspace.actions.dismissHiddenThreads()}>
+      <button type="button" aria-label="Dismiss" data-tip="Dismiss" onClick={() => void workspace.actions.dismissHiddenThreads()}>
         <X size={16} aria-hidden="true" />
       </button>
     </div>
@@ -65,7 +63,7 @@ function ZenTitlebar({ tip, onLeave }: { tip: string; onLeave: () => void }) {
 /** The keystroke zen mode is bound to, for the tooltips that offer it. */
 function zenTip(workspace: ReturnType<typeof useTaskWorkspace>, label: string) {
   const binding = workspace.shortcuts.find((row) => row.id === "zen.toggle")?.binding;
-  return binding ? `${label} (${displayShortcut(binding, MAC)})` : label;
+  return binding ? shortcutTip(label, binding) : label;
 }
 
 /** The error the last action ran into, with the settings page that clears it when there is one. */
@@ -81,7 +79,7 @@ function ActionErrorBanner({ workspace }: { workspace: ReturnType<typeof useTask
         <button className="storage-error-link" type="button" onClick={() => void workspace.actions.openSettingsSection(errorPage)}>Open settings</button>
       )}
       {!workspace.storageError && (
-        <button type="button" aria-label="Dismiss error" onClick={() => void workspace.dispatch({ type: "view.dismiss-action-error" })}>
+        <button type="button" aria-label="Dismiss error" data-tip="Dismiss" onClick={() => void workspace.dispatch({ type: "view.dismiss-action-error" })}>
           <X size={16} aria-hidden="true" />
         </button>
       )}
@@ -183,7 +181,7 @@ export function App() {
       <PartBoundary name="sidebar" className={`sidebar ${sidebarOpen ? "compact-open" : "hidden"}`}>
         <Sidebar workspace={workspace} open={sidebarOpen} settingsVisible={settingsVisible} onOpenSettings={openSettings} />
       </PartBoundary>
-      {sidebarOpen && <button className="sidebar-backdrop" aria-label="Close sidebar" onClick={() => void workspace.actions.setSidebarOpen(false)} />}
+      {sidebarOpen && <button className="sidebar-backdrop" type="button" tabIndex={-1} aria-label="Close sidebar" onClick={() => void workspace.actions.setSidebarOpen(false)} />}
 
       <section
         className={`workspace ${sessionPanelVisible ? "summary-open" : ""} ${rightDockOpen ? "dock-open" : ""} ${rightDockExpanded ? "dock-full" : ""} ${workspaceDrop.over ? "dropping" : ""}`}

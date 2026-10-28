@@ -18,7 +18,12 @@ test("a part that fails to draw says so in its place and tries again, leaving th
     React.createElement(PartBoundary, { name: "sidebar", className: "sidebar" }, React.createElement(Fragile)),
     React.createElement("p", { className: "rest" }, "The rest")));
   const fallback = query(view.container, ".sidebar > .part-fallback");
-  assert.equal(fallback.textContent, "This part couldn’t be shown.Try again", "the part's own box holds it, so its place in the layout is kept");
+  assert.equal(fallback.textContent, "This part couldn’t be shown.Try againCopy error", "the part's own box holds it, so its place in the layout is kept");
+  const copied: string[] = [];
+  Object.defineProperty(dom.window.navigator, "clipboard", { configurable: true, value: { writeText: async (text: string) => { copied.push(text); } } });
+  await act(async () => { query<HTMLButtonElement>(fallback, ".part-fallback-copy").click(); });
+  assert.match(copied[0] ?? "", /^The sidebar could not be shown\.\nError: Unknown model/);
+  assert.equal(query(fallback, ".part-fallback-copy").textContent, "Copied");
   assert.equal(query(view.container, ".rest").textContent, "The rest");
   assert.ok(logged.mock.calls.some(([message]) => String(message).includes("The sidebar could not be shown.")), "the failure is logged");
 

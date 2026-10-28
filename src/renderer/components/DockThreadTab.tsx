@@ -1,4 +1,4 @@
-import { memo, useMemo, type ReactNode } from "react";
+import { memo, useMemo, type PointerEvent, type ReactNode } from "react";
 import { LuWaypoints as Waypoints, LuX as X } from "react-icons/lu";
 import { DockConversation } from "./SideChat";
 import { chatHandlers } from "./DockSideChat";
@@ -32,6 +32,12 @@ function PullRequestReads({ tab, dispatch }: { tab: ThreadTabView; dispatch: Dis
   return null;
 }
 
+/** A line cut short names itself in the app's tooltip; one shown whole has nothing to add. */
+function tipIfClipped({ currentTarget: line }: PointerEvent<HTMLElement>) {
+  if (line.scrollWidth > line.clientWidth) line.dataset.tip = line.textContent ?? "";
+  else delete line.dataset.tip;
+}
+
 /** Who the thread is and where its work stands, with its checkout and brief underneath. */
 function ThreadTabHeader({ tab, leadTitle, dispatch, branchMenuOpen, onClose }: { tab: ThreadTabView; leadTitle: string; dispatch: Dispatch; branchMenuOpen: boolean; onClose: () => void }) {
   const { thread, standing, summary } = tab;
@@ -44,8 +50,8 @@ function ThreadTabHeader({ tab, leadTitle, dispatch, branchMenuOpen, onClose }: 
             <CoordinationStatusMark status={standing} />
           </span>
           <div>
-            <h2 title={thread.title}>{thread.title}</h2>
-            <p className={`thread-tab-status ${standing}`} title={coordinationStatusLine(standing, summary)}>{coordinationStatusLine(standing, summary)}</p>
+            <h2 onPointerEnter={tipIfClipped}>{thread.title}</h2>
+            <p className={`thread-tab-status ${standing}`} onPointerEnter={tipIfClipped}>{coordinationStatusLine(standing, summary)}</p>
           </div>
         </div>
         <ResolutionButton taskId={tab.id} title={thread.title} status={standing} className="thread-tab-resolution" size={18} />

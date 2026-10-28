@@ -3,9 +3,9 @@ import { attachmentUrl } from "../../application/attachments";
 import type { StreamingTail } from "../../application/thread-run-state";
 import type { AgentEngine } from "../../domain/agent-engine";
 import type { ConversationMessage } from "../../domain/conversation";
-import { messageLabel } from "../../domain/message-origin";
+import { messageLabel, type MessageOrigin } from "../../domain/message-origin";
 import { groupMessageIds, timeSteps, toSegments, type TimelineGroup } from "../timeline/grouping";
-import { MessageArtifactScope } from "./MarkdownMessage";
+import { MessageArtifactScope, useMessageLinks } from "./MarkdownMessage";
 import { AnnotationRow } from "./AnnotationRow";
 import { CopyButton } from "./CopyButton";
 import { FileRow } from "./FileRow";
@@ -33,9 +33,16 @@ function MessageActions({ at, text, label }: { at: number; text: string; label: 
   );
 }
 
+/** The thread a message came from, when it names one on this computer. */
+function senderThread(origin: MessageOrigin | undefined): string | undefined {
+  return origin?.kind === "thread" && !origin.computer ? origin.threadId : undefined;
+}
+
 function UserMessage({ message, onView }: { message: ConversationMessage; onView: (source: string) => void }) {
   const { taskId } = useContext(MessageArtifactScope);
+  const { selectThread } = useMessageLinks();
   const label = messageLabel(message);
+  const sender = senderThread(message.origin);
   return (
     <article className="message user">
       <div className="message-stack">
@@ -55,7 +62,9 @@ function UserMessage({ message, onView }: { message: ConversationMessage; onView
             ))}
           </div>
         ) : null}
-        {label && <div className="message-origin">{label}</div>}
+        {label && (sender && selectThread
+          ? <button type="button" className="message-origin message-origin-link" data-tip="Open thread" onClick={() => selectThread(sender)}>{label}</button>
+          : <div className="message-origin">{label}</div>)}
         {message.text && <div className="message-text">{message.text}</div>}
         <MessageActions at={message.at} text={message.text} label="Copy the message" />
       </div>
@@ -72,8 +81,6 @@ type TimelineRowProps = {
   offset: number;
   measure: (node: Element | null) => void;
   streamingTail?: StreamingTail | null;
-  /** The newest settled answer, whose time and copy button stay in view without a hover. */
-  latest?: boolean;
   onViewAttachment: (source: string) => void;
 };
 
@@ -85,11 +92,11 @@ function LiveSteps({ engine, steps, tail }: { engine: AgentEngine; steps: Conver
 
 type Entry = Exclude<TimelineGroup, { kind: "updates" }>;
 
-function TimelineEntry({ engine, entry, streamingTail, latest = false, onViewAttachment }: { engine: AgentEngine; entry: Entry; streamingTail?: StreamingTail | null; latest?: boolean; onViewAttachment: (source: string) => void }) {
+function TimelineEntry({ engine, entry, streamingTail, onViewAttachment }: { engine: AgentEngine; entry: Entry; streamingTail?: StreamingTail | null; onViewAttachment: (source: string) => void }) {
   if (entry.kind === "threads") return <ThreadCards threadIds={entry.threadIds} />;
   if (entry.kind === "turn") {
     return (
-      <article className={latest ? "message assistant turn latest" : "message assistant turn"}>
+      <article className="message assistant turn">
         {entry.live
           ? <LiveSteps engine={engine} steps={entry.steps} tail={streamingTail} />
           : entry.steps.length > 0 && <SettledSteps engine={engine} steps={entry.steps} endsAt={entry.endsAt} />}
@@ -114,9 +121,13 @@ function TimelineEntry({ engine, entry, streamingTail, latest = false, onViewAtt
 
 /** A message a coordinator's threads sent it, behind one row naming its sender until opened. */
 function ThreadMessage({ from, message }: { from: string; message: ConversationMessage }) {
+  const { selectThread } = useMessageLinks();
+  const sender = senderThread(message.origin);
   const summary = (
     <>
-      <span className="work-lead">{from}</span>
+      {sender && selectThread
+        ? <button type="button" className="work-lead thread-sender" data-tip="Open thread" onClick={(event) => { event.preventDefault(); selectThread(sender); }}>{from}</button>
+        : <span className="work-lead">{from}</span>}
       <span className="thread-message-preview">{message.text}</span>
     </>
   );
@@ -132,7 +143,7 @@ function FoldedUpdates({ engine, group, onViewAttachment }: { engine: AgentEngin
   const summary = (
     <>
       <span className="work-lead">Earlier thread updates</span>
-      <span className="work-summary">{group.count}</span>
+      <span className="work-count">{group.count} {group.count === 1 ? "update" : "updates"}</span>
     </>
   );
   return (
@@ -150,7 +161,7 @@ function FoldedUpdates({ engine, group, onViewAttachment }: { engine: AgentEngin
   );
 }
 
-export const TimelineRow = memo(function TimelineRow({ engine, group, index, offset, measure, streamingTail, latest, onViewAttachment }: TimelineRowProps) {
+export const TimelineRow = memo(function TimelineRow({ engine, group, index, offset, measure, streamingTail, onViewAttachment }: TimelineRowProps) {
   const message = group.kind === "message" ? group.message : null;
   return (
     <div
@@ -163,7 +174,7 @@ export const TimelineRow = memo(function TimelineRow({ engine, group, index, off
     >
       {group.kind === "updates"
         ? <FoldedUpdates engine={engine} group={group} onViewAttachment={onViewAttachment} />
-        : <TimelineEntry engine={engine} entry={group} streamingTail={streamingTail} latest={latest} onViewAttachment={onViewAttachment} />}
+        : <TimelineEntry engine={engine} entry={group} streamingTail={streamingTail} onViewAttachment={onViewAttachment} />}
     </div>
   );
 });

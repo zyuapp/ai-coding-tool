@@ -65,15 +65,16 @@ function ShortcutRow({ shortcut, capturing, unavailable, onCaptureShortcut, onSe
       {capturing
         ? <>
             <em className="shortcut-capture">Press a keystroke…</em>
-            <button type="button" onClick={() => onCaptureShortcut(null)}>Cancel</button>
+            <button type="button" data-tip="Cancel (Esc)" onClick={() => onCaptureShortcut(null)}>Cancel</button>
           </>
         : <>
             {shortcut.binding
               ? <kbd className="shortcut-keys">{shortcutKeys(shortcut.binding, MAC).map((key, index) => <span className="shortcut-key" key={index}>{key}</span>)}</kbd>
               : <em>Not set</em>}
             <button type="button" onClick={() => onCaptureShortcut(shortcut.id)}>Change</button>
-            <button type="button" disabled={!shortcut.changed} onClick={() => onSetShortcut(shortcut.id, shortcut.defaultBinding)}>Reset</button>
-            <button type="button" disabled={!shortcut.binding} onClick={() => onSetShortcut(shortcut.id, null)}>Clear</button>
+            {shortcut.changed
+              ? <button type="button" onClick={() => onSetShortcut(shortcut.id, shortcut.defaultBinding)}>Reset</button>
+              : <button type="button" disabled={!shortcut.binding} onClick={() => onSetShortcut(shortcut.id, null)}>Clear</button>}
           </>}
     </div>
   </div>;

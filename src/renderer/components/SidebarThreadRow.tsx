@@ -10,7 +10,7 @@ import type { ThreadOutcome } from "../../domain/thread-run";
 import { worktreeHue, worktreeName, type Worktree } from "../../domain/worktree";
 import type { AutomationView } from "../../domain/automation";
 import type { WorktreeGroup } from "../../application/workspace-state";
-import { ContextMenu } from "./PopoverMenu";
+import { ContextMenu, type MenuEntry, type MenuItem } from "./PopoverMenu";
 import { threadMenuEntries } from "./thread-menu";
 import type { SnoozeHours } from "../../domain/thread-snooze";
 import { RenameInput, useRenaming } from "./SidebarRename";
@@ -20,6 +20,8 @@ import type { ThreadRole } from "../../domain/thread-role";
 import type { ThreadHost } from "../../application/computers";
 import { rowHeadline } from "../../application/coordination";
 import { HostMark } from "./HostMark";
+import { leadIdOf } from "../../domain/coordination";
+import type { ThreadDropTarget } from "../../domain/project";
 
 /** What a row's trailing slot offers, if anything. Only one of them ever shows in a given list. */
 export type RowAction = "archive" | "dismiss" | "none";
@@ -111,8 +113,8 @@ function activityMeta(thread: Thread, host: ThreadHost | undefined, projectLabel
 
 /** A row's meta line: the computer it lives on, marked as one, ahead of whatever else the line says. */
 export function hostMeta(host: ThreadHost | undefined, ...parts: string[]): ReactNode {
-  const rest = parts.join(" · ");
-  if (!host) return rest;
+  if (!host) return parts.join(" · ");
+  const rest = [host.offline ? (host.reconnecting ? "Reconnecting" : "Offline") : null, ...parts].filter(Boolean).join(" · ");
   return <><HostMark name={host.name} offline={host.offline} reconnecting={host.reconnecting} />{rest && ` · ${rest}`}</>;
 }
 
@@ -148,6 +150,7 @@ export type ThreadRowsOptions = {
   worktreeGroups: WorktreeGroup[];
   /** Which paired computer holds each thread that is not this computer's own. */
   threadHosts: Map<string, ThreadHost>;
+  projectHosts: Map<string, ThreadHost>;
   openMenu: string | null;
   onSetOpenMenu: (menu: string | null) => void;
   onSelectThread: (threadId: string) => void;
@@ -156,6 +159,7 @@ export type ThreadRowsOptions = {
   onSnoozeThread: (threadId: string, hours: SnoozeHours) => void;
   onUnsnoozeThread: (threadId: string) => void;
   onRenameThread: (threadId: string, title: string) => void;
+  onMoveThread: (threadId: string, target: ThreadDropTarget) => void;
   onForkThread: (threadId: string, worktree: boolean) => void;
   onSetThreadRole: (threadId: string, role: ThreadRole | null) => void;
   sidebarCoordination: SidebarCoordination;
@@ -262,6 +266,8 @@ type RowState = {
   coordinators: readonly Thread[];
   stoppable: boolean;
   notifications: boolean;
+  /** The folders an open menu offers to move the thread to, or null when it cannot move. */
+  moveTargets: readonly Project[] | null;
   handlers: RowHandlers;
 };
 
@@ -273,6 +279,7 @@ type RowHandlers = {
   snooze: (threadId: string, hours: SnoozeHours) => void;
   unsnooze: (threadId: string) => void;
   fork: (threadId: string, worktree: boolean) => void;
+  move: (threadId: string, projectId: string | null) => void;
   setRole: (threadId: string, role: ThreadRole | null) => void;
   setCoordinator: (threadId: string, coordinatorId: string | null) => void;
   setMuted: (threadId: string, muted: boolean) => void;
@@ -310,7 +317,7 @@ function scheduleTrouble(automation: AutomationView) {
   return !automation.paused && (automation.nextRunAt === null || automation.lastStatus === "failed" || automation.lastStatus === "skipped");
 }
 
-/** The row's hover text: its whole title, then what each of its marks says, since the marks take no pointer. */
+/** The title's hover text: the whole title, then what each of the row's marks says, since the marks take no pointer. */
 function rowTitle(row: RowState, status: RowStatus | null) {
   const { thread, host } = row;
   return [
@@ -338,8 +345,48 @@ function threadRail(row: RowState, status: RowStatus | null, away: boolean, acti
   );
 }
 
-/** The row itself, which is the same whether the list around it lets it be dragged or not. */
-function rowBody(row: RowState, className: string, content: ReactNode, action: RowAction, priority = false) {
+/** The menu's way to do what a drag does: every other folder on the thread's computer, and Recents. */
+function moveEntry(row: RowState): MenuEntry[] {
+  const { thread, moveTargets, handlers } = row;
+  if (!moveTargets) return [];
+  const destination = (label: string, projectId: string | null): MenuItem => ({
+    label,
+    command: { type: "task.move", taskId: thread.id, target: { projectId, index: 0 } },
+    onSelect: () => handlers.move(thread.id, projectId),
+  });
+  const items = [
+    ...moveTargets.filter((project) => project.id !== thread.projectId).map((project) => destination(projectName(project), project.id)),
+    ...(thread.projectId ? [destination("Recents", null)] : []),
+  ];
+  return items.length ? [{ label: "Move to", items }] : [];
+}
+
+function rowMenuEntries(row: RowState, priority: boolean): MenuEntry[] {
+  const { thread, handlers } = row;
+  const entries = threadMenuEntries(thread, {
+    onRename: () => handlers.startRename(thread.id),
+    onFork: (worktree) => handlers.fork(thread.id, worktree),
+    onArchive: () => handlers.archive(thread.id),
+    onSetRole: (role) => handlers.setRole(thread.id, role),
+    coordinators: row.coordinators,
+    onSetCoordinator: (coordinatorId) => handlers.setCoordinator(thread.id, coordinatorId),
+    notifications: row.notifications,
+    onSetMuted: (muted) => handlers.setMuted(thread.id, muted),
+    stoppable: row.stoppable,
+    onStopAll: () => handlers.stopAll(thread.id),
+    ...(priority ? { onSnooze: (hours: SnoozeHours) => handlers.snooze(thread.id, hours) } : {}),
+    ...(thread.snoozedUntil !== undefined ? { onUnsnooze: () => handlers.unsnooze(thread.id) } : {}),
+  });
+  const firstBreak = entries.indexOf("separator");
+  entries.splice(firstBreak < 0 ? entries.length : firstBreak, 0, ...moveEntry(row));
+  return entries;
+}
+
+/**
+ * The row itself, which is the same whether the list around it lets it be dragged or not. The hover
+ * text sits on the title alone, so the row's buttons show only their own tips.
+ */
+function rowBody(row: RowState, className: string, content: (title: string) => ReactNode, action: RowAction, priority = false) {
   const { thread, away, handlers } = row;
   const status = rowStatus(row);
   return (
@@ -354,7 +401,6 @@ function rowBody(row: RowState, className: string, content: ReactNode, action: R
         if (away) return;
         handlers.openMenu(thread.id, { x: event.clientX, y: event.clientY }, event.currentTarget.closest(".task-entry"));
       }}
-      title={rowTitle(row, status)}
     >
       {row.editing && !away
         ? <RenameInput
@@ -365,26 +411,13 @@ function rowBody(row: RowState, className: string, content: ReactNode, action: R
             onCommit={(value) => handlers.commitRename(thread.id, value)}
             onCancel={handlers.cancelRename}
           />
-        : <>{content}{threadRail(row, status, away, action)}</>}
+        : <>{content(rowTitle(row, status))}{threadRail(row, status, away, action)}</>}
     </div>
     {row.menuAt && <ContextMenu
       at={row.menuAt}
       returnFocus={handlers.menuReturn}
       onClose={handlers.closeMenu}
-      entries={threadMenuEntries(thread, {
-        onRename: () => handlers.startRename(thread.id),
-        onFork: (worktree) => handlers.fork(thread.id, worktree),
-        onArchive: () => handlers.archive(thread.id),
-        onSetRole: (role) => handlers.setRole(thread.id, role),
-        coordinators: row.coordinators,
-        onSetCoordinator: (coordinatorId) => handlers.setCoordinator(thread.id, coordinatorId),
-        notifications: row.notifications,
-        onSetMuted: (muted) => handlers.setMuted(thread.id, muted),
-        stoppable: row.stoppable,
-        onStopAll: () => handlers.stopAll(thread.id),
-        ...(priority ? { onSnooze: (hours: SnoozeHours) => handlers.snooze(thread.id, hours) } : {}),
-        ...(thread.snoozedUntil !== undefined ? { onUnsnooze: () => handlers.unsnooze(thread.id) } : {}),
-      })}
+      entries={rowMenuEntries(row, priority)}
     />}
     </>
   );
@@ -399,9 +432,9 @@ type ThreadRowPlace = "project" | "recent";
 
 const ThreadRow = memo(function ThreadRow({ index, place, ...row }: RowState & { index: number; place: ThreadRowPlace }) {
   const { thread, host } = row;
-  const content = place === "project"
-    ? <span>{thread.title}</span>
-    : <span className="task-row-text">
+  const content = (title: string) => place === "project"
+    ? <span title={title}>{thread.title}</span>
+    : <span className="task-row-text" title={title}>
         <span>{thread.title}</span>
         <small>{hostMeta(host, formatTime(threadActivityAt(thread)))}</small>
       </span>;
@@ -427,8 +460,8 @@ const ActivityRow = memo(function ActivityRow({ projectLabel, action, priority, 
   const { thread } = row;
   return (
     <div className="task-entry" tabIndex={0} onKeyDown={(event) => selectOnEnter(event, row)}>
-      {rowBody(row, `task-row ${row.active ? "active" : ""}`, (
-        <span className="task-row-text">
+      {rowBody(row, `task-row ${row.active ? "active" : ""}`, (title) => (
+        <span className="task-row-text" title={title}>
           <span>{thread.title}</span>
           <small>{activityMeta(thread, row.host, projectLabel, row.waiting, row.memberBlocked, row.pauseLabel)}</small>
         </span>
@@ -449,6 +482,7 @@ export function useThreadRows({
   worktreeThreadIds,
   worktreeGroups,
   threadHosts,
+  projectHosts,
   openMenu,
   onSetOpenMenu,
   onSelectThread,
@@ -457,6 +491,7 @@ export function useThreadRows({
   onSnoozeThread,
   onUnsnoozeThread,
   onRenameThread,
+  onMoveThread,
   onForkThread,
   onSetThreadRole,
   sidebarCoordination: coordination,
@@ -471,8 +506,8 @@ export function useThreadRows({
     if (openMenu?.startsWith("task:") && offline(openMenu.slice("task:".length))) onSetOpenMenu(null);
   });
 
-  const latest = useRef({ onSelectThread, onArchiveThread, onDismissThread, onSnoozeThread, onUnsnoozeThread, onForkThread, onSetThreadRole, onSetOpenMenu, coordination, threadNames });
-  latest.current = { onSelectThread, onArchiveThread, onDismissThread, onSnoozeThread, onUnsnoozeThread, onForkThread, onSetThreadRole, onSetOpenMenu, coordination, threadNames };
+  const latest = useRef({ onSelectThread, onArchiveThread, onDismissThread, onSnoozeThread, onUnsnoozeThread, onMoveThread, onForkThread, onSetThreadRole, onSetOpenMenu, coordination, threadNames });
+  latest.current = { onSelectThread, onArchiveThread, onDismissThread, onSnoozeThread, onUnsnoozeThread, onMoveThread, onForkThread, onSetThreadRole, onSetOpenMenu, coordination, threadNames };
   const { input: renameInput, row: menuReturn } = threadNames;
   const handlers = useMemo<RowHandlers>(() => ({
     select: (threadId) => latest.current.onSelectThread(threadId),
@@ -481,6 +516,7 @@ export function useThreadRows({
     snooze: (threadId, hours) => latest.current.onSnoozeThread(threadId, hours),
     unsnooze: (threadId) => latest.current.onUnsnoozeThread(threadId),
     fork: (threadId, worktree) => latest.current.onForkThread(threadId, worktree),
+    move: (threadId, projectId) => latest.current.onMoveThread(threadId, { projectId, index: 0 }),
     setRole: (threadId, role) => latest.current.onSetThreadRole(threadId, role),
     setCoordinator: (threadId, coordinatorId) => latest.current.coordination.onSetCoordinator(threadId, coordinatorId),
     setMuted: (threadId, muted) => latest.current.coordination.onSetMuted(threadId, muted),
@@ -500,6 +536,14 @@ export function useThreadRows({
 
   const checkouts = useMemo(() => new Map(worktreeGroups.flatMap(({ worktree, threads }) =>
     threads.map((thread) => [thread.id, worktree] as const))), [worktreeGroups]);
+
+  /**
+   * A thread moves only among this computer's folders, and not out of the checkout it works in or
+   * from under the coordinator it is drawn beneath.
+   */
+  const moveTargets = (thread: Thread) => threadHosts.has(thread.id) || thread.worktreeId || leadIdOf(thread)
+    ? null
+    : projects.filter((project) => !projectHosts.has(project.id));
 
   const rowState = (thread: Thread): RowState => {
     const away = offline(thread.id);
@@ -525,6 +569,7 @@ export function useThreadRows({
       coordinators: menuOpen ? coordination.coordinatorsByComputer.get(threadHosts.get(thread.id)?.id ?? null) ?? NO_THREADS : NO_THREADS,
       stoppable: menuOpen && coordination.stoppable.has(thread.id),
       notifications: coordination.notifications,
+      moveTargets: menuOpen ? moveTargets(thread) : null,
       handlers,
     };
   };

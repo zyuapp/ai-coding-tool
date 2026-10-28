@@ -47,8 +47,9 @@ test("the automation panel edits the schedule and prompt in one save", async () 
   assert.equal(schedule.value, "*/5 * * * *");
   assert.equal(prompt.value, "Check whether the PR is approved");
   assert.equal(save.disabled, true, "an untouched automation has nothing to save");
-  assert.match(view.container.textContent, /2 runs/);
+  assert.match(view.container.textContent, /Runs2/);
   assert.match(view.container.textContent, /succeeded at/);
+  assert.equal(query(view.container, "#automation-schedule-readout").textContent, "Every 5 minutes", "the schedule is read back in words");
 
   await act(async () => {
     item(setInput).call(schedule, "0 8 * * *");
@@ -63,6 +64,15 @@ test("the automation panel edits the schedule and prompt in one save", async () 
   await act(async () => { query<HTMLButtonElement>(view.container, ".automation-actions button").click(); });
 
   assert.deepEqual(patches, [{ schedule: "0 8 * * *", prompt: "Check the PR and stop once it is approved" }]);
+  assert.match(query(view.container, "#automation-schedule-readout").textContent, /^Every day at 8:00/);
+  assert.match(save.textContent, /Save/);
+
+  await act(async () => {
+    item(setInput).call(schedule, "every morning");
+    schedule.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: "every morning" }));
+  });
+  assert.equal(schedule.getAttribute("aria-invalid"), "true", "a schedule that cannot be read says so");
+  assert.equal(save.disabled, true, "and cannot be saved");
   await view.unmount();
 });
 

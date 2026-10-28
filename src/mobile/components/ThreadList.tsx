@@ -1,4 +1,4 @@
-import { LuCheck as Check, LuCheckCheck as CheckCheck, LuChevronDown as ChevronDown, LuFolder as Folder, LuSquarePen as SquarePen } from "react-icons/lu";
+import { LuCheck as Check, LuChevronDown as ChevronDown, LuFolder as Folder, LuSquarePen as SquarePen } from "react-icons/lu";
 import { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MobileActivity, MobileProjectGroup, MobileThreadEntry } from "../../contracts/mobile";
 import { readActivityProject, readFolded, writeActivityProject, writeFolded, type MobileListMode } from "../client/storage";
@@ -22,7 +22,7 @@ function ThreadRow({ thread, meta, onOpen, onDismiss }: {
       </button>
       {/** A row that needs the user keeps saying so beside Dismiss, which takes the mark's place otherwise. */}
       {(!onDismiss || thread.status === "awaiting-approval" || thread.waiting) && <span className="thread-mark" aria-hidden="true" />}
-      {onDismiss && <button type="button" className="thread-dismiss" aria-label={`Dismiss ${thread.title}`} onClick={onDismiss}><Check size={16} strokeWidth={2.2} /></button>}
+      {onDismiss && <button type="button" className="thread-dismiss" aria-label={`Dismiss ${thread.title}`} onClick={onDismiss}><span className="thread-dismiss-disc"><Check size={14} strokeWidth={2.4} /></span></button>}
     </div>
   );
 }
@@ -137,7 +137,7 @@ export const ThreadList = memo(function ThreadList({ mode, groups, activity, now
       {/** Snoozed only shows while something is in it, as on the desktop. */}
       {mode === "activity" && ACTIVITY_SECTIONS.filter(({ key }) => key !== "snoozed" || shown.snoozed.length).map(({ key, label }) => section({ key: `activity:${key}`, label, threads: shown[key] }, {
         action: key === "priority" && shown.priority.some((thread) => thread.attention)
-          ? <button type="button" className="section-action" aria-label="Dismiss all" onClick={() => onDismissAll(project ?? undefined)}><CheckCheck size={16} strokeWidth={1.8} /></button>
+          ? <button type="button" className="section-text-action" onClick={() => onDismissAll(project ?? undefined)}>Dismiss all</button>
           : undefined,
         empty: key === "priority" ? "Nothing waiting" : undefined,
         meta: (thread) => activityMeta(thread, now),

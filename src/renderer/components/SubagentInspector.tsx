@@ -1,8 +1,10 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { LuBot as Bot, LuWrench as Wrench, LuX as X } from "react-icons/lu";
+import { LuBot as Bot, LuLoaderCircle as LoaderCircle, LuWrench as Wrench, LuX as X } from "react-icons/lu";
 import type { Subagent, SubagentActivity } from "../../domain/run";
 import { effortLabel } from "../../domain/agent-engine";
+import { Copyable } from "./CopyButton";
+import { SpinningIcon } from "./SpinningIcon";
 import { statusLabel, StatusIcon } from "./SubagentList";
 
 /** How much of a log opens with the subagent. The rest is read backwards, a window at a time. */
@@ -15,8 +17,8 @@ function activityItem(item: SubagentActivity, finding: boolean) {
   return item.kind === "tool" ? (
     /** A search reads what is drawn, so a tool's output is drawn open while one is reading the panel. */
     <details className="agent-tool" {...(finding ? { open: true } : {})}>
-      <summary><Wrench size={14} />{item.title ?? "Tool"}</summary>
-      <pre>{item.text}</pre>
+      <summary><Wrench size={14} aria-hidden="true" />{item.title ?? "Tool"}</summary>
+      <Copyable text={item.text} label="Copy the output"><pre>{item.text}</pre></Copyable>
     </details>
   ) : (
     <p className="agent-text">{item.text}</p>
@@ -65,10 +67,19 @@ export function SubagentInspector({ subagent, finding = false, onClose, onStop }
   }, [start > 0, shown > 0]);
 
   return (
-    <aside className="subagent-inspector" aria-label={`${subagent.description} details`}>
+    <aside
+      className="subagent-inspector"
+      aria-label={`${subagent.description} details`}
+      onKeyDown={(event) => {
+        if (event.key !== "Escape" || event.defaultPrevented) return;
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+      }}
+    >
       <header className="inspector-header">
         <span>Subagent</span>
-        <button type="button" aria-label="Close subagent details" onClick={onClose}><X size={18} /></button>
+        <button type="button" aria-label="Close subagent details" data-tip="Close (Esc)" onClick={onClose}><X size={18} aria-hidden="true" /></button>
       </header>
       <div className="inspector-scroll" ref={scrollRef}>
         <div ref={introductionRef}>
@@ -80,7 +91,8 @@ export function SubagentInspector({ subagent, finding = false, onClose, onStop }
             </div>
             {subagent.status === "working" && (
               <button className="workflow-stop" type="button" disabled={subagent.stopping} onClick={() => onStop(subagent.id)}>
-                {subagent.stopping ? "Stopping" : "Stop"}
+                {subagent.stopping && <SpinningIcon icon={LoaderCircle} spinning size={12} aria-hidden="true" />}
+                {subagent.stopping ? "Stopping…" : "Stop"}
               </button>
             )}
           </div>

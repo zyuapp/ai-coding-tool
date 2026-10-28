@@ -141,6 +141,8 @@ test("a machine without Tailscale is told to install it, and nothing to scan is 
   assert.match(document.querySelector("[data-step='installed']")?.textContent ?? "", /Install Tailscale/);
   assert.equal(document.querySelector("[data-step='installed']")?.classList.contains("needed"), true);
   assert.equal(document.querySelector("[data-step='signed-in']")?.classList.contains("needed"), false, "only the next step is asked for");
+  assert.equal(document.querySelector<HTMLAnchorElement>("[data-step='installed'] a")?.href, "https://tailscale.com/download");
+  assert.equal(document.querySelector("[data-step='https'] a"), null, "a step not yet reached offers nothing to do");
   assert.equal(document.querySelector(".phone-pairing"), null, "a QR was drawn that no phone could use");
   assert.equal(calls.codes, 0);
 
@@ -173,6 +175,7 @@ test("a tailnet that issues no certificate says where to turn it on", () => {
   }));
   const step = document.querySelector("[data-step='https']");
   assert.match(step?.textContent ?? "", /admin console, under DNS/);
+  assert.equal(step?.querySelector<HTMLAnchorElement>("a")?.href, "https://login.tailscale.com/admin/dns");
   assert.equal(step?.classList.contains("needed"), true);
   assert.match(document.querySelector("[data-step='signed-in']")?.textContent ?? "", /Signed in as mac\.tail1234\.ts\.net/);
 });

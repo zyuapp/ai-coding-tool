@@ -98,7 +98,7 @@ export function DiagramViewer({ diagram, onClose }: { diagram: Diagram; onClose:
       onClick={(event) => { if (event.target === pressedOn.current) onClose(); }}
     >
       <ZoomControls zoom={zoom} />
-      <button type="button" className="viewer-close" onClick={onClose} aria-label="Close diagram" data-tip="Close · Esc"><X size={16} /></button>
+      <button type="button" className="viewer-close" onClick={onClose} aria-label="Close diagram" data-tip="Close (Esc)"><X size={16} /></button>
       <div ref={zoom.stage} className="viewer-stage">
         <div
           className="mermaid-svg"
@@ -265,7 +265,7 @@ export function MermaidBlock({ source, pending = false }: { source: string; pend
         {drawing && open
           ? <button type="button" className="mermaid-open" aria-label="Open the diagram at full size" onClick={() => open(current.diagram!)}>{drawing}</button>
           : drawing}
-        {current.error ? <details className="mermaid-error"><summary>Diagram could not be rendered</summary><pre><code>{source}</code></pre></details> : null}
+        {current.error ? <details className="mermaid-error"><summary>Diagram could not be rendered</summary><p className="mermaid-error-message">{current.error}</p><pre><code>{source}</code></pre></details> : null}
       </div>
       {/* Pointer only: the drawing itself is the keyboard's way to open it. */}
       {drawing && open && (

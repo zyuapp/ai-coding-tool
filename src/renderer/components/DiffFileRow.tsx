@@ -1,4 +1,4 @@
-import { LuCheck as Check, LuChevronDown as ChevronDown, LuChevronRight as ChevronRight, LuFilePlus2 as FilePlus2, LuFileMinus2 as FileMinus2, LuFilePen as FilePen, LuFileSymlink as FileSymlink } from "react-icons/lu";
+import { LuCheck as Check, LuChevronDown as ChevronDown, LuChevronRight as ChevronRight, LuFilePlus2 as FilePlus2, LuFileMinus2 as FileMinus2, LuFilePen as FilePen, LuFileSymlink as FileSymlink, LuSquareArrowOutUpRight as OpenOut } from "react-icons/lu";
 import type { DiffFileSummary } from "../../domain/diff";
 
 function StatusIcon({ status }: { status: DiffFileSummary["status"] }) {
@@ -59,7 +59,7 @@ export function FileHeader({ file, open, viewed, echo = false, onToggle, onOpenF
         {...reach}
         onClick={() => onOpenFile(file.path)}
       >
-        <FileSymlink size={14} />
+        <OpenOut size={14} />
       </button>
       <label className="diff-file-viewed" data-tip={viewed ? "Mark unviewed" : "Mark viewed"}>
         <input
@@ -70,6 +70,7 @@ export function FileHeader({ file, open, viewed, echo = false, onToggle, onOpenF
           onChange={(event) => onSetViewed(file.path, event.currentTarget.checked)}
         />
         <Check size={14} aria-hidden="true" />
+        <span aria-hidden="true">Viewed</span>
       </label>
     </div>
   );

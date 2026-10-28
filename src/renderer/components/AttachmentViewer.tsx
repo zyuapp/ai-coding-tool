@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useModalFocus } from "../focus";
 import { ZoomControls, useZoom, type Sized } from "./ZoomView";
+import { shortcutTip } from "./TooltipLayer";
 
 export function AttachmentViewer({ source, onClose, onDownload }: { source: string; onClose: () => void; onDownload: () => void }) {
   const dialog = useRef<HTMLDivElement>(null);
@@ -38,8 +39,8 @@ export function AttachmentViewer({ source, onClose, onDownload }: { source: stri
       onClick={(event) => { if (event.target === pressedOn.current) onClose(); }}
     >
       {size ? <ZoomControls zoom={zoom} /> : null}
-      <button type="button" className="viewer-download" disabled={!size || failed} onClick={(event) => { event.stopPropagation(); onDownload(); }} aria-label="Download image" title="Download image"><Download size={16} /></button>
-      <button type="button" className="viewer-close" onClick={onClose} aria-label="Close screenshot"><X size={16} /></button>
+      <button type="button" className="viewer-download" disabled={!size || failed} onClick={(event) => { event.stopPropagation(); onDownload(); }} aria-label="Download image" data-tip="Download"><Download size={16} /></button>
+      <button type="button" className="viewer-close" onClick={onClose} aria-label="Close screenshot" data-tip={shortcutTip("Close", "Escape")}><X size={16} /></button>
       <div ref={zoom.stage} className="viewer-stage">
         {failed ? <p role="status">This image is no longer available.</p> : <img
           src={source}

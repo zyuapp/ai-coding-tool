@@ -94,7 +94,7 @@ test("a settings row opens its page, and a control row names the control too", a
 test("a name nothing answers says so instead of drawing an empty list", async () => {
   const view = await mount({ query: "nothing", index: 0, options: [] });
   assert.equal(document.querySelector(".thread-jump-list"), null);
-  assert.equal(document.querySelector(".thread-jump-empty")?.textContent, "Nothing here is called that");
+  assert.equal(document.querySelector(".thread-jump-empty")?.textContent, "No matches");
   await view.unmount();
 });
 

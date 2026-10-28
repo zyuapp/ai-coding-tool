@@ -64,7 +64,7 @@ function failures(pairs: readonly (readonly [string, string, number])[]) {
 
 const TEXT_GROUNDS = ["--canvas", "--sunken", "--surface", "--sidebar", "--surface-menu", "--surface-raised", "--surface-hover"];
 const TEXT = ["--ink", "--ink-soft", "--ink-dim", "--ink-faint", "--muted-strong", "--muted", "--muted-soft", "--quiet-strong", "--quiet", "--quiet-soft"];
-const HUES = ["--accent", "--danger", "--link", "--success"];
+const HUES = ["--accent", "--danger", "--link", "--success", "--warning"];
 const HUE_GROUNDS = ["--canvas", "--sunken", "--surface", "--sidebar"];
 
 test("every rung of the text ladder reads at AA on every surface text sits on", () => {
@@ -75,24 +75,40 @@ test("body text reaches AAA on the canvas", () => {
   assert.deepEqual(failures([["--ink", "--canvas", 7]]), []);
 });
 
-test("the ladder keeps its order, so a quieter rung never reads louder than the one above it", () => {
+const RUNGS = ["--ink", "--ink-dim", "--muted", "--quiet"];
+
+test("the four text rungs stay a visible step apart, and the decorative grey sits below them all", () => {
   const failed: string[] = [];
   for (const theme of THEMES) {
     const palette = primitives(theme.id);
     const canvas = resolve("var(--canvas)", palette);
-    const ratios = TEXT.map((ink) => contrast(resolve(`var(${ink})`, palette), canvas));
-    ratios.forEach((ratio, index) => { if (index && ratio > ratios[index - 1] + 0.01) failed.push(`${theme.id}: ${TEXT[index]} outreads ${TEXT[index - 1]}`); });
+    const ratios = RUNGS.map((ink) => contrast(resolve(`var(${ink})`, palette), canvas));
+    ratios.slice(1).forEach((ratio, index) => { if (ratios[index] / ratio < 1.2) failed.push(`${theme.id}: ${RUNGS[index]} to ${RUNGS[index + 1]} is ${(ratios[index] / ratio).toFixed(2)}:1`); });
+    if (contrast(resolve("var(--p-fg-5)", palette), canvas) >= ratios[3]) failed.push(`${theme.id}: fg-5 outreads --quiet`);
   }
   assert.deepEqual(failed, []);
 });
 
-test("accent, danger, link and success text read at AA on the surfaces they colour", () => {
+test("accent, danger, link, success and warning text read at AA on the surfaces they colour", () => {
   assert.deepEqual(failures(HUES.flatMap((ink) => HUE_GROUNDS.map((ground) => [ink, ground, 4.5] as const))), []);
   assert.deepEqual(failures([["--danger", "--danger-surface", 4.5]]), []);
 });
 
-test("a highlighted menu row's label reads at AA on the accent or danger fill behind it", () => {
-  assert.deepEqual(failures([["--accent-ink", "--accent", 4.5], ["--accent-ink", "--danger", 4.5]]), []);
+test("a label reads at AA on every saturated fill it is drawn on", () => {
+  assert.deepEqual(failures([["--accent-ink", "--accent", 4.5], ["--accent-ink", "--danger", 4.5], ["--badge-ink", "--info-badge", 4.5], ["--alert-ink", "--alert", 4.5]]), []);
+});
+
+test("dividers stay visible on a dark canvas", () => {
+  const failed: string[] = [];
+  for (const theme of THEMES.filter((candidate) => candidate.variant === "dark")) {
+    const palette = primitives(theme.id);
+    const canvas = resolve("var(--canvas)", palette);
+    for (const [line, minimum] of [["--line-soft", 1.15], ["--line", 1.3]] as const) {
+      const ratio = contrast(resolve(`var(${line})`, palette), canvas);
+      if (ratio < minimum) failed.push(`${theme.id}: ${line} is ${ratio.toFixed(2)}:1`);
+    }
+  }
+  assert.deepEqual(failed, []);
 });
 
 test("the focus ring, input edges and scroll thumb clear 3:1 against what they are drawn on", () => {
@@ -116,4 +132,8 @@ test("every size token a stylesheet names is declared", async () => {
 test("no text size token falls below 11px", () => {
   const small = [...tokens].filter(([name, value]) => name.startsWith("--text-") && /^\d+px$/.test(value) && Number.parseInt(value) < 11);
   assert.deepEqual(small, []);
+});
+
+test("a row's action slot is a 24px target", () => {
+  assert.ok(Number.parseInt(tokens.get("--row-slot")!) >= 24);
 });

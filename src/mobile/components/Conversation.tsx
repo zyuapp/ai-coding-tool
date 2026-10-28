@@ -25,7 +25,7 @@ function ToolRun({ engine, calls }: { engine: AgentEngine; calls: MobileMessage[
     <>
       <span className="work-glyph" aria-hidden="true"><Icon size={14} strokeWidth={1.75} /></span>
       <span className="work-summary">{summariseTools(calls)}</span>
-      <span className="work-count">{calls.length}</span>
+      {calls.length > 1 && <span className="work-count">{calls.length}</span>}
     </>
   );
   if (calls.length < 2) return <div className="work"><div className="work-row">{row}</div></div>;

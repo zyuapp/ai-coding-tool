@@ -53,6 +53,9 @@ export function restyleVisuals() {
 const heights = new Map<string, number>();
 const MAX_REMEMBERED = 64;
 
+/** How long a visual may take to report its size before it is taken to have failed. */
+export const VISUAL_TIMEOUT_MS = 10_000;
+
 function rememberHeight(source: string, height: number) {
   heights.delete(source);
   heights.set(source, height);
@@ -109,6 +112,14 @@ export function VisualBlock({ source, pending = false }: { source: string; pendi
   }, [source]);
 
   const live = visible && !pending;
+  const drawing = live && height === undefined && error === null;
+
+  useEffect(() => {
+    if (!drawing) return;
+    const timer = setTimeout(() => setError((shown) => shown ?? "The visual did not finish drawing."), VISUAL_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [drawing, source]);
+
   return (
     <div className="visual-block" ref={host} style={height === undefined ? undefined : { "--visual-height": `${height}px` } as CSSProperties}>
       {live
@@ -123,6 +134,7 @@ export function VisualBlock({ source, pending = false }: { source: string; pendi
             onLoad={draw}
           />
         : <span className="visual-loading">{pending ? "Drawing visual…" : null}</span>}
+      {drawing && <span className="visual-loading visual-loading-over">Drawing visual…</span>}
       {error ? <details className="visual-error"><summary>The visual hit an error</summary><pre><code>{error}</code></pre></details> : null}
     </div>
   );

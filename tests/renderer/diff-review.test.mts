@@ -133,6 +133,40 @@ test("a range picked in the gutter becomes a composer pill naming the file and i
   await view.unmount();
 });
 
+test("lines are picked by dragging down the gutter, and from the keyboard without a Tab stop on every line", async () => {
+  seedReviewableProject();
+  window.desktop = reviewableDesktop();
+  const view = await mount(React.createElement(App));
+  await openReview(view);
+  await showOneColumn(view);
+  const gutters = () => [...view.container.querySelectorAll<HTMLElement>(".diff-gutter")];
+  assert.ok(gutters().every((gutter) => gutter.tabIndex === -1), "a review is not hundreds of Tab stops");
+
+  const pointer = (type: string, target: Element, init: PointerEventInit = {}) => target.dispatchEvent(new dom.window.PointerEvent(type, { bubbles: true, cancelable: true, pointerType: "mouse", button: 0, buttons: 1, ...init }));
+  await act(async () => { pointer("pointerdown", gutters()[1]); });
+  await act(async () => { pointer("pointerover", query(view.container, ".diff-line.add code")); });
+  assert.equal(view.container.querySelector(".diff-comment"), null, "the note waits while the drag is still picking");
+  await act(async () => { pointer("pointerover", gutters()[3]); });
+  await act(async () => { window.dispatchEvent(new dom.window.PointerEvent("pointerup", { buttons: 0 })); });
+  assert.equal(view.container.querySelectorAll(".diff-line.selected").length, 3, "the drag picked every line it crossed");
+  assert.match(query(view.container, ".diff-comment-range").textContent, /^src\/app\.ts:L2-L3$/);
+  assert.equal(dom.window.document.activeElement, query(view.container, ".diff-comment textarea"), "letting go hands the keyboard to the note");
+
+  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Clear the selection"]').click(); });
+  const key = (target: Element, init: KeyboardEventInit) => target.dispatchEvent(new dom.window.KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init }));
+  const header = query<HTMLButtonElement>(view.container, ".diff-files .diff-file-open");
+  header.focus();
+  await act(async () => { key(header, { key: "ArrowDown" }); });
+  assert.equal(dom.window.document.activeElement, gutters()[0], "Down from a file's row reaches its first line");
+  await act(async () => { key(gutters()[0], { key: "ArrowDown", shiftKey: true }); });
+  await act(async () => { key(gutters()[1], { key: "ArrowDown", shiftKey: true }); });
+  assert.equal(view.container.querySelectorAll(".diff-line.selected").length, 3, "Shift with Down picks the next line each time");
+  assert.equal(dom.window.document.activeElement, gutters()[2], "the keyboard stays in the gutter so the run can keep growing");
+  await act(async () => { key(gutters()[2], { key: "Enter" }); });
+  assert.equal(dom.window.document.activeElement, query(view.container, ".diff-comment textarea"), "Enter on a picked line goes to its note");
+  await view.unmount();
+});
+
 test("ticking a file off folds its patch away and empties the tab's count", async () => {
   seedReviewableProject();
   window.desktop = reviewableDesktop();
@@ -229,7 +263,7 @@ test("Branch is the default, with current work before the editable target branch
 
   assert.ok(view.container.querySelector('button[aria-label="Review mode: Branch"]'));
   const sides = () => [...view.container.querySelectorAll(".diff-side-trigger > span")].map((code) => code.textContent);
-  assert.deepEqual(sides(), ["main", "HEAD"], "current work appears before the target, even without a remote baseline");
+  assert.deepEqual(sides(), ["main · working", "HEAD"], "current work appears before the target, even without a remote baseline, and reads apart from the branch itself");
 
   /** The trigger names the side and what it is set to, so a screen reader hears the comparison. */
   assert.equal(query<HTMLButtonElement>(view.container, '.diff-side button').getAttribute("aria-label"), "Compare: Working tree on main");
@@ -239,7 +273,7 @@ test("Branch is the default, with current work before the editable target branch
   assert.ok(options.includes("origin/main"), "a remote branch can be a base");
 
   await act(async () => { item([...document.querySelectorAll<HTMLElement>('.branch-menu [role="option"]')].find((option) => option.textContent === "origin/main")).click(); });
-  assert.deepEqual(sides(), ["main", "origin/main"]);
+  assert.deepEqual(sides(), ["main · working", "origin/main"]);
   await view.unmount();
 });
 
@@ -282,7 +316,7 @@ test("a review hides the lines that only moved, and showing them reads the compa
 /** The mode menu is a portal, like the branch picker it replaces. */
 async function chooseMode(view: MountView, label: string) {
   await act(async () => { query<HTMLButtonElement>(view.container, '.diff-mode-trigger').click(); });
-  const option = item([...document.querySelectorAll<HTMLButtonElement>('.diff-mode-menu button')].find((button) => button.textContent === label));
+  const option = item([...document.querySelectorAll<HTMLButtonElement>('.diff-mode-menu button')].find((button) => button.querySelector(".picker-label")?.firstChild?.textContent === label));
   await act(async () => { option.click(); });
 }
 
@@ -304,7 +338,7 @@ test("the review switches to uncommitted changes and returns to its branch targe
     assert.ok(view.container.querySelector('button[aria-label="Review mode: Uncommitted"]'));
     await chooseMode(view, "Branch");
     assert.deepEqual(ranges.at(-1), { kind: "branches", base: "origin/main", compare: null });
-    assert.deepEqual([...view.container.querySelectorAll('.diff-side-trigger > span')].map((span) => span.textContent), ["main", "origin/main"]);
+    assert.deepEqual([...view.container.querySelectorAll('.diff-side-trigger > span')].map((span) => span.textContent), ["main · working", "origin/main"]);
   } finally { await view.unmount(); }
 });
 

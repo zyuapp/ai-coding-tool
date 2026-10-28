@@ -97,3 +97,51 @@ test("B and A pick the tool, but not while a note is being typed", async () => {
   assert.equal(pressed("Box"), "true");
   await view.unmount();
 });
+
+test("the discard question lands on Keep editing, not on Discard", async () => {
+  const { view, canvas } = await open();
+  await act(async () => press(canvas, "ArrowRight"));
+  await act(async () => press(canvas, "Delete"));
+  await act(async () => query<HTMLButtonElement>(document.body, ".annotator-close").click());
+  assert.equal(document.activeElement?.textContent, "Keep editing");
+  await view.unmount();
+});
+
+test("a picked mark keeps its tools after the pointer leaves the image", async () => {
+  const { view, canvas } = await open();
+  await act(async () => press(canvas, "ArrowRight"));
+  const frame = query(document.body, ".annotator-frame");
+  await act(async () => {
+    frame.dispatchEvent(new dom.window.PointerEvent("pointerout", { bubbles: true, relatedTarget: document.body }));
+    frame.dispatchEvent(new dom.window.PointerEvent("pointerleave", { relatedTarget: document.body }));
+  });
+  const remove = query(document.body, '[aria-label="Delete mark 1"]');
+  assert.ok(remove.dataset.tip, "the tool says what it does");
+  assert.ok(query(document.body, '[aria-label="Edit note on mark 1"]').dataset.tip);
+  await view.unmount();
+});
+
+test("the focused canvas says which keys walk its marks", async () => {
+  const { view, canvas } = await open();
+  const hint = () => query(document.body, ".annotator-count").textContent ?? "";
+  assert.match(hint(), /Point at one/);
+  await act(async () => { canvas.focus(); });
+  assert.match(hint(), /^2 marks\. Arrow keys pick one/);
+  await act(async () => { canvas.blur(); });
+  assert.match(hint(), /Point at one/);
+  await view.unmount();
+});
+
+test("the annotator listens for keys once, however often it redraws", async () => {
+  const added = vi.spyOn(document, "addEventListener");
+  const { view, canvas } = await open();
+  await act(async () => press(canvas, "ArrowRight"));
+  await act(async () => press(canvas, "ArrowRight"));
+  await act(async () => press(document.body, "a"));
+  assert.equal(added.mock.calls.filter(([type]) => type === "keydown").length, 1);
+  await act(async () => press(document.body, "b"));
+  const pressed = [...document.body.querySelectorAll<HTMLButtonElement>(".annotator-tool")].find((button) => button.textContent?.includes("Box"));
+  assert.equal(pressed?.getAttribute("aria-pressed"), "true", "the one listener still sees the latest state");
+  added.mockRestore();
+  await view.unmount();
+});

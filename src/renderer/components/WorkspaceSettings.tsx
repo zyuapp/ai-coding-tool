@@ -48,6 +48,7 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
       onSetChromeBrowser={(enabled) => void workspace.actions.setChromeBrowser(enabled)} onSetComputerUse={(enabled) => void workspace.actions.setComputerUse(enabled)} onSetBrowserTools={(enabled) => void workspace.actions.setBrowserTools(enabled)}
       onSetNotifications={(enabled) => void workspace.actions.setNotifications(enabled)}
       onCheckForUpdates={() => void workspace.actions.checkForUpdates()}
+      appUpdate={{ state: workspace.appUpdate, onDownload: () => void workspace.actions.downloadUpdate(), onInstall: () => void workspace.actions.installUpdate() }}
       onOpenSourceLicenses={() => void workspace.dispatch({ type: "app.open-source-licenses" })}
       onRestoreThread={workspace.actions.restoreThread}
       onClearArchive={workspace.actions.clearArchive}

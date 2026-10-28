@@ -22,7 +22,7 @@ export function formatElapsed(ms: number) {
 }
 
 /** Work still in flight has no end yet, so it counts up from its start once a second. */
-function Elapsed({ startedAt, endsAt }: { startedAt: number; endsAt: number | null }) {
+export function Elapsed({ startedAt, endsAt }: { startedAt: number; endsAt: number | null }) {
   const [end, setEnd] = useState(() => endsAt ?? Date.now());
   useEffect(() => {
     if (endsAt !== null) {
@@ -39,14 +39,22 @@ function Elapsed({ startedAt, endsAt }: { startedAt: number; endsAt: number | nu
 /**
  * Folded work stays out of the DOM until opened, so a long turn costs one row until it is read. A
  * fold holding the match being read opens itself, because a match nobody can see is no match at all.
+ * Closing it by hand keeps it closed until the match moves on.
  */
 export function Fold({ className, summary, holds, messageId, children }: { className: string; summary: ReactNode; holds: string[]; messageId?: string; children: () => ReactNode }) {
   const revealed = useContext(RevealedMessage);
   const [open, setOpen] = useState(false);
-  const forced = revealed !== null && holds.includes(revealed);
+  const [dismissed, setDismissed] = useState<string | null>(null);
+  if (dismissed !== null && dismissed !== revealed) setDismissed(null);
+  const forced = revealed !== null && revealed !== dismissed && holds.includes(revealed);
   const shown = open || forced;
   return (
-    <details className={className} open={shown} data-message-id={messageId} onToggle={(event) => { if (!forced) setOpen(event.currentTarget.open); }}>
+    <details className={className} open={shown} data-message-id={messageId} onToggle={(event) => {
+      const next = event.currentTarget.open;
+      if (next === shown) return;
+      if (forced && !next) setDismissed(revealed);
+      setOpen(next);
+    }}>
       <summary>{summary}</summary>
       {shown && children()}
     </details>
@@ -91,19 +99,22 @@ function stepDuration(step: TimedStep): number | null {
 const ToolStep = memo(function ToolStep({ engine, step, named = true, share }: { engine: AgentEngine; step: TimedStep; named?: boolean; share?: number }) {
   const call = toolCallOf(engine, step.message);
   const label = call.argument || step.message.text;
+  const percent = share === undefined ? null : Math.round(share * 100);
   const summary = (
     <>
-      {named && <><span className={`work-dot family-${call.family}`} aria-hidden="true" /><span className="work-tool">{step.message.text}</span></>}
-      <span className="work-arg" title={`${step.message.text} · ${label}`}>{call.sigil && <span className="work-sigil">{call.sigil}</span>}{label}</span>
-      <span className="work-meta">
-        {share !== undefined && <span className="work-bar" aria-hidden="true"><span style={{ width: `${Math.round(share * 100)}%` }} /></span>}
+      {named && <><ToolGlyph family={call.family} /><span className="work-tool">{step.message.text}</span></>}
+      <span className="work-arg" data-tip={`${step.message.text} · ${label}`}>{call.sigil && <span className="work-sigil">{call.sigil}</span>}{label}</span>
+      <span className="work-meta" data-tip={percent === null ? undefined : `${percent}% of the slowest call`}>
+        {percent !== null && <span className="work-bar" aria-hidden="true"><span style={{ width: `${percent}%` }} /></span>}
         <Elapsed startedAt={step.message.at} endsAt={step.endsAt} />
       </span>
     </>
   );
   return (
     <Fold className="work-row" holds={[step.message.id]} messageId={step.message.id} summary={summary}>
-      {() => <Copyable text={step.message.detail ?? ""} label="Copy the output"><pre>{step.message.detail}</pre></Copyable>}
+      {() => step.message.detail
+        ? <Copyable text={step.message.detail} label="Copy the output"><pre>{step.message.detail}</pre></Copyable>
+        : <p className="work-empty">No output</p>}
     </Fold>
   );
 });
@@ -119,7 +130,7 @@ const ToolRun = memo(function ToolRun({ engine, steps }: { engine: AgentEngine; 
   const summary = (
     <>
       <ToolGlyph family={call.family} />
-      <span className="work-arg" title={`${newest.message.text} · ${call.argument || newest.message.text}`}>
+      <span className="work-arg" data-tip={`${newest.message.text} · ${call.argument || newest.message.text}`}>
         {call.sigil && <span className="work-sigil">{call.sigil}</span>}{call.argument || newest.message.text}
       </span>
       <span className="work-meta">

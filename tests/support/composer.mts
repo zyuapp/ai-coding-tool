@@ -23,7 +23,7 @@ export function composer(props: Partial<ConversationComposerProps>) {
     outbox: outbox(),
     onSteerQueued() {},
     onEditQueued() {}, onDropQueued() {},
-    onCancel() {},
+    onCancel() {}, onFilesAdd() {},
     ...props,
   });
 }

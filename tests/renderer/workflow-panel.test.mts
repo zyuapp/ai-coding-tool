@@ -44,13 +44,19 @@ test("the workflow panel groups agents by phase, draws their lanes, and opens on
 
   await act(async () => { view.container.querySelector('button[aria-label="Stop review-changes"]'); });
   await act(async () => { query<HTMLButtonElement>(view.container, ".workflow-stop").click(); });
+  assert.deepEqual(stopped, [], "Stop asks once more, as Stop all does");
+  await act(async () => { query<HTMLButtonElement>(view.container, ".workflow-stop-group > .danger").click(); });
   assert.deepEqual(stopped, ["wf-1"]);
+  assert.match(query(view.container, ".workflow-lane").dataset.tip ?? "", / · (queued|running|done|failed|stopped)/, "a lane names its timing on hover");
 
   await act(async () => { query<HTMLElement>(view.container, '.workflow-row[aria-label="Open verify:store.ts details"]').click(); });
   assert.match(view.container.textContent, /Adversarially verify this finding/);
   assert.match(view.container.textContent, /Previews are the first 400 characters/);
   await act(async () => { query<HTMLButtonElement>(view.container, ".session-back").click(); });
   assert.equal(view.container.querySelectorAll(".workflow-lane").length, 3, "the panel comes back to the whole workflow");
+  await act(async () => { query<HTMLElement>(view.container, '.workflow-row[aria-label="Open verify:store.ts details"]').click(); });
+  await act(async () => { query(view.container, ".session-back").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+  assert.equal(view.container.querySelectorAll(".workflow-lane").length, 3, "Esc goes back to the workflow");
   await view.unmount();
 });
 

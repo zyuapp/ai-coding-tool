@@ -107,3 +107,22 @@ test("the desktop timeline, the phone and the agent transcript name the same sen
   assert.equal(phone, agent);
   assert.equal(desktop, agent);
 });
+
+test("a message another thread sent links back to that thread, and one from elsewhere stays a label", async () => {
+  const React = (await import("react")).default;
+  const { act } = await import("react");
+  const { MessageLinkProvider } = await import("../../src/renderer/components/MarkdownMessage.tsx");
+  const selected: string[] = [];
+  const messages = transcript(
+    { kind: "user", text: "Please review", origin: { kind: "thread", threadId: "t2", title: "Fix login" } },
+    { kind: "assistant", text: "On it." },
+    { kind: "user", text: "From afar", origin: { kind: "thread", threadId: "t3", title: "Remote", computer: "Mini" } },
+  );
+  const view = await mount(React.createElement(MessageLinkProvider, { actions: { selectThread: (id: string) => { selected.push(id); } }, children: timelineView(messages, "idle") }));
+  const link = query<HTMLButtonElement>(view.container, "button.message-origin-link");
+  assert.equal(link.dataset.tip, "Open thread");
+  await act(async () => { link.click(); });
+  assert.deepEqual(selected, ["t2"]);
+  assert.equal(view.container.querySelectorAll("button.message-origin-link").length, 1, "a thread on another computer cannot be opened from here");
+  await view.unmount();
+});

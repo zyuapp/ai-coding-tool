@@ -1,5 +1,9 @@
 import { LuArrowDown as ArrowDown, LuRotateCw as Restart, LuSettings as Settings } from "react-icons/lu";
 import type { AppUpdate } from "../../domain/app-update";
+import { displayShortcut } from "../../domain/shortcuts";
+import { MAC } from "../platform";
+
+const SETTINGS_TIP = `Settings (${displayShortcut("Mod+,", MAC)})`;
 
 const RING_RADIUS = 6;
 const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
@@ -30,10 +34,11 @@ function SidebarUpdate({ update, onDownload, onInstall }: {
     case "idle":
       return null;
     case "available": {
-      const label = `Download version ${update.version}`;
+      const label = `Update to version ${update.version}`;
       return (
-        <button className="sidebar-update" type="button" aria-label={label} data-tip={label} onClick={onDownload}>
-          <ArrowDown size={16} aria-hidden="true" />
+        <button className="sidebar-update labelled" type="button" aria-label={label} data-tip={label} onClick={onDownload}>
+          <ArrowDown size={14} aria-hidden="true" />
+          <span>Update</span>
         </button>
       );
     }
@@ -56,8 +61,9 @@ function SidebarUpdate({ update, onDownload, onInstall }: {
     case "ready": {
       const label = `Restart to install version ${update.version}`;
       return (
-        <button className="sidebar-update ready" type="button" aria-label={label} data-tip={label} onClick={onInstall}>
+        <button className="sidebar-update labelled ready" type="button" aria-label={label} data-tip={label} onClick={onInstall}>
           <Restart size={14} aria-hidden="true" />
+          <span>Restart</span>
         </button>
       );
     }
@@ -73,7 +79,7 @@ export function SidebarFooter({ settingsOpen, onOpenSettings, update, onDownload
 }) {
   return (
     <div className="sidebar-footer">
-      <button className={`sidebar-settings ${settingsOpen ? "active" : ""}`} type="button" aria-pressed={settingsOpen} onClick={onOpenSettings}>
+      <button className={`sidebar-settings ${settingsOpen ? "active" : ""}`} type="button" aria-pressed={settingsOpen} data-tip={SETTINGS_TIP} onClick={onOpenSettings}>
         <Settings size={18} aria-hidden="true" />
         <span>Settings</span>
       </button>

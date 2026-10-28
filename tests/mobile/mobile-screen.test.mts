@@ -1,129 +1,13 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { test } from "vitest";
-import { JSDOM } from "jsdom";
-import React, { act } from "react";
-import { createRoot } from "react-dom/client";
-import { MOBILE_PROTOCOL_VERSION, type MobileClientMessage, type MobileView } from "../../src/contracts/mobile.ts";
-import { MOBILE_CREDENTIAL_KEY, MOBILE_FOLDED_KEY } from "../../src/mobile/client/storage.ts";
-import { App } from "../../src/mobile/App.tsx";
+import { test, vi } from "vitest";
+import { act } from "react";
+import { MOBILE_PROTOCOL_VERSION, type MobileView } from "../../src/contracts/mobile.ts";
+import { MOBILE_FOLDED_KEY } from "../../src/mobile/client/storage.ts";
 import { groupMark, settingsSummary } from "../../src/mobile/format.ts";
+import { defaultModelFor } from "../../src/domain/agent-engine.ts";
 import { ensureLanguage } from "../../src/renderer/diff/highlight.ts";
-
-const CODE = "K7M2P9QX";
-const BUILD = "b7f0c1d2e3a4b5c6";
-const TOKEN = "b".repeat(64);
-
-const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: `https://mac.ts.net/m#pair=${CODE}` });
-for (const name of ["window", "document", "localStorage", "history", "location", "navigator", "Element", "Node", "HTMLElement", "Event", "MouseEvent"]) {
-  Object.defineProperty(globalThis, name, { configurable: true, value: dom.window[name] });
-}
-
-Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { configurable: true, value: true });
-Object.defineProperty(dom.window.HTMLElement.prototype, "scrollTo", { configurable: true, writable: true, value: () => {} });
-Object.defineProperty(globalThis, "ResizeObserver", { configurable: true, value: class { observe() {} disconnect() {} } });
-/** No animation frames run here, so the sheet is asked to leave the way it does under reduced motion. */
-Object.defineProperty(dom.window, "matchMedia", { configurable: true, value: (query: string) => ({ matches: query.includes("reduced-motion"), addEventListener() {}, removeEventListener() {} }) });
-
-/** Every socket the page opens, so a test can answer as the Mac would. */
-const lines: FakeSocket[] = [];
-
-class FakeSocket {
-  static readonly OPEN = 1;
-  readyState = FakeSocket.OPEN;
-  sent: MobileClientMessage[] = [];
-  onopen: (() => void) | null = null;
-  onmessage: ((event: { data: string }) => void) | null = null;
-  onclose: (() => void) | null = null;
-  onerror: (() => void) | null = null;
-  constructor(readonly url: string) {
-    lines.push(this);
-  }
-  send(data: string) {
-    this.sent.push(JSON.parse(data));
-  }
-  close() {
-    this.readyState = 3;
-  }
-}
-
-Object.defineProperty(globalThis, "WebSocket", { configurable: true, value: FakeSocket });
-
-function view(): MobileView {
-  return {
-    groups: [{ projectId: "p", name: "App", threads: [{ id: "t1", title: "Fix the parser", projectId: "p", projectName: "App", attention: false, status: "awaiting-approval", lastActivityAt: Date.now(), unread: true }] }],
-    activity: { priority: [], running: [], threads: [], snoozed: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" },
-    thread: {
-      id: "t1",
-      title: "Fix the parser",
-      projectId: "p",
-      projectName: "App",
-      worktreeId: null,
-      messages: [
-        { kind: "user", text: "please fix", at: 1 },
-        { kind: "tool", text: "Bash", at: 2 },
-        { kind: "tool", text: "Bash", at: 3 },
-        { kind: "assistant", text: "## Done\n\n- one\n- two", at: 4 },
-      ],
-      omitted: 3,
-      streamingTail: null,
-      status: "awaiting-approval",
-      approval: { taskId: "t1", approvalId: "a1", runId: "r1", title: "Run a command", description: "rm -rf build", toolName: "Bash", detail: "{}" },
-      queued: [{ id: "q1", text: "then deploy" }],
-      settings: { engine: "claude", model: "opus", effort: "high", policy: "confirm" },
-      location: { kind: "local" },
-      worktrees: [],
-      canMove: true,
-      changes: null,
-      reviewable: true,
-      branchRange: { kind: "branches", base: "HEAD", compare: null },
-    },
-    draft: null,
-    error: null,
-  };
-}
-
-/** The command carried by the newest frame, which is what a tap is supposed to have produced. */
-function lastCommand(line: FakeSocket) {
-  const frame = line.sent.at(-1);
-  return frame?.kind === "command" ? frame.command : null;
-}
-
-/** React reads the value off the node, so a keystroke is the native setter plus the event it raises. */
-function typeInto(selector: string, text: string) {
-  const node = document.querySelector(selector);
-  assert.ok(node, `no ${selector}`);
-  const setter = Object.getOwnPropertyDescriptor((node instanceof dom.window.HTMLInputElement ? dom.window.HTMLInputElement : dom.window.HTMLTextAreaElement).prototype, "value")?.set;
-  assert.ok(setter);
-  act(() => {
-    setter.call(node, text);
-    node.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
-  });
-}
-
-/**
- * A fresh page on a stated footing: a pairing code in the address, or a device already paired, or
- * neither. The page reads both once on mount, so a test that leaves them to a neighbour is reading
- * that neighbour's leftovers.
- */
-function openPhone({ code = null, paired = false, folded = [] }: { code?: string | null; paired?: boolean; folded?: string[] } = {}): FakeSocket {
-  localStorage.clear();
-  if (paired) localStorage.setItem(MOBILE_CREDENTIAL_KEY, JSON.stringify({ token: TOKEN, deviceId: "d1", deviceName: "Phone" }));
-  if (folded.length) localStorage.setItem(MOBILE_FOLDED_KEY, JSON.stringify(folded));
-  window.history.replaceState(null, "", code ? `/m#pair=${code}` : "/m");
-  const host = document.createElement("div");
-  document.body.replaceChildren(host);
-  act(() => void createRoot(host).render(React.createElement(App)));
-  const line = lines.at(-1);
-  assert.ok(line, "the page opened no socket");
-  return line;
-}
-
-function click(selector: string) {
-  const node = document.querySelector(selector);
-  assert.ok(node, `no ${selector}`);
-  act(() => void node.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true })));
-}
+import { BUILD, CODE, TOKEN, click, clickButton, clickRow, dom, lastCommand, live, openPhone, queries, typeInto, view, type FakeSocket } from "../support/mobile-phone.mts";
 
 test("the phone page pairs from the address, opens a thread, and answers an approval", () => {
   const line = openPhone({ code: CODE });
@@ -169,9 +53,40 @@ test("the phone page pairs from the address, opens a thread, and answers an appr
   assert.ok(document.querySelector(".sheet")?.contains(document.activeElement), "focus moves into the sheet");
   assert.equal(document.querySelector(".sheet-group h3")?.textContent, "Mode");
   assert.deepEqual([...document.querySelectorAll(".sheet-subheading")].map((node) => node.textContent), ["Claude"], "a thread that exists offers only its own engine's models");
-  assert.equal(document.querySelector(".sheet-locked")?.textContent, "Start a new thread to use Codex");
+  assert.equal(document.querySelector(".sheet-new-engine")?.textContent, "New thread with Codex");
   click(".sheet-option");
   assert.deepEqual(lastCommand(line), { type: "task.set-policy", taskId: "t1", policy: "autonomous" });
+  assert.match(document.querySelector('.sheet-group[aria-label="Mode"] [aria-checked="true"]')?.textContent ?? "", /^Auto/, "the tap shows before the Mac echoes it");
+});
+
+test("a thread's settings start a thread on the other engine in the same place", () => {
+  const line = openPhone({ paired: true });
+  live(line);
+  click(".thread-row .thread-open");
+  click(".composer-settings");
+  click(".sheet-new-engine");
+  assert.deepEqual(line.sent.slice(-2).map((frame) => frame.kind === "command" ? frame.command : null), [
+    { type: "task.new", projectId: "p" },
+    { type: "task.set-model", engine: "codex", model: defaultModelFor("codex") },
+  ]);
+  assert.equal(document.querySelector(".bar-title h1")?.textContent, "New thread");
+});
+
+test("a tapped setting the Mac never echoes goes back to what it is", () => {
+  vi.useFakeTimers();
+  try {
+    const line = openPhone({ paired: true });
+    live(line);
+    click(".thread-row .thread-open");
+    click(".composer-settings");
+    click(".sheet-option");
+    const checked = () => document.querySelector('.sheet-group[aria-label="Mode"] [aria-checked="true"]')?.textContent ?? "";
+    assert.match(checked(), /^Auto/);
+    act(() => void vi.advanceTimersByTime(5000));
+    assert.match(checked(), /^Confirm/);
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 test("a coordinator open on the phone answers the approval a thread under it waits on, naming that thread", () => {
@@ -241,14 +156,18 @@ test("the phone selects an answer without sending until Send answer is pressed",
   click(".thread-row .thread-open");
   typeInto('.composer-card textarea', "Keep my message");
   click('input[value="BETA"]');
-  assert.equal((document.querySelector(".question-answer textarea") as HTMLTextAreaElement).value, "BETA");
+  assert.equal((document.querySelector('input[value="BETA"]') as HTMLInputElement).checked, true);
+  assert.equal((document.querySelector(".question-answer textarea") as HTMLTextAreaElement).value, "", "a picked option is not copied into the typed answer");
   assert.equal((document.querySelector(".composer-card textarea") as HTMLTextAreaElement).value, "Keep my message");
   assert.deepEqual(lastCommand(line), { type: "task.select", taskId: "t1" });
+  typeInto(".question-answer textarea", "BETA");
+  assert.equal((document.querySelector('input[value="BETA"]') as HTMLInputElement).checked, false, "a typed answer replaces the picked option, even one that reads the same");
+  assert.equal((document.querySelector(".question-answer textarea") as HTMLTextAreaElement).value, "BETA");
   typeInto(".question-answer textarea", "GAMMA custom");
   click(".question-answer button");
   assert.deepEqual(lastCommand(line), { type: "question.answer", taskId: "t1", runId: "r1", requestId: "request", questionId: "q", text: "GAMMA custom" });
   assert.equal((document.querySelector(".composer-card textarea") as HTMLTextAreaElement).value, "Keep my message");
-  click('button[aria-label="Queue message"]');
+  clickButton("Queue", ".composer");
   assert.deepEqual(lastCommand(line), { type: "task.send", taskId: "t1", text: "Keep my message" });
 });
 
@@ -275,6 +194,8 @@ test("the phone shows the thread the Mac actually has open, and says what went w
   assert.match(document.querySelector(".banner")?.textContent ?? "", /That worktree is busy/);
   assert.equal(document.querySelector(".banner [role=status]")?.textContent, "That worktree is busy.");
   assert.ok(document.querySelector('button[aria-label="Thread options"]'), "the thread's options stay in reach while a notice is up");
+  assert.equal(document.querySelector(".bar-title h1")?.textContent, "Rewrite the docs", "the title stays while a notice is up");
+  assert.equal(document.querySelector(".bar .banner"), null, "the notice sits under the bar, not in it");
 
   click(".banner");
   assert.equal(document.querySelector(".banner"), null, "a tap puts the sentence away");
@@ -382,23 +303,6 @@ test("a Mac with no threads still shows a group to start one in", () => {
   assert.deepEqual(lastCommand(line), { type: "task.new" }, "the plain way to start goes to whatever project the Mac has open");
 });
 
-/** Taps the menu row whose label starts with `text`, inside React's own turn. */
-function clickRow(text: string) {
-  const row = [...document.querySelectorAll<HTMLButtonElement>(".menu-row")].find((node) => node.textContent?.startsWith(text));
-  assert.ok(row, `no menu row ${text}`);
-  act(() => void row.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true })));
-}
-
-/** The frames the phone has asked the Mac to read, newest last. */
-function queries(line: FakeSocket) {
-  return line.sent.flatMap((frame) => frame.kind === "query" ? [frame] : []);
-}
-
-function live(line: FakeSocket, body: MobileView = view()) {
-  act(() => line.onopen?.());
-  act(() => line.onmessage?.({ data: JSON.stringify({ kind: "snapshot", sequence: 1, sessionId: "s9", build: BUILD, view: body }) }));
-}
-
 test("the list ranks by what wants the user when asked, and a Priority row can be filed away", () => {
   const line = openPhone({ paired: true });
   const ranked = view();
@@ -421,7 +325,7 @@ test("the list ranks by what wants the user when asked, and a Priority row can b
   assert.equal(document.querySelectorAll(".thread-dismiss").length, 1, "only a settled row is filed away; a blocked one is answered");
   click(".thread-dismiss");
   assert.deepEqual(lastCommand(line), { type: "task.dismiss", taskId: "t3" });
-  click('button[aria-label="Dismiss all"]');
+  clickButton("Dismiss all");
   assert.deepEqual(lastCommand(line), { type: "task.dismiss-all" });
   click(".thread-row .thread-open");
   assert.deepEqual(lastCommand(line), { type: "task.select", taskId: "t1" });
@@ -453,7 +357,7 @@ test("the activity list narrows to one project, remembers it, and dismisses only
   assert.equal(localStorage.getItem("aicodingtool.mobile.activity-project"), "q", "the choice survives a visit");
   assert.equal(document.querySelector(".list-filter")?.textContent, "Docs");
   assert.deepEqual(titles(), ["Write the guide"]);
-  click('button[aria-label="Dismiss all"]');
+  clickButton("Dismiss all");
   assert.deepEqual(lastCommand(line), { type: "task.dismiss-all", projectId: "q" });
   localStorage.removeItem("aicodingtool.mobile.activity-project");
   localStorage.removeItem("aicodingtool.mobile.list");
@@ -466,12 +370,12 @@ test("while a run is going a message may join the queue or cut into it, and a qu
   live(line, busy);
   click(".thread-row .thread-open");
   assert.ok(document.querySelector('button[aria-label="Stop this run"]'));
-  assert.equal(document.querySelector(".steer-button"), null, "nothing typed, nothing to steer");
+  assert.equal(document.querySelector(".composer-pill"), null, "nothing typed, nothing to steer");
   typeInto(".composer-card textarea", "also lint");
-  click(".steer-button");
+  clickButton("Steer", ".composer");
   assert.deepEqual(lastCommand(line), { type: "task.send", taskId: "t1", text: "also lint", steer: true });
   typeInto(".composer-card textarea", "and format");
-  click('button[aria-label="Queue message"]');
+  clickButton("Queue", ".composer");
   assert.deepEqual(lastCommand(line), { type: "task.send", taskId: "t1", text: "and format" });
   assert.equal(document.querySelectorAll(".queued").length, 2);
   assert.equal(document.querySelectorAll(".queued-steer").length, 1, "a message already on its way has no controls");
@@ -616,6 +520,7 @@ test("a run of several tool calls opens to list each one in order", () => {
   click(".thread-row .thread-open");
   const [several, single] = [...document.querySelectorAll(".work")];
   assert.equal(single?.querySelector("button"), null, "a single call has nothing more to show");
+  assert.equal(single?.querySelector(".work-count"), null, "nor a count that looks like one");
   const toggle = several?.querySelector<HTMLButtonElement>("button.work-row");
   assert.equal(toggle?.getAttribute("aria-expanded"), "false");
   assert.equal(several?.querySelector(".work-calls"), null);
@@ -658,6 +563,7 @@ test("the settings summary names its values to a reader and Tab stays inside the
 test("a phone with no notice still says how to pair", () => {
   openPhone();
   assert.match(document.querySelector(".gate p")?.textContent ?? "", /Scan the QR code on your computer/);
+  assert.equal(document.querySelector(".gate .gate-path")?.textContent, "Settings › Devices › Pair a phone");
 });
 
 test("the list's bar starts a thread wherever the Mac is, and a thread's bar has no such button", () => {

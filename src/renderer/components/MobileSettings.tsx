@@ -1,7 +1,7 @@
 import { LuCheck as Check, LuRefreshCw as RefreshCw, LuSmartphone as Smartphone } from "react-icons/lu";
 import { useEffect, useRef, useState } from "react";
 import { addressOrigin, type MobileAddress, type MobileConnectionState, type MobilePairingOffer, type MobileServerState, type MobileSessionView, type PairedDeviceView, type TailscaleState } from "../../domain/mobile";
-import { ConfirmAction, SettingGroup, SettingRow, SettingSwitch } from "./SettingRow";
+import { ConfirmAction, SettingGroup, SettingRow, SettingStatus, SettingSwitch } from "./SettingRow";
 import { settingControl } from "../../domain/settings-catalog";
 import { ComputerSettings, type ComputerSettingsProps } from "./ComputerSettings";
 import { SpinningIcon } from "./SpinningIcon";
@@ -62,8 +62,11 @@ function useQrCode(url: string | null): string | null {
   return image;
 }
 
-/** One line of the Tailscale checklist: done, still to do, or not yet worth asking about. */
-type Step = { id: string; done: boolean; name: string; hint: string | null };
+/** One line of the Tailscale checklist: done, still to do, or not yet worth asking about. `link` opens the page where the step is done. */
+type Step = { id: string; done: boolean; name: string; hint: string | null; link?: { label: string; href: string } };
+
+const TAILSCALE_DOWNLOAD = "https://tailscale.com/download";
+const TAILSCALE_DNS = "https://login.tailscale.com/admin/dns";
 
 function tailscaleSteps(tailscale: TailscaleState, on: boolean): Step[] {
   const installed = tailscale.status !== "missing" && tailscale.status !== "unknown";
@@ -75,6 +78,7 @@ function tailscaleSteps(tailscale: TailscaleState, on: boolean): Step[] {
       done: installed,
       name: "Installed on this computer",
       hint: tailscale.status === "unknown" ? "Looking for Tailscale…" : installed ? null : "Install Tailscale, then check again.",
+      link: { label: "Download Tailscale", href: TAILSCALE_DOWNLOAD },
     },
     {
       id: "signed-in",
@@ -87,6 +91,7 @@ function tailscaleSteps(tailscale: TailscaleState, on: boolean): Step[] {
       done: signedIn && tailscale.certs,
       name: "HTTPS on",
       hint: signedIn && !tailscale.certs ? "Turn on HTTPS in the Tailscale admin console, under DNS." : null,
+      link: { label: "Open admin console", href: TAILSCALE_DNS },
     },
     {
       id: "serving",
@@ -117,12 +122,13 @@ function TailscaleSection({ remote, checking, onRefresh }: { remote: MobileServe
       </div>
       {steps.map((step) => (
         <div className={`phone-check${step.done ? "" : " waiting"}${step.id === needed ? " needed" : ""}`} key={step.id} data-step={step.id}>
-          <span className={`setting-status ${step.done ? "granted" : ""}`}>{step.done && <Check size={14} />}</span>
+          <SettingStatus done={step.done} />
           <div>
             <strong>{step.name}</strong>
             {step.done && step.id === "serving" && address && <p><code>{addressOrigin(address)}</code></p>}
             {!step.done && step.hint && <p>{step.hint}</p>}
           </div>
+          {step.id === needed && step.link && <a className="phone-check-link" href={step.link.href} target="_blank" rel="noreferrer">{step.link.label}</a>}
         </div>
       ))}
       {remote.tailscale.error && <p className="settings-error" role="alert">{remote.tailscale.error}</p>}
@@ -222,7 +228,7 @@ function DeviceSection({ devices: paired, sessions, onRevokeDevice }: { devices:
           const connection = deviceConnection(device, sessions);
           return (
             <div className="setting-row" key={device.id} data-device={device.id}>
-              <span className={`setting-status ${connection === "live" ? "granted" : "blank"}`}>{connection === "live" ? <Check size={14} /> : <Smartphone size={14} />}</span>
+              <span className={`setting-status ${connection === "live" ? "granted" : "blank"}`} aria-hidden="true">{connection === "live" ? <Check size={14} /> : <Smartphone size={14} />}</span>
               <div>
                 <strong>{device.name}</strong>
                 <p className={`phone-device-state${connection === "live" ? " live" : ""}`}>{deviceLabel(device, connection)}</p>

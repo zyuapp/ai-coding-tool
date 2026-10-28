@@ -33,7 +33,7 @@ test("a thread that has an engine offers only its models, and says a new thread 
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
     engine: "codex", engineLabel: "Codex", engineLocked: true, model: "gpt-5.6-terra", effort: "high", runActive: false,
     onPromptChange() {}, onModeChange() {}, onModelChange: (engine, model) => chosen.push([engine, model]), onEffortChange() {}, fastMode: false, onFastModeChange() {},
-    queuedMessages: [], onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {},
+    queuedMessages: [], onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {}, onFilesAdd() {},
   }));
   await act(async () => {});
 
@@ -64,7 +64,7 @@ test("an engine that is signed out is greyed and inert, and its one sign-in butt
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
     engine: "claude", engineLabel: "Claude", engineLocked: false, engineAccess: { claude: { access: "ready" }, codex: { access: "signed-out" } }, model: "opus", effort: "high", runActive: false,
     onPromptChange() {}, onModeChange() {}, onModelChange: (_engine, model) => chosen.push(model), onEffortChange() {}, fastMode: false, onFastModeChange() {}, onEngineRead: () => { reads += 1; }, onSignIn: (engine) => signIns.push(engine),
-    queuedMessages: [], onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {},
+    queuedMessages: [], onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {}, onFilesAdd() {},
   }));
   await act(async () => {});
 
@@ -85,7 +85,7 @@ test("an engine that is signed out is greyed and inert, and its one sign-in butt
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
     engine: "claude", engineLabel: "Claude", engineLocked: false, engineAccess: { claude: { access: "ready" }, codex: { access: "missing", fix: "brew install --cask codex" } }, model: "opus", effort: "high", runActive: false,
     onPromptChange() {}, onModeChange() {}, onModelChange: (_engine, model) => chosen.push(model), onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSignIn: (engine) => signIns.push(engine),
-    queuedMessages: [], onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {},
+    queuedMessages: [], onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {}, onFilesAdd() {},
   }));
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   const missing = query(modelMenu, "[role=group][aria-label=Codex]");
@@ -104,7 +104,7 @@ test("an engine too old to speak to is inert, and its hint names both versions a
     engine: "claude", engineLabel: "Claude", engineLocked: false, model: "opus", effort: "high", runActive: false,
     engineAccess: { claude: { access: "ready" }, codex: { access: "outdated", version: "0.147.0", required: "0.150.1", fix: "brew update && brew upgrade --cask codex" } },
     onPromptChange() {}, onModeChange() {}, onModelChange: (_engine, model) => chosen.push(model), onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSignIn() {},
-    queuedMessages: [], onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {},
+    queuedMessages: [], onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {}, onFilesAdd() {},
   }));
   await act(async () => {});
 
@@ -125,7 +125,7 @@ test("a Claude behind the app offers only the models it knows, and says an upgra
     engine: "claude", engineLabel: "Claude", engineLocked: false, model: "opus", effort: "high", runActive: false,
     engineAccess: { claude: { access: "ready", version: "2.1.100", required: "2.1.250", fix: "claude update", models: ["opus", "sonnet"] }, codex: { access: "ready" } },
     onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSignIn() {},
-    queuedMessages: [], onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {},
+    queuedMessages: [], onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {}, onFilesAdd() {},
   }));
   await act(async () => {});
 
@@ -147,7 +147,7 @@ test("the hint about a broken engine opens the Engines page, which is where it i
     engineAccess: { claude: { access: "ready" }, codex: { access: "missing", fix: "brew install --cask codex" } },
     onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSignIn() {},
     onOpenEngineSettings: () => { opened += 1; },
-    queuedMessages: [], onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {},
+    queuedMessages: [], onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {}, onFilesAdd() {},
   }));
   await act(async () => {});
 
@@ -166,7 +166,7 @@ test("a thread that has its engine asks nothing when its model menu opens", asyn
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
     engine: "claude", engineLabel: "Claude", engineLocked: true, model: "opus", effort: "high", runActive: false,
     onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onEngineRead: () => { reads += 1; },
-    queuedMessages: [], onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {},
+    queuedMessages: [], onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {}, onFilesAdd() {},
   }));
   await act(async () => {});
   const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[1]);
@@ -246,7 +246,7 @@ test("the review picker mirrors Codex's four target choices", async () => {
   const targets: unknown[] = [];
   const view = await mount(React.createElement(ReviewPicker, {
     picker: { taskId: "task-1", step: "targets" },
-    workspaceId: "workspace-1",
+    workspaceId: "workspace-1", engineLabel: "Codex",
     returnFocus: { current: null },
     onStep: (step: string) => steps.push(step),
     onReview: (target: unknown) => targets.push(target),
@@ -323,7 +323,7 @@ test("clearing a goal targets its existing thread", async () => {
   commands.length = 0;
   await act(async () => { query<HTMLButtonElement>(view.container, ".goal-clear").click(); });
   assert.deepEqual(commands, []);
-  await act(async () => { query<HTMLButtonElement>(view.container, ".goal-clear.danger").click(); });
+  await act(async () => { query<HTMLButtonElement>(view.container, ".goal-confirm .danger").click(); });
 
   assert.deepEqual(commands, [{ type: "task.send", taskId: "task-goal", text: "/goal clear", steer: true }]);
   await view.unmount();
@@ -357,7 +357,7 @@ test("the model menu's effort strip offers what the model takes, and says so for
   const composer = (engine: "claude" | "codex", model: AgentModel, coordinating: boolean) => React.createElement(ConversationComposer, {
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm", engine, engineLabel: "Claude", model, effort: "high", coordinating,
     runActive: false, queuedMessages: [],
-    onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange: (_engine, effort) => changes.push(effort), fastMode: false, onFastModeChange() {}, onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {},
+    onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange: (_engine, effort) => changes.push(effort), fastMode: false, onFastModeChange() {}, onSteerQueued() {}, onEditQueued() {}, onDropQueued() {}, outbox: outbox(), onCancel() {}, onFilesAdd() {},
   });
   const efforts = async (engine: "claude" | "codex", model: AgentModel, coordinating = false) => {
     const view = await mount(composer(engine, model, coordinating));

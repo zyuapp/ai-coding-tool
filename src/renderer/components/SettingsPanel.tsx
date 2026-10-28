@@ -8,7 +8,7 @@ import { BrowserSettings } from "./BrowserSettings";
 import { NO_BROWSER_IMPORT_SETTINGS, type BrowserImportSettings } from "./BrowserImportSection";
 import { ComputerUseSettings } from "./ComputerUseSettings";
 import { EngineSettings, type EngineSettingsProps } from "./EngineSettings";
-import { GeneralSettings } from "./GeneralSettings";
+import { GeneralSettings, type AppUpdateSettings } from "./GeneralSettings";
 import type { AgentEngine, EngineReadiness } from "../../domain/agent-engine";
 import type { SettingsSection } from "../../domain/settings-section";
 import { MobileSettings } from "./MobileSettings";
@@ -96,6 +96,7 @@ export type SettingsPanelProps = {
   onSetBrowserTools: (enabled: boolean) => void;
   onSetNotifications: (enabled: boolean) => void;
   onCheckForUpdates: () => void;
+  appUpdate?: AppUpdateSettings;
   onOpenSourceLicenses: () => void;
   onRestoreThread: (threadId: string) => void;
   onClearArchive: () => void;
@@ -160,6 +161,7 @@ export function SettingsPanel({
   onSetBrowserTools,
   onSetNotifications,
   onCheckForUpdates,
+  appUpdate,
   onOpenSourceLicenses,
   onRestoreThread,
   onClearArchive,
@@ -213,7 +215,7 @@ export function SettingsPanel({
           <p>How AI Coding Tool answers from outside its own window.</p>
         </div>
 
-        <GeneralSettings cli={cli} onReadCli={onReadCli} onSetCliInstalled={onSetCliInstalled} chromeBrowser={chromeBrowser} onSetChromeBrowser={onSetChromeBrowser} notifications={notifications} onSetNotifications={onSetNotifications} onCheckForUpdates={onCheckForUpdates} onOpenSourceLicenses={onOpenSourceLicenses} />
+        <GeneralSettings cli={cli} onReadCli={onReadCli} onSetCliInstalled={onSetCliInstalled} chromeBrowser={chromeBrowser} onSetChromeBrowser={onSetChromeBrowser} notifications={notifications} onSetNotifications={onSetNotifications} onCheckForUpdates={onCheckForUpdates} update={appUpdate} onOpenSourceLicenses={onOpenSourceLicenses} />
       </main>
       )}
 

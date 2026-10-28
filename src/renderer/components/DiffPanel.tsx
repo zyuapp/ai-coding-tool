@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type KeyboardEvent, type PointerEvent, type RefObject, type SetStateAction } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { LuArrowDown as ArrowDown } from "react-icons/lu";
 import type { DiffSummaryResult } from "../../contracts/ipc";
 import type { DiffState, FindView } from "../../application/workspace-state";
 import type { FindResults } from "../../domain/find";
@@ -112,12 +113,32 @@ function ReviewProgress({ files, viewed, additions, deletions, onNext }: {
   return (
     <div className="diff-progress">
       {done < files.length
-        ? <button type="button" data-tip="Next unviewed file" onClick={onNext}>{label}</button>
+        ? <button type="button" aria-keyshortcuts="N" data-tip="Next unviewed file (N)" onClick={onNext}>{label}<ArrowDown size={12} aria-hidden="true" /></button>
         : <span>{label}</span>}
       <span className="change-counts"><strong>+{additions}</strong><em>−{deletions}</em></span>
       <span className="diff-progress-meter" aria-hidden="true"><span style={{ width: `${(done / files.length) * 100}%` }} /></span>
     </div>
   );
+}
+
+function typing(target: EventTarget) {
+  return target instanceof HTMLElement && (target.isContentEditable || target.matches("input:not([type=checkbox]), textarea, select"));
+}
+
+function gutterOf(target: EventTarget | null) {
+  const gutter = target instanceof Element ? target.closest<HTMLElement>(".diff-gutter") : null;
+  return gutter?.dataset.key ? gutter : null;
+}
+
+/** The file row or gutter above or below, keeping to the column a two-column gutter is in. */
+function reviewStep(root: HTMLElement, from: HTMLElement, step: 1 | -1) {
+  const cell = from.closest(".diff-split-cell");
+  const column = cell?.matches(":first-child") ? ":first-child" : ":last-child";
+  const stops = [...root.querySelectorAll<HTMLElement>(".diff-file-open, .diff-gutter")].filter((stop) => {
+    const own = stop.closest(".diff-split-cell");
+    return !cell || !own || own.matches(column);
+  });
+  return stops[stops.indexOf(from) + step] ?? null;
 }
 
 /**
@@ -136,6 +157,79 @@ function useRowHandlers(
     onOpenFile: useCallback((path: string) => handlers.current.onOpenFile(path), []),
     onSetViewed: useCallback((path: string, tick: boolean) => handlers.current.onSetViewed(path, tick), []),
   };
+}
+
+/** Picks diff lines by gutter click, drag, or Shift+Arrow, and walks file rows and gutters from the keyboard. */
+function useLinePicking({ editing, setNote, setEditing, setSelection, noteRef }: {
+  editing: string | null;
+  setNote: (note: string) => void;
+  setEditing: (id: string | null) => void;
+  setSelection: Dispatch<SetStateAction<Selection | null>>;
+  noteRef: RefObject<HTMLTextAreaElement | null>;
+}) {
+  /** A drag down the gutter is still picking lines, so the note waits below until it lets go. */
+  const [dragging, setDragging] = useState(false);
+  const dragPath = useRef<string | null>(null);
+  /** Lines picked from the keyboard keep the keyboard in the gutter, so the run can keep growing. */
+  const keepGutterFocus = useRef(false);
+
+  const selectByKey = useCallback((path: string, key: string, extend: boolean, fromKeys = false) => {
+    keepGutterFocus.current = fromKeys;
+    if (editing) setNote("");
+    setEditing(null);
+    setSelection((current) => {
+      if (!extend || current?.path !== path) return { path, anchor: key, head: key };
+      return current.head === key ? current : { ...current, head: key };
+    });
+  }, [editing]);
+
+  const startDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || event.pointerType !== "mouse") return;
+    const gutter = gutterOf(event.target);
+    if (!gutter) return;
+    event.preventDefault();
+    selectByKey(gutter.dataset.path!, gutter.dataset.key!, event.shiftKey);
+    if (event.shiftKey) return;
+    dragPath.current = gutter.dataset.path!;
+    setDragging(true);
+    const end = () => {
+      dragPath.current = null;
+      setDragging(false);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+    };
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+  };
+  const dragOver = (event: PointerEvent<HTMLDivElement>) => {
+    if (!dragPath.current) return;
+    const line = event.target instanceof Element ? event.target.closest(".diff-line, .diff-split-cell") : null;
+    const gutter = line?.querySelector<HTMLElement>(".diff-gutter");
+    if (gutter?.dataset.key && gutter.dataset.path === dragPath.current) selectByKey(dragPath.current, gutter.dataset.key, true);
+  };
+
+  /** Up and Down walk the file rows and gutters; with Shift they pick lines; Enter on a picked line goes to its note. */
+  const reviewKeys = (event: KeyboardEvent<HTMLDivElement>) => {
+    const at = event.target as HTMLElement;
+    if (event.key === "Enter" && at.matches(".diff-gutter") && at.closest(".selected")) {
+      event.preventDefault();
+      keepGutterFocus.current = false;
+      noteRef.current?.focus();
+      return;
+    }
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    if (!at.matches(".diff-gutter, .diff-file-open")) return;
+    const next = reviewStep(event.currentTarget, at, event.key === "ArrowDown" ? 1 : -1);
+    if (!next) return;
+    event.preventDefault();
+    if (event.shiftKey && at.matches(".diff-gutter") && next.matches(".diff-gutter") && next.dataset.path === at.dataset.path) {
+      if (!at.closest(".selected")) selectByKey(at.dataset.path!, at.dataset.key!, false, true);
+      selectByKey(next.dataset.path!, next.dataset.key!, true, true);
+    }
+    next.focus();
+    next.scrollIntoView({ block: "nearest" });
+  };
+  return { selectByKey, dragging, keepGutterFocus, startDrag, dragOver, reviewKeys };
 }
 
 export function DiffPanel({
@@ -178,7 +272,8 @@ export function DiffPanel({
   const diffComments = useMemo(() => anchoredDiffComments(annotations, rangeKey(diff.range), drawn), [annotations, diff.range, drawn]);
   const commentRows = useMemo(() => indexDiffComments(diffComments), [diffComments]);
 
-  const rows = usePanelRows({ files, collapsed, drawn, settling, notes, split, span, selectionPath: selection?.path, noteFor });
+  const { selectByKey, dragging, keepGutterFocus, startDrag, dragOver, reviewKeys } = useLinePicking({ editing, setNote, setEditing, setSelection, noteRef });
+  const rows = usePanelRows({ files, collapsed, drawn, settling, notes, split, span: dragging ? null : span, selectionPath: selection?.path, noteFor });
 
   const windowed = rows.length > VIRTUALIZE_ABOVE;
   const virtualizer = useVirtualizer({
@@ -205,18 +300,13 @@ export function DiffPanel({
 
   /** The caret goes to the note when a run is first picked, and stays wherever the user puts it after. */
   useEffect(() => {
-    if (selection) noteRef.current?.focus();
-  }, [selection?.path, selection?.anchor]);
+    if (selection && !dragging && !keepGutterFocus.current) noteRef.current?.focus();
+  }, [selection?.path, selection?.anchor, dragging]);
 
   /** A comparison that changes is a different set of lines, so a range picked in the last one is gone. */
   useEffect(() => { setSelection(null); setNote(""); setEditing(null); }, [diff.range, diff.mode, workspaceId]);
   const quote = selection && span?.rows.length ? commentQuote(selection.path, span.rows, selectionSide(span.rows)) : null;
 
-  const selectByKey = useCallback((path: string, key: string, extend: boolean) => {
-    if (editing) setNote("");
-    setEditing(null);
-    setSelection((current) => extend && current?.path === path ? { ...current, head: key } : { path, anchor: key, head: key });
-  }, [editing]);
   const selected = useMemo(() => selection && span ? { path: selection.path, from: span.from, to: span.to } : null, [selection, span]);
   const clear = () => { setSelection(null); setNote(""); setEditing(null); };
 
@@ -272,7 +362,11 @@ export function DiffPanel({
   const notice = panelNote({ result: diff.result, loading: diff.loading, workspaceId, settling, overBudget, ignoreWhitespace: diff.ignoreWhitespace });
 
   return (
-    <section className="diff-panel" aria-label="Changes" ref={panelRef}>
+    <section className="diff-panel" aria-label="Changes" ref={panelRef} onKeyDown={(event) => {
+      if (event.key !== "n" || event.metaKey || event.ctrlKey || event.altKey || typing(event.target)) return;
+      event.preventDefault();
+      nextUnviewed();
+    }}>
       <DiffToolbar
         {...comparisonActions}
         diff={diff}
@@ -291,7 +385,7 @@ export function DiffPanel({
       {notice && <PanelNotice notice={notice} failed={failed(diff.result) && !diff.loading} onRetry={onRefresh} />}
 
       <div className="diff-scroll">
-        <div className="diff-files" ref={scrollRef} onScroll={syncPinned} aria-label="Changed files">
+        <div className="diff-files" ref={scrollRef} onScroll={syncPinned} onPointerDown={startDrag} onPointerOver={dragOver} onKeyDown={reviewKeys} aria-label="Changed files">
           {!windowed && rows.map((row) => <div key={row.key}>{drawRow(row)}</div>)}
           {windowed && (
             <div className="diff-window" style={{ height: virtualizer.getTotalSize() }}>

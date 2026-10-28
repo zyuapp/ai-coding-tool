@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { createPortal } from "react-dom";
-import { LuArrowRight as ArrowRight, LuChevronDown as ChevronDown, LuColumns2 as Columns2, LuSpace as Space, LuRefreshCw as RefreshCw, LuRows3 as Rows3 } from "react-icons/lu";
+import { LuArrowRight as ArrowRight, LuChevronDown as ChevronDown, LuColumns2 as Columns2, LuPilcrow as Pilcrow, LuRefreshCw as RefreshCw, LuRows3 as Rows3 } from "react-icons/lu";
 import { DIFF_MODE_MENU, type DiffState } from "../../application/workspace-diff";
 import { DEFAULT_BRANCH_RANGE, type DiffMode, type DiffRange } from "../../domain/diff";
 import { BranchMenu, useAnchoredStyle, useBranches } from "./BranchMenu";
@@ -12,9 +12,9 @@ const BASE_MENU = "diff:base";
 const COMPARE_MENU = "diff:compare";
 const HEAD_SIDE = { label: "HEAD", value: "HEAD" };
 const WORKING_SIDE = { label: "Working tree", value: "" };
-const MODES: Array<{ value: DiffMode; label: string }> = [
-  { value: "uncommitted", label: "Uncommitted" },
-  { value: "branch", label: "Branch" },
+const MODES: Array<{ value: DiffMode; label: string; description: string }> = [
+  { value: "uncommitted", label: "Uncommitted", description: "What changed since the last commit" },
+  { value: "branch", label: "Branch", description: "What one branch adds over another" },
 ];
 
 export type DiffPickerActions = {
@@ -44,7 +44,7 @@ function SidePicker({ id, label, value, extra, currentBranch, workspaceId, openM
   const menu = useRef<HTMLDivElement>(null);
   useDismissibleLayer(open, [row, menu], () => onSetOpenMenu(null), trigger);
   const branches = useBranches(workspaceId, open);
-  const shown = value === "" ? currentBranch || "Working tree" : value === extra.value ? extra.label : value;
+  const shown = value === "" ? currentBranch ? `${currentBranch} · working` : "Working tree" : value === extra.value ? extra.label : value;
   const description = value === "" ? `Working tree${currentBranch ? ` on ${currentBranch}` : ""}` : shown;
 
   return (
@@ -61,14 +61,14 @@ function ModePicker({ mode, disabled, openMenu, onSetOpenMenu, onSetMode }: Menu
   const open = openMenu === DIFF_MODE_MENU;
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
-  const anchored = useAnchoredStyle(open ? trigger.current : null, 170);
+  const anchored = useAnchoredStyle(open ? trigger.current : null, 230);
   useDismissibleLayer(open, [trigger, menu], () => onSetOpenMenu(null), trigger);
   const label = mode === "commit" ? "Commit" : MODES.find((item) => item.value === mode)!.label;
   return <>
     <button ref={trigger} className="diff-mode-trigger" type="button" aria-label={`Review mode: ${label}`} aria-haspopup="menu" aria-expanded={open} disabled={disabled} onClick={() => onSetOpenMenu(open ? null : DIFF_MODE_MENU)}>{label}<ChevronDown size={12} /></button>
     {open && createPortal(
       <PickerPopover ref={menu} className="branch-menu anchored diff-mode-menu" role="menu" aria-label="Review mode" style={anchored ?? undefined}>
-        {MODES.map((item) => <PickerOption key={item.value} role="menuitemradio" selected={mode === item.value} autoFocus={mode === item.value || (mode === "commit" && item.value === "uncommitted")} onClick={() => onSetMode(item.value)}>{item.label}</PickerOption>)}
+        {MODES.map((item) => <PickerOption key={item.value} role="menuitemradio" selected={mode === item.value} autoFocus={mode === item.value || (mode === "commit" && item.value === "uncommitted")} onClick={() => onSetMode(item.value)}>{item.label}<small>{item.description}</small></PickerOption>)}
       </PickerPopover>, document.body,
     )}
   </>;
@@ -95,7 +95,7 @@ export function DiffToolbar({ diff, split, roomForTwo, currentBranch, workspaceI
         <ModePicker mode={diff.mode} disabled={!workspaceId} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} onSetMode={onSetMode} />
         <div className="diff-toolbar-actions">
           <button type="button" aria-label={split ? "Show one column" : "Show two columns"} aria-pressed={split} className={split ? "on" : ""} disabled={!roomForTwo} data-tip={roomForTwo ? (split ? "One column" : "Two columns") : "Too narrow"} onClick={onToggleSplit}>{split ? <Rows3 size={16} /> : <Columns2 size={16} />}</button>
-          <button type="button" aria-label={diff.ignoreWhitespace ? "Show whitespace changes" : "Hide whitespace changes"} aria-pressed={diff.ignoreWhitespace} className={diff.ignoreWhitespace ? "on" : ""} data-tip={diff.ignoreWhitespace ? "Show spacing changes" : "Hide spacing changes"} onClick={onToggleWhitespace}><Space size={16} /></button>
+          <button type="button" aria-label={diff.ignoreWhitespace ? "Show whitespace changes" : "Hide whitespace changes"} aria-pressed={diff.ignoreWhitespace} className={diff.ignoreWhitespace ? "on" : ""} data-tip={diff.ignoreWhitespace ? "Show spacing changes" : "Hide spacing changes"} onClick={onToggleWhitespace}><Pilcrow size={16} /></button>
           <button type="button" aria-label="Read the comparison again" data-tip="Read again" onClick={onRefresh}><SpinningIcon icon={RefreshCw} spinning={diff.loading} size={16} /></button>
         </div>
       </div>

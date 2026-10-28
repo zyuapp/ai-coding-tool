@@ -49,7 +49,7 @@ export function BrowserSettings({
           ? <p className="settings-empty">The agent has to ask before it opens any site.</p>
           : allowedOrigins.map((origin) => (
             <div className="setting-row" key={origin}>
-              <span className="setting-status granted"><Check size={14} /></span>
+              <span className="setting-status granted" aria-hidden="true"><Check size={14} /></span>
               <div>
                 <strong>{origin}</strong>
                 <p>The agent can open this site without asking.</p>

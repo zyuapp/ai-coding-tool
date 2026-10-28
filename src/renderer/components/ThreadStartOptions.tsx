@@ -153,7 +153,7 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
           </div>
         ) : (<>
         <div className={`thread-start-field ${branchesOpen ? "open" : ""}`} ref={branchRef}>
-          <button ref={branchTrigger} type="button" aria-label="Starting branch" aria-haspopup="listbox" aria-expanded={branchesOpen} disabled={!workspaceId} onClick={() => setBranchesOpen(!branchesOpen)}>
+          <button ref={branchTrigger} type="button" aria-label="Starting branch" aria-haspopup="listbox" aria-expanded={branchesOpen} disabled={!workspaceId} data-tip={workspaceId ? undefined : "Starts from the project's current branch"} onClick={() => setBranchesOpen(!branchesOpen)}>
             <GitBranch size={14} />
             <span>{selected ?? (branches?.status === "error" ? "No branches" : "Current branch")}</span>
             {branch?.create && <small>new</small>}

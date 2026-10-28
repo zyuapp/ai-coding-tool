@@ -1,36 +1,38 @@
-import { LuCheck as Check, LuCopy as Copy } from "react-icons/lu";
+import { LuCheck as Check, LuCopy as Copy, LuX as X } from "react-icons/lu";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { copyText } from "../clipboard";
 
-/** How long the tick stands in for the icon after a copy. */
+/** How long the result stands in for the icon after a copy. */
 const CONFIRM_MS = 1400;
 
 /**
- * Copies text on click, then shows a tick. The button carries no text of its own: a search walks the
- * text nodes of a message, and a word here would be counted as part of the answer.
+ * Copies text on click, then shows a tick, or a cross when the clipboard refused it. The button
+ * carries no text of its own: a search walks the text nodes of a message, and a word here would be
+ * counted as part of the answer.
  */
 export function CopyButton({ text, label }: { text: string; label: string }) {
-  const [copied, setCopied] = useState(false);
+  const [result, setResult] = useState<"copied" | "failed" | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (timer.current !== null) clearTimeout(timer.current); }, []);
+  const Icon = result === "copied" ? Check : result === "failed" ? X : Copy;
   return (
     <button
       type="button"
-      className={copied ? "copy-affordance copied" : "copy-affordance"}
-      aria-label={label}
-      title={label}
+      className={result ? `copy-affordance ${result}` : "copy-affordance"}
+      aria-label={result === "failed" ? "Copy failed" : label}
+      data-tip={result === "failed" ? "Copy failed" : result === "copied" ? "Copied" : label}
       onClick={(event) => {
         event.preventDefault();
         event.stopPropagation();
         void (async () => {
-          if (!await copyText(text)) return;
-          setCopied(true);
+          const copied = await copyText(text);
+          setResult(copied ? "copied" : "failed");
           if (timer.current !== null) clearTimeout(timer.current);
-          timer.current = setTimeout(() => setCopied(false), CONFIRM_MS);
+          timer.current = setTimeout(() => setResult(null), CONFIRM_MS);
         })();
       }}
     >
-      {copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
+      <Icon size={14} aria-hidden="true" />
     </button>
   );
 }

@@ -12,7 +12,7 @@ function Choice({ icon, label, detail, current, disabled, onSelect }: {
   onSelect?: () => void;
 }) {
   return (
-    <button type="button" role="radio" aria-checked={current ?? false} className="sheet-option location-option" disabled={disabled || current} onClick={onSelect}>
+    <button type="button" role="radio" aria-checked={current ?? false} className="sheet-option location-option" disabled={disabled && !current} onClick={current ? undefined : onSelect}>
       <span className="menu-glyph" aria-hidden="true">{icon}</span>
       <span className="menu-copy"><strong>{label}</strong>{detail && <small>{detail}</small>}</span>
       <span className="sheet-check" aria-hidden="true">{current && <Check size={16} />}</span>

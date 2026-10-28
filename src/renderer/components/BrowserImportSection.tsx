@@ -76,7 +76,7 @@ function SourceRow({ source, sources, settings }: { source: BrowserImportSource;
   return (
     <>
       <div className="setting-row browser-import-source">
-        <span className={`setting-status ${last ? "granted" : "blank"}`}>{last && <Check size={14} />}</span>
+        <span className={`setting-status ${last ? "granted" : "blank"}`} aria-hidden="true">{last && <Check size={14} />}</span>
         <div>
           <strong>{shown ? sourceName(source, sources) : source.browser}</strong>
           {last && <p>Last imported {last.sites.length === 1 ? last.sites[0] : `${last.sites.length} sites`}.</p>}

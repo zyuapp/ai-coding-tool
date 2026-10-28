@@ -58,6 +58,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
         dismissed: workspace.planUsage.dismissed,
         limitPaused: Boolean(workspace.limitPause),
         onDismiss: (warning) => void workspace.dispatch({ type: "usage.dismiss-warning", warning }),
+        onOpen: () => void workspace.actions.openSettingsSection("usage", "usage.plan-limits"),
       }}
       runActive={workspace.runActive}
       question={workspace.question}

@@ -78,7 +78,17 @@ test("a copy shows a tick, and the button holds no text a search could count", a
   const button = await copyFrom(view.container, "Copy the code");
 
   assert.ok(button.classList.contains("copied"), "the copy is confirmed on the button that was pressed");
+  assert.equal(button.dataset.tip, "Copied");
   assert.equal(view.container.textContent, before, "no button writes text into the answer");
+  await view.unmount();
+});
+
+test("a copy the clipboard refuses says so on the button", async () => {
+  Object.defineProperty(dom.window.navigator, "clipboard", { configurable: true, value: { writeText: async () => { throw new Error("denied"); } } });
+  const view = await mount(React.createElement(MarkdownMessage, { children: ANSWER }));
+  const button = await copyFrom(view.container, "Copy the code");
+  assert.ok(button.classList.contains("failed"));
+  assert.equal(button.dataset.tip, "Copy failed");
   await view.unmount();
 });
 
@@ -136,7 +146,7 @@ test("a message the user sent copies as written and keeps its time out of its te
   await view.unmount();
 });
 
-test("only the newest settled answer keeps its time and copy button in view", async () => {
+test("every answer keeps its time and copy button out of the way until hovered", async () => {
   const { timelineView, transcript } = await import("../support/timeline.mts");
   const messages = transcript(
     { kind: "user", text: "first" },
@@ -146,12 +156,9 @@ test("only the newest settled answer keeps its time and copy button in view", as
   );
   const settled = await mount(timelineView(messages, "idle"));
   const turns = [...settled.container.querySelectorAll(".message.turn")];
-  assert.deepEqual(turns.map((turn) => turn.classList.contains("latest")), [false, true]);
+  assert.equal(turns.length, 2);
+  assert.deepEqual(turns.map((turn) => turn.className), ["message assistant turn", "message assistant turn"], "the newest answer is drawn like any other");
   await settled.unmount();
-
-  const running = await mount(timelineView([...messages, { id: "m4", at: 4000, kind: "user", text: "third" }, { id: "m5", at: 5000, kind: "tool", text: "Read", detail: "a.ts" }], "running"));
-  assert.equal(running.container.querySelector(".message.turn.latest"), null, "a turn under way is newer than any answer");
-  await running.unmount();
 });
 
 test("a tool call's output copies as it was printed", async () => {

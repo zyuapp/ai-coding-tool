@@ -93,8 +93,8 @@ export function Composer({ running, waiting, returned, settings, question, onAns
             <ChevronDown className="composer-settings-chevron" size={14} strokeWidth={2} aria-hidden="true" />
           </button>
           {/** While the run is going a message may join the queue behind it or cut into it; the stop stays where it was. */}
-          {running && typed && onSteer && <button type="button" className="steer-button" onClick={() => send(onSteer)}>Steer</button>}
-          {running && typed && <button type="button" className="send-button queue" onClick={() => send(onSend)} aria-label="Queue message"><ArrowUp size={18} strokeWidth={2.4} /></button>}
+          {running && typed && onSteer && <button type="button" className="composer-pill" onClick={() => send(onSteer)}>Steer</button>}
+          {running && typed && <button type="button" className="composer-pill" onClick={() => send(onSend)}>Queue</button>}
           {running
             ? <button type="button" className="send-button running" onClick={onStop} aria-label="Stop this run"><span className="stop-glyph" /></button>
             : <button type="button" className="send-button" onClick={() => send(onSend)} disabled={!typed} aria-label="Send"><ArrowUp size={18} strokeWidth={2.4} /></button>}
