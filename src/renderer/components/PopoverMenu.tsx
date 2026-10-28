@@ -343,13 +343,16 @@ export function MenuList({ entries: supplied, onClose, className, style, menuRef
 
 /**
  * Draws a top-level list against the window instead of inside an ancestor that can crop it. The
- * list follows its row while the window or any scrolling container moves.
+ * list follows its row while the window or any scrolling container moves, and never grows past the
+ * room on the side it opens toward.
  */
-function AnchoredMenuList({ entries, onClose, className, anchor, menuRef }: Pick<MenuListProps, "entries" | "onClose" | "className"> & {
+export function AnchoredMenuList({ entries, onClose, className, anchor, menuRef, search, align = "end" }: Pick<MenuListProps, "entries" | "onClose" | "className" | "search"> & {
   anchor: HTMLElement;
   menuRef: RefObject<HTMLDivElement | null>;
+  /** Which of the row's edges the list lines up with. */
+  align?: "start" | "end";
 }) {
-  const [style, setStyle] = useState<CSSProperties | null>(null);
+  const [style, setStyle] = useState<{ left: number; top: number; room: number } | null>(null);
 
   useLayoutEffect(() => {
     const place = () => {
@@ -361,19 +364,25 @@ function AnchoredMenuList({ entries, onClose, className, anchor, menuRef }: Pick
       const top = below >= box.height || below >= above
         ? row.bottom + ANCHOR_GAP
         : row.top - box.height - ANCHOR_GAP;
-      setStyle({
-        left: Math.max(EDGE, Math.min(row.right - box.width, innerWidth - box.width - EDGE)),
+      const left = align === "start" ? row.left : row.right - box.width;
+      const next = {
+        left: Math.max(EDGE, Math.min(left, innerWidth - box.width - EDGE)),
         top: Math.max(EDGE, Math.min(top, innerHeight - box.height - EDGE)),
-      });
+        room: Math.max(below, above) - EDGE,
+      };
+      setStyle((current) => current && current.left === next.left && current.top === next.top && current.room === next.room ? current : next);
     };
     place();
+    const observer = new ResizeObserver(place);
+    if (menuRef.current) observer.observe(menuRef.current);
     window.addEventListener("resize", place);
     window.addEventListener("scroll", place, true);
     return () => {
+      observer.disconnect();
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
     };
-  }, [anchor, menuRef]);
+  }, [align, anchor, menuRef]);
 
   return createPortal(
     <MenuList
@@ -381,7 +390,12 @@ function AnchoredMenuList({ entries, onClose, className, anchor, menuRef }: Pick
       onClose={onClose}
       className={`anchored-menu-popover ${className ?? ""}`.trimEnd()}
       menuRef={menuRef}
-      style={{ left: style?.left ?? 0, top: style?.top ?? 0, ...(style ? {} : { visibility: "hidden" }) }}
+      search={search}
+      style={{
+        left: style?.left ?? 0,
+        top: style?.top ?? 0,
+        ...(style ? { "--menu-room": `${style.room}px` } as CSSProperties : { visibility: "hidden" }),
+      }}
     />,
     document.body,
   );

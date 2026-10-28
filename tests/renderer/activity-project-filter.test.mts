@@ -24,13 +24,14 @@ test("the Priority view's project menu is searched by project or computer name, 
     onSetActivityProject: (projectId) => picked.push(projectId),
   }));
   try {
-    const field = query<HTMLInputElement>(view.container, ".activity-filter-menu .menu-search input");
-    const labels = () => [...view.container.querySelectorAll<HTMLButtonElement>('.activity-filter-menu [role="menuitemcheckbox"]')].map((choice) => choice.textContent);
+    const field = query<HTMLInputElement>(document, ".activity-filter-menu .menu-search input");
+    const labels = () => [...document.querySelectorAll<HTMLButtonElement>('.activity-filter-menu [role="menuitemcheckbox"]')].map((choice) => choice.textContent);
     const type = async (text: string) => act(async () => {
       setValue.call(field, text);
       field.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
     });
     const press = async (target: Element, key: string) => act(async () => { target.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key, bubbles: true })); });
+    assert.equal(field.closest(".sidebar-scroll"), null, "the menu is drawn outside the scrolling list that would crop it");
     assert.equal(document.activeElement, field, "the caret is in the field as the menu opens");
     assert.equal(field.placeholder, "Search projects");
     assert.deepEqual(labels(), ["All projects", "web-app", "billing-api", "api-gateway", "ml-pipelinelinux-box"]);
@@ -42,7 +43,7 @@ test("the Priority view's project menu is searched by project or computer name, 
     assert.deepEqual(labels(), ["ml-pipelinelinux-box"], "the computer's name finds its projects");
     await type("nothing here");
     assert.deepEqual(labels(), []);
-    assert.equal(query(view.container, ".activity-filter-menu .menu-empty").textContent, "No matches");
+    assert.equal(query(document, ".activity-filter-menu .menu-empty").textContent, "No matches");
 
     await type("bill");
     await press(field, "ArrowDown");

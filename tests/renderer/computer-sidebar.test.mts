@@ -310,7 +310,7 @@ test("the Priority view narrows to one project from its own list, naming the com
     assert.equal(query(view.container, ".activity-filter").nextElementSibling?.querySelector(".section-toggle")?.textContent, "Priority", "it heads the Priority list");
     assert.deepEqual([trigger().textContent, trigger().classList.contains("narrowed")], ["All projects", false]);
     await view.render(props(null, "activity:project"));
-    const choices = [...view.container.querySelectorAll<HTMLButtonElement>('[role="menuitemcheckbox"]')];
+    const choices = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitemcheckbox"]')];
     assert.deepEqual(choices.map((choice) => choice.textContent), ["All projects", "web", "apilinux-box"]);
     assert.deepEqual(choices.map((choice) => choice.getAttribute("aria-checked")), ["true", "false", "false"]);
     await act(async () => { choices[2]!.click(); });

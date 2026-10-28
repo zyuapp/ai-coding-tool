@@ -502,7 +502,7 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--line-in
 .activity-filter-trigger:hover, .activity-filter-trigger[aria-expanded="true"] { background: var(--wash); color: var(--muted-strong); }
 .activity-filter-trigger.narrowed { border-color: var(--accent-line); background: var(--surface-active); color: var(--ink-dim); }
 .activity-filter-host { color: var(--quiet); }
-.activity-filter-menu { top: calc(100% + 4px); left: 0; right: auto; min-width: 220px; max-height: min(420px, calc(100vh - 160px)); overflow-y: auto; }
+.activity-filter-menu { min-width: 220px; max-height: min(420px, var(--menu-room, 420px)); overflow-y: auto; }
 /** Activity mode's three headings share one shape: label, fold, and at most one action. */
 .activity-heading { grid-template-columns: minmax(0, 1fr) var(--row-slot); }
 .activity-group + .activity-group .activity-heading { margin-top: 12px; }

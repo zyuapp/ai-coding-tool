@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState, type RefObject } from "react";
 import { LuCheckCheck as CheckCheck, LuChevronDown as ChevronDown, LuFolder as Folder } from "react-icons/lu";
 import { rankedMatches } from "../../domain/match-rank";
 import { projectName, type Project } from "../../domain/project";
@@ -8,7 +8,7 @@ import { canDismiss, dismissableRows } from "../../application/coordination";
 import type { ActivitySections } from "../../application/thread-order";
 import type { Thread } from "../../domain/thread";
 import { useDismissibleLayer } from "../focus";
-import { MenuList, type MenuEntry } from "./PopoverMenu";
+import { AnchoredMenuList, type MenuEntry } from "./PopoverMenu";
 import type { ActivityRowRenderer } from "./SidebarThreadRow";
 
 const PROJECT_MENU = "activity:project";
@@ -23,7 +23,12 @@ export type ProjectFilterProps = {
 };
 
 /** The choices, narrowed by what is typed above them. A query matches a project's name or the computer that holds it. */
-function ProjectMenu({ projects, projectHosts, selected, onSetProject, onClose }: Pick<ProjectFilterProps, "projects" | "projectHosts" | "onSetProject"> & { selected: Project | undefined; onClose: () => void }) {
+function ProjectMenu({ projects, projectHosts, selected, onSetProject, onClose, anchor, menuRef }: Pick<ProjectFilterProps, "projects" | "projectHosts" | "onSetProject"> & {
+  selected: Project | undefined;
+  onClose: () => void;
+  anchor: HTMLElement;
+  menuRef: RefObject<HTMLDivElement | null>;
+}) {
   const [query, setQuery] = useState("");
   const matches = rankedMatches(projects, query, (item) => [projectName(item), projectHosts.get(item.id)?.name]);
   const entries: MenuEntry[] = [
@@ -35,7 +40,7 @@ function ProjectMenu({ projects, projectHosts, selected, onSetProject, onClose }
       onSelect: () => onSetProject(item.id),
     })),
   ];
-  return <MenuList entries={entries} onClose={onClose} className="activity-filter-menu" search={{ value: query, label: "Search projects", onChange: setQuery }} />;
+  return <AnchoredMenuList entries={entries} onClose={onClose} className="activity-filter-menu" anchor={anchor} menuRef={menuRef} align="start" search={{ value: query, label: "Search projects", onChange: setQuery }} />;
 }
 
 /**
@@ -46,14 +51,21 @@ function ProjectFilter({ projects, projectHosts, project, onSetProject, openMenu
   const open = openMenu === PROJECT_MENU;
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
-  useDismissibleLayer(open, [root], () => onSetOpenMenu(null), trigger);
+  const menu = useRef<HTMLDivElement>(null);
+  /** The trigger as state, so a menu already open on the first render still finds its anchor. */
+  const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
+  const anchorRef = useCallback((element: HTMLButtonElement | null) => {
+    trigger.current = element;
+    setAnchor(element);
+  }, []);
+  useDismissibleLayer(open, [root, menu], () => onSetOpenMenu(null), trigger);
   const selected = projects.find((item) => item.id === project);
   return (
     <div ref={root} className="activity-filter" data-popover-menu onBlur={(event) => {
-      if (open && !event.currentTarget.contains(event.relatedTarget)) onSetOpenMenu(null);
+      if (open && !event.currentTarget.contains(event.relatedTarget) && !menu.current?.contains(event.relatedTarget)) onSetOpenMenu(null);
     }}>
       <button
-        ref={trigger}
+        ref={anchorRef}
         type="button"
         className={`activity-filter-trigger${selected ? " narrowed" : ""}`}
         aria-label={`Project: ${selected ? projectName(selected) : "All projects"}`}
@@ -71,7 +83,7 @@ function ProjectFilter({ projects, projectHosts, project, onSetProject, openMenu
         {selected && projectHosts.get(selected.id) && <span className="activity-filter-host">{projectHosts.get(selected.id)!.name}</span>}
         <ChevronDown size={14} aria-hidden="true" />
       </button>
-      {open && <ProjectMenu projects={projects} projectHosts={projectHosts} selected={selected} onSetProject={onSetProject} onClose={() => onSetOpenMenu(null)} />}
+      {open && anchor && <ProjectMenu projects={projects} projectHosts={projectHosts} selected={selected} onSetProject={onSetProject} onClose={() => onSetOpenMenu(null)} anchor={anchor} menuRef={menu} />}
     </div>
   );
 }
