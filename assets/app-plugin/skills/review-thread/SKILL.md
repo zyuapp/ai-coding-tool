@@ -37,16 +37,20 @@ Work under review
 - Base commit: <sha>
 - Diff: `git diff <sha>` plus untracked files, in this checkout
 - Request: <scope>
-- Out of scope by design: <exclusions>
+- Out of scope by design: <exclusions>. Do not ask for these to be built; still read them and check how the change interacts with them.
 - Files touched: <list>
 - Focus: <focus or "none">
 
 Review vectors, in order of weight
-1. Correctness: the change does what was requested, is secure, and works for every engine the app supports.
+1. Correctness: the change does what was requested, is secure, and works for every engine the app supports. Open the code that produces each value the change reads and the code that consumes each value it writes, inside the diff or not, and check that it still works. Check state saved before the change, each mode the code runs in, and each setting's default.
 2. Architecture: the change follows the rules in AGENTS.md.
 3. Performance: no avoidable cost on hot paths or large inputs.
 4. Quality: tests cover new and changed behaviour, comments follow the repository's comment rules.
 5. Scope control: nothing requested is missing, nothing beyond the request was added, no unrelated files are in the diff.
+
+Edges: for each comparison, version or range check, threshold, limit, regex, parser, validation, time window, timeout, or retry the change adds or alters, list the inputs at its boundaries and check each against base and head: equal to the limit, just past it, empty, zero, negative, the largest value, an unexpected format, a value with extra parts (prefixes, suffixes, metadata, separators), text that only looks like a match, a reversed or descending range. To settle an unclear boundary, you may write a small probe script under /tmp that copies or imports one function. Never run the change's tests or build, and never install anything.
+
+Do not stop at the first finding. List every one that qualifies, then check each against the code once more and drop any you cannot confirm. Each finding names the input or state that triggers it and the wrong result.
 
 Verdict rule: any finding under 1, 2, or 5 means changes requested. Findings under 3 or 4 mean changes requested only at high severity; otherwise list them as optional.
 
@@ -54,13 +58,13 @@ Reply in exactly this shape, and nothing before the first line:
 
 VERDICT: approved | changes-requested
 FINDINGS:
-- [blocking|optional] <vector> <file>:<line> — <one-sentence claim> — <how it fails>
+- [blocking|optional] <vector> <file>:<line> — <one-sentence claim> — <triggering input or state> gives <wrong result>
 (or "none")
 VERIFIED:
 - <finding from the previous round> — fixed | not fixed: <why>
 (only after the first round)
 
-Later rounds arrive as messages in this thread. In a later round, verify each finding you were told was fixed, then review only the delta since the SHA in that message. Raise a new finding on unchanged code only when it is blocking.
+Later rounds arrive as messages in this thread. In a later round, verify each finding you were told was fixed, then review the delta since the SHA in that message. Trace the delta's producers and consumers and run the edge checks on every boundary it touches, as in the first round. Raise a finding in unchanged code when the delta's change reaches it; raise other new findings on unchanged code only when they are blocking.
 ```
 
 Reply to the user with one line linking the reviewer as `[Review: <title>](aicodingtool://thread/<id>)`, then wait.
@@ -85,7 +89,7 @@ Round <n>.
 Fixed: <finding> — <what changed>
 Rejected: <finding> — <why>
 Delta to review: `git diff <previous sha>` and the working tree.
-Verify the fixes, review the delta, and reply in the same shape.
+Verify the fixes, review the delta and the code it reaches, and reply in the same shape.
 ```
 
 Return to step 3. Keep going until the reviewer answers `approved`; there is no round limit. Never end your turn with a `changes-requested` verdict on the table: fixing it and sending the next round is your work, not the user's to prompt. Stop early only when the user says to, or when every remaining finding is one you reject and the reviewer has kept it for two rounds running; then say so in step 5 and let the user decide.
