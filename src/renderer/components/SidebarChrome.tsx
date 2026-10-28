@@ -132,7 +132,7 @@ export function SidebarHeader({ mode, canGoBack, canGoForward, computerLinks, co
   );
 }
 
-const MIN_SIDEBAR_WIDTH = 220;
+const MIN_SIDEBAR_WIDTH = 270;
 /** How far one arrow press moves the edge, and one with Shift held. */
 const KEY_STEP = 10;
 const SHIFT_KEY_STEP = 50;

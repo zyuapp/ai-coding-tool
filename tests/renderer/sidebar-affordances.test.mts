@@ -266,7 +266,7 @@ test("the sidebar's edge says how to reset it, and Enter resets it as a double-c
     const edge = query<HTMLElement>(view.container, ".sidebar-resizer");
     const sidebar = edge.parentElement!;
     assert.equal(edge.dataset.tip, "Drag to resize · Double-click to reset");
-    assert.equal(edge.getAttribute("aria-valuemin"), "220");
+    assert.equal(edge.getAttribute("aria-valuemin"), "270");
     assert.equal(edge.getAttribute("aria-valuemax"), String(Math.round(dom.window.innerWidth / 2)));
     sidebar.style.setProperty("--sidebar-width", "400px");
     await act(async () => { edge.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
@@ -285,10 +285,10 @@ test("the sidebar's edge steps with the arrow keys, Home takes it to its narrowe
       return event.defaultPrevented;
     };
     assert.equal(await press("Home"), true);
-    assert.equal(sidebar.style.getPropertyValue("--sidebar-width"), "220px");
-    assert.equal(edge.getAttribute("aria-valuenow"), "220");
+    assert.equal(sidebar.style.getPropertyValue("--sidebar-width"), "270px");
+    assert.equal(edge.getAttribute("aria-valuenow"), "270");
     assert.equal(await press("Tab"), false, "other keys pass through");
-    assert.equal(sidebar.style.getPropertyValue("--sidebar-width"), "220px");
+    assert.equal(sidebar.style.getPropertyValue("--sidebar-width"), "270px");
   } finally { await view.unmount(); }
 });
 

@@ -317,7 +317,7 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
 .sidebar {
   position: relative;
   width: var(--sidebar-width, 280px);
-  min-width: 220px;
+  min-width: 270px;
   max-width: 50vw;
   overflow: visible;
   flex: 0 0 auto;
@@ -359,13 +359,15 @@ button[data-unsupported]:not(:focus-visible) { outline: 1px dashed var(--quiet);
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  /** The window's traffic lights own the left of this strip, so everything here stays to the right. */
-  justify-content: flex-end;
   gap: 12px;
+  /** The window's traffic lights own the left of this strip, so everything here stays clear of them, packed to the right. */
+  padding-left: max(0px, calc(var(--window-controls-inset) - 10px));
+  container: sidebar-strip / inline-size;
   -webkit-app-region: drag;
 }
 .thread-nav, .sidebar-modes { display: flex; align-items: center; gap: 1px; -webkit-app-region: no-drag; }
-.sidebar-modes { gap: 6px; }
+.sidebar-modes { min-width: 0; margin-left: auto; gap: 6px; }
+.thread-nav, .sidebar-mode-switch { flex: none; }
 .thread-nav-button {
   width: 28px;
   height: 28px;
@@ -5283,11 +5285,14 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 
 /* ── Computers ───────────────────────────────────────────────────────────── */
 
-.computer-switch { position: relative; }
+/** A narrow sidebar shortens the computer's name before the header runs into the traffic lights. */
+.computer-switch { position: relative; min-width: 0; display: flex; }
 /** Narrowed, the switch names the computer the lists are drawn from. */
-.computer-switch-trigger.active { width: auto; max-width: 120px; display: flex; gap: 5px; padding: 0 8px 0 6px; }
+.computer-switch-trigger.active { width: auto; min-width: 0; max-width: 120px; display: flex; gap: 5px; padding: 0 8px 0 6px; }
 .computer-switch-trigger > svg { flex: none; }
 .computer-switch-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-meta); font-weight: 500; }
+/** Too narrow to show a useful part of the name, the pressed switch stands alone and its tip names the computer. */
+@container sidebar-strip (max-width: 214px) { .computer-switch-name { display: none; } }
 .computer-switch-trigger[aria-expanded="true"] { background: var(--wash); color: var(--muted-strong); }
 .computer-switch-trigger.offline > svg { color: var(--warning); }
 /** A computer out of reach while every computer is listed: a warning dot on the switch's corner. */
