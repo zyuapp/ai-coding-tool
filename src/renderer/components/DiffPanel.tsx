@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type KeyboardEvent, type PointerEvent, type RefObject, type SetStateAction } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { LuArrowDown as ArrowDown } from "react-icons/lu";
+import { LuArrowDown as ArrowDown, LuMessageSquarePlus as MessageSquarePlus } from "react-icons/lu";
 import type { DiffSummaryResult } from "../../contracts/ipc";
 import type { DiffState, FindView } from "../../application/workspace-state";
 import type { FindResults } from "../../domain/find";
@@ -118,7 +118,7 @@ function ReviewProgress({ files, viewed, additions, deletions, hint, onNext }: {
       {done < files.length
         ? <button type="button" aria-keyshortcuts="N" data-tip="Next unviewed file (N)" onClick={onNext}>{label}<ArrowDown size={12} aria-hidden="true" /></button>
         : <span>{label}</span>}
-      {hint && <span className="diff-progress-hint" data-tip="Click a line number to comment" data-tip-overflow>Click a line number to comment</span>}
+      {hint && <span className="diff-progress-hint" data-tip="Click a line number to comment" data-tip-overflow><MessageSquarePlus size={12} aria-hidden="true" /><span>Click a line number to comment</span></span>}
       <span className="change-counts"><strong>+{additions}</strong><em>−{deletions}</em></span>
       <span className="diff-progress-meter" aria-hidden="true"><span style={{ width: `${(done / files.length) * 100}%` }} /></span>
     </div>

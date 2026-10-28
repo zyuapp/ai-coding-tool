@@ -91,14 +91,31 @@ function retryLabel(retry: RetryNotice) {
   return `${retry.message} Retrying${count}…`;
 }
 
+function StopRun({ taskId }: { taskId: string | undefined }) {
+  return taskId ? <CommandButton type="button" className="limit-action run-stop" command={{ type: "run.cancel", taskId }}>Stop</CommandButton> : null;
+}
+
 /** `since` is when the live turn's first step began; until it has one, the row counts from when it appeared. */
-function ThinkingRow({ since }: { since: number | undefined }) {
+function ThinkingRow({ since, taskId }: { since: number | undefined; taskId: string | undefined }) {
   const [shownAt] = useState(Date.now);
   return (
     <div className="thinking-row" role="status">
       <i aria-hidden="true" /><i aria-hidden="true" /><i aria-hidden="true" />
       <span className="thinking-label text-sweep">Working</span>
       <span className="thinking-elapsed" aria-hidden="true"><Elapsed startedAt={Math.min(since ?? shownAt, shownAt)} endsAt={null} /></span>
+      <StopRun taskId={taskId} />
+    </div>
+  );
+}
+
+/** A wait counts from when this row appeared, so a long one shows it is still moving. */
+function WaitingRow({ wait }: { wait: ThreadWait }) {
+  const [shownAt] = useState(Date.now);
+  return (
+    <div className="waiting-row" role="status" aria-live="polite">
+      <FolderSymlink aria-hidden="true" />
+      <span className="text-sweep">{WAIT_LABELS[wait]}</span>
+      <span className="thinking-elapsed" aria-hidden="true"><Elapsed startedAt={shownAt} endsAt={null} /></span>
     </div>
   );
 }
@@ -232,35 +249,30 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
         })}
       </div>
       <AnnotationMarkers markers={markers} annotations={annotations} noteReturn={annotate.noteReturn} onEdit={annotate.setNoting} />
-      {waitingOn && (
-        <div className="waiting-row" role="status" aria-live="polite">
-          <FolderSymlink aria-hidden="true" />
-          <span className="text-sweep">{WAIT_LABELS[waitingOn]}</span>
-        </div>
-      )}
+      {waitingOn && <WaitingRow key={waitingOn} wait={waitingOn} />}
       {status !== "running" && limitPause && currentThread && <LimitRow pause={limitPause} taskId={currentThread.id} />}
       {status === "running" && compacting && (
         <div className="compacting-row" role="status" aria-live="polite">
           <span className="text-sweep">Compacting messages…</span>
-          {currentThread && <CommandButton type="button" className="limit-action" command={{ type: "run.cancel", taskId: currentThread.id }}>Stop</CommandButton>}
+          <StopRun taskId={currentThread?.id} />
         </div>
       )}
       {status === "running" && !compacting && retrying && (
         <div className="retrying-row" role="status" aria-live="polite">
           <span className="text-sweep">{retryLabel(retrying)}</span>
-          {currentThread && <CommandButton type="button" className="limit-action" command={{ type: "run.cancel", taskId: currentThread.id }}>Stop</CommandButton>}
+          <StopRun taskId={currentThread?.id} />
         </div>
       )}
       {status === "running" && !compacting && !retrying && (
-        <ThinkingRow since={liveSince} />
+        <ThinkingRow since={liveSince} taskId={currentThread?.id} />
       )}
       {!atBottom && (
         <div className="scroll-to-end-dock">
         <button
           type="button"
           className={status === "running" ? "scroll-to-end live" : "scroll-to-end"}
-          aria-label="Scroll to the latest message"
-          data-tip="Latest message"
+          aria-label={status === "running" ? "Scroll to the new output" : "Scroll to the latest message"}
+          data-tip={status === "running" ? "New output below" : "Latest message"}
           onClick={scrollToFoot}
         >
           <ChevronDown size={18} aria-hidden="true" />

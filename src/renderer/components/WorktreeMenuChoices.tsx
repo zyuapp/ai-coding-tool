@@ -27,7 +27,7 @@ export function WorktreeMenuChoices({ view, list, dispatch }: { view: WorktreeMe
   }
 
   function choice(row: WorktreeMenuChoice, index: number) {
-    return <button type="button" role="menuitem" className="worktree-menu-choice" data-choice-index={index} disabled={row.disabled} aria-current={row.current ? "true" : undefined} data-tip={`${row.title} · ${row.detail}`} onClick={() => select(row.command)}>
+    return <button type="button" role="menuitem" className="worktree-menu-choice" data-choice-index={index} aria-disabled={row.disabled ? "true" : undefined} aria-current={row.current ? "true" : undefined} data-tip={`${row.title} · ${row.detail}`} onClick={row.disabled ? undefined : () => select(row.command)}>
       <span className="worktree-menu-copy"><span>{row.title}</span><small>{row.detail}</small></span>
       {row.current && <Check size={12} aria-hidden="true" />}
     </button>;
@@ -54,7 +54,6 @@ export function WorktreeMenuChoices({ view, list, dispatch }: { view: WorktreeMe
     else if (index === -1 && direction === -1) { search.current?.focus(); return; }
     else if (target === search.current && creating.current) { creating.current.focus(); return; }
     else index += direction;
-    while (rows[index]?.disabled) index += direction;
     if (index < 0) { (creating.current ?? search.current)?.focus(); return; }
     if (index >= rows.length) return;
     if (virtual) virtualizer.scrollToIndex(index, { align: "auto" });

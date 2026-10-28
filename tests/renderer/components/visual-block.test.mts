@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import React, { act } from "react";
-import { dom, mount } from "../../support/renderer-dom.mts";
+import { dom, mount, query } from "../../support/renderer-dom.mts";
 
 /** The theme is read from computed styles, which the shared test document does not expose globally. */
 Object.defineProperty(globalThis, "getComputedStyle", { configurable: true, value: dom.window.getComputedStyle.bind(dom.window) });
-const { VisualBlock, restyleVisuals } = await import("../../../src/renderer/components/VisualBlock.tsx");
+const { VisualBlock, restyleVisuals, visualTitle } = await import("../../../src/renderer/components/VisualBlock.tsx");
 
 function frameOf(container: HTMLElement) {
   const frame = container.querySelector("iframe");
@@ -72,5 +72,22 @@ test("a visual that failed can be drawn again in a fresh frame, and one that dre
   await act(async () => { retry!.click(); });
   assert.equal(view.container.querySelector(".visual-error"), null, "the error clears while it draws again");
   assert.notEqual(frameOf(view.container), first, "the visual is drawn into a new frame");
+  await view.unmount();
+});
+
+test("a visual's frame is named by its title or first heading", async () => {
+  assert.equal(visualTitle("<title>Load  by region</title><h1>Other</h1>"), "Load by region");
+  assert.equal(visualTitle('<div><h2 class="t">Retry <em>budget</em></h2></div>'), "Retry budget");
+  assert.equal(visualTitle("<div>No heading</div>"), "Visual");
+
+  const view = await mount(React.createElement(VisualBlock, { source: "<h1>Queue depth</h1>" }));
+  assert.equal(frameOf(view.container).title, "Queue depth");
+  await view.unmount();
+});
+
+test("a visual's error keeps its first line in view beside the retry", async () => {
+  const view = await mount(React.createElement(VisualBlock, { source: '<div id="viz-reason"></div>' }));
+  await say(frameOf(view.container).contentWindow, { type: "aicodingtool-visual:error", message: "chart is not defined\n  at line 3" });
+  assert.equal(query(view.container, ".visual-error .block-error-reason").textContent, "chart is not defined");
   await view.unmount();
 });

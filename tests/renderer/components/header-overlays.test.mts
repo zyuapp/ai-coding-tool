@@ -79,8 +79,16 @@ test("the thread strip's chips name what they show to assistive technology", asy
     assert.ok("tipOverflow" in query(view.container, 'button[aria-label="Branch feat/login"]').dataset, "the name only repeats as a tip once it is cut short");
     assert.equal(query(view.container, 'button[aria-label="Review changes, +12 −3"]').dataset.tip, "Uncommitted changes");
     assert.equal(view.container.querySelector("[title]:not([title=''])"), null, "every hint uses the app's tooltip");
-    assert.equal(query(view.container, 'button[aria-label="Open Automation panel"]').dataset.tip, "Automations");
+    const automations = query(view.container, 'button[data-tip="Automations"]');
+    assert.equal(automations.textContent, "Schedule", "an empty schedule reads as an action, not decoration");
+    assert.equal(automations.hasAttribute("aria-label"), false, "the visible words are its name");
   } finally { await view.unmount(); }
+  const scheduled = await mount(React.createElement(ThreadTabStrip, { tab: tab({ automation: { id: "a" } } as unknown as Partial<ThreadTabView>), branchMenuOpen: false, actions }));
+  try {
+    const chip = query(scheduled.container, 'button[data-tip="Automations"]');
+    assert.equal(chip.textContent, "Scheduled");
+    assert.ok(chip.classList.contains("scheduled"));
+  } finally { await scheduled.unmount(); }
 });
 
 test("a checkout Git could not read shows the failure with a retry, while reading stays quiet", async () => {

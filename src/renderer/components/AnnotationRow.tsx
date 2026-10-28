@@ -1,4 +1,4 @@
-import { LuPencil as Pencil, LuX as X } from "react-icons/lu";
+import { LuLocateFixed as LocateFixed, LuPencil as Pencil, LuX as X } from "react-icons/lu";
 import { useEffect, useId, useRef, useState } from "react";
 import type { Annotation } from "../../domain/conversation";
 
@@ -21,7 +21,7 @@ export function useClamped<T extends HTMLElement = HTMLSpanElement>(text: string
 }
 
 /** The card a pill raises on hover or keyboard focus: which annotation, what was quoted, what the user wrote. */
-function AnnotationCard({ annotation, index, id }: { annotation: Annotation; index: number; id: string }) {
+function AnnotationCard({ annotation, index, id, revealable }: { annotation: Annotation; index: number; id: string; revealable: boolean }) {
   const note = annotation.note.trim();
   const [quote, quoteClamped] = useClamped(annotation.quote);
   const [written, noteClamped] = useClamped(note);
@@ -31,6 +31,7 @@ function AnnotationCard({ annotation, index, id }: { annotation: Annotation; ind
       <span className="annotation-card-head">
         <span className="annotation-pill-number">{index + 1}</span>
         Annotation
+        {revealable && <span className="annotation-card-action"><LocateFixed size={12} aria-hidden="true" />Show in transcript</span>}
       </span>
       <span className="annotation-card-body">
         <span ref={quote} className="annotation-card-quote" data-clamped={quoteClamped || undefined}>{annotation.quote}</span>
@@ -72,6 +73,7 @@ function AnnotationPill({ annotation, index, onRemove }: {
 }) {
   const cardId = useId();
   const note = annotation.note.trim();
+  const revealable = annotation.anchor?.kind === "message";
   const face = (
     <>
       <span className="annotation-pill-number">{index + 1}</span>
@@ -83,7 +85,7 @@ function AnnotationPill({ annotation, index, onRemove }: {
 
   return (
     <span className="annotation-pill" role="listitem">
-      {annotation.anchor?.kind === "message" ? (
+      {revealable ? (
         <button type="button" className="annotation-pill-face" aria-label={`Show annotation ${index + 1}`} aria-describedby={cardId} onClick={() => revealPassage(annotation)}>{face}</button>
       ) : (
         <span className="annotation-pill-face" tabIndex={0} aria-label={`Annotation ${index + 1}`} aria-describedby={cardId}>{face}</span>
@@ -93,7 +95,7 @@ function AnnotationPill({ annotation, index, onRemove }: {
           <X size={12} />
         </button>
       )}
-      <AnnotationCard annotation={annotation} index={index} id={cardId} />
+      <AnnotationCard annotation={annotation} index={index} id={cardId} revealable={revealable} />
     </span>
   );
 }

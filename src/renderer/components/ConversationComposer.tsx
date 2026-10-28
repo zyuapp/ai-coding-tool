@@ -35,21 +35,16 @@ const NOTHING = () => {};
 
 export type { ComposerAction };
 
-/** The ask, then a second line naming what the prompt's own keys open: `/` always, `@` and ↑ when they have something to offer. */
-function composerPlaceholder({ surface, folder, disabled, engineLabel, mentions, recalls }: {
+function composerPlaceholder({ surface, folder, disabled, engineLabel }: {
   surface: ComposerSurface;
   folder: string;
   disabled: boolean;
   engineLabel: string;
-  mentions: boolean;
-  recalls: boolean;
 }) {
   if (surface === "side" && disabled) return "Main context required";
-  const ask = surface === "side" ? "Ask a side question"
-    : surface === "tab" ? "Reply to this thread"
-    : folder ? `Ask ${engineLabel} to work on anything` : `Ask ${engineLabel} anything`;
-  const keys = ["/ commands", ...(mentions ? ["@ threads"] : []), ...(recalls ? ["↑ last message"] : [])];
-  return `${ask}\n${keys.join("  ·  ")}`;
+  if (surface === "side") return "Ask a side question";
+  if (surface === "tab") return "Reply to this thread";
+  return folder ? `Ask ${engineLabel} to work on anything` : `Ask ${engineLabel} anything`;
 }
 
 const SEND_KEYS = displayShortcut("Enter", MAC);
@@ -62,7 +57,7 @@ function sendLabel(surface: ComposerSurface, runActive: boolean) {
 }
 
 function sendTip(runActive: boolean) {
-  return runActive ? "Stop" : `${shortcutTip("Send", "Enter")} · ${shortcutTip("New line", "Shift+Enter")}`;
+  return runActive ? shortcutTip("Stop", "Escape") : `${shortcutTip("Send", "Enter")} · ${shortcutTip("New line", "Shift+Enter")}`;
 }
 
 /** Sends what is written, or stops the run while one is going. `busy` is a send already on its way. */
@@ -129,19 +124,20 @@ function SendNotice({ error, note, onDismiss }: { error: string | null; note: st
   );
 }
 
-/** Stands where the text would go for a thread this build cannot open, beside Stop while it runs. */
-function UnopenableComposer({ reason, taskId, surface, runActive, onCancel }: {
+/** Stands where the text would go for a thread this build cannot open, beside Stop while it runs. Update shows only once there is one to install. */
+function UnopenableComposer({ reason, taskId, surface, runActive, updateAvailable, onCancel }: {
   reason: string;
   taskId: string | undefined;
   surface: ComposerSurface;
   runActive: boolean;
+  updateAvailable: boolean;
   onCancel: () => void;
 }) {
   return (
     <div className="composer unopenable">
       <p className="composer-unopenable" role="status">{reason}</p>
-      <CommandButton command={{ type: "app.update" }} className="composer-unopenable-update">Update</CommandButton>
-      {runActive && <CommandButton command={{ type: "run.cancel", taskId }} className="send-button running" onClick={onCancel} aria-label={sendLabel(surface, true)}>
+      {updateAvailable && <CommandButton command={{ type: "app.update" }} className="composer-unopenable-update">Update</CommandButton>}
+      {runActive && <CommandButton command={{ type: "run.cancel", taskId }} className="send-button running" onClick={onCancel} aria-label={sendLabel(surface, true)} data-tip={sendTip(true)}>
         <span className="stop-glyph" />
       </CommandButton>}
     </div>
@@ -200,6 +196,8 @@ export type ConversationComposerProps = {
    * still take, from what waits on the user to stopping a run, stays.
    */
   unopenable?: string | null;
+  /** Set once a newer build has been found, so an unopenable thread can offer it. */
+  updateAvailable?: boolean;
   /** How a thread that does not exist yet starts, drawn under the composer it is sent from. */
   startOptions?: ReactNode;
   queuedMessages: QueuedMessage[];
@@ -314,6 +312,7 @@ export function ConversationComposer({
   onGoalClear = NOTHING,
   decisions,
   unopenable = null,
+  updateAvailable = false,
   startOptions,
 }: ConversationComposerProps) {
   const caret = useComposerCaret(focusToken);
@@ -346,7 +345,7 @@ export function ConversationComposer({
       <QueuedRow messages={queuedMessages} surface={surface} canSteer={runActive} onEdit={onEditQueued} onSteer={onSteerQueued} onDrop={onDropQueued} />
       {planUsage && <PlanUsageWarning engine={engine} engineLabel={engineLabel} model={model} {...planUsage} />}
       {surface === "main" && startOptions}
-      {unopenable ? <UnopenableComposer reason={unopenable} taskId={taskId} surface={surface} runActive={runActive} onCancel={onCancel} /> : <div className="composer">
+      {unopenable ? <UnopenableComposer reason={unopenable} taskId={taskId} surface={surface} runActive={runActive} updateAvailable={updateAvailable} onCancel={onCancel} /> : <div className="composer">
         {reviewPicker && (
           <ReviewPicker
             picker={reviewPicker}
@@ -375,7 +374,7 @@ export function ConversationComposer({
           onBlur={(event) => composerBlur(event, menus, caret)}
           onKeyDown={(event) => composerKeyDown(event, { menus, runActive, sending: attachments.sending, stepRecall, submit })}
           disabled={disabled}
-          placeholder={composerPlaceholder({ surface, folder, disabled, engineLabel, mentions: threads.length > 0, recalls: history.length > 0 })}
+          placeholder={composerPlaceholder({ surface, folder, disabled, engineLabel })}
           aria-label={surface === "side" ? "Side chat prompt" : surface === "tab" ? "Thread prompt" : "Task prompt"}
           aria-autocomplete="list"
           aria-controls={reviewPicker ? "review-picker" : menuControls(menus)}
@@ -388,7 +387,7 @@ export function ConversationComposer({
           <AttachButton disabled={disabled} onFilesAdd={onFilesAdd} />
           <ComposerSettings taskId={taskId} mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} coordinating={coordinating} fastMode={fastMode} onFastModeChange={onFastModeChange} onModeChange={onModeChange} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
           <div className="composer-actions">
-            {steerHint && <span className="composer-hint" id={hintId}><span className="composer-hint-queue"><kbd>{SEND_KEYS}</kbd> queue</span><span><kbd>{STEER_KEYS}</kbd> steer</span></span>}
+            {steerHint && <span className="composer-hint" id={hintId}><span><kbd>{SEND_KEYS}</kbd> queue</span><span><kbd>{STEER_KEYS}</kbd> steer</span></span>}
             {planUsage && <PlanUsageMeter engineLabel={engineLabel} model={model} usage={planUsage.usage} {...(planUsage.onOpen ? { onOpen: planUsage.onOpen } : {})} />}
             {contextUsage && <ContextUsageMeter usage={contextUsage} {...(onCompact ? { onCompact } : {})} />}
             <SendButton taskId={taskId} surface={surface} runActive={runActive} command={sendCommand} disabled={disabled || nothingToSend} busy={!disabled && (attachments.sending || waiting)} onSend={() => void submit()} onCancel={onCancel} />

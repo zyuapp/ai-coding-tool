@@ -1,5 +1,7 @@
 import { useId, useState } from "react";
 import type { PendingQuestion } from "../../domain/agent-question";
+import { displayShortcut } from "../../domain/shortcuts";
+import { MAC } from "../platform";
 import "./question-prompt.css";
 
 export function QuestionPrompt({ question, answer, disabled = false, submitOnEnter = true, onAnswerChange, onSubmit }: {
@@ -55,7 +57,10 @@ export function QuestionPrompt({ question, answer, disabled = false, submitOnEnt
             }
           }}
         />
-        <button type="submit" disabled={unavailable || !answer.trim()}>{question.submitting ? "Sending…" : "Send answer"}</button>
+        <button type="submit" disabled={unavailable || !answer.trim()}>
+          {question.submitting ? "Sending…" : "Send answer"}
+          {submitOnEnter && !question.submitting && <kbd aria-hidden="true">{displayShortcut("Enter", MAC)}</kbd>}
+        </button>
       </div>
     </form>
   );

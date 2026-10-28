@@ -60,7 +60,7 @@ export function PasteRow({ pastes, onRemove }: {
     <div className="paste-row" role="list" aria-label="Pasted text">
       {pastes.map((paste, index) => (
         <span className="paste-pill" role="listitem" key={paste.id}>
-          <button type="button" className="paste-open" onClick={() => setReading(paste.id)} aria-label={`Read pasted text ${index + 1}`}>
+          <button type="button" className="paste-open" onClick={() => setReading(paste.id)} aria-label={`Read pasted text ${index + 1}`} data-tip="View">
             <ClipboardPaste size={12} aria-hidden="true" />
             <strong>Pasted text #{index + 1}</strong>
             <small>{pasteSummary(paste.text)}</small>

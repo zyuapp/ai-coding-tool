@@ -44,7 +44,7 @@ function ComputerSwitch({ links, name, filter, onSetFilter, openMenu, onSetOpenM
     label: choice.label,
     checked: filter === choice.filter,
     className: choice.away ? "offline" : undefined,
-    title: choice.away ? `${choice.label} is ${choice.away}` : undefined,
+    detail: choice.away && `${choice.away[0]!.toUpperCase()}${choice.away.slice(1)}`,
     onSelect: () => onSetFilter(choice.filter),
   }));
   return (
@@ -96,7 +96,7 @@ export function SidebarHeader({ mode, canGoBack, canGoForward, computerLinks, co
       <div className="sidebar-modes">
         {/** One switch, not a pair: pressed ranks the threads, released puts them back under their folders. */}
         <button
-          className={`thread-nav-button ${mode === "activity" ? "active" : ""}`}
+          className={`thread-nav-button sidebar-mode-switch${mode === "activity" ? " active" : ""}`}
           type="button"
           aria-label="Rank threads by activity"
           aria-pressed={mode === "activity"}
@@ -104,6 +104,7 @@ export function SidebarHeader({ mode, canGoBack, canGoForward, computerLinks, co
           onClick={() => onSetMode(mode === "activity" ? "projects" : "activity")}
         >
           <RankIcon size={16} aria-hidden="true" />
+          {mode === "activity" && <span className="sidebar-mode-name" aria-hidden="true">Activity</span>}
         </button>
         {computerLinks.length > 0 && <ComputerSwitch links={computerLinks} name={computerName} filter={computerFilter} onSetFilter={onSetComputerFilter} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} />}
       </div>

@@ -126,6 +126,8 @@ test("active runs disable deletion, and an unavailable repository warns before d
     await act(async () => { deleteButton.click(); });
     assert.equal(active.container.querySelector('[role="dialog"]'), null, "a busy worktree opens no delete confirmation");
     assert.match(active.container.textContent!, /Run active/);
+    const badge = query(active.container, ".worktree-busy");
+    assert.equal(deleteButton.getAttribute("aria-describedby"), badge.id, "the disabled Delete names the run holding it");
   } finally { await active.unmount(); }
   const unavailable = fixture();
   unavailable.managedWorktrees![0].repository = null;
@@ -137,5 +139,18 @@ test("active runs disable deletion, and an unavailable repository warns before d
     await click("Delete…");
     assert.match(query(document, ".worktree-delete-warning").textContent, /permanently deleted/);
     assert.equal(query(document, '[role="dialog"]').textContent.includes("Uncommitted changes are saved"), false);
+  } finally { await view.unmount(); }
+});
+
+test("a refresh in flight keeps its button readable and names the refs it compares against", async () => {
+  const initial = fixture();
+  initial.worktreeManagementLoading = true;
+  const view = await renderSettings(initial);
+  try {
+    const refresh = query<HTMLButtonElement>(view.container, ".worktree-refresh");
+    assert.equal(refresh.disabled, true);
+    assert.equal(refresh.getAttribute("aria-busy"), "true");
+    assert.match(refresh.textContent!, /Reading…/);
+    assert.match(refresh.dataset.tip ?? "", /local Git refs/);
   } finally { await view.unmount(); }
 });

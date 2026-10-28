@@ -52,8 +52,10 @@ test("the phone page pairs from the address, opens a thread, and answers an appr
   assert.ok(document.querySelector(".sheet"));
   assert.ok(document.querySelector(".sheet")?.contains(document.activeElement), "focus moves into the sheet");
   assert.equal(document.querySelector(".sheet-group h3")?.textContent, "Mode");
-  assert.deepEqual([...document.querySelectorAll(".sheet-subheading")].map((node) => node.textContent), ["Claude"], "a thread that exists offers only its own engine's models");
-  assert.equal(document.querySelector(".sheet-new-engine")?.textContent, "New thread with Codex");
+  assert.deepEqual([...document.querySelectorAll('.sheet [role="radiogroup"] .sheet-subheading')].map((node) => node.textContent), ["Claude"], "a thread that exists offers only its own engine's models");
+  assert.deepEqual([...document.querySelectorAll(".sheet-subheading")].map((node) => node.textContent), ["Claude", "Codex"], "the other engine keeps its place in the model list");
+  assert.equal(document.querySelector(".sheet-new-engine strong")?.textContent, "New thread with Codex");
+  assert.match(document.querySelector(".sheet-new-engine small")?.textContent ?? "", /\S/, "and names the models a new thread on it reaches");
   click(".sheet-option");
   assert.deepEqual(lastCommand(line), { type: "task.set-policy", taskId: "t1", policy: "autonomous" });
   assert.match(document.querySelector('.sheet-group[aria-label="Mode"] [aria-checked="true"]')?.textContent ?? "", /^Auto/, "the tap shows before the Mac echoes it");
@@ -197,9 +199,8 @@ test("the phone shows the thread the Mac actually has open, and says what went w
   assert.equal(document.querySelector(".bar-title h1")?.textContent, "Rewrite the docs", "the title stays while a notice is up");
   assert.equal(document.querySelector(".bar .banner"), null, "the notice sits under the bar, not in it");
 
-  click(".banner-text");
-  assert.equal(document.querySelector(".banner")?.getAttribute("data-open"), "true", "a tap on the words opens them to their full length");
-  assert.equal(document.querySelector(".banner-text")?.getAttribute("aria-expanded"), "true");
+  assert.equal(document.querySelector(".banner-more"), null, "a notice shown whole has nothing more to open");
+  assert.equal(document.querySelector("button.banner-text"), null);
   click(".banner-close");
   assert.equal(document.querySelector(".banner"), null, "the cross puts the sentence away");
   receive({ kind: "patch", sequence: 4, patch: { thread: { kind: "changed", id: "t2", delta: { status: "idle" } } } });
@@ -430,7 +431,9 @@ test("while a run is going a message may join the queue or cut into it, and a qu
   assert.ok(document.querySelector('button[aria-label="Stop this run"]'));
   assert.equal(document.querySelector(".composer-pill"), null, "nothing typed, nothing to steer");
   typeInto(".composer-card textarea", "also lint");
-  clickButton("Steer", ".composer");
+  const bar = [...document.querySelectorAll(".composer-bar button")].map((node) => node.getAttribute("aria-label") ?? node.textContent);
+  assert.deepEqual(bar.slice(1), ["Stop this run", "Steer now", "Queue"], "with words typed, Queue takes the right-most place and Stop moves aside");
+  clickButton("Steer now", ".composer");
   assert.deepEqual(lastCommand(line), { type: "task.send", taskId: "t1", text: "also lint", steer: true });
   typeInto(".composer-card textarea", "and format");
   clickButton("Queue", ".composer");
@@ -439,8 +442,35 @@ test("while a run is going a message may join the queue or cut into it, and a qu
   assert.equal(document.querySelectorAll(".queued-steer").length, 1, "a message already on its way has no controls");
   click(".queued-steer");
   assert.deepEqual(lastCommand(line), { type: "task.steer-queued", taskId: "t1", messageId: "q1" });
+  assert.equal(document.querySelector(".composer-bar button:last-child")?.getAttribute("aria-label"), "Stop this run", "with nothing typed, Stop is back on the right");
+  typeInto(".composer-card textarea", "half a thought");
   click(".queued-drop");
   assert.deepEqual(lastCommand(line), { type: "task.drop-queued", taskId: "t1", messageId: "q1" });
+  assert.equal(document.querySelector<HTMLTextAreaElement>(".composer-card textarea")?.value, "half a thought\n\nthen deploy", "a removed message's words come back to the field");
+});
+
+test("a blocking question takes the message field's place until it is answered", () => {
+  const line = openPhone({ paired: true });
+  const asked = view();
+  asked.thread = { ...asked.thread!, approval: null, status: "running", question: {
+    id: "q", questionId: "q", runId: "r1", requestId: "request", header: "Marker", question: "Which marker?",
+    options: [{ label: "ALPHA", description: "First" }], blocking: true,
+  } };
+  live(line, asked);
+  click(".thread-row .thread-open");
+  assert.equal(document.querySelector(".composer-card textarea"), null);
+  assert.equal(document.querySelectorAll(".composer textarea").length, 1, "one field: the answer");
+  assert.equal(document.querySelector(".send-button")?.getAttribute("aria-label"), "Stop this run", "the run can still be stopped");
+  assert.ok(document.querySelector(".composer-settings"));
+});
+
+test("the reply that closes a turn can be copied whole", () => {
+  const line = openPhone({ paired: true });
+  live(line);
+  click(".thread-row .thread-open");
+  const copy = document.querySelector(".answer-meta .copy-affordance");
+  assert.equal(copy?.getAttribute("aria-label"), "Copy reply");
+  assert.equal(document.querySelectorAll(".answer-meta .copy-affordance").length, 1);
 });
 
 test("the thread menu moves the thread between checkouts, forks it, renames it and archives it", () => {
@@ -624,11 +654,12 @@ test("a phone with no notice still says how to pair", () => {
   assert.equal(document.querySelector(".gate .gate-path")?.textContent, "Settings › Devices › Pair a phone");
 });
 
-test("the list's bar starts a thread wherever the Mac is, and a thread's bar has no such button", () => {
+test("the list's bar starts a thread in the project worked in last, and a thread's bar has no such button", () => {
   const line = openPhone({ paired: true });
   live(line);
   click('.bar button[aria-label="New thread"]');
-  assert.deepEqual(lastCommand(line), { type: "task.new" });
+  assert.deepEqual(lastCommand(line), { type: "task.new", projectId: "p" });
+  assert.equal(document.querySelector(".bar-title p")?.textContent, "App");
   click('button[aria-label="Back to threads"]');
   click(".thread-row .thread-open");
   assert.equal(document.querySelector('.bar button[aria-label="New thread"]'), null);
@@ -669,4 +700,34 @@ test("a file whose patch could not be read offers Try again, which reads it agai
   assert.equal(queries(line).length, asked + 1);
   assert.deepEqual(queries(line).at(-1)!.query, first.query);
   assert.equal(document.querySelector(".diff-error"), null, "the file says it is reading again");
+});
+
+test("a notice cut short says there is more, and opens to its full length", () => {
+  const line = openPhone({ paired: true });
+  live(line);
+  const scrollHeight = Object.getOwnPropertyDescriptor(dom.window.HTMLElement.prototype, "scrollHeight");
+  Object.defineProperty(dom.window.HTMLElement.prototype, "scrollHeight", { configurable: true, get(this: HTMLElement) { return this.classList.contains("banner-words") ? 60 : 0; } });
+  try {
+    act(() => line.onmessage?.({ data: JSON.stringify({ kind: "patch", sequence: 2, patch: { error: "The worktree could not be removed because a process still holds files open in it." } }) }));
+    assert.equal(document.querySelector(".banner-more")?.textContent, "More");
+    assert.equal(document.querySelector(".banner-text")?.getAttribute("aria-expanded"), "false");
+    click(".banner-text");
+    assert.equal(document.querySelector(".banner")?.getAttribute("data-open"), "true");
+    assert.equal(document.querySelector(".banner-text")?.getAttribute("aria-expanded"), "true");
+    assert.equal(document.querySelector(".banner-more")?.textContent, "Less");
+    click(".banner-text");
+    assert.equal(document.querySelector(".banner")?.getAttribute("data-open"), null);
+  } finally {
+    if (scrollHeight) Object.defineProperty(dom.window.HTMLElement.prototype, "scrollHeight", scrollHeight);
+  }
+});
+
+test("the connection's state is said on the list as well as in a thread", () => {
+  const line = openPhone({ paired: true });
+  live(line);
+  const status = () => document.querySelector(".bar .line-status[role=status]");
+  assert.equal(status()?.textContent, "", "a live line says nothing");
+  act(() => line.onclose?.());
+  assert.ok(document.querySelector(".thread-list"));
+  assert.match(status()?.textContent ?? "", /Offline|Connecting/);
 });

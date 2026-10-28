@@ -42,10 +42,18 @@ test("the workflow panel groups agents by phase, draws their lanes, and opens on
   assert.match(view.container.textContent, /worktree/);
   assert.match(view.container.textContent, /Agent returned no structured output/);
 
+  assert.equal(query(view.container, ".workflow-badge.retry").getAttribute("title"), null, "the retry reason shows in the shared tooltip");
   await act(async () => { query<HTMLButtonElement>(view.container, ".workflow-stop").click(); });
-  assert.deepEqual(stopped, ["wf-1"], "Stop stops at once, as a subagent's Stop does");
+  assert.equal(stopped.length, 0, "the first press only asks");
+  const cancel = [...view.container.querySelectorAll<HTMLButtonElement>(".workflow-stop-actions > button")].find((button) => button.textContent === "Cancel");
+  assert.ok(cancel && document.activeElement === cancel, "focus lands on the safe choice");
+  await act(async () => { cancel.click(); });
+  assert.equal(stopped.length, 0, "Cancel leaves the workflow running");
+  await act(async () => { query<HTMLButtonElement>(view.container, ".workflow-stop").click(); });
+  await act(async () => { query<HTMLButtonElement>(view.container, ".workflow-stop-actions > .armed").click(); });
+  assert.deepEqual(stopped, ["wf-1"], "the second press stops it");
   await view.render(React.createElement(WorkflowPanel, { workflow: { ...liveWorkflow, stopping: true }, onStop: (id) => { stopped.push(id); } }));
-  assert.equal(query<HTMLButtonElement>(view.container, ".workflow-stop").textContent, "Stopping");
+  assert.equal(query<HTMLButtonElement>(view.container, ".workflow-stop").textContent, "Stopping…");
   assert.equal(query<HTMLButtonElement>(view.container, ".workflow-stop").disabled, true, "a workflow on its way out cannot be stopped twice");
   assert.match(query(view.container, ".workflow-lane").dataset.tip ?? "", / · (queued|running|done|failed|stopped)/, "a lane names its timing on hover");
 

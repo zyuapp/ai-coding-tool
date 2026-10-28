@@ -6,7 +6,7 @@ import type { Thread } from "../../domain/thread";
 import type { SidebarSection, SidebarSections } from "../../domain/sidebar";
 import { worktreeName } from "../../domain/worktree";
 import type { WorktreeGroup } from "../../application/workspace-state";
-import { PopoverMenu, type MenuEntry } from "./PopoverMenu";
+import { PopoverMenu, type MenuEntry, type MenuItem } from "./PopoverMenu";
 import { RenameInput, useRenaming, type Renaming } from "./SidebarRename";
 import { ShowMore } from "./ShowMore";
 import type { ThreadRowRenderer } from "./SidebarThreadRow";
@@ -55,6 +55,32 @@ function visibleCount(projectThreads: Thread[], currentId: string | null, showAl
   if (showAll) return projectThreads.length;
   const current = projectThreads.findIndex((thread) => thread.id === currentId);
   return Math.max(PROJECT_THREAD_LIMIT, current + 1);
+}
+
+/** An empty list's way to fill it. */
+function StartThread({ recents, onSelect }: { recents?: boolean; onSelect: () => void }) {
+  return (
+    <button className={`empty-tasks${recents ? " recents-empty" : ""}`} type="button" onClick={onSelect}>
+      <SquarePen size={14} aria-hidden="true" />
+      Start a thread
+    </button>
+  );
+}
+
+/**
+ * Removing a folder archives every thread in it, so one holding threads asks first, with the safe
+ * choice where the keyboard lands.
+ */
+function removeEntry(threadCount: number, onRemove: () => void): MenuItem {
+  if (threadCount === 0) return { label: "Remove", danger: true, onSelect: onRemove };
+  return {
+    label: "Remove",
+    danger: true,
+    items: [
+      { label: "Keep project" },
+      { label: threadCount === 1 ? "Remove and archive 1 thread" : `Remove and archive ${threadCount} threads`, danger: true, onSelect: onRemove },
+    ],
+  };
 }
 
 type ProjectRowProps = {
@@ -121,10 +147,11 @@ function ProjectRow({
     ...(index > 0 ? [{ label: "Move up", command: { type: "project.move", projectId: project.id, index: index - 1 } } as const] : []),
     ...(index < count - 1 ? [{ label: "Move down", command: { type: "project.move", projectId: project.id, index: index + 1 } } as const] : []),
     "separator",
-    { label: "Remove", danger: true, onSelect: () => onRemoveProject(project.id) },
+    removeEntry(threads.length, () => onRemoveProject(project.id)),
   ];
+  const [keyboardFocus, setKeyboardFocus] = useState(false);
   return (
-    <Draggable draggableId={project.id} index={index} disableInteractiveElementBlocking>
+    <Draggable draggableId={project.id} index={index} disableInteractiveElementBlocking isDragDisabled={keyboardFocus}>
       {(dragged: DraggableProvided, snapshot) => (
         <section
           className={`project-group ${snapshot.isDragging ? "is-dragging" : ""}`}
@@ -135,13 +162,20 @@ function ProjectRow({
           <Droppable droppableId={project.id} type="task">
             {(provided, drop) => (
               <div className={`project-drop${drop.isDraggingOver ? " drop-over" : ""}`} ref={provided.innerRef} {...provided.droppableProps}>
-                {/** The header row is the handle, buttons and all: the library refuses to lift from a
-                  *  button unless told otherwise, and the row is nothing but buttons. It swallows the
-                  *  click a drag ends on, so the row keeps its click-to-fold. */}
+                {/** The header row is the pointer's handle, buttons and all: the library refuses to lift
+                  *  from a button unless told otherwise, and the row is nothing but buttons. It swallows
+                  *  the click a drag ends on, so the row keeps its click-to-fold. The keyboard moves a
+                  *  folder from its menu instead, so Space on a focused button presses it. */}
                 <div
                   ref={header}
                   className={`project-row ${current ? "current" : ""}`}
                   {...dragged.dragHandleProps}
+                  tabIndex={-1}
+                  role={undefined}
+                  aria-describedby={undefined}
+                  onFocus={(event) => setKeyboardFocus(event.target.matches(":focus-visible"))}
+                  onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setKeyboardFocus(false); }}
+                  onPointerDown={() => setKeyboardFocus(false)}
                   onContextMenu={(event) => {
                     event.preventDefault();
                     if (renaming.editing !== project.id) onSetOpenMenu(menuId);
@@ -166,7 +200,7 @@ function ProjectRow({
                           event.preventDefault();
                           renaming.start(project.id, event.currentTarget.closest(".project-row"));
                         }}
-                        title={host ? `${project.root} on ${host.name}${host.offline ? ` (${host.reconnecting ? "reconnecting" : "offline"})` : ""}` : project.root}
+                        data-tip={host ? `${project.root} on ${host.name}${host.offline ? ` (${host.reconnecting ? "reconnecting" : "offline"})` : ""}` : project.root}
                         aria-expanded={expanded}
                       >
                         <FolderIcon open={expanded} />
@@ -191,7 +225,7 @@ function ProjectRow({
               </div>
             )}
           </Droppable>
-          {expanded && threads.length === 0 && <button className="empty-tasks" type="button" onClick={() => onNewThread(project.id)}>Start a thread</button>}
+          {expanded && threads.length === 0 && <StartThread onSelect={() => onNewThread(project.id)} />}
           {expanded && (hidden > 0 || showAll) && (
             <ShowMore
               label={hidden > 0 ? `Show ${hidden} more` : "Show less"}
@@ -277,8 +311,8 @@ export function SidebarProjects({
 
   return (
     <>
-      <div className="section-heading projects-heading">
-        <button className="section-toggle" onClick={() => onSetSectionOpen("projects", !sections.projects)} aria-expanded={sections.projects}>
+      <div className={`section-heading projects-heading${projects.length === 0 ? " empty" : ""}`}>
+        <button className="section-toggle" type="button" onClick={() => onSetSectionOpen("projects", !sections.projects)} aria-expanded={sections.projects}>
           <span>Projects</span>
           {!sections.projects && projects.length > 0 && <span className="section-count">{projects.length}</span>}
           <span className="section-chevron" aria-hidden="true" />
@@ -324,7 +358,7 @@ export function SidebarProjects({
       </nav>}
 
       <div className="section-heading recents-heading">
-        <button className="section-toggle" onClick={() => onSetSectionOpen("recents", !sections.recents)} aria-expanded={sections.recents}>
+        <button className="section-toggle" type="button" onClick={() => onSetSectionOpen("recents", !sections.recents)} aria-expanded={sections.recents}>
           <span>Recents</span>
           {!sections.recents && recentThreads.length > 0 && <span className="section-count">{recentThreads.length}</span>}
           <span className="section-chevron" aria-hidden="true" />
@@ -332,8 +366,8 @@ export function SidebarProjects({
       </div>
       {sections.recents && <Droppable droppableId={RECENTS_DROPPABLE} type="task">
         {(provided, snapshot) => (
-          <nav className="task-list" aria-label="Project-less tasks" ref={provided.innerRef} {...provided.droppableProps}>
-            {recentThreads.length === 0 && !snapshot.isDraggingOver && <button className="empty-tasks recents-empty" type="button" onClick={() => onNewThread()}>Start a thread</button>}
+          <nav className="task-list recents-list" aria-label="Project-less tasks" ref={provided.innerRef} {...provided.droppableProps}>
+            {recentThreads.length === 0 && !snapshot.isDraggingOver && <StartThread recents onSelect={() => onNewThread()} />}
             {recentThreads.map((thread, index) => renderRow(thread, index, "recent"))}
             {provided.placeholder}
           </nav>

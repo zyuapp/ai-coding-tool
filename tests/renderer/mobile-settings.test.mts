@@ -18,13 +18,13 @@ const TAILNET = { kind: "tailscale-https" as const, host: "mac.tail1234.ts.net",
 
 type Calls = { enabled: boolean[]; revoked: string[]; codes: number; refreshes: number };
 
-function draw(remote: MobileServerState) {
+function draw(remote: MobileServerState, remoteChecking = false) {
   const host = document.createElement("div");
   document.body.replaceChildren(host);
   const calls: Calls = { enabled: [], revoked: [], codes: 0, refreshes: 0 };
   act(() => void createRoot(host).render(React.createElement(MobileSettings, {
     remote,
-    remoteChecking: false,
+    remoteChecking,
     onSetEnabled: (value: boolean) => calls.enabled.push(value),
     onCreatePairingCode: () => { calls.codes += 1; },
     onRevokeDevice: (id: string) => calls.revoked.push(id),
@@ -126,6 +126,7 @@ test("paired phones are listed once each, with what they are doing and a way to 
   click("[data-device='device-2'] button:last-child");
   assert.deepEqual(calls.revoked, []);
   assert.equal(document.querySelector("[data-device='device-2'] button")?.textContent, "Remove");
+  assert.equal(document.querySelector("[data-device='device-2'] button")?.getAttribute("aria-label"), "Remove iPad");
 
   click("[data-device='device-2'] button.danger");
   assert.equal(document.querySelector("[data-device='device-2'] button.danger")?.textContent, "Remove iPad");
@@ -194,4 +195,12 @@ test("the Tailscale checklist is drawn with the bridge off, so the user knows wh
   assert.equal(document.querySelectorAll("[data-step]").length, 4);
   assert.match(document.querySelector("[data-step='serving']")?.textContent ?? "", /Turns on with phone access/);
   assert.equal(document.querySelector(".phone-check.needed"), null, "nothing is asked of the user while access is off");
+});
+
+test("a Tailscale check in flight says so on its button and keeps it readable", () => {
+  draw(served(), true);
+  const button = document.querySelector<HTMLButtonElement>("[data-setting='phone.tailscale'] .settings-group-action button");
+  assert.equal(button?.textContent, "Checking…");
+  assert.equal(button?.disabled, true);
+  assert.equal(button?.getAttribute("aria-busy"), "true");
 });

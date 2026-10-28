@@ -168,12 +168,11 @@ export function ThreadTabStrip({ tab, branchMenuOpen, actions }: { tab: ThreadTa
         <button
           type="button"
           className={`thread-tab-chip ${tab.automation ? "scheduled" : "quiet"}`}
-          aria-label="Open Automation panel"
-          data-tip={tab.automation ? "Scheduled" : "Automations"}
+          data-tip="Automations"
           onClick={actions.onOpenAutomations}
         >
           <AlarmClock size={14} aria-hidden="true" />
-          {tab.automation && <span>Scheduled</span>}
+          <span>{tab.automation ? "Scheduled" : "Schedule"}</span>
         </button>
         {brief && (
           <button

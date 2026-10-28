@@ -1,5 +1,5 @@
 import { LuCheck as Check, LuChevronDown as ChevronDown, LuFolder as Folder, LuSquarePen as SquarePen } from "react-icons/lu";
-import { memo, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
+import { memo, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import type { MobileActivity, MobileProjectGroup, MobileThreadEntry } from "../../contracts/mobile";
 import { readActivityProject, readFolded, writeActivityProject, writeFolded, type MobileListMode } from "../client/storage";
 import { activityMeta, groupMark, threadMeta } from "../format";
@@ -9,25 +9,33 @@ import { ProjectSheet } from "./ProjectSheet";
 const LONG_PRESS_MS = 480;
 const LONG_PRESS_SLOP_PX = 10;
 
-/** A press held on a row, or the context menu a keyboard or a mouse asks for, opens the thread's options. */
+/**
+ * A press held on a row, or the context menu a keyboard or a mouse asks for, opens the thread's
+ * options. While the finger rests the row sinks under it, so the press shows before it lands.
+ */
 function useLongPress(onLongPress: () => void) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const origin = useRef<{ x: number; y: number } | null>(null);
+  const pressed = useRef<HTMLElement | null>(null);
   /** Set once the press has opened the options, so the tap its release makes does not also open the thread. */
   const fired = useRef(false);
   const cancel = () => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
     origin.current = null;
+    if (pressed.current) delete pressed.current.dataset.pressing;
+    pressed.current = null;
   };
   return {
-    onPointerDown: (event: PointerEvent) => {
+    onPointerDown: (event: PointerEvent<HTMLElement>) => {
       fired.current = false;
       if (event.pointerType === "mouse") return;
       cancel();
       origin.current = { x: event.clientX, y: event.clientY };
+      pressed.current = event.currentTarget;
+      event.currentTarget.dataset.pressing = "";
       timer.current = setTimeout(() => {
-        timer.current = null;
+        cancel();
         fired.current = true;
         navigator.vibrate?.(8);
         onLongPress();
@@ -110,8 +118,8 @@ export const ThreadList = memo(function ThreadList({ mode, groups, activity, fil
   onScroll: (top: number) => void;
   /** Names the thread and its project as the row shows them, so the screen can carry them before the Mac answers. */
   onOpen: (threadId: string, title: string, project: string | null) => void;
-  /** Opens the thread with its options up. */
-  onMenu: (threadId: string, title: string, project: string | null) => void;
+  /** Puts the row's options up over the list. */
+  onMenu: (thread: MobileThreadEntry) => void;
   onNew: (projectId: string | null, project: string | null) => void;
   onDismiss: (threadId: string, title: string) => void;
   /** Files away the Priority rows shown, named as the toast names them, in `projectId` or every project. */
@@ -148,7 +156,7 @@ export const ThreadList = memo(function ThreadList({ mode, groups, activity, fil
     setFolded(next);
   }
 
-  function section({ key, label, threads }: Section, extra: { action?: React.ReactNode; empty?: string; meta: (thread: MobileThreadEntry) => string; dismissable?: boolean; project: (thread: MobileThreadEntry) => string | null }) {
+  function section({ key, label, threads }: Section, extra: { action?: ReactNode; empty?: string; meta: (thread: MobileThreadEntry) => string; dismissable?: boolean; project: (thread: MobileThreadEntry) => string | null }) {
     const open = !folded.has(key);
     const mark = open ? null : groupMark(threads);
     return (
@@ -156,10 +164,10 @@ export const ThreadList = memo(function ThreadList({ mode, groups, activity, fil
         <header className="group-header">
           <button type="button" className="section-toggle" aria-expanded={open} onClick={() => toggle(key)}>
             <span>{label}</span>
-            {!open && threads.length > 0 && <span className="section-count">{threads.length}</span>}
+            {threads.length > 0 && <span className="section-count">{threads.length}</span>}
             <span className="section-chevron" aria-hidden="true" />
             {mark && <span className="section-mark" data-kind={mark} />}
-            {mark === "needs-you" && <span className="sr-only">Needs you</span>}
+            {mark && <span className="sr-only">{mark === "needs-you" ? "Needs you" : "Unread"}</span>}
           </button>
           {extra.action}
         </header>
@@ -169,7 +177,7 @@ export const ThreadList = memo(function ThreadList({ mode, groups, activity, fil
             thread={thread}
             meta={extra.meta(thread)}
             onOpen={() => onOpen(thread.id, thread.title, extra.project(thread))}
-            onMenu={() => onMenu(thread.id, thread.title, extra.project(thread))}
+            onMenu={() => onMenu(thread)}
             {...(extra.dismissable && thread.attention ? { onDismiss: () => onDismiss(thread.id, thread.title) } : {})}
           />
         ))}

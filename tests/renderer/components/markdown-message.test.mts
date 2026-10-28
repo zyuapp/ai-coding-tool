@@ -76,17 +76,33 @@ test("only Markdown file links open a file, at the line they name", async () => 
   await view.unmount();
 });
 
-test("a web link opens externally by default and offers the browser panel on right click", async () => {
+test("a web link opens externally by default, and its right-click menu opens it either way or copies it", async () => {
   const opened: string[] = [];
+  const external: string[] = [];
+  const copied: string[] = [];
+  const open = vi.spyOn(dom.window, "open").mockImplementation((url) => { external.push(String(url)); return null; });
+  Object.defineProperty(dom.window.navigator, "clipboard", { configurable: true, value: { writeText: async (text: string) => { copied.push(text); } } });
   const view = await mountMessage("Read https://example.com/docs for the rest.", { openUrlInApp: (url) => opened.push(url) });
 
   const link = query<HTMLAnchorElement>(view.container, "a");
   assert.equal(link.target, "_blank", "the main process hands an ordinary click to the default browser");
-  await act(async () => { link.dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true, clientX: 50, clientY: 60 })); });
-  const menuItem = query<HTMLButtonElement>(document, ".context-menu-popover button");
-  assert.equal(menuItem.textContent, "Open in AI Coding Tool");
-  await act(async () => { menuItem.click(); });
+  const menu = async () => {
+    await act(async () => { link.dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true, clientX: 50, clientY: 60 })); });
+    return [...document.querySelectorAll<HTMLButtonElement>(".context-menu-popover button")];
+  };
+  const named = (items: HTMLButtonElement[], label: string) => items.find((item) => item.textContent?.startsWith(label))!;
+
+  const items = await menu();
+  assert.deepEqual(items.map((item) => item.textContent?.replace(/(?:⌘|Ctrl\+)Click$/, "")), ["Open in browser", "Open in AI Coding Tool", "Copy link"]);
+  await act(async () => { named(items, "Open in AI Coding Tool").click(); });
   assert.deepEqual(opened, ["https://example.com/docs"]);
+
+  await act(async () => { named(await menu(), "Open in browser").click(); });
+  assert.deepEqual(external, ["https://example.com/docs"]);
+
+  await act(async () => { named(await menu(), "Copy link").click(); });
+  assert.deepEqual(copied, ["https://example.com/docs"]);
+  open.mockRestore();
   await view.unmount();
 });
 
@@ -133,6 +149,18 @@ test("an old reply previews image links, preserves its text, and enlarges in the
   await act(async () => images[1].dispatchEvent(new dom.window.Event("error")));
   assert.match(view.container.textContent, /Another · Preview unavailable/);
   assert.equal(view.container.querySelectorAll("a").length, 2, "a missing preview keeps the original links");
+  await view.unmount();
+});
+
+test("an image whose preview failed opens as a file instead", async () => {
+  const files: Array<[string, number | null]> = [];
+  const view = await mount(React.createElement(MessageLinkProvider, { actions: { openImage: () => {}, openFile: (path, line) => files.push([path, line]) },
+    children: React.createElement(MarkdownMessage, { messageId: "m", children: "[Shot](/tmp/missing.png)" }) }));
+  await act(async () => query(view.container, ".message-image-preview img").dispatchEvent(new dom.window.Event("error")));
+  const fallback = query<HTMLButtonElement>(view.container, "button.message-image-unavailable");
+  assert.match(fallback.textContent, /Shot · Preview unavailable/);
+  await act(async () => { fallback.click(); });
+  assert.deepEqual(files, [["/tmp/missing.png", null]]);
   await view.unmount();
 });
 

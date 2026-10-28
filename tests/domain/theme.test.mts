@@ -41,8 +41,8 @@ test("every theme the app offers is a block in the stylesheet, and every block i
   assert.ok(themeById(DEFAULT_THEME), "the default is one of them");
 });
 
-/** Primitives a theme adds only when its accent needs them; styles.css falls back without them. */
-const OPTIONAL_PRIMITIVES = new Set(["--p-accent-text", "--p-accent-hover", "--p-danger-ink"]);
+/** Primitives a theme adds only when its author's hues need them; styles.css falls back without them. */
+const OPTIONAL_PRIMITIVES = new Set(["--p-accent-text", "--p-accent-hover", "--p-danger-ink", "--p-danger-text", "--p-info-text", "--p-link-text", "--p-success-text"]);
 
 test("a theme redefines every primitive the default declares, and invents none", () => {
   const required = (tokens: Map<string, string>) => [...tokens.keys()].filter((name) => !OPTIONAL_PRIMITIVES.has(name)).sort();

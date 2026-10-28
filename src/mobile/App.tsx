@@ -1,12 +1,12 @@
-import { LuChevronLeft as ChevronLeft, LuCloudOff as CloudOff, LuEllipsis as Ellipsis, LuQrCode as QrCode, LuSquarePen as SquarePen, LuX as X } from "react-icons/lu";
-import { useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
-import type { MobileActivity, MobileCommand, MobileDraftView, MobileProjectGroup, MobileThreadView } from "../contracts/mobile";
+import { LuChevronDown as ChevronDown, LuChevronLeft as ChevronLeft, LuCloudOff as CloudOff, LuEllipsis as Ellipsis, LuQrCode as QrCode, LuSquarePen as SquarePen, LuX as X } from "react-icons/lu";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type TouchEvent } from "react";
+import type { MobileActivity, MobileCommand, MobileDraftView, MobileProjectGroup, MobileThreadEntry, MobileThreadView } from "../contracts/mobile";
 import { defaultModelFor, type AgentEngine } from "../domain/agent-engine";
 import { SETTINGS_PAGE_LABELS, settingControl } from "../domain/settings-catalog";
 import { PAIRING_CODE_LENGTH, type MobileConnectionState } from "../domain/mobile";
 import { useMobileClient } from "./client/useMobileClient";
 import type { ReturnedCommand } from "./client/protocol";
-import { readListMode, readPairingCode, writeListMode, type MobileListMode } from "./client/storage";
+import { readActivityProject, readListMode, readPairingCode, writeListMode, type MobileListMode } from "./client/storage";
 import { ApprovalSheet } from "./components/ApprovalSheet";
 import { Changes } from "./components/Changes";
 import { Composer, type ReturnedToComposer } from "./components/Composer";
@@ -17,7 +17,7 @@ import { RenameSheet } from "./components/RenameSheet";
 import { Segmented } from "./components/Segmented";
 import { StartOptions } from "./components/StartOptions";
 import { ThreadList } from "./components/ThreadList";
-import { ThreadMenu } from "./components/ThreadMenu";
+import { ThreadMenu, ThreadRowMenu } from "./components/ThreadMenu";
 import { ThreadSettings } from "./components/ThreadSettings";
 import { locationLabel } from "./format";
 import { paintMobileTheme, resolveMobileTheme, writeStoredTheme } from "./theme";
@@ -29,13 +29,19 @@ const CONNECTION_LABELS: Record<MobileConnectionState, string> = {
   live: "Live",
 };
 
-/** Quiet until it matters: a live line says nothing, a dead one shows a struck cloud, and one on its way a turning ring. */
+/**
+ * Quiet until it matters: a live line says nothing, a dead one shows a struck cloud, and one on its
+ * way a turning ring. The region stays mounted on every screen so a reader hears each change.
+ */
 function ConnectionMark({ connection }: { connection: MobileConnectionState }) {
-  if (connection === "live") return null;
   return (
-    <span className="line-mark" data-connection={connection}>
-      {connection === "offline" ? <CloudOff size={14} strokeWidth={2.2} aria-hidden="true" /> : <span className="line-spin" aria-hidden="true" />}
-      {CONNECTION_LABELS[connection]}
+    <span className="line-status" role="status">
+      {connection !== "live" && (
+        <span className="line-mark" data-connection={connection}>
+          {connection === "offline" ? <CloudOff size={14} strokeWidth={2.2} aria-hidden="true" /> : <span className="line-spin" aria-hidden="true" />}
+          {CONNECTION_LABELS[connection]}
+        </span>
+      )}
     </span>
   );
 }
@@ -50,11 +56,20 @@ function pairingAddress(code: string): string {
   return url.href;
 }
 
+/** Letters a pairing code never uses, read as the digits they are mistaken for, as Crockford base32 reads them. */
+const LOOKALIKES: Record<string, string> = { O: "0", I: "1", L: "1" };
+
+/** What was typed or pasted, as a code: upper case, without spaces or dashes, and no longer than a code. */
+function typedCode(text: string): string {
+  return text.toUpperCase().replace(/[\s-]/g, "").replace(/[OIL]/g, (letter) => LOOKALIKES[letter]!).slice(0, PAIRING_CODE_LENGTH);
+}
+
 /** A phone with no token and no code is shown where the code is, and may type the one printed beside the QR. */
 function Gate({ notice }: { notice: string | null }) {
   const [code, setCode] = useState("");
   const address = pairingAddress(code);
   const ready = readPairingCode(address) !== null;
+  const wrong = code.length === PAIRING_CODE_LENGTH && !ready;
   return (
     <div className="gate">
       <QrCode size={44} strokeWidth={1.4} aria-hidden="true" />
@@ -70,21 +85,26 @@ function Gate({ notice }: { notice: string | null }) {
           window.location.reload();
         }}
       >
-        <input
-          type="text"
-          aria-label="Pairing code"
-          placeholder="Or type the code"
-          value={code}
-          maxLength={PAIRING_CODE_LENGTH}
-          autoCapitalize="characters"
-          autoComplete="one-time-code"
-          autoCorrect="off"
-          spellCheck={false}
-          enterKeyHint="go"
-          onInput={(event) => setCode(event.currentTarget.value.toUpperCase())}
-        />
+        <span className="gate-field">
+          <input
+            type="text"
+            aria-label="Pairing code"
+            aria-invalid={wrong || undefined}
+            aria-describedby={wrong ? "gate-code-error" : undefined}
+            placeholder={`Or type the ${PAIRING_CODE_LENGTH}-character code`}
+            value={code}
+            autoCapitalize="characters"
+            autoComplete="one-time-code"
+            autoCorrect="off"
+            spellCheck={false}
+            enterKeyHint="go"
+            onInput={(event) => setCode(typedCode(event.currentTarget.value))}
+          />
+          {code && <span className="gate-count" aria-hidden="true">{code.length}/{PAIRING_CODE_LENGTH}</span>}
+        </span>
         <button type="submit" className="primary" disabled={!ready}>Pair</button>
       </form>
+      {wrong && <p id="gate-code-error" className="gate-error" role="alert">Not a pairing code. Check it on your computer.</p>}
     </div>
   );
 }
@@ -92,15 +112,32 @@ function Gate({ notice }: { notice: string | null }) {
 /** A notice under the bar: the words open to their full length, and only the cross puts it away. */
 function Banner({ notice, onDismiss }: { notice: string; onDismiss: () => void }) {
   const [open, setOpen] = useState(false);
+  /** Whether the shut text is cut short, which is the only time there is more to open. */
+  const [clamped, setClamped] = useState(false);
+  const words = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const node = words.current;
+    if (open || !node) return;
+    const measure = () => setClamped(node.scrollHeight > node.clientHeight + 1);
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [open, notice]);
+  const text = <span ref={words} className="banner-words">{notice}</span>;
   return (
     <div className="banner" role="status" data-open={open || undefined}>
-      <button type="button" className="banner-text" aria-expanded={open} onClick={() => setOpen((was) => !was)}>{notice}</button>
+      {open || clamped
+        ? <button type="button" className="banner-text" aria-expanded={open} onClick={() => setOpen((was) => !was)}>
+          {text}
+          <span className="banner-more" aria-hidden="true">{open ? "Less" : "More"}<ChevronDown size={14} strokeWidth={2.2} /></span>
+        </button>
+        : <p className="banner-text">{text}</p>}
       <button type="button" className="banner-close" aria-label="Dismiss" onClick={onDismiss}><X size={16} aria-hidden="true" /></button>
     </div>
   );
 }
 
-/** How long Undo stays offered, counted again once a finger lets go of it. */
+/** How long Undo stays offered, counted again once a finger or the focus lets go of it. */
 const UNDO_MS = 9000;
 
 /**
@@ -110,15 +147,26 @@ const UNDO_MS = 9000;
 type Undoable = { key: string; verb: string; title: string; undo: () => void; settle?: () => void; holds?: readonly string[] };
 
 function UndoToast({ undoable, onUndo, onDone }: { undoable: Undoable; onUndo: () => void; onDone: () => void }) {
-  const [held, setHeld] = useState(false);
+  const [pressed, setPressed] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const held = pressed || focused;
   useEffect(() => {
     if (held) return;
     const timer = setTimeout(onDone, UNDO_MS);
     return () => clearTimeout(timer);
   }, [onDone, held]);
-  const release = () => setHeld(false);
+  const release = () => setPressed(false);
   return (
-    <div className="undo-toast" role="status" onPointerDown={() => setHeld(true)} onPointerUp={release} onPointerCancel={release} onPointerLeave={release}>
+    <div
+      className="undo-toast"
+      role="status"
+      onPointerDown={() => setPressed(true)}
+      onPointerUp={release}
+      onPointerCancel={release}
+      onPointerLeave={release}
+      onFocus={() => setFocused(true)}
+      onBlur={(event) => setFocused(event.currentTarget.contains(event.relatedTarget as Node | null))}
+    >
       <span>{undoable.verb} <strong>{undoable.title}</strong></span>
       <button type="button" onClick={onUndo}>Undo</button>
     </div>
@@ -160,25 +208,105 @@ function useDesktopTheme(theme: { dark: string; light: string; mode: "dark" | "l
   }, [theme]);
 }
 
-/** How near the left edge a swipe back has to start, and how far right it has to travel. */
+/** How near the left edge a swipe back has to start, how far right it has to travel, and how far it moves before the screen follows. */
 const EDGE_PX = 24;
 const SWIPE_PX = 72;
+const FOLLOW_PX = 6;
 
-/** A swipe in from the left edge goes back, as it does across iOS. */
+/**
+ * Whether the page runs from the iOS home screen, the one place no browser or system gesture
+ * already owns the left edge. Everywhere else that gesture is the browser's back, which the history
+ * entries each screen pushes turn into a step back here.
+ */
+function ownsLeftEdge(): boolean {
+  return (navigator as Navigator & { standalone?: boolean }).standalone === true;
+}
+
+/** A swipe in from the left edge drags the screen with the finger and goes back once let go far enough, as across iOS. */
 function useEdgeSwipe(enabled: boolean, onSwipe: () => void) {
-  const start = useRef<{ x: number; y: number } | null>(null);
-  return useMemo(() => enabled ? {
-    onTouchStart: (event: TouchEvent) => {
-      const touch = event.touches[0];
-      start.current = event.touches.length === 1 && touch && touch.clientX <= EDGE_PX ? { x: touch.clientX, y: touch.clientY } : null;
-    },
-    onTouchEnd: (event: TouchEvent) => {
-      const from = start.current;
-      const touch = event.changedTouches[0];
-      start.current = null;
-      if (from && touch && touch.clientX - from.x >= SWIPE_PX && Math.abs(touch.clientY - from.y) < SWIPE_PX / 2) onSwipe();
-    },
-  } : {}, [enabled, onSwipe]);
+  const start = useRef<{ x: number; y: number; node: HTMLElement; following: boolean } | null>(null);
+  return useMemo(() => {
+    if (!enabled || !ownsLeftEdge()) return {};
+    /** A swipe that went drops the screen at once, under the list it uncovers; one that did not springs back. */
+    const settle = (node: HTMLElement, went: boolean) => {
+      if (!went) delete node.dataset.swiping;
+      node.style.transform = "";
+      if (!went) return;
+      void node.offsetWidth;
+      delete node.dataset.swiping;
+    };
+    return {
+      onTouchStart: (event: TouchEvent<HTMLElement>) => {
+        const touch = event.touches[0];
+        start.current = event.touches.length === 1 && touch && touch.clientX <= EDGE_PX ? { x: touch.clientX, y: touch.clientY, node: event.currentTarget, following: false } : null;
+      },
+      onTouchMove: (event: TouchEvent<HTMLElement>) => {
+        const from = start.current;
+        const touch = event.touches[0];
+        if (!from || !touch) return;
+        const [dx, dy] = [touch.clientX - from.x, touch.clientY - from.y];
+        if (!from.following) {
+          if (Math.abs(dy) > FOLLOW_PX && Math.abs(dy) > dx) {
+            start.current = null;
+            return;
+          }
+          if (dx < FOLLOW_PX) return;
+          from.following = true;
+          from.node.dataset.swiping = "";
+        }
+        from.node.style.transform = `translateX(${Math.max(0, dx)}px)`;
+      },
+      onTouchEnd: (event: TouchEvent<HTMLElement>) => {
+        const from = start.current;
+        const touch = event.changedTouches[0];
+        start.current = null;
+        if (!from || !touch) return;
+        const went = touch.clientX - from.x >= SWIPE_PX && Math.abs(touch.clientY - from.y) < SWIPE_PX / 2;
+        settle(from.node, went);
+        if (went) onSwipe();
+      },
+      onTouchCancel: () => {
+        const from = start.current;
+        start.current = null;
+        if (from) settle(from.node, false);
+      },
+    };
+  }, [enabled, onSwipe]);
+}
+
+/**
+ * Each screen past the list is a history entry, so the browser's own back (Safari's edge swipe,
+ * Android's back) steps back a screen instead of leaving the page. Returns what records a step in
+ * and what unwinds one the page took itself.
+ */
+function useScreenHistory(onPopped: () => void) {
+  const depth = useRef(0);
+  /** Pops the page asked for itself, which have already been acted on. */
+  const ownPops = useRef(0);
+  const popped = useRef(onPopped);
+  popped.current = onPopped;
+  useEffect(() => {
+    const listener = () => {
+      if (ownPops.current > 0) ownPops.current -= 1;
+      else {
+        depth.current = Math.max(0, depth.current - 1);
+        popped.current();
+      }
+    };
+    window.addEventListener("popstate", listener);
+    return () => window.removeEventListener("popstate", listener);
+  }, []);
+  const pushed = useCallback(() => {
+    depth.current += 1;
+    window.history.pushState(null, "");
+  }, []);
+  const unwound = useCallback(() => {
+    if (!depth.current) return;
+    depth.current -= 1;
+    ownPops.current += 1;
+    window.history.back();
+  }, []);
+  return useMemo(() => ({ pushed, unwound }), [pushed, unwound]);
 }
 
 /**
@@ -256,6 +384,18 @@ function useUndo(send: (command: MobileCommand) => void, lists: MobileActivity) 
   return { undoable, filing, offer, takeBack, settleUndo, dismiss, dismissAll };
 }
 
+/** Where the list's New starts a thread: the project the activity list is narrowed to, else the one worked in last. */
+function startingProject(groups: MobileProjectGroup[], mode: MobileListMode): MobileProjectGroup | null {
+  const narrowed = mode === "activity" ? readActivityProject(window.localStorage) : null;
+  const filtered = narrowed ? groups.find((group) => group.projectId === narrowed) : undefined;
+  if (filtered) return filtered;
+  let latest: { group: MobileProjectGroup; at: number } | null = null;
+  for (const group of groups) {
+    for (const entry of group.threads) if (!latest || entry.lastActivityAt > latest.at) latest = { group, at: entry.lastActivityAt };
+  }
+  return latest?.group.projectId ? latest.group : null;
+}
+
 /** Where the phone is: the list, the thread the Mac has open, or that thread's changes. */
 type Screen = "list" | "thread" | "changes";
 
@@ -278,6 +418,8 @@ export function App() {
    */
   const [opening, setOpening] = useState<{ title: string; project: string | null; want: string; was: string } | null>(null);
   const { undoable, filing, offer, takeBack, settleUndo, dismiss, dismissAll } = useUndo(send, state.view.activity);
+  /** The row a long press opened options for, over the list, and whether its rename is up instead. */
+  const [rowMenu, setRowMenu] = useState<RowMenu | null>(null);
   const listScroll = useRef(0);
   const now = useNow();
   const thread = state.view.thread;
@@ -301,29 +443,52 @@ export function App() {
     return () => clearTimeout(timer);
   }, [opening, current]);
 
+  /** The screen as last drawn, which says whether a step goes deeper than the list. */
+  const shown = useRef(screen);
+  shown.current = screen;
+
+  const stepBack = useCallback(() => {
+    setOpening(null);
+    setSheet(null);
+    setScreen((from) => from === "changes" ? "thread" : "list");
+  }, []);
+
+  const screens = useScreenHistory(stepBack);
+
+  /** Goes to `to`, a history entry deeper when it is past where the phone is now. */
+  const enter = useCallback((to: Exclude<Screen, "list">) => {
+    if (shown.current === "list" || (shown.current === "thread" && to === "changes")) screens.pushed();
+    setScreen(to);
+  }, [screens]);
+
+  const back = useCallback(() => {
+    stepBack();
+    screens.unwound();
+  }, [stepBack, screens]);
+
   /** The changes screen belongs to one thread; when the Mac moves on, so does the phone. */
   useEffect(() => {
-    if (screen === "changes" && !thread) setScreen("thread");
-  }, [screen, thread]);
+    if (screen === "changes" && !thread) back();
+  }, [screen, thread, back]);
 
-  /** With `menu`, the thread opens with its options already up, as a long press on its row asks. */
-  const openThread = useCallback((taskId: string, title: string, project: string | null, menu = false) => {
+  const openThread = useCallback((taskId: string, title: string, project: string | null) => {
     settleUndo();
+    setRowMenu(null);
     setOpening({ title, project, want: taskId, was: current });
-    setScreen("thread");
-    setSheet(menu ? "menu" : null);
+    enter("thread");
+    setSheet(null);
     send({ type: "task.select", taskId });
-  }, [send, current, settleUndo]);
+  }, [send, current, settleUndo, enter]);
 
-  const openMenu = useCallback((taskId: string, title: string, project: string | null) => openThread(taskId, title, project, true), [openThread]);
+  const openMenu = useCallback((entry: MobileThreadEntry) => setRowMenu({ thread: entry, renaming: false }), []);
 
   const newThread = useCallback((projectId: string | null, project: string | null, worktreeId?: string) => {
     settleUndo();
     setOpening({ title: "New thread", project, want: "draft", was: current });
-    setScreen("thread");
+    enter("thread");
     setSheet(null);
     send({ type: "task.new", ...(projectId ? { projectId } : {}), ...(worktreeId ? { worktreeId } : {}) });
-  }, [send, current, settleUndo]);
+  }, [send, current, settleUndo, enter]);
 
   const newFromList = useCallback((projectId: string | null, project: string | null) => newThread(projectId, project), [newThread]);
 
@@ -331,11 +496,10 @@ export function App() {
     listScroll.current = top;
   }, []);
 
-  const back = useCallback(() => {
-    setOpening(null);
-    setSheet(null);
-    setScreen((from) => from === "changes" ? "thread" : "list");
-  }, []);
+  const archive = useCallback((id: string, archivedTitle: string) => {
+    send({ type: "task.archive", taskId: id });
+    offer({ key: `archive:${id}`, verb: "Archived", title: archivedTitle, undo: () => send({ type: "task.restore", taskId: id }) });
+  }, [send, offer]);
 
   const chooseListMode = useCallback((mode: MobileListMode) => {
     writeListMode(window.localStorage, mode);
@@ -371,7 +535,10 @@ export function App() {
             {subtitle && <p>{subtitle}</p>}
           </div>}
         {!reading && (
-          <button type="button" className="ghost icon bar-action" aria-label="New thread" onClick={() => newThread(null, null)}><SquarePen size={20} strokeWidth={1.8} /></button>
+          <button type="button" className="ghost icon bar-action" aria-label="New thread" onClick={() => {
+            const start = startingProject(state.view.groups, listMode);
+            newThread(start?.projectId ?? null, start?.name ?? null);
+          }}><SquarePen size={20} strokeWidth={1.8} /></button>
         )}
         {screen === "thread" && (pending ? opening.want !== "draft" : thread !== null) && (
           <button type="button" className="ghost icon bar-action" aria-label="Thread options" aria-haspopup="dialog" disabled={pending} onClick={() => setSheet("menu")}><Ellipsis size={20} /></button>
@@ -383,13 +550,13 @@ export function App() {
         ? <Changes thread={thread} live={state.connection === "live"} query={query} />
         : reading
           ? thread && !pending
-            ? <ThreadBody thread={thread} connection={state.connection} waiting={waiting} returned={state.returned} send={send} sheet={sheet} onSheet={setSheet} onChanges={() => setScreen("changes")} onNewHere={() => newThread(thread.projectId, thread.projectName, thread.worktreeId ?? undefined)} onNewWith={(engine) => {
+            ? <ThreadBody thread={thread} waiting={waiting} returned={state.returned} send={send} sheet={sheet} onSheet={setSheet} onChanges={() => enter("changes")} onNewHere={() => newThread(thread.projectId, thread.projectName, thread.worktreeId ?? undefined)} onNewWith={(engine) => {
               newThread(thread.projectId, thread.projectName, thread.worktreeId ?? undefined);
               send({ type: "task.set-model", engine, model: defaultModelFor(engine) });
-            }} onArchived={() => {
+            }} onArchive={() => {
               const { id, title: archivedTitle } = thread;
               back();
-              offer({ key: `archive:${id}`, verb: "Archived", title: archivedTitle, undo: () => send({ type: "task.restore", taskId: id }) });
+              archive(id, archivedTitle);
             }} />
             : draft && !pending
               ? <DraftBody draft={draft} groups={state.view.groups} waiting={waiting} send={send} sheet={sheet} onSheet={setSheet} onProject={newThread} onStartIn={(worktreeId) => newThread(draft.projectId, draft.projectName, worktreeId)} />
@@ -408,8 +575,35 @@ export function App() {
             onDismiss={dismiss}
             onDismissAll={dismissAll}
           />}
+      {!reading && rowMenu && <RowOptions menu={rowMenu} send={send} onMenu={setRowMenu} onOpen={openThread} onDismiss={dismiss} onArchive={archive} />}
       {undoable && !reading && <UndoToast key={undoable.key} undoable={undoable} onUndo={takeBack} onDone={settleUndo} />}
     </div>
+  );
+}
+
+type RowMenu = { thread: MobileThreadEntry; renaming: boolean };
+
+/** A list row's options, or its rename, over the list. */
+function RowOptions({ menu: { thread, renaming }, send, onMenu, onOpen, onDismiss, onArchive }: {
+  menu: RowMenu;
+  send: (command: MobileCommand) => void;
+  onMenu: (menu: RowMenu | null) => void;
+  onOpen: (taskId: string, title: string, project: string | null) => void;
+  onDismiss: (taskId: string, title: string) => void;
+  onArchive: (taskId: string, title: string) => void;
+}) {
+  const close = () => onMenu(null);
+  if (renaming) return <RenameSheet title={thread.title} onClose={close} onRename={(title) => send({ type: "task.rename", taskId: thread.id, title })} />;
+  return (
+    <ThreadRowMenu
+      thread={thread}
+      onClose={close}
+      onOpen={() => onOpen(thread.id, thread.title, thread.projectName)}
+      onRename={() => onMenu({ thread, renaming: true })}
+      onFork={() => send({ type: "task.fork", taskId: thread.id })}
+      {...(thread.attention ? { onDismiss: () => onDismiss(thread.id, thread.title) } : {})}
+      onArchive={() => onArchive(thread.id, thread.title)}
+    />
   );
 }
 
@@ -425,9 +619,8 @@ function returnedTo(returned: ReturnedCommand | null, taskId: string): ReturnedT
   return null;
 }
 
-function ThreadBody({ thread, connection, waiting, returned, send, sheet, onSheet, onChanges, onNewHere, onNewWith, onArchived }: {
+function ThreadBody({ thread, waiting, returned, send, sheet, onSheet, onChanges, onNewHere, onNewWith, onArchive }: {
   thread: MobileThreadView;
-  connection: MobileConnectionState;
   waiting: number;
   returned: ReturnedCommand | null;
   send: (command: MobileCommand) => void;
@@ -437,8 +630,8 @@ function ThreadBody({ thread, connection, waiting, returned, send, sheet, onShee
   onNewHere: () => void;
   /** Starts a thread in the same place on another engine, which an existing thread cannot switch to. */
   onNewWith: (engine: AgentEngine) => void;
-  /** The thread is gone from the list, so the screen goes back to it. */
-  onArchived: () => void;
+  /** Archives the thread, which is gone from the list, so the screen goes back to it. */
+  onArchive: () => void;
 }) {
   const running = thread.status === "running";
   const close = () => onSheet(null);
@@ -480,11 +673,10 @@ function ThreadBody({ thread, connection, waiting, returned, send, sheet, onShee
         onNewHere={onNewHere}
         onFork={(worktree) => send({ type: "task.fork", taskId: thread.id, ...(worktree ? { worktree } : {}) })}
         onRename={() => onSheet("rename")}
-        onArchive={() => { send({ type: "task.archive", taskId: thread.id }); onArchived(); }}
+        onArchive={onArchive}
       />}
       {sheet === "location" && <LocationSheet thread={thread} onClose={close} onMove={(destination) => send({ type: "task.move-worktree", taskId: thread.id, destination })} />}
       {sheet === "rename" && <RenameSheet title={thread.title} onClose={close} onRename={(title) => send({ type: "task.rename", taskId: thread.id, title })} />}
-      {connection !== "live" && <span className="sr-only" role="status">{CONNECTION_LABELS[connection]}</span>}
     </>
   );
 }

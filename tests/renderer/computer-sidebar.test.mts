@@ -123,7 +123,7 @@ test("folders sit under the computer that holds them, this computer's first, and
       ["Local app"], ["A long remote project name", "Other"], ["Offline app"],
     ], "a row carries the folder name alone");
     const buttons = [...view.container.querySelectorAll<HTMLButtonElement>(".project-main")];
-    assert.deepEqual(buttons.map((button) => button.title), ["/local/app", "/linux/app on linux-box", "/linux/other on linux-box", "/old/app on old-laptop (offline)"]);
+    assert.deepEqual(buttons.map((button) => button.dataset.tip), ["/local/app", "/linux/app on linux-box", "/linux/other on linux-box", "/old/app on old-laptop (offline)"]);
     for (const button of buttons.slice(1)) await act(async () => { button.click(); });
     assert.deepEqual(toggled, ["remote", "remote-two", "offline"]);
   } finally {
@@ -212,10 +212,11 @@ test("the header's computer button names every computer and narrows the lists to
     await act(async () => { trigger.click(); });
     assert.equal(trigger.getAttribute("aria-expanded"), "true");
     const choices = choicesInMenu();
-    assert.deepEqual(choices.map((choice) => choice.textContent), ["All", "My Mac", "linux-box", "old-laptop"]);
+    assert.deepEqual(choices.map((choice) => choice.querySelector(".menu-label")?.textContent), ["All", "My Mac", "linux-box", "old-laptop"]);
     assert.deepEqual(choices.map((choice) => choice.getAttribute("aria-checked")), ["true", "false", "false", "false"]);
     assert.equal(choices[3]!.classList.contains("offline"), true);
-    assert.equal(choices[3]!.dataset.tip, "old-laptop is offline");
+    assert.equal(choices[3]!.querySelector(".menu-shortcut")?.textContent, "Offline", "an away computer says so in the menu itself");
+    assert.equal(choices[2]!.querySelector(".menu-shortcut"), null);
     assert.equal(choices[3]!.disabled, false);
     await act(async () => { choices[2]!.click(); });
     assert.equal(trigger.dataset.tip, "Only linux-box");
@@ -327,7 +328,7 @@ test("the Priority view narrows to one project from its own list, naming the com
   }
 });
 
-test("an unreachable computer's row offers nothing: no rename, no menu, no archive", async () => {
+test("an unreachable computer's row offers nothing: no rename, no menu", async () => {
   const menus: (string | null)[] = [];
   const here = task("here", { title: "Local work" });
   const elsewhere = task("elsewhere", { title: "Unreachable work" });
@@ -340,7 +341,7 @@ test("an unreachable computer's row offers nothing: no rename, no menu, no archi
   }));
   try {
     const rows = [...view.container.querySelectorAll<HTMLElement>(".task-row")];
-    assert.equal(rows[0]!.querySelector(".task-archive") !== null, true, "a row here can be archived");
+    assert.equal(rows[0]!.querySelector(".task-more") !== null, true, "a row here has its menu");
     assert.equal(rows[1]!.querySelector(".row-action") === null, true);
     await act(async () => { rows[1]!.dispatchEvent(new dom.window.MouseEvent("dblclick", { bubbles: true })); });
     assert.equal(view.container.querySelector(".task-rename") === null, true);

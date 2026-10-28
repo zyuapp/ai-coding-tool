@@ -129,7 +129,7 @@ test("this computer's name says it was saved, and an unchanged name saves nothin
   const view = await mount(settings({ onRename: (name) => renamed.push(name) }));
   try {
     const field = view.container.querySelector<HTMLInputElement>(".computer-name input")!;
-    assert.equal(view.container.querySelector(".computer-name label span")!.textContent, "This computer's name");
+    assert.equal(view.container.querySelector(".computer-name label strong")!.textContent, "This computer's name");
     const saved = () => view.container.querySelector(".computer-name-saved")!.textContent;
     await act(async () => { field.focus(); field.blur(); });
     assert.deepEqual(renamed, []);

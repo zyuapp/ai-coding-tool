@@ -184,6 +184,7 @@ test("Stop all keeps the keyboard's place once the group it heads is gone", asyn
   const done = row(member("d", "Login flake"), "done");
   const view = await mount(overview([working, done]));
   await act(async () => { const stop = query<HTMLButtonElement>(view.container, ".coordination-stop-all"); stop.focus(); stop.click(); });
+  await act(async () => { query<HTMLButtonElement>(view.container, ".coordination-stop > .armed").click(); });
   await view.render(overview([{ ...working, status: "idle" }, done]));
   assert.ok(!view.container.querySelector('[aria-label="Working"]'), "nothing under the coordinator works any more");
   const head = query(view.container, '[aria-label="Done"] .coordination-group-head');
@@ -298,11 +299,20 @@ test("the Overview's Working group stops the coordinator and every thread under 
   assert.ok(stop.closest(".coordination-group-heading")?.querySelector(".coordination-group-head"));
   assert.equal(query(mounted.container, '[aria-label="Done"]').querySelector(".coordination-stop-all"), null, "only the Working group stops anything");
   await act(async () => { stop.click(); });
-  assert.deepEqual(dispatched.filter((input) => input.type === "coordination.stop-all"), [{ type: "coordination.stop-all", taskId: "lead" }], "Stop all stops at once, as the thread menu's does");
+  assert.equal(dispatched.filter((input) => input.type === "coordination.stop-all").length, 0, "the first press only asks");
+  const cancel = [...working.querySelectorAll<HTMLButtonElement>(".coordination-stop > button")].find((button) => button.textContent === "Cancel");
+  assert.ok(cancel && dom.window.document.activeElement === cancel, "focus lands on the safe choice");
+  await act(async () => { cancel.click(); });
+  assert.equal(dispatched.filter((input) => input.type === "coordination.stop-all").length, 0, "Cancel stops nothing");
+  await act(async () => { query<HTMLButtonElement>(working, ".coordination-stop-all").click(); });
+  await act(async () => { query<HTMLButtonElement>(working, ".coordination-stop > .armed").click(); });
+  assert.deepEqual(dispatched.filter((input) => input.type === "coordination.stop-all"), [{ type: "coordination.stop-all", taskId: "lead" }], "the second press stops them all");
 
   await mounted.render(shown(false));
-  assert.equal(query<HTMLButtonElement>(mounted.container, ".coordination-stop-all").getAttribute("aria-disabled"), "true", "a computer whose build cannot stop them all says so");
-  await act(async () => { query<HTMLButtonElement>(mounted.container, ".coordination-stop-all").click(); });
+  const unsupported = query<HTMLButtonElement>(mounted.container, ".coordination-stop-all");
+  assert.equal(unsupported.disabled, true, "a computer whose build cannot stop them all says so");
+  assert.ok(unsupported.dataset.tip);
+  await act(async () => { unsupported.click(); });
   assert.equal(dispatched.filter((input) => input.type === "coordination.stop-all").length, 1, "and sends nothing");
   await mounted.unmount();
 });

@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { keyboardFocusVisible } from "../focus-appearance";
 import { displayShortcut } from "../../domain/shortcuts";
@@ -25,6 +25,23 @@ type Tip = { text: string; rect: DOMRect };
 /** A control's tooltip: its name, with the keystroke that does the same. */
 export function shortcutTip(label: string, binding: string) {
   return `${label} (${displayShortcut(binding, MAC)})`;
+}
+
+/** A trailing parenthetical that names keys rather than words: a modifier glyph or name, or a lone key. */
+const KEYS = /^(?:[⌃⌥⇧⌘].*|(?:Ctrl|Meta|Alt|Shift)\+.+|Esc|Escape|Enter|Tab|Space|Backspace|Delete|[↩⇥⌫⌦←→↑↓⇞⇟↖↘]|F\d{1,2})$/;
+
+/** A tip's text with each `Label (keys)` part drawn as the label and a key cap. */
+function TipText({ text }: { text: string }) {
+  return text.split(" · ").map((part, index) => {
+    const match = / \(([^()]+)\)$/.exec(part);
+    const keys = match && KEYS.test(match[1]) ? match[1] : null;
+    return (
+      <Fragment key={index}>
+        {index > 0 && " · "}
+        {keys ? <>{part.slice(0, match!.index)} <kbd className="tooltip-keys">{keys}</kbd></> : part}
+      </Fragment>
+    );
+  });
 }
 
 function tipped(target: EventTarget | null) {
@@ -94,7 +111,8 @@ export function TooltipLayer() {
 
     const over = (event: MouseEvent) => {
       const element = tipped(event.target);
-      if (element) show(element, open.current ? NEXT_MS : DELAY_MS);
+      /** A control that cannot act explains why as soon as the pointer reaches it. */
+      if (element) show(element, open.current || element.getAttribute("aria-disabled") === "true" ? NEXT_MS : DELAY_MS);
       else hide();
     };
 
@@ -153,5 +171,5 @@ export function TooltipLayer() {
   }, [tip]);
 
   if (!tip) return null;
-  return createPortal(<div className="tooltip" role="tooltip" id={id} ref={box}>{tip.text}</div>, document.body);
+  return createPortal(<div className="tooltip" role="tooltip" id={id} ref={box}><TipText text={tip.text} /></div>, document.body);
 }

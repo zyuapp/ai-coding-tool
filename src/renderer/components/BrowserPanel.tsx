@@ -90,8 +90,8 @@ export function BrowserPanel({ tab, approval, focusToken = 0, find, onOpen, onGo
         <div className="browser-approval" role="alert">
           <ShieldAlert size={16} aria-hidden="true" />
           <p>The agent wants to open <strong>{browserTabTitle({ title: "", url: approval.url })}</strong>. It browses with every login you have here.</p>
-          <button className="primary" type="button" onClick={() => onDecide(approval.approvalId, true)}>Always allow this site</button>
           <button type="button" onClick={() => onDecide(approval.approvalId, false)}>Block</button>
+          <button type="button" onClick={() => onDecide(approval.approvalId, true)}>Always allow this site</button>
         </div>
       )}
 

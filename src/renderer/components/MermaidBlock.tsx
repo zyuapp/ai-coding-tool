@@ -1,8 +1,9 @@
-import { LuCircleAlert as CircleAlert, LuMaximize2 as Maximize, LuX as X } from "react-icons/lu";
+import { LuMaximize2 as Maximize, LuX as X } from "react-icons/lu";
 import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useModalFocus } from "../focus";
 import { shortcutTip } from "./TooltipLayer";
+import { BlockError } from "./VisualBlock";
 import { ZoomControls, useZoom } from "./ZoomView";
 
 let initialized = false;
@@ -195,6 +196,8 @@ export function MermaidBlock({ source, pending = false }: { source: string; pend
   const [result, setResult] = useState<{ source: string; diagram?: Diagram; error?: string }>({ source });
   const open = useContext(OpenDiagram);
   const generation = useSyncExternalStore(subscribeToGeneration, readGeneration);
+  /** Each try renders under its own id, since Mermaid keys its scratch node on it. */
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     const element = host.current;
@@ -243,7 +246,7 @@ export function MermaidBlock({ source, pending = false }: { source: string; pend
           });
           initialized = true;
         }
-        const svg = await drawnHere(mermaid, `mermaid-${id}-${drawnAs}`, source, host.current?.clientWidth ?? 0);
+        const svg = await drawnHere(mermaid, `mermaid-${id}-${drawnAs}-${attempt}`, source, host.current?.clientWidth ?? 0);
         if (readGeneration() !== drawnAs) return;
         remember(source, { diagram: naturalDiagram(svg) });
       } catch (error) {
@@ -253,7 +256,13 @@ export function MermaidBlock({ source, pending = false }: { source: string; pend
       if (!cancelled) setResult({ source, ...drawn.get(source) });
     })();
     return () => { cancelled = true; };
-  }, [id, source, visible, pending, generation]);
+  }, [id, source, visible, pending, generation, attempt]);
+
+  const retry = () => {
+    drawn.delete(source);
+    setResult({ source });
+    setAttempt((count) => count + 1);
+  };
 
   const current: Drawn = drawn.get(source) ?? (result.source === source ? result : {});
   const drawing = current.diagram
@@ -266,7 +275,12 @@ export function MermaidBlock({ source, pending = false }: { source: string; pend
         {drawing && open
           ? <button type="button" className="mermaid-open" aria-label="Open the diagram at full size" onClick={() => open(current.diagram!)}>{drawing}</button>
           : drawing}
-        {current.error ? <details className="mermaid-error"><summary><CircleAlert className="notice-icon" aria-hidden="true" />Diagram could not be rendered</summary><p className="mermaid-error-message">{current.error}</p><pre><code>{source}</code></pre></details> : null}
+        {current.error ? (
+          <BlockError className="mermaid-error" title="Diagram could not be rendered" error={current.error} onRetry={retry}>
+            <p className="mermaid-error-message">{current.error}</p>
+            <pre><code>{source}</code></pre>
+          </BlockError>
+        ) : null}
       </div>
       {/* Pointer only: the drawing itself is the keyboard's way to open it. */}
       {drawing && open && (

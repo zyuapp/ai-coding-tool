@@ -38,7 +38,7 @@ function renderConversationComposer(overrides: Partial<ConversationComposerProps
   });
 }
 
-test("an active native goal stays visible and can be cleared", async () => {
+test("an active native goal stays visible and is cleared only once confirmed", async () => {
   let cleared = 0;
   const view = await mount(renderConversationComposer({
     goal: { objective: "All checks pass", status: "active", iterations: 2 },
@@ -48,6 +48,17 @@ test("an active native goal stays visible and can be cleared", async () => {
   assert.match(query(view.container, ".goal-bar").textContent, /All checks pass/);
   assert.match(query(view.container, ".goal-detail").textContent, /Pass 2/);
   await act(async () => { query<HTMLButtonElement>(view.container, ".goal-clear").click(); });
+  assert.equal(cleared, 0, "the first press only asks");
+  const actions = [...view.container.querySelectorAll<HTMLButtonElement>(".goal-actions button")];
+  assert.deepEqual(actions.map((button) => button.textContent), ["Clear goal", "Cancel"]);
+  assert.equal(document.activeElement, actions[1], "the safe answer takes the focus");
+
+  await act(async () => { actions[1]!.click(); });
+  assert.equal(cleared, 0);
+  assert.equal(document.activeElement, query(view.container, ".goal-clear"), "Cancel puts the first button back, focused");
+
+  await act(async () => { query<HTMLButtonElement>(view.container, ".goal-clear").click(); });
+  await act(async () => { query<HTMLButtonElement>(view.container, ".goal-actions button.danger").click(); });
   assert.equal(cleared, 1);
   await view.unmount();
 });
@@ -75,7 +86,7 @@ test("context usage stays within 100% when the window shrinks below the used tok
   await act(async () => {});
 
   const usage = query(view.container, ".context-usage");
-  assert.equal(usage.getAttribute("aria-label"), "100% of context window used");
+  assert.equal(query(usage, '[role="meter"]').getAttribute("aria-valuetext"), "100% used");
   assert.match(usage.textContent, /100% used0% left/);
   assert.match(usage.textContent, /620K \/ 200K tokens used/);
   await view.unmount();
@@ -99,6 +110,7 @@ test("one outside pointer press dismisses the slash menu until the draft changes
     textarea.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText" }));
   });
   assert.ok(view.container.querySelector(".command-menu"));
+  assert.equal([...view.container.querySelectorAll(".command-menu-heading kbd")].length, 3, "the heading names the keys that move, choose and close");
   await act(async () => { document.body.dispatchEvent(new Event("pointerdown", { bubbles: true })); });
   assert.equal(view.container.querySelector(".command-menu"), null);
   await act(async () => {
@@ -477,6 +489,7 @@ test("a long paste is held aside as a pill, and a short one lands in the draft",
   assert.match(pill.textContent, /40 lines/);
   assert.equal(query<HTMLButtonElement>(view.container, 'button[aria-label="Send task"]').disabled, false, "a paste alone is enough to send");
 
+  assert.equal(query(view.container, 'button[aria-label="Read pasted text 1"]').dataset.tip, "View");
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Read pasted text 1"]').click(); });
   assert.match(query(document.body, ".paste-full").textContent, /line 39/);
   await act(async () => { query<HTMLButtonElement>(document.body, ".viewer-close").click(); });
@@ -558,8 +571,8 @@ test("while a run goes, a written message shows how to queue it or steer it in",
   const hint = query(running.container, ".composer-hint");
   assert.match(hint.textContent ?? "", /queue.*steer/);
   assert.equal(query(running.container, "textarea").getAttribute("aria-describedby"), hint.id, "the prompt names the keys to a screen reader too");
-  assert.ok(query(hint, ".composer-hint-queue"), "the queue half is the part a narrow composer lets go, keeping steer");
-  assert.equal(query(running.container, ".send-button").dataset.tip, "Stop", "the hint is not repeated on Stop");
+  assert.equal(hint.querySelectorAll("kbd").length, 2, "both keys stay named");
+  assert.match(query(running.container, ".send-button").dataset.tip ?? "", /^Stop \((Esc|Escape)\)$/, "Stop names its key, not the queue hint");
   await running.unmount();
 });
 
@@ -596,36 +609,40 @@ test("an image limit reads as a note, not a failure, and can be put away", async
   await view.unmount();
 });
 
-test("a thread this build cannot open offers the update that opens it", async () => {
+test("a thread this build cannot open offers the update that opens it, once there is one", async () => {
   window.desktop = fakeDesktop();
   const dispatched: AppCommand[] = [];
-  const view = await mount(React.createElement(CommandControlsProvider, { value: { available: () => true, dispatch: (command) => { dispatched.push(command); } } },
-    renderConversationComposer({ unopenable: "Runs on gemini, which this version can't open. Update to work in it here." })));
+  const shown = (updateAvailable: boolean) => React.createElement(CommandControlsProvider, { value: { available: () => true, dispatch: (command) => { dispatched.push(command); } } },
+    renderConversationComposer({ unopenable: "Runs on gemini, which this version can't open. Update to work in it here.", updateAvailable }));
+  const view = await mount(shown(false));
   assert.equal(view.container.querySelector("textarea"), null);
+  assert.equal(view.container.querySelector(".composer-unopenable-update"), null, "no update found, nothing to press");
+  await view.render(shown(true));
   await act(async () => { query<HTMLButtonElement>(view.container, ".composer-unopenable-update").click(); });
   assert.deepEqual(dispatched, [{ type: "app.update" }]);
   await view.unmount();
 });
 
-test("the context ring says how full it is, and compacts once compaction is near", async () => {
+test("the context ring only reads, and its card offers Compact where compacting is on offer", async () => {
   window.desktop = fakeDesktop();
   let compacted = 0;
   const onCompact = () => { compacted += 1; };
   const low = await mount(renderConversationComposer({ contextUsage: { tokens: 40_000, limit: 200_000, model: "claude-opus-5" }, onCompact }));
-  assert.equal(query(low.container, ".context-usage-value").textContent, "20%");
-  assert.equal(query(low.container, ".context-usage").tagName, "SPAN", "far from compaction it stays a readout");
+  const meter = query(low.container, '.context-usage [role="meter"]');
+  assert.equal(meter.getAttribute("aria-valuenow"), "20");
+  assert.equal(query(meter, ".context-usage-value").textContent, "20%");
+  assert.equal(meter.querySelector("button"), null, "the ring itself never compacts");
+  await act(async () => { query<HTMLButtonElement>(low.container, ".usage-card-action").click(); });
+  assert.equal(compacted, 1, "compacting is on offer at any share");
   await low.unmount();
 
   const high = await mount(renderConversationComposer({ contextUsage: { tokens: 180_000, limit: 200_000, model: "claude-opus-5" }, onCompact }));
-  const meter = query<HTMLButtonElement>(high.container, ".context-usage");
-  assert.equal(meter.tagName, "BUTTON");
-  assert.equal(query(meter, ".context-usage-value").textContent, "90%");
-  await act(async () => { meter.click(); });
-  assert.equal(compacted, 1);
+  assert.ok(query(high.container, ".context-usage").classList.contains("high"));
+  assert.equal(query(high.container, ".context-usage-value").textContent, "90%");
   await high.unmount();
 
   const unoffered = await mount(renderConversationComposer({ contextUsage: { tokens: 180_000, limit: 200_000, model: "claude-opus-5" } }));
-  assert.equal(query(unoffered.container, ".context-usage").tagName, "SPAN", "where compacting is not on offer the ring only reads");
+  assert.equal(unoffered.container.querySelector(".usage-card-action"), null, "where compacting is not on offer the card only reads");
   await unoffered.unmount();
 });
 

@@ -1,4 +1,4 @@
-import { ConfirmAction, SettingGroup } from "./SettingRow";
+import { ConfirmAction, SettingGroup, useRowListFocus } from "./SettingRow";
 import { settingControl } from "../../domain/settings-catalog";
 import { AvailabilitySection } from "./AvailabilitySection";
 import { BrowserImportSection, type BrowserImportSettings } from "./BrowserImportSection";
@@ -23,6 +23,7 @@ export function BrowserSettings({
   onForgetOrigin,
   browserImport,
 }: BrowserSettingsProps) {
+  const rows = useRowListFocus<HTMLDivElement>();
   return (
     <main className="settings-main">
       <div className="settings-page-heading">
@@ -49,19 +50,18 @@ export function BrowserSettings({
 
         {allowedOrigins.length === 0
           ? <p className="settings-empty">The agent has to ask before it opens any site.</p>
-          : allowedOrigins.map((origin) => (
-            <div className="setting-row plain" key={origin}>
-              <div>
-                <strong>{origin}</strong>
-                <p>The agent can open this site without asking.</p>
+          : <div ref={rows.ref} onClickCapture={rows.onClickCapture}>
+            {allowedOrigins.map((origin) => (
+              <div className="setting-row plain" key={origin}>
+                <strong className="setting-origin">{origin}</strong>
+                {onForgetOrigin && (
+                  <div className="setting-row-action">
+                    <button type="button" aria-label={`Remove ${origin}`} onClick={() => onForgetOrigin(origin)}>Remove</button>
+                  </div>
+                )}
               </div>
-              {onForgetOrigin && (
-                <div className="setting-row-action">
-                  <button type="button" aria-label={`Remove ${origin}`} onClick={() => onForgetOrigin(origin)}>Remove</button>
-                </div>
-              )}
-            </div>
-          ))}
+            ))}
+          </div>}
       </SettingGroup>
     </main>
   );

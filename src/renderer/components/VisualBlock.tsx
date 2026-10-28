@@ -1,5 +1,5 @@
 import { LuCircleAlert as CircleAlert } from "react-icons/lu";
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { renderMessage, themeMessage, VISUAL_FRAME_URL, visualFrameMessage, type VisualTheme } from "../../domain/visual-frame";
 
 /** What a visual is styled with, by the names the visualize skill documents, read from the app's own tokens. */
@@ -63,6 +63,27 @@ function rememberHeight(source: string, height: number) {
   for (const stale of [...heights.keys()].slice(0, heights.size - MAX_REMEMBERED)) heights.delete(stale);
 }
 
+/** What a visual calls itself: its title, else its first heading. */
+export function visualTitle(source: string): string {
+  const named = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(source) ?? /<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/i.exec(source);
+  const text = named?.[1]?.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, 120);
+  return text || "Visual";
+}
+
+/** A block that failed to draw: what went wrong at a glance, the rest on opening, and another go. */
+export function BlockError({ title, error, className, onRetry, children }: { title: string; error: string; className?: string; onRetry: () => void; children: ReactNode }) {
+  const reason = error.split("\n", 1)[0]!.trim();
+  return (
+    <div className={className ? `block-error ${className}` : "block-error"} role="alert">
+      <details>
+        <summary><CircleAlert className="notice-icon" aria-hidden="true" />{title}{reason && <span className="block-error-reason">{reason}</span>}</summary>
+        {children}
+      </details>
+      <button type="button" className="limit-action" onClick={onRetry}>Try again</button>
+    </div>
+  );
+}
+
 /** `pending` marks a block whose fence has not closed yet, so its source still grows with the stream. */
 export function VisualBlock({ source, pending = false }: { source: string; pending?: boolean }) {
   const host = useRef<HTMLDivElement>(null);
@@ -115,6 +136,7 @@ export function VisualBlock({ source, pending = false }: { source: string; pendi
   }, [source]);
 
   const live = visible && !pending;
+  const title = useMemo(() => (live ? visualTitle(source) : "Visual"), [live, source]);
   const drawing = live && height === undefined && error === null;
 
   useEffect(() => {
@@ -137,7 +159,7 @@ export function VisualBlock({ source, pending = false }: { source: string; pendi
             key={`${attempt}:${source}`}
             ref={frame}
             className="visual-frame"
-            title="Visual"
+            title={title}
             src={VISUAL_FRAME_URL}
             sandbox="allow-scripts"
             data-ready={height === undefined ? undefined : ""}
@@ -146,10 +168,9 @@ export function VisualBlock({ source, pending = false }: { source: string; pendi
         : <span className="visual-loading">{pending ? <span className="text-sweep">Drawing visual…</span> : null}</span>}
       {drawing && <span className="visual-loading visual-loading-over"><span className="text-sweep">Drawing visual…</span></span>}
       {error ? (
-        <div className="visual-error" role="alert">
-          <details><summary><CircleAlert className="notice-icon" aria-hidden="true" />The visual hit an error</summary><pre><code>{error}</code></pre></details>
-          <button type="button" className="limit-action" onClick={retry}>Try again</button>
-        </div>
+        <BlockError className="visual-error" title="The visual hit an error" error={error} onRetry={retry}>
+          <pre><code>{error}</code></pre>
+        </BlockError>
       ) : null}
     </div>
   );

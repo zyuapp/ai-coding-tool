@@ -817,7 +817,7 @@ test("the panel keeps the sentence a schedule surfaces for, rather than trading 
     onDelete() {}, onRunNow() {},
   } satisfies AutomationPanelProps);
 
-  const field = () => query<HTMLTextAreaElement>(view.container, "[aria-label='What a run of this automation surfaces for']");
+  const field = () => item([...view.container.querySelectorAll<HTMLInputElement>(".automation-field input")].find((input) => input.labels?.[0]?.textContent === "Notify me when"));
   const save = () => item([...view.container.querySelectorAll("button")].find((button) => button.textContent === "Save"));
 
   const view = await mount(panel(undefined));

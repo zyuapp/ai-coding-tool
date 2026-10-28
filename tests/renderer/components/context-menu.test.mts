@@ -109,3 +109,18 @@ test("choosing an item closes the menu before it acts", async () => {
   assert.deepEqual(order, ["closed", "selected"]);
   await view.unmount();
 });
+
+test("what the menu acts on stays marked while it is open, and only then", async () => {
+  const row = document.createElement("div");
+  document.body.append(row);
+  const target = { current: row };
+  const render = (open: boolean) => open
+    ? React.createElement(ContextMenu, { entries: ENTRIES, at: { x: 10, y: 10 }, onClose() {}, returnFocus: target })
+    : null;
+  const view = await mount(render(true));
+  try {
+    assert.equal(row.hasAttribute("data-menu-target"), true);
+    await view.render(render(false));
+    assert.equal(row.hasAttribute("data-menu-target"), false);
+  } finally { await view.unmount(); row.remove(); }
+});

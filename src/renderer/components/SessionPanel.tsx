@@ -47,8 +47,10 @@ export const BRANCH_MENU = "session:branch";
 /** The sidebar carries the few that want reading; the whole roster lives in the Subagents panel. */
 const SIDEBAR_LIMIT = 6;
 
+const NO_CHECKOUT = "Reopen the project to inspect Git";
+
 function environmentMessage(environment: ChangedFilesResult | null, workspaceId: string | undefined) {
-  if (!workspaceId) return "Reopen the project to inspect Git";
+  if (!workspaceId) return NO_CHECKOUT;
   /** A checkout with no answer yet is one still being read; the rows fill in when it answers. */
   if (!environment) return "Reading Git…";
   if (environment.status === "error") return environment.message;
@@ -75,10 +77,10 @@ function BranchRow({ branch, workspaceId, openMenu, onSetOpenMenu, onCheckoutBra
         ref={trigger}
         className="session-row session-row-action"
         type="button"
-        aria-label="Branch"
         aria-haspopup="listbox"
         aria-expanded={open}
         disabled={!workspaceId}
+        data-tip={workspaceId ? undefined : NO_CHECKOUT}
         onClick={() => onSetOpenMenu(open ? null : BRANCH_MENU)}
       >
         <span className="session-row-icon"><GitBranch size={18} /></span>
@@ -167,13 +169,12 @@ function CheckoutRows({ environment, workspaceId, pullRequest, openMenu, onToggl
       <button
         className="session-row session-row-action"
         type="button"
-        aria-label="Review changes"
         onClick={onToggleChanges}
       >
         <span className="session-row-icon"><FileDiff size={18} /></span>
         <span>Changes</span>
         {available && (
-          <span className="change-counts" title={available.baseline ? `Since ${available.baseline}` : "Uncommitted work"}>
+          <span className="change-counts" data-tip={available.baseline ? `Since ${available.baseline}` : "Uncommitted work"}>
             <strong>+{available.additions}</strong><em>−{available.deletions}</em>
           </span>
         )}
@@ -199,7 +200,7 @@ function SessionEnvironment({ hasProject, locationRow, automationCount, onOpenAu
     <div className="session-environment">
       {locationRow}
       {hasProject && <CheckoutRows {...checkout} />}
-      <button className="session-row session-row-action" type="button" onClick={onOpenAutomations} aria-label="Open Automation panel">
+      <button className="session-row session-row-action" type="button" onClick={onOpenAutomations}>
         <span className="session-row-icon"><AlarmClock size={18} /></span>
         <span>Automations</span>
         <span className="session-count">{automationCount}</span>

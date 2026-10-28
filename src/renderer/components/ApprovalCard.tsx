@@ -1,4 +1,6 @@
 import { useId } from "react";
+import { displayShortcut, shortcutAction } from "../../domain/shortcuts";
+import { MAC } from "../platform";
 import { shortcutTip } from "./TooltipLayer";
 
 export type ApprovalCardProps = {
@@ -12,14 +14,26 @@ export type ApprovalCardProps = {
     input: Record<string, unknown>;
   };
   onDecide: (approval: Pick<ApprovalCardProps["approval"], "taskId" | "runId" | "approvalId">, allow: boolean) => void;
+  /** The keystrokes Allow and Deny answer to now; null where the user unbound one. */
+  bindings?: { allow: string | null; deny: string | null };
 };
+
+const DEFAULT_BINDINGS = { allow: shortcutAction("run.allow")?.defaultBinding ?? null, deny: shortcutAction("run.deny")?.defaultBinding ?? null };
+
+function DecideButton({ label, binding, secondary = false, onDecide }: { label: string; binding: string | null; secondary?: boolean; onDecide: () => void }) {
+  return (
+    <button type="button" {...(secondary ? { className: "secondary" } : {})} {...(binding ? { "data-tip": shortcutTip(label, binding) } : {})} onClick={onDecide}>
+      {label}{binding && <kbd aria-hidden="true">{displayShortcut(binding, MAC)}</kbd>}
+    </button>
+  );
+}
 
 /** The shell command a tool call would run, which is what the user is deciding on, when it has one. */
 export function approvalCommand(input: Record<string, unknown>): string | null {
   return typeof input.command === "string" ? input.command : null;
 }
 
-export function ApprovalCard({ approval, onDecide }: ApprovalCardProps) {
+export function ApprovalCard({ approval, onDecide, bindings = DEFAULT_BINDINGS }: ApprovalCardProps) {
   const id = useId();
   const command = approvalCommand(approval.input);
   return (
@@ -37,8 +51,8 @@ export function ApprovalCard({ approval, onDecide }: ApprovalCardProps) {
               <pre>{JSON.stringify(approval.input, null, 2)}</pre>
             </details>}
         <div className="approval-actions">
-          <button type="button" className="secondary" data-tip={shortcutTip("Deny", "Mod+Shift+D")} onClick={() => onDecide(approval, false)}>Deny</button>
-          <button type="button" data-tip={shortcutTip("Allow once", "Mod+Shift+A")} onClick={() => onDecide(approval, true)}>Allow once</button>
+          <DecideButton label="Deny" binding={bindings.deny} secondary onDecide={() => onDecide(approval, false)} />
+          <DecideButton label="Allow once" binding={bindings.allow} onDecide={() => onDecide(approval, true)} />
         </div>
       </div>
     </section>

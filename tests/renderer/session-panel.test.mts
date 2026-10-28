@@ -14,6 +14,11 @@ import type { SessionPanelProps } from "../../src/renderer/components/SessionPan
 
 import { dom, item, mount, pumpResizeObservers, query, rowHeights, sizeOf } from "../support/renderer-dom.mts";
 
+/** A session card row, found by the label it shows. */
+function sessionRow(container: Element, label: string) {
+  return [...container.querySelectorAll<HTMLButtonElement>("button.session-row")].find((row) => row.querySelector(":scope > span:nth-of-type(2)")?.textContent === label);
+}
+
 function agentRow(container: Element, name: string) {
   const row = [...container.querySelectorAll<HTMLButtonElement>(".agent-row")].find((button) => button.querySelector("strong")?.textContent === name);
   assert.ok(row, `no subagent row named ${name}`);
@@ -97,8 +102,8 @@ test("a coordinator's session panel keeps its own rows and adds its threads' wor
       }),
     ],
   }));
-  assert.ok(query(view.container, 'button[aria-label="Review changes"]'), "a coordinator has its own changes row again");
-  assert.ok(query(view.container, 'button[aria-label="Open Automation panel"]'));
+  assert.ok(item(sessionRow(view.container, "Changes")), "a coordinator has its own changes row again");
+  assert.ok(item(sessionRow(view.container, "Automations")));
   assert.equal(view.container.querySelector('[aria-label="Threads under this coordinator"]'), null, "its threads live in the Overview");
 
   const worktrees = query(view.container, '[aria-label="Worktrees these threads work in"]');
@@ -134,9 +139,9 @@ test("session panel renders Git and subagent states and selects an agent", async
   await act(async () => { agentRow(view.container, "Working agent").click(); });
   assert.equal(selected, "working");
 
-  const automations = query<HTMLButtonElement>(view.container, 'button[aria-label="Open Automation panel"]');
+  const automations = item(sessionRow(view.container, "Automations"));
   assert.equal(query(automations, ".session-count").textContent, "1", "the card only counts automations");
-  assert.equal(automations.querySelector('input[aria-label="Automation schedule"]'), null, "editing happens in the sliding panel");
+  assert.equal(automations.querySelector("input.automation-schedule"), null, "editing happens in the sliding panel");
   await act(async () => { automations.click(); });
   assert.equal(openedAutomations, 1);
 
@@ -153,10 +158,10 @@ test("session panel renders Git and subagent states and selects an agent", async
   await view.render(renderSessionPanel({ environment: null, hasProject: true, subagents: [], backgroundProcesses: [], workflows: [], automationCount: 0, onSelect() {}, onOpenAutomations() {} }));
   assert.match(view.container.textContent, /Reopen the project to inspect Git/, "a project that is no longer open has no checkout to read");
   await view.render(renderSessionPanel({ environment: null, hasProject: false, subagents: [], backgroundProcesses: [], workflows: [], automationCount: 0, onSelect() {}, onOpenAutomations() {} }));
-  assert.equal(view.container.querySelector('button[aria-label="Review changes"]'), null, "a thread with no folder has no changes to review");
-  assert.equal(view.container.querySelector('button[aria-label="Branch"]'), null, "nor a branch");
+  assert.equal((sessionRow(view.container, "Changes") ?? null), null, "a thread with no folder has no changes to review");
+  assert.equal((sessionRow(view.container, "Branch") ?? null), null, "nor a branch");
   assert.doesNotMatch(view.container.textContent, /Git/);
-  assert.ok(query(view.container, 'button[aria-label="Open Automation panel"]'), "automations need no folder");
+  assert.ok(item(sessionRow(view.container, "Automations")), "automations need no folder");
   await view.unmount();
 });
 
@@ -447,7 +452,6 @@ test("workspace header keeps session summary and right panel controls separate",
     onToggleSessionPanel: () => { summaryToggles += 1; },
     onToggleRightDock: () => { rightPanelToggles += 1; },
     onChooseFolder: () => {},
-    onNewThreadInProject: () => {},
   }));
 
   assert.equal(query(view.container, 'button[aria-label="Hide right panel"]').getAttribute("aria-pressed"), "true");
@@ -555,7 +559,7 @@ test("the session panel's branch row moves the checkout onto the branch it is gi
   });
 
   const view = await mount(panel(null));
-  const trigger = query<HTMLButtonElement>(view.container, 'button[aria-label="Branch"]');
+  const trigger = item(sessionRow(view.container, "Branch"));
   assert.match(trigger.textContent, /main/, "the row says where the checkout already is");
   assert.equal(view.container.querySelector('[role="listbox"]'), null, "no branch is read until the list is asked for");
   await act(async () => { trigger.click(); });
@@ -582,7 +586,10 @@ test("the session panel's branch row moves the checkout onto the branch it is gi
   assert.deepEqual(calls.checkout.at(-1), { branch: "loader-fix", create: true });
 
   await view.render(renderSessionPanel({ ...panel(null).props, workspaceId: undefined, environment: null }));
-  assert.equal(query<HTMLButtonElement>(view.container, 'button[aria-label="Branch"]').disabled, true, "with no checkout there is no branch to change");
+  const disabled = item(sessionRow(view.container, "Branch"));
+  assert.equal(disabled.disabled, true, "with no checkout there is no branch to change");
+  assert.equal(disabled.dataset.tip, "Reopen the project to inspect Git", "and the row says why");
+  assert.equal(disabled.getAttribute("aria-label"), null, "the row is read by what it shows");
   await view.unmount();
 });
 

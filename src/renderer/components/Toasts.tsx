@@ -37,6 +37,15 @@ export function Toasts({ toasts, onDismiss, onAction, onHold }: ToastsProps) {
     const within = (element: Element | null) => Boolean(element && section.current?.contains(element));
     if (holding.current.held) hold({ pointer: within(document.querySelector(".toasts:hover")), focus: within(document.activeElement) });
   });
+  /** Closing the card that holds the caret hands it to the card that takes its place, so the keyboard is not dropped. */
+  const dismiss = (id: number, card: HTMLElement) => {
+    if (card.contains(document.activeElement)) {
+      const cards = [...(section.current?.querySelectorAll<HTMLElement>(".toast") ?? [])];
+      const index = cards.indexOf(card);
+      (cards[index + 1] ?? cards[index - 1])?.querySelector<HTMLElement>(".toast-close")?.focus();
+    }
+    onDismiss(id);
+  };
   if (!toasts.length) return null;
   return (
     <section
@@ -51,14 +60,24 @@ export function Toasts({ toasts, onDismiss, onAction, onHold }: ToastsProps) {
       {[...toasts].reverse().map((toast) => {
         const Icon = ICONS[toast.tone];
         return (
-          <div key={toast.id} className={`toast ${toast.tone}`} role={toast.tone === "error" ? "alert" : "status"}>
+          <div
+            key={toast.id}
+            className={`toast ${toast.tone}`}
+            role={toast.tone === "error" ? "alert" : "status"}
+            onKeyDown={(event) => {
+              if (event.key !== "Escape") return;
+              event.preventDefault();
+              event.stopPropagation();
+              dismiss(toast.id, event.currentTarget);
+            }}
+          >
             <Icon className="toast-icon" size={16} aria-hidden="true" />
             <div className="toast-text">
               <strong>{toast.title}</strong>
               {toast.message && <ToastMessage text={toast.message} />}
               {toast.action && <button type="button" className="toast-action" onClick={() => onAction(toast.action!.command)}>{toast.action.label}</button>}
             </div>
-            <button type="button" className="toast-close" aria-label="Dismiss" data-tip="Dismiss" onClick={() => onDismiss(toast.id)}>
+            <button type="button" className="toast-close" aria-label="Dismiss" data-tip="Dismiss" onClick={(event) => dismiss(toast.id, event.currentTarget.closest<HTMLElement>(".toast")!)}>
               <X size={14} aria-hidden="true" />
             </button>
           </div>

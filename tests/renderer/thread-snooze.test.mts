@@ -33,7 +33,7 @@ test("Priority's right-click submenu snoozes a thread into Snoozed, and Unsnooze
     await act(async () => { menuItem("3 days")!.click(); });
     assert.equal(view.container.querySelector('nav[aria-label="Priority"] .task-row'), null);
     assert.equal(document.querySelector('[role="menu"]'), null);
-    const snoozed = query(view.container, 'nav[aria-label="Snoozed"] .task-row > [title="Review me"]').closest<HTMLElement>(".task-row")!;
+    const snoozed = query(view.container, 'nav[aria-label="Snoozed"] .task-row [data-tip="Review me"]').closest<HTMLElement>(".task-row")!;
     assert.match(snoozed.querySelector("small")?.textContent ?? "", / · Until /);
     await act(async () => { snoozed.click(); });
     assert.ok(snoozed.classList.contains("active"));
@@ -45,7 +45,7 @@ test("Priority's right-click submenu snoozes a thread into Snoozed, and Unsnooze
     assert.ok(stored?.task.snoozedUntil);
     assert.ok(Math.abs(stored.task.snoozedUntil - Date.now() - 72 * 3_600_000) < 5000);
     await act(async () => { menuItem("Unsnooze")!.click(); });
-    assert.ok(query(view.container, 'nav[aria-label="Priority"] .task-row > [title="Review me"]'));
+    assert.ok(query(view.container, 'nav[aria-label="Priority"] .task-row [data-tip="Review me"]'));
     assert.equal(view.container.querySelector('nav[aria-label="Snoozed"]'), null, "an empty Snoozed is not drawn");
   } finally { await view.unmount(); }
 });
@@ -75,11 +75,13 @@ test("snooze is offered on approval rows and gated by the actual section, includ
     await act(async () => { menuItem("1 hour")!.click(); });
     assert.deepEqual(snoozed, { id: "asked", hours: 1 });
     await open('nav[aria-label="Running"] .task-row');
-    assert.equal(menuItem("Snooze"), undefined);
+    assert.equal(menuItem("Snooze")!.getAttribute("aria-disabled"), "true", "outside Priority the menu keeps its shape");
+    await act(async () => { menuItem("Snooze")!.click(); });
+    assert.equal(menuItem("1 hour"), undefined);
     await view.render(React.createElement(Harness, { projects: true }));
-    await open('.task-row > [title^="asked"]');
+    await open('.task-row [data-tip="asked"]');
     assert.ok(menuItem("Archive"));
-    assert.equal(menuItem("Snooze"), undefined);
+    assert.equal(menuItem("Snooze")!.getAttribute("aria-disabled"), "true");
   } finally { await view.unmount(); }
 });
 

@@ -26,8 +26,8 @@ export function useRenaming(onCommit: (id: string, value: string) => void) {
 export type Renaming = ReturnType<typeof useRenaming>;
 
 /**
- * A name being typed in place, over the row it belongs to. Enter and blur keep what was typed and
- * Escape leaves it, so both lists rename the same way.
+ * A name being typed in place, over the row it belongs to, selected whole so typing replaces it.
+ * Enter and blur keep what was typed and Escape leaves it, so both lists rename the same way.
  */
 export function RenameInput({ inputRef, className, label, value, placeholder, onCommit, onCancel }: {
   inputRef: React.RefObject<HTMLInputElement | null>;
@@ -46,6 +46,7 @@ export function RenameInput({ inputRef, className, label, value, placeholder, on
       autoFocus
       defaultValue={value}
       placeholder={placeholder}
+      onFocus={(event) => event.currentTarget.select()}
       onClick={(event) => event.stopPropagation()}
       onDoubleClick={(event) => event.stopPropagation()}
       /** The row answers Enter itself and dragging claims the arrow and space keys. */

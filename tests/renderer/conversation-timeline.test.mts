@@ -342,6 +342,22 @@ test("a thread waiting on its checkout says so in the transcript, and its compos
   await view.unmount();
 });
 
+test("a wait on the checkout counts how long it has taken, and starts over for the next wait", async (t) => {
+  vi.useFakeTimers({ toFake: ["setInterval", "Date"] });
+  vi.setSystemTime(100_000);
+  t.onTestFinished(() => { vi.useRealTimers(); });
+  const messages = transcript({ kind: "user", text: "Refactor the loader" });
+  const view = await mount(timelineView(messages, "idle", undefined, undefined, undefined, "worktree"));
+  const elapsed = () => query(query(view.container, ".waiting-row"), ".thinking-elapsed");
+  assert.equal(elapsed().textContent, "0s");
+  assert.equal(elapsed().getAttribute("aria-hidden"), "true");
+  await act(async () => { vi.advanceTimersByTime(65_000); });
+  assert.equal(elapsed().textContent, "1m 5s");
+  await view.render(timelineView(messages, "idle", undefined, undefined, undefined, "run"));
+  assert.equal(elapsed().textContent, "0s");
+  await view.unmount();
+});
+
 test("a running turn says it is working to assistive tech, not only with dots", async () => {
   const view = await mount(timelineView(transcript({ kind: "user", text: "go" }), "running"));
   const row = query(view.container, ".thinking-row");
@@ -449,7 +465,7 @@ test("only the newest row keeps its message actions in view without a hover", as
   await view.unmount();
 });
 
-test("a compaction can be stopped from the row that says so, and a plain working row offers nothing to press", async () => {
+test("a compaction and a plain working run can each be stopped from the row that says so", async () => {
   const sent: unknown[] = [];
   const { CommandControlsProvider } = await import("../../src/renderer/components/CommandControl.tsx");
   const provide = (compacting: boolean) => React.createElement(
@@ -465,7 +481,11 @@ test("a compaction can be stopped from the row that says so, and a plain working
 
   await view.render(provide(false));
   assert.equal(view.container.querySelector(".compacting-row"), null);
-  assert.equal(query(view.container, ".thinking-row").querySelector("button"), null);
+  const stop = query<HTMLButtonElement>(query(view.container, ".thinking-row"), "button");
+  assert.equal(stop.textContent, "Stop");
+  assert.ok(stop.classList.contains("run-stop"), "every Stop in the transcript is drawn alike");
+  await act(async () => { stop.click(); });
+  assert.deepEqual(sent, [{ type: "run.cancel", taskId: "t1" }, { type: "run.cancel", taskId: "t1" }]);
   await view.unmount();
 });
 

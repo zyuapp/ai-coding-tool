@@ -38,8 +38,10 @@ export function AttachmentViewer({ source, onClose, onDownload }: { source: stri
       /** Only a press and release on the same backdrop dismisses, so a drag off the picture does not. */
       onClick={(event) => { if (event.target === pressedOn.current) onClose(); }}
     >
-      {size ? <ZoomControls zoom={zoom} /> : null}
-      <button type="button" className="viewer-download" disabled={!size || failed} onClick={(event) => { event.stopPropagation(); onDownload(); }} aria-label="Download image" data-tip="Download"><Download size={16} /></button>
+      {size && !failed ? <>
+        <ZoomControls zoom={zoom} />
+        <button type="button" className="viewer-download" onClick={(event) => { event.stopPropagation(); onDownload(); }} aria-label="Download image" data-tip="Download"><Download size={16} /></button>
+      </> : null}
       <button type="button" className="viewer-close" onClick={onClose} aria-label="Close screenshot" data-tip={shortcutTip("Close", "Escape")}><X size={16} /></button>
       <div ref={zoom.stage} className="viewer-stage">
         {failed ? <p role="status">This image is no longer available.</p> : <img

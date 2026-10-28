@@ -94,7 +94,28 @@ test("a settings row opens its page, and a control row names the control too", a
 test("a name nothing answers says so instead of drawing an empty list", async () => {
   const view = await mount({ query: "nothing", index: 0, options: [] });
   assert.equal(document.querySelector(".thread-jump-list"), null);
-  assert.equal(document.querySelector(".thread-jump-empty")?.textContent, "No matches");
+  assert.equal(document.querySelector(".thread-jump-empty p")?.textContent, "No matches");
+  await view.unmount();
+});
+
+test("an empty result offers to clear the search, and Enter on that control clears it", async () => {
+  const view = await mount({ query: "nothing", index: 0, options: [] });
+  const clear = document.querySelector<HTMLButtonElement>(".thread-jump-empty button")!;
+  assert.equal(clear.textContent, "Clear search");
+  await act(async () => { clear.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true })); });
+  assert.deepEqual(view.calls.queries, [""]);
+  assert.equal(document.activeElement, document.querySelector(".thread-jump-search input"));
+
+  const enter = new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true });
+  await act(async () => { clear.dispatchEvent(enter); });
+  assert.equal(enter.defaultPrevented, false, "Enter is left to the focused control when no row is picked");
+  assert.deepEqual(view.calls.chosen, []);
+  await view.unmount();
+});
+
+test("an empty search offers nothing to clear", async () => {
+  const view = await mount({ query: "", index: 0, options: [] });
+  assert.equal(document.querySelector(".thread-jump-empty button"), null);
   await view.unmount();
 });
 

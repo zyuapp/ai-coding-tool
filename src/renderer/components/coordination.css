@@ -218,12 +218,12 @@ button.suggestion-start:disabled { opacity: 0.4; cursor: default; }
 .coordination-item:is(.review, .done) > .coordination-row { padding-right: 34px; }
 .coordination-item:is(.review, .done) > .coordination-row-action { opacity: 1; box-shadow: inset 0 0 0 1px var(--line-input); }
 .coordination-row-action:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-soft); }
-.coordination-row-action[data-action="resolve"]:hover:not(:disabled), .thread-tab-resolution[data-action="resolve"]:hover:not(:disabled) { background: var(--success-surface); color: var(--success); }
+.coordination-row-action[data-action="resolve"]:hover:not(:disabled) { background: var(--success-surface); color: var(--success); }
 /** A resolved thread's check is ticked, and turns into an undo while pointed at. */
-:is(.coordination-row-action, .thread-tab-resolution)[data-action="reopen"] { color: var(--success); }
-:is(.coordination-row-action, .thread-tab-resolution)[data-action="reopen"] > .resolution-undo { display: none; }
-:is(.coordination-row-action, .thread-tab-resolution)[data-action="reopen"]:is(:hover, :focus-visible) > .resolution-ticked { display: none; }
-:is(.coordination-row-action, .thread-tab-resolution)[data-action="reopen"]:is(:hover, :focus-visible) > .resolution-undo { display: block; }
+.coordination-row-action[data-action="reopen"] { color: var(--success); }
+.coordination-row-action[data-action="reopen"] > .resolution-undo { display: none; }
+.coordination-row-action[data-action="reopen"]:is(:hover, :focus-visible) > .resolution-ticked { display: none; }
+.coordination-row-action[data-action="reopen"]:is(:hover, :focus-visible) > .resolution-undo { display: block; }
 /* The threads a coordinator started, as cards in its conversation where each began, wrapping across the column. */
 .coordination-cards { display: flex; flex-wrap: wrap; gap: 8px; }
 .coordination-card {
@@ -529,9 +529,26 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
 /* A thread under the coordinator, talked to from its tab in the dock. */
 .side-chat.thread-tab { display: flex; flex-direction: column; }
 .thread-tab > .side-chat-header { flex: 0 0 var(--chrome-head); }
-/** Resolve sits right beside close, the two read as the tab's own controls. */
 .thread-tab-header > .side-chat-title { flex: 1; }
-.thread-tab-header > .thread-tab-resolution { margin-right: -12px; }
+.thread-tab-header > .thread-tab-resolution {
+  width: auto;
+  height: 28px;
+  display: inline-flex;
+  gap: 6px;
+  margin-right: -6px;
+  border-radius: 8px;
+  padding: 0 11px 0 9px;
+  background: var(--control-soft);
+  color: var(--ink-dim);
+  font: inherit;
+  font-size: var(--text-control);
+  font-weight: 560;
+  white-space: nowrap;
+}
+.thread-tab-header > .thread-tab-resolution > svg { color: var(--muted); }
+.thread-tab-header > .thread-tab-resolution[data-action="resolve"] > svg { color: var(--success); }
+.thread-tab-header > .thread-tab-resolution[data-action="resolve"]:hover:not(:disabled) { background: var(--success-surface); color: var(--ink); }
+.thread-tab-header > .thread-tab-resolution[data-action="reopen"]:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink); }
 .side-chat-title .thread-tab-status.review { color: var(--success-soft); }
 .thread-tab > .side-chat-transcript { flex: 1 1 0; }
 .thread-tab-mark {
@@ -557,7 +574,7 @@ textarea.coordination-note-text, .coordination-note-add { display: block; width:
 .thread-tab-mark > .coordination-dot.needs-work { box-shadow: inset 0 0 0 1.6px var(--danger), 0 0 0 2.5px var(--sunken); }
 .thread-tab-mark > .task-spinner { width: 11px; height: 11px; border-width: 1.8px; background: var(--sunken); }
 .thread-tab-mark.asking, .thread-tab-mark.approval { border-color: var(--accent-line); background: var(--accent-surface); }
-.side-chat-title .thread-tab-status.asking, .side-chat-title .thread-tab-status.approval { color: var(--accent); }
+.side-chat-title .thread-tab-status.asking, .side-chat-title .thread-tab-status.approval { color: var(--accent-text); }
 .side-chat-title .thread-tab-status:is(.blocked, .failed, .needs-work) { color: var(--danger-soft); }
 .coordination-empty { margin: 0; padding: 14px 16px; }
 /** The thread's checkout and brief as one line of chips, read as part of the header above it. */

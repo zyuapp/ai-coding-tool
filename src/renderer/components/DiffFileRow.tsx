@@ -59,7 +59,7 @@ export function FileHeader({ file, open, viewed, echo = false, onToggle, onOpenF
         {...reach}
         onClick={() => onOpenFile(file.path)}
       >
-        <OpenOut size={14} />
+        <OpenOut size={16} />
       </button>
       <label className="diff-file-viewed" data-tip={viewed ? "Mark unviewed" : "Mark viewed"}>
         <input

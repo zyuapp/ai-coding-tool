@@ -53,18 +53,23 @@ function ToolPicker({ tool, onPick }: { tool: AnnotationKind; onPick: (tool: Ann
   );
 }
 
-/** What can be done to the mark last pointed or walked to, drawn off its far corner. */
-function MarkTools({ shape, frame, mark, onKeep, onEdit, onRemove }: {
+/**
+ * What can be done to a mark, drawn off its far corner. Every mark carries them; the one last pointed
+ * or walked to carries them in full, the rest faintly and outside the tab order, which the canvas walks.
+ */
+function MarkTools({ shape, frame, mark, picked, onKeep, onEdit, onRemove }: {
   shape: Annotation;
   frame: Frame;
   mark: string;
+  picked: boolean;
   onKeep: () => void;
   onEdit: () => void;
   onRemove: () => void;
 }) {
+  const tabIndex = picked ? undefined : -1;
   return (
     <div
-      className="annotator-marktools"
+      className={`annotator-marktools ${picked ? "picked" : ""}`.trimEnd()}
       style={{
         left: `${(shape.x + shape.width) * frame.width}px`,
         top: `${(shape.kind === "arrow" ? shape.y + shape.height : shape.y) * frame.height}px`,
@@ -72,13 +77,14 @@ function MarkTools({ shape, frame, mark, onKeep, onEdit, onRemove }: {
       onPointerEnter={onKeep}
     >
       {shape.kind === "box" && (
-        <button type="button" className="annotator-marktool" aria-label={`Edit note on mark ${mark}`} data-tip={shortcutTip("Edit note", "Enter")} onClick={onEdit}>
+        <button type="button" className="annotator-marktool" tabIndex={tabIndex} aria-label={`Edit note on mark ${mark}`} data-tip={shortcutTip("Edit note", "Enter")} onClick={onEdit}>
           <Pencil size={12} />
         </button>
       )}
       <button
         type="button"
         className="annotator-marktool remove"
+        tabIndex={tabIndex}
         aria-label={shape.kind === "arrow" ? "Delete arrow" : `Delete mark ${mark}`}
         data-tip={shortcutTip("Delete", "Backspace")}
         onClick={onRemove}
@@ -229,7 +235,7 @@ function useAnnotatorKeys({ composing, onEscape, onUndo, onTool }: {
 function markHint(count: number, toolHint: string, canvasFocused: boolean) {
   if (count === 0) return toolHint;
   const marks = `${count} mark${count === 1 ? "" : "s"}.`;
-  return canvasFocused ? `${marks} Arrow keys pick one, ${displayShortcut("Enter", MAC)} edits its note, ${displayShortcut("Backspace", MAC)} deletes it.` : `${marks} Point at one to edit or remove it.`;
+  return canvasFocused ? `${marks} Arrow keys pick one, ${displayShortcut("Enter", MAC)} edits its note, ${displayShortcut("Backspace", MAC)} deletes it.` : marks;
 }
 
 /** Which mark an arrow key walks to from the one picked, wrapping at either end. */
@@ -405,16 +411,18 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
                 onBlur={() => setCanvasFocused(false)}
                 {...handlers}
               />
-              {picked !== null && !composing && (
+              {!composing && shapes.map((shape, index) => (
                 <MarkTools
-                  shape={shapes[picked]!}
+                  key={index}
+                  shape={shape}
                   frame={frame}
-                  mark={`${prefix}${markNumber(picked)}`}
-                  onKeep={() => setHovered(picked)}
-                  onEdit={() => editMark(picked)}
-                  onRemove={() => remove(picked)}
+                  mark={`${prefix}${markNumber(index)}`}
+                  picked={index === picked}
+                  onKeep={() => setHovered(index)}
+                  onEdit={() => editMark(index)}
+                  onRemove={() => remove(index)}
                 />
-              )}
+              ))}
               {note.at && (
                 <MarkLabel
                   box={note.at}

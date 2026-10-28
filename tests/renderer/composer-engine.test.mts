@@ -322,6 +322,8 @@ test("clearing a goal targets its existing thread", async () => {
   assert.deepEqual(commands, [{ type: "usage.read" }], "the composer reads the plan's limits as it appears");
   commands.length = 0;
   await act(async () => { query<HTMLButtonElement>(view.container, ".goal-clear").click(); });
+  assert.deepEqual(commands, [], "clearing asks first");
+  await act(async () => { query<HTMLButtonElement>(view.container, ".goal-actions button.danger").click(); });
 
   assert.deepEqual(commands, [{ type: "task.send", taskId: "task-goal", text: "/goal clear", steer: true }]);
   await view.unmount();
@@ -397,6 +399,21 @@ test("what a newer build sent is named as it is, and a thread on an engine only 
   await view.render(shown({ engine: "gemini" as never }));
   assert.equal(view.container.querySelector("textarea"), null);
   assert.equal(query(view.container, ".composer-unopenable").textContent, "Runs on gemini, which this version can't open. Update to work in it here.");
+  await view.unmount();
+});
+
+test("a thread this build cannot open offers Update only once a newer build is found", async () => {
+  window.desktop = composerDesktop();
+  const dispatch = async (_input: WorkspaceInput) => {};
+  const shown = (appUpdate: WorkspaceState["appUpdate"]) => {
+    const currentThread = { id: "task-1", title: "Newer", engine: "gemini", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1 } as unknown as Thread;
+    const view = deriveView({ ...emptyWorkspaceState(), threads: [currentThread], currentId: currentThread.id, appUpdate });
+    return React.createElement(WorkspaceComposer, { workspace: { ...view, dispatch, actions: workspaceActions(dispatch), outbox } as never, actions: [] });
+  };
+  const view = await mount(shown({ status: "idle" }));
+  assert.equal(view.container.querySelector(".composer-unopenable-update"), null);
+  await view.render(shown({ status: "available", version: "9.9.9" }));
+  assert.equal(query(view.container, ".composer-unopenable-update").textContent, "Update");
   await view.unmount();
 });
 

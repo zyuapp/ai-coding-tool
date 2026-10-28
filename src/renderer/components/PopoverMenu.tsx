@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { LuCheck as Check, LuChevronDown as ChevronDown, LuChevronRight as ChevronRight, LuEllipsis as Ellipsis } from "react-icons/lu";
+import { LuCheck as Check, LuChevronDown as ChevronDown, LuChevronRight as ChevronRight, LuEllipsis as Ellipsis, LuSearch as Search } from "react-icons/lu";
 import { useDismissibleLayer } from "../focus";
 import { useCommandControls } from "./CommandControl";
 import type { AppCommand } from "../../contracts/commands";
@@ -168,20 +168,23 @@ type MenuSearchProps = {
 /** Escape empties a typed search before it closes the menu, as every other search field does. */
 function MenuSearch({ search, field, onSubmit }: MenuSearchProps) {
   return <div className="menu-search">
-    <input
-      ref={field}
-      type="search"
-      value={search.value}
-      placeholder={search.label}
-      aria-label={search.label}
-      onInput={(event) => search.onChange(event.currentTarget.value)}
-      onKeyDown={(event) => {
-        if (event.key === "Escape" && search.value) search.onChange("");
-        else if (event.key === "Enter") onSubmit();
-        else return;
-        event.preventDefault();
-      }}
-    />
+    <label className="menu-search-field">
+      <Search size={14} aria-hidden="true" />
+      <input
+        ref={field}
+        type="search"
+        value={search.value}
+        placeholder={search.label}
+        aria-label={search.label}
+        onInput={(event) => search.onChange(event.currentTarget.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && search.value) search.onChange("");
+          else if (event.key === "Enter") onSubmit();
+          else return;
+          event.preventDefault();
+        }}
+      />
+    </label>
   </div>;
 }
 
@@ -454,6 +457,14 @@ export function ContextMenu({ entries, at, onClose, returnFocus }: {
   const menu = useRef<HTMLDivElement>(null);
   const [placed, setPlaced] = useState<{ left: number; top: number } | null>(null);
   useDismissibleLayer(true, [menu], onClose, returnFocus);
+
+  /** What the menu acts on stays marked while it is open. */
+  useLayoutEffect(() => {
+    const target = returnFocus?.current;
+    if (!target) return;
+    target.setAttribute("data-menu-target", "");
+    return () => target.removeAttribute("data-menu-target");
+  }, [returnFocus]);
 
   useLayoutEffect(() => {
     const box = menu.current?.getBoundingClientRect();

@@ -147,7 +147,7 @@ test("a side chat composes with everything the main composer has", async () => {
   await act(async () => {});
 
   const usage = query(view.container, ".context-usage");
-  assert.equal(usage.getAttribute("aria-label"), "60% of context window used");
+  assert.equal(query(usage, '[role="meter"]').getAttribute("aria-valuetext"), "60% used");
   assert.match(usage.textContent, /120K \/ 200K tokens used/);
 
   const settings = view.container.querySelectorAll<HTMLDetailsElement>(".composer-settings .setting-menu");
@@ -453,18 +453,17 @@ test("an add-menu entry that cannot open stays reachable, says why, and does not
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Show right panel"]').click(); });
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Add right panel tab"]').click(); });
 
-  const entry = (title: string) => item([...view.container.querySelectorAll<HTMLButtonElement>('.right-dock-add [role="menuitem"]')].find((button) => button.querySelector("strong")?.textContent === title));
+  const entry = (title: string) => item([...view.container.querySelectorAll<HTMLButtonElement>('.right-dock-add [role="menuitem"]')].find((button) => button.textContent === title));
   const terminal = entry("Terminal");
   assert.equal(terminal.getAttribute("aria-disabled"), "true");
   assert.equal(terminal.disabled, false, "the keyboard can still rest on it");
-  assert.equal(query(terminal, "small").textContent, "Open a project to start a terminal");
-  assert.equal(terminal.querySelector("kbd"), null);
+  assert.equal(terminal.dataset.tip, "Open a project to start a terminal");
   await act(async () => { terminal.click(); });
   assert.equal(view.container.querySelectorAll('.right-dock [role="tab"]').length, 0);
   assert.ok(view.container.querySelector('.right-dock-add [role="menu"]'), "the menu stays open on an entry that cannot act");
 
   const sideChat = entry("Side chat");
-  assert.equal(query(sideChat, "small").textContent, "Start a focused conversation from this task");
+  assert.equal(sideChat.dataset.tip, undefined);
   await act(async () => { sideChat.click(); });
   assert.equal(view.container.querySelectorAll('.right-dock [role="tab"]').length, 1);
   await view.unmount();
@@ -491,4 +490,44 @@ test("a side chat with no main context to fork offers the main thread's composer
   await act(async () => { item([...continued.container.querySelectorAll<HTMLButtonElement>('.right-dock-add button')].find((button) => button.textContent.includes("Side chat"))).click(); });
   assert.equal(continued.container.querySelector(".side-chat-action"), null, "a chat that can fork asks nothing of the main thread");
   await continued.unmount();
+});
+
+test("a strip with tabs past its edges offers every tab in one list", async () => {
+  seedTaskWithSubagent();
+  window.desktop = fakeDesktop();
+  const proto = dom.window.HTMLElement.prototype;
+  const scrollWidth = Object.getOwnPropertyDescriptor(proto, "scrollWidth");
+  const clientWidth = Object.getOwnPropertyDescriptor(proto, "clientWidth");
+  let tight = false;
+  Object.defineProperty(proto, "scrollWidth", { configurable: true, get(this: HTMLElement) { return tight && this.getAttribute("role") === "tablist" ? 600 : 0; } });
+  Object.defineProperty(proto, "clientWidth", { configurable: true, get(this: HTMLElement) { return this.getAttribute("role") === "tablist" ? 300 : 0; } });
+  try {
+    const view = await mount(React.createElement(App));
+    await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Show right panel"]').click(); });
+    await act(async () => { query<HTMLButtonElement>(view.container, '.right-dock-picker button[aria-label="Open Browser panel"]').click(); });
+    assert.equal(view.container.querySelector(".right-dock-overflow"), null, "a strip that shows every tab needs no list");
+
+    tight = true;
+    for (let opened = 0; opened < 2; opened += 1) {
+      await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Add right panel tab"]').click(); });
+      await act(async () => { item([...view.container.querySelectorAll<HTMLButtonElement>('.right-dock-add [role="menuitem"]')].find((button) => button.textContent === "Browser")).click(); });
+    }
+    const tabs = () => [...view.container.querySelectorAll<HTMLButtonElement>('.right-dock [role="tab"]')];
+    assert.equal(tabs().length, 3);
+    await act(async () => { query<HTMLButtonElement>(view.container, '.right-dock-overflow > button').click(); });
+    const entries = [...view.container.querySelectorAll<HTMLButtonElement>('.right-dock-overflow [role="menuitemradio"]')];
+    assert.equal(entries.length, 3);
+    const checked = entries.findIndex((entry) => entry.getAttribute("aria-checked") === "true");
+    assert.equal(dom.window.document.activeElement, entries[checked], "the list opens on the tab being shown");
+
+    await act(async () => { entries[0].click(); });
+    assert.equal(tabs()[0].getAttribute("aria-selected"), "true");
+    assert.equal(view.container.querySelector('.right-dock-overflow [role="menu"]'), null, "picking a tab closes the list");
+    await view.unmount();
+  } finally {
+    if (scrollWidth) Object.defineProperty(proto, "scrollWidth", scrollWidth);
+    else Reflect.deleteProperty(proto, "scrollWidth");
+    if (clientWidth) Object.defineProperty(proto, "clientWidth", clientWidth);
+    else Reflect.deleteProperty(proto, "clientWidth");
+  }
 });

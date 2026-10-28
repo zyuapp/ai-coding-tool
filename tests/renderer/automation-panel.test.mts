@@ -29,7 +29,7 @@ test("the automation panel explains itself before an automation exists", async (
 
   assert.match(view.container.textContent, /Ask Claude to repeat this task/);
   assert.match(view.container.textContent, /No automation yet/);
-  assert.equal(view.container.querySelector('input[aria-label="Automation schedule"]'), null);
+  assert.equal(view.container.querySelector('input.automation-schedule'), null);
   await view.unmount();
 });
 
@@ -49,13 +49,13 @@ test("the automation panel sets up a schedule from its empty state, and Cancel o
   const button = (label: string) => [...view.container.querySelectorAll<HTMLButtonElement>("button")].find((each) => each.textContent === label);
 
   await act(async () => { item(button("New schedule")).click(); });
-  const schedule = query<HTMLInputElement>(view.container, 'input[aria-label="Automation schedule"]');
+  const schedule = query<HTMLInputElement>(view.container, 'input.automation-schedule');
   assert.ok(dom.window.document.activeElement === schedule, "the schedule takes the keyboard");
   const create = item(button("Create"));
   assert.equal(create.disabled, true, "nothing to create yet");
   await type(schedule, "0 8 * * 1-5");
   assert.equal(create.disabled, true, "a schedule with no prompt cannot be created");
-  await type(query<HTMLTextAreaElement>(view.container, 'textarea[aria-label="Automation prompt"]'), "  Check the build  ");
+  await type(query<HTMLTextAreaElement>(view.container, '.automation-field textarea'), "  Check the build  ");
   assert.equal(create.disabled, false);
   await act(async () => { create.click(); });
   assert.deepEqual(dispatched, [{ type: "automation.save", draft: { schedule: "0 8 * * 1-5", prompt: "Check the build" } }]);
@@ -63,8 +63,8 @@ test("the automation panel sets up a schedule from its empty state, and Cancel o
   await act(async () => { item(button("Cancel")).click(); });
   assert.ok(button("New schedule"), "Cancel goes back to the empty state");
   await act(async () => { item(button("New schedule")).click(); });
-  assert.equal(query<HTMLInputElement>(view.container, 'input[aria-label="Automation schedule"]').value, "", "a cancelled draft is not kept");
-  await act(async () => { query(view.container, 'input[aria-label="Automation schedule"]').dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })); });
+  assert.equal(query<HTMLInputElement>(view.container, 'input.automation-schedule').value, "", "a cancelled draft is not kept");
+  await act(async () => { query(view.container, 'input.automation-schedule').dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })); });
   assert.ok(button("New schedule"), "so does Esc");
 
   await view.render(React.createElement(CommandControlsProvider, { value: { available: () => true, dispatch() {} } },
@@ -81,8 +81,8 @@ test("the automation panel edits the schedule and prompt in one save", async () 
     automation, engineLabel: "Claude", lastFoundAt: null, lastChecked: null, onUpdate: (patch) => { patches.push(patch); }, onDelete() {}, onRunNow() {},
   }));
 
-  const schedule = query<HTMLInputElement>(view.container, 'input[aria-label="Automation schedule"]');
-  const prompt = query<HTMLTextAreaElement>(view.container, 'textarea[aria-label="Automation prompt"]');
+  const schedule = query<HTMLInputElement>(view.container, 'input.automation-schedule');
+  const prompt = query<HTMLTextAreaElement>(view.container, '.automation-field textarea');
   const save = query<HTMLButtonElement>(view.container, ".automation-actions button");
   const setInput = item(Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")).set;
   const setTextarea = item(Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value")).set;
@@ -123,17 +123,17 @@ test("the automation panel offers no quiet sentence for a one-time run, and leav
   const view = await mount(React.createElement(AutomationPanel, {
     automation: automationView({ surfaceWhen: "the PR is approved." }), engineLabel: "Claude", lastFoundAt: null, lastChecked: null, onUpdate: (patch) => { patches.push(patch); }, onDelete() {}, onRunNow() {},
   }));
-  const surfaceField = 'input[aria-label="What a run of this automation surfaces for"]';
-  assert.equal(view.container.querySelector(surfaceField) !== null, true, "a recurring schedule says what it surfaces for");
+  const surfaceField = () => [...view.container.querySelectorAll<HTMLInputElement>(".automation-field input")].find((input) => input.labels?.[0]?.textContent === "Notify me when");
+  assert.ok(surfaceField(), "a recurring schedule says what it notifies for, named by its visible label");
 
-  const schedule = query<HTMLInputElement>(view.container, 'input[aria-label="Automation schedule"]');
+  const schedule = query<HTMLInputElement>(view.container, 'input.automation-schedule');
   const setInput = item(Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")).set;
   const once = "2030-01-01T09:00:00Z";
   await act(async () => {
     item(setInput).call(schedule, once);
     schedule.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: once }));
   });
-  assert.equal(view.container.querySelector(surfaceField) === null, true, "a one-time run always surfaces, so the field goes");
+  assert.equal(surfaceField(), undefined, "a one-time run always surfaces, so the field goes");
   await act(async () => { query<HTMLButtonElement>(view.container, ".automation-actions button").click(); });
   assert.deepEqual(patches, [{ schedule: once, prompt: "Check whether the PR is approved" }]);
   await view.unmount();
@@ -305,4 +305,45 @@ test("archiving a task retires its automation", async () => {
 
   assert.deepEqual(desktop.automationChanges, [{ taskId: first.taskId, deleted: true }]);
   await workspace.view.unmount();
+});
+
+test("the automation panel's fields are named by their visible labels, and Mod+Enter saves", async () => {
+  const patches: AutomationPatch[] = [];
+  const view = await mount(React.createElement(AutomationPanel, {
+    automation: automationView(), engineLabel: "Claude", lastFoundAt: null, lastChecked: null, onUpdate: (patch) => { patches.push(patch); }, onDelete() {}, onRunNow() {},
+  }));
+  const fields = [...view.container.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(".automation-field :is(input, textarea)")];
+  assert.deepEqual(fields.map((field) => field.getAttribute("aria-label")), fields.map(() => null), "no field hides its visible label");
+  assert.deepEqual(fields.map((field) => field.labels?.[0]?.firstChild?.textContent), ["Schedule", "Prompt", "Notify me when", "Stop when"]);
+
+  const prompt = query<HTMLTextAreaElement>(view.container, ".automation-field textarea");
+  const modEnter = () => new dom.window.KeyboardEvent("keydown", { key: "Enter", metaKey: true, ctrlKey: true, bubbles: true, cancelable: true });
+  await act(async () => { prompt.dispatchEvent(modEnter()); });
+  assert.deepEqual(patches, [], "nothing changed, so nothing saves");
+  const setTextarea = item(Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value")).set;
+  await act(async () => {
+    item(setTextarea).call(prompt, "Check the PR");
+    prompt.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: "Check the PR" }));
+  });
+  await act(async () => { prompt.dispatchEvent(modEnter()); });
+  assert.deepEqual(patches, [{ schedule: "*/5 * * * *", prompt: "Check the PR" }]);
+  await view.unmount();
+});
+
+test("a missed automation's status runs it now", async () => {
+  let ranNow = 0;
+  const view = await mount(React.createElement(AutomationPanel, {
+    automation: automationView({ nextRunAt: null, lastStatus: "missed" }), engineLabel: "Claude", lastFoundAt: null, lastChecked: null, onUpdate() {}, onDelete() {}, onRunNow: () => { ranNow += 1; },
+  }));
+  const missed = query<HTMLButtonElement>(view.container, ".agents-panel-heading .automation-missed");
+  assert.match(missed.textContent, /Missed.*Run now/);
+  await act(async () => { missed.click(); });
+  assert.equal(ranNow, 1);
+  assert.match(query(view.container, ".agents-panel-heading .automation-missed").textContent, /Started/);
+
+  await view.render(React.createElement(AutomationPanel, {
+    automation: automationView({ paused: true, nextRunAt: null }), engineLabel: "Claude", lastFoundAt: null, lastChecked: null, onUpdate() {}, onDelete() {}, onRunNow() {},
+  }));
+  assert.equal(view.container.querySelector(".automation-missed"), null, "a paused schedule is the user's own doing and asks for nothing");
+  await view.unmount();
 });

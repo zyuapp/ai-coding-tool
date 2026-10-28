@@ -14,6 +14,8 @@ export type EngineSettingsProps = {
   /** The engine the app is upgrading, whose button says so. */
   updating: AgentEngine | null;
   reloadStatus: WorkspaceState["agentSettingsReload"];
+  /** Why the last reload failed, as the engine put it. */
+  reloadError?: string | null;
   onReload: () => void;
   onRefresh: () => void;
   onSignIn: (engine: AgentEngine) => void;
@@ -23,10 +25,10 @@ export type EngineSettingsProps = {
 /** The word in the right column: short enough to read at a glance, plain enough to need no key. */
 function statusWord(readiness: EngineReadiness) {
   if (readiness.access === "missing") return "Not installed";
-  if (readiness.access === "outdated") return "Too old";
+  if (readiness.access === "outdated") return "Too old to run";
   if (readiness.access === "unavailable") return "Will not start";
   if (readiness.access === "signed-out") return "Signed out";
-  if (readiness.required) return "Behind";
+  if (readiness.required) return "Needs update";
   return readiness.latest ? "Update available" : "Ready";
 }
 
@@ -39,7 +41,16 @@ function statusLine(engine: AgentEngine, readiness: EngineReadiness) {
   return readiness.version ? `Version ${readiness.version}` : "Installed and ready.";
 }
 
-export function EngineSettings({ engineAccess, checking, updating, onRefresh, onSignIn, onUpdate, reloadStatus, onReload }: EngineSettingsProps) {
+const RELOAD_TONE = { idle: "", reloading: "", pending: "pending", reloaded: "done", failed: "failed" } as const;
+
+function reloadLine(status: EngineSettingsProps["reloadStatus"], error: string | null | undefined) {
+  if (status === "pending") return "Reload pending";
+  if (status === "reloaded") return "Settings reloaded";
+  if (status === "failed") return error ? `Could not reload settings: ${error}` : "Could not reload settings. Try again.";
+  return "";
+}
+
+export function EngineSettings({ engineAccess, checking, updating, onRefresh, onSignIn, onUpdate, reloadStatus, reloadError, onReload }: EngineSettingsProps) {
   return (
     <main className="settings-main">
       <div className="settings-page-heading">
@@ -80,9 +91,9 @@ export function EngineSettings({ engineAccess, checking, updating, onRefresh, on
               </div>
               <div className="setting-row-action">
                 {readiness.access === "signed-out"
-                  ? <button type="button" onClick={() => onSignIn(engine)}>Sign in</button>
+                  ? <button type="button" aria-label={`Sign in to ${engineLabel(engine)}`} onClick={() => onSignIn(engine)}>Sign in</button>
                   : update?.command
-                    ? <button type="button" disabled={updating !== null || checking} aria-busy={updating === engine} onClick={() => onUpdate(engine)}>
+                    ? <button type="button" aria-label={`${updating === engine ? "Updating" : "Update"} ${engineLabel(engine)}`} disabled={updating !== null || checking} aria-busy={updating === engine} onClick={() => onUpdate(engine)}>
                       {updating === engine && <RefreshCw size={14} aria-hidden="true" className="spinning" />}{updating === engine ? "Updating…" : "Update"}
                     </button>
                     : <span className={`setting-pill${ready ? " ready" : ""}`}>{statusWord(readiness)}</span>}
@@ -96,7 +107,7 @@ export function EngineSettings({ engineAccess, checking, updating, onRefresh, on
           <div>
             <h3 id="agent-settings-heading">{settingControl("engines.agent-settings").label}</h3>
             <p>Apply changes to Claude Code and Codex settings. Busy agents reload when their work finishes.</p>
-            <p role="status" className={`reload-status ${reloadStatus}`}>{reloadStatus === "pending" ? "Reload pending" : reloadStatus === "reloaded" ? "Settings reloaded" : reloadStatus === "failed" ? "Could not reload settings. Try again." : ""}</p>
+            <p role="status" className={`settings-status ${RELOAD_TONE[reloadStatus]}`}>{reloadLine(reloadStatus, reloadError)}</p>
           </div>
           <div className="settings-group-action">
             <button type="button" onClick={onReload} disabled={reloadStatus === "reloading" || reloadStatus === "pending"} aria-busy={reloadStatus === "reloading"}>

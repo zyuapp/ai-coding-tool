@@ -23,11 +23,12 @@ function channels(hex: string): Rgb {
 }
 
 function resolve(expression: string, palette: Map<string, string>): Rgb {
-  const variable = /^var\((--[a-z0-9-]+)\)$/.exec(expression);
+  const variable = /^var\((--[a-z0-9-]+)(?:, (.+))?\)$/.exec(expression);
   if (variable) {
-    const name = variable[1];
+    const [, name, fallback] = variable;
     const hex = palette.get(name);
     if (hex) return channels(hex);
+    if (name.startsWith("--p-") && fallback) return resolve(fallback, palette);
     const token = tokens.get(name);
     assert.ok(token, `${name} is declared`);
     return resolve(token, palette);

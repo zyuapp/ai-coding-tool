@@ -5,6 +5,11 @@ import React, { act } from "react";
 
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
 
+/** A session card row, found by the label it shows. */
+function sessionRow(container: Element, label: string) {
+  return [...container.querySelectorAll<HTMLButtonElement>("button.session-row")].find((row) => row.querySelector(":scope > span:nth-of-type(2)")?.textContent === label);
+}
+
 vi.mock("../../src/renderer/task-workspace/workspace-connection.ts", () => import("../support/in-process-workspace.mts"));
 
 const { App } = await import("../../src/renderer/App.tsx");
@@ -44,7 +49,7 @@ function seedReviewableProject() {
 /** Opens the review from the session panel and lets its patches land. */
 async function openReview(view: MountView) {
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Show session summary"]').click(); });
-  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Review changes"]').click(); });
+  await act(async () => { item(sessionRow(view.container, "Changes")).click(); });
   /** Names are held back until a patch lands, and the first patch waits on its grammar being imported. */
   for (let turn = 0; turn < 100 && !view.container.querySelector(".diff-file-row"); turn += 1) await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
 }
@@ -93,7 +98,7 @@ test("the session panel's Changes row opens the review, and the same click close
   await act(async () => { query<HTMLButtonElement>(view.container, '.right-dock-tab.active button[aria-label="Close Changes"]').click(); });
   assert.deepEqual([tabs(), view.container.querySelector(".diff-panel")], [[], null], "closing the tab unmounts its retained patch data");
   await showSession(view);
-  assert.ok(view.container.querySelector('button[aria-label="Review changes"]'), "the row is back to open it again");
+  assert.ok((sessionRow(view.container, "Changes") ?? null), "the row is back to open it again");
   await view.unmount();
 });
 
@@ -392,7 +397,7 @@ test("a comparison that cannot be read says so as an error, and Try again reads 
   });
   const view = await mount(React.createElement(App));
   await showSession(view);
-  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Review changes"]').click(); });
+  await act(async () => { item(sessionRow(view.container, "Changes")).click(); });
   for (let turn = 0; turn < 50 && !view.container.querySelector(".diff-error"); turn += 1) await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
 
   const error = query(view.container, ".diff-error");

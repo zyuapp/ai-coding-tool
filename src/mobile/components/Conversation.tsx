@@ -4,7 +4,9 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { MobileMessage, MobileThreadView } from "../../contracts/mobile";
 import type { AgentEngine } from "../../domain/agent-engine";
 import type { ToolFamily } from "../../domain/tool-call";
+import { CopyButton } from "../../renderer/components/CopyButton";
 import { clockTime, runFamily, summariseTools, transcriptBlocks } from "../format";
+import { returnToComposer } from "./Composer";
 import { Markdown } from "./Markdown";
 
 const FAMILY_ICONS: Record<ToolFamily, IconType> = {
@@ -25,7 +27,6 @@ function ToolRun({ engine, calls }: { engine: AgentEngine; calls: MobileMessage[
     <>
       <span className="work-glyph" aria-hidden="true"><Icon size={14} strokeWidth={1.75} /></span>
       <span className="work-summary">{summariseTools(calls)}</span>
-      {calls.length > 1 && <span className="work-count">{calls.length}</span>}
     </>
   );
   if (calls.length < 2) return <div className="work"><div className="work-row">{row}</div></div>;
@@ -33,7 +34,7 @@ function ToolRun({ engine, calls }: { engine: AgentEngine; calls: MobileMessage[
     <div className="work" data-open={open || undefined}>
       <button type="button" className="work-row" aria-expanded={open} onClick={() => setOpen(!open)}>
         {row}
-        <ChevronDown className="work-chevron" size={14} strokeWidth={2} aria-hidden="true" />
+        <span className="work-more"><span className="work-count">{calls.length}</span><ChevronDown className="work-chevron" size={14} strokeWidth={2.2} aria-hidden="true" /></span>
       </button>
       {open && <ol className="work-calls">{calls.map((call, index) => <li key={index}>{call.text}</li>)}</ol>}
     </div>
@@ -53,7 +54,12 @@ function Message({ message, answer }: { message: MobileMessage; answer: boolean 
   return (
     <div className="turn assistant">
       <Markdown text={message.text} />
-      {answer && <time className="answer-time" dateTime={new Date(message.at).toISOString()}>{clockTime(message.at)}</time>}
+      {answer && (
+        <div className="answer-meta">
+          <time className="answer-time" dateTime={new Date(message.at).toISOString()}>{clockTime(message.at)}</time>
+          <CopyButton text={message.text} label="Copy reply" />
+        </div>
+      )}
     </div>
   );
 }
@@ -130,7 +136,10 @@ export function Conversation({ thread, onSteerQueued, onDropQueued }: {
                 ? <span className="queued-state">Steering…</span>
                 : <span className="queued-actions">
                   <button type="button" className="queued-steer" onClick={() => onSteerQueued(message.id)}>Steer</button>
-                  <button type="button" className="queued-drop" aria-label="Remove queued message" onClick={() => onDropQueued(message.id)}><X size={14} /></button>
+                  <button type="button" className="queued-drop" aria-label="Remove queued message" onClick={() => {
+                    onDropQueued(message.id);
+                    returnToComposer(message.text);
+                  }}><X size={16} /></button>
                 </span>}
             </div>
           ))}

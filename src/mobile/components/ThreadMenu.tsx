@@ -1,6 +1,6 @@
 import type { IconType } from "react-icons";
-import { LuArchive as Archive, LuChevronRight as ChevronRight, LuFolderGit2 as FolderGit2, LuFolderSymlink as FolderSymlink, LuGitCompareArrows as GitCompareArrows, LuPencilLine as PencilLine, LuSplit as Split, LuSquarePen as SquarePen } from "react-icons/lu";
-import type { MobileThreadView } from "../../contracts/mobile";
+import { LuArchive as Archive, LuCheck as Check, LuChevronRight as ChevronRight, LuFolderGit2 as FolderGit2, LuFolderSymlink as FolderSymlink, LuGitCompareArrows as GitCompareArrows, LuMessageSquareText as MessageSquareText, LuPencilLine as PencilLine, LuSplit as Split, LuSquarePen as SquarePen } from "react-icons/lu";
+import type { MobileThreadEntry, MobileThreadView } from "../../contracts/mobile";
 import { changesLabel, locationLabel } from "../format";
 import { Sheet } from "./Sheet";
 
@@ -55,8 +55,12 @@ export function ThreadMenu({ thread, onClose, onChanges, onLocation, onNewHere, 
       { icon: Archive, label: "Archive", danger: true, onSelect: pick(onArchive) },
     ],
   ];
+  return <MenuSheet title={thread.title} groups={groups} onClose={onClose} />;
+}
+
+function MenuSheet({ title, groups, onClose }: { title: string; groups: Entry[][]; onClose: () => void }) {
   return (
-    <Sheet title={thread.title} label="Thread options" onClose={onClose}>
+    <Sheet title={title} label="Thread options" onClose={onClose}>
       {groups.map((entries, index) => (
         <div key={index} className="menu-group">
           {entries.map((entry) => <MenuRow key={entry.label} entry={entry} />)}
@@ -64,4 +68,33 @@ export function ThreadMenu({ thread, onClose, onChanges, onLocation, onNewHere, 
       ))}
     </Sheet>
   );
+}
+
+/**
+ * A row's options, over the list it was pressed in: what needs only the row. What needs the open
+ * thread, its changes and its checkout, is in the thread's own menu, through Open.
+ */
+export function ThreadRowMenu({ thread, onClose, onOpen, onRename, onFork, onDismiss, onArchive }: {
+  thread: MobileThreadEntry;
+  onClose: () => void;
+  onOpen: () => void;
+  onRename: () => void;
+  onFork: () => void;
+  /** Present when Dismiss would file the row away from Priority. */
+  onDismiss?: () => void;
+  onArchive: () => void;
+}) {
+  const pick = (action: () => void) => () => { onClose(); action(); };
+  const groups: Entry[][] = [
+    [{ icon: MessageSquareText, label: "Open", opens: true, onSelect: pick(onOpen) }],
+    [
+      { icon: PencilLine, label: "Rename…", onSelect: pick(onRename) },
+      { icon: Split, label: "Fork thread", detail: "Copy the conversation into a new thread", onSelect: pick(onFork) },
+    ],
+    [
+      ...(onDismiss ? [{ icon: Check, label: "Dismiss from Priority", onSelect: pick(onDismiss) }] : []),
+      { icon: Archive, label: "Archive", danger: true, onSelect: pick(onArchive) },
+    ],
+  ];
+  return <MenuSheet title={thread.title} groups={groups} onClose={onClose} />;
 }

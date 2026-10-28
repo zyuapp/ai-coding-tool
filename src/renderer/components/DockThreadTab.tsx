@@ -1,11 +1,13 @@
 import { memo, useMemo, type ReactNode } from "react";
-import { LuWaypoints as Waypoints, LuX as X } from "react-icons/lu";
+import { LuCheck as Check, LuUndo2 as Reopen, LuWaypoints as Waypoints, LuX as X } from "react-icons/lu";
 import { DockConversation } from "./SideChat";
 import { chatHandlers } from "./DockSideChat";
-import { CoordinationStatusMark, ResolutionButton, coordinationStatusLine } from "./Coordination";
+import { CoordinationStatusMark, coordinationStatusLine } from "./Coordination";
+import { CommandButton } from "./CommandControl";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
 import { ThreadTabStrip } from "./ThreadTabStrip";
 import { threadAsking } from "../../application/pull-request-view";
+import { canResolve, type CoordinatedThreadStatus } from "../../application/coordination";
 import { AUTOMATION_PANEL } from "../../application/workspace-reducer";
 import { usePullRequestReads } from "../task-workspace/pull-request-reads";
 import { pullRequestSettled } from "../../domain/pull-request";
@@ -32,6 +34,23 @@ function PullRequestReads({ tab, dispatch }: { tab: ThreadTabView; dispatch: Dis
   return null;
 }
 
+/** The header's resolve or reopen, named in words since it sits beside the tab's close. */
+function TabResolution({ taskId, title, status }: { taskId: string; title: string; status: CoordinatedThreadStatus }) {
+  if (status === "resolved") {
+    return (
+      <CommandButton command={{ type: "task.reopen", taskId }} className="thread-tab-resolution" data-action="reopen" aria-label={`Reopen ${title}`}>
+        <Reopen size={14} aria-hidden="true" />Reopen
+      </CommandButton>
+    );
+  }
+  if (!canResolve(status)) return null;
+  return (
+    <CommandButton command={{ type: "task.resolve", taskId }} className="thread-tab-resolution" data-action="resolve" aria-label={`Resolve ${title}`}>
+      <Check size={14} aria-hidden="true" />Resolve
+    </CommandButton>
+  );
+}
+
 /** Who the thread is and where its work stands, with its checkout and brief underneath. */
 function ThreadTabHeader({ tab, leadTitle, dispatch, branchMenuOpen, onClose }: { tab: ThreadTabView; leadTitle: string; dispatch: Dispatch; branchMenuOpen: boolean; onClose: () => void }) {
   const { thread, standing, summary } = tab;
@@ -49,7 +68,7 @@ function ThreadTabHeader({ tab, leadTitle, dispatch, branchMenuOpen, onClose }: 
             <p className={`thread-tab-status ${standing}`} data-tip={status} data-tip-overflow>{status}</p>
           </div>
         </div>
-        <ResolutionButton taskId={tab.id} title={thread.title} status={standing} className="thread-tab-resolution" size={18} />
+        <TabResolution taskId={tab.id} title={thread.title} status={standing} />
         <button type="button" aria-label={`Close ${thread.title} and return to ${leadTitle}`} data-tip={`Close · back to ${leadTitle}`} onClick={onClose}><X size={18} /></button>
       </header>
       <ThreadTabStrip
@@ -70,7 +89,7 @@ function ThreadTabHeader({ tab, leadTitle, dispatch, branchMenuOpen, onClose }: 
  * One thread's tab in its coordinator's dock. Memoized, and given only what the tab reads, so the
  * coordinator's own run leaves it alone.
  */
-const DockThreadTab = memo(function DockThreadTab({ tab, dispatch, attachmentSend, favoriteModels, leadTitle, threads, active, branchMenuOpen, focusToken, find, findBar, onClose }: {
+const DockThreadTab = memo(function DockThreadTab({ tab, dispatch, attachmentSend, favoriteModels, leadTitle, threads, active, branchMenuOpen, focusToken, find, findBar, updateAvailable, onClose }: {
   tab: ThreadTabView;
   dispatch: Dispatch;
   attachmentSend: AttachmentSendState;
@@ -82,6 +101,7 @@ const DockThreadTab = memo(function DockThreadTab({ tab, dispatch, attachmentSen
   focusToken: number;
   find: FindView | null;
   findBar: ReactNode;
+  updateAvailable: boolean;
   onClose: (taskId: string) => void;
 }) {
   const handlers = useMemo(() => chatHandlers(dispatch, tab.id, tab.images), [dispatch, tab.id, tab.images]);
@@ -108,6 +128,7 @@ const DockThreadTab = memo(function DockThreadTab({ tab, dispatch, attachmentSen
         threads={threads}
         readingPoint={tab.readingPoint}
         {...handlers}
+        updateAvailable={updateAvailable}
         className="side-chat thread-tab"
         label={tab.title}
         surface="tab"
@@ -146,6 +167,7 @@ export function DockThreadTabs({ workspace, lead, activeTab, find, findBar, focu
             focusToken={focusTokenFor(tab.id)}
             find={searched}
             findBar={searched ? findBar : null}
+            updateAvailable={workspace.appUpdate.status !== "idle"}
             onClose={onClose}
           />
         );

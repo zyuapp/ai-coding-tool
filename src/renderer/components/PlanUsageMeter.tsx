@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { LuX as X } from "react-icons/lu";
+import { LuGauge as Gauge, LuX as X } from "react-icons/lu";
 import { barShare, formatReset, NEAR_LIMIT_SHARE, planLabel, sessionAndWeek, tightestWindow, usageWarningKey, windowsFor, windowSpan, type PlanUsage, type UsageWindow } from "../../domain/plan-usage";
 import { modelLabel, type AgentModel } from "../../domain/agent-engine";
 import { UsageCard, UsageCardRow } from "./UsageCard";
@@ -49,6 +49,7 @@ export function PlanUsageMeter({ engineLabel, model, usage, onOpen }: PlanUsageP
 
   return (
     <Meter className="plan-usage" {...(onOpen ? { type: "button" as const, onClick: onOpen } : { tabIndex: 0 })} aria-label={`${engineLabel} plan: ${label}${onOpen ? ". Open usage settings" : ""}`} aria-describedby={cardId}>
+      <Gauge className="plan-usage-icon" size={14} aria-hidden="true" />
       <span className="plan-usage-parts" aria-hidden="true">{rows.map((row) => <MeterPart key={row.id} window={row} />)}</span>
       <UsageCard id={cardId} title={engineLabel} aside={planLabel(usage.subscription)}>
         {windows.map((window) => {

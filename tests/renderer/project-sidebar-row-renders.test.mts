@@ -27,7 +27,7 @@ test("a background run's tool call redraws only its own row, in both sidebar mod
   const desktop = fakeDesktop({ listAutomations: async () => [automationView({ taskId: "quiet-3" })] });
   window.desktop = desktop;
   const view = await mount(React.createElement(App));
-  const row = (title: string) => item([...view.container.querySelectorAll<HTMLElement>(".task-row, .project-task-row")].find((entry) => entry.querySelector<HTMLElement>(":scope > [title]")?.title.split("\n")[0] === title));
+  const row = (title: string) => item([...view.container.querySelectorAll<HTMLElement>(".task-row, .project-task-row")].find((entry) => entry.querySelector<HTMLElement>("[data-tip-overflow]")?.dataset.tip === title));
 
   await act(async () => { row("Busy task").click(); });
   const textarea = query<HTMLTextAreaElement>(view.container, 'textarea[aria-label="Task prompt"]');
@@ -42,7 +42,7 @@ test("a background run's tool call redraws only its own row, in both sidebar mod
   await settleUntil(() => desktop.sent.some((command) => command.type === "start"), "the run did not start");
   const start = desktop.sent.find((command): command is Extract<RunCommand, { type: "start" }> => command.type === "start")!;
   await act(async () => { row("Quiet task").click(); });
-  await act(async () => { query<HTMLButtonElement>(view.container, '.project-main[title="/project"]').click(); });
+  await act(async () => { query<HTMLButtonElement>(view.container, '.project-main[data-tip="/project"]').click(); });
   await settleFrame();
   const checkoutRow = row("Scheduled checkout task");
   assert.ok(query(checkoutRow, ".task-worktree.worktree-mark") && query(checkoutRow, ".task-automation"), "the checkout row carries its worktree and schedule");

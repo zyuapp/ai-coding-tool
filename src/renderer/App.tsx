@@ -193,7 +193,7 @@ export function App() {
             currentThread={workspace.currentThread}
             folder={workspace.folder}
             folderLabel={workspace.folderLabel}
-            host={workspace.activeComputer && { name: workspace.activeComputer.name, offline: workspace.activeComputer.status !== "connected", reconnecting: workspace.activeComputer.status === "connecting" }}
+            host={workspace.activeComputer && { id: workspace.activeComputer.id, name: workspace.activeComputer.name, offline: workspace.activeComputer.status !== "connected", reconnecting: workspace.activeComputer.status === "connecting" }}
             sidebarOpen={sidebarOpen}
             sessionPanelOpen={sessionPanelVisible}
             rightDockOpen={rightDockOpen}
@@ -208,7 +208,6 @@ export function App() {
             notifications={workspace.notifications} onSetMuted={workspace.actions.setMuted}
             stoppable={Boolean(workspace.currentThread && workspace.stoppableCoordinatorIds.has(workspace.currentThread.id))}
             onStopAll={workspace.actions.stopAll} onChooseFolder={() => void workspace.actions.openFolder()}
-            onNewThreadInProject={() => void workspace.dispatch({ type: "task.new", ...(workspace.currentThread?.projectId ? { projectId: workspace.currentThread.projectId } : {}) })}
             onToggleSidebar={() => void workspace.actions.setSidebarOpen(!sidebarOpen)}
             onToggleSessionPanel={() => {
               void workspace.actions.setDockOpen(false);

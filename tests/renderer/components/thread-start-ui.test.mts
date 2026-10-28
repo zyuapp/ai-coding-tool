@@ -347,3 +347,28 @@ test("a branch picker that cannot read branches yet says where the thread starts
   assert.equal(query(read.container, 'button[aria-label="Starting branch"]').dataset.tip, undefined);
   await read.unmount();
 });
+
+test("a branch list that cannot be read says so on the picker, which still opens to the reason", async () => {
+  const { ThreadStartOptions } = await import("../../../src/renderer/components/ThreadStartOptions.tsx");
+  window.desktop = { branches: async () => ({ status: "error", message: "not a git repository" }) } as unknown as typeof window.desktop;
+  const view = await mount(React.createElement(ThreadStartOptions, {
+    projects: [{ id: "project-a", root: "/repo/ai-coding-tool" }],
+    projectId: "project-a",
+    workspaceId: "workspace-a",
+    branch: null,
+    worktree: false,
+    onSelectProject() {},
+    onSelectBranch() {},
+    onSetWorktree() {},
+    coordinator: false,
+    onSetCoordinator() {},
+  }));
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+  const picker = query<HTMLButtonElement>(view.container, 'button[aria-label="Starting branch"]');
+  assert.equal(picker.textContent, "Branches unavailable");
+  assert.ok(picker.classList.contains("error"));
+  assert.equal(picker.dataset.tip, "not a git repository");
+  await act(async () => { picker.click(); });
+  assert.equal(query(view.container, ".branch-menu-empty.error").textContent, "not a git repository");
+  await view.unmount();
+});

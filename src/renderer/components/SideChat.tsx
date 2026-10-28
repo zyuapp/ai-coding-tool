@@ -59,13 +59,15 @@ export type DockConversationProps = {
   onEditQueued: (messageId: string) => void;
   onSteerQueued: (messageId: string) => void;
   onDropQueued: (messageId: string) => void;
+  /** Whether a newer build is ready to install, which is what a chat on an unknown engine needs. */
+  updateAvailable?: boolean;
 };
 
 /**
  * A thread talked to from a dock tab: its transcript, its approval, and its composer. The tab draws
  * its own header and says what the thread is.
  */
-export function DockConversation({ chat, engineLabel, focusToken = 0, find = null, findBar, folder = "", workspaceId, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, outbox, onAnswerQuestion, onQuestionAnswerChange, onCancel, onDecide, onPolicyChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onFastModeChange, onEditQueued, onSteerQueued, onDropQueued, className, label, header, empty, surface, disabled = false, error = null, note, action }: DockConversationProps & {
+export function DockConversation({ chat, engineLabel, focusToken = 0, find = null, findBar, folder = "", workspaceId, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, outbox, onAnswerQuestion, onQuestionAnswerChange, onCancel, onDecide, onPolicyChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onFastModeChange, onEditQueued, onSteerQueued, onDropQueued, updateAvailable = false, className, label, header, empty, surface, disabled = false, error = null, note, action }: DockConversationProps & {
   className: string;
   label: string;
   header: ReactNode;
@@ -113,6 +115,7 @@ export function DockConversation({ chat, engineLabel, focusToken = 0, find = nul
         taskId={chat.thread.id}
         /** A chat on an engine only a newer build on a paired computer knows takes no typed message, as its thread does. */
         unopenable={isAgentEngine(chat.thread.engine) ? null : unopenableEngine(chat.thread.engine)}
+        updateAvailable={updateAvailable}
         focusToken={focusToken}
         prompt={chat.prompt}
         folder={folder}

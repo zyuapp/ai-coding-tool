@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { TerminalSession } from "../../domain/terminal";
 import type { ComputerLink } from "../../domain/computers";
-import { LuPlus as Plus } from "react-icons/lu";
+import { LuCheck as Check, LuPlus as Plus, LuTriangleAlert as AlertTriangle, LuUnplug as Unplug } from "react-icons/lu";
 import { CommandButton } from "./CommandControl";
 import { fitTerminalView, focusTerminalView, hideTerminalView, onTerminalInput, showTerminalView } from "../task-workspace/terminal-views";
 
@@ -69,15 +69,18 @@ export function TerminalPanel({ terminal, computer, visible, focusToken = 0, fin
     };
   }, [terminal.id, visible, computerId, connected]);
 
+  const clean = !terminal.error && terminal.exitCode === 0;
+  const exitLabel = `Exited${terminal.exitCode === undefined ? "" : ` (${terminal.exitCode})`}`;
+
   return (
     <section className="terminal-panel" aria-label="Terminal">
       <p className="terminal-status">
         <span>{computer ? `${computer.name} · ${terminal.cwd}` : terminal.cwd}</span>
-        {computer && (!connected || connectionError) && <em role="status">{!connected ? computer.error ?? "Disconnected — reconnecting…" : connectionError}</em>}
-        {terminal.status === "exited" && <>
-          <em className={!terminal.error && terminal.exitCode === 0 ? "clean" : undefined}>{terminal.error ?? `exited${terminal.exitCode === undefined ? "" : ` (${terminal.exitCode})`}`}</em>
-          <CommandButton command={{ type: "terminal.open", cwd: terminal.cwd }} type="button" className="terminal-new-shell"><Plus size={12} aria-hidden="true" />New shell</CommandButton>
-        </>}
+        {computer && (!connected || connectionError) && <em role="status"><Unplug size={12} aria-hidden="true" />{!connected ? computer.error ?? "Disconnected — reconnecting…" : connectionError}</em>}
+        {terminal.status === "exited" && (clean
+          ? <em className="clean" role="status"><Check size={12} aria-hidden="true" />{terminal.error ?? exitLabel}</em>
+          : <em role="status"><AlertTriangle size={12} aria-hidden="true" />{terminal.error ?? exitLabel}</em>)}
+        <CommandButton command={{ type: "terminal.open", cwd: terminal.cwd }} type="button" className={`terminal-new-shell ${terminal.status === "exited" ? "primary" : ""}`.trimEnd()}><Plus size={12} aria-hidden="true" />New shell</CommandButton>
       </p>
 
       {find}
@@ -87,7 +90,7 @@ export function TerminalPanel({ terminal, computer, visible, focusToken = 0, fin
         {drawError && (
           <div className="terminal-error">
             {/** A module that failed to load stays failed for the life of the window, so reloading is the way back. */}
-            <p>The terminal view could not be loaded. Reloading the app and opening a terminal again is what fixes it.</p>
+            <p><AlertTriangle size={14} aria-hidden="true" />The terminal could not load.</p>
             <small>{drawError}</small>
             <button type="button" onClick={() => window.location.reload()}>Reload the app</button>
           </div>

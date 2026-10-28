@@ -45,12 +45,12 @@ test("arrow keys on the canvas pick a mark, which Delete removes and undo puts b
   assert.equal(canvas.tabIndex, 0);
 
   await act(async () => press(canvas, "ArrowRight"));
-  assert.ok(query(document.body, '[aria-label="Delete mark 1"]'), "the first mark's tools show");
+  assert.ok(query(document.body, '.annotator-marktools.picked [aria-label="Delete mark 1"]'), "the first mark's tools show in full");
   await act(async () => press(canvas, "ArrowRight"));
-  assert.ok(query(document.body, '[aria-label="Delete arrow"]'), "the next press walks to the arrow");
+  assert.ok(query(document.body, '.annotator-marktools.picked [aria-label="Delete arrow"]'), "the next press walks to the arrow");
 
   await act(async () => press(canvas, "Delete"));
-  assert.equal(query(document.body, ".annotator-count").textContent, "1 mark. Point at one to edit or remove it.");
+  assert.equal(query(document.body, ".annotator-count").textContent, "1 mark.");
   assert.equal(query<HTMLButtonElement>(document.body, ".annotator-undo").disabled, false);
 
   await act(async () => press(document.body, "z", { metaKey: true, ctrlKey: true }));
@@ -128,11 +128,27 @@ test("a picked mark keeps its tools after the pointer leaves the image", async (
 test("the focused canvas says which keys walk its marks", async () => {
   const { view, canvas } = await open();
   const hint = () => query(document.body, ".annotator-count").textContent ?? "";
-  assert.match(hint(), /Point at one/);
+  assert.equal(hint(), "2 marks.");
   await act(async () => { canvas.focus(); });
   assert.match(hint(), /^2 marks\. Arrow keys pick one/);
   await act(async () => { canvas.blur(); });
-  assert.match(hint(), /Point at one/);
+  assert.equal(hint(), "2 marks.");
+  await view.unmount();
+});
+
+test("every mark carries its tools, faintly and out of the tab order unless it is the one picked", async () => {
+  const { view } = await open();
+  const sets = [...document.body.querySelectorAll(".annotator-marktools")];
+  assert.equal(sets.length, 2, "one set per mark");
+  const picked = query(document.body, ".annotator-marktools.picked");
+  assert.ok(picked.querySelector('[aria-label="Delete arrow"]'), "the newest mark is picked until another is");
+  const faint = query<HTMLButtonElement>(document.body, '[aria-label="Edit note on mark 1"]');
+  assert.equal(faint.closest(".annotator-marktools")?.classList.contains("picked"), false);
+  assert.equal(faint.tabIndex, -1);
+  assert.equal(query<HTMLButtonElement>(picked, '[aria-label="Delete arrow"]').tabIndex, 0);
+
+  await act(async () => { faint.click(); });
+  assert.ok(query(document.body, ".annotator-label"), "a faint pencil still opens the note");
   await view.unmount();
 });
 

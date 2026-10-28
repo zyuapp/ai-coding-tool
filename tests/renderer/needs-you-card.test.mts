@@ -123,8 +123,10 @@ test("the Needs-you card keeps what the user chose or typed on a page through pa
   assert.equal(query<HTMLInputElement>(view.container, ".elsewhere-worktree input").checked, true, "and so is the new worktree");
   await act(async () => { button("Later").click(); });
   assert.equal(query<HTMLInputElement>(view.container, 'input[aria-label="Your own answer"]').value, "Keep it behind a flag", "the answer typed is still there");
+  assert.ok(query(view.container, ".decision-options").classList.contains("overridden"), "the options show they give way to the answer typed");
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Next"]').click(); });
   assert.equal(required([...view.container.querySelectorAll<HTMLInputElement>('input[type="radio"]')].find((item) => item.checked)).value, "Drop it", "and so is the option chosen");
+  assert.equal(query(view.container, ".decision-options").classList.contains("overridden"), false);
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Previous"]').click(); });
   await act(async () => { button("Decide").click(); });
   assert.deepEqual(answered, ["Keep it behind a flag"]);
@@ -166,8 +168,17 @@ test("the Needs-you card's Suggested threads page starts and dismisses each sugg
   const button = (label: string) => required([...page.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.getAttribute("aria-label") === label || item.textContent === label));
   await act(async () => { button("Start Fix login").click(); });
   await act(async () => { button("Dismiss Docs").click(); });
+  assert.equal(dispatched.length, 1, "a suggestion is only turned down once that is confirmed");
+  assert.equal(document.activeElement?.textContent, "Cancel", "the safe answer has the focus");
+  await act(async () => { (document.activeElement as HTMLElement).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+  assert.equal((document.activeElement as HTMLElement | null)?.getAttribute("aria-label"), "Dismiss Docs", "Escape backs out to the button pressed");
+  assert.equal(dispatched.length, 1);
+  await act(async () => { button("Dismiss Docs").click(); });
+  await act(async () => { button("Dismiss").click(); });
   await act(async () => { button("Start all").click(); });
   await act(async () => { button("Dismiss all").click(); });
+  assert.equal(dispatched.length, 3, "nor are they all");
+  await act(async () => { required([...page.querySelectorAll<HTMLButtonElement>("button.danger")].find((item) => item.textContent === "Dismiss all")).click(); });
   assert.deepEqual(dispatched, [
     { type: "proposal.start", taskId: "lead", proposalId: "p1" },
     { type: "proposal.dismiss", taskId: "lead", proposalId: "p2" },
@@ -223,6 +234,8 @@ test("the Needs-you card asks to run a thread on another computer, in the folder
     await view.render(card(elsewhere(refusal, offline)));
     const allow = button("Allow");
     assert.equal(allow.disabled, true, refusal);
+    assert.equal(allow.hasAttribute("title"), false);
+    assert.equal(document.getElementById(allow.getAttribute("aria-describedby")!)?.textContent, refusal, "Allow is read with why it is off");
     assert.match(query(view.container, '[aria-label="Run on Studio?"]').textContent, new RegExp(refusal.replace(".", "\\.")));
   }
   await view.unmount();
@@ -310,6 +323,11 @@ test("a suggestion started or dismissed from the keyboard hands focus to the row
   };
 
   await press("Dismiss Suggestion a");
+  await act(async () => {
+    const confirm = required([...view.container.querySelectorAll<HTMLButtonElement>("button.danger")].find((item) => item.textContent === "Dismiss"));
+    confirm.focus();
+    confirm.click();
+  });
   await view.render(card([b, c]));
   assert.equal(focusedName(), "Dismiss Suggestion b", "a dismissed row hands focus to the same button on the row that took its place");
   await press("Start Suggestion c");

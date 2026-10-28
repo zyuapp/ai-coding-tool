@@ -1,5 +1,6 @@
 import { useContext, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { LuArrowUpRight as ArrowUpRight, LuChevronLeft as ChevronLeft, LuChevronRight as ChevronRight, LuPlay as Play, LuX as X } from "react-icons/lu";
+import type { AppCommand } from "../../contracts/commands";
 import type { ThreadModelChoice } from "../../domain/coordination";
 import { modelLabel } from "../../domain/agent-engine";
 import { projectName } from "../../domain/project";
@@ -7,10 +8,11 @@ import type { Thread } from "../../domain/thread";
 import type { CoordinationApprovalView, CoordinationDecisionView, ElsewhereView, ProposalView } from "../../application/coordination-view";
 import type { ApprovalView } from "../../application/thread-run-state";
 import { approvalCommand } from "./ApprovalCard";
-import { CommandButton } from "./CommandControl";
+import { CommandButton, useCommandControls } from "./CommandControl";
 import { BriefDetails } from "./Coordination";
 import { HostMark } from "./HostMark";
-import { placeOf, ReturnFocusContext, useKeyboardPlace } from "../focus";
+import { firstFocusable, placeOf, ReturnFocusContext, useKeyboardPlace } from "../focus";
+import { ConfirmAction, type ConfirmActionProps } from "./SettingRow";
 import { shortcutTip } from "./TooltipLayer";
 import "./coordination.css";
 
@@ -55,9 +57,11 @@ function actionsOf(root: HTMLElement, action: string): HTMLElement[] {
   return [...root.querySelectorAll<HTMLElement>("[data-action]")].filter((button) => button.dataset.action === action);
 }
 
+/** A control that asks once more is remembered by the place it stands in, so its answer counts as pressing it. */
 function rememberCardPlace(pressed: HTMLElement, root: HTMLElement): CardPlace {
-  const action = pressed.dataset.action ?? null;
-  return { action, index: action ? actionsOf(root, action).indexOf(pressed) : -1 };
+  const holder = pressed.closest<HTMLElement>("[data-action]");
+  const action = holder && root.contains(holder) ? holder.dataset.action ?? null : null;
+  return { action, index: action ? actionsOf(root, action).indexOf(holder!) : -1 };
 }
 
 /**
@@ -65,7 +69,15 @@ function rememberCardPlace(pressed: HTMLElement, root: HTMLElement): CardPlace {
  * took its place, else to that page itself, so what comes next is read before anything on it is pressed.
  */
 function cardFocus({ action, index }: CardPlace, root: HTMLElement): HTMLElement | null | undefined {
-  return (action ? placeOf(actionsOf(root, action), index) : undefined) ?? root.querySelector<HTMLElement>(".decision-card");
+  const place = action ? placeOf(actionsOf(root, action), index) : undefined;
+  return (place && firstFocusable(place)) ?? root.querySelector<HTMLElement>(".decision-card");
+}
+
+/** A command that turns something down for good, sent only once the user confirms it. */
+function ConfirmCommand({ command, confirm, ...props }: Omit<ConfirmActionProps, "onConfirm"> & { command: AppCommand }) {
+  const controls = useCommandControls();
+  if (!props.disabled && !controls.available(command)) return <CommandButton {...props} command={command} />;
+  return <ConfirmAction {...props} confirm={confirm} onConfirm={() => controls.dispatch(command)} />;
 }
 
 /**
@@ -202,8 +214,8 @@ function SuggestionsForm({ suggestions, position, onStep }: { suggestions: Sugge
       <div className="decision-foot">
         {position && <button type="button" className="secondary" data-action="later" onClick={() => onStep(1)}>Later</button>}
         <span className="decision-foot-gap" />
-        <CommandButton type="button" className="secondary" command={{ type: "proposal.dismiss", taskId, proposalIds: shown }} disabled={!waiting}>Dismiss all</CommandButton>
-        <CommandButton type="button" command={{ type: "proposal.start", taskId, proposalIds: shown }} disabled={!waiting}>Start all</CommandButton>
+        <ConfirmCommand className="secondary" confirm="Dismiss all" command={{ type: "proposal.dismiss", taskId, proposalIds: shown }} disabled={!waiting}>Dismiss all</ConfirmCommand>
+        <CommandButton type="button" className="suggestion-start-all" command={{ type: "proposal.start", taskId, proposalIds: shown }} disabled={!waiting}>Start all</CommandButton>
       </div>
     </section>
   );
@@ -223,16 +235,17 @@ function SuggestionRow({ taskId, threadModel, view }: { taskId: string; threadMo
       </span>
       {model && <span className="suggestion-chip">{modelLabel(model)}</span>}
       {worktree && <span className="suggestion-chip">Worktree</span>}
-      {!starting && <CommandButton
-        type="button"
-        className="suggestion-dismiss"
-        data-action="dismiss"
-        aria-label={`Dismiss ${proposal.title}`}
-        data-tip="Dismiss"
-        command={{ type: "proposal.dismiss", taskId, proposalId: proposal.id }}
-      >
-        <X size={12} aria-hidden="true" />
-      </CommandButton>}
+      {!starting && <span className="suggestion-dismiss-slot" data-action="dismiss">
+        <ConfirmCommand
+          className="suggestion-dismiss"
+          aria-label={`Dismiss ${proposal.title}`}
+          data-tip="Dismiss"
+          confirm="Dismiss"
+          command={{ type: "proposal.dismiss", taskId, proposalId: proposal.id }}
+        >
+          <X size={14} aria-hidden="true" />
+        </ConfirmCommand>
+      </span>}
       {starting
         ? <span className="suggestion-start task-spinner" role="status" aria-label={`Starting ${proposal.title}`} />
         : <CommandButton type="button" className="suggestion-start" data-action="start" aria-label={`Start ${proposal.title}`} data-tip="Start" command={{ type: "proposal.start", taskId, proposalId: proposal.id }}>
@@ -283,7 +296,7 @@ function ElsewhereForm({ taskId, request, draft, position, onStep, onDraft }: {
         </div>
         {proposal.brief && <BriefDetails brief={proposal.brief} />}
         {refusal
-          ? <p className="suggestion-error" role="status">{refusal}</p>
+          ? <p className="suggestion-error" id={ids.context} role="status">{refusal}</p>
           : proposal.error && !starting && <p className="suggestion-error" role="alert">{proposal.error}</p>}
       </div>
       <div className="decision-foot">
@@ -294,7 +307,7 @@ function ElsewhereForm({ taskId, request, draft, position, onStep, onDraft }: {
           type="button"
           command={{ type: "proposal.start", taskId, proposalId: proposal.id, place: { project, worktree } }}
           disabled={starting || refusal !== null}
-          title={refusal ?? undefined}
+          {...(refusal ? { "aria-describedby": ids.context } : {})}
         >
           {starting ? "Starting…" : "Allow"}
         </CommandButton>
@@ -358,7 +371,7 @@ function DecisionForm({ view, draft, position, onStep, onDraft, onAnswer, onSele
       <div className="decision-body">
         <p className="decision-question" id={ids.question}>{decision.question}</p>
         {decision.context && <p className="decision-context" id={ids.context}>{decision.context}</p>}
-        {decision.options.length > 0 && <div className="decision-options" role="radiogroup" aria-labelledby={ids.question}>
+        {decision.options.length > 0 && <div className={`decision-options${own.trim() ? " overridden" : ""}`} role="radiogroup" aria-labelledby={ids.question}>
           {decision.options.map((option) => (
             <label className="decision-option" key={option.label}>
               <input type="radio" name={id} value={option.label} checked={!own.trim() && choice === option.label} onChange={() => onDraft({ kind: "decision", choice: option.label, own: "" })} />

@@ -80,6 +80,7 @@ export type SettingsPanelProps = {
   engineChecking: boolean;
   engineUpdating: AgentEngine | null;
   agentSettingsReload: EngineSettingsProps["reloadStatus"];
+  agentSettingsReloadError?: string | null;
   onReloadAgentSettings: () => void;
   shortcuts: ShortcutSetting[];
   /** The action waiting for a keystroke, while the window hands every one of them over. */
@@ -149,7 +150,7 @@ export function SettingsPanel({
   engineAccess,
   engineChecking,
   engineUpdating,
-  agentSettingsReload, onReloadAgentSettings,
+  agentSettingsReload, agentSettingsReloadError = null, onReloadAgentSettings,
   shortcuts, capturingShortcut, desktopShortcutUnavailable,
   onSetThemeFamily,
   onSetThemeMode,
@@ -232,7 +233,7 @@ export function SettingsPanel({
       </main>
       )}
 
-      {section === "engines" && <EngineSettings reloadStatus={agentSettingsReload} onReload={onReloadAgentSettings} engineAccess={engineAccess} checking={engineChecking} updating={engineUpdating} onRefresh={onRefreshEngines} onSignIn={onSignInEngine} onUpdate={onUpdateEngine} />}
+      {section === "engines" && <EngineSettings reloadStatus={agentSettingsReload} reloadError={agentSettingsReloadError} onReload={onReloadAgentSettings} engineAccess={engineAccess} checking={engineChecking} updating={engineUpdating} onRefresh={onRefreshEngines} onSignIn={onSignInEngine} onUpdate={onUpdateEngine} />}
 
       {section === "worktrees" && (
         <WorktreeSettings

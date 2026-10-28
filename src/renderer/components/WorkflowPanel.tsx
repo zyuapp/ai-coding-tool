@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { shortcutTip } from "./TooltipLayer";
+import { ConfirmAction } from "./SettingRow";
 import { LuArrowLeft as ArrowLeft, LuBoxes as Boxes, LuCircleCheckBig as CheckCircle2, LuCircleDot as CircleDot, LuCircleX as XCircle, LuClock as Clock, LuSquare as Square, LuTriangleAlert as AlertTriangle } from "react-icons/lu";
 import {
   agentStateIn,
@@ -51,7 +52,7 @@ function AgentBadges({ agent }: { agent: WorkflowAgent }) {
       {agent.isolation && <span className="workflow-badge isolation">{agent.isolation}</span>}
       {agent.cached && <span className="workflow-badge cached">cached</span>}
       {agent.attempt !== undefined && agent.attempt > 1 && (
-        <span className="workflow-badge retry" title={agent.lastAttemptReason}>retry {agent.attempt}</span>
+        <span className="workflow-badge retry" data-tip={agent.lastAttemptReason}>retry {agent.attempt}</span>
       )}
     </>
   );
@@ -187,7 +188,11 @@ export function WorkflowPanel({ workflow, onStop }: { workflow: Workflow; onStop
           <span className={`agent-orb ${live ? "" : workflow.status === "completed" ? "done" : "error"}`}><Boxes size={16} /></span>
           <h2>{workflow.name}</h2>
           {live && (
-            <button className="workflow-stop" type="button" disabled={workflow.stopping} onClick={() => onStop(workflow.id)}>{workflow.stopping ? "Stopping" : "Stop"}</button>
+            <span className="workflow-stop-actions">
+              {workflow.stopping
+                ? <button className="workflow-stop" type="button" disabled>Stopping…</button>
+                : <ConfirmAction className="workflow-stop" confirm="Stop workflow" onConfirm={() => onStop(workflow.id)}>Stop</ConfirmAction>}
+            </span>
           )}
         </div>
         <p className="workflow-head-sub">

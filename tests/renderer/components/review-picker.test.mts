@@ -53,6 +53,9 @@ test("a commit is reviewed only once its SHA is hex, and anything else says so",
   await type(field, "a1b");
   assert.equal(start.disabled, true, "three characters are still being typed");
   assert.equal(view.container.querySelector(".review-form-error"), null);
+  const hint = query(view.container, ".review-form-hint");
+  assert.equal(hint.textContent, "At least 4 characters", "a short SHA says why it cannot start yet");
+  assert.equal(field.getAttribute("aria-describedby"), hint.id);
 
   await type(field, "HEAD~1");
   assert.equal(start.disabled, true);
@@ -64,6 +67,7 @@ test("a commit is reviewed only once its SHA is hex, and anything else says so",
   await type(field, " a1b2c3d ");
   assert.equal(start.disabled, false);
   assert.equal(view.container.querySelector(".review-form-error"), null);
+  assert.equal(view.container.querySelector(".review-form-hint"), null);
   await act(async () => { query<HTMLFormElement>(view.container, ".review-form").requestSubmit(); });
   assert.deepEqual(calls.reviews, [{ type: "commit", sha: "a1b2c3d", title: null }]);
   await view.unmount();
@@ -88,6 +92,7 @@ test("arrow keys in the branch search move the highlighted branch, which Enter r
   const search = query<HTMLInputElement>(view.container, ".review-search input");
   const selected = () => [...view.container.querySelectorAll('.review-branch-list [role="option"]')].filter((option) => option.getAttribute("aria-selected") === "true").map((option) => option.textContent);
   assert.deepEqual(selected(), ["main"]);
+  assert.equal(query(view.container, ".review-heading > span").textContent, "Compare feature with…", "the heading names the branch under review");
 
   await press(search, "ArrowDown");
   assert.deepEqual(selected(), ["release"]);
@@ -110,4 +115,19 @@ test("Escape steps back to the review options, and closes from there", async () 
   await act(async () => { query<HTMLButtonElement>(top.view.container, ".review-close").click(); });
   assert.equal(top.calls.closed, 2);
   await top.view.unmount();
+});
+
+test("a branch search with nothing left tells a missed query from a checkout with no other branch", async () => {
+  const { view } = await open("base");
+  const search = query<HTMLInputElement>(view.container, ".review-search input");
+  await type(search, "nope");
+  assert.equal(query(view.container, ".review-branch-list .command-empty").textContent, "No branch matches");
+  await view.unmount();
+
+  const desktop = window.desktop;
+  window.desktop = { branches: async () => ({ status: "available", branches: ["main"], remotes: [], current: "main" } as const) } as unknown as typeof window.desktop;
+  const lone = await open("base");
+  assert.equal(query(lone.view.container, ".review-branch-list .command-empty").textContent, "No other branch to compare with");
+  await lone.view.unmount();
+  window.desktop = desktop;
 });

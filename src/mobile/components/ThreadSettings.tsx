@@ -1,5 +1,5 @@
 import { LuCheck as Check, LuSquarePen as SquarePen, LuZap as Zap } from "react-icons/lu";
-import { Fragment, useEffect, useState, type KeyboardEvent } from "react";
+import { Fragment, useEffect, useId, useState, type KeyboardEvent } from "react";
 import type { MobileThreadSettings } from "../../contracts/mobile";
 import { Sheet } from "./Sheet";
 import { AGENT_ENGINES, capabilitiesFor, byEngine, byModel, effortForModel, effortsFor, engineLabel, modelsFor, type AgentEngine, type AgentModel, type EffortSpec } from "../../domain/agent-engine";
@@ -49,15 +49,19 @@ function Group<T extends string>({ heading, choices, value, onChange }: { headin
   );
 }
 
-/** A thread that already has an engine offers only that engine's models; the others start a thread on theirs. */
+/**
+ * A thread that already has an engine offers only that engine's models. Each other engine keeps its
+ * heading in the same list, with the one way to reach its models: a new thread on it.
+ */
 function ModelGroup({ engine, model, locked, onModel, onNewWith }: { engine: AgentEngine; model: AgentModel; locked: boolean; onModel: (engine: AgentEngine, model: AgentModel) => void; onNewWith?: (engine: AgentEngine) => void }) {
   const shown = modelGroups.filter((group) => !locked || group.engine === engine);
   const known = shown.some((group) => group.engine === engine && group.choices.some((choice) => choice.value === model));
   const others = locked && onNewWith ? modelGroups.filter((group) => group.engine !== engine) : [];
+  const heading = useId();
   return (
-    <>
-      <section className="sheet-group" role="radiogroup" aria-label="Model" onKeyDown={moveChoice}>
-        <h3>Model</h3>
+    <section className="sheet-group">
+      <h3 id={heading}>Model</h3>
+      <div role="radiogroup" aria-labelledby={heading} onKeyDown={moveChoice}>
         {shown.map((group, groupIndex) => (
           <Fragment key={group.engine}>
             <h4 className="sheet-subheading">{group.label}</h4>
@@ -67,18 +71,17 @@ function ModelGroup({ engine, model, locked, onModel, onNewWith }: { engine: Age
             })}
           </Fragment>
         ))}
-      </section>
-      {others.length > 0 && (
-        <div className="menu-group sheet-actions">
-          {others.map((group) => (
-            <button key={group.engine} type="button" className="menu-row sheet-new-engine" onClick={() => onNewWith!(group.engine)}>
-              <span className="menu-glyph" aria-hidden="true"><SquarePen size={18} strokeWidth={1.8} /></span>
-              <span className="menu-copy"><strong>New thread with {group.label}</strong></span>
-            </button>
-          ))}
-        </div>
-      )}
-    </>
+      </div>
+      {others.map((group) => (
+        <Fragment key={group.engine}>
+          <h4 className="sheet-subheading">{group.label}</h4>
+          <button type="button" className="menu-row sheet-new-engine" onClick={() => onNewWith!(group.engine)}>
+            <span className="menu-glyph" aria-hidden="true"><SquarePen size={18} strokeWidth={1.8} /></span>
+            <span className="menu-copy"><strong>New thread with {group.label}</strong><small>{group.choices.map((choice) => choice.label).join(" · ")}</small></span>
+          </button>
+        </Fragment>
+      ))}
+    </section>
   );
 }
 
@@ -115,15 +118,16 @@ export function ThreadSettings({ settings: given, locked, onNewWith, onClose, on
   onEffort: (engine: AgentEngine, effort: AgentEffort) => void;
 }) {
   const [settings, choose] = usePending(given);
+  const fastNote = useId();
   const efforts = (settings.coordinating ? coordinatorEffortsOf : effortsOf)[settings.model];
   return (
     <Sheet title="Settings" label="Thread settings" onClose={onClose}>
       <Group heading="Mode" choices={MODES} value={settings.policy} onChange={(policy) => { choose({ policy }); onPolicy(policy); }} />
       <ModelGroup engine={settings.engine} model={settings.model} locked={locked} onNewWith={onNewWith} onModel={(engine, model) => { choose({ engine, model }); onModel(engine, model); }} />
       {efforts.length > 0 && <Group heading="Effort" choices={efforts} value={effortForModel(settings.model, settings.effort, settings.coordinating ? "coordinator" : undefined)} onChange={(effort) => { choose({ effort }); onEffort(settings.engine, effort); }} />}
-      {capabilitiesFor(settings.engine).fastMode && <button type="button" className="sheet-option fast-mode-switch" role="switch" aria-label="Fast mode" aria-checked={settings.fastMode ?? false} onClick={() => { const fastMode = !settings.fastMode; choose({ fastMode }); onFastMode(fastMode); }}>
+      {capabilitiesFor(settings.engine).fastMode && <button type="button" className="sheet-option fast-mode-switch" role="switch" aria-label="Fast mode" aria-describedby={fastNote} aria-checked={settings.fastMode ?? false} onClick={() => { const fastMode = !settings.fastMode; choose({ fastMode }); onFastMode(fastMode); }}>
         <Zap size={20} aria-hidden="true" />
-        <span><strong>Fast mode</strong><small>Faster responses · uses more of your plan</small></span>
+        <span><strong>Fast mode</strong><small id={fastNote}>Faster responses · uses more of your plan</small></span>
         <span className="switch-track" aria-hidden="true" />
       </button>}
     </Sheet>

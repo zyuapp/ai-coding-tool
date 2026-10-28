@@ -215,7 +215,14 @@ test("a reader who scrolls away keeps the view, and is offered a way back to the
   await harness.resize();
   assert.deepEqual(harness.sentTo, [], "a transcript the reader scrolled is left where they put it");
 
-  await act(async () => { button.click(); });
+  assert.equal(button.getAttribute("aria-label"), "Scroll to the latest message");
+  await view.render(harness.render(messages, "running", null));
+  const live = query<HTMLButtonElement>(view.container, ".scroll-to-end");
+  assert.equal(live.getAttribute("aria-label"), "Scroll to the new output");
+  assert.equal(live.dataset.tip, "New output below", "the live dot says what it means");
+  await view.render(harness.render(messages, "idle", null));
+
+  await act(async () => { query<HTMLButtonElement>(view.container, ".scroll-to-end").click(); });
   assert.equal(harness.sentTo.at(-1), harness.bottom, "the button returns to the end");
   await view.unmount();
 });

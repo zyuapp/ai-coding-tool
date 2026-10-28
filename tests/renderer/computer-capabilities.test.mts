@@ -34,6 +34,7 @@ test("thread menus and shared buttons disable unsupported operations on the corr
     const remote = () => query<HTMLButtonElement>(view.container, '[aria-label="Archive remote"]');
     assert.equal(remote().getAttribute("aria-disabled"), "true");
     assert.equal(remote().disabled, false, "it stays focusable so the keyboard reaches its reason");
+    assert.equal(remote().hasAttribute("data-unsupported"), true);
     assert.equal(query<HTMLButtonElement>(view.container, '[aria-label="Archive local"]').getAttribute("aria-disabled"), null);
     const rename = [...view.container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((item) => item.querySelector(".menu-label")?.textContent === "Rename")!;
     assert.equal(rename.getAttribute("aria-disabled"), "true");
@@ -47,6 +48,7 @@ test("thread menus and shared buttons disable unsupported operations on the corr
     await view.render(render());
     assert.equal(remote().getAttribute("aria-disabled"), null);
     assert.equal(remote().dataset.tip, undefined);
+    assert.equal(remote().hasAttribute("data-unsupported"), false);
     await act(async () => remote().click());
     assert.deepEqual(commands, [{ type: "task.archive", taskId: thread.id }]);
   } finally { await view.unmount(); }

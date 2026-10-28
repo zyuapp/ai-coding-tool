@@ -6,12 +6,13 @@ import { parseFileHref, parseThreadHref } from "../../domain/markdown-links";
 import { Copyable } from "./CopyButton";
 import { MermaidBlock } from "./MermaidBlock";
 import { VisualBlock } from "./VisualBlock";
-import { ContextMenu } from "./PopoverMenu";
+import { ContextMenu, type MenuEntry } from "./PopoverMenu";
 import { isCommitHash, messageImagePath, messageImageUrl } from "../../domain/message-artifacts";
 import { messageImages, type MessageImage } from "../../application/message-images";
 import { useKnownCommit } from "../known-commits";
 import { MAX_VISUAL_SOURCE, VISUAL_LANGUAGE } from "../../domain/visual-frame";
 import { MAC } from "../platform";
+import { copyText } from "../clipboard";
 
 const APP_HREF = /^aicodingtool:/i;
 const WEB_HREF = /^https?:/i;
@@ -100,6 +101,13 @@ function MarkdownTable({ node, ...props }: ComponentProps<"table"> & ExtraProps)
 export function WebLink({ children, openInApp, ...props }: ComponentProps<"a"> & { openInApp?: () => void }) {
   const link = useRef<HTMLAnchorElement>(null);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const href = props.href ?? "";
+  const entries: MenuEntry[] = [
+    { label: "Open in browser", onSelect: () => { window.open(href, "_blank", "noreferrer"); } },
+    ...(openInApp ? [{ label: "Open in AI Coding Tool", shortcut: `${MAC ? "⌘" : "Ctrl+"}Click`, onSelect: openInApp }] : []),
+    "separator",
+    { label: "Copy link", onSelect: () => { void copyText(href); } },
+  ];
   return (
     <>
       <a
@@ -114,19 +122,14 @@ export function WebLink({ children, openInApp, ...props }: ComponentProps<"a"> &
           event.preventDefault();
           openInApp();
         }}
-        onContextMenu={openInApp ? (event) => {
+        onContextMenu={(event) => {
           event.preventDefault();
           setMenu({ x: event.clientX, y: event.clientY });
-        } : undefined}
+        }}
       >
         {children}
       </a>
-      {menu && openInApp && <ContextMenu
-        at={menu}
-        returnFocus={link}
-        onClose={() => setMenu(null)}
-        entries={[{ label: "Open in AI Coding Tool", onSelect: openInApp }]}
-      />}
+      {menu && <ContextMenu at={menu} returnFocus={link} onClose={() => setMenu(null)} entries={entries} />}
     </>
   );
 }
@@ -178,8 +181,11 @@ function MessageImagePreview({ image: linked, messageId }: { image: MessageImage
   const actions = useContext(MessageLinks);
   const [failed, setFailed] = useState(false);
   const source = messageImageUrl(linked.path, scope.root, messageId, false, scope.taskId);
+  const unavailable = <>{linked.label} · Preview unavailable</>;
   return <div className="message-image-preview">
-    {failed ? <span className="message-image-unavailable">{linked.label} · Preview unavailable</span> :
+    {failed ? (actions.openFile
+      ? <button type="button" className="message-image-unavailable" data-tip={linked.path} onClick={() => actions.openFile!(linked.path, null)}><FileText className="message-link-glyph" aria-hidden="true" />{unavailable}</button>
+      : <span className="message-image-unavailable">{unavailable}</span>) :
       <button type="button" aria-label={`Enlarge ${linked.label}`} onClick={() => actions.openImage?.(source)}>
         <img src={messageImageUrl(linked.path, scope.root, messageId, true, scope.taskId)} alt={linked.label} loading="lazy" decoding="async" onError={() => setFailed(true)} />
       </button>}

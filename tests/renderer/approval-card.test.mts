@@ -19,13 +19,25 @@ test("the approval card shows the command it would run and decides it either way
   assert.equal(card.querySelector("details"), null, "a command is read in full, not behind a disclosure");
   assert.equal(document.getElementById(card.getAttribute("aria-labelledby")!)?.textContent, "Run a command?");
   assert.equal(document.getElementById(card.getAttribute("aria-describedby")!)?.textContent, "Wants to clean the build");
-  const button = (label: string) => [...card.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === label)!;
+  const button = (label: string) => [...card.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.firstChild?.textContent === label)!;
   assert.match(button("Allow once").dataset.tip ?? "", /^Allow once \(/);
   assert.match(button("Deny").dataset.tip ?? "", /^Deny \(/);
+  for (const label of ["Allow once", "Deny"]) {
+    const keys = query(button(label), "kbd");
+    assert.equal(keys.getAttribute("aria-hidden"), "true");
+    assert.ok(button(label).dataset.tip?.endsWith(`(${keys.textContent})`), "the button shows the keys its tooltip names");
+  }
   await act(async () => { button("Allow once").click(); });
   await act(async () => { button("Deny").click(); });
   assert.deepEqual(decided, [true, false]);
   await view.unmount();
+
+  const rebound = await mount(React.createElement(ApprovalCard, { approval: approval({ command: "ls" }), bindings: { allow: "Mod+Shift+Y", deny: null }, onDecide() {} }));
+  const reboundButton = (label: string) => [...rebound.container.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.firstChild?.textContent === label)!;
+  assert.match(reboundButton("Allow once").dataset.tip ?? "", /Y\)$/, "a rebound shortcut is the one offered");
+  assert.equal(reboundButton("Deny").hasAttribute("data-tip"), false, "an unbound one offers no keys");
+  assert.equal(reboundButton("Deny").querySelector("kbd"), null);
+  await rebound.unmount();
 
   const other = await mount(React.createElement(ApprovalCard, { approval: { ...approval({ path: "a.txt" }), description: "" }, onDecide() {} }));
   assert.equal(other.container.querySelector(".approval-command"), null);

@@ -2,7 +2,9 @@ import { Cron } from "croner";
 import { CommandButton, useCommandControls } from "./CommandControl";
 import { ConfirmAction } from "./SettingRow";
 import { REMOTE_UNSUPPORTED } from "../../contracts/computer-capabilities";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
+import { MAC } from "../platform";
+import { shortcutTip } from "./TooltipLayer";
 import { LuAlarmClock as AlarmClock, LuCheck as Check, LuPause as Pause, LuPlay as Play, LuPlus as Plus, LuTrash2 as Trash2, LuTriangleAlert as AlertTriangle } from "react-icons/lu";
 import { isOneShotSchedule, scheduleFieldCount, type AutomationPatch, type AutomationView } from "../../domain/automation";
 
@@ -108,17 +110,35 @@ export function lastRunLabel(automation: AutomationView, at: number) {
   return `${automation.lastStatus ?? "ran"} at ${formatMoment(when, at)}`;
 }
 
-/** Missed is the one status that needs the user, so it alone stands out. */
-function AutomationHeading({ status }: { status?: string }) {
+/** Missed is the one status that needs the user, so it alone stands out, and runs the task when pressed. */
+function AutomationHeading({ status, started = false, onRunNow }: { status?: string; started?: boolean; onRunNow?: () => void }) {
   return (
     <header className="agents-panel-heading">
       <div><h2>Automation</h2><p>Repeat this task on a schedule</p></div>
-      {status && (
-        <span data-state={status === "Missed" ? "missed" : status === "Paused" ? "paused" : undefined}>
-          {status === "Missed" && <AlertTriangle size={12} aria-hidden="true" />}{status}
-        </span>
+      {status === "Missed" && onRunNow ? (
+        <CommandButton command={{ type: "automation.run-now" }} type="button" className="automation-missed" data-state="missed" onClick={onRunNow}>
+          {started ? <><Check size={12} aria-hidden="true" />Started</> : <><AlertTriangle size={12} aria-hidden="true" />Missed<span>Run now</span></>}
+        </CommandButton>
+      ) : status && (
+        <span data-state={status === "Paused" ? "paused" : undefined}>{status}</span>
       )}
     </header>
+  );
+}
+
+function AutomationEmpty({ engineLabel, onCreate }: { engineLabel: string; onCreate: () => void }) {
+  return (
+    <section className="automation-panel" aria-label="Automation">
+      <AutomationHeading />
+      <div className="agents-panel-empty">
+        <span className="agent-orb"><AlarmClock size={18} /></span>
+        <h2>No automation yet</h2>
+        <p>Ask {engineLabel} to repeat this task, like “run this every morning at 8”. It appears here.</p>
+        <CommandButton command={{ type: "automation.save", draft: { prompt: "", schedule: "" } }} type="button" onClick={onCreate}>
+          <Plus size={14} aria-hidden="true" />New schedule
+        </CommandButton>
+      </div>
+    </section>
   );
 }
 
@@ -133,6 +153,7 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
   /** A new schedule being written before any exists. */
   const [creating, setCreating] = useState(false);
   const controls = useCommandControls();
+  const scheduleId = useId();
   const canDelete = controls.available({ type: "automation.delete" });
   const revision = automation ? `${automation.id}:${automation.updatedAt}` : "";
 
@@ -156,21 +177,7 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
     return () => window.clearInterval(timer);
   }, [automation?.nextRunAt]);
 
-  if (!automation && !creating) {
-    return (
-      <section className="automation-panel" aria-label="Automation">
-        <AutomationHeading />
-        <div className="agents-panel-empty">
-          <span className="agent-orb"><AlarmClock size={18} /></span>
-          <h2>No automation yet</h2>
-          <p>Ask {engineLabel} to repeat this task, like “run this every morning at 8”. It appears here.</p>
-          <CommandButton command={{ type: "automation.save", draft: { prompt: "", schedule: "" } }} type="button" onClick={() => setCreating(true)}>
-            <Plus size={14} aria-hidden="true" />New schedule
-          </CommandButton>
-        </div>
-      </section>
-    );
-  }
+  if (!automation && !creating) return <AutomationEmpty engineLabel={engineLabel} onCreate={() => setCreating(true)} />;
 
   /** A one-time run always surfaces, so it has no quiet sentence to say or keep. */
   const oneShot = isOneShotSchedule(schedule);
@@ -185,6 +192,15 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
     ...(!oneShot && surfaceWhen.trim() ? { surfaceWhen: surfaceWhen.trim() } : {}),
     ...(endsWhen.trim() ? { endsWhen: endsWhen.trim() } : {}),
   };
+  const save = () => {
+    onUpdate(patch);
+    setDone("saved");
+  };
+  const runNow = () => {
+    onRunNow();
+    setDone("started");
+  };
+  const canSave = automation ? dirty && !readout?.error : Boolean(draft.prompt) && !readout?.error;
   const cancelCreate = () => {
     setSchedule("");
     setPrompt("");
@@ -195,20 +211,29 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
 
   return (
     <section className="automation-panel" aria-label="Automation">
-      <AutomationHeading status={automation ? automationStatusLabel(automation, now) : undefined} />
+      <AutomationHeading status={automation ? automationStatusLabel(automation, now) : undefined} started={done === "started"} onRunNow={runNow} />
 
       <div className="automation-body" onKeyDown={(event) => {
+        if (event.key === "Enter" && (MAC ? event.metaKey : event.ctrlKey) && !event.nativeEvent.isComposing) {
+          event.preventDefault();
+          if (!canSave) return;
+          const command = automation ? { type: "automation.update", patch } as const : { type: "automation.save", draft } as const;
+          if (!controls.available(command)) return;
+          if (automation) save();
+          else controls.dispatch(command);
+          return;
+        }
         if (automation || event.key !== "Escape") return;
         event.preventDefault();
         event.stopPropagation();
         cancelCreate();
       }}>
-        <label className="automation-field">
-          <span>Schedule</span>
+        <div className="automation-field">
+          <label htmlFor={scheduleId}>Schedule</label>
           <input
+            id={scheduleId}
             className="automation-schedule"
             value={schedule}
-            aria-label="Automation schedule"
             aria-invalid={readout?.error}
             aria-describedby={readout ? "automation-schedule-readout" : undefined}
             placeholder="0 8 * * *"
@@ -217,14 +242,13 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
             onInput={(event) => setSchedule(event.currentTarget.value)}
           />
           {readout && <small id="automation-schedule-readout" className={readout.error ? "error" : undefined}>{readout.text}</small>}
-        </label>
+        </div>
 
         <label className="automation-field">
           <span>Prompt</span>
           <textarea
             value={prompt}
             rows={10}
-            aria-label="Automation prompt"
             placeholder={automation ? undefined : "What each run should do"}
             onInput={(event) => setPrompt(event.currentTarget.value)}
           />
@@ -232,21 +256,19 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
 
         {oneShot ? null : (
           <label className="automation-field">
-            <span>Surfaces when</span>
+            <span>Notify me when</span>
             <input
               value={surfaceWhen}
-              aria-label="What a run of this automation surfaces for"
-              placeholder="Every run surfaces"
+              placeholder="Every run"
               onInput={(event) => setSurfaceWhen(event.currentTarget.value)}
             />
           </label>
         )}
 
         <label className="automation-field">
-          <span>Ends when</span>
+          <span>Stop when</span>
           <input
             value={endsWhen}
-            aria-label="What finishes this automation"
             placeholder="Repeats until removed"
             onInput={(event) => setEndsWhen(event.currentTarget.value)}
           />
@@ -260,10 +282,10 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
 
         {automation ? (
           <div className="automation-actions">
-            <CommandButton command={{ type: "automation.update", patch }} type="button" className="automation-save primary" disabled={!dirty || readout?.error} onClick={() => { onUpdate(patch); setDone("saved"); }}>
+            <CommandButton command={{ type: "automation.update", patch }} type="button" className="automation-save primary" aria-keyshortcuts={MAC ? "Meta+Enter" : "Control+Enter"} data-tip={shortcutTip("Save", "Mod+Enter")} disabled={!canSave} onClick={save}>
               {done === "saved" && !dirty ? <><Check size={14} aria-hidden="true" />Saved</> : "Save"}
             </CommandButton>
-            <CommandButton command={{ type: "automation.run-now" }} type="button" onClick={() => { onRunNow(); setDone("started"); }}>
+            <CommandButton command={{ type: "automation.run-now" }} type="button" onClick={runNow}>
               {done === "started" ? <><Check size={14} aria-hidden="true" />Started</> : "Run now"}
             </CommandButton>
             <CommandButton command={{ type: "automation.update", patch: { paused: !automation.paused } }} type="button" aria-label={automation.paused ? "Resume automation" : "Pause automation"} onClick={() => onUpdate({ paused: !automation.paused })}>
@@ -273,7 +295,7 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
           </div>
         ) : (
           <div className="automation-actions">
-            <CommandButton command={{ type: "automation.save", draft }} type="button" className="automation-save primary" disabled={!draft.prompt || readout?.error}>Create</CommandButton>
+            <CommandButton command={{ type: "automation.save", draft }} type="button" className="automation-save primary" aria-keyshortcuts={MAC ? "Meta+Enter" : "Control+Enter"} data-tip={shortcutTip("Create", "Mod+Enter")} disabled={!canSave}>Create</CommandButton>
             <button type="button" onClick={cancelCreate}>Cancel</button>
           </div>
         )}

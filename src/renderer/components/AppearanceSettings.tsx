@@ -65,6 +65,16 @@ function ThemeSwatch({ id }: { id: string }) {
   );
 }
 
+/** Left and Right move along a row of segments, wrapping at the ends. */
+function moveSegmentFocus(event: KeyboardEvent<HTMLElement>) {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+  const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>("button")];
+  const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
+  if (at === -1) return;
+  event.preventDefault();
+  buttons[(at + (event.key === "ArrowRight" ? 1 : buttons.length - 1)) % buttons.length]!.focus();
+}
+
 /** The mark on the option Enter in the search picks. */
 const EnterMark = () => <Enter size={14} className="enter-mark" aria-hidden="true" />;
 
@@ -324,7 +334,8 @@ function FontSelect({ axis, label, chosen, onChoose }: {
 
 /**
  * One size as `− 15 +`, in px. The steppers move a px at a time; the field takes a typed number and clamps
- * it to the range when it is committed, while Escape abandons the typing and keeps the settled size.
+ * it to the range when it is committed, while Escape abandons the typing and keeps the settled size. The
+ * range shows under the stepper while the field is being typed in, and stays after a number is clamped.
  */
 function SizeField({ label, range, value, onChoose }: {
   label: string;
@@ -333,11 +344,16 @@ function SizeField({ label, range, value, onChoose }: {
   onChoose: (size: number) => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
+  const [clamped, setClamped] = useState(false);
   const abandoned = useRef(false);
+  const step = (delta: 1 | -1) => {
+    setClamped(false);
+    onChoose(stepSize(range, value, delta));
+  };
 
   return (
     <div className="size-stepper" data-tip={`${range.min}–${range.max} px`}>
-      <button type="button" aria-label={`Smaller ${label.toLowerCase()}`} disabled={value <= range.min} onClick={() => onChoose(stepSize(range, value, -1))}>
+      <button type="button" aria-label={`Smaller ${label.toLowerCase()}`} disabled={value <= range.min} onClick={() => step(-1)}>
         <Minus size={14} aria-hidden="true" />
       </button>
       <label className="size-value">
@@ -347,6 +363,7 @@ function SizeField({ label, range, value, onChoose }: {
           value={draft ?? String(value)}
           aria-label={label}
           onFocus={(event) => {
+            setClamped(false);
             setDraft(String(value));
             event.currentTarget.select();
           }}
@@ -356,7 +373,9 @@ function SizeField({ label, range, value, onChoose }: {
             const keep = !abandoned.current && event.target.value.trim() && Number.isFinite(typed);
             abandoned.current = false;
             setDraft(null);
-            if (keep) onChoose(clampSize(range, typed));
+            if (!keep) return;
+            setClamped(clampSize(range, typed) !== typed);
+            onChoose(clampSize(range, typed));
           }}
           onKeyDown={(event) => {
             if (event.key === "ArrowUp" || event.key === "ArrowDown") {
@@ -376,9 +395,10 @@ function SizeField({ label, range, value, onChoose }: {
         />
         <span aria-hidden="true">px</span>
       </label>
-      <button type="button" aria-label={`Larger ${label.toLowerCase()}`} disabled={value >= range.max} onClick={() => onChoose(stepSize(range, value, 1))}>
+      <button type="button" aria-label={`Larger ${label.toLowerCase()}`} disabled={value >= range.max} onClick={() => step(1)}>
         <Plus size={14} aria-hidden="true" />
       </button>
+      <span className={`size-range${clamped ? " clamped" : ""}`} role="status">{(draft !== null || clamped) && `${range.min}–${range.max} px`}</span>
     </div>
   );
 }
@@ -414,7 +434,7 @@ export function AppearanceSettings({
             <p>Each theme comes in light and dark. Auto follows the system.</p>
           </div>
           <div className="settings-group-action">
-            <div className="segmented" role="group" aria-label="Light or dark">
+            <div className="segmented" role="group" aria-label="Light or dark" onKeyDown={moveSegmentFocus}>
               {MODES.map((mode) => (
                 <button
                   key={mode.id}

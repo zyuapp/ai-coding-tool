@@ -79,15 +79,15 @@ function ShortcutRow({ shortcut, capturing, unavailable, onCaptureShortcut, onSe
       {capturing
         ? <>
             <em className="shortcut-capture" role="status">Press a keystroke…</em>
-            <button ref={cancel} type="button" data-tip={CANCEL_TIP} onClick={() => onCaptureShortcut(null)}>Cancel</button>
+            <button ref={cancel} type="button" aria-label={`Cancel changing ${shortcut.label}`} data-tip={CANCEL_TIP} onClick={() => onCaptureShortcut(null)}>Cancel</button>
           </>
         : <>
             {shortcut.binding
               ? <kbd className="shortcut-keys">{shortcutKeys(shortcut.binding, MAC).map((key, index) => <span className="shortcut-key" key={index}>{key}</span>)}</kbd>
               : <em>Not set</em>}
-            {shortcut.changed && <button type="button" data-tip={shortcut.defaultBinding ? `Reset to ${displayShortcut(shortcut.defaultBinding, MAC)}` : undefined} onClick={() => onSetShortcut(shortcut.id, shortcut.defaultBinding)}>Reset</button>}
-            <button ref={change} type="button" onClick={() => onCaptureShortcut(shortcut.id)}>Change</button>
-            <button type="button" disabled={!shortcut.binding} onClick={() => onSetShortcut(shortcut.id, null)}>Clear</button>
+            {shortcut.changed && <button type="button" aria-label={`Reset ${shortcut.label}`} data-tip={shortcut.defaultBinding ? `Reset to ${displayShortcut(shortcut.defaultBinding, MAC)}` : undefined} onClick={() => onSetShortcut(shortcut.id, shortcut.defaultBinding)}>Reset</button>}
+            <button ref={change} type="button" aria-label={`Change ${shortcut.label}`} onClick={() => onCaptureShortcut(shortcut.id)}>Change</button>
+            <button type="button" aria-label={`Clear ${shortcut.label}`} disabled={!shortcut.binding} onClick={() => onSetShortcut(shortcut.id, null)}>Clear</button>
           </>}
     </div>
   </div>;

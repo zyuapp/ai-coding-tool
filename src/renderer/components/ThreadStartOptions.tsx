@@ -1,4 +1,4 @@
-import { LuChevronDown as ChevronDown, LuFolderGit2 as FolderGit2, LuFolderSymlink as FolderSymlink, LuGitBranch as GitBranch, LuMessageCircle as MessageCircle, LuWaypoints as Waypoints, LuX as X } from "react-icons/lu";
+import { LuChevronDown as ChevronDown, LuCircleAlert as CircleAlert, LuFolderGit2 as FolderGit2, LuFolderSymlink as FolderSymlink, LuGitBranch as GitBranch, LuMessageCircle as MessageCircle, LuWaypoints as Waypoints, LuX as X } from "react-icons/lu";
 import { useRef, useState } from "react";
 import type { DraftBranch } from "../../application/workspace-state";
 import type { ThreadHost } from "../../application/computers";
@@ -87,6 +87,7 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
   const branches = useBranches(workspaceId);
 
   const current = branches?.status === "available" ? branches.current : null;
+  const unreadable = branches?.status === "error" && !branch;
   /** Until the user picks one, the thread starts from wherever the checkout already is. */
   const selected = branch?.name ?? current;
 
@@ -153,9 +154,9 @@ export function ThreadStartOptions({ projects, projectHosts, projectId, workspac
           </div>
         ) : (<>
         <div className={`thread-start-field ${branchesOpen ? "open" : ""}`} ref={branchRef}>
-          <button ref={branchTrigger} type="button" aria-label="Starting branch" aria-haspopup="listbox" aria-expanded={branchesOpen} aria-disabled={!workspaceId || undefined} data-tip={!workspaceId ? "Starts from the project's current branch" : branches?.status === "error" ? branches.message : undefined} onClick={() => { if (workspaceId) setBranchesOpen(!branchesOpen); }}>
-            <GitBranch size={14} />
-            <span>{selected ?? (branches?.status === "error" ? "No branches" : "Current branch")}</span>
+          <button ref={branchTrigger} type="button" className={unreadable ? "error" : undefined} aria-label="Starting branch" aria-haspopup="listbox" aria-expanded={branchesOpen} aria-disabled={!workspaceId || undefined} data-tip={!workspaceId ? "Starts from the project's current branch" : unreadable ? branches.message : undefined} onClick={() => { if (workspaceId) setBranchesOpen(!branchesOpen); }}>
+            {unreadable ? <CircleAlert size={14} /> : <GitBranch size={14} />}
+            <span>{selected ?? (unreadable ? "Branches unavailable" : "Current branch")}</span>
             {branch?.create && <small>new</small>}
             <ChevronDown size={14} />
           </button>

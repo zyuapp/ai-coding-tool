@@ -38,7 +38,7 @@ export function ThreadJump({ jump, actions }: ThreadJumpProps) {
   function keyDown(event: ReactKeyboardEvent) {
     if (event.key === "ArrowDown") actions.stepJump(1);
     else if (event.key === "ArrowUp") actions.stepJump(-1);
-    else if (event.key === "Enter") { if (chosen) choose(chosen); }
+    else if (event.key === "Enter") { if (!chosen) return; choose(chosen); }
     else if (event.key === "Escape") actions.closeJump();
     else return;
     event.preventDefault();
@@ -89,7 +89,7 @@ export function ThreadJump({ jump, actions }: ThreadJumpProps) {
                 >
                   {option.kind === "thread"
                     ? <ThreadEngineIcon engine={option.engine} className="thread-jump-engine" size={14} />
-                    : <Settings className="thread-jump-engine" size={14} aria-label="Setting" />}
+                    : <Settings className="thread-jump-engine" size={14} role="img" aria-label="Setting" />}
                   <span className="thread-jump-title">{option.title}</span>
                   {option.kind === "thread" && option.running && <span className="task-spinner" aria-label="Working" />}
                   {option.kind === "thread" && option.namedPullRequest !== null && <span className="thread-jump-pull-request">#{option.namedPullRequest}</span>}
@@ -101,7 +101,10 @@ export function ThreadJump({ jump, actions }: ThreadJumpProps) {
             ))}
           </div>
         ) : (
-          <p className="thread-jump-empty">No matches</p>
+          <div className="thread-jump-empty">
+            <p>No matches</p>
+            {jump.query && <button type="button" onClick={() => { actions.setJumpQuery(""); input.current?.focus(); }}>Clear search</button>}
+          </div>
         )}
       </div>
     </div>,

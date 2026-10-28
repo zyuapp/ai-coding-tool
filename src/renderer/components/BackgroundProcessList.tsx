@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { LuBoxes as Boxes, LuLoaderCircle as LoaderCircle, LuRadio as Radio, LuSquare as Square, LuTerminal as Terminal } from "react-icons/lu";
+import { LuBoxes as Boxes, LuChevronRight as ChevronRight, LuLoaderCircle as LoaderCircle, LuRadio as Radio, LuSquare as Square, LuTerminal as Terminal } from "react-icons/lu";
 import type { BackgroundProcess } from "../../domain/run";
 import { workflowAgentsDone, workflowStatusLabel, type Workflow } from "../../domain/workflow";
 import { SpinningIcon } from "./SpinningIcon";
@@ -15,7 +15,7 @@ function StopButton({ name, stopping, onStop }: { name: string; stopping: boolea
     <button className="process-stop" type="button" disabled={stopping} onClick={onStop} aria-label={stopping ? `Stopping ${name}` : `Stop ${name}`} data-tip={stopping ? "Stopping…" : "Stop"}>
       {stopping
         ? <SpinningIcon icon={LoaderCircle} spinning size={14} aria-hidden="true" />
-        : <Square size={10} fill="currentColor" aria-hidden="true" />}
+        : <Square size={12} fill="currentColor" aria-hidden="true" />}
     </button>
   );
 }
@@ -41,6 +41,7 @@ export const WorkflowProcessRow = memo(function WorkflowProcessRow({ workflow, o
       <button className="process-open" type="button" onClick={() => onOpen(workflow.id)} aria-label={`Open ${workflow.name} workflow`}>
         <span className={`agent-orb ${workflow.status === "running" ? "" : workflow.status === "completed" ? "done" : "error"}`}><Boxes size={12} /></span>
         <span><strong>{workflow.name}</strong><small>{workflowLabel(workflow)}</small></span>
+        <ChevronRight className="process-open-chevron" size={14} aria-hidden="true" />
       </button>
       {workflow.status === "running" && <StopButton name={workflow.name} stopping={workflow.stopping} onStop={() => onStop(workflow.id)} />}
     </div>

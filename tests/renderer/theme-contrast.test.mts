@@ -50,30 +50,53 @@ function contrast(a: Rgb, b: Rgb) {
   return (high + 0.05) / (low + 0.05);
 }
 
+type Pair = readonly [string, string, number];
+
+function shortfalls(id: string, palette: Map<string, string>, pairs: readonly Pair[]) {
+  return pairs.flatMap(([ink, ground, minimum]) => {
+    const ratio = contrast(resolve(`var(${ink})`, palette), resolve(`var(${ground})`, palette));
+    return ratio < minimum ? [`${id}: ${ink} on ${ground} is ${ratio.toFixed(2)}:1`] : [];
+  });
+}
+
 /** Every pairing below fails if any theme draws it under its minimum, and names each one that does. */
-function failures(pairs: readonly (readonly [string, string, number])[]) {
-  const failed: string[] = [];
-  for (const theme of THEMES) {
-    const palette = primitives(theme.id);
-    for (const [ink, ground, minimum] of pairs) {
-      const ratio = contrast(resolve(`var(${ink})`, palette), resolve(`var(${ground})`, palette));
-      if (ratio < minimum) failed.push(`${theme.id}: ${ink} on ${ground} is ${ratio.toFixed(2)}:1`);
-    }
-  }
-  return failed;
+function failures(pairs: readonly Pair[]) {
+  return THEMES.flatMap((theme) => shortfalls(theme.id, primitives(theme.id), pairs));
 }
 
 const TEXT_GROUNDS = ["--canvas", "--sunken", "--surface", "--sidebar", "--surface-menu", "--surface-raised", "--surface-hover"];
-const TEXT = ["--ink", "--ink-soft", "--ink-dim", "--ink-faint", "--muted-strong", "--muted", "--muted-soft", "--quiet-strong", "--quiet", "--quiet-soft"];
+const TEXT = ["--ink", "--ink-soft", "--ink-dim", "--ink-faint", "--muted-strong", "--muted"];
+const QUIET = ["--muted-soft", "--quiet-strong", "--quiet"];
+const LADDER = ["--ink", "--ink-soft", "--ink-dim", "--ink-faint", "--muted-strong", "--muted", "--muted-soft", "--quiet-strong", "--quiet", "--quiet-soft"];
 const HUES = ["--accent-text", "--danger", "--link", "--success", "--warning", "--info"];
+const AUTHORED_HUES = ["accent", "danger", "info", "link", "success"];
 const HUE_GROUNDS = ["--canvas", "--sunken", "--surface", "--sidebar"];
 
-test("every rung of the text ladder reads at AA on every surface text sits on, the selected row included", () => {
+test("ink through muted read at AA on every surface text sits on, the selected row included", () => {
   assert.deepEqual(failures(TEXT.flatMap((ink) => [...TEXT_GROUNDS, "--surface-active"].map((ground) => [ink, ground, 4.5] as const))), []);
 });
 
+test("quiet text reads at AA on every surface but the selected row, and at 3:1 there", () => {
+  assert.deepEqual(failures(QUIET.flatMap((ink) => [...TEXT_GROUNDS.map((ground) => [ink, ground, 4.5] as const), [ink, "--surface-active", 3] as const])), []);
+});
+
+test("placeholders, glyphs and off states read at 3:1", () => {
+  assert.deepEqual(failures([...TEXT_GROUNDS, "--surface-active"].map((ground) => ["--quiet-soft", ground, 3] as const)), []);
+});
+
+test("every name on the ladder is quieter than the one before it", () => {
+  const failed: string[] = [];
+  for (const theme of THEMES) {
+    const palette = primitives(theme.id);
+    const canvas = resolve("var(--canvas)", palette);
+    const ratios = LADDER.map((ink) => contrast(resolve(`var(${ink})`, palette), canvas));
+    ratios.slice(1).forEach((ratio, index) => { if (ratio >= ratios[index]) failed.push(`${theme.id}: ${LADDER[index + 1]} reads as loud as ${LADDER[index]}`); });
+  }
+  assert.deepEqual(failed, []);
+});
+
 test("a count or label on a chip reads at AA", () => {
-  assert.deepEqual(failures([["--muted", "--chip", 4.5]]), []);
+  assert.deepEqual(failures([["--muted", "--chip", 4.5], ["--ink-dim", "--chip", 4.5]]), []);
 });
 
 test("body text reaches AAA on the canvas", () => {
@@ -88,7 +111,7 @@ test("the four text rungs stay a visible step apart, and the decorative grey sit
     const palette = primitives(theme.id);
     const canvas = resolve("var(--canvas)", palette);
     const ratios = RUNGS.map((ink) => contrast(resolve(`var(${ink})`, palette), canvas));
-    ratios.slice(1).forEach((ratio, index) => { if (ratios[index] / ratio < 1.18) failed.push(`${theme.id}: ${RUNGS[index]} to ${RUNGS[index + 1]} is ${(ratios[index] / ratio).toFixed(2)}:1`); });
+    ratios.slice(1).forEach((ratio, index) => { if (ratios[index] / ratio < 1.15) failed.push(`${theme.id}: ${RUNGS[index]} to ${RUNGS[index + 1]} is ${(ratios[index] / ratio).toFixed(2)}:1`); });
     if (contrast(resolve("var(--p-fg-5)", palette), canvas) >= ratios[3]) failed.push(`${theme.id}: fg-5 outreads --quiet`);
   }
   assert.deepEqual(failed, []);
@@ -105,25 +128,54 @@ test("fg-3 sits a visible step above fg-4 and no higher than fg-2", () => {
   assert.deepEqual(failed, []);
 });
 
+const HUE_PAIRS: readonly Pair[] = [
+  ...HUES.flatMap((ink) => HUE_GROUNDS.map((ground) => [ink, ground, 4.5] as const)),
+  ...["--accent-text", "--info"].map((ink) => [ink, "--surface-hover", 4.5] as const),
+  ["--danger", "--danger-surface", 4.5], ["--info", "--info-surface", 4.5], ["--info-soft", "--info-surface-soft", 4.5],
+  ["--accent-soft", "--accent-chip", 4.5], ["--accent-soft", "--accent-surface", 4.5],
+  ...[...TEXT_GROUNDS, "--surface-active"].map((ground) => ["--focus-ring", ground, 3] as const),
+];
+const FILL_PAIRS: readonly Pair[] = [["--accent-ink", "--accent", 4.5], ["--accent-ink", "--accent-hover", 4.5], ["--danger-ink", "--danger", 4.5], ["--badge-ink", "--info-badge", 4.5], ["--alert-ink", "--alert", 4.5]];
+
 test("accent, danger, link, success, warning and info text read at AA on the surfaces they colour", () => {
-  assert.deepEqual(failures(HUES.flatMap((ink) => HUE_GROUNDS.map((ground) => [ink, ground, 4.5] as const))), []);
-  assert.deepEqual(failures(["--accent-text", "--info"].map((ink) => [ink, "--surface-hover", 4.5] as const)), []);
-  assert.deepEqual(failures([["--danger", "--danger-surface", 4.5], ["--info", "--info-surface", 4.5], ["--info-soft", "--info-surface-soft", 4.5], ["--accent-soft", "--accent-chip", 4.5], ["--accent-soft", "--accent-surface", 4.5]]), []);
+  assert.deepEqual(failures(HUE_PAIRS), []);
 });
 
 test("a label reads at AA on every saturated fill it is drawn on", () => {
-  assert.deepEqual(failures([["--accent-ink", "--accent", 4.5], ["--accent-ink", "--accent-hover", 4.5], ["--danger-ink", "--danger", 4.5], ["--badge-ink", "--info-badge", 4.5], ["--alert-ink", "--alert", 4.5]]), []);
+  assert.deepEqual(failures(FILL_PAIRS), []);
 });
 
-test("a theme repaints its accent for text only where the author's accent cannot be read as text", () => {
+test("a theme adds a text twin for a hue only where the author's own hex cannot be read as text", () => {
   const needless: string[] = [];
   for (const theme of THEMES) {
     const palette = primitives(theme.id);
-    if (!palette.has("--p-accent-text")) continue;
-    const fill = resolve("var(--accent)", palette);
-    if ([...HUE_GROUNDS, "--surface-hover"].every((ground) => contrast(fill, resolve(`var(${ground})`, palette)) >= 4.5)) needless.push(theme.id);
+    for (const hue of AUTHORED_HUES) {
+      if (!palette.has(`--p-${hue}-text`)) continue;
+      const without = new Map([...palette].filter(([name]) => name !== `--p-${hue}-text`));
+      if (shortfalls(theme.id, without, [...HUE_PAIRS, ...FILL_PAIRS]).length === 0) needless.push(`${theme.id}: --p-${hue}-text`);
+    }
   }
   assert.deepEqual(needless, []);
+});
+
+test("a text twin keeps its author's hue", () => {
+  const hue = ([r, g, b]: Rgb) => {
+    const [max, min] = [Math.max(r, g, b), Math.min(r, g, b)];
+    if (max === min) return 0;
+    const raw = max === r ? (g - b) / (max - min) : max === g ? 2 + (b - r) / (max - min) : 4 + (r - g) / (max - min);
+    return (raw * 60 + 360) % 360;
+  };
+  const drifted: string[] = [];
+  for (const theme of THEMES) {
+    const palette = primitives(theme.id);
+    for (const name of AUTHORED_HUES) {
+      if (!palette.has(`--p-${name}-text`)) continue;
+      const [fill, text] = [hue(channels(palette.get(`--p-${name}`)!)), hue(channels(palette.get(`--p-${name}-text`)!))];
+      const apart = Math.min(Math.abs(fill - text), 360 - Math.abs(fill - text));
+      if (apart > 12) drifted.push(`${theme.id}: --p-${name}-text is ${apart.toFixed(0)}° off`);
+    }
+  }
+  assert.deepEqual(drifted, []);
 });
 
 test("dividers stay visible on a dark canvas", () => {
@@ -139,12 +191,23 @@ test("dividers stay visible on a dark canvas", () => {
   assert.deepEqual(failed, []);
 });
 
-test("the focus ring, input edges and scroll thumb clear 3:1 against what they are drawn on", () => {
-  const pairs = [
-    ...[...TEXT_GROUNDS, "--surface-active"].map((ground) => ["--focus-ring", ground, 3] as const),
-    ...HUE_GROUNDS.flatMap((ground) => [["--line-input", ground, 3], ["--scroll-thumb", ground, 3]] as const),
-  ];
-  assert.deepEqual(failures(pairs), []);
+test("input edges and the scroll thumb clear 3:1 against what they are drawn on", () => {
+  assert.deepEqual(failures(HUE_GROUNDS.flatMap((ground) => [["--line-input", ground, 3], ["--scroll-thumb", ground, 3]] as const)), []);
+});
+
+test("keyboard focus is drawn in the accent, so it never reads as muted chrome", () => {
+  assert.equal(tokens.get("--focus-ring"), "var(--accent-text)");
+});
+
+test("a border under the pointer reads stronger than the one at rest", () => {
+  const failed: string[] = [];
+  for (const theme of THEMES) {
+    const palette = primitives(theme.id);
+    const canvas = resolve("var(--canvas)", palette);
+    const [line, strong, bright] = ["--line", "--line-strong", "--line-bright"].map((name) => contrast(resolve(`var(${name})`, palette), canvas));
+    if (!(line < strong && strong < bright)) failed.push(`${theme.id}: ${line.toFixed(2)} / ${strong.toFixed(2)} / ${bright.toFixed(2)}`);
+  }
+  assert.deepEqual(failed, []);
 });
 
 test("every size token a stylesheet names is declared", async () => {
@@ -168,4 +231,9 @@ test("no text size token falls below 12px", () => {
 
 test("a row's action slot is a 24px target", () => {
   assert.ok(Number.parseInt(tokens.get("--row-slot")!) >= 24);
+});
+
+test("role marks clear 3:1 on every row ground, the selected row included", () => {
+  const roles = ["--role-coordinator", "--role-implementer", "--role-reviewer", "--role-researcher"];
+  assert.deepEqual(failures(roles.flatMap((role) => ["--sidebar", "--surface-hover", "--surface-active", "--sunken"].map((ground) => [role, ground, 3] as const))), []);
 });

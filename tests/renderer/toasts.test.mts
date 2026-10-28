@@ -69,3 +69,31 @@ test("the cards are held while the pointer or the caret is on them, and let go o
     assert.deepEqual(held, [true, false]);
   } finally { await view.unmount(); }
 });
+
+test("Escape on a card closes it and hands the caret to the next card; Escape elsewhere leaves the cards", async () => {
+  const { Toasts } = await import("../../src/renderer/components/Toasts.tsx");
+  const dismissed: number[] = [];
+  const outside = document.createElement("button");
+  document.body.append(outside);
+  const view = await mount(React.createElement(Toasts, {
+    toasts: [{ id: 1, tone: "success", title: "Pushed" }, { id: 2, tone: "error", title: "Couldn't push" }],
+    onDismiss: (id: number) => { dismissed.push(id); },
+    onAction: () => {},
+  }));
+  try {
+    const [newest, older] = [...view.container.querySelectorAll<HTMLElement>(".toast")];
+    outside.focus();
+    await act(async () => { outside.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+    assert.deepEqual(dismissed, []);
+
+    const close = query<HTMLButtonElement>(newest!, ".toast-close");
+    close.focus();
+    await act(async () => { close.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+    assert.deepEqual(dismissed, [2]);
+    assert.equal(document.activeElement, query(older!, ".toast-close"));
+
+    await act(async () => { query<HTMLButtonElement>(older!, ".toast-close").click(); });
+    assert.deepEqual(dismissed, [2, 1]);
+    assert.equal(document.activeElement, query(newest!, ".toast-close"), "clicking X keeps the caret on the cards that remain");
+  } finally { outside.remove(); await view.unmount(); }
+});

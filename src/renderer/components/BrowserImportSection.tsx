@@ -67,7 +67,7 @@ function SitePicker({ picker, importing, onToggle, onFilter, onRun, onCancel }: 
             </>}
       <div className="browser-import-actions">
         <button type="button" onClick={onCancel} disabled={importing}>Cancel</button>
-        <button type="button" className="primary" onClick={onRun} disabled={importing || count === 0}>
+        <button type="button" className="primary" onClick={onRun} disabled={importing || count === 0} aria-busy={importing || undefined}>
           {importing ? "Importing…" : count === 0 ? "Import" : `Import ${count} ${count === 1 ? "site" : "sites"}`}
         </button>
       </div>
@@ -97,7 +97,7 @@ function SourceRow({ source, sources, settings }: { source: BrowserImportSource;
         </div>
         {!picking && (
           <div className="setting-row-action">
-            {last && <button type="button" onClick={settings.onAgain} disabled={state.importing}><SpinningIcon icon={Again} spinning={state.importing} size={12} /> {state.importing ? "Importing…" : "Import again"}</button>}
+            {last && <button type="button" onClick={settings.onAgain} disabled={state.importing} aria-busy={state.importing || undefined}><SpinningIcon icon={Again} spinning={state.importing} size={12} aria-hidden="true" />{state.importing ? "Importing…" : "Import again"}</button>}
             <button ref={choose} type="button" onClick={() => settings.onChoose(source.id)} disabled={state.importing}>Choose sites</button>
           </div>
         )}

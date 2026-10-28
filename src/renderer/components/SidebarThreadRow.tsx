@@ -1,7 +1,7 @@
 import { CommandButton } from "./CommandControl";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Draggable, type DraggableProvided } from "@hello-pangea/dnd";
-import { LuAlarmClock as AlarmClock, LuArchive as Archive, LuCheck as Check, LuEllipsis as Ellipsis, LuFolderSymlink as FolderSymlink, LuHourglass as Hourglass, LuMonitorOff as MonitorOff } from "react-icons/lu";
+import { LuAlarmClock as AlarmClock, LuAlarmClockOff as AlarmClockOff, LuCheck as Check, LuClockAlert as ClockAlert, LuEllipsis as Ellipsis, LuFolderSymlink as FolderSymlink, LuHourglass as Hourglass, LuMonitorOff as MonitorOff } from "react-icons/lu";
 import { pauseSummary } from "../../domain/usage-limit";
 import { projectName, type Project } from "../../domain/project";
 import { threadActivityAt, type Thread } from "../../domain/thread";
@@ -24,8 +24,8 @@ import { HostMark } from "./HostMark";
 import { leadIdOf } from "../../domain/coordination";
 import type { ThreadDropTarget } from "../../domain/project";
 
-/** What a row's trailing slot offers, if anything. Only one of them ever shows in a given list. */
-export type RowAction = "archive" | "dismiss" | "none";
+/** What a row offers beside its menu: dismissing, in Priority, or nothing more. */
+export type RowAction = "dismiss" | "none";
 
 const OUTCOME_LABELS: Record<ThreadOutcome, string> = {
   finished: "Finished",
@@ -186,13 +186,26 @@ export type SidebarCoordination = {
 };
 
 /**
- * What can be done to a thread from its row: its menu, and beside it the one action the list offers.
- * Activity mode offers dismissing on a priority row - a thread still asking has nothing to dismiss -
- * and nothing more on the others, rather than two different icons in one view.
+ * What can be done to a thread from its row: its menu, and in Priority dismissing ahead of it, which
+ * lands on the dot it clears. Archiving is in the menu, a step from a stray click.
  */
 function rowActionButtons(row: RowState, action: RowAction): React.ReactNode[] {
   const { thread, handlers } = row;
   return [
+    action === "dismiss" && <CommandButton command={{ type: "task.dismiss", taskId: thread.id }}
+      key="dismiss"
+      className="row-action task-dismiss"
+      type="button"
+      aria-label={row.schedule ? `Dismiss ${thread.title}, which keeps running on its schedule` : `Dismiss ${thread.title}`}
+      data-tip="Dismiss"
+      onClick={(event) => {
+        event.stopPropagation();
+        handlers.dismiss(thread.id);
+      }}
+      onDoubleClick={(event) => event.stopPropagation()}
+    >
+      <Check size={14} aria-hidden="true" />
+    </CommandButton>,
     <button
       key="menu"
       className="row-action task-more"
@@ -210,34 +223,6 @@ function rowActionButtons(row: RowState, action: RowAction): React.ReactNode[] {
     >
       <Ellipsis size={16} aria-hidden="true" />
     </button>,
-    action === "dismiss" && <CommandButton command={{ type: "task.dismiss", taskId: thread.id }}
-      key="dismiss"
-      className="row-action task-dismiss"
-      type="button"
-      aria-label={row.schedule ? `Dismiss ${thread.title}, which keeps running on its schedule` : `Dismiss ${thread.title}`}
-      data-tip="Dismiss"
-      onClick={(event) => {
-        event.stopPropagation();
-        handlers.dismiss(thread.id);
-      }}
-      onDoubleClick={(event) => event.stopPropagation()}
-    >
-      <Check size={14} aria-hidden="true" />
-    </CommandButton>,
-    action === "archive" && <CommandButton command={{ type: "task.archive", taskId: thread.id }}
-      key="archive"
-      className="row-action task-archive"
-      type="button"
-      aria-label={`Archive ${thread.title}`}
-      data-tip="Archive"
-      onClick={(event) => {
-        event.stopPropagation();
-        handlers.archive(thread.id);
-      }}
-      onDoubleClick={(event) => event.stopPropagation()}
-    >
-      <Archive size={14} aria-hidden="true" />
-    </CommandButton>,
   ].filter(Boolean);
 }
 
@@ -267,6 +252,8 @@ type RowState = {
   coordinators: readonly Thread[];
   stoppable: boolean;
   notifications: boolean;
+  /** A thread kept to its own folder, which a drag can reorder but not carry elsewhere. */
+  pinned: boolean;
   /** The folders an open menu offers to move the thread to, or null when it cannot move. */
   moveTargets: readonly Project[] | null;
   handlers: RowHandlers;
@@ -298,7 +285,7 @@ const NO_THREADS: Thread[] = [];
 
 /** A mark fills its slot, so pointing anywhere in the slot names it. */
 function railMark(key: string, tip: string, icon: ReactNode) {
-  return <span key={key} className="row-mark" data-tip={tip}>{icon}</span>;
+  return <span key={key} className={`row-mark mark-${key}`} data-tip={tip}>{icon}</span>;
 }
 
 /** The engine stays at the right edge, with status beside it, whatever other marks a row carries. */
@@ -309,7 +296,7 @@ function rowMarks(row: RowState, status: RowStatus | null): ReactNode[] {
     thread.role && roleIcon(thread.role) && railMark("role", threadRoleLabel(thread.role), <ThreadRoleMark role={thread.role} size={14} />),
     /** A thread's own mark names its checkout, and threads sharing one share its colour, so a list ranked by attention still groups by eye. */
     row.inWorktree && railMark("worktree", worktreeLabel(row), <FolderSymlink className={`task-worktree${worktree ? ` worktree-mark hue-${worktreeHue(worktree.id)}` : ""}`} size={14} role="img" aria-label={worktreeLabel(row)} />),
-    row.schedule && railMark("automation", scheduleLabel(row.schedule), <AlarmClock className={`task-automation${scheduleTrouble(row.schedule) ? " trouble" : ""}`} size={14} role="img" aria-label={scheduleLabel(row.schedule)} />),
+    row.schedule && railMark("automation", scheduleLabel(row.schedule), scheduleMark(row.schedule)),
     status && railMark("status", status.label, statusMark(status)),
     isAgentEngine(thread.engine) && railMark("engine", `${engineLabel(thread.engine)} thread`, <ThreadEngineIcon engine={thread.engine} className="task-engine" size={14} />),
   ].filter(Boolean);
@@ -328,23 +315,19 @@ function scheduleTrouble(automation: AutomationView) {
   return !automation.paused && (automation.nextRunAt === null || automation.lastStatus === "failed" || automation.lastStatus === "skipped");
 }
 
-/** The title's hover text: the whole title, then what each of the row's marks says, since the marks take no pointer. */
-function rowTitle(row: RowState, status: RowStatus | null) {
-  const { thread, host } = row;
-  return [
-    thread.title,
-    row.away && host ? awayLabel(host) : null,
-    status?.label,
-    row.inWorktree ? worktreeLabel(row) : null,
-    row.schedule ? scheduleLabel(row.schedule) : null,
-  ].filter(Boolean).join("\n");
+/** Each state of a schedule has its own glyph, so trouble reads without its colour. */
+function scheduleMark(automation: AutomationView) {
+  const label = scheduleLabel(automation);
+  if (scheduleTrouble(automation)) return <ClockAlert className="task-automation trouble" size={14} role="img" aria-label={label} />;
+  const Glyph = automation.paused ? AlarmClockOff : AlarmClock;
+  return <Glyph className="task-automation" size={14} role="img" aria-label={label} />;
 }
 
 /**
  * Every thread row ends in the same rail: two layers of icons over one set of slots, the marks it
  * carries at rest and the actions it offers hovered. Both fill the rail from its right edge, so an
- * action lands on the mark it stands in for, and every rail is the same width, so the slots line up
- * down the list. A layer that gains an icon keeps the other layer's geometry.
+ * action covers only the marks in its own slots, and every rail is the same width, so the slots line
+ * up down the list and the title never moves.
  */
 function threadRail(row: RowState, status: RowStatus | null, away: boolean, action: RowAction) {
   const actions = away ? [] : rowActionButtons(row, action);
@@ -388,6 +371,8 @@ function rowMenuEntries(row: RowState, priority: boolean): MenuEntry[] {
     ...(priority ? { onSnooze: (hours: SnoozeHours) => handlers.snooze(thread.id, hours) } : {}),
     ...(thread.snoozedUntil !== undefined ? { onUnsnooze: () => handlers.unsnooze(thread.id) } : {}),
   });
+  /** Snoozing is Priority's, so other lists show it unavailable rather than a different menu. */
+  if (!priority && thread.snoozedUntil === undefined) entries.splice(1, 0, { label: "Snooze", disabled: true, title: "Snooze from Priority" });
   const firstBreak = entries.indexOf("separator");
   entries.splice(firstBreak < 0 ? entries.length : firstBreak, 0, ...moveEntry(row));
   return entries.map((entry) => entry !== "separator" && entry.command?.type === "task.rename" ? { ...entry, shortcut: RENAME_KEY } : entry);
@@ -403,10 +388,11 @@ function menuPoint(event: React.MouseEvent<HTMLElement>) {
 }
 
 /**
- * The row itself, which is the same whether the list around it lets it be dragged or not. The hover
- * text sits on the title alone, so the row's buttons show only their own tips.
+ * The row itself, which is the same whether the list around it lets it be dragged or not. The title
+ * shows itself whole under the pointer only while it is cut short. A row on a computer that is away
+ * answers a right-click as it does a click, by saying why it takes nothing.
  */
-function rowBody(row: RowState, className: string, content: (title: string) => ReactNode, action: RowAction, priority = false) {
+function rowBody(row: RowState, className: string, content: ReactNode, action: RowAction, priority = false) {
   const { thread, away, handlers } = row;
   const status = rowStatus(row);
   return (
@@ -418,8 +404,8 @@ function rowBody(row: RowState, className: string, content: (title: string) => R
       onDoubleClick={away ? undefined : (event) => handlers.startRename(thread.id, event.currentTarget.closest(".task-entry"))}
       onContextMenu={(event) => {
         event.preventDefault();
-        if (away) return;
-        handlers.openMenu(thread.id, menuPoint(event), event.currentTarget.closest(".task-entry"));
+        if (away) handlers.select(thread.id);
+        else handlers.openMenu(thread.id, menuPoint(event), event.currentTarget.closest(".task-entry"));
       }}
     >
       {row.editing && !away
@@ -431,7 +417,7 @@ function rowBody(row: RowState, className: string, content: (title: string) => R
             onCommit={(value) => handlers.commitRename(thread.id, value)}
             onCancel={handlers.cancelRename}
           />
-        : <>{content(rowTitle(row, status))}{threadRail(row, status, away, action)}</>}
+        : <>{content}{threadRail(row, status, away, action)}</>}
     </div>
     {row.menuAt && <ContextMenu
       at={row.menuAt}
@@ -458,10 +444,10 @@ type ThreadRowPlace = "project" | "recent";
 
 const ThreadRow = memo(function ThreadRow({ index, place, ...row }: RowState & { index: number; place: ThreadRowPlace }) {
   const { thread, host } = row;
-  const content = (title: string) => place === "project"
-    ? <span title={title}>{thread.title}</span>
-    : <span className="task-row-text" title={title}>
-        <span>{thread.title}</span>
+  const content = place === "project"
+    ? <span data-tip={thread.title} data-tip-overflow>{thread.title}</span>
+    : <span className="task-row-text">
+        <span data-tip={thread.title} data-tip-overflow>{thread.title}</span>
         <small>{hostMeta(host, formatTime(threadActivityAt(thread)))}</small>
       </span>;
   return (
@@ -472,9 +458,10 @@ const ThreadRow = memo(function ThreadRow({ index, place, ...row }: RowState & {
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
+          data-pinned={row.pinned || undefined}
           onKeyDown={(event) => rowKeys(event, row)}
         >
-          {rowBody(row, `${place === "project" ? "project-task-row" : "task-row"} ${row.active ? "active" : ""}`, content, "archive")}
+          {rowBody(row, `${place === "project" ? "project-task-row" : "task-row"} ${row.active ? "active" : ""}`, content, "none")}
         </div>
       )}
     </Draggable>
@@ -486,9 +473,9 @@ const ActivityRow = memo(function ActivityRow({ projectLabel, action, priority, 
   const { thread } = row;
   return (
     <div className="task-entry" tabIndex={0} onKeyDown={(event) => rowKeys(event, row)}>
-      {rowBody(row, `task-row ${row.active ? "active" : ""}`, (title) => (
-        <span className="task-row-text" title={title}>
-          <span>{thread.title}</span>
+      {rowBody(row, `task-row ${row.active ? "active" : ""}`, (
+        <span className="task-row-text">
+          <span data-tip={thread.title} data-tip-overflow>{thread.title}</span>
           <small>{activityMeta(thread, row.host, projectLabel, row.waiting, row.memberBlocked, row.pauseLabel)}</small>
         </span>
       ), action, priority)}
@@ -567,9 +554,8 @@ export function useThreadRows({
    * A thread moves only among this computer's folders, and not out of the checkout it works in or
    * from under the coordinator it is drawn beneath.
    */
-  const moveTargets = (thread: Thread) => threadHosts.has(thread.id) || thread.worktreeId || leadIdOf(thread)
-    ? null
-    : projects.filter((project) => !projectHosts.has(project.id));
+  const pinned = (thread: Thread) => Boolean(threadHosts.has(thread.id) || thread.worktreeId || leadIdOf(thread));
+  const moveTargets = (thread: Thread) => pinned(thread) ? null : projects.filter((project) => !projectHosts.has(project.id));
 
   const rowState = (thread: Thread): RowState => {
     const away = offline(thread.id);
@@ -595,6 +581,7 @@ export function useThreadRows({
       coordinators: menuOpen ? coordination.coordinatorsByComputer.get(threadHosts.get(thread.id)?.id ?? null) ?? NO_THREADS : NO_THREADS,
       stoppable: menuOpen && coordination.stoppable.has(thread.id),
       notifications: coordination.notifications,
+      pinned: pinned(thread),
       moveTargets: menuOpen ? moveTargets(thread) : null,
       handlers,
     };

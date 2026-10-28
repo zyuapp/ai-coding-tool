@@ -23,7 +23,7 @@
 .worktree-metadata > span { display: inline-flex; align-items: center; gap: 5px; overflow-wrap: anywhere; min-width: 0; }
 .worktree-metadata > span + span::before { content: "·"; margin-right: 3px; color: var(--quiet); }
 .worktree-status-clean { color: var(--success-soft); }
-.worktree-status-warning { color: var(--accent-soft); }
+.worktree-status-warning { color: var(--warning); }
 .worktree-metadata svg { flex-shrink: 0; }
 .worktree-row-actions { display: flex; align-items: flex-start; justify-content: flex-end; gap: 8px; padding-top: 2px; margin-left: 15px; }
 .worktree-row-actions .worktree-delete:is(:hover, :focus-visible):not([aria-disabled="true"]) { border-color: var(--danger-line-hover); background: var(--danger-surface); color: var(--danger-soft); }
@@ -34,11 +34,13 @@
 .worktree-thread-link > svg { flex-shrink: 0; }
 .worktree-thread-link > span { overflow-wrap: anywhere; }
 .worktree-thread-link small { color: var(--muted); font-size: var(--text-tiny); }
+.worktree-thread-link.worktree-threads-toggle { color: var(--ink-dim); font-weight: 550; }
+.worktree-thread-link.worktree-threads-toggle:hover { color: var(--ink); text-decoration: none; }
 .worktree-thread-list { display: grid; gap: 2px; margin: 6px 0 0 19px; }
 .worktree-thread-list.single { margin: 0; }
 .worktree-thread-list[hidden] { display: none; }
-.worktree-missing { margin-top: 27px; }
-.worktree-missing-toggle { display: flex; align-items: center; gap: 8px; min-height: 30px; margin-inline: -8px; padding: 4px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--ink-dim); font-size: var(--text-control); font-weight: 550; cursor: pointer; }
+.worktree-missing { margin-top: 27px; padding-top: 14px; border-top: 1px solid var(--line); }
+.worktree-missing-toggle { display: flex; align-items: center; gap: 8px; min-height: 32px; margin-inline: -8px; padding: 4px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--ink-soft); font-size: var(--text-control); font-weight: 600; cursor: pointer; }
 .worktree-missing-toggle:hover { background: var(--wash); color: var(--ink); }
 .worktree-missing-description { margin: 12px 0 0 21px; color: var(--muted); font-size: var(--text-meta); line-height: 1.5; }
 .worktree-setting-row.missing { padding-block: 18px; }

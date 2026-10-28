@@ -3,6 +3,7 @@ import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
 import { LuPlus as Plus, LuSearch as Search, LuSquarePen as SquarePen } from "react-icons/lu";
 import type { Project, ThreadDropTarget } from "../../domain/project";
 import { hasUnreadAttention } from "../../domain/attention";
+import { isAgentEngine } from "../../domain/agent-engine";
 import type { Thread } from "../../domain/thread";
 import type { SidebarMode, SidebarSection, SidebarSections } from "../../domain/sidebar";
 import type { ActivitySections } from "../../application/thread-order";
@@ -20,6 +21,7 @@ import type { AppUpdate } from "../../domain/app-update";
 import { SidebarFooter } from "./SidebarFooter";
 import { shortcutTip } from "./TooltipLayer";
 import { CommandButton } from "./CommandControl";
+import { roleIcon } from "./ThreadRoleMark";
 
 const NEW_THREAD_TIP = shortcutTip("New thread", "Mod+N");
 const SEARCH_TIP = shortcutTip("Search", "Mod+K");
@@ -97,17 +99,24 @@ export type ProjectSidebarProps = {
 };
 
 /**
- * How wide every rail is at rest: the most marks any one drawn thread carries. Reserving a slot no
- * row on screen fills, for a thread in a folded list, only pushes the marks away from the titles.
- * Every thread carries its engine mark, so a rail has at least one slot; a hovered rail widens to
- * fit its actions.
+ * How wide every rail is at rest: the most marks any one drawn thread carries, counted as the row
+ * draws them. Reserving a slot no row on screen fills, for a thread in a folded list, only pushes
+ * the marks away from the titles. A rail keeps at least one slot for its actions to land on.
  */
-function railSlotsFor(threads: Thread[], marks: Pick<ProjectSidebarProps, "blockedThreadIds" | "runningThreadIds" | "sideChatAttention" | "worktreeThreadIds" | "schedules">, { threadsByCoordinator, waitingLines }: SidebarCoordination) {
+function railSlotsFor(threads: Thread[], marks: Pick<ProjectSidebarProps, "blockedThreadIds" | "runningThreadIds" | "sideChatAttention" | "worktreeThreadIds" | "schedules" | "threadHosts">, { threadsByCoordinator, waitingLines }: SidebarCoordination) {
   return threads.reduce((widest, thread) => {
     const members = threadsByCoordinator.get(thread.id) ?? [];
     const coordinationStatus = waitingLines.has(thread.id) || members.some((member) => marks.blockedThreadIds.has(member.id) || marks.runningThreadIds.has(member.id) || hasUnreadAttention(member));
     const status = marks.blockedThreadIds.has(thread.id) || marks.runningThreadIds.has(thread.id) || Boolean(thread.limitPause) || hasUnreadAttention(thread) || marks.sideChatAttention.has(thread.id) || coordinationStatus;
-    return Math.max(widest, 1 + Number(Boolean(thread.role)) + Number(marks.worktreeThreadIds.has(thread.id)) + Number(marks.schedules.has(thread.id)) + Number(status));
+    const drawn = [
+      marks.threadHosts.get(thread.id)?.offline === true,
+      Boolean(thread.role && roleIcon(thread.role)),
+      marks.worktreeThreadIds.has(thread.id),
+      marks.schedules.has(thread.id),
+      status,
+      isAgentEngine(thread.engine),
+    ];
+    return Math.max(widest, drawn.filter(Boolean).length);
   }, 1);
 }
 
@@ -258,8 +267,8 @@ export const ProjectSidebar = memo(function ProjectSidebar({
   });
 
   const railSlots = useMemo(
-    () => railSlotsFor(drawnThreads(mode, sections, activityThreads, threadsByProject, expandedProjects, recentThreads), { blockedThreadIds, runningThreadIds, sideChatAttention, worktreeThreadIds, schedules }, sidebarCoordination),
-    [mode, sections, activityThreads, threadsByProject, expandedProjects, recentThreads, blockedThreadIds, runningThreadIds, sideChatAttention, worktreeThreadIds, schedules, sidebarCoordination],
+    () => railSlotsFor(drawnThreads(mode, sections, activityThreads, threadsByProject, expandedProjects, recentThreads), { blockedThreadIds, runningThreadIds, sideChatAttention, worktreeThreadIds, schedules, threadHosts }, sidebarCoordination),
+    [mode, sections, activityThreads, threadsByProject, expandedProjects, recentThreads, blockedThreadIds, runningThreadIds, sideChatAttention, worktreeThreadIds, schedules, threadHosts, sidebarCoordination],
   );
 
   /** Stepping through threads from the keyboard is blind unless the list follows the one now open. */

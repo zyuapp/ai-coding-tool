@@ -120,6 +120,29 @@ test("Enter in the destination search moves to the top match", async () => {
   } finally { await view.unmount(); }
 });
 
+test("a destination that cannot be chosen yet still takes the keyboard, like other menu items", async () => {
+  const initial = fixture();
+  delete initial.threads[0].worktreeId;
+  const view = await renderMenu(initial);
+  try {
+    await openLocationMenu();
+    await choose("Move to worktree");
+    const row = query<HTMLButtonElement>(document, '[data-choice-index="0"]');
+    assert.equal(row.getAttribute("aria-disabled"), "true");
+    assert.equal(row.disabled, false);
+    const input = query<HTMLInputElement>(document, '.worktree-menu-search input');
+    await act(async () => input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
+    assert.equal(document.activeElement, query(document, ".worktree-menu-new"));
+    await act(async () => {
+      document.activeElement!.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    });
+    assert.equal(document.activeElement, row);
+    await act(async () => row.click());
+    assert.equal(view.state().threads[0].worktreeId, undefined);
+  } finally { await view.unmount(); }
+});
+
 test("the whole location row opens its menu, labelled with where the thread is", async () => {
   const view = await renderMenu();
   try {
@@ -205,6 +228,9 @@ test("deletion uses the standard warning and a linked run blocks an open confirm
     assert.match(dialog.textContent, /2 linked threads return/);
     assert.match(dialog.textContent, /uncommitted changes are saved as a commit/);
     assert.match(dialog.textContent, /Git-ignored files are deleted/);
+    const described = (dialog.getAttribute("aria-describedby") ?? "").split(" ").map((id) => document.getElementById(id)?.textContent);
+    assert.match(described[0] ?? "", /uncommitted changes are saved as a commit/);
+    assert.match(described[1] ?? "", /Git-ignored files are deleted/);
     assert.equal(document.activeElement?.textContent, "Cancel");
     await view.send({ type: "task.send", taskId: "thread-1", text: "Continue", attachments: [] });
     assert.equal(query<HTMLButtonElement>(document, '.worktree-delete-actions .danger').disabled, true);

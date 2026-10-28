@@ -1,10 +1,11 @@
 import { LuCheck as Check } from "react-icons/lu";
 import { createContext, isValidElement, useContext, useEffect, useRef, useState, type ComponentPropsWithoutRef, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
 import { settingControl, type SettingId, type SettingMark } from "../../domain/settings-catalog";
+import { firstFocusable, placeOf, useKeyboardPlace } from "../focus";
 
 export const SettingFocus = createContext<SettingMark | null>(null);
 
-/** Whether a search landed on `id`, and the element to bring into view and flash each time one does. */
+/** Whether a search landed on `id`, and the element to bring into view, flash, and hand the keyboard to each time one does. */
 export function useSettingMark<T extends HTMLElement>(id: string) {
   const mark = useContext(SettingFocus);
   const visit = mark?.id === id ? mark.visit : null;
@@ -14,6 +15,7 @@ export function useSettingMark<T extends HTMLElement>(id: string) {
     const target = element.current;
     if (visit === null || !target) return;
     target.scrollIntoView({ block: "center" });
+    firstFocusable(target)?.focus({ preventScroll: true });
     /** A finished flash leaves nothing to replay, so the class comes off and back on to start a new one. */
     target.classList.remove("found");
     void target.offsetWidth;
@@ -54,6 +56,25 @@ export function SettingStatus({ done, children }: { done: boolean; children?: Re
       <span className="setting-status-label">{done ? "Done" : "Not done"}</span>
     </span>
   );
+}
+
+const rowsOf = (root: HTMLElement) => [...root.querySelectorAll<HTMLElement>(".setting-row")];
+
+/** The keyboard's place in a list of rows whose buttons can take their own row away, such as Restore or Remove. */
+export function useRowListFocus<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  const onClickCapture = useKeyboardPlace(
+    ref,
+    (pressed, root) => {
+      const row = pressed.closest<HTMLElement>(".setting-row");
+      return row ? rowsOf(root).indexOf(row) : null;
+    },
+    (at, root) => {
+      const row = placeOf(rowsOf(root), at);
+      return row && firstFocusable(row);
+    },
+  );
+  return { ref, onClickCapture };
 }
 
 const switchId = (id: SettingId) => `setting-switch-${id}`;

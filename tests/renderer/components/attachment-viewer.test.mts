@@ -45,13 +45,12 @@ test("the picture viewer closes on Escape and on the backdrop, but not on a drag
   const downloads: string[] = [];
   const view = await mount(React.createElement(AttachmentViewer, { source: "shot.png", onClose: () => closed.push("closed"), onDownload: () => downloads.push("download") }));
   const backdrop = query(document, ".viewer.image");
-  const download = query<HTMLButtonElement>(document, "button[aria-label='Download image']");
-  assert.equal(download.disabled, true);
+  assert.equal(document.querySelector("button[aria-label='Download image']"), null, "nothing is offered for a picture still loading");
   const image = await loaded(800, 400);
   const press = (target: Element) => target.dispatchEvent(new dom.window.PointerEvent("pointerdown", { bubbles: true }));
   const release = (target: Element) => target.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
-  assert.equal(download.disabled, false);
+  const download = query<HTMLButtonElement>(document, "button[aria-label='Download image']");
   await act(async () => { press(download); release(download); });
   assert.deepEqual(downloads, ["download"]);
   assert.deepEqual(closed, [], "saving leaves the preview open");
@@ -64,5 +63,15 @@ test("the picture viewer closes on Escape and on the backdrop, but not on a drag
 
   await act(async () => { document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
   assert.deepEqual(closed, ["closed", "closed"]);
+  await view.unmount();
+});
+
+test("a picture that is gone says so and offers only closing", async () => {
+  const view = await mount(React.createElement(AttachmentViewer, { source: "gone.png", onClose: () => {}, onDownload: () => {} }));
+  await act(async () => { query(document, ".viewer-stage img").dispatchEvent(new dom.window.Event("error")); });
+  assert.match(query(document, ".viewer-stage [role='status']").textContent, /no longer available/);
+  assert.equal(document.querySelector("button[aria-label='Download image']"), null);
+  assert.equal(document.querySelector(".viewer-zoom"), null);
+  assert.ok(document.querySelector("button[aria-label='Close screenshot']"));
   await view.unmount();
 });

@@ -1,5 +1,5 @@
 import { LuChevronDown as ChevronDown, LuChevronRight as ChevronRight, LuFileMinus2 as FileMinus2, LuFilePen as FilePen, LuFilePlus2 as FilePlus2, LuFileSymlink as FileSymlink, LuRefreshCw as RefreshCw } from "react-icons/lu";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { DiffPatchResult, DiffSummaryResult } from "../../contracts/ipc";
 import type { MobileQuery, MobileThreadView } from "../../contracts/mobile";
 import { diffRows, fileFingerprint, languageForPath, parseFilePatch, rangeKey, UNCOMMITTED, type DiffFileSummary, type DiffRange, type DiffRow } from "../../domain/diff";
@@ -82,11 +82,26 @@ function PatchBody({ patch, onRetry }: { patch: Patch; onRetry: () => void }) {
   );
 }
 
+/**
+ * An open file's row sticks under the toolbar while its lines scroll past, so it can be closed from
+ * anywhere in it. Closed from there, the list scrolls back to where the file starts.
+ */
 function FileCard({ file, open, patch, onToggle, onRetry }: { file: DiffFileSummary; open: boolean; patch: Patch | undefined; onToggle: () => void; onRetry: () => void }) {
   const { folder, name } = splitPath(file.path);
+  const card = useRef<HTMLElement>(null);
+  const realign = useRef(false);
+  useLayoutEffect(() => {
+    if (open || !realign.current) return;
+    realign.current = false;
+    card.current?.scrollIntoView({ block: "start" });
+  }, [open]);
   return (
-    <section className="diff-file" data-open={open || undefined}>
-      <button type="button" className="diff-file-row" aria-expanded={open} onClick={onToggle}>
+    <section ref={card} className="diff-file" data-open={open || undefined}>
+      <button type="button" className="diff-file-row" aria-expanded={open} onClick={(event) => {
+        const node = card.current;
+        realign.current = open && node !== null && node.getBoundingClientRect().top < event.currentTarget.getBoundingClientRect().top;
+        onToggle();
+      }}>
         <span className="diff-file-caret" aria-hidden="true">{open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>
         <span className="diff-file-icon" data-status={file.status} aria-hidden="true"><StatusIcon status={file.status} /></span>
         <span className="diff-file-name"><em>{folder}</em>{name}<span className="sr-only">, {STATUS_NAMES[file.status]}</span></span>

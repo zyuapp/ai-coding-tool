@@ -115,7 +115,7 @@ export function SidebarActivity({ activityThreads, sections, blockedThreadIds, t
         return (
           <section className="activity-group" key={key}>
             <div className="section-heading activity-heading">
-              <button className="section-toggle" onClick={() => onSetSectionOpen(key, !sections[key])} aria-expanded={sections[key]}>
+              <button className="section-toggle" type="button" onClick={() => onSetSectionOpen(key, !sections[key])} aria-expanded={sections[key]}>
                 <span>{label}</span>
                 {/** A folded list still says how much it holds, as part of its heading. */}
                 {!sections[key] && threads.length > 0 && <span className="section-count">{threads.length}</span>}
@@ -129,7 +129,7 @@ export function SidebarActivity({ activityThreads, sections, blockedThreadIds, t
             </div>
             {sections[key] && threads.length === 0 && key === "priority" && <p className="sidebar-empty">Nothing waiting</p>}
             {/** Only Priority speaks: a spinner appearing in Running is not news anyone needs read out. */}
-            {sections[key] && <nav className="task-list" aria-label={label} aria-live={key === "priority" ? "polite" : undefined}>
+            {sections[key] && <nav className={key === "priority" ? "task-list priority-list" : "task-list"} aria-label={label} aria-live={key === "priority" ? "polite" : undefined}>
               {threads.map((thread) => renderRow(thread, key === "priority" && canDismiss(thread, threadsByCoordinator.get(thread.id) ?? [], blockedThreadIds) ? "dismiss" : "none", key === "priority"))}
             </nav>}
           </section>

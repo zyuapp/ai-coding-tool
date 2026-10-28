@@ -131,25 +131,17 @@ function AddressEntry({ pairing, alternative, onPair }: { pairing: ComputerPairi
   );
 }
 
-/** How long the field says a new name was saved. */
-const SAVED_FOR = 2000;
-
 /** What this computer calls itself, kept as it is typed and given once the field is left or Enter is pressed. */
 function NameEntry({ name, onRename }: { name: string; onRename: (name: string) => void }) {
   const [draft, setDraft] = useState(name);
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useState<"named" | "reset" | null>(null);
   useEffect(() => setDraft(name), [name]);
-  useEffect(() => {
-    if (!saved) return;
-    const timer = setTimeout(() => setSaved(false), SAVED_FOR);
-    return () => clearTimeout(timer);
-  }, [saved]);
   const commit = () => {
     const typed = draft.trim();
     if (typed === name) return setDraft(name);
     if (!typed) setDraft(name);
     onRename(typed);
-    setSaved(true);
+    setSaved(typed ? "named" : "reset");
   };
   return (
     <form
@@ -160,22 +152,22 @@ function NameEntry({ name, onRename }: { name: string; onRename: (name: string) 
       }}
     >
       <label>
-        <span>This computer's name</span>
+        <strong>This computer's name</strong>
         <input
           autoComplete="off"
           spellCheck={false}
           maxLength={MAX_COMPUTER_NAME}
           value={draft}
-          onInput={(event) => { setDraft(event.currentTarget.value); setSaved(false); }}
+          onInput={(event) => { setDraft(event.currentTarget.value); setSaved(null); }}
           onBlur={commit}
           onKeyDown={(event) => {
-            if (event.key !== "Escape") return;
+            if (event.key !== "Escape" || draft === name) return;
             event.preventDefault();
             setDraft(name);
           }}
         />
       </label>
-      <span className="computer-name-saved" role="status">{saved && <><Check size={14} aria-hidden="true" />Saved</>}</span>
+      <span className="computer-name-saved" role="status">{saved && <><Check size={14} aria-hidden="true" />{saved === "named" ? "Saved" : "Back to the machine's own name"}</>}</span>
     </form>
   );
 }

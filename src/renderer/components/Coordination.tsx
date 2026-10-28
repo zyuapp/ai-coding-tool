@@ -142,7 +142,7 @@ function rememberOverviewPlace(pressed: HTMLElement, root: HTMLElement): Overvie
   if (pressed.matches(".coordination-note-actions > .danger")) return { kind: "note", index: [...root.querySelectorAll(".coordination-note-actions")].indexOf(pressed.parentElement!) };
   const section = pressed.closest<HTMLElement>("[data-section]");
   if (!section) return null;
-  if (pressed.matches(".coordination-stop > .danger")) return { kind: "stop", index: groupHeads(root).indexOf(section.querySelector<HTMLElement>(".coordination-group-head")!) };
+  if (pressed.matches(".coordination-stop > .armed")) return { kind: "stop", index: groupHeads(root).indexOf(section.querySelector<HTMLElement>(".coordination-group-head")!) };
   const rows = sectionRows(section);
   if (pressed.matches(".coordination-more")) return { kind: "more", section: section.dataset.section!, index: rows.length };
   if (!pressed.matches('[data-action="resolve"], [data-action="reopen"]')) return null;
@@ -365,11 +365,17 @@ function UsageSection({ usage, fold, onSetFold, onSelect }: { usage: Coordinatio
   );
 }
 
-/** Stops the coordinator and everything working under it, as its thread menu does. */
+/** Stops the coordinator and everything working under it on the second press. */
 function StopAllButton({ taskId, stoppable }: { taskId: string; stoppable: boolean }) {
+  const controls = useCommandControls();
+  const command = { type: "coordination.stop-all", taskId } as const;
+  const unavailable = !controls.available(command);
   return (
     <span className="coordination-stop">
-      <CommandButton command={{ type: "coordination.stop-all", taskId }} type="button" className="coordination-stop-all danger" disabled={!stoppable}>Stop all</CommandButton>
+      <ConfirmAction className="coordination-stop-all danger" data-tip={unavailable ? REMOTE_UNSUPPORTED : stoppable ? undefined : "Nothing here is running"}
+        disabled={unavailable || !stoppable} confirm="Stop all" onConfirm={() => controls.dispatch(command)}>
+        Stop all
+      </ConfirmAction>
     </span>
   );
 }

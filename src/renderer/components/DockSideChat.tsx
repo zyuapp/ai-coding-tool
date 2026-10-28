@@ -50,7 +50,7 @@ export function chatHandlers(dispatch: Dispatch, chatId: string, images: DockCon
  * One chat's tab. Memoized, and given only what the chat itself reads, so a run filling the main
  * thread with reports leaves it alone.
  */
-const DockSideChatTab = memo(function DockSideChatTab({ chat, dispatch, attachmentSend, favoriteModels, engineLabel, sourceTitle, sourceContinued, project, threads, active, focusToken, find, findBar, onClose }: {
+const DockSideChatTab = memo(function DockSideChatTab({ chat, dispatch, attachmentSend, favoriteModels, engineLabel, sourceTitle, sourceContinued, project, threads, active, focusToken, find, findBar, updateAvailable, onClose }: {
   chat: SideChatView;
   dispatch: Dispatch;
   /** Where this chat's own images stand between its send and the run. */
@@ -67,6 +67,7 @@ const DockSideChatTab = memo(function DockSideChatTab({ chat, dispatch, attachme
   /** The bar, and the match it is showing, only when it is this chat's own thread being searched. */
   find: FindView | null;
   findBar: ReactNode;
+  updateAvailable: boolean;
   onClose: (chatId: string) => void;
 }) {
   const handlers = useMemo(() => chatHandlers(dispatch, chat.id, chat.images), [dispatch, chat.id, chat.images]);
@@ -94,6 +95,7 @@ const DockSideChatTab = memo(function DockSideChatTab({ chat, dispatch, attachme
         threads={threads}
         readingPoint={chat.readingPoint}
         {...handlers}
+        updateAvailable={updateAvailable}
         onClose={close}
       />
     </div>
@@ -131,6 +133,7 @@ export function DockSideChats({ workspace, source, activeTab, find, findBar, foc
             focusToken={focusTokenFor(chat.id)}
             find={searched}
             findBar={searched ? findBar : null}
+            updateAvailable={workspace.appUpdate.status !== "idle"}
             onClose={onClose}
           />
         );

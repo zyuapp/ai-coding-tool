@@ -239,7 +239,7 @@ test("typing and streaming leave sidebar rows alone while sidebar changes still 
     },
   });
   try {
-    const row = (title: string) => item(query(view.container, `.task-row > [title="${title}"]`).closest<HTMLElement>(".task-row"));
+    const row = (title: string) => item(query(view.container, `.task-row [data-tip="${title}"]`).closest<HTMLElement>(".task-row"));
     await act(async () => { query<HTMLButtonElement>(view.container, '[aria-label="Rank threads by activity"]').click(); });
     await act(async () => { row("Streaming task").click(); });
     await settleFrame();
@@ -275,7 +275,7 @@ test("typing and streaming leave sidebar rows alone while sidebar changes still 
     await act(async () => { desktop.listener({ type: "run.status", taskId: start.taskId, runId: start.runId, sequence: 4, status: "succeeded" }); });
     await settleFrame();
     assert.equal(view.container.querySelector(".task-spinner"), null, "finishing removes the running mark");
-    assert.ok(query(view.container, 'nav[aria-label="Priority"] .task-row > [title="Streaming task"]'));
+    assert.ok(query(view.container, 'nav[aria-label="Priority"] .task-row [data-tip="Streaming task"]'));
     assert.equal(quietFormats, beforeStreaming, "a row that did not change is not drawn again");
     await act(async () => { row("Quiet task").click(); });
     assert.ok(row("Quiet task").classList.contains("active"), "selection updates after streaming");
@@ -347,9 +347,9 @@ test("opening a dotted row in projects mode takes its dot off", async () => {
   assert.equal(view.container.querySelector(".task-attention.failed"), null, "reading the thread takes the dot off");
   assert.deepEqual([...view.container.querySelectorAll(".task-dismiss")], [], "projects mode never offers a dismissal");
   assert.deepEqual(
-    [...view.container.querySelectorAll(".project-task-row .row-action:not(.task-more)")].map((button) => button.getAttribute("aria-label")),
-    ["Archive Open task", "Archive Waiting task"],
-    "archiving is a projects-mode row's only trailing action",
+    [...view.container.querySelectorAll(".project-task-row .row-action")].map((button) => button.getAttribute("aria-label")),
+    ["More options for Open task", "More options for Waiting task"],
+    "a projects-mode row offers its menu and nothing beside it",
   );
   await view.unmount();
 });
@@ -567,4 +567,30 @@ test("a row's rail reserves slots only for the marks of threads the sidebar draw
   await folders.render(renderProjectSidebar({ ...props, mode: "projects", sections, expandedProjects: new Set() }));
   assert.equal(slots(folders), "1", "a folded folder's threads draw no row to make room for");
   await folders.unmount();
+});
+
+test("a rail counts the away mark and leaves out an engine mark the row does not draw", async () => {
+  const thread = (id: string, overrides: Partial<Thread> = {}): Thread => ({
+    id, title: id, engine: "claude", executionPolicy: "confirm", messages: [],
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, ...overrides,
+  });
+  const sections = { projects: true, recents: true, priority: true, running: true, threads: true, snoozed: true };
+  const slots = (view: { container: HTMLElement }) => query<HTMLElement>(view.container, ".sidebar").style.getPropertyValue("--row-slots");
+  const away = thread("away", { role: "reviewer" });
+  const unknown = thread("unknown", { role: "reviewer", worktreeId: "wt-1", engine: "gemini" as Thread["engine"] });
+  const props = {
+    mode: "activity" as const,
+    sections,
+    worktreeThreadIds: new Set(["unknown"]),
+    threadHosts: new Map([["away", { id: "studio", name: "Studio", offline: true }]]),
+  };
+
+  const view = await mount(renderProjectSidebar({ ...props, activityThreads: { priority: [], running: [], threads: [away], snoozed: [] } }));
+  assert.equal(slots(view), "3", "the away mark, the role, and the engine");
+  assert.equal(view.container.querySelectorAll(".row-marks > .row-mark").length, 3);
+
+  await view.render(renderProjectSidebar({ ...props, activityThreads: { priority: [], running: [], threads: [unknown], snoozed: [] } }));
+  assert.equal(slots(view), "2", "the role and the checkout, with no engine mark drawn");
+  assert.equal(view.container.querySelectorAll(".row-marks > .row-mark").length, 2);
+  await view.unmount();
 });

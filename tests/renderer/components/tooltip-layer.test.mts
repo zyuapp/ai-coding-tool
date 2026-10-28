@@ -186,3 +186,39 @@ test("holding a modifier keeps the tip, and any other key takes it away", async 
     assert.equal(tooltip(), null);
   } finally { await view.unmount(); }
 });
+
+test("a shortcut in a tip is drawn as a key cap, and words in brackets stay words", async () => {
+  const view = await mountElement(React.createElement(React.Fragment, null,
+    React.createElement("button", { type: "button", id: "send", "data-tip": "Send (↩) · New line (⇧↩)" }, "Send"),
+    React.createElement("button", { type: "button", id: "count", "data-tip": "Open files (3 changed)" }, "Files"),
+    React.createElement(TooltipLayer),
+  ));
+  try {
+    hover(view.container.querySelector("#send")!);
+    await rest();
+    assert.deepEqual([...tooltip()!.querySelectorAll("kbd")].map((key) => key.textContent), ["↩", "⇧↩"]);
+    assert.equal(tooltip()!.textContent, "Send ↩ · New line ⇧↩");
+
+    hover(view.container.querySelector("#count")!);
+    await rest(80);
+    assert.equal(tooltip()!.querySelector("kbd"), null);
+    assert.equal(tooltip()!.textContent, "Open files (3 changed)");
+  } finally { await view.unmount(); }
+});
+
+test("resting on a control that cannot act shows its reason without the usual wait", async () => {
+  const view = await mountElement(React.createElement(React.Fragment, null,
+    React.createElement("button", { type: "button", id: "off", "aria-disabled": "true", "data-tip": "Not on that computer" }, "Archive"),
+    React.createElement("button", { type: "button", id: "on", "data-tip": "Rename the thread" }, "Rename"),
+    React.createElement(TooltipLayer),
+  ));
+  try {
+    hover(view.container.querySelector("#on")!);
+    await rest(100);
+    assert.equal(tooltip(), null, "an enabled control still waits");
+    hover(view.container);
+    hover(view.container.querySelector("#off")!);
+    await rest(100);
+    assert.equal(tooltip()?.textContent, "Not on that computer");
+  } finally { await view.unmount(); }
+});

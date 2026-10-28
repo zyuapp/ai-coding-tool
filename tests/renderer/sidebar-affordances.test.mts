@@ -42,15 +42,44 @@ test("a thread row's ellipsis opens the same menu a right-click does, and an unr
     assert.ok(menuItem("Rename") && menuItem("Fork"));
     assert.equal(view.container.querySelector(".project-task-row.active"), null, "opening the menu does not open the thread");
 
+    assert.equal(menuItem("Snooze")!.getAttribute("aria-disabled"), "true", "outside Priority the menu keeps Snooze, unavailable");
     await act(async () => { menuItem("Archive")!.click(); });
     assert.deepEqual(archived, ["here"]);
     assert.equal(menuItems().length, 0);
 
-    assert.equal(query<HTMLButtonElement>(view.container, '[aria-label="Archive here"]').dataset.tip, "Archive");
+    assert.equal(view.container.querySelector('[aria-label="Archive here"]'), null, "archiving is in the menu, a step from a stray click");
   } finally { await view.unmount(); }
 });
 
-test("a row's title says what each of its marks means, and plain rows say only their title", async () => {
+test("the open thread's menu button shows at rest, and other rows keep theirs for hover", async () => {
+  const view = await mount(React.createElement(Harness, {
+    projects: [{ id: "p", root: "/work/p" }],
+    expandedProjects: new Set(["p"]),
+    orderedThreads: [task("open", { projectId: "p" }), task("other", { projectId: "p" })],
+    currentId: "open",
+  }));
+  try {
+    const rails = [...view.container.querySelectorAll<HTMLElement>(".project-task-row .row-rail")];
+    assert.ok(rails[0]!.closest(".active") && rails[0]!.querySelector(".task-more"));
+    assert.equal(rails[1]!.closest(".active"), null);
+    assert.ok(rails.every((rail) => rail.querySelector(".row-marks") && rail.querySelector(".row-actions")), "marks and actions share one rail");
+  } finally { await view.unmount(); }
+});
+
+test("a thread that cannot leave its folder says so while dragged", async () => {
+  const view = await mount(renderProjectSidebar({
+    projects: [{ id: "p", root: "/work/p" }],
+    expandedProjects: new Set(["p"]),
+    orderedThreads: [task("free", { projectId: "p" }), task("checkout", { projectId: "p", worktreeId: "w" })],
+  }));
+  try {
+    const entry = (id: string) => query<HTMLElement>(view.container, `[data-rfd-drag-handle-draggable-id="${id}"]`);
+    assert.equal(entry("free").dataset.pinned, undefined);
+    assert.equal(entry("checkout").dataset.pinned, "true");
+  } finally { await view.unmount(); }
+});
+
+test("a row's title shows whole only when cut short, and each mark names itself", async () => {
   const asked = task("asked", { projectId: "p" });
   const scheduled = task("scheduled", { projectId: "p" });
   const plain = task("plain", { projectId: "p" });
@@ -66,19 +95,18 @@ test("a row's title says what each of its marks means, and plain rows say only t
   }));
   try {
     const rows = [...view.container.querySelectorAll<HTMLElement>(".project-task-row")];
-    assert.deepEqual(rows.map((row) => row.hasAttribute("title")), [false, false, false, false], "the row's buttons show only their own tips");
-    const titles = rows.map((row) => query(row, ":scope > span:first-child").title);
-    assert.deepEqual(titles, [
-      "asked\nNeeds approval",
-      "scheduled\nRuns on a schedule, and its last run failed",
-      "plain",
-      "away\nlaptop is offline",
-    ]);
-    assert.ok(query(view.container, ".task-automation").classList.contains("trouble"), "a failed schedule is drawn apart");
+    assert.ok(rows.every((row) => !row.querySelector("[title]")), "one tooltip system on a row");
+    const titles = rows.map((row) => query<HTMLElement>(row, ":scope > span:first-child"));
+    assert.deepEqual(titles.map((title) => title.dataset.tip), ["asked", "scheduled", "plain", "away"]);
+    assert.ok(titles.every((title) => title.hasAttribute("data-tip-overflow")));
+    assert.deepEqual([...rows[0]!.querySelectorAll<HTMLElement>(".row-mark")].map((mark) => mark.dataset.tip).slice(0, 1), ["Needs approval"]);
+    const schedule = query<HTMLElement>(view.container, ".task-automation");
+    assert.ok(schedule.classList.contains("trouble"));
+    assert.equal(schedule.closest<HTMLElement>(".row-mark")!.dataset.tip, "Runs on a schedule, and its last run failed");
   } finally { await view.unmount(); }
 });
 
-test("a folder's menu removes it in one choice, and moves it among its computer's folders", async () => {
+test("a folder's menu asks before removing one that holds threads, and moves it among its computer's folders", async () => {
   const { CommandControlsProvider } = await import("../../src/renderer/components/CommandControl.tsx");
   const sent: unknown[] = [];
   const controls = { available: () => true, dispatch: (command: unknown) => { sent.push(command); } };
@@ -96,9 +124,20 @@ test("a folder's menu removes it in one choice, and moves it among its computer'
     };
     await open("first");
     assert.equal(menuItem("Move up"), undefined, "the first folder has nowhere up to go");
-    assert.equal(menuItem("Remove")!.getAttribute("aria-haspopup"), null, "Remove asks nothing more");
+    assert.equal(menuItem("Remove")!.getAttribute("aria-haspopup"), "menu", "a folder holding threads asks first");
     await act(async () => { menuItem("Remove")!.click(); });
+    assert.deepEqual(menuItems().slice(-2).map((item) => item.textContent), ["Keep project", "Remove and archive 1 thread"]);
+    await act(async () => { menuItem("Keep project")!.click(); });
+    assert.deepEqual(removed, []);
+    await open("first");
+    await act(async () => { menuItem("Remove")!.click(); });
+    await act(async () => { menuItem("Remove and archive 1 thread")!.click(); });
     assert.deepEqual(removed, ["first"]);
+
+    await open("last");
+    assert.equal(menuItem("Remove")!.getAttribute("aria-haspopup"), null, "an empty folder goes in one choice");
+    await act(async () => { menuItem("Remove")!.click(); });
+    assert.deepEqual(removed, ["first", "last"]);
 
     await open("middle");
     await act(async () => { menuItem("Move up")!.click(); });
@@ -122,12 +161,16 @@ test("a right-click on a folder opens its menu, and F2 renames it", async () => 
     assert.equal(query(view.container, '[aria-label="More options for p"]').getAttribute("aria-expanded"), "true");
     assert.equal(query(menuItem("Rename")!, ".menu-shortcut").textContent, "F2");
     await act(async () => { document.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+    assert.equal(row.tabIndex, -1, "the row's buttons are its only stops");
+    assert.equal(row.getAttribute("role"), null);
 
     const main = query<HTMLButtonElement>(view.container, ".project-main");
     await act(async () => { main.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
     assert.equal(view.container.querySelector(".project-rename"), null, "Enter is the button's own");
     await act(async () => { main.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "F2", bubbles: true, cancelable: true })); });
-    assert.equal(document.activeElement, query(view.container, ".project-rename"));
+    const rename = query<HTMLInputElement>(view.container, ".project-rename");
+    assert.equal(document.activeElement, rename);
+    assert.deepEqual([rename.selectionStart, rename.selectionEnd], [0, rename.value.length], "typing replaces the name");
   } finally { await view.unmount(); }
 });
 
@@ -158,6 +201,7 @@ test("Recents leaves starting a thread to the New thread button, and offers it w
     assert.equal(heading.querySelector(".menu-trigger, .section-action"), null);
     const start = query<HTMLButtonElement>(view.container, '[aria-label="Project-less tasks"] .empty-tasks');
     assert.equal(start.textContent, "Start a thread");
+    assert.ok(start.querySelector("svg"), "it reads as an action");
     await act(async () => { start.click(); });
     assert.deepEqual(started, [undefined]);
   } finally { await view.unmount(); }
@@ -262,11 +306,13 @@ test("the header's buttons name themselves and their keystrokes", async () => {
     assert.match(query(view.container, '[aria-label="Go forward"]').dataset.tip ?? "", /^Forward \(.+\]\)$/);
     assert.match(query(view.container, '.new-task-button').dataset.tip ?? "", /^New thread \(.+N\)$/);
     assert.equal(query(view.container, '[aria-label="Rank threads by activity"]').dataset.tip, "Rank by activity");
+    assert.equal(view.container.querySelector(".sidebar-mode-name"), null);
   } finally { await view.unmount(); }
 
   const activity = await mount(renderProjectSidebar({ mode: "activity" }));
   try {
     assert.equal(query(activity.container, '[aria-label="Rank threads by activity"]').dataset.tip, "Group by project");
+    assert.equal(query(activity.container, ".sidebar-mode-name").textContent, "Activity", "the mode in effect reads without hovering");
   } finally { await activity.unmount(); }
 });
 
@@ -360,11 +406,13 @@ test("a focused thread row renames on F2 and opens on Enter, and Enter on its ow
     await press(entry, "Enter");
     assert.deepEqual(selected, ["here"]);
 
-    await press(query<HTMLButtonElement>(view.container, '[aria-label="Archive here"]'), "Enter");
+    await press(query<HTMLButtonElement>(view.container, '[aria-label="More options for here"]'), "Enter");
     assert.deepEqual(selected, ["here"], "Enter on a row's button is the button's own");
 
     await press(entry, "F2");
-    assert.equal(document.activeElement, query(view.container, ".task-rename"));
+    const rename = query<HTMLInputElement>(view.container, ".task-rename");
+    assert.equal(document.activeElement, rename);
+    assert.equal(rename.selectionEnd! - rename.selectionStart!, "here".length);
   } finally { await view.unmount(); }
 });
 

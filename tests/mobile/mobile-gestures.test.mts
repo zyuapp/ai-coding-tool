@@ -4,28 +4,63 @@ import { act } from "react";
 import { click, clickButton, clickRow, dom, lastCommand, live, openPhone, typeInto, view } from "../support/mobile-phone.mts";
 
 /** A one-finger touch as React reads it: the event's `touches` and `changedTouches` lists. */
-function touch(node: Element, type: "touchstart" | "touchend", x: number, y: number) {
+function touch(node: Element, type: "touchstart" | "touchmove" | "touchend", x: number, y: number) {
   const event = new dom.window.Event(type, { bubbles: true });
   const point = [{ clientX: x, clientY: y }];
   Object.defineProperties(event, { touches: { value: type === "touchend" ? [] : point }, changedTouches: { value: point } });
   act(() => void node.dispatchEvent(event));
 }
 
+/** The page as the iOS home screen runs it, where no browser gesture owns the left edge. */
+function standalone(on: boolean) {
+  Object.defineProperty(dom.window.navigator, "standalone", { configurable: true, value: on || undefined });
+}
+
 function pointer(node: Element, type: string, clientY: number) {
   act(() => void node.dispatchEvent(new dom.window.MouseEvent(type, { bubbles: true, clientY })));
 }
 
-test("a swipe in from the left edge goes back, and one that starts mid-screen does not", () => {
+test("a swipe in from the left edge drags the screen and goes back, and one that starts mid-screen does not", () => {
+  standalone(true);
+  try {
+    const line = openPhone({ paired: true });
+    live(line);
+    click(".thread-row .thread-open");
+    const app = document.querySelector<HTMLElement>(".app")!;
+    touch(app, "touchstart", 120, 300);
+    touch(app, "touchend", 260, 300);
+    assert.ok(document.querySelector(".composer"), "a swipe from the middle is a scroll, not a way back");
+
+    touch(app, "touchstart", 8, 300);
+    touch(app, "touchmove", 40, 302);
+    assert.equal(app.style.transform, "translateX(32px)", "the screen follows the finger");
+    touch(app, "touchend", 40, 302);
+    assert.equal(app.style.transform, "", "a short swipe springs back");
+    assert.ok(document.querySelector(".composer"));
+
+    touch(app, "touchstart", 8, 300);
+    touch(app, "touchmove", 120, 310);
+    touch(app, "touchend", 120, 310);
+    assert.ok(document.querySelector(".thread-list"), "back on the list");
+    assert.equal(app.style.transform, "");
+  } finally {
+    standalone(false);
+  }
+});
+
+test("in a browser tab the edge belongs to the browser, whose back steps back a screen", async () => {
   const line = openPhone({ paired: true });
   live(line);
   click(".thread-row .thread-open");
   const app = document.querySelector(".app")!;
-  touch(app, "touchstart", 120, 300);
-  touch(app, "touchend", 260, 300);
-  assert.ok(document.querySelector(".composer"), "a swipe from the middle is a scroll, not a way back");
   touch(app, "touchstart", 8, 300);
   touch(app, "touchend", 120, 310);
-  assert.ok(document.querySelector(".thread-list"), "back on the list");
+  assert.ok(document.querySelector(".composer"), "the page leaves the edge to the browser");
+  await act(async () => {
+    window.history.back();
+    await new Promise<void>((resolve) => window.addEventListener("popstate", () => resolve(), { once: true }));
+  });
+  assert.ok(document.querySelector(".thread-list"), "the browser's back is a step back to the list");
 });
 
 test("the list switch moves with the arrow keys and keeps one Tab stop", () => {
@@ -126,14 +161,58 @@ test("the location sheet opens on where the thread already is, which is not a mo
   assert.ok(document.querySelector(".sheet"));
 });
 
-test("a long press or a context menu on a row opens the thread with its options up", () => {
+function openRowMenu() {
+  act(() => void document.querySelector(".thread-row .thread-open")!.dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true, cancelable: true })));
+}
+
+test("a long press or a context menu on a row puts its options up over the list", () => {
   const line = openPhone({ paired: true });
   live(line);
-  act(() => void document.querySelector(".thread-row .thread-open")!.dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true, cancelable: true })));
-  assert.deepEqual(lastCommand(line), { type: "task.select", taskId: "t1" });
+  const sent = line.sent.length;
+  openRowMenu();
+  assert.equal(line.sent.length, sent, "the Mac's open thread stays where it is");
+  assert.ok(document.querySelector(".thread-list"), "the list stays");
   assert.equal(document.querySelector(".scrim")?.getAttribute("aria-label"), "Thread options");
+  assert.equal(document.querySelector(".sheet-head h2")?.textContent, "Fix the parser");
   clickButton("Done", ".sheet");
-  assert.ok(document.querySelector(".composer"), "Done leaves the thread open");
+  assert.ok(document.querySelector(".thread-list"), "Done leaves the list as it was");
+
+  openRowMenu();
+  clickRow("Open");
+  assert.deepEqual(lastCommand(line), { type: "task.select", taskId: "t1" });
+  assert.equal(document.querySelector(".bar-title h1")?.textContent, "Fix the parser");
+});
+
+test("a row's options rename, fork and archive it from the list, and archiving offers Undo", () => {
+  const line = openPhone({ paired: true });
+  live(line);
+  openRowMenu();
+  assert.equal([...document.querySelectorAll(".menu-row")].some((row) => row.textContent?.startsWith("Dismiss")), false, "a row with nothing to file away offers no Dismiss");
+  clickRow("Rename");
+  typeInto(".rename-form input", "Parse faster");
+  clickButton("Save", ".sheet");
+  assert.deepEqual(lastCommand(line), { type: "task.rename", taskId: "t1", title: "Parse faster" });
+
+  openRowMenu();
+  clickRow("Fork thread");
+  assert.deepEqual(lastCommand(line), { type: "task.fork", taskId: "t1" });
+
+  openRowMenu();
+  clickRow("Archive");
+  assert.deepEqual(lastCommand(line), { type: "task.archive", taskId: "t1" });
+  assert.match(document.querySelector(".undo-toast")?.textContent ?? "", /Archived Fix the parser/);
+  click(".undo-toast button");
+  assert.deepEqual(lastCommand(line), { type: "task.restore", taskId: "t1" });
+});
+
+test("a row a finger rests on sinks until the press lands or lets go", () => {
+  const line = openPhone({ paired: true });
+  live(line);
+  const row = document.querySelector<HTMLElement>(".thread-row .thread-open")!;
+  act(() => void row.dispatchEvent(Object.assign(new dom.window.MouseEvent("pointerdown", { bubbles: true, clientX: 50, clientY: 50 }), { pointerType: "touch" })));
+  assert.equal(row.dataset.pressing, "");
+  act(() => void row.dispatchEvent(new dom.window.MouseEvent("pointerup", { bubbles: true })));
+  assert.equal(row.dataset.pressing, undefined);
 });
 
 test("a plain tap on a row opens the thread with no sheet up", () => {
@@ -186,12 +265,13 @@ test("Rename offers Cancel beside Save, and Cancel renames nothing", () => {
   assert.equal(line.sent.length, sent);
 });
 
-test("a folded group says how many threads it holds", () => {
+test("a group says how many threads it holds, open or folded", () => {
   const line = openPhone({ paired: true });
   live(line);
-  assert.equal(document.querySelector(".section-count"), null, "an open group shows its rows instead");
+  assert.equal(document.querySelector(".section-count")?.textContent, "1");
   click(".section-toggle");
   assert.equal(document.querySelector(".section-count")?.textContent, "1");
+  assert.equal(document.querySelector(".section-toggle .sr-only")?.textContent, "Needs you");
 });
 
 test("an unpaired phone takes the code typed from the computer, and only a whole one", () => {
@@ -200,9 +280,23 @@ test("an unpaired phone takes the code typed from the computer, and only a whole
   assert.equal(pair().disabled, true);
   typeInto(".gate-code input", "k7m2");
   assert.equal(pair().disabled, true, "half a code is not sent");
+  assert.equal(document.querySelector(".gate-count")?.textContent, "4/8", "a short code says how short");
+  assert.equal(document.querySelector(".gate-error"), null);
   typeInto(".gate-code input", "k7m2p9qx");
   assert.equal(document.querySelector<HTMLInputElement>(".gate-code input")?.value, "K7M2P9QX");
   assert.equal(pair().disabled, false);
+});
+
+test("a typed code forgives look-alike letters and dashes, and says so when it is no code at all", () => {
+  openPhone();
+  const pair = () => document.querySelector<HTMLButtonElement>(".gate-code button")!;
+  typeInto(".gate-code input", "k7m2-p9ox");
+  assert.equal(document.querySelector<HTMLInputElement>(".gate-code input")?.value, "K7M2P90X", "O reads as the zero it is mistaken for");
+  assert.equal(pair().disabled, false);
+  typeInto(".gate-code input", "K7M2P9QU");
+  assert.equal(pair().disabled, true);
+  assert.match(document.querySelector(".gate-error[role=alert]")?.textContent ?? "", /Not a pairing code/);
+  assert.equal(document.querySelector(".gate-code input")?.getAttribute("aria-invalid"), "true");
 });
 
 test("a project search that finds nothing offers to clear itself", () => {

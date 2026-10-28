@@ -2,6 +2,7 @@ import { LuChevronLeft as ChevronLeft, LuGitBranch as GitBranch, LuGitCommitHori
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type RefObject } from "react";
 import type { ReviewPicker as ReviewPickerState } from "../../application/workspace-state";
 import type { ReviewTarget } from "../../domain/review";
+import type { BranchesResult } from "../../contracts/ipc";
 import { moveListFocus, useDismissibleLayer } from "../focus";
 import { matchBranches, useBranches } from "./BranchMenu";
 import { MAC } from "../platform";
@@ -30,8 +31,10 @@ function targets(engineLabel: string) {
   ];
 }
 
-function Heading({ step, onBack, onClose }: { step: ReviewPickerState["step"]; onBack: () => void; onClose: () => void }) {
-  const title = { targets: "Choose a review", base: "Choose a base branch", commit: "Review a commit", custom: "Custom review" }[step];
+function Heading({ step, current, onBack, onClose }: { step: ReviewPickerState["step"]; current?: string | null; onBack: () => void; onClose: () => void }) {
+  const title = step === "base" && current
+    ? <>Compare <code>{current}</code> with…</>
+    : { targets: "Choose a review", base: "Choose a base branch", commit: "Review a commit", custom: "Custom review" }[step];
   return (
     <div className="command-menu-heading review-heading">
       {step === "targets"
@@ -73,8 +76,7 @@ function TargetOptions({ engineLabel, onStep, onReview }: Pick<ReviewPickerProps
 }
 
 /** The search field keeps focus; arrow keys move the highlighted branch, which Enter takes. */
-function BaseBranchPicker({ workspaceId, onReview }: Pick<ReviewPickerProps, "workspaceId" | "onReview">) {
-  const branches = useBranches(workspaceId, true);
+function BaseBranchPicker({ branches, onReview }: Pick<ReviewPickerProps, "onReview"> & { branches: BranchesResult | null }) {
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const listId = useId();
@@ -135,7 +137,7 @@ function BaseBranchPicker({ workspaceId, onReview }: Pick<ReviewPickerProps, "wo
         ))}
         {!branches && <p className="command-empty">Reading branches…</p>}
         {branches?.status === "error" && <p className="review-error" role="alert">{branches.message}</p>}
-        {available && names.length === 0 && <p className="command-empty">No branch matches</p>}
+        {available && names.length === 0 && <p className="command-empty">{query.trim() ? "No branch matches" : "No other branch to compare with"}</p>}
       </div>
     </div>
   );
@@ -150,6 +152,7 @@ function CommitPicker({ onReview }: Pick<ReviewPickerProps, "onReview">) {
   const commit = sha.trim();
   const valid = COMMIT_SHA.test(commit);
   const invalid = !valid && (/[^0-9a-f]/i.test(commit) || commit.length > 64);
+  const short = !valid && !invalid && commit.length > 0;
   function submit(event: FormEvent) {
     event.preventDefault();
     if (valid) onReview({ type: "commit", sha: commit, title: null });
@@ -162,10 +165,11 @@ function CommitPicker({ onReview }: Pick<ReviewPickerProps, "onReview">) {
         placeholder="e.g. a1b2c3d"
         value={sha}
         aria-invalid={invalid || undefined}
-        aria-describedby={invalid ? errorId : undefined}
+        aria-describedby={invalid || short ? errorId : undefined}
         onChange={(event) => setSha(event.target.value)}
       /></label>
       {invalid && <p id={errorId} className="review-form-error" role="alert">Enter a hex commit SHA</p>}
+      {short && <p id={errorId} className="review-form-hint">At least 4 characters</p>}
       <div className="review-form-actions"><button type="submit" className="primary" disabled={!valid}>Start review <kbd aria-hidden="true">{displayShortcut("Enter", MAC)}</kbd></button></div>
     </form>
   );
@@ -196,6 +200,7 @@ function CustomPicker({ engineLabel, onReview }: Pick<ReviewPickerProps, "engine
 /** The engine's review preset picker, kept in the composer instead of opening a separate settings dialog. */
 export function ReviewPicker({ picker, workspaceId, engineLabel, returnFocus, onStep, onReview, onClose }: ReviewPickerProps) {
   const root = useRef<HTMLDivElement>(null);
+  const branches = useBranches(workspaceId, picker.step === "base");
   useDismissibleLayer(true, [root], onClose, returnFocus);
   function keyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     if (event.key !== "Escape") return;
@@ -205,9 +210,9 @@ export function ReviewPicker({ picker, workspaceId, engineLabel, returnFocus, on
   }
   return (
     <div ref={root} id="review-picker" className="command-menu review-menu" role="dialog" aria-label="Start code review" onKeyDown={keyDown}>
-      <Heading step={picker.step} onBack={() => onStep("targets")} onClose={onClose} />
+      <Heading step={picker.step} current={branches?.status === "available" ? branches.current : null} onBack={() => onStep("targets")} onClose={onClose} />
       {picker.step === "targets" && <TargetOptions engineLabel={engineLabel} onStep={onStep} onReview={onReview} />}
-      {picker.step === "base" && <BaseBranchPicker workspaceId={workspaceId} onReview={onReview} />}
+      {picker.step === "base" && <BaseBranchPicker branches={branches} onReview={onReview} />}
       {picker.step === "commit" && <CommitPicker onReview={onReview} />}
       {picker.step === "custom" && <CustomPicker engineLabel={engineLabel} onReview={onReview} />}
     </div>

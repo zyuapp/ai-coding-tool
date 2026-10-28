@@ -122,7 +122,7 @@ function TailscaleSection({ remote, checking, onRefresh }: { remote: MobileServe
           <p>The phone reaches this computer over your tailnet, so both need Tailscale signed into the same account.</p>
         </div>
         <div className="settings-group-action">
-          <button type="button" disabled={checking} onClick={onRefresh}><SpinningIcon icon={RefreshCw} spinning={checking} size={14} aria-hidden="true" />{checking ? "Checking…" : "Check again"}</button>
+          <button type="button" disabled={checking} aria-busy={checking || undefined} onClick={onRefresh}><SpinningIcon icon={RefreshCw} spinning={checking} size={14} aria-hidden="true" />{checking ? "Checking…" : "Check again"}</button>
         </div>
       </div>
       {steps.map((step) => (
@@ -239,7 +239,7 @@ function DeviceSection({ devices: paired, sessions, onRevokeDevice }: { devices:
                 <p className={`phone-device-state${connection === "live" ? " live" : ""}`}>{deviceLabel(device, connection)}</p>
               </div>
               <div className="setting-row-action">
-                <ConfirmAction className="danger" confirm={`Remove ${device.name}`} onConfirm={() => onRevokeDevice(device.id)}>Remove</ConfirmAction>
+                <ConfirmAction className="danger" aria-label={`Remove ${device.name}`} confirm={`Remove ${device.name}`} onConfirm={() => onRevokeDevice(device.id)}>Remove</ConfirmAction>
               </div>
             </div>
           );

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { LuLoaderCircle as LoaderCircle } from "react-icons/lu";
 import type { CliState } from "../../application/cli-installation";
 import { CLI_COMMAND, CLI_INSTALL_PATH, type CliStatus } from "../../domain/cli";
@@ -52,6 +52,14 @@ export type GeneralSettingsProps = {
 
 export function GeneralSettings({ cli: { status, busy, error }, onReadCli, onSetCliInstalled, chromeBrowser, onSetChromeBrowser, notifications, onSetNotifications, onCheckForUpdates, update = NO_APP_UPDATE_SETTINGS, onOpenSourceLicenses }: GeneralSettingsProps) {
   useEffect(() => { onReadCli(); }, []);
+  /** Which CLI button started the change in flight, so only that one reads as working. */
+  const [cliStep, setCliStep] = useState<"install" | "remove" | null>(null);
+  const setCli = (installed: boolean) => {
+    setCliStep(installed ? "install" : "remove");
+    onSetCliInstalled(installed);
+  };
+  const installing = busy && cliStep !== "remove";
+  const removing = busy && cliStep === "remove";
 
   return (
     <>
@@ -65,10 +73,11 @@ export function GeneralSettings({ cli: { status, busy, error }, onReadCli, onSet
 
         <SettingRow id="general.cli" status={status?.state === "installed"} description={cliDescription(status)}>
           {!status && !error && <em><SpinningIcon icon={LoaderCircle} spinning size={12} aria-hidden="true" />Checking…</em>}
-          {status?.state === "installed" && status.current === false && <button type="button" disabled={busy} onClick={() => onSetCliInstalled(true)}>{busy ? "Updating…" : "Update"}</button>}
-          {status?.state === "installed" && <ConfirmAction disabled={busy} confirm={`Uninstall ${CLI_COMMAND}`} onConfirm={() => onSetCliInstalled(false)}>{busy ? "Removing…" : "Uninstall"}</ConfirmAction>}
-          {status?.state === "missing" && <button type="button" disabled={busy} onClick={() => onSetCliInstalled(true)}>{busy ? "Installing…" : "Install"}</button>}
-          {status?.state === "conflict" && <ConfirmAction disabled={busy} confirm={`Replace ${status.path}`} onConfirm={() => onSetCliInstalled(true)}>{busy ? "Installing…" : "Replace it"}</ConfirmAction>}
+          {!status && error && <button type="button" onClick={onReadCli}>Check again</button>}
+          {status?.state === "installed" && status.current === false && <button type="button" disabled={busy} aria-busy={installing || undefined} onClick={() => setCli(true)}>{installing ? "Updating…" : "Update"}</button>}
+          {status?.state === "installed" && <ConfirmAction disabled={busy} aria-busy={removing || undefined} confirm={`Uninstall ${CLI_COMMAND}`} onConfirm={() => setCli(false)}>{removing ? "Removing…" : "Uninstall"}</ConfirmAction>}
+          {status?.state === "missing" && <button type="button" disabled={busy} aria-busy={busy || undefined} onClick={() => setCli(true)}>{busy ? "Installing…" : "Install"}</button>}
+          {status?.state === "conflict" && <ConfirmAction disabled={busy} aria-busy={busy || undefined} confirm={`Replace ${status.path}`} onConfirm={() => setCli(true)}>{busy ? "Installing…" : "Replace it"}</ConfirmAction>}
         </SettingRow>
 
         {error && <p className="settings-error" role="alert">{error}</p>}

@@ -33,7 +33,7 @@ function WorktreeStatus({ worktree }: { worktree: WorktreeSettingsView }) {
     <span className={changedFiles === 0 ? "worktree-status-clean" : "worktree-status-warning"}>
       {changedFiles === 0 ? <Check size={14} aria-hidden="true" /> : <CirclePlus size={14} aria-hidden="true" />}{changes}
     </span>
-    <span data-tip="Compared with local Git refs. Refresh after fetching to update the comparison.">{commits}</span>
+    <span>{commits}</span>
   </>;
 }
 
@@ -42,7 +42,7 @@ function WorktreeThreads({ worktree, expanded, dispatch }: { worktree: WorktreeS
   if (!worktree.threads.length) return <p className="worktree-no-threads">No linked threads</p>;
   const single = worktree.threads.length === 1;
   return <div className="worktree-threads">
-    {!single && <button className="worktree-thread-link" type="button" aria-expanded={expanded} aria-controls={id} onClick={() => dispatch({ type: "worktree.set-threads-open", root: worktree.root, open: !expanded })}>
+    {!single && <button className="worktree-thread-link worktree-threads-toggle" type="button" aria-expanded={expanded} aria-controls={id} onClick={() => dispatch({ type: "worktree.set-threads-open", root: worktree.root, open: !expanded })}>
       <ChevronRight size={14} className={expanded ? "expanded" : ""} aria-hidden="true" />{worktree.threads.length} linked threads
     </button>}
     <div id={id} className={single ? "worktree-thread-list single" : "worktree-thread-list"} hidden={!single && !expanded}>
@@ -56,10 +56,11 @@ function WorktreeThreads({ worktree, expanded, dispatch }: { worktree: WorktreeS
 }
 
 function WorktreeRow({ worktree, expanded, dispatch }: { worktree: WorktreeSettingsView; expanded: boolean; dispatch: Dispatch }) {
+  const busyId = useId();
   return <article className={`worktree-setting-row${worktree.available ? "" : " missing"}`} aria-label={worktree.title}>
     <span className="worktree-setting-icon" aria-hidden="true"><FolderGit2 size={16} /></span>
     <div className="worktree-setting-copy">
-      <div className="worktree-title"><h4>{worktree.title}</h4>{worktree.busy && <span className="worktree-busy">Run active</span>}</div>
+      <div className="worktree-title"><h4>{worktree.title}</h4>{worktree.busy && <span className="worktree-busy" id={busyId}>Run active</span>}</div>
       <div className="worktree-path"><code>{worktree.root}</code><CopyButton text={worktree.root} label="Copy path" /></div>
       <div className="worktree-metadata"><span>{worktree.project}</span><WorktreeStatus worktree={worktree} /></div>
       <WorktreeThreads worktree={worktree} expanded={expanded} dispatch={dispatch} />
@@ -70,7 +71,7 @@ function WorktreeRow({ worktree, expanded, dispatch }: { worktree: WorktreeSetti
       </button>}
       {worktree.deleting
         ? <span className="text-sweep" role="status">{worktree.available ? "Deleting…" : "Forgetting…"}</span>
-        : <button type="button" className="worktree-delete" aria-disabled={worktree.busy || undefined} data-tip={worktree.busy ? "Wait for the active run to finish" : undefined} onClick={() => { if (!worktree.busy) dispatch({ type: "worktree.confirm-delete", root: worktree.root }); }}>
+        : <button type="button" className="worktree-delete" aria-disabled={worktree.busy || undefined} aria-describedby={worktree.busy ? busyId : undefined} data-tip={worktree.busy ? "Wait for the active run to finish" : undefined} onClick={() => { if (!worktree.busy) dispatch({ type: "worktree.confirm-delete", root: worktree.root }); }}>
           {worktree.available ? "Delete…" : "Forget…"}
         </button>}
     </div>
@@ -94,7 +95,7 @@ export function WorktreeSettings({ page, error, notice, dispatch }: WorktreeSett
               </select>
               <ChevronDown size={14} aria-hidden="true" />
             </div>}
-            <button type="button" className="worktree-refresh" disabled={page.loading} onClick={() => dispatch({ type: "worktree.refresh" })}>
+            <button type="button" className="worktree-refresh" disabled={page.loading} aria-busy={page.loading || undefined} data-tip="Compares commits with local Git refs. Fetch first for the latest." onClick={() => dispatch({ type: "worktree.refresh" })}>
               <SpinningIcon icon={RefreshCw} spinning={page.loading} size={14} aria-hidden="true" />{page.loading ? "Reading…" : "Refresh"}
             </button>
           </div>

@@ -1,6 +1,7 @@
 import { LuClipboardList as ClipboardList, LuFocus as Focus, LuFolderOpen as FolderOpen, LuPanelLeft as PanelLeft, LuPanelRight as PanelRight, LuPencil as Pencil } from "react-icons/lu";
 import type { InstalledApp } from "../../contracts/ipc";
 import type { Thread } from "../../domain/thread";
+import { CommandButton } from "./CommandControl";
 import { HostMark } from "./HostMark";
 import { OpenInMenu } from "./OpenInMenu";
 import { PopoverMenu } from "./PopoverMenu";
@@ -15,7 +16,7 @@ export type WorkspaceHeaderProps = {
   /** What the folder is called, which is the project's name rather than the directory's. */
   folderLabel: string;
   /** The paired computer the thread lives on, for one that is not this computer's own. */
-  host?: { name: string; offline: boolean; reconnecting?: boolean } | null;
+  host?: { id: string; name: string; offline: boolean; reconnecting?: boolean } | null;
   sidebarOpen: boolean;
   sessionPanelOpen: boolean;
   rightDockOpen: boolean;
@@ -47,23 +48,22 @@ export type WorkspaceHeaderProps = {
   onToggleSessionPanel: () => void;
   onToggleRightDock: () => void;
   onChooseFolder: () => void;
-  /** Starts a thread in the heading's project. */
-  onNewThreadInProject: () => void;
 };
 
-function ThreadHeading({ currentThread, folder, folderLabel, host, openMenu, onSetOpenMenu, onRenameThread, onForkThread, onArchiveThread, onSetThreadRole, coordinators, onSetCoordinator, notifications, onSetMuted, stoppable, onStopAll, onNewThreadInProject }: Pick<WorkspaceHeaderProps, "currentThread" | "folder" | "folderLabel" | "host" | "openMenu" | "onSetOpenMenu" | "onRenameThread" | "onForkThread" | "onArchiveThread" | "onSetThreadRole" | "coordinators" | "onSetCoordinator" | "notifications" | "onSetMuted" | "stoppable" | "onStopAll" | "onNewThreadInProject">) {
+function ThreadHeading({ currentThread, folder, folderLabel, host, openMenu, onSetOpenMenu, onRenameThread, onForkThread, onArchiveThread, onSetThreadRole, coordinators, onSetCoordinator, notifications, onSetMuted, stoppable, onStopAll }: Pick<WorkspaceHeaderProps, "currentThread" | "folder" | "folderLabel" | "host" | "openMenu" | "onSetOpenMenu" | "onRenameThread" | "onForkThread" | "onArchiveThread" | "onSetThreadRole" | "coordinators" | "onSetCoordinator" | "notifications" | "onSetMuted" | "stoppable" | "onStopAll">) {
   const name = useRenaming((threadId, value) => { if (value.trim()) onRenameThread(threadId, value); });
   return (
     <div className="thread-heading-line">
       <h1 data-tip={host ? `${folder} on ${host.name}` : folder || undefined}>
         {host && <>
           <HostMark name={host.name} offline={host.offline} reconnecting={host.reconnecting} className="heading-host" />
+          {host.offline && (host.reconnecting
+            ? <span className="heading-host-state" role="status"><span className="text-sweep">Reconnecting…</span></span>
+            : <CommandButton type="button" className="heading-host-state" command={{ type: "computers.reconnect", id: host.id }} data-tip={`Reconnect to ${host.name}`}>Offline<span>Reconnect</span></CommandButton>)}
           <span className="heading-separator" aria-hidden="true">/</span>
         </>}
         {folder && <>
-          {currentThread
-            ? <button type="button" className="heading-project" data-tip={shortcutTip(`New thread in ${folderLabel}`, "Mod+N")} onClick={onNewThreadInProject}>{folderLabel}</button>
-            : <span className="heading-project">{folderLabel}</span>}
+          <span className="heading-project">{folderLabel}</span>
           <span className="heading-separator" aria-hidden="true">/</span>
         </>}
         {currentThread && name.editing === currentThread.id
@@ -106,7 +106,7 @@ function ThreadHeading({ currentThread, folder, folderLabel, host, openMenu, onS
   );
 }
 
-export function WorkspaceHeader({ currentThread, folder, folderLabel, host, sidebarOpen, sessionPanelOpen, rightDockOpen, zen, workingSubagents, openMenu, canOpenFolder, apps, onListApps, onSetOpenMenu, onOpenInApp, onRenameThread, onForkThread, onArchiveThread, onSetThreadRole, coordinators, onSetCoordinator, notifications, onSetMuted, stoppable, onStopAll, onToggleSidebar, onToggleSessionPanel, onToggleRightDock, onChooseFolder, onNewThreadInProject }: WorkspaceHeaderProps) {
+export function WorkspaceHeader({ currentThread, folder, folderLabel, host, sidebarOpen, sessionPanelOpen, rightDockOpen, zen, workingSubagents, openMenu, canOpenFolder, apps, onListApps, onSetOpenMenu, onOpenInApp, onRenameThread, onForkThread, onArchiveThread, onSetThreadRole, coordinators, onSetCoordinator, notifications, onSetMuted, stoppable, onStopAll, onToggleSidebar, onToggleSessionPanel, onToggleRightDock, onChooseFolder }: WorkspaceHeaderProps) {
   const working = workingSubagents > 0 ? `${workingSubagents} ${workingSubagents === 1 ? "agent" : "agents"} working` : "";
   return (
     <header className={`topbar ${sidebarOpen ? "" : "traffic-inset"}`.trimEnd()}>
@@ -140,15 +140,21 @@ export function WorkspaceHeader({ currentThread, folder, folderLabel, host, side
             onSetMuted={onSetMuted}
             stoppable={stoppable}
             onStopAll={onStopAll}
-            onNewThreadInProject={onNewThreadInProject}
           />
           {!folder && <button type="button" className="heading-choose-folder" onClick={onChooseFolder}><FolderOpen size={14} aria-hidden="true" />Choose a project folder</button>}
         </div>
       </div>
       <div className="workspace-controls">
         {folder && <OpenInMenu openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} blocked={canOpenFolder ? null : "Worktree is still being created"} apps={apps} onListApps={onListApps} onOpenInApp={onOpenInApp} />}
-        {zen.available && (
-          <button className="session-toggle" type="button" aria-label="Enter zen mode" data-tip={zen.tip} onClick={zen.onEnter}>
+        {folder && (
+          <button
+            className="session-toggle"
+            type="button"
+            aria-label="Enter zen mode"
+            aria-disabled={zen.available ? undefined : "true"}
+            data-tip={zen.available ? zen.tip : `${zen.tip} · Send a message first`}
+            onClick={zen.available ? zen.onEnter : undefined}
+          >
             <Focus size={18} aria-hidden="true" />
           </button>
         )}

@@ -3,7 +3,8 @@ import type { MobileThreadView, MobileWorktreeChoice } from "../../contracts/mob
 import type { WorktreeDestination } from "../../domain/worktree";
 import { Sheet } from "./Sheet";
 
-function Choice({ icon, label, detail, current, disabled, onSelect }: {
+/** One place a thread can work, as a radio row: what it is called, and what it is beneath. */
+export function LocationChoice({ icon, label, detail, current, disabled, onSelect }: {
   icon: React.ReactNode;
   label: string;
   detail?: string | null;
@@ -38,12 +39,12 @@ export function LocationSheet({ thread, onClose, onMove }: {
     <Sheet title="Location" onClose={onClose}>
       <p className="sheet-note sheet-lead">{locked ? "Wait for the run to finish before moving the thread." : "Existing file changes stay in the old checkout."}</p>
       <section className="sheet-group" role="radiogroup" aria-label="Where this thread works">
-        <Choice icon={<FolderGit2 size={18} strokeWidth={1.8} />} label={thread.projectName ?? "Project"} detail="The project's own checkout" current={location.kind === "local"} disabled={locked} onSelect={move({ kind: "local" })} />
-        {inWorktree && <Choice icon={<FolderSymlink size={18} strokeWidth={1.8} />} label={location.name} detail={location.threads === 1 ? "Only this thread works here" : `${location.threads} threads work here`} current />}
+        <LocationChoice icon={<FolderGit2 size={18} strokeWidth={1.8} />} label={thread.projectName ?? "Project"} detail="The project's own checkout" current={location.kind === "local"} disabled={locked} onSelect={move({ kind: "local" })} />
+        {inWorktree && <LocationChoice icon={<FolderSymlink size={18} strokeWidth={1.8} />} label={location.name} detail={location.threads === 1 ? "Only this thread works here" : `${location.threads} threads work here`} current />}
         {thread.worktrees.map((choice) => (
-          <Choice key={choice.id} icon={<FolderSymlink size={18} strokeWidth={1.8} />} label={choice.name} detail={branchOf(choice)} disabled={locked} onSelect={move({ kind: "worktree", id: choice.id })} />
+          <LocationChoice key={choice.id} icon={<FolderSymlink size={18} strokeWidth={1.8} />} label={choice.name} detail={branchOf(choice)} disabled={locked} onSelect={move({ kind: "worktree", id: choice.id })} />
         ))}
-        <Choice icon={<Plus size={18} strokeWidth={1.8} />} label="New worktree" detail="A checkout of its own, cut from the project" disabled={locked} onSelect={move({ kind: "new" })} />
+        <LocationChoice icon={<Plus size={18} strokeWidth={1.8} />} label="New worktree" detail="A checkout of its own, cut from the project" disabled={locked} onSelect={move({ kind: "new" })} />
       </section>
     </Sheet>
   );
