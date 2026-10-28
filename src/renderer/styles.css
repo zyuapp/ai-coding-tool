@@ -860,17 +860,6 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 }
 .project-task-row:hover { background: var(--row-hover); color: var(--ink-dim); }
 .project-task-row.active { background: var(--row-selected); color: var(--ink); }
-/** The open thread carries the accent at its leading edge, as the folder a new thread starts in does. */
-.project-task-row.active::before, .task-row.active::before {
-  content: "";
-  position: absolute;
-  top: 7px;
-  bottom: 7px;
-  left: 3px;
-  width: 3px;
-  border-radius: 2px;
-  background: var(--accent-text);
-}
 .project-task-row > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .task-rename {
   width: 100%;
@@ -2360,7 +2349,6 @@ pre {
 }
 .settings-sidebar :is(nav, .settings-search-results) button:hover { background: var(--wash); color: var(--ink-dim); }
 .settings-sidebar :is(nav, .settings-search-results) button.active { position: relative; background: var(--surface-active); color: var(--ink); }
-.settings-sidebar :is(nav, .settings-search-results) button.active::before { content: ""; position: absolute; top: 9px; bottom: 9px; left: 0; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); }
 .settings-sidebar :is(nav, .settings-search-results) button.active > svg { color: var(--accent); }
 .settings-main {
   min-width: 0;
@@ -3701,10 +3689,7 @@ pre {
   text-align: left;
   cursor: pointer;
 }
-.command-option { position: relative; }
-/** Arrow-key selection carries a bar as well as a fill, so it reads at a glance over the menu. */
 .command-option.selected, .review-option:focus { background: var(--surface-menu-hover); }
-.command-option.selected::before, .review-option:focus::before { content: ""; position: absolute; top: 14px; bottom: 14px; left: 0; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); }
 .command-mark {
   width: 30px;
   height: 30px;
@@ -3784,9 +3769,7 @@ pre {
   text-align: left;
   cursor: pointer;
 }
-.review-branch-list > button { position: relative; }
 .review-branch-list > button.active { background: var(--surface-menu-hover); }
-.review-branch-list > button.active::before { content: ""; position: absolute; top: 8px; bottom: 8px; left: 0; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); }
 .review-branch-list code { overflow: hidden; font: var(--text-control)/1.3 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
 .review-error { margin: 0; padding: 18px 12px; color: var(--danger-soft); font-size: var(--text-control); text-align: center; }
 .review-form { display: grid; gap: 14px; padding: 14px; }
@@ -5177,7 +5160,6 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 }
 .thread-jump-row:hover { background: var(--wash); }
 .thread-jump-row.picked { background: var(--control); color: var(--ink); }
-.thread-jump-row.picked::before { content: ""; position: absolute; top: 50%; left: 0; width: 3px; height: 16px; margin-top: -8px; border-radius: 2px; background: var(--accent); }
 .thread-jump-engine { flex: none; color: var(--quiet); }
 .thread-jump-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .thread-jump-row .task-spinner { flex: none; width: 12px; height: 12px; }
