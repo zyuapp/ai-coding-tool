@@ -52,7 +52,7 @@ export function ThreadMenu({ thread, onClose, onChanges, onLocation, onNewHere, 
     ],
     [
       { icon: PencilLine, label: "Rename…", onSelect: pick(onRename) },
-      { icon: Archive, label: "Archive", danger: true, onSelect: pick(onArchive) },
+      { icon: Archive, label: "Archive…", danger: true, onSelect: pick(onArchive) },
     ],
   ];
   return <MenuSheet title={thread.title} groups={groups} onClose={onClose} />;
@@ -93,7 +93,7 @@ export function ThreadRowMenu({ thread, onClose, onOpen, onRename, onFork, onDis
     ],
     [
       ...(onDismiss ? [{ icon: Check, label: "Dismiss from Priority", onSelect: pick(onDismiss) }] : []),
-      { icon: Archive, label: "Archive", danger: true, onSelect: pick(onArchive) },
+      { icon: Archive, label: "Archive…", danger: true, onSelect: pick(onArchive) },
     ],
   ];
   return <MenuSheet title={thread.title} groups={groups} onClose={onClose} />;

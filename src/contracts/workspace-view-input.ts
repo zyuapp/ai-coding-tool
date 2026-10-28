@@ -281,8 +281,6 @@ const commands = {
   "proposal.start": { fields: { taskId: text, proposalId: optionalText, proposalIds: optional(proposalIds), place: optional(proposalPlace) }, at: "thread" },
   "proposal.dismiss": { fields: { taskId: text, proposalId: optionalText, proposalIds: optional(proposalIds) }, at: "thread" },
   "task.dismiss": { fields: { taskId: text }, at: "thread" },
-  /** The reducer itself carries this to the computers holding the threads it names. */
-  "task.undismiss": { fields: { taskIds: array(text) }, at: "local" },
   "task.snooze": { fields: { taskId: text, hours: isSnoozeHours }, at: "thread" },
   "task.unsnooze": { fields: { taskId: text }, at: "thread" },
   /** The reducer itself carries this to the computers shown in the sidebar. */
@@ -417,6 +415,8 @@ const commands = {
   "view.move-worktree": { fields: { worktree: nullable(boolean) }, at: "local" },
   "view.fork-name": { fields: { sourceId: nullableText, worktree: optionalBoolean }, at: "local" },
   "view.fork-confirm": { fields: { title: startTitle }, at: "local" },
+  "view.archive-prompt": { fields: { threadId: nullableText }, at: "local" },
+  "view.archive-confirm": { fields: {}, at: "local" },
   "view.set-section-open": { fields: { section: isSidebarSection, open: boolean }, at: "local" },
   "view.set-subagent-group": { fields: { group: isSubagentGroup, open: boolean }, at: "local" },
   "view.set-overview-group": { fields: { taskId: text, group: isOverviewSection, open: optionalBoolean, all: optionalBoolean }, at: "local" },

@@ -43,7 +43,7 @@ test("a thread row's ellipsis opens the same menu a right-click does, and an unr
     assert.equal(view.container.querySelector(".project-task-row.active"), null, "opening the menu does not open the thread");
 
     assert.equal(menuItem("Snooze"), undefined, "outside Priority the menu leaves snoozing out");
-    await act(async () => { menuItem("Archive")!.click(); });
+    await act(async () => { menuItem("Archive…")!.click(); });
     assert.deepEqual(archived, ["here"]);
     assert.equal(menuItems().length, 0);
 

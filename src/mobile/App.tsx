@@ -1,6 +1,6 @@
 import { LuChevronDown as ChevronDown, LuChevronLeft as ChevronLeft, LuCloudOff as CloudOff, LuEllipsis as Ellipsis, LuQrCode as QrCode, LuSquarePen as SquarePen, LuX as X } from "react-icons/lu";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent } from "react";
-import type { MobileCommand, MobileDraftView, MobileProjectGroup, MobileThreadEntry, MobileThreadView, MobileUndo } from "../contracts/mobile";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type TouchEvent } from "react";
+import type { MobileCommand, MobileDraftView, MobileProjectGroup, MobileThreadEntry, MobileThreadView } from "../contracts/mobile";
 import { defaultModelFor, type AgentEngine } from "../domain/agent-engine";
 import { SETTINGS_PAGE_LABELS, settingControl } from "../domain/settings-catalog";
 import { PAIRING_CODE_LENGTH, type MobileConnectionState } from "../domain/mobile";
@@ -14,6 +14,7 @@ import { Conversation } from "./components/Conversation";
 import { LocationSheet } from "./components/LocationSheet";
 import { ProjectSheet } from "./components/ProjectSheet";
 import { RenameSheet } from "./components/RenameSheet";
+import { ArchiveSheet } from "./components/ArchiveSheet";
 import { Segmented } from "./components/Segmented";
 import { StartOptions } from "./components/StartOptions";
 import { ThreadList } from "./components/ThreadList";
@@ -145,20 +146,10 @@ function Banner({ notice, onDismiss }: { notice: string; onDismiss: () => void }
   );
 }
 
-/** The desktop's Undo for what was last archived, dismissed or moved, which leaves when the desktop's does. */
-function UndoToast({ undo, onUndo }: { undo: MobileUndo; onUndo: () => void }) {
-  return (
-    <div className="undo-toast" role="status">
-      <span>{undo.title}</span>
-      <button type="button" onClick={onUndo}>Undo</button>
-    </div>
-  );
-}
-
 const LIST_MODES: { value: MobileListMode; label: string }[] = [{ value: "projects", label: "Projects" }, { value: "activity", label: "Activity" }];
 
 /** Which sheet the thread has up, at most one at a time. */
-type ThreadSheet = "settings" | "menu" | "location" | "rename" | "project" | null;
+type ThreadSheet = "settings" | "menu" | "location" | "rename" | "archive" | "project" | null;
 
 /** Relative times are only ever minutes coarse, so the clock they read wakes twice a minute. */
 function useNow(): number {
@@ -317,8 +308,6 @@ export function App() {
    * shows its title over a blank body rather than the thread the Mac still has open from before.
    */
   const [opening, setOpening] = useState<{ title: string; project: string | null; want: string; was: string } | null>(null);
-  /** The Undo already tapped, kept off screen until the desktop takes it down. */
-  const [taken, setTaken] = useState<string | null>(null);
   /** The row a long press opened options for, over the list, and whether its rename is up instead. */
   const [rowMenu, setRowMenu] = useState<RowMenu | null>(null);
   const listScroll = useRef(0);
@@ -381,7 +370,7 @@ export function App() {
     send({ type: "task.select", taskId });
   }, [send, current, enter]);
 
-  const openMenu = useCallback((entry: MobileThreadEntry) => setRowMenu({ thread: entry, renaming: false }), []);
+  const openMenu = useCallback((entry: MobileThreadEntry) => setRowMenu({ thread: entry, step: "options" }), []);
 
   const newThread = useCallback((projectId: string | null, project: string | null, worktreeId?: string) => {
     setOpening({ title: "New thread", project, want: "draft", was: current });
@@ -407,12 +396,6 @@ export function App() {
   }, []);
 
   const swipe = useEdgeSwipe(reading && sheet === null, back);
-  const undo = state.view.undo;
-  const undoKey = undo && `${undo.id}:${JSON.stringify(undo.command)}`;
-  const toast = undo && undoKey !== taken && <UndoToast key={undoKey} undo={undo} onUndo={() => {
-    setTaken(undoKey);
-    send(undo.command);
-  }} />;
 
   if (state.entry === "blocked" && !state.credential) return <Gate notice={state.notice} />;
 
@@ -456,7 +439,7 @@ export function App() {
         ? <Changes thread={thread} live={live} query={query} />
         : reading
           ? thread && !pending
-            ? <ThreadBody thread={thread} live={live} toast={toast} waiting={waiting} returned={state.returned} send={send} sheet={sheet} onSheet={setSheet} onChanges={() => enter("changes")} onNewHere={() => newThread(thread.projectId, thread.projectName, thread.worktreeId ?? undefined)} onNewWith={(engine) => {
+            ? <ThreadBody thread={thread} live={live} waiting={waiting} returned={state.returned} send={send} sheet={sheet} onSheet={setSheet} onChanges={() => enter("changes")} onNewHere={() => newThread(thread.projectId, thread.projectName, thread.worktreeId ?? undefined)} onNewWith={(engine) => {
               newThread(thread.projectId, thread.projectName, thread.worktreeId ?? undefined);
               send({ type: "task.set-model", engine, model: defaultModelFor(engine) });
             }} onArchive={() => {
@@ -481,15 +464,14 @@ export function App() {
             onDismissAll={dismissAll}
           />}
       {!reading && rowMenu && <RowOptions menu={rowMenu} send={send} onMenu={setRowMenu} onOpen={openThread} onDismiss={dismiss} onArchive={archive} />}
-      {(!reading || screen === "changes") && toast}
     </div>
   );
 }
 
-type RowMenu = { thread: MobileThreadEntry; renaming: boolean };
+type RowMenu = { thread: MobileThreadEntry; step: "options" | "rename" | "archive" };
 
 /** A list row's options, or its rename, over the list. */
-function RowOptions({ menu: { thread, renaming }, send, onMenu, onOpen, onDismiss, onArchive }: {
+function RowOptions({ menu: { thread, step }, send, onMenu, onOpen, onDismiss, onArchive }: {
   menu: RowMenu;
   send: (command: MobileCommand) => void;
   onMenu: (menu: RowMenu | null) => void;
@@ -498,16 +480,17 @@ function RowOptions({ menu: { thread, renaming }, send, onMenu, onOpen, onDismis
   onArchive: (taskId: string) => void;
 }) {
   const close = () => onMenu(null);
-  if (renaming) return <RenameSheet title={thread.title} onClose={close} onRename={(title) => send({ type: "task.rename", taskId: thread.id, title })} />;
+  if (step === "archive") return <ArchiveSheet title={thread.title} running={thread.status === "running" || thread.status === "awaiting-approval"} onClose={close} onArchive={() => onArchive(thread.id)} />;
+  if (step === "rename") return <RenameSheet title={thread.title} onClose={close} onRename={(title) => send({ type: "task.rename", taskId: thread.id, title })} />;
   return (
     <ThreadRowMenu
       thread={thread}
       onClose={close}
       onOpen={() => onOpen(thread.id, thread.title, thread.projectName)}
-      onRename={() => onMenu({ thread, renaming: true })}
+      onRename={() => onMenu({ thread, step: "rename" })}
       onFork={() => send({ type: "task.fork", taskId: thread.id })}
       {...(thread.attention ? { onDismiss: () => onDismiss(thread.id) } : {})}
-      onArchive={() => onArchive(thread.id)}
+      onArchive={() => onMenu({ thread, step: "archive" })}
     />
   );
 }
@@ -524,11 +507,9 @@ function returnedTo(returned: ReturnedCommand | null, taskId: string): ReturnedT
   return null;
 }
 
-function ThreadBody({ thread, live, toast, waiting, returned, send, sheet, onSheet, onChanges, onNewHere, onNewWith, onArchive }: {
+function ThreadBody({ thread, live, waiting, returned, send, sheet, onSheet, onChanges, onNewHere, onNewWith, onArchive }: {
   thread: MobileThreadView;
   live: boolean;
-  /** The Undo on offer, held above the composer. */
-  toast: ReactNode;
   waiting: number;
   returned: ReturnedCommand | null;
   send: (command: MobileCommand) => void;
@@ -550,7 +531,6 @@ function ThreadBody({ thread, live, toast, waiting, returned, send, sheet, onShe
         onSteerQueued={(messageId) => send({ type: "task.steer-queued", taskId: thread.id, messageId })}
         onDropQueued={(messageId) => send({ type: "task.drop-queued", taskId: thread.id, messageId })}
       />
-      {toast && <div className="toast-dock">{toast}</div>}
       {thread.approval && <ApprovalSheet approval={thread.approval} refused={returned?.command.type === "run.decide" ? returned.requestId : null} onDecide={(approval, allow) => send({ type: "run.decide", taskId: approval.taskId, runId: approval.runId, approvalId: approval.approvalId, allow })} />}
       <Composer
         running={running}
@@ -583,10 +563,11 @@ function ThreadBody({ thread, live, toast, waiting, returned, send, sheet, onShe
         onNewHere={onNewHere}
         onFork={(worktree) => send({ type: "task.fork", taskId: thread.id, ...(worktree ? { worktree } : {}) })}
         onRename={() => onSheet("rename")}
-        onArchive={onArchive}
+        onArchive={() => onSheet("archive")}
       />}
       {sheet === "location" && <LocationSheet thread={thread} onClose={close} onMove={(destination) => send({ type: "task.move-worktree", taskId: thread.id, destination })} />}
       {sheet === "rename" && <RenameSheet title={thread.title} onClose={close} onRename={(title) => send({ type: "task.rename", taskId: thread.id, title })} />}
+      {sheet === "archive" && <ArchiveSheet title={thread.title} running={running || thread.status === "awaiting-approval"} onClose={close} onArchive={onArchive} />}
     </>
   );
 }

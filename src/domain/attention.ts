@@ -131,25 +131,6 @@ export function dismissed(threads: Thread[], dismissing: Set<string>): Thread[] 
   return filed.map((thread) => dismissing.has(thread.id) ? withoutFindings(withHandledIssues(thread)) : thread);
 }
 
-/** What a dismissal takes from a thread, kept so Undo can put it back. */
-export type FiledAttention = Pick<Thread, "outcome" | "outcomeUnread" | "findings" | "handledIssues">;
-
-export function attentionOf({ outcome, outcomeUnread, findings, handledIssues }: Thread): FiledAttention {
-  return { outcome, outcomeUnread, findings, handledIssues };
-}
-
-/** Puts back what a dismissal took, unless the thread has something new to say since. */
-export function withAttentionBack(thread: Thread, filed: FiledAttention): Thread {
-  if (wantsAttention(thread)) return thread;
-  const { outcome: _outcome, outcomeUnread: _unread, findings: _findings, handledIssues: _handled, ...rest } = thread;
-  const back: Thread = { ...rest };
-  if (filed.outcome) back.outcome = filed.outcome;
-  if (filed.outcomeUnread) back.outcomeUnread = filed.outcomeUnread;
-  if (filed.findings) back.findings = filed.findings;
-  if (filed.handledIssues) back.handledIssues = filed.handledIssues;
-  return back;
-}
-
 function withHandledIssues(thread: Thread): Thread {
   const keys = findingKeys(thread);
   if (!keys.length) return thread;

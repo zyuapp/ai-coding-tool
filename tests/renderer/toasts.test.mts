@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { test, vi } from "vitest";
 import React, { act } from "react";
 import { App } from "../../src/renderer/App.tsx";
-import { dom, mount, query } from "../support/renderer-dom.mts";
+import { mount, query } from "../support/renderer-dom.mts";
 import { seedProjectTasks } from "../support/sidebar.mts";
 
 vi.mock("../../src/renderer/task-workspace/workspace-connection.ts", () => import("../support/in-process-workspace.mts"));
@@ -21,7 +21,7 @@ test("the first launch after an update shows a toast in the corner, and its X ta
   await view.unmount();
 });
 
-test("dismissing a Priority row and archiving a thread each offer an Undo in the corner that takes it back", async () => {
+test("dismissing a Priority row files it away with no toast", async () => {
   seedProjectTasks([
     { id: "quiet", title: "Quiet", updatedAt: 1 },
     { id: "waiting", title: "Review me", updatedAt: 2, outcome: "finished" },
@@ -30,23 +30,8 @@ test("dismissing a Priority row and archiving a thread each offer an Undo in the
   const view = await mount(React.createElement(App));
   try {
     await act(async () => { query<HTMLButtonElement>(view.container, '[aria-label="Rank threads by activity"]').click(); });
-    const undo = () => view.container.querySelector<HTMLButtonElement>(".toasts .toast-action");
     await act(async () => { query<HTMLButtonElement>(view.container, '[aria-label="Dismiss Review me"]').click(); });
     assert.equal(view.container.querySelector('nav[aria-label="Priority"] .task-row'), null);
-    assert.match(query(view.container, ".toasts .toast.success").textContent ?? "", /Dismissed “Review me”/);
-    assert.equal(undo()?.textContent, "Undo");
-    await act(async () => { undo()!.click(); });
-    assert.ok(query(view.container, 'nav[aria-label="Priority"] .task-row [data-tip="Review me"]'), "the row is back in Priority");
-    assert.equal(view.container.querySelector(".toasts"), null, "a used Undo goes");
-
-    const quiet = query<HTMLElement>(view.container, '.task-row [data-tip="Quiet"]').closest<HTMLElement>(".task-row")!;
-    await act(async () => { quiet.dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true, clientX: 160, clientY: 120 })); });
-    const archive = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((button) => (button.querySelector(".menu-label") ?? button).textContent === "Archive");
-    await act(async () => { archive!.click(); });
-    assert.equal(view.container.querySelector('.task-row [data-tip="Quiet"]'), null);
-    assert.match(query(view.container, ".toasts .toast.success").textContent ?? "", /Archived “Quiet”/);
-    await act(async () => { undo()!.click(); });
-    assert.ok(query(view.container, '.task-row [data-tip="Quiet"]'), "the thread is back in the list");
     assert.equal(view.container.querySelector(".toasts"), null);
   } finally { await view.unmount(); }
 });

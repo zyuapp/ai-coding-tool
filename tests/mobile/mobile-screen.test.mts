@@ -298,7 +298,7 @@ test("a group folds shut and stays shut across a reload", () => {
 test("a Mac with no threads still shows a group to start one in", () => {
   const line = openPhone({ paired: true });
   act(() => line.onopen?.());
-  const bare: MobileView = { groups: [{ projectId: null, name: "Recents", threads: [] }], activity: { priority: [], running: [], threads: [], snoozed: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" }, thread: null, draft: null, error: null, undo: null };
+  const bare: MobileView = { groups: [{ projectId: null, name: "Recents", threads: [] }], activity: { priority: [], running: [], threads: [], snoozed: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" }, thread: null, draft: null, error: null };
   act(() => line.onmessage?.({ data: JSON.stringify({ kind: "snapshot", sequence: 1, sessionId: "s6", build: BUILD, view: bare }) }));
   assert.ok(document.querySelector(".group-header .section-action"), "the empty group still offers New");
   assert.equal(document.querySelector(".group-empty"), null, "one empty line for the whole list, not one per group");
@@ -329,18 +329,11 @@ test("the list ranks by what wants the user when asked, and a Priority row can b
   assert.equal(document.querySelectorAll(".thread-dismiss").length, 1, "only a settled row is filed away; a blocked one is answered");
   click(".thread-dismiss");
   assert.deepEqual(lastCommand(line), { type: "task.dismiss", taskId: "t3" }, "a dismissal goes at once");
-  patchView(line, 2, {
-    activity: { ...ranked.activity, priority: ranked.activity.priority.slice(0, 1) },
-    undo: { id: 1, title: "Dismissed “Nightly check”", command: { type: "task.undismiss", taskIds: ["t3"] } },
-  });
+  patchView(line, 2, { activity: { ...ranked.activity, priority: ranked.activity.priority.slice(0, 1) } });
   assert.equal(document.querySelectorAll(".thread-dismiss").length, 0);
-  assert.match(document.querySelector(".undo-toast")?.textContent ?? "", /Dismissed “Nightly check”/);
-  clickButton("Undo");
-  assert.deepEqual(lastCommand(line), { type: "task.undismiss", taskIds: ["t3"] });
-  assert.equal(document.querySelector(".undo-toast"), null);
 });
 
-test("Dismiss all is sent at once, and the Mac's Undo shows until the Mac takes it down", () => {
+test("Dismiss all is sent at once", () => {
   try {
     const line = openPhone({ paired: true });
     const ranked = view();
@@ -350,10 +343,6 @@ test("Dismiss all is sent at once, and the Mac's Undo shows until the Mac takes 
     click('.segmented button[aria-checked="false"]');
     clickButton("Dismiss all");
     assert.deepEqual(lastCommand(line), { type: "task.dismiss-all" });
-    patchView(line, 2, { undo: { id: 1, title: "Dismissed 2 threads", command: { type: "task.undismiss", taskIds: ["a", "b"] } } });
-    assert.match(document.querySelector(".undo-toast")?.textContent ?? "", /Dismissed 2 threads/);
-    patchView(line, 3, { undo: null });
-    assert.equal(document.querySelector(".undo-toast"), null);
   } finally {
     localStorage.removeItem("aicodingtool.mobile.list");
   }
@@ -521,27 +510,26 @@ function frameOf(line: FakeSocket, type: string) {
   return frame;
 }
 
-test("archiving a thread from its menu goes back to the list and offers Undo, which restores it", () => {
+test("archiving a thread from its menu asks first, and only Archive archives it and goes back to the list", () => {
   const line = openPhone({ paired: true });
-  live(line);
+  const running = view();
+  running.thread = { ...running.thread!, status: "running" };
+  live(line, running);
   click(".thread-row .thread-open");
+  const sent = line.sent.length;
   click('button[aria-label="Thread options"]');
+  clickRow("Archive…");
+  assert.equal(document.querySelector(".sheet-head h2")?.textContent, "Archive “Fix the parser”?");
+  assert.match(document.querySelector(".sheet-lead")?.textContent ?? "", /^Its run stops/);
+  clickButton("Cancel", ".sheet");
+  assert.equal(line.sent.length, sent, "Cancel archives nothing");
+  assert.equal(document.querySelector(".thread-list"), null, "the thread stays open");
+
+  click('button[aria-label="Thread options"]');
+  clickRow("Archive…");
   clickRow("Archive");
   assert.deepEqual(lastCommand(line), { type: "task.archive", taskId: "t1" });
   assert.ok(document.querySelector(".thread-list"), "back on the list");
-  patchView(line, 2, { thread: { kind: "closed" }, undo: { id: 1, title: "Archived “Fix the parser”", command: { type: "task.restore", taskId: "t1" } } });
-  assert.match(document.querySelector(".undo-toast")?.textContent ?? "", /Archived “Fix the parser”/);
-  click(".undo-toast button");
-  assert.deepEqual(lastCommand(line), { type: "task.restore", taskId: "t1" });
-  assert.equal(document.querySelector(".undo-toast"), null);
-});
-
-test("leaving a thread with Back offers no Undo, since nothing was archived", () => {
-  const line = openPhone({ paired: true });
-  live(line);
-  click(".thread-row .thread-open");
-  click('button[aria-label="Back to threads"]');
-  assert.equal(document.querySelector(".undo-toast"), null);
 });
 
 test("an approval answer says it is on its way, and one the Mac turns down can be given again", () => {

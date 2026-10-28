@@ -13,7 +13,7 @@ const OWN_VIEW_KEYS = [
   "runningThreadIds", "blockedThreadIds", "stoppableCoordinatorIds", "worktreeThreadIds", "worktreeGroups", "worktreesById", "schedules", "archivedThreads",
   "managedWorktrees", "worktreeSettings", "worktreeManagementError", "worktreeManagementNotice", "worktreeDeleteConfirmation",
   "installedApps", "cli", "planUsage", "computerUsePermissions", "computerUseSetup", "storageError", "hiddenThreads", "restored", "viewingImage",
-  "expandedProjects", "projectAdd", "projectEditor", "worktreeMove", "forkName", "sections", "subagentGroups", "theme", "themeMode", "uiFont", "monoFont", "readingSize", "terminalSize",
+  "expandedProjects", "projectAdd", "projectEditor", "worktreeMove", "forkName", "archivePrompt", "sections", "subagentGroups", "theme", "themeMode", "uiFont", "monoFont", "readingSize", "terminalSize",
   "sidebarMode", "activityProject", "sidebarOpen", "sessionPanelOpen", "captureSound", "captureFocus", "chromeBrowser", "computerUse", "browserTools", "notifications",
   "favoriteModels", "shortcuts", "capturingShortcut", "desktopShortcutUnavailable", "composerFocus", "settingsOpen", "settingsSection", "settingsFocus",
   "openMenu", "jump", "zen", "remote", "remoteChecking", "appUpdate", "visibleToasts", "canGoBack", "canGoForward", "browserOrigins", "browserImport",

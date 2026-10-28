@@ -75,11 +75,11 @@ test("snooze is offered on approval rows and gated by the actual section, includ
     await act(async () => { menuItem("1 hour")!.click(); });
     assert.deepEqual(snoozed, { id: "asked", hours: 1 });
     await open('nav[aria-label="Running"] .task-row');
-    assert.ok(menuItem("Archive"));
+    assert.ok(menuItem("Archive…"));
     assert.equal(menuItem("Snooze"), undefined, "outside Priority the menu leaves snoozing out");
     await view.render(React.createElement(Harness, { projects: true }));
     await open('.task-row [data-tip="asked"]');
-    assert.ok(menuItem("Archive"));
+    assert.ok(menuItem("Archive…"));
     assert.equal(menuItem("Snooze"), undefined);
   } finally { await view.unmount(); }
 });

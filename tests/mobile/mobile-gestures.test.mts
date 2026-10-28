@@ -161,7 +161,7 @@ test("a long press or a context menu on a row puts its options up over the list"
   assert.equal(document.querySelector(".bar-title h1")?.textContent, "Fix the parser");
 });
 
-test("a row's options rename, fork and archive it from the list, and archiving offers Undo", () => {
+test("a row's options rename, fork and archive it from the list, and archiving asks first", () => {
   const line = openPhone({ paired: true });
   live(line);
   openRowMenu();
@@ -176,13 +176,20 @@ test("a row's options rename, fork and archive it from the list, and archiving o
   assert.deepEqual(lastCommand(line), { type: "task.fork", taskId: "t1" });
 
   openRowMenu();
+  const sent = line.sent.length;
+  clickRow("Archive…");
+  assert.equal(line.sent.length, sent, "nothing is archived until the question is answered");
+  assert.equal(document.querySelector(".sheet-head h2")?.textContent, "Archive “Fix the parser”?");
+  assert.match(document.querySelector(".sheet-lead")?.textContent ?? "", /Settings › Archived threads/);
+  clickButton("Cancel", ".sheet");
+  assert.equal(document.querySelector(".sheet"), null);
+  assert.equal(line.sent.length, sent, "Cancel archives nothing");
+
+  openRowMenu();
+  clickRow("Archive…");
   clickRow("Archive");
   assert.deepEqual(lastCommand(line), { type: "task.archive", taskId: "t1" });
-  patchView(line, 2, { undo: { id: 1, title: "Archived “Fix the parser”", command: { type: "task.restore", taskId: "t1" } } });
-  assert.match(document.querySelector(".undo-toast")?.textContent ?? "", /Archived “Fix the parser”/);
-  click(".undo-toast button");
-  assert.deepEqual(lastCommand(line), { type: "task.restore", taskId: "t1" });
-  assert.equal(document.querySelector(".undo-toast"), null, "a tapped Undo goes at once, before the Mac takes it down");
+  assert.equal(document.querySelector(".sheet"), null);
 });
 
 test("a row a finger rests on sinks until the press lands or lets go", () => {

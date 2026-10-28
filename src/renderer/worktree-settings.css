@@ -47,9 +47,10 @@
 .worktree-setting-row.missing .worktree-setting-icon { color: var(--quiet-strong); border-color: var(--line); background: transparent; }
 .worktree-setting-row.missing h4 { color: var(--ink-dim); }
 .worktree-settings svg.expanded { transform: rotate(90deg); }
-.worktree-delete-dialog { width: min(500px, 100%); max-height: 100%; overflow-y: auto; padding: 27px; }
-.worktree-delete-dialog h2 { margin: 0; font-size: var(--text-heading); color: var(--ink); }
-.worktree-delete-dialog p { margin: 14px 0 0; font-size: var(--text-control); line-height: 1.6; color: var(--muted); }
+.worktree-delete-dialog, .archive-dialog { width: min(500px, 100%); max-height: 100%; overflow-y: auto; padding: 27px; }
+.worktree-delete-dialog h2, .archive-dialog h2 { margin: 0; font-size: var(--text-heading); color: var(--ink); overflow-wrap: anywhere; }
+.worktree-delete-dialog p, .archive-dialog p { margin: 14px 0 0; font-size: var(--text-control); line-height: 1.6; color: var(--muted); }
+.archive-dialog { width: min(440px, 100%); }
 .worktree-delete-target { display: grid; gap: 5px; margin: 18px 0 4px; padding: 13px 14px; border: 1px solid var(--line); border-radius: 7px; background: var(--wash); overflow-wrap: anywhere; }
 .worktree-delete-target strong { font-size: var(--text-control); color: var(--ink-dim); }
 .worktree-delete-target span { color: var(--muted); font-size: var(--text-meta); }

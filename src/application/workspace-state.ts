@@ -36,14 +36,13 @@ export { EMPTY_DIFF, diffFor, diffMatches, foldedOnLoad, retainedViews, withDiff
 import type { AutomationView } from "../domain/automation.js";
 import { NO_APP_UPDATE, type AppBuild, type AppUpdate, type AppUpdateRequest } from "../domain/app-update.js";
 import type { Toast } from "../domain/toast.js";
-import type { FiledAttention } from "../domain/attention.js";
 import { visibleToasts } from "./toasts.js";
 import { emptyMobileServerState, type MobileServerState } from "../domain/mobile.js";
 import { selectedComputer, NO_COMPUTERS, type ComputersState } from "./computers.js";
 import { overlaidView } from "./workspace-view-overlay.js";
 import { NO_PROJECT_ADD, type ProjectAddWorkspaceState } from "./project-add.js";
 import { workspaceDialogsView } from "./workspace-dialogs.js";
-export type { ProjectEditorView, WorktreeMoveView } from "./workspace-dialogs.js";
+export type { ArchivePromptView, ProjectEditorView, WorktreeMoveView } from "./workspace-dialogs.js";
 import type { BrowserApproval } from "../domain/browser.js";
 import type { FindResults, FindTarget } from "../domain/find.js";
 import { shortcutSettings, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
@@ -290,6 +289,8 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   worktreeMove: { taskId: string; worktree: boolean } | null;
   /** The fork the naming dialog is open on: the thread to copy, where the copy goes, and the name it suggests. */
   forkName: ForkName | null;
+  /** The thread the archive confirmation is open on. */
+  archivePrompt: string | null;
   /** Which of the sidebar's lists are unfolded, across both of its modes. */
   sections: SidebarSections;
   /** Which subagent groups are unfolded: the sidebar's list, and each status heading in the panel. */
@@ -407,8 +408,6 @@ export type WorkspaceState = ProjectAddWorkspaceState & {
   toastSequence: number;
   /** What the user closed toasts about, so the same ones are not raised again. Kept between launches. */
   dismissedToasts: string[];
-  /** What the last dismissal took from each thread it filed away, which its Undo puts back. Session-only. */
-  filedAttention: Record<string, FiledAttention>;
   /** The computers this one is paired with, each mirrored here as it changes there. Session-only. */
   computers: ComputersState;
   focused: boolean;
@@ -475,6 +474,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     projectEdit: null,
     worktreeMove: null,
     forkName: null,
+    archivePrompt: null,
     sections: OPEN_SIDEBAR_SECTIONS,
     theme: DEFAULT_THEME,
     themeMode: DEFAULT_THEME_MODE,
@@ -533,7 +533,6 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     toasts: [],
     toastSequence: 0,
     dismissedToasts: [],
-    filedAttention: {},
     computers: NO_COMPUTERS,
     focused: true,
     activeRuns: {},

@@ -15,17 +15,60 @@ test("archiving a thread retires its automation and cancels a run still going", 
   });
 
   const archived = reduce(state, { type: "task.archive", taskId: "task-a" });
-  const work = (effects: ReturnType<typeof reduce>["effects"]) => effects.filter((effect) => effect.type !== "schedule-toast-dismissal");
-  assert.deepEqual(work(archived.effects), [{ type: "automation.delete", taskId: "task-a" }]);
+  assert.deepEqual(archived.effects, [{ type: "automation.delete", taskId: "task-a" }]);
   assert.ok(archived.state.threads[0].archivedAt);
 
   const running = reduce(state, { type: "task.archive", taskId: "task-b" });
-  assert.deepEqual(work(running.effects), [
+  assert.deepEqual(running.effects, [
     { type: "automation.delete", taskId: "task-b" },
     { type: "send-run-command", command: { type: "cancel", taskId: "task-b", runId: "run-b" } },
     { type: "send-run-command", command: { type: "archive", taskId: "task-b", channel: "main", archived: true } },
   ]);
   assert.ok(running.state.threads[1].archivedAt);
+});
+
+test("archiving asks first: the prompt opens on a thread, Cancel closes it, and only confirming archives", () => {
+  const state = workspace({
+    threads: [task("task-a"), task("task-b")],
+    activeRuns: { "task-b": activeRun("task-b", "run-b") },
+    openMenu: "thread:task-a",
+  });
+
+  const asked = reduce(state, { type: "view.archive-prompt", threadId: "task-a" });
+  assert.equal(asked.state.archivePrompt, "task-a");
+  assert.equal(asked.state.openMenu, null, "the menu that asked closes");
+  assert.deepEqual(asked.effects, []);
+  assert.equal(asked.state.threads[0].archivedAt, undefined);
+  assert.deepEqual(deriveView(asked.state).archivePrompt, { taskId: "task-a", title: "task-a", running: false });
+  assert.equal(deriveView(reduce(state, { type: "view.archive-prompt", threadId: "task-b" }).state).archivePrompt?.running, true, "a running thread says its run stops");
+
+  const cancelled = reduce(asked.state, { type: "view.archive-prompt", threadId: null });
+  assert.equal(cancelled.state.archivePrompt, null);
+  assert.equal(cancelled.state.threads[0].archivedAt, undefined);
+  assert.equal(deriveView(cancelled.state).archivePrompt, null);
+
+  const confirmed = reduce(asked.state, { type: "view.archive-confirm" });
+  assert.equal(confirmed.state.archivePrompt, null);
+  assert.ok(confirmed.state.threads[0].archivedAt);
+  assert.equal(confirmed.state.threads[1].archivedAt, undefined);
+
+  assert.equal(reduce(state, { type: "view.archive-confirm" }).state, state, "with nothing asked, confirming does nothing");
+  assert.equal(reduce(state, { type: "view.archive-prompt", threadId: "ghost" }).state, state, "a thread that is not there is not asked about");
+});
+
+test("an agent's archive acts at once, and closes a question asked about the same thread", () => {
+  const state = workspace({ threads: [task("task-a"), task("task-b")] });
+  const direct = reduce(state, { type: "task.archive", taskId: "task-a" });
+  assert.ok(direct.state.threads[0].archivedAt);
+  assert.equal(direct.state.archivePrompt, null);
+
+  const asked = reduce(state, { type: "view.archive-prompt", threadId: "task-a" }).state;
+  const archived = reduce(asked, { type: "task.archive", taskId: "task-a" }).state;
+  assert.equal(archived.archivePrompt, null);
+  const restored = reduce(archived, { type: "task.restore", taskId: "task-a" }).state;
+  assert.equal(deriveView(restored).archivePrompt, null, "restoring does not bring the question back");
+  assert.equal(reduce(state, { type: "view.archive-prompt", threadId: "task-a" }).state.archivePrompt, "task-a");
+  assert.equal(reduce(archived, { type: "view.archive-prompt", threadId: "task-a" }).state.archivePrompt, null, "an archived thread is not asked about");
 });
 
 test("restoring an archived task returns it to the sidebar and leaves its automation retired", () => {

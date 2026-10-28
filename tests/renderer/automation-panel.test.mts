@@ -302,6 +302,8 @@ test("archiving a task retires its automation", async () => {
   assert.equal(item(workspace.get().automation).taskId, first.taskId);
 
   await act(async () => { workspace.get().actions.archiveThread(first.taskId); });
+  assert.deepEqual(desktop.automationChanges, [], "archiving asks first");
+  await act(async () => { await workspace.get().dispatch({ type: "view.archive-confirm" }); });
 
   assert.deepEqual(desktop.automationChanges, [{ taskId: first.taskId, deleted: true }]);
   await workspace.view.unmount();

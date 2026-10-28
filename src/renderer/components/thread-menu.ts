@@ -61,6 +61,6 @@ export function threadMenuEntries(thread: Thread, actions: {
     { label: "Fork", command: { type: "task.fork", taskId: thread.id, worktree: false }, onSelect: () => actions.onFork(false) },
     { label: "Fork into a new worktree", command: { type: "task.fork", taskId: thread.id, worktree: true }, onSelect: () => actions.onFork(true) },
     "separator",
-    { label: "Archive", command: { type: "task.archive", taskId: thread.id }, danger: true, onSelect: actions.onArchive },
+    { label: "Archive…", command: { type: "task.archive", taskId: thread.id }, danger: true, onSelect: actions.onArchive },
   ];
 }

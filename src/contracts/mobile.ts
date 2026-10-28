@@ -25,7 +25,7 @@ import { sendStaysInReach } from "./task-send.js";
 export type MobileCommand = Extract<AppCommand, {
   type:
     | "task.new" | "task.select" | "task.send" | "task.archive" | "task.restore" | "task.rename"
-    | "task.dismiss" | "task.undismiss" | "task.dismiss-all" | "task.fork" | "task.set-policy" | "task.set-model"
+    | "task.dismiss" | "task.dismiss-all" | "task.fork" | "task.set-policy" | "task.set-model"
     | "task.set-effort" | "task.set-fast-mode" | "task.set-worktree" | "task.move-worktree"
     | "task.steer-queued" | "task.drop-queued"
     | "run.cancel" | "run.decide" | "run.stop-process" | "question.answer"
@@ -203,13 +203,6 @@ export type MobileTheme = {
   mode: ThemeMode;
 };
 
-/** The Undo the desktop has up, which the phone offers too: what was done, and what takes it back. */
-export type MobileUndo = {
-  id: number;
-  title: string;
-  command: Extract<MobileCommand, { type: "task.restore" | "task.undismiss" | "task.move-worktree" }>;
-};
-
 /**
  * What a phone sees: the thread list grouped by project, and the one conversation it has open. It is
  * the desktop's own derivation narrowed to a small screen, so the two can never disagree.
@@ -227,8 +220,6 @@ export type MobileView = {
    * reducer decides, so a failure raised by the work that decision described arrives only here.
    */
   error: string | null;
-  /** The Undo for what was last archived, dismissed or moved, while it is offered. */
-  undo: MobileUndo | null;
 };
 
 /** Everything about the open thread but which thread it is, so a change can name only what moved. */
@@ -264,7 +255,6 @@ export type MobilePatch = {
   draft?: MobileDraftView | null;
   /** Present only when it moved, because null is a value here rather than an absence. */
   error?: string | null;
-  undo?: MobileUndo | null;
 };
 
 /**
@@ -272,7 +262,7 @@ export type MobilePatch = {
  * page for any other reason: a phone the Mac turns away is told to reload, where one left running
  * is wrong in silence.
  */
-export const MOBILE_PROTOCOL_VERSION = 6;
+export const MOBILE_PROTOCOL_VERSION = 7;
 
 const MAX_ID_LENGTH = 256;
 const MAX_PROMPT_LENGTH = 1_000_000;
@@ -284,8 +274,6 @@ const MAX_TOKEN_LENGTH = 512;
 const MAX_PATH_LENGTH = 4_096;
 /** How many drafted annotations or pastes one recall may carry. */
 const MAX_RECALL = 100;
-/** How many threads one Undo of a dismissal may name, as many as the window's own checks take. */
-const MAX_UNDISMISSED = 10_000;
 
 function isString(value: unknown, maxLength = MAX_ID_LENGTH): value is string {
   return typeof value === "string" && value.length > 0 && value.length <= maxLength;
@@ -376,8 +364,6 @@ function isThreadCommand(command: Record<string, unknown>, named: boolean) {
     case "task.restore":
     case "task.dismiss":
       return isString(command.taskId);
-    case "task.undismiss":
-      return Array.isArray(command.taskIds) && command.taskIds.length <= MAX_UNDISMISSED && command.taskIds.every((taskId) => isString(taskId));
     case "task.dismiss-all":
       return (command.localOnly === undefined || typeof command.localOnly === "boolean")
         && (command.projectId === undefined || isString(command.projectId));

@@ -54,7 +54,7 @@ test("a setting tapped while the line is down waits with its command instead of 
   }
 });
 
-test("the Mac's Undo for a move shows above the composer, and moves the thread back", () => {
+test("moving a thread to another checkout sends the move at once", () => {
   const line = openPhone({ paired: true });
   const housed = view();
   housed.thread = { ...housed.thread!, worktrees: [{ id: "wt-2", name: "Spike", branch: "spike" }] };
@@ -64,11 +64,7 @@ test("the Mac's Undo for a move shows above the composer, and moves the thread b
   clickRow("Location");
   click('.location-option[aria-checked="false"]:not(:disabled)');
   assert.deepEqual(lastCommand(line), { type: "task.move-worktree", taskId: "t1", destination: { kind: "worktree", id: "wt-2" } });
-  patchView(line, 2, { undo: { id: 1, title: "Moved to Spike", command: { type: "task.move-worktree", taskId: "t1", destination: { kind: "local" } } } });
-  assert.match(document.querySelector(".toast-dock .undo-toast")?.textContent ?? "", /Moved to Spike/);
-  click(".undo-toast button");
-  assert.deepEqual(lastCommand(line), { type: "task.move-worktree", taskId: "t1", destination: { kind: "local" } });
-  assert.equal(document.querySelector(".undo-toast"), null);
+  assert.equal(document.querySelector(".sheet"), null);
 });
 
 test("leaving a worktree only this thread works in says it goes", () => {

@@ -141,8 +141,6 @@ export type TaskCommand =
   | { type: "proposal.dismiss"; taskId: string; proposalId?: string; proposalIds?: string[] }
   /** Takes the dot off a thread, which is the only thing that does. Opening the thread only dims it. */
   | { type: "task.dismiss"; taskId: string }
-  /** Puts back what the last dismissal took from these threads, wherever they are held, unless they have something new since. */
-  | { type: "task.undismiss"; taskIds: string[] }
   | { type: "task.snooze"; taskId: string; hours: SnoozeHours }
   /** Brings a snoozed thread back before its time. */
   | { type: "task.unsnooze"; taskId: string }
@@ -489,6 +487,10 @@ export type ViewCommand =
   | { type: "view.fork-name"; sourceId: string | null; worktree?: boolean }
   /** Forks the thread the naming dialog is open on, under the name typed there. */
   | { type: "view.fork-confirm"; title: string }
+  /** Asks before archiving a thread, or closes the question with a null. Only `view.archive-confirm` archives it. */
+  | { type: "view.archive-prompt"; threadId: string | null }
+  /** Archives the thread the archive confirmation is open on. */
+  | { type: "view.archive-confirm" }
   /** Folds one of the sidebar's lists, whichever mode draws it. */
   | { type: "view.set-section-open"; section: SidebarSection; open: boolean }
   /** Folds the sidebar's subagent list, or one status heading in the Subagents panel. */

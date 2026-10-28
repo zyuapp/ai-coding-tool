@@ -3,13 +3,14 @@ import { ProjectAddDialog } from "./ProjectAddDialog";
 import { ProjectEditDialog } from "./ProjectEditDialog";
 import { WorktreeMoveDialog } from "./WorktreeMoveDialog";
 import { ForkNameDialog } from "./ForkNameDialog";
+import { ArchiveDialog } from "./ArchiveDialog";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;
 
 /** The questions the workspace raises over everything else, each open only while state holds it. */
 export function WorkspaceDialogs({ workspace }: { workspace: Workspace }) {
-  const { worktreeMove, projectEditor, forkName, actions } = workspace;
+  const { worktreeMove, projectEditor, forkName, archivePrompt, actions } = workspace;
   return (
     <>
       {workspace.projectAdd && <ProjectAddDialog add={workspace.projectAdd} links={workspace.computerLinks} name={workspace.computerName} dispatch={workspace.dispatch} />}
@@ -29,6 +30,7 @@ export function WorkspaceDialogs({ workspace }: { workspace: Workspace }) {
           onClose={() => void actions.closeForkName()}
         />
       )}
+      {archivePrompt && <ArchiveDialog key={archivePrompt.taskId} prompt={archivePrompt} dispatch={workspace.dispatch} />}
       {projectEditor && (
         <ProjectEditDialog
           editor={projectEditor}

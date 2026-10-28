@@ -77,7 +77,6 @@ export function view(): MobileView {
     },
     draft: null,
     error: null,
-    undo: null,
   };
 }
 

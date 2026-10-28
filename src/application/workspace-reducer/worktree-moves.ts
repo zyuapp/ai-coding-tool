@@ -14,7 +14,6 @@ import { coordinatorAskRefusal, WORKTREE_CREATING_ERROR, WORKTREE_MISSING_ERROR,
 import { now, settled, targetId, rejected } from "./shared.js";
 import { withCreatingWorktree } from "./worktree-claims.js";
 import type { WorkspaceTransition } from "./types.js";
-import { moveUndo, offerUndo } from "../undo.js";
 
 /** A location change preserves the transcript and forks its continuation on the next run. */
 export function relocateThread(state: WorkspaceState, thread: Thread, destination: Worktree | undefined): WorkspaceTransition {
@@ -98,8 +97,6 @@ export function reduceWorktreeMove(state: WorkspaceState, input: Extract<TaskCom
   const staying = withoutMoveAfterRun(state, thread.id);
   if (destination.kind === "new") return moveToNewWorktree(staying, thread, project.id, input.then);
   const moved = relocateThread({ ...staying, actionError: null }, thread, target);
-  const undo = moveUndo(state, thread, input);
-  if (undo) return offerUndo(moved, undo.title, undo.command);
   if (!input.then) return moved;
   const drained = drainQueue(withFollowUp(moved.state, thread.id, input.then), thread.id, "deliver");
   return { state: drained.state, effects: [...moved.effects, ...drained.effects] };

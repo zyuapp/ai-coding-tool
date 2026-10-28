@@ -2383,56 +2383,6 @@ button.thread-start-project:active {
 
 /* Odds and ends -------------------------------------------------------- */
 
-.undo-toast {
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: calc(var(--safe-bottom) + 12px);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 52px;
-  padding: 4px 4px 4px 16px;
-  border-radius: var(--radius-card);
-  background: var(--surface-inverse);
-  color: var(--ink-inverse);
-  box-shadow: var(--shadow-float-lift);
-  font-size: var(--text-control);
-  animation: rise 260ms var(--ease);
-}
-
-/* Holds the Undo just above a thread's composer, whatever its height. */
-.toast-dock {
-  position: relative;
-  flex: none;
-  height: 0;
-  z-index: 2;
-}
-
-.toast-dock > .undo-toast {
-  bottom: 8px;
-}
-
-.undo-toast > span {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.undo-toast button {
-  flex: none;
-  min-height: var(--tap);
-  padding: 0 14px;
-  border-radius: 12px;
-  font-weight: 650;
-}
-
-.undo-toast button:active {
-  background: rgb(from var(--ink-inverse) r g b / 0.12);
-}
-
 .ghost {
   color: var(--ink-dim);
 }
