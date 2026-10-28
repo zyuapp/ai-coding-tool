@@ -304,11 +304,6 @@ export function App() {
   const [listMode, setListMode] = useState<MobileListMode>(() => readListMode(window.localStorage));
   const [activityProject, setActivityProject] = useState(() => readActivityProject(window.localStorage));
   const [sheet, setSheet] = useState<ThreadSheet>(null);
-  /**
-   * The thread a tap asked for, held until the Mac opens it or anything else. Until then the screen
-   * shows its title over a blank body rather than the thread the Mac still has open from before.
-   */
-  const [opening, setOpening] = useState<{ title: string; project: string | null; want: string; was: string } | null>(null);
   /** The row a long press opened options for, over the list, and whether its rename is up instead. */
   const [rowMenu, setRowMenu] = useState<RowMenu | null>(null);
   const listScroll = useRef(0);
@@ -318,22 +313,14 @@ export function App() {
   /** Commands only wait on the line while it is down; on a live one they are simply on their way. */
   const live = state.connection === "live";
   const waiting = live ? 0 : state.outbox.length;
-  const notice = state.notice ?? (state.view.error !== state.dismissedError ? state.view.error : null);
   const current = thread ? thread.id : draft ? "draft" : "none";
+  const { opening, setOpening, missed, setMissed } = useOpening(current, live);
+  const missedNote = missed && (thread || draft) && screen === "thread" ? `Couldn't open "${missed.title}"` : null;
+  const notice = state.notice ?? missedNote ?? (state.view.error !== state.dismissedError ? state.view.error : null);
   const reading = screen !== "list";
 
   /** Only a theme the Mac has actually sent is worn; the empty view's default is not the Mac's choice. */
   useDesktopTheme(state.build !== null ? state.view.theme : null);
-
-  useEffect(() => {
-    if (!opening) return;
-    if (current !== opening.was || current === opening.want) {
-      setOpening(null);
-      return;
-    }
-    const timer = setTimeout(() => setOpening(null), 3000);
-    return () => clearTimeout(timer);
-  }, [opening, current]);
 
   /** The screen as last drawn, which says whether a step goes deeper than the list. */
   const shown = useRef(screen);
@@ -341,6 +328,7 @@ export function App() {
 
   const stepBack = useCallback(() => {
     setOpening(null);
+    setMissed(null);
     setSheet(null);
     setScreen((from) => from === "changes" ? "thread" : "list");
   }, []);
@@ -363,22 +351,25 @@ export function App() {
     if (screen === "changes" && !thread) back();
   }, [screen, thread, back]);
 
-  const openThread = useCallback((taskId: string, title: string, project: string | null) => {
+  /** Asks the Mac to open `request.want`, showing its title until it does. */
+  const request = useCallback((ask: Omit<Opening, "was">) => {
     setRowMenu(null);
-    setOpening({ title, project, want: taskId, was: current });
+    setMissed(null);
+    setOpening({ ...ask, was: current });
     enter("thread");
     setSheet(null);
-    send({ type: "task.select", taskId });
+    for (const command of ask.commands) send(command);
   }, [send, current, enter]);
+
+  const openThread = useCallback((taskId: string, title: string, project: string | null) => {
+    request({ title, project, want: taskId, commands: [{ type: "task.select", taskId }] });
+  }, [request]);
 
   const openMenu = useCallback((entry: MobileThreadEntry) => setRowMenu({ thread: entry, step: "options" }), []);
 
   const newThread = useCallback((projectId: string | null, project: string | null, worktreeId?: string) => {
-    setOpening({ title: "New thread", project, want: "draft", was: current });
-    enter("thread");
-    setSheet(null);
-    send({ type: "task.new", ...(projectId ? { projectId } : {}), ...(worktreeId ? { worktreeId } : {}) });
-  }, [send, current, enter]);
+    request({ title: "New thread", project, want: "draft", commands: [{ type: "task.new", ...(projectId ? { projectId } : {}), ...(worktreeId ? { worktreeId } : {}) }] });
+  }, [request]);
 
   const dismiss = useCallback((taskId: string) => send({ type: "task.dismiss", taskId }), [send]);
   const dismissAll = useCallback((projectId?: string) => send({ type: "task.dismiss-all", ...(projectId ? { projectId } : {}) }), [send]);
@@ -407,8 +398,8 @@ export function App() {
 
   const start = reading ? null : startingProject(state.view.groups, listMode, activityProject);
   const pending = opening !== null && current === opening.was && current !== opening.want;
-  const title = !reading ? "Threads" : screen === "changes" ? "Changes" : pending ? opening.title : thread ? thread.title : draft ? "New thread" : "Opening";
-  const project = pending ? opening.project : thread ? thread.projectName : draft ? draft.projectName : undefined;
+  const title = !reading ? "Threads" : screen === "changes" ? "Changes" : pending ? opening.title : thread ? thread.title : draft ? "New thread" : missed?.title ?? "Opening";
+  const project = pending ? opening.project : thread ? thread.projectName : draft ? draft.projectName : missed ? missed.project : undefined;
   const subtitle = screen === "changes"
     ? thread?.title ?? null
     : reading && project !== undefined
@@ -438,7 +429,7 @@ export function App() {
         )}
         <ConnectionMark connection={state.connection} now={now} />
       </header>
-      {notice && <Banner key={notice} notice={notice} onDismiss={dismissNotice} />}
+      {notice && <Banner key={notice} notice={notice} onDismiss={notice === missedNote ? () => setMissed(null) : dismissNotice} />}
       {screen === "changes" && thread
         ? <Changes thread={thread} live={live} query={query} />
         : reading
@@ -453,7 +444,12 @@ export function App() {
             }} />
             : draft && !pending
               ? <DraftBody draft={draft} groups={state.view.groups} live={live} waiting={waiting} send={send} sheet={sheet} onSheet={setSheet} onProject={newThread} onStartIn={(worktreeId) => newThread(draft.projectId, draft.projectName, worktreeId)} />
-              : <div className="empty"><p>Opening the thread…</p></div>
+              : missed
+                ? <div className="empty">
+                  <p>Couldn't open the thread</p>
+                  <button type="button" className="primary" onClick={() => request(missed)}>Try again</button>
+                </div>
+                : <div className="empty" role="status"><span className="line-spin" aria-hidden="true" /><p>Opening the thread…</p></div>
           : <ThreadList
             mode={listMode}
             groups={state.view.groups}
@@ -472,6 +468,40 @@ export function App() {
       {!reading && rowMenu && <RowOptions menu={rowMenu} send={send} onMenu={setRowMenu} onOpen={openThread} onDismiss={dismiss} onArchive={archive} />}
     </div>
   );
+}
+
+/** A thread the phone has asked the Mac to open: what to show meanwhile, what it waits for, and the commands that asked. */
+type Opening = { title: string; project: string | null; want: string; was: string; commands: MobileCommand[] };
+
+/**
+ * The thread a tap asked for, held until the Mac opens it or anything else, and the request the Mac
+ * let pass without opening anything. Until then the screen shows the asked-for title over a blank
+ * body rather than the thread the Mac still has open from before. A request waits as long as the
+ * line is down, and gives up three seconds after it is up.
+ */
+function useOpening(current: string, live: boolean) {
+  const [opening, setOpening] = useState<Opening | null>(null);
+  const [missed, setMissed] = useState<Opening | null>(null);
+
+  useEffect(() => {
+    if (!opening) return;
+    if (current !== opening.was || current === opening.want) {
+      setOpening(null);
+      return;
+    }
+    if (!live) return;
+    const timer = setTimeout(() => {
+      setOpening(null);
+      setMissed(opening);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [opening, current, live]);
+
+  useEffect(() => {
+    if (missed && current === missed.want) setMissed(null);
+  }, [missed, current]);
+
+  return { opening, setOpening, missed, setMissed };
 }
 
 type RowMenu = { thread: MobileThreadEntry; step: "options" | "rename" | "archive" };

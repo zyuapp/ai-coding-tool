@@ -18,7 +18,7 @@ vi.mock("../../../src/renderer/annotate/marks.ts", async (original) => ({
   renderAnnotated: () => "data:image/png;base64,AQID",
 }));
 
-const { ImageAnnotator } = await import("../../../src/renderer/components/ImageAnnotator.tsx");
+const { ImageAnnotator, markBounds } = await import("../../../src/renderer/components/ImageAnnotator.tsx");
 
 const marks: Annotation[] = [
   { kind: "box", x: 0.1, y: 0.1, width: 0.2, height: 0.2, text: "First" },
@@ -50,7 +50,7 @@ test("arrow keys on the canvas pick a mark, which Delete removes and undo puts b
   assert.ok(query(document.body, '.annotator-marktools.picked [aria-label="Delete arrow"]'), "the next press walks to the arrow");
 
   await act(async () => press(canvas, "Delete"));
-  assert.match(query(document.body, ".annotator-count").textContent ?? "", /^1 mark\. /);
+  assert.match(query(document.body, ".annotator-count").textContent ?? "", /^1 mark\./);
   assert.equal(query<HTMLButtonElement>(document.body, ".annotator-undo").disabled, false);
 
   await act(async () => press(document.body, "z", { metaKey: true, ctrlKey: true }));
@@ -125,9 +125,25 @@ test("a picked mark keeps its tools after the pointer leaves the image", async (
   await view.unmount();
 });
 
-test("the footer names the keys that walk the marks whenever there are marks", async () => {
-  const { view } = await open();
+test("the footer names the keys that walk the marks only while the canvas has focus", async () => {
+  const { view, canvas } = await open();
+  assert.equal(query(document.body, ".annotator-count").textContent, "2 marks.");
+  await act(async () => { (canvas as HTMLCanvasElement).focus(); });
   assert.match(query(document.body, ".annotator-count").textContent ?? "", /^2 marks\. Arrow keys pick one/);
+  await act(async () => { (canvas as HTMLCanvasElement).blur(); });
+  assert.equal(query(document.body, ".annotator-count").textContent, "2 marks.");
+  await view.unmount();
+});
+
+test("the picked mark carries a ring around its bounds, and none while a note is typed", async () => {
+  const { view, canvas } = await open();
+  await act(async () => press(canvas, "ArrowRight"));
+  const ring = query<HTMLElement>(document.body, ".annotator-picked");
+  assert.deepEqual([ring.style.left, ring.style.top, ring.style.width, ring.style.height], ["40px", "30px", "80px", "60px"]);
+  assert.equal(ring.previousElementSibling?.tagName, "CANVAS", "the ring follows the canvas, which reveals it on keyboard focus");
+
+  await act(async () => press(canvas, "Enter"));
+  assert.equal(document.body.querySelector(".annotator-picked"), null);
   await view.unmount();
 });
 
@@ -227,4 +243,8 @@ test("Done keeps a box whose note is still being typed, and Cancel asks before d
   await act(async () => press(document.body, "Escape"));
   assert.ok(query(document.body, ".annotator-label"), "Escape leaves the discard question first, keeping the note");
   await cancel.view.unmount();
+});
+
+test("an arrow drawn up and to the left is ringed from its tip to its tail", () => {
+  assert.deepEqual(markBounds({ kind: "arrow", x: 0.5, y: 0.5, width: -0.25, height: -0.125, text: "" }), { x: 0.25, y: 0.375, width: 0.25, height: 0.125 });
 });

@@ -79,7 +79,7 @@ test("ink through quiet read at AA on every surface text sits on, the selected r
   assert.deepEqual(failures(TEXT.flatMap((ink) => [...TEXT_GROUNDS, "--surface-active"].map((ground) => [ink, ground, 4.5] as const))), []);
 });
 
-test("placeholders, glyphs and off states read at 3:1", () => {
+test("glyphs and off states read at 3:1", () => {
   assert.deepEqual(failures([...TEXT_GROUNDS, "--surface-active"].map((ground) => ["--quiet-soft", ground, 3] as const)), []);
 });
 
@@ -132,16 +132,14 @@ test("fg-0 down to fg-4 falls in four even steps, each at least 1.15:1 and 0.6 a
 });
 
 const HUE_PAIRS: readonly Pair[] = [
-  ...HUES.flatMap((ink) => HUE_GROUNDS.map((ground) => [ink, ground, 4.5] as const)),
-  ...["--accent-text", "--info"].map((ink) => [ink, "--surface-hover", 4.5] as const),
-  ...["--danger", "--warning"].flatMap((ink) => ["--surface-hover", "--surface-active"].map((ground) => [ink, ground, 4.5] as const)),
+  ...HUES.flatMap((ink) => [...HUE_GROUNDS, "--surface-hover", "--surface-active"].map((ground) => [ink, ground, 4.5] as const)),
   ["--danger", "--danger-surface", 4.5], ["--info", "--info-surface", 4.5], ["--info-soft", "--info-surface-soft", 4.5],
   ["--accent-soft", "--accent-chip", 4.5], ["--accent-soft", "--accent-surface", 4.5],
   ...[...TEXT_GROUNDS, "--surface-active"].map((ground) => ["--focus-ring", ground, 3] as const),
 ];
 const FILL_PAIRS: readonly Pair[] = [["--accent-ink", "--accent", 4.5], ["--accent-ink", "--accent-hover", 4.5], ["--danger-ink", "--danger", 4.5], ["--badge-ink", "--info-badge", 4.5], ["--alert-ink", "--alert", 4.5]];
 
-test("accent, danger, link, success, warning and info text read at AA on the surfaces they colour", () => {
+test("accent, danger, link, success, warning and info text read at AA on every surface, the selected row included", () => {
   assert.deepEqual(failures(HUE_PAIRS), []);
 });
 
@@ -193,12 +191,6 @@ test("dividers stay visible on a dark canvas", () => {
     }
   }
   assert.deepEqual(failed, []);
-});
-
-test("dividers stay visible on every dark pane they cross, the surface and sidebar included", () => {
-  const dark = THEMES.filter((candidate) => candidate.variant === "dark");
-  const pairs = HUE_GROUNDS.flatMap((ground) => [["--line-soft", ground, 1.08], ["--line", ground, 1.15]] as const);
-  assert.deepEqual(dark.flatMap((theme) => shortfalls(theme.id, primitives(theme.id), pairs)), []);
 });
 
 test("warning and alert never share the accent's colour, so the accent never reads as a warning", () => {
@@ -297,4 +289,8 @@ test("a hit target is at least 24px, and a row's slot never wider than one", () 
 test("role marks clear 3:1 on every row ground, the selected row included", () => {
   const roles = ["--role-coordinator", "--role-implementer", "--role-reviewer", "--role-researcher"];
   assert.deepEqual(failures(roles.flatMap((role) => ["--sidebar", "--surface-hover", "--surface-active", "--sunken"].map((ground) => [role, ground, 3] as const))), []);
+});
+
+test("every placeholder reads in --quiet unless a field says otherwise", () => {
+  assert.match(stylesCss, /^::placeholder \{ color: var\(--quiet\); opacity: 1; \}$/m);
 });

@@ -63,18 +63,6 @@ test("a blank title is refused in place rather than quietly reverted", async () 
   } finally { await view.unmount(); }
 });
 
-test("the project crumb opens the project's editor when it can be edited here", async () => {
-  let edits = 0;
-  const view = await mount(React.createElement(WorkspaceHeader, headerProps({ folder: "/home/me/project", onEditProject: () => { edits += 1; } })));
-  try {
-    const crumb = query<HTMLButtonElement>(view.container, "button.heading-project");
-    assert.equal(crumb.textContent, "project");
-    assert.equal(crumb.dataset.tip, "/home/me/project");
-    await act(async () => { crumb.click(); });
-    assert.equal(edits, 1);
-  } finally { await view.unmount(); }
-});
-
 test("the project crumb names the folder's path, and only the toolbar button opens the Open in list", async () => {
   let menu: string | null = null;
   let listed = 0;
@@ -187,16 +175,12 @@ test("an offline computer says so in the heading and reconnects from there", asy
   } finally { await view.unmount(); }
 });
 
-test("zen mode holds its place in the toolbar, and turns on once the thread has messages", async () => {
+test("zen mode is offered once the thread has messages", async () => {
   let entered = 0;
   const zen = (available: boolean) => ({ available, tip: "Zen mode (⌘⇧F)", onEnter: () => { entered += 1; } });
   const view = await mount(React.createElement(WorkspaceHeader, headerProps({ zen: zen(false) })));
   try {
-    const off = query<HTMLButtonElement>(view.container, 'button[aria-label="Enter zen mode"]');
-    assert.equal(off.getAttribute("aria-disabled"), "true");
-    assert.equal(off.dataset.tip, "Zen mode · No messages yet");
-    await act(async () => { off.click(); });
-    assert.equal(entered, 0);
+    assert.equal(view.container.querySelector('button[aria-label="Enter zen mode"]'), null);
     await view.render(React.createElement(WorkspaceHeader, headerProps({ zen: zen(true) })));
     const on = query<HTMLButtonElement>(view.container, 'button[aria-label="Enter zen mode"]');
     assert.equal(on.hasAttribute("aria-disabled"), false);

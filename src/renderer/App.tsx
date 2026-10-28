@@ -38,9 +38,10 @@ if (typeof window !== "undefined" && "requestIdleCallback" in window) {
 function HiddenThreadsNotice({ workspace }: { workspace: ReturnType<typeof useTaskWorkspace> }) {
   const hidden = workspace.hiddenThreads;
   if (hidden < 1) return null;
+  const text = `${hidden} ${hidden === 1 ? "thread needs" : "threads need"} a newer version`;
   return (
     <div className="storage-notice" role="status">
-      <span>{hidden} {hidden === 1 ? "thread needs" : "threads need"} a newer version</span>
+      <span data-tip={text} data-tip-overflow>{text}</span>
       <button className="storage-notice-link" type="button" onClick={() => void workspace.actions.checkForUpdates()}>Update</button>
       <button type="button" aria-label="Dismiss" data-tip="Dismiss" onClick={() => void workspace.actions.dismissHiddenThreads()}>
         <X size={16} aria-hidden="true" />
@@ -67,12 +68,6 @@ function zenTip(workspace: ReturnType<typeof useTaskWorkspace>, label: string) {
 }
 
 /** The error the last action ran into, with the settings page that clears it when there is one. */
-/** A paired computer's project is edited on that computer. */
-function editProjectHandler(workspace: ReturnType<typeof useTaskWorkspace>) {
-  const projectId = workspace.activeComputer ? undefined : workspace.currentProject?.id;
-  return projectId ? () => void workspace.actions.editProjectOpen(projectId) : undefined;
-}
-
 function ActionErrorBanner({ workspace }: { workspace: ReturnType<typeof useTaskWorkspace> }) {
   const message = workspace.storageError || workspace.actionError;
   if (!message) return null;
@@ -214,7 +209,6 @@ export function App() {
             notifications={workspace.notifications} onSetMuted={workspace.actions.setMuted}
             stoppable={Boolean(workspace.currentThread && workspace.stoppableCoordinatorIds.has(workspace.currentThread.id))}
             onStopAll={workspace.actions.stopAll} onChooseFolder={() => void workspace.actions.openFolder()}
-            onEditProject={editProjectHandler(workspace)}
             onToggleSidebar={() => void workspace.actions.setSidebarOpen(!sidebarOpen)}
             onToggleSessionPanel={() => {
               void workspace.actions.setDockOpen(false);

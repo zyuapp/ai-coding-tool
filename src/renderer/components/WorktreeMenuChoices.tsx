@@ -10,13 +10,6 @@ function emptyNote(list: WorktreeMenuList, view: WorktreeMenuView): string {
   return list === "threads" ? "No other threads" : "No other worktrees";
 }
 
-/** Why a destination can't be chosen, matching the reasons the location menu gives. */
-function disabledReason(row: WorktreeMenuChoice, view: WorktreeMenuView): string {
-  if (row.detail === "Deleting…") return "The worktree is being removed";
-  if (!view.canMove) return "Wait for the run to finish";
-  return "Wait for the worktrees to load";
-}
-
 export function WorktreeMenuChoices({ view, list, dispatch }: { view: WorktreeMenuView; list: WorktreeMenuList; dispatch: (command: AppCommand) => void }) {
   const scroll = useRef<HTMLDivElement>(null);
   const search = useRef<HTMLInputElement>(null);
@@ -34,7 +27,7 @@ export function WorktreeMenuChoices({ view, list, dispatch }: { view: WorktreeMe
   }
 
   function choice(row: WorktreeMenuChoice, index: number) {
-    return <button type="button" role="menuitem" className="worktree-menu-choice" data-choice-index={index} aria-disabled={row.disabled ? "true" : undefined} aria-current={row.current ? "true" : undefined} data-tip={row.disabled ? disabledReason(row, view) : `${row.title} · ${row.detail}`} onClick={row.disabled ? undefined : () => select(row.command)}>
+    return <button type="button" role="menuitem" className="worktree-menu-choice" data-choice-index={index} aria-disabled={row.disabled ? "true" : undefined} aria-current={row.current ? "true" : undefined} data-tip={`${row.title} · ${row.detail}`} onClick={row.disabled ? undefined : () => select(row.command)}>
       <span className="worktree-menu-copy"><span>{row.title}</span><small>{row.detail}</small></span>
       {row.current && <Check size={12} aria-hidden="true" />}
     </button>;

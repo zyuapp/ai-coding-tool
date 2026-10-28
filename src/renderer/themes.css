@@ -24,8 +24,9 @@
  * takes. fg-5 is the author's own faintest grey, for fills and edges rather than text.
  *
  * A hue the author drew too faint to read as text keeps its hex as a fill and adds a --p-*-text
- * twin, the same hue moved in lightness only until it reads at 4.5:1. The accent fill keeps the
- * author's hex wherever its ink reads on it at 4.5:1; a theme whose accent takes a dark ink adds
+ * twin, the same hue moved in lightness only until it reads at 4.5:1 on bg-0 through bg-5, the
+ * selected row included. The accent fill keeps the author's hex wherever its ink reads on it at
+ * 4.5:1; a theme whose accent takes a dark ink adds
  * --p-accent-hover and, where that ink cannot sit on danger, --p-danger-ink. --p-alert-ink is
  * whichever ink reads at 4.5:1 on the alert fill. --p-wash-alpha weighs the hover wash, heavier on
  * a light ground, where a dark ink thinned to a few percent barely registers. --p-disabled-opacity
@@ -133,6 +134,7 @@
   --p-contrast-ink: #f5f4ef;
 
   --p-accent: #b14b25;
+  --p-accent-text: #aa4824;
   --p-accent-bright: #d9663a;
   --p-accent-ink: #fff6f2;
 
@@ -142,6 +144,7 @@
   --p-link: #1f5fa8;
 
   --p-success: #327d2d;
+  --p-success-text: #2f742a;
   --p-danger: #b43540;
   --p-warning: #8b6214;
   --p-warning-text: #875e0d;
@@ -263,16 +266,16 @@
   --p-accent: #f2ae49;
   --p-accent-bright: #e09025;
   --p-accent-ink: #3c4044;
-  --p-accent-text: #946204;
+  --p-accent-text: #8e5e04;
   --p-accent-hover: #f4bd6a;
   --p-info: #399ee6;
   --p-info-text: #0969a3;
   --p-info-strong: #267aba;
   --p-info-ink: #ffffff;
   --p-link: #399ee6;
-  --p-link-text: #0173b5;
+  --p-link-text: #016caa;
   --p-success: #6c9e18;
-  --p-success-text: #507a00;
+  --p-success-text: #4c7300;
   --p-danger: #e65050;
   --p-danger-text: #c22a33;
   --p-danger-ink: #ffffff;
@@ -406,19 +409,19 @@
   --p-contrast-ink: #eff1f5;
 
   --p-accent: #8839ef;
-  --p-accent-text: #8333ea;
+  --p-accent-text: #7319e7;
   --p-accent-bright: #7c2fe0;
   --p-accent-ink: #ffffff;
 
   --p-info: #1e66f5;
-  --p-info-text: #064fd8;
+  --p-info-text: #064dd4;
   --p-info-strong: #1e66f5;
   --p-info-ink: #ffffff;
   --p-link: #1e66f5;
-  --p-link-text: #155dec;
+  --p-link-text: #114fcc;
 
   --p-success: #40a02b;
-  --p-success-text: #1e7900;
+  --p-success-text: #1a6700;
   --p-danger: #d20f39;
   --p-danger-text: #b5012e;
   --p-warning: #805d38;
@@ -465,7 +468,7 @@
   --p-bg-4: #2a2d3d;
   --p-bg-5: #2e3244;
   --p-bg-6: #353a50;
-  --p-line-0: #2d303f;
+  --p-line-0: #2b2d3b;
   --p-line-1: #323645;
   --p-line-2: #3c4156;
   --p-line-3: #444c65;
@@ -591,8 +594,8 @@
   --p-bg-4: #394246;
   --p-bg-5: #3f484b;
   --p-bg-6: #475152;
-  --p-line-0: #3b4448;
-  --p-line-1: #3f484b;
+  --p-line-0: #373f44;
+  --p-line-1: #3e474a;
   --p-line-2: #495253;
   --p-line-3: #545e5e;
   --p-fg-0: #f6f2eb;
@@ -611,6 +614,7 @@
   --p-info-strong: #6ba8a0;
   --p-info-ink: #202529;
   --p-link: #7fbbb3;
+  --p-link-text: #86bfb7;
   --p-success: #a7c080;
   --p-danger: #e67e80;
   --p-danger-text: #ff9798;
@@ -669,16 +673,16 @@
   --p-accent: #8da101;
   --p-accent-bright: #78890a;
   --p-accent-ink: #252f35;
-  --p-accent-text: #637107;
+  --p-accent-text: #606d07;
   --p-accent-hover: #a2b12c;
   --p-info: #3a94c5;
   --p-info-text: #0e6992;
   --p-info-strong: #2a7ca8;
   --p-info-ink: #ffffff;
   --p-link: #3a94c5;
-  --p-link-text: #0b74a4;
+  --p-link-text: #0a6d9a;
   --p-success: #8da101;
-  --p-success-text: #657400;
+  --p-success-text: #5f6d00;
   --p-danger: #f85552;
   --p-danger-text: #c61e2a;
   --p-danger-ink: #ffffff;
@@ -723,7 +727,7 @@
   --p-bg-4: #1f232a;
   --p-bg-5: #262b32;
   --p-bg-6: #333840;
-  --p-line-0: #1e2229;
+  --p-line-0: #1c2027;
   --p-line-1: #252a31;
   --p-line-2: #333840;
   --p-line-3: #424850;
@@ -798,7 +802,7 @@
   --p-contrast: #1f2328;
   --p-contrast-ink: #f6f8fa;
   --p-accent: #0969da;
-  --p-accent-text: #0764d2;
+  --p-accent-text: #075ec6;
   --p-accent-bright: #0550ae;
   --p-accent-ink: #ffffff;
   --p-info: #0969da;
@@ -806,9 +810,9 @@
   --p-info-strong: #0550ae;
   --p-info-ink: #ffffff;
   --p-link: #0969da;
-  --p-link-text: #0767d8;
+  --p-link-text: #065fc6;
   --p-success: #1a7f37;
-  --p-success-text: #177c35;
+  --p-success-text: #157130;
   --p-danger: #cf222e;
   --p-danger-text: #c30d25;
   --p-warning: #4d2d00;
@@ -873,7 +877,7 @@
   --p-accent-ink: #1d2021;
 
   --p-info: #83a598;
-  --p-info-text: #85a79a;
+  --p-info-text: #87a99c;
   --p-info-strong: #3d7578;
   --p-info-ink: #1d2021;
   --p-link: #8ec07c;
@@ -942,7 +946,7 @@
   --p-contrast-ink: #fbf1c7;
 
   --p-accent: #af3a03;
-  --p-accent-text: #ae3902;
+  --p-accent-text: #a53602;
   --p-accent-bright: #d65d0e;
   --p-accent-ink: #fbf1c7;
 
@@ -951,9 +955,10 @@
   --p-info-strong: #076678;
   --p-info-ink: #fbf1c7;
   --p-link: #076678;
+  --p-link-text: #076577;
 
   --p-success: #79740e;
-  --p-success-text: #6e6901;
+  --p-success-text: #635e01;
   --p-danger: #9d0006;
   --p-warning: #785b25;
   --p-warning-text: #745721;
@@ -999,8 +1004,8 @@
   --p-bg-4: #262632;
   --p-bg-5: #2a2a36;
   --p-bg-6: #2f2f3d;
-  --p-line-0: #303039;
-  --p-line-1: #35353e;
+  --p-line-0: #2b2b34;
+  --p-line-1: #33333c;
   --p-line-2: #3f3e48;
   --p-line-3: #4a4a54;
   --p-fg-0: #dcd7ba;
@@ -1082,9 +1087,9 @@
   --p-info-strong: #3b5788;
   --p-info-ink: #ffffff;
   --p-link: #4d699b;
-  --p-link-text: #4a6597;
+  --p-link-text: #465f8e;
   --p-success: #6f894e;
-  --p-success-text: #546d33;
+  --p-success-text: #4f6630;
   --p-danger: #c84053;
   --p-danger-text: #af2741;
   --p-warning: #686340;
@@ -1128,7 +1133,7 @@
   --p-bg-4: #1d1f23;
   --p-bg-5: #25272b;
   --p-bg-6: #2c2f33;
-  --p-line-0: #1d2024;
+  --p-line-0: #1a1c20;
   --p-line-1: #24262a;
   --p-line-2: #2f3336;
   --p-line-3: #3f4348;
@@ -1204,7 +1209,7 @@
   --p-contrast: #0f1419;
   --p-contrast-ink: #ffffff;
   --p-accent: #1a8cd8;
-  --p-accent-text: #0373b7;
+  --p-accent-text: #036fb0;
   --p-accent-hover: #359add;
   --p-accent-bright: #1d9bf0;
   --p-accent-ink: #0f1419;
@@ -1214,7 +1219,7 @@
   --p-info-ink: #f5fbff;
   --p-link: #16639e;
   --p-success: #00875a;
-  --p-success-text: #008358;
+  --p-success-text: #007a52;
   --p-danger: #d81b26;
   --p-danger-ink: #ffffff;
   --p-danger-text: #d00a1f;
@@ -1259,7 +1264,7 @@
   --p-bg-4: #303233;
   --p-bg-5: #37393b;
   --p-bg-6: #424648;
-  --p-line-0: #2e3031;
+  --p-line-0: #2c2d2e;
   --p-line-1: #343637;
   --p-line-2: #424648;
   --p-line-3: #4f5458;
@@ -1336,16 +1341,16 @@
   --p-accent: #39adb5;
   --p-accent-bright: #2b929a;
   --p-accent-ink: #27353c;
-  --p-accent-text: #0c7980;
+  --p-accent-text: #0c747b;
   --p-accent-hover: #5dbcc2;
   --p-info: #6182b8;
   --p-info-text: #456499;
   --p-info-strong: #4f6da0;
   --p-info-ink: #ffffff;
   --p-link: #6182b8;
-  --p-link-text: #5070a4;
+  --p-link-text: #4b699a;
   --p-success: #91b859;
-  --p-success-text: #577a13;
+  --p-success-text: #527312;
   --p-danger: #e53935;
   --p-danger-text: #cb141d;
   --p-danger-ink: #ffffff;
@@ -1390,7 +1395,7 @@
   --p-bg-4: #2a2a25;
   --p-bg-5: #2f2f29;
   --p-bg-6: #383830;
-  --p-line-0: #2e2e29;
+  --p-line-0: #2b2b27;
   --p-line-1: #33332d;
   --p-line-2: #3f3f37;
   --p-line-3: #4c4a41;
@@ -1465,7 +1470,7 @@
   --p-contrast: #2c2b26;
   --p-contrast-ink: #fbf9f2;
   --p-accent: #5c8a00;
-  --p-accent-text: #4f7605;
+  --p-accent-text: #4b7105;
   --p-accent-hover: #70981f;
   --p-accent-bright: #4a7000;
   --p-accent-ink: #0e0d0c;
@@ -1474,9 +1479,9 @@
   --p-info-strong: #0b7085;
   --p-info-ink: #ffffff;
   --p-link: #0f8fa8;
-  --p-link-text: #00788f;
+  --p-link-text: #007086;
   --p-success: #5c8a00;
-  --p-success-text: #507900;
+  --p-success-text: #4b7100;
   --p-danger: #d10a5b;
   --p-danger-ink: #ffffff;
   --p-danger-text: #c30254;
@@ -1537,7 +1542,7 @@
   --p-accent-bright: #e2dec8;
   --p-accent-ink: #2f2d26;
   --p-info: #8fa5b3;
-  --p-info-text: #94aab8;
+  --p-info-text: #96abb9;
   --p-info-strong: #738997;
   --p-info-ink: #2f2d26;
   --p-link: #a3b6c2;
@@ -1604,9 +1609,9 @@
   --p-info-strong: #455a69;
   --p-info-ink: #dcd8c2;
   --p-link: #3f5a6e;
-  --p-link-text: #344e62;
+  --p-link-text: #30495b;
   --p-success: #5f7a3a;
-  --p-success-text: #3a520f;
+  --p-success-text: #374d0e;
   --p-danger: #a94a38;
   --p-danger-text: #812515;
   --p-warning: #544923;
@@ -1650,8 +1655,8 @@
   --p-bg-4: #0e2537;
   --p-bg-5: #142b3d;
   --p-bg-6: #1d3549;
-  --p-line-0: #192f42;
-  --p-line-1: #1c3446;
+  --p-line-0: #0f2436;
+  --p-line-1: #172e40;
   --p-line-2: #233a4e;
   --p-line-3: #2c465a;
   --p-fg-0: #d6deeb;
@@ -1725,7 +1730,7 @@
   --p-contrast: #403f53;
   --p-contrast-ink: #fbfbfb;
   --p-accent: #288ed7;
-  --p-accent-text: #0570b3;
+  --p-accent-text: #056aaa;
   --p-accent-hover: #429cdc;
   --p-accent-bright: #1c78bb;
   --p-accent-ink: #1d1d26;
@@ -1734,9 +1739,9 @@
   --p-info-strong: #1d837a;
   --p-info-ink: #ffffff;
   --p-link: #288ed7;
-  --p-link-text: #0073b8;
+  --p-link-text: #006aaa;
   --p-success: #08916a;
-  --p-success-text: #007e5c;
+  --p-success-text: #007556;
   --p-danger: #de3d3b;
   --p-danger-ink: #ffffff;
   --p-danger-text: #c62127;
@@ -1781,8 +1786,8 @@
   --p-bg-4: #3b4854;
   --p-bg-5: #40505d;
   --p-bg-6: #495e6b;
-  --p-line-0: #3b4955;
-  --p-line-1: #3d4d59;
+  --p-line-0: #37424e;
+  --p-line-1: #3d4c58;
   --p-line-2: #495e6b;
   --p-line-3: #546f7c;
   --p-fg-0: #ffffff;
@@ -1794,14 +1799,17 @@
   --p-contrast: #eceff4;
   --p-contrast-ink: #2e3440;
   --p-accent: #88c0d0;
+  --p-accent-text: #94c7d5;
   --p-accent-bright: #8fbcbb;
   --p-accent-ink: #20242d;
   --p-info: #81a1c1;
-  --p-info-text: #9cbddd;
+  --p-info-text: #a4c2e0;
   --p-info-strong: #859fc0;
   --p-info-ink: #20242d;
   --p-link: #88c0d0;
+  --p-link-text: #94c7d5;
   --p-success: #a3be8c;
+  --p-success-text: #afc69b;
   --p-danger: #bf616a;
   --p-danger-text: #ffa8ae;
   --p-warning: #ebcb8b;
@@ -1857,7 +1865,7 @@
   --p-contrast: #2e3440;
   --p-contrast-ink: #eceff4;
   --p-accent: #5e81ac;
-  --p-accent-text: #466892;
+  --p-accent-text: #43638b;
   --p-accent-hover: #7190b6;
   --p-accent-bright: #4c6f97;
   --p-accent-ink: #0e1014;
@@ -1866,9 +1874,9 @@
   --p-info-strong: #4c6f97;
   --p-info-ink: #ffffff;
   --p-link: #5e81ac;
-  --p-link-text: #486a94;
+  --p-link-text: #43638b;
   --p-success: #4f7a3f;
-  --p-success-text: #487238;
+  --p-success-text: #446b35;
   --p-danger: #a1454f;
   --p-danger-ink: #ffffff;
   --p-danger-text: #9c414b;
@@ -1913,7 +1921,7 @@
   --p-bg-4: #292e35;
   --p-bg-5: #2d3139;
   --p-bg-6: #333840;
-  --p-line-0: #2e3239;
+  --p-line-0: #2c3037;
   --p-line-1: #33383f;
   --p-line-2: #3f444b;
   --p-line-3: #4a4f57;
@@ -1988,7 +1996,7 @@
   --p-contrast: #383a42;
   --p-contrast-ink: #fafafa;
   --p-accent: #4078f2;
-  --p-accent-text: #2d63dc;
+  --p-accent-text: #245cda;
   --p-accent-hover: #5788f4;
   --p-accent-bright: #2f66d8;
   --p-accent-ink: #0f1012;
@@ -1997,9 +2005,9 @@
   --p-info-strong: #0170a0;
   --p-info-ink: #ffffff;
   --p-link: #4078f2;
-  --p-link-text: #3066df;
+  --p-link-text: #225bdc;
   --p-success: #50a14f;
-  --p-success-text: #2b7d2c;
+  --p-success-text: #287429;
   --p-danger: #e45649;
   --p-danger-ink: #ffffff;
   --p-danger-text: #bd3029;
@@ -2064,7 +2072,7 @@
   --p-info-ink: #121019;
   --p-link: #9ccfd8;
   --p-success: #31748f;
-  --p-success-text: #4c8ea9;
+  --p-success-text: #5799b3;
   --p-danger: #eb6f92;
   --p-warning: #f6c177;
   --p-alert: #f6c177;
@@ -2119,7 +2127,7 @@
   --p-contrast: #575279;
   --p-contrast-ink: #faf4ed;
   --p-accent: #907aa9;
-  --p-accent-text: #76608e;
+  --p-accent-text: #715c89;
   --p-accent-hover: #9d8ab3;
   --p-accent-bright: #7c669a;
   --p-accent-ink: #181621;
@@ -2173,8 +2181,8 @@
   --p-bg-4: #153c45;
   --p-bg-5: #1d434b;
   --p-bg-6: #2c4e56;
-  --p-line-0: #153c45;
-  --p-line-1: #1a4049;
+  --p-line-0: #0f3741;
+  --p-line-1: #193f48;
   --p-line-2: #2c4e56;
   --p-line-3: #3e5d63;
   --p-fg-0: #dee5e4;
@@ -2188,15 +2196,15 @@
   --p-accent: #268bd2;
   --p-accent-bright: #2aa198;
   --p-accent-ink: #001e26;
-  --p-accent-text: #46a6ef;
+  --p-accent-text: #58aff1;
   --p-info: #268bd2;
-  --p-info-text: #4babf4;
+  --p-info-text: #53aff4;
   --p-info-strong: #2aa198;
   --p-info-ink: #001e26;
   --p-link: #2aa198;
-  --p-link-text: #34a99f;
+  --p-link-text: #39baaf;
   --p-success: #859900;
-  --p-success-text: #8da217;
+  --p-success-text: #9bb319;
   --p-danger: #dc322f;
   --p-danger-text: #ff8579;
   --p-warning: #bd9e35;
@@ -2253,7 +2261,7 @@
   --p-contrast: #586e75;
   --p-contrast-ink: #fdf6e3;
   --p-accent: #268bd2;
-  --p-accent-text: #066faf;
+  --p-accent-text: #066ba9;
   --p-accent-hover: #4099d7;
   --p-accent-bright: #1c7ec0;
   --p-accent-ink: #151b1e;
@@ -2262,9 +2270,9 @@
   --p-info-strong: #1b7abb;
   --p-info-ink: #ffffff;
   --p-link: #268bd2;
-  --p-link-text: #0071b4;
+  --p-link-text: #006bab;
   --p-success: #728a00;
-  --p-success-text: #617500;
+  --p-success-text: #5c6e00;
   --p-danger: #dc322f;
   --p-danger-ink: #ffffff;
   --p-danger-text: #c7131a;
@@ -2400,17 +2408,17 @@
   --p-accent: #b15c00;
   --p-accent-bright: #c96a00;
   --p-accent-ink: #ffffff;
-  --p-accent-text: #904a08;
+  --p-accent-text: #834407;
 
   --p-info: #2e7de9;
-  --p-info-text: #0852ac;
+  --p-info-text: #0851ab;
   --p-info-strong: #2b74d7;
   --p-info-ink: #ffffff;
   --p-link: #2e7de9;
-  --p-link-text: #005cc5;
+  --p-link-text: #0051ae;
 
   --p-success: #587539;
-  --p-success-text: #4c682d;
+  --p-success-text: #435c28;
   --p-danger: #f52a65;
   --p-danger-text: #a9043f;
   --p-warning: #6c5841;
@@ -2470,7 +2478,7 @@
   --p-contrast: #dbd7ca;
   --p-contrast-ink: #121212;
   --p-accent: #4d9375;
-  --p-accent-text: #4f9576;
+  --p-accent-text: #529b7a;
   --p-accent-bright: #5eaab5;
   --p-accent-ink: #0d0d0d;
   --p-info: #6394bf;
@@ -2479,6 +2487,7 @@
   --p-info-ink: #0d0d0d;
   --p-link: #6394bf;
   --p-success: #4d9375;
+  --p-success-text: #519b7b;
   --p-danger: #cb7676;
   --p-warning: #e6cc77;
   --p-alert: #e6cc77;

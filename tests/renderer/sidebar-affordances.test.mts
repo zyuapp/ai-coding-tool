@@ -125,6 +125,7 @@ test("a folder's menu asks before removing one that holds threads, and moves it 
     await open("first");
     assert.equal(menuItem("Move up"), undefined, "the first folder has nowhere up to go");
     assert.equal(menuItem("Remove")!.getAttribute("aria-haspopup"), "menu", "a folder holding threads asks first");
+    assert.equal(query(menuItem("Remove")!, ".menu-shortcut").textContent, "Archives 1 thread", "what removing costs shows before the confirm opens");
     await act(async () => { menuItem("Remove")!.click(); });
     assert.deepEqual(menuItems().slice(-2).map((item) => item.textContent), ["Keep project", "Remove and archive 1 thread"]);
     await act(async () => { menuItem("Keep project")!.click(); });
@@ -136,6 +137,7 @@ test("a folder's menu asks before removing one that holds threads, and moves it 
 
     await open("last");
     assert.equal(menuItem("Remove")!.getAttribute("aria-haspopup"), null, "an empty folder goes in one choice");
+    assert.equal(menuItem("Remove")!.querySelector(".menu-shortcut"), null);
     await act(async () => { menuItem("Remove")!.click(); });
     assert.deepEqual(removed, ["first", "last"]);
 
@@ -174,7 +176,7 @@ test("a right-click on a folder opens its menu, and F2 renames it", async () => 
   } finally { await view.unmount(); }
 });
 
-test("double-clicking a folder renames it, folding it once rather than twice", async () => {
+test("double-clicking a folder renames it and leaves its fold as it was, while a single click folds it", async () => {
   const toggled: string[] = [];
   const view = await mount(React.createElement(Harness, { projects: [{ id: "p", root: "/work/p" }], onToggleProject: (id) => { toggled.push(id); } }));
   try {
@@ -183,9 +185,17 @@ test("double-clicking a folder renames it, folding it once rather than twice", a
       for (const detail of [1, 2]) main.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true, detail }));
       main.dispatchEvent(new dom.window.MouseEvent("dblclick", { bubbles: true, detail: 2 }));
     });
-    assert.deepEqual(toggled, ["p"]);
+    assert.deepEqual(toggled, ["p", "p"], "the first click's fold is put back");
     assert.ok(view.container.querySelector(".project-rename"));
   } finally { await view.unmount(); }
+
+  const single = await mount(React.createElement(Harness, { projects: [{ id: "p", root: "/work/p" }], onToggleProject: (id) => { toggled.push(id); } }));
+  try {
+    toggled.length = 0;
+    await act(async () => { query<HTMLButtonElement>(single.container, ".project-main").dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true, detail: 1 })); });
+    assert.deepEqual(toggled, ["p"]);
+    assert.equal(single.container.querySelector(".project-rename"), null);
+  } finally { await single.unmount(); }
 });
 
 test("with no projects at all, the sidebar offers adding one, and the heading's add button is always there", async () => {
@@ -493,14 +503,26 @@ test("a rail holds three marks at most, folding the ones ahead of status and eng
   } finally { await view.unmount(); }
 });
 
-test("in Priority, Dismiss takes the engine's slot so the status mark stays in view", async () => {
-  const view = await mount(renderProjectSidebar({
+test("in Priority, the menu keeps the engine's slot and Dismiss sits over the status it clears, and the menu offers Dismiss too", async () => {
+  const dismissed: string[] = [];
+  const view = await mount(React.createElement(Harness, {
     mode: "activity",
-    activityThreads: { priority: [task("done", { outcome: "finished", outcomeUnread: true })], running: [], threads: [], snoozed: [] },
+    activityThreads: { priority: [task("done", { outcome: "finished", outcomeUnread: true })], running: [task("busy")], threads: [], snoozed: [] },
+    onDismissThread: (id) => { dismissed.push(id); },
   }));
   try {
     const actions = [...view.container.querySelectorAll<HTMLElement>('nav[aria-label="Priority"] .row-action')];
-    assert.deepEqual(actions.map((action) => action.dataset.tip), ["More", "Dismiss"]);
+    assert.deepEqual(actions.map((action) => action.dataset.tip), ["Dismiss", "More"]);
+    const marks = [...view.container.querySelectorAll<HTMLElement>('nav[aria-label="Priority"] .row-mark')];
+    assert.deepEqual(marks.map((mark) => mark.dataset.tip), ["Finished", "Claude thread"], "Dismiss lines up over the status mark, the menu over the engine");
+
+    await act(async () => { actions[1]!.click(); });
+    assert.equal(menuItems()[0]!.textContent, "Dismiss");
+    await act(async () => { menuItem("Dismiss")!.click(); });
+    assert.deepEqual(dismissed, ["done"]);
+
+    await act(async () => { query<HTMLButtonElement>(view.container, 'nav[aria-label="Running"] .task-more').click(); });
+    assert.equal(menuItem("Dismiss"), undefined, "only a row Priority can dismiss offers it");
   } finally { await view.unmount(); }
 });
 
@@ -508,16 +530,19 @@ test("a folded folder carries the most pressing status of the threads it hides",
   const projects = [{ id: "asks", root: "/work/asks" }, { id: "runs", root: "/work/runs" }, { id: "quiet", root: "/work/quiet" }];
   const orderedThreads = [
     task("working", { projectId: "asks" }), task("asked", { projectId: "asks" }),
-    task("busy", { projectId: "runs" }), task("idle", { projectId: "quiet" }),
+    task("busy", { projectId: "runs" }), task("also-busy", { projectId: "runs" }), task("idle", { projectId: "quiet" }),
   ];
-  const marks = { runningThreadIds: new Set(["working", "asked", "busy"]), blockedThreadIds: new Set(["asked"]) };
+  const marks = { runningThreadIds: new Set(["working", "asked", "busy", "also-busy"]), blockedThreadIds: new Set(["asked"]) };
   const view = await mount(renderProjectSidebar({ projects, orderedThreads, ...marks }));
   try {
     const status = (name: string) => [...view.container.querySelectorAll<HTMLElement>(".project-main")]
       .find((row) => row.textContent?.startsWith(name))!.querySelector<HTMLElement>(".folder-status");
     assert.equal(status("asks")!.dataset.tip, "A thread needs your approval");
     assert.ok(status("asks")!.querySelector(".task-attention.approval"));
-    assert.equal(status("runs")!.dataset.tip, "A thread is working");
+    assert.equal(status("asks")!.querySelector(".folder-status-count"), null, "one thread asking carries no count");
+    assert.equal(status("runs")!.dataset.tip, "A thread is working, and 1 more");
+    assert.equal(query(status("runs")!, ".folder-status-count").textContent, "2", "threads sharing the most pressing status are counted");
+    assert.equal(query(status("runs")!, '[role="img"]').getAttribute("aria-label"), "A thread is working, and 1 more");
     assert.equal(status("quiet"), null);
   } finally { await view.unmount(); }
 

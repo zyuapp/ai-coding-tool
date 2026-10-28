@@ -1,4 +1,4 @@
-import { LuCode as Code, LuExternalLink as ExternalLink, LuFolder as Folder, LuSquareTerminal as SquareTerminal } from "react-icons/lu";
+import { LuCode as Code, LuFolder as Folder, LuFolderCode as FolderCode, LuSquareTerminal as SquareTerminal } from "react-icons/lu";
 import { Fragment, useEffect, useRef } from "react";
 import type { InstalledApp } from "../../contracts/ipc";
 import type { ExternalAppKind } from "../../domain/external-apps";
@@ -104,7 +104,7 @@ export function OpenInMenu({ openMenu, onSetOpenMenu, blocked, apps, onListApps,
         aria-label="Open this folder in another application"
         data-tip={blocked ? `Open in… · ${blocked}` : "Open in…"}
       >
-        <ExternalLink size={18} aria-hidden="true" />
+        <FolderCode size={18} aria-hidden="true" />
       </button>
       {popover}
     </div>

@@ -2,16 +2,16 @@ import { LuSearch as Search } from "react-icons/lu";
 import { useRef, useState } from "react";
 import { ARCHIVE_RETENTION_MS } from "../../domain/thread-retention";
 import type { Thread } from "../../domain/thread";
+import { projectName, type Project } from "../../domain/project";
 import { ConfirmAction, useRowListFocus } from "./SettingRow";
 
 export type ArchiveSettingsProps = {
   archivedThreads: Thread[];
+  /** The projects archived threads may belong to, so each row can say which one. */
+  projects?: readonly Project[];
   onRestoreThread: (threadId: string) => void;
   onClearArchive: () => void;
 };
-
-/** How many archived threads the page lists before it offers a filter. */
-export const ARCHIVE_FILTER_FROM = 8;
 
 function daysLeft(archivedAt: number) {
   const remaining = Math.ceil((archivedAt + ARCHIVE_RETENTION_MS - Date.now()) / 86_400_000);
@@ -19,14 +19,16 @@ function daysLeft(archivedAt: number) {
   return remaining === 1 ? "Deletes in 1 day" : `Deletes in ${remaining} days`;
 }
 
-export function ArchiveSettings({ archivedThreads, onRestoreThread, onClearArchive }: ArchiveSettingsProps) {
+export function ArchiveSettings({ archivedThreads, projects = [], onRestoreThread, onClearArchive }: ArchiveSettingsProps) {
   const [query, setQuery] = useState("");
   const field = useRef<HTMLInputElement>(null);
   const rows = useRowListFocus<HTMLElement>();
   const [restored, setRestored] = useState<string | null>(null);
-  const filtering = archivedThreads.length > ARCHIVE_FILTER_FROM;
-  const term = filtering ? query.trim().toLowerCase() : "";
-  const shown = term ? archivedThreads.filter((thread) => thread.title.toLowerCase().includes(term)) : archivedThreads;
+  const names = new Map(projects.map((project) => [project.id, projectName(project)]));
+  const projectOf = (thread: Thread) => (thread.projectId && names.get(thread.projectId)) ?? null;
+  const term = query.trim().toLowerCase();
+  const shown = term ? archivedThreads.filter((thread) => [thread.title, projectOf(thread) ?? ""].some((text) => text.toLowerCase().includes(term))) : archivedThreads;
+  const count = archivedThreads.length === 1 ? "1 thread" : `${archivedThreads.length} threads`;
   return (
     <main className="settings-main">
       <div className="settings-page-heading">
@@ -43,11 +45,11 @@ export function ArchiveSettings({ archivedThreads, onRestoreThread, onClearArchi
           </div>
           <div className="settings-group-action">
             <span>{archivedThreads.length} archived</span>
-            {archivedThreads.length > 0 && <ConfirmAction className="danger" confirm="Delete all" onConfirm={() => { setRestored(null); onClearArchive(); }}>Clear all</ConfirmAction>}
+            {archivedThreads.length > 0 && <ConfirmAction className="danger" confirm={`Delete ${count}`} onConfirm={() => { setRestored(null); onClearArchive(); }}>Clear all</ConfirmAction>}
           </div>
         </div>
 
-        {filtering && (
+        {archivedThreads.length > 0 && (
           <label className="settings-filter">
             <Search size={14} aria-hidden="true" />
             <input
@@ -76,7 +78,7 @@ export function ArchiveSettings({ archivedThreads, onRestoreThread, onClearArchi
               <div className="setting-row plain" key={thread.id}>
                 <div>
                   <strong>{thread.title}</strong>
-                  <p>{daysLeft(thread.archivedAt!)}</p>
+                  <p>{[projectOf(thread), daysLeft(thread.archivedAt!)].filter(Boolean).join(" · ")}</p>
                 </div>
                 <div className="setting-row-action">
                   <button type="button" aria-label={`Restore ${thread.title}`} onClick={() => { setRestored(thread.title); onRestoreThread(thread.id); }}>Restore</button>

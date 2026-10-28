@@ -125,7 +125,7 @@ test("the Overview files threads ready for review and resolved apart, and resolv
   await act(async () => { query<HTMLButtonElement>(resolved, ".coordination-group-head").click(); });
   await view.render(overview({ resolved: { open: true } }));
   const reopen = query<HTMLButtonElement>(view.container, 'button[aria-label="Reopen Old work"]');
-  assert.equal(reopen.querySelectorAll("svg").length, 1, "reopen shows one glyph that keeps its meaning under the pointer");
+  assert.deepEqual([...reopen.querySelectorAll("svg")].map((icon) => icon.getAttribute("class")), ["resolution-ticked", "resolution-undo"], "a resolved row reads as ticked, and turns to undo once pointed at");
   await act(async () => { reopen.click(); });
 
   assert.deepEqual(dispatched, [{ type: "task.resolve", taskId: "review" }, { type: "task.reopen", taskId: "old" }]);
@@ -541,4 +541,17 @@ test("the Overview's badge counts the threads that need the user and the threads
   const workspace = { ...view, threadHandles: [], threadHandlesFor: () => [], commandControls: { available: () => true, dispatch() {} }, dispatch, actions: workspaceActions(dispatch) } as never;
   const dock = buildDock({ workspace, inspectedSubagent: undefined, workingSubagents: 0, unreviewedFiles: 0, onInspectSubagent() {}, onCloseInspector() {}, onOpenPanel() {}, onAddSideChat() {} });
   assert.equal(required(dock.panels.find((item) => item.id === OVERVIEW_PANEL)).badge, 3);
+});
+
+test("a full memory says so in the row that adds a note", async () => {
+  const notes = Array.from({ length: 30 }, (_, index) => ({ id: `n${index}`, text: `Note ${index}`, at: 1 }));
+  const overview = (kept: typeof notes) => React.createElement(CoordinatorOverview, { header, memory: { ...memory, notes: kept }, members: [], usage: null, worktrees: new Map(), folds: {}, onSetFold() {}, onSelect() {}, stoppable: true });
+  const view = await mount(overview(notes));
+  const add = () => query<HTMLTextAreaElement>(view.container, 'textarea[aria-label="Add a note"]');
+  assert.equal(add().placeholder, "Memory is full · forget a note to add one");
+  assert.equal(query(view.container, ".coordination-note-hint").textContent, "full");
+  await view.render(overview(notes.slice(1)));
+  assert.equal(add().placeholder, "Add a note");
+  assert.equal(query(view.container, ".coordination-note-hint").textContent, "↵ add");
+  await view.unmount();
 });

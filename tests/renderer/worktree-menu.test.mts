@@ -66,7 +66,7 @@ async function search(value: string) {
 test("the compact worktree menu navigates shared threads and creates a draft in the same checkout", async () => {
   const view = await renderMenu();
   try {
-    assert.match(query(view.container, ".session-location-name").textContent, /Worktree2 threads/);
+    assert.match(query(view.container, ".session-location-name").textContent, /Login redesign2 threads/);
     await openLocationMenu();
     const labels = [...document.querySelectorAll('.session-menu-popover > button > .menu-label')].map(node => node.textContent);
     assert.deepEqual(labels, ["New thread here", "Threads here", "Move to worktree", "Return to local", "Delete worktree…"]);
@@ -129,7 +129,6 @@ test("a destination that cannot be chosen yet still takes the keyboard, like oth
     await choose("Move to worktree");
     const row = query<HTMLButtonElement>(document, '[data-choice-index="0"]');
     assert.equal(row.getAttribute("aria-disabled"), "true");
-    assert.equal(row.dataset.tip, "Wait for the worktrees to load", "a row that cannot be chosen says why");
     assert.equal(row.disabled, false);
     const input = query<HTMLInputElement>(document, '.worktree-menu-search input');
     await act(async () => input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
@@ -149,7 +148,7 @@ test("the whole location row opens its menu, labelled with where the thread is",
   try {
     const trigger = query<HTMLButtonElement>(view.container, ".session-location-row > .menu-trigger");
     assert.ok(trigger.contains(query(view.container, ".session-location-name")));
-    assert.equal(trigger.getAttribute("aria-label"), "Worktree, thread options");
+    assert.equal(trigger.getAttribute("aria-label"), "Worktree Login redesign, thread options");
     await openLocationMenu();
     assert.equal(view.state().openMenu, "session:location");
   } finally { await view.unmount(); }

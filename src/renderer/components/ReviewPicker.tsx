@@ -145,8 +145,16 @@ function BaseBranchPicker({ branches, onReview }: Pick<ReviewPickerProps, "onRev
 /** Up to a SHA-256 object name; fewer than four characters is still being typed. */
 const COMMIT_SHA = /^[0-9a-f]{4,64}$/i;
 
-function CommitPicker({ onReview }: Pick<ReviewPickerProps, "onReview">) {
-  const [sha, setSha] = useState("");
+type Draft = { value: string; onChange: (value: string) => void };
+
+/** Puts the caret after a draft returned to, so typing carries on from where it stopped. */
+function caretAtEnd(field: HTMLInputElement | HTMLTextAreaElement | null) {
+  if (!field) return;
+  field.focus();
+  field.setSelectionRange(field.value.length, field.value.length);
+}
+
+function CommitPicker({ onReview, value: sha, onChange: setSha }: Pick<ReviewPickerProps, "onReview"> & Draft) {
   const errorId = useId();
   const commit = sha.trim();
   const valid = COMMIT_SHA.test(commit);
@@ -159,7 +167,7 @@ function CommitPicker({ onReview }: Pick<ReviewPickerProps, "onReview">) {
   return (
     <form className="review-form" onSubmit={submit}>
       <label><span>Commit SHA</span><input
-        autoFocus
+        ref={caretAtEnd}
         spellCheck={false}
         placeholder="e.g. a1b2c3d"
         value={sha}
@@ -174,8 +182,7 @@ function CommitPicker({ onReview }: Pick<ReviewPickerProps, "onReview">) {
   );
 }
 
-function CustomPicker({ engineLabel, onReview }: Pick<ReviewPickerProps, "engineLabel" | "onReview">) {
-  const [instructions, setInstructions] = useState("");
+function CustomPicker({ engineLabel, onReview, value: instructions, onChange: setInstructions }: Pick<ReviewPickerProps, "engineLabel" | "onReview"> & Draft) {
   const custom = instructions.trim();
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -184,7 +191,7 @@ function CustomPicker({ engineLabel, onReview }: Pick<ReviewPickerProps, "engine
   return (
     <form className="review-form" onSubmit={submit}>
       <label><span>Review instructions</span><textarea
-        autoFocus
+        ref={caretAtEnd}
         rows={4}
         placeholder={`What should ${engineLabel} focus on?`}
         value={instructions}
@@ -200,6 +207,9 @@ function CustomPicker({ engineLabel, onReview }: Pick<ReviewPickerProps, "engine
 export function ReviewPicker({ picker, workspaceId, engineLabel, returnFocus, onStep, onReview, onClose }: ReviewPickerProps) {
   const root = useRef<HTMLDivElement>(null);
   const branches = useBranches(workspaceId, picker.step === "base");
+  /** What was typed into a step outlives stepping back, until the picker closes. */
+  const [sha, setSha] = useState("");
+  const [instructions, setInstructions] = useState("");
   useDismissibleLayer(true, [root], onClose, returnFocus);
   function keyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     if (event.key !== "Escape") return;
@@ -212,8 +222,8 @@ export function ReviewPicker({ picker, workspaceId, engineLabel, returnFocus, on
       <Heading step={picker.step} current={branches?.status === "available" ? branches.current : null} onBack={() => onStep("targets")} onClose={onClose} />
       {picker.step === "targets" && <TargetOptions engineLabel={engineLabel} onStep={onStep} onReview={onReview} />}
       {picker.step === "base" && <BaseBranchPicker branches={branches} onReview={onReview} />}
-      {picker.step === "commit" && <CommitPicker onReview={onReview} />}
-      {picker.step === "custom" && <CustomPicker engineLabel={engineLabel} onReview={onReview} />}
+      {picker.step === "commit" && <CommitPicker onReview={onReview} value={sha} onChange={setSha} />}
+      {picker.step === "custom" && <CustomPicker engineLabel={engineLabel} onReview={onReview} value={instructions} onChange={setInstructions} />}
     </div>
   );
 }

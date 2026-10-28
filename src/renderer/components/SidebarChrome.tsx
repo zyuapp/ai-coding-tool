@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { LuArrowDownWideNarrow as RankIcon, LuChevronLeft as ChevronLeft, LuChevronRight as ChevronRight, LuFolder as Folder, LuMonitor as Monitor, LuMonitorOff as MonitorOff } from "react-icons/lu";
+import { LuActivity as ActivityIcon, LuChevronLeft as ChevronLeft, LuChevronRight as ChevronRight, LuFolder as Folder, LuMonitor as Monitor, LuMonitorOff as MonitorOff } from "react-icons/lu";
 import { awayStatus, type ComputerFilter, type ComputerLink } from "../../domain/computers";
 import type { SidebarMode } from "../../domain/sidebar";
 import { useDismissibleLayer } from "../focus";
@@ -71,7 +71,6 @@ function ComputerSwitch({ links, name, filter, onSetFilter, openMenu, onSetOpenM
       >
         <Screen size={16} aria-hidden="true" />
         {narrowed && <span className="computer-switch-name">{selected.label}</span>}
-        {away.length > 0 && <span className="computer-switch-away" aria-hidden="true">{away.length}</span>}
       </button>
       {open && <MenuList entries={entries} onClose={() => onSetOpenMenu(null)} className="computer-switch-menu" />}
     </div>
@@ -80,7 +79,7 @@ function ComputerSwitch({ links, name, filter, onSetFilter, openMenu, onSetOpenM
 
 const SIDEBAR_MODES = [
   { value: "projects", label: "Group by project", tip: "Group by project", Icon: Folder },
-  { value: "activity", label: "Rank threads by activity", tip: "Rank by activity", Icon: RankIcon },
+  { value: "activity", label: "Rank threads by activity", tip: "Rank by activity", Icon: ActivityIcon },
 ] as const satisfies ReadonlyArray<{ value: SidebarMode; label: string; tip: string; Icon: unknown }>;
 
 export type SidebarHeaderProps = {

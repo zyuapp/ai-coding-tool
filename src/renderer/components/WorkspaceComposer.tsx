@@ -54,6 +54,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       onFastModeChange={workspace.actions.setFastMode}
       contextUsage={workspace.currentThread?.contextUsage}
       {...(compact.length ? { onCompact: workspace.actions.compactContext } : {})}
+      compacting={workspace.compacting}
       planUsage={{
         usage: workspace.threadPlanUsage.reports[workspace.engine],
         dismissed: workspace.planUsage.dismissed,
@@ -67,7 +68,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       onAnswerQuestion={(question) => { if (thread) void workspace.dispatch({ type: "question.answer", taskId: thread.id, runId: question.runId, requestId: question.requestId, questionId: question.questionId }); }}
       goal={workspace.goal}
       unopenable={workspace.unopenable}
-      updateAvailable={workspace.appUpdate.status === "available" || workspace.appUpdate.status === "ready"}
+      updateAvailable={workspace.appUpdate.status !== "idle"}
       decisions={(coordination.approvals.length > 0 || coordination.decisions.length > 0 || coordination.proposals.length > 0) && <NeedsYouCard
         key={thread?.id}
         approvals={coordination.approvals}

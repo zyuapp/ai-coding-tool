@@ -39,14 +39,9 @@ test("the dialog names the chosen host, only offers reachable devices, and dispa
     assert.equal(query(document.body, "h2").textContent, "Add project on zyuapp");
     const select = query<HTMLSelectElement>(document.body, "select");
     assert.deepEqual([...select.options].map((option) => option.text), ["This computer (Mac)", "zyuapp"]);
-    const pick = query<HTMLButtonElement>(document.body, ".project-edit-path button");
-    assert.equal(pick.getAttribute("aria-disabled"), "true");
-    assert.equal(pick.dataset.tip, "Only on this computer");
-    await act(async () => pick.click());
-    assert.equal(view.commands.some((command) => command.type === "view.add-project-pick"), false);
+    assert.equal(document.body.textContent?.includes("Choose folder…"), false);
     await act(async () => { select.value = "this"; select.dispatchEvent(new dom.window.Event("change", { bubbles: true })); });
     assert.equal(query(document.body, "h2").textContent, "Add project on Mac");
-    assert.equal(query(document.body, ".project-edit-path button").hasAttribute("aria-disabled"), false);
     await act(async () => query(document.body, ".project-edit-path button").click());
     assert.equal(view.commands.at(-1)?.type, "view.add-project-pick");
     await view.send({ type: "project.path-picked", request: view.state().projectAdd!.request, root: "/chosen" });
@@ -101,20 +96,5 @@ test("an offline filtered computer remains explicit and cannot submit a path loc
     assert.equal(query(document.body, "[role='alert']").textContent, "Connection refused");
     assert.equal(query<HTMLButtonElement>(document.body, "button[type='submit']").disabled, true);
     assert.equal(query<HTMLSelectElement>(document.body, "select").value, "old");
-  } finally { await view.unmount(); }
-});
-
-test("an empty folder leaves submit reachable with its reason, and pressing it adds nothing", async () => {
-  const view = await dialog();
-  try {
-    const submit = query<HTMLButtonElement>(document.body, "button[type='submit']");
-    assert.equal(submit.disabled, false);
-    assert.equal(submit.getAttribute("aria-disabled"), "true");
-    assert.equal(submit.dataset.tip, "Pick a folder first");
-    await act(async () => query(document.body, "form").dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true })));
-    assert.equal(view.state().projectAdd?.saving, false);
-    await view.send({ type: "view.add-project-path", root: "/work" });
-    assert.equal(submit.hasAttribute("aria-disabled"), false);
-    assert.equal(submit.dataset.tip, undefined);
   } finally { await view.unmount(); }
 });

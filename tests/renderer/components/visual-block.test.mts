@@ -67,8 +67,9 @@ test("a visual that failed can be drawn again in a fresh frame, and one that dre
   assert.equal(view.container.querySelector(".visual-error button"), null);
 
   await say(first.contentWindow, { type: "aicodingtool-visual:error", message: "broke" });
-  const retry = view.container.querySelector<HTMLButtonElement>(".visual-error button");
+  const retry = view.container.querySelector<HTMLButtonElement>(".visual-error .limit-action");
   assert.equal(retry?.textContent, "Try again");
+  assert.equal(view.container.querySelector(".visual-error .copy-affordance")?.getAttribute("aria-label"), "Copy the error");
   await act(async () => { retry!.click(); });
   assert.equal(view.container.querySelector(".visual-error"), null, "the error clears while it draws again");
   assert.notEqual(frameOf(view.container), first, "the visual is drawn into a new frame");

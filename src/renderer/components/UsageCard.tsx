@@ -14,7 +14,7 @@ export function UsageCard({ id, title, aside, children }: { id: string; title: s
 export function UsageCardRow({ label, value, share, high = false, detail }: { label: string; value: string; share: number; high?: boolean; detail?: string | null }) {
   return (
     <span className="usage-card-row">
-      <span className="usage-card-label"><span>{label}</span><span>{value}</span></span>
+      <span className="usage-card-label"><span>{label}</span><span className={high ? "high" : undefined}>{value}</span></span>
       <span className="usage-card-track" aria-hidden="true"><span className={high ? "high" : undefined} style={{ width: `${share}%` }} /></span>
       {detail && <span className="usage-card-detail">{detail}</span>}
     </span>

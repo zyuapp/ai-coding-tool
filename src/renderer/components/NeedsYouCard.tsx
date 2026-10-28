@@ -4,6 +4,7 @@ import type { AppCommand } from "../../contracts/commands";
 import type { ThreadModelChoice } from "../../domain/coordination";
 import { modelLabel } from "../../domain/agent-engine";
 import { projectName } from "../../domain/project";
+import { displayShortcut } from "../../domain/shortcuts";
 import type { Thread } from "../../domain/thread";
 import type { CoordinationApprovalView, CoordinationDecisionView, ElsewhereView, ProposalView } from "../../application/coordination-view";
 import type { ApprovalView } from "../../application/thread-run-state";
@@ -12,6 +13,7 @@ import { CommandButton, useCommandControls } from "./CommandControl";
 import { BriefDetails } from "./Coordination";
 import { HostMark } from "./HostMark";
 import { firstFocusable, placeOf, ReturnFocusContext, useKeyboardPlace } from "../focus";
+import { MAC } from "../platform";
 import { ConfirmAction, type ConfirmActionProps } from "./SettingRow";
 import { shortcutTip } from "./TooltipLayer";
 import "./coordination.css";
@@ -252,8 +254,8 @@ function SuggestionRow({ taskId, threadModel, view }: { taskId: string; threadMo
       </span>}
       {starting
         ? <span className="suggestion-start task-spinner" role="status" aria-label={`Starting ${proposal.title}`} />
-        : <CommandButton type="button" className="suggestion-start" data-action="start" aria-label={`Start ${proposal.title}`} data-tip="Start" command={{ type: "proposal.start", taskId, proposalId: proposal.id }}>
-            <Play size={12} fill="currentColor" aria-hidden="true" />
+        : <CommandButton type="button" className="suggestion-start" data-action="start" aria-label={`Start ${proposal.title}`} command={{ type: "proposal.start", taskId, proposalId: proposal.id }}>
+            <Play size={12} fill="currentColor" aria-hidden="true" />Start
           </CommandButton>}
     </li>
   );
@@ -395,10 +397,10 @@ function DecisionForm({ view, draft, position, onStep, onDraft, onAnswer, onSele
       <div className="decision-foot">
         <label className="decision-own">
           <span>{decision.options.length ? "Or your own answer" : "Your answer"}</span>
-          <input value={own} onChange={(event) => onDraft({ kind: "decision", choice, own: event.currentTarget.value })} />
+          <input value={own} placeholder="Type your answer…" onChange={(event) => onDraft({ kind: "decision", choice, own: event.currentTarget.value })} />
         </label>
         {position && <button type="button" className="secondary" data-action="later" onClick={() => onStep(1)}>Later</button>}
-        <button type="submit" disabled={!answer}>Decide</button>
+        <button type="submit" disabled={!answer}>Decide<kbd aria-hidden="true">{displayShortcut("Enter", MAC)}</kbd></button>
       </div>
     </form>
   );

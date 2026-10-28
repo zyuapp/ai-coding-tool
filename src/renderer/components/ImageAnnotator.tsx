@@ -95,6 +95,23 @@ function MarkTools({ shape, frame, mark, picked, onKeep, onEdit, onRemove }: {
   );
 }
 
+/** A ring around the picked mark, shown while the canvas has keyboard focus. */
+function PickedRing({ shape, frame }: { shape: Annotation; frame: Frame }) {
+  const bounds = markBounds(shape);
+  return (
+    <div
+      className="annotator-picked"
+      aria-hidden="true"
+      style={{
+        left: `${bounds.x * frame.width}px`,
+        top: `${bounds.y * frame.height}px`,
+        width: `${bounds.width * frame.width}px`,
+        height: `${bounds.height * frame.height}px`,
+      }}
+    />
+  );
+}
+
 /** The note being typed, held under the box it belongs to. */
 function MarkLabel({ box, frame, label, selected, onLabel, onCommit, onClose }: {
   box: Omit<Annotation, "kind" | "text">;
@@ -245,9 +262,25 @@ function useAnnotatorKeys({ composing, onEscape, onUndo, onTool }: {
   }, []);
 }
 
-function markHint(count: number, toolHint: string) {
+function markHint(count: number, toolHint: string, canvasFocused: boolean) {
   if (count === 0) return toolHint;
-  return `${count} mark${count === 1 ? "" : "s"}. Arrow keys pick one, ${displayShortcut("Enter", MAC)} edits its note, ${displayShortcut("Backspace", MAC)} deletes it.`;
+  const marks = `${count} mark${count === 1 ? "" : "s"}.`;
+  return canvasFocused ? `${marks} Arrow keys pick one, ${displayShortcut("Enter", MAC)} edits its note, ${displayShortcut("Backspace", MAC)} deletes it.` : marks;
+}
+
+/** The picked mark's bounds as a share of the image, for the ring a keyboard walk shows around it. */
+export function markBounds(shape: Annotation) {
+  return {
+    x: Math.min(shape.x, shape.x + shape.width),
+    y: Math.min(shape.y, shape.y + shape.height),
+    width: Math.abs(shape.width),
+    height: Math.abs(shape.height),
+  };
+}
+
+/** The number a box is drawn with, so what a control says matches what the screenshot shows. */
+function markNumber(shapes: Annotation[], index: number) {
+  return shapes.slice(0, index + 1).filter((shape) => shape.kind === "box").length;
 }
 
 /** Which mark an arrow key walks to from the one picked, wrapping at either end. */
@@ -311,6 +344,7 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
   const [hovered, setHovered] = useState<number | null>(null);
   /** The mark whose tools are showing: the one pointed at or walked to, else the newest. */
   const picked = hovered !== null && shapes[hovered] ? hovered : shapes.length ? shapes.length - 1 : null;
+  const [canvasFocused, setCanvasFocused] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const note = useMarkNote(shapes, change);
   const { pending, editing, composing } = note;
@@ -378,11 +412,6 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
     setHovered(null);
   }
 
-  /** The number a box is drawn with, so what a control says matches what the screenshot shows. */
-  function markNumber(index: number) {
-    return shapes.slice(0, index + 1).filter((shape) => shape.kind === "box").length;
-  }
-
   /** A note still being typed is part of what is applied. */
   function apply() {
     if (!image) return;
@@ -420,14 +449,17 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
                 aria-label="Screenshot canvas"
                 tabIndex={0}
                 onKeyDown={canvasKeyDown}
+                onFocus={() => setCanvasFocused(true)}
+                onBlur={() => setCanvasFocused(false)}
                 {...handlers}
               />
+              {!composing && picked !== null && <PickedRing shape={shapes[picked]!} frame={frame} />}
               {!composing && shapes.map((shape, index) => (
                 <MarkTools
                   key={index}
                   shape={shape}
                   frame={frame}
-                  mark={`${prefix}${markNumber(index)}`}
+                  mark={`${prefix}${markNumber(shapes, index)}`}
                   picked={index === picked}
                   onKeep={() => setHovered(index)}
                   onEdit={() => editMark(index)}
@@ -452,7 +484,7 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
         <AnnotatorFooter
           discarding={discarding}
           canUndo={history.changed}
-          hint={markHint(shapes.length, activeTool.hint)}
+          hint={markHint(shapes.length, activeTool.hint, canvasFocused)}
           ready={Boolean(image)}
           onUndo={undo}
           onKeep={() => setDiscarding(false)}

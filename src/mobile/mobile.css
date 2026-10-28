@@ -482,7 +482,6 @@ button {
   place-items: center;
   width: 44px;
   height: 44px;
-  margin-right: -2px;
   border-radius: 10px;
   color: var(--muted-strong);
 }
@@ -667,7 +666,7 @@ button {
 .thread-more {
   display: grid;
   place-items: center;
-  width: 40px;
+  width: 44px;
   height: 44px;
   padding: 0;
   border-radius: 10px;
@@ -758,6 +757,10 @@ button {
   gap: 16px;
 }
 
+.transcript:has(~ .composer .composer-waiting) {
+  padding-bottom: 56px;
+}
+
 .omitted {
   align-self: center;
   display: inline-flex;
@@ -832,7 +835,6 @@ button {
   height: 28px;
   padding: 0;
   border-radius: 8px;
-  background: var(--surface-raised);
   color: var(--ink-faint);
 }
 
@@ -858,6 +860,30 @@ button {
 
 .answer-meta > .copy-affordance.failed {
   color: var(--danger);
+}
+
+.copy-affordance:is(.copied, .failed)::after {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: var(--text-meta);
+  font-weight: 500;
+  line-height: 16px;
+  white-space: nowrap;
+  color: var(--ink-faint);
+  pointer-events: none;
+}
+
+.copy-affordance.copied::after {
+  content: "Copied";
+}
+
+.copy-affordance.failed::after {
+  content: "Copy failed";
+}
+
+.answer-meta > .copy-affordance::after {
+  left: calc(100% + 2px);
 }
 
 .queued-list {
@@ -1203,6 +1229,14 @@ button.work-row .work-summary {
 
 .code-block > .copy-affordance.failed {
   color: var(--danger);
+}
+
+.code-block > .copy-affordance::after {
+  right: calc(100% + 6px);
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-raised);
 }
 
 .markdown pre {
@@ -2444,6 +2478,12 @@ button.thread-start-project:active {
 .empty p {
   margin: 0;
   font-size: var(--text-control);
+}
+
+.empty .line-spin {
+  width: 20px;
+  height: 20px;
+  border-width: 2px;
 }
 
 .gate {

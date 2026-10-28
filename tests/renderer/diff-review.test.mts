@@ -141,17 +141,17 @@ test("a range picked in the gutter becomes a composer pill naming the file and i
   await view.unmount();
 });
 
-test("lines are picked by dragging down the gutter, and from the keyboard without a Tab stop on every line", async () => {
+test("lines are picked by dragging down the gutter, and from the keyboard with one Tab stop per file", async () => {
   seedReviewableProject();
   window.desktop = reviewableDesktop();
   const view = await mount(React.createElement(App));
   await openReview(view);
   await showOneColumn(view);
   const gutters = () => [...view.container.querySelectorAll<HTMLElement>(".diff-gutter")];
-  assert.ok(gutters().every((gutter) => gutter.tabIndex === -1), "a review is not hundreds of Tab stops");
+  assert.deepEqual(gutters().map((gutter) => gutter.tabIndex), gutters().map((_, index) => index === 0 ? 0 : -1), "Tab reaches a file's first line and no other");
 
   const pointer = (type: string, target: Element, init: PointerEventInit = {}) => target.dispatchEvent(new dom.window.PointerEvent(type, { bubbles: true, cancelable: true, pointerType: "mouse", button: 0, buttons: 1, ...init }));
-  await act(async () => { pointer("pointerdown", gutters()[1]); });
+  await act(async () => { pointer("pointerdown", gutters()[1], { pointerType: "pen" }); });
   await act(async () => { pointer("pointerover", query(view.container, ".diff-line.add code")); });
   assert.equal(view.container.querySelector(".diff-comment"), null, "the note waits while the drag is still picking");
   await act(async () => { pointer("pointerover", gutters()[3]); });
@@ -257,6 +257,7 @@ test("a comment can be taken from either column of the two-column view", async (
     "Add comment on added line 2",
     "Add comment on added line 3",
   ]);
+  assert.deepEqual(gutters.map((gutter) => gutter.tabIndex), [0, -1, -1, -1, -1], "Tab reaches the first line once, on its old side");
   await act(async () => { item(gutters.find((gutter) => gutter.getAttribute("aria-label") === "Add comment on added line 3")).click(); });
 
   assert.match(query(view.container, ".diff-comment-range").textContent, /^src\/app\.ts:L3$/);

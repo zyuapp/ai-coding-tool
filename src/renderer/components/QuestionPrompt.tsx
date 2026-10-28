@@ -16,12 +16,16 @@ export function QuestionPrompt({ question, answer, disabled = false, submitOnEnt
   const unavailable = disabled || question.submitting;
   /** Whether the answer was typed rather than picked, so a typed answer that matches an option's label stays typed. */
   const [typed, setTyped] = useState(false);
+  /** What was typed, kept while a picked option stands in for it as the answer. */
+  const [draft, setDraft] = useState(() => question.options.some((option) => option.label === answer) ? "" : answer);
   const [asked, setAsked] = useState(question.id);
   if (asked !== question.id) {
     setAsked(question.id);
     setTyped(false);
+    setDraft("");
   }
   const chosen = !typed && question.options.some((option) => option.label === answer);
+  const overridden = chosen && draft.trim() !== "";
   return (
     <form className="question-prompt" aria-label="Pending question" onSubmit={(event) => {
       event.preventDefault();
@@ -49,12 +53,17 @@ export function QuestionPrompt({ question, answer, disabled = false, submitOnEnt
         <label htmlFor={`${id}-answer`}>Your answer</label>
         <textarea
           id={`${id}-answer`}
-          value={chosen ? "" : answer}
+          value={chosen ? draft : answer}
+          className={overridden ? "overridden" : undefined}
           rows={2}
           placeholder={question.options.length ? "Or type your answer…" : "Type your answer…"}
           aria-describedby={id}
           disabled={unavailable}
-          onInput={(event) => { setTyped(true); onAnswerChange(event.currentTarget.value); }}
+          onInput={(event) => {
+            setTyped(true);
+            setDraft(event.currentTarget.value);
+            onAnswerChange(event.currentTarget.value);
+          }}
           onKeyDown={(event) => {
             if (submitOnEnter && event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
               event.preventDefault();

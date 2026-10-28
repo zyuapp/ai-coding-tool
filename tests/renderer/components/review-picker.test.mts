@@ -132,3 +132,30 @@ test("a branch search with nothing left tells a missed query from a checkout wit
   await lone.view.unmount();
   window.desktop = desktop;
 });
+
+test("instructions typed into a step are still there after stepping back and returning", async () => {
+  function Harness() {
+    const [step, setStep] = React.useState<Step>("custom");
+    return React.createElement(ReviewPicker, {
+      picker: { taskId: "task-1", step },
+      workspaceId: "workspace-1",
+      engineLabel: "Codex",
+      returnFocus: { current: null },
+      onStep: setStep,
+      onReview: () => {},
+      onClose: () => {},
+    });
+  }
+  const view = await mount(React.createElement(Harness));
+  await type(query<HTMLTextAreaElement>(view.container, ".review-form textarea"), "check the cache");
+  await press(query(view.container, ".review-form textarea"), "Escape");
+  assert.equal(view.container.querySelector(".review-form textarea"), null, "Escape went back to the options");
+
+  const custom = [...view.container.querySelectorAll<HTMLButtonElement>('[role="option"]')].find((option) => option.textContent?.includes("Custom"))!;
+  await act(async () => { custom.click(); });
+  const field = query<HTMLTextAreaElement>(view.container, ".review-form textarea");
+  assert.equal(field.value, "check the cache");
+  assert.equal(dom.window.document.activeElement, field);
+  assert.equal(field.selectionStart, field.value.length, "the caret lands after the draft");
+  await view.unmount();
+});

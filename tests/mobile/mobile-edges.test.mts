@@ -16,3 +16,16 @@ test("labelled pills and buttons on the phone wear the quiet control edge", () =
     assert.match(rule(selector), /border: 1px solid var\(--line-control\)/, selector);
   }
 });
+
+test("a copy says what happened in words, not only by colour", () => {
+  assert.match(rule(".copy-affordance.copied::after"), /content: "Copied"/);
+  assert.match(rule(".copy-affordance.failed::after"), /content: "Copy failed"/);
+});
+
+test("the answer's copy button has no chip at rest", () => {
+  assert.doesNotMatch(rule(".answer-meta > .copy-affordance"), /background/);
+});
+
+test("the transcript makes room for the offline pill so it never covers the last line", () => {
+  assert.match(rule(".transcript:has(~ .composer .composer-waiting)"), /padding-bottom: 56px/);
+});

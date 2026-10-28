@@ -23,6 +23,8 @@ test("with paired computers the page lists each computer's own limits under its 
     assert.match(section("this").textContent!, /58% used/);
     assert.match(section("mac").textContent!, /Pro plan/);
     assert.ok(section("mac").querySelector(".usage-window-fill.high"), "a computer near its limit is marked the same way");
+    assert.ok(section("mac").querySelector(".usage-window-share.high"), "its share reads as near the limit too");
+    assert.equal(section("this").querySelector(".usage-window-share.high"), null);
     assert.match(section("mac").textContent!, /Reading usage…/, "the provider still answering says so");
     assert.match(section("away").textContent!, /Offline/);
     assert.match(section("old").textContent!, /Update AI Coding Tool on that computer/);

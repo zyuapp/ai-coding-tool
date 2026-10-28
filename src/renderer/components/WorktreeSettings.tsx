@@ -108,7 +108,9 @@ export function WorktreeSettings({ page, error, notice, dispatch }: WorktreeSett
         {error && <p className="settings-error" role="alert">{error}</p>}
         {notice && <p className="settings-notice" role="status">{notice}</p>}
         {page.loading && <p className="settings-empty" role="status">Reading worktrees…</p>}
-        {!page.loading && !error && !page.available.length && <p className="settings-empty">{page.project ? "No worktrees on this device for this project." : "No worktrees on this device."}</p>}
+        {!page.loading && !error && !page.available.length && <p className="settings-empty">{page.project
+          ? <>No worktrees on this device for this project. <button type="button" className="settings-empty-action" onClick={() => dispatch({ type: "worktree.filter-project", project: null })}>Show all projects</button></>
+          : "No worktrees on this device."}</p>}
         {page.available.map((worktree) => <WorktreeRow worktree={worktree} expanded={expanded.has(worktree.root)} dispatch={dispatch} key={worktree.root} />)}
       </section>
       {page.missing.length > 0 && <section className="worktree-missing">

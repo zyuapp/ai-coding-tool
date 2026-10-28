@@ -10,12 +10,13 @@ import { SpinningIcon } from "./SpinningIcon";
 const HIGH_SHARE = 90;
 
 function UsageBar({ label, share }: { label: string; share: number | null }) {
+  const high = (share ?? 0) >= HIGH_SHARE ? " high" : "";
   return (
     <div className="usage-window-bar">
       <span className="usage-window-track" role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={barShare(share)} aria-valuetext={formatShare(share)}>
-        <span className={`usage-window-fill ${(share ?? 0) >= HIGH_SHARE ? "high" : ""}`} style={{ width: `${barShare(share)}%` }} />
+        <span className={`usage-window-fill${high}`} style={{ width: `${barShare(share)}%` }} />
       </span>
-      <span className="usage-window-share" aria-hidden="true">{formatShare(share)}</span>
+      <span className={`usage-window-share${high}`} aria-hidden="true">{formatShare(share)}</span>
     </div>
   );
 }

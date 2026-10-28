@@ -40,8 +40,8 @@ function rowLabel(row: Extract<DiffRow, { kind: DiffLineKind }>) {
 }
 
 /**
- * Gutters are out of the Tab order: the keyboard reaches them with the arrows from a file's row, and
- * Shift with an arrow picks more lines, as dragging down the gutter does.
+ * Only a file's first gutter is in the Tab order; the arrows walk on from there or from a file's row,
+ * and Shift with an arrow picks more lines, as dragging down the gutter does.
  */
 const GUTTER_TIP = "Add comment";
 
@@ -83,12 +83,13 @@ type LineRowProps = {
   selected: boolean;
   commented: boolean;
   comments: DiffComment[];
+  first: boolean;
   onSelect: (extend: boolean) => void;
   onEditComment: (comment: DiffComment) => void;
 };
 
 /** One line of the one-column view. Its gutter is the only thing that selects, the way a review reads. */
-function LineRow({ path, row, tokens, selected, commented, comments, onSelect, onEditComment }: LineRowProps) {
+function LineRow({ path, row, tokens, selected, commented, comments, first, onSelect, onEditComment }: LineRowProps) {
   if (row.kind === "hunk") return <div className="diff-line hunk">{row.text}</div>;
   return (
     <div className={`diff-line ${row.kind}${commented ? " commented" : ""}${selected ? " selected" : ""}`}>
@@ -96,7 +97,7 @@ function LineRow({ path, row, tokens, selected, commented, comments, onSelect, o
       <button
         className="diff-gutter"
         type="button"
-        tabIndex={-1}
+        tabIndex={first ? 0 : -1}
         data-path={path}
         data-key={row.key}
         aria-label={`Add comment on ${rowLabel(row).toLowerCase()}`}
@@ -121,12 +122,13 @@ type SplitCellProps = {
   selected: boolean;
   commented: boolean;
   comments: DiffComment[];
+  first: boolean;
   onSelect: (extend: boolean) => void;
   onEditComment: (comment: DiffComment) => void;
 };
 
 /** One column of the two-column view. Either side's gutter selects, and both colour the same way. */
-function SplitCell({ path, row, tokens, side, selected, commented, comments, onSelect, onEditComment }: SplitCellProps) {
+function SplitCell({ path, row, tokens, side, selected, commented, comments, first, onSelect, onEditComment }: SplitCellProps) {
   if (!row || row.kind === "hunk") return <div className="diff-split-cell empty" />;
   return (
     <div className={`diff-split-cell ${row.kind}${commented ? " commented" : ""}${selected ? " selected" : ""}`}>
@@ -134,7 +136,7 @@ function SplitCell({ path, row, tokens, side, selected, commented, comments, onS
       <button
         className="diff-gutter static"
         type="button"
-        tabIndex={-1}
+        tabIndex={first ? 0 : -1}
         data-path={path}
         data-key={row.key}
         aria-label={`Add comment on ${rowLabel(row).toLowerCase()}`}
@@ -155,6 +157,7 @@ type SplitPairRowProps = {
   right: DiffRow | null;
   tokens: Map<string, ThemedToken[]>;
   indexByKey: Map<string, number> | undefined;
+  firstIndex: number;
   comments: DiffCommentIndex;
   selected: SelectedRange | null;
   onSelect: (key: string, extend: boolean) => void;
@@ -162,7 +165,7 @@ type SplitPairRowProps = {
 };
 
 /** One line of the two-column view: the old side beside the new, either of which can be missing. */
-function SplitPairRow({ path, left, right, tokens, indexByKey, comments, selected, onSelect, onEditComment }: SplitPairRowProps) {
+function SplitPairRow({ path, left, right, tokens, indexByKey, firstIndex, comments, selected, onSelect, onEditComment }: SplitPairRowProps) {
   const indexOf = (side: DiffRow | null) => side ? indexByKey?.get(side.key) : undefined;
   const commentsFor = (index: number | undefined, side: DiffSide) => index === undefined
     ? []
@@ -180,6 +183,7 @@ function SplitPairRow({ path, left, right, tokens, indexByKey, comments, selecte
         selected={inSelection(selected, path, leftIndex)}
         commented={commented(leftIndex)}
         comments={commentsFor(leftIndex, "old")}
+        first={leftIndex === firstIndex}
         onSelect={(extend) => left && onSelect(left.key, extend)}
         onEditComment={onEditComment}
       />
@@ -191,6 +195,7 @@ function SplitPairRow({ path, left, right, tokens, indexByKey, comments, selecte
         selected={inSelection(selected, path, rightIndex)}
         commented={commented(rightIndex)}
         comments={commentsFor(rightIndex, "new")}
+        first={rightIndex === firstIndex && leftIndex !== firstIndex}
         onSelect={(extend) => right && onSelect(right.key, extend)}
         onEditComment={onEditComment}
       />
@@ -238,6 +243,11 @@ export type PanelRowViewProps = {
 
 const EMPTY_TOKENS = new Map<string, ThemedToken[]>();
 
+/** The index of a file's first line that can be commented on. */
+function firstLineIndex(drawing: DrawnFile | undefined) {
+  return drawing?.rows.findIndex((row) => row.kind !== "hunk") ?? -1;
+}
+
 /**
  * One panel row, drawn the same whether the review is windowed or laid out whole. Memoized, because
  * the panel is redrawn by anything the window does and a review holds hundreds of rows of spans.
@@ -279,6 +289,7 @@ export const PanelRowView = memo(function PanelRowView({
         selected={inSelection(selected, row.path, row.index)}
         commented={comments.highlighted.has(key)}
         comments={comments.markers.get(key) ?? []}
+        first={row.index === firstLineIndex(drawing)}
         onSelect={(extend) => onSelect(row.path, row.row.key, extend)}
         onEditComment={onEditComment}
       />
@@ -292,6 +303,7 @@ export const PanelRowView = memo(function PanelRowView({
       right={row.row.right}
       tokens={tokens}
       indexByKey={drawing?.indexByKey}
+      firstIndex={firstLineIndex(drawing)}
       comments={comments}
       selected={selected}
       onSelect={(key, extend) => onSelect(row.path, key, extend)}

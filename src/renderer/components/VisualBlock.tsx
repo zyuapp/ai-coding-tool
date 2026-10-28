@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { createPortal } from "react-dom";
 import { renderMessage, themeMessage, VISUAL_FRAME_URL, visualFrameMessage, type VisualTheme } from "../../domain/visual-frame";
 import { useModalFocus } from "../focus";
+import { CopyButton } from "./CopyButton";
 import { shortcutTip } from "./TooltipLayer";
 
 /** What a visual is styled with, by the names the visualize skill documents, read from the app's own tokens. */
@@ -82,6 +83,7 @@ export function BlockError({ title, error, className, onRetry, children }: { tit
         <summary><CircleAlert className="notice-icon" aria-hidden="true" />{title}{reason && <span className="block-error-reason">{reason}</span>}</summary>
         {children}
       </details>
+      <CopyButton text={error} label="Copy the error" />
       <button type="button" className="limit-action" onClick={onRetry}>Try again</button>
     </div>
   );

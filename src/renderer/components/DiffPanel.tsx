@@ -187,10 +187,12 @@ function useLinePicking({ editing, setNote, setEditing, setSelection, noteRef }:
   }, [editing]);
 
   const startDrag = (event: PointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0 || event.pointerType !== "mouse") return;
+    if (event.button !== 0 || event.pointerType === "touch") return;
     const gutter = gutterOf(event.target);
     if (!gutter) return;
     event.preventDefault();
+    /** A pen holds the pointer on the gutter it pressed, which would keep the lines below from reporting the drag. */
+    if (gutter.hasPointerCapture?.(event.pointerId)) gutter.releasePointerCapture(event.pointerId);
     selectByKey(gutter.dataset.path!, gutter.dataset.key!, event.shiftKey);
     if (event.shiftKey) return;
     dragPath.current = gutter.dataset.path!;

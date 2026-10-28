@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Draggable, Droppable, type DraggableProvided } from "@hello-pangea/dnd";
-import { LuChevronRight as ChevronRight, LuListFilter as Filter, LuPlus as Plus, LuSquarePen as SquarePen } from "react-icons/lu";
+import { LuChevronRight as ChevronRight, LuPlus as Plus, LuSquarePen as SquarePen } from "react-icons/lu";
 import { folderName, projectName, type Project } from "../../domain/project";
 import type { Thread } from "../../domain/thread";
 import type { SidebarSection, SidebarSections } from "../../domain/sidebar";
@@ -11,7 +11,6 @@ import { RenameInput, useRenaming, type Renaming } from "./SidebarRename";
 import { ShowMore } from "./ShowMore";
 import type { ThreadRowRenderer } from "./SidebarThreadRow";
 import type { ThreadHost } from "../../application/computers";
-import type { ComputerFilter } from "../../domain/computers";
 import { HostMark } from "./HostMark";
 
 export const RECENTS_DROPPABLE = "recents";
@@ -69,17 +68,19 @@ function StartThread({ recents, onSelect }: { recents?: boolean; onSelect: () =>
 }
 
 /**
- * Removing a folder archives every thread in it, so one holding threads asks first, with the safe
- * choice where the keyboard lands.
+ * Removing a folder archives every thread in it, so one holding threads says how many before it is
+ * opened, and asks first, with the safe choice where the keyboard lands.
  */
 function removeEntry(threadCount: number, onRemove: () => void): MenuItem {
   if (threadCount === 0) return { label: "Remove", danger: true, onSelect: onRemove };
+  const threads = threadCount === 1 ? "1 thread" : `${threadCount} threads`;
   return {
     label: "Remove",
+    detail: `Archives ${threads}`,
     danger: true,
     items: [
       { label: "Keep project" },
-      { label: threadCount === 1 ? "Remove and archive 1 thread" : `Remove and archive ${threadCount} threads`, danger: true, onSelect: onRemove },
+      { label: `Remove and archive ${threads}`, danger: true, onSelect: onRemove },
     ],
   };
 }
@@ -195,7 +196,11 @@ function ProjectRow({
                     : <button
                         className="project-main"
                         onClick={(event) => { if (event.detail < 2) onToggleProject(project.id); }}
-                        onDoubleClick={(event) => renaming.start(project.id, event.currentTarget.closest(".project-row"))}
+                        onDoubleClick={(event) => {
+                          /** The double-click's first click folded the folder; renaming puts it back. */
+                          onToggleProject(project.id);
+                          renaming.start(project.id, event.currentTarget.closest(".project-row"));
+                        }}
                         onKeyDown={(event) => {
                           if (event.key !== "F2") return;
                           event.preventDefault();
@@ -281,32 +286,15 @@ export type SidebarProjectsProps = {
   onRenameProject: (projectId: string, name: string) => void;
   onEditProject: (projectId: string) => void;
   onRemoveProject: (projectId: string) => void;
-  /** Which computer the lists are narrowed to, which a computer's heading narrows them to and back. */
-  computerFilter?: ComputerFilter;
-  onSetComputerFilter?: (filter: ComputerFilter) => void;
 };
 
-/**
- * A computer's name over its folders. Where the lists can be narrowed, choosing it shows that
- * computer's folders alone, and choosing it again shows every computer's.
- */
-function ComputerHeading({ host, name, filter, onSetFilter }: { host: ThreadHost | undefined; name: string; filter?: ComputerFilter; onSetFilter?: (filter: ComputerFilter) => void }) {
-  const content = <>
-    <HostMark name={name} offline={host?.offline} reconnecting={host?.reconnecting} />
-    {host?.offline && <span className="computer-heading-status">{host.reconnecting ? "Reconnecting" : "Offline"}</span>}
-  </>;
-  if (!onSetFilter) return <div className="computer-heading" aria-hidden="true">{content}</div>;
-  const own: ComputerFilter = host?.id ?? "this";
-  const narrowed = filter === own;
+/** A computer's name over its folders. The header's computer switch is what narrows the lists to one. */
+function ComputerHeading({ host, name }: { host: ThreadHost | undefined; name: string }) {
   return (
-    <button
-      className="computer-heading"
-      type="button"
-      aria-pressed={narrowed}
-      aria-label={`Only ${name}`}
-      data-tip={narrowed ? "Show all computers" : `Only ${name}`}
-      onClick={() => onSetFilter(narrowed ? "all" : own)}
-    >{content}<Filter className="computer-heading-filter" size={12} aria-hidden="true" /></button>
+    <div className="computer-heading" aria-hidden="true">
+      <HostMark name={name} offline={host?.offline} reconnecting={host?.reconnecting} />
+      {host?.offline && <span className="computer-heading-status">{host.reconnecting ? "Reconnecting" : "Offline"}</span>}
+    </div>
   );
 }
 
@@ -332,8 +320,6 @@ export function SidebarProjects({
   onRenameProject,
   onEditProject,
   onRemoveProject,
-  computerFilter,
-  onSetComputerFilter,
 }: SidebarProjectsProps) {
   const projectNames = useRenaming(onRenameProject);
   /** Headings only once a paired computer's folders sit beside this computer's own. */
@@ -354,7 +340,7 @@ export function SidebarProjects({
         {computerGroups(projects, projectHosts).map(({ host, projects: held }) => (
           <Droppable key={host?.id ?? "local"} droppableId={`${PROJECTS_DROPPABLE}:${host?.id ?? "this"}`} type={`${PROJECT_DRAG}:${host?.id ?? "this"}`}>
             {(list) => <div className="computer-group" role={showComputers ? "group" : undefined} aria-label={showComputers ? host?.name ?? localName : undefined} ref={list.innerRef} {...list.droppableProps}>
-              {showComputers && <ComputerHeading host={host} name={host?.name ?? localName} filter={computerFilter} onSetFilter={onSetComputerFilter} />}
+              {showComputers && <ComputerHeading host={host} name={host?.name ?? localName} />}
               {held.map((project, offset) => (
                 <ProjectRow
                   key={project.id}

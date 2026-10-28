@@ -1,6 +1,6 @@
 import { createContext, memo, useContext, useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
-import { LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuChevronDown as ChevronDown, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuPencil as Pencil, LuTrash2 as Trash, LuUndo2 as Reopen, LuX as X } from "react-icons/lu";
-import { deliveryLabel, MAX_MEMORY_NOTE, MAX_PURPOSE, nextStepOf, OVERVIEW_GROUPS, type MemoryNote, type OverviewFold, type OverviewFolds, type OverviewGroup, type OverviewSection, type ThreadBrief, type ThreadModelChoice } from "../../domain/coordination";
+import { LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuChevronDown as ChevronDown, LuCircleCheck as Resolved, LuFolderOpen as FolderOpen, LuFolderSymlink as FolderSymlink, LuPencil as Pencil, LuTrash2 as Trash, LuUndo2 as Reopen, LuX as X } from "react-icons/lu";
+import { deliveryLabel, MAX_MEMORY_NOTE, MAX_MEMORY_NOTES, MAX_PURPOSE, nextStepOf, OVERVIEW_GROUPS, type MemoryNote, type OverviewFold, type OverviewFolds, type OverviewGroup, type OverviewSection, type ThreadBrief, type ThreadModelChoice } from "../../domain/coordination";
 import { modelDelegable, modelEngine, modelLabel, type AgentEngine, type AgentModel, type EngineReadiness } from "../../domain/agent-engine";
 import type { AgentEffort } from "../../domain/run";
 import { worktreeHue, worktreeName, type Worktree } from "../../domain/worktree";
@@ -296,6 +296,7 @@ function NoteInput({ notes, onAdd }: { notes: readonly MemoryNote[]; onAdd: (tex
   const [text, setText] = useState("");
   /** The note last sent, and the notes memory held when it was, so a note it already held does not count as saved. */
   const [sent, setSent] = useState<{ text: string; held: ReadonlySet<string> } | null>(null);
+  const full = notes.length >= MAX_MEMORY_NOTES;
   if (sent && notes.some((note) => note.text === sent.text && !sent.held.has(note.id))) {
     setSent(null);
     if (text.trim() === sent.text) setText("");
@@ -312,8 +313,8 @@ function NoteInput({ notes, onAdd }: { notes: readonly MemoryNote[]; onAdd: (tex
   };
   return (
     <div className="coordination-note">
-      <textarea rows={1} className="coordination-note-add" aria-label="Add a note" placeholder="Add a note" maxLength={MAX_MEMORY_NOTE} value={text} onChange={(event) => setText(event.currentTarget.value)} onKeyDown={onKeyDown} />
-      <kbd className="coordination-note-hint" aria-hidden="true">↵ add</kbd>
+      <textarea rows={1} className="coordination-note-add" aria-label="Add a note" placeholder={full ? "Memory is full · forget a note to add one" : "Add a note"} maxLength={MAX_MEMORY_NOTE} value={text} onChange={(event) => setText(event.currentTarget.value)} onKeyDown={onKeyDown} />
+      <kbd className="coordination-note-hint" aria-hidden="true">{full ? "full" : "↵ add"}</kbd>
     </div>
   );
 }
@@ -474,8 +475,9 @@ const ThreadRow = memo(function ThreadRow({ view: { thread, status, summary, hos
 
 /**
  * Resolves a thread with nothing left waiting on it, or reopens a resolved one; nothing for a thread
- * that is working or waiting on the user. Its icon is even-sized, as its buttons are, so it sits
- * centred on whole pixels rather than a half one.
+ * that is working or waiting on the user. A resolved thread's button reads as a ticked check, which
+ * turns into an undo once pointed at, so reopening never looks like running it again. Its icon is
+ * even-sized, as its buttons are, so it sits centred on whole pixels rather than a half one.
  */
 export function ResolutionButton({ taskId, title, status, className, size = 14 }: {
   taskId: string;
@@ -487,7 +489,8 @@ export function ResolutionButton({ taskId, title, status, className, size = 14 }
   if (status === "resolved") {
     return (
       <CommandButton command={{ type: "task.reopen", taskId }} className={className} data-action="reopen" aria-label={`Reopen ${title}`} data-tip="Reopen">
-        <Reopen size={size} aria-hidden="true" />
+        <Resolved className="resolution-ticked" size={size} aria-hidden="true" />
+        <Reopen className="resolution-undo" size={size} aria-hidden="true" />
       </CommandButton>
     );
   }

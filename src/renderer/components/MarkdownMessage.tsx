@@ -100,27 +100,12 @@ function MarkdownTable({ node, ...props }: ComponentProps<"table"> & ExtraProps)
 /** How long a link must be rested on for its tip to have been read. */
 const TIP_READ_MS = 900;
 
-const IN_APP_CLICK_KEY = "aicodingtool.in-app-click-known.v1";
-
-function storedInAppClick() {
-  try {
-    return localStorage.getItem(IN_APP_CLICK_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-/** The in-app click is named on web links until it has been read once or used, then only in their menu, for good. */
-let inAppClickKnown = storedInAppClick();
+/** The in-app click is named on web links until it has been read once or used, then only in their menu. */
+let inAppClickKnown = false;
 const inAppClickListeners = new Set<() => void>();
 function learnInAppClick() {
   if (inAppClickKnown) return;
   inAppClickKnown = true;
-  try {
-    localStorage.setItem(IN_APP_CLICK_KEY, "1");
-  } catch {
-    /** Unsaved, it is learned again next launch. */
-  }
   for (const listener of inAppClickListeners) listener();
 }
 function subscribeInAppClick(listener: () => void) {

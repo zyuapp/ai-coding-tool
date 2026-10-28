@@ -122,3 +122,26 @@ test("the review keys open from the toolbar and close with Escape", async () => 
   assert.equal(dom.window.document.activeElement, keys, "the caret goes back to the button");
   await view.unmount();
 });
+
+test("a long branch name keeps its end in view, and the spacing filter says when it is on", async () => {
+  const view = await mount(toolbar({ currentBranch: "feature/review-panel-polish", diff: diffState({ mode: "branch", range: { kind: "branches", base: "origin/main", compare: null }, ignoreWhitespace: true }) }));
+  const [from, into] = [...view.container.querySelectorAll<HTMLElement>(".diff-side-trigger > span")];
+  assert.equal(from.textContent, "feature/review-panel-polish · working");
+  assert.equal(from.lastElementChild?.textContent, "nel-polish · working");
+  assert.equal(into.childElementCount, 1, "a short name is not split");
+  assert.equal(query(view.container, 'button[aria-label="Hide spacing changes"]').textContent, "Spacing hidden");
+  await view.unmount();
+
+  const off = await mount(toolbar());
+  assert.equal(query(off.container, 'button[aria-label="Hide spacing changes"]').textContent, "");
+  await off.unmount();
+});
+
+test("a commit review lists its commit as the checked mode", async () => {
+  const view = await mount(toolbar({ openMenu: "diff:mode", diff: diffState({ mode: "commit", range: { kind: "commit", commit: COMMIT } }) }));
+  const items = [...dom.window.document.querySelectorAll<HTMLButtonElement>('.diff-mode-menu [role="menuitemradio"]')];
+  assert.deepEqual(items.map((item) => item.getAttribute("aria-checked")), ["true", "false", "false"]);
+  assert.match(items[0].textContent ?? "", new RegExp(`^Commit.*${COMMIT.slice(0, 7)}`));
+  assert.equal(dom.window.document.activeElement, items[0]);
+  await view.unmount();
+});

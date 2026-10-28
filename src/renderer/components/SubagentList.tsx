@@ -153,7 +153,7 @@ export function AgentsPanel({ subagents, groups, finding = false, onSelect, onSe
           ))}
         </div>
         <label className="agent-search">
-          <Search size={14} />
+          <Search size={14} aria-hidden="true" />
           <input
             ref={searchRef}
             value={query}

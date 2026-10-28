@@ -371,3 +371,27 @@ test("a common schedule fills the field in, reads back, and shows as picked", as
   assert.deepEqual(patches, [{ schedule: "0 9 * * 1-5", prompt: automationView().prompt }]);
   await view.unmount();
 });
+
+test("the automation panel's conditions give an example and say what an empty or filled one means", async () => {
+  const view = await mount(React.createElement(AutomationPanel, {
+    automation: automationView(), engineLabel: "Claude", lastFoundAt: null, lastChecked: null, onUpdate() {}, onDelete() {}, onRunNow() {},
+  }));
+  const field = (label: string) => item([...view.container.querySelectorAll<HTMLInputElement>(".automation-field input")].find((input) => input.labels?.[0]?.textContent === label));
+  const meaning = (input: HTMLInputElement) => dom.window.document.getElementById(item(input.getAttribute("aria-describedby")))?.textContent;
+  assert.equal(field("Notify me when").placeholder, "Tests fail");
+  assert.equal(field("Stop when").placeholder, "The PR merges");
+  assert.equal(meaning(field("Notify me when")), "Every run notifies you");
+  assert.equal(meaning(field("Stop when")), "Repeats until removed");
+
+  const setInput = item(Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")).set;
+  for (const label of ["Notify me when", "Stop when"]) {
+    const input = field(label);
+    await act(async () => {
+      item(setInput).call(input, "tests fail");
+      input.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: "tests fail" }));
+    });
+  }
+  assert.equal(meaning(field("Notify me when")), "Other runs stay quiet");
+  assert.equal(meaning(field("Stop when")), "Repeats until then");
+  await view.unmount();
+});

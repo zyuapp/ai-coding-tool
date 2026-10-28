@@ -187,13 +187,27 @@ export type SidebarCoordination = {
 };
 
 /**
- * What can be done to a thread from its row: its menu, and in Priority dismissing at the rail's
- * outer edge, over the engine mark, so the status it clears stays in view. Archiving is in the menu,
- * a step from a stray click.
+ * What can be done to a thread from its row: its menu over the engine mark, as on every row, and in
+ * Priority dismissing beside it, over the status mark it clears. Archiving is in the menu, a step
+ * from a stray click.
  */
 function rowActionButtons(row: RowState, action: RowAction): React.ReactNode[] {
   const { thread, handlers } = row;
   return [
+    action === "dismiss" && <CommandButton command={{ type: "task.dismiss", taskId: thread.id }}
+      key="dismiss"
+      className="row-action task-dismiss"
+      type="button"
+      aria-label={row.schedule ? `Dismiss ${thread.title}, which keeps running on its schedule` : `Dismiss ${thread.title}`}
+      data-tip="Dismiss"
+      onClick={(event) => {
+        event.stopPropagation();
+        handlers.dismiss(thread.id);
+      }}
+      onDoubleClick={(event) => event.stopPropagation()}
+    >
+      <Check size={14} aria-hidden="true" />
+    </CommandButton>,
     <button
       key="menu"
       className="row-action task-more"
@@ -211,20 +225,6 @@ function rowActionButtons(row: RowState, action: RowAction): React.ReactNode[] {
     >
       <Ellipsis size={16} aria-hidden="true" />
     </button>,
-    action === "dismiss" && <CommandButton command={{ type: "task.dismiss", taskId: thread.id }}
-      key="dismiss"
-      className="row-action task-dismiss"
-      type="button"
-      aria-label={row.schedule ? `Dismiss ${thread.title}, which keeps running on its schedule` : `Dismiss ${thread.title}`}
-      data-tip="Dismiss"
-      onClick={(event) => {
-        event.stopPropagation();
-        handlers.dismiss(thread.id);
-      }}
-      onDoubleClick={(event) => event.stopPropagation()}
-    >
-      <Check size={14} aria-hidden="true" />
-    </CommandButton>,
   ].filter(Boolean);
 }
 
@@ -374,8 +374,11 @@ function moveEntry(row: RowState): MenuEntry[] {
   return items.length ? [{ label: "Move to", items }] : [];
 }
 
-function rowMenuEntries(row: RowState, priority: boolean): MenuEntry[] {
+function rowMenuEntries(row: RowState, priority: boolean, action: RowAction): MenuEntry[] {
   const { thread, handlers } = row;
+  const dismiss: MenuEntry[] = action === "dismiss"
+    ? [{ label: "Dismiss", command: { type: "task.dismiss", taskId: thread.id }, onSelect: () => handlers.dismiss(thread.id) }, "separator"]
+    : [];
   const entries = threadMenuEntries(thread, {
     onRename: () => handlers.startRename(thread.id),
     onFork: (worktree) => handlers.fork(thread.id, worktree),
@@ -392,7 +395,7 @@ function rowMenuEntries(row: RowState, priority: boolean): MenuEntry[] {
   });
   const firstBreak = entries.indexOf("separator");
   entries.splice(firstBreak < 0 ? entries.length : firstBreak, 0, ...moveEntry(row));
-  return entries.map((entry) => entry !== "separator" && entry.command?.type === "task.rename" ? { ...entry, shortcut: RENAME_KEY } : entry);
+  return [...dismiss, ...entries.map((entry) => entry !== "separator" && entry.command?.type === "task.rename" ? { ...entry, shortcut: RENAME_KEY } : entry)];
 }
 
 const RENAME_KEY = "F2";
@@ -442,7 +445,7 @@ function rowBody(row: RowState, className: string, content: ReactNode, action: R
       at={row.menuAt}
       returnFocus={handlers.menuReturn}
       onClose={handlers.closeMenu}
-      entries={rowMenuEntries(row, priority)}
+      entries={rowMenuEntries(row, priority, action)}
     />}
     </>
   );
@@ -614,18 +617,28 @@ export function useThreadRows({
     };
   };
 
-  /** A folded folder's one mark: what most wants the user among the threads it hides. */
+  /** A folded folder's one mark: what most wants the user among the threads it hides, counted when more than one says it. */
   const folderStatus = (threads: Thread[]): ReactNode => {
     let pressing: RowStatus | null = null;
+    let count = 0;
     for (const thread of threads) {
       if (offline(thread.id)) continue;
       const status = rowStatus(rowState(thread));
-      if (status && (!pressing || attentionUrgency(statusTone(status)) < attentionUrgency(statusTone(pressing)))) pressing = status;
-      if (pressing && attentionUrgency(statusTone(pressing)) === 0) break;
+      if (!status) continue;
+      const urgency = attentionUrgency(statusTone(status));
+      if (!pressing || urgency < attentionUrgency(statusTone(pressing))) {
+        pressing = status;
+        count = 1;
+      } else if (urgency === attentionUrgency(statusTone(pressing))) count += 1;
     }
     if (!pressing) return null;
-    const label = FOLDER_LABELS[statusTone(pressing)];
-    return <span className="row-mark folder-status" data-tip={label}>{statusMark({ ...pressing, label })}</span>;
+    const label = count > 1 ? `${FOLDER_LABELS[statusTone(pressing)]}, and ${count - 1} more` : FOLDER_LABELS[statusTone(pressing)];
+    return (
+      <span className="row-mark folder-status" data-tip={label}>
+        {statusMark({ ...pressing, label })}
+        {count > 1 && <span className="folder-status-count" aria-hidden="true">{count}</span>}
+      </span>
+    );
   };
 
   const threadRow = Object.assign((thread: Thread, index: number, place: ThreadRowPlace) => (

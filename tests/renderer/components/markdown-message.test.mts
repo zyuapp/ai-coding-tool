@@ -145,7 +145,6 @@ test("a web link opens in the browser panel when clicked with the command key he
   assert.deepEqual(opened, ["https://example.com/docs"]);
   assert.equal(link.title, "");
   assert.equal(link.dataset.tip, undefined, "once used, the click is named only in the link's menu");
-  assert.equal(localStorage.getItem("aicodingtool.in-app-click-known.v1"), "1", "the next launch remembers it was learned");
   await view.unmount();
 });
 

@@ -50,14 +50,14 @@ test("a tab waiting on the user is marked by more than its dot", async () => {
   await view.unmount();
 });
 
-test("a focused tab closes on Delete, and its close button names the key", async () => {
+test("a focused tab closes on Delete", async () => {
   const closed: string[] = [];
   const view = await mount(strip({ onCloseTab: (id) => closed.push(id) }));
   const tab = query<HTMLButtonElement>(view.container, '[data-dock-tab="side-1"] [role="tab"]');
   tab.focus();
   await act(async () => { tab.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Delete", bubbles: true, cancelable: true })); });
   assert.deepEqual(closed, ["side-1"]);
-  assert.match(query(view.container, '[data-dock-tab="side-1"] > button:not([role="tab"])').dataset.tip ?? "", /^Close tab \((⌦|Delete)\)$/);
+  assert.equal(query(view.container, '[data-dock-tab="side-1"] > button:not([role="tab"])').dataset.tip, "Close tab");
   await view.unmount();
 });
 

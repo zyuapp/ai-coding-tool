@@ -93,3 +93,20 @@ test("Enter sends only its own field, while Shift+Enter and composition keep the
   assert.deepEqual(session.effects, [{ type: "send-run-command", command: { type: "answer-question", taskId: "task-a", runId: "run-a", requestId: "request", questionId: "color", text: "Blue\nand green" } }]);
   await session.view.unmount();
 });
+
+test("Picking an option keeps the typed draft dimmed, and typing again makes it the answer", async () => {
+  const session = await asking("main");
+  const { container } = session.view;
+  const answer = query<HTMLTextAreaElement>(container, ".question-answer textarea");
+  await type(answer, "Purple");
+  await act(async () => { query<HTMLInputElement>(container, 'input[value="Green"]').click(); });
+  assert.equal(answer.value, "Purple");
+  assert.equal(answer.classList.contains("overridden"), true);
+  await type(answer, "Purple, please");
+  assert.equal(answer.classList.contains("overridden"), false);
+  assert.equal(query<HTMLInputElement>(container, 'input[value="Green"]').checked, false);
+  await act(async () => { query<HTMLInputElement>(container, 'input[value="Green"]').click(); });
+  await act(async () => { query<HTMLButtonElement>(container, ".question-answer button").click(); });
+  assert.deepEqual(session.effects, [{ type: "send-run-command", command: { type: "answer-question", taskId: "task-a", runId: "run-a", requestId: "request", questionId: "color", text: "Green" } }]);
+  await session.view.unmount();
+});

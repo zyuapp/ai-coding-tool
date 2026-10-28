@@ -125,11 +125,11 @@ export function BranchMenu({ branches, selected, onPick, anchor, menuRef, includ
       ].filter((group) => group.names.length > 0)
     : [{ label: null, names: matchBranches(names, query) }];
   const matched = groups.reduce((count, group) => count + group.names.length, 0);
-  /** Enter takes the top row: a typed name no branch has is made, and otherwise the best match is checked out. */
+  /** Enter takes the top row: the best match, or the typed name once nothing matches it. */
   const top = showExtra ? extra.value : groups[0]?.names[0];
   function submit() {
-    if (naming) onPick(naming, true);
-    else if (top !== undefined) onPick(top, false);
+    if (top !== undefined) onPick(top, false);
+    else if (naming) onPick(naming, true);
   }
   let empty = "Reading branches…";
   if (branches?.status === "error") empty = branches.message;
@@ -160,11 +160,6 @@ export function BranchMenu({ branches, selected, onPick, anchor, menuRef, includ
       {title && <div className="branch-menu-title"><span>{title}</span><kbd>↑↓</kbd></div>}
       <PickerSearch label="Search branches" value={query} onChange={setQuery} onSubmit={submit} />
       <div role="listbox" aria-label="Branches">
-        {naming && (
-          <PickerOption selected={false} mark={<Plus size={14} />} onClick={() => onPick(naming, true)}>
-            Create branch “{naming}”
-          </PickerOption>
-        )}
         {showExtra && (
           <>
             {includeRemotes && <p className="branch-menu-group">Not a branch</p>}
@@ -178,6 +173,11 @@ export function BranchMenu({ branches, selected, onPick, anchor, menuRef, includ
             {group.names.map((name) => option(name, name))}
           </Fragment>
         ))}
+        {naming && (
+          <PickerOption selected={false} mark={<Plus size={14} />} onClick={() => onPick(naming, true)}>
+            Create branch “{naming}”
+          </PickerOption>
+        )}
       </div>
     </PickerPopover>
   );

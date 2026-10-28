@@ -23,8 +23,9 @@ test("a diagram that failed names why in view, and draws on a second try", async
   const error = query(view.container, ".mermaid-error");
   assert.equal(error.getAttribute("role"), "alert");
   assert.equal(query(error, ".block-error-reason").textContent, "Parse error on line 2:", "the first line shows without opening the details");
-  const retry = query<HTMLButtonElement>(error, "button");
+  const retry = query<HTMLButtonElement>(error, ".limit-action");
   assert.equal(retry.textContent, "Try again");
+  assert.equal(query(error, ".copy-affordance").getAttribute("aria-label"), "Copy the error", "the error can be copied next to Try again");
 
   await act(async () => { retry.click(); });
   await settle();
@@ -41,7 +42,11 @@ test("an open diagram is redrawn in a new theme instead of closing, though its r
   const view = await mount(host(React.createElement(MermaidBlock, { source: "graph TD; A-->B;" })));
   await settle();
 
-  await act(async () => { query<HTMLButtonElement>(view.container, ".mermaid-open").click(); });
+  const expand = query<HTMLButtonElement>(view.container, ".diagram-expand");
+  assert.equal(expand.tabIndex, 0, "Full size is the keyboard's way to open the diagram");
+  assert.equal(expand.getAttribute("aria-label"), "Open the diagram at full size");
+  assert.equal(view.container.querySelector(".mermaid-open")?.tagName, "SPAN", "the drawing is a pointer shortcut, not a second tab stop");
+  await act(async () => { query<HTMLElement>(view.container, ".mermaid-open").click(); });
   assert.ok(document.querySelector(".viewer.diagram #before"));
   await view.render(host(null));
 

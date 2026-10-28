@@ -149,6 +149,25 @@ function SchedulePresets({ schedule, onPick }: { schedule: string; onPick: (cron
   );
 }
 
+/** A sentence the agent checks after each run, with what an empty or filled field means beneath it. */
+function ConditionField({ label, value, example, unset, set, onChange }: {
+  label: string;
+  value: string;
+  example: string;
+  unset: string;
+  set: string;
+  onChange: (value: string) => void;
+}) {
+  const id = useId();
+  return (
+    <div className="automation-field">
+      <label htmlFor={id}>{label}</label>
+      <input id={id} value={value} placeholder={example} aria-describedby={`${id}-meaning`} onInput={(event) => onChange(event.currentTarget.value)} />
+      <small id={`${id}-meaning`}>{value.trim() ? set : unset}</small>
+    </div>
+  );
+}
+
 function AutomationEmpty({ engineLabel, onCreate }: { engineLabel: string; onCreate: () => void }) {
   return (
     <section className="automation-panel" aria-label="Automation">
@@ -279,24 +298,10 @@ export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChec
         </label>
 
         {oneShot ? null : (
-          <label className="automation-field">
-            <span>Notify me when</span>
-            <input
-              value={surfaceWhen}
-              placeholder="Every run"
-              onInput={(event) => setSurfaceWhen(event.currentTarget.value)}
-            />
-          </label>
+          <ConditionField label="Notify me when" value={surfaceWhen} example="Tests fail" unset="Every run notifies you" set="Other runs stay quiet" onChange={setSurfaceWhen} />
         )}
 
-        <label className="automation-field">
-          <span>Stop when</span>
-          <input
-            value={endsWhen}
-            placeholder="Repeats until removed"
-            onInput={(event) => setEndsWhen(event.currentTarget.value)}
-          />
-        </label>
+        <ConditionField label="Stop when" value={endsWhen} example="The PR merges" unset="Repeats until removed" set="Repeats until then" onChange={setEndsWhen} />
 
         {automation && (
           <dl className="automation-meta">

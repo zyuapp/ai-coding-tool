@@ -15,6 +15,9 @@ const { NeedsYouCard } = await import("../../src/renderer/components/NeedsYouCar
 const { CommandControlsProvider } = await import("../../src/renderer/components/CommandControl.tsx");
 const { ReturnFocusContext } = await import("../../src/renderer/focus.ts");
 
+/** A button's label, without the key hint beside it. */
+const labelOf = (button: HTMLElement) => [...button.childNodes].filter((node) => node.nodeName !== "KBD").map((node) => node.textContent).join("");
+
 const member = (id: string, title: string): Thread => ({ id, title, engine: "claude", executionPolicy: "allow-edits", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, parentId: "lead" });
 
 test("the Needs-you card pages through approvals and decisions and answers each", async () => {
@@ -31,13 +34,15 @@ test("the Needs-you card pages through approvals and decisions and answers each"
   const card = query(view.container, '[aria-label="Approval waiting on you"]');
   assert.match(card.textContent, /Login flake1 of 2/);
   assert.equal(query(card, ".decision-command").textContent, "yarn test:e2e -u");
-  const button = (label: string) => required([...view.container.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === label));
+  const button = (label: string) => required([...view.container.querySelectorAll<HTMLButtonElement>("button")].find((item) => labelOf(item) === label));
   await act(async () => { button("Allow once").click(); });
   await act(async () => { button("Deny").click(); });
   assert.deepEqual(decided, [["a1", true], ["a1", false]]);
 
   await act(async () => { button("Later").click(); });
   assert.ok(query(view.container, '[aria-label="Decision waiting on you"]'), "Later moves to the next item");
+  assert.ok(button("Decide").querySelector("kbd"), "Decide shows the key that sends it");
+  assert.equal(query<HTMLInputElement>(view.container, ".decision-own input").placeholder, "Type your answer…");
   await act(async () => { button("Decide").click(); });
   assert.deepEqual(answered, ["Keep it"]);
   await view.unmount();
@@ -72,7 +77,7 @@ test("the Needs-you card stays on the page the user is working in as others arri
   assert.match(page.textContent, /3 of 3/, "an approval and a request ahead of it leave the decision on screen");
   assert.equal(query<HTMLInputElement>(page, '.decision-own input'), own, "with what was typed in it");
   assert.equal(document.activeElement, own, "and where the user was typing");
-  await act(async () => { required([...page.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === "Decide")).click(); });
+  await act(async () => { required([...page.querySelectorAll<HTMLButtonElement>("button")].find((item) => labelOf(item) === "Decide")).click(); });
   assert.deepEqual(answered, ["Drop it"]);
 
   await view.render(card([approval], [decision("d2")], [request]));
@@ -98,7 +103,7 @@ test("the Needs-you card keeps what the user chose or typed on a page through pa
       onSelect() {},
     }));
   const view = await mount(card([decision("d1"), decision("d2")]));
-  const button = (label: string) => required([...view.container.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === label));
+  const button = (label: string) => required([...view.container.querySelectorAll<HTMLButtonElement>("button")].find((item) => labelOf(item) === label));
   await act(async () => {
     const folder = query<HTMLSelectElement>(view.container, ".elsewhere-folder select");
     folder.value = "lab";
@@ -165,7 +170,7 @@ test("the Needs-you card's Suggested threads page starts and dismisses each sugg
   assert.ok(query(rows[2]!, '[aria-label="Starting Bench"]'), "a starting row spins");
   assert.equal(rows[2]!.querySelector('[aria-label="Dismiss Bench"]'), null, "and can no longer be turned down");
 
-  const button = (label: string) => required([...page.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.getAttribute("aria-label") === label || item.textContent === label));
+  const button = (label: string) => required([...page.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.getAttribute("aria-label") === label || labelOf(item) === label));
   await act(async () => { button("Start Fix login").click(); });
   await act(async () => { button("Dismiss Docs").click(); });
   assert.equal(dispatched.length, 1, "a suggestion is only turned down once that is confirmed");
@@ -226,7 +231,7 @@ test("the Needs-you card asks to run a thread on another computer, in the folder
   await act(async () => { folder.value = "lab"; folder.dispatchEvent(new Event("change", { bubbles: true })); });
   assert.equal(root().textContent, "/code/lab", "and follows the folder picked");
   await act(async () => { box.click(); });
-  const button = (label: string) => required([...page.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === label));
+  const button = (label: string) => required([...page.querySelectorAll<HTMLButtonElement>("button")].find((item) => labelOf(item) === label));
   await act(async () => { button("Allow").click(); });
   await act(async () => { button("Deny").click(); });
   assert.equal(dispatched.length, 1, "Deny turns the request down only once confirmed, as Dismiss does");
@@ -285,7 +290,7 @@ test("the Needs-you card keeps the keyboard's place as its pages turn and are an
   const view = await mount(card([approval], [decision("d1"), decision("d2")]));
   const press = async (name: string) => {
     await act(async () => {
-      const pressed = required([...view.container.querySelectorAll<HTMLButtonElement>("button")].find((item) => (item.getAttribute("aria-label") ?? item.textContent) === name));
+      const pressed = required([...view.container.querySelectorAll<HTMLButtonElement>("button")].find((item) => (item.getAttribute("aria-label") ?? labelOf(item)) === name));
       pressed.focus();
       pressed.click();
     });
@@ -371,7 +376,7 @@ test("the page the keyboard is handed is read by who asks and what, and the last
     approvals.length || decisions.length ? React.createElement(NeedsYouCard, { approvals, decisions, onDecide() {}, onAnswer() {}, onSelect() {} }) : null);
   const view = await mount(shown([approval("a1"), approval("a2")], [decision]));
   const press = async (name: string) => {
-    await act(async () => { const pressed = required([...view.container.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === name)); pressed.focus(); pressed.click(); });
+    await act(async () => { const pressed = required([...view.container.querySelectorAll<HTMLButtonElement>("button")].find((item) => labelOf(item) === name)); pressed.focus(); pressed.click(); });
   };
   const read = () => (dom.window.document.activeElement?.getAttribute("aria-describedby") ?? "").split(" ").map((id) => dom.window.document.getElementById(id)?.textContent);
 

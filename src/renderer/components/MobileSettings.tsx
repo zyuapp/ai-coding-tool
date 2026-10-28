@@ -286,7 +286,10 @@ export function MobileSettings({ remote, remoteChecking, onSetEnabled, onCreateP
         <div className="settings-group-heading">
           <div><h3 id="phone-availability-heading">Access</h3></div>
           {listening && !ready
-            ? <button type="button" className="settings-pill-jump" onClick={() => setShownStep((count) => count + 1)}>{statusLabel(remote)}<ArrowDown size={12} aria-hidden="true" /></button>
+            ? <div className="settings-group-action">
+                <span>{statusLabel(remote)}</span>
+                <button type="button" onClick={() => setShownStep((count) => count + 1)}>Finish setup<ArrowDown size={14} aria-hidden="true" /></button>
+              </div>
             : <span className={statusTone(remote)}>{statusLabel(remote)}</span>}
         </div>
 

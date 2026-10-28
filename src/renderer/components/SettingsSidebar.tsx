@@ -104,7 +104,7 @@ export function SettingsSidebar({ section, searchRef, onClose, onLand, onRefresh
           aria-expanded={searching}
           aria-controls="settings-search-results"
           aria-activedescendant={chosen ? resultId(chosen) : undefined}
-          placeholder="Search"
+          placeholder="Search settings"
           spellCheck={false}
           onInput={(event) => { setQuery(event.currentTarget.value); setPicked(0); }}
           onKeyDown={keyDown}

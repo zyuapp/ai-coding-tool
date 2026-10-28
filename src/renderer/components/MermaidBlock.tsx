@@ -269,7 +269,7 @@ export function MermaidBlock({ source, pending = false }: { source: string; pend
       <div className="mermaid-block" ref={host}>
         {!current.diagram && !current.error ? <span className="mermaid-loading"><span className="text-sweep">Rendering diagram…</span></span> : null}
         {drawing && open
-          ? <button type="button" className="mermaid-open" aria-label="Open the diagram at full size" onClick={() => open({ diagram: current.diagram!, source, room: host.current?.clientWidth ?? 0 })}>{drawing}</button>
+          ? <span className="mermaid-open" onClick={() => open({ diagram: current.diagram!, source, room: host.current?.clientWidth ?? 0 })}>{drawing}</span>
           : drawing}
         {current.error ? (
           <BlockError className="mermaid-error" title="Diagram could not be rendered" error={current.error} onRetry={retry}>
@@ -278,9 +278,8 @@ export function MermaidBlock({ source, pending = false }: { source: string; pend
           </BlockError>
         ) : null}
       </div>
-      {/* Pointer only: the drawing itself is the keyboard's way to open it. */}
       {drawing && open && (
-        <button type="button" className="diagram-expand" tabIndex={-1} aria-hidden="true" data-tip="Full size" onClick={() => open({ diagram: current.diagram!, source, room: host.current?.clientWidth ?? 0 })}>
+        <button type="button" className="diagram-expand" aria-label="Open the diagram at full size" data-tip="Full size" onClick={() => open({ diagram: current.diagram!, source, room: host.current?.clientWidth ?? 0 })}>
           <Maximize size={14} aria-hidden="true" />
         </button>
       )}

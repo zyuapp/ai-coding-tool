@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from "react";
-import { LuAlarmClock as AlarmClock, LuChevronDown as ChevronDown, LuFileDiff as FileDiff, LuGitBranch as GitBranch, LuGitPullRequest as GitPullRequest, LuScrollText as ScrollText } from "react-icons/lu";
+import { LuAlarmClock as AlarmClock, LuCirclePause as CirclePause, LuTriangleAlert as TriangleAlert, LuChevronDown as ChevronDown, LuFileDiff as FileDiff, LuGitBranch as GitBranch, LuGitPullRequest as GitPullRequest, LuScrollText as ScrollText } from "react-icons/lu";
 import { BranchMenu, useBranches } from "./BranchMenu";
 import { CommandButton } from "./CommandControl";
 import { useMessageLinks, WebLink } from "./MarkdownMessage";
@@ -39,6 +39,13 @@ export function scheduleChipTip(automation: AutomationView | null) {
   if (automation?.paused) return "Automation is paused";
   if (automation && automation.nextRunAt === null) return "Last run was missed";
   return "Automation";
+}
+
+/** The schedule chip's glyph, so a paused or missed schedule reads without its word. */
+function scheduleChipIcon(automation: AutomationView | null) {
+  if (automation?.paused) return CirclePause;
+  if (automation && automation.nextRunAt === null) return TriangleAlert;
+  return AlarmClock;
 }
 
 /** What stands in for the checkout's chips until Git has answered for it; `failed` when Git refused. */
@@ -155,6 +162,7 @@ export function ThreadTabStrip({ tab, branchMenuOpen, actions }: { tab: ThreadTa
   const note = environmentNote(tab);
   const brief = tab.thread.brief;
   const clean = available !== null && available.files.length === 0;
+  const ScheduleIcon = scheduleChipIcon(tab.automation);
   return (
     <>
       <div className="thread-tab-strip">
@@ -194,7 +202,7 @@ export function ThreadTabStrip({ tab, branchMenuOpen, actions }: { tab: ThreadTa
           data-tip={scheduleChipTip(tab.automation)}
           onClick={actions.onOpenAutomations}
         >
-          <AlarmClock size={14} aria-hidden="true" />
+          <ScheduleIcon size={14} aria-hidden="true" />
           <span>{scheduleChipLabel(tab.automation)}</span>
         </button>
         {brief && (

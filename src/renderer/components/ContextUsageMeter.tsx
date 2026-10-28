@@ -1,5 +1,7 @@
 import { useId, type CSSProperties } from "react";
 import type { ContextUsage } from "../../domain/thread-run";
+import { LuLoaderCircle as LoaderCircle } from "react-icons/lu";
+import { SpinningIcon } from "./SpinningIcon";
 import { UsageCard, UsageCardRow } from "./UsageCard";
 
 /** A count of tokens in a few characters: 3.1M, 240K. */
@@ -10,8 +12,8 @@ export function compactTokens(tokens: number): string {
 /** Past this share the window is close to compacting, so the meter takes the accent. */
 const HIGH_PERCENT = 80;
 
-/** The ring and its share, with a card giving the counts. Once the window runs high, Compact stands beside the ring where compacting is on offer. */
-export function ContextUsageMeter({ usage, onCompact }: { usage: ContextUsage; onCompact?: () => void }) {
+/** The ring and its share, with a card giving the counts. Once the window runs high, Compact stands beside the ring where compacting is on offer, and stays there busy while it runs. */
+export function ContextUsageMeter({ usage, onCompact, compacting = false }: { usage: ContextUsage; onCompact?: () => void; compacting?: boolean }) {
   const cardId = useId();
   const percent = Math.min(Math.round(usage.tokens / usage.limit * 100), 100);
   const high = percent >= HIGH_PERCENT;
@@ -37,7 +39,9 @@ export function ContextUsageMeter({ usage, onCompact }: { usage: ContextUsage; o
           <UsageCardRow label={`${percent}% used`} value={`${100 - percent}% left`} share={percent} high={high} detail={`${compactTokens(usage.tokens)} / ${compactTokens(usage.limit)} tokens used`} />
         </UsageCard>
       </span>
-      {high && onCompact && <button type="button" className="context-usage-compact" data-tip="Summarize earlier turns to free up context" onClick={onCompact}>Compact</button>}
+      {compacting
+        ? <button type="button" className="context-usage-compact busy" disabled aria-busy="true"><SpinningIcon icon={LoaderCircle} spinning size={12} aria-hidden="true" />Compacting…</button>
+        : high && onCompact && <button type="button" className="context-usage-compact" onClick={onCompact}>Compact</button>}
     </span>
   );
 }

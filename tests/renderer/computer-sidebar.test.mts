@@ -208,7 +208,6 @@ test("the header's computer button names every computer and narrows the lists to
     assert.equal(trigger.getAttribute("aria-label"), "Computers, 1 offline");
     assert.equal(trigger.dataset.tip, "Computers · old-laptop offline", "every computer listed flags the one out of reach");
     assert.ok(trigger.classList.contains("some-away"));
-    assert.equal(trigger.querySelector(".computer-switch-away")?.textContent, "1", "the count of computers out of reach shows on the switch");
     assert.equal(trigger.getAttribute("aria-haspopup"), "menu");
     assert.equal(trigger.getAttribute("aria-expanded"), "false");
     await act(async () => { trigger.click(); });
@@ -264,7 +263,7 @@ test("the computer button is pressed while the lists are narrowed, and dimmed wh
   try {
     const trigger = () => query<HTMLButtonElement>(view.container, ".computer-switch-trigger");
     assert.deepEqual([trigger().classList.contains("active"), trigger().classList.contains("offline")], [false, false]);
-    assert.equal(trigger().textContent, "1", "showing every computer, the button is the icon and how many are out of reach");
+    assert.equal(trigger().textContent, "", "showing every computer, the button is the icon alone");
     await view.render(renderProjectSidebar({ computerLinks: links, computerFilter: "linux" }));
     assert.deepEqual([trigger().classList.contains("active"), trigger().classList.contains("offline")], [true, false]);
     assert.equal(trigger().dataset.tip, "Only linux-box");

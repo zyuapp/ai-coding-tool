@@ -69,6 +69,19 @@ test("filters both groups, opens missing folders for an empty project, and can c
   } finally { await view.unmount(); }
 });
 
+test("a project with no worktrees offers to show every project again", async () => {
+  const view = await renderSettings();
+  try {
+    const filter = query<HTMLSelectElement>(view.container, "select");
+    await act(async () => { filter.value = "other"; filter.dispatchEvent(new window.Event("change", { bubbles: true })); });
+    assert.match(query(view.container, ".worktree-settings-list .settings-empty").textContent!, /No worktrees on this device for this project/);
+    await click("Show all projects");
+    assert.equal(filter.value, "");
+    assert.ok(view.container.querySelector(".worktree-settings-list .worktree-setting-row"));
+    assert.equal(view.container.querySelector(".worktree-settings-list .settings-empty"), null);
+  } finally { await view.unmount(); }
+});
+
 test("thread links expand and open archived threads without restoring them", async () => {
   const view = await renderSettings();
   try {
