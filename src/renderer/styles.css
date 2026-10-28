@@ -4721,12 +4721,15 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
 @container (max-width: 560px) {
   .composer-hint { display: none; }
 }
-/** Plan meters share the bar with the settings, so the axis names and the meter's icon go first, then the weekly part. */
+/** Plan meters share the bar with the settings, so the axis names and the meter's icon go first, then the weekly part, then the meter. */
 @container (max-width: 720px) {
   .composer:has(.plan-usage) :is(.setting-axis, .plan-usage-icon) { display: none; }
 }
 @container (max-width: 600px) {
   .plan-usage-part + .plan-usage-part { display: none; }
+}
+@container (max-width: 470px) {
+  .plan-usage { display: none; }
 }
 /** The values still read on their own, so the axis names go before any control does. */
 @container (max-width: 470px) {
@@ -4741,7 +4744,7 @@ button.plan-usage-warning-summary:hover .plan-usage-warning-window { color: var(
   .context-usage-value, .plan-usage-icon { display: none; }
 }
 @container (max-width: 300px) {
-  .plan-usage, .composer-hint, .context-usage-value { display: none; }
+  .composer-hint, .context-usage-value { display: none; }
   .composer-settings { gap: 0; }
   .composer-bar { gap: 6px; padding-left: 10px; }
   .setting-menu > summary { padding-inline: 6px; }
