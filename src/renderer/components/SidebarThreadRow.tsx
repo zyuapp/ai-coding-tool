@@ -292,33 +292,18 @@ function railMark(key: string, tip: string, icon: ReactNode) {
   return <span key={key} className={`row-mark mark-${key}`} data-tip={tip}>{icon}</span>;
 }
 
-/** The most slots a rail takes, so one row carrying many marks never shortens every title. */
-export const MAX_RAIL_SLOTS = 3;
-
-type RailMark = { key: string; tip: string; icon: ReactNode };
-
-/**
- * The engine stays at the right edge, with status beside it, whatever other marks a row carries.
- * Past three, the marks ahead of those two share one slot, a count that names each of them.
- */
+/** The engine stays at the right edge, with status beside it, whatever other marks a row carries. */
 function rowMarks(row: RowState, status: RowStatus | null): ReactNode[] {
   const { thread, worktree, host } = row;
-  const marks = [
-    row.away && host && { key: "away", tip: awayLabel(host), icon: <MonitorOff className="task-away" size={14} role="img" aria-label={awayLabel(host)} /> },
-    thread.role && roleIcon(thread.role) && { key: "role", tip: threadRoleLabel(thread.role), icon: <ThreadRoleMark role={thread.role} size={14} /> },
-    /** A thread's own mark names its checkout, and threads sharing one share its colour, so a list ranked by attention still groups by eye. */
-    row.inWorktree && { key: "worktree", tip: worktreeLabel(row), icon: <FolderSymlink className={`task-worktree${worktree ? ` worktree-mark hue-${worktreeHue(worktree.id)}` : ""}`} size={14} role="img" aria-label={worktreeLabel(row)} /> },
-    row.schedule && { key: "automation", tip: scheduleLabel(row.schedule), icon: scheduleMark(row.schedule) },
-    status && { key: "status", tip: status.label, icon: statusMark(status) },
-    isAgentEngine(thread.engine) && { key: "engine", tip: `${engineLabel(thread.engine)} thread`, icon: <ThreadEngineIcon engine={thread.engine} className="task-engine" size={14} /> },
-  ].filter((mark): mark is RailMark => Boolean(mark));
-  if (marks.length <= MAX_RAIL_SLOTS) return marks.map((mark) => railMark(mark.key, mark.tip, mark.icon));
-  const folded = marks.slice(0, -(MAX_RAIL_SLOTS - 1));
-  const tips = folded.map((mark) => mark.tip);
   return [
-    railMark("more", tips.join(" · "), <span className="task-more-marks" role="img" aria-label={tips.join(", ")}>+{folded.length}</span>),
-    ...marks.slice(-(MAX_RAIL_SLOTS - 1)).map((mark) => railMark(mark.key, mark.tip, mark.icon)),
-  ];
+    row.away && host && railMark("away", awayLabel(host), <MonitorOff className="task-away" size={14} role="img" aria-label={awayLabel(host)} />),
+    thread.role && roleIcon(thread.role) && railMark("role", threadRoleLabel(thread.role), <ThreadRoleMark role={thread.role} size={14} />),
+    /** A thread's own mark names its checkout, and threads sharing one share its colour, so a list ranked by attention still groups by eye. */
+    row.inWorktree && railMark("worktree", worktreeLabel(row), <FolderSymlink className={`task-worktree${worktree ? ` worktree-mark hue-${worktreeHue(worktree.id)}` : ""}`} size={14} role="img" aria-label={worktreeLabel(row)} />),
+    row.schedule && railMark("automation", scheduleLabel(row.schedule), scheduleMark(row.schedule)),
+    status && railMark("status", status.label, statusMark(status)),
+    isAgentEngine(thread.engine) && railMark("engine", `${engineLabel(thread.engine)} thread`, <ThreadEngineIcon engine={thread.engine} className="task-engine" size={14} />),
+  ].filter(Boolean);
 }
 
 function awayLabel(host: ThreadHost) {

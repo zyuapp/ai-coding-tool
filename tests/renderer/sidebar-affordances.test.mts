@@ -481,7 +481,7 @@ test("a row on a computer that is away carries a mark saying so, and every mark 
   } finally { await view.unmount(); }
 });
 
-test("a rail holds three marks at most, folding the ones ahead of status and engine into a count that names them", async () => {
+test("a rail shows every mark a row carries, with status and engine at the right edge", async () => {
   const busy = task("busy", { projectId: "p", role: "coordinator", worktreeId: "w" });
   const view = await mount(renderProjectSidebar({
     projects: [{ id: "p", root: "/work/p" }],
@@ -493,13 +493,10 @@ test("a rail holds three marks at most, folding the ones ahead of status and eng
   }));
   try {
     const [first, second] = [...view.container.querySelectorAll<HTMLElement>(".project-task-row")];
-    const marks = [...first!.querySelectorAll<HTMLElement>(".row-mark")];
-    assert.equal(marks.length, 3);
-    assert.equal(marks[0]!.textContent, "+3");
-    assert.equal(marks[0]!.dataset.tip, "Coordinator · Works in a worktree · Runs on a schedule");
-    assert.equal(query(marks[0]!, '[role="img"]').getAttribute("aria-label"), "Coordinator, Works in a worktree, Runs on a schedule");
-    assert.deepEqual(marks.slice(1).map((mark) => mark.dataset.tip), ["Working", "Claude thread"]);
-    assert.equal(second!.querySelector(".task-more-marks"), null, "a row with room shows each mark");
+    const tips = (row: HTMLElement) => [...row.querySelectorAll<HTMLElement>(".row-mark")].map((mark) => mark.dataset.tip);
+    assert.deepEqual(tips(first!), ["Coordinator", "Works in a worktree", "Runs on a schedule", "Working", "Claude thread"]);
+    assert.deepEqual(tips(second!), ["Claude thread"]);
+    assert.equal(query<HTMLElement>(view.container, ".sidebar").style.getPropertyValue("--row-slots"), "5", "every rail makes room for the busiest row");
   } finally { await view.unmount(); }
 });
 

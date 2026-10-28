@@ -231,7 +231,7 @@
   --terminal-text: 12px;
   --row-slot: 22px;
   --hit-target: 24px;
-  --row-slots: 4;
+  --row-slots: 3;
   --row-inset: 8px;
   /**
    * The height every pane's top strip takes, so the line each one draws under it lands on the same
@@ -812,8 +812,8 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .anchored-menu-popover { position: fixed; z-index: 1000; right: auto; bottom: auto; }
 /**
  * A row's trailing rail: one set of slots with two layers over them, the marks a row carries and the
- * actions it offers. Both fill from the right edge and every rail is the same width, at most three
- * slots, so the slots line up down the list and the title never moves. An action shows while the row
+ * actions it offers. Both fill from the right edge and every rail is the same width, as wide as the
+ * row with the most marks, so the slots line up down the list and the title never moves. An action shows while the row
  * is hovered, focused from the keyboard or has its menu open, and covers only the marks in its own
  * slots: the menu sits on the engine, and in Priority dismiss takes the engine's slot and the menu
  * the one beside it.
@@ -821,15 +821,13 @@ a[data-menu-target] { border-radius: 3px; outline-offset: 1px; }
 .row-rail {
   flex: none;
   display: grid;
-  width: calc(min(3, max(var(--row-slots), var(--rail-actions, 1))) * var(--row-slot));
+  width: calc(max(var(--row-slots), var(--rail-actions, 1)) * var(--row-slot));
   height: var(--row-slot);
 }
 .priority-list { --rail-actions: 2; }
 .row-layer { grid-area: 1 / 1; display: flex; align-items: center; justify-content: flex-end; }
 .row-actions { position: relative; z-index: 1; pointer-events: none; }
 .row-mark { width: var(--row-slot); height: var(--row-slot); display: grid; place-items: center; transition: opacity 90ms ease; }
-/** Marks past the rail's three slots, counted in one. */
-.task-more-marks { color: var(--muted-strong); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
 /** Hidden actions stay in the tab order, so the keyboard reveals them by reaching them. */
 .row-action { opacity: 0; pointer-events: auto; transition: opacity 90ms ease; }
 .task-entry:hover .row-action,
