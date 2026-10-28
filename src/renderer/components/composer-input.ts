@@ -7,7 +7,7 @@ import type { ComposerMenus } from "./ComposerMenus";
 /** The keys an open `/` or `@` menu takes for itself. Answers whether the menu took this one. */
 function menuKeyDown(event: KeyboardEvent<HTMLTextAreaElement>, menus: ComposerMenus) {
   const { commandMenuOpen, threadMenuOpen, matchingCommands, matchingThreads, selectedCommand, selectedThread } = menus;
-  if (threadMenuOpen && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+  if (threadMenuOpen && matchingThreads.length > 0 && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
     event.preventDefault();
     menus.setSelectedThread((current) => (current + (event.key === "ArrowDown" ? 1 : matchingThreads.length - 1)) % matchingThreads.length);
     return true;

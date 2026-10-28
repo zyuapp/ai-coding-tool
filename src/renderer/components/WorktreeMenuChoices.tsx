@@ -21,7 +21,7 @@ export function WorktreeMenuChoices({ view, list, dispatch }: { view: WorktreeMe
   }
 
   function choice(row: WorktreeMenuChoice, index: number) {
-    return <button type="button" role="menuitem" className="worktree-menu-choice" data-choice-index={index} disabled={row.disabled} aria-current={row.current ? "true" : undefined} title={`${row.title} · ${row.detail}`} onClick={() => select(row.command)}>
+    return <button type="button" role="menuitem" className="worktree-menu-choice" data-choice-index={index} disabled={row.disabled} aria-current={row.current ? "true" : undefined} data-tip={`${row.title} · ${row.detail}`} onClick={() => select(row.command)}>
       <span className="worktree-menu-copy"><span>{row.title}</span><small>{row.detail}</small></span>
       {row.current && <Check size={12} aria-hidden="true" />}
     </button>;

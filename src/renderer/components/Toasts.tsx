@@ -28,7 +28,7 @@ export function Toasts({ toasts, onDismiss, onAction }: { toasts: readonly Toast
               {toast.message && <ToastMessage text={toast.message} />}
               {toast.action && <button type="button" className="toast-action" onClick={() => onAction(toast.action!.command)}>{toast.action.label}</button>}
             </div>
-            <button type="button" className="toast-close" aria-label="Dismiss" onClick={() => onDismiss(toast.id)}>
+            <button type="button" className="toast-close" aria-label="Dismiss" data-tip="Dismiss" onClick={() => onDismiss(toast.id)}>
               <X size={14} aria-hidden="true" />
             </button>
           </div>

@@ -14,7 +14,7 @@ import { settleFrame } from "../support/settle.mts";
 vi.mock("../../src/renderer/task-workspace/workspace-connection.ts", () => import("../support/in-process-workspace.mts"));
 
 const { useTaskWorkspace } = await import("../../src/renderer/task-workspace/useTaskWorkspace.ts");
-const { AutomationPanel, automationStatusLabel, formatCountdown } = await import("../../src/renderer/components/AutomationPanel.tsx");
+const { AutomationPanel, automationStatusLabel, describeSchedule, formatCountdown } = await import("../../src/renderer/components/AutomationPanel.tsx");
 
 function startCommand(command: RunCommand | undefined): Extract<RunCommand, { type: "start" }> {
   assert.equal(command?.type, "start");
@@ -146,6 +146,13 @@ test("the automation countdown stays readable at every distance", () => {
   assert.equal(formatCountdown(at + 300_000, at), "in 5m");
   assert.equal(formatCountdown(at + 7_200_000, at), "in 2h");
   assert.equal(formatCountdown(at - 5_000, at), "in 0s");
+});
+
+test("the schedule readout only blocks what the scheduler rejects", () => {
+  assert.equal(describeSchedule("0 8 * * *")?.error, undefined);
+  assert.equal(describeSchedule("@daily"), null, "a cron nickname saves without a readout");
+  assert.equal(describeSchedule("0 8 * * * *")?.error, true);
+  assert.equal(describeSchedule(" ")?.error, true);
 });
 
 test("an automation with no next run reads as missed unless the user paused it", () => {

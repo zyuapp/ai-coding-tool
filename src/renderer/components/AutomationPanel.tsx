@@ -61,6 +61,7 @@ export function describeSchedule(schedule: string): { text: string; error?: true
   if (!trimmed) return { text: "Needs a schedule", error: true };
   if (isOneShotSchedule(trimmed)) return { text: `Once, ${new Date(trimmed).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}` };
   const fields = trimmed.split(/\s+/);
+  if (fields.length === 1 && trimmed.startsWith("@")) return null;
   if (fields.length !== 5) return { text: "Use cron, like 0 8 * * *, or a date, like 2026-11-01T09:00", error: true };
   const [minute, hour, day, month, weekday] = fields;
   const every = minute.match(/^\*\/(\d+)$/);

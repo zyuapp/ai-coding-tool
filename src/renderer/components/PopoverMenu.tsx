@@ -161,7 +161,7 @@ type MenuListProps = {
 export function MenuList({ entries: supplied, onClose, className, style, menuRef, autoFocus, onLeave, search }: MenuListProps) {
   const controls = useCommandControls();
   const entries = supplied.map((entry) => entry !== "separator" && entry.command && !controls.available(entry.command)
-    ? { ...entry, disabled: true, title: REMOTE_UNSUPPORTED } : entry);
+    ? { ...entry, disabled: true, title: REMOTE_UNSUPPORTED, shortcut: undefined, detail: "Not on remote" } : entry);
   const typeahead = useTypeahead();
   const intent = useHoverIntent();
   /** Which item's own list is open, and whether the keyboard asked for it, which is what focuses it. */

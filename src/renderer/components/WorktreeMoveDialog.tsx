@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { LuFolderSymlink as FolderSymlink, LuHouse as House, LuMoveRight as MoveRight } from "react-icons/lu";
 import type { WorktreeMoveView } from "../../application/workspace-state";
@@ -23,6 +23,7 @@ function explain({ worktree, changes, others }: WorktreeMoveView) {
 export function WorktreeMoveDialog({ move, onConfirm, onClose }: WorktreeMoveDialogProps) {
   const dialog = useRef<HTMLDivElement>(null);
   const confirm = useRef<HTMLButtonElement>(null);
+  const explanation = useId();
   useModalFocus(dialog);
 
   /** Confirm holds the focus, so Enter answers the question the dialog came to ask. */
@@ -50,6 +51,7 @@ export function WorktreeMoveDialog({ move, onConfirm, onClose }: WorktreeMoveDia
       role="dialog"
       aria-modal="true"
       aria-label={title}
+      aria-describedby={explanation}
       ref={dialog}
       tabIndex={-1}
       onPointerDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
@@ -68,7 +70,7 @@ export function WorktreeMoveDialog({ move, onConfirm, onClose }: WorktreeMoveDia
         </div>
         <div className="worktree-move-copy">
           <h2>{title}</h2>
-          <p>{explain(move)}</p>
+          <p id={explanation}>{explain(move)}</p>
         </div>
         <div className="worktree-move-actions">
           <button type="button" onClick={onClose}>Cancel</button>

@@ -1,4 +1,4 @@
-import type { KeyboardEvent, RefObject } from "react";
+import type { KeyboardEvent, RefObject, SyntheticEvent } from "react";
 import { LuMaximize2 as Maximize2, LuMinimize2 as Minimize2, LuPanelRightClose as PanelRightClose, LuPlus as Plus, LuX as X } from "react-icons/lu";
 import { ADD_TAB_MENU, type DockLauncher, type DockTab } from "./dock-registry";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
@@ -19,6 +19,13 @@ function moveTabFocus(event: KeyboardEvent<HTMLElement>) {
   const next = Number.isFinite(step) ? (at + step + tabs.length) % tabs.length : step < 0 ? 0 : tabs.length - 1;
   tabs[next].focus();
   tabs[next].scrollIntoView({ block: "nearest", inline: "nearest" });
+}
+
+/** A tab names itself in a tooltip only while its title is cut short. */
+function tipWhenClipped({ currentTarget: tab }: SyntheticEvent<HTMLElement>) {
+  const title = tab.querySelector<HTMLElement>(":scope > span:not([role])");
+  if (title && title.scrollWidth > title.clientWidth) tab.dataset.tip = title.textContent ?? "";
+  else delete tab.dataset.tip;
 }
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;
@@ -52,12 +59,13 @@ export function DockTabStrip({ workspace, tabs, launchers, activeTab, expanded, 
               role="tab"
               aria-selected={activeTab === tab.id}
               tabIndex={activeTab === tab.id || (index === 0 && !tabs.some((other) => other.id === activeTab)) ? 0 : -1}
-              data-tip={tab.title}
+              onPointerEnter={tipWhenClipped}
+              onFocus={tipWhenClipped}
               onClick={() => void workspace.actions.selectDockTab(tab.id)}
             >
               <tab.icon size={16} aria-hidden="true" /><span>{tab.title}</span>
               {tab.badge ? <em className={tab.attention ? "attention" : undefined} role="img" aria-label={tab.badgeLabel ?? String(tab.badge)} data-tip={tab.badgeLabel}>{tab.badge}</em> : null}
-              {tab.unread ? <span className="right-dock-tab-attention" role="img" aria-label="Waiting for you" /> : null}
+              {tab.unread ? <span className="right-dock-tab-attention" role="img" aria-label="Waiting for you" data-tip="Waiting for you" /> : null}
             </button>
             {!tab.pinned && <button type="button" aria-label={`Close ${tab.title}`} data-tip="Close tab" onClick={() => onCloseTab(tab.id)}><X size={14} /></button>}
           </div>
@@ -78,8 +86,10 @@ export function DockTabStrip({ workspace, tabs, launchers, activeTab, expanded, 
         {addMenuOpen && (
           <div role="menu" onKeyDown={moveListFocus}>
             {launchers.map((launcher, index) => (
-              <button key={launcher.id} type="button" role="menuitem" autoFocus={index === 0} disabled={launcher.disabled} data-tip={launcher.disabledReason} onClick={() => { workspace.actions.setOpenMenu(null); launcher.open(); }}>
-                <launcher.icon size={16} />{launcher.title}
+              <button key={launcher.id} type="button" role="menuitem" autoFocus={index === 0} disabled={launcher.disabled} onClick={() => { workspace.actions.setOpenMenu(null); launcher.open(); }}>
+                <launcher.icon size={16} aria-hidden="true" />
+                <span><strong>{launcher.title}</strong>{launcher.disabledReason && <small>{launcher.disabledReason}</small>}</span>
+                {!launcher.disabled && <kbd aria-hidden="true">/{launcher.command}</kbd>}
               </button>
             ))}
           </div>

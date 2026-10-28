@@ -345,6 +345,9 @@ test("the @ menu offers threads, keeps browsing in this project, and completes t
   await type("compare with @nothing-like-this");
   assert.deepEqual(offered(), []);
   assert.equal(query(view.container, ".thread-menu .command-empty").textContent, "No thread matches", "a typo says so rather than closing the menu");
+  const arrow = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "ArrowUp" });
+  await act(async () => { textarea.dispatchEvent(arrow); });
+  assert.equal(arrow.defaultPrevented, false, "an empty menu leaves the arrows to the caret");
   await view.unmount();
 });
 
