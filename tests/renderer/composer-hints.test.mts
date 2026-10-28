@@ -4,7 +4,6 @@ import { test } from "vitest";
 import { act } from "react";
 import { mount, query } from "../support/renderer-dom.mts";
 import { composer } from "../support/composer.mts";
-import { outbox } from "../support/composer-outbox.mts";
 
 test("while a run goes, a written message shows how to queue it or steer it in", async () => {
   window.desktop = fakeDesktop();
@@ -15,23 +14,17 @@ test("while a run goes, a written message shows how to queue it or steer it in",
   const empty = await mount(composer({ runActive: true }));
   assert.equal(empty.container.querySelector(".composer-hint"), null, "nothing written, nothing to steer");
   assert.equal(query(empty.container, "textarea").getAttribute("aria-describedby"), null);
-  assert.equal(empty.container.querySelector('button[aria-label="Queue message"]'), null, "with nothing to queue the run has Stop alone");
   await empty.unmount();
 
   let cancelled = 0;
-  const sent: boolean[] = [];
-  const running = await mount(composer({ prompt: "check the logs", runActive: true, onCancel: () => { cancelled += 1; }, outbox: outbox({ send: (_attachments, steer) => { sent.push(steer); } }) }));
+  const running = await mount(composer({ prompt: "check the logs", runActive: true, onCancel: () => { cancelled += 1; } }));
   const hint = query(running.container, ".composer-hint");
   assert.match(hint.textContent ?? "", /queue.*steer/);
   assert.equal(query(running.container, "textarea").getAttribute("aria-describedby"), hint.id, "the prompt names the keys to a screen reader too");
   assert.equal(hint.querySelectorAll("kbd").length, 2, "both keys stay named");
-  const queue = query<HTMLButtonElement>(running.container, 'button[aria-label="Queue message"]');
+  assert.equal(running.container.querySelector('button[aria-label="Queue message"]'), null, "Enter queues, so the run has Stop alone");
   const stop = query<HTMLButtonElement>(running.container, 'button[aria-label="Stop task"]');
-  assert.match(queue.dataset.tip ?? "", /^Queue \(.+\) · Steer \(.+\)$/);
   assert.match(stop.dataset.tip ?? "", /^Stop \((Esc|Escape)\)$/);
-  await act(async () => { queue.click(); });
-  assert.deepEqual(sent, [false], "a click on the arrow queues what is written");
-  assert.equal(cancelled, 0, "and leaves the run going");
   await act(async () => { stop.click(); });
   assert.equal(cancelled, 1);
   await running.unmount();

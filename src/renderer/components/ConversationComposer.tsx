@@ -65,18 +65,13 @@ function sendTip(runActive: boolean, { recall = false } = {}) {
   return keys.join(" · ");
 }
 
-const QUEUE_TIP = [shortcutTip("Queue", "Enter"), shortcutTip("Steer", "Mod+Enter")].join(" · ");
-
 /**
- * Sends what is written, or stops the run while one is going. While a run goes and something is
- * written, a queue button stands beside Stop so a click never stops the run in its place. `busy` is
- * a send already on its way.
+ * Sends what is written, or stops the run while one is going. `busy` is a send already on its way.
  */
-function SendButton({ taskId, surface, runActive, queueable, command, disabled, busy, recall, onSend, onCancel }: {
+function SendButton({ taskId, surface, runActive, command, disabled, busy, recall, onSend, onCancel }: {
   taskId: string | undefined;
   surface: ComposerSurface;
   runActive: boolean;
-  queueable: boolean;
   command: AppCommand;
   disabled: boolean;
   busy: boolean;
@@ -86,14 +81,9 @@ function SendButton({ taskId, surface, runActive, queueable, command, disabled, 
 }) {
   if (runActive) {
     return (
-      <>
-        {queueable && <CommandButton command={command} className="send-button" disabled={disabled || busy} onClick={onSend} aria-label={surface === "side" ? "Queue side chat message" : "Queue message"} data-tip={QUEUE_TIP}>
-          <ArrowUp size={16} strokeWidth={2.5} aria-hidden="true" />
-        </CommandButton>}
-        <CommandButton command={{ type: "run.cancel", taskId }} className="send-button running" onClick={onCancel} aria-label={sendLabel(surface, true)} data-tip={sendTip(true)}>
-          <span className="stop-glyph" />
-        </CommandButton>
-      </>
+      <CommandButton command={{ type: "run.cancel", taskId }} className="send-button running" onClick={onCancel} aria-label={sendLabel(surface, true)} data-tip={sendTip(true)}>
+        <span className="stop-glyph" />
+      </CommandButton>
     );
   }
   return (
@@ -429,7 +419,7 @@ export function ConversationComposer({
             <ComposerHint id={hintId} steer={steerHint} />
             {planUsage && <PlanUsageMeter engineLabel={engineLabel} model={model} usage={planUsage.usage} {...(planUsage.onOpen ? { onOpen: planUsage.onOpen } : {})} />}
             {contextUsage && <ContextUsageMeter usage={contextUsage} {...(onCompact ? { onCompact } : {})} />}
-            <SendButton taskId={taskId} surface={surface} runActive={runActive} queueable={steerHint} command={sendCommand} disabled={disabled || nothingToSend} busy={!disabled && (attachments.sending || waiting)} recall={history.length > 0} onSend={() => void submit()} onCancel={onCancel} />
+            <SendButton taskId={taskId} surface={surface} runActive={runActive} command={sendCommand} disabled={disabled || nothingToSend} busy={!disabled && (attachments.sending || waiting)} recall={history.length > 0} onSend={() => void submit()} onCancel={onCancel} />
           </div>
         </div>
       </div>}
